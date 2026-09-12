@@ -296,3 +296,110 @@ function scanFences(body: string): FenceLine[] {
   }
   return out;
 }
+
+/**
+ * 表の中で記号を持つ行（`| **B0** | …`）の、その記号。
+ *
+ * 状態と事象はどちらもこの形で並ぶ。**見出しで区別する** —— 見出しに「状態」を
+ * 含む節の表が状態、「事象」を含む節の表が事象。
+ */
+function symbolsUnderHeadings(body: string, match: (heading: string) => boolean): string[] {
+  const out: string[] = [];
+  let heading = "";
+
+  for (const line of stripFences(body).split("\n")) {
+    const h = /^#{2,6}\s+(.+)$/.exec(line);
+    if (h) {
+      heading = h[1]!;
+      continue;
+    }
+    if (!match(heading)) continue;
+    const row = /^\|\s*\*\*([A-Za-z][A-Za-z0-9]*)\*\*\s*\|/.exec(line);
+    if (row) out.push(row[1]!);
+  }
+  return out;
+}
+
+type CountClaim = {
+  /** 散文が名乗った数 */
+  claimed: number;
+  /** 表を数えた数 */
+  actual: number;
+  /** `状態` か `事象` */
+  kind: "状態" | "事象";
+};
+
+/**
+ * 「7状態 × 15事象」のような**散文の数**と、表の行数の食い違いを返す。
+ *
+ * この形の腐り方は実測で4回出た（`.claude/knowledge/mechanization-backlog.md` の
+ * 「表を指す散文が、その表の行数と合っているか」）。行を1つ足したときに散文だけが
+ * 古いまま残り、しかも**その数を根拠にした判断**（軸を別に持つ、段を5つに切る）が
+ * 一緒に古くなる。数が合っていないと、その判断を後から確かめ直せない。
+ *
+ * 主張を持たない表は対象外。数を書かない自由はあり、書いたときだけ守らせる。
+ */
+export function countClaimsIn(body: string): CountClaim[] {
+  const text = stripFences(body);
+  const states = new Set(symbolsUnderHeadings(body, (h) => /状態/.test(h) && !/事象/.test(h)));
+  const events = new Set(symbolsUnderHeadings(body, (h) => /事象/.test(h)));
+
+  const out: CountClaim[] = [];
+  for (const m of text.matchAll(/(\d+)\s*状態/g)) {
+    out.push({ kind: "状態", claimed: Number(m[1]), actual: states.size });
+  }
+  for (const m of text.matchAll(/(\d+)\s*事象/g)) {
+    out.push({ kind: "事象", claimed: Number(m[1]), actual: events.size });
+  }
+  return out.filter((c) => c.claimed !== c.actual);
+}
+
+/**
+ * 「埋まっていないセル」の節に挙がっている項目の数。
+ *
+ * **箇条書きと表の両方を数える。** 実際の表は両方の形で書かれていて
+ * （`position-editor.md` は番号付き、`game-session.md` は表）、
+ * 片方だけを数えると**書き方の違いを「1件も挙げていない」と読み違える**。
+ *
+ * 表は区切り行（`| --- |`）より後ろの行だけを数える。見出し行は項目ではない。
+ * 散文だけの節は0件。
+ */
+export function unfilledCellCount(body: string): number {
+  const lines = stripFences(body).split("\n");
+  const start = lines.findIndex((l) => /^#{2,6}\s+.*埋まっていない/.test(l));
+  if (start < 0) return 0;
+
+  let n = 0;
+  let inTableBody = false;
+
+  for (const line of lines.slice(start + 1)) {
+    if (/^#{2,6}\s/.test(line)) break;
+
+    if (/^\s*\|[\s\-:|]+\|\s*$/.test(line)) {
+      inTableBody = true;
+      continue;
+    }
+    if (!line.trimStart().startsWith("|")) inTableBody = false;
+
+    if (/^\s*(?:[-*]|\d+\.)\s+\S/.test(line)) n++;
+    else if (inTableBody && line.trimStart().startsWith("|")) n++;
+  }
+  return n;
+}
+
+/**
+ * 在庫表（`README.md`）が「まだ踏まれていない」と書いた表の名前。
+ *
+ * 摘要にそう書いておきながら本体の「埋まっていないセル」が空、という食い違いが
+ * 実際に起きる。README だけ直して本体を直さない側にも、本体だけ直して README を
+ * 直さない側にも倒れるので、対で見る。
+ */
+export function tablesClaimedUnverified(readme: string): string[] {
+  const out: string[] = [];
+  for (const line of stripFences(readme).split("\n")) {
+    if (!line.startsWith("|")) continue;
+    if (!/未検証|踏まれていない/.test(line)) continue;
+    for (const m of line.matchAll(/\[([\w-]+\.md)\]/g)) out.push(m[1]!);
+  }
+  return out;
+}

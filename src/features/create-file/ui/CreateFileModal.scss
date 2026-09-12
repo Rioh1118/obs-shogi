@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: index.$space-6;
+  height: 100%;
   // 余白は中身が持つ（他の対話と同じ形。`Modal` には padding="none" を渡す）。
   // タブと入力欄の左端が揃わないのは `Form` が自分の左右 padding を持つため。
   // ここを合わせておくと、タブの左端が Form の見出しの左端と揃う
@@ -65,7 +66,18 @@
   }
 
   // Form側は padding 2rem 3rem なので、ここは余計な padding を付けない
+  // 組む面は器の高さいっぱいを使う（盤の高さが残りから決まる）ので、
+  // ここが伸びる側になる
   &__body {
+    flex: 1 1 auto;
     min-height: 0;
   }
+}
+
+// 器は xl（1100px）。インポートの面はそこから中身の幅を絞って中央に置く。
+// 棋譜テキストを貼る欄が幅いっぱいに広がると、1行が長すぎて
+// どこまで貼れたのかが読めない
+.create-file-modal__narrow {
+  width: min(52rem, 100%); // scale-exempt
+  margin: 0 auto;
 }

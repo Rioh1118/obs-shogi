@@ -23,6 +23,17 @@ export function turnLabel(color: Color): string {
   return color === Color.Black ? SENTE_LABEL : GOTE_LABEL;
 }
 
+/**
+ * 文の中に混ぜる語。記号を付けない
+ *
+ * **`shogi.js` の `colorToString` を呼ばない。** 同じ「先手」を返すが、
+ * 出典が2つになると、記号を付ける／付けないの判断もそこで割れる
+ * （文の中で `☗先手の歩が` と書くと読点の無い行に記号が並ぶ）。
+ */
+export function turnSide(color: Color): "先手" | "後手" {
+  return color === Color.Black ? "先手" : "後手";
+}
+
 /** 記号を出さず「〜番」で言う場合。`turnLabel` とは別物なので名前を分けてある。 */
 export function turnText(color: Color): "先手番" | "後手番" {
   return color === Color.Black ? "先手番" : "後手番";

@@ -12,6 +12,9 @@ import {
   staleUncreatedInBody,
   staleUncreatedNames,
   stripFences,
+  countClaimsIn,
+  unfilledCellCount,
+  tablesClaimedUnverified,
   TABLES_DIR,
   tables,
 } from "./stateTransitionIndex";
@@ -410,5 +413,152 @@ describe("stripFences", () => {
 
     expect(stripFences(body)).not.toContain("nope.md");
     expect(stripFences(body)).toContain("real.md");
+  });
+});
+
+describe("表を指す散文の数", () => {
+  test("「N状態 × M事象」が表の行数と合っている", () => {
+    const offenders: string[] = [];
+    let claims = 0;
+
+    for (const name of tables()) {
+      const body = readFileSync(join(TABLES_DIR, name), "utf8");
+      const text = stripFences(body);
+      claims += [...text.matchAll(/\d+\s*(?:状態|事象)/g)].length;
+
+      for (const c of countClaimsIn(body)) {
+        offenders.push(`${name}  「${c.claimed}${c.kind}」と書いてあるが、表は ${c.actual} 行`);
+      }
+    }
+
+    // 主張が1つも見つからないと、走査が壊れていても緑になる
+    expect(claims).toBeGreaterThan(0);
+    expect(
+      offenders,
+      [
+        "表を指す散文の数が、表の行数と合っていない:",
+        ...offenders,
+        "",
+        "その数を根拠にした判断（軸を別に持つ、段をN個に切る）も一緒に古くなる。",
+      ].join("\n"),
+    ).toEqual([]);
+  });
+});
+
+describe("在庫表の摘要と本体の対応", () => {
+  test("「未検証」と書いた表は、埋まっていないセルを挙げている", () => {
+    const readme = readFileSync(join(TABLES_DIR, "README.md"), "utf8");
+    const claimed = tablesClaimedUnverified(readme);
+
+    // 摘要を1つも読めていないと、この検査は何も見ずに緑になる
+    expect(claimed.length).toBeGreaterThan(0);
+
+    const offenders = claimed.filter(
+      (name) => unfilledCellCount(readFileSync(join(TABLES_DIR, name), "utf8")) === 0,
+    );
+
+    expect(
+      offenders,
+      [
+        "在庫表の摘要は「未検証」と言っているのに、本体が1件も挙げていない:",
+        ...offenders,
+        "",
+        "README だけ直して本体を直さない形。どちらが正かは書いた人にしか分からない。",
+      ].join("\n"),
+    ).toEqual([]);
+  });
+});
+
+describe("countClaimsIn", () => {
+  const doc = [
+    "## 状態",
+    "",
+    "| 記号 | 状態 |",
+    "| --- | --- |",
+    "| **S0** | あ |",
+    "| **S1** | い |",
+    "",
+    "## 事象",
+    "",
+    "| **X1** | え |",
+    "",
+    "## なぜ",
+    "",
+    "2状態 × 1事象。",
+  ].join("\n");
+
+  test("合っていれば何も返さない", () => {
+    expect(countClaimsIn(doc)).toEqual([]);
+  });
+
+  test("食い違いだけを返す", () => {
+    expect(countClaimsIn(doc.replace("2状態 × 1事象", "3状態 × 1事象"))).toEqual([
+      { kind: "状態", claimed: 3, actual: 2 },
+    ]);
+  });
+
+  test("数を書いていない表は対象外", () => {
+    expect(countClaimsIn(doc.replace("2状態 × 1事象。", "軸として別に持つ。"))).toEqual([]);
+  });
+
+  test("状態の表と事象の表を見出しで見分ける", () => {
+    // 見出しで分けないと、両方の行数を足した数と比べることになる
+    expect(countClaimsIn(doc.replace("2状態 × 1事象", "2状態 × 2事象"))).toEqual([
+      { kind: "事象", claimed: 2, actual: 1 },
+    ]);
+  });
+});
+
+describe("unfilledCellCount", () => {
+  test("箇条書きを数える", () => {
+    const body = ["## 埋まっていないセル", "", "- あ", "- い", "", "## 次", "", "- う"].join("\n");
+    expect(unfilledCellCount(body)).toBe(2);
+  });
+
+  test("番号付きも数える", () => {
+    expect(unfilledCellCount(["## 埋まっていないセル", "", "1. あ", "2. い"].join("\n"))).toBe(2);
+  });
+
+  test("表で書いてあっても数える", () => {
+    // 箇条書きだけを数えると、表で書いた節を「1件も挙げていない」と読み違える
+    const body = [
+      "## 埋まっていないセル",
+      "",
+      "| セル | 状態 |",
+      "| --- | --- |",
+      "| あ | 未検証 |",
+      "| い | 未検証 |",
+      "",
+      "## 次",
+    ].join("\n");
+    expect(unfilledCellCount(body)).toBe(2);
+  });
+
+  test("表の見出し行は項目に数えない", () => {
+    const body = ["## 埋まっていないセル", "", "| セル | 状態 |", "| --- | --- |"].join("\n");
+    expect(unfilledCellCount(body)).toBe(0);
+  });
+
+  test("散文だけの節は0", () => {
+    expect(unfilledCellCount(["## 埋まっていないセル", "", "無い。"].join("\n"))).toBe(0);
+  });
+
+  test("節が無ければ0", () => {
+    expect(unfilledCellCount("## 状態\n\n- あ")).toBe(0);
+  });
+});
+
+describe("tablesClaimedUnverified", () => {
+  test("摘要に未検証を含む行の表を返す", () => {
+    const readme = [
+      "| [a.md](a.md) | ✅ | 全部踏んである |",
+      "| [b.md](b.md) | ✅ | **一部は未検証** |",
+      "| [c.md](c.md) | ✅ | まだ1つも踏まれていない |",
+    ].join("\n");
+    expect(tablesClaimedUnverified(readme)).toEqual(["b.md", "c.md"]);
+  });
+
+  test("表の行以外は見ない", () => {
+    expect(tablesClaimedUnverified("印の無いセルが未検証の経路。[a.md](a.md)")).toEqual([]);
   });
 });

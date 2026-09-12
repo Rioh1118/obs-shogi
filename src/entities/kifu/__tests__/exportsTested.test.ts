@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as cursorModule from "@/entities/kifu/model/cursor";
 import * as branchModule from "@/entities/kifu/model/branch";
+import * as handicapModule from "@/entities/kifu/model/handicap";
 import * as jkfModule from "@/entities/kifu/model/jkf";
 import * as kifuModule from "@/entities/kifu/model/kifu";
 import * as advanceWithPlanModule from "@/entities/kifu/lib/advanceWithPlan";
@@ -47,6 +48,7 @@ type Target = { name: string; module: unknown; test: string };
 const MODEL: Target[] = [
   { name: "cursor.ts", module: cursorModule, test: "cursor.test.ts" },
   { name: "branch.ts", module: branchModule, test: "branch.test.ts" },
+  { name: "handicap.ts", module: handicapModule, test: "handicap.test.ts" },
   { name: "jkf.ts", module: jkfModule, test: "jkf.test.ts" },
   { name: "kifu.ts", module: kifuModule, test: "kifu.test.ts" },
 ];

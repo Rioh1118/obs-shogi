@@ -51,6 +51,9 @@
     font-size: index.$font-aux;
     // 失敗の説明は切り詰めない。`…` で切ると、いちばん要る「どこが」が落ちる
     overflow-wrap: anywhere;
+    // 複数の理由を並べる通知は、改行を書いたとおりに折る。既定だと改行が空白に
+    // 潰れて全部が1文につながり、**何件あるのかが読めなくなる**
+    white-space: pre-line;
   }
 
   &__actions {

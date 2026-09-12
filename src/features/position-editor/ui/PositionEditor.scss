@@ -1,0 +1,526 @@
+@use "@/index.scss" as index;
+@use "@/entities/position/ui/shogiBoardGeometry" as geo;
+
+// 駒台の幅と、駒台に置く駒の大きさ。
+//
+// **器の内寸から逆算した値。** 器は `min(1100px, 92vw)`（`Modal` の
+// `--workspace.modal--size-xl`）＝ 110rem。そこから
+// カードの枠 0.2rem と `.create-file-modal` の左右の余白 4.8rem を引いて**内寸 105.0rem**。
+// 14 × 2（駒台）＋ 43.9（盤）＋ 1.6 × 3（行間）＋ 28（フォーム）＝ 104.7rem。
+// **余りは 0.3rem しか無い。** どれかを広げると溢れるので、
+// 幅で足りない分は高さで取る。行間を `$space-9` にすると 0.3rem 溢れる。
+//
+// スケールに載らないので `scssScaleRatchet` は見ていない（ADR-0003）。
+// 緑で通ったことを「規約に沿っている」と読まないこと。
+$stand-w: 14rem; // scale-exempt
+$stand-piece: 3.6rem; // scale-exempt
+
+// 掴んでいる駒の薄さ。盤の升と駒台で同じ値を使う
+$held-opacity: 0.3; // scale-exempt
+
+// **押しても何も起きないものを沈める薄さ。** 升・駒台・種のボタン・一覧の行・
+// 作成中の面で同じ役なので、1つの名前に寄せる。直値で散らすと、
+// 沈め方を変えるときに必ずどれかが漏れる
+$sunk-opacity: 0.45; // scale-exempt
+$side-w: 28rem; // scale-exempt
+$seed-select-w: 18rem; // scale-exempt
+$picker-list-w: 32rem; // scale-exempt
+
+// 器は縦に縮められる（`tauri.conf.json` に `minHeight` が無く `resizable: true`）。
+// 盤を固定にすると切れるので、**高さを先に決めて幅を縦横比から出す**。
+.pos-editor {
+  display: flex;
+  gap: index.$space-8;
+  height: 100%;
+  min-height: 0;
+
+  // 隠れているあいだも木には残る（組みかけを消さないため）。
+  // `hidden` は UA の `[hidden] { display: none }` で効くはずだが、
+  // ここで `display` を書いているぶん作者側が勝つので、**書いた側で降ろす**
+  &[hidden] {
+    display: none;
+  }
+}
+
+.pos-editor__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-6;
+
+  // 作成中。**止まっていることを見せて止める** ——
+  // `inert` で受け付けなくするだけだと「押しても何も起きない」に見える
+  &.is-busy {
+    opacity: $sunk-opacity;
+  }
+}
+
+// 課題局面の面に移っているあいだ、盤とフォームは木に残したまま隠れる
+// （外すと打った入力が消える）。`display` を書いた側が UA の
+// `[hidden] { display: none }` に勝つので、**書いた側で降ろす**
+.pos-editor__main[hidden],
+.pos-editor__side[hidden] {
+  display: none;
+}
+
+// 種を選ぶ行。**確定ボタンは置かない**ので、押せるものは選択肢と1つのボタンだけ。
+// 出どころを選ぶ段（分節）を挟まない —— 押すものが2つしか無いので段が増えるだけになる
+.pos-editor__seed {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: index.$space-4;
+  flex-wrap: wrap;
+
+  &-select {
+    width: $seed-select-w;
+  }
+
+  // **欄と同じ高さにする。** 揃えないと、同じ行に並ぶ2つの押せるものが
+  // 別々の大きさに見える（`Select` の内寸は `$space-6` / `$space-8`）
+  &-button {
+    font-family: inherit;
+    font-size: index.$font-aux;
+    color: index.$color-text-light-1;
+    background: index.$surface-raised;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-3;
+    padding: index.$space-6 index.$space-8;
+    cursor: pointer;
+
+    // 白い文字を載せる面はホバーで暗くする（ADR-0005 決定2）
+    &:hover:not(:disabled) {
+      background: index.$color-primary-black;
+    }
+
+    &:disabled {
+      opacity: $sunk-opacity;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// 右の列。**断りが一番上。** 盤の右隣の上端なので、枠を付けた升との距離が最短になる。
+// 高さが変わってもフォームが下がるだけで**盤は動かない**
+.pos-editor__side {
+  width: $side-w;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-6;
+  min-height: 0;
+  overflow: hidden;
+
+  // **「作成」を巻き取られる側に置かない。** この列は 28rem しか無く、
+  // `Form` の `--horizontal` が2列になるには内寸に 42rem 要るので、
+  // ファイル名と先手名の組は**必ず縦に積まれる**。積まれたぶんフォームは器より高く、
+  // 列ごと巻くと器の主操作がどの高さでも初期表示に現れない。
+  // 欄だけを巻き、ボタンの行は下端に残す。
+  //
+  // 幅で足せないのは、盤の面の必要幅が内寸 105.0rem に対して 104.7rem だから
+  // （このファイル冒頭の式）。**残りは 0.3rem しか無い。**
+  .form {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .form__group--buttons {
+    position: sticky;
+    bottom: 0;
+    // 巻いた欄がボタンの下を通り抜けるので、面を敷いて切る。
+    // 器のカードは同じ色を 0.95 で敷いているので、ここは一段沈む
+    background: index.$color-primary-black;
+    padding-top: index.$space-4;
+    margin-top: index.$space-4;
+  }
+}
+
+.pos-editor__position {
+  display: grid;
+  grid-template-columns: $stand-w auto $stand-w;
+  // 1段目は手番の1行、2段目が盤と駒台。盤の高さは残りから決まる
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: index.$space-8;
+  row-gap: index.$space-6;
+  justify-content: start;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+// **枠も面も持たせない。** 囲うと、盤・駒台と並ぶ4つ目の置き場に見える
+.pos-editor__turn {
+  grid-column: 2;
+  grid-row: 1;
+
+  display: flex;
+  align-items: baseline;
+  gap: index.$space-4;
+
+  // **色を書かない。** この行は面を持たないので、ここで色を宣言すると
+  // `contrastRatchet` の「測れなかった宣言」が増える —— 測れない対は比が下がっても
+  // 緑のまま通る。器のカードの色を継ぎ、段の差は文字の大きさが持つ
+  &-label {
+    font-size: index.$font-hint;
+    flex: 0 0 auto;
+  }
+
+  &-value {
+    font-size: index.$font-lead;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  &-button {
+    font-family: inherit;
+    font-size: index.$font-aux;
+    color: index.$color-text-light-1;
+    background: index.$surface-raised;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-3;
+    padding: index.$space-1 index.$space-3;
+    cursor: pointer;
+
+    // 白い文字を載せる面はホバーで暗くする（ADR-0005 決定2）。
+    // 明るくすると比が下がり、押す瞬間に最も読みにくくなる
+    &:hover {
+      background: index.$color-primary-black;
+    }
+  }
+}
+
+.pos-editor__board {
+  grid-column: 2;
+  grid-row: 2;
+  height: 100%;
+  max-height: geo.$board-h;
+  aspect-ratio: #{geo.board-aspect()};
+
+  position: relative;
+  background-image: url("/src/assets/board.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  border-radius: index.$radius-1;
+  box-shadow: index.$shadow-panel;
+  user-select: none;
+  justify-self: center;
+}
+
+.pos-editor__grid {
+  position: absolute;
+  inset: #{geo.inset-y-pct()} #{geo.inset-x-pct()};
+
+  border: geo.$position-border solid #000;
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+}
+
+.pos-editor__square {
+  position: relative;
+  cursor: pointer;
+  border-right: geo.$square-line solid #000;
+  border-bottom: geo.$square-line solid #000;
+
+  &:nth-child(9n) {
+    border-right: none;
+  }
+  &:nth-child(n + 73) {
+    border-bottom: none;
+  }
+
+  // 盤は木目なので、ホバーは**明るくする**（暗い文字が載る面の向き。ADR-0005 決定2）
+  &:hover:not(.pos-editor__square--blocked) {
+    background-color: rgba(index.$color-white, 0.18);
+  }
+
+  // 掴んでいる駒の元の升。**残像を残す。** 盤から消すと、どこから持ったのかを
+  // 見失って、置き先を決める前に元へ戻せなくなる（戻す口が無い）
+  &--from {
+    background-color: rgba(index.$color-secondary-dark, 0.22);
+
+    .piece {
+      opacity: $held-opacity;
+    }
+  }
+
+  // 掴んでいる駒を置けない升。**押す前に沈める。**
+  // 面を覆う形にするのは、駒の絵まで一緒に沈めるため
+  &--blocked {
+    cursor: not-allowed;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(index.$color-primary-black, 0.5);
+      pointer-events: none;
+    }
+  }
+
+  // 重ねる予告。**枠線で示し、面を塗らない。** 塗ると掴んでいる升の色を覆う。
+  //
+  // 意味色は4つから選ぶ（ADR-0004。発明しない）。ここは段ではなく予告だが、
+  // 「取り消しに2手かかる」を warning、「入れ替わるだけ」を info に当てている。
+  // `outline` を使うのは、内側の枠を影で描くと `box-shadow` の直値が増えるため
+  &--takes {
+    outline: 2px solid index.$color-warning;
+    outline-offset: -2px;
+  }
+
+  &--swaps {
+    outline: 2px solid index.$color-info;
+    outline-offset: -2px;
+  }
+
+  // 規則に反する配置。**枠線で示し、面を塗らない。**
+  // 塗ると、掴んでいる升の残像も重ねる予告も覆い隠す
+  &--illegal {
+    outline: 2px solid index.$color-danger;
+    outline-offset: -2px;
+  }
+}
+
+// **左右で同じ大きさ。上下は対局中の盤と同じ側へ寄せる**
+// （後手＝盤の上端、先手＝盤の下端）。
+.pos-editor__stand-slot {
+  grid-row: 2;
+  min-height: 0;
+  // **盤と同じ高さまで伸ばす。** 段の高さは盤より高くなりうるので、
+  // 下端に寄せるだけだと先手の駒台が盤の下端より下に出る
+  display: flex;
+  align-items: stretch;
+
+  &--gote {
+    grid-column: 1;
+  }
+  &--sente {
+    grid-column: 3;
+  }
+}
+
+// **`hand.png`（木目）は敷かない。** 実物の駒台は 20rem × 22rem のほぼ正方形で、
+// 縦長に置きたいこの面と寸法が合わない。実線の枠と暗い面で代える。
+.pos-editor__stand {
+  width: 100%;
+  // **盤と同じ式で高さを決める。** 盤は `height: 100%` を盤の上限で頭打ちにするので、
+  // 同じ上限を掛ければ器がどの高さでも両者が一致する（器が低ければ両方が縮む）。
+  // 下限は持たせない —— 持たせると器が低いときに駒台だけが盤からはみ出し、
+  // 先手側は種を選ぶ行に重なって押下を奪う。
+  // 中身は `&-rows` が `overflow-y: auto` を持つので、縮んでも駒には届く
+  height: 100%;
+  max-height: geo.$board-h;
+
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-4;
+  // **不透明にする。** 半透明の面にすると、載る場所ごとに実効値が変わって
+  // 文字との比が測れなくなる（`contrastRatchet` の「測れなかった宣言」へ落ちる）。
+  // 器のカードは同じ色を 0.95 で敷いているので、駒台はその一段下として沈む
+  background: index.$color-primary-black;
+  padding: index.$space-4;
+
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-3;
+
+  // **見出しをこの中に入れ子で書く。** 外に出すと、`contrastRatchet` が
+  // 文字の載る面を辿れず「測れなかった宣言」に落ちる。測れない対は
+  // 比が下がっても緑のまま通る
+  &-head {
+    font-size: index.$font-hint;
+    color: index.$color-text-primary;
+    flex: 0 0 auto;
+  }
+
+  &-rows {
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-2;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  // 見出しは常に上のまま、駒だけを対局中の盤と同じ側へ寄せる
+  &[data-color="0"] &-rows {
+    margin-top: auto;
+  }
+
+  // 掴んでいる間だけ、置き場として名乗る
+  &--drop {
+    border-color: index.$color-secondary-dark;
+    background: index.$surface-raised;
+  }
+
+  &--blocked {
+    opacity: $sunk-opacity;
+    cursor: not-allowed;
+  }
+
+  // 重ねた駒の行き先。升の枠と同じ意味色で対にする
+  &--dest {
+    border-color: index.$color-warning;
+  }
+}
+
+// 重ねて置いた束。枚数は数字で出さず、重なりの厚みで見せる。
+// 幅が足りなくなるので、`--stack-step` は枚数が増えるほど詰める。
+.pos-editor__stack {
+  --stack-step: min(
+    #{$stand-piece} * 0.42,
+    (100% - #{$stand-piece}) / max(1, var(--stack-count) - 1)
+  );
+
+  position: relative;
+  height: $stand-piece;
+  flex: 0 0 auto;
+  cursor: pointer;
+
+  // 掴んでいる束。盤の升と同じで、駒台からも消さずに薄くする
+  &--held .piece {
+    opacity: $held-opacity;
+  }
+}
+
+.pos-editor__stack-piece {
+  position: absolute;
+  top: 0;
+  left: calc(var(--stack-index) * var(--stack-step));
+  width: $stand-piece;
+  height: $stand-piece;
+}
+
+// 掴んだ駒はカーソルに付いてくる。
+// **位置は `EditorGhost` が ref で直に書く**（state に持つと盤ごと再描画になる）。
+.pos-editor__ghost {
+  position: fixed;
+  z-index: 60;
+  width: $stand-piece;
+  height: $stand-piece;
+  pointer-events: none;
+  opacity: 0.9;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
+  transform: translate(-50%, -50%);
+
+  // 掴んだ時点のポインタ位置を知る口が無いので、最初の `mousemove` まで出さない。
+  // 出すと画面の隅に駒が1つ光る
+  visibility: hidden;
+
+  &--placed {
+    visibility: visible;
+  }
+}
+
+// 保存先が無いときの注記。面を持たないので色を書かない（器のカードの色を継ぐ）
+.pos-editor__form-hint {
+  margin: index.$space-2 0 0;
+  font-size: index.$font-hint;
+}
+
+// 課題局面の面。一覧と盤のプレビューを左右に置く
+.pos-editor__picker {
+  display: flex;
+  gap: index.$space-8;
+  min-height: 0;
+  flex: 1 1 auto;
+  outline: none;
+
+  &-list {
+    width: $picker-list-w;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-4;
+    min-height: 0;
+  }
+
+  &-filters {
+    display: flex;
+    align-items: flex-end;
+    gap: index.$space-3;
+    flex: 0 0 auto;
+  }
+
+  &-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-family: inherit;
+    font-size: index.$font-body;
+    color: index.$color-text-light-1;
+    background: index.$color-primary-black;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-3;
+    padding: index.$space-2 index.$space-3;
+  }
+
+  &-rows {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-1;
+  }
+
+  &-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: index.$space-3;
+    padding: index.$space-3 index.$space-4;
+    border-radius: index.$radius-3;
+    background: index.$color-primary-black;
+    cursor: pointer;
+
+    // 下見している行。**押した行ではない** —— 押した瞬間に載って盤へ戻るので、
+    // 「選ばれたまま留まる行」はこの面に存在しない
+    &.is-looking {
+      background: index.$surface-raised;
+    }
+
+    // SFEN が読めず、盤に載せられない行。**押す前に沈める** ——
+    // 押しても何も起きない行を作らない
+    &.is-broken {
+      opacity: $sunk-opacity;
+      cursor: not-allowed;
+    }
+
+    // **行の中に入れ子で書く。** 外に出すと、`contrastRatchet` が文字の載る面を
+    // 辿れず「測れなかった宣言」に落ちる
+    .pos-editor__picker-label {
+      color: index.$color-text-light-1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pos-editor__picker-state {
+      flex: 0 0 auto;
+      font-size: index.$font-hint;
+      color: index.$color-text-primary;
+    }
+  }
+
+  // 面を持たないので色を書かない（器のカードの色を継ぐ）
+  &-empty {
+    margin: 0;
+    padding: index.$space-6 index.$space-4;
+    font-size: index.$font-aux;
+  }
+
+  &-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-4;
+  }
+
+  &-foot {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: flex-end;
+  }
+}

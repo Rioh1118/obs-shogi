@@ -72,6 +72,7 @@ const NOT_RUST: &[(&str, &str)] = &[
     ("file-tree.md", "ファイル木。TS 側"),
     ("game.md", "棋譜のカーソルと分岐計画。TS 側"),
     ("inline-name-editor.md", "名前の編集。TS 側"),
+    ("position-editor.md", "初期局面を組む面。TS 側"),
     (
         "position-search-view.md",
         "局面検索の画面側。TS 側（引く方は search.md）",
