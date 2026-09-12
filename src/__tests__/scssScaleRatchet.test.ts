@@ -20,7 +20,7 @@ const BASELINE: Record<Bucket, number> = {
   motion: 67,
   family: 10,
   indirect: 49,
-  exempt: 11,
+  exempt: 10,
 };
 
 /** トークンの定義そのものなので、直値があって当然のファイル */

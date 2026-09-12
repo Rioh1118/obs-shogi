@@ -22,7 +22,6 @@ $held-opacity: 0.3; // scale-exempt
 // 作成中の面で同じ役なので、1つの名前に寄せる。直値で散らすと、
 // 沈め方を変えるときに必ずどれかが漏れる
 $sunk-opacity: 0.45; // scale-exempt
-$stand-min-h: 26rem; // scale-exempt
 $side-w: 28rem; // scale-exempt
 $seed-select-w: 18rem; // scale-exempt
 $picker-list-w: 32rem; // scale-exempt
@@ -66,18 +65,34 @@ $picker-list-w: 32rem; // scale-exempt
   display: none;
 }
 
-// 種を選ぶ行。**確定ボタンは置かない**ので、押せるものは選択肢と2つのボタンだけ
+// 種を選ぶ行。**確定ボタンは置かない**ので、押せるものは選択肢と1つのボタンだけ。
+// 出どころを選ぶ段（分節）を挟まない —— 押すものが2つしか無いので段が増えるだけになる
 .pos-editor__seed {
   flex: 0 0 auto;
   display: flex;
   align-items: flex-end;
-  gap: index.$space-3;
+  gap: index.$space-4;
   flex-wrap: wrap;
+
+  // 直したことの添え。欄の中に入れないのは、`Select` の選択肢に無い綴りを
+  // 値として持たせないため。
+  //
+  // **色を書かない。** この行は面を持たないので、ここで色を宣言すると
+  // `contrastRatchet` の「測れなかった宣言」が増える —— 測れない対は比が下がっても
+  // 緑のまま通る。器のカードの色を継ぎ、段の差は文字の大きさが持つ
+  &-note {
+    font-size: index.$font-hint;
+    // 欄と同じ行の下端に揃える。`align-items: flex-end` の中で文字だけが
+    // 上に浮かないよう、欄の内寸と同じぶん下げる
+    padding-bottom: index.$space-4;
+  }
 
   &-select {
     width: $seed-select-w;
   }
 
+  // **欄と同じ高さにする。** 揃えないと、同じ行に並ぶ2つの押せるものが
+  // 別々の大きさに見える（`Select` の内寸は `$space-6` / `$space-8`）
   &-button {
     font-family: inherit;
     font-size: index.$font-aux;
@@ -85,7 +100,7 @@ $picker-list-w: 32rem; // scale-exempt
     background: index.$surface-raised;
     border: 1px solid index.$stroke;
     border-radius: index.$radius-3;
-    padding: index.$space-2 index.$space-4;
+    padding: index.$space-6 index.$space-8;
     cursor: pointer;
 
     // 白い文字を載せる面はホバーで暗くする（ADR-0005 決定2）
@@ -286,15 +301,16 @@ $picker-list-w: 32rem; // scale-exempt
 .pos-editor__stand-slot {
   grid-row: 2;
   min-height: 0;
+  // **盤と同じ高さまで伸ばす。** 段の高さは盤より高くなりうるので、
+  // 下端に寄せるだけだと先手の駒台が盤の下端より下に出る
   display: flex;
+  align-items: stretch;
 
   &--gote {
     grid-column: 1;
-    align-items: flex-start;
   }
   &--sente {
     grid-column: 3;
-    align-items: flex-end;
   }
 }
 
@@ -302,12 +318,13 @@ $picker-list-w: 32rem; // scale-exempt
 // 縦長に置きたいこの面と寸法が合わない。実線の枠と暗い面で代える。
 .pos-editor__stand {
   width: 100%;
-  // **下限を親で頭打ちにする。** `clamp()` の第1引数は親と無関係の固定値なので、
-  // `clamp(26rem, 78%, 100%)` と書くと器が低いときに駒台が親をはみ出す。
-  // 先手側は下端に揃えてあるぶん**上へ**出て、種を選ぶ行に重なり、
-  // 重なった場所の押下を奪う（後ろの兄弟が勝つ）。
+  // **盤と同じ式で高さを決める。** 盤は `height: 100%` を盤の上限で頭打ちにするので、
+  // 同じ上限を掛ければ器がどの高さでも両者が一致する（器が低ければ両方が縮む）。
+  // 下限は持たせない —— 持たせると器が低いときに駒台だけが盤からはみ出し、
+  // 先手側は種を選ぶ行に重なって押下を奪う。
   // 中身は `&-rows` が `overflow-y: auto` を持つので、縮んでも駒には届く
-  height: min(max(#{$stand-min-h}, 78%), 100%);
+  height: 100%;
+  max-height: geo.$board-h;
 
   border: 1px solid index.$stroke-strong;
   border-radius: index.$radius-4;
