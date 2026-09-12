@@ -27,8 +27,6 @@ const square = (x: number, y: number): HTMLElement => {
 
 const handicapButton = (): HTMLElement =>
   document.querySelector<HTMLElement>("#pos-editor-handicap")!;
-const editedNote = (): HTMLElement | null =>
-  document.querySelector<HTMLElement>(".pos-editor__seed-note");
 
 const pickHandicap = (label: string) => {
   fireEvent.click(handicapButton());
@@ -61,38 +59,22 @@ describe("手合割から", () => {
     expect(document.querySelector(".pos-editor__turn-value")!.textContent).toBe("☖後手");
   });
 
-  test("盤を触っても名前は消えない。直したことが添えられる", () => {
+  test("盤を触っても名前は消えない", () => {
     // **消すと「何をもとに組んだか」が画面から消える。** 平手を直した形なのか
     // 駒落ちを直した形なのかが読めなくなる
     render(<EditorHarness />);
     expect(handicapButton().textContent).toBe("平手");
-    expect(editedNote()).toBeNull();
 
     fireEvent.click(square(7, 7));
     fireEvent.click(square(7, 6));
 
     expect(handicapButton().textContent).toBe("平手");
-    expect(editedNote()?.textContent).toBe("（編集済み）");
   });
 
-  test("手番を変えただけでも「編集済み」になる", () => {
-    // 出口に書かれるものが盤面そのものに変わるので、画面もそう名乗る
+  test("手番を変えても名前は消えない", () => {
     render(<EditorHarness />);
     fireEvent.click(screen.getByRole("button", { name: "変更" }));
     expect(handicapButton().textContent).toBe("平手");
-    expect(editedNote()?.textContent).toBe("（編集済み）");
-  });
-
-  test("載せ直すと「編集済み」が消える", () => {
-    render(<EditorHarness />);
-    fireEvent.click(square(7, 7));
-    fireEvent.click(square(7, 6));
-
-    pickHandicap("二枚落ち");
-    fireEvent.click(screen.getByRole("button", { name: "捨てる" }));
-
-    expect(handicapButton().textContent).toBe("二枚落ち");
-    expect(editedNote()).toBeNull();
   });
 
   test("同じ手合割を選び直すと、確認を通ってから載せ直される", () => {
@@ -108,6 +90,5 @@ describe("手合割から", () => {
     fireEvent.click(screen.getByRole("button", { name: "捨てる" }));
     expect(square(7, 7).querySelector(".piece")).not.toBeNull();
     expect(handicapButton().textContent).toBe("平手");
-    expect(editedNote()).toBeNull();
   });
 });

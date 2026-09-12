@@ -307,7 +307,9 @@ function PositionEditor({
    * こちらが答えるのは「`initial` に `{preset}` と書いてよいか」で、
    * 1升でも動かしたら**盤面そのものを書かないと直した配置が黙って落ちる**。
    *
-   * 食い違いは画面の中で説明する —— 直した名前には「（編集済み）」が付く。
+   * **画面には出さない。** 出口が変わったことを名前に添えると、
+   * 種を選ぶ行が「いま何が載っているか」と「何が書かれるか」の2つを名乗ることになる。
+   * ここが答えるのは後者だけ。
    */
   const handicapForOutput = isDirty ? null : handicap;
 
@@ -338,7 +340,6 @@ function PositionEditor({
       >
         <EditorSeed
           handicap={handicap}
-          isDirty={isDirty}
           onPickHandicap={pickHandicap}
           onOpenStudyPositions={openStudyPositions}
         />

@@ -74,19 +74,6 @@ $picker-list-w: 32rem; // scale-exempt
   gap: index.$space-4;
   flex-wrap: wrap;
 
-  // 直したことの添え。欄の中に入れないのは、`Select` の選択肢に無い綴りを
-  // 値として持たせないため。
-  //
-  // **色を書かない。** この行は面を持たないので、ここで色を宣言すると
-  // `contrastRatchet` の「測れなかった宣言」が増える —— 測れない対は比が下がっても
-  // 緑のまま通る。器のカードの色を継ぎ、段の差は文字の大きさが持つ
-  &-note {
-    font-size: index.$font-hint;
-    // 欄と同じ行の下端に揃える。`align-items: flex-end` の中で文字だけが
-    // 上に浮かないよう、欄の内寸と同じぶん下げる
-    padding-bottom: index.$space-4;
-  }
-
   &-select {
     width: $seed-select-w;
   }

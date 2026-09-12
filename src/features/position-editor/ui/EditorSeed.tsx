@@ -9,8 +9,6 @@ interface EditorSeedProps {
    * 平手を直した形なのか駒落ちを直した形なのかが読めなくなる。
    */
   handicap: HandicapPreset | null;
-  /** 種を載せてから盤・駒台・手番のどれかを変えたか */
-  isDirty: boolean;
   onPickHandicap: (preset: HandicapPreset) => void;
   onOpenStudyPositions: () => void;
 }
@@ -27,7 +25,7 @@ interface EditorSeedProps {
  * 押せるものは2つだけなので、出どころを選ぶ段（分節）を挟まない ——
  * 挟むと押す回数が増えるだけになる。
  */
-function EditorSeed({ handicap, isDirty, onPickHandicap, onOpenStudyPositions }: EditorSeedProps) {
+function EditorSeed({ handicap, onPickHandicap, onOpenStudyPositions }: EditorSeedProps) {
   return (
     <div className="pos-editor__seed">
       <div className="pos-editor__seed-select">
@@ -40,13 +38,6 @@ function EditorSeed({ handicap, isDirty, onPickHandicap, onOpenStudyPositions }:
           onChange={onPickHandicap}
         />
       </div>
-
-      {/*
-        **直したことを名前に添える。** 添えないと、画面の「平手」と
-        ファイルに書かれるもの（並べ替えたら盤面そのもの）が食い違ったまま読めない。
-        欄の外に出すのは、`Select` の選択肢に無い綴りを値として持たせないため
-      */}
-      {handicap !== null && isDirty && <span className="pos-editor__seed-note">（編集済み）</span>}
 
       <button type="button" className="pos-editor__seed-button" onClick={onOpenStudyPositions}>
         課題局面から…
