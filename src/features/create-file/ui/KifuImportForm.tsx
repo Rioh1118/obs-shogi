@@ -164,16 +164,14 @@ function KifuImportForm({
 
   return (
     <Form handleSubmit={handleSubmit}>
-      <FormField>
-        <h2 className="form__heading-secondary">棋譜をインポートして作成</h2>
-      </FormField>
-
+      {/* **見出しを置かない。** 器が「棋譜を作る」を名乗り、タブが「インポート」を
+          名乗っている。3つ目を足すと、この面が何なのかを3箇所で言うことになる */}
       <FormField>
         <Textarea
           label="棋譜テキスト"
           id="rawKifu"
           ref={rawRef}
-          placeholder=".kif / .ki2 / .csa / .jkf を貼り付け（Ctrl/⌘+V）"
+          placeholder=".kif / .ki2 / .csa / .jkf を貼り付け"
           value={rawContent}
           onChange={(e) => setRawContent(e.target.value)}
         />
@@ -206,7 +204,7 @@ function KifuImportForm({
 
       <FormField horizontal>
         <TextInput
-          label="ファイル名(必須)"
+          label="ファイル名"
           id="fileName"
           placeholder="45角戦法"
           value={fileName}
@@ -214,7 +212,7 @@ function KifuImportForm({
           required
         />
         <Select
-          label="保存形式（拡張子）"
+          label="形式"
           id="format"
           options={KIFU_FORMAT_OPTIONS}
           value={format}
@@ -237,10 +235,6 @@ function KifuImportForm({
         )}
       </FormField>
 
-      <FormField>
-        <div className="kifu-import__saveName">保存名: {fullFileName || "（未入力）"}</div>
-      </FormField>
-
       {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
       {submitError && (
         <FormField>
@@ -255,10 +249,12 @@ function KifuImportForm({
           isLoading={isSaving}
           disabled={!fullFileName || parsed.kind !== "read" || !selectedDir}
         >
-          {isSaving ? "作成中..." : "インポートして作成"}
+          {isSaving ? "作成中..." : "作成"}
         </Button>
+        {/* 盤の面と同じ語。**同じ門（`closeGuard`）を通る同じ操作**なので、
+            片方を「キャンセル」と呼ぶと、戻り先が違うように読める */}
         <Button type="button" onClick={onCancel} disabled={isSaving}>
-          キャンセル
+          やめる
         </Button>
       </ButtonGroup>
     </Form>

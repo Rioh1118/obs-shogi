@@ -86,7 +86,7 @@ async function submitForm() {
 describe("KifuImportForm", () => {
   function fillImport() {
     typeInto("棋譜テキスト", KIF_TEXT);
-    typeInto("ファイル名(必須)", "研究");
+    typeInto("ファイル名", "研究");
   }
 
   /**
@@ -140,7 +140,7 @@ describe("KifuImportForm", () => {
     test("読めないうちは作成を押せない", () => {
       render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
-      typeInto("ファイル名(必須)", "研究");
+      typeInto("ファイル名", "研究");
       typeInto("棋譜テキスト", BROKEN_JKF);
 
       expect(screen.getByRole<HTMLButtonElement>("button", { name: /作成/ }).disabled).toBe(true);
@@ -164,9 +164,9 @@ describe("KifuImportForm", () => {
   test("拡張子まで打っても、打った文字は欄から消えない", () => {
     render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
-    typeInto("ファイル名(必須)", "45角戦法.kif");
+    typeInto("ファイル名", "45角戦法.kif");
 
-    expect(screen.getByLabelText<HTMLInputElement>("ファイル名(必須)").value).toBe("45角戦法.kif");
+    expect(screen.getByLabelText<HTMLInputElement>("ファイル名").value).toBe("45角戦法.kif");
   });
 
   test("打った拡張子は二重に付かない", async () => {
@@ -174,7 +174,7 @@ describe("KifuImportForm", () => {
     render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
     typeInto("棋譜テキスト", KIF_TEXT);
-    typeInto("ファイル名(必須)", "45角戦法.kif");
+    typeInto("ファイル名", "45角戦法.kif");
     await submitForm();
 
     expect(importKifuFile).toHaveBeenCalledWith("/root", "45角戦法.kif", expect.any(String));
