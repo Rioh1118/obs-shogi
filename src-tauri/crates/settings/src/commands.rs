@@ -7,7 +7,8 @@ use tauri::{AppHandle, Runtime};
 use crate::app::AppConfig;
 use crate::presets::PresetsFile;
 use crate::study::StudyPositionsFile;
-use crate::{app, presets, study};
+use crate::updater::UpdaterState;
+use crate::{app, presets, study, updater};
 
 #[tauri::command]
 pub fn load_config(app_handle: AppHandle) -> Result<AppConfig, String> {
@@ -50,4 +51,17 @@ pub fn save_study_positions<R: Runtime>(
     input: StudyPositionsFile,
 ) -> Result<(), String> {
     study::write(&app_handle, &input)
+}
+
+#[tauri::command]
+pub fn load_updater_state<R: Runtime>(app_handle: AppHandle<R>) -> Result<UpdaterState, String> {
+    updater::read_or_default(&app_handle)
+}
+
+#[tauri::command]
+pub fn save_updater_state<R: Runtime>(
+    app_handle: AppHandle<R>,
+    state: UpdaterState,
+) -> Result<(), String> {
+    updater::write(&app_handle, &state)
 }

@@ -1,11 +1,11 @@
 @use "@/index.scss" as index;
 
-// Anchors to bottom-right — non-blocking
+// 画面の隅に出して背後を止めない。`aria-modal` を名乗らないのはこの形に合わせるため
 .updater-overlay {
   position: fixed;
   z-index: 9000;
-  bottom: 2.4rem;
-  right: 2.4rem;
+  bottom: index.$space-12;
+  right: index.$space-12;
   pointer-events: none;
 }
 
@@ -17,8 +17,8 @@
 
   width: 30rem;
 
-  border: 1px solid rgba(index.$color-white, 0.08);
-  border-radius: 1.6rem;
+  border: 1px solid index.$stroke-weak;
+  border-radius: index.$radius-8;
 
   background: linear-gradient(
     160deg,
@@ -26,9 +26,7 @@
     rgba(index.$color-primary-black, 0.99)
   );
   backdrop-filter: blur(24px);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.5),
-    0 1px 0 rgba(index.$color-white, 0.05) inset;
+  box-shadow: index.$shadow-overlay;
 
   color: index.$color-text-primary;
 
@@ -38,7 +36,7 @@
 @keyframes updater-slide-in {
   from {
     opacity: 0;
-    transform: translateY(1rem) scale(0.97);
+    transform: translateY(index.$space-5) scale(0.97);
   }
   to {
     opacity: 1;
@@ -50,9 +48,9 @@
 .updater-card__header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1.1rem 1.1rem 0.9rem 1.2rem;
-  border-bottom: 1px solid rgba(index.$color-white, 0.05);
+  gap: index.$space-4;
+  padding: index.$space-6 index.$space-6 index.$space-5;
+  border-bottom: 1px solid index.$stroke-weak;
 }
 
 .updater-card__icon {
@@ -62,14 +60,14 @@
   width: 2.8rem;
   height: 2.8rem;
   flex-shrink: 0;
-  border-radius: 0.9rem;
+  border-radius: index.$radius-5;
   background: rgba(index.$color-secondary-dark, 0.15);
   color: index.$color-secondary-dark;
 }
 
 .updater-card__heading {
   flex: 1;
-  font-size: 1.3rem;
+  font-size: index.$font-body;
   font-weight: 700;
   letter-spacing: 0.01em;
   color: index.$color-text-light-1;
@@ -83,7 +81,7 @@
   height: 2.2rem;
   flex-shrink: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: index.$radius-circle;
   background: transparent;
   color: rgba(index.$color-text-primary, 0.4);
   cursor: pointer;
@@ -99,11 +97,14 @@
 
 // Body
 .updater-card__body {
-  padding: 1rem 1.2rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-3;
+  padding: index.$space-5 index.$space-6 index.$space-3;
 }
 
 .updater-card__version {
-  font-size: 1.25rem;
+  font-size: index.$font-aux;
   color: rgba(index.$color-text-primary, 0.72);
   line-height: 1.5;
 }
@@ -115,40 +116,54 @@
 }
 
 .updater-card__note {
-  font-size: 1.25rem;
+  font-size: index.$font-aux;
   color: rgba(index.$color-text-primary, 0.65);
+  line-height: 1.5;
 }
 
+// 失敗したときに次へ進むための一文。**見出しの次に読ませる**ので本文の明度で出す
+.updater-card__hint {
+  font-size: index.$font-aux;
+  color: index.$color-danger-text;
+  line-height: 1.5;
+}
+
+// plugin が返した綴り。**手掛かりであって見出しではない**ので、一段落とす。
+//
+// **`color` を宣言せずに `opacity` で落とす。** この面は不透明度を持つ層の重ねで
+// できていてコントラストを測れない（`contrastRatchet` の「測れなかった宣言」）。
+// 色をもう1つ足すと、測れない宣言だけが増える
 .updater-card__error {
-  font-size: 1.2rem;
-  color: rgba(255, 100, 80, 0.85);
+  font-size: index.$font-hint;
+  opacity: 0.55;
   word-break: break-all;
+  user-select: text;
 }
 
 // Progress
 .updater-card__progress-wrap {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: index.$space-4;
 }
 
 .updater-card__progress-bar {
   flex: 1;
   height: 3px;
-  border-radius: 9999px;
+  border-radius: index.$radius-pill;
   background: rgba(index.$color-white, 0.08);
   overflow: hidden;
 }
 
 .updater-card__progress-fill {
   height: 100%;
-  border-radius: 9999px;
+  border-radius: index.$radius-pill;
   background: index.$color-secondary-dark;
   transition: width 80ms linear;
 }
 
 .updater-card__progress-label {
-  font-size: 1.1rem;
+  font-size: index.$font-hint;
   font-feature-settings: "tnum";
   color: rgba(index.$color-text-primary, 0.5);
   min-width: 3.2rem;
@@ -160,6 +175,6 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.7rem 1.1rem 1.1rem;
+  gap: index.$space-3;
+  padding: index.$space-4 index.$space-6 index.$space-6;
 }

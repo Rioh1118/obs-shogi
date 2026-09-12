@@ -78,6 +78,10 @@ const NOT_RUST: &[(&str, &str)] = &[
         "局面検索の画面側。TS 側（引く方は search.md）",
     ),
     ("verify-gate-decision.md", "検証ゲート。shell スクリプト"),
+    (
+        "updater.md",
+        "更新の確認と適用。TS 側のフックと、tauri-plugin-updater（外部 crate）",
+    ),
 ];
 
 /// 表に出るが実装の識別子ではないもの。
