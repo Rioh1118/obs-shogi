@@ -224,12 +224,12 @@ describe("捨てる確認", () => {
     expect(document.querySelectorAll(".pos-editor__square .piece")).toHaveLength(38);
   });
 
-  test("「組み続ける」で組みかけが残る", () => {
+  test("「閉じない」で組みかけが残る", () => {
     render(<EditorHarness />);
     makeDirty();
     pressEscape();
 
-    fireEvent.click(screen.getByRole("button", { name: "組み続ける" }));
+    fireEvent.click(screen.getByRole("button", { name: "閉じない" }));
     expect(confirm()).toBeNull();
     expect(square(7, 7).querySelector(".piece")).toBeNull(); // 動かしたまま
   });
@@ -277,7 +277,8 @@ describe("捨てる確認", () => {
 
     expect(screen.getByRole("button", { name: "捨てる" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "削除する" })).toBeNull();
-    // 戻る側は、器ごと閉じるフォームの「やめる」と別の語にする
-    expect(screen.getByRole("button", { name: "組み続ける" })).toBeTruthy();
+    // 戻る側は、器ごと閉じるフォームの「やめる」と別の語にする。
+    // 「組み続ける」にもしない —— 貼りかけだけを捨てるとき、利用者は組んでいない
+    expect(screen.getByRole("button", { name: "閉じない" })).toBeTruthy();
   });
 });

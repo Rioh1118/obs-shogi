@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act, within } from "@testing-library/react";
 
 /**
  * タブを跨いだときに何が残り、何が消えるか（状態遷移表の I×X9 と W×X9）。
@@ -56,6 +56,21 @@ const hasPiece = (x: number, y: number): boolean => square(x, y).querySelector("
 
 const tab = (name: string) => screen.getByRole("tab", { name, hidden: true });
 
+/**
+ * 面ごとに引く
+ *
+ * **両方の面が木に残る**（外すと組みかけも貼りかけも消える）ので、
+ * 同じ語のラベルもボタンも器の中に2つある。器ごと引くと、
+ * 隠れているほうを掴んで「押しても何も起きない」テストになる。
+ */
+const faceIn = (selector: string) => {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) throw new Error(`面が無い: ${selector}`);
+  return within(el);
+};
+const importFace = () => faceIn(".kifu-import");
+const boardFace = () => faceIn(".pos-editor");
+
 /** 7七の歩を7六へ動かして、組みかけにする */
 function makeDirty() {
   fireEvent.click(square(7, 7));
@@ -91,7 +106,7 @@ describe("タブの切り替え（X9）", () => {
     render(<CreateFileModal />);
     // 隠れているあいだにどちらの面を描くかは目に見えないが、**フォームの有無が変わる**。
     // 課題局面の面を描くと、隠れているあいだに作成フォームごと外れて入力が消える
-    fireEvent.change(screen.getByLabelText("ファイル名"), { target: { value: "45角戦法" } });
+    fireEvent.change(boardFace().getByLabelText("ファイル名"), { target: { value: "45角戦法" } });
     fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
     expect(screen.getByRole("button", { name: "戻る" })).toBeTruthy();
 
@@ -100,7 +115,7 @@ describe("タブの切り替え（X9）", () => {
 
     expect(screen.queryByRole("button", { name: "戻る" })).toBeNull();
     expect(hasPiece(7, 7)).toBe(true);
-    expect((screen.getByLabelText("ファイル名") as HTMLInputElement).value).toBe("45角戦法");
+    expect(boardFace().getByLabelText<HTMLInputElement>("ファイル名").value).toBe("45角戦法");
   });
 
   test("閉じて開き直すと、面は盤から始まる", () => {
@@ -116,41 +131,92 @@ describe("タブの切り替え（X9）", () => {
   });
 });
 
-/** 解析を通る最小の kif。インポートの送信条件（解析 OK）を満たすために要る */
+/** 読める最小の kif。インポートの送信条件（棋譜として読めたこと）を満たすために要る */
 const KIF_TEXT = "手数----指手---------消費時間--\n   1 ７六歩(77)   ( 0:00/00:00:00)\n";
 
 /** インポートの面を出して、送信できるところまで埋める */
 function fillImport() {
   fireEvent.click(tab("インポート"));
-  fireEvent.change(screen.getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
-  fireEvent.change(screen.getByLabelText("ファイル名(必須)"), { target: { value: "研究" } });
+  fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+  fireEvent.change(importFace().getByLabelText("ファイル名"), { target: { value: "研究" } });
 }
 
 const importForm = (): HTMLFormElement => {
-  const form = document.querySelector<HTMLFormElement>(".create-file-modal__narrow form");
+  const form = document.querySelector<HTMLFormElement>(".kifu-import form");
   if (!form) throw new Error("インポートのフォームが無い");
   return form;
 };
 
 describe("インポートの面から閉じる", () => {
-  test("組みかけを持ったまま「キャンセル」を押すと確認が出る", () => {
+  test("組みかけを持ったまま「やめる」を押すと確認が出る", () => {
     render(<CreateFileModal />);
     makeDirty();
     fireEvent.click(tab("インポート"));
 
-    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
 
     expect(screen.getByText("組んだ局面は保存されません。")).toBeTruthy();
     expect(closeModal).not.toHaveBeenCalled();
   });
 
-  test("組みかけが無ければ、そのまま閉じる", () => {
+  test("捨てるものが無ければ、そのまま閉じる", () => {
     render(<CreateFileModal />);
     fireEvent.click(tab("インポート"));
 
-    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
 
     expect(closeModal).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 捨てるものは面ごとに在り、**閉じる口はどちらの面にもある**。
+   * 器が両方を数えないと、見ていないほうが黙って消える。
+   */
+  test("棋譜を貼ったまま閉じようとすると確認が出る", () => {
+    render(<CreateFileModal />);
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+
+    expect(screen.getByText("貼った棋譜は保存されません。")).toBeTruthy();
+    expect(closeModal).not.toHaveBeenCalled();
+  });
+
+  test("貼った棋譜は、盤の面から Esc で閉じようとしても数える", () => {
+    render(<CreateFileModal />);
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+    fireEvent.click(tab("新規作成"));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.getByText("貼った棋譜は保存されません。")).toBeTruthy();
+    expect(closeModal).not.toHaveBeenCalled();
+  });
+
+  // 1つだけを名指すと、もう片方が消えることが確認を読んでも分からない
+  test("両方あるときは両方を名指す", () => {
+    render(<CreateFileModal />);
+    makeDirty();
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+
+    expect(screen.getByText("組んだ局面と貼った棋譜は保存されません。")).toBeTruthy();
+  });
+
+  test("「閉じない」なら、貼ったものは残る", () => {
+    render(<CreateFileModal />);
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "閉じない" }));
+
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(importFace().getByLabelText<HTMLTextAreaElement>("棋譜テキスト").value).toBe(KIF_TEXT);
   });
 
   test("インポートの面へ移ると、貼り付け欄に焦点が入る", async () => {
@@ -181,7 +247,7 @@ describe("作成中（W）", () => {
     );
 
     render(<CreateFileModal />);
-    fireEvent.change(screen.getByLabelText("ファイル名"), { target: { value: "a" } });
+    fireEvent.change(boardFace().getByLabelText("ファイル名"), { target: { value: "a" } });
     // **組む面の中から探す。** インポートの面も木に残っていて、そちらの
     // フォームのほうが DOM では先に来る
     const form = document.querySelector(".pos-editor form");

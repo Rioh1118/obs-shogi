@@ -15,6 +15,7 @@ import * as cloneJkfModule from "@/entities/kifu/lib/cloneJkf";
 import * as commentModule from "@/entities/kifu/lib/comment";
 import * as createInitialJKFDataModule from "@/entities/kifu/lib/createInitialJKFData";
 import * as eqMoveModule from "@/entities/kifu/lib/eqMove";
+import * as kifuOverviewModule from "@/entities/kifu/lib/kifuOverview";
 import * as leafTesuuModule from "@/entities/kifu/lib/leafTesuu";
 import * as playerCursorModule from "@/entities/kifu/lib/playerCursor";
 import * as playerNamesModule from "@/entities/kifu/lib/playerNames";
@@ -71,6 +72,7 @@ const LIB: Target[] = [
     test: "createInitialJKFData.test.ts",
   },
   { name: "eqMove.ts", module: eqMoveModule, test: "eqMove.test.ts" },
+  { name: "kifuOverview.ts", module: kifuOverviewModule, test: "kifuOverview.test.ts" },
   { name: "leafTesuu.ts", module: leafTesuuModule, test: "leafTesuu.test.ts" },
   { name: "playerCursor.ts", module: playerCursorModule, test: "playerCursor.test.ts" },
   { name: "playerNames.ts", module: playerNamesModule, test: "playerNames.test.ts" },

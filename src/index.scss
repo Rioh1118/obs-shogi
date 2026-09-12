@@ -184,6 +184,10 @@ $surface-titlebar: rgba($color-primary-black, 0.86);
 // `scssScaleRatchet` の `indirect` が増えて落ちるため。
 // `indirect` の枠を免除されるのはこのファイルだけ（`scssScale.ts` の `tokenSource`、ADR-0003）
 $floating-note-header-height: 2.6rem;
+// 「棋譜を作る」の右の列（ファイルの欄）。**2つの面が同じ幅を名乗る** ——
+// 盤で組む面と棋譜を貼る面はタブで入れ替わるので、別々に持つと切り替えた瞬間に
+// 欄だけが左右に動く。器の内寸 105.0rem の配分は `PositionEditor.scss` 冒頭の式が持つ
+$create-file-side-width: 28rem;
 
 // 重なりの段
 // **離れたファイル同士で大小が意味を持つものだけ**に名前を付ける。

@@ -1,37 +1,60 @@
 @use "@/index.scss" as index;
 
+// 貼る欄の高さ。**器の高さを配らない** —— この面で確かめたいのは「棋譜として読めたか」の
+// 1行で、棋譜の中身をここで読む用途は無い。器いっぱいに伸ばすと、その1行が下端まで遠のく。
+// 足りなければ利用者が掴んで伸ばせる（`Form.scss` の `resize: vertical`）。
+//
+// スケールに載らないので `scssScaleRatchet` は見ていない（ADR-0003）。
+// 緑で通ったことを「規約に沿っている」と読まないこと。
+$paste-h: 14rem; // scale-exempt
+
 .kifu-import {
-  // 貼り付けた棋譜が読めたかどうか。押す前に分かる必要があるので、
-  // 送信できない理由をボタンの disabled だけに任せない
-  &__parse {
-    font-size: index.$font-body;
-    color: index.$color-text-primary;
+  height: 100%;
+  min-height: 0;
+
+  // 隠れているあいだも木には残る（貼りかけの棋譜を消さないため）。
+  // `hidden` は UA の `[hidden] { display: none }` で効くはずだが、
+  // ここで `display` を書いているぶん作者側が勝つので、**書いた側で降ろす**
+  &[hidden] {
+    display: none;
   }
 
-  // まだ何も貼られていない状態。失敗ではないので本文より弱く出す
-  &__parse--idle {
-    color: rgba(index.$color-text-primary, 0.7);
+  // **「作成」を器の下端に置く。** 盤の面（`pos-editor__side`）と同じ位置に来るので、
+  // タブを跨いでも主操作が上下に飛ばない。
+  // 余った高さを受けるのは、読み取った棋譜の素性（`__summary`）
+  .form {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
   }
 
-  &__parseDetail {
-    margin-top: index.$space-3;
-
-    summary {
-      cursor: pointer;
-    }
+  // 貼る欄と欄の行は自分の高さのまま。伸びるのは素性の箱だけ
+  .form__group {
+    flex: 0 0 auto;
   }
 
-  &__parseRaw {
-    margin: index.$space-2 0 0;
-    font-family: index.$font-mono;
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-primary, 0.75);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+  // **巻き取られる側に置かない。** 失敗が出ると欄より下が伸びるので、
+  // 列ごと巻くと器の主操作がどの高さでも初期表示に現れなくなる
+  // （盤の面の `.pos-editor__side` と同じ作り）
+  .form__group--buttons {
+    margin-top: auto;
+    position: sticky;
+    bottom: 0;
+    // 巻いた欄がボタンの下を通り抜けるので、面を敷いて切る。
+    // 器のカードは同じ色を 0.95 で敷いているので、ここは一段沈む
+    background: index.$color-primary-black;
+    padding-top: index.$space-8;
   }
 
-  &__saveName {
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-primary, 0.75);
+  .form__textarea {
+    height: $paste-h;
   }
+}
+
+// 保存先が無いときの注記。**面を持たないので色を書かない**（器のカードの色を継ぐ）。
+// 色を宣言すると `contrastRatchet` の「測れなかった宣言」が増え、
+// 測れない対は比が下がっても緑のまま通る
+.kifu-import__hint {
+  margin: 0;
+  font-size: index.$font-hint;
 }
