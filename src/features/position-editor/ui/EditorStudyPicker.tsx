@@ -75,7 +75,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
     });
   }, [positions, query, state]);
 
-  // **下見は行そのもので覚える。** 位置で覚えると、絞り込みで件数が変わらないまま
+  // **選んだ行そのもので覚える。** 位置で覚えると、絞り込みで件数が変わらないまま
   // 中身が入れ替わったときに、押していない別の局面へ黙って移る
   const looking = shown.find((p) => p.id === lookingId) ?? shown[0] ?? null;
   const at = looking ? shown.indexOf(looking) : -1;
@@ -102,7 +102,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
           return;
         }
 
-        // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で下見だけできて決める口が無いと、
+        // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で選ぶだけできて決める口が無いと、
         // 鍵盤だけの利用者は種を1つも選べない。沈めた行は押下と同じで受け付けない
         if (e.key === "Enter" && looking && !unusable.has(looking.id)) {
           e.preventDefault();
@@ -160,8 +160,21 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
                   title={
                     broken ? "保存されている局面の綴りが壊れていて、盤に載せられません" : undefined
                   }
-                  onMouseEnter={() => setLookingId(position.id)}
-                  onClick={broken ? undefined : () => onPick(position)}
+                  // **1回目で選び、2回目で載せる。** 局面検索の一覧と同じ規則で、
+                  // 「見たいだけ」を押下で表せるようにする。ホバーでは動かさない ——
+                  // 通り過ぎただけでプレビューが変わると、見たい局面に辿り着けない。
+                  //
+                  // `dblclick` を使わないのは、あれが保証するのは2打が同じ**要素**に
+                  // 落ちたことだけだから。`detail`（打鍵の連なり）と
+                  // 「1打目が選んだ行か」の両方を見れば、2打とも同じ行だったかが決まる
+                  onClick={
+                    broken
+                      ? undefined
+                      : (e) =>
+                          e.detail >= 2 && index === at
+                            ? onPick(position)
+                            : setLookingId(position.id)
+                  }
                 >
                   <span className="pos-editor__picker-label">
                     {position.label || "（タイトルなし）"}

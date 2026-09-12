@@ -37,12 +37,17 @@ function position(over: Partial<StudyPosition> = {}): StudyPosition {
 
 const openPicker = (positions: StudyPosition[]) => {
   render(<EditorHarness studyPositions={positions} />);
-  fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
+  fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
 };
 
 const rows = (): HTMLElement[] => [
   ...document.querySelectorAll<HTMLElement>(".pos-editor__picker-row"),
 ];
+
+/** 選ぶ（1回目） */
+const select = (row: HTMLElement) => fireEvent.click(row);
+/** 載せる（選んだ行をもう1回） */
+const confirm = (row: HTMLElement) => fireEvent.click(row, { detail: 2 });
 const boardPieces = (): number => document.querySelectorAll(".pos-editor__square .piece").length;
 // **見えているかで判定する。** 課題局面の面へ移っても盤とフォームは木に残る
 // （外すと打った入力が消える）ので、有無では面を判定できない
@@ -71,12 +76,29 @@ describe("面の出入り", () => {
 });
 
 describe("行を押す", () => {
-  test("押した瞬間に載って盤の面へ戻る", () => {
+  test("1回目では載らない。2回目で載って盤の面へ戻る", () => {
+    // **「ちょっと見たいだけ」を押下で表せること。** 1回で載ると、
+    // 見るために押した利用者が組みかけを捨てる確認に当たる
     openPicker([position({ sfen: TSUME })]);
-    fireEvent.click(rows()[0]!);
 
+    select(rows()[0]!);
+    expect(onBoardFace()).toBe(false);
+
+    confirm(rows()[0]!);
     expect(onBoardFace()).toBe(true);
     expect(boardPieces()).toBe(1);
+  });
+
+  test("選んでいない行の2回目は、選ぶだけ", () => {
+    // `detail >= 2` だけを見ると、別の行を押した直後の2打目が
+    // **1度しか押していない行**の確定として届く
+    openPicker([position({ sfen: HIRATE }), position({ id: "sp2", sfen: TSUME })]);
+
+    select(rows()[0]!);
+    confirm(rows()[1]!);
+
+    expect(onBoardFace()).toBe(false);
+    expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
   });
 
   test("確定ボタンは無い", () => {
@@ -89,7 +111,8 @@ describe("行を押す", () => {
     // 黙って盤へ戻すと、種が変わっていないのに別の局面が載ったように見える。
     // 面に留めれば、その行が選べないことが画面から読める
     openPicker([position({ sfen: "これは SFEN ではない" })]);
-    fireEvent.click(rows()[0]!);
+    select(rows()[0]!);
+    confirm(rows()[0]!);
     expect(onBoardFace()).toBe(false);
   });
 
@@ -102,7 +125,7 @@ describe("行を押す", () => {
     expect(screen.getByText("読めません")).toBeTruthy();
   });
 
-  test("読めない行を下見しても、盤の絵を待たせ続けない", () => {
+  test("読めない行を選んでも、盤の絵を待たせ続けない", () => {
     openPicker([position({ sfen: "これは SFEN ではない" })]);
     expect(screen.queryByText("局面を読み込み中...")).toBeNull();
     expect(
@@ -114,20 +137,28 @@ describe("行を押す", () => {
 
   test("持ち駒も一緒に載る", () => {
     openPicker([position({ sfen: TSUME })]);
-    fireEvent.click(rows()[0]!);
+    select(rows()[0]!);
+    confirm(rows()[0]!);
     expect(document.querySelectorAll(".pos-editor__stack-piece")).toHaveLength(1);
   });
 });
 
-describe("下見", () => {
-  test("最初の行のプレビューが出ている", () => {
+describe("選ぶ", () => {
+  test("面に入った時点で先頭の行が選ばれている", () => {
     openPicker([position({ sfen: TSUME }), position({ id: "sp2", sfen: HIRATE })]);
     expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
-  test("ホバーで下見が移る", () => {
+  test("ホバーでは動かない", () => {
+    // 通り過ぎただけでプレビューが変わると、見たい局面に辿り着けない
     openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
     fireEvent.mouseEnter(rows()[1]!);
+    expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
+  });
+
+  test("1回押すと選びが移る", () => {
+    openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
+    select(rows()[1]!);
     expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
   });
 
@@ -140,7 +171,7 @@ describe("下見", () => {
     expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
   });
 
-  test("↑↓ で下見が移る", () => {
+  test("↑↓ で選びが移る", () => {
     openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
     const face = document.querySelector<HTMLElement>(".pos-editor__picker")!;
 
@@ -177,16 +208,16 @@ describe("下見", () => {
     expect(onBoardFace()).toBe(false);
   });
 
-  test("検索欄の ↑↓ は下見を動かさない", () => {
+  test("検索欄の ↑↓ は選びを動かさない", () => {
     // キャレット移動と IME の候補操作を奪わない
     openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
     fireEvent.keyDown(screen.getByLabelText("課題局面を検索"), { key: "ArrowDown" });
     expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
-  test("下見しただけでは載らない", () => {
+  test("選んだだけでは載らない", () => {
     openPicker([position({ sfen: TSUME })]);
-    fireEvent.mouseEnter(rows()[0]!);
+    select(rows()[0]!);
     expect(onBoardFace()).toBe(false);
   });
 });
@@ -223,7 +254,7 @@ describe("絞り込み", () => {
     expect(rows()).toHaveLength(1);
   });
 
-  test("絞って行が減っても、下見が一覧の外に残らない", () => {
+  test("絞って行が減っても、選びが一覧の外に残らない", () => {
     // 外に出たまま ↑↓ を押すと、何も無い場所を指したままプレビューが空になる
     openPicker(many);
     const face = document.querySelector<HTMLElement>(".pos-editor__picker")!;
@@ -234,7 +265,7 @@ describe("絞り込み", () => {
     expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
-  test("絞り込んでも、下見は同じ行に留まる", () => {
+  test("絞り込んでも、選びは同じ行に留まる", () => {
     // **下見は行そのもので覚える。** 位置で覚えると、絞り込みで行が繰り上がったときに
     // 押してもいない別の局面へ黙って移る
     openPicker([
@@ -242,7 +273,7 @@ describe("絞り込み", () => {
       position({ id: "b", label: "中盤の研究" }),
       position({ id: "c", label: "終盤の研究" }),
     ]);
-    fireEvent.mouseEnter(rows()[2]!);
+    select(rows()[2]!);
 
     // 先頭が落ちて3件→2件。位置で覚えていると、2番目を指したまま一覧の外に出る
     fireEvent.change(screen.getByLabelText("課題局面を検索"), { target: { value: "研究" } });

@@ -99,7 +99,7 @@ describe("Esc の段", () => {
 
   test("段3: 課題局面の面から盤の面へ戻る", () => {
     render(<EditorHarness studyPositions={[STUDY]} />);
-    fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
+    fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
     expect(onBoardFace()).toBe(false);
 
     // 盤の面には升が無いので、一覧の中から撃つ
@@ -208,7 +208,7 @@ describe("Esc の段", () => {
 
   test("課題局面の面でも器が焦点を持てる", () => {
     render(<EditorHarness studyPositions={[STUDY]} />);
-    fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
+    fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
     expect(editor().tabIndex).toBe(-1);
   });
 });
@@ -246,8 +246,11 @@ describe("捨てる確認", () => {
   test("種を選び直すときも同じ確認を通る", () => {
     render(<EditorHarness studyPositions={[STUDY]} />);
     makeDirty();
-    fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
-    fireEvent.click(document.querySelector<HTMLElement>(".pos-editor__picker-row")!);
+    fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
+    // 一覧は2回押して確定する（1回目で選び、2回目で載る）
+    const row = document.querySelector<HTMLElement>(".pos-editor__picker-row")!;
+    fireEvent.click(row);
+    fireEvent.click(row, { detail: 2 });
 
     expect(screen.getByText("組んだ局面は保存されません。")).toBeTruthy();
     // 押した瞬間には載らない
@@ -257,8 +260,10 @@ describe("捨てる確認", () => {
   test("課題局面を「捨てる」で載せると盤へ戻る", () => {
     render(<EditorHarness studyPositions={[STUDY]} />);
     makeDirty();
-    fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
-    fireEvent.click(document.querySelector<HTMLElement>(".pos-editor__picker-row")!);
+    fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
+    const row = document.querySelector<HTMLElement>(".pos-editor__picker-row")!;
+    fireEvent.click(row);
+    fireEvent.click(row, { detail: 2 });
     fireEvent.click(screen.getByRole("button", { name: "捨てる" }));
 
     expect(onBoardFace()).toBe(true);
