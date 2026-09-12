@@ -382,8 +382,13 @@ impl EngineRegistry {
     /// 落とす。**返らない経路を作らない。**
     ///
     /// `quit` の上限は書き込みの列の中、`kill` の上限は `kill_engine` の中。
-    /// `quit` が超えても `kill` へ進むので、プロセスが残るのは
-    /// **`kill` の上限を超えたときだけ**。待ち続けるよりましだという判断。
+    /// `quit` が超えても `kill` へ進む。待ち続けるよりましだという判断。
+    ///
+    /// **`kill` はここでは2通目の `quit` になる。** `usi` の `kill` はシグナルの
+    /// 前に `quit` を書くので、上の1通で終わったエンジンに対しては必ず EPIPE で
+    /// 折り返し、`process.kill()` へは届かない。届く先がもう無いので害は無いが、
+    /// **stdin だけ閉じて走り続けるエンジンでは残る**——そちらは上限では拾えない。
+    /// 見分けは `classify_kill_failure`（`protocol.rs`）。
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);
         let protocol = process.protocol();
