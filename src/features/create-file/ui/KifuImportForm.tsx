@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { KifuParseError } from "@/entities/kifu/api/parse";
 import {
   collectDirs,
   FsErrorView,
@@ -27,7 +28,55 @@ import "./KifuImportForm.scss";
 type ParseResult =
   | { kind: "none" }
   | { kind: "read"; format: KifuFormat; moves: number }
-  | { kind: "unreadable"; message: string };
+  | { kind: "unreadable"; message: string; cause?: string };
+
+/**
+ * 貼り直せば直るかもしれないことを、この面の言葉で添える
+ *
+ * **`KifuParseError` の文言に混ぜない。** 同じ失敗はファイルを開く経路でも起きるので、
+ * 「貼り付けてください」を出典側に書くと、開いた棋譜が読めなかったときに
+ * 貼ってもいない利用者へ貼り直しを求めることになる。
+ */
+const HOW_TO_FIX = "KIF / KI2 / CSA / JKF のいずれかを、先頭から末尾まで貼り付けてください。";
+
+/**
+ * 貼られたテキストを読む
+ *
+ * **投げなかったことを「読めた」と読まない。** KIF / KI2 / CSA のインポータは
+ * 指し手を1つも読み取れなくても `Error` ではなく空の record を返す
+ * （`parseKifuStringToJKF` の doc）ので、棋譜でない文章がそのまま通る。
+ * 通すと「読めました」と言い切ったうえで**中身の無いファイルを作り、
+ * 貼ったテキストごと器を閉じる** —— 利用者は何が消えたのかも分からない。
+ */
+function readKifu(raw: string): ParseResult {
+  const text = raw.trim();
+  if (!text) return { kind: "none" };
+
+  try {
+    const { detectedFormat, jkf } = parseKifuStringToJKF(text);
+    // `moves` の先頭は初期局面の枠なので手数から外す
+    const moves = jkf.moves.length - 1;
+    if (moves <= 0) {
+      return {
+        kind: "unreadable",
+        message: `指し手を1つも読み取れませんでした。${HOW_TO_FIX}`,
+      };
+    }
+    return { kind: "read", format: detectedFormat, moves };
+  } catch (e) {
+    // **画面に出すのは利用者向けの一文だけ。** `KifuParseError` の `message` は
+    // そのために書かれた日本語だが、それ以外は tsshogi の内部から抜けてきた英文
+    // （深く入れ子になった JKF での `RangeError` など）なので、そのまま出さない
+    if (e instanceof KifuParseError) {
+      return { kind: "unreadable", message: `${e.message}${HOW_TO_FIX}`, cause: String(e.cause) };
+    }
+    return {
+      kind: "unreadable",
+      message: `棋譜として読み取れませんでした。${HOW_TO_FIX}`,
+      cause: String(e),
+    };
+  }
+}
 
 function KifuImportForm({
   onCreated,
@@ -63,7 +112,6 @@ function KifuImportForm({
   const [format, setFormat] = useState<KifuFormat>("kif");
   const [rawContent, setRawContent] = useState("");
 
-  const [parsed, setParsed] = useState<ParseResult>({ kind: "none" });
   const [submitError, setSubmitError] = useState<FsError | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -108,27 +156,21 @@ function KifuImportForm({
     requestAnimationFrame(() => rawRef.current?.focus());
   }, [hidden]);
 
-  useEffect(() => {
-    const text = rawContent.trim();
-    if (!text) {
-      setParsed({ kind: "none" });
-      return;
-    }
+  /**
+   * **貼られたテキストから毎回引く。** state に置くと、`rawContent` が新しくて
+   * この値が古い組み合わせで描かれるコミットが打鍵ごとに1回挟まり、
+   * 送信条件（`parsed.kind`）がどちらを信じるか決まらなくなる
+   */
+  const parsed = useMemo(() => readKifu(rawContent), [rawContent]);
 
-    try {
-      const { detectedFormat, jkf } = parseKifuStringToJKF(text);
-      // `moves` の先頭は初期局面の枠なので手数から外す。**0手も出す** ——
-      // 棋譜として読めないテキストは投げずに「0手の棋譜」として返ることがあり
-      // （`parseKifuStringToJKF` の doc）、手数を出さないとそれが画面に現れない
-      setParsed({ kind: "read", format: detectedFormat, moves: Math.max(0, jkf.moves.length - 1) });
-    } catch (e) {
-      // **画面には利用者の言葉、原因はログ**（`Notice` と同じ分け方）。
-      // `KifuParseError` の `message` は利用者向けの日本語で、開発者向けの
-      // 手掛かりは `cause` にある。両方を画面へ出すと、直すべき棋譜から目が離れる
-      console.error("[create-file] 貼られた棋譜を読めなかった", e);
-      setParsed({ kind: "unreadable", message: e instanceof Error ? e.message : String(e) });
+  // 開発者向けの手掛かりはコンソールへ。**配布ビルドには残らない** ——
+  // 棋譜のパースは webview の中だけで走り、`tauri-plugin-log` は Rust のログしか受けない。
+  // 開発中に追うためのもので、利用者から原因を受け取る口ではない（→ #157）
+  useEffect(() => {
+    if (parsed.kind === "unreadable" && parsed.cause) {
+      console.error("[create-file] 貼られた棋譜を読めなかった", parsed.cause);
     }
-  }, [rawContent]);
+  }, [parsed]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

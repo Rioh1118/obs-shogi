@@ -3,6 +3,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 
 import type { FileTreeNode, FsError } from "@/entities/file-tree";
+import * as parse from "@/entities/kifu/api/parse";
 
 /**
  * インポートは、失敗を出す場所を自分で持つ。
@@ -69,7 +70,10 @@ beforeEach(() => {
   fileTree = dir("root", "/root");
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function typeInto(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });
@@ -127,14 +131,43 @@ describe("KifuImportForm", () => {
 
     /**
      * 棋譜でない文章は**投げずに**「0手の棋譜」として返る
-     * （`parseKifuStringToJKF` の doc）。手数を出さないと、これが画面に現れない。
+     * （`parseKifuStringToJKF` の doc）。投げなかったことを「読めた」と読むと、
+     * 「読めました」と言い切ったうえで中身の無いファイルを作り、
+     * 貼ったテキストごと器を閉じる。
      */
-    test("棋譜でない文章は0手として読める。手数がそれを画面に出す", () => {
+    test("棋譜でない文章は、読めなかったことにする", () => {
       render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
       typeInto("棋譜テキスト", "これは棋譜ではないただの文章です");
 
-      expect(screen.getByText(/0手/)).toBeTruthy();
+      expect(screen.getByText("棋譜として読めませんでした")).toBeTruthy();
+      expect(screen.queryByText(/読めました/)).toBeNull();
+    });
+
+    test("指し手を1つも読み取れないものでは、作成を押せない", () => {
+      render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+      typeInto("ファイル名", "研究");
+      typeInto("棋譜テキスト", "これは棋譜ではないただの文章です");
+
+      expect(screen.getByRole<HTMLButtonElement>("button", { name: /作成/ }).disabled).toBe(true);
+    });
+
+    /**
+     * `KifuParseError` 以外は tsshogi の内部から抜けてきた英文なので、そのまま出さない。
+     * 見える位置へ昇格させたぶん、絞らないと英文が利用者の前に出る。
+     */
+    test("利用者向けでない例外の文言は、画面に出さない", () => {
+      vi.spyOn(parse, "parseKifuStringToJKF").mockImplementation(() => {
+        throw new RangeError("Maximum call stack size exceeded");
+      });
+      render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+      typeInto("棋譜テキスト", KIF_TEXT);
+
+      const notice = screen.getByText("棋譜として読めませんでした").closest(".notice");
+      expect(notice?.textContent).not.toContain("Maximum call stack");
+      expect(notice?.textContent).toContain("貼り付けてください");
     });
 
     test("読めないうちは作成を押せない", () => {
