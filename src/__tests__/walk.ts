@@ -100,6 +100,26 @@ export const INDEX_HTML = repoFile("index.html");
 /** 窓の設定と CSP */
 export const TAURI_CONF = repoFile("src-tauri", "tauri.conf.json");
 
+/**
+ * GitHub Actions のワークフロー。
+ *
+ * **`.claude/hooks/verify-gate.sh` の `gate_kinds_for_path` はこの下を種類に割り当てない**ので、
+ * ここを触ったコミットでは検査が1つも走らない（→ #286）。走るのは CI と、
+ * 別のファイルを触ったついでにこの走査が回ったときだけ。
+ *
+ * 無いことを黙って通さない理由は `repoFile` と同じ。
+ */
+export function workflowFiles(): string[] {
+  const dir = join(REPO_ROOT, ".github", "workflows");
+  if (!existsSync(dir)) {
+    throw new Error(".github/workflows が無い。動かしたなら、この検査の指す先も直すこと");
+  }
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.ya?ml$/.test(entry.name))
+    .map((entry) => join(dir, entry.name))
+    .sort();
+}
+
 export type WalkOptions = {
   /** `__tests__` 配下を含めるか。既定は含める */
   includeTests?: boolean;
