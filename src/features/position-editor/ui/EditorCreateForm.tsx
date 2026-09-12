@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
+import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import {
   collectDirs,
   FsErrorView,
@@ -79,6 +79,10 @@ function EditorCreateForm({
 
   const [selectedDir, setSelectedDir] = useState(initialDir || rootPath);
 
+  // 拡張子は形式の欄が決める。**打った拡張子は落とす**ので、`45角戦法.kif` と打っても
+  // `45角戦法.kif.kif` にならない（規則は `kifuFileName` が1箇所で持つ）
+  const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
+
   // ツリーの根が入れ替わったら保存先を根へ戻す
   const [prevRoot, setPrevRoot] = useState(rootPath);
   if (rootPath !== prevRoot) {
@@ -96,13 +100,13 @@ function EditorCreateForm({
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!fileName.trim() || !selectedDir || isSubmitting) return;
+      if (!fullFileName || !selectedDir || isSubmitting) return;
 
       setSubmitError(null);
       setIsSubmitting(true);
       onSubmittingChange(true);
       const result = await createNewFile(selectedDir, {
-        fileName: `${fileName.trim()}.${format}`,
+        fileName: fullFileName,
         format,
         gameInfo: {
           black: blackPlayer.trim() || undefined,
@@ -132,7 +136,7 @@ function EditorCreateForm({
     [
       state,
       handicap,
-      fileName,
+      fullFileName,
       format,
       blackPlayer,
       whitePlayer,
@@ -225,7 +229,7 @@ function EditorCreateForm({
           type="submit"
           tone="primary"
           isLoading={isSubmitting}
-          disabled={!fileName.trim() || !selectedDir}
+          disabled={!fullFileName || !selectedDir}
         >
           {isSubmitting ? "作成中..." : "作成"}
         </Button>

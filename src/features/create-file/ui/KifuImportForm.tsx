@@ -7,7 +7,7 @@ import {
   type FsError,
 } from "@/entities/file-tree";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
+import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import Textarea from "@/shared/ui/Form/Textarea";
@@ -16,10 +16,6 @@ import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 import "./KifuImportForm.scss";
-
-function stripKnownExt(name: string) {
-  return name.replace(/\.(kif|ki2|csa|jkf)$/i, "");
-}
 
 function KifuImportForm({
   onCreated,
@@ -81,11 +77,7 @@ function KifuImportForm({
     setSelectedDir(rootPath);
   }
 
-  const fullFileName = useMemo(() => {
-    const base = stripKnownExt(fileName.trim());
-    if (!base) return "";
-    return `${base}.${format}`;
-  }, [fileName, format]);
+  const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
 
   // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
   // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
@@ -189,7 +181,7 @@ function KifuImportForm({
           id="fileName"
           placeholder="45角戦法"
           value={fileName}
-          onChange={(e) => setFileName(stripKnownExt(e.target.value))}
+          onChange={(e) => setFileName(e.target.value)}
           required
         />
         <Select

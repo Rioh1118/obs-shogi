@@ -83,6 +83,27 @@ describe("KifuImportForm", () => {
     expect(onCreated).not.toHaveBeenCalled();
   });
 
+  // 拡張子を落とすのは送るときだけ（`kifuFileName`）。打鍵のたびに落とすと、
+  // `.kif` の `f` を打った瞬間に4文字消える
+  test("拡張子まで打っても、打った文字は欄から消えない", () => {
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+    typeInto("ファイル名(必須)", "45角戦法.kif");
+
+    expect(screen.getByLabelText<HTMLInputElement>("ファイル名(必須)").value).toBe("45角戦法.kif");
+  });
+
+  test("打った拡張子は二重に付かない", async () => {
+    importKifuFile.mockResolvedValue({ success: true, data: "/root/45角戦法.kif" });
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+    typeInto("棋譜テキスト", KIF_TEXT);
+    typeInto("ファイル名(必須)", "45角戦法.kif");
+    await submitForm();
+
+    expect(importKifuFile).toHaveBeenCalledWith("/root", "45角戦法.kif", expect.any(String));
+  });
+
   test("衝突は別名を選ぶ対話が引き取るので、フォーム側では出さない", async () => {
     importKifuFile.mockResolvedValue({ success: false, error: CONFLICT });
     render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
