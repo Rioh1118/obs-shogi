@@ -62,11 +62,11 @@ const blockedSquares = (): number =>
   document.querySelectorAll(".pos-editor__square--blocked").length;
 
 describe("沈める", () => {
-  test("何も掴んでいなければ、空升が沈む", () => {
+  test("何も掴んでいなければ、沈む升は1つも無い", () => {
+    // **休んでいる盤を沈めない。** 空升を押しても何も起きないが、そこで沈めると
+    // 平手でも 41 升が黒くなり、盤が盤に見えなくなる
     render(<EditorHarness />);
-    // 平手は40枚が盤に載るので、空升は41
-    expect(blockedSquares()).toBe(41);
-    expect(square(7, 7).classList.contains("pos-editor__square--blocked")).toBe(false);
+    expect(blockedSquares()).toBe(0);
   });
 
   test("盤の駒を掴むと、沈む升が1つも無くなる", () => {

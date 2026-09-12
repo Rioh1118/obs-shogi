@@ -21,8 +21,9 @@ const HELD_HAND: Held = { from: "hand", kind: "FU", color: Color.Black };
 describe("squareMark の blocked", () => {
   const hirate = stateFromPreset("HIRATE");
 
-  test("何も掴んでいなければ、空升が押せない", () => {
-    expect(squareMark(hirate, null, null, sq(5, 5)).blocked).toBe(true);
+  test("何も掴んでいなければ、沈む升は1つも無い", () => {
+    // 沈めるのは「置き先を探している最中に、置けない場所を除く」ためだけ
+    expect(squareMark(hirate, null, null, sq(5, 5)).blocked).toBe(false);
     expect(squareMark(hirate, null, null, sq(7, 7)).blocked).toBe(false);
   });
 

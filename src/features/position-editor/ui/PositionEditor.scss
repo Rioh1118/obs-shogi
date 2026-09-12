@@ -229,6 +229,11 @@ $picker-list-w: 32rem; // scale-exempt
     border-bottom: none;
   }
 
+  // 盤は木目なので、ホバーは**明るくする**（暗い文字が載る面の向き。ADR-0005 決定2）
+  &:hover:not(.pos-editor__square--blocked) {
+    background-color: rgba(index.$color-white, 0.18);
+  }
+
   // 掴んでいる駒の元の升。**残像を残す。** 盤から消すと、どこから持ったのかを
   // 見失って、置き先を決める前に元へ戻せなくなる（戻す口が無い）
   &--from {
@@ -239,7 +244,7 @@ $picker-list-w: 32rem; // scale-exempt
     }
   }
 
-  // 押しても何も起きない升。**押す前に沈める。**
+  // 掴んでいる駒を置けない升。**押す前に沈める。**
   // 面を覆う形にするのは、駒の絵まで一緒に沈めるため
   &--blocked {
     cursor: not-allowed;
