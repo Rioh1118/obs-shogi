@@ -77,6 +77,13 @@ function KifuImportForm({
     setSelectedDir(rootPath);
   }
 
+  // **選んでいたフォルダだけが消えたときも根へ戻す。** `Select` は選択肢に無い値を
+  // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
+  // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**
+  if (selectedDir && dirOptions.length > 0 && !dirOptions.some((o) => o.value === selectedDir)) {
+    setSelectedDir(rootPath);
+  }
+
   const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
 
   // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は

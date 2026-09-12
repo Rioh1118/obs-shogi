@@ -2,7 +2,7 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 
-import type { FsError } from "@/entities/file-tree";
+import type { FileTreeNode, FsError } from "@/entities/file-tree";
 
 /**
  * インポートは、失敗を出す場所を自分で持つ。
@@ -16,13 +16,22 @@ import type { FsError } from "@/entities/file-tree";
 const createNewFile = vi.fn();
 const importKifuFile = vi.fn();
 
+/** 保存先の一覧に要る欄だけを持つツリー。描画に要る `displayInfo` は使わない */
+const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTreeNode =>
+  ({
+    name,
+    path,
+    isDirectory: true,
+    children,
+    displayInfo: { iconType: "folder" },
+  }) as FileTreeNode;
+
+/** ツリーはファイル監視で入れ替わるので、テストからも差し替えられる形で持つ */
+let fileTree: FileTreeNode = dir("root", "/root");
+
 // 差し替えるのは実体の側。barrel は再 export なので、こちらを差し替えれば通る
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
-  useFileTree: () => ({
-    createNewFile,
-    importKifuFile,
-    fileTree: { id: "/root", name: "root", path: "/root", isDirectory: true, children: [] },
-  }),
+  useFileTree: () => ({ createNewFile, importKifuFile, fileTree }),
 }));
 
 const { default: KifuImportForm } = await import("../KifuImportForm");
@@ -49,6 +58,7 @@ beforeEach(() => {
   importKifuFile.mockReset();
   onCreated.mockReset();
   onCancel.mockReset();
+  fileTree = dir("root", "/root");
 });
 
 afterEach(() => cleanup());
@@ -102,6 +112,34 @@ describe("KifuImportForm", () => {
     await submitForm();
 
     expect(importKifuFile).toHaveBeenCalledWith("/root", "45角戦法.kif", expect.any(String));
+  });
+
+  /**
+   * 状態遷移表の (I, X14)。
+   *
+   * `Select` は選択肢に無い値をプレースホルダで描くので、値だけ残すと
+   * **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**。
+   */
+  test("選んでいた保存先が消えたら、根へ戻す", async () => {
+    importKifuFile.mockResolvedValue({ success: true, data: "/root/研究.kif" });
+    fileTree = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+    const view = render(
+      <KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />,
+    );
+    // `collectDirs` は根を「/」、その下を根からの相対で名乗らせる
+    expect(screen.getByLabelText("保存先").textContent).toBe("/角換わり");
+
+    // ファイル監視が、選んでいたフォルダだけを落としたツリーを返す
+    fileTree = dir("root", "/root");
+    view.rerender(
+      <KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />,
+    );
+
+    expect(screen.getByLabelText("保存先").textContent).toBe("/");
+
+    fillImport();
+    await submitForm();
+    expect(importKifuFile).toHaveBeenCalledWith("/root", "研究.kif", expect.any(String));
   });
 
   test("衝突は別名を選ぶ対話が引き取るので、フォーム側では出さない", async () => {
