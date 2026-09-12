@@ -1,27 +1,81 @@
 @use "@/index.scss" as index;
 
+// **左が素材、右がファイルの欄。** 盤の面と同じ骨格。
+// 器は縦に縮められる（`tauri.conf.json` に `minHeight` が無く `resizable: true`）ので、
+// 高さは器から配る
 .kifu-import {
-  // 貼った棋譜が読めたこと。**段に載せない**（ADR-0004 決定5 —— `success` を置かない。
-  // 成功そのものは通知しない）。読めたときに要るのは、何として読んだかの1行だけ
-  &__read {
-    margin: 0;
+  display: flex;
+  gap: index.$space-8;
+  height: 100%;
+  min-height: 0;
+
+  // 隠れているあいだも木には残る（貼りかけの棋譜を消さないため）。
+  // `hidden` は UA の `[hidden] { display: none }` で効くはずだが、
+  // ここで `display` を書いているぶん作者側が勝つので、**書いた側で降ろす**
+  &[hidden] {
+    display: none;
+  }
+}
+
+// 貼り付け欄と、読んだ結果。**結果は貼る欄の下**（ADR-0004 決定4 ——
+// 直すのは貼ったテキストなので、そこから目を離させない）
+.kifu-import__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: index.$space-6;
+
+  // **貼り付け欄が伸びる側。** `Form` の外に出してあるので、
+  // 欄の枠（`.form__field`）にも高さを配らせる
+  .form__field {
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
-    align-items: baseline;
-    gap: index.$space-4;
-    flex-wrap: wrap;
+    flex-direction: column;
   }
 
-  // 形式と手数。**0手も出す** —— 棋譜でないテキストが投げずに「0手の棋譜」として
-  // 返ることがあり、手数を出さないとそれが画面に現れない
-  &__readDetail {
-    font-size: index.$font-aux;
+  .form__textarea {
+    flex: 1 1 auto;
+    min-height: 0;
   }
+}
 
-  // 保存先が無いときの注記。**面を持たないので色を書かない**（器のカードの色を継ぐ）。
-  // 色を宣言すると `contrastRatchet` の「測れなかった宣言」が増え、
-  // 測れない対は比が下がっても緑のまま通る
-  &__hint {
-    margin: index.$space-2 0 0;
-    font-size: index.$font-hint;
-  }
+// 右の列。盤の面の `.pos-editor__side` と同じ役で、同じ幅を名乗る
+.kifu-import__side {
+  width: index.$create-file-side-width;
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+// 貼った棋譜が読めたこと。**段に載せない**（ADR-0004 決定5 —— `success` を置かない。
+// 成功そのものは通知しない）。読めたときに要るのは、何として読んだかの1行だけ
+.kifu-import__read {
+  margin: 0;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: index.$space-4;
+  flex-wrap: wrap;
+}
+
+// 形式と手数。**0手も出す** —— 棋譜でないテキストが投げずに「0手の棋譜」として
+// 返ることがあり、手数を出さないとそれが画面に現れない
+.kifu-import__readDetail {
+  font-size: index.$font-aux;
+}
+
+// 保存先が無いときの注記。**面を持たないので色を書かない**（器のカードの色を継ぐ）。
+// 色を宣言すると `contrastRatchet` の「測れなかった宣言」が増え、
+// 測れない対は比が下がっても緑のまま通る
+.kifu-import__hint {
+  margin: index.$space-2 0 0;
+  font-size: index.$font-hint;
+}
+
+// 読めなかったときの段。貼り付け欄の下なので、`__main` の伸びる側には入れない
+.kifu-import__main .notice {
+  flex: 0 0 auto;
 }

@@ -64,8 +64,8 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       label="棋譜を作る"
       variant="workspace"
       size="xl"
-      // **カードごと巻く。** 組む面は自分の中で高さを配り切るが、
-      // インポートの面は縦に長いフォームで、器が低いと下端の「作成」に届かなくなる
+      // **カードごと巻く。** どちらの面も器の高さを配って組むので、器が縦に縮められた
+      // ときだけ（`tauri.conf.json` に `minHeight` が無い）ここが逃げ場になる
       scroll="card"
     >
       <div className="create-file-modal">
@@ -103,19 +103,16 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
         */}
         <div className="create-file-modal__body">
           {/*
-            **器は xl（1100px）。中身の幅はそこから絞って中央に置く。**
-            棋譜テキストを貼る欄が幅いっぱいに広がると、1行が長すぎて
-            どこまで貼れたのかが読めない
+            **どちらの面も器の内寸をそのまま使う。** 中身を絞って中央に置くと、
+            タブは動かないのに中身の左端だけがタブを跨いだ瞬間に飛ぶ
           */}
-          <div className="create-file-modal__narrow" hidden={face !== "import"}>
-            <KifuImportForm
-              hidden={face !== "import"}
-              onCreated={() => closeModal()}
-              onCancel={requestClose}
-              dirPath={params.dir || ""}
-              onSubmittingChange={setImportBusy}
-            />
-          </div>
+          <KifuImportForm
+            hidden={face !== "import"}
+            onCreated={() => closeModal()}
+            onCancel={requestClose}
+            dirPath={params.dir || ""}
+            onSubmittingChange={setImportBusy}
+          />
           <PositionEditor
             // `EditorFace` に "import" は無い。隠れているあいだの値は画面に出ないが、
             // **戻る先は必ず盤**（同表の I×X9）なので盤を渡す

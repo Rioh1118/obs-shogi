@@ -68,7 +68,7 @@ const faceIn = (selector: string) => {
   if (!el) throw new Error(`面が無い: ${selector}`);
   return within(el);
 };
-const importFace = () => faceIn(".create-file-modal__narrow");
+const importFace = () => faceIn(".kifu-import");
 const boardFace = () => faceIn(".pos-editor");
 
 /** 7七の歩を7六へ動かして、組みかけにする */
@@ -142,7 +142,7 @@ function fillImport() {
 }
 
 const importForm = (): HTMLFormElement => {
-  const form = document.querySelector<HTMLFormElement>(".create-file-modal__narrow form");
+  const form = document.querySelector<HTMLFormElement>(".kifu-import form");
   if (!form) throw new Error("インポートのフォームが無い");
   return form;
 };

@@ -22,7 +22,6 @@ $held-opacity: 0.3; // scale-exempt
 // 作成中の面で同じ役なので、1つの名前に寄せる。直値で散らすと、
 // 沈め方を変えるときに必ずどれかが漏れる
 $sunk-opacity: 0.45; // scale-exempt
-$side-w: 28rem; // scale-exempt
 $seed-select-w: 18rem; // scale-exempt
 $picker-list-w: 32rem; // scale-exempt
 
@@ -105,7 +104,9 @@ $picker-list-w: 32rem; // scale-exempt
 // 右の列。**断りが一番上。** 盤の右隣の上端なので、枠を付けた升との距離が最短になる。
 // 高さが変わってもフォームが下がるだけで**盤は動かない**
 .pos-editor__side {
-  width: $side-w;
+  // **インポートの面と同じ幅。** タブで入れ替わる2つの面なので、
+  // 別々に持つと切り替えた瞬間にファイルの欄だけが左右に動く
+  width: index.$create-file-side-width;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;

@@ -163,10 +163,16 @@ function KifuImportForm({
   };
 
   return (
-    <Form handleSubmit={handleSubmit}>
-      {/* **見出しを置かない。** 器が「棋譜を作る」を名乗り、タブが「インポート」を
-          名乗っている。3つ目を足すと、この面が何なのかを3箇所で言うことになる */}
-      <FormField>
+    /*
+      **左が素材、右がファイルの欄。** 盤の面（`pos-editor`）と同じ骨格にしてある ——
+      タブを跨いでも欄の位置が動かず、「作成」がどちらの面でも同じ場所にある。
+      右の列の幅も盤の面と同じ（`$side-w`）。
+
+      **見出しを置かない。** 器が「棋譜を作る」を名乗り、タブが「インポート」を
+      名乗っている。3つ目を足すと、この面が何なのかを3箇所で言うことになる。
+    */
+    <div className="kifu-import" hidden={hidden}>
+      <div className="kifu-import__main">
         <Textarea
           label="棋譜テキスト"
           id="rawKifu"
@@ -175,89 +181,89 @@ function KifuImportForm({
           value={rawContent}
           onChange={(e) => setRawContent(e.target.value)}
         />
-      </FormField>
 
-      {/*
-        **貼る欄の下に出す。** 直すのは貼ったテキストなので、そこから目を離させない
-        （ADR-0004 決定4）。**未入力では何も出さない** —— 貼る前に「貼ってください」と
-        言う場所は、貼る欄そのものの placeholder が既に持っている
-      */}
-      {parsed.kind === "read" && (
-        <FormField>
+        {/*
+          **貼る欄の下に出す。** 直すのは貼ったテキストなので、そこから目を離させない
+          （ADR-0004 決定4）。**未入力では何も出さない** —— 貼る前に「貼ってください」と
+          言う場所は、貼る欄そのものの placeholder が既に持っている
+        */}
+        {parsed.kind === "read" && (
           <p className="kifu-import__read" role="status">
             棋譜として読めました
             <span className="kifu-import__readDetail">
               {parsed.format} ／ {parsed.moves}手
             </span>
           </p>
-        </FormField>
-      )}
-      {parsed.kind === "unreadable" && (
-        <FormField>
-          {/*
+        )}
+        {parsed.kind === "unreadable" && (
+          /*
             段は `danger`（ADR-0004 決定1）—— 同じテキストをもう一度貼っても直らず、
             直し方は棋譜ごとに違う。**ボタンは付けない**（押して直るものが無い）
-          */}
+          */
           <InlineNotice tier="danger" title="棋譜として読めませんでした" body={parsed.message} />
-        </FormField>
-      )}
-
-      <FormField horizontal>
-        <TextInput
-          label="ファイル名"
-          id="fileName"
-          placeholder="45角戦法"
-          value={fileName}
-          onChange={(e) => setFileName(e.target.value)}
-          required
-        />
-        <Select
-          label="形式"
-          id="format"
-          options={KIFU_FORMAT_OPTIONS}
-          value={format}
-          onChange={setFormat}
-        />
-      </FormField>
-
-      <FormField>
-        <Select
-          label="保存先"
-          id="import-dir"
-          options={dirOptions}
-          value={selectedDir}
-          onChange={setSelectedDir}
-        />
-        {dirOptions.length === 0 && (
-          <p className="kifu-import__hint">
-            保存先がありません。先にワークスペースを開いてください
-          </p>
         )}
-      </FormField>
+      </div>
 
-      {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
-      {submitError && (
-        <FormField>
-          <FsErrorView error={submitError} />
-        </FormField>
-      )}
+      <div className="kifu-import__side">
+        <Form handleSubmit={handleSubmit}>
+          <FormField horizontal>
+            <TextInput
+              label="ファイル名"
+              id="fileName"
+              placeholder="45角戦法"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              required
+            />
+            <Select
+              label="形式"
+              id="format"
+              options={KIFU_FORMAT_OPTIONS}
+              value={format}
+              onChange={setFormat}
+            />
+          </FormField>
 
-      <ButtonGroup>
-        <Button
-          type="submit"
-          tone="primary"
-          isLoading={isSaving}
-          disabled={!fullFileName || parsed.kind !== "read" || !selectedDir}
-        >
-          {isSaving ? "作成中..." : "作成"}
-        </Button>
-        {/* 盤の面と同じ語。**同じ門（`closeGuard`）を通る同じ操作**なので、
-            片方を「キャンセル」と呼ぶと、戻り先が違うように読める */}
-        <Button type="button" onClick={onCancel} disabled={isSaving}>
-          やめる
-        </Button>
-      </ButtonGroup>
-    </Form>
+          <FormField>
+            <Select
+              label="保存先"
+              id="import-dir"
+              options={dirOptions}
+              value={selectedDir}
+              onChange={setSelectedDir}
+            />
+            {dirOptions.length === 0 && (
+              <p className="kifu-import__hint">
+                保存先がありません。先にワークスペースを開いてください
+              </p>
+            )}
+          </FormField>
+
+          {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+          {submitError && (
+            <FormField>
+              <FsErrorView error={submitError} />
+            </FormField>
+          )}
+
+          <ButtonGroup>
+            <Button
+              type="submit"
+              tone="primary"
+              isLoading={isSaving}
+              disabled={!fullFileName || parsed.kind !== "read" || !selectedDir}
+            >
+              {isSaving ? "作成中..." : "作成"}
+            </Button>
+            {/* 盤の面と同じ語。**同じ門（`closeGuard`）を通る同じ操作**なので、
+                片方を「キャンセル」と呼ぶと、戻り先が違うように読める */}
+            <Button type="button" onClick={onCancel} disabled={isSaving}>
+              やめる
+            </Button>
+          </ButtonGroup>
+        </Form>
+      </div>
+    </div>
   );
 }
 
