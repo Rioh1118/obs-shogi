@@ -83,7 +83,7 @@ function findNifu(state: JKFState): PositionIssue[] {
       if (squares.length < 2) continue;
       issues.push({
         kind: POSITION_ISSUE.NIFU,
-        message: `${x}筋に${turnSide(color)}の歩が${squares.length}枚あります（二歩）`,
+        message: `二歩：${x}筋に${turnSide(color)}の歩が${squares.length}枚あります`,
         squares,
       });
     }
@@ -103,7 +103,7 @@ function findDeadEnds(state: JKFState): PositionIssue[] {
       const square = { x, y };
       issues.push({
         kind: POSITION_ISSUE.DEAD_END,
-        message: `${describe(square)}の${turnSide(piece.color)}の${toKan(piece.kind)}は、そこから動けません`,
+        message: `行き所のない駒：${describe(square)}の${turnSide(piece.color)}の${toKan(piece.kind)}は、この先どこへも動けません`,
         squares: [square],
       });
     }
@@ -172,7 +172,7 @@ function findCheckIgnored(state: JKFState): PositionIssue[] {
   return [
     {
       kind: POSITION_ISSUE.CHECK_IGNORED,
-      message: `${turnSide(passive)}の玉に王手がかかったまま、${turnSide(state.color)}から指す形になっています`,
+      message: `王手放置：${turnSide(passive)}の玉が取られる形で、${turnSide(state.color)}の手番になっています`,
       squares: [king],
     },
   ];

@@ -90,7 +90,7 @@ describe("二歩", () => {
       [5, 5, "FU", Color.Black],
       [5, 7, "FU", Color.Black],
     ]);
-    expect(inspectPosition(state).issues[0].message).toBe("5筋に先手の歩が3枚あります（二歩）");
+    expect(inspectPosition(state).issues[0].message).toBe("二歩：5筋に先手の歩が3枚あります");
   });
 
   test("該当する歩の升を全部返す", () => {
@@ -131,7 +131,7 @@ describe("二歩", () => {
       [3, 3, "FU", Color.White],
       [3, 6, "FU", Color.White],
     ]);
-    expect(inspectPosition(state).issues[0].message).toBe("3筋に後手の歩が2枚あります（二歩）");
+    expect(inspectPosition(state).issues[0].message).toBe("二歩：3筋に後手の歩が2枚あります");
   });
 });
 
@@ -139,7 +139,9 @@ describe("行き所のない駒", () => {
   test("先手の歩は一段目で出る", () => {
     const state = boardOf([[5, 1, "FU", Color.Black]]);
     expect(kindsOf(state)).toEqual([POSITION_ISSUE.DEAD_END]);
-    expect(inspectPosition(state).issues[0].message).toBe("5一の先手の歩は、そこから動けません");
+    expect(inspectPosition(state).issues[0].message).toBe(
+      "行き所のない駒：5一の先手の歩は、この先どこへも動けません",
+    );
   });
 
   test("先手の歩は二段目なら出ない", () => {
@@ -149,7 +151,9 @@ describe("行き所のない駒", () => {
   test("後手の歩は九段目で出る", () => {
     const state = boardOf([[5, 9, "FU", Color.White]]);
     expect(kindsOf(state)).toEqual([POSITION_ISSUE.DEAD_END]);
-    expect(inspectPosition(state).issues[0].message).toBe("5九の後手の歩は、そこから動けません");
+    expect(inspectPosition(state).issues[0].message).toBe(
+      "行き所のない駒：5九の後手の歩は、この先どこへも動けません",
+    );
   });
 
   test("香も歩と同じ段で出る", () => {
@@ -199,7 +203,7 @@ describe("王手放置", () => {
     );
     expect(kindsOf(state)).toEqual([POSITION_ISSUE.CHECK_IGNORED]);
     expect(inspectPosition(state).issues[0].message).toBe(
-      "後手の玉に王手がかかったまま、先手から指す形になっています",
+      "王手放置：後手の玉が取られる形で、先手の手番になっています",
     );
   });
 

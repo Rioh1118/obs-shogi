@@ -60,7 +60,7 @@ describe("断り", () => {
   test("二歩で出る", () => {
     renderSeeded(nifuState());
     expect(screen.getByText("規則に反する配置があります。")).toBeTruthy();
-    expect(screen.getByText(/5筋に先手の歩が2枚あります（二歩）/)).toBeTruthy();
+    expect(screen.getByText(/二歩：5筋に先手の歩が2枚あります/)).toBeTruthy();
   });
 
   test("該当する升に枠が付く", () => {
