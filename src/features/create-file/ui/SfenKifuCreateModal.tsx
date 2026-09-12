@@ -10,7 +10,7 @@ import {
   useFileTree,
   type FsError,
 } from "@/entities/file-tree";
-import { KIFU_FORMAT_OPTIONS, type KifuFormat } from "@/entities/kifu/model/kifu";
+import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import { stateFromSfen } from "@/entities/position/lib/positionDraft";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
@@ -77,10 +77,14 @@ export default function SfenKifuCreateModal() {
     setSubmitError(null);
   }, [isOpen]);
 
+  // 拡張子は形式の欄が決める。**打った拡張子は落とす**ので `研究.kif.kif` にならない
+  // （規則は `kifuFileName` が1箇所で持つ）
+  const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!fileName.trim() || !sfenInitial || isLoading) return;
+      if (!fullFileName || !sfenInitial || isLoading) return;
 
       // `selectedDir` が空になるのはツリーが1本も無いときだけで、
       // そのとき送信ボタンは押せない。理由は Select の下に出している
@@ -89,7 +93,7 @@ export default function SfenKifuCreateModal() {
       setSubmitError(null);
       setIsLoading(true);
       const result = await createNewFile(selectedDir, {
-        fileName: `${fileName.trim()}.${format}`,
+        fileName: fullFileName,
         format,
         gameInfo: {
           black: blackPlayer.trim() || undefined,
@@ -110,12 +114,12 @@ export default function SfenKifuCreateModal() {
       }
     },
     [
-      fileName,
       format,
       blackPlayer,
       whitePlayer,
       selectedDir,
       dirOptions.length,
+      fullFileName,
       sfenInitial,
       isLoading,
       createNewFile,
@@ -212,7 +216,7 @@ export default function SfenKifuCreateModal() {
               type="submit"
               tone="primary"
               isLoading={isLoading}
-              disabled={!fileName.trim() || !selectedDir}
+              disabled={!fullFileName || !selectedDir}
             >
               {isLoading ? "作成中..." : "作成"}
             </Button>

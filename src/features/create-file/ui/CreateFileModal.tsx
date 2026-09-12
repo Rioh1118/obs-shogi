@@ -1,6 +1,7 @@
 import Modal from "@/shared/ui/Modal";
+import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import PositionEditor, { type EditorFace } from "@/features/position-editor";
 import KifuImportForm from "./KifuImportForm";
@@ -38,21 +39,35 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   const isSubmitting = editorBusy || importBusy;
 
   /**
-   * 閉じてよいかを中身に問う門
+   * 捨てるものがあるか
    *
-   * **閉じる口は4つある**（Esc・覆いの押下・組む面の「やめる」・インポートの面の
-   * 「キャンセル」）。`Modal` は Esc と覆いの両方で `onClose` を呼ぶので、
-   * そこへ寄せれば口が1つになる。
-   * 段を面の中だけで持つと、焦点が面の外にある Esc と覆いの押下が素通りして、
-   * **組みかけが確認なしに消える**。
+   * **面ごとに数えて器が足す**（状態遷移表の直交軸「捨てるもの」）。組みかけの局面は
+   * 組む面が、貼りかけの棋譜はインポートの面が持つ。片方しか見ないと、
+   * **見ていないほうが閉じるときに黙って消える**。
    */
-  const closeGuard = useRef<(() => boolean) | null>(null);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [importDirty, setImportDirty] = useState(false);
+
+  /** 確認が出ているあいだ保留している「閉じる」。`null` なら確認は出ていない */
+  const [confirmingClose, setConfirmingClose] = useState(false);
+
+  /**
+   * 閉じる口を1つにする門
+   *
+   * **閉じる口は4つある**（Esc・覆いの押下・両方の面の「やめる」）。
+   * `Modal` は Esc と覆いの両方で `onClose` を呼ぶので、そこへ寄せれば口が1つになる。
+   * 段を面の中だけで持つと、焦点が面の外にある Esc と覆いの押下が素通りして、
+   * **捨てるものが確認なしに消える**。
+   */
   const requestClose = useCallback(() => {
     // 作成中は止められない（表の W×X10）。**どちらの面から送っていても同じ**
     if (isSubmitting) return;
-    if (closeGuard.current?.()) return;
+    if (editorDirty || importDirty) {
+      setConfirmingClose(true);
+      return;
+    }
     closeModal();
-  }, [closeModal, isSubmitting]);
+  }, [closeModal, isSubmitting, editorDirty, importDirty]);
 
   const { state: studyState } = useStudyPositions();
 
@@ -64,8 +79,8 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       label="棋譜を作る"
       variant="workspace"
       size="xl"
-      // **カードごと巻く。** 組む面は自分の中で高さを配り切るが、
-      // インポートの面は縦に長いフォームで、器が低いと下端の「作成」に届かなくなる
+      // **カードごと巻く。** どちらの面も器の高さを配って組むので、器が縦に縮められた
+      // ときだけ（`tauri.conf.json` に `minHeight` が無い）ここが逃げ場になる
       scroll="card"
     >
       <div className="create-file-modal">
@@ -103,19 +118,17 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
         */}
         <div className="create-file-modal__body">
           {/*
-            **器は xl（1100px）。中身の幅はそこから絞って中央に置く。**
-            棋譜テキストを貼る欄が幅いっぱいに広がると、1行が長すぎて
-            どこまで貼れたのかが読めない
+            **どちらの面も器の内寸をそのまま使う。** 中身を絞って中央に置くと、
+            タブは動かないのに中身の左端だけがタブを跨いだ瞬間に飛ぶ
           */}
-          <div className="create-file-modal__narrow" hidden={face !== "import"}>
-            <KifuImportForm
-              hidden={face !== "import"}
-              onCreated={() => closeModal()}
-              onCancel={requestClose}
-              dirPath={params.dir || ""}
-              onSubmittingChange={setImportBusy}
-            />
-          </div>
+          <KifuImportForm
+            hidden={face !== "import"}
+            onCreated={() => closeModal()}
+            onCancel={requestClose}
+            dirPath={params.dir || ""}
+            onSubmittingChange={setImportBusy}
+            onDirtyChange={setImportDirty}
+          />
           <PositionEditor
             // `EditorFace` に "import" は無い。隠れているあいだの値は画面に出ないが、
             // **戻る先は必ず盤**（同表の I×X9）なので盤を渡す
@@ -125,14 +138,44 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             studyPositions={studyState.positions}
             initialDir={params.dir || undefined}
             onCreated={() => closeModal()}
-            closeGuard={closeGuard}
-            onClose={() => closeModal()}
+            onDirtyChange={setEditorDirty}
+            // 面の中の「やめる」も同じ門を通す
+            onClose={requestClose}
             onSubmittingChange={setEditorBusy}
           />
         </div>
+
+        {/*
+          **捨てるものを名指す。** 「組んだ局面」と「貼った棋譜」は別々の面に在り、
+          閉じれば両方消える。1つだけを名指すと、もう片方が消えることが
+          確認を読んでも分からない
+        */}
+        {confirmingClose && (
+          <ConfirmDialog
+            title={`${discardedName(editorDirty, importDirty)}は保存されません。`}
+            subtitle="閉じると消えます。"
+            confirmLabel="捨てる"
+            // 「やめる」（器ごと閉じる）と同じ語にしない。**戻り先が違う** ——
+            // こちらは組みかけ・貼りかけを持ったままの面へ帰るだけ。
+            // 「組み続ける」にもしない —— 貼りかけだけを捨てるときに組んでいない
+            cancelLabel="閉じない"
+            onConfirm={() => {
+              setConfirmingClose(false);
+              closeModal();
+            }}
+            onCancel={() => setConfirmingClose(false)}
+          />
+        )}
       </div>
     </Modal>
   );
+}
+
+/** 閉じたときに消えるものの名前。**両方あるなら両方言う** */
+function discardedName(editorDirty: boolean, importDirty: boolean): string {
+  if (editorDirty && importDirty) return "組んだ局面と貼った棋譜";
+  if (importDirty) return "貼った棋譜";
+  return "組んだ局面";
 }
 
 function CreateFileModal() {
