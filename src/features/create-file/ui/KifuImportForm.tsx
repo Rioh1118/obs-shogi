@@ -206,23 +206,26 @@ function KifuImportForm({
 
   return (
     /*
-      **左が素材、右がファイルの欄。** 盤の面（`pos-editor`）と同じ骨格にしてある ——
-      タブを跨いでも欄の位置が動かず、「作成」がどちらの面でも同じ場所にある。
-      右の列の幅も盤の面と同じ（`$side-w`）。
+      **貼る欄を高くしない。** この面で要るのは「貼れたか」と「棋譜として読めたか」で、
+      棋譜の中身をここで読む用途は無い（読むのは作ったあとの盤）。器の高さを貼る欄に
+      配ると、確かめたい1行（読めたか）が器の下端まで遠ざかる。
 
-      **見出しを置かない。** 器が「棋譜を作る」を名乗り、タブが「インポート」を
-      名乗っている。3つ目を足すと、この面が何なのかを3箇所で言うことになる。
+      欄は貼る欄の下に横一列。**見出しを置かない** —— 器が「棋譜を作る」を名乗り、
+      タブが「インポート」を名乗っているので、3つ目を足すとこの面が何なのかを
+      3箇所で言うことになる。
     */
     <div className="kifu-import" hidden={hidden}>
-      <div className="kifu-import__main">
-        <Textarea
-          label="棋譜テキスト"
-          id="rawKifu"
-          ref={rawRef}
-          placeholder=".kif / .ki2 / .csa / .jkf を貼り付け"
-          value={rawContent}
-          onChange={(e) => setRawContent(e.target.value)}
-        />
+      <Form handleSubmit={handleSubmit}>
+        <FormField>
+          <Textarea
+            label="棋譜テキスト"
+            id="rawKifu"
+            ref={rawRef}
+            placeholder=".kif / .ki2 / .csa / .jkf を貼り付け"
+            value={rawContent}
+            onChange={(e) => setRawContent(e.target.value)}
+          />
+        </FormField>
 
         {/*
           **貼る欄の下に出す。** 直すのは貼ったテキストなので、そこから目を離させない
@@ -244,67 +247,64 @@ function KifuImportForm({
           */
           <InlineNotice tier="danger" title="棋譜として読めませんでした" body={parsed.message} />
         )}
-      </div>
 
-      <div className="kifu-import__side">
-        <Form handleSubmit={handleSubmit}>
-          <FormField horizontal>
-            <TextInput
-              label="ファイル名"
-              id="fileName"
-              placeholder="45角戦法"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              required
-            />
-            <Select
-              label="形式"
-              id="format"
-              options={KIFU_FORMAT_OPTIONS}
-              value={format}
-              onChange={setFormat}
-            />
-          </FormField>
+        {/* 3つとも短いので横に並べる。`--horizontal` は入る数だけ列を作るので、
+            器が細ければ勝手に縦へ落ちる */}
+        <FormField horizontal>
+          <TextInput
+            label="ファイル名"
+            id="fileName"
+            placeholder="45角戦法"
+            value={fileName}
+            onChange={(e) => setFileName(e.target.value)}
+            required
+          />
+          <Select
+            label="形式"
+            id="format"
+            options={KIFU_FORMAT_OPTIONS}
+            value={format}
+            onChange={setFormat}
+          />
+          <Select
+            label="保存先"
+            id="import-dir"
+            options={dirOptions}
+            value={selectedDir}
+            onChange={setSelectedDir}
+          />
+        </FormField>
 
+        {dirOptions.length === 0 && (
+          <p className="kifu-import__hint">
+            保存先がありません。先にワークスペースを開いてください
+          </p>
+        )}
+
+        {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+        {submitError && (
           <FormField>
-            <Select
-              label="保存先"
-              id="import-dir"
-              options={dirOptions}
-              value={selectedDir}
-              onChange={setSelectedDir}
-            />
-            {dirOptions.length === 0 && (
-              <p className="kifu-import__hint">
-                保存先がありません。先にワークスペースを開いてください
-              </p>
-            )}
+            <FsErrorView error={submitError} />
           </FormField>
+        )}
 
-          {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
-          {submitError && (
-            <FormField>
-              <FsErrorView error={submitError} />
-            </FormField>
-          )}
-
-          <ButtonGroup>
-            <Button
-              type="submit"
-              tone="primary"
-              isLoading={isSaving}
-              disabled={!fullFileName || parsed.kind !== "read" || !selectedDir}
-            >
-              {isSaving ? "作成中..." : "作成"}
-            </Button>
-            {/* 盤の面と同じ語。**同じ門（`closeGuard`）を通る同じ操作**なので、
-                面ごとに別の語を当てると、戻り先が違うように読める */}
-            <Button type="button" onClick={onCancel} disabled={isSaving}>
-              やめる
-            </Button>
-          </ButtonGroup>
-        </Form>
-      </div>
+        <ButtonGroup>
+          <Button
+            type="submit"
+            tone="primary"
+            size="lg"
+            isLoading={isSaving}
+            disabled={!fullFileName || parsed.kind !== "read" || !selectedDir}
+          >
+            {isSaving ? "作成中..." : "作成"}
+          </Button>
+          {/* 盤の面と同じ語。**同じ門を通る同じ操作**なので、
+              面ごとに別の語を当てると、戻り先が違うように読める */}
+          <Button type="button" size="lg" onClick={onCancel} disabled={isSaving}>
+            やめる
+          </Button>
+        </ButtonGroup>
+      </Form>
     </div>
   );
 }

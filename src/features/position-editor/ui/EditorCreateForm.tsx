@@ -228,12 +228,13 @@ function EditorCreateForm({
         <Button
           type="submit"
           tone="primary"
+          size="lg"
           isLoading={isSubmitting}
           disabled={!fullFileName || !selectedDir}
         >
           {isSubmitting ? "作成中..." : "作成"}
         </Button>
-        <Button type="button" onClick={onCancel} disabled={isSubmitting}>
+        <Button type="button" size="lg" onClick={onCancel} disabled={isSubmitting}>
           やめる
         </Button>
       </ButtonGroup>
