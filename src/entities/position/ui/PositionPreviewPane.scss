@@ -22,7 +22,15 @@
   }
 
   &__turn-badge {
-    justify-self: center;
+    // **枠の内寸を1pxも使わない。** 盤の一辺は枠の内寸から決まるので、
+    // 場所を取る置き方にすると盤が縮む。重なりはこの部品の中で閉じるので、
+    // 段（`docs/spec/design-language.md` §4）ではなく局所の値でよい
+    position: absolute;
+    top: var(--board-pad);
+    right: var(--board-pad);
+    z-index: 1;
+    // 盤の隅に重なる面がある。**押下も選択も盤へ通す**
+    pointer-events: none;
 
     display: inline-flex;
     align-items: center;
@@ -51,11 +59,11 @@
     width: 100%;
     height: 100%;
 
+    // 手番のバッジを浮かせる基準。**盤の一辺はこの枠の内寸が決める**（`ResizeObserver`）
+    position: relative;
+
     display: grid;
-    // 手番と盤。**枠が縮んだときに削るのは盤の側**なので、バッジは `auto` に置く
-    grid-template-rows: auto minmax(0, 1fr);
-    justify-items: center;
-    gap: var(--board-pad);
+    place-items: center;
 
     padding: var(--board-pad);
     border-radius: var(--board-radius);
@@ -64,21 +72,6 @@
     box-shadow:
       0 10px 24px rgba(0, 0, 0, 0.22),
       inset 0 0 0 1px rgba(index.$color-white, 0.06);
-
-    &--empty {
-      grid-template-rows: minmax(0, 1fr);
-      place-items: center;
-    }
-  }
-
-  // 盤に配る枠。`ResizeObserver` が一辺を決めるために測るのはここ
-  &__board-fit {
-    min-height: 0;
-    width: 100%;
-    height: 100%;
-
-    display: grid;
-    place-items: center;
   }
 
   &__hands {

@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import BoardPreview from "./BoardPreview";
 import { Color } from "shogi.js";
-import { GOTE_LABEL, SENTE_LABEL, turnGlyph, turnText } from "@/shared/lib/turn";
+import { GOTE_LABEL, SENTE_LABEL, turnBadgeText } from "@/shared/lib/turn";
 import "./PositionPreviewPane.scss";
 import HandRow from "./HandRow";
 import type { PreviewData } from "@/entities/position/model/preview";
+import { boardSideForFrame } from "@/entities/position/lib/boardSide";
 
 type Props = {
   previewData: PreviewData | null;
 };
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 function PreviewPane({ previewData }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
@@ -26,10 +26,8 @@ function PreviewPane({ previewData }: Props) {
       const style = getComputedStyle(el);
       const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const usable = Math.floor(Math.min(rect.width - padX, rect.height - padY));
 
-      const next = clamp(usable, 240, 820);
-      setBoardSize(next);
+      setBoardSize(boardSideForFrame(rect, { x: padX, y: padY }));
     });
 
     ro.observe(el);
@@ -39,8 +37,7 @@ function PreviewPane({ previewData }: Props) {
   if (!previewData) {
     return (
       <div className="position-navigation-modal__preview-container">
-        {/* 手番の段が無い枠。読み込み中の一文を、盤が入る位置の中央に置く */}
-        <div className="position-navigation-modal__board-preview position-navigation-modal__board-preview--empty">
+        <div className="position-navigation-modal__board-preview">
           <div className="board-preview-placeholder">
             <p>局面を読み込み中...</p>
           </div>
@@ -56,35 +53,29 @@ function PreviewPane({ previewData }: Props) {
 
   return (
     <div className="position-navigation-modal__preview-container">
-      <div className="position-navigation-modal__board-preview">
+      <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
         {/*
           **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
           初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
           呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
 
-          記号を語に添える（`turnGlyph`）—— 下の持ち駒の段が見出しに同じ記号を持つので、
-          字が揃っていないと、どちらの段を指しているのかを読み手が対応付け直すことになる
+          **段を作らず枠の上に浮かせる。** 盤の一辺はこの枠の内寸から決まるので、
+          段を1つ足すとその高さのぶん盤が縮む（呼び手によっては測る軸が縦横で
+          入れ替わり、縮む面と広がる面に分かれる）。浮かせれば内寸が動かない
         */}
         <div className="position-navigation-modal__turn-badge">
-          {turnGlyph(previewData.turn)}
-          {turnText(previewData.turn)}
+          {turnBadgeText(previewData.turn)}
         </div>
 
-        {/*
-          **測るのは盤に配る枠だけ。** 枠そのものを測ると、同じ枠の中にあるバッジの
-          高さが引かれないまま一辺が決まり、盤が枠の下端からはみ出す
-        */}
-        <div className="position-navigation-modal__board-fit" ref={boardWrapRef}>
-          <BoardPreview
-            pieces={previewData.board}
-            hands={hands}
-            size={boardSize}
-            showCoordinates={false}
-            showLastMove={false}
-            showHands={false}
-            interactive={false}
-          />
-        </div>
+        <BoardPreview
+          pieces={previewData.board}
+          hands={hands}
+          size={boardSize}
+          showCoordinates={false}
+          showLastMove={false}
+          showHands={false}
+          interactive={false}
+        />
       </div>
 
       <div className="position-navigation-modal__hands">

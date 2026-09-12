@@ -38,3 +38,14 @@ export function turnSide(color: Color): "先手" | "後手" {
 export function turnText(color: Color): "先手番" | "後手番" {
   return color === Color.Black ? "先手番" : "後手番";
 }
+
+/**
+ * 記号を添えた「〜番」。盤の隅に浮かせるバッジのように、**周りの文が意味を
+ * 補ってくれない場所**で使う。
+ *
+ * 呼び手で `turnGlyph` と `turnText` を並べない。並べると記号と語のあいだに
+ * 空白を入れるかどうかが呼び手ごとに割れる。
+ */
+export function turnBadgeText(color: Color): string {
+  return `${turnGlyph(color)}${turnText(color)}`;
+}
