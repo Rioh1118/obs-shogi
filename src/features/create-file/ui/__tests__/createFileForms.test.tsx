@@ -47,8 +47,16 @@ const CONFLICT: FsError = {
   path: "/root/a.kif",
 };
 
-// 解析を通る最小の kif。インポートの送信条件（解析 OK）を満たすために要る
+// 読める最小の kif。インポートの送信条件（棋譜として読めたこと）を満たすために要る
 const KIF_TEXT = "手数----指手---------消費時間--\n   1 ７六歩(77)   ( 0:00/00:00:00)\n";
+
+/**
+ * 読めずに投げるテキスト
+ *
+ * **ただの文章では投げない。** KIF / KI2 / CSA のインポータは指し手を1つも
+ * 読み取れなくても空の record を返すので、`{` で始めて JKF として読ませる。
+ */
+const BROKEN_JKF = "{ これは JSON ではない";
 
 const onCreated = vi.fn();
 const onCancel = vi.fn();
@@ -80,6 +88,64 @@ describe("KifuImportForm", () => {
     typeInto("棋譜テキスト", KIF_TEXT);
     typeInto("ファイル名(必須)", "研究");
   }
+
+  /**
+   * 貼られた棋譜を読んだ結果の3状態（仕様書の「インポートタブ」の表）。
+   *
+   * **未入力では何も出さない。** 貼る前に「貼ってください」と言う場所は、
+   * 貼る欄の placeholder が既に持っている。
+   */
+  describe("貼った棋譜を読んだ結果", () => {
+    test("未入力なら何も出さない", () => {
+      render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+      expect(screen.queryByText(/読めました/)).toBeNull();
+      expect(screen.queryByText("棋譜として読めませんでした")).toBeNull();
+    });
+
+    test("読めたら、何として読んだかと手数を出す", () => {
+      render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+      typeInto("棋譜テキスト", KIF_TEXT);
+
+      expect(screen.getByText(/棋譜として読めました/)).toBeTruthy();
+      expect(screen.getByText("kif ／ 1手")).toBeTruthy();
+    });
+
+    test("読めなかったら、段に載せて利用者向けの一文を見える位置に出す", () => {
+      render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+      typeInto("棋譜テキスト", BROKEN_JKF);
+
+      const notice = screen.getByText("棋譜として読めませんでした").closest(".notice");
+      // 段は danger（同じテキストを貼り直しても直らない）。畳んだ中ではなく、
+      // 見える位置に理由が出ていること
+      expect(notice?.className).toContain("notice--danger");
+      expect(notice?.textContent).toContain("解析に失敗");
+      expect(document.querySelector("details")).toBeNull();
+    });
+
+    /**
+     * 棋譜でない文章は**投げずに**「0手の棋譜」として返る
+     * （`parseKifuStringToJKF` の doc）。手数を出さないと、これが画面に現れない。
+     */
+    test("棋譜でない文章は0手として読める。手数がそれを画面に出す", () => {
+      render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+      typeInto("棋譜テキスト", "これは棋譜ではないただの文章です");
+
+      expect(screen.getByText(/0手/)).toBeTruthy();
+    });
+
+    test("読めないうちは作成を押せない", () => {
+      render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+      typeInto("ファイル名(必須)", "研究");
+      typeInto("棋譜テキスト", BROKEN_JKF);
+
+      expect(screen.getByRole<HTMLButtonElement>("button", { name: /作成/ }).disabled).toBe(true);
+    });
+  });
 
   test("インポートに失敗したら理由が出る", async () => {
     importKifuFile.mockResolvedValue({ success: false, error: BAD_NAME });

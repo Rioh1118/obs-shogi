@@ -15,7 +15,19 @@ import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
+import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import "./KifuImportForm.scss";
+
+/**
+ * 貼られた棋譜を読んだ結果
+ *
+ * **3つの状態を1つの値で持つ。** 「読めたか」と「読めなかった理由」を別々に持つと、
+ * 読めているのに理由が残っている組み合わせが作れて、どちらを信じるかが決まらない。
+ */
+type ParseResult =
+  | { kind: "none" }
+  | { kind: "read"; format: KifuFormat; moves: number }
+  | { kind: "unreadable"; message: string };
 
 function KifuImportForm({
   onCreated,
@@ -51,8 +63,7 @@ function KifuImportForm({
   const [format, setFormat] = useState<KifuFormat>("kif");
   const [rawContent, setRawContent] = useState("");
 
-  const [parseOk, setParseOk] = useState<boolean | null>(null);
-  const [parseError, setParseError] = useState("");
+  const [parsed, setParsed] = useState<ParseResult>({ kind: "none" });
   const [submitError, setSubmitError] = useState<FsError | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -100,18 +111,22 @@ function KifuImportForm({
   useEffect(() => {
     const text = rawContent.trim();
     if (!text) {
-      setParseOk(null);
-      setParseError("");
+      setParsed({ kind: "none" });
       return;
     }
 
     try {
-      parseKifuStringToJKF(text);
-      setParseOk(true);
-      setParseError("");
+      const { detectedFormat, jkf } = parseKifuStringToJKF(text);
+      // `moves` の先頭は初期局面の枠なので手数から外す。**0手も出す** ——
+      // 棋譜として読めないテキストは投げずに「0手の棋譜」として返ることがあり
+      // （`parseKifuStringToJKF` の doc）、手数を出さないとそれが画面に現れない
+      setParsed({ kind: "read", format: detectedFormat, moves: Math.max(0, jkf.moves.length - 1) });
     } catch (e) {
-      setParseOk(false);
-      setParseError(e instanceof Error ? e.message : String(e));
+      // **画面には利用者の言葉、原因はログ**（`Notice` と同じ分け方）。
+      // `KifuParseError` の `message` は利用者向けの日本語で、開発者向けの
+      // 手掛かりは `cause` にある。両方を画面へ出すと、直すべき棋譜から目が離れる
+      console.error("[create-file] 貼られた棋譜を読めなかった", e);
+      setParsed({ kind: "unreadable", message: e instanceof Error ? e.message : String(e) });
     }
   }, [rawContent]);
 
@@ -122,7 +137,7 @@ function KifuImportForm({
     const text = rawContent.trim();
 
     if (!name || !text || !selectedDir) return;
-    if (parseOk !== true) return;
+    if (parsed.kind !== "read") return;
     // 取り込みは書き込みとツリーの読み直しを通る。押しても画面が変わらない間に
     // もう一度押すと、1回目は成功して2回目が already_exists になる
     if (isSaving) return;
@@ -164,23 +179,30 @@ function KifuImportForm({
         />
       </FormField>
 
-      <FormField>
-        {parseOk === null ? (
-          <div className="kifu-import__parse kifu-import__parse--idle">
-            解析: 未実行（棋譜を入力してください）
-          </div>
-        ) : parseOk ? (
-          <div className="kifu-import__parse">解析: OK</div>
-        ) : (
-          <div className="kifu-import__parse">
-            解析: 失敗しました
-            <details className="kifu-import__parseDetail">
-              <summary>詳細</summary>
-              <pre className="kifu-import__parseRaw">{parseError}</pre>
-            </details>
-          </div>
-        )}
-      </FormField>
+      {/*
+        **貼る欄の下に出す。** 直すのは貼ったテキストなので、そこから目を離させない
+        （ADR-0004 決定4）。**未入力では何も出さない** —— 貼る前に「貼ってください」と
+        言う場所は、貼る欄そのものの placeholder が既に持っている
+      */}
+      {parsed.kind === "read" && (
+        <FormField>
+          <p className="kifu-import__read" role="status">
+            棋譜として読めました
+            <span className="kifu-import__readDetail">
+              {parsed.format} ／ {parsed.moves}手
+            </span>
+          </p>
+        </FormField>
+      )}
+      {parsed.kind === "unreadable" && (
+        <FormField>
+          {/*
+            段は `danger`（ADR-0004 決定1）—— 同じテキストをもう一度貼っても直らず、
+            直し方は棋譜ごとに違う。**ボタンは付けない**（押して直るものが無い）
+          */}
+          <InlineNotice tier="danger" title="棋譜として読めませんでした" body={parsed.message} />
+        </FormField>
+      )}
 
       <FormField horizontal>
         <TextInput
@@ -209,7 +231,7 @@ function KifuImportForm({
           onChange={setSelectedDir}
         />
         {dirOptions.length === 0 && (
-          <p className="kifu-import__parse kifu-import__parse--idle">
+          <p className="kifu-import__hint">
             保存先がありません。先にワークスペースを開いてください
           </p>
         )}
@@ -231,7 +253,7 @@ function KifuImportForm({
           type="submit"
           tone="primary"
           isLoading={isSaving}
-          disabled={!fullFileName || !rawContent.trim() || parseOk !== true || !selectedDir}
+          disabled={!fullFileName || parsed.kind !== "read" || !selectedDir}
         >
           {isSaving ? "作成中..." : "インポートして作成"}
         </Button>
