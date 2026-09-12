@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { exportJKF, importCSA } from "tsshogi";
 import { readableMove } from "@/entities/kifu/lib/readableMove";
-import { parseKifuContentToJKF, parseKifuStringToJKF } from "../parse";
+import { parseKifuContentToJKF, parseKifuStringToJKF, readKifuText } from "../parse";
 
 /** 同じ手順を CSA と KIF で書いたもの。4手目が「同銀」。 */
 const CSA = `V2.2
@@ -67,5 +67,49 @@ describe("parseKifuStringToJKF", () => {
     expect(fromCsa.jkf.moves.flatMap((m) => (m.move ? [readableMove(m)] : []))).toEqual(
       fromKif.jkf.moves.flatMap((m) => (m.move ? [readableMove(m)] : [])),
     );
+  });
+});
+
+/**
+ * 棋譜テキストが**棋譜として使えるか**の判定。
+ *
+ * **投げなかったことを「読めた」と読まない。** 通すと、呼んだ側は中身の無い棋譜を
+ * 「読めた」前提で扱う。この穴はパーサの性質なので、判定はここが1つ持つ。
+ */
+describe("readKifuText", () => {
+  test("指し手が読めれば、判定した形式と手数を返す", () => {
+    const read = readKifuText(CSA);
+
+    expect(read).toEqual({ readable: true, format: "csa", moves: 4 });
+  });
+
+  test("棋譜でない文章は、投げないが読めていない", () => {
+    // KIF / KI2 / CSA のインポータは指し手を1つも読めなくても Error を返さない
+    expect(parseKifuStringToJKF("これは棋譜ではないただの文章です").jkf.moves).toHaveLength(1);
+
+    const read = readKifuText("これは棋譜ではないただの文章です");
+
+    expect(read.readable).toBe(false);
+  });
+
+  test("空のテキストも読めていない", () => {
+    expect(readKifuText("   ").readable).toBe(false);
+  });
+
+  test("利用者に見せる一文と、開発者向けの手掛かりを分けて返す", () => {
+    const read = readKifuText("{ これは JSON ではない");
+    if (read.readable) throw new Error("読めないはずのテキストが読めた");
+
+    // 見せる側は日本語の一文だけ。tsshogi が返した英文は cause に置く
+    expect(read.message).toBe("JKF(JSON)の解析に失敗しました。");
+    expect(read.message).not.toContain("Error");
+    expect(read.cause).toBeTruthy();
+  });
+
+  test("その場で何をすればよいかは含めない。入口ごとに違う", () => {
+    const read = readKifuText("これは棋譜ではないただの文章です");
+    if (read.readable) throw new Error("読めないはずのテキストが読めた");
+
+    expect(read.message).not.toContain("貼り");
   });
 });

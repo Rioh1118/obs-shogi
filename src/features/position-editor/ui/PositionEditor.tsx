@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Color } from "shogi.js";
 import { DEFAULT_HANDICAP, type HandicapPreset } from "@/entities/kifu/model/handicap";
 import { inspectPosition } from "@/entities/position/lib/inspectPosition";
@@ -48,16 +48,14 @@ interface PositionEditorProps {
   /** 作成が通ったとき。器を閉じるのは器の仕事 */
   onCreated?: () => void;
   /**
-   * 器を閉じてよいか、器がこの面に問うための門
+   * 組みかけかどうかを器へ知らせる
    *
-   * **閉じる口は3つある**（Esc・覆いの押下・「やめる」）。段を面の中だけで持つと、
-   * 焦点が面の外にある経路と覆いの押下が素通りして、**組みかけが確認なしに消える**。
-   * 器が1つの口（`Modal` の `onClose`）へ寄せ、そこからここを通す。
-   *
-   * `true` を返したら面が引き取った（確認を出したか、止めた）。
+   * **閉じるときの確認は器が出す。** 閉じる口は4つ（Esc・覆いの押下・両方の面の
+   * 「やめる」）あり、そのうち2つは面の外にある。加えて捨てるものは組みかけだけでなく
+   * **隣のタブの貼りかけもある**ので、数えられるのは両方を見ている器だけ。
    */
-  closeGuard?: MutableRefObject<(() => boolean) | null>;
-  /** 確認を通したうえで実際に閉じる */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** 「やめる」。**器の閉じる門を通す**（直に閉じない） */
   onClose?: () => void;
   /** 種にできる課題局面。provider はこの面から読まない */
   studyPositions?: StudyPosition[];
@@ -82,7 +80,7 @@ function PositionEditor({
   studyPositions = [],
   initialDir,
   onCreated = () => undefined,
-  closeGuard,
+  onDirtyChange,
   onClose = () => undefined,
   onSubmittingChange,
 }: PositionEditorProps) {
@@ -115,10 +113,11 @@ function PositionEditor({
   }, [hidden, release]);
 
   /**
-   * 組みかけを捨てる確認
+   * 組みかけを捨てて種を載せ替える確認
    *
-   * **組みかけのときだけ出す。** 種を選び直すときも閉じるときも同じ。
-   * 聞きすぎると、聞かれること自体が意味を失う。
+   * **この面が出すのは種の載せ替えだけ。** 閉じるときの確認は器が出す
+   * （捨てるものが隣のタブにもあり、数えられるのは器だけ）。
+   * **組みかけのときだけ出す** —— 聞きすぎると、聞かれること自体が意味を失う。
    */
   const [pending, setPending] = useState<{ subtitle: string; run: () => void } | null>(null);
 
@@ -187,31 +186,15 @@ function PositionEditor({
   );
 
   /**
-   * 器を閉じてよいか
+   * 組みかけを器へ知らせる
    *
-   * 段0（作成中は止められないので閉じさせない）と段4（組みかけなら確認）を持つ。
-   * **Esc も覆いの押下も「やめる」も、必ずここを通る。**
+   * **閉じるときの確認は器が出す**（状態遷移表の段4）。捨てるものは組みかけだけでなく
+   * 隣のタブの貼りかけもあり、**両方を数えられるのは器だけ**だから ——
+   * ここで自分の分だけを見て確認を出すと、2つ捨てるときに1つしか名指せない。
    */
-  const guardClose = useCallback((): boolean => {
-    if (isSubmitting) return true;
-    if (!isDirty) return false;
-    setPending({ subtitle: "閉じると、いま組んでいる局面は消えます。", run: onClose });
-    return true;
-  }, [isSubmitting, isDirty, onClose]);
-
   useEffect(() => {
-    if (!closeGuard) return;
-    closeGuard.current = guardClose;
-    return () => {
-      closeGuard.current = null;
-    };
-  }, [closeGuard, guardClose]);
-
-  /** 面の中の「やめる」も同じ門を通す */
-  const requestClose = useCallback(() => {
-    if (guardClose()) return;
-    onClose();
-  }, [guardClose, onClose]);
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   /**
    * Esc の段
@@ -220,7 +203,7 @@ function PositionEditor({
    * 逆に何も組んでいないのに毎回確認が出て、確認そのものが読まれなくなる。
    *
    * **この受け口が持つのは段0〜段3だけ。** 器を閉じる段（段4・段5）は
-   * `closeGuard` を通って器の `Modal` の `onClose` が受け持つ。
+   * 器の `Modal` の `onClose` が受け持つ。
    * ここで畳んだ段は `preventDefault()` で降ろす ——
    * **`stopPropagation()` は使わない**（`document` まで届かないと
    * `defaultPrevented` の判定に到達せず、畳むものが無いときも無反応になる）。
@@ -388,7 +371,7 @@ function PositionEditor({
           handicap={handicapForOutput}
           initialDir={initialDir}
           onCreated={onCreated}
-          onCancel={requestClose}
+          onCancel={onClose}
           onSubmittingChange={reportSubmitting}
         />
       </div>

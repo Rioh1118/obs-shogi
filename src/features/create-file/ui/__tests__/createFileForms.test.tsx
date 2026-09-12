@@ -27,7 +27,11 @@ const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTre
     displayInfo: { iconType: "folder" },
   }) as FileTreeNode;
 
-/** ツリーはファイル監視で入れ替わるので、テストからも差し替えられる形で持つ */
+/**
+ * ツリーは操作のたびに丸ごと読み直される（`loadFileTree`）ので、差し替えられる形で持つ。
+ * **ファイルを見張る仕組みは無い** —— 入れ替わる口は、ツリーを触る操作と、
+ * 開いたときの `dir=` が現在のツリーに無い場合。
+ */
 let fileTree: FileTreeNode = dir("root", "/root");
 
 // 差し替えるのは実体の側。barrel は再 export なので、こちらを差し替えれば通る
@@ -154,18 +158,21 @@ describe("KifuImportForm", () => {
     });
 
     /**
-     * `KifuParseError` 以外は tsshogi の内部から抜けてきた英文なので、そのまま出さない。
-     * 見える位置へ昇格させたぶん、絞らないと英文が利用者の前に出る。
+     * 判定が返す `cause` は開発者向け（tsshogi の英文）。**画面はそれを出さない。**
+     * 代わりに、この入口で何をすればよいかをここが足す。
      */
-    test("利用者向けでない例外の文言は、画面に出さない", () => {
-      vi.spyOn(parse, "parseKifuStringToJKF").mockImplementation(() => {
-        throw new RangeError("Maximum call stack size exceeded");
+    test("開発者向けの手掛かりは画面に出さず、この面の直し方を足す", () => {
+      vi.spyOn(parse, "readKifuText").mockReturnValue({
+        readable: false,
+        message: "棋譜形式の判定に失敗しました。",
+        cause: "RangeError: Maximum call stack size exceeded",
       });
       render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
       typeInto("棋譜テキスト", KIF_TEXT);
 
       const notice = screen.getByText("棋譜として読めませんでした").closest(".notice");
+      expect(notice?.textContent).toContain("棋譜形式の判定に失敗しました。");
       expect(notice?.textContent).not.toContain("Maximum call stack");
       expect(notice?.textContent).toContain("貼り付けてください");
     });
@@ -228,7 +235,7 @@ describe("KifuImportForm", () => {
     // `collectDirs` は根を「/」、その下を根からの相対で名乗らせる
     expect(screen.getByLabelText("保存先").textContent).toBe("/角換わり");
 
-    // ファイル監視が、選んでいたフォルダだけを落としたツリーを返す
+    // ツリーを読み直したら、選んでいたフォルダだけが無くなっていた
     fileTree = dir("root", "/root");
     view.rerender(
       <KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />,

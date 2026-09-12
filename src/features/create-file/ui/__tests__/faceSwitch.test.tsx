@@ -159,13 +159,64 @@ describe("インポートの面から閉じる", () => {
     expect(closeModal).not.toHaveBeenCalled();
   });
 
-  test("組みかけが無ければ、そのまま閉じる", () => {
+  test("捨てるものが無ければ、そのまま閉じる", () => {
     render(<CreateFileModal />);
     fireEvent.click(tab("インポート"));
 
     fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
 
     expect(closeModal).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 捨てるものは面ごとに在り、**閉じる口はどちらの面にもある**。
+   * 器が両方を数えないと、見ていないほうが黙って消える。
+   */
+  test("棋譜を貼ったまま閉じようとすると確認が出る", () => {
+    render(<CreateFileModal />);
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+
+    expect(screen.getByText("貼った棋譜は保存されません。")).toBeTruthy();
+    expect(closeModal).not.toHaveBeenCalled();
+  });
+
+  test("貼った棋譜は、盤の面から Esc で閉じようとしても数える", () => {
+    render(<CreateFileModal />);
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+    fireEvent.click(tab("新規作成"));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.getByText("貼った棋譜は保存されません。")).toBeTruthy();
+    expect(closeModal).not.toHaveBeenCalled();
+  });
+
+  // 1つだけを名指すと、もう片方が消えることが確認を読んでも分からない
+  test("両方あるときは両方を名指す", () => {
+    render(<CreateFileModal />);
+    makeDirty();
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+
+    expect(screen.getByText("組んだ局面と貼った棋譜は保存されません。")).toBeTruthy();
+  });
+
+  test("「閉じない」なら、貼ったものは残る", () => {
+    render(<CreateFileModal />);
+    fireEvent.click(tab("インポート"));
+    fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
+    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "閉じない" }));
+
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(importFace().getByLabelText<HTMLTextAreaElement>("棋譜テキスト").value).toBe(KIF_TEXT);
   });
 
   test("インポートの面へ移ると、貼り付け欄に焦点が入る", async () => {

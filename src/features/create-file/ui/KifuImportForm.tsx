@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { KifuParseError } from "@/entities/kifu/api/parse";
 import {
   collectDirs,
   FsErrorView,
@@ -7,8 +6,7 @@ import {
   useFileTree,
   type FsError,
 } from "@/entities/file-tree";
-import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
-import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
+import { KIFU_FORMAT_OPTIONS } from "@/entities/kifu/model/kifu";
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import Textarea from "@/shared/ui/Form/Textarea";
@@ -17,66 +15,17 @@ import Select from "@/shared/ui/Form/Select";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
+import { useKifuImportDraft } from "../model/useKifuImportDraft";
 import "./KifuImportForm.scss";
-
-/**
- * 貼られた棋譜を読んだ結果
- *
- * **3つの状態を1つの値で持つ。** 「読めたか」と「読めなかった理由」を別々に持つと、
- * 読めているのに理由が残っている組み合わせが作れて、どちらを信じるかが決まらない。
- */
-type ParseResult =
-  | { kind: "none" }
-  | { kind: "read"; format: KifuFormat; moves: number }
-  | { kind: "unreadable"; message: string; cause?: string };
 
 /**
  * 貼り直せば直るかもしれないことを、この面の言葉で添える
  *
- * **`KifuParseError` の文言に混ぜない。** 同じ失敗はファイルを開く経路でも起きるので、
- * 「貼り付けてください」を出典側に書くと、開いた棋譜が読めなかったときに
- * 貼ってもいない利用者へ貼り直しを求めることになる。
+ * **読めたかを判定する側（`readKifuText`）に混ぜない。** 同じ失敗はファイルを開く
+ * 経路でも起きるので、出典に「貼り付けてください」と書くと、貼ってもいない利用者へ
+ * 貼り直しを求めることになる。
  */
 const HOW_TO_FIX = "KIF / KI2 / CSA / JKF のいずれかを、先頭から末尾まで貼り付けてください。";
-
-/**
- * 貼られたテキストを読む
- *
- * **投げなかったことを「読めた」と読まない。** KIF / KI2 / CSA のインポータは
- * 指し手を1つも読み取れなくても `Error` ではなく空の record を返す
- * （`parseKifuStringToJKF` の doc）ので、棋譜でない文章がそのまま通る。
- * 通すと「読めました」と言い切ったうえで**中身の無いファイルを作り、
- * 貼ったテキストごと器を閉じる** —— 利用者は何が消えたのかも分からない。
- */
-function readKifu(raw: string): ParseResult {
-  const text = raw.trim();
-  if (!text) return { kind: "none" };
-
-  try {
-    const { detectedFormat, jkf } = parseKifuStringToJKF(text);
-    // `moves` の先頭は初期局面の枠なので手数から外す
-    const moves = jkf.moves.length - 1;
-    if (moves <= 0) {
-      return {
-        kind: "unreadable",
-        message: `指し手を1つも読み取れませんでした。${HOW_TO_FIX}`,
-      };
-    }
-    return { kind: "read", format: detectedFormat, moves };
-  } catch (e) {
-    // **画面に出すのは利用者向けの一文だけ。** `KifuParseError` の `message` は
-    // そのために書かれた日本語だが、それ以外は tsshogi の内部から抜けてきた英文
-    // （深く入れ子になった JKF での `RangeError` など）なので、そのまま出さない
-    if (e instanceof KifuParseError) {
-      return { kind: "unreadable", message: `${e.message}${HOW_TO_FIX}`, cause: String(e.cause) };
-    }
-    return {
-      kind: "unreadable",
-      message: `棋譜として読み取れませんでした。${HOW_TO_FIX}`,
-      cause: String(e),
-    };
-  }
-}
 
 function KifuImportForm({
   onCreated,
@@ -84,6 +33,7 @@ function KifuImportForm({
   hidden = false,
   dirPath,
   onSubmittingChange,
+  onDirtyChange,
 }: {
   /** 取り込めたので器を閉じる。**確認は通さない**（捨てるものが無い） */
   onCreated: () => void;
@@ -105,12 +55,34 @@ function KifuImportForm({
    * この面が外れて**失敗を出す場所ごと消える**。
    */
   onSubmittingChange?: (submitting: boolean) => void;
+  /**
+   * 貼りかけを器へ知らせる
+   *
+   * **閉じるときの確認は器が出す**（状態遷移表の直交軸「捨てるもの」）。
+   * 捨てるものは隣のタブの組みかけにもあり、**両方を数えられるのは器だけ**。
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { importKifuFile, fileTree } = useFileTree();
 
-  const [fileName, setFileName] = useState("");
-  const [format, setFormat] = useState<KifuFormat>("kif");
-  const [rawContent, setRawContent] = useState("");
+  /**
+   * 貼りかけと、作るファイルの指定
+   *
+   * **この面は判定を持たない。** 棋譜として読めたか・書き込む名前・捨てるものがあるかは
+   * 下書きの側が答える（組む面の `usePositionDraft` と同じ役）。
+   * ここが決めるのは、その答えをどう言葉にして、どこに置くかだけ。
+   */
+  const {
+    rawContent,
+    setRawContent,
+    fileName,
+    setFileName,
+    format,
+    setFormat,
+    read,
+    fullFileName,
+    isDirty,
+  } = useKifuImportDraft();
 
   const [submitError, setSubmitError] = useState<FsError | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -143,8 +115,6 @@ function KifuImportForm({
     setSelectedDir(rootPath);
   }
 
-  const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
-
   // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
   // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
   // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす口が他に無い
@@ -156,21 +126,18 @@ function KifuImportForm({
     requestAnimationFrame(() => rawRef.current?.focus());
   }, [hidden]);
 
-  /**
-   * **貼られたテキストから毎回引く。** state に置くと、`rawContent` が新しくて
-   * この値が古い組み合わせで描かれるコミットが打鍵ごとに1回挟まり、
-   * 送信条件（`parsed.kind`）がどちらを信じるか決まらなくなる
-   */
-  const parsed = useMemo(() => readKifu(rawContent), [rawContent]);
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   // 開発者向けの手掛かりはコンソールへ。**配布ビルドには残らない** ——
   // 棋譜のパースは webview の中だけで走り、`tauri-plugin-log` は Rust のログしか受けない。
   // 開発中に追うためのもので、利用者から原因を受け取る口ではない（→ #157）
   useEffect(() => {
-    if (parsed.kind === "unreadable" && parsed.cause) {
-      console.error("[create-file] 貼られた棋譜を読めなかった", parsed.cause);
+    if (read && !read.readable && read.cause) {
+      console.error("[create-file] 貼られた棋譜を読めなかった", read.cause);
     }
-  }, [parsed]);
+  }, [read]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +146,7 @@ function KifuImportForm({
     const text = rawContent.trim();
 
     if (!name || !text || !selectedDir) return;
-    if (parsed.kind !== "read") return;
+    if (!read?.readable) return;
     // 取り込みは書き込みとツリーの読み直しを通る。押しても画面が変わらない間に
     // もう一度押すと、1回目は成功して2回目が already_exists になる
     if (isSaving) return;
@@ -232,20 +199,25 @@ function KifuImportForm({
           （ADR-0004 決定4）。**未入力では何も出さない** —— 貼る前に「貼ってください」と
           言う場所は、貼る欄そのものの placeholder が既に持っている
         */}
-        {parsed.kind === "read" && (
+        {read?.readable && (
           <p className="kifu-import__read" role="status">
             棋譜として読めました
             <span className="kifu-import__readDetail">
-              {parsed.format} ／ {parsed.moves}手
+              {read.format} ／ {read.moves}手
             </span>
           </p>
         )}
-        {parsed.kind === "unreadable" && (
+        {read && !read.readable && (
           /*
             段は `danger`（ADR-0004 決定1）—— 同じテキストをもう一度貼っても直らず、
-            直し方は棋譜ごとに違う。**ボタンは付けない**（押して直るものが無い）
+            直し方は棋譜ごとに違う。**ボタンは付けない**（押して直るものが無い）。
+            この面で何をすればよいかは、判定の側でなくここが足す
           */
-          <InlineNotice tier="danger" title="棋譜として読めませんでした" body={parsed.message} />
+          <InlineNotice
+            tier="danger"
+            title="棋譜として読めませんでした"
+            body={`${read.message}${HOW_TO_FIX}`}
+          />
         )}
 
         {/* 3つとも短いので横に並べる。`--horizontal` は入る数だけ列を作るので、
@@ -294,7 +266,7 @@ function KifuImportForm({
             tone="primary"
             size="lg"
             isLoading={isSaving}
-            disabled={!fullFileName || parsed.kind !== "read" || !selectedDir}
+            disabled={!fullFileName || !read?.readable || !selectedDir}
           >
             {isSaving ? "作成中..." : "作成"}
           </Button>
