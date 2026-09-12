@@ -39,7 +39,8 @@ function PreviewPane({ previewData }: Props) {
   if (!previewData) {
     return (
       <div className="position-navigation-modal__preview-container">
-        <div className="position-navigation-modal__board-preview">
+        {/* 手番の段が無い枠。読み込み中の一文を、盤が入る位置の中央に置く */}
+        <div className="position-navigation-modal__board-preview position-navigation-modal__board-preview--empty">
           <div className="board-preview-placeholder">
             <p>局面を読み込み中...</p>
           </div>
@@ -55,29 +56,35 @@ function PreviewPane({ previewData }: Props) {
 
   return (
     <div className="position-navigation-modal__preview-container">
-      {/*
-        **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
-        初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
-        呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
+      <div className="position-navigation-modal__board-preview">
+        {/*
+          **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
+          初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
+          呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
 
-        記号を語に添える（`turnGlyph`）—— 下の持ち駒の段が見出しに同じ記号を持つので、
-        字が揃っていないと、どちらの段を指しているのかを読み手が対応付け直すことになる
-      */}
-      <div className="position-navigation-modal__turn-badge">
-        {turnGlyph(previewData.turn)}
-        {turnText(previewData.turn)}
-      </div>
+          記号を語に添える（`turnGlyph`）—— 下の持ち駒の段が見出しに同じ記号を持つので、
+          字が揃っていないと、どちらの段を指しているのかを読み手が対応付け直すことになる
+        */}
+        <div className="position-navigation-modal__turn-badge">
+          {turnGlyph(previewData.turn)}
+          {turnText(previewData.turn)}
+        </div>
 
-      <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
-        <BoardPreview
-          pieces={previewData.board}
-          hands={hands}
-          size={boardSize}
-          showCoordinates={false}
-          showLastMove={false}
-          showHands={false}
-          interactive={false}
-        />
+        {/*
+          **測るのは盤に配る枠だけ。** 枠そのものを測ると、同じ枠の中にあるバッジの
+          高さが引かれないまま一辺が決まり、盤が枠の下端からはみ出す
+        */}
+        <div className="position-navigation-modal__board-fit" ref={boardWrapRef}>
+          <BoardPreview
+            pieces={previewData.board}
+            hands={hands}
+            size={boardSize}
+            showCoordinates={false}
+            showLastMove={false}
+            showHands={false}
+            interactive={false}
+          />
+        </div>
       </div>
 
       <div className="position-navigation-modal__hands">
