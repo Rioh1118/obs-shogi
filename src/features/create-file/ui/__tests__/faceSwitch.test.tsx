@@ -17,11 +17,6 @@ vi.mock("@/shared/lib/router/useURLParams", () => ({
   useURLParams: () => ({ params, closeModal }),
 }));
 
-// 棋譜は開いていない。種を選ぶ行の「いまの棋譜の局面」は沈む
-vi.mock("@/entities/game", () => ({
-  useGame: () => ({ view: { player: null } }),
-}));
-
 vi.mock("@/entities/study-positions/model/useStudyPositions", () => ({
   useStudyPositions: () => ({ state: { positions: [] } }),
 }));
@@ -97,7 +92,7 @@ describe("タブの切り替え（X9）", () => {
     // 隠れているあいだにどちらの面を描くかは目に見えないが、**フォームの有無が変わる**。
     // 課題局面の面を描くと、隠れているあいだに作成フォームごと外れて入力が消える
     fireEvent.change(screen.getByLabelText("ファイル名"), { target: { value: "45角戦法" } });
-    fireEvent.click(screen.getByRole("button", { name: "課題局面から" }));
+    fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
     expect(screen.getByRole("button", { name: "戻る" })).toBeTruthy();
 
     fireEvent.click(tab("インポート"));

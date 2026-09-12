@@ -2,59 +2,54 @@ import { HANDICAP_PRESETS, type HandicapPreset } from "@/entities/kifu/model/han
 import Select from "@/shared/ui/Form/Select";
 
 interface EditorSeedProps {
-  /** いま選ばれている手合割。組みかけなら `null`（プレースホルダに戻す） */
+  /**
+   * いま載っている種の手合割。課題局面から載せたなら `null`
+   *
+   * **組みかけになっても消さない。** 消すと「何をもとに組んだのか」が画面から消えて、
+   * 平手を直した形なのか駒落ちを直した形なのかが読めなくなる。
+   */
   handicap: HandicapPreset | null;
-  /** いま開いている棋譜の局面を種にできるか */
-  canUseCurrentKifu: boolean;
+  /** 種を載せてから盤・駒台・手番のどれかを変えたか */
+  isDirty: boolean;
   onPickHandicap: (preset: HandicapPreset) => void;
   onOpenStudyPositions: () => void;
-  onUseCurrentKifu: () => void;
 }
 
 /**
  * 種を選ぶ行
  *
- * 種は3通り —— 手合割13／登録済みの課題局面／いま開いている棋譜の局面。
+ * 種は2通り —— 手合割13と、登録済みの課題局面。
  * **駒箱を持たないので、駒の顔ぶれはここで決まりきる**（→ #548）。
  *
  * **確定ボタンは置かない。** 選んだ瞬間に載る。載せる前に「本当に載せるか」を
  * 聞く場面は組みかけのときだけで、それは捨てる確認が受け持つ。
+ *
+ * 押せるものは2つだけなので、出どころを選ぶ段（分節）を挟まない ——
+ * 挟むと押す回数が増えるだけになる。
  */
-function EditorSeed({
-  handicap,
-  canUseCurrentKifu,
-  onPickHandicap,
-  onOpenStudyPositions,
-  onUseCurrentKifu,
-}: EditorSeedProps) {
+function EditorSeed({ handicap, isDirty, onPickHandicap, onOpenStudyPositions }: EditorSeedProps) {
   return (
     <div className="pos-editor__seed">
       <div className="pos-editor__seed-select">
         <Select
-          label="手合割"
+          label="種"
           id="pos-editor-handicap"
           options={HANDICAP_PRESETS}
-          // 組みかけのあいだは空にしてプレースホルダへ戻す。**同じ手合割を
-          // 選び直せるようにもなる** —— 値が残っていると `onChange` が飛ばない
           value={handicap ?? ""}
           placeholder="手合割から…"
           onChange={onPickHandicap}
         />
       </div>
 
-      <button type="button" className="pos-editor__seed-button" onClick={onOpenStudyPositions}>
-        課題局面から
-      </button>
+      {/*
+        **直したことを名前に添える。** 添えないと、画面の「平手」と
+        ファイルに書かれるもの（並べ替えたら盤面そのもの）が食い違ったまま読めない。
+        欄の外に出すのは、`Select` の選択肢に無い綴りを値として持たせないため
+      */}
+      {handicap !== null && isDirty && <span className="pos-editor__seed-note">（編集済み）</span>}
 
-      <button
-        type="button"
-        className="pos-editor__seed-button"
-        onClick={onUseCurrentKifu}
-        disabled={!canUseCurrentKifu}
-        // **押しても何も起きない形を作らない。** 押せない理由をその場に残す
-        title={canUseCurrentKifu ? undefined : "棋譜を開いていません"}
-      >
-        いまの棋譜の局面
+      <button type="button" className="pos-editor__seed-button" onClick={onOpenStudyPositions}>
+        課題局面から…
       </button>
     </div>
   );

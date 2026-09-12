@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, cleanup, fireEvent } from "@testing-library/react";
 import { Color } from "shogi.js";
 import { emptyHand } from "@/entities/position/lib/positionDraft";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import { EditorHarness } from "./harness";
+import { EditorHarness, renderSeeded } from "./harness";
 
 /**
  * 右クリックで裏返す（状態遷移表の X3）。
@@ -21,12 +21,6 @@ vi.mock("@/entities/file-tree/model/useFileTree", () => ({
 }));
 
 afterEach(cleanup);
-
-/** 種を載せてから確かめる。**種を載せる経路そのものを通す**（prop で差し込まない） */
-function renderSeeded(state: JKFState) {
-  render(<EditorHarness currentPosition={state} />);
-  fireEvent.click(screen.getByRole("button", { name: "いまの棋譜の局面" }));
-}
 
 function emptyState(): JKFState {
   return {

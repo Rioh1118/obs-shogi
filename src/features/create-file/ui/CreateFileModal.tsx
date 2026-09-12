@@ -1,8 +1,6 @@
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { useGame } from "@/entities/game";
-import { stateFromSfen } from "@/entities/position/lib/positionDraft";
+import { useCallback, useRef, useState } from "react";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import PositionEditor, { type EditorFace } from "@/features/position-editor";
 import KifuImportForm from "./KifuImportForm";
@@ -56,20 +54,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
     closeModal();
   }, [closeModal, isSubmitting]);
 
-  const { view } = useGame();
   const { state: studyState } = useStudyPositions();
-
-  /**
-   * いま開いている棋譜の、いま見えている局面
-   *
-   * **SFEN を経由する。** `shogi.js` の盤をそのまま渡すと、再生器が持っている
-   * 可変の配列を組みかけの state として抱えることになり、盤を動かした瞬間に
-   * 種のほうも変わる。
-   */
-  const currentPosition = useMemo(() => {
-    const sfen = view.player?.shogi.toSFENString();
-    return sfen ? stateFromSfen(sfen) : null;
-  }, [view.player?.shogi]);
 
   return (
     <Modal
@@ -137,7 +122,6 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             face={face === "import" ? "board" : face}
             hidden={face === "import"}
             onFaceChange={setFace}
-            currentPosition={currentPosition}
             studyPositions={studyState.positions}
             initialDir={params.dir || undefined}
             onCreated={() => closeModal()}

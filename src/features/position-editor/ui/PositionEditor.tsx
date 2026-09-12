@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from "react";
 import { Color } from "shogi.js";
 import { DEFAULT_HANDICAP, type HandicapPreset } from "@/entities/kifu/model/handicap";
-import type { JKFState } from "@/entities/kifu/model/jkf";
 import { inspectPosition } from "@/entities/position/lib/inspectPosition";
 import {
   pieceAt,
@@ -62,13 +61,6 @@ interface PositionEditorProps {
   onClose?: () => void;
   /** 種にできる課題局面。provider はこの面から読まない */
   studyPositions?: StudyPosition[];
-  /**
-   * いま開いている棋譜の局面。開いていなければ `null`
-   *
-   * **provider をこの面から読まない。** 読むと、盤だけを描きたいときにも
-   * 棋譜の文脈が要ることになり、確かめるのに器ごと組む羽目になる。
-   */
-  currentPosition?: JKFState | null;
 }
 
 /**
@@ -87,7 +79,6 @@ function PositionEditor({
   face,
   onFaceChange,
   hidden = false,
-  currentPosition = null,
   studyPositions = [],
   initialDir,
   onCreated = () => undefined,
@@ -194,14 +185,6 @@ function PositionEditor({
     },
     [confirmIfDirty, loadSeed, onFaceChange],
   );
-
-  const useCurrentKifu = useCallback(() => {
-    if (!currentPosition) return;
-    confirmIfDirty("いまの棋譜の局面を載せると、組んでいる局面は消えます。", () => {
-      loadSeed(currentPosition);
-      setHandicap(null);
-    });
-  }, [confirmIfDirty, currentPosition, loadSeed]);
 
   /**
    * 器を閉じてよいか
@@ -317,14 +300,16 @@ function PositionEditor({
   const onStudyFace = face === "study";
 
   /**
-   * いま載っている手合割。組みかけなら `null`
+   * 出口に書く手合割。**並べ替えたら `null`**
    *
-   * **1つの式にする。** 受け手は2つあり、意味が違う ——
-   * 種を選ぶ行は「Select に何を出すか」、作成フォームは「`initial` に
-   * `{preset}` と書くか `{preset: "OTHER", data}` と書くか」。片方だけ条件を変えると、
-   * **画面が「平手」と言っているのにできたファイルは盤面データ**（逆なら並べ替えが落ちる）になる
+   * **画面に出す名前（`handicap`）と分ける。** 意味が違う ——
+   * 種を選ぶ行が出すのは「何をもとに組んだか」で、載せた手合割の名前は直した後も残す。
+   * こちらが答えるのは「`initial` に `{preset}` と書いてよいか」で、
+   * 1升でも動かしたら**盤面そのものを書かないと直した配置が黙って落ちる**。
+   *
+   * 食い違いは画面の中で説明する —— 直した名前には「（編集済み）」が付く。
    */
-  const activeHandicap = isDirty ? null : handicap;
+  const handicapForOutput = isDirty ? null : handicap;
 
   return (
     <div className="pos-editor" tabIndex={-1} hidden={hidden} onKeyDown={handleKeyDown}>
@@ -352,11 +337,10 @@ function PositionEditor({
         hidden={onStudyFace}
       >
         <EditorSeed
-          handicap={activeHandicap}
-          canUseCurrentKifu={currentPosition !== null}
+          handicap={handicap}
+          isDirty={isDirty}
           onPickHandicap={pickHandicap}
           onOpenStudyPositions={openStudyPositions}
-          onUseCurrentKifu={useCurrentKifu}
         />
 
         <div className="pos-editor__position">
@@ -400,7 +384,7 @@ function PositionEditor({
         <EditorNotice issues={inspection.issues} />
         <EditorCreateForm
           state={state}
-          handicap={activeHandicap}
+          handicap={handicapForOutput}
           initialDir={initialDir}
           onCreated={onCreated}
           onCancel={requestClose}

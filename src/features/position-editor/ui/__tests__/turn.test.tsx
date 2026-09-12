@@ -2,8 +2,7 @@
 import { describe, expect, test, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { stateFromPreset } from "@/entities/position/lib/positionDraft";
-import type { JKFState } from "@/entities/kifu/model/jkf";
-import { EditorHarness } from "./harness";
+import { EditorHarness, renderSeeded } from "./harness";
 
 /** 手番（状態遷移表の X4）。盤の外の値なので、駒の位置は動かさない */
 
@@ -14,12 +13,6 @@ vi.mock("@/entities/file-tree/model/useFileTree", () => ({
 }));
 
 afterEach(cleanup);
-
-/** 種を載せてから確かめる。**種を載せる経路そのものを通す**（prop で差し込まない） */
-function renderSeeded(state: JKFState) {
-  render(<EditorHarness currentPosition={state} />);
-  fireEvent.click(screen.getByRole("button", { name: "いまの棋譜の局面" }));
-}
 
 const square = (x: number, y: number): HTMLElement => {
   const el = document.querySelector<HTMLElement>(
