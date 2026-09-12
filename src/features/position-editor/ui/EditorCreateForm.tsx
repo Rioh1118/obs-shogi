@@ -92,7 +92,10 @@ function EditorCreateForm({
 
   // **選んでいたフォルダだけが消えたときも根へ戻す。** `Select` は選択肢に無い値を
   // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
-  // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**
+  // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**。
+  //
+  // 一覧が空のあいだは触らない。ツリーが未読のときも `dirOptions` は空で、
+  // ここで戻すと呼び出し元から来た `initialDir` を読み込みの途中で根へ潰す
   if (selectedDir && dirOptions.length > 0 && !dirOptions.some((o) => o.value === selectedDir)) {
     setSelectedDir(rootPath);
   }
