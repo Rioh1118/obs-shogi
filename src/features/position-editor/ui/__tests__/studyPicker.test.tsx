@@ -149,6 +149,13 @@ describe("選ぶ", () => {
     expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
   });
 
+  test("下見の盤は手番を出す", () => {
+    // **盤の絵からは読み取れない。** 種として載せたあと最初に指すのがどちらかが
+    // 決まる値なので、選ぶ前に見えている必要がある
+    openPicker([position({ sfen: HIRATE.replace(" b ", " w ") })]);
+    expect(screen.getByText("☖後手番")).toBeTruthy();
+  });
+
   test("ホバーでは動かない", () => {
     // 通り過ぎただけでプレビューが変わると、見たい局面に辿り着けない
     openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import BoardPreview from "./BoardPreview";
 import { Color } from "shogi.js";
-import { GOTE_LABEL, SENTE_LABEL } from "@/shared/lib/turn";
+import { GOTE_LABEL, SENTE_LABEL, turnGlyph, turnText } from "@/shared/lib/turn";
 import "./PositionPreviewPane.scss";
 import HandRow from "./HandRow";
 import type { PreviewData } from "@/entities/position/model/preview";
@@ -55,6 +55,19 @@ function PreviewPane({ previewData }: Props) {
 
   return (
     <div className="position-navigation-modal__preview-container">
+      {/*
+        **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
+        初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
+        呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
+
+        記号を語に添える（`turnGlyph`）—— 下の持ち駒の段が見出しに同じ記号を持つので、
+        字が揃っていないと、どちらの段を指しているのかを読み手が対応付け直すことになる
+      */}
+      <div className="position-navigation-modal__turn-badge">
+        {turnGlyph(previewData.turn)}
+        {turnText(previewData.turn)}
+      </div>
+
       <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
         <BoardPreview
           pieces={previewData.board}

@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState } from "react";
-import { turnText } from "@/shared/lib/turn";
 
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
@@ -34,8 +33,6 @@ export default function PositionDetail({
     if (!position) return null;
     return buildPreviewDataFromSfen(position.sfen);
   }, [position]);
-
-  const turnBadge = previewData ? turnText(previewData.turn) : null;
 
   const handleDelete = useCallback(async () => {
     if (!position || isDeleting) return;
@@ -87,7 +84,6 @@ export default function PositionDetail({
           ))}
         </div>
         <div className="sp-detail__metaSub">
-          {turnBadge && <span>{turnBadge}</span>}
           <span>{formatDate(position.updatedAt)} 更新</span>
         </div>
         {position.description && <div className="sp-detail__memo">{position.description}</div>}
