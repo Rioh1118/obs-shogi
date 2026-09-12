@@ -271,9 +271,9 @@ export interface CycleStep {
 /**
  * 盤の駒を裏返した次の姿
  *
- * 不成 → 成 → 相手の成 → 相手の不成 で1周する。成れない駒（玉・金）は2巡。
- * `shogi.js` の `flip`（先手 → 先手成 → 後手 → 後手成）は採らない。
- * 成りと持ち主が交互に変わるので、目当ての状態まで何回押すか読めない。
+ * 不成 → 成 → 相手の不成 → 相手の成 で1周する。成れない駒（玉・金）は2巡。
+ * **持ち主が変わるのは1周に1度だけ**（成から相手の不成へ渡るところ）で、
+ * その手前までは同じ側の不成と成が並ぶ。`shogi.js` の `flip` と同じ順。
  *
  * **(kind, color) だけでは次が決まらない。** 「後手の不成」の次が「先手の不成」なのか
  * 「後手の成」なのかは、何巡目かを知らないと決まらない。だから巡目を引数に取る。
@@ -282,7 +282,7 @@ export interface CycleStep {
  * いま升にある駒（`kind` / `color`）と食い違えば**引き継がない**。この照合が無いと、
  * 呼ぶ側は駒が動くたびに覚えを消して回ることになり、消す場所が
  * 「盤の移動・駒台へ送る・駒台から置く・種を載せ直す」に散る。1つ忘れると
- * こう壊れる —— 歩を2回裏返して（後手と金、巡目2）、別の先手歩をその升に重ねると、
+ * こう壊れる —— 歩を2回裏返して（後手の歩、巡目2）、別の先手歩をその升に重ねると、
  * 次の右クリックが `{FU, 先手}` を返して**同じ駒がそのまま返る**。
  * 例外も出ず、押しても何も起きない形になる。
  *
@@ -320,8 +320,8 @@ export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): Cyc
   const steps: Array<{ kind: Kind; color: Color }> = [
     { kind: raw, color: owner },
     { kind: promoted, color: owner },
-    { kind: promoted, color: flipColor(owner) },
     { kind: raw, color: flipColor(owner) },
+    { kind: promoted, color: flipColor(owner) },
   ];
   return { ...steps[nextCyc], cyc: nextCyc };
 }

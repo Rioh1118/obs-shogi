@@ -335,12 +335,13 @@ describe("moveBetweenHands", () => {
 
 describe("cycleFrom", () => {
   test("成れる駒は4回で元に戻る", () => {
+    // **持ち主が変わるのは1周に1度だけ。** 同じ側の不成と成が並んでから相手側へ渡る
     let step = cycleFrom("FU", Color.Black);
     expect(step).toEqual({ kind: "TO", color: Color.Black, cyc: 1 });
     step = cycleFrom(step.kind, step.color, step);
-    expect(step).toEqual({ kind: "TO", color: Color.White, cyc: 2 });
+    expect(step).toEqual({ kind: "FU", color: Color.White, cyc: 2 });
     step = cycleFrom(step.kind, step.color, step);
-    expect(step).toEqual({ kind: "FU", color: Color.White, cyc: 3 });
+    expect(step).toEqual({ kind: "TO", color: Color.White, cyc: 3 });
     step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "FU", color: Color.Black, cyc: 0 });
   });
@@ -349,9 +350,9 @@ describe("cycleFrom", () => {
     let step = cycleFrom("HI", Color.White);
     expect(step).toEqual({ kind: "RY", color: Color.White, cyc: 1 });
     step = cycleFrom(step.kind, step.color, step);
-    expect(step).toEqual({ kind: "RY", color: Color.Black, cyc: 2 });
+    expect(step).toEqual({ kind: "HI", color: Color.Black, cyc: 2 });
     step = cycleFrom(step.kind, step.color, step);
-    expect(step).toEqual({ kind: "HI", color: Color.Black, cyc: 3 });
+    expect(step).toEqual({ kind: "RY", color: Color.Black, cyc: 3 });
     step = cycleFrom(step.kind, step.color, step);
     expect(step).toEqual({ kind: "HI", color: Color.White, cyc: 0 });
   });
@@ -366,9 +367,9 @@ describe("cycleFrom", () => {
   });
 
   test("巡目が分からない成駒は、もとの持ち主の成として始める", () => {
-    // 種に最初から載っている成駒。次に来るのは「相手の成」
+    // 種に最初から載っている成駒。次に来るのは「相手の不成」
     expect(cycleFrom("TO", Color.Black)).toEqual({
-      kind: "TO",
+      kind: "FU",
       color: Color.White,
       cyc: 2,
     });
@@ -383,7 +384,7 @@ describe("cycleFrom", () => {
   });
 
   test("覚えている駒が升の駒と違えば、巡目を引き継がない", () => {
-    // 歩を2回裏返して（後手と金・巡目2）、その升に別の先手歩を重ねた場合。
+    // 歩を2回裏返して（後手の歩・巡目2）、その升に別の先手歩を重ねた場合。
     // 引き継ぐと `{FU, 先手}` が返り、押しても同じ駒がそのまま返る
     const stale: CycleStep = { kind: "TO", color: Color.White, cyc: 2 };
     expect(cycleFrom("FU", Color.Black, stale)).toEqual({
@@ -405,7 +406,7 @@ describe("cycleFrom", () => {
   test("覚えている駒が一致していれば引き継ぐ", () => {
     const step: CycleStep = { kind: "TO", color: Color.Black, cyc: 1 };
     expect(cycleFrom("TO", Color.Black, step)).toEqual({
-      kind: "TO",
+      kind: "FU",
       color: Color.White,
       cyc: 2,
     });

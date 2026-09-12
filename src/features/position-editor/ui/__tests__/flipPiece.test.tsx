@@ -48,7 +48,7 @@ const pieceAt = (x: number, y: number): string | null => {
 };
 
 describe("右クリックで裏返す", () => {
-  test("不成 → 成 → 相手の成 → 相手の不成 で1周する", () => {
+  test("不成 → 成 → 相手の不成 → 相手の成 で1周する", () => {
     const state = emptyState();
     state.board[4][4] = { kind: "FU", color: Color.Black };
     renderSeeded(state);
@@ -59,11 +59,12 @@ describe("右クリックで裏返す", () => {
     fireEvent.contextMenu(square(5, 5));
     expect(pieceAt(5, 5)).toBe("piece__prom-pawn/sente");
 
-    fireEvent.contextMenu(square(5, 5));
-    expect(pieceAt(5, 5)).toBe("piece__prom-pawn/gote");
-
+    // **持ち主が変わるのはここだけ。** 同じ側の不成と成が並んでから相手側へ渡る
     fireEvent.contextMenu(square(5, 5));
     expect(pieceAt(5, 5)).toBe("piece__pawn/gote");
+
+    fireEvent.contextMenu(square(5, 5));
+    expect(pieceAt(5, 5)).toBe("piece__prom-pawn/gote");
 
     fireEvent.contextMenu(square(5, 5));
     expect(pieceAt(5, 5)).toBe(start);
@@ -113,7 +114,7 @@ describe("右クリックで裏返す", () => {
     fireEvent.contextMenu(square(5, 5)); // 5五 は2巡目
     fireEvent.contextMenu(square(4, 5)); // 4五 は1巡目
 
-    expect(pieceAt(5, 5)).toBe("piece__prom-pawn/gote");
+    expect(pieceAt(5, 5)).toBe("piece__pawn/gote");
     expect(pieceAt(4, 5)).toBe("piece__prom-pawn/sente");
   });
 
@@ -125,8 +126,8 @@ describe("右クリックで裏返す", () => {
     renderSeeded(state);
 
     fireEvent.contextMenu(square(5, 5));
-    fireEvent.contextMenu(square(5, 5)); // 5五 は後手と金（巡目2）
-    expect(pieceAt(5, 5)).toBe("piece__prom-pawn/gote");
+    fireEvent.contextMenu(square(5, 5)); // 5五 は後手歩（巡目2）
+    expect(pieceAt(5, 5)).toBe("piece__pawn/gote");
 
     // 4五 の先手歩を 5五 へ重ねる。5五 は先手歩になる
     fireEvent.click(square(4, 5));
