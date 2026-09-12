@@ -77,10 +77,14 @@ describe("parseKifuStringToJKF", () => {
  * 「読めた」前提で扱う。この穴はパーサの性質なので、判定はここが1つ持つ。
  */
 describe("readKifuText", () => {
-  test("指し手が読めれば、判定した形式と手数を返す", () => {
+  test("指し手が読めれば、判定した形式と手数と棋譜を返す", () => {
     const read = readKifuText(CSA);
+    if (!read.readable) throw new Error("読めるはずの棋譜が読めなかった");
 
-    expect(read).toEqual({ readable: true, format: "csa", moves: 4 });
+    expect(read.format).toBe("csa");
+    expect(read.moves).toBe(4);
+    // 呼ぶ側が対局者名や初期局面を出すのに要る
+    expect(read.jkf.moves).toHaveLength(5);
   });
 
   test("棋譜でない文章は、投げないが読めていない", () => {

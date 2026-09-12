@@ -111,13 +111,21 @@ describe("KifuImportForm", () => {
       expect(screen.queryByText("棋譜として読めませんでした")).toBeNull();
     });
 
-    test("読めたら、何として読んだかと手数を出す", () => {
+    /**
+     * **「読めました」の1行では足りない。** 貼った人が確かめたいのは
+     * 「貼ろうとした棋譜がこれか」なので、素性（形式・手数・対局者・初期局面）を出す。
+     */
+    test("読めたら、読み取った棋譜の素性を出す", () => {
       render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
       typeInto("棋譜テキスト", KIF_TEXT);
 
-      expect(screen.getByText(/棋譜として読めました/)).toBeTruthy();
-      expect(screen.getByText("kif ／ 1手")).toBeTruthy();
+      // 「形式」の欄（`kif`）と同じ綴りが出るので、素性の側から引く
+      const summary = document.querySelector(".kifu-import__summary");
+      expect(summary?.textContent).toContain("kif");
+      expect(summary?.textContent).toContain("1手");
+      // 欄が無いことは空文字でなく記号で表す（打ち忘れと区別が付かなくなる）
+      expect(screen.getAllByText("—").length).toBeGreaterThan(0);
     });
 
     test("読めなかったら、段に載せて利用者向けの一文を見える位置に出す", () => {

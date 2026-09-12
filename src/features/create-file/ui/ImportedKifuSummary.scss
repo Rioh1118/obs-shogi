@@ -1,0 +1,65 @@
+@use "@/index.scss" as index;
+
+// 読み取った棋譜の素性。**器の余りをここが受ける** ——
+// 貼る欄を高くしない代わりに、空いた高さを「貼ろうとした棋譜がこれか」に使う。
+
+// **高さは盤が決める。** 器の余りを配ると、器が低いときに盤だけが箱から溢れる
+// （盤は自分の一辺を持っていて、縮まない）
+.kifu-import__summary {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: stretch;
+  gap: index.$space-10;
+
+  border: 1px solid index.$stroke;
+  border-radius: index.$radius-6;
+  padding: index.$space-8;
+}
+
+// 盤は自分の大きさを持つ（`BOARD_SIZE`）ので、ここは置き場所だけを決める
+.kifu-import__summaryBoard {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+}
+
+// **2列に流す。** 1列だと箱の右半分が空いたままになり、
+// 貼る欄と欄の行が幅いっぱいなのに、ここだけ左に寄って見える
+.kifu-import__facts {
+  flex: 1 1 auto;
+  // 2列が潰れない下限。**スケールに載らないので直値**（ADR-0003。
+  // `min-width` はラチェットの枠の外なので、緑を「規約に沿っている」と読まないこと）
+  min-width: 26rem;
+  margin: 0;
+
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+  column-gap: index.$space-12;
+  row-gap: index.$space-6;
+}
+
+// 欄名と値を1行に並べる。**値を右端に寄せない** ——
+// 名前の長さが揃っていないので、左揃えのほうが縦に読める
+.kifu-import__fact {
+  display: flex;
+  align-items: baseline;
+  gap: index.$space-6;
+
+  // **色を書かない。** この箱は面を持たない（枠だけ）ので、器のカードの色を継ぐ。
+  // ここで色を宣言すると `contrastRatchet` の「測れなかった宣言」が増え、
+  // 測れない対は比が下がっても緑のまま通る。欄名と値の差は**文字の大きさ**が持つ
+  dt {
+    flex: 0 0 auto;
+    width: 8rem;
+    font-size: index.$font-hint;
+  }
+
+  dd {
+    margin: 0;
+    min-width: 0;
+    font-size: index.$font-lead;
+    overflow-wrap: anywhere;
+  }
+}

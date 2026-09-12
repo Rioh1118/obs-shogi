@@ -16,6 +16,7 @@ import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import { useKifuImportDraft } from "../model/useKifuImportDraft";
+import ImportedKifuSummary from "./ImportedKifuSummary";
 import "./KifuImportForm.scss";
 
 /**
@@ -203,12 +204,7 @@ function KifuImportForm({
           言う場所は、貼る欄そのものの placeholder が既に持っている
         */}
         {read?.readable && (
-          <p className="kifu-import__read" role="status">
-            棋譜として読めました
-            <span className="kifu-import__readDetail">
-              {read.format} ／ {read.moves}手
-            </span>
-          </p>
+          <ImportedKifuSummary format={read.format} moves={read.moves} jkf={read.jkf} />
         )}
         {read && !read.readable && (
           /*

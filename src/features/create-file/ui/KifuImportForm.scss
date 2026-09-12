@@ -20,11 +20,17 @@ $paste-h: 14rem; // scale-exempt
   }
 
   // **「作成」を器の下端に置く。** 盤の面（`pos-editor__side`）と同じ位置に来るので、
-  // タブを跨いでも主操作が上下に飛ばない
+  // タブを跨いでも主操作が上下に飛ばない。
+  // 余った高さを受けるのは、読み取った棋譜の素性（`__summary`）
   .form {
     height: 100%;
     min-height: 0;
     overflow-y: auto;
+  }
+
+  // 貼る欄と欄の行は自分の高さのまま。伸びるのは素性の箱だけ
+  .form__group {
+    flex: 0 0 auto;
   }
 
   // **巻き取られる側に置かない。** 失敗が出ると欄より下が伸びるので、
@@ -43,21 +49,6 @@ $paste-h: 14rem; // scale-exempt
   .form__textarea {
     height: $paste-h;
   }
-}
-
-// 貼った棋譜が読めたこと。**段に載せない**（ADR-0004 決定5 —— `success` を置かない。
-// 成功そのものは通知しない）。読めたときに要るのは、何として読んだかの1行だけ
-.kifu-import__read {
-  margin: 0;
-  display: flex;
-  align-items: baseline;
-  gap: index.$space-4;
-  flex-wrap: wrap;
-}
-
-// 形式と手数
-.kifu-import__readDetail {
-  font-size: index.$font-aux;
 }
 
 // 保存先が無いときの注記。**面を持たないので色を書かない**（器のカードの色を継ぐ）。

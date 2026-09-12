@@ -181,7 +181,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
  * 次にすべきことが違うので、そこは呼ぶ側が足す。
  */
 export type KifuReadResult =
-  | { readable: true; format: KifuFormat; moves: number }
+  | { readable: true; format: KifuFormat; moves: number; jkf: JKFData }
   | { readable: false; message: string; cause?: string };
 
 /**
@@ -206,7 +206,9 @@ export function readKifuText(raw: string): KifuReadResult {
     if (moves <= 0) {
       return { readable: false, message: "指し手を1つも読み取れませんでした。" };
     }
-    return { readable: true, format: detectedFormat, moves };
+    // **読めた棋譜そのものを返す。** 呼ぶ側は対局者名や初期局面を出すのに要る。
+    // ヘッダの欄名を知っているのは `playerNames` だけなので、ここでは解釈しない
+    return { readable: true, format: detectedFormat, moves, jkf };
   } catch (e) {
     // `KifuParseError` の `message` は利用者に見せるために書かれた日本語。
     // それ以外（tsshogi の内部から抜けた `RangeError` など）は英文なので出さない
