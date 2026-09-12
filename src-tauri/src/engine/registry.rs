@@ -302,8 +302,14 @@ fn disposing_line(path: &str) -> String {
 /// 書き込みは EPIPE で失敗するのでパニックする（`UsiProtocol` が
 /// `Option` + `mem::forget` を持っているのと同じ理由）。
 ///
-/// 落とせたかは見ない。目的は「死んでいること」で、既に死んでいれば
-/// `quit` の書き込みが失敗するだけ。
+/// **落とせなかったことは記録する。** ここへ来る子はどの台帳にも居ないので
+/// （→ `starting` の doc、#381）、落とし手はこの1回きり。`kill` が `quit` の
+/// 書き込みで折り返すとシグナルは一度も送られないので、捨てると
+/// **残ったことを知る手掛かりが1本も無くなる**。
+///
+/// 判るのは「送れなかった」までで、`output_ended` に当たる材料がここには無い
+/// （`UsiProtocol` を通っていないので読み取りが始まっていない）。
+/// 既に死んでいるだけの回も同じ `error` に出る。
 async fn dispose_late_spawn(
     started: tokio::task::JoinHandle<Result<(String, String, UsiEngineHandler), EngineError>>,
 ) {
@@ -314,7 +320,13 @@ async fn dispose_late_spawn(
 
     // `kill` も同期の書き込みを含むので専用スレッドへ出す
     let _ = tokio::task::spawn_blocking(move || {
-        let _ = handler.kill();
+        if let Err(e) = handler.kill() {
+            log::error!(
+                target: LOGT,
+                "spawn: could not kill a late engine; it may still be running: {}",
+                with_cause(&e)
+            );
+        }
         std::mem::forget(handler);
     })
     .await;
