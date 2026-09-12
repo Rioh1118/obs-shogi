@@ -67,7 +67,7 @@ L2    position-editor.md       初期局面を組む面。L1 の file-tree の�
 | [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える                                                                                   |
 | [board-orientation.md](board-orientation.md)       | ✅        | 合図は game の `loadedAbsPath` と `boardSeq` の組。ツリー側の `activeKifuPath` / `selectedNode` とのずれが軸                            |
 | [position-editor.md](position-editor.md)           | ✅        | 初期局面を組む面。Esc の段と「組みかけ」の扱いが軸。**未検証はこの4つ**（保存先が消える／作成中の Esc／インポートで作成／盤の鍵盤操作） |
-| [updater.md](updater.md)                           | ✅        | ディスク上のアプリの実体を列に持つ。**全セルが未検証**（この面を見るテストが1件も無い）                                                 |
+| [updater.md](updater.md)                           | ✅        | ディスク上のアプリの実体を列に持つ。**未検証は実プロセスと plugin の内側が要る6件**                                                     |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                                                                         |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。

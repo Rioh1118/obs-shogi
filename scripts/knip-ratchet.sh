@@ -20,7 +20,7 @@ set -uo pipefail
 
 # `npm run deadcode` と同じ範囲（未使用ファイル・未使用 export・未使用の型）の合計。
 # **減らしたらここを下げること。**
-BASELINE=178
+BASELINE=177
 # **テストからの import も「消費」に数える。** 本番から到達しない barrel の export でも、
 # テストが1本 import すればこの数から消える——**減った理由が「死んだ export を消した」とは
 # 限らない。** 下げる前に、減ったぶんが何かを `npx knip --reporter json` で見ること

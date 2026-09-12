@@ -268,3 +268,33 @@
   line-height: 1.55;
   color: rgba(index.$color-text-light-1, 0.78);
 }
+
+// 「最後に確認できた」は数値ではなく文になることがある（「まだ確認できていません」）。
+// **`wsTab__miniV` の太さと字送りのままだと入りきらない**ので、その枠だけ本文に戻す
+.wsTab__miniV--plain {
+  font-size: index.$font-aux;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
+// **色を宣言しない。** この節の面は不透明度を持つ層の重ねでできていて
+// コントラストを測れない（`contrastRatchet` の「測れなかった宣言」）。
+// 押した結果は本文として読ませるものなので、落とす理由も無い
+.wsTab__updateResult {
+  margin-top: index.$space-5;
+  font-size: index.$font-aux;
+  line-height: 1.55;
+}
+
+.wsTab__updateSkipped {
+  margin-top: index.$space-5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: index.$space-4;
+  flex-wrap: wrap;
+}
+
+.wsTab__updateSkippedText {
+  font-size: index.$font-aux;
+}

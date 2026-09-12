@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./WorkspaceTab.scss";
 
 import { Copy, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
@@ -9,6 +9,9 @@ import Button from "@/shared/ui/Button/Button";
 import { useAppConfig } from "@/entities/app-config";
 import { indexHealth, pickWarns, usePositionSearch } from "@/entities/search";
 import type { IndexHealth, IndexUiState } from "@/entities/search";
+import { useUpdater } from "@/entities/updater";
+import type { ManualCheckResult } from "@/entities/updater";
+import { getAppVersion } from "@/shared/api/app/appVersion";
 import SettingsBadge from "../kit/SettingsBadge";
 
 function percent(done: number, total: number) {
@@ -117,6 +120,47 @@ const STAGE_LABEL: Record<IndexUiState["state"], { label: string }> = {
 /** 警告の枠。**増やすと状態の要約が押し出される**ので、増やす前に置き場を決めること */
 const WARN_SLOTS = 5;
 
+/**
+ * 手で押した確認の結果。
+ *
+ * **見つかっても、ここからは取得させない。** 更新のカードは設定モーダルの下に
+ * 出る（重なりの順は `docs/spec/design-language.md`）ので、ここに取得のボタンを
+ * 置くと進捗と失敗の出る面が2つになる。取得と適用はカードが持つ。
+ *
+ * **失敗に「もう一度」を出さない。** すぐ上の「更新を確認」がそれなので、
+ * 同じ動作のボタンが2つ並ぶ。
+ */
+function manualCheckText(result: ManualCheckResult): string {
+  switch (result.kind) {
+    case "upToDate":
+      return "最新版を使っています";
+    case "found":
+      return `新しいバージョン v${result.version} が公開されています。この画面を閉じると案内が出ます。`;
+    case "foundButSkipped":
+      return `新しいバージョン v${result.version} がありますが、この版は飛ばす設定になっています。`;
+    case "failed":
+      return "更新を確認できませんでした。通信を確かめて、もう一度お試しください。";
+  }
+}
+
+/**
+ * 最後に確認できた時刻。
+ *
+ * **「まだ確認できていません」と「しばらく確認できていない」を、同じ空欄にしない。**
+ * ここが古いまま止まっていることが、確認が失敗し続けていることを読み取れる
+ * 唯一の徴候になる（確認の失敗は画面に出さない。理由は `entities/updater` の provider）。
+ */
+function lastCheckedText(ms: number | null): string {
+  if (ms === null) return "まだ確認できていません";
+  return new Date(ms).toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -145,6 +189,22 @@ export default function WorkspaceTab() {
   const showProgress = health === "building" && progressTotal > 0;
 
   const pct = useMemo(() => percent(idx.doneFiles, progressTotal), [idx.doneFiles, progressTotal]);
+
+  const { persisted, manualCheck, isChecking, checkNow, unskip } = useUpdater();
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void getAppVersion()
+      .then((v) => {
+        if (alive) setAppVersion(v);
+      })
+      // 版が取れないのは webview の口が塞がっているときだけで、利用者にできることが
+      // 無い。出さずに「—」のままにする
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // root_dir 変更の儀式
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -341,6 +401,52 @@ export default function WorkspaceTab() {
                 変更して再読み込み
               </Button>
             </div>
+          </div>
+        )}
+      </SSection>
+
+      <SSection
+        title="更新"
+        description="アプリ本体の更新を確認します。起動のたびに一度だけ自動で確認します。"
+        actions={
+          <Button size="sm" onClick={() => void checkNow()} disabled={isChecking}>
+            更新を確認
+          </Button>
+        }
+      >
+        <div className="wsTab__miniGrid">
+          <div className="wsTab__mini">
+            <div className="wsTab__miniK">現在のバージョン</div>
+            <div className="wsTab__miniV">{appVersion ?? "—"}</div>
+          </div>
+
+          <div className="wsTab__mini">
+            <div className="wsTab__miniK">最後に確認できた</div>
+            <div className="wsTab__miniV wsTab__miniV--plain">
+              {lastCheckedText(persisted?.lastCheckedMs ?? null)}
+            </div>
+          </div>
+        </div>
+
+        {manualCheck && (
+          <div className="wsTab__updateResult" role="status">
+            {manualCheckText(manualCheck)}
+          </div>
+        )}
+
+        {/*
+          **飛ばしている版は常に出す。** 押したことを忘れたまま「更新が来ない」と
+          読まれると、確認が壊れているのか飛ばしているのかを区別する手掛かりが
+          どこにも無くなる
+        */}
+        {persisted?.skippedVersion && (
+          <div className="wsTab__updateSkipped">
+            <div className="wsTab__updateSkippedText">
+              v{persisted.skippedVersion} を飛ばす設定になっています
+            </div>
+            <Button size="sm" onClick={() => void unskip()}>
+              解除
+            </Button>
           </div>
         )}
       </SSection>
