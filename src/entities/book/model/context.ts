@@ -33,6 +33,18 @@ export type BookViewState =
   /** 引けなかった。**「載っていない」と混ぜない** */
   | { kind: "unavailable" };
 
+/**
+ * 失敗と、**どの操作が落ちたか**。
+ *
+ * **題を決めるのは `origin` であって、画面の状態ではない。** 状態から引くと、
+ * 行が並んでいるところで定跡を開き損ねた回に「定跡の先を辿れませんでした」という
+ * 題が付き、**題と本文が1つの帯の中で食い違う。**
+ */
+export type BookFailure = {
+  origin: "open" | "lookup" | "walk" | "external";
+  error: BookError;
+};
+
 export type BookContextType = {
   /** 開いている定跡。**1冊だけ**（重ねて引くのは #96） */
   info: BookInfo | null;
@@ -46,7 +58,7 @@ export type BookContextType = {
    * ことなので、閉じても状態は変わらない（`shared/ui/notification/InlineNotice` の doc）。
    * 消えるのは、引き直したときと開き直したとき
    */
-  error: BookError | null;
+  failure: BookFailure | null;
 
   /** 開く。**失敗は戻り値で返す**（`error` にも載るので、呼び手は読まなくてもよい） */
   openBook: (path: string) => AsyncResult<BookInfo, BookError>;

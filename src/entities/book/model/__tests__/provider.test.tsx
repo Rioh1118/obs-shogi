@@ -56,6 +56,13 @@ let orphans: BookInfo[] = [];
 let nextHandle = 0;
 /** 開くのを失敗させたい回だけ立てる */
 let openFails: BookError | null = null;
+/**
+ * 開くのを止めておく約束。**立てた回だけ `openBookFile` が返らなくなる。**
+ *
+ * 既定の同期解決では `opening` が立っている frame も、定跡を差し替えた直後の
+ * 隙間（掃除より前）も掴めない。1巡目の所見の直しは、どちらもそこでしか観測できない。
+ */
+let openHold: ReturnType<typeof deferred<Result<BookInfo, BookError>>> | null = null;
 
 function pending<T>(store: Map<string, ReturnType<typeof deferred<T>>>, key: string) {
   const found = store.get(key);
@@ -68,8 +75,10 @@ function pending<T>(store: Map<string, ReturnType<typeof deferred<T>>>, key: str
 const at = (handle: number, sfen: string) => `${handle}:${sfen}`;
 
 vi.mock("../../api/commands", () => ({
-  openBookFile: (path: string) =>
-    Promise.resolve(openFails ? Err(openFails) : Ok(info(++nextHandle, path))),
+  openBookFile: (path: string) => {
+    if (openHold) return openHold.promise;
+    return Promise.resolve(openFails ? Err(openFails) : Ok(info(++nextHandle, path)));
+  },
   lookupBookMoves: (handle: number, sfen: string) =>
     pending<LookupResult>(lookups, at(handle, sfen)).promise,
   walkBookLines: (handle: number, sfen: string) =>
@@ -125,6 +134,7 @@ beforeEach(() => {
   orphans = [];
   nextHandle = 0;
   openFails = null;
+  openHold = null;
   seen = null;
 });
 
@@ -183,7 +193,7 @@ describe("定跡の provider", () => {
 
     expect(rowMoves(seen!.view)).toEqual(["7g7f"]);
     expect(seen!.view.kind === "rows" && seen!.view.rows[0].line.state).toBe("failed");
-    expect(seen!.error?.code).toBe("io");
+    expect(seen!.failure?.error.code).toBe("io");
   });
 
   /**
@@ -200,7 +210,7 @@ describe("定跡の provider", () => {
     });
 
     expect(seen!.view.kind).toBe("unavailable");
-    expect(seen!.error?.code).toBe("invalid_sfen");
+    expect(seen!.failure?.error.code).toBe("invalid_sfen");
   });
 
   it("引けて空なら、載っていないと言う", async () => {
@@ -276,17 +286,65 @@ describe("定跡の provider", () => {
   it("開き直した直後に、前の定跡から引いた行が出ない", async () => {
     const first = await openAt("sfen-a");
 
+    // **先に A の行を入れておく。** 入れないと、開き直した後に見せうる古い行が
+    // そもそも無く、突き合わせを消しても緑のまま通る
+    await act(async () => {
+      pending<LookupResult>(lookups, at(first.handle, "sfen-a")).settle(Ok([move("7g7f")]));
+    });
+    expect(rowMoves(seen!.view)).toEqual(["7g7f"]);
+
+    // 局面は動かさずに開き直す。**局面だけで突き合わせると、ここが素通りする**
     await act(async () => {
       await seen!.openBook("/books/b.db");
     });
 
-    // 前の定跡（handle 1）の引きが、差し替わった後で返る
+    expect(rowMoves(seen!.view)).toEqual([]);
+    expect(seen!.view.kind).toBe("looking");
+  });
+
+  /**
+   * **差し替えの隙間に届いた前の定跡の結果を書かない。**
+   *
+   * 掃除が走るのは再レンダが commit された時点で、定跡を差し替えた時点ではない。
+   * 同じ `act` の中で並べないと、`cancelled` が先に立って観測できない。
+   */
+  it("差し替えの隙間に届いた、前の定跡の行を書かない", async () => {
+    const first = await openAt("sfen-a");
+
+    openHold = deferred<Result<BookInfo, BookError>>();
     await act(async () => {
+      const opening = seen!.openBook("/books/b.db");
+      openHold!.settle(Ok(info(++nextHandle, "/books/b.db")));
       pending<LookupResult>(lookups, at(first.handle, "sfen-a")).settle(Ok([move("7g7f")]));
+      await opening;
     });
 
-    expect(seen!.view.kind).toBe("looking");
     expect(rowMoves(seen!.view)).toEqual([]);
+  });
+
+  /**
+   * **古いハンドルの失敗で、開き直したばかりの定跡を落とさない。**
+   *
+   * 前の定跡への引きは、差し替えた直後に `invalid_handle` で返る（差し替えの側が
+   * 閉じたので当然）。現在地を確かめずに `info` を落とすと、**利用者が開いた
+   * ばかりの定跡が消え、前の定跡についての失敗がその画面に出る。**
+   */
+  it("古いハンドルの失敗が、開き直したばかりの定跡を落とさない", async () => {
+    const first = await openAt("sfen-a");
+
+    openHold = deferred<Result<BookInfo, BookError>>();
+    await act(async () => {
+      const opening = seen!.openBook("/books/b.db");
+      openHold!.settle(Ok(info(++nextHandle, "/books/b.db")));
+      pending<LookupResult>(lookups, at(first.handle, "sfen-a")).settle(
+        Err(failure("invalid_handle")),
+      );
+      await opening;
+    });
+
+    expect(seen!.info?.path).toBe("/books/b.db");
+    expect(seen!.view.kind).not.toBe("closed");
+    expect(seen!.failure).toBeNull();
   });
 
   it("局面が動くと、前の局面の行は残さずに引き直す", async () => {
@@ -330,20 +388,67 @@ describe("定跡の provider", () => {
   });
 
   it("開いている最中は、開こうとしているパスを出す", async () => {
-    openFails = null;
     mount("sfen-a");
+    openHold = deferred<Result<BookInfo, BookError>>();
 
-    // 解決させずにレンダだけ進める
     let opening!: Promise<unknown>;
     await act(async () => {
       opening = seen!.openBook("/books/big.db");
     });
+
+    // **返る前に見る。** 返り切ってから見ると、この状態は1度も観測できない
+    expect(seen!.view).toEqual({ kind: "opening", path: "/books/big.db" });
+
     await act(async () => {
+      openHold!.settle(Ok(info(++nextHandle, "/books/big.db")));
       await opening;
     });
 
-    // 開き終わっているので `opening` は抜けている
     expect(seen!.view.kind).not.toBe("opening");
+  });
+
+  /**
+   * **開いている途中に閉じたら、返ってきた定跡は開かない。**
+   *
+   * `open_book` は上限も中断も無く、GB 級では数分返らない。その間 ✕ は押せる
+   * （押せないと取り消す手段が1つも無い）ので、押した後に返ってきたハンドルは
+   * **捨てて閉じる** —— 捨てないと、閉じたはずの定跡が数分後に開く。
+   */
+  it("開いている途中に閉じたら、返ってきた定跡を捨てて閉じる", async () => {
+    mount("sfen-a");
+    openHold = deferred<Result<BookInfo, BookError>>();
+
+    let opening!: Promise<unknown>;
+    await act(async () => {
+      opening = seen!.openBook("/books/big.db");
+    });
+
+    await act(async () => {
+      seen!.close();
+    });
+
+    await act(async () => {
+      openHold!.settle(Ok(info(++nextHandle, "/books/big.db")));
+      await opening;
+    });
+
+    expect(seen!.info).toBeNull();
+    expect(seen!.view.kind).toBe("closed");
+    // 捨てたぶんは閉じる。ハンドルを残さない
+    expect(closed).toContain(nextHandle);
+  });
+
+  /** 同じハンドルを2度閉じない（2度目は Rust が `invalid_handle` を返す） */
+  it("開き直しで、前の定跡を2度閉じない", async () => {
+    const first = await openAt("sfen-a");
+    await act(async () => {
+      await seen!.openBook("/books/b.db");
+    });
+    await act(async () => {
+      await seen!.openBook("/books/c.db");
+    });
+
+    expect(closed.filter((handle) => handle === first.handle)).toHaveLength(1);
   });
 
   it("開けなかったら、定跡を開いていない状態に留まる", async () => {
@@ -356,7 +461,7 @@ describe("定跡の provider", () => {
 
     expect(seen!.info).toBeNull();
     expect(seen!.view.kind).toBe("closed");
-    expect(seen!.error?.code).toBe("unsupported_format");
+    expect(seen!.failure?.error.code).toBe("unsupported_format");
     // 開けていないので引きにも行かない
     expect(lookups.size).toBe(0);
   });
@@ -411,6 +516,24 @@ describe("定跡の provider", () => {
     expect(seen!.view.kind).toBe("noPosition");
   });
 
+  /**
+   * **閉じられたハンドルは、開き直せる画面へ返す。**
+   *
+   * 返さないと操作列は閉じた定跡の名前を出し続け、盤を動かすたびに同じ失敗が出る。
+   * 復帰操作（開き直す）を踏める画面は、定跡を開いていない画面のほう。
+   */
+  it("閉じられたハンドルだと、定跡を開いていない画面へ戻る", async () => {
+    const { handle } = await openAt("sfen-a");
+
+    await act(async () => {
+      pending<LookupResult>(lookups, at(handle, "sfen-a")).settle(Err(failure("invalid_handle")));
+    });
+
+    expect(seen!.info).toBeNull();
+    expect(seen!.view.kind).toBe("closed");
+    expect(seen!.failure?.error.code).toBe("invalid_handle");
+  });
+
   it("定跡の外で起きた失敗も帯に載る", async () => {
     mount("sfen-a");
 
@@ -418,6 +541,6 @@ describe("定跡の provider", () => {
       seen!.reportError(failure("unknown"));
     });
 
-    expect(seen!.error?.code).toBe("unknown");
+    expect(seen!.failure?.error.code).toBe("unknown");
   });
 });

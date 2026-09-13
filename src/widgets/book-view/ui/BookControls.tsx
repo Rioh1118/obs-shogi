@@ -25,11 +25,15 @@ function BookControls() {
         {/*
           **開いている最中を「開いていません」と言わない。** `open_book` は上限も
           進捗も中断も持たない（#197）ので、GB 級では数分このままになる。
-          その間ずっと事実でない一文を出していると、押し損ねたと読まれる
+          その間ずっと事実でない一文を出していると、押し損ねたと読まれる。
+
+          **一文と `role="status"` は本体の側だけ**（`BookView` の `__busy`）。
+          両方に置くと同じ文が上下に並び、live region が2つ同じ段に居ることになる。
+          ここは他の状態と同じく「いま何を開いているか」だけを出す
         */}
         {view.kind === "opening" ? (
-          <span className="book-controls__busy" role="status">
-            {bookFileName(view.path)} を開いています…
+          <span className="book-controls__busy" title={view.path}>
+            {bookFileName(view.path)}
           </span>
         ) : info === null ? (
           <span className="book-controls__idle">定跡を開いていません</span>
@@ -69,8 +73,8 @@ function BookControls() {
           type="button"
           className="book-controls__iconBtn"
           onClick={close}
-          disabled={info === null}
-          title="定跡を閉じる"
+          disabled={info === null && !isOpening}
+          title={isOpening ? "開くのをやめる" : "定跡を閉じる"}
         >
           <X className="book-controls__icon" />
         </button>

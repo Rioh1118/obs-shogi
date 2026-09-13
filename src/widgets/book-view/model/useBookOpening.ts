@@ -38,7 +38,7 @@ export function useBookOpening() {
     } catch (e) {
       reportError({
         code: "unknown",
-        message: `定跡を選ぶ画面を開けませんでした（${String(e)}）。もう一度押すこと`,
+        message: `定跡を選ぶ画面を開けませんでした（${String(e)}）。最近開いた定跡の一覧から選ぶこと`,
         path: null,
       });
       return;

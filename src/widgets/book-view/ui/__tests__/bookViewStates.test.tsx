@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
-import type { BookContextType, BookError, BookViewState } from "@/entities/book";
+import type { BookContextType, BookFailure, BookViewState } from "@/entities/book";
 
 /**
  * 定跡ビューが、状態ごとに**1つのことだけ**を言うこと
@@ -20,7 +20,7 @@ const INITIAL_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL 
 const book = {
   info: null,
   view: { kind: "closed" } as BookViewState,
-  error: null as BookError | null,
+  failure: null as BookFailure | null,
   openBook: vi.fn(),
   close: vi.fn(),
   reportError: vi.fn(),
@@ -45,11 +45,16 @@ vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
 
 const { default: BookView } = await import("../BookView");
 
-function show(view: BookViewState, error: BookError | null = null) {
+function show(view: BookViewState, failure: BookFailure | null = null) {
   book.view = view;
-  book.error = error;
+  book.failure = failure;
   return render(<BookView />).container.textContent ?? "";
 }
+
+const failed = (origin: BookFailure["origin"]): BookFailure => ({
+  origin,
+  error: { code: "io", message: `${origin} が落ちた`, path: null },
+});
 
 afterEach(() => cleanup());
 
@@ -86,36 +91,42 @@ describe("定跡ビューの状態と文言", () => {
     expect(unavailable).toContain("引けませんでした");
   });
 
-  test("盤に局面が無いときは、引いている最中と言わない", () => {
+  test("盤に局面が無いときは、次にやることまで出す", () => {
     const text = show({ kind: "noPosition" });
 
-    expect(text).toContain("盤に局面がありません");
     expect(text).not.toContain("引いています");
+    // **この画面から棋譜は開けない。** 何をすれば候補手が出るのかを言わないと、
+    // 定跡は開いているのに止まった画面になる
+    expect(text).toContain("棋譜");
   });
 
   /**
    * **行が並んでいるのに「読めませんでした」と言わない。**
    * 行が出ているのは引けたということなので、落ちたのは先を辿る側だけ。
    */
-  test("行が出ているときの失敗の題は、辿る側の失敗として出る", () => {
-    const failure: BookError = { code: "io", message: "読み書きに失敗", path: null };
-    const rows = show(
-      {
-        kind: "rows",
-        rows: [
-          {
-            move: { usiMove: "7g7f", ponder: null, value: 42, depth: 32, count: 5 },
-            line: { state: "failed" },
-          },
-        ],
-      },
-      failure,
-    );
+  test("失敗の題は、落ちた操作から出る", () => {
+    const rows: BookViewState = {
+      kind: "rows",
+      rows: [
+        {
+          move: { usiMove: "7g7f", ponder: null, value: 42, depth: 32, count: 5 },
+          line: { state: "failed" },
+        },
+      ],
+    };
 
-    expect(rows).toContain("定跡の先を辿れませんでした");
+    expect(show(rows, failed("walk"))).toContain("辿れませんでした");
     cleanup();
 
-    expect(show({ kind: "unavailable" }, failure)).toContain("定跡を読めませんでした");
+    // **同じ画面（行が並んでいる）でも、落ちたのが別の操作なら題は別。**
+    // 題を画面の状態から引くと、開き損ねた回に「辿れませんでした」が付き、
+    // 題と本文が1つの帯の中で食い違う
+    const opening = show(rows, failed("open"));
+    expect(opening).not.toContain("辿れませんでした");
+    expect(opening).toContain("開けませんでした");
+    cleanup();
+
+    expect(show(rows, failed("external"))).not.toContain("辿れませんでした");
   });
 
   /** 辿るのをやめた後に「辿っています」と言わない（不変条件3） */

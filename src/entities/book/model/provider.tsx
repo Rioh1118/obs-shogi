@@ -8,7 +8,7 @@ import {
   walkBookLines,
 } from "../api/commands";
 import { attachLines, failedRows, pendingRows, type BookRow } from "../lib/rows";
-import { BookContext, type BookContextType, type BookViewState } from "./context";
+import { BookContext, type BookContextType, type BookFailure, type BookViewState } from "./context";
 import type { BookError, BookInfo } from "./types";
 
 type Props = {
@@ -44,6 +44,11 @@ type Looked = {
  * `currentSfen` に指し手の列が付いた綴りを渡さないこと
  * （Rust の `to_book_key` が `moves` 付きを拒む）。
  *
+ * **`await` を跨いで state を読まない。** 定跡を開くのも引くのも、返るまでに
+ * 利用者が別の定跡へ移れる。レンダのクロージャが掴んだ `info` を後から使うと、
+ * **いま開いている定跡に、前の定跡の結果や失敗が当たる。** 現在地は
+ * `infoRef` が持ち、開いている途中の割り込みは `openSeqRef` が数える。
+ *
  * 遷移は `docs/state-transitions/book-view.md`。
  */
 export function BookProvider({ children, currentSfen }: Props) {
@@ -51,12 +56,27 @@ export function BookProvider({ children, currentSfen }: Props) {
   /** 開こうとしているパス。**開いている最中を画面に出すために持つ** */
   const [opening, setOpening] = useState<string | null>(null);
   const [looked, setLooked] = useState<Looked | null>(null);
-  const [error, setError] = useState<BookError | null>(null);
+  const [failure, setFailure] = useState<BookFailure | null>(null);
 
-  // 畳まれるときに閉じるために、最新のハンドルを effect のクロージャの外へ出す。
-  // 依存に `info` を入れて掃除させると、**開き直すたびに掃除が走って自分を閉じる**
+  /**
+   * いま開いている定跡。**`await` の後で現在地を確かめるのはこちら。**
+   *
+   * レンダ時に代入すると、`setInfo` の後にレンダが来るまで古い値のままになり、
+   * 掃除が走る前に返ってきた結果が現在地を取り違える。書くのは [`setBook`] だけ。
+   */
   const infoRef = useRef<BookInfo | null>(null);
-  infoRef.current = info;
+  /**
+   * 開く／閉じるが何回目か。**開いている途中に割り込まれたかを数える。**
+   *
+   * `open_book` は上限も中断も無く、GB 級では数分返らない。その間に
+   * 「閉じる」や別の定跡が押されたら、**返ってきたハンドルは捨てて閉じる。**
+   */
+  const openSeqRef = useRef(0);
+
+  const setBook = useCallback((next: BookInfo | null) => {
+    infoRef.current = next;
+    setInfo(next);
+  }, []);
 
   useEffect(() => {
     // **自分が開く前に在ったものだけを閉じる。** webview が作り直されると、
@@ -87,23 +107,32 @@ export function BookProvider({ children, currentSfen }: Props) {
     // 遅れて届いた結果を当てると、盤と違う局面の候補手が表に残る
     // （→ `book-view.md` ※A）
     let cancelled = false;
-    setError(null);
+    setFailure(null);
 
-    // 掃除の合図より先に届く結果があるので、届いた側でも突き合わせられるように掴む
     const handle = info.handle;
     const sfen = currentSfen;
 
+    /**
+     * この引きの結果を、もう当ててはいけないか。
+     *
+     * **掃除だけでは足りない。** 掃除が走るのは再レンダが commit された時点で、
+     * `setBook` が定跡を差し替えた時点ではない。その隙間に前の定跡の結果が返ると
+     * `cancelled` はまだ偽のまま —— **開き直したばかりの定跡に、前の定跡の
+     * 失敗や行が当たる。**
+     */
+    const stale = () => cancelled || infoRef.current?.handle !== handle;
+
     void (async () => {
       const found = await lookupBookMoves(handle, sfen);
-      if (cancelled) return;
+      if (stale()) return;
 
       if (!found.success) {
-        setError(found.error);
+        setFailure({ origin: "lookup", error: found.error });
         // **閉じられたハンドルは、開いていない状態へ戻す。** 戻さないと操作列は
         // 閉じた定跡の名前を出し続け、盤を動かすたびに同じ失敗が出る。
         // 復帰操作（開き直す）を踏める画面は、定跡を開いていない画面のほう
         if (found.error.code === "invalid_handle") {
-          setInfo(null);
+          setBook(null);
           setLooked(null);
           return;
         }
@@ -123,12 +152,12 @@ export function BookProvider({ children, currentSfen }: Props) {
         sfen,
         moves.map((move) => move.usiMove),
       );
-      if (cancelled) return;
+      if (stale()) return;
 
       // **表は消さない。** 引けてはいるので、埋まらないのは「この先」列だけ。
       // ただし**列は「辿っています」のままにしない**（`BookRowLine` の doc）
       if (!walked.success) {
-        setError(walked.error);
+        setFailure({ origin: "walk", error: walked.error });
         setLooked({ handle, sfen, rows: failedRows(moves) });
         return;
       }
@@ -139,41 +168,59 @@ export function BookProvider({ children, currentSfen }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [info, currentSfen]);
+  }, [info, currentSfen, setBook]);
 
   const openBook = useCallback(
     // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
     // 名前を拾うため。外すと、この口を投げっぱなしで呼んだ画面が機械の目から消える
     async (path: string): AsyncResult<BookInfo, BookError> => {
+      const seq = ++openSeqRef.current;
       setOpening(path);
-      setError(null);
+      setFailure(null);
 
       const opened = await openBookFile(path);
-      setOpening(null);
 
-      if (!opened.success) {
-        setError(opened.error);
+      // **割り込まれていたら、開いたぶんを閉じて捨てる。** 閉じないと、
+      // 利用者が閉じたはずの定跡が数分後に開き、ハンドルも残る
+      if (openSeqRef.current !== seq) {
+        if (opened.success) void closeBook(opened.data.handle); // async-result-ignored: 捨てる定跡なので、閉じ損ねても案内できる操作が無い
         return opened;
       }
 
-      // 1冊だけ持つ。開き直す前に前のものを閉じないと、ハンドルとメモリが積み上がる
-      if (info) void closeBook(info.handle); // async-result-ignored: 既に別の定跡へ移っていて、出す場所が無い
-      setInfo(opened.data);
+      setOpening(null);
+
+      if (!opened.success) {
+        setFailure({ origin: "open", error: opened.error });
+        return opened;
+      }
+
+      // 1冊だけ持つ。開き直す前に前のものを閉じないと、ハンドルとメモリが積み上がる。
+      // **現在地は `infoRef`** —— レンダのクロージャが掴んだ `info` は数分古い
+      const previous = infoRef.current;
+      if (previous) void closeBook(previous.handle); // async-result-ignored: 既に別の定跡へ移っていて、出す場所が無い
+      setBook(opened.data);
 
       return opened;
     },
-    [info],
+    [setBook],
   );
 
   const close = useCallback(() => {
-    if (!info) return;
-    void closeBook(info.handle); // async-result-ignored: 閉じ終わった画面に出す場所が無い
-    setInfo(null);
-    setLooked(null);
-    setError(null);
-  }, [info]);
+    // **開いている途中でも押せる。** 押した回は、返ってくるハンドルを捨てる側になる
+    openSeqRef.current += 1;
+    setOpening(null);
 
-  const reportError = useCallback((reported: BookError) => setError(reported), []);
+    const open = infoRef.current;
+    if (open) void closeBook(open.handle); // async-result-ignored: 閉じ終わった画面に出す場所が無い
+    setBook(null);
+    setLooked(null);
+    setFailure(null);
+  }, [setBook]);
+
+  const reportError = useCallback(
+    (error: BookError) => setFailure({ origin: "external", error }),
+    [],
+  );
 
   // **引いている最中を state に持たない。** 持つと、定跡が入ったレンダと
   // 引き始めるレンダの間に「引き終えて空」に見える frame が挟まり、
@@ -184,8 +231,8 @@ export function BookProvider({ children, currentSfen }: Props) {
   );
 
   const value = useMemo<BookContextType>(
-    () => ({ info, view, error, openBook, close, reportError }),
-    [info, view, error, openBook, close, reportError],
+    () => ({ info, view, failure, openBook, close, reportError }),
+    [info, view, failure, openBook, close, reportError],
   );
 
   return <BookContext.Provider value={value}>{children}</BookContext.Provider>;

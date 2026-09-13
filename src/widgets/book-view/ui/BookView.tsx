@@ -4,6 +4,7 @@ import {
   bookNoticeTier,
   DEFAULT_BOOK_SORT,
   useBook,
+  type BookFailure,
   type BookSort,
   type BookViewState,
 } from "@/entities/book";
@@ -28,7 +29,7 @@ import "./BookView.scss";
  * `app/providers/gates/BookPositionGate.tsx` の doc。
  */
 function BookView() {
-  const { info, view, error } = useBook();
+  const { info, view, failure } = useBook();
   const { view: gameView, state: gameState } = useGame();
   const { config } = useAppConfig();
   const { state: presetsState } = useEnginePresets();
@@ -85,7 +86,7 @@ function BookView() {
         );
 
       case "noPosition":
-        return table("盤に局面がありません");
+        return table("盤に局面がありません。棋譜を開くと、その局面の候補手が出ます");
 
       case "looking":
         return table("引いています…");
@@ -108,12 +109,16 @@ function BookView() {
         **本体を消さずに添える。** 先を辿るのに失敗しても候補手は引けているので、
         表ごと消すと読める行まで見えなくなる。閉じる口は持たない（`InlineNotice` の doc）
       */}
-      {error && (
+      {failure && (
         <div className="book-view__notice">
           <InlineNotice
-            tier={bookNoticeTier(error.code)}
-            title={noticeTitle(view)}
-            body={error.path ? `${error.message}（${error.path}）` : error.message}
+            tier={bookNoticeTier(failure)}
+            title={NOTICE_TITLES[failure.origin]}
+            body={
+              failure.error.path
+                ? `${failure.error.message}（${failure.error.path}）`
+                : failure.error.message
+            }
           />
         </div>
       )}
@@ -124,12 +129,19 @@ function BookView() {
 }
 
 /**
- * 失敗の題。**本体に行が並んでいるのに「読めませんでした」と言わない。**
+ * 失敗の題。**落ちた操作から引く。画面の状態からは引かない。**
  *
- * 行が出ているのは引けたということなので、落ちたのは先を辿る側だけ。
+ * 状態から引くと、行が並んでいるところで定跡を開き損ねた回に
+ * 「定跡の先を辿れませんでした」が付き、**題と本文が1つの帯の中で食い違う。**
+ *
+ * **`Record` なので、綴りを足して題を足さないと tsc が落ちる。**
  */
-function noticeTitle(view: BookViewState): string {
-  return view.kind === "rows" ? "定跡の先を辿れませんでした" : "定跡を読めませんでした";
-}
+const NOTICE_TITLES: Record<BookFailure["origin"], string> = {
+  open: "定跡を開けませんでした",
+  lookup: "この局面を引けませんでした",
+  // 引けてはいるので「読めませんでした」と言わない。落ちたのは先を辿る側だけ
+  walk: "定跡の先を辿れませんでした",
+  external: "定跡の操作を開始できませんでした",
+};
 
 export default BookView;

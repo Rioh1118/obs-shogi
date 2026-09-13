@@ -1,5 +1,5 @@
 import type { VisibleTier } from "@/shared/lib/notification/types";
-import type { BookErrorCode } from "../model/types";
+import type { BookFailure } from "../model/context";
 
 /**
  * 失敗の段。**段は深刻さではなく「復帰に何が要るか」で切る**（ADR-0004）。
@@ -15,8 +15,13 @@ import type { BookErrorCode } from "../model/types";
  * `fatal` は使わない。定跡が開けないことでアプリを起動し直す必要は無い。
  * `info` も使わない —— **失敗はどれも、利用者が何かをしないと解けない。**
  */
-export function bookNoticeTier(code: BookErrorCode): VisibleTier {
-  switch (code) {
+export function bookNoticeTier(failure: BookFailure): VisibleTier {
+  // **定跡の外で落ちたものは `danger`。** ここへ来るのはファイルダイアログを
+  // 開けなかった回で、原因（権限の設定漏れ・プラグインの初期化失敗）は
+  // どれも押し直しでは直らない。残る導線は最近開いた定跡の一覧のほう
+  if (failure.origin === "external") return "danger";
+
+  switch (failure.error.code) {
     case "io":
     case "unknown":
       return "warning";
