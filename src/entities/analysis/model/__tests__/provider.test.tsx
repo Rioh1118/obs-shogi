@@ -2358,3 +2358,36 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledWith("session-2", "late-restart");
   });
 });
+
+/**
+ * 控えを provider が持つことの要点は「読み手より長生きする」こと。
+ * 控えそのものの振る舞いは `candidateCache.test.ts` が見る。
+ */
+describe("AnalysisProvider が渡す候補手の控え", () => {
+  it("読み手が畳まれて作り直されても残る", () => {
+    const seen: AnalysisContextType["candidateCache"][] = [];
+
+    function Probe() {
+      const { candidateCache } = useAnalysis();
+      useEffect(() => {
+        seen.push(candidateCache);
+      }, [candidateCache]);
+      return null;
+    }
+
+    const tree = (mounted: boolean) => (
+      <AnalysisProvider positionSync={adapter(null, null)}>
+        {mounted ? <Probe /> : null}
+      </AnalysisProvider>
+    );
+
+    const view = render(tree(true));
+    seen[0].remember("k", [{ rank: 1, pv_line: [] }]);
+
+    act(() => view.rerender(tree(false)));
+    act(() => view.rerender(tree(true)));
+
+    expect(seen).toHaveLength(2);
+    expect(seen[1].lookup("k")).toEqual([{ rank: 1, pv_line: [] }]);
+  });
+});

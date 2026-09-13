@@ -1,6 +1,6 @@
 import { convertSfenSequence } from "@/widgets/analysis-pane/lib/sfenConverter";
 import type { ConvertedMove } from "@/widgets/analysis-pane/lib/sfenConverter";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
 import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/usi";
@@ -13,56 +13,51 @@ import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePrese
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import { pickTopCandidate, useAnalysis } from "@/entities/analysis";
 
-type PaneSnapshot = {
-  candidates: AnalysisCandidate[];
-  savedAt: number;
-};
-
 function AnalysisPane() {
-  const { state } = useAnalysis();
+  // **控えの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
+  // 保存場所を持たない。持つと、この画面が作り直された回だけ停止中の候補手が消える
+  // （理由は `entities/analysis/lib/candidateCache.ts`）。
+  const { state, candidateCache } = useAnalysis();
 
   const { getCurrentTurn, state: gameState, view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const { selectedNode } = useFileTree();
   const { state: presetsState } = useEnginePresets();
-  // ===== cache key =====
+
   const engineKey = presetsState.selectedPresetId ?? "no-engine";
   const fileKey = selectedNode?.id ?? null;
-  const cursorPointer = gameState.cursor?.tesuuPointer ?? null;
-  const cacheKey =
-    fileKey && cursorPointer ? `${engineKey}${fileKey}:${cursorPointer}` : null;
-
-  // ===== cache storage (UI responsibility) =====
-  const cacheRef = useRef<Map<string, PaneSnapshot>>(new Map());
-  const lastFileKeyRef = useRef<string | null>(null);
+  const tesuuPointer = gameState.cursor?.tesuuPointer ?? null;
+  const cacheKey = fileKey && tesuuPointer ? `${engineKey}${fileKey}:${tesuuPointer}` : null;
 
   const currentTurn = getCurrentTurn();
 
-  // ファイルが変わったら全破棄
+  // **控える側（下の effect）より先に宣言する。** React は宣言順に effect を走らせる。
+  // `scopeTo` は宣言された棋譜が前と同じなら何もしない（`candidateCache.ts` の早期 return）
+  // ので、順序が効くのは `fileKey` が前の宣言と食い違うレンダだけ。そこで控える側が
+  // 先に走ると、新しい棋譜の控えを書いた直後にそれを捨てる。
   useEffect(() => {
-    if (fileKey !== lastFileKeyRef.current) {
-      cacheRef.current.clear();
-      lastFileKeyRef.current = fileKey;
-    }
-  }, [fileKey]);
+    candidateCache.scopeTo(fileKey);
+  }, [candidateCache, fileKey]);
 
   useEffect(() => {
     if (!cacheKey) return;
     if (!currentSfen) return;
-    if (!state.candidates || state.candidates.length === 0) return;
+    if (state.candidates.length === 0) return;
+    // エンジンが読んでいる局面が盤と離れている間は控えない。控えると、鍵が指す局面とは
+    // 別の局面の候補手が、停止したあとその局面の結果として出る。
+    // **突き合わせるのは局面だけ。** 鍵が指す棋譜とエンジンの側は誰も見ていない → #568
     if (state.analyzedSfen && state.analyzedSfen !== currentSfen) return;
 
-    cacheRef.current.set(cacheKey, {
-      candidates: state.candidates,
-      savedAt: Date.now(),
-    });
-  }, [cacheKey, currentSfen, state.candidates, state.analyzedSfen]);
+    candidateCache.remember(cacheKey, state.candidates);
+  }, [candidateCache, cacheKey, currentSfen, state.candidates, state.analyzedSfen]);
 
-  const visibleCandidates: AnalysisCandidate[] = useMemo(() => {
-    if (state.isAnalyzing) return state.candidates ?? [];
-    if (!cacheKey) return [];
-    return cacheRef.current.get(cacheKey)?.candidates ?? [];
-  }, [state.isAnalyzing, state.candidates, cacheKey]);
+  // 停止中に出すのは控え。**控えを書くのはコミット後の effect なので、読むこのレンダは
+  // 書かれる前の控えを見る。** 控えの先は ref で、書いても再レンダは起きないので、
+  // ある鍵に初めて控えた回はその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
+  const visibleCandidates: readonly AnalysisCandidate[] = useMemo(() => {
+    if (state.isAnalyzing) return state.candidates;
+    return candidateCache.lookup(cacheKey);
+  }, [candidateCache, state.isAnalyzing, state.candidates, cacheKey]);
 
   const pvBaseSfen = state.isAnalyzing ? state.analyzedSfen : currentSfen;
 
