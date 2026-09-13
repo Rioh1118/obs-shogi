@@ -437,18 +437,61 @@ function render(npmPackages, cargoPackages) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * 現物と生成結果の食い違いを行で見せる。
+ *
+ * **一致しないとだけ言わない。** これが落ちるのは大抵 CI で、手元では通っている
+ * （依存の解決が機械で違う、生成し直さずにコミットした、など）。現物を持っていない
+ * 読み手に「走らせ直せ」としか言わないと、何がどう違ったのかがログに何も残らない。
+ *
+ * 行を順に突き合わせるだけで、差分の最小化はしない。1行ずれれば以降は全部
+ * 食い違うので、**最初の数件だけ**を出す。
+ */
+function renderMismatch(actual, expected) {
+  const actualLines = actual.split("\n");
+  const expectedLines = expected.split("\n");
+  const lines = [`行数: 現物 ${actualLines.length} / 生成物 ${expectedLines.length}`];
+
+  const limit = Math.max(actualLines.length, expectedLines.length);
+  let shown = 0;
+  for (let i = 0; i < limit && shown < MISMATCH_LINES; i += 1) {
+    if (actualLines[i] === expectedLines[i]) continue;
+    lines.push(
+      `${i + 1} 行目:`,
+      `  現物  : ${actualLines[i] ?? "（無し）"}`,
+      `  生成物: ${expectedLines[i] ?? "（無し）"}`,
+    );
+    shown += 1;
+  }
+  if (shown === MISMATCH_LINES) lines.push("（食い違う行はまだある。ここまで）");
+  return lines.join("\n");
+}
+
+/** 食い違いを見せる行数の上限。表が丸ごと入れ替わると全行が食い違う。 */
+const MISMATCH_LINES = 5;
+
 const check = process.argv.includes("--check");
 const generated = render(collectNpmPackages(), collectCargoPackages());
 
 if (!check) {
   writeFileSync(noticesPath, generated);
   process.stdout.write(`THIRD-PARTY-NOTICES.md を書き出した\n`);
-} else if (!existsSync(noticesPath) || readFileSync(noticesPath, "utf8") !== generated) {
+} else if (!existsSync(noticesPath)) {
   process.stderr.write(
-    "THIRD-PARTY-NOTICES.md が依存と一致しない。\n" +
-      "`node scripts/generate-third-party-notices.mjs` を走らせて差分をコミットすること。\n",
+    "THIRD-PARTY-NOTICES.md が無い。\n" +
+      "`node scripts/generate-third-party-notices.mjs` を走らせてコミットすること。\n",
   );
   process.exit(1);
 } else {
-  process.stdout.write("THIRD-PARTY-NOTICES.md は依存と一致している\n");
+  const actual = readFileSync(noticesPath, "utf8");
+  if (actual === generated) {
+    process.stdout.write("THIRD-PARTY-NOTICES.md は依存と一致している\n");
+  } else {
+    process.stderr.write(
+      "THIRD-PARTY-NOTICES.md が依存と一致しない。\n" +
+        "`node scripts/generate-third-party-notices.mjs` を走らせて差分をコミットすること。\n\n" +
+        `${renderMismatch(actual, generated)}\n`,
+    );
+    process.exit(1);
+  }
 }
