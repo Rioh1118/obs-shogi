@@ -115,10 +115,12 @@ GB 級のファイルではタブの移動そのものが止まる。
 - **V7（タブ移動）は、ドックを組み立てた状態では踏んでいない。**
   provider が残ることは置き場（`RuntimeProviders`）が保証していて、
   それを固定する機械は `src/app/providers/__tests__/` に無い
-- **BO（開いている最中）の行は1つも踏んでいない。**
-  モックの `openBookFile` が同期で返るので、`opening` が立っている frame を
-  テストが掴めていない。**画面の文言も見ていない**（`widgets/book-view/` に
-  テストディレクトリが無い）
-- **画面（`widgets/book-view/`）を描いたテストが1本も無い。**
-  ここまでの ✓ は全部 provider の state に当てたもので、
-  `BookView` の `switch` がどの状態にどの文言を割り当てているかは見ていない
+- **BO（開いている最中）へ入る遷移を踏んだテストは無い。**
+  provider のモックは `openBookFile` が同期で返るので、`opening` が立っている
+  frame を掴めていない。**その状態の文言だけ**は
+  `widgets/book-view/ui/__tests__/bookViewStates.test.tsx` が固定している
+- **表の V 列と画面のテストが1対1で対応していない。**
+  画面のテストが見るのは「状態 → 文言」の割り当てで、遷移そのものは見ない。
+  どちらも変異を当ててあるが、**セルを名乗る規約はこの表に無い**
+  （`src-tauri/tests/state_transition_cells.rs` が突き合わせるのは
+  `game-session.md` だけ）
