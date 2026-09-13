@@ -19,18 +19,18 @@ const HIRATE_WHITE = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL 
 describe("プレビューの手番", () => {
   test("先手番の局面", () => {
     render(<PreviewPane previewData={buildPreviewDataFromSfen(HIRATE_BLACK)} />);
-    expect(screen.getByText("☗先手番")).toBeTruthy();
+    expect(screen.getByText("☗ 先手番")).toBeTruthy();
   });
 
   test("後手番の局面", () => {
     render(<PreviewPane previewData={buildPreviewDataFromSfen(HIRATE_WHITE)} />);
-    expect(screen.getByText("☖後手番")).toBeTruthy();
+    expect(screen.getByText("☖ 後手番")).toBeTruthy();
   });
 
   // 局面が無いあいだは盤も出ていない。**手番だけ残さない** ——
   // 前に見ていた局面の手番が、次の局面の読み込み中に居座る
   test("局面が無ければ出さない", () => {
     render(<PreviewPane previewData={null} />);
-    expect(document.querySelector(".position-navigation-modal__turn-badge")).toBeNull();
+    expect(document.querySelector(".position-navigation-modal__turn-tab")).toBeNull();
   });
 });

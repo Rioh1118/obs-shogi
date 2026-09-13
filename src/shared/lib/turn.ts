@@ -40,12 +40,13 @@ export function turnText(color: Color): "先手番" | "後手番" {
 }
 
 /**
- * 記号を添えた「〜番」。盤の隅に浮かせるバッジのように、**周りの文が意味を
- * 補ってくれない場所**で使う。
+ * 記号を添えた「〜番」。盤に添える札のように、**周りの文が意味を補ってくれない
+ * 場所**で使う。
  *
  * 呼び手で `turnGlyph` と `turnText` を並べない。並べると記号と語のあいだに
- * 空白を入れるかどうかが呼び手ごとに割れる。
+ * 空白を入れるかどうかが呼び手ごとに割れる（画面の綴りはヘッダーの
+ * `☗ 先手番` に揃える）。
  */
 export function turnBadgeText(color: Color): string {
-  return `${turnGlyph(color)}${turnText(color)}`;
+  return `${turnGlyph(color)} ${turnText(color)}`;
 }

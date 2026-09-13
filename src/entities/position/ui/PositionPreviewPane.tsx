@@ -59,13 +59,11 @@ function PreviewPane({ previewData }: Props) {
           初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
           呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
 
-          **段を作らず枠の上に浮かせる。** 盤の一辺はこの枠の内寸から決まるので、
+          **段を作らず枠の角に重ねる。** 盤の一辺はこの枠の内寸から決まるので、
           段を1つ足すとその高さのぶん盤が縮む（呼び手によっては測る軸が縦横で
-          入れ替わり、縮む面と広がる面に分かれる）。浮かせれば内寸が動かない
+          入れ替わり、縮む面と広がる面に分かれる）。重ねれば内寸が動かない
         */}
-        <div className="position-navigation-modal__turn-badge">
-          {turnBadgeText(previewData.turn)}
-        </div>
+        <div className="position-navigation-modal__turn-tab">{turnBadgeText(previewData.turn)}</div>
 
         <BoardPreview
           pieces={previewData.board}

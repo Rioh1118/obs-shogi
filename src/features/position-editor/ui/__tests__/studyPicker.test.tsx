@@ -153,7 +153,7 @@ describe("選ぶ", () => {
     // **盤の絵からは読み取れない。** 種として載せたあと最初に指すのがどちらかが
     // 決まる値なので、選ぶ前に見えている必要がある
     openPicker([position({ sfen: HIRATE.replace(" b ", " w ") })]);
-    expect(screen.getByText("☖後手番")).toBeTruthy();
+    expect(screen.getByText("☖ 後手番")).toBeTruthy();
   });
 
   test("ホバーでは動かない", () => {
