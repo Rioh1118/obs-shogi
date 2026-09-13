@@ -566,6 +566,62 @@ fn the_engine_does_not_reach_out_of_itself() {
     );
 }
 
+/// `book/` が `crate` の他の枝へ伸ばす辺の控え。
+///
+/// **1件で始められるのはいまだけ。** 2本目が生えた時点で「どちらが器か」が
+/// 消えるが、`book/mod.rs` は「これを見ている機械は無い」と自分で書いていて
+/// （#399）、実際に何も落ちない。1本しか無いうちに控えを張る。
+///
+/// **足すときは向きの理由をコミットに書くこと。** いま在る1本は、綴りを局面に
+/// する実装を `book` へ写すと SFEN の受理集合が3つ目になる（#236 が既に2つあると
+/// 言っている）ため借りている。
+const BOOK_OUTWARD_EDGES: [&str; 1] = ["crate::search::position::sfen_position"];
+
+fn book_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book")
+}
+
+/// `book/` が知っている `crate` の他の枝が、控えと一致すること。
+///
+/// **等値で見る。** 下限だと、借りるのをやめて辺が消えたときに控えだけが残り、
+/// 「まだ借りている」と読ませる。
+#[test]
+fn the_book_reaches_out_only_where_it_is_recorded() {
+    let root = book_dir();
+    let mut found: BTreeSet<String> = BTreeSet::new();
+
+    for path in rust_files(&root) {
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        for line in blank_out_noncode(&source).lines() {
+            let Some(at) = line.find("crate::") else {
+                continue;
+            };
+            let rest = &line[at..];
+            let spelling: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
+                .collect();
+            // 自分の枝は段の走査（この上）の担当
+            if spelling.starts_with("crate::book") {
+                continue;
+            }
+            // 末尾の項目名は落として、どの段へ伸びているかで数える
+            let module = spelling
+                .rsplit_once("::")
+                .map_or(spelling.clone(), |(head, _)| head.to_string());
+            found.insert(module);
+        }
+    }
+
+    assert_eq!(
+        found,
+        BOOK_OUTWARD_EDGES.map(String::from).into(),
+        "`book/` から `crate` の他の枝へ伸びる辺が控えと違う。\n\
+         増やすなら、なぜその向きなのかをコミットに書くこと。\n\
+         共有したいものは、共有できる位置まで下げるのが先"
+    );
+}
+
 /// 段が「使わない」と決めた外部クレートを**参照していない**こと。
 ///
 /// **ADR-0008 決定2 の核はここにある。** `game/` から `tauri` への `use` が
