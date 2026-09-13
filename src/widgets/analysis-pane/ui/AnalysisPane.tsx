@@ -1,7 +1,5 @@
-import {
-  convertSfenSequence,
-  evaluationToPercentage,
-} from "@/widgets/analysis-pane/lib/sfenConverter";
+import { evaluationToPercentage } from "@/widgets/analysis-pane/lib/sfenConverter";
+import { convertSfenSequence } from "@/shared/lib/shogi/moveText";
 import { useEffect, useMemo, type ReactNode } from "react";
 import CandidatesSection from "./CandidatesSection";
 import CandidateTable from "./CandidateTable";

@@ -21,7 +21,7 @@ export type CandidateRow = {
   isBest: boolean;
 };
 
-/** 読み筋の1手。`sfenConverter` の `ConvertedMove` と同じ形 */
+/** 読み筋の1手。`shared/lib/shogi/moveText` の `ConvertedMove` と同じ形 */
 type ConvertedMoveLike = { move: string; isBlack: boolean };
 
 /**
