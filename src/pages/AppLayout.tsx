@@ -117,8 +117,8 @@ const AppLayout = () => {
                 <section className="workspace__dock">
                   {/*
                     **どのビューが入るかはここでは決めない。** 名簿は `entities/dock`、
-                    部品の割り当ては `widgets/dock`。境界もドックの中にあるので、
-                    ビューが落ちてもタブ列は残る
+                    部品の割り当ては `./dockViews.ts`（`widgets/dock` に置くと同層横断になる）。
+                    境界もドックの中にあるので、ビューが落ちてもタブ列は残る
                   */}
                   <Dock views={DOCK_VIEWS_BINDINGS} />
                 </section>

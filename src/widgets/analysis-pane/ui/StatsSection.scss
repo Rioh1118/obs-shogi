@@ -7,8 +7,10 @@
   gap: index.$space-6;
 
   height: 3.2rem;
-  padding: 0 var(--pane-px);
+  padding: 0 var(--pane-px, #{index.$space-4});
 
+  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  background: index.$color-primary-dark;
   color: index.$color-text-primary;
   font-size: index.$font-hint;
   white-space: nowrap;
@@ -23,7 +25,8 @@
   &__label {
     font-family: index.$font-mono;
     letter-spacing: 0.08em;
-    opacity: 0.55;
+    // 0.55 まで沈めると 11px の文字が 3.77:1 になり、基準（4.5:1）を割る
+    opacity: 0.72;
   }
 
   &__value {

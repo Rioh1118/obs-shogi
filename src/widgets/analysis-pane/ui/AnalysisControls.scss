@@ -15,7 +15,7 @@
   justify-content: space-between;
   gap: index.$space-4;
 
-  padding: 0 index.$space-4;
+  padding: 0 var(--pane-px, #{index.$space-4});
   background-color: index.$color-primary-dark;
 
   @media (pointer: coarse) {
@@ -83,6 +83,8 @@
     gap: index.$space-1;
   }
 
+  // 押しっぱなしの状態は `aria-pressed` と記号の塗り（栞の `fill`）が示す。
+  // **色では示さない** —— この面の上で `$color-secondary-dark` は 4.5:1 を割る
   &__iconBtn {
     width: var(--hit);
     height: var(--hit);
@@ -104,11 +106,11 @@
 
     // 白文字を載せる面なので、ホバーは暗くする（design-language 3）
     &:hover:not(:disabled) {
-      background-color: rgba(0, 0, 0, 0.28);
+      background-color: rgba(index.$color-primary-black, 0.8);
     }
 
     &:active:not(:disabled) {
-      background-color: rgba(0, 0, 0, 0.28);
+      background-color: rgba(index.$color-primary-black, 0.8);
     }
 
     &:disabled {
@@ -120,9 +122,6 @@
       outline: 2px solid index.$focus-ring;
       outline-offset: -2px;
     }
-
-    // 押しっぱなしの状態は**記号の塗り**（栞の `fill`）が示す。**色は変えない** ——
-    // この面の上で銅色は基準（4.5:1）を割る
   }
 
   &__icon {

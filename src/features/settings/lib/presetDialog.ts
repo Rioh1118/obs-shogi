@@ -32,11 +32,6 @@ export function basename(p: string) {
   return last || (p ?? "");
 }
 
-export const QUICK_MULTIPV = [1, 3, 5, 8] as const;
-export const QUICK_MULTIPV_SET = new Set<number>(QUICK_MULTIPV);
-export const MULTIPV_MIN = 1;
-export const MULTIPV_MAX = 8;
-
 export const HASH_CHOICES = [256, 512, 1024, 2048, 4096, 8192, 16384] as const;
 
 export function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {

@@ -10,11 +10,13 @@ import {
   clampInt,
   cleanText,
   deepClone,
+  parseIntSafe,
+} from "@/features/settings/lib/presetDialog";
+import {
   MULTIPV_MAX,
   MULTIPV_MIN,
-  parseIntSafe,
   QUICK_MULTIPV_SET,
-} from "@/features/settings/lib/presetDialog";
+} from "@/entities/engine-presets/model/multiPv";
 import BasicSection from "./sections/BasicSection";
 import EngineFilesSection from "./sections/EngineFilesSection";
 import ImportantOptionsSection from "./sections/ImportantOptionsSection";

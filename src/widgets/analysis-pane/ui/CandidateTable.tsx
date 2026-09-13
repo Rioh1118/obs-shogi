@@ -1,12 +1,11 @@
 import { formatEvaluation } from "@/widgets/analysis-pane/lib/sfenConverter";
+import { useState } from "react";
+import { EMPTY_CANDIDATES } from "@/widgets/analysis-pane/lib/labels";
 import type { CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";
 import "./CandidateTable.scss";
 
 type Props = {
   rows: readonly CandidateRow[];
-  /** 選んでいる候補の `rank`。**モードを跨いで持ち回る** */
-  selectedRank: number | null;
-  onSelect: (rank: number) => void;
 };
 
 /**
@@ -15,13 +14,17 @@ type Props = {
  * 定跡ビュー（#95）の表も同じ形になる予定なので、2枚目が来たときに
  * 「列の定義を差し替えられる部品」として下げる。**いまは1枚なので widget の中に置く。**
  *
- * 読み筋は1行に収める（`text-overflow`）。**全文は「詳」のモードで読む** ——
- * ここで折り返すと行の高さが揃わず、列で揃えるという表の取り柄が消える。
+ * 読み筋は1行に収める（`text-overflow`）。折り返すと行の高さが揃わず、
+ * 列で揃えるという表の取り柄が消える。**切れた先へ届く手段は持たない**
+ * （`docs/spec/screens/analysis-pane.md` の「候補手の見せ方」）。
+ *
+ * 行の選択は**読む位置の印**で、ここから先へ動くものは何も無い。
+ * 見せ方を跨いで持ち回らない —— 行モードに選択という概念が無いため。
  */
-function CandidateTable({ rows, selectedRank, onSelect }: Props) {
-  if (rows.length === 0) {
-    return <p className="candidate-table__empty">候補手なし</p>;
-  }
+function CandidateTable({ rows }: Props) {
+  // 選んだ候補が消えた回は、どの行も選ばれていない状態になる。**最善手へは落ちない**
+  // —— 印なので、指す先が消えたら消えるのが素直
+  const [selectedRank, setSelectedRank] = useState<number | null>(null);
 
   return (
     <div className="candidate-table">
@@ -38,6 +41,17 @@ function CandidateTable({ rows, selectedRank, onSelect }: Props) {
           </tr>
         </thead>
         <tbody>
+          {/*
+            **空でも見出しは残す。** 器ごと消すと、候補手が届いた瞬間に見出しが生えて
+            下の行が押し下がる。行モード（`CandidatesSection`）とも位置が揃わない
+          */}
+          {rows.length === 0 && (
+            <tr>
+              <td className="candidate-table__empty" colSpan={3}>
+                {EMPTY_CANDIDATES}
+              </td>
+            </tr>
+          )}
           {rows.map((row) => (
             <tr
               key={row.rank}
@@ -49,7 +63,7 @@ function CandidateTable({ rows, selectedRank, onSelect }: Props) {
                 .filter(Boolean)
                 .join(" ")}
               aria-selected={row.rank === selectedRank}
-              onClick={() => onSelect(row.rank)}
+              onClick={() => setSelectedRank(row.rank)}
             >
               <td className="candidate-table__move">{row.moves[0]?.move ?? "—"}</td>
               <td className="candidate-table__score">{formatEvaluation(row.evaluation)}</td>

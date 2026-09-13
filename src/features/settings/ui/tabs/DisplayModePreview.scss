@@ -3,7 +3,7 @@
 // 骨だけの見本。**文字色を持たない**（面と棒だけで形を示す）
 .displayModePreview {
   display: grid;
-  gap: 3px;
+  gap: index.$space-1;
   align-content: start;
 
   height: 5.4rem;
@@ -20,7 +20,7 @@
   &__cells {
     display: grid;
     align-items: center;
-    gap: 5px;
+    gap: index.$space-2;
     height: 0.6rem;
     grid-template-columns: 1.6rem 1.2rem 1rem minmax(0, 1fr);
 

@@ -1,6 +1,7 @@
 import "./CandidatesSection.scss";
 import MoveSequence from "./MoveSequence";
 import type { CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";
+import { EMPTY_CANDIDATES } from "@/widgets/analysis-pane/lib/labels";
 
 interface CandidatesSectionProps {
   /**
@@ -17,7 +18,9 @@ interface CandidatesSectionProps {
  * 候補手を1手1行で詰めて出す（表示モード「行」）。
  *
  * **最善手を別の箱にしない。** 箱にすると同じデータが2つの体系で並び、
- * 表・詳細のモードと行の並びが揃わない。最善手は1行目で、太さで示す。
+ * 表の並びと揃わない。最善手は1行目で、太さと左の帯で示す。
+ *
+ * **選択は持たない。** 読む位置の印は表モードだけが持つ。
  */
 function CandidatesSection({ rows }: CandidatesSectionProps) {
   return (
@@ -30,7 +33,7 @@ function CandidatesSection({ rows }: CandidatesSectionProps) {
           evaluation={row.evaluation}
         />
       ))}
-      {rows.length === 0 && <p className="candidates-section__empty">候補手なし</p>}
+      {rows.length === 0 && <p className="candidates-section__empty">{EMPTY_CANDIDATES}</p>}
     </section>
   );
 }

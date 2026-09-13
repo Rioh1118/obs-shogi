@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { AnalysisCandidate } from "@/entities/engine";
-import { MULTIPV_MAX } from "@/features/settings/lib/presetDialog";
+import { MULTIPV_MAX } from "@/entities/engine-presets/model/multiPv";
 import { buildCandidateRows, MAX_VISIBLE_CANDIDATES } from "../candidateRows";
 
 const cp = (value: number) => ({ value, kind: "Centipawn" as const });

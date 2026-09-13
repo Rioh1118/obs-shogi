@@ -1,7 +1,7 @@
 @use "@/index.scss" as index;
 
 // **入りきらない候補手にスクロールで届く。** ドックの高さは窓に従うので、
-// 低い窓では必ずあふれる（それを切り捨てていたのが #563）。
+// 低い窓では必ずあふれる。
 // **バーは出さない** —— 全要素で消してあるのが意匠（`docs/spec/design-language.md`）
 .candidate-table {
   height: 100%;
@@ -25,7 +25,7 @@
     position: sticky;
     top: 0;
 
-    padding: index.$space-2 var(--pane-px);
+    padding: index.$space-2 var(--pane-px, #{index.$space-4});
     text-align: left;
     font-family: index.$font-mono;
     font-weight: 600;
@@ -40,11 +40,13 @@
   &__th--move {
     width: 8.4rem;
   }
+  // 見出しも値と同じ縦線に立てる。**列で揃うのが表の取り柄**
   &__th--score {
     width: 6.8rem;
+    text-align: right;
   }
   td {
-    padding: index.$space-1 var(--pane-px);
+    padding: index.$space-1 var(--pane-px, #{index.$space-4});
     border-bottom: 1px solid rgba(index.$color-white, 0.035);
 
     white-space: nowrap;
@@ -70,10 +72,15 @@
     box-shadow: index.$marker-bar;
   }
 
-  // **ホバーより後に置く。** 置かないと選んだ行にポインタを載せた瞬間だけ印が消える
+  // **ホバーより後に置く。** 置かないと選んだ行にポインタを載せた瞬間だけ印が消える。
+  // 最善手の行も選べるので、**面の濃さだけで示さない** —— 0.13 と 0.18 の差は読めない
   &__row--selected td,
   &__row--selected:hover td {
-    background: rgba(index.$color-secondary-dark, 0.18);
+    background: rgba(index.$color-secondary-dark, 0.24);
+  }
+
+  &__row--selected td:last-child {
+    box-shadow: index.$marker-bar-end;
   }
 
   &__score {
@@ -83,7 +90,7 @@
   }
 
   &__empty {
-    padding: index.$space-4 var(--pane-px);
+    padding: index.$space-4 var(--pane-px, #{index.$space-4});
     font-size: index.$font-aux;
     color: rgba(index.$color-text-primary, 0.72);
   }

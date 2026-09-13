@@ -2,7 +2,7 @@ import {
   convertSfenSequence,
   evaluationToPercentage,
 } from "@/widgets/analysis-pane/lib/sfenConverter";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import CandidatesSection from "./CandidatesSection";
 import CandidateTable from "./CandidateTable";
 import EvaluationBar from "./EvaluationBar";
@@ -10,6 +10,7 @@ import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/usi";
 import {
   buildCandidateRows,
   MAX_VISIBLE_CANDIDATES,
+  type CandidateRow,
 } from "@/widgets/analysis-pane/lib/candidateRows";
 import "./AnalysisPane.scss";
 import StatsSection from "./StatsSection";
@@ -18,13 +19,25 @@ import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
-import { pickTopCandidate, resolveAnalysisDisplayMode, useAnalysis } from "@/entities/analysis";
+import {
+  pickTopCandidate,
+  resolveAnalysisDisplayMode,
+  useAnalysis,
+  type AnalysisDisplayMode,
+} from "@/entities/analysis";
+
+/**
+ * 見せ方から本体へ。**`Record` なので、綴りを足して本体を足さないと tsc が落ちる。**
+ *
+ * `{mode === "table" && …}` を並べると、足し忘れた綴りではどの枝も偽になり、
+ * **解析タブが真っ白になる。エラーは出ない。**
+ */
+const BODY: Record<AnalysisDisplayMode, (props: { rows: readonly CandidateRow[] }) => ReactNode> = {
+  table: ({ rows }) => <CandidateTable rows={rows} />,
+  rows: ({ rows }) => <CandidatesSection rows={rows} />,
+};
 
 function AnalysisPane() {
-  // 選んでいる候補は**3つの見せ方で共有する**（切り替えても選択が動かない）。
-  // 局面が変わっても落とさない —— 手を進めながら3番手を追う読み方ができなくなる。
-  // 指す先が消えた回は最善手へ落ちる（各モードの側）
-  const [selectedRank, setSelectedRank] = useState<number | null>(null);
   // **控えの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
   // 保存場所を持たない。持つと、この画面が作り直された回だけ停止中の候補手が消える
   // （理由は `entities/analysis/lib/candidateCache.ts`）。
@@ -99,8 +112,8 @@ function AnalysisPane() {
       (c) => c.evaluation ?? null,
     );
 
-    // Δ は**手番視点のまま**の候補（`shown`）から取る。先手視点に揃えたあとだと
-    // 後手番で符号が反転して「最善手がいちばん小さい Δ」になる
+    // 順位は**手番視点のまま**の候補（`shown`）から取る。`senteMoves` と
+    // `senteEvaluations` は添字で引くので、3つの並びが揃っていること
     return buildCandidateRows(shown, senteMoves, senteEvaluations);
   }, [pvBaseSfen, currentTurn, visibleCandidates]);
 
@@ -126,12 +139,7 @@ function AnalysisPane() {
         </div>
       )}
 
-      <main className="analysis-pane__body">
-        {mode === "table" && (
-          <CandidateTable rows={rows} selectedRank={selectedRank} onSelect={setSelectedRank} />
-        )}
-        {mode === "rows" && <CandidatesSection rows={rows} />}
-      </main>
+      <main className="analysis-pane__body">{BODY[mode]({ rows })}</main>
 
       <footer className="analysis-pane__footer">
         <StatsSection searchStats={searchStats} />

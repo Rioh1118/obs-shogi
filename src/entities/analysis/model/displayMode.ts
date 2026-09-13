@@ -14,13 +14,28 @@ type DisplayModeMeta = {
   hint: string;
 };
 
-/** 並びが設定の選択肢の並び */
-export const ANALYSIS_DISPLAY_MODES = [
-  { key: "table", label: "表", hint: "評価値と読み筋が列で揃う" },
-  { key: "rows", label: "行", hint: "1手1行で詰める" },
-] as const satisfies readonly DisplayModeMeta[];
+/**
+ * 綴りごとの素性。**`Record` にしてあるので、`AnalysisDisplayMode` を1つ足して
+ * ここへ足さないと tsc が落ちる。**
+ *
+ * 配列で持つと網羅が閉じない —— `satisfies readonly DisplayModeMeta[]` が見るのは
+ * 「並んでいる行の綴りが型に在るか」だけで、逆向きは見ない。落とした綴りは
+ * `resolveAnalysisDisplayMode` が既定へ落とすので、**設定にも出ないまま黙る。**
+ */
+const SPECS = {
+  table: { label: "表", hint: "評価値と読み筋が列で揃う" },
+  rows: { label: "行", hint: "1手1行で詰める" },
+} as const satisfies Record<AnalysisDisplayMode, Omit<DisplayModeMeta, "key">>;
 
-/** 既定。**表** —— 列が意味を持つので、評価値と Δ を目で揃えられる */
+/** 並びが設定の選択肢の並び（`SPECS` の宣言順） */
+export const ANALYSIS_DISPLAY_MODES: readonly DisplayModeMeta[] = Object.keys(SPECS).map((key) => {
+  // `Object.keys` は `string[]` を返す。鍵の集合は `SPECS` の型が閉じているので、
+  // ここで名乗り直しても綴りが増えることはない
+  const modeKey = key as AnalysisDisplayMode;
+  return { key: modeKey, ...SPECS[modeKey] };
+});
+
+/** 既定。**表** —— 列が意味を持つので、評価値と読み筋を目で揃えられる */
 const DEFAULT_MODE: AnalysisDisplayMode = "table";
 
 /**

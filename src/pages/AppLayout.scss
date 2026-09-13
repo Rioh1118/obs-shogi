@@ -149,13 +149,15 @@
     }
   }
 
+  // ドックはカードを1枚置く枠。**自分では線を引かない** ——
+  // 引くと中のカードの枠と隣り合って 2px の線になり、カードの角が器に切られる
   &__dock {
     min-height: 0;
     min-width: 0;
 
     overflow: hidden;
+    padding: index.$space-3;
     background: var(--card-strong);
-    border-top: 1px solid var(--stroke);
   }
 }
 

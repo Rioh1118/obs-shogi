@@ -7,22 +7,16 @@
   min-height: 0;
   overflow: hidden;
 
-  // **左右の始点。** 評価値バー・候補手・脚注が同じ縦線から始まるよう、
-  // ペインの中はこの1つだけを使う。値は器（タブの段と操作列）と同じ
-  --pane-px: #{index.$space-4};
-
   // **段の数を固定しない。** 評価値バーは既定で出ないので、`grid-template-rows` を
   // 3段で書くと子が2つの回に本体が `auto` の段へ落ち、脚注が伸びる段を取る
   display: flex;
   flex-direction: column;
 
-  // 左右は候補手と脚注と同じ始点。**バーは幅いっぱい**に伸ばすので、
-  // 余白が左右で揃っていればそのまま中央に来る
   // 左右は候補手と脚注と同じ始点（`--pane-px`）。**バーは幅いっぱいに伸ばす**ので、
   // 左右が揃っていればそのまま中央に来る
   &__gauge {
     flex: none;
-    padding: index.$space-2 var(--pane-px) 0;
+    padding: index.$space-2 var(--pane-px, #{index.$space-4}) 0;
 
     .evaluation-bar {
       height: 0.9rem;

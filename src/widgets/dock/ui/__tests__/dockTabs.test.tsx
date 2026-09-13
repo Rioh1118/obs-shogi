@@ -167,6 +167,28 @@ describe("ドックのタブ", () => {
     expect(screen.getByRole("tablist")).toBeTruthy();
   });
 
+  /**
+   * `role="tablist"` は矢印での移動を期待させる役。名乗るなら持つこと
+   * （`AnalysisControls` は持たないので `role="toolbar"` を名乗っていない）。
+   */
+  test("矢印でタブを移せて、選んでいないタブは Tab の順から外れる", () => {
+    mount();
+
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+
+    expect(tab("定跡").getAttribute("aria-selected")).toBe("true");
+    expect(tab("定跡").getAttribute("tabindex")).toBe("0");
+    expect(tab("解析").getAttribute("tabindex")).toBe("-1");
+  });
+
+  test("端で押すと反対の端へ回る", () => {
+    mount();
+
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowLeft" });
+
+    expect(tab("定跡").getAttribute("aria-selected")).toBe("true");
+  });
+
   test("ビューが落ちても、タブ列は残るので別の面へ移れる", () => {
     // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ畳む
     vi.spyOn(console, "error").mockImplementation(() => {});

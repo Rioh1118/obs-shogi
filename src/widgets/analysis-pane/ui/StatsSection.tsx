@@ -18,7 +18,7 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function formatTime(timeMs: number): string {
+function formatSearchTime(timeMs: number): string {
   const seconds = timeMs / 1000;
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
 
@@ -39,7 +39,7 @@ function formatTime(timeMs: number): string {
  *
  * NPS は `nodes` と `time_ms` から導く。**エンジンの申告は使えない** ——
  * `AnalysisCandidate`（`src-tauri/src/engine/types.rs`）に欄が無い。
- * seldepth と hashfull は導きようが無く、その手前で #380 が塞いでいる → #563 の関連
+ * seldepth と hashfull は導きようも無く、欄を足す手前で塞がっている → #380
  */
 function StatsSection({ searchStats }: StatsSectionProps) {
   const depth = searchStats?.depth ?? null;
@@ -52,7 +52,7 @@ function StatsSection({ searchStats }: StatsSectionProps) {
     { label: "深度", value: depth !== null ? String(depth) : UNKNOWN },
     { label: "探索局面", value: nodes !== null ? formatCount(nodes) : UNKNOWN },
     { label: "NPS", value: nps !== null ? formatCount(Math.round(nps)) : UNKNOWN },
-    { label: "時間", value: timeMs !== null ? formatTime(timeMs) : UNKNOWN },
+    { label: "時間", value: timeMs !== null ? formatSearchTime(timeMs) : UNKNOWN },
   ];
 
   return (

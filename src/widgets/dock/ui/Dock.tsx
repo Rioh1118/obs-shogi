@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type KeyboardEvent } from "react";
 import "./Dock.scss";
 import { useURLParams, type DockViewType } from "@/shared/lib/router/useURLParams";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
@@ -34,6 +34,23 @@ function Dock({ views }: { views: DockViewBindings }) {
   const binding = views[active];
   const { Body, Controls } = binding;
 
+  /**
+   * タブ列の中を矢印で移す。**`role="tablist"` を名乗る以上、これが要る。**
+   *
+   * 名乗った役が期待する操作を持たないと、支援技術は「1 / 3」と読み上げるのに
+   * 矢印が効かない。選んでいないタブを Tab の順から外す（roving tabindex）のも同じ理由。
+   */
+  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (step === 0) return;
+
+    event.preventDefault();
+    // 端で止めずに回す。タブは並びであって、端に意味は無い
+    const next = tabs[(tabs.indexOf(active) + step + tabs.length) % tabs.length];
+    selectTab(next);
+    event.currentTarget.querySelector<HTMLButtonElement>(`#dock-tab-${next}`)?.focus();
+  };
+
   const selectTab = (key: DockViewType) => {
     // 同じタブを押しただけなら設定へ書きに行かない。書くと `config` が別物になり、
     // `useAppConfig` を購読している側（ツリーの根に居る門を含む）が押すたびに描き直される
@@ -51,7 +68,7 @@ function Dock({ views }: { views: DockViewBindings }) {
   return (
     <section className="dock">
       {/* タブ列は器のもの。**ビューの境界の外**に置くので、ビューが落ちても残る */}
-      <div className="dock__tabs" role="tablist" aria-label="ドック">
+      <div className="dock__tabs" role="tablist" aria-label="ドック" onKeyDown={onTabKeyDown}>
         {tabs.map((key) => (
           <button
             key={key}
@@ -60,6 +77,7 @@ function Dock({ views }: { views: DockViewBindings }) {
             id={`dock-tab-${key}`}
             aria-selected={key === active}
             aria-controls="dock-panel"
+            tabIndex={key === active ? 0 : -1}
             className={`dock__tab ${key === active ? "dock__tab--active" : ""}`}
             onClick={() => selectTab(key)}
           >

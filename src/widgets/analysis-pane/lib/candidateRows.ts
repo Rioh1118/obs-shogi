@@ -1,5 +1,5 @@
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
-import { MULTIPV_MAX } from "@/features/settings/lib/presetDialog";
+import { MULTIPV_MAX } from "@/entities/engine-presets/model/multiPv";
 
 /**
  * 画面に出す候補手の上限。**`MULTIPV_MAX` から導く。**

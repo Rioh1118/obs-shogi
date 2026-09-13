@@ -1,7 +1,7 @@
 @use "@/index.scss" as index;
 
 // **入りきらない候補手にスクロールで届く。** ドックの高さは窓に従うので、
-// 低い窓では必ずあふれる（それを切り捨てていたのが #563）。
+// 低い窓では必ずあふれる。
 // **バーは出さない** —— 全要素で消してあるのが意匠（`docs/spec/design-language.md`）
 .candidates-section {
   height: 100%;
@@ -14,12 +14,13 @@
   display: grid;
   align-content: start;
   gap: index.$space-1;
-  padding: index.$space-1 var(--pane-px) index.$space-2;
+  padding: index.$space-1 var(--pane-px, #{index.$space-4}) index.$space-2;
 
   &__empty {
+    // 表モードの空文言と**同じ寄せ・同じ始点**。切り替えたときに文言だけが動かない
     color: rgba(index.$color-text-primary, 0.72);
     font-size: index.$font-aux;
-    text-align: center;
-    margin: index.$space-3 0;
+    padding: index.$space-3 0;
+    margin: 0;
   }
 }

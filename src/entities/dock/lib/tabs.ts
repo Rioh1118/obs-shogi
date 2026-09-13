@@ -15,8 +15,8 @@ function isDockViewType(value: unknown): value is DockViewType {
  * タブ一覧を組む。**返る一覧は必ず1枚以上ある。**
  *
  * 1枚以上を保証しているのは名簿の側 —— `removable: false` のビューが少なくとも
- * 1枚あることを ADR-0010 決定1 が要求していて、名簿を差し替えていない検査が
- * それを固定している。
+ * 1枚あることを ADR-0010 決定1 が要求していて、
+ * `src/entities/dock/model/__tests__/views.test.ts` がそれを固定している。
  *
  * `saved` は設定に残っている並び（`AppConfig.dock_tabs`）。まだ選んでいなければ
  * `null` で、そのときは名簿の `defaultVisible` が決める。

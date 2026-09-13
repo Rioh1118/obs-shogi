@@ -63,7 +63,7 @@ function AnalysisControls() {
     };
   }, [state.isAnalyzing]);
 
-  const formatTime = (seconds: number): string => {
+  const formatElapsed = (seconds: number): string => {
     if (seconds < 60) {
       return `${seconds}s`;
     } else {
@@ -115,7 +115,7 @@ function AnalysisControls() {
         <span className="analysis-controls__status-text">
           {state.isAnalyzing ? "解析中" : "停止中"}
         </span>
-        <span className="analysis-controls__timer">{formatTime(elapsedTime)}</span>
+        <span className="analysis-controls__timer">{formatElapsed(elapsedTime)}</span>
       </div>
 
       <div className="analysis-controls__actions">
@@ -164,7 +164,7 @@ function AnalysisControls() {
             <Search className="analysis-controls__icon" />
           </button>
           <button
-            className={`analysis-controls__iconBtn ${isBookmarked ? "analysis-controls__iconBtn--active" : ""}`}
+            className="analysis-controls__iconBtn"
             onClick={() => openModal("study-position-save")}
             disabled={!currentSfen}
             aria-pressed={isBookmarked}
