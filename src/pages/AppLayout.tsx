@@ -9,7 +9,8 @@ import "./AppLayout.scss";
 import WelcomeScreen from "@/pages/WelcomeScreen";
 import AppModalLayer from "@/pages/AppModalLayer";
 
-import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
+import Dock from "@/widgets/dock/ui/Dock";
+import { DOCK_VIEWS_BINDINGS } from "./dockViews";
 import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
@@ -115,20 +116,11 @@ const AppLayout = () => {
 
                 <section className="workspace__dock">
                   {/*
-                    エンジンの応答は形が保証されていないので、描く段で落ちうる。
-                    畳むのはドックの中だけで、盤と棋譜一覧は残す
+                    **どのビューが入るかはここでは決めない。** 名簿は `entities/dock`、
+                    部品の割り当ては `./dockViews.ts`（`widgets/dock` に置くと同層横断になる）。
+                    境界もドックの中にあるので、ビューが落ちてもタブ列は残る
                   */}
-                  <AppErrorBoundary
-                    label={BOUNDARY_LABELS.analysis}
-                    fallback={(view) => (
-                      <ErrorFallbackBody
-                        {...view}
-                        hint={`設定からエンジンを選び直してから「${RETRY_LABEL}」を押してください。`}
-                      />
-                    )}
-                  >
-                    <AnalysisPane />
-                  </AppErrorBoundary>
+                  <Dock views={DOCK_VIEWS_BINDINGS} />
                 </section>
               </div>
             </div>

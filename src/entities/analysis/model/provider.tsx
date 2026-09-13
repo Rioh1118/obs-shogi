@@ -698,14 +698,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       failStart(LISTENERS_FAILED_MESSAGE, new Error("Analysis event listeners are not registered"));
     }
 
-    // ▶ は ready でなくても押せる（`AnalysisPaneHeader` は局面の有無しか見ない）ので、
+    // ▶ は ready でなくても押せる（`AnalysisControls` は局面の有無しか見ない）ので、
     // ここは**いちばん踏まれる枝**。理由は engine 側が決める（`desiredRuntime` を
     // 見られるのはあちらだけ）。`isReady` が false なら理由は必ず在る（`EngineReadiness`）。
     if (!isReady) {
       failStart(NOT_READY_REFUSALS[notReadyReason], new Error("Engine not ready"));
     }
 
-    // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisPaneHeader` が
+    // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisControls` が
     // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ口が
     // 増えたときのために `throw` だけ残す。
     if (!currentSfen) throw new Error("No position available for analysis");
@@ -849,7 +849,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       failStart(START_REFUSED_MESSAGE, e);
     }
     // **エンジンが消えた回は断る。** 押した人がまだ画面の前に居るので、黙ると
-    // `AnalysisPaneHeader` の catch にも入らず `console.error` すら出ない
+    // `AnalysisControls` の catch にも入らず `console.error` すら出ない
     // ——停止中はペインが控えを出すので**押す前と1ドットも変わらない画面**が残る。
     // ただし**要求がまだ生きている回だけ**——棋譜を閉じた回・畳まれた回も
     // `landed` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。

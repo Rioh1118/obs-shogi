@@ -1,35 +1,37 @@
 @use "@/index.scss" as index;
 
+// 脚注。**上の線は器（`.analysis-pane__footer`）が引く**ので、ここでは引かない
 .stats-section {
   display: flex;
   align-items: center;
-  gap: 1.2rem;
-  position: sticky;
+  gap: index.$space-6;
 
   height: 3.2rem;
-  padding: 0 var(--pane-px);
+  padding: 0 var(--pane-px, #{index.$space-4});
 
-  background: rgba(index.$color-primary-black, 0.55);
-  border-top: 1px solid rgba(index.$color-white, 0.06);
-  box-shadow: 0 -1px 0 rgba(index.$color-white, 0.04) inset;
-
+  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  background: index.$color-primary-dark;
   color: index.$color-text-primary;
-  font-size: 1.1rem;
+  font-size: index.$font-hint;
   white-space: nowrap;
-  overflow: hidden;
+  overflow-x: auto;
 
   &__item {
     display: flex;
-    align-items: flex-start;
-    margin-left: 0.9rem;
+    align-items: baseline;
+    gap: index.$space-2;
   }
 
   &__label {
-    opacity: 0.75;
+    font-family: index.$font-mono;
+    letter-spacing: 0.08em;
+    // 0.55 まで沈めると 11px の文字が 3.77:1 になり、基準（4.5:1）を割る
+    opacity: 0.72;
   }
 
   &__value {
+    font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
-    opacity: 0.98;
+    font-weight: 600;
   }
 }

@@ -6,7 +6,8 @@
   align-items: baseline;
   column-gap: 0.3rem;
 
-  padding: 0.25rem 1.6rem;
+  // **左右は持たない。** 始点は節（`.candidates-section`）が `--pane-px` で持つ
+  padding: index.$space-1 0;
   color: index.$color-text-primary;
   line-height: 1.35;
 
@@ -14,8 +15,12 @@
   overflow: hidden;
 
   font-size: 1.22rem;
+
+  // 最善手。**面は敷かない** —— 載る面は `.candidates-section` が宣言しているが、
+  // 薄い面を重ねると隣の行のホバーと見分けが付かない。左の帯と太さで示す
   &__primary {
-    font-weight: 560;
+    font-weight: 600;
+    box-shadow: index.$marker-bar;
   }
 
   &__candidate {

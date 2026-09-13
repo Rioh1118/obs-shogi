@@ -4,14 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppConfigProvider } from "../provider";
 import { useAppConfig } from "../useAppConfig";
+import type { AppConfig } from "../types";
 
+let disk: AppConfig = { root_dir: "/old", ai_root: null };
 const loadConfig = vi.fn();
+const saveConfig = vi.fn();
 const setRootDirApi = vi.fn();
 const chooseRootDirApi = vi.fn();
 
 vi.mock("../../api/config", () => ({
   loadConfig: (...args: unknown[]) => loadConfig(...args),
-  saveConfig: vi.fn(),
+  saveConfig: (...args: unknown[]) => saveConfig(...args),
   backupBrokenConfig: vi.fn(),
 }));
 
@@ -52,6 +55,31 @@ function loadingText() {
   return screen.getByTestId("loading").textContent;
 }
 
+/** 表示の設定を2つ、**保存が返る前に**続けて押す */
+function DisplayProbe() {
+  const { setDisplayConfig } = useAppConfig();
+  return (
+    <div>
+      <button
+        data-testid="startup"
+        onClick={() => {
+          void setDisplayConfig({ dock_startup_tab: "analysis" }); // async-result-ignored: 押しの取りこぼしを見る検査で、結果は使わない
+        }}
+      >
+        startup
+      </button>
+      <button
+        data-testid="gauge"
+        onClick={() => {
+          void setDisplayConfig({ show_evaluation_bar: true }); // async-result-ignored: 同上
+        }}
+      >
+        gauge
+      </button>
+    </div>
+  );
+}
+
 async function mountAndFail() {
   setRootDirApi.mockRejectedValue(new Error("書けない"));
 
@@ -73,8 +101,15 @@ describe("AppConfigProvider", () => {
 
   beforeEach(() => {
     loadConfig.mockReset();
+    saveConfig.mockReset();
     setRootDirApi.mockReset();
-    loadConfig.mockResolvedValue({ root_dir: "/old", ai_root: null });
+    // **書いたものが読める小さなディスク。** 固定値を返す mock だと、
+    // 土台を取り直す実装と握り続ける実装が同じ結果になり、検査が空回りする
+    disk = { root_dir: "/old", ai_root: null };
+    loadConfig.mockImplementation(async () => ({ ...disk }));
+    saveConfig.mockImplementation(async (next: AppConfig) => {
+      disk = { ...next };
+    });
   });
 
   /**
@@ -111,6 +146,82 @@ describe("AppConfigProvider", () => {
 
     expect(screen.getByTestId("error").textContent).toContain("設定の読み込みに失敗しました");
     expect(screen.getByTestId("error").textContent).not.toContain("初期化に失敗");
+  });
+
+  /**
+   * **書き込みの土台をレンダのクロージャから取らない。**
+   *
+   * `setDisplayConfig` は `loading` を立てないので、ディスクへの1往復が終わるまで
+   * 再レンダが起きない。土台をクロージャから取ると、その間に来た2件目は必ず同じ
+   * 古い土台を読み、`save_config` はファイルごと置き換えるので1件目の欄が消える。
+   * 画面は成功扱いなので、押したチェックが黙って戻るだけになる。
+   */
+  it("保存が返る前に押した2件目が、1件目の欄を消さない", async () => {
+    let release: () => void = () => {};
+    const write = saveConfig.getMockImplementation()!;
+    saveConfig.mockImplementation(
+      (next: AppConfig) =>
+        new Promise<void>((resolve) => {
+          release = () => {
+            void write(next);
+            resolve();
+          };
+        }),
+    );
+
+    render(
+      <AppConfigProvider>
+        <DisplayProbe />
+      </AppConfigProvider>,
+    );
+    await waitFor(() => expect(loadConfig).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("startup"));
+    await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("gauge"));
+
+    release();
+    await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(2));
+
+    expect(saveConfig.mock.calls[1][0]).toMatchObject({
+      dock_startup_tab: "analysis",
+      show_evaluation_bar: true,
+    });
+  });
+
+  /**
+   * **鎖に土台を持たせない。**
+   *
+   * `app.json` を書くのは表示の設定だけではない。自分が書いた値を鎖が握り続けると、
+   * 間に挟まった別の書き手（ここでは `setRootDir`）の欄を次の書き込みが古い値へ戻す
+   * —— ワークスペースを選び直した直後にチェックを1つ押すと、`root_dir` が
+   * 消えたパスへ戻る。
+   */
+  it("間に別の書き手が挟まっても、その欄を書き戻さない", async () => {
+    setRootDirApi.mockImplementation(async (next: string) => {
+      disk = { ...disk, root_dir: next };
+    });
+
+    render(
+      <AppConfigProvider>
+        <DisplayProbe />
+        <Probe />
+      </AppConfigProvider>,
+    );
+    await waitFor(() => expect(loadConfig).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("gauge"));
+    await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId("set"));
+    await waitFor(() => expect(disk.root_dir).toBe("/next"));
+
+    fireEvent.click(screen.getByTestId("startup"));
+    await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(2));
+
+    expect(disk.root_dir).toBe("/next");
+    expect(disk.show_evaluation_bar).toBe(true);
+    expect(disk.dock_startup_tab).toBe("analysis");
   });
 
   /**

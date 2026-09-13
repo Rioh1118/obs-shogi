@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Settings, Play, Square, Navigation, Search, RotateCw, Bookmark } from "lucide-react";
-import "./AnalysisPaneHeader.scss";
+import "./AnalysisControls.scss";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
@@ -8,7 +8,19 @@ import { useStudyPositions } from "@/entities/study-positions/model/useStudyPosi
 import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 
-function AnalysisPaneHeader() {
+/**
+ * 解析ビューの操作列。**ドックのタブ列の下の段に出る。**
+ *
+ * 左が状態（`解析中` / `停止中` と経過秒）、右が操作。並びは
+ * 盤と解析（向き・開始／停止）→ 局面の道具（ナビ・検索・課題局面）→ 設定。
+ *
+ * **候補手の見せ方はここに置かない。** 局面ごとに変える値ではなく好みなので、
+ * 置き場は設定「表示」（ADR-0010 決定4 の改訂）。
+ *
+ * 記号は `lucide-react` から取る。**このリポジトリの図案はすべてそこ**なので、
+ * 新しい出どころを増やさない。
+ */
+function AnalysisControls() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
@@ -51,7 +63,7 @@ function AnalysisPaneHeader() {
     };
   }, [state.isAnalyzing]);
 
-  const formatTime = (seconds: number): string => {
+  const formatElapsed = (seconds: number): string => {
     if (seconds < 60) {
       return `${seconds}s`;
     } else {
@@ -88,98 +100,89 @@ function AnalysisPaneHeader() {
     }
   };
 
-  // 局面ナビゲーションハンドラー
-  const handlePositionNavigation = () => {
-    openModal("navigation");
-  };
-
   const handleOpenSettings = () => {
     // 解析の断りが案内する復帰操作（プリセットのオプションを変えて保存し、起こし直す）は
     // このタブにしか無い。**綴りは `useOpenSettings` が型で閉じる。**
     openSettings("engine");
   };
 
-  const handlePositionSearch = () => {
-    openModal("position-search");
-  };
-
-  const handleBookmark = () => {
-    openModal("study-position-save");
-  };
-
   return (
-    <header className="analysis-header">
-      <div className="analysis-header__status">
-        <div className="analysis-header__indicator">
-          <span
-            className={`analysis-header__dot ${state.isAnalyzing ? "analysis-header__dot--analyzing" : "analysis-header__dot--idle"}`}
-          ></span>
-          <span className="analysis-header__status-text">
-            {state.isAnalyzing ? "解析中" : "停止中"}
-          </span>
-          <span className="analysis-header__timer">{formatTime(elapsedTime)}</span>
-        </div>
+    <div className="analysis-controls">
+      <div className="analysis-controls__status">
+        <span
+          className={`analysis-controls__dot ${state.isAnalyzing ? "analysis-controls__dot--analyzing" : "analysis-controls__dot--idle"}`}
+        ></span>
+        <span className="analysis-controls__status-text">
+          {state.isAnalyzing ? "解析中" : "停止中"}
+        </span>
+        <span className="analysis-controls__timer">{formatElapsed(elapsedTime)}</span>
       </div>
 
-      <div className="analysis-header__right">
-        <nav className="analysis-header__group" role="toolbar" aria-label="解析ツール">
+      <div className="analysis-controls__actions">
+        {/*
+          `role="toolbar"` を名乗らない。名乗ると矢印キーでの移動が期待されるが、
+          この帯はそれを持たない。`group` なら並びの名前だけを伝える
+        */}
+        <div className="analysis-controls__group" role="group" aria-label="盤と解析">
           <button
-            className="analysis-header__iconBtn"
+            className="analysis-controls__iconBtn"
             onClick={handleTogglePov}
             title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
             aria-pressed={isGotePov}
           >
-            <RotateCw className="analysis-header__icon" />
+            <RotateCw className="analysis-controls__icon" />
           </button>
           <button
-            className="analysis-header__iconBtn"
-            onClick={handlePositionNavigation}
-            disabled={!currentSfen}
-            title="局面ナビゲーション"
-          >
-            <Navigation className="analysis-header__icon" />
-          </button>
-          <button
-            className="analysis-header__iconBtn"
-            onClick={handlePositionSearch}
-            disabled={!currentSfen}
-            title="局面検索"
-          >
-            <Search className="analysis-header__icon" />
-          </button>
-
-          <button
-            className="analysis-header__iconBtn"
+            className="analysis-controls__iconBtn"
             onClick={handleToggleAnalysis}
             disabled={!state.isAnalyzing && !currentSfen}
             title={state.isAnalyzing ? "解析停止" : "解析開始"}
           >
             {state.isAnalyzing ? (
-              <Square className="analysis-header__icon" />
+              <Square className="analysis-controls__icon" />
             ) : (
-              <Play className="analysis-header__icon" />
+              <Play className="analysis-controls__icon" />
             )}
           </button>
+        </div>
 
+        <div className="analysis-controls__group" role="group" aria-label="局面の道具">
           <button
-            className={`analysis-header__iconBtn ${isBookmarked ? "analysis-header__iconBtn--active" : ""}`}
-            onClick={handleBookmark}
+            className="analysis-controls__iconBtn"
+            onClick={() => openModal("navigation")}
             disabled={!currentSfen}
+            title="局面ナビゲーション"
+          >
+            <Navigation className="analysis-controls__icon" />
+          </button>
+          <button
+            className="analysis-controls__iconBtn"
+            onClick={() => openModal("position-search")}
+            disabled={!currentSfen}
+            title="局面検索"
+          >
+            <Search className="analysis-controls__icon" />
+          </button>
+          <button
+            className="analysis-controls__iconBtn"
+            onClick={() => openModal("study-position-save")}
+            disabled={!currentSfen}
+            aria-pressed={isBookmarked}
             title={isBookmarked ? "課題局面を編集" : "課題局面に登録"}
           >
             <Bookmark
-              className="analysis-header__icon"
+              className="analysis-controls__icon"
               fill={isBookmarked ? "currentColor" : "none"}
             />
           </button>
+        </div>
 
-          <button className="analysis-header__iconBtn" onClick={handleOpenSettings} title="設定">
-            <Settings className="analysis-header__icon" />
-          </button>
-        </nav>
+        <button className="analysis-controls__iconBtn" onClick={handleOpenSettings} title="設定">
+          <Settings className="analysis-controls__icon" />
+        </button>
       </div>
-    </header>
+    </div>
   );
 }
 
-export default AnalysisPaneHeader;
+export default AnalysisControls;

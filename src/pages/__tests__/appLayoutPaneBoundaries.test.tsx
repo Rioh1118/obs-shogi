@@ -42,6 +42,12 @@ vi.mock("@/pages/WelcomeScreen", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);
 vi.mock("@/widgets/game-board/ui/Hand", () => empty);
 vi.mock("@/widgets/game-board/ui/GameControls", () => empty);
+// **ドックは本物を出す。** 解析の境界はもうページではなくドックの中にあるので、
+// 差し替えるとその1枚が検査から消える
+vi.mock("@/widgets/analysis-pane/ui/AnalysisControls", () => empty);
+vi.mock("@/entities/app-config", () => ({
+  useAppConfig: () => ({ config: null, setDisplayConfig: vi.fn() }),
+}));
 vi.mock("@/widgets/kifu-stream/ui/KifuStreamList", () => ({
   default: () => <div data-testid="kifu" />,
 }));
@@ -96,5 +102,14 @@ describe("ペインごとの境界", () => {
     expect(container.querySelector('[data-testid="board"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="analysis"]')).toBeNull();
+  });
+
+  // 畳まれる範囲がドックの本体で止まること。タブ列まで畳むと、落ちた面から
+  // 別の面へ移る（＝`resetKeys` を動かす）唯一の操作が消える
+  test("ビューが落ちても、ドックのタブ列は残る", () => {
+    throwing.analysis = true;
+    const { container } = mount();
+
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
   });
 });

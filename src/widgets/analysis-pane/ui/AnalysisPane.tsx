@@ -1,17 +1,41 @@
-import { convertSfenSequence } from "@/widgets/analysis-pane/lib/sfenConverter";
-import type { ConvertedMove } from "@/widgets/analysis-pane/lib/sfenConverter";
-import { useEffect, useMemo } from "react";
-import BestMoveSection from "./BestMoveSection";
+import {
+  convertSfenSequence,
+  evaluationToPercentage,
+} from "@/widgets/analysis-pane/lib/sfenConverter";
+import { useEffect, useMemo, type ReactNode } from "react";
 import CandidatesSection from "./CandidatesSection";
+import CandidateTable from "./CandidateTable";
+import EvaluationBar from "./EvaluationBar";
 import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/usi";
-import AnalysisPaneHeader from "./AnalysisPaneHeader";
+import {
+  buildCandidateRows,
+  MAX_VISIBLE_CANDIDATES,
+  type CandidateRow,
+} from "@/widgets/analysis-pane/lib/candidateRows";
 import "./AnalysisPane.scss";
 import StatsSection from "./StatsSection";
+import { useAppConfig } from "@/entities/app-config";
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
-import { pickTopCandidate, useAnalysis } from "@/entities/analysis";
+import {
+  pickTopCandidate,
+  resolveAnalysisDisplayMode,
+  useAnalysis,
+  type AnalysisDisplayMode,
+} from "@/entities/analysis";
+
+/**
+ * 見せ方から本体へ。**`Record` なので、綴りを足して本体を足さないと tsc が落ちる。**
+ *
+ * `{mode === "table" && …}` を並べると、足し忘れた綴りではどの枝も偽になり、
+ * **解析タブが真っ白になる。エラーは出ない。**
+ */
+const BODY: Record<AnalysisDisplayMode, (props: { rows: readonly CandidateRow[] }) => ReactNode> = {
+  table: ({ rows }) => <CandidateTable rows={rows} />,
+  rows: ({ rows }) => <CandidatesSection rows={rows} />,
+};
 
 function AnalysisPane() {
   // **控えの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
@@ -19,6 +43,7 @@ function AnalysisPane() {
   // （理由は `entities/analysis/lib/candidateCache.ts`）。
   const { state, candidateCache } = useAnalysis();
 
+  const { config } = useAppConfig();
   const { getCurrentTurn, state: gameState, view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const { selectedNode } = useFileTree();
@@ -66,71 +91,59 @@ function AnalysisPane() {
 
   const pvBaseSfen = state.isAnalyzing ? state.analyzedSfen : currentSfen;
 
-  const displayData = useMemo(() => {
-    const canConvert = !!pvBaseSfen && !!visibleCandidates.length;
+  const rows = useMemo(() => {
+    const shown = visibleCandidates.slice(0, MAX_VISIBLE_CANDIDATES);
+    const canConvert = !!pvBaseSfen && shown.length > 0;
 
-    const senteCandidates: AnalysisCandidate[] = visibleCandidates.map((c) =>
+    const senteCandidates: AnalysisCandidate[] = shown.map((c) =>
       convertCandidateToSenteView(c, currentTurn),
     );
-    const top = pickTopCandidate(senteCandidates);
-    const others = top ? senteCandidates.filter((c) => c.rank !== top.rank) : senteCandidates;
 
-    const bestMoveSequence: ConvertedMove[] =
-      canConvert && top?.pv_line?.length
-        ? convertSfenSequence(pvBaseSfen!, top.pv_line)
-        : top?.first_move
-          ? convertSfenSequence(pvBaseSfen!, [top.first_move])
-          : [];
-
-    const candidateSequences: ConvertedMove[][] = canConvert
-      ? others.map((c) =>
+    const senteMoves = canConvert
+      ? senteCandidates.map((c) =>
           convertSfenSequence(
-            pvBaseSfen!,
+            pvBaseSfen,
             c.pv_line?.length ? c.pv_line : c.first_move ? [c.first_move] : [],
           ),
         )
-      : [];
+      : shown.map(() => []);
 
-    const evaluation: Evaluation | null = top?.evaluation ?? null;
+    const senteEvaluations: (Evaluation | null)[] = senteCandidates.map(
+      (c) => c.evaluation ?? null,
+    );
 
-    const candidateEvaluations: (Evaluation | null)[] = others.map((c) => c.evaluation ?? null);
-
-    const searchStats = top
-      ? {
-          depth: top.depth ?? null,
-          nodes: top.nodes ?? null,
-          time_ms: top.time_ms ?? null,
-        }
-      : null;
-
-    return {
-      bestMoveSequence,
-      candidateSequences,
-      evaluation,
-      candidateEvaluations,
-      searchStats,
-      candidateCount: others.length,
-    };
+    // 順位は**手番視点のまま**の候補（`shown`）から取る。`senteMoves` と
+    // `senteEvaluations` は添字で引くので、3つの並びが揃っていること
+    return buildCandidateRows(shown, senteMoves, senteEvaluations);
   }, [pvBaseSfen, currentTurn, visibleCandidates]);
+
+  const searchStats = useMemo(() => {
+    const top = pickTopCandidate([...visibleCandidates]);
+    return top
+      ? { depth: top.depth ?? null, nodes: top.nodes ?? null, time_ms: top.time_ms ?? null }
+      : null;
+  }, [visibleCandidates]);
+
+  // 見せ方は設定が決める（ADR-0010 決定4 の改訂）。**局面ごとに変える値ではなく好み**
+  const mode = resolveAnalysisDisplayMode(config?.analysis_display_mode);
+
+  // 評価値バーは**モードに依らず本体の上**に出す。どのモードでも最善手は1行目なので、
+  // 特定の行にぶら下げる置き場が無い。出すかどうかは設定（既定は出さない。ADR-0010 決定4）
+  const bestEvaluation = rows.find((r) => r.isBest)?.evaluation ?? null;
 
   return (
     <section className="analysis-pane">
-      <div className="analysis-pane__surface">
-        <AnalysisPaneHeader />
-        <main className="analysis-pane__body">
-          <BestMoveSection
-            bestMove={displayData.bestMoveSequence}
-            evaluation={displayData.evaluation}
-          />
-          <CandidatesSection
-            candidateSequences={displayData.candidateSequences}
-            candidateEvaluations={displayData?.candidateEvaluations}
-          />
-        </main>
-        <footer className="analysis-pane__footer">
-          <StatsSection searchStats={displayData.searchStats} />
-        </footer>
-      </div>
+      {config?.show_evaluation_bar === true && (
+        <div className="analysis-pane__gauge">
+          <EvaluationBar percentage={evaluationToPercentage(bestEvaluation)} />
+        </div>
+      )}
+
+      <main className="analysis-pane__body">{BODY[mode]({ rows })}</main>
+
+      <footer className="analysis-pane__footer">
+        <StatsSection searchStats={searchStats} />
+      </footer>
     </section>
   );
 }

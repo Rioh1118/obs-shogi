@@ -59,13 +59,18 @@ vi.mock("@/entities/file-tree", () => ({ useFileTree: () => fileTree }));
 vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
   useEnginePresets: () => presets,
 }));
-// ヘッダは `useURLParams` / `useStudyPositions` / `useBoardOrientation` を引く。
-// 控えの経路には関係しない。
-vi.mock("../AnalysisPaneHeader", () => ({ default: () => null }));
+// この画面は評価値バーの出し分けと表示モードのために設定を引く。控えの経路には関係しない。
+// **モードは「行」に固定する** —— 控えが出ているかを `.candidates-section` で見るため
+vi.mock("@/entities/app-config", () => ({
+  useAppConfig: () => ({
+    config: { analysis_display_mode: "rows" },
+    setDisplayConfig: vi.fn(),
+  }),
+}));
 
 const { default: AnalysisPane } = await import("../AnalysisPane");
 
-/** 出ている候補手（最善手を除いた分）の数。0 なら「候補手なし」が出る。 */
+/** 出ている候補手の行数。**最善手も1行目として入る。** 0 なら「候補手なし」が出る。 */
 const shownCandidates = (container: HTMLElement) =>
   container.querySelectorAll(".candidates-section .move-sequence").length;
 
@@ -182,7 +187,7 @@ describe("解析ペインの候補手の控え", () => {
   test("解析を止めても、直前に届いていた候補手が残る", () => {
     const view = analyzeThenStop();
 
-    expect(shownCandidates(view.container)).toBe(1);
+    expect(shownCandidates(view.container)).toBe(2);
   });
 
   test("停止中に畳まれて作り直されても、直前に見えていた候補手が出る", () => {
@@ -190,7 +195,7 @@ describe("解析ペインの候補手の控え", () => {
 
     const again = render(<AnalysisPane />);
 
-    expect(shownCandidates(again.container)).toBe(1);
+    expect(shownCandidates(again.container)).toBe(2);
   });
 
   /**
@@ -241,7 +246,7 @@ describe("解析ペインの候補手の控え", () => {
     analysis.state.isAnalyzing = false;
     view.rerender(<AnalysisPane />);
 
-    expect(shownCandidates(view.container)).toBe(1);
+    expect(shownCandidates(view.container)).toBe(2);
   });
 
   test("局面を動かすと、その局面の控えだけを出す", () => {

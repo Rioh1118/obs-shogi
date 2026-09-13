@@ -1,15 +1,10 @@
 @use "@/index.scss" as index;
 
+// **位置と寸法を持たない。** 幅・高さ・余白は載せる側（`.analysis-pane__gauge`）が決める。
+// ここが持つと、載せた先の左右の始点と食い違っても片方だけ直せない
 .evaluation-bar {
   display: flex;
-  width: 50%;
-  height: 1.5rem;
-  border: 1px solid rgba(index.$color-text-primary, 0.4);
   overflow: hidden;
-  margin-top: 0.7rem;
-  margin-bottom: 0.3rem;
-  margin-left: 2.8rem;
-  margin-right: auto;
 
   &__center-line {
     width: 1px;

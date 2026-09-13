@@ -5,7 +5,38 @@ export type AppConfig = {
   root_dir: string | null;
   ai_root: string | null;
   last_preset_id?: PresetId | null;
+
+  /**
+   * ドックに出すタブの綴りを、出す順に並べたもの。**まだ選んでいなければ欠ける。**
+   *
+   * **`DockViewType[]` にしない。** 設定ファイルは前の版も利用者も書くので、
+   * 名簿に無い綴りが混ざる。型で名乗ると、濾さずに画面へ渡した経路が
+   * tsc を通ってしまう。濾すのは `resolveDockTabs`（`entities/dock`）。
+   */
+  dock_tabs?: string[] | null;
+  /** 起動時に開くタブ。**欠けていれば「前回のもの」**（`dock_last_tab` を使う） */
+  dock_startup_tab?: string | null;
+  /** 前回開いていたタブ */
+  dock_last_tab?: string | null;
+  /** 解析の評価値バーを出すか。**欠けていれば出さない**（ADR-0010 決定4） */
+  show_evaluation_bar?: boolean | null;
+  /**
+   * 解析ビューの候補手の見せ方。**欠けていれば既定**（`resolveAnalysisDisplayMode`）。
+   *
+   * その場（操作列）で切り替えられて、選んだ結果がここに残る（ADR-0010 決定4）。
+   */
+  analysis_display_mode?: string | null;
 };
+
+/** 表示の設定。**`AppConfig` のうち、設定「表示」タブとドックが書き換える欄だけ。** */
+export type DisplayConfigPatch = Pick<
+  AppConfig,
+  | "dock_tabs"
+  | "dock_startup_tab"
+  | "dock_last_tab"
+  | "show_evaluation_bar"
+  | "analysis_display_mode"
+>;
 
 export type ChooseOpts = { force?: boolean };
 
@@ -59,4 +90,12 @@ export type AppConfigContextType = ConfigState & {
    */
   setRootDir: (rootDir: string) => AsyncResult<void, string>;
   setLastPresetId: (presetId: PresetId | null) => Promise<void>;
+  /**
+   * 表示の設定を書き換える。**渡した欄だけを差し替える。**
+   *
+   * 呼び手に `AppConfig` を組ませない —— 組ませると、`updateConfig` は
+   * ファイルごと置き換えるので、呼び手が知らない欄（あとから足された欄）を
+   * `undefined` で書き潰す。
+   */
+  setDisplayConfig: (patch: DisplayConfigPatch) => AsyncResult<void, string>;
 };

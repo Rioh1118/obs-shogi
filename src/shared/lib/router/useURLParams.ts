@@ -31,7 +31,19 @@ export type PovType = "gote";
  * **どのモーダルにどの綴りが有効かまではここでは言えない**——
  * `openModal` は `modal` と `tab` を別々に受け取る。
  */
-export type TabType = "workspace" | "aiLibrary" | "engine" | "create" | "import";
+export type TabType = "workspace" | "aiLibrary" | "engine" | "display" | "create" | "import";
+
+/**
+ * `dock` に書ける綴り。**ドックのタブになれるビューの語彙をここに集める。**
+ *
+ * 集めないと `dock` は `string` になり、実在しない綴りを渡しても何も起きない——
+ * 受け側（`entities/dock` の `resolveDockView`）は知らない綴りを既定のタブへ落とすので、
+ * **開いた先が違うだけで、型検査もテストも黙って通る**（`TabType` と同じ形）。
+ *
+ * 名簿の持ち主は `entities/dock/model/views.ts` で、そちらが `satisfies` で
+ * ここに合わせてある。**片方だけ増やすと tsc が落ちる。**
+ */
+export type DockViewType = "analysis";
 
 export interface URLParams {
   modal?: ModalType;
@@ -39,6 +51,8 @@ export interface URLParams {
   branch?: string;
   dir?: string;
   tab?: TabType;
+  /** ドックで見ているビュー。**欠けているときの既定は設定が決める**（`entities/dock`） */
+  dock?: DockViewType;
   pov?: PovType;
   /** 局面検索・課題局面登録に渡す検索対象SFEN（省略時は現在局面） */
   sfen?: string;
@@ -65,6 +79,9 @@ export function useURLParams() {
       // URL は誰でも書けるので、綴りは受け側が確かめる（`SettingsPanel` の `isTabKey`）。
       // ここで型を名乗るのは**渡す側**を止めるため
       tab: (searchParams.get("tab") as TabType) || undefined,
+      // `tab` と同じく、綴りを確かめるのは受け側（`resolveDockView`）。
+      // 一覧に無い綴りは既定のタブへ落ちる
+      dock: (searchParams.get("dock") as DockViewType) || undefined,
       pov,
       sfen: searchParams.get("sfen") || undefined,
       returnTo: (searchParams.get("returnTo") as ModalType) || undefined,

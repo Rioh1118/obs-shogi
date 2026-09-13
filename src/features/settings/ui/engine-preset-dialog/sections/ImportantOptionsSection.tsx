@@ -1,14 +1,9 @@
 import type { SRadioOption } from "@/features/settings/ui/kit/SRadioGroup";
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SRadioGroup, SSection, SSelect } from "@/features/settings/ui/kit";
-import {
-  cx,
-  HASH_CHOICES,
-  MULTIPV_MAX,
-  MULTIPV_MIN,
-  parseIntSafe,
-  QUICK_MULTIPV,
-} from "@/features/settings/lib/presetDialog";
+import { cx, HASH_CHOICES, parseIntSafe } from "@/features/settings/lib/presetDialog";
+
+import { MULTIPV_MAX, MULTIPV_MIN, QUICK_MULTIPV } from "@/entities/engine-presets/model/multiPv";
 
 import "./ImportantOptionsSection.scss";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";

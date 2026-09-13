@@ -1,0 +1,141 @@
+@use "@/index.scss" as index;
+
+// 操作列の段。
+//
+// **器と同じ面をここでも宣言する。** 下に並ぶ文字と記号の色は、この面との比で
+// 決めてある。器の側だけが面を持つと、その比をこのファイルの中で確かめられない
+.analysis-controls {
+  --hit: 3.6rem;
+  --r: #{index.$radius-2};
+
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: index.$space-4;
+
+  padding: 0 var(--pane-px, #{index.$space-4});
+  background-color: index.$color-primary-dark;
+
+  @media (pointer: coarse) {
+    --hit: 4.4rem;
+  }
+
+  // 状態は左。**削らない** —— 狭くなったときに落ちるのは操作の側
+  &__status {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-3;
+    min-width: 0;
+  }
+
+  &__dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: index.$radius-circle;
+    flex: none;
+
+    &--analyzing {
+      background-color: index.$color-secondary-dark;
+      animation: analysis-pulse 2s infinite;
+    }
+
+    &--idle {
+      background-color: transparent;
+      border: 1.5px solid rgba(index.$color-text-primary, 0.55);
+    }
+  }
+
+  &__status-text {
+    font-size: index.$font-body;
+    letter-spacing: 0.01em;
+    font-family: index.$font-sans;
+    color: index.$color-text-primary;
+    white-space: nowrap;
+    opacity: 0.82;
+  }
+
+  &__timer {
+    font-size: index.$font-body;
+    letter-spacing: 0.02em;
+
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    color: index.$color-text-primary;
+    min-width: 6ch;
+    text-align: left;
+    white-space: nowrap;
+    opacity: 0.7;
+  }
+
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-3;
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  &__group {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-1;
+  }
+
+  // 押しっぱなしの状態は `aria-pressed` と記号の塗り（栞の `fill`）が示す。
+  // **色では示さない** —— この面の上で `$color-secondary-dark` は 4.5:1 を割る
+  &__iconBtn {
+    width: var(--hit);
+    height: var(--hit);
+
+    display: grid;
+    place-items: center;
+
+    border: none;
+    border-radius: var(--r);
+    background: transparent;
+    color: index.$color-text-primary;
+
+    cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+
+    transition: background-color index.$duration-3 index.$ease;
+
+    // 白文字を載せる面なので、ホバーは暗くする（design-language 3）
+    &:hover:not(:disabled) {
+      background-color: rgba(index.$color-primary-black, 0.8);
+    }
+
+    &:active:not(:disabled) {
+      background-color: rgba(index.$color-primary-black, 0.8);
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: -2px;
+    }
+  }
+
+  &__icon {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+}
+
+@keyframes analysis-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

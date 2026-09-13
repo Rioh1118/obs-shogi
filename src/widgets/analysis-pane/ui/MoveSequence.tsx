@@ -14,7 +14,7 @@ function MoveSequence({ moves, variant, evaluation }: MoveSequenceProps) {
       <span className="move-sequence__evaluation">
         {evaluation !== undefined && evaluation !== null ? formatEvaluation(evaluation) : ""}
       </span>
-      <span className="move-sequence__pv" title={moves.map((m) => m.move).join(" ")}>
+      <span className="move-sequence__pv">
         {moves.map((moveData, index) => (
           <span key={index} className="move-sequence__move">
             {moveData.move}
