@@ -43,10 +43,15 @@ function AnalysisPane() {
     if (!cacheKey) return;
     if (!currentSfen) return;
     if (state.candidates.length === 0) return;
-    // エンジンが読んでいる局面が盤と離れている間は控えない。控えると、鍵が指す局面とは
+    // エンジンが読んだ局面が盤と違うなら控えない。控えると、鍵が指す局面とは
     // 別の局面の候補手が、停止したあとその局面の結果として出る。
+    //
+    // **`analyzedSfen` が無い回も閉じる。** いま `candidates` が空でない回は必ず
+    // `start_analysis` を通っているので null にはならないが、`stop_analysis` で
+    // null へ戻す整理を入れると、短絡で門が開いて古い候補手が別の鍵へ焼き付く。
+    //
     // **突き合わせるのは局面だけ。** 鍵が指す棋譜とエンジンの側は誰も見ていない → #568
-    if (state.analyzedSfen && state.analyzedSfen !== currentSfen) return;
+    if (state.analyzedSfen !== currentSfen) return;
 
     candidateCache.remember(cacheKey, state.candidates);
   }, [candidateCache, cacheKey, currentSfen, state.candidates, state.analyzedSfen]);

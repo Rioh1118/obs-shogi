@@ -29,6 +29,8 @@ import type { AnalysisCandidate } from "@/entities/engine";
  */
 
 const INITIAL_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+/** `INITIAL_SFEN` から ▲７六歩 を指した局面。手番は後手。 */
+const AFTER_7G7F_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 2";
 
 const analysis = {
   state: {
@@ -67,10 +69,30 @@ const { default: AnalysisPane } = await import("../AnalysisPane");
 const shownCandidates = (container: HTMLElement) =>
   container.querySelectorAll(".candidates-section .move-sequence").length;
 
-const twoCandidates: AnalysisCandidate[] = [
+/**
+ * 出ている候補手の指し手そのもの。
+ *
+ * **件数では足りない。** 控えと `state.candidates` がどちらも同じ件数を持つ場面では、
+ * 件数を見るだけの判定は「控えを一度も読まない実装」を素通しする。
+ */
+const shownCandidateMoves = (container: HTMLElement) =>
+  [...container.querySelectorAll(".candidates-section .move-sequence__move")]
+    .map((node) => node.textContent)
+    .join("");
+
+/** 初形での候補手。2番手は ▲２六歩。 */
+const candidatesAtInitial: AnalysisCandidate[] = [
   { rank: 1, first_move: "7g7f", pv_line: ["7g7f"], depth: 20 },
   { rank: 2, first_move: "2g2f", pv_line: ["2g2f"], depth: 20 },
 ];
+
+/** ▲７六歩 のあとの局面での候補手。2番手は △３四歩。 */
+const candidatesAfter7g7f: AnalysisCandidate[] = [
+  { rank: 1, first_move: "8c8d", pv_line: ["8c8d"], depth: 20 },
+  { rank: 2, first_move: "3c3d", pv_line: ["3c3d"], depth: 20 },
+];
+
+const twoCandidates = candidatesAtInitial;
 
 beforeEach(() => {
   analysis.state.isAnalyzing = false;
@@ -107,6 +129,56 @@ function analyzeThenStop() {
 }
 
 describe("解析ペインの候補手の控え", () => {
+  /**
+   * **控えを読んでいることを、`state.candidates` と別の値で固定する。**
+   * 停止しても `candidates` は残るので（`stop_analysis` は触らない）、戻ってきた局面の
+   * 控えと、いま `state` に載っている候補手が別物になる場面を作る。
+   * 停止中の枝を `state.candidates` に差し替える実装はここで落ちる。
+   */
+  test("戻ってきた局面では、その局面の控えを出す（`state` に残っている候補手ではない）", () => {
+    // 初形を解析して止める
+    analysis.state.isAnalyzing = true;
+    analysis.state.analyzedSfen = INITIAL_SFEN;
+    analysis.state.candidates = candidatesAtInitial;
+    const view = render(<AnalysisPane />);
+    analysis.state.isAnalyzing = false;
+    view.rerender(<AnalysisPane />);
+
+    // ▲７六歩 の局面へ進めて解析して止める。`state.candidates` はこちらになる
+    game.state.cursor = { tesuuPointer: "1,[]" };
+    game.view.currentSfen = AFTER_7G7F_SFEN;
+    analysis.state.isAnalyzing = true;
+    analysis.state.analyzedSfen = AFTER_7G7F_SFEN;
+    analysis.state.candidates = candidatesAfter7g7f;
+    view.rerender(<AnalysisPane />);
+    analysis.state.isAnalyzing = false;
+    view.rerender(<AnalysisPane />);
+
+    // 初形へ戻る。`state.candidates` は ▲７六歩 側のまま
+    game.state.cursor = { tesuuPointer: "0,[]" };
+    game.view.currentSfen = INITIAL_SFEN;
+    view.rerender(<AnalysisPane />);
+
+    expect(shownCandidateMoves(view.container)).toContain("２六歩");
+    expect(shownCandidateMoves(view.container)).not.toContain("３四歩");
+  });
+
+  /**
+   * `scopeTo` の呼び口が消えても気づけるようにする。**鍵に棋譜が入っているので、
+   * 別の棋譜へ移るだけでは分からない** —— 戻ってきて、前の控えが引けないことを見る。
+   * `fileKey` はツリーの走査ごとに振り直される（#568）ので、同じ棋譜でも宣言し直しは起きる。
+   */
+  test("棋譜を宣言し直すと、前に宣言していた分は引けない", () => {
+    const view = analyzeThenStop();
+
+    fileTree.selectedNode = { id: "file-b" };
+    view.rerender(<AnalysisPane />);
+    fileTree.selectedNode = { id: "file-a" };
+    view.rerender(<AnalysisPane />);
+
+    expect(shownCandidates(view.container)).toBe(0);
+  });
+
   test("解析を止めても、直前に届いていた候補手が残る", () => {
     const view = analyzeThenStop();
 
