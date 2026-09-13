@@ -1,6 +1,5 @@
 import { FolderOpen, X } from "lucide-react";
-import { useBook } from "@/entities/book";
-import { bookFileName } from "@/entities/book";
+import { bookFileName, useBook } from "@/entities/book";
 import { useBookOpening } from "../model/useBookOpening";
 import "./BookControls.scss";
 
@@ -16,13 +15,23 @@ import "./BookControls.scss";
  * 記号は `lucide-react` から取る（このリポジトリの図案はすべてそこ）。
  */
 function BookControls() {
-  const { info, close } = useBook();
-  const { browse, isOpening } = useBookOpening();
+  const { info, view, close } = useBook();
+  const { browse } = useBookOpening();
+  const isOpening = view.kind === "opening";
 
   return (
     <div className="book-controls">
       <div className="book-controls__status">
-        {info === null ? (
+        {/*
+          **開いている最中を「開いていません」と言わない。** `open_book` は上限も
+          進捗も中断も持たない（#197）ので、GB 級では数分このままになる。
+          その間ずっと事実でない一文を出していると、押し損ねたと読まれる
+        */}
+        {view.kind === "opening" ? (
+          <span className="book-controls__busy" role="status">
+            {bookFileName(view.path)} を開いています…
+          </span>
+        ) : info === null ? (
           <span className="book-controls__idle">定跡を開いていません</span>
         ) : (
           <>

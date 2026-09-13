@@ -5,7 +5,6 @@ import "./BookEmpty.scss";
 type Props = {
   fromPreset: readonly BookOpenTarget[];
   recent: readonly BookOpenTarget[];
-  disabled: boolean;
   onOpen: (path: string) => void;
   onBrowse: () => void;
 };
@@ -20,7 +19,7 @@ type Props = {
  * **起動時に勝手に開き直さない。** 定跡は GB 級になりうるので、
  * 開くのは必ず押されてから。
  */
-function BookEmpty({ fromPreset, recent, disabled, onOpen, onBrowse }: Props) {
+function BookEmpty({ fromPreset, recent, onOpen, onBrowse }: Props) {
   const list = (label: string, targets: readonly BookOpenTarget[]) =>
     targets.length > 0 && (
       <section className="book-empty__group">
@@ -31,7 +30,6 @@ function BookEmpty({ fromPreset, recent, disabled, onOpen, onBrowse }: Props) {
               <button
                 type="button"
                 className="book-empty__item"
-                disabled={disabled}
                 onClick={() => onOpen(target.path)}
                 title={target.path}
               >
@@ -51,7 +49,7 @@ function BookEmpty({ fromPreset, recent, disabled, onOpen, onBrowse }: Props) {
       {list("このエンジンの定跡", fromPreset)}
       {list("最近開いた定跡", recent)}
 
-      <button type="button" className="book-empty__browse" disabled={disabled} onClick={onBrowse}>
+      <button type="button" className="book-empty__browse" onClick={onBrowse}>
         <FolderOpen className="book-empty__icon" />
         別の定跡を開く…
       </button>

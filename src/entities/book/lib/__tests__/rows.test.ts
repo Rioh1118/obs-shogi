@@ -2,6 +2,8 @@ import { describe, expect, test } from "vitest";
 import type { BookLine, BookMove } from "@/entities/book/model/types";
 import {
   attachLines,
+  failedRows,
+  pendingRows,
   countBarRatio,
   DEFAULT_BOOK_SORT,
   maxCount,
@@ -21,10 +23,13 @@ const move = (usi: string, fields: Partial<BookMove> = {}): BookMove => ({
 
 const row = (usi: string, fields: Partial<BookMove> = {}): BookRow => ({
   move: move(usi, fields),
-  line: null,
+  line: { state: "pending" },
 });
 
 const spellings = (rows: readonly BookRow[]) => rows.map((r) => r.move.usiMove);
+
+/** 辿れた手数。まだ届いていない行と辿れなかった行は `null` */
+const plies = (row: BookRow) => (row.line.state === "walked" ? row.line.line.plies : null);
 
 describe("定跡の表の並べ替え", () => {
   test("既定は定跡に書かれている順のまま", () => {
@@ -120,15 +125,23 @@ describe("辿った結果の突き合わせ", () => {
     const moves = [move("7g7f"), move("2g2f")];
     const rows = attachLines(moves, [line("2g2f", 9), line("7g7f", 3)]);
 
-    expect(rows.map((r) => [r.move.usiMove, r.line?.plies])).toEqual([
+    expect(rows.map((r) => [r.move.usiMove, plies(r)])).toEqual([
       ["7g7f", 3],
       ["2g2f", 9],
     ]);
   });
 
-  test("辿った結果の無い手は `null` のまま", () => {
+  /** **「まだ届いていない」と「辿れなかった」を混ぜない**（`BookRowLine` の doc） */
+  test("辿った結果の無い手は、まだ届いていない扱いになる", () => {
     const rows = attachLines([move("7g7f"), move("2g2f")], [line("7g7f", 3)]);
 
-    expect(rows[1].line).toBeNull();
+    expect(rows[1].line).toEqual({ state: "pending" });
+  });
+
+  test("辿るのに失敗した行は、まだ届いていない行と別の状態になる", () => {
+    const rows = failedRows([move("7g7f")]);
+
+    expect(rows[0].line).toEqual({ state: "failed" });
+    expect(pendingRows([move("7g7f")])[0].line).toEqual({ state: "pending" });
   });
 });

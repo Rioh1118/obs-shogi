@@ -10,7 +10,7 @@ import { pickBookFile } from "@/shared/api/picker/pickBookFile";
  * 押すたびに同じ失敗が出る一覧ができる。
  */
 export function useBookOpening() {
-  const { openBook, isOpening } = useBook();
+  const { openBook, reportError } = useBook();
   const { config, setDisplayConfig } = useAppConfig();
   const recents = config?.book_recent_paths;
 
@@ -24,11 +24,28 @@ export function useBookOpening() {
     [openBook, setDisplayConfig, recents],
   );
 
-  /** ダイアログで選ばせてから開く。取り消したら何も起きない */
+  /**
+   * ダイアログで選ばせてから開く。取り消したら何も起きない。
+   *
+   * **ダイアログが開けなかった回を黙って落とさない。** `invoke` なので
+   * 権限の設定漏れやプラグインの初期化失敗で reject しうる。捕まえないと
+   * 「📂 を押しても反応しない」画面になり、押し続ける以外にできることが無くなる。
+   */
   const browse = useCallback(async (): Promise<void> => {
-    const picked = await pickBookFile();
-    if (picked) await open(picked);
-  }, [open]);
+    let picked: string | null;
+    try {
+      picked = await pickBookFile();
+    } catch (e) {
+      reportError({
+        code: "unknown",
+        message: `定跡を選ぶ画面を開けませんでした（${String(e)}）。もう一度押すこと`,
+        path: null,
+      });
+      return;
+    }
 
-  return { open, browse, isOpening };
+    if (picked) await open(picked);
+  }, [open, reportError]);
+
+  return { open, browse };
 }

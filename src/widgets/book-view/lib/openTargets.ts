@@ -15,7 +15,7 @@ type Sources = {
   /** そのプリセットの名前。添え書きに出す */
   presetName: string | null;
   /** 設定に残っている「最近開いた定跡」 */
-  recents: readonly unknown[] | null | undefined;
+  recents: readonly string[] | null | undefined;
   /** いま開いている定跡。**一覧から外す**（押しても何も起きない行になる） */
   openPath: string | null;
 };

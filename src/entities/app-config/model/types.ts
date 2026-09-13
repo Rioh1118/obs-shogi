@@ -28,10 +28,10 @@ export type AppConfig = {
   analysis_display_mode?: string | null;
   /**
    * 最近開いた定跡のパス。**新しいものが先頭。**
-   * 上限を持つのは `rememberBook`（`src/entities/book/lib/recents.ts`）。
    *
-   * **`string[]` として使う前に濾すこと**（`readRecentBooks`）。設定ファイルは
-   * 利用者も前の版も書くので、文字列でないものが混ざる。
+   * **画面に出す前に `readRecentBooks` を通すこと**（`entities/book/lib/recents.ts`）。
+   * 落とすのは重複と、名前の取れない綴り（`/books/` のような区切りで終わるもの）。
+   * **消えたファイルのパスは残る** —— 外付けを繋ぎ忘れた回に一覧から消さないため。
    *
    * **起動時にこれを開き直さない。** 定跡は GB 級になりうるので、開くのは
    * 必ず押されてから（`widgets/book-view/ui/BookEmpty.tsx`）

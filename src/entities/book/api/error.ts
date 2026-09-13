@@ -1,22 +1,32 @@
 import type { BookError, BookErrorCode } from "../model/types";
 
-const CODES: readonly BookErrorCode[] = [
-  "not_found",
-  "permission_denied",
-  "invalid_type",
-  "invalid_path",
-  "unknown_extension",
-  "unsupported_format",
-  "invalid_content",
-  "too_large",
-  "invalid_handle",
-  "invalid_sfen",
-  "io",
-  "unknown",
-];
+/**
+ * 実行時に綴りを確かめるための一覧。
+ *
+ * **`satisfies Record<BookErrorCode, true>` で union と結ぶ。** 配列で別に
+ * 並べると、union に在るのに一覧から落ちた綴りが tsc を通ってしまい、
+ * **その種別だけが黙って `unknown` に落ちる。**
+ *
+ * Rust 側（`src-tauri/src/book/error.rs` の `book_error_codes!`）との突き合わせは
+ * `src/__tests__/bookErrorCodes.test.ts`。どちらのコンパイラも片側の増減を見ない。
+ */
+const BOOK_ERROR_CODES = {
+  not_found: true,
+  permission_denied: true,
+  invalid_type: true,
+  invalid_path: true,
+  unknown_extension: true,
+  unsupported_format: true,
+  invalid_content: true,
+  too_large: true,
+  invalid_handle: true,
+  invalid_sfen: true,
+  io: true,
+  unknown: true,
+} satisfies Record<BookErrorCode, true>;
 
 function isBookErrorCode(value: unknown): value is BookErrorCode {
-  return typeof value === "string" && (CODES as readonly string[]).includes(value);
+  return typeof value === "string" && value in BOOK_ERROR_CODES;
 }
 
 /**

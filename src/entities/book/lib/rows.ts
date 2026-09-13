@@ -1,10 +1,21 @@
 import type { BookLine, BookMove } from "../model/types";
 
+/**
+ * その手の先を辿った結果。**「まだ届いていない」と「辿れなかった」を同じ値にしない。**
+ *
+ * `null` の1つに潰すと、辿るのに失敗した回も「この先」列が
+ * 「辿っています」と言い続ける —— 辿るのはもう終わっているのに、
+ * 利用者には重い処理が走っているようにしか見えず、待てば埋まると読む。
+ */
+export type BookRowLine =
+  | { state: "pending" }
+  | { state: "walked"; line: BookLine }
+  | { state: "failed" };
+
 /** 表の1行。**線は遅れて届く**ので、候補手と別に持つ */
 export type BookRow = {
   move: BookMove;
-  /** その手の先を辿った結果。**まだ届いていなければ `null`** */
-  line: BookLine | null;
+  line: BookRowLine;
 };
 
 /**
@@ -96,5 +107,23 @@ export function maxCount(rows: readonly BookRow[]): number {
  */
 export function attachLines(moves: readonly BookMove[], lines: readonly BookLine[]): BookRow[] {
   const byMove = new Map(lines.map((line) => [line.usiMove, line]));
-  return moves.map((move) => ({ move, line: byMove.get(move.usiMove) ?? null }));
+
+  return moves.map((move) => {
+    const line = byMove.get(move.usiMove);
+    // 辿った結果に居ない手は**まだ届いていない**扱い。辿れなかったのとは別
+    return {
+      move,
+      line: line ? { state: "walked" as const, line } : { state: "pending" as const },
+    };
+  });
+}
+
+/** 候補手だけが出た行。**辿るのは引くより桁違いに重いので、先にこれを出す** */
+export function pendingRows(moves: readonly BookMove[]): BookRow[] {
+  return moves.map((move) => ({ move, line: { state: "pending" } }));
+}
+
+/** 辿るのに失敗した行。**列が「辿っています」のまま固まらないようにする** */
+export function failedRows(moves: readonly BookMove[]): BookRow[] {
+  return moves.map((move) => ({ move, line: { state: "failed" } }));
 }

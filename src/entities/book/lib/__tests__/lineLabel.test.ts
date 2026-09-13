@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
-import type { BookLine, BookWalkStop } from "@/entities/book/model/types";
+import type { BookWalkStop } from "@/entities/book/model/types";
+import type { BookRowLine } from "../rows";
 import { bookLineLabel } from "../lineLabel";
 
-const line = (plies: number, stopped: BookWalkStop = "outOfBook"): BookLine => ({
-  usiMove: "7g7f",
-  plies,
-  stopped,
+const line = (plies: number, stopped: BookWalkStop = "outOfBook"): BookRowLine => ({
+  state: "walked",
+  line: { usiMove: "7g7f", plies, stopped },
 });
 
 describe("「この先」列", () => {
@@ -48,9 +48,25 @@ describe("「この先」列", () => {
 
   /** **黙って空にしない**（`book-view.md` 不変条件2） */
   test("まだ辿り終えていない行にも中身が出る", () => {
-    const label = bookLineLabel(null, 5);
+    const label = bookLineLabel({ state: "pending" }, 5);
 
     expect(label.text).not.toBe("");
     expect(label.hint).toBeTruthy();
+  });
+
+  /**
+   * **辿るのをやめた後に「辿っています」と言わない。**
+   *
+   * 同じ綴りにすると、利用者は重い処理がまだ走っていると読んで待ち続ける。
+   * 待っても局面を動かすまで解けない。
+   */
+  test("辿れなかった行は、まだ辿っている行と別の綴りになる", () => {
+    const failed = bookLineLabel({ state: "failed" }, 5);
+    const pending = bookLineLabel({ state: "pending" }, 5);
+
+    expect(failed.text).not.toBe(pending.text);
+    expect(failed.hint).not.toBe(pending.hint);
+    expect(failed.hint).not.toContain("辿っています");
+    expect(failed.continues).toBe(false);
   });
 });

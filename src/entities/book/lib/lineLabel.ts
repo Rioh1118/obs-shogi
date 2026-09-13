@@ -1,4 +1,4 @@
-import type { BookLine } from "../model/types";
+import type { BookRowLine } from "./rows";
 
 /** 「この先」列に出す中身 */
 type BookLineLabel = {
@@ -20,12 +20,30 @@ type BookLineLabel = {
  * 辿った手数を足したもので、**画面に出すのは相対ではなく絶対の手数**
  * （棋譜の手数と突き合わせられる形にする）。
  *
- * `line` が `null` なのは**まだ辿り終えていない**とき。辿るのは引くより
- * 桁違いに重いので、候補手が出てから遅れて届く。
+ * **`switch` の腕を網羅する。** `BookRowLine` に状態を足して腕を足さないと
+ * tsc が落ちる —— 「まだ」と「辿れなかった」を同じ綴りで出すのを型で止める。
  */
-export function bookLineLabel(line: BookLine | null, baseTesuu: number): BookLineLabel {
-  if (line === null) return { text: "…", continues: false, hint: "定跡の先を辿っています" };
+export function bookLineLabel(line: BookRowLine, baseTesuu: number): BookLineLabel {
+  switch (line.state) {
+    case "pending":
+      return { text: "…", continues: false, hint: "定跡の先を辿っています" };
 
+    case "failed":
+      return {
+        text: "—",
+        continues: false,
+        hint: "この局面の先を辿れませんでした。局面を動かすと引き直します",
+      };
+
+    case "walked":
+      return walkedLabel(line.line, baseTesuu);
+  }
+}
+
+function walkedLabel(
+  line: { plies: number; stopped: "outOfBook" | "depthCap" | "brokenMove" },
+  baseTesuu: number,
+): BookLineLabel {
   if (line.stopped === "brokenMove") {
     return {
       text: "読めない手",

@@ -4,15 +4,15 @@ import {
   closeBook,
   listBooks,
   lookupBookMoves,
-  // **別名にするのは名前がぶつかるから。** この provider が配る口も `openBook` で、
-  // 素の綴りは呼び手（画面）の側に取ってある —— 失敗を握り潰した呼び出しを
-  // `src/__tests__/asyncResultUse.test.ts` が名前で拾うので、
-  // 画面が押して開けなかった回を見てほしいのはそちら
+  // **別名にするのは、この provider が配る口も `openBook` だから。**
+  // `openBookFile` は `import … as` で入ってくるだけなので
+  // `src/__tests__/asyncResultUse.test.ts` の名簿に入らない ——
+  // **この綴りの戻り値は人が読むこと。**
   openBook as openBookFile,
   walkBookLines,
 } from "../api/commands";
-import { attachLines, type BookRow } from "../lib/rows";
-import { BookContext, type BookContextType } from "./context";
+import { attachLines, failedRows, pendingRows, type BookRow } from "../lib/rows";
+import { BookContext, type BookContextType, type BookViewState } from "./context";
 import type { BookError, BookInfo } from "./types";
 
 type Props = {
@@ -20,32 +20,39 @@ type Props = {
   /**
    * いま盤に出ている局面。**呼び手が渡す。**
    *
-   * ここで `useGame` を読むと `entities` どうしの横断になる。渡す係は
-   * `app/providers/gates/BookPositionGate`。
+   * 置き場の制約は `app/providers/gates/BookPositionGate.tsx` の doc が持つ。
    */
   currentSfen: string | null;
 };
 
-/** 引いた結果と、それが属する局面 */
-type Looked = { sfen: string; rows: BookRow[] };
+/**
+ * 引き終えた結果と、それが**どの定跡のどの局面のものか**。
+ *
+ * 局面だけでは足りない。開き直した直後は局面が同じままなので、
+ * 前の定跡から引いた候補手が新しい定跡の行として表に出る ——
+ * どの定跡から来た行かは画面から確かめようが無い。
+ */
+type Looked = {
+  handle: number;
+  sfen: string;
+  /** 引けなかった回は `null`。**「載っていない」（空の配列）と混ぜない** */
+  rows: BookRow[] | null;
+};
 
 /**
  * 開いている定跡と、現局面の候補手を持つ。
  *
- * **呼び手が守ること。**
- *
- * - **ドックより上に置くこと。** 定跡ビューの中で開くと、タブを移るたびに
- *   定跡が閉じて開き直される —— GB 級のファイルでは移動そのものが止まる。
- *   `AnalysisProvider` を `entities` へ下げたのと同じ理由
- * - `currentSfen` は盤の現局面。**指し手の列が付いた綴りを渡さないこと**
- *   （Rust の `to_book_key` が `moves` 付きを拒む）
+ * **呼び手が守ること。** 置き場の制約は
+ * `app/providers/gates/BookPositionGate.tsx` の doc が持つ。
+ * `currentSfen` に指し手の列が付いた綴りを渡さないこと
+ * （Rust の `to_book_key` が `moves` 付きを拒む）。
  *
  * 遷移は `docs/state-transitions/book-view.md`。
  */
 export function BookProvider({ children, currentSfen }: Props) {
   const [info, setInfo] = useState<BookInfo | null>(null);
-  const [isOpening, setIsOpening] = useState(false);
-  const [isLooking, setIsLooking] = useState(false);
+  /** 開こうとしているパス。**開いている最中を画面に出すために持つ** */
+  const [opening, setOpening] = useState<string | null>(null);
   const [looked, setLooked] = useState<Looked | null>(null);
   const [error, setError] = useState<BookError | null>(null);
 
@@ -77,52 +84,59 @@ export function BookProvider({ children, currentSfen }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!info || !currentSfen) {
-      setLooked(null);
-      setIsLooking(false);
-      return;
-    }
+    if (!info || !currentSfen) return;
 
     // **走っている引きを捨てる。** 局面は引き終わるのを待ってくれないので、
     // 遅れて届いた結果を当てると、盤と違う局面の候補手が表に残る
-    // （→ `book-view.md` ★A）
+    // （→ `book-view.md` ※A）
     let cancelled = false;
-    setIsLooking(true);
     setError(null);
 
+    // 掃除の合図より先に届く結果があるので、届いた側でも突き合わせられるように掴む
+    const handle = info.handle;
+    const sfen = currentSfen;
+
     void (async () => {
-      const found = await lookupBookMoves(info.handle, currentSfen);
+      const found = await lookupBookMoves(handle, sfen);
       if (cancelled) return;
 
       if (!found.success) {
         setError(found.error);
-        setLooked(null);
-        setIsLooking(false);
+        // **閉じられたハンドルは、開いていない状態へ戻す。** 戻さないと操作列は
+        // 閉じた定跡の名前を出し続け、盤を動かすたびに同じ失敗が出る。
+        // 復帰操作（開き直す）を踏める画面は、定跡を開いていない画面のほう
+        if (found.error.code === "invalid_handle") {
+          setInfo(null);
+          setLooked(null);
+          return;
+        }
+        setLooked({ handle, sfen, rows: null });
         return;
       }
 
       const moves = found.data;
       // **先に候補手を出す。** 辿るのは引くより桁違いに重いので、
       // 待たせると局面を進めるたびに表が空のまま止まって見える
-      setLooked({ sfen: currentSfen, rows: moves.map((move) => ({ move, line: null })) });
-      setIsLooking(false);
+      setLooked({ handle, sfen, rows: pendingRows(moves) });
 
       if (moves.length === 0) return;
 
       const walked = await walkBookLines(
-        info.handle,
-        currentSfen,
+        handle,
+        sfen,
         moves.map((move) => move.usiMove),
       );
       if (cancelled) return;
 
+      // **表は消さない。** 引けてはいるので、埋まらないのは「この先」列だけ。
+      // ただし**列は「辿っています」のままにしない**（`BookRowLine` の doc）
       if (!walked.success) {
-        // **表は消さない。** 引けてはいるので、埋まらないのは「この先」列だけ
         setError(walked.error);
+        setLooked({ handle, sfen, rows: failedRows(moves) });
         return;
       }
 
-      setLooked({ sfen: currentSfen, rows: attachLines(moves, walked.data) });
+      setLooked({ handle, sfen, rows: attachLines(moves, walked.data) });
     })();
 
     return () => {
@@ -130,15 +144,15 @@ export function BookProvider({ children, currentSfen }: Props) {
     };
   }, [info, currentSfen]);
 
-  // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
-  // 名前を拾うため。外すと、この口を投げっぱなしで呼んだ画面が機械の目から消える
   const openBook = useCallback(
+    // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
+    // 名前を拾うため。外すと、この口を投げっぱなしで呼んだ画面が機械の目から消える
     async (path: string): AsyncResult<BookInfo, BookError> => {
-      setIsOpening(true);
+      setOpening(path);
       setError(null);
 
       const opened = await openBookFile(path);
-      setIsOpening(false);
+      setOpening(null);
 
       if (!opened.success) {
         setError(opened.error);
@@ -148,7 +162,6 @@ export function BookProvider({ children, currentSfen }: Props) {
       // 1冊だけ持つ。開き直す前に前のものを閉じないと、ハンドルとメモリが積み上がる
       if (info) void closeBook(info.handle); // async-result-ignored: 既に別の定跡へ移っていて、出す場所が無い
       setInfo(opened.data);
-      setLooked(null);
 
       return opened;
     },
@@ -163,17 +176,42 @@ export function BookProvider({ children, currentSfen }: Props) {
     setError(null);
   }, [info]);
 
-  // **局面が食い違う行を出さない。** 引き直している間、前の局面の行は残っているが、
-  // それは盤に出ている局面のものではない（不変条件1）
-  const rows = looked !== null && looked.sfen === currentSfen ? looked.rows : EMPTY_ROWS;
+  // **引いている最中を state に持たない。** 持つと、定跡が入ったレンダと
+  // 引き始めるレンダの間に「引き終えて空」に見える frame が挟まり、
+  // **引き始めてもいないのに「この局面はこの定跡にありません」が描かれる。**
+  const reportError = useCallback((reported: BookError) => setError(reported), []);
+
+  const view = useMemo(
+    () => viewState({ info, opening, looked, currentSfen }),
+    [info, opening, looked, currentSfen],
+  );
 
   const value = useMemo<BookContextType>(
-    () => ({ info, isOpening, rows, isLooking, error, openBook, close }),
-    [info, isOpening, rows, isLooking, error, openBook, close],
+    () => ({ info, view, error, openBook, close, reportError }),
+    [info, view, error, openBook, close, reportError],
   );
 
   return <BookContext.Provider value={value}>{children}</BookContext.Provider>;
 }
 
-/** 毎回新しい配列を作らない。作ると `value` が毎レンダ別物になり、購読側が描き直される */
-const EMPTY_ROWS: readonly BookRow[] = [];
+function viewState(input: {
+  info: BookInfo | null;
+  opening: string | null;
+  looked: Looked | null;
+  currentSfen: string | null;
+}): BookViewState {
+  const { info, opening, looked, currentSfen } = input;
+
+  if (opening !== null) return { kind: "opening", path: opening };
+  if (info === null) return { kind: "closed" };
+  if (currentSfen === null) return { kind: "noPosition" };
+
+  // **どの定跡のどの局面かが揃って初めて出す。** 揃うまでは引いている最中
+  if (looked === null || looked.handle !== info.handle || looked.sfen !== currentSfen) {
+    return { kind: "looking" };
+  }
+
+  if (looked.rows === null) return { kind: "unavailable" };
+  if (looked.rows.length === 0) return { kind: "absent" };
+  return { kind: "rows", rows: looked.rows };
+}

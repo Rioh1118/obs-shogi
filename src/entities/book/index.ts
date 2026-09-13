@@ -1,5 +1,6 @@
 export { BookProvider } from "./model/provider";
 export { useBook } from "./model/useBook";
+export type { BookViewState } from "./model/context";
 
 // **載せるのは、スライスの外に呼び手が居るものだけ。** 呼び手0の口を載せると、
 // 次に触る人が「その口が正しい入口だ」と読む（`entities/analysis` の barrel と同じ約束）
