@@ -11,15 +11,17 @@
     "typecheck": "tsc -b",
     "test": "vp test run",
     "test:watch": "vp test watch",
-    "verify": "npm run typecheck && npm run lint && npm test && npm run ratchet:knip",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run ratchet:knip && npm run ratchet:notices",
     "test:hooks": "bash .claude/hooks/verify-gate.test.sh",
-    "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked && npm run ratchet:rustdoc",
+    "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked && npm run ratchet:rustdoc && npm run ratchet:notices",
     "ratchet:rustdoc": "bash scripts/rustdoc-ratchet.sh",
     "preview": "vp preview",
     "prepare": "vp config",
     "deadcode": "knip --include exports,types,files",
     "deadfiles": "knip --include files",
-    "ratchet:knip": "bash scripts/knip-ratchet.sh"
+    "ratchet:knip": "bash scripts/knip-ratchet.sh",
+    "notices": "node scripts/generate-third-party-notices.mjs",
+    "ratchet:notices": "node scripts/generate-third-party-notices.mjs --check"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

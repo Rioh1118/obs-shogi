@@ -84,6 +84,13 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      # `verify` と `verify:rust` の両方に入っている。npm 側の依存が増える変更は ts、
+      # crate が増える変更は rust としか判定されないので、片方にしか置かないと
+      # **増えたのに通知が増えていない**回を素通しする。
+      # cargo が要るので、ツールチェーンを入れた後に置く。
+      - name: Third-party notices ratchet
+        run: npm run ratchet:notices
+
       - name: Rust fmt
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
