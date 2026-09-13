@@ -88,8 +88,12 @@
     border-bottom: 1px solid index.$stroke-weak;
   }
 
+  // **1行の grid にする。** ビューの高さを 100%% に頼ると、器の高さが確定していない
+  // 回に伸びず、脚注が本体の途中で止まる
   &__body {
     min-height: 0;
     overflow: hidden;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr);
   }
 }

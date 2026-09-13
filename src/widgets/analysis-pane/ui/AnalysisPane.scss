@@ -9,10 +9,13 @@
 
   --pane-px: #{index.$space-5};
 
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  // **段の数を固定しない。** 評価値バーは既定で出ないので、`grid-template-rows` を
+  // 3段で書くと子が2つの回に本体が `auto` の段へ落ち、脚注が伸びる段を取る
+  display: flex;
+  flex-direction: column;
 
   &__gauge {
+    flex: none;
     padding: index.$space-2 var(--pane-px) 0;
 
     .evaluation-bar {
@@ -23,12 +26,14 @@
   }
 
   &__body {
+    flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
   }
 
   // 脚注。**帯として読ませる**（本体との境目を線で切る）
   &__footer {
+    flex: none;
     border-top: 1px solid index.$stroke-weak;
   }
 }
