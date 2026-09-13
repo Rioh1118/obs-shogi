@@ -1,4 +1,5 @@
 import type { AnalysisCandidate, AnalysisResult } from "@/entities/engine";
+import type { CandidateCache } from "../lib/candidateCache";
 
 export interface AnalysisState {
   isAnalyzing: boolean;
@@ -40,12 +41,21 @@ export type PositionSyncAdapter = {
  *
  * 候補手を取り出すのは `lib` の `pickTopCandidate`（盤の向きを直してから渡すこと）。
  *
- * **`state` の外に出た結果を、この provider は無効化できない。** 停止中に何を出すかは
- * 画面側が決めてよいが、`clear_results` が届くのは `state` の中だけ——画面が
- * 自前の控えを持つなら、その寿命も画面側の責任になる。
+ * **`state` の外に出た結果を、この provider は無効化できない。** `clear_results` が
+ * 届くのは `state` の中だけで、`candidateCache` には届かない。停止中に何を出すかは
+ * 画面が決めるが、**控えを捨てる口は控えの側**（`scopeTo`）にある。
  */
 export interface AnalysisContextType {
   state: AnalysisState;
+
+  /**
+   * 停止中に出す候補手の控え。持ち主と寿命は `lib/candidateCache.ts`。
+   *
+   * **`state` には載せない。** 寿命は変わらない（同じ provider が `useReducer` で持つ）が、
+   * 控えは表示を駆動する state ではなく、`clear_results` の対象にもしたくない ——
+   * 結果を捨てても、停止中に見えていた候補手はそのまま見えていてよい。
+   */
+  candidateCache: CandidateCache;
 
   /**
    * ▶。**断りを立てた回は `state.error` に載せてから reject する**（枝と文言は
