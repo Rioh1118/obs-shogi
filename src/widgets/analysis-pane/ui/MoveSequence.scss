@@ -6,7 +6,8 @@
   align-items: baseline;
   column-gap: 0.3rem;
 
-  padding: 0.25rem 1.6rem;
+  // **左右は持たない。** 始点は節（`.candidates-section`）が `--pane-px` で持つ
+  padding: index.$space-1 0;
   color: index.$color-text-primary;
   line-height: 1.35;
 

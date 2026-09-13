@@ -31,22 +31,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("設定「表示」タブ", () => {
-  test("見せ方は3つとも選択肢に出て、既定が選ばれている", () => {
+  test("見せ方は2つとも選択肢に出て、既定が選ばれている", () => {
     const { container } = render(<DisplayTab />);
 
     const inputs = modeInputs(container);
 
-    expect(inputs.map((i) => i.value)).toEqual(["table", "rows", "detail"]);
+    expect(inputs.map((i) => i.value)).toEqual(["table", "rows"]);
     expect(inputs.filter((i) => i.checked).map((i) => i.value)).toEqual(["table"]);
   });
 
   test("選ぶと設定へ書く", () => {
     const { container } = render(<DisplayTab />);
 
-    const detail = modeInputs(container).find((i) => i.value === "detail")!;
-    fireEvent.click(detail);
+    const rows = modeInputs(container).find((i) => i.value === "rows")!;
+    fireEvent.click(rows);
 
-    expect(setDisplayConfig).toHaveBeenCalledWith({ analysis_display_mode: "detail" });
+    expect(setDisplayConfig).toHaveBeenCalledWith({ analysis_display_mode: "rows" });
   });
 
   test("設定に残っている綴りが選ばれた状態で開く", () => {
@@ -69,7 +69,7 @@ describe("設定「表示」タブ", () => {
 
     const previews = container.querySelectorAll(".displayModePreview");
 
-    expect(previews).toHaveLength(3);
+    expect(previews).toHaveLength(2);
     expect([...previews].every((p) => p.getAttribute("aria-hidden") === "true")).toBe(true);
   });
 

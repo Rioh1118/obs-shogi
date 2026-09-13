@@ -3,7 +3,6 @@ import {
   evaluationToPercentage,
 } from "@/widgets/analysis-pane/lib/sfenConverter";
 import { useEffect, useMemo, useState } from "react";
-import CandidateDetail from "./CandidateDetail";
 import CandidatesSection from "./CandidatesSection";
 import CandidateTable from "./CandidateTable";
 import EvaluationBar from "./EvaluationBar";
@@ -130,9 +129,6 @@ function AnalysisPane() {
       <main className="analysis-pane__body">
         {mode === "table" && (
           <CandidateTable rows={rows} selectedRank={selectedRank} onSelect={setSelectedRank} />
-        )}
-        {mode === "detail" && (
-          <CandidateDetail rows={rows} selectedRank={selectedRank} onSelect={setSelectedRank} />
         )}
         {mode === "rows" && <CandidatesSection rows={rows} />}
       </main>

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { Color } from "shogi.js";
 import { createCandidateCache } from "@/entities/analysis/lib/candidateCache";
@@ -9,7 +9,7 @@ import type { AnalysisCandidate } from "@/entities/engine";
 /**
  * 候補手の表示モード（`docs/state-transitions/dock-tabs.md` の D3）。
  *
- * 見るのは**設定の綴りから出る形が決まること**と、**どの見せ方でも最善手が
+ * 見るのは**設定の綴りから出る形が決まること**と、**どちらの見せ方でも最善手が
  * 別の箱に出ないこと**。選ばせる口は設定「表示」にあり、そちらは
  * `features/settings/ui/tabs/__tests__/displayTab.test.tsx` が見る。
  *
@@ -112,7 +112,7 @@ describe("候補手の表示モード", () => {
    * **最善手を別の箱にしない。** 箱にすると同じデータが2つの体系で並び、
    * 表・詳細のモードと行の並びが揃わない。どのモードでも1行目に入る。
    */
-  test("どのモードでも最善手は一覧の1行目に入る", () => {
+  test("どちらの見せ方でも最善手は一覧の1行目に入る", () => {
     saved.mode = "rows";
     const rows = mount();
     expect(rows.container.querySelectorAll(".candidates-section .move-sequence")).toHaveLength(2);
@@ -121,21 +121,6 @@ describe("候補手の表示モード", () => {
     saved.mode = "table";
     const table = mount();
     expect(table.container.querySelectorAll(".candidate-table__row")).toHaveLength(2);
-    cleanup();
-
-    saved.mode = "detail";
-    const detail = mount();
-    expect(detail.container.querySelectorAll(".candidate-detail__item")).toHaveLength(2);
-  });
-
-  // 「一覧＋詳細」は読み筋の全文に届く唯一のモード（#563）
-  test("一覧＋詳細では、選んだ候補の読み筋が折り返して出る", () => {
-    saved.mode = "detail";
-    const { container } = mount();
-
-    fireEvent.click(container.querySelectorAll(".candidate-detail__item")[1]);
-
-    expect(container.querySelector(".candidate-detail__pvText")?.textContent).toContain("２六歩");
   });
 
   test("知らない綴りが設定に残っていても既定へ落ちる", () => {

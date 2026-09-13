@@ -4,7 +4,7 @@
  * 出すデータはどれも同じで、違うのは並べ方だけ。ビューにすると列を1本足すたびに
  * 3回設計することになり、タブ一覧がほとんど同じ名前で埋まる。
  */
-export type AnalysisDisplayMode = "rows" | "table" | "detail";
+export type AnalysisDisplayMode = "rows" | "table";
 
 type DisplayModeMeta = {
   key: AnalysisDisplayMode;
@@ -18,7 +18,6 @@ type DisplayModeMeta = {
 export const ANALYSIS_DISPLAY_MODES = [
   { key: "table", label: "表", hint: "評価値と読み筋が列で揃う" },
   { key: "rows", label: "行", hint: "1手1行で詰める" },
-  { key: "detail", label: "一覧＋詳細", hint: "読み筋を折り返して全文出す" },
 ] as const satisfies readonly DisplayModeMeta[];
 
 /** 既定。**表** —— 列が意味を持つので、評価値と Δ を目で揃えられる */

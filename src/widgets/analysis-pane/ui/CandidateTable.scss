@@ -8,6 +8,10 @@
   min-height: 0;
   overflow-y: auto;
 
+  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  background: index.$color-primary-dark;
+  color: rgba(index.$color-text-primary, 0.92);
+
   &__grid {
     width: 100%;
     table-layout: fixed;
@@ -21,13 +25,13 @@
     position: sticky;
     top: 0;
 
-    padding: index.$space-2 index.$space-4;
+    padding: index.$space-2 var(--pane-px);
     text-align: left;
     font-family: index.$font-mono;
     font-weight: 600;
     font-size: index.$font-hint;
     letter-spacing: 0.09em;
-    opacity: 0.5;
+    color: rgba(index.$color-text-primary, 0.72);
 
     background: index.$color-primary-dark;
     border-bottom: 1px solid index.$stroke-weak;
@@ -40,7 +44,7 @@
     width: 6.8rem;
   }
   td {
-    padding: index.$space-1 index.$space-4;
+    padding: index.$space-1 var(--pane-px);
     border-bottom: 1px solid rgba(index.$color-white, 0.035);
 
     white-space: nowrap;
@@ -52,7 +56,7 @@
     cursor: pointer;
 
     &:hover td {
-      background: rgba(index.$color-white, 0.045);
+      background: rgba(index.$color-white, 0.035);
     }
   }
 
@@ -69,7 +73,7 @@
   // **ホバーより後に置く。** 置かないと選んだ行にポインタを載せた瞬間だけ印が消える
   &__row--selected td,
   &__row--selected:hover td {
-    background: rgba(index.$color-secondary-dark, 0.22);
+    background: rgba(index.$color-secondary-dark, 0.18);
   }
 
   &__score {
@@ -79,8 +83,8 @@
   }
 
   &__empty {
-    padding: index.$space-4;
+    padding: index.$space-4 var(--pane-px);
     font-size: index.$font-aux;
-    opacity: 0.55;
+    color: rgba(index.$color-text-primary, 0.72);
   }
 }

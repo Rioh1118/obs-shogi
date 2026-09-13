@@ -161,14 +161,11 @@ export default function DisplayTab() {
       </SSection>
 
       <SSection title="解析ビュー" description="ドックの解析タブに出るもの">
-        <SField
-          label="候補手の見せ方"
-          hint="どの見せ方でも最善手は1行目に出ます。読み筋の全文に届くのは「一覧＋詳細」だけです。"
-        >
+        <SField label="候補手の見せ方" hint="どちらの見せ方でも最善手は1行目に出ます。">
           <SRadioGroup
             name="analysis-display-mode"
             layout="grid"
-            columns={3}
+            columns={2}
             value={displayMode}
             onChange={(value) => save({ analysis_display_mode: value })}
             options={ANALYSIS_DISPLAY_MODES.map((m) => ({

@@ -8,16 +8,18 @@
   min-height: 0;
   overflow-y: auto;
 
+  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  background: index.$color-primary-dark;
+
   display: grid;
   align-content: start;
   gap: index.$space-1;
   padding: index.$space-1 var(--pane-px) index.$space-2;
 
   &__empty {
-    color: index.$color-text-light-1;
-    font-size: 1.2rem;
+    color: rgba(index.$color-text-primary, 0.72);
+    font-size: index.$font-aux;
     text-align: center;
-    margin: 0.6rem 0;
-    opacity: 0.7;
+    margin: index.$space-3 0;
   }
 }

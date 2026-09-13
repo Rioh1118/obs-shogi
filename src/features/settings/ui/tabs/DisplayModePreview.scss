@@ -38,36 +38,9 @@
     background: rgba(index.$color-text-light-1, 0.28);
   }
 
-  &__split {
-    display: grid;
-    grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
-    gap: 4px;
-    height: 100%;
-  }
-
-  &__side,
-  &__pane {
-    display: grid;
-    align-content: start;
-    gap: 3px;
-  }
-
-  &__side > i {
-    height: 0.6rem;
-  }
-
   // 最善手の行。**素の棒より後に置く** —— 同じ詳細度なので、前に置くと上書きされる
   &__fill--best,
   &__cell--best {
     background: index.$color-secondary-dark;
-  }
-
-  // 詳細の側は読み筋が折り返す。**行の長さを揃えない**（折り返しが見える形）
-  &__pane > i {
-    height: 0.6rem;
-
-    &:last-child {
-      width: 60%;
-    }
   }
 }
