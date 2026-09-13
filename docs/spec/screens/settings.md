@@ -218,6 +218,10 @@
 「評価値バーを出す」（`AppConfig.show_evaluation_bar`。**既定はオフ**）
 → [analysis-pane.md](analysis-pane.md)
 
+**候補手の見せ方（表示モード）はここに無い。** 切替はそのビューの操作列にあり、
+押した結果が `AppConfig.analysis_display_mode` に残る —— その場で変わるものは
+その場に、というのが原則（ADR-0010 決定4）。
+
 ## 失敗の見せ方
 
 | 失敗                            | どこに出るか                                 |
@@ -278,9 +282,8 @@
 
 ## これからの要件
 
-- **表示タブに「解析の既定の表示モード」と「脚注に出す項目」を足す。**
-  前者は表示モードそのものが無い（→ #563）、後者は `AnalysisCandidate` に
-  NPS / seldepth / hashfull の欄が無い（→ #380）ので、どちらもまだ置けない。
+- **表示タブに「脚注に出す項目」を足す。** `AnalysisCandidate` に
+  NPS / seldepth / hashfull の欄が無い（→ #380）ので、まだ置けない。
   **#101「研究まわりの設定が散らばっている」はこれでは解消しない** ——
   あちらは解析の既定値がプリセット側にあることを指している
 - **USI オプションの全項目を編集できること** → [features/engine-options.md](../features/engine-options.md)

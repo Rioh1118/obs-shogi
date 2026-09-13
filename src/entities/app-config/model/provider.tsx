@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { ReactNode } from "react";
 import type { AppConfig, AppConfigContextType, DisplayConfigPatch } from "./types";
 
@@ -132,26 +132,45 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /**
+   * 表示の設定の書き込みを1本に並べる鎖。
+   *
+   * **土台をレンダのクロージャから取ってはいけない。** `setDisplayConfig` は
+   * `loading` を立てないので、ディスクへの1往復が終わるまで再レンダが起きない ——
+   * その間に来た2件目は**必ず同じ古い土台**を読み、`save_config` はファイルごと
+   * 置き換えるので1件目の欄が消える（チェックを2つ続けて押す、ラジオでキーリピート、
+   * ドックのタブと設定が同時、のどれでも踏む）。
+   *
+   * 鎖に積めば、2件目の土台は1件目を反映したものになる。
+   */
+  const writeChainRef = useRef<Promise<AppConfig | null>>(Promise.resolve(null));
+
   // 戻り値の型をここに書くのは、読み捨ての呼びを見る走査が宣言から名前を拾うため。
   // 書かないと、この関数を投げっぱなしで呼んだ箇所が機械の目から外れる
-  async function setDisplayConfig(patch: DisplayConfigPatch): AsyncResult<void, string> {
-    // **`loading` を立てない。** ドックのタブを押すたびにここを通るので、
-    // 立てると `error` が毎回消え、`WorkspaceTab` が出している設定の失敗が
-    // タブを1つ押すだけで画面から消える
-    try {
-      const base = state.config ?? (await loadConfig());
+  const setDisplayConfig = useCallback((patch: DisplayConfigPatch): AsyncResult<void, string> => {
+    // **`loading` を立てない。** 立てると `isLoading` がタブを押すたびに上下し、
+    // それを見て無効化している操作（`WorkspaceTab` のボタン、`AppLoading` の分岐）が
+    // ちらつく。失敗しても `error` には積まない（下）ので、降ろす先も要らない
+    const chained = writeChainRef.current.then(async (previous) => {
+      const base = previous ?? (await loadConfig());
       const next: AppConfig = { ...base, ...patch };
 
       await saveConfig(next);
       dispatch({ type: "updated", payload: next });
-      return Ok(undefined);
-    } catch (err) {
+      return next;
+    });
+
+    // **鎖は切らさない。** 落ちた回に鎖ごと reject のままにすると、
+    // 以後の書き込みが全部その失敗を引き継ぐ。土台は読み直しへ戻す
+    writeChainRef.current = chained.catch(() => null);
+
+    return chained.then(
+      () => Ok(undefined),
       // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
-      // 表示の設定を1つ保存し損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）。
-      // `loading` も立てていないので降ろす先が無い
-      return Err(`表示の設定を保存できませんでした: ${String(err)}`);
-    }
-  }
+      // 表示の設定を1つ保存し損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）
+      (err: unknown) => Err(`表示の設定を保存できませんでした: ${String(err)}`),
+    );
+  }, []);
 
   const value: AppConfigContextType = {
     ...state,

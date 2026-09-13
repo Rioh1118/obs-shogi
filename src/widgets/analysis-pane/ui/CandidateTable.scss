@@ -1,0 +1,106 @@
+@use "@/index.scss" as index;
+
+// **入りきらない候補手にスクロールで届く。** ドックの高さは窓に従うので、
+// 低い窓では必ずあふれる（それを切り捨てていたのが #563）
+.candidate-table {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+
+  // リセットが全要素のスクロールバーを消しているので、
+  // 続きがあることを示す手掛かりがここだけ無くなる
+  scrollbar-width: thin;
+  &::-webkit-scrollbar {
+    display: block;
+    width: 7px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(index.$color-secondary-dark, 0.45);
+    border-radius: index.$radius-2;
+  }
+
+  &__grid {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+
+    font-size: index.$font-body;
+  }
+
+  // **見出しは貼り付ける。** 列の意味が読めないまま数字だけが流れるのを避ける
+  th {
+    position: sticky;
+    top: 0;
+
+    padding: index.$space-2 index.$space-4;
+    text-align: left;
+    font-family: index.$font-mono;
+    font-weight: 600;
+    font-size: index.$font-hint;
+    letter-spacing: 0.09em;
+    opacity: 0.5;
+
+    background: index.$color-primary-dark;
+    border-bottom: 1px solid index.$stroke-weak;
+  }
+
+  &__th--move {
+    width: 8.4rem;
+  }
+  &__th--score {
+    width: 6.8rem;
+  }
+  &__th--delta {
+    width: 5.8rem;
+  }
+
+  td {
+    padding: index.$space-1 index.$space-4;
+    border-bottom: 1px solid rgba(index.$color-white, 0.035);
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__row {
+    cursor: pointer;
+
+    &:hover td {
+      background: rgba(index.$color-white, 0.045);
+    }
+  }
+
+  // 最善手。**色だけで示さない** —— 左の帯と太さを併せる
+  &__row--best td {
+    background: rgba(index.$color-secondary-dark, 0.13);
+    font-weight: 600;
+  }
+
+  &__row--best td:first-child {
+    box-shadow: index.$marker-bar;
+  }
+
+  // **ホバーより後に置く。** 置かないと選んだ行にポインタを載せた瞬間だけ印が消える
+  &__row--selected td,
+  &__row--selected:hover td {
+    background: rgba(index.$color-secondary-dark, 0.22);
+  }
+
+  &__score,
+  &__delta {
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  &__delta {
+    opacity: 0.5;
+  }
+
+  &__empty {
+    padding: index.$space-4;
+    font-size: index.$font-aux;
+    opacity: 0.55;
+  }
+}

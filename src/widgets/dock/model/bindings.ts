@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { DockViewType } from "@/shared/lib/router/useURLParams";
 import type { BoundaryLabel } from "@/shared/ui/AppErrorBoundary";
 
@@ -7,13 +7,18 @@ export type DockViewBinding = {
   /** ドックの本体に出るもの */
   Body: ComponentType;
   /**
-   * タブ列の隣に出る操作列。**他のビューの操作をここへ混ぜない。**
+   * タブ列の下の段に出る操作列。**他のビューの操作をここへ混ぜない。**
    *
-   * 混ぜると、そのビューを見ていない間も操作だけが残る。盤の道具が解析ペインの
-   * ヘッダに居たときに起きていたのがこれ（ADR-0010）。
+   * 混ぜると、そのビューを見ていない間も操作だけが残る。
    */
   Controls: ComponentType;
-  /** 本体が落ちたときの名乗り */
+  /**
+   * 操作列と本体の両方を包む器。**両者で分け合う状態はここが持つ。**
+   *
+   * 2つは別々の段に描かれるので prop では渡せない。要らないビューは省いてよい。
+   */
+  Provider?: ComponentType<{ children: ReactNode }>;
+  /** 本体が落ちたときの名乗り。**ビューごとに別の綴りを選ぶこと** */
   boundary: BoundaryLabel;
   /** 畳んだときに出す次の一手 */
   fallbackHint: string;

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 
 /**
  * **解析ビューが畳まれても、解析は止まらない。**
@@ -26,8 +27,25 @@ vi.mock("@/entities/game", () => ({
 vi.mock("@/features/settings/model/useOpenSettings", () => ({
   useOpenSettings: () => vi.fn(),
 }));
+vi.mock("@/entities/study-positions/model/useStudyPositions", () => ({
+  useStudyPositions: () => ({ findBySfen: () => null }),
+}));
+vi.mock("@/features/board-orientation", () => ({
+  useBoardOrientation: () => ({ isGotePov: false, toggle: vi.fn() }),
+}));
+vi.mock("@/entities/app-config", () => ({
+  useAppConfig: () => ({ config: null, setDisplayConfig: vi.fn() }),
+}));
 
-const { default: AnalysisControls } = await import("../AnalysisControls");
+const { default: Controls } = await import("../AnalysisControls");
+const { AnalysisViewStateProvider } = await import("../../model/AnalysisViewState");
+
+// 表示モードは操作列と本体で分け合うので、器の中でしか描けない
+const AnalysisControls = () => (
+  <AnalysisViewStateProvider>
+    <Controls />
+  </AnalysisViewStateProvider>
+);
 
 afterEach(() => {
   analysis.stopAnalysis.mockClear();
@@ -36,7 +54,11 @@ afterEach(() => {
 
 describe("解析ビューの寿命", () => {
   test("操作列が畳まれても、停止を投げない", () => {
-    const { unmount } = render(<AnalysisControls />);
+    const { unmount } = render(
+      <MemoryRouter>
+        <AnalysisControls />
+      </MemoryRouter>,
+    );
 
     unmount();
 

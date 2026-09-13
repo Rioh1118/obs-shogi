@@ -1,23 +1,34 @@
-// 面と枠は持たない。**器はドックの本体**（`.dock__body`）で、
-// ビューを増やしても同じ枠に載ることをそちらが保証する
+@use "@/index.scss" as index;
+
+// 面と枠は持たない。**器はドックのカード**で、ビューを増やしても同じ枠に載る
 .analysis-pane {
   width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
 
-  --pane-px: 1.6rem;
-  --pane-gap: 0.4rem;
+  --pane-px: #{index.$space-5};
 
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+
+  &__gauge {
+    padding: index.$space-2 var(--pane-px) 0;
+
+    .evaluation-bar {
+      width: 100%;
+      height: 0.9rem;
+      border: 1px solid rgba(index.$color-text-primary, 0.35);
+    }
+  }
 
   &__body {
     min-height: 0;
-    display: grid;
-    align-content: start;
     overflow: hidden;
-    gap: var(--pane-gap);
-    padding: 0.5rem 0.2rem;
+  }
+
+  // 脚注。**帯として読ませる**（本体との境目を線で切る）
+  &__footer {
+    border-top: 1px solid index.$stroke-weak;
   }
 }

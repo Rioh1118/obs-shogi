@@ -1,4 +1,10 @@
 export type { DockViewMeta } from "./model/views";
-export { DOCK_VIEWS, dockViewMeta } from "./model/views";
+export { DOCK_VIEWS, dockViewLabel } from "./model/views";
 
-export { moveDockTab, resolveDockTabs, resolveDockView, toggleDockTab } from "./lib/tabs";
+export {
+  moveDockTab,
+  resolveDockTabs,
+  resolveDockView,
+  resolveStartupTab,
+  toggleDockTab,
+} from "./lib/tabs";

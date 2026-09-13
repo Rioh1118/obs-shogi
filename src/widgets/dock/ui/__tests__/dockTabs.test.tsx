@@ -24,6 +24,7 @@ const FAKE = vi.hoisted(() => [
 vi.mock("@/entities/dock/model/views", () => ({
   DOCK_VIEWS: FAKE,
   dockViewMeta: (key: string) => FAKE.find((v) => v.key === key),
+  dockViewLabel: (key: string) => FAKE.find((v) => v.key === key)?.label ?? key,
 }));
 
 const config = vi.hoisted(() => ({
@@ -37,8 +38,8 @@ vi.mock("@/entities/app-config", () => ({
 
 const { default: Dock } = await import("../Dock");
 
-/** 落ちるビュー。テストごとに1つだけ真にする */
-const throwing = { book: false };
+/** 落ちる部品。テストごとに1つだけ真にする */
+const throwing = { book: false, bookControls: false };
 
 const VIEWS = {
   analysis: {
@@ -52,7 +53,10 @@ const VIEWS = {
       if (throwing.book) throw new Error("定跡ビューの中で落ちた");
       return <div data-testid="book-body" />;
     },
-    Controls: () => <div data-testid="book-controls" />,
+    Controls: () => {
+      if (throwing.bookControls) throw new Error("定跡ビューの操作列の中で落ちた");
+      return <div data-testid="book-controls" />;
+    },
     boundary: BOUNDARY_LABELS.kifuStream,
     fallbackHint: "定跡の案内",
   },
@@ -72,6 +76,7 @@ beforeEach(() => {
   config.current = null;
   config.setDisplayConfig.mockClear();
   throwing.book = false;
+  throwing.bookControls = false;
 });
 
 afterEach(() => {
@@ -149,6 +154,17 @@ describe("ドックのタブ", () => {
     mount();
 
     expect(screen.getByTestId("book-body")).toBeTruthy();
+  });
+
+  // **操作列も境界の中に居ること。** 外に居ると、ここで落ちた回はドックの境界が
+  // 受けず、1つ外（作業画面）まで畳まれる —— 盤も棋譜一覧もヘッダも消える
+  test("操作列が落ちても、畳まれるのはドックの中だけで、タブ列は残る", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.bookControls = true;
+    mount("/app?dock=book");
+
+    expect(screen.getByText("棋譜一覧を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByRole("tablist")).toBeTruthy();
   });
 
   test("ビューが落ちても、タブ列は残るので別の面へ移れる", () => {

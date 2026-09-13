@@ -19,9 +19,11 @@ const FAKE = vi.hoisted(() => [
 vi.mock("../../model/views", () => ({
   DOCK_VIEWS: FAKE,
   dockViewMeta: (key: string) => FAKE.find((v) => v.key === key),
+  dockViewLabel: (key: string) => FAKE.find((v) => v.key === key)?.label ?? key,
 }));
 
-const { moveDockTab, resolveDockTabs, resolveDockView, toggleDockTab } = await import("../tabs");
+const { moveDockTab, resolveDockTabs, resolveDockView, resolveStartupTab, toggleDockTab } =
+  await import("../tabs");
 
 /** 名簿を差し替えているので、綴りは `DockViewType` の外にある。**取り繕うのはここだけ** */
 const view = (key: string) => key as DockViewType;
@@ -84,6 +86,24 @@ describe("いま出すビュー", () => {
   });
 });
 
+describe("起動時に開くタブ", () => {
+  const tabs = list("analysis", "book");
+
+  test("一覧に在れば、その綴り", () => {
+    expect(resolveStartupTab(tabs, "book")).toBe("book");
+  });
+
+  // 設定画面がこれを通さないと、一覧の外を指したまま「決めておく」を選んで見せる
+  test("一覧に無い綴りは「前回のもの」に落ちる", () => {
+    expect(resolveStartupTab(list("analysis"), "book")).toBeNull();
+  });
+
+  test("名簿に無い綴りも「前回のもの」に落ちる", () => {
+    expect(resolveStartupTab(tabs, "kifuGraph")).toBeNull();
+    expect(resolveStartupTab(tabs, null)).toBeNull();
+  });
+});
+
 describe("一覧の出し入れ", () => {
   test("入っていないものは末尾に足す", () => {
     expect(toggleDockTab(list("analysis"), view("book"))).toEqual(["analysis", "book"]);
@@ -91,6 +111,11 @@ describe("一覧の出し入れ", () => {
 
   test("入っているものは外す", () => {
     expect(toggleDockTab(list("analysis", "book"), view("book"))).toEqual(["analysis"]);
+  });
+
+  // 契約は「**一覧に在る**外せないビューは外れない」。無い側は足す
+  test("一覧に無ければ、外せないビューでも足す", () => {
+    expect(toggleDockTab([], view("analysis"))).toEqual(["analysis"]);
   });
 
   test("外せないビューは外れない", () => {

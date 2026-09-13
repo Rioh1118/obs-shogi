@@ -1,17 +1,20 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import "./Dock.scss";
 import { useURLParams, type DockViewType } from "@/shared/lib/router/useURLParams";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 import { useAppConfig } from "@/entities/app-config";
-import { dockViewMeta, resolveDockTabs, resolveDockView } from "@/entities/dock";
-import type { DockViewBindings } from "../model/bindings";
+import { dockViewLabel, resolveDockTabs, resolveDockView } from "@/entities/dock";
+import type { DockViewBindings } from "@/widgets/dock/model/bindings";
+
+/** 状態を分け合わないビューのための素通しの器 */
+const PassThrough = ({ children }: { children: ReactNode }) => children;
 
 /**
  * ドック。**タブの器で、中身は知らない。**
  *
- * 面を1枚足す作業は「ビューを書いて名簿（`entities/dock`）と割り当て
- * （`model/bindings.ts`）に1行ずつ足す」で閉じる。**ここも `AppLayout` も書き換えない。**
+ * 面を1枚足すときに触る場所は `docs/spec/screens/app-layout.md` の「ドック」の表が持つ。
+ * **`AppLayout.tsx` も、このファイルも動かない。**
  *
  * - どのタブを出すかは設定（`AppConfig.dock_tabs`）
  * - どのタブを見ているかは URL（`dock=`）。**リロードで戻る**
@@ -32,10 +35,18 @@ function Dock({ views }: { views: DockViewBindings }) {
   });
 
   const binding = views[active];
-  const { Body, Controls } = binding;
+  // 状態を分け合わないビューは器を持たない。そのときは素通しの器を置く
+  const { Body, Controls, Provider = PassThrough } = binding;
 
   const selectTab = (key: DockViewType) => {
+    // 同じタブを押しただけなら設定へ書きに行かない。書くと `config` が別物になり、
+    // `useAppConfig` を購読している側（ツリーの根に居る門を含む）が押すたびに描き直される
+    if (key === active) return;
+
+    // タブの移動は履歴に積まない。積むと、戻るボタンが局面やモーダルの移動ではなく
+    // タブの往復を巻き戻す
     updateParams({ dock: key }, { replace: true });
+
     // 控えを書き損ねても、いま見ている面は URL が決める。外れるのは次の起動で
     // 「前回のもの」を開いたときの行き先だけ
     void setDisplayConfig({ dock_last_tab: key }); // async-result-ignored: 出す場所が無く、失敗しても表示は動かない
@@ -43,49 +54,52 @@ function Dock({ views }: { views: DockViewBindings }) {
 
   return (
     <section className="dock">
-      <header className="dock__header">
-        <div className="dock__tabs" role="tablist" aria-label="ドック">
-          {tabs.map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              id={`dock-tab-${key}`}
-              aria-selected={key === active}
-              aria-controls="dock-panel"
-              className={`dock__tab ${key === active ? "dock__tab--active" : ""}`}
-              onClick={() => selectTab(key)}
-            >
-              {dockViewMeta(key)?.label ?? key}
-            </button>
-          ))}
-        </div>
-
-        {/* 操作列は選んでいるビューのもの1つだけ */}
-        <div className="dock__controls">
-          <Controls />
-        </div>
-      </header>
-
-      <div
-        className="dock__body"
-        role="tabpanel"
-        id="dock-panel"
-        aria-labelledby={`dock-tab-${active}`}
-      >
-        {/*
-          ビュー1枚の事故でタブ列まで畳まない。**タブ列が残るので、落ちた面から
-          別の面へ移れる。** 移れば `resetKeys` が畳みを解くので、戻ったときには
-          もう一度描き直される
-        */}
-        <AppErrorBoundary
-          label={binding.boundary}
-          resetKeys={[active]}
-          fallback={(view) => <ErrorFallbackBody {...view} hint={binding.fallbackHint} />}
-        >
-          <Body />
-        </AppErrorBoundary>
+      {/* タブ列は器のもの。**ビューの境界の外**に置くので、ビューが落ちても残る */}
+      <div className="dock__tabs" role="tablist" aria-label="ドック">
+        {tabs.map((key) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            id={`dock-tab-${key}`}
+            aria-selected={key === active}
+            aria-controls="dock-panel"
+            className={`dock__tab ${key === active ? "dock__tab--active" : ""}`}
+            onClick={() => selectTab(key)}
+          >
+            {dockViewLabel(key)}
+          </button>
+        ))}
       </div>
+
+      {/*
+        **操作列も境界の中に入れる。** 外に出すと、操作列が描画で落ちた回に
+        ここの境界が受けず、1つ外（作業画面）まで畳まれる —— ヘッダもサイドバーも
+        盤も棋譜一覧も消える。壊れたビューの操作列だけが残っても押す先が無いので、
+        畳む範囲としてもこちらが正しい。
+      */}
+      <AppErrorBoundary
+        label={binding.boundary}
+        // タブ列は残るので、落ちた面から別の面へ移れる。移れば鍵が動いて畳みが解ける
+        resetKeys={[active]}
+        fallback={(view) => <ErrorFallbackBody {...view} hint={binding.fallbackHint} />}
+      >
+        <Provider>
+          <div className="dock__view">
+            <div className="dock__controls">
+              <Controls />
+            </div>
+            <div
+              className="dock__body"
+              role="tabpanel"
+              id="dock-panel"
+              aria-labelledby={`dock-tab-${active}`}
+            >
+              <Body />
+            </div>
+          </div>
+        </Provider>
+      </AppErrorBoundary>
     </section>
   );
 }

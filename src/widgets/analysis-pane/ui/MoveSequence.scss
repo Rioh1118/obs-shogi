@@ -2,7 +2,7 @@
 
 .move-sequence {
   display: grid;
-  grid-template-columns: minmax(6.5ch, max-content) 1fr;
+  grid-template-columns: minmax(6.5ch, max-content) minmax(4ch, max-content) 1fr;
   align-items: baseline;
   column-gap: 0.3rem;
 
@@ -14,8 +14,12 @@
   overflow: hidden;
 
   font-size: 1.22rem;
+
+  // 最善手。**面は敷かない** —— この行が載る面が確定しないので、薄い面を重ねると
+  // 文字との比が測れなくなる。左の帯と太さで示す
   &__primary {
-    font-weight: 560;
+    font-weight: 600;
+    box-shadow: index.$marker-bar;
   }
 
   &__candidate {
@@ -35,6 +39,16 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-size: 1.3rem;
+  }
+
+  // 最善手との差。**評価値より弱く出す**（読むのは並びの差であって絶対値ではない）。
+  // 弱め方は字の大きさだけ —— この行の面は確定しないので、色でも `opacity` でも
+  // 文字と面の比が測れなくなる
+  &__delta {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    text-align: right;
+    font-size: index.$font-hint;
   }
 
   &__move {

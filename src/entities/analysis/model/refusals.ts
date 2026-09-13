@@ -54,7 +54,7 @@ export const ENGINE_RESTARTED_MESSAGE =
 export const STOP_FAILED_MESSAGE =
   "解析を止められませんでした。エンジンはまだ読み続けているかもしれません。もう一度 ▶ を押すと、同じ席を止め直してから始めます。";
 /**
- * エンジンがまだ起動していない（→ F-9）。**▶ は押せてしまう**（`AnalysisPaneHeader` は
+ * エンジンがまだ起動していない（→ F-9）。**▶ は押せてしまう**（`AnalysisControls` は
  * エンジンの状態を1つも読まない）ので、起動を待っている間に押した人が必ずここへ来る。
  * **理由ごとに割る**——「選んでください」を起動中の人に言わないため。
  * 理由を決めるのは `entities/engine`（`EngineNotReadyReason`）。

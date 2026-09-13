@@ -42,7 +42,6 @@ vi.mock("@/pages/WelcomeScreen", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);
 vi.mock("@/widgets/game-board/ui/Hand", () => empty);
 vi.mock("@/widgets/game-board/ui/GameControls", () => empty);
-vi.mock("@/widgets/game-board/ui/BoardTools", () => empty);
 // **ドックは本物を出す。** 解析の境界はもうページではなくドックの中にあるので、
 // 差し替えるとその1枚が検査から消える
 vi.mock("@/widgets/analysis-pane/ui/AnalysisControls", () => empty);

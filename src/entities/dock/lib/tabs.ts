@@ -14,11 +14,15 @@ function isDockViewType(value: unknown): value is DockViewType {
 /**
  * タブ一覧を組む。**返る一覧は必ず1枚以上ある。**
  *
+ * 1枚以上を保証しているのは名簿の側 —— `removable: false` のビューが少なくとも
+ * 1枚あることを ADR-0010 決定1 が要求していて、名簿を差し替えていない検査が
+ * それを固定している。
+ *
  * `saved` は設定に残っている並び（`AppConfig.dock_tabs`）。まだ選んでいなければ
  * `null` で、そのときは名簿の `defaultVisible` が決める。
  *
  * **外せないビューは、`saved` が落としていても入れ直す。** 空のドックという状態を
- * 作らないため（ADR-0010 決定1）。
+ * 作らないため。
  *
  * **`saved` に在る綴りが名簿に無ければ捨てる。** 前の版が書いた綴りや手で書いた
  * 綴りが混ざるので、ここで濾さないと中身の無いタブが出る。
@@ -39,6 +43,22 @@ export function resolveDockTabs(saved: readonly string[] | null | undefined): Do
   }
 
   return tabs;
+}
+
+/**
+ * 「起動時に開くと決めてあるタブ」の実効値。**一覧に無ければ `null`。**
+ *
+ * `null` は「決めていない」＝前回のものを開く、という意味。
+ *
+ * **読む側と書く側の両方がこれを通ること。** 通さないと、固定に選んだタブを
+ * 一覧から外した後に、設定画面は「決めておく」を選んだまま**選択肢に無い値**を
+ * 表示し、起動時の行き先だけが別になる。
+ */
+export function resolveStartupTab(
+  tabs: readonly DockViewType[],
+  saved: string | null | undefined,
+): DockViewType | null {
+  return isDockViewType(saved) && tabs.includes(saved) ? saved : null;
 }
 
 /** どのビューを出すかを決める材料 */
@@ -74,10 +94,11 @@ export function resolveDockView(
 }
 
 /**
- * タブ一覧の出し入れ。**外せないビューには何もしない。**
+ * タブ一覧の出し入れ。
  *
- * 足す先を末尾にするのは、押した行がその場で消えたり割り込んだりしないため。
- * 並べたい人は続けて [`moveDockTab`] を押す。
+ * **一覧に在る外せないビューは外れない。** 一覧に無い綴りは、外せるかどうかに
+ * 関わらず末尾に足す —— 足す先を末尾にするのは、押した行がその場で消えたり
+ * 割り込んだりしないため。並べたい人は続けて [`moveDockTab`] を押す。
  */
 export function toggleDockTab(tabs: readonly DockViewType[], key: DockViewType): DockViewType[] {
   if (!tabs.includes(key)) return [...tabs, key];

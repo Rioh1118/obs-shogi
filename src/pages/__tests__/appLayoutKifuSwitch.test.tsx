@@ -35,7 +35,6 @@ vi.mock("@/widgets/game-board/ui/GameBoard", () => empty);
 vi.mock("@/widgets/game-board/ui/Board", () => empty);
 vi.mock("@/widgets/game-board/ui/Hand", () => empty);
 vi.mock("@/widgets/game-board/ui/GameControls", () => empty);
-vi.mock("@/widgets/game-board/ui/BoardTools", () => empty);
 
 const { default: AppLayout } = await import("../AppLayout");
 

@@ -20,12 +20,22 @@ export type AppConfig = {
   dock_last_tab?: string | null;
   /** 解析の評価値バーを出すか。**欠けていれば出さない**（ADR-0010 決定4） */
   show_evaluation_bar?: boolean | null;
+  /**
+   * 解析ビューの候補手の見せ方。**欠けていれば既定**（`resolveAnalysisDisplayMode`）。
+   *
+   * その場（操作列）で切り替えられて、選んだ結果がここに残る（ADR-0010 決定4）。
+   */
+  analysis_display_mode?: string | null;
 };
 
 /** 表示の設定。**`AppConfig` のうち、設定「表示」タブとドックが書き換える欄だけ。** */
 export type DisplayConfigPatch = Pick<
   AppConfig,
-  "dock_tabs" | "dock_startup_tab" | "dock_last_tab" | "show_evaluation_bar"
+  | "dock_tabs"
+  | "dock_startup_tab"
+  | "dock_last_tab"
+  | "show_evaluation_bar"
+  | "analysis_display_mode"
 >;
 
 export type ChooseOpts = { force?: boolean };

@@ -225,6 +225,10 @@ $shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
 $shadow-control: 0 $space-2 $space-4 rgba(0, 0, 0, 0.22);
 $shadow-control-press: 0 $space-1 $space-2 rgba(0, 0, 0, 0.16);
 
+// 選ばれている行・最善の行を示す左の帯。**浮きの高さではなく印**なので、
+// 上の3つとは別に置く。面の塗りだけで示すと、隣の行のホバーと見分けが付かない
+$marker-bar: inset 2px 0 0 $color-secondary-dark;
+
 $stroke-weak: rgba($color-white, 0.06);
 $stroke: rgba($color-white, 0.1);
 $stroke-strong: rgba($color-white, 0.16);

@@ -1,74 +1,86 @@
 @use "@/index.scss" as index;
 
-// 帯そのもの（面・下線・余白）は持たない。**器はドックのヘッダ。**
-// ここが帯を持つと、タブを移った先のビューの操作列と段が揃わない
+// 操作列の段。
+//
+// **器と同じ面をここでも宣言する。** 下に並ぶ文字と記号の色は、この面との比で
+// 決めてある。器の側だけが面を持つと、その比をこのファイルの中で確かめられない
 .analysis-controls {
   --hit: 3.6rem;
-  --r: 0.9rem;
+  --r: #{index.$radius-2};
 
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 0.9rem;
+  justify-content: space-between;
+  gap: index.$space-4;
 
-  // **器と同じ面をここでも宣言する。** 下に並ぶ文字と記号の色は、この面との比で
-  // 決めてある。器の側だけが面を持つと、その比をこのファイルの中で確かめられない
+  padding: 0 index.$space-4;
   background-color: index.$color-primary-black;
 
   @media (pointer: coarse) {
     --hit: 4.4rem;
   }
 
-  &__indicator {
+  // 状態は左。**削らない** —— 狭くなったときに落ちるのは操作の側
+  &__status {
     display: inline-flex;
-    align-items: baseline;
-    gap: 0.8rem;
+    align-items: center;
+    gap: index.$space-3;
+    min-width: 0;
   }
 
   &__dot {
-    width: 1.05rem;
-    height: 1.05rem;
-    border-radius: 50%;
-    transform: translateY(1px);
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: index.$radius-circle;
+    flex: none;
 
     &--analyzing {
-      background-color: index.$color-text-light-1;
+      background-color: index.$color-secondary-dark;
       animation: analysis-pulse 2s infinite;
     }
 
     &--idle {
       background-color: transparent;
-      border: 1.5px solid index.$color-text-light-1;
-      opacity: 0.8;
+      border: 1.5px solid rgba(index.$color-text-light-1, 0.55);
     }
   }
 
   &__status-text {
-    font-size: 1.5rem;
+    font-size: index.$font-body;
     letter-spacing: 0.01em;
-    color: index.$color-text-light-1;
-    opacity: 0.92;
     font-family: index.$font-sans;
+    color: index.$color-text-light-1;
     white-space: nowrap;
+    opacity: 0.82;
   }
 
   &__timer {
-    font-size: 1.6rem;
-    font-weight: 500;
+    font-size: index.$font-body;
     letter-spacing: 0.02em;
-    color: index.$color-text-light-1;
-    opacity: 0.98;
 
-    font-family: "Lato", index.$font-sans;
+    font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
+    color: index.$color-text-light-1;
     min-width: 6ch;
     text-align: left;
     white-space: nowrap;
+    opacity: 0.7;
+  }
+
+  &__actions {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-3;
+    min-width: 0;
+    overflow-x: auto;
   }
 
   &__group {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: index.$space-1;
   }
 
   &__iconBtn {
@@ -88,47 +100,90 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 
-    transition:
-      background-color 120ms ease,
-      transform 120ms ease;
+    transition: background-color index.$duration-3 index.$ease;
 
+    // 白文字を載せる面なので、ホバーは暗くする（design-language 3）
     &:hover:not(:disabled) {
-      background-color: rgba(index.$color-white, 0.07); // 控えめ
-      transform: translateY(-1px);
+      background-color: rgba(0, 0, 0, 0.28);
     }
 
     &:active:not(:disabled) {
-      transform: translateY(0);
-      background-color: rgba(index.$color-white, 0.09);
+      background-color: rgba(0, 0, 0, 0.4);
     }
 
     &:disabled {
       opacity: 0.35;
       cursor: not-allowed;
-      transform: none;
     }
 
     &:focus-visible {
       outline: 2px solid index.$focus-ring;
-      outline-offset: 2px;
+      outline-offset: -2px;
     }
+
+    // 押しっぱなしの状態は**記号の塗り**（栞の `fill`）が示す。**色は変えない** ——
+    // この面の上で銅色は 4.20:1 しか出ず、基準（4.5:1）を割る
   }
 
   &__icon {
     width: 1.8rem;
     height: 1.8rem;
+  }
+
+  // 候補手の見せ方。3つで1つの帯
+  &__modes {
+    display: inline-flex;
+    gap: 1px;
+
+    padding: 1px;
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-white, 0.05);
+  }
+
+  &__mode {
+    padding: index.$space-1 index.$space-4;
+
+    border: 0;
+    border-radius: index.$radius-1;
+    background: transparent;
     color: index.$color-text-light-1;
+
+    font-family: index.$font-sans;
+    font-size: index.$font-hint;
+    white-space: nowrap;
+    cursor: pointer;
+
+    transition: background-color index.$duration-3 index.$ease;
+
+    // 白文字を載せる面なので、ホバーは暗くする（design-language 3）
+    &:hover {
+      background: rgba(0, 0, 0, 0.28);
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: -2px;
+    }
+
+    // **ホバーより後に、同じ詳細度で置く。** 置かないと選んでいる腕に
+    // ポインタを載せた瞬間だけ選択の面が薄まる
+    &--active {
+      background: index.$color-secondary-solid;
+      color: index.$color-white;
+
+      &:hover {
+        background: index.$color-secondary-solid-hover;
+      }
+    }
   }
 }
 
 @keyframes analysis-pulse {
   0%,
   100% {
-    transform: scale(1);
     opacity: 1;
   }
   50% {
-    transform: scale(1.18);
-    opacity: 0.8;
+    opacity: 0.55;
   }
 }

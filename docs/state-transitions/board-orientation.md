@@ -61,7 +61,7 @@ B3 と重ならない。**記録の条件を落とすと、棋譜が載った
 | ------ | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **E1** | **別の**棋譜が盤に載る                     | `loadGame` の `game_loaded`（起点は `GameFileTreeBridge`）。同じパスで載り直す場合は E6※8                                                                                                                   |
 | **E2** | 棋譜を閉じる                               | 開いている棋譜（か親）の削除・ツリーからの消失・ルート外への移動 → `kifu_closed` → `resetGame`※2                                                                                                            |
-| **E3** | 向きのボタンを押す                         | `AnalysisPaneHeader` の `handleTogglePov`                                                                                                                                                                   |
+| **E3** | 向きのボタンを押す                         | `AnalysisControls` の `handleTogglePov`                                                                                                                                                                     |
 | **E4** | ツリーの選択だけが動く                     | `FileNode` のクリック。`selectNode` は同期、読み込みは非同期                                                                                                                                                |
 | **E5** | 読み込みに失敗して選択が巻き戻る           | `openKifuNode` の `restoreSelectionToActiveKifu`（→ [file-tree.md](file-tree.md) E11）                                                                                                                      |
 | **E6** | 開いている棋譜をもう一度クリックする       | `FileNode.handleClick` の関門（ツリーと盤の**両方**がその棋譜を指すときだけ省く）と、`selectNodeByAbsPath` の関門（呼び出し側が `forceReopen` で覆せる）※7。関門を抜けると同じパスの `game_loaded` になる※8 |
@@ -115,7 +115,7 @@ B0 の行でそれらを `×` にしてはいけない。
 落とすと `BoardOrientationBridge` を盤の外に置く理由（盤ごと unmount すると
 落とす者が居なくなる）が読めなくなる。
 
-※3 **B0 ではボタンが描かれない。** 向きを付ける口は `AnalysisPaneHeader` だけで、
+※3 **B0 ではボタンが描かれない。** 向きを付ける口は `AnalysisControls` だけで、
 それを含む `AnalysisPane` は `AppLayout` が `gameView.hasKifu` の真の枝でしか描かない。
 盤に何も載っていない間は DOM に存在しないので、E3 は起きない。
 

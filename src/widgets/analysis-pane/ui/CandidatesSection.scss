@@ -1,9 +1,28 @@
 @use "@/index.scss" as index;
 
+// **入りきらない候補手にスクロールで届く。** ドックの高さは窓に従うので、
+// 低い窓では必ずあふれる（それを切り捨てていたのが #563）
 .candidates-section {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+
   display: grid;
-  gap: 0.25rem;
-  padding: 0.25rem var(--pane-px) 0.4rem;
+  align-content: start;
+  gap: index.$space-1;
+  padding: index.$space-1 var(--pane-px) index.$space-2;
+
+  // リセットが全要素のスクロールバーを消しているので、
+  // 続きがあることを示す手掛かりがここだけ無くなる
+  scrollbar-width: thin;
+  &::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(index.$color-secondary-dark, 0.6);
+    border-radius: index.$radius-4;
+  }
 
   &__empty {
     color: index.$color-text-light-1;

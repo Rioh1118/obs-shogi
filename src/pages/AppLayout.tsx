@@ -15,7 +15,6 @@ import AppLayoutHeader from "@/widgets/app-layout-header/ui/AppLayoutHeader";
 import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
-import BoardTools from "@/widgets/game-board/ui/BoardTools";
 import { useClearBoardSelection } from "@/features/clear-board-selection";
 import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
@@ -93,9 +92,6 @@ const AppLayout = () => {
                       />
                       <div className="workspace__controls">
                         <GameControls />
-                        {/* 盤の道具。**盤と同じ境界の内側に置く** —— 盤が畳まれた回に
-                            向き・ナビ・検索・課題局面だけが残っても、指す先が無い */}
-                        <BoardTools />
                       </div>
                     </AppErrorBoundary>
                   </div>
