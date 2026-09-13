@@ -30,6 +30,7 @@ L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だ�
 L2    board-orientation.md     盤の向き。盤に載っている棋譜とツリー側のパスのずれが軸
 L2    position-editor.md       初期局面を組む面。L1 の file-tree の「作る」側だけを扱う
 L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「どのタブを見ているか」を重ねる
+L2    book-view.md             定跡ビュー。引くのが非同期で盤が待たないことが軸
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -70,6 +71,7 @@ L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「
 | [position-editor.md](position-editor.md)           | ✅        | 初期局面を組む面。Esc の段と「組みかけ」の扱いが軸。**未検証はこの4つ**（保存先が消える／作成中の Esc／インポートで作成／盤の鍵盤操作） |
 | [updater.md](updater.md)                           | ✅        | ディスク上のアプリの実体を列に持つ。**未検証は実プロセスと plugin の内側が要る6件**                                                     |
 | [dock-tabs.md](dock-tabs.md)                       | ✅        | **実装より先に書いた表。踏むテストはまだ1つも無い**（#562 で印を付ける）                                                                |
+| [book-view.md](book-view.md)                       | ✅        | 定跡ビュー。**古い引きを捨てる（※A）が軸。** 実プロセスで返る順を踏んだテストは無い                                                     |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                                                                         |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。

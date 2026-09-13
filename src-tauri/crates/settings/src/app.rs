@@ -36,6 +36,12 @@ pub struct AppConfig {
     ///
     /// 綴りを enum にしない理由は [`AppConfig::dock_tabs`] と同じ。
     pub analysis_display_mode: Option<String>,
+    /// 最近開いた定跡のパス。**新しいものが先頭。**
+    ///
+    /// 中身は濾さない。設定ファイルは利用者も前の版も書くので、
+    /// 消えたファイルのパスも残る —— 開けなかったことは開いたときに出る
+    /// （`readRecentBooks`。`src/entities/book/lib/recents.ts`）。
+    pub book_recent_paths: Option<Vec<String>>,
 
     /// この版が知らない欄。**読んだままの形で書き戻す。**
     ///

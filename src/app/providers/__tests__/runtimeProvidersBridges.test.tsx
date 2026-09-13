@@ -27,6 +27,8 @@ const passthrough = (name: string) => ({
 vi.mock("../gates/FileTreeRootGate", () => passthrough("FileTreeRootGate"));
 vi.mock("../gates/GamePersistenceGate", () => passthrough("GamePersistenceGate"));
 vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
+// `GamePersistenceGate` を素通しにしてあるので、`useGame` を読む器はここでは張れない
+vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));
 vi.mock("../bridges/EngineRuntimeBridge", () => passthrough("EngineRuntimeBridge"));
 vi.mock("../bridges/AnalysisBridge", () => passthrough("AnalysisBridge"));
 vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePresetsProvider"));

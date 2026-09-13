@@ -1,0 +1,16 @@
+@use "@/index.scss" as index;
+
+// 失敗の帯を上に積み、残りを表が取る。**表の高さが窓に従う**ので、
+// 帯が出ても表が押し出されない（`minmax(0, 1fr)`）
+.book-view {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+
+  background: index.$color-primary-dark;
+
+  &__notice {
+    padding: index.$space-2 var(--pane-px, #{index.$space-4});
+  }
+}

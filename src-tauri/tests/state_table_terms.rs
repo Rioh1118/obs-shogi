@@ -70,6 +70,10 @@ const NOT_RUST: &[(&str, &str)] = &[
     ("branch-index.md", "分岐の索引。TS 側"),
     ("board-orientation.md", "盤の向き。TS 側"),
     (
+        "book-view.md",
+        "定跡ビューの画面側。TS 側（Rust で開く／引く側は yaneuraou-db-parse.md と book-key-failures.md）",
+    ),
+    (
         "dock-tabs.md",
         "ドックのタブ。TS 側（Rust のセッションは analysis.md の記号を借りている）",
     ),

@@ -43,7 +43,7 @@ export type TabType = "workspace" | "aiLibrary" | "engine" | "display" | "create
  * 名簿の持ち主は `entities/dock/model/views.ts` で、そちらが `satisfies` で
  * ここに合わせてある。**片方だけ増やすと tsc が落ちる。**
  */
-export type DockViewType = "analysis";
+export type DockViewType = "analysis" | "book";
 
 export interface URLParams {
   modal?: ModalType;

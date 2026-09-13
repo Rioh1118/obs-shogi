@@ -1,0 +1,162 @@
+@use "@/index.scss" as index;
+
+// 入りきらない候補手にスクロールで届く。**バーは出さない**（意匠。`design-language.md`）
+.book-table {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+
+  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  background: index.$color-primary-dark;
+  color: rgba(index.$color-text-primary, 0.92);
+
+  &__grid {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+
+    font-size: index.$font-body;
+  }
+
+  // **見出しは貼り付ける。** 列の意味が読めないまま数字だけが流れるのを避ける
+  th {
+    position: sticky;
+    top: 0;
+
+    padding: 0 var(--pane-px, #{index.$space-4});
+    text-align: left;
+
+    background: index.$color-primary-dark;
+    border-bottom: 1px solid index.$stroke-weak;
+  }
+
+  // 押せない見出し（応手・この先）も、押せる見出しと同じ縦位置に立つ
+  th,
+  &__sort {
+    font-family: index.$font-mono;
+    font-weight: 600;
+    font-size: index.$font-hint;
+    letter-spacing: 0.09em;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  // 押せない見出しには、押し場のぶんの上下余白をここで足す。
+  // **押せる列と押せない列で見出しの高さを変えない**
+  &__th--ponder,
+  &__th--ahead {
+    padding-top: index.$space-2;
+    padding-bottom: index.$space-2;
+  }
+
+  // 並べ替えの押し場。**見出しそのものを押させる** —— 別に印を足すと、
+  // 押せる列と押せない列で見出しの行の高さが変わる
+  &__sort {
+    display: inline-flex;
+    align-items: baseline;
+    gap: index.$space-1;
+
+    padding: index.$space-2 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+
+    &:hover {
+      // 暗い面に載る文字なので**明るくする**（ADR-0005 決定2）
+      color: index.$color-text-primary;
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+    }
+  }
+
+  // 並べ替えに使っている列。**銅で示さない** —— この面の上で 3.26:1 しか出ず、
+  // 見出しの文字の基準（4.5:1）を割る。明るさを上げ、向きの記号を添える
+  &__sort--active {
+    color: index.$color-text-primary;
+  }
+
+  // 向きの記号。**押していない列でも幅を取る** —— 取らないと、押すたびに見出しがずれる
+  &__caret {
+    display: inline-block;
+    width: 1ch;
+  }
+
+  &__th--move {
+    width: 8.4rem;
+  }
+  &__th--num {
+    text-align: right;
+  }
+  &__th--ponder {
+    width: 7.2rem;
+  }
+  &__th--ahead {
+    width: 8.8rem;
+  }
+
+  td {
+    padding: index.$space-1 var(--pane-px, #{index.$space-4});
+    border-bottom: 1px solid rgba(index.$color-white, 0.035);
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__row:hover td {
+    background: rgba(index.$color-white, 0.035);
+  }
+
+  // 数字は右で揃える。**符号と桁の位置で読むものなので、左寄せにしない**
+  &__num,
+  &__count-num {
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  // 添えの欄（深さ・応手・行き止まり）。**0.72 より下げない** ——
+  // 下げるとこの面の上で 4.5:1 を割る
+  &__dim {
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  // 出現回数は数字とバーを縦に積む。**数字を落とさない** ——
+  // バーだけだと、桁が違う定跡どうしを見比べたときに同じ長さに見える
+  &__count {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: index.$space-1;
+  }
+
+  // 埋まったぶんは**入れ子の箱ではなく塗りで描く。** 箱にすると、そこに載る文字が
+  // 無いのに「銅の面に 0.92 の文字」という対ができて、コントラストの走査が
+  // 2.47:1 として数える（走査からは中身が空であることが見えない）
+  &__bar {
+    display: block;
+    width: 100%;
+    height: 0.4rem;
+    border-radius: index.$radius-1;
+    background-color: rgba(index.$color-white, 0.08);
+    background-image: linear-gradient(
+      to right,
+      index.$color-secondary-dark var(--book-bar-fill, 0%),
+      transparent var(--book-bar-fill, 0%)
+    );
+  }
+
+  // 定跡がその先へ続く行。**銅で示さない**（`__sort--active` と同じ理由）。
+  // 区別は文言（`→ N手目` / `行き止まり`）が持ち、こちらは明るさだけを足す
+  &__ahead--continues {
+    color: index.$color-text-primary;
+  }
+
+  &__empty {
+    padding: index.$space-4 var(--pane-px, #{index.$space-4});
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+}
