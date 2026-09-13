@@ -75,7 +75,12 @@ issue #120 と同型の行き止まり
 [engine-position-sync.md](engine-position-sync.md) の E3
 
 ※5 S3 では**同じ runtime なら再トライしない**（`provider.tsx`）。
-無限リトライを避けるため。**再トライの導線は `clearError()` だが、UI からの呼び出し元が0。**
+無限リトライを避けるため。**復帰は E3（設定を直す）を通る**——失敗すると
+`EngineFailureBridge` が帯を出し、「設定を開く」が設定のエンジン管理タブを開く
+（そこからプリセットを編集する。行き先の一次記述は
+[settings.md](../spec/screens/settings.md)）。直した設定は別の runtime になるので、
+その場で起動し直す。**`clearError()` は使っていない**（context には在るが
+呼び出し元は0のまま。同じ設定で起こし直す口を出すかは → #535）。
 
 **「同じ runtime」はプリセットの同一性ではない**——見るのは `enginePath` /
 `workDir` / `evalDir` / `bookDir` / `bookFile` / `options`（`entities/engine/lib/equalRuntime.ts`。
@@ -91,12 +96,15 @@ issue #120 と同型の行き止まり
 1. **S2（起動済み）なら `activeRuntime` は実際に起動したプロセスの設定と一致する。**
    ※2 はこれを破りうる
 2. **フロントが S0 なら Rust 側も P0。** ※3 はこれを破る
-3. **S3（失敗）から抜ける道が常にある。** いまは `desiredRuntime` を前回試した値から
-   動かすことだけ（※5。プリセットを選び直しても、選択中のものを編集してもよい）
+3. **S3（失敗）から抜ける道が常にある。** 帯が設定へ送り、そこで `desiredRuntime` を
+   前回試した値から動かせば E3 で起動し直す（※5。プリセットを選び直しても、
+   選択中のものを編集してもよい）
 
 ## 埋まっていないセル
 
 - `(S1, E3)` 起動中の runtime 切替（※2）。**`initializer.ts` にテストが無い**
 - `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無く踏めていない**
-- `(S3, E4)` 同じ runtime での再設定。再トライしないことを固定するテストが無い
-- **`entities/engine` に `__tests__` が1つも無い**
+
+**`entities/engine` でテストが在るのは `model/provider.tsx` だけ**
+（`model/__tests__/provider.test.tsx` が `(S3, E4)` と `(S3, E3)` を踏む）。
+`model/` の外——`api/` と `lib/`——はどれも素通り。

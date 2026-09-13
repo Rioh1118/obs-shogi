@@ -41,7 +41,7 @@ grep -rn 'rename_all = "snake_case"' src-tauri/src | wc -l  # => 1
 **4通り目の「無指定」が一番危ない。** rename が無い enum は Rust の
 バリアント名がそのまま（PascalCase で）線に出て、TS 側がその綴りを写している。
 
-- `src/search/types.rs` の `IndexState` → TS は `"Empty" | "Restoring" | …`
+- `src-tauri/src/search/types.rs` の `IndexState` → TS は `"Empty" | "Restoring" | …`
 - 同 `Consistency` → `src/entities/search/api/contract.ts` の
   `"BestEffort" | "WaitForClean"`。呼び出しは
   `src/features/position-search/ui/PositionSearchModal.tsx` の
@@ -81,7 +81,7 @@ interface EngineOptionType {
 ```
 
 `research/shogihome/05-usi-engine.md` が「型情報を捨てている」と評しているのは
-obs-shogi の `EnginePreset.options`（`src-tauri/src/settings/presets.rs` の
+obs-shogi の `EnginePreset.options`（`src-tauri/crates/settings/src/presets.rs` の
 `HashMap<String, String>`）で、**そちらはこの ADR の対象外**（保存ファイルの形。
 下の 4 の EXEMPT）。
 

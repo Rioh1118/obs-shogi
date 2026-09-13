@@ -36,7 +36,10 @@
 .wsTab__miniGrid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  // **枚数を直に書かない。** カードが増えたとき列が追随せず、最後の1枚だけが
+  // 次の段に 1/N 幅で落ちる。「未同期」は走査に失敗すると「確認できていません」の
+  // 9文字が入るので、狭い枠だと折り返す
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 
   @media (max-width: 860px) {
     grid-template-columns: 1fr;
@@ -264,4 +267,34 @@
   font-size: 1.15rem;
   line-height: 1.55;
   color: rgba(index.$color-text-light-1, 0.78);
+}
+
+// 「最後に確認できた」は数値ではなく文になることがある（「まだ確認できていません」）。
+// **`wsTab__miniV` の太さと字送りのままだと入りきらない**ので、その枠だけ本文に戻す
+.wsTab__miniV--plain {
+  font-size: index.$font-aux;
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
+// **色を宣言しない。** この節の面は不透明度を持つ層の重ねでできていて
+// コントラストを測れない（`contrastRatchet` の「測れなかった宣言」）。
+// 押した結果は本文として読ませるものなので、落とす理由も無い
+.wsTab__updateResult {
+  margin-top: index.$space-5;
+  font-size: index.$font-aux;
+  line-height: 1.55;
+}
+
+.wsTab__updateSkipped {
+  margin-top: index.$space-5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: index.$space-4;
+  flex-wrap: wrap;
+}
+
+.wsTab__updateSkippedText {
+  font-size: index.$font-aux;
 }

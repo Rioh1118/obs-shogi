@@ -53,9 +53,9 @@
   書いているが**該当0件**。実在するのは生成側の重複。記述を直すこと
 - **`bridges` / `gates` の基準に合っていないファイルが2つ** — 基準そのものは
   `src/app/providers/RuntimeProviders.tsx` の doc にある（`gates/` は値を prop で渡す器、
-  `bridges/` は effect で繋いで `null` を返す）。7ファイル中5つは一致していて、
-  `AnalysisBridge` / `EngineRuntimeBridge` だけが gate の形で `bridges/` に居る。
-  **揃えるのはファイル2つの移動と改名で済む**
+  `bridges/` は effect で繋いで `null` を返す）。**合っていないのは
+  `AnalysisBridge` / `EngineRuntimeBridge` の2つ**で、どちらも gate の形で `bridges/` に居る
+  （数は書かない。橋を1本足すたびに腐る）。**揃えるのはファイル2つの移動と改名で済む**
 - **`entities/` の公開境界が10スライス中2つ欠落** — 揃えるには3段階の順序が要る
 - **`ModalType` union が上位層のスライス名簿を持っている** — 下位層が上位層の一覧を知っている
 - **`app-config` ⇄ `engine-presets` の双方向依存** — `PresetId` を branded type にすると切れる
@@ -104,6 +104,23 @@
 - **メディアクエリの breakpoint が13種類の直値で散っている** — 対象幅（1280px 以上）では
   1つも発火しない。共有の定義が `src/index.scss` に無く、`scssScale` のラチェットも
   `@media` の条件部を対象外にしている
+- **解析ペインの帯の右余白だけが器の幅に比例する** — `padding-right: clamp(4rem, 18%, 20%)`
+  で、ペインを広げるほど道具の並びが中央側へ寄る。左は `4rem` 固定で非対称。
+  **なぜ右だけ空けるのかが現物からも履歴からも復元できない**（`419bd5df` で `20%` として
+  登場し、`cc8ec2d4` で軟らかくなったが、どちらのメッセージにも理由が無い）。
+  避けている相手があるのか、見た目の判断なのか、名残なのかが読めないので**動かせない**。
+  #113 の C18 が「この余白の『なぜ』を書く」を予定していたが、
+  **推測で「なぜ」を書くのは腐ったコメントを1つ足すのと同じ**なので書かずに残した
+
+## `.tsx` のインライン直値が、どのラチェットにも数えられない（#436 のレビューで出たもの）
+
+`.claude/reviews/2026-09-08-436-error-boundary-layers-r1.md` の r1-21（ui reviewer）。
+**その PR では直値そのものを消した**ので、走査は要らないまま残した。
+
+- `scssScaleRatchet` も `contrastRatchet` も `scssFiles(SRC)`（`.scss` だけ）を歩く。
+  `tsFiles` を歩いて `style={{` の中の長さ・色リテラルを数えれば、「ここだけは直値でよい」という
+  例外が意図した数に留まっていることを機械で保てる。**いまは例外が無言で増やせる。**
+  実測は ADR-0003 の「諦めるもの」が持つ
 
 ## 到達しない分岐が `Board` に残っている
 
@@ -279,6 +296,86 @@ r11 で `types.ts` をこのディレクトリに新設したので、次の書�
 プリセット編集ダイアログの中だけで使われるのに `model/` に在り、
 r11 が新設した `ui/ai-library-tab/types.ts` は「画面の中で閉じるならその場に置く」と
 理由付きで名乗っている。どちらでも正当化できるので、散り始めると型を探す人が2箇所を見る。
+
+## `entities/game/lib/moveValidation.ts` に、本番から到達しない駒打ちの規則が6つ残っている
+
+#113 のレビュー（architecture reviewer）。`hasFuInColumn` / `canDropFu` / `canDropKe` /
+`canDropKy` / `isInCheck` / `isUchifudume` は knip の未使用 export 一覧に載っている。二歩と行き所のない駒の
+規則を、`entities/position/lib/inspectPosition.ts` が別の表現（`getIllegalUnpromotedRow`
+と同じ式）で書き直したので、**同じ規則が2通りある**。片方だけ直すと、対局の駒打ちと
+組む面の断りで規則が割れる。
+
+到達しない側は `canDropKe` が `[1, 2]` / `[8, 9]` の直値、新しい側が
+`illegalUnpromotedRow` × `rowToOppositeEnd` の式。消すか、`inspectPosition` を呼ぶ
+薄皮にするかは、対局側で駒打ちの検査をいつ使い始めるかで決まる。
+
+## `entities/app-config` と `entities/engine-presets` が互いを読んでいる
+
+#113 で同層横断の走査（`src/__tests__/crossSliceImports.test.ts`）を入れたときに出た。
+`import/no-cycle` は**輪になるまで黙っている**ので、往復しているだけでは落ちない。
+輪でなくても、2スライスが互いを読む形は「どちらが器か」を消してしまう。
+
+走査には `KNOWN_MUTUAL` として1組だけ控えてある。**新しく増えたら赤くなる**ので、
+放置しても悪化はしない。直すなら片方の向きを消す（控えを伸ばすのは直し方ではない）。
+どちらを器にするかは、エンジンの設定をどちらが所有するかの判断になる。
+
+## 貼った棋譜を打鍵のたびに読み直している
+
+`fix/create-file-import-face` のレビュー（perf reviewer）。`useKifuImportDraft` は
+`rawContent` が変わるたびに `readKifuText` を同期で呼ぶ。実測（Node v26、この repo の
+tsshogi 2.3.x）で **KIF 1KB あたり約 0.47ms**、総手数に線形。
+
+| 入力                     | 大きさ | 1回のパース |
+| ------------------------ | ------ | ----------- |
+| 300手・分岐なし          | 9.6KB  | 5.7ms       |
+| 300手 ＋ 変化50本×10手   | 26KB   | 13.2ms      |
+| 300手 ＋ 変化200本×10手  | 72KB   | 35.3ms      |
+| 300手 ＋ 変化1500本×10手 | 479KB  | 226ms       |
+
+**問題になるのは手数ではなく変化の本数。** 総手数800手（約32KB）を跨ぐと打鍵ごとに
+1フレーム落ちる。貼るのは1イベントなので体感に出るのは**貼ったあとに打ち足したとき**で、
+研究用の分岐付き棋譜は容易にこの域に入る。
+
+直すなら2段。(1) 直前に読んだテキストを覚えて、`trim()` が同じなら読み直さない
+（末尾に改行を足しただけでも全文を読み直している。仕様への影響ゼロ）。
+(2) trailing debounce を 100〜150ms。貼り付けは1イベントなので体感は変わらない。
+**仕様書の「貼った瞬間に読む」とは矛盾しない**（150ms 後に出る）。
+
+固定するなら `vi.mock` で `readKifuText` の呼び出し回数を数え、fake timer で
+連続した `change` が1回に畳まれることを見る。
+
+## 棋譜を作る3つの面で、同じ語が3通りに割れている
+
+同じレビュー（comment / architecture reviewer）。`SfenKifuCreateModal` だけが
+「フォーマット」「保存先フォルダ」「キャンセル」を名乗る（他の2面は「形式」
+「保存先」「やめる」で、仕様書の語彙表もそちら）。仕様書の表も
+`create-file.md` の中で割れている。
+
+**2:1 になったので、どちらが正かがコードから読めない。** 寄せるなら
+`label="フォーマット"` / `label="保存先フォルダ"` を禁じる綴りの走査で再発を止められる。
+
+## 同時に DOM に在る2つの面で、フォーム要素の id の付け方が違う
+
+同じレビュー（comment reviewer）。組む面は `pos-editor-file-name` のように
+面ごとの接頭辞＋kebab、インポートの面は `fileName` / `format` / `import-dir` と
+綴りが混ざっている。**器は両方の面を同時にマウントする**（片方は `hidden`）ので、
+いまは綴りが偶然ずれているだけで衝突していない。片方が `format` を名乗った瞬間に、
+ラベルを押すと隠れている面の欄に焦点が入る。
+
+寄せ先は `pos-editor-*` の形。`id="..."` が kebab で、同じファイル内が共通の接頭辞を
+持つことを見る走査で固定できる。
+
+## feature の SCSS が shared の部品の内部クラスを掴んでいる
+
+同じレビュー（ui / architecture reviewer）。`KifuImportForm.scss` は
+`.form` / `.form__group--buttons` / `.form__textarea` を子孫セレクタで掴み、
+`PositionEditor.scss` も同じことをしている。**依存はどこにも宣言されない** ——
+`shared/ui/Form` の DOM 構造が変わると、この2面のレイアウトだけが静かに崩れ、
+lint もテストもラチェットも赤くならない。
+
+件数ラチェット（`src/shared/ui/**` の外の SCSS が `.form` / `.notice` / `.fsError` /
+`.modal` で始まるセレクタを書く数）なら今日から張れる。0 にはできないので
+`knip-ratchet.sh` と同じ「増える方向にだけ落とす」形。
 
 ## 自動再開に、差の出る筋を組めていない門が2つある
 

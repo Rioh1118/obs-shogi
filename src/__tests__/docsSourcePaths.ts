@@ -35,6 +35,18 @@ export const scannedDocs = (): string[] =>
   );
 
 /**
+ * **パスの実在だけは `decisions/` にも掛ける。** ADR は現物を指す約束を持つが、
+ * 識別子のほうは決定当時の綴りを凍結して書くので、同じ範囲には広げられない。
+ */
+export const pathCheckedDocs = (): string[] =>
+  markdownFiles().filter(
+    (f) =>
+      f.startsWith("state-transitions/") ||
+      f.startsWith("spec/screens/") ||
+      f.startsWith("decisions/"),
+  );
+
+/**
  * リポジトリの起点から書いた接頭辞。この順に前へ付けて実在を探す。
  *
  * 表は接頭辞を省いて `entities/kifu/model/cursor.ts` とも書く。前だけ見て

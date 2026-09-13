@@ -220,6 +220,81 @@ mod tests {
         );
     }
 
+    /// **組んだ局面が、4形式のどれでも欠けずに往復する。**
+    ///
+    /// 盤に駒を並べて作る経路（#113）の出口は `PresetOther` + 盤面データで、
+    /// **手合割13のどれにも当たらない**。ここが落ちると、作成は成功したように見えて
+    /// 次に開いた盤が別の局面になる —— しかも壊れるのは**組んだ人の手元だけ**で、
+    /// 平手から作った棋譜は無事なので気づくのが遅れる。
+    ///
+    /// 題材は3手詰（駒が3枚、持ち駒あり、手番は後手）。手合割のどれとも一致せず、
+    /// **盤・持ち駒・手番の3つを同時に見られる**最小の形。
+    ///
+    /// 見るのは往復の一致だけで、綴りの中身は見ない。形式ごとの書き方は
+    /// クレートの担当で、ここが持つのは「渡したものが返ること」。
+    #[test]
+    fn a_composed_position_survives_every_format() {
+        use shogi_kifu_converter_obsshogi::jkf::{Color, Hand, Kind, Piece, StateFormat};
+
+        type Reparse =
+            fn(&str) -> Result<JsonKifuFormat, shogi_kifu_converter_obsshogi::error::ParseError>;
+
+        let at = |color: Color, kind: Kind| Piece {
+            color: Some(color),
+            kind: Some(kind),
+        };
+        let mut board = [[Piece::default(); 9]; 9];
+        // `board[x-1][y-1]`。5一に後手玉、5三に先手金、5九に先手玉
+        board[4][0] = at(Color::White, Kind::OU);
+        board[4][2] = at(Color::Black, Kind::KI);
+        board[4][8] = at(Color::Black, Kind::OU);
+
+        let composed = StateFormat {
+            color: Color::White,
+            board,
+            hands: [
+                Hand {
+                    KI: 1,
+                    ..Hand::default()
+                },
+                Hand::default(),
+            ],
+        };
+
+        let source = JsonKifuFormat {
+            initial: Some(Initial {
+                preset: Preset::PresetOther,
+                data: Some(composed),
+            }),
+            moves: vec![shogi_kifu_converter_obsshogi::jkf::MoveFormat::default()],
+            ..JsonKifuFormat::default()
+        };
+
+        for (format, reparse) in [
+            ("kif", parse_kif_str as Reparse),
+            ("ki2", parse_ki2_str as Reparse),
+            ("csa", parse_csa_str as Reparse),
+            ("jkf", parse_jkf_str as Reparse),
+        ] {
+            let written = spell_for_extension(&source, Path::new(&format!("組んだ局面.{format}")))
+                .unwrap_or_else(|e| panic!("{format} に綴れない: {}", e.message));
+
+            let back = reparse(&written)
+                .unwrap_or_else(|e| panic!("{format} として読み戻せない: {e}\n{written}"));
+
+            let initial = back
+                .initial
+                .unwrap_or_else(|| panic!("{format} が開始局面を落とした:\n{written}"));
+            let data = initial
+                .data
+                .unwrap_or_else(|| panic!("{format} が盤面を落とした:\n{written}"));
+
+            assert_eq!(data.board, composed.board, "{format} の盤:\n{written}");
+            assert_eq!(data.hands, composed.hands, "{format} の持ち駒:\n{written}");
+            assert_eq!(data.color, composed.color, "{format} の手番:\n{written}");
+        }
+    }
+
     /// 綴れなかったときに、クレートが名指ししたものを消さない。
     ///
     /// `ConvertError` は書き分けられない手・綴りの無い枚数・盤面の無い手合割を

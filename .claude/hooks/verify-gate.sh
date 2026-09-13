@@ -366,6 +366,15 @@ gate_kinds_for_path() {
   case "$path" in
     src-tauri/capabilities/*) kinds="$kinds ts" ;;
   esac
+  # 起動の1枚目を作る2ファイルも ts。`index.html` は React が着く前に出る画面を
+  # 自分で持ち、`tauri.conf.json` は窓の初期色と CSP を持つ。どちらも
+  # vitest 側の走査が写しの一致を見ている。**`index.html` はここに載せないと
+  # どの種類にも当たらない**（拡張子でも接頭辞でも拾われない）。
+  # `tauri.conf.json` を rust だけにすると、色を1つ書き換えただけのコミットで
+  # その突き合わせが一度も走らない —— capability と同じ形。
+  case "$path" in
+    index.html|src-tauri/tauri.conf.json) kinds="$kinds ts" ;;
+  esac
   case "$path" in
     *.rs|*Cargo.toml|*Cargo.lock|src-tauri/tauri.conf.json|src-tauri/capabilities/*|rust-toolchain.toml)
       kinds="$kinds rust" ;;

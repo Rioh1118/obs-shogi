@@ -101,6 +101,17 @@ export type FileTreeState = {
    * 画面に出ている棋譜を問うなら `entities/game` の `loadedAbsPath`。
    */
   activeKifuPath: string | null;
+  /**
+   * 開いた時点で読んだ棋譜。**開いた瞬間の内容のまま古くなる。**
+   * 書き込むのは `kifu_opened` だけで、盤の保存（`saveKifuToFile`）はディスクにしか
+   * 書かない → #204。編集後の中身が要るなら `entities/game` の `jkf` を見ること。
+   *
+   * **この参照が改名・移動を跨いで変わらないことが、盤の保存先を張り替えてよい
+   * 唯一の根拠**（`GameFileTreeBridge` が前に載せた `jkfData` と突き合わせている）。
+   * 参照を作り直すと改名で盤が載せ直され、開いた時点まで巻き戻る。
+   * 逆に、**別のファイルを指しながら参照を持ち越すと、盤の棋譜が別のファイルへ書かれる。**
+   * `activeKifuReferenceIdentity.test.ts` が両方向を固定している。
+   */
   jkfData: JKFData | null;
   kifuFormat: KifuFormat | null;
 
@@ -151,6 +162,12 @@ export type FileTreeAction =
   | { type: "create_dir_ended" }
   | { type: "nodes_expanded"; payload: string[] }
   | { type: "selected_node_reconciled"; payload: FileTreeNode | null }
+  /**
+   * 改名・移動でパスが張り替わった。**`jkfData` を省くと据え置かれる**（`?? state.jkfData`）。
+   *
+   * 据え置くのは、同じ棋譜の名前が変わっただけだから。**省いたときに参照が
+   * そのまま残ることが、盤が載せ直しを避けられる根拠**（`jkfData` の doc）。
+   */
   | {
       type: "active_kifu_reconciled";
       payload: {
@@ -199,7 +216,24 @@ export type SelectNodeOptions = {
 
 export type FileTreeContextType = FileTreeState & {
   loadFileTree: () => AsyncResult<void, FsError>;
+
+  /**
+   * 選択を動かす。**ツリーが開くべき棋譜も一緒に動く**（フォルダは動かさない）。
+   *
+   * 飛行中の読み出しは、返った時点で宛先と違うパスなら捨てられる。棋譜を選んでから
+   * `openKifuNode` を呼ぶ順にすること。逆にすると、選び直しが読み出しを追い越す
+   */
   selectNode: (node: FileTreeNode | null) => void;
+
+  /**
+   * 棋譜を読んで `activeKifuPath` を進める。
+   *
+   * **`Ok` は「開いた」を意味しない。** 読んでいるあいだに利用者が別の棋譜を選んだ
+   * 要求は、何も起こさずに `Ok` で抜ける（結果を捨てないと、ツリーが選んでいるのとは
+   * 別の棋譜が開いたことになる → #223）。フォルダを渡したときも `Ok`。
+   *
+   * 開けたかは `activeKifuPath`、盤に載ったかは `entities/game` の `loadedAbsPath`
+   */
   openKifuNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
   closeActiveKifu: () => void;
 

@@ -46,8 +46,14 @@ type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
  */
 type PendingDelete = {
   query: DeleteQuery;
-  /** 押した時点の棋譜。ここが今の棋譜と違うなら、この確認はもう別のファイルの話 */
-  absPath: string | null;
+  /**
+   * 押した時点で盤に載っていた棋譜（`boardSeq`）。ここが今と違うなら、
+   * この確認はもう別のファイルの話。
+   *
+   * **パスでは代用できない。** 改名・移動でもパスは動くが、盤に載っている棋譜は
+   * 同じままなので、この確認はまだ有効
+   */
+  boardSeq: number;
   /** 「本譜」か「変化N」 */
   label: string;
   /** 消える線の1手目。読めなければ空 */
@@ -60,8 +66,11 @@ type PendingDelete = {
 type OpenCommentNote = {
   cursor: CursorPath;
   anchorEl: HTMLButtonElement;
-  /** 開いた時点の棋譜。ここが今の棋譜と違うなら、書き込み先と中身が食い違っている */
-  absPath: string | null;
+  /**
+   * 開いた時点で盤に載っていた棋譜（`boardSeq`）。ここが今と違うなら、
+   * 書き込み先と中身が食い違っている。**パスでは代用できない**（`PendingDelete` と同じ理由）
+   */
+  boardSeq: number;
 };
 
 /**
@@ -116,7 +125,7 @@ export default function KifuStreamList() {
     [state.cursor, state.branchPlan],
   );
 
-  // TODO(#295): buildStreamRowsFromCursor は盤上で再生できない手で投げる。ここは
+  // TODO(#277): buildStreamRowsFromCursor は盤上で再生できない手で投げる（症状は #295 の本文）。ここは
   // レンダ中なので AppErrorBoundary が受けて棋譜ペインが行き止まりになる。
   // try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
   const rows = useMemo(() => {
@@ -244,19 +253,19 @@ export default function KifuStreamList() {
       setOpenMoveMenu(null);
       setPendingDelete({
         query,
-        absPath: state.loadedAbsPath,
+        boardSeq: state.boardSeq,
         label: branchLabel(forkIndex),
         firstMove: (forkIndex === undefined ? row?.mainText : row?.forkTexts[forkIndex]) ?? "",
         moveCount,
       });
     },
-    [rows, state.jkf, state.loadedAbsPath],
+    [rows, state.jkf, state.boardSeq],
   );
 
   // 失敗が返るのを待っている間に棋譜が変わりうるので、突き合わせは**返った時点**の値で行う
-  const loadedAbsPathRef = useRef(state.loadedAbsPath);
+  const boardSeqRef = useRef(state.boardSeq);
   useEffect(() => {
-    loadedAbsPathRef.current = state.loadedAbsPath;
+    boardSeqRef.current = state.boardSeq;
   });
 
   // **閉じるのは書けたときだけ。** 先に閉じると `isLoading` も「削除中...」も
@@ -282,7 +291,7 @@ export default function KifuStreamList() {
     // ただし**棋譜が変わっていたら開き直さない**。別のファイルを見ている画面に、
     // 前のファイルの枝についての確認を出しても読めない。
     if (!res.success) {
-      const stillHere = pendingDelete.absPath === loadedAbsPathRef.current;
+      const stillHere = pendingDelete.boardSeq === boardSeqRef.current;
       setPendingDelete((prev) => {
         if (prev?.query === query) return { ...prev, error: res.error };
         // **別の確認が開いていたら、そちらを押し退けない。** 押し退けると、
@@ -303,24 +312,28 @@ export default function KifuStreamList() {
 
       setOpenFork(null);
       setOpenMoveMenu(null);
-      setOpenComment({ cursor, anchorEl, absPath: state.loadedAbsPath });
+      setOpenComment({ cursor, anchorEl, boardSeq: state.boardSeq });
     },
-    [plannedCursor, state.loadedAbsPath],
+    [plannedCursor, state.boardSeq],
   );
 
-  // 棋譜が変わったら、開いている面を全部閉じる。
+  // 盤の中身が入れ替わったら、開いている面を全部閉じる。
   //
   // 行は `key={r.te}` なので DOM のボタンは再利用され、`anchorEl` も生き残る。
   // 棋譜の差し替えでは `view.player` が null になる瞬間も無い（`kifu_loading` は
   // `jkfData` を保持する）ので、**ノートは同じ位置に開いたまま前の棋譜の本文を出し続ける。**
   // 見出しは手数しか出さないので、どのファイルのものかは画面から読めない。
+  //
+  // **`loadedAbsPath` では畳まない。** あちらは改名・移動でも動くので、名前を直しただけで
+  // 書きかけのノートが閉じる。閉じると `KifuCommentNote` の離脱時の保存が走り、
+  // 面がもう外れているぶん失敗の断りも出ないまま本文が消える。
   useEffect(() => {
     setOpenComment(null);
     setOpenFork(null);
     setOpenMoveMenu(null);
     // 確認を出したまま棋譜が変わると、押した瞬間に**別のファイルの枝**が消える
     setPendingDelete(null);
-  }, [state.loadedAbsPath]);
+  }, [state.boardSeq]);
 
   useEffect(() => {
     if (!openMoveMenu) return;
@@ -376,13 +389,14 @@ export default function KifuStreamList() {
   // どの棋譜でも開始局面は "0,[]" になる。棋譜を切り替えても一覧は unmount されないので、
   // カーソルを動かさずに切り替えると scrollTop だけが前の棋譜の位置に残る。
   //
-  // ここで見るのは読み込んだファイルであって、棋譜の中身ではない。`state.jkf` は
-  // コメントの保存でも別オブジェクトになるので、それを見ると入力中に一覧が
-  // カーソル行へ飛ぶ。同じパスを読み直したときは、読み直す前のカーソルも0だった場合に
-  // 限って3つとも変わらないので戻さない。
+  // ここで見るのは**盤の中身が入れ替わったか**（`boardSeq`）で、パスでも棋譜そのものでもない。
+  // `state.jkf` はコメントの保存でも別オブジェクトになるので、それを見ると入力中に
+  // 一覧がカーソル行へ飛ぶ。パスを見ると、改名で並んでいる行も scrollTop も
+  // 変わらないのに戻る。同じパスの載り直し（`game.md` の E16 のあとの復帰）では
+  // 中身が入れ替わっているので、そこは戻して正しい。
   useEffect(() => {
     revealRow(state.cursor?.tesuu ?? 0, false);
-  }, [state.loadedAbsPath, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
+  }, [state.boardSeq, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
   const onClickRow = useCallback(
     (te: number) => {
@@ -453,7 +467,7 @@ export default function KifuStreamList() {
       <KifuCommentNote
         open={!!openComment}
         cursor={openComment?.cursor ?? null}
-        absPath={openComment?.absPath ?? null}
+        boardSeq={openComment?.boardSeq ?? null}
         anchorEl={openComment?.anchorEl ?? null}
         onClose={closeCommentNote}
       />

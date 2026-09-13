@@ -9,12 +9,13 @@
 //! セルを名乗るテストも1本も無いから**（`search.md` 自身がそう書いている）。
 //! ここは代わりに**綴りの実在だけ**を見る。
 //!
-//! ## 見るのは4つ
+//! ## 見るのは5つ
 //!
 //! 1. バッククォートが対で閉じているか
-//! 2. 候補が減っていないか（**空振りで緑になるのを止める**）
+//! 2. 候補が減っていないか（**空振りで緑になるのを止める**。3つの向きすべてに床がある）
 //! 3. `fn` 名が `src/search/**` に実在するか
 //! 4. `名前(引数)` の形の呼び出しが実在するか
+//! 5. `Type::Variant` の**両側が語として**実在するか
 //!
 //! ## ここが見ないもの
 //!
@@ -25,6 +26,11 @@
 //! そのときはこの検査の根も直すこと。
 //!
 //! **[`EXEMPT`] に並べた綴りは見ない。** 欄の名前など、`fn` でないもの。
+//!
+//! **`Type::Variant` の組み合わせは見ない。** 型とバリアントが別々の場所に
+//! 語として在れば通るので、型を跨いだ取り違え（`BuildError::Loose` のような綴り）は
+//! 素通りする。並びを要求すると、`#[from]` で作られる正しい綴り
+//! （`BuildError::Initial`）が落ちるため、そこは人が読む。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -51,7 +57,7 @@ const EXEMPT: [&str; 17] = [
     "next_file_id",
     "path_to_id",
     "mtime_ms",
-    "indexed_ok",
+    "looks_intentional",
     // モジュール名
     "query_service",
     "project_manager",
@@ -63,10 +69,18 @@ const EXEMPT: [&str; 17] = [
 
 /// 候補がこれを下回ったら、走査が壊れているとみなす。
 ///
-/// **実測**（`cargo test` の出力で数えた）: `fn` 名 23 / 呼び出し 10。
+/// **実測値をここに書かない。** 書いた瞬間から `search.md` の編集で離れる。
+/// 床は「桁で落ちたら気付く」ためのもので、実測に張り付ける意味は無い。
 /// 表の行が増減するので余裕を取ってあるが、**桁で落ちたら気付く**ための下限。
 const MIN_FN_CANDIDATES: usize = 15;
 const MIN_CALL_CANDIDATES: usize = 6;
+
+/// `Type::Variant` の候補の下限。**数えるのは重複を含む件数。**
+///
+/// **この床が無いと、新しい向きだけが空振りで緑になる。** `without_fences` は
+/// コード塀を落とすので、表の書き方を変えて `Type::Variant` の言及が塀の中へ
+/// 移るだけで候補が0件になり、`missing` は空、テストは永久に緑。
+const MIN_VARIANT_CANDIDATES: usize = 2;
 
 fn doc() -> String {
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -187,6 +201,105 @@ fn call_candidates(md: &str) -> Vec<String> {
         .collect()
 }
 
+/// `Type::Variant` の形で実在を見る綴り。
+///
+/// **`fn` 名の走査では拾えない。** あちらは小文字・数字・下線だけを候補にするので、
+/// 大文字を含む型名は候補にすら入らない。**バリアントを名乗る綴りは
+/// この向きが無いと誰も見ない。**
+///
+/// 見るのは**両側が語として在るか**だけ。その型がそのバリアントを持つかまでは
+/// 見ていないので、そこは人が読む。
+///
+/// **`::` の左が小文字で始まるものは除く**（`crate::search::…` のようなパス）。
+fn variant_candidates(md: &str) -> Vec<(String, String)> {
+    quoted(md)
+        .into_iter()
+        .filter_map(|q| {
+            let q = q.split_once('(').map(|(h, _)| h.to_owned()).unwrap_or(q);
+            let (ty, var) = q.rsplit_once("::")?;
+            let ident = |s: &str| {
+                !s.is_empty()
+                    && s.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                    && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            };
+            (ident(ty) && ident(var)).then(|| (ty.to_owned(), var.to_owned()))
+        })
+        .collect()
+}
+
+/// `name` が**語として**現れるか。前後が英数字・下線なら別の綴りの一部。
+///
+/// 素の `contains` だと、接尾を足す改名（`Superseded` → `SupersededByRestart`）が
+/// 部分文字列として残って緑のまま通る。
+fn mentions_word(code: &str, name: &str) -> bool {
+    let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+    let mut from = 0;
+    while let Some(at) = code[from..].find(name) {
+        let at = from + at;
+        let before = code[..at].chars().next_back();
+        let after = code[at + name.len()..].chars().next();
+        if !before.is_some_and(is_ident) && !after.is_some_and(is_ident) {
+            return true;
+        }
+        from = at + name.len();
+    }
+    false
+}
+
+/// 語境界の判定そのものを固定する。
+///
+/// **doc 側の変異では捕まらない。** `mentions_word` が常に真を返すよう壊すと
+/// `missing` は空になり、候補の数を見る検査も通るので、**両方緑のまま**
+/// この走査だけが何も見なくなる。
+#[test]
+fn mentions_word_looks_at_boundaries() {
+    assert!(
+        !mentions_word("SupersededByRestart", "Superseded"),
+        "接尾を通している"
+    );
+    assert!(
+        !mentions_word("RestartSuperseded", "Superseded"),
+        "接頭を通している"
+    );
+    assert!(
+        mentions_word("enum X { Superseded }", "Superseded"),
+        "記号に挟まれた語を落としている"
+    );
+    // **1つ目が語でなくても2つ目で当たること。** `from` の前進が
+    // 後ろの出現を飛ばしていたら、ここが落ちる
+    assert!(
+        mentions_word("A_Loose Loose", "Loose"),
+        "2つ目の出現を飛ばしている"
+    );
+}
+
+/// doc が名乗る `Type::Variant` の両側が実在すること。
+#[test]
+fn every_variant_the_doc_names_exists() {
+    let md = doc();
+    let code = search_sources();
+
+    let missing: Vec<String> = variant_candidates(&md)
+        .into_iter()
+        // **語として在るかを見る。** 素の `contains` だと
+        // `Superseded` → `SupersededByRestart` のような接尾つきの改名が
+        // 部分文字列として残って**緑のまま通る**。
+        //
+        // **`Type::Variant` の並びは要求しない。** バリアントは `enum` の中で
+        // 裸で宣言され、`#[from]` や `?` で作られる腕は**どこにも
+        // `Type::Variant` と書かれない**（`BuildError::Initial` がそれ）。
+        // 並びを要求すると、正しい doc がその一事で落ちる
+        .filter(|(ty, var)| !mentions_word(&code, ty) || !mentions_word(&code, var))
+        .map(|(ty, var)| format!("{ty}::{var}"))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "`search.md` が実在しない綴りを名乗っている: {missing:?}\n\
+         型かバリアントのどちらかが `src/search/**` に無い"
+    );
+}
+
 /// **走査が壊れていないこと。**
 ///
 /// バッククォートが1個ずれると候補が地の文になり、`missing` が空になって
@@ -205,6 +318,13 @@ fn the_scan_still_finds_what_the_doc_names() {
     assert!(
         calls >= MIN_CALL_CANDIDATES,
         "呼び出しの候補が {calls} 件しかない（下限 {MIN_CALL_CANDIDATES}）"
+    );
+
+    let variants = variant_candidates(&md).len();
+    assert!(
+        variants >= MIN_VARIANT_CANDIDATES,
+        "`Type::Variant` の候補が {variants} 件しかない（下限 {MIN_VARIANT_CANDIDATES}）。\
+         塀の中へ移ったか、綴りが変わっている"
     );
 }
 

@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # 到達しない export・型・ファイルを、増える方向にだけ落とす。
 #
-# **0 にはできない。** `src/entities/game-session/**` の4ファイルは、未マージの
+# **0 にはできない。** `src/entities/game-session/**` は、未マージの
 # エンジン作業が使う Tauri コマンドの薄皮で、`src/main.tsx` からは到達しない。
 # 消すと合流時に書き直しになる。数だけ見れば今日から張れて、
 # 新しく死んだ export はその場で止まる。
+#
+# **「ファイルが到達しない」から「export が到達しない」へ移ると数が跳ねる。**
+# 到達しないファイルは1件、到達するファイルの中で使われていない export は1件ずつ
+# 数えるため。`entities/game/lib` が `Side` を型として読んだ時点で
+# あのスライスは「到達する」側へ移り、残りの型がまとめて数に乗った。
+# **増えたのは死んだ公開面ではなく、見えるようになった公開面。**
 #
 # `oxlint` の `no-unused-vars` は **export された宣言を見ない**ので、
 # 到達しない公開面はこれが唯一の門番。
@@ -14,7 +20,11 @@ set -uo pipefail
 
 # `npm run deadcode` と同じ範囲（未使用ファイル・未使用 export・未使用の型）の合計。
 # **減らしたらここを下げること。**
-BASELINE=149
+BASELINE=175
+# **テストからの import も「消費」に数える。** 本番から到達しない barrel の export でも、
+# テストが1本 import すればこの数から消える——**減った理由が「死んだ export を消した」とは
+# 限らない。** 下げる前に、減ったぶんが何かを `npx knip --reporter json` で見ること
+# （計測を本番 entry だけに寄せる案は `.claude/knowledge/mechanization-backlog.md`）。
 
 cd "$(dirname "$0")/.."
 

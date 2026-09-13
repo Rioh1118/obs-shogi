@@ -147,6 +147,8 @@ describe("通知の provider", () => {
       tier: "warning",
       presentation: "banner",
       title: "開けませんでした",
+      // 帯は動作を持たないと書けない（`NotifyRequest`）。ここでは押さない
+      actions: [{ label: "設定を開く", run: () => {} }],
       dedupeKey: "engine",
     });
     app.dismissByKey("engine");

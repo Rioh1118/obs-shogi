@@ -95,13 +95,16 @@
 `makeMove` は `Err` を返し `state.error` にも積むが、**それを描いている場所が無い**
 （`entities/game` の `error` の読み手は0）。→ #277 ／ ADR-0004
 
+レンダ中に throw した場合は盤ペインを包む `AppErrorBoundary` が受け、**畳まれるのは
+盤と操作列だけ**になる。棋譜一覧と解析ペインは残る。
+→ [app-layout.md](app-layout.md) の「失敗の見せ方」
+
 ## いま満たしていないこと
 
 - **書き込み失敗が利用者に届かない**（上記）→ #277
 - **駒をクリックしても手番でなければ何も起きない。** 理由は出ない
 - **`Board.tsx` に空の `useEffect` が1つ残っている**（`promotionState` を見るだけで何もしない）
 - **駒のクリックで `console.log` を出している**（`PieceFactory` の `onClick`）
-- **`AppErrorBoundary` が盤を包んでいない。** ここで throw すると `/app` が畳まれる
 - **`JKFPlayer.logs` に再生ログが無制限に積まれる** → #211
 
 ## これからの要件

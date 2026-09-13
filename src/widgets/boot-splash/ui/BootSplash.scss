@@ -8,7 +8,7 @@
     place-items: center;
     background-color: index.$color-primary-light;
     color: index.$color-white;
-    font-family: "Orbitron", "Noto Sans JP", sans-serif;
+    font-family: "Orbitron", index.$font-sans;
   }
 
   &__content {

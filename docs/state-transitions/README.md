@@ -21,12 +21,15 @@ L1    ├─ engine.md            エンジンプロセスの起動・停止（�
       ├─ game.md              棋譜の読み込み・移動・編集（カーソルと分岐計画）
       ├─ game-session.md      対局の進行（Rust。エンジンの USI 状態を列に持つ）
       ├─ search.md            インデックスと検索（**Rust 側**。ディスクのキャッシュを列に持つ）
+      ├─ updater.md           更新の確認と適用（ディスク上のアプリの実体を列に持つ）
       └─ study-positions.md   （未作成）研究局面の読み書き
 
 L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の両方をまたぐ
 L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
 L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だけを扱う
 L2    board-orientation.md     盤の向き。盤に載っている棋譜とツリー側のパスのずれが軸
+L2    position-editor.md       初期局面を組む面。L1 の file-tree の「作る」側だけを扱う
+L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「どのタブを見ているか」を重ねる
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -46,25 +49,28 @@ L2    board-orientation.md     盤の向き。盤に載っている棋譜とツ�
 
 ## いま何が書けているか
 
-| 表                                                 | 状態      | 備考                                                                                                                    |
-| -------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [app.md](app.md)                                   | ✅        | L0                                                                                                                      |
-| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                                                                                  |
-| [analysis.md](analysis.md)                         | ✅        | Rust の席を列に持つ。**✓ を使わない**（網羅は表末尾の「埋まっていないセル」）                                           |
-| [file-tree.md](file-tree.md)                       | ✅        |                                                                                                                         |
-| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                                                                                 |
-| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）                                                                          |
-| [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う                                                                               |
-| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                                                                                  |
-| [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                                                                               |
-| [yaneuraou-db-parse.md](yaneuraou-db-parse.md)     | ✅        | 判定表。`.db` の行の種類 × パーサの状態。一次資料の表を持つ                                                             |
-| [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                                                                              |
-| [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸                                                                    |
-| [game-session.md](game-session.md)                 | ✅        | Rust 側。人間だけの経路は固定済み。**エンジンの実プロセスを要するセルは未検証**                                         |
-| [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                                                             |
-| [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える                                                                   |
-| [board-orientation.md](board-orientation.md)       | ✅        | 合図は game の `loadedAbsPath`。ツリー側の `activeKifuPath` / `selectedNode` とのずれが軸。**改名・移動のセルが未検証** |
-| `study-positions.md`                               | ❌ 未作成 |                                                                                                                         |
+| 表                                                 | 状態      | 備考                                                                                                                                    |
+| -------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [app.md](app.md)                                   | ✅        | L0                                                                                                                                      |
+| [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                                                                                                  |
+| [analysis.md](analysis.md)                         | ✅        | Rust の席を列に持つ。**✓ を使わない**（網羅は表末尾の「埋まっていないセル」）                                                           |
+| [file-tree.md](file-tree.md)                       | ✅        |                                                                                                                                         |
+| [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                                                                                                 |
+| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）                                                                                          |
+| [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う                                                                                               |
+| [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                                                                                                  |
+| [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                                                                                               |
+| [yaneuraou-db-parse.md](yaneuraou-db-parse.md)     | ✅        | 判定表。`.db` の行の種類 × パーサの状態。一次資料の表を持つ                                                                             |
+| [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                                                                                              |
+| [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸                                                                                    |
+| [game-session.md](game-session.md)                 | ✅        | Rust 側。人間だけの経路は固定済み。**エンジンの実プロセスを要するセルは未検証**                                                         |
+| [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                                                                             |
+| [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える                                                                                   |
+| [board-orientation.md](board-orientation.md)       | ✅        | 合図は game の `loadedAbsPath` と `boardSeq` の組。ツリー側の `activeKifuPath` / `selectedNode` とのずれが軸                            |
+| [position-editor.md](position-editor.md)           | ✅        | 初期局面を組む面。Esc の段と「組みかけ」の扱いが軸。**未検証はこの4つ**（保存先が消える／作成中の Esc／インポートで作成／盤の鍵盤操作） |
+| [updater.md](updater.md)                           | ✅        | ディスク上のアプリの実体を列に持つ。**未検証は実プロセスと plugin の内側が要る6件**                                                     |
+| [dock-tabs.md](dock-tabs.md)                       | ✅        | **実装より先に書いた表。踏むテストはまだ1つも無い**（#562 で印を付ける）                                                                |
+| `study-positions.md`                               | ❌ 未作成 |                                                                                                                                         |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
 

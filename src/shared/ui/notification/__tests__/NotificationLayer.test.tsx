@@ -43,15 +43,25 @@ const request = (
   ...over,
 });
 
-const shownAs = (
-  presentation: "banner" | "modal",
-  over: { title?: string } = {},
-): NotifyRequest => ({
-  tier: "warning",
-  presentation,
-  title: "解析を停止できませんでした",
-  ...over,
-});
+/**
+ * **帯には動作が要る**（型が要求している。理由は `NotifyRequest`）。
+ * ここで見るのは置き場と積み方だけなので、押しても何もしない動作を1つ持たせる
+ */
+const shownAs = (presentation: "banner" | "modal", over: { title?: string } = {}): NotifyRequest =>
+  presentation === "banner"
+    ? {
+        tier: "warning",
+        presentation,
+        title: "解析を停止できませんでした",
+        actions: [{ label: "エンジンを再起動", run: () => {} }],
+        ...over,
+      }
+    : {
+        tier: "warning",
+        presentation,
+        title: "解析を停止できませんでした",
+        ...over,
+      };
 
 /** 見せ方ごとの入れ物。class で引くのは、位置を決めているのがそこだから */
 const boxOf = (selector: string) => document.querySelector(selector);

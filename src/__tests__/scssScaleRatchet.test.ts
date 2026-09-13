@@ -13,14 +13,14 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  * 2行を同じコミットで動かすことになる。
  */
 const BASELINE: Record<Bucket, number> = {
-  "font-size": 203,
-  "border-radius": 146,
-  spacing: 443,
-  elevation: 50,
+  "font-size": 197,
+  "border-radius": 139,
+  spacing: 434,
+  elevation: 48,
   motion: 67,
-  family: 15,
-  indirect: 52,
-  exempt: 3,
+  family: 10,
+  indirect: 49,
+  exempt: 10,
 };
 
 /** トークンの定義そのものなので、直値があって当然のファイル */
@@ -74,7 +74,69 @@ function definedIn(file: string): Set<string> {
   return names;
 }
 
+/** `index.$name` の参照。`@use "@/index.scss" as index` の名前空間を通るものだけ */
+const TOKEN_REFERENCE = /\bindex\.\$([\w-]+)/g;
+
 describe("SCSS のトークン名", () => {
+  /**
+   * **`npm run verify` は SCSS をコンパイルしない**（`tsc -b` + lint + vitest + test:hooks）。
+   * 未定義のトークンを参照しても型でも lint でもテストでも赤くならず、
+   * `vite build` まで行って初めて `Undefined variable.` で止まる。
+   * つまりコミットの gate を素通りして、**アプリが起動しない状態で緑になる。**
+   *
+   * 実際に起きた（`e245c7e5` が `$error-fallback-width` を参照だけして定義しなかった）ので、
+   * ここで名前の解決だけを見る。コンパイルより速く、この故障をちょうど捕まえる。
+   */
+  it("参照しているトークンが `index.scss` に実在する", () => {
+    const tokens = definedIn(TOKEN_SOURCE);
+    const missing = scssFiles(SRC).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(TOKEN_REFERENCE)]
+        .map((match) => match[1])
+        .filter((name) => !tokens.has(name))
+        .map((name) => `${relative(REPO_ROOT, file)}  index.$${name}`),
+    );
+
+    expect(
+      missing,
+      [
+        "`index.scss` に無いトークンを参照している。**`vite build` が Undefined variable で止まる。**",
+        "`npm run verify` はコンパイルしないので、ここが無いと gate を素通りする。",
+        ...missing,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+
+  /**
+   * **カスタムプロパティの値に Sass の変数を素で書かない。**
+   *
+   * `--x: rgba(index.$c, 0.1)` はコンパイルを通るが、Sass は custom property の値を
+   * **そのままの文字列**として出す。`var(--x)` は無効値になり、その宣言だけが
+   * 黙って落ちる（面が透明に、枠が `0px none` に）。`vite build` も緑、
+   * 上の「トークンが実在するか」も緑 —— **どの門にも掛からない。**
+   *
+   * `#{}` で包めば値として評価される。見るのはそこだけ。
+   */
+  it("カスタムプロパティの値で Sass の変数が補間されている", () => {
+    const RAW = /^\s*--[\w-]+:\s*([^;]*);/gm;
+    const bare = scssFiles(SRC).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(RAW)]
+        .map((match) => match[1]!)
+        // `#{...}` の中は評価される。外に残った `index.$` だけを見る
+        .filter((value) => /index\.\$/.test(value.replace(/#\{[^}]*\}/g, "")))
+        .map((value) => `${relative(REPO_ROOT, file)}  ${value.trim()}`),
+    );
+
+    expect(
+      bare,
+      [
+        "カスタムプロパティの値に Sass の変数が素で入っている。",
+        "**`var()` が無効値になり、その宣言だけが黙って落ちる**（コンパイルは通る）。",
+        "`#{}` で包むこと。",
+        ...bare,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+
   it("ファイルローカルの変数がトークンと同名にならない", () => {
     const tokens = definedIn(TOKEN_SOURCE);
     const collisions = scssFiles(SRC)

@@ -27,6 +27,41 @@ afterEach(() => {
 });
 
 describe("Modal のフォーカス", () => {
+  test("隠れている面の中の押せるものは、焦点の行き先に選ばない", () => {
+    // 器が面を外さずに `hidden` で隠す作りがある（`create-file`）。
+    // `querySelectorAll` は `display: none` を除かないので、隠れた面の中の
+    // ボタンが先頭に来ると、開いた瞬間の焦点が**取れない要素**へ向かう
+    render(
+      <Modal onClose={vi.fn()} label="対話">
+        <div hidden>
+          <Button>隠れている</Button>
+        </div>
+        <Button>見えている</Button>
+      </Modal>,
+    );
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "見えている" }));
+  });
+
+  test("端の折り返しも、隠れているものを端に数えない", () => {
+    render(
+      <Modal onClose={vi.fn()} label="対話">
+        <Button>先頭</Button>
+        <Button>末尾</Button>
+        <div hidden>
+          <Button>隠れている</Button>
+        </div>
+      </Modal>,
+    );
+
+    const last = screen.getByRole("button", { name: "末尾" });
+    act(() => last.focus());
+    fireEvent.keyDown(last, { key: "Tab" });
+
+    // 隠れているものを端に数えると、ここで折り返しが起きずに器の外へ抜ける
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "先頭" }));
+  });
+
   test("開いたら中の押せるものへ移す", () => {
     render(
       <Modal onClose={vi.fn()} label="対話">

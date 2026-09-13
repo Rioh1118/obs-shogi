@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Color } from "shogi.js";
-import { turnGlyph, type TurnGlyph } from "@/shared/lib/turn";
+import { turnGlyph, turnText as turnTextOf, type TurnGlyph } from "@/shared/lib/turn";
 import { useGame } from "@/entities/game";
 import { playerNames } from "@/entities/kifu/lib/playerNames";
 
@@ -77,9 +77,8 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
 
     const total = hasKifu ? getTotalMoves() : 0;
 
-    const isSenteTurn = turn === Color.Black;
     const glyph = turnGlyph(turn);
-    const turnText = isSenteTurn ? "先手番" : "後手番";
+    const turnLine = turnTextOf(turn);
 
     const tesuuText = hasKifu ? `${tesuu}手目` : "";
     const totalText = hasKifu ? `${tesuu}/${total}` : "";
@@ -90,7 +89,7 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
       : "棋譜表示中";
 
     const tooltip = hasKifu
-      ? `${fileLabel} — ${playersTooltip} — ${turnText} ${totalText}`
+      ? `${fileLabel} — ${playersTooltip} — ${turnLine} ${totalText}`
       : "ファイル未選択";
 
     return {
@@ -101,7 +100,7 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
       goteName,
       isPlayersShown,
       turnGlyph: glyph,
-      turnText,
+      turnText: turnLine,
       tesuuText,
       totalText,
       tooltip,

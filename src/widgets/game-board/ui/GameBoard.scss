@@ -1,5 +1,5 @@
 @use "GameBoardLayoutGeometry.scss" as layout;
-@use "shogiBoardGeometry.scss" as geo;
+@use "@/entities/position/ui/shogiBoardGeometry" as geo;
 
 $gap: 1.8rem;
 $hand-header-h: 4rem;

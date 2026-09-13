@@ -16,9 +16,22 @@ export function coordsToArrayIndex(x: number, y: number): { row: number; col: nu
   return { row: y - 1, col: 9 - x };
 }
 
-// 座標が盤面内かチェック
+/**
+ * 盤の升を指しているか（1始まり）
+ *
+ * **整数であることまで見る。** 見ないと `(1.5, 3)` が升として通り、
+ * `board[x - 1][y - 1]` が `undefined` を返す経路ができる。盤の外を指したのと
+ * 同じ扱いにしたいが、症状は「その升だけ空に見える」になって原因が盤に出ない。
+ */
 export function isValidCoords(x: number, y: number): boolean {
-  return x >= 1 && x <= BOARD_SIZE.WIDTH && y >= 1 && y <= BOARD_SIZE.HEIGHT;
+  return (
+    Number.isInteger(x) &&
+    Number.isInteger(y) &&
+    x >= 1 &&
+    x <= BOARD_SIZE.WIDTH &&
+    y >= 1 &&
+    y <= BOARD_SIZE.HEIGHT
+  );
 }
 
 // 配列インデックスから座標に変換（0-indexed）

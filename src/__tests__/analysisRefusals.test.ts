@@ -32,8 +32,6 @@ const NAMES = /export const ([A-Za-z_$][\w$]*)\b/g;
 
 /** 断りではない部品。**足すならここに書く**——書かなければ表とテストを要求される */
 const PARTS = new Set([
-  /** 他の断りが末尾に埋め込む文 */
-  "RESTART_ENGINE_HINT",
   /** 断りそのものではなく、`EngineNotReadyReason` から断りへの対応表 */
   "NOT_READY_REFUSALS",
 ]);

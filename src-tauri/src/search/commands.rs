@@ -2,16 +2,21 @@
 
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
-use crate::search::build::build_full_index_task;
+use crate::search::announce::{
+    announce_progress, announce_state, scan_failure, warn_scan_failed, warn_unreadable,
+    IndexAnnouncement, IndexProgress, IndexSurvival,
+};
+use crate::search::build::{build_full_index_task, FullBuild};
 use crate::search::cache::format;
-use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
+use crate::search::message::ScreenMessage;
+use crate::search::read::fs_scan::{scan_kifu_files, ScanError, ScanOptions};
 use crate::search::state::SearchState;
 use crate::search::store::snapshot::{IndexState as StoreIndexState, Restart};
 use crate::search::types::{
-    CancelSearchInput, IndexState, IndexStatePayload, OpenProjectInput, OpenProjectOutput,
-    SearchPositionInput, SearchPositionOutput, EVT_INDEX_STATE,
+    CancelSearchInput, OpenProjectInput, OpenProjectOutput, SearchPositionInput,
+    SearchPositionOutput,
 };
 
 /// 局面検索コマンド（イベントで結果を返す）。
@@ -22,7 +27,7 @@ use crate::search::types::{
 pub async fn search_position(
     state: State<'_, SearchState>,
     input: SearchPositionInput,
-) -> Result<SearchPositionOutput, String> {
+) -> Result<SearchPositionOutput, ScreenMessage> {
     log::debug!("[cmd] search_position invoked");
     state.query.clone().start_search(input).await
 }
@@ -32,7 +37,7 @@ pub async fn search_position(
 pub async fn cancel_search(
     state: State<'_, SearchState>,
     input: CancelSearchInput,
-) -> Result<(), String> {
+) -> Result<(), ScreenMessage> {
     log::debug!("[cmd] cancel_search rid={}", input.request_id);
     state.query.cancel(input.request_id);
     Ok(())
@@ -46,7 +51,7 @@ pub async fn open_project(
     app: AppHandle,
     state: State<'_, SearchState>,
     input: OpenProjectInput,
-) -> Result<OpenProjectOutput, String> {
+) -> Result<OpenProjectOutput, ScreenMessage> {
     let store = state.store.clone();
     let project = state.project.clone();
 
@@ -55,16 +60,10 @@ pub async fn open_project(
     log::info!("[open_project] BEGIN root_dir={}", root_dir.display());
 
     // 0) Restoring state (UIに「復元中」を見せる)
-    let _ = store.restart(Restart::Restoring);
-    let _ = app.emit(
-        EVT_INDEX_STATE,
-        IndexStatePayload {
-            state: IndexState::Restoring,
-            dirty_count: 0,
-            indexed_files: 0,
-            total_files: 0,
-        },
-    );
+    // **`install_restored` が返す代とは別。** あちらは復元した索引を据えたときの代で、
+    // こちらは据える前に空にしたときの代。混ぜると、復元に失敗した回の照合が通る
+    let restarting_epoch = store.restart(Restart::Restoring);
+    announce_progress(&app, &store, restarting_epoch, IndexProgress::Restoring);
 
     // 1) try restore (cache)
     //
@@ -113,29 +112,37 @@ pub async fn open_project(
                 restored.index.buckets,
             );
 
-            project
+            // 据え直されていたら、帳簿も watcher も据えずに引き下がる
+            if !project
                 .install_after_full_build(
+                    restore_epoch,
                     root_dir.clone(),
                     restored.scan.snapshot,
                     restored.scan.path_to_id,
                     restored.scan.next_file_id,
                 )
-                .await;
+                .await
+            {
+                log::info!("[open_project] 据え直されたので復元した帳簿を据えない");
+                return Ok(OpenProjectOutput { total_files });
+            }
 
-            let _ = app.emit(
-                EVT_INDEX_STATE,
-                IndexStatePayload {
-                    state: IndexState::Updating,
-                    dirty_count: 0,
-                    indexed_files: total_files,
-                    total_files,
-                },
+            announce_progress(
+                &app,
+                &store,
+                restore_epoch,
+                IndexProgress::Restored { files: total_files },
             );
 
             // watcher 起動（失敗してもopen自体は成功扱いにして良い）
             if let Err(e) = project
                 .clone()
-                .start_watcher_and_debounce(app.clone(), store.clone(), Duration::from_millis(800))
+                .start_watcher_and_debounce(
+                    app.clone(),
+                    store.clone(),
+                    Duration::from_millis(800),
+                    restore_epoch,
+                )
                 .await
             {
                 log::warn!("[open_project] watcher start FAILED: {e}");
@@ -149,22 +156,24 @@ pub async fn open_project(
             let app2 = app.clone();
             tauri::async_runtime::spawn(async move {
                 log::debug!("[open_project] spawn run_rescan_diff_apply");
-                pm.run_rescan_diff_apply(app2.clone(), st.clone()).await;
+                let outcome = pm.run_rescan_diff_apply(app2.clone(), st.clone()).await;
+                // **据え直されたときだけ `Ready` を止める。** 走査が失敗しただけなら
+                // 索引は最後に読めたときのまま健全で、差分が当たっていないだけ
+                // ——ここで止めると `Updating` が最後の状態になり、検索は永久に
+                // `stale`、設定はスピナーのまま。再試行の導線は無いので開き直しても同じ
                 // 差分が無くて run_rescan_diff_apply が早期 return した場合、
                 // store の state は Updating のまま。 Ready に確実に上げ直す。
                 if !st.update_if_epoch(restore_epoch, |s| s.with_state(StoreIndexState::Ready)) {
                     log::warn!("[open_project] 索引が別の代に差し替わったので Ready にしない");
                     return;
                 }
-                let total_files = st.snapshot().file_table.len() as u32;
-                let _ = app2.emit(
-                    EVT_INDEX_STATE,
-                    IndexStatePayload {
-                        state: IndexState::Ready,
-                        dirty_count: 0,
-                        indexed_files: total_files,
-                        total_files,
-                    },
+                // **状態を出す口は1つ。** 旗を知っているのは結末だけなので、
+                // 自分で組むと知らない側が伏せた旗で塗り潰す
+                announce_state(
+                    &app2,
+                    &st,
+                    restore_epoch,
+                    IndexAnnouncement::Rescanned(outcome),
                 );
                 log::debug!("[open_project] run_rescan_diff_apply done");
             });
@@ -180,7 +189,62 @@ pub async fn open_project(
     // 2) restore 失敗 → full build
     let build_epoch = store.restart(Restart::Building);
 
-    let records = scan_kifu_files(&root_dir, &ScanOptions::default()).map_err(|e| e.to_string())?;
+    // **走査も逃がす。** ファイル1件ごとに `metadata` の syscall を回すので、
+    // 5万件・ネットワーク越しなら秒の単位。復元を逃がした理由
+    // （同じスレッドの `cancel_search` が動かなくなる）がそのまま当てはまる
+    let scanned = {
+        let root2 = root_dir.clone();
+        match tauri::async_runtime::spawn_blocking(move || {
+            scan_kifu_files(&root2, &ScanOptions::default())
+        })
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                // 逃がした先が落ちた場合も、走査できなかったこととして同じ口から出す
+                log::warn!("[open_project] 走査を起こせなかった: {e}");
+                Err(ScanError::Io(std::io::Error::other("join failed")))
+            }
+        }
+    };
+    // **索引を空の `Building` に置き去りにしない。** `restart` が中身を捨てた後
+    // なので、ここで抜けると検索は永久に `stale` かつ0件、バッジはスピナーのまま。
+    // 再試行の導線は無いので開き直しても同じところで止まる
+    let scanned = match scanned {
+        Ok(v) => v,
+        Err(e) => {
+            // **索引はもう空。** `restart(Restart::Building)` が上で捨てている
+            warn_scan_failed(
+                &app,
+                &store,
+                build_epoch,
+                &root_dir,
+                &e,
+                IndexSurvival::Gone,
+            );
+            // **`Ready` にしない。** `restart` が中身を捨てた後なので索引は空で、
+            // `query_service` の `stale` は段だけを見る——空を `Ready` にすると
+            // **0件が「最新」として並ぶ**（`store/index_store.rs` の `//!`）
+            announce_state(&app, &store, build_epoch, IndexAnnouncement::BuildFailed);
+            // **内部の綴りを返さない。** `openError` に読み手が付いたとき
+            // （#403）、`root directory is not readable: /Users/…` が画面に出る
+            return Err(scan_failure(&e, IndexSurvival::Gone));
+        }
+    };
+    // **読めなかった場所を黙らせない。** 全件構築では引き継ぐ前回が無いので、
+    // その下の棋譜は索引に入らない——検索に出ないことの理由が要る
+    // **全件構築に引き継ぐ前回は無い。** どの場所も「索引に入っていない」側になる
+    warn_unreadable(
+        &app,
+        &store,
+        build_epoch,
+        &scanned.unreadable,
+        scanned.unknown_gaps,
+        &std::collections::HashSet::new(),
+        IndexSurvival::Gone,
+    );
+    let partial = scanned.is_partial();
+    let records = scanned.files;
     let total_files = records.len() as u32;
 
     log::info!(
@@ -188,13 +252,16 @@ pub async fn open_project(
         total_files
     );
 
-    let _ = app.emit(
-        EVT_INDEX_STATE,
-        IndexStatePayload {
-            state: IndexState::Building,
-            dirty_count: 0,
-            indexed_files: 0,
-            total_files,
+    // 読めなかった場所があったことを状態にも載せる。警告だけだと
+    // 設定タブを開かないかぎり届かず、局面検索は0件を裸で断言する
+    announce_progress(
+        &app,
+        &store,
+        build_epoch,
+        IndexProgress::Building {
+            total: total_files,
+            indexed: 0,
+            partially_unreadable: partial,
         },
     );
 
@@ -202,10 +269,13 @@ pub async fn open_project(
         app,
         store,
         Arc::clone(&project),
-        root_dir,
-        records,
-        total_files,
-        build_epoch,
+        FullBuild {
+            root_dir,
+            records,
+            total_files,
+            epoch: build_epoch,
+            partially_unreadable: partial,
+        },
     ));
 
     log::info!("[open_project] END (full build path) total_files={total_files}");

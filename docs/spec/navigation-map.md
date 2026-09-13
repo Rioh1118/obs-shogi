@@ -48,15 +48,15 @@
 
 `ModalType` の7つ:
 
-| 値                    | 画面                     |
-| --------------------- | ------------------------ |
-| `navigation`          | 局面ナビゲーション       |
-| `settings`            | 設定                     |
-| `create-file`         | ファイル作成／インポート |
-| `position-search`     | 局面検索                 |
-| `study-position-save` | 課題局面の登録・編集     |
-| `study-positions`     | 課題局面の一覧           |
-| `sfen-kifu-create`    | 課題局面から棋譜を作成   |
+| 値                    | 画面                               |
+| --------------------- | ---------------------------------- |
+| `navigation`          | 局面ナビゲーション                 |
+| `settings`            | 設定                               |
+| `create-file`         | 棋譜を作る（盤で組む／インポート） |
+| `position-search`     | 局面検索                           |
+| `study-position-save` | 課題局面の登録・編集               |
+| `study-positions`     | 課題局面の一覧                     |
+| `sfen-kifu-create`    | 課題局面から棋譜を作成             |
 
 **`AppModalLayer` の外にもう1枚ある。** 通知の `modal`
 （`shared/ui/notification/NotificationLayer`）はルータの外でマウントされ、
@@ -134,24 +134,29 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | ツリーから開く   | `FileNode` のクリック            | `openKifuNode` → `activeKifuPath` が変わる  |
 | 検索結果から開く | 局面検索で Enter／ダブルクリック | `usePositionHitNavigation` が同じ経路を通す |
 
-**盤に載っている棋譜**（game の `loadedAbsPath`）が変わると `pov` が落ちる
-（盤の向きは棋譜ごとに持ち越さない）。上の表の2経路はどちらも `activeKifuPath` を
-動かすが、**それだけでは落ちない**——開いても盤に載らないことがある。
+**盤に載っている棋譜**（game の `loadedAbsPath` と `boardSeq` の組）が**別の棋譜になる**と
+`pov` が落ちる（盤の向きは棋譜ごとに持ち越さない）。上の表の2経路はどちらも
+`activeKifuPath` を動かすが、**それだけでは落ちない**——開いても盤に載らないことがある。
+**改名・移動でパスだけが動いた場合も落ちない**（盤に並んでいる駒は同じ）。
 → [board-orientation.md](../state-transitions/board-orientation.md)
 
 ## モーダルを開くボタンの所在
 
 **同じモーダルへの入口が複数ある。** 増やすときは、ここに足す。
 
-| モーダル              | 入口                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------- |
-| `settings`            | ヘッダの歯車（`tab=workspace`）／解析ペインの歯車（`tab=engine`）／ツリーの失敗通知（`tab=workspace`） |
-| `study-positions`     | ヘッダの本アイコン                                                                                      |
-| `study-position-save` | 解析ペインのしおりアイコン／課題局面一覧の「編集」と `e` キー                                           |
-| `position-search`     | 解析ペインの虫眼鏡／課題局面一覧の「検索」と `s` キー                                                   |
-| `navigation`          | 解析ペインのコンパス                                                                                    |
-| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」                                                                  |
-| `sfen-kifu-create`    | 課題局面の詳細の「棋譜を作成」                                                                          |
+| モーダル              | 入口                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `settings`            | ヘッダの歯車（`tab=workspace`）／解析ペインの歯車（`tab=engine`）／ツリーの失敗通知（`tab=workspace`）／エンジンの起動の失敗の帯（`tab=engine`） |
+| `study-positions`     | ヘッダの本アイコン                                                                                                                               |
+| `study-position-save` | 解析ペインのしおりアイコン／課題局面一覧の「編集」と `e` キー                                                                                    |
+| `position-search`     | 解析ペインの虫眼鏡／課題局面一覧の「検索」と `s` キー                                                                                            |
+| `navigation`          | 解析ペインのコンパス                                                                                                                             |
+| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」と、ようこそ画面の「棋譜を作る」（そちらは `dir=` を付けない）                                             |
+| `sfen-kifu-create`    | 課題局面の詳細の「棋譜を作成」                                                                                                                   |
+
+※ `tab` に書ける綴りは `TabType`（`shared/lib/router/useURLParams.ts`）が持ち、
+`TABS`（`features/settings/model/tabs.ts`）は `satisfies` でそこに合わせてある。
+**実在しない綴りを渡すと tsc が落ちる。**
 
 ## いま満たしていないこと
 

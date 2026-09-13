@@ -37,10 +37,14 @@ tauri-plugin-process = "2"
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+# **ここは雛形の残りではなく配布物のメタデータ。** Linux の `.deb` / `.rpm` と
+# Windows の MSI は、この4つをそのままパッケージの説明・作者・ライセンスに載せる。
+# 説明だけ英語なのは、`.deb` の `Description` と MSI の要約情報が持つ
+# 符号化の扱いがランナーごとに違い、ここで確かめられないため。
+description = "Shogi GUI for opening and joseki research"
+authors = ["Rioh1118"]
+license = "MIT"
+repository = "https://github.com/Rioh1118/obs-shogi"
 edition = "2021"
 rust-version = "1.77.2"
 autobenches = false

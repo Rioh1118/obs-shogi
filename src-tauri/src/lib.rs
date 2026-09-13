@@ -110,6 +110,8 @@ pub fn run() {
             crate::search::commands::cancel_search,
             settings::commands::load_study_positions,
             settings::commands::save_study_positions,
+            settings::commands::load_updater_state,
+            settings::commands::save_updater_state,
             crate::book::commands::open_book,
             crate::book::commands::lookup_book_moves,
             crate::book::commands::get_book_info,

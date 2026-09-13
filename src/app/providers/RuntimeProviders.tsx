@@ -3,6 +3,7 @@ import { FileTreeRootGate } from "./gates/FileTreeRootGate";
 import { GamePersistenceGate } from "./gates/GamePersistenceGate";
 import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
 import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
+import { EngineFailureBridge } from "./bridges/EngineFailureBridge";
 import { SearchRootGate } from "./gates/SearchRootGate";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
 import { BoardOrientationBridge } from "./bridges/BoardOrientationBridge";
@@ -26,6 +27,7 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
         <StudyPositionsProvider>
           <EnginePresetsProvider>
             <EngineRuntimeBridge>
+              <EngineFailureBridge />
               <SearchRootGate>
                 <AnalysisBridge>
                   <BoardOrientationBridge />

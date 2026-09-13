@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { turnText } from "@/shared/lib/turn";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import {
+  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
-  type FileTreeNode,
   type FsError,
 } from "@/entities/file-tree";
-import type { KifuFormat } from "@/entities/kifu/model/kifu";
-import { sfenToJkfInitial } from "@/entities/study-positions/lib/sfenToJkfInitial";
+import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
+import { stateFromSfen } from "@/entities/position/lib/positionDraft";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 
@@ -23,23 +22,6 @@ import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 
 import "./SfenKifuCreateModal.scss";
-
-/** ツリーからディレクトリ一覧をフラットに収集する */
-function collectDirs(node: FileTreeNode, rootPath: string): { value: string; label: string }[] {
-  const dirs: { value: string; label: string }[] = [];
-
-  function walk(n: FileTreeNode) {
-    if (!n.isDirectory) return;
-    const label = n.path === rootPath ? "/" : n.path.slice(rootPath.length);
-    dirs.push({ value: n.path, label });
-    for (const child of n.children ?? []) {
-      walk(child);
-    }
-  }
-
-  walk(node);
-  return dirs;
-}
 
 export default function SfenKifuCreateModal() {
   const { params, closeModal } = useURLParams();
@@ -56,11 +38,14 @@ export default function SfenKifuCreateModal() {
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
-  const sfenInitial = useMemo(() => (sfen ? sfenToJkfInitial(sfen) : null), [sfen]);
+  // 手合割としては書けない（URL から来た任意の局面なので）ので `OTHER` に固定する。
+  // 読めない綴りなら `null` —— 下の送信がそこで止まる
+  const sfenInitial = useMemo(() => {
+    const data = sfen ? stateFromSfen(sfen) : null;
+    return data ? ({ preset: "OTHER", data } as const) : null;
+  }, [sfen]);
 
   const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
-
-  const turnBadge = previewData ? turnText(previewData.turn) : null;
 
   const dirOptions = useMemo(() => {
     if (!fileTree) return [];
@@ -89,10 +74,14 @@ export default function SfenKifuCreateModal() {
     setSubmitError(null);
   }, [isOpen]);
 
+  // 拡張子は形式の欄が決める。**打った拡張子は落とす**ので `研究.kif.kif` にならない
+  // （規則は `kifuFileName` が1箇所で持つ）
+  const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!fileName.trim() || !sfenInitial || isLoading) return;
+      if (!fullFileName || !sfenInitial || isLoading) return;
 
       // `selectedDir` が空になるのはツリーが1本も無いときだけで、
       // そのとき送信ボタンは押せない。理由は Select の下に出している
@@ -101,7 +90,7 @@ export default function SfenKifuCreateModal() {
       setSubmitError(null);
       setIsLoading(true);
       const result = await createNewFile(selectedDir, {
-        fileName: `${fileName.trim()}.${format}`,
+        fileName: fullFileName,
         format,
         gameInfo: {
           black: blackPlayer.trim() || undefined,
@@ -122,25 +111,18 @@ export default function SfenKifuCreateModal() {
       }
     },
     [
-      fileName,
       format,
       blackPlayer,
       whitePlayer,
       selectedDir,
       dirOptions.length,
+      fullFileName,
       sfenInitial,
       isLoading,
       createNewFile,
       closeModal,
     ],
   );
-
-  const formatOptions = [
-    { value: "kif", label: "kif" },
-    { value: "ki2", label: "ki2" },
-    { value: "csa", label: "csa" },
-    { value: "jkf", label: "jkf" },
-  ];
 
   if (!isOpen || !sfen) return null;
 
@@ -156,7 +138,6 @@ export default function SfenKifuCreateModal() {
       <div className="sfen-kifu-create">
         <div className="sfen-kifu-create__preview">
           <PreviewPane previewData={previewData} />
-          {turnBadge && <div className="sfen-kifu-create__turnBadge">{turnBadge}</div>}
         </div>
 
         <Form handleSubmit={handleSubmit}>
@@ -194,9 +175,9 @@ export default function SfenKifuCreateModal() {
             <Select
               label="フォーマット"
               id="sfenFormat"
-              options={formatOptions}
+              options={KIFU_FORMAT_OPTIONS}
               value={format}
-              onChange={(v) => setFormat(v as KifuFormat)}
+              onChange={setFormat}
             />
           </FormField>
 
@@ -231,7 +212,7 @@ export default function SfenKifuCreateModal() {
               type="submit"
               tone="primary"
               isLoading={isLoading}
-              disabled={!fileName.trim() || !selectedDir}
+              disabled={!fullFileName || !selectedDir}
             >
               {isLoading ? "作成中..." : "作成"}
             </Button>

@@ -32,28 +32,6 @@
     box-shadow: inset 0 -1px 0 rgba(index.$color-white, 0.025);
   }
 
-  &__turnBadge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 3rem;
-    padding: 0.5rem 1.2rem;
-    border-radius: 999px;
-    background: linear-gradient(
-      180deg,
-      rgba(index.$color-secondary-dark, 0.2) 0%,
-      rgba(index.$color-secondary-dark-2, 0.14) 100%
-    );
-    border: 1px solid rgba(index.$color-secondary-dark, 0.32);
-    color: rgba(index.$color-secondary-light, 0.96);
-    font-size: 1.25rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    box-shadow:
-      inset 0 1px 0 rgba(index.$color-white, 0.06),
-      0 4px 12px rgba(0, 0, 0, 0.18);
-  }
-
   // 選べる保存先が無い理由。失敗ではないので `FsErrorView` の段には載せない
   &__hint {
     margin: index.$space-2 0 0;

@@ -69,17 +69,26 @@ const NOT_RUST: &[(&str, &str)] = &[
     ("app.md", "アプリ全体の起動と終了。TS 側"),
     ("branch-index.md", "分岐の索引。TS 側"),
     ("board-orientation.md", "盤の向き。TS 側"),
+    (
+        "dock-tabs.md",
+        "ドックのタブ。TS 側（Rust のセッションは analysis.md の記号を借りている）",
+    ),
     ("engine-position-sync.md", "局面の送信。TS 側のフック"),
     ("engine.md", "エンジンの生存。TS 側から見た状態"),
     ("failure-surfacing.md", "失敗の見せ方。TS 側"),
     ("file-tree.md", "ファイル木。TS 側"),
     ("game.md", "棋譜のカーソルと分岐計画。TS 側"),
     ("inline-name-editor.md", "名前の編集。TS 側"),
+    ("position-editor.md", "初期局面を組む面。TS 側"),
     (
         "position-search-view.md",
         "局面検索の画面側。TS 側（引く方は search.md）",
     ),
     ("verify-gate-decision.md", "検証ゲート。shell スクリプト"),
+    (
+        "updater.md",
+        "更新の確認と適用。TS 側のフックと、tauri-plugin-updater（外部 crate）",
+    ),
 ];
 
 /// 表に出るが実装の識別子ではないもの。

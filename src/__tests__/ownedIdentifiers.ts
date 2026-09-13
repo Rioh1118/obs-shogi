@@ -55,6 +55,10 @@ const EXEMPT = new Set([
   // React の語。フックの名前ではなく概念として引く
   "children",
   "cleanup",
+  // この形そのものを説明するための仮名。所有者としても引けてしまうのは、
+  // 索引が**文字列の中の宣言**まで数えるため（`src-tauri/tests/scanning/mod.rs` が
+  // 走査の題材として `pub const X: u8 = 1;` を文字列で持つ）
+  "X",
   // ShogiHome（別リポジトリ）のボタンの見た目。ADR-0005 が「あちらはこう割る」の
   // 出典として引く。こちらの識別子ではない
   "subtle",

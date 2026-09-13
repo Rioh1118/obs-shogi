@@ -12,29 +12,30 @@
 # **減らしたら BASELINE を下げること。** 下げないと、次に増えたぶんが隠れる。
 set -euo pipefail
 
-# `cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app
-#  --document-private-items` の警告数。
-# `cargo doc` が最後に出す `generated N warnings` と同じ値になる。
+# rustdoc の警告数。**これは `(lib doc) generated N warnings` の N**
+# （`cargo doc --no-deps -p app --document-private-items`）。
 # **減らしたらここを下げること。**
 #
 # **非公開の項目も見る。** 公開面だけを見ると、モジュールを割ったときに
 # 中で切れたリンクが1つも映らない。実際に定跡を割り直したとき、
 # 6本の intra-doc リンクが解決しなくなったのにここは緑のままだった。
-BASELINE=29
+BASELINE=28
 
 cd "$(dirname "$0")/.."
-# 集計行（`generated N warnings`）は数えない。数えると画面の N と基準が1ずれて、
-# 直す人がまず数の食い違いを疑うことになる
-count=$(cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app \
-    --document-private-items 2>&1 |
-  grep '^warning' | grep -vc 'generated' || true)
+# **rustdoc の集計行から読む。** `^warning` を数えると rustc の警告
+# （unused import など）まで混ざり、「rustdoc の警告が増えた」と言いながら
+# 直す人をリンク切れ探しへ送り出す。`(lib) generated` は rustc 側なので取らない。
+# 警告が0件だと集計行そのものが出ないので、そのときは0
+out=$(cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app \
+  --document-private-items 2>&1 || true)
+count=$(printf '%s\n' "$out" |
+  sed -n 's/^warning: .*(lib doc) generated \([0-9]*\) warning.*/\1/p' | tail -1)
+count=${count:-0}
 
 if [ "$count" -gt "$BASELINE" ]; then
   echo "rustdoc の警告が増えた: ${count}（基準 ${BASELINE}）" >&2
   echo "" >&2
-  cargo doc --manifest-path src-tauri/Cargo.toml --no-deps -p app \
-    --document-private-items 2>&1 |
-    grep -A 3 '^warning' >&2
+  printf '%s\n' "$out" | grep -A 3 '^warning' >&2
   exit 1
 fi
 

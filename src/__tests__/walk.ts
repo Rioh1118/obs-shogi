@@ -75,6 +75,51 @@ export function rustFile(...parts: string[]): string {
  */
 export const RUST_CHECKS_DIR = join(REPO_ROOT, "src-tauri", "tests");
 
+/**
+ * 起動の1枚目を作る2ファイル。**どちらも `src/` の外に居る。**
+ *
+ * `index.html` は React が着く前に出る画面を自分で持ち、`tauri.conf.json` は
+ * 窓の初期色と CSP を持つ。両方を複数の検査が読むので、パスの出典をここに置く
+ * ——それぞれが `join(REPO_ROOT, …)` を手書きすると、置き場を動かしたときに
+ * 片方だけが直る。
+ *
+ * **無いことを黙って通さない。** 読めないまま走査が0件を返すと、
+ * 「違反が無い」と「見ていない」が区別できなくなる。
+ */
+function repoFile(...parts: string[]): string {
+  const path = join(REPO_ROOT, ...parts);
+  if (!existsSync(path)) {
+    throw new Error(`${parts.join("/")} が無い。動かしたなら、この検査の指す先も直すこと`);
+  }
+  return path;
+}
+
+/** 起動の1枚目を持つ HTML */
+export const INDEX_HTML = repoFile("index.html");
+
+/** 窓の設定と CSP */
+export const TAURI_CONF = repoFile("src-tauri", "tauri.conf.json");
+
+/**
+ * GitHub Actions のワークフロー。
+ *
+ * **`.claude/hooks/verify-gate.sh` の `gate_kinds_for_path` はこの下を種類に割り当てない**ので、
+ * ここを触ったコミットでは検査が1つも走らない（→ #286）。走るのは CI と、
+ * 別のファイルを触ったついでにこの走査が回ったときだけ。
+ *
+ * 無いことを黙って通さない理由は `repoFile` と同じ。
+ */
+export function workflowFiles(): string[] {
+  const dir = join(REPO_ROOT, ".github", "workflows");
+  if (!existsSync(dir)) {
+    throw new Error(".github/workflows が無い。動かしたなら、この検査の指す先も直すこと");
+  }
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.ya?ml$/.test(entry.name))
+    .map((entry) => join(dir, entry.name))
+    .sort();
+}
+
 export type WalkOptions = {
   /** `__tests__` 配下を含めるか。既定は含める */
   includeTests?: boolean;

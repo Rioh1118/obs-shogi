@@ -212,10 +212,15 @@ jobs:
         run: |
           jq --arg v "$RELEASE_VERSION" '.version = $v' src-tauri/tauri.conf.json > _tmp.json
           mv _tmp.json src-tauri/tauri.conf.json
+          # `encoding='utf-8'` を省くと `locale.getpreferredencoding()` が使われる。
+          # windows-latest ではそれが cp1252 で、`src-tauri/Cargo.toml` の日本語コメントの
+          # バイト列に cp1252 の未定義バイト（0x81 など）が含まれるため、
+          # **Windows のジョブだけ**が UnicodeDecodeError で落ちる。読み書きの両方に要る。
           python3 -c "
           import re, pathlib
           p = pathlib.Path('src-tauri/Cargo.toml')
-          p.write_text(re.sub(r'^version = \"[^\"]+\"', 'version = \"$RELEASE_VERSION\"', p.read_text(), count=1, flags=re.M))
+          s = re.sub(r'^version = \"[^\"]+\"', 'version = \"$RELEASE_VERSION\"', p.read_text(encoding='utf-8'), count=1, flags=re.M)
+          p.write_text(s, encoding='utf-8')
           "
 
       - name: Build, sign & upload

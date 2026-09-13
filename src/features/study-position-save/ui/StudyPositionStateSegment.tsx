@@ -1,12 +1,8 @@
-import type { StudyPositionState } from "@/entities/study-positions/model/types";
+import {
+  STUDY_POSITION_STATES,
+  type StudyPositionState,
+} from "@/entities/study-positions/model/types";
 import "./StudyPositionStateSegment.scss";
-
-const STATE_OPTIONS: { value: StudyPositionState; label: string }[] = [
-  { value: "inbox", label: "未整理" },
-  { value: "active", label: "研究中" },
-  { value: "reference", label: "資料" },
-  { value: "done", label: "完了" },
-];
 
 interface Props {
   value: StudyPositionState;
@@ -17,7 +13,7 @@ interface Props {
 export default function StudyPositionStateSegment({ value, onChange, disabled = false }: Props) {
   return (
     <div className="sp-state-seg" role="radiogroup" aria-label="研究状態">
-      {STATE_OPTIONS.map((opt) => (
+      {STUDY_POSITION_STATES.map((opt) => (
         <button
           key={opt.value}
           type="button"

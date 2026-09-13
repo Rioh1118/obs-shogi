@@ -4,7 +4,7 @@ import "./Button.scss";
 /** 面の色と文字色を決める。それ以外の軸とは独立している。 */
 export type ButtonTone = "primary" | "neutral" | "danger";
 /** 高さ・左右の余白・文字サイズをまとめて決める。 */
-export type ButtonSize = "sm" | "md";
+export type ButtonSize = "sm" | "md" | "lg";
 export type ButtonRadius = "soft" | "pill";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

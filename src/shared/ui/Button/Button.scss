@@ -47,6 +47,15 @@
     font-size: index.$font-aux;
   }
 
+  // 器を閉じる／作る決め手。**面の中で一番大きい押しどころ**になる場所で使う。
+  // `md` との差を高さだけにせず文字も上げるのは、大きさの違いが
+  // 面の縮尺（`zoom` を持つ画面がある）で潰れないようにするため
+  &--lg {
+    height: 4rem;
+    padding: 0 index.$space-10;
+    font-size: index.$font-body;
+  }
+
   // ── 角丸 ──
   &--r-soft {
     border-radius: index.$radius-3;
