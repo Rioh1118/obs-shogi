@@ -235,6 +235,12 @@
 
 ## これからの要件
 
+- **4枚目のタブ「表示」** → [ADR-0010](../../decisions/0010-dock-tabs-and-view-vocabulary.md) ／ #562。
+  ドックに出すタブの構成・解析の既定の表示モード・脚注に出す項目・評価値バーを出すか。
+  増やすときは `TabType`（`shared/lib/router/useURLParams.ts`）と `TABS` の両方
+  （`satisfies` で連動しているので片方だけだと tsc が落ちる）。
+  **#101「研究まわりの設定が散らばっている」はこれでは解消しない** ——
+  あちらは解析の既定値がプリセット側にあることを指している
 - **USI オプションの全項目を編集できること** → [features/engine-options.md](../features/engine-options.md)
 - **定跡ファイルの列挙を `.db` 以外へ広げること**（`.ybb` / Apery `book.bin` / `.sbk`）
   → #84 ／ [features/book.md](../features/book.md)。
