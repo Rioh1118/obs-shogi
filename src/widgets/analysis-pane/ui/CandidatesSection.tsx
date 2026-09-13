@@ -28,7 +28,6 @@ function CandidatesSection({ rows }: CandidatesSectionProps) {
           moves={[...row.moves]}
           variant={row.isBest ? "primary" : "candidate"}
           evaluation={row.evaluation}
-          delta={row.isBest ? undefined : row.delta}
         />
       ))}
       {rows.length === 0 && <p className="candidates-section__empty">候補手なし</p>}

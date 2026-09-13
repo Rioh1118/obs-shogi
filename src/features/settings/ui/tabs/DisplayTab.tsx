@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import "./DisplayTab.scss";
 
 import IconButton from "@/shared/ui/IconButton";
+import DisplayModePreview from "./DisplayModePreview";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import SSection from "../kit/SSection";
 import SField from "../kit/SField";
@@ -19,6 +20,7 @@ import {
   type DockViewMeta,
 } from "@/entities/dock";
 import type { DockViewType } from "@/shared/lib/router/useURLParams";
+import { ANALYSIS_DISPLAY_MODES, resolveAnalysisDisplayMode } from "@/entities/analysis";
 
 /** 「起動時に開くタブ」の左の腕。**ビューの綴りとは別の語彙**なので、綴りを分ける */
 const STARTUP_LAST = "last";
@@ -43,6 +45,7 @@ export default function DisplayTab() {
   // 「決めておく」を選んだまま選択肢に無い値を表示し、起動時の行き先だけが別になる
   const startupTab = resolveStartupTab(tabs, config?.dock_startup_tab);
   const showEvaluationBar = config?.show_evaluation_bar === true;
+  const displayMode = resolveAnalysisDisplayMode(config?.analysis_display_mode);
 
   const save = async (patch: DisplayConfigPatch) => {
     const result = await setDisplayConfig(patch);
@@ -157,7 +160,30 @@ export default function DisplayTab() {
         )}
       </SSection>
 
-      <SSection title="解析ビュー">
+      <SSection title="解析ビュー" description="ドックの解析タブに出るもの">
+        <SField
+          label="候補手の見せ方"
+          hint="どの見せ方でも最善手は1行目に出ます。読み筋の全文に届くのは「一覧＋詳細」だけです。"
+        >
+          <SRadioGroup
+            name="analysis-display-mode"
+            layout="grid"
+            columns={3}
+            value={displayMode}
+            onChange={(value) => save({ analysis_display_mode: value })}
+            options={ANALYSIS_DISPLAY_MODES.map((m) => ({
+              value: m.key,
+              label: m.label,
+              description: (
+                <>
+                  <DisplayModePreview mode={m.key} />
+                  <span className="displayTab__modeHint">{m.hint}</span>
+                </>
+              ),
+            }))}
+          />
+        </SField>
+
         <SField hint="目盛が ±3000 の線形で勝率と対応しないため、既定では出しません。">
           <label className="displayTab__check">
             <input

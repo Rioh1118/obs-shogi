@@ -43,7 +43,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに面の側を直すこと。
  */
-const MEASURED_COUNT = 105;
+const MEASURED_COUNT = 101;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
@@ -63,7 +63,7 @@ const MEASURED_COUNT = 105;
  * それ以外で増やさない。面が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 397;
+const UNMEASURED_COUNT = 396;
 
 const rows: Row[] = [];
 let measured = 0;

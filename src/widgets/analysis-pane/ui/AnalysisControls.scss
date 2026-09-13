@@ -129,53 +129,6 @@
     width: 1.8rem;
     height: 1.8rem;
   }
-
-  // 候補手の見せ方。3つで1つの帯
-  &__modes {
-    display: inline-flex;
-    gap: 1px;
-
-    padding: 1px;
-    border-radius: index.$radius-2;
-    background: rgba(index.$color-white, 0.05);
-  }
-
-  &__mode {
-    padding: index.$space-1 index.$space-4;
-
-    border: 0;
-    border-radius: index.$radius-1;
-    background: transparent;
-    color: index.$color-text-light-1;
-
-    font-family: index.$font-sans;
-    font-size: index.$font-hint;
-    white-space: nowrap;
-    cursor: pointer;
-
-    transition: background-color index.$duration-3 index.$ease;
-
-    // 白文字を載せる面なので、ホバーは暗くする（design-language 3）
-    &:hover {
-      background: rgba(0, 0, 0, 0.28);
-    }
-
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: -2px;
-    }
-
-    // **ホバーより後に、同じ詳細度で置く。** 置かないと選んでいる腕に
-    // ポインタを載せた瞬間だけ選択の面が薄まる
-    &--active {
-      background: index.$color-secondary-solid;
-      color: index.$color-white;
-
-      &:hover {
-        background: index.$color-secondary-solid-hover;
-      }
-    }
-  }
 }
 
 @keyframes analysis-pulse {

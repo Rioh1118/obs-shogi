@@ -215,12 +215,15 @@
 
 ### 「解析ビュー」
 
-「評価値バーを出す」（`AppConfig.show_evaluation_bar`。**既定はオフ**）
-→ [analysis-pane.md](analysis-pane.md)
+2つ。
 
-**候補手の見せ方（表示モード）はここに無い。** 切替はそのビューの操作列にあり、
-押した結果が `AppConfig.analysis_display_mode` に残る —— その場で変わるものは
-その場に、というのが原則（ADR-0010 決定4）。
+- **候補手の見せ方**（`AppConfig.analysis_display_mode`。**既定は表**）。
+  表 / 行 / 一覧＋詳細の3つを、**名前ではなく見本で**選ばせる
+  （`DisplayModePreview`）—— 名前だけでは何が変わるか読めない。
+  **ここが唯一の口**で、ドックの操作列には置かない（ADR-0010 決定4 の改訂）
+- **評価値バーを出す**（`AppConfig.show_evaluation_bar`。**既定はオフ**）
+
+→ [analysis-pane.md](analysis-pane.md)
 
 ## 失敗の見せ方
 

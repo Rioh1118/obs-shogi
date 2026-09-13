@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import "./Dock.scss";
 import { useURLParams, type DockViewType } from "@/shared/lib/router/useURLParams";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
@@ -6,9 +6,6 @@ import { ErrorFallbackBody } from "@/shared/ui/error-fallback/ErrorFallbackBody"
 import { useAppConfig } from "@/entities/app-config";
 import { dockViewLabel, resolveDockTabs, resolveDockView } from "@/entities/dock";
 import type { DockViewBindings } from "@/widgets/dock/model/bindings";
-
-/** 状態を分け合わないビューのための素通しの器 */
-const PassThrough = ({ children }: { children: ReactNode }) => children;
 
 /**
  * ドック。**タブの器で、中身は知らない。**
@@ -35,8 +32,7 @@ function Dock({ views }: { views: DockViewBindings }) {
   });
 
   const binding = views[active];
-  // 状態を分け合わないビューは器を持たない。そのときは素通しの器を置く
-  const { Body, Controls, Provider = PassThrough } = binding;
+  const { Body, Controls } = binding;
 
   const selectTab = (key: DockViewType) => {
     // 同じタブを押しただけなら設定へ書きに行かない。書くと `config` が別物になり、
@@ -84,21 +80,19 @@ function Dock({ views }: { views: DockViewBindings }) {
         resetKeys={[active]}
         fallback={(view) => <ErrorFallbackBody {...view} hint={binding.fallbackHint} />}
       >
-        <Provider>
-          <div className="dock__view">
-            <div className="dock__controls">
-              <Controls />
-            </div>
-            <div
-              className="dock__body"
-              role="tabpanel"
-              id="dock-panel"
-              aria-labelledby={`dock-tab-${active}`}
-            >
-              <Body />
-            </div>
+        <div className="dock__view">
+          <div className="dock__controls">
+            <Controls />
           </div>
-        </Provider>
+          <div
+            className="dock__body"
+            role="tabpanel"
+            id="dock-panel"
+            aria-labelledby={`dock-tab-${active}`}
+          >
+            <Body />
+          </div>
+        </div>
       </AppErrorBoundary>
     </section>
   );

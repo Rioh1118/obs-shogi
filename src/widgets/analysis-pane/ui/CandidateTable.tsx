@@ -1,5 +1,5 @@
 import { formatEvaluation } from "@/widgets/analysis-pane/lib/sfenConverter";
-import { formatDelta, type CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";
+import type { CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";
 import "./CandidateTable.scss";
 
 type Props = {
@@ -34,9 +34,6 @@ function CandidateTable({ rows, selectedRank, onSelect }: Props) {
             <th scope="col" className="candidate-table__th--score">
               評価
             </th>
-            <th scope="col" className="candidate-table__th--delta">
-              Δ
-            </th>
             <th scope="col">読み筋</th>
           </tr>
         </thead>
@@ -56,7 +53,6 @@ function CandidateTable({ rows, selectedRank, onSelect }: Props) {
             >
               <td className="candidate-table__move">{row.moves[0]?.move ?? "—"}</td>
               <td className="candidate-table__score">{formatEvaluation(row.evaluation)}</td>
-              <td className="candidate-table__delta">{formatDelta(row.delta)}</td>
               <td className="candidate-table__pv">{row.moves.map((m) => m.move).join(" ")}</td>
             </tr>
           ))}

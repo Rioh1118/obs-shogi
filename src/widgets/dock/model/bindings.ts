@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 import type { DockViewType } from "@/shared/lib/router/useURLParams";
 import type { BoundaryLabel } from "@/shared/ui/AppErrorBoundary";
 
@@ -12,12 +12,6 @@ export type DockViewBinding = {
    * 混ぜると、そのビューを見ていない間も操作だけが残る。
    */
   Controls: ComponentType;
-  /**
-   * 操作列と本体の両方を包む器。**両者で分け合う状態はここが持つ。**
-   *
-   * 2つは別々の段に描かれるので prop では渡せない。要らないビューは省いてよい。
-   */
-  Provider?: ComponentType<{ children: ReactNode }>;
   /** 本体が落ちたときの名乗り。**ビューごとに別の綴りを選ぶこと** */
   boundary: BoundaryLabel;
   /** 畳んだときに出す次の一手 */

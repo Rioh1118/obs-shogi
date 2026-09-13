@@ -8,17 +8,17 @@ export type AnalysisDisplayMode = "rows" | "table" | "detail";
 
 type DisplayModeMeta = {
   key: AnalysisDisplayMode;
-  /** 操作列に出す見出し。**帯に3つ並ぶので1文字** */
+  /** 選択肢の見出し */
   label: string;
-  /** 何が読めるようになるか。ボタンの `title` に出す */
-  title: string;
+  /** 何が読めるようになるか。見本の下に1行で添える */
+  hint: string;
 };
 
-/** 並びが操作列の並び */
+/** 並びが設定の選択肢の並び */
 export const ANALYSIS_DISPLAY_MODES = [
-  { key: "table", label: "表", title: "列を揃えて出す" },
-  { key: "rows", label: "行", title: "1手1行で詰めて出す" },
-  { key: "detail", label: "詳", title: "選んだ候補の読み筋を折り返して全文出す" },
+  { key: "table", label: "表", hint: "評価値と読み筋が列で揃う" },
+  { key: "rows", label: "行", hint: "1手1行で詰める" },
+  { key: "detail", label: "一覧＋詳細", hint: "読み筋を折り返して全文出す" },
 ] as const satisfies readonly DisplayModeMeta[];
 
 /** 既定。**表** —— 列が意味を持つので、評価値と Δ を目で揃えられる */

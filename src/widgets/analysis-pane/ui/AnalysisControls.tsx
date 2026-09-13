@@ -7,20 +7,20 @@ import { useAnalysis } from "@/entities/analysis";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
-import { ANALYSIS_DISPLAY_MODES } from "@/widgets/analysis-pane/model/displayMode";
-import { useAnalysisViewState } from "@/widgets/analysis-pane/model/AnalysisViewState";
 
 /**
  * 解析ビューの操作列。**ドックのタブ列の下の段に出る。**
  *
  * 左が状態（`解析中` / `停止中` と経過秒）、右が操作。並びは
- * 盤の道具 → 候補手の見せ方 → 解析の開始・停止 → 設定。
+ * 盤と解析（向き・開始／停止）→ 局面の道具（ナビ・検索・課題局面）→ 設定。
+ *
+ * **候補手の見せ方はここに置かない。** 局面ごとに変える値ではなく好みなので、
+ * 置き場は設定「表示」（ADR-0010 決定4 の改訂）。
  *
  * 記号は `lucide-react` から取る。**このリポジトリの図案はすべてそこ**なので、
  * 新しい出どころを増やさない。
  */
 function AnalysisControls() {
-  const { mode, setMode } = useAnalysisViewState();
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
@@ -123,7 +123,7 @@ function AnalysisControls() {
           `role="toolbar"` を名乗らない。名乗ると矢印キーでの移動が期待されるが、
           この帯はそれを持たない。`group` なら並びの名前だけを伝える
         */}
-        <div className="analysis-controls__group" role="group" aria-label="盤の道具">
+        <div className="analysis-controls__group" role="group" aria-label="盤と解析">
           <button
             className="analysis-controls__iconBtn"
             onClick={handleTogglePov}
@@ -132,6 +132,21 @@ function AnalysisControls() {
           >
             <RotateCw className="analysis-controls__icon" />
           </button>
+          <button
+            className="analysis-controls__iconBtn"
+            onClick={handleToggleAnalysis}
+            disabled={!state.isAnalyzing && !currentSfen}
+            title={state.isAnalyzing ? "解析停止" : "解析開始"}
+          >
+            {state.isAnalyzing ? (
+              <Square className="analysis-controls__icon" />
+            ) : (
+              <Play className="analysis-controls__icon" />
+            )}
+          </button>
+        </div>
+
+        <div className="analysis-controls__group" role="group" aria-label="局面の道具">
           <button
             className="analysis-controls__iconBtn"
             onClick={() => openModal("navigation")}
@@ -162,38 +177,9 @@ function AnalysisControls() {
           </button>
         </div>
 
-        <div className="analysis-controls__modes" role="group" aria-label="候補手の見せ方">
-          {ANALYSIS_DISPLAY_MODES.map((m) => (
-            <button
-              key={m.key}
-              className={`analysis-controls__mode ${m.key === mode ? "analysis-controls__mode--active" : ""}`}
-              onClick={() => setMode(m.key)}
-              aria-pressed={m.key === mode}
-              title={m.title}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="analysis-controls__group" role="group" aria-label="解析">
-          <button
-            className="analysis-controls__iconBtn"
-            onClick={handleToggleAnalysis}
-            disabled={!state.isAnalyzing && !currentSfen}
-            title={state.isAnalyzing ? "解析停止" : "解析開始"}
-          >
-            {state.isAnalyzing ? (
-              <Square className="analysis-controls__icon" />
-            ) : (
-              <Play className="analysis-controls__icon" />
-            )}
-          </button>
-
-          <button className="analysis-controls__iconBtn" onClick={handleOpenSettings} title="設定">
-            <Settings className="analysis-controls__icon" />
-          </button>
-        </div>
+        <button className="analysis-controls__iconBtn" onClick={handleOpenSettings} title="設定">
+          <Settings className="analysis-controls__icon" />
+        </button>
       </div>
     </div>
   );

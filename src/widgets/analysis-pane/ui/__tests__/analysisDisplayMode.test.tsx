@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { Color } from "shogi.js";
 import { createCandidateCache } from "@/entities/analysis/lib/candidateCache";
@@ -9,8 +9,9 @@ import type { AnalysisCandidate } from "@/entities/engine";
 /**
  * 候補手の表示モード（`docs/state-transitions/dock-tabs.md` の D3）。
  *
- * 見るのは3つ。**押した結果が設定に残ること**、**モードを跨いで選択が残ること**、
- * **どのモードでも最善手が別の箱に出ないこと**。
+ * 見るのは**設定の綴りから出る形が決まること**と、**どの見せ方でも最善手が
+ * 別の箱に出ないこと**。選ばせる口は設定「表示」にあり、そちらは
+ * `features/settings/ui/tabs/__tests__/displayTab.test.tsx` が見る。
  *
  * 解析の実行状態を動かさないこと（不変条件1）は `analysisControlsLifetime.test.tsx` が見る。
  */
@@ -75,23 +76,15 @@ vi.mock("@/entities/app-config", () => ({
   }),
 }));
 
-const { default: Pane } = await import("../AnalysisPane");
-const { default: Controls } = await import("../AnalysisControls");
-const { AnalysisViewStateProvider } = await import("../../model/AnalysisViewState");
+const { default: AnalysisPane } = await import("../AnalysisPane");
 
-/** 操作列と本体は別の段に描かれる。**状態を分け合う器の中でしか揃わない** */
 function mount() {
   return render(
     <MemoryRouter>
-      <AnalysisViewStateProvider>
-        <Controls />
-        <Pane />
-      </AnalysisViewStateProvider>
+      <AnalysisPane />
     </MemoryRouter>,
   );
 }
-
-const modeButton = (label: string) => screen.getByRole("button", { name: label });
 
 beforeEach(() => {
   saved.mode = null;
@@ -107,23 +100,12 @@ describe("候補手の表示モード", () => {
     expect(container.querySelector(".candidate-table")).not.toBeNull();
   });
 
-  // (Ta, D3)。押した結果は設定に残る（ADR-0010 決定4）
-  test("押すと本体が描き変わり、選んだモードが設定に残る", () => {
-    const view = mount();
+  test("設定の綴りで本体が決まる", () => {
+    saved.mode = "rows";
+    const { container } = mount();
 
-    fireEvent.click(modeButton("行"));
-
-    expect(setDisplayConfig).toHaveBeenCalledWith({ analysis_display_mode: "rows" });
-    view.rerender(
-      <MemoryRouter>
-        <AnalysisViewStateProvider>
-          <Controls />
-          <Pane />
-        </AnalysisViewStateProvider>
-      </MemoryRouter>,
-    );
-    expect(view.container.querySelector(".candidates-section")).not.toBeNull();
-    expect(view.container.querySelector(".candidate-table")).toBeNull();
+    expect(container.querySelector(".candidates-section")).not.toBeNull();
+    expect(container.querySelector(".candidate-table")).toBeNull();
   });
 
   /**

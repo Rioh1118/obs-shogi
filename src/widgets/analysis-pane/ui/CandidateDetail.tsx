@@ -1,5 +1,5 @@
 import { formatEvaluation } from "@/widgets/analysis-pane/lib/sfenConverter";
-import { formatDelta, type CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";
+import type { CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";
 import "./CandidateDetail.scss";
 
 type Props = {
@@ -37,7 +37,6 @@ function CandidateDetail({ rows, selectedRank, onSelect }: Props) {
             >
               <span className="candidate-detail__move">{row.moves[0]?.move ?? "—"}</span>
               <span className="candidate-detail__score">{formatEvaluation(row.evaluation)}</span>
-              <span className="candidate-detail__delta">{formatDelta(row.delta)}</span>
             </button>
           </li>
         ))}

@@ -41,6 +41,14 @@
     cursor: pointer;
   }
 
+  // 見本の下の1行。**面が確定しないので色は敷かない** —— 器（`sui-radio__desc`）の
+  // 色をそのまま使い、字の大きさだけで弱める
+  &__modeHint {
+    display: block;
+    margin-top: index.$space-1;
+    font-size: index.$font-hint;
+  }
+
   &__note {
     font-size: index.$font-hint;
     opacity: 0.6;

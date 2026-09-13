@@ -37,15 +37,7 @@ vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({ config: null, setDisplayConfig: vi.fn() }),
 }));
 
-const { default: Controls } = await import("../AnalysisControls");
-const { AnalysisViewStateProvider } = await import("../../model/AnalysisViewState");
-
-// 表示モードは操作列と本体で分け合うので、器の中でしか描けない
-const AnalysisControls = () => (
-  <AnalysisViewStateProvider>
-    <Controls />
-  </AnalysisViewStateProvider>
-);
+const { default: AnalysisControls } = await import("../AnalysisControls");
 
 afterEach(() => {
   analysis.stopAnalysis.mockClear();

@@ -68,18 +68,7 @@ vi.mock("@/entities/app-config", () => ({
   }),
 }));
 
-const { default: Pane } = await import("../AnalysisPane");
-const { AnalysisViewStateProvider } = await import("../../model/AnalysisViewState");
-
-/**
- * 表示モードと選んだ候補は操作列と分け合うので、器の中でしか描けない。
- * 器は状態を持つだけで、控えの経路には触らない。
- */
-const AnalysisPane = () => (
-  <AnalysisViewStateProvider>
-    <Pane />
-  </AnalysisViewStateProvider>
-);
+const { default: AnalysisPane } = await import("../AnalysisPane");
 
 /** 出ている候補手の行数。**最善手も1行目として入る。** 0 なら「候補手なし」が出る。 */
 const shownCandidates = (container: HTMLElement) =>

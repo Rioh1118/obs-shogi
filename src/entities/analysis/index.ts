@@ -7,3 +7,7 @@ export type { PositionSyncAdapter } from "./model/types";
 // 次に触る人が「その口が正しい入口だ」と読む。`sortByRank` は `reducer` が
 // `update_result` で必ず通す唯一の並べ替え地点なので、外から呼ばせない。
 export { pickTopCandidate } from "./lib/candidates";
+
+// 候補手の見せ方。**解析ビューと設定の両方が読む**ので、どちらからも届く位置に置く
+export { ANALYSIS_DISPLAY_MODES, resolveAnalysisDisplayMode } from "./model/displayMode";
+export type { AnalysisDisplayMode } from "./model/displayMode";

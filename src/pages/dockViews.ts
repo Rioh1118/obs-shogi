@@ -2,7 +2,6 @@ import { BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import { RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import AnalysisControls from "@/widgets/analysis-pane/ui/AnalysisControls";
-import { AnalysisViewStateProvider } from "@/widgets/analysis-pane/model/AnalysisViewState";
 import type { DockViewBindings } from "@/widgets/dock/model/bindings";
 
 /**
@@ -21,7 +20,6 @@ export const DOCK_VIEWS_BINDINGS: DockViewBindings = {
   analysis: {
     Body: AnalysisPane,
     Controls: AnalysisControls,
-    Provider: AnalysisViewStateProvider,
     boundary: BOUNDARY_LABELS.analysis,
     fallbackHint: `設定からエンジンを選び直してから「${RETRY_LABEL}」を押してください。`,
   },

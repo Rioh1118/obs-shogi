@@ -50,10 +50,6 @@
   &__th--score {
     width: 6.8rem;
   }
-  &__th--delta {
-    width: 5.8rem;
-  }
-
   td {
     padding: index.$space-1 index.$space-4;
     border-bottom: 1px solid rgba(index.$color-white, 0.035);
@@ -87,15 +83,10 @@
     background: rgba(index.$color-secondary-dark, 0.22);
   }
 
-  &__score,
-  &__delta {
+  &__score {
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
     text-align: right;
-  }
-
-  &__delta {
-    opacity: 0.5;
   }
 
   &__empty {

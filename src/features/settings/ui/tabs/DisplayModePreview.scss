@@ -1,0 +1,73 @@
+@use "@/index.scss" as index;
+
+// 骨だけの見本。**文字色を持たない**（面と棒だけで形を示す）
+.displayModePreview {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+
+  height: 5.4rem;
+  padding: index.$space-2;
+  border-radius: index.$radius-2;
+  background: rgba(index.$color-primary-black, 0.45);
+
+  // 直下の棒は行の見せ方。**高さを持たせる** —— 段が `auto` なので `height: 100%` は 0 になる
+  > i {
+    height: 0.6rem;
+  }
+
+  // 表は列の切れ目が見える。**間隔を広く取る**（行との差はここだけ）
+  &__cells {
+    display: grid;
+    align-items: center;
+    gap: 5px;
+    height: 0.6rem;
+    grid-template-columns: 1.6rem 1.2rem 1rem minmax(0, 1fr);
+
+    // 見出しの段。細く薄くして、下の段と役が違うことを示す
+    &--head {
+      height: 0.3rem;
+      opacity: 0.55;
+    }
+  }
+
+  &__cell,
+  &__fill {
+    height: 100%;
+    border-radius: index.$radius-1;
+    background: rgba(index.$color-text-light-1, 0.28);
+  }
+
+  &__split {
+    display: grid;
+    grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+    gap: 4px;
+    height: 100%;
+  }
+
+  &__side,
+  &__pane {
+    display: grid;
+    align-content: start;
+    gap: 3px;
+  }
+
+  &__side > i {
+    height: 0.6rem;
+  }
+
+  // 最善手の行。**素の棒より後に置く** —— 同じ詳細度なので、前に置くと上書きされる
+  &__fill--best,
+  &__cell--best {
+    background: index.$color-secondary-dark;
+  }
+
+  // 詳細の側は読み筋が折り返す。**行の長さを揃えない**（折り返しが見える形）
+  &__pane > i {
+    height: 0.6rem;
+
+    &:last-child {
+      width: 60%;
+    }
+  }
+}

@@ -2,7 +2,7 @@ import {
   convertSfenSequence,
   evaluationToPercentage,
 } from "@/widgets/analysis-pane/lib/sfenConverter";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CandidateDetail from "./CandidateDetail";
 import CandidatesSection from "./CandidatesSection";
 import CandidateTable from "./CandidateTable";
@@ -19,12 +19,13 @@ import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
-import { pickTopCandidate, useAnalysis } from "@/entities/analysis";
-import { useAnalysisViewState } from "@/widgets/analysis-pane/model/AnalysisViewState";
+import { pickTopCandidate, resolveAnalysisDisplayMode, useAnalysis } from "@/entities/analysis";
 
 function AnalysisPane() {
-  // 表示モードと選んだ候補は操作列と分け合う。**この画面は持ち主ではない**
-  const { mode, selectedRank, setSelectedRank } = useAnalysisViewState();
+  // 選んでいる候補は**3つの見せ方で共有する**（切り替えても選択が動かない）。
+  // 局面が変わっても落とさない —— 手を進めながら3番手を追う読み方ができなくなる。
+  // 指す先が消えた回は最善手へ落ちる（各モードの側）
+  const [selectedRank, setSelectedRank] = useState<number | null>(null);
   // **控えの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
   // 保存場所を持たない。持つと、この画面が作り直された回だけ停止中の候補手が消える
   // （理由は `entities/analysis/lib/candidateCache.ts`）。
@@ -110,6 +111,9 @@ function AnalysisPane() {
       ? { depth: top.depth ?? null, nodes: top.nodes ?? null, time_ms: top.time_ms ?? null }
       : null;
   }, [visibleCandidates]);
+
+  // 見せ方は設定が決める（ADR-0010 決定4 の改訂）。**局面ごとに変える値ではなく好み**
+  const mode = resolveAnalysisDisplayMode(config?.analysis_display_mode);
 
   // 評価値バーは**モードに依らず本体の上**に出す。どのモードでも最善手は1行目なので、
   // 特定の行にぶら下げる置き場が無い。出すかどうかは設定（既定は出さない。ADR-0010 決定4）
