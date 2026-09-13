@@ -68,7 +68,7 @@ function pending<T>(store: Map<string, ReturnType<typeof deferred<T>>>, key: str
 const at = (handle: number, sfen: string) => `${handle}:${sfen}`;
 
 vi.mock("../../api/commands", () => ({
-  openBook: (path: string) =>
+  openBookFile: (path: string) =>
     Promise.resolve(openFails ? Err(openFails) : Ok(info(++nextHandle, path))),
   lookupBookMoves: (handle: number, sfen: string) =>
     pending<LookupResult>(lookups, at(handle, sfen)).promise,

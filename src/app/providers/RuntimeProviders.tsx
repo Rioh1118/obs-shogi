@@ -32,10 +32,7 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
               <SearchRootGate>
                 <AnalysisBridge>
                   <BoardOrientationBridge />
-                  {/*
-                    定跡はドックより上で開いたままにする。ビューの中で開くと、
-                    タブを移るたびに閉じて開き直される（`book-view.md` ※B）
-                  */}
+                  {/* 置き場の理由は `BookPositionGate` の doc */}
                   <BookPositionGate>{children}</BookPositionGate>
                 </AnalysisBridge>
               </SearchRootGate>

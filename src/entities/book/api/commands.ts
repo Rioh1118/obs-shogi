@@ -4,14 +4,17 @@ import { asBookError } from "./error";
 import type { BookError, BookInfo, BookLine, BookMove } from "../model/types";
 
 /**
- * 定跡を開いてハンドルを受け取る。
+ * 定跡を開いてハンドルを受け取る。**画面が呼ぶ口ではない。**
+ *
+ * 画面から開くのは `useBook().openBook` —— こちらはハンドルを返すだけで、
+ * 前の定跡を閉じることも、開いている最中を画面に出すこともしない。
  *
  * **パスに置き場の規約は無い。** エンジンに食わせる定跡は AI ライブラリに置くが、
  * ビューが覗くのは任意のパス（→ `docs/spec/features/book.md`）。
  *
  * 大きい定跡では**返るまで待つ**。上限も進捗も中断も無い（→ #197）。
  */
-export function openBook(path: string): AsyncResult<BookInfo, BookError> {
+export function openBookFile(path: string): AsyncResult<BookInfo, BookError> {
   return invokeBook(() => invoke<BookInfo>("open_book", { input: { path } }));
 }
 

@@ -4,11 +4,7 @@ import {
   closeBook,
   listBooks,
   lookupBookMoves,
-  // **別名にするのは、この provider が配る口も `openBook` だから。**
-  // `openBookFile` は `import … as` で入ってくるだけなので
-  // `src/__tests__/asyncResultUse.test.ts` の名簿に入らない ——
-  // **この綴りの戻り値は人が読むこと。**
-  openBook as openBookFile,
+  openBookFile,
   walkBookLines,
 } from "../api/commands";
 import { attachLines, failedRows, pendingRows, type BookRow } from "../lib/rows";
@@ -42,8 +38,9 @@ type Looked = {
 /**
  * 開いている定跡と、現局面の候補手を持つ。
  *
- * **呼び手が守ること。** 置き場の制約は
- * `app/providers/gates/BookPositionGate.tsx` の doc が持つ。
+ * **置き場の制約は `app/providers/gates/BookPositionGate.tsx` の doc が持つ。**
+ * 同じ理由を写さない —— 置き場を動かした回に片方だけ直る。
+ *
  * `currentSfen` に指し手の列が付いた綴りを渡さないこと
  * （Rust の `to_book_key` が `moves` 付きを拒む）。
  *
@@ -176,11 +173,11 @@ export function BookProvider({ children, currentSfen }: Props) {
     setError(null);
   }, [info]);
 
+  const reportError = useCallback((reported: BookError) => setError(reported), []);
+
   // **引いている最中を state に持たない。** 持つと、定跡が入ったレンダと
   // 引き始めるレンダの間に「引き終えて空」に見える frame が挟まり、
   // **引き始めてもいないのに「この局面はこの定跡にありません」が描かれる。**
-  const reportError = useCallback((reported: BookError) => setError(reported), []);
-
   const view = useMemo(
     () => viewState({ info, opening, looked, currentSfen }),
     [info, opening, looked, currentSfen],
