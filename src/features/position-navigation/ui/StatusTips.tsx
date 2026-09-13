@@ -10,13 +10,13 @@ type Props = {
 
 export default function StatusTips({ previewData, selectedBranch }: Props) {
   const tesuu = previewData?.tesuu ?? 0;
-  const turn = previewData?.turn === 0 ? "先手" : "後手";
   const sel = selectedBranch ? branchLabel(selectedBranch.forkIndex) : "—";
 
+  // **手番はここに出さない。** 同じ器の中で盤のプレビュー（`PositionPreviewPane`）が
+  // 出しており、2箇所に置くと綴りが割れる（この段は先後の記号を持たない）
   return (
     <div className="position-navigation-modal__status-tips" aria-label="局面ステータス">
       <span className="position-navigation-modal__chip">{tesuu}手目</span>
-      <span className="position-navigation-modal__chip">手番: {turn}</span>
       <span className="position-navigation-modal__chip position-navigation-modal__chip--accent">
         選択:{sel}
       </span>

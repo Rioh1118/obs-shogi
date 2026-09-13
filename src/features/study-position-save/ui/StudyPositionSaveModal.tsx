@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { turnText } from "@/shared/lib/turn";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -71,7 +70,6 @@ export default function StudyPositionSaveModal() {
   // 現在対局の tesuu / fileName は別の棋譜のものになるため表示しない
   const isFromGameContext = !params.sfen;
   const tesuu = isFromGameContext ? getCurrentMoveIndex() : null;
-  const turnBadge = previewData ? turnText(previewData.turn) : null;
   const fileName = useMemo(() => {
     if (!isFromGameContext) return null;
     const absPath = gameState.loadedAbsPath;
@@ -175,7 +173,6 @@ export default function StudyPositionSaveModal() {
               <PreviewPane previewData={previewData} />
             </div>
             <div className="sp-save__context">
-              {turnBadge && <span className="sp-save__contextItem">{turnBadge}</span>}
               {tesuu !== null && <span className="sp-save__contextItem">{`${tesuu}手目`}</span>}
               {fileName && (
                 <span className="sp-save__contextItem sp-save__contextItem--file">{fileName}</span>
