@@ -29,6 +29,7 @@ L2    position-search-view.md  局面検索の**画面**。L1 の search の結�
 L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だけを扱う
 L2    board-orientation.md     盤の向き。盤に載っている棋譜とツリー側のパスのずれが軸
 L2    position-editor.md       初期局面を組む面。L1 の file-tree の「作る」側だけを扱う
+L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「どのタブを見ているか」を重ねる
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -68,6 +69,7 @@ L2    position-editor.md       初期局面を組む面。L1 の file-tree の�
 | [board-orientation.md](board-orientation.md)       | ✅        | 合図は game の `loadedAbsPath` と `boardSeq` の組。ツリー側の `activeKifuPath` / `selectedNode` とのずれが軸                            |
 | [position-editor.md](position-editor.md)           | ✅        | 初期局面を組む面。Esc の段と「組みかけ」の扱いが軸。**未検証はこの4つ**（保存先が消える／作成中の Esc／インポートで作成／盤の鍵盤操作） |
 | [updater.md](updater.md)                           | ✅        | ディスク上のアプリの実体を列に持つ。**未検証は実プロセスと plugin の内側が要る6件**                                                     |
+| [dock-tabs.md](dock-tabs.md)                       | ✅        | **実装より先に書いた表。踏むテストはまだ1つも無い**（#562 で印を付ける）                                                                |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                                                                         |
 
 **未作成を消さないこと。** 消すと「表を作った」だけで安心してしまう。
