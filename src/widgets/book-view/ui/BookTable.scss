@@ -90,17 +90,27 @@
   &__th--move {
     width: 8.4rem;
   }
+  // 評価と深さ。**見出しの2文字と `-9999` が入る幅**
   &__th--num {
     text-align: right;
     width: 6.8rem;
+  }
+  // 出現回数。**見出しが4文字あり、中身は桁区切り付きで7桁を超える。**
+  // 6.8rem では見出しが2行に折り返し、数字は左から切れた（省略記号も出ない ——
+  // `text-overflow` は `td` のインライン内容にしか効かず、中身は flex item）
+  &__th--count {
+    text-align: right;
+    width: 9.6rem;
   }
   &__th--ponder {
     // 中身は指し手と同じ日本語1手。**同じものに別の幅を当てない**
     width: 8.4rem;
   }
-  // 余りを取るのはこの列。`→ 123手目以降` がいちばん長い
+  // **`min-width` を書かない。** `table-layout: fixed` は1行目の `width` だけで
+  // 列を決めるので無視され、床を宣言したつもりで床が無い状態になる。
+  // 余りはこの列にも比例で配られる。いちばん長い綴りは `123手目以降`
   &__th--ahead {
-    min-width: 8.8rem;
+    width: 9.6rem;
   }
 
   td {
@@ -125,6 +135,15 @@
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
     text-align: right;
+  }
+
+  // **flex item は自分で縮ませる。** `td` の `text-overflow` は届かないので、
+  // 入り切らない桁が左から黙って消える（欠けた合図が無く、別の数として読める）
+  &__count-num {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   // 添えの欄（深さ・応手・行き止まり）。**0.72 より下げない** ——

@@ -51,8 +51,10 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
 
   const header = ({ key, label }: { key: BookSortKey; label: string }) => {
     const active = sort.key === key;
+    // 出現回数だけ見出しが4文字あり、中身も桁区切り付きで長い（`BookTable.scss`）
+    const column = key === "count" ? "book-table__th--count" : "book-table__th--num";
     return (
-      <th key={key} scope="col" className="book-table__th--num" aria-sort={ariaSort(sort, key)}>
+      <th key={key} scope="col" className={column} aria-sort={ariaSort(sort, key)}>
         <button
           type="button"
           className={`book-table__sort ${active ? "book-table__sort--active" : ""}`}
@@ -120,7 +122,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
                 </td>
                 <td className="book-table__num">{formatValue(row.move.value)}</td>
                 <td className="book-table__num book-table__dim">{row.move.depth ?? "—"}</td>
-                <td className="book-table__count">
+                <td className="book-table__count" title={formatCount(row.move.count)}>
                   <span className="book-table__count-num">{formatCount(row.move.count)}</span>
                   {/*
                     **一覧の最大値を 1 とする相対の長さ。** 回数の桁は定跡によって違うので、
@@ -141,7 +143,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
                 </td>
                 <td
                   className={`book-table__ahead ${label.continues ? "book-table__ahead--continues" : "book-table__dim"}`}
-                  title={label.hint}
+                  title={label.hint ?? label.text}
                 >
                   {label.text}
                 </td>

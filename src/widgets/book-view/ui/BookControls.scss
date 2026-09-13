@@ -48,6 +48,20 @@
     opacity: 0.72;
   }
 
+  // 開こうとしているファイル名。**`__name` と同じ組み。**
+  // `white-space` を落とすと、長い名前の回に段が伸びて、
+  // タブを跨いで段の高さが変わらないという要件（`$control-hit`）が別経路で崩れる
+  &__busy {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: index.$font-body;
+    color: index.$color-text-primary;
+    opacity: 0.72;
+  }
+
   &__count {
     flex: none;
     font-family: index.$font-mono;

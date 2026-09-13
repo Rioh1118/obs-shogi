@@ -59,7 +59,7 @@
     text-align: left;
     cursor: pointer;
 
-    &:hover:not(:disabled) {
+    &:hover {
       // 暗い面なので**明るくする**（ADR-0005 決定2）
       background: rgba(index.$color-white, 0.07);
     }
@@ -68,20 +68,23 @@
       outline: 2px solid index.$focus-ring;
       outline-offset: 2px;
     }
-
-    &:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-    }
   }
 
+  // **縮むのはこちら。** 添え書きに `min-width: 0` を置いても、名前が
+  // `min-width: auto` のままだと押し場を越えて描かれ、添え書きは幅 0 まで潰れる
+  // （見分けがいちばん要る長い名前のときに、置き場が消える）
   &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-weight: 600;
   }
 
-  // 置き場。**縮むのはこちら** —— 名前が切れると、どれを押しているのか分からなくなる
+  // 置き場。**縮まない側。** 同じ名前のファイルを見分ける手掛かりがここなので、
+  // 狭いときに先に削るのは名前のほう（上の `__name`）
   &__note {
-    min-width: 0;
+    flex: none;
     margin-left: auto;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -104,18 +107,13 @@
     font-size: index.$font-aux;
     cursor: pointer;
 
-    &:hover:not(:disabled) {
+    &:hover {
       background: rgba(index.$color-white, 0.07);
     }
 
     &:focus-visible {
       outline: 2px solid index.$focus-ring;
       outline-offset: 2px;
-    }
-
-    &:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
     }
   }
 
