@@ -154,6 +154,34 @@ function readCopyrightLinesFrom(packageDir) {
   return [];
 }
 
+/**
+ * 入るかが走らせた機械で変わる npm パッケージ。`名前@版` で持つ。
+ *
+ * ネイティブの prebuilt は OS と CPU ごとに別のパッケージに分かれており
+ * （`@parcel/watcher-darwin-arm64` と `@parcel/watcher-linux-x64-glibc` など）、
+ * `npm ci` はその機械に合う1つだけを入れる。**入っているものを数えると、
+ * 表の中身が生成した機械に依存する** —— macOS で生成した表は ubuntu のランナーで
+ * 必ず落ちる。`SHIPPED_TARGETS` を綴りで固定しているのと同じ理由で、ここも
+ * ホストに解かせない。
+ *
+ * 出典は `package-lock.json`。入れなかった分も含めて全ターゲットのパッケージを持ち、
+ * `os` / `cpu` / `libc` でどの機械に入るかを書いている。
+ *
+ * **落としても通知は足りている。** 配布物に載る npm のコードは `dist` に取り込まれた
+ * JS / CSS / 書体だけで（`dist` は `tauri.conf.json` の `frontendDist`）、
+ * ここで落とす prebuilt はビルドする機械で走るだけ。
+ */
+function hostDependentPackages() {
+  const lock = JSON.parse(readFileSync(join(repoRoot, "package-lock.json"), "utf8"));
+  const keys = new Set();
+  for (const [location, entry] of Object.entries(lock.packages ?? {})) {
+    if (!entry.os && !entry.cpu && !entry.libc) continue;
+    const name = location.slice(location.lastIndexOf("node_modules/") + "node_modules/".length);
+    keys.add(`${name}@${entry.version}`);
+  }
+  return keys;
+}
+
 /** 配布物に載る npm パッケージ。`npm ci` が入れた木をそのまま数える。 */
 function collectNpmPackages() {
   const raw = execFileSync("npm", ["query", ".prod", "--json"], {
@@ -162,11 +190,13 @@ function collectNpmPackages() {
     maxBuffer: 64 * 1024 * 1024,
   });
   const nodes = JSON.parse(raw);
+  const hostDependent = hostDependentPackages();
 
   const packages = [];
   for (const node of nodes) {
     // 木の根は ObsShogi 自身。自分の MIT は `LICENSE.md` が持つ。
     if (!node.location) continue;
+    if (hostDependent.has(`${node.name}@${node.version}`)) continue;
     packages.push({
       name: node.name,
       version: node.version,
@@ -381,6 +411,9 @@ function render(npmPackages, cargoPackages) {
     `## npm の依存（${npmPackages.length} 件）`,
     "",
     "`npm query .prod` が返す、配布物に載る依存。開発だけで使うものは含まない。",
+    "`os` / `cpu` / `libc` で入るかが変わるパッケージ（ネイティブの prebuilt）も含まない ——",
+    "入る1つが生成した機械で変わるうえ、配布物に載る npm のコードは `dist` に取り込まれた",
+    "JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだから。",
     "",
     renderTable(npmPackages),
     "",
@@ -404,18 +437,61 @@ function render(npmPackages, cargoPackages) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * 現物と生成結果の食い違いを行で見せる。
+ *
+ * **一致しないとだけ言わない。** これが落ちるのは大抵 CI で、手元では通っている
+ * （依存の解決が機械で違う、生成し直さずにコミットした、など）。現物を持っていない
+ * 読み手に「走らせ直せ」としか言わないと、何がどう違ったのかがログに何も残らない。
+ *
+ * 行を順に突き合わせるだけで、差分の最小化はしない。1行ずれれば以降は全部
+ * 食い違うので、**最初の数件だけ**を出す。
+ */
+function renderMismatch(actual, expected) {
+  const actualLines = actual.split("\n");
+  const expectedLines = expected.split("\n");
+  const lines = [`行数: 現物 ${actualLines.length} / 生成物 ${expectedLines.length}`];
+
+  const limit = Math.max(actualLines.length, expectedLines.length);
+  let shown = 0;
+  for (let i = 0; i < limit && shown < MISMATCH_LINES; i += 1) {
+    if (actualLines[i] === expectedLines[i]) continue;
+    lines.push(
+      `${i + 1} 行目:`,
+      `  現物  : ${actualLines[i] ?? "（無し）"}`,
+      `  生成物: ${expectedLines[i] ?? "（無し）"}`,
+    );
+    shown += 1;
+  }
+  if (shown === MISMATCH_LINES) lines.push("（食い違う行はまだある。ここまで）");
+  return lines.join("\n");
+}
+
+/** 食い違いを見せる行数の上限。表が丸ごと入れ替わると全行が食い違う。 */
+const MISMATCH_LINES = 5;
+
 const check = process.argv.includes("--check");
 const generated = render(collectNpmPackages(), collectCargoPackages());
 
 if (!check) {
   writeFileSync(noticesPath, generated);
   process.stdout.write(`THIRD-PARTY-NOTICES.md を書き出した\n`);
-} else if (!existsSync(noticesPath) || readFileSync(noticesPath, "utf8") !== generated) {
+} else if (!existsSync(noticesPath)) {
   process.stderr.write(
-    "THIRD-PARTY-NOTICES.md が依存と一致しない。\n" +
-      "`node scripts/generate-third-party-notices.mjs` を走らせて差分をコミットすること。\n",
+    "THIRD-PARTY-NOTICES.md が無い。\n" +
+      "`node scripts/generate-third-party-notices.mjs` を走らせてコミットすること。\n",
   );
   process.exit(1);
 } else {
-  process.stdout.write("THIRD-PARTY-NOTICES.md は依存と一致している\n");
+  const actual = readFileSync(noticesPath, "utf8");
+  if (actual === generated) {
+    process.stdout.write("THIRD-PARTY-NOTICES.md は依存と一致している\n");
+  } else {
+    process.stderr.write(
+      "THIRD-PARTY-NOTICES.md が依存と一致しない。\n" +
+        "`node scripts/generate-third-party-notices.mjs` を走らせて差分をコミットすること。\n\n" +
+        `${renderMismatch(actual, generated)}\n`,
+    );
+    process.exit(1);
+  }
 }
