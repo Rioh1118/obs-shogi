@@ -275,7 +275,7 @@ fn use_statements(source: &str) -> Vec<(String, usize)> {
 ///
 /// `super` が足りなければ `engine` の中の枝（`game::types` など）で、段の辺にならない。
 /// 多ければ `engine` の外へ出ている。
-fn resolve(statement: &str, depth: usize) -> Resolved {
+fn resolve(statement: &str, branch: &str, depth: usize) -> Resolved {
     // **先頭の `::` を落とす。** `use ::tauri::AppHandle;` は Rust として正当な形で、
     // 落とさないと最初の分割片が空文字列になり、外部クレートとして数えられない
     let body = use_body(statement)
@@ -284,7 +284,7 @@ fn resolve(statement: &str, depth: usize) -> Resolved {
         .trim_start_matches("::");
     let outside = || Some(statement.trim_end_matches(';').to_string());
 
-    if let Some(rest) = body.strip_prefix("crate::engine::") {
+    if let Some(rest) = body.strip_prefix(&format!("crate::{branch}::")) {
         return Resolved::edges(imports_from(rest));
     }
     if body.starts_with("crate::") {
@@ -348,18 +348,22 @@ impl Resolved {
 }
 
 /// そのファイルが `use` している `engine` 直下のモジュール名と、外への参照。
-fn scan_file(source: &str, depth: usize) -> (BTreeSet<String>, Vec<String>) {
-    let (edges, outside, _) = scan_file_all(source, depth);
+fn scan_file(source: &str, branch: &str, depth: usize) -> (BTreeSet<String>, Vec<String>) {
+    let (edges, outside, _) = scan_file_all(source, branch, depth);
     (edges, outside)
 }
 
-fn scan_file_all(source: &str, depth: usize) -> (BTreeSet<String>, Vec<String>, BTreeSet<String>) {
+fn scan_file_all(
+    source: &str,
+    branch: &str,
+    depth: usize,
+) -> (BTreeSet<String>, Vec<String>, BTreeSet<String>) {
     let mut edges = BTreeSet::new();
     let mut outside = Vec::new();
     let mut crates = BTreeSet::new();
 
     for (statement, inside_modules) in use_statements(source) {
-        let found = resolve(&statement, depth + inside_modules);
+        let found = resolve(&statement, branch, depth + inside_modules);
         edges.extend(found.edges);
         outside.extend(found.outside);
         crates.extend(found.crates);
@@ -381,7 +385,7 @@ fn graph() -> BTreeMap<String, BTreeSet<String>> {
             continue;
         }
         let source = fs::read_to_string(&path).unwrap_or_default();
-        let (targets, _) = scan_file(&source, relative.components().count());
+        let (targets, _) = scan_file(&source, "engine", relative.components().count());
         let edges = graph.entry(module.clone()).or_default();
         for target in targets {
             if target != module {
@@ -430,7 +434,7 @@ fn the_scanner_actually_walks_the_engine() {
 #[test]
 fn the_scanner_reads_every_spelling_of_use() {
     // 1行に収まる形
-    let (edges, out) = scan_file("use crate::engine::state::AppState;\n", 2);
+    let (edges, out) = scan_file("use crate::engine::state::AppState;\n", "engine", 2);
     assert_eq!(
         edges,
         ["state"].map(String::from).into(),
@@ -440,7 +444,7 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     // **折り返された波括弧。** rustfmt が100桁を超えると自動でこう折る
     let source = "use crate::engine::{\n    protocol::UsiProtocol,\n    state::AppState,\n};\n";
-    let (edges, _) = scan_file(source, 1);
+    let (edges, _) = scan_file(source, "engine", 1);
     assert_eq!(
         edges,
         ["protocol", "state"].map(String::from).into(),
@@ -448,14 +452,22 @@ fn the_scanner_reads_every_spelling_of_use() {
     );
 
     // 1行に収まる波括弧
-    let (edges, _) = scan_file("use crate::engine::{types::*, utils::cmd_summary};\n", 1);
+    let (edges, _) = scan_file(
+        "use crate::engine::{types::*, utils::cmd_summary};\n",
+        "engine",
+        1,
+    );
     assert_eq!(edges, ["types", "utils"].map(String::from).into());
 
     // **可視性が付いた形。** `pub use` を特別扱いする以上、その兄弟も要る。
     // `pub(crate) use` は `"use "` でも `"pub use "` でも始まらないので、
     // 綴りを直に比べる形だと**走査に一度も入らない**——1行足すだけで段を跨げる
     for spelling in ["pub use", "pub(crate) use", "pub(super) use"] {
-        let (edges, _) = scan_file(&format!("{spelling} crate::engine::state::AppState;\n"), 2);
+        let (edges, _) = scan_file(
+            &format!("{spelling} crate::engine::state::AppState;\n"),
+            "engine",
+            2,
+        );
         assert_eq!(
             edges,
             ["state"].map(String::from).into(),
@@ -465,7 +477,7 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     // **`super` を数えた数が深さと一致すれば `engine` 直下。**
     // `game/session.rs`（深さ2）の `super::super::state` は `crate::engine::state` と同じ
-    let (edges, _) = scan_file("use super::super::state::AppState;\n", 2);
+    let (edges, _) = scan_file("use super::super::state::AppState;\n", "engine", 2);
     assert_eq!(
         edges,
         ["state"].map(String::from).into(),
@@ -473,16 +485,16 @@ fn the_scanner_reads_every_spelling_of_use() {
     );
 
     // 足りなければ `engine` の中の枝。段を割っていないので辺にならない
-    let (edges, out) = scan_file("use super::types::Side;\n", 2);
+    let (edges, out) = scan_file("use super::types::Side;\n", "engine", 2);
     assert!(edges.is_empty(), "`game` の中への辺を段として数えている");
     assert!(out.is_empty());
 
     // `engine/` 直下（深さ1）の `super` は `engine` そのもの
-    let (edges, _) = scan_file("use super::protocol::UsiProtocol;\n", 1);
+    let (edges, _) = scan_file("use super::protocol::UsiProtocol;\n", "engine", 1);
     assert_eq!(edges, ["protocol"].map(String::from).into());
 
     // **多すぎれば `engine` の外。** `crate::CLOSE_TIMEOUT` と同じものを指す
-    let (edges, out) = scan_file("use super::super::CLOSE_TIMEOUT;\n", 1);
+    let (edges, out) = scan_file("use super::super::CLOSE_TIMEOUT;\n", "engine", 1);
     assert!(edges.is_empty());
     assert_eq!(
         out.len(),
@@ -490,14 +502,14 @@ fn the_scanner_reads_every_spelling_of_use() {
         "`super` を数えすぎた形が外への参照になっていない"
     );
 
-    let (_, out) = scan_file("use crate::file_system::open;\n", 1);
+    let (_, out) = scan_file("use crate::file_system::open;\n", "engine", 1);
     assert_eq!(out.len(), 1, "`crate::` の他の枝が外への参照になっていない");
 
     // **`mod` の入れ子は `super` の意味を変える。**
     // `game/session.rs`（深さ2）の `mod tests` の中では、`engine::game` へ戻るのに
     // `super::super` が要る——そこは段の辺ではない
     let source = "#[cfg(test)]\nmod tests {\n    use super::super::events::RecordedEvents;\n}\n";
-    let (edges, out) = scan_file(source, 2);
+    let (edges, out) = scan_file(source, "engine", 2);
     assert!(
         edges.is_empty(),
         "`mod tests` の中の `super::super::` を段の辺として数えている: {edges:?}"
@@ -506,7 +518,7 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     // その中から本当に `engine::state` を指す形は、段の辺として取れること
     let source = "#[cfg(test)]\nmod tests {\n    use super::super::super::state::AppState;\n}\n";
-    let (edges, _) = scan_file(source, 2);
+    let (edges, _) = scan_file(source, "engine", 2);
     assert_eq!(
         edges,
         ["state"].map(String::from).into(),
@@ -516,7 +528,7 @@ fn the_scanner_reads_every_spelling_of_use() {
     // **コメントの中の `mod {` を module として数えない。**
     // 数えると幻の module が積まれ、閉じないので以降の `use` が全部ずれる
     let source = "// 置き場の例: `mod tests {` のような形\nuse super::registry::EngineId;\n";
-    let (edges, _) = scan_file(source, 1);
+    let (edges, _) = scan_file(source, "engine", 1);
     assert_eq!(
         edges,
         ["registry"].map(String::from).into(),
@@ -525,12 +537,12 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     // 文字列の中の括弧も同じ
     let source = "const A: &str = \"mod x {\";\nuse super::registry::EngineId;\n";
-    let (edges, _) = scan_file(source, 1);
+    let (edges, _) = scan_file(source, "engine", 1);
     assert_eq!(edges, ["registry"].map(String::from).into());
 
     // `fn` の中の塊は `super` の意味を変えない
     let source = "fn f() {\n    use super::super::state::AppState;\n}\n";
-    let (edges, _) = scan_file(source, 2);
+    let (edges, _) = scan_file(source, "engine", 2);
     assert_eq!(
         edges,
         ["state"].map(String::from).into(),
@@ -553,7 +565,7 @@ fn the_engine_does_not_reach_out_of_itself() {
     for path in rust_files(&root) {
         let relative = path.strip_prefix(&root).unwrap_or(&path).to_path_buf();
         let source = fs::read_to_string(&path).unwrap_or_default();
-        let (_, reaching) = scan_file(&source, relative.components().count());
+        let (_, reaching) = scan_file(&source, "engine", relative.components().count());
         for line in reaching {
             outside.push(format!("{}  {}", relative.display(), line));
         }
@@ -566,7 +578,7 @@ fn the_engine_does_not_reach_out_of_itself() {
     );
 }
 
-/// `book/` が `crate` の他の枝へ伸ばす辺の控え。
+/// `book/` が `crate` の他の枝へ伸ばす辺の控え。**枝の名前で持つ。**
 ///
 /// **1件で始められるのはいまだけ。** 2本目が生えた時点で「どちらが器か」が
 /// 消えるが、`book/mod.rs` は「これを見ている機械は無い」と自分で書いていて
@@ -574,8 +586,8 @@ fn the_engine_does_not_reach_out_of_itself() {
 ///
 /// **足すときは向きの理由をコミットに書くこと。** いま在る1本は、綴りを局面に
 /// する実装を `book` へ写すと SFEN の受理集合が3つ目になる（#236 が既に2つあると
-/// 言っている）ため借りている。
-const BOOK_OUTWARD_EDGES: [&str; 1] = ["crate::search::position::sfen_position"];
+/// 言っている）ため借りている（`book/walk.rs` の `start_position`）。
+const BOOK_OUTWARD_BRANCHES: [&str; 1] = ["search"];
 
 fn book_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book")
@@ -583,43 +595,52 @@ fn book_dir() -> PathBuf {
 
 /// `book/` が知っている `crate` の他の枝が、控えと一致すること。
 ///
+/// **`engine` と同じ走査を通す。** 自前で `crate::` を探す形にすると、
+/// `use super::super::super::x` で出る辺を黙って通す —— `resolve` は
+/// `super` の数と深さを突き合わせて外向きを判定するので、そちらに任せる。
+///
 /// **等値で見る。** 下限だと、借りるのをやめて辺が消えたときに控えだけが残り、
 /// 「まだ借りている」と読ませる。
 #[test]
 fn the_book_reaches_out_only_where_it_is_recorded() {
     let root = book_dir();
-    let mut found: BTreeSet<String> = BTreeSet::new();
+    let mut branches: BTreeSet<String> = BTreeSet::new();
+    let mut statements: Vec<String> = Vec::new();
 
     for path in rust_files(&root) {
+        let relative = path.strip_prefix(&root).unwrap_or(&path).to_path_buf();
         let source = fs::read_to_string(&path).unwrap_or_default();
-        for line in blank_out_noncode(&source).lines() {
-            let Some(at) = line.find("crate::") else {
-                continue;
-            };
-            let rest = &line[at..];
-            let spelling: String = rest
-                .chars()
-                .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
-                .collect();
-            // 自分の枝は段の走査（この上）の担当
-            if spelling.starts_with("crate::book") {
-                continue;
-            }
-            // 末尾の項目名は落として、どの段へ伸びているかで数える
-            let module = spelling
-                .rsplit_once("::")
-                .map_or(spelling.clone(), |(head, _)| head.to_string());
-            found.insert(module);
+        let (_, reaching) = scan_file(&source, "book", relative.components().count());
+
+        for statement in reaching {
+            branches.extend(outward_branch(&statement));
+            statements.push(format!("{}  {statement}", relative.display()));
         }
     }
 
     assert_eq!(
-        found,
-        BOOK_OUTWARD_EDGES.map(String::from).into(),
+        branches,
+        BOOK_OUTWARD_BRANCHES.map(String::from).into(),
         "`book/` から `crate` の他の枝へ伸びる辺が控えと違う。\n\
          増やすなら、なぜその向きなのかをコミットに書くこと。\n\
-         共有したいものは、共有できる位置まで下げるのが先"
+         共有したいものは、共有できる位置まで下げるのが先:\n{}",
+        statements.join("\n")
     );
+}
+
+/// 外へ出ている `use` から、行き先の枝の名前を取る。
+///
+/// `crate::search::…` も `super::super::super::search::…` も `search`。
+/// **枝より細かく持たない** —— 同じ枝の別の段へ移っただけで赤くすると、
+/// 控えが「どこを借りているか」ではなく「どの綴りか」の写しになる。
+fn outward_branch(statement: &str) -> Option<String> {
+    let body = use_body(statement).unwrap_or(statement).trim();
+    let mut rest = body.trim_start_matches("::");
+    rest = rest.strip_prefix("crate::").unwrap_or(rest);
+    while let Some(next) = rest.strip_prefix("super::") {
+        rest = next;
+    }
+    leading_name(rest)
 }
 
 /// 段が「使わない」と決めた外部クレートを**参照していない**こと。
@@ -684,23 +705,23 @@ fn no_layer_uses_a_crate_it_must_not() {
 /// そこを分けないと、辺も「外への参照」も立たないまま通る。
 #[test]
 fn the_scanner_tells_an_outside_crate_from_a_sibling() {
-    let (edges, outside, crates) = scan_file_all("use tauri::AppHandle;\n", 2);
+    let (edges, outside, crates) = scan_file_all("use tauri::AppHandle;\n", "engine", 2);
     assert!(edges.is_empty() && outside.is_empty());
     assert!(crates.contains("tauri"), "外部クレートを見分けていない");
 
     // **先頭に `::` が付いた形。** ローカルの同名モジュールと区別したいときに書く
-    let (_, _, crates) = scan_file_all("use ::tauri::AppHandle;\n", 2);
+    let (_, _, crates) = scan_file_all("use ::tauri::AppHandle;\n", "engine", 2);
     assert!(
         crates.contains("tauri"),
         "`::` から始まる形を外部クレートと数えていない"
     );
 
     // `self::` は自分の中。外ではない
-    let (_, _, crates) = scan_file_all("use self::inner::X;\n", 2);
+    let (_, _, crates) = scan_file_all("use self::inner::X;\n", "engine", 2);
     assert!(crates.is_empty(), "`self::` を外部クレートと数えている");
 
     // 段の辺は今までどおり立つ
-    let (edges, _, crates) = scan_file_all("use crate::engine::registry::X;\n", 2);
+    let (edges, _, crates) = scan_file_all("use crate::engine::registry::X;\n", "engine", 2);
     assert!(edges.contains("registry"), "段の辺を落としている");
     assert!(crates.is_empty());
 }

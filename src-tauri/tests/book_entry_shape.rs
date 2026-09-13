@@ -34,8 +34,8 @@ const ALLOWED_BEFORE_INPUT: [&str; 5] = [
     "to_book_key(",
 ];
 
-/// 入口に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
-const EXPECTED_LOG_LINES: usize = 5;
+/// `logging_files` の全体に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
+const EXPECTED_LOG_LINES: usize = 6;
 
 /// blocking プールへ逃がすべき呼び出し。
 ///
@@ -51,6 +51,16 @@ const HEAVY_CALLS: [&str; 4] = [
 
 fn entry_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book/commands.rs")
+}
+
+/// `log::` を呼ぶ `book/` のファイル。**入口だけを見ない。**
+///
+/// 診断はコマンドの外にも出る（`walk.rs` は `Ok` で返る失敗を記録するので
+/// `logged` を通らない）。入口の1ファイルだけを見ていると、外に書いた行は
+/// **打ち切りを通したかどうかを誰も見ないまま増える。**
+fn logging_files() -> Vec<PathBuf> {
+    let book = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book");
+    vec![book.join("commands.rs"), book.join("walk.rs")]
 }
 
 /// 入口の本体（テストモジュールを含まない）。
@@ -135,17 +145,47 @@ fn macro_call_at(code: &str, lines: &[&str], number: usize) -> String {
 
 #[test]
 fn the_log_line_truncates_the_path() {
-    let code = entry_source();
-    let lines: Vec<&str> = code.lines().collect();
-
     let mut offenders = Vec::new();
     let mut scanned = 0;
+
+    for path in logging_files() {
+        scan_log_lines(&path, &mut scanned, &mut offenders);
+    }
+
+    // **等値で見る。** 緩い下限だと、守るはずのログ地点が1本消えても満たされる
+    // （`open_book` がどのパスを開いたかを残す唯一の行が消えても緑になった）。
+    // 増えた側で赤くなるのは正しい —— 増やした人に、それも打ち切りを通るのかを見させる。
+    assert_eq!(
+        scanned, EXPECTED_LOG_LINES,
+        "log の行が {scanned} 本。増減したなら EXPECTED_LOG_LINES を実測へ直すこと"
+    );
+    assert!(
+        offenders.is_empty(),
+        "利用者の入力をそのままログへ書いている:\n{}\n\
+         `truncate_path` を通すこと（ログは 200KB でローテートする）。",
+        offenders.join("\n")
+    );
+}
+
+fn scan_log_lines(path: &Path, scanned: &mut usize, offenders: &mut Vec<String>) {
+    let raw = fs::read_to_string(path).expect("ログを書くファイルが読めない");
+    // コメントの中の言及は見ない。この検査の理由を書けなくなる
+    let code = blank_out_comments(&raw);
+    let code = code
+        .split_once("#[cfg(test)]")
+        .map_or(code.as_str(), |(body, _)| body)
+        .to_string();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let lines: Vec<&str> = code.lines().collect();
 
     for (number, line) in lines.iter().enumerate() {
         if !line.contains("log::") {
             continue;
         }
-        scanned += 1;
+        *scanned += 1;
         // **固定行数の窓にしない。** rustfmt は引数が増えると `log::info!(` を
         // 折り返すので、3行の窓だと `input.path` が窓の外へ落ちて素通しする。
         // マクロ呼び出しの閉じ括弧までを1つの塊として渡す。
@@ -153,11 +193,7 @@ fn the_log_line_truncates_the_path() {
         if !logs_a_raw_path(&block) {
             continue;
         }
-        offenders.push(format!(
-            "src/book/commands.rs:{}  {}",
-            number + 1,
-            line.trim()
-        ));
+        offenders.push(format!("src/book/{name}:{}  {}", number + 1, line.trim()));
     }
 
     // **ログの行だけを見ても足りない。** 生パスを一度ローカルに束縛してから
@@ -193,24 +229,10 @@ fn the_log_line_truncates_the_path() {
             }
             let line = code[..head].matches('\n').count() + 1;
             offenders.push(format!(
-                "src/book/commands.rs:{line}  {chain} を素のまま持ち回している"
+                "src/book/{name}:{line}  {chain} を素のまま持ち回している"
             ));
         }
     }
-
-    // **等値で見る。** 緩い下限だと、守るはずのログ地点が1本消えても満たされる
-    // （`open_book` がどのパスを開いたかを残す唯一の行が消えても緑になった）。
-    // 増えた側で赤くなるのは正しい —— 増やした人に、それも打ち切りを通るのかを見させる。
-    assert_eq!(
-        scanned, EXPECTED_LOG_LINES,
-        "log の行が {scanned} 本。増減したなら EXPECTED_LOG_LINES を実測へ直すこと"
-    );
-    assert!(
-        offenders.is_empty(),
-        "利用者の入力をそのままログへ書いている:\n{}\n\
-         `truncate_path` を通すこと（ログは 200KB でローテートする）。",
-        offenders.join("\n")
-    );
 }
 
 #[test]
@@ -308,7 +330,15 @@ fn escapes_the_async_runtime(block: &str) -> bool {
 /// 隣の行で名前を出すだけで無罪になる（実測で生き残った）。
 /// 見るのは「`input.path` の出現が、打ち切りの引数の位置にあるか」だけ。
 fn logs_a_raw_path(block: &str) -> bool {
-    block
-        .match_indices("input.path")
-        .any(|(at, _)| !block[..at].ends_with("truncate_path(&"))
+    // **入口の `input.path` だけを見ない。** 入口の外（`walk.rs`）は `input` を
+    // 持たず、定跡のパスを引数で受け取る。綴りが違うだけで同じ長さの値なので、
+    // `path` で終わる名前を全部見る（`truncate_path(&…)` の中だけが素通し）
+    PATH_SPELLINGS.iter().any(|spelling| {
+        block
+            .match_indices(spelling)
+            .any(|(at, _)| !block[..at].ends_with("truncate_path(&"))
+    })
 }
+
+/// ログに出すと長さが抑えられない綴り。**打ち切りを通したものは名前が変わる。**
+const PATH_SPELLINGS: [&str; 3] = ["input.path", "info.path", " path,"];

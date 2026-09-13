@@ -11,7 +11,7 @@
 
 use crate::book::error::{excerpt, truncate_path, BookError, BookErrorCode};
 use crate::book::session::BookSession;
-use crate::book::sfen::key::{to_book_key, BookKey};
+use crate::book::sfen::key::{to_book_key_after_walk, BookKey};
 use crate::book::usi_move::to_core_move;
 use crate::search::position::sfen_position::partial_position_from_sfen;
 use serde::Serialize;
@@ -74,10 +74,14 @@ pub(crate) fn walk_lines(
 ) -> Result<Vec<BookLine>, BookError> {
     let position = start_position(start)?;
 
-    moves
+    let lines: Vec<BookLine> = moves
         .iter()
         .map(|usi| walk_line(book, &position, usi))
-        .collect()
+        .collect::<Result<_, _>>()?;
+
+    log_broken_moves(&book.info.path, &lines);
+
+    Ok(lines)
 }
 
 /// 辿り始める局面。
@@ -112,21 +116,6 @@ fn line(first: &str, plies: u32, stopped: BookWalkStop) -> BookLine {
     }
 }
 
-/// 辿った先の局面を鍵にできないときの理由文。
-///
-/// **`to_book_key` の理由文をそのまま出さない。** あちらは「盤面を操作し直せ」で
-/// 終わるが、ここで読めない局面は利用者の盤操作ではなく、定跡の手を当てて自分で
-/// 作った局面。従える操作が対応しない。
-///
-/// **組み立てだけを切り出す。** クロージャの中に文面を埋めると、
-/// この枝だけ誰も見ないまま残る（`commands.rs` の `unknown_message` と同じ理由）。
-fn unreachable_key_message(reason: &str, at: u32) -> String {
-    format!(
-        "定跡を{at}手まで辿ったところで局面を鍵にできなかった（{reason}）。\
-         定跡ファイルが壊れているかもしれない。取得し直すか、別の定跡を開くこと"
-    )
-}
-
 /// 定跡に書かれた手を当てられなかったことを、ログに残す。
 ///
 /// **値で返すだけでは診断が残らない。** 「この先の列が全部おかしい」と報告された
@@ -134,12 +123,29 @@ fn unreachable_key_message(reason: &str, at: u32) -> String {
 /// 別の初期配置向けか）を切り分ける材料が他に1つも無い。
 /// `Ok` で返るので `commands.rs` の `logged` は通らない。
 ///
-/// 線ごとに高々1回なので、1回の `walk_book_lines` で候補手の本数を超えない。
-fn log_broken_move(path: &str, usi: &str, plies: u32) {
+/// **1回の `walk_book_lines` につき高々1行。** 線ごとに書くと、壊れた定跡を
+/// 開いたまま棋譜を送るたびに「候補手の本数 × 手数」行が出る ——
+/// ログは 200KB でローテートするので、**この診断を足した理由である
+/// 切り分けの材料を、この診断自身が押し流す。**
+fn log_broken_moves(path: &str, lines: &[BookLine]) {
+    let mut broken = lines
+        .iter()
+        .filter(|line| line.stopped == BookWalkStop::BrokenMove);
+
+    let Some(first) = broken.next() else {
+        return;
+    };
+    // 綴りを全部は載せない。1本あれば、その定跡のどこが壊れているかを追える
+    let rest = broken.count();
+
+    // **載せるのは線の先頭の手で、当てられなかった手そのものではない。**
+    // 当てられなかったのは何手か先かもしれないが、先頭が分かれば定跡の中から
+    // その線を辿り直せる。`BookLine` に壊れた手の綴りを持たせると、
+    // 画面に出さない欄を線に載せることになる
     log::warn!(
-        "[book] 定跡の手を局面に当てられない path={} move={} plies={plies}",
+        "[book] 定跡の線を辿れない path={} 線の先頭={} 他{rest}本",
         truncate_path(path),
-        excerpt(usi)
+        excerpt(&first.usi_move)
     );
 }
 
@@ -167,7 +173,6 @@ fn walk_line(
             Some(mv) => position.make_move(mv).is_none(),
         };
         if broken {
-            log_broken_move(&book.info.path, &next, plies);
             return Ok(line(first, plies, BookWalkStop::BrokenMove));
         }
         plies += 1;
@@ -176,13 +181,11 @@ fn walk_line(
             return Ok(line(first, plies, BookWalkStop::DepthCap));
         }
 
-        let key = to_book_key(&position.to_sfen_owned()).map_err(|err| {
-            BookError::new(
-                BookErrorCode::InvalidContent,
-                unreachable_key_message(err.message(), plies),
-            )
-            .with_path(&book.info.path)
-        })?;
+        // **`to_book_key` を呼ばない。** あちらの理由文は「盤面を操作し直せ」で
+        // 終わるが、ここで読めない局面は利用者の盤操作ではなく、定跡の手を当てて
+        // こちらが作ったもの（`to_book_key_after_walk` の doc）
+        let key = to_book_key_after_walk(&position.to_sfen_owned(), plies)
+            .map_err(|err| err.with_path(&book.info.path))?;
         match book.reader.lookup(&key)?.first() {
             Some(top) => next = top.usi_move.clone(),
             None => return Ok(line(first, plies, BookWalkStop::OutOfBook)),
@@ -194,6 +197,7 @@ fn walk_line(
 mod tests {
     use super::*;
     use crate::book::reader::BookReader;
+    use crate::book::sfen::key::to_book_key;
     use crate::book::types::{BookFormat, BookInfo, BookMove};
     use std::collections::HashMap;
 
@@ -386,24 +390,6 @@ mod tests {
                 BookWalkStop::OutOfBook
             ]
         );
-    }
-
-    /// 辿った先が鍵にできないときの文面が、次にやることで終わること。
-    ///
-    /// **この枝は踏みにくい** —— 局面から作った綴りは `to_book_key` を通るのが
-    /// 普通なので、文面だけが誰にも読まれないまま腐る。`to_book_key` の理由文
-    /// （「盤面を操作し直せ」）を流用していないことも同時に見る。
-    #[test]
-    fn the_unreachable_key_message_ends_with_something_the_user_can_do() {
-        let message = unreachable_key_message("持駒の綴りが読めない", 7);
-
-        assert!(message.ends_with("こと"), "{message}");
-        // 原文は残す。落とすとログから切り分けられなくなる
-        assert!(message.contains("持駒の綴りが読めない"), "{message}");
-        // どこまで辿れたかを添える。添えないと壊れた行を探せない
-        assert!(message.contains("7手"), "{message}");
-        // 利用者の盤操作ではないので、そちらへ案内しない
-        assert!(!message.contains("盤面を操作"), "{message}");
     }
 
     /// 後手番の局面で、後手が打つ手を辿れること。

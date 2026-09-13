@@ -1,7 +1,8 @@
 //! 局面の綴りを、定跡の鍵にできる形へ揃える。
 //!
-//! 入口は2つ。フロントから来た綴りなら [`to_book_key`]、定跡ファイルに
-//! 書かれている行なら [`to_book_key_in_file`]。**理由文は復帰操作を持たない** ——
+//! 入口は3つ。フロントから来た綴りなら [`to_book_key`]、定跡ファイルに
+//! 書かれている行なら [`to_book_key_in_file`]、定跡を辿った先の局面なら
+//! [`to_book_key_after_walk`]。**理由文は復帰操作を持たない** ——
 //! どちらの文脈で起きた失敗かで案内が変わるので、包むのは呼び出し側の仕事。
 //!
 //! 盤・持駒・駒数の規則は [`super::board`] / [`super::hands`] / [`super::counts`] が持つ。
@@ -14,7 +15,7 @@ use crate::book::error::{excerpt, truncate_for_message, BookError, BookErrorCode
 /// 正規化を通した定跡のキー。
 ///
 /// 生の SFEN と混ざると、手数や持駒の綴りの違いで黙って引けなくなる。中身を
-/// private にして、公開している2つの入口以外から作れなくしてある。
+/// private にして、公開している3つの入口以外から作れなくしてある。
 ///
 /// **どちらを通すかは呼び手の立場で決まる。** 利用者が操作した局面なら
 /// [`to_book_key`]、定跡ファイルに書かれている行なら [`to_book_key_in_file`]。
@@ -54,13 +55,13 @@ const HIRATE_BOOK_KEY: &str = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/L
 /// 綴りの揺れ（空きマスの数字の分割、持駒の並び）は畳む。畳んだ結果をもう一度
 /// 通しても同じキーになる。
 ///
-/// これを直接呼ぶのは、コマンド境界と、辿った先の局面を鍵にし直す `book/walk.rs`。
-/// 定跡ファイルに書かれている局面をキーにするときは [`to_book_key_in_file`] を
-/// 使うこと（失敗の意味が違う）。
+/// **これを直接呼ぶのはコマンド境界だけ。** 入口は3つあり、失敗したときに出すべき
+/// 復帰操作で分かれている —— 定跡ファイルに書かれている局面は
+/// [`to_book_key_in_file`]、定跡を辿った先の局面は [`to_book_key_after_walk`]。
 ///
-/// **`walk` から来た失敗にこの理由文をそのまま出さない。** [`SFEN_RECOVERY`] は
-/// 「盤面を操作し直せ」で終わるが、辿った先の局面は利用者の盤操作の産物ではない。
-/// 包み直すのは呼び出し側の仕事。
+/// **この関数の `message` を包み直して使わない。** 返る文は理由だけではなく
+/// [`SFEN_RECOVERY`]（「盤面を操作し直せ」）まで含んだ完成品なので、包むと
+/// **従える操作が1つの文に3つ並ぶ。** 別の文脈で使うなら入口を足すこと。
 ///
 /// メモリに展開する reader は、定跡ファイル側のキーも [`to_book_key_in_file`] を
 /// 通すこと。ファイル上を二分探索する reader は通せない（通すと探索の前提である
@@ -188,6 +189,30 @@ fn book_key_or_reason(input: &str) -> Result<BookKey, String> {
 /// 冒頭の宣言）。「進めた局面の SFEN を渡すこと」はフロントの実装者への指示で、
 /// 定跡ファイルの中身が同じ形だったときには実行できる操作が対応しない。
 const MOVES_IN_SFEN: &str = "局面の後ろに指し手列が付いている";
+
+/// 定跡を辿った先の局面をキーにする。
+///
+/// **3つ目の入口。** 利用者が操作した局面でも、定跡ファイルに書かれた行でもなく、
+/// 定跡の手を当てて**こちらが作った**局面。[`to_book_key`] と
+/// [`to_book_key_in_file`] の復帰操作はどちらも対応しない —— 盤面を操作し直しても
+/// 直らないし、定跡を取得し直しても直らない。
+///
+/// **ここへ来るのは、`to_sfen_owned` の綴りと正規化の受理集合がずれたときだけ**
+/// ＝こちら側の不具合なので、`Unknown` にして報告を求める。
+///
+/// `at` は何手まで辿ったか。**添えないと、壊れた線を定跡の中から探せない。**
+pub(crate) fn to_book_key_after_walk(sfen: &str, at: u32) -> Result<BookKey, BookError> {
+    book_key_or_reason(sfen).map_err(|reason| {
+        BookError::new(
+            BookErrorCode::Unknown,
+            format!(
+                "定跡を{at}手まで辿ったところで局面を鍵にできなかった（{reason}: {}）。\
+                 不具合として報告すること",
+                excerpt(sfen)
+            ),
+        )
+    })
+}
 
 /// 定跡ファイルに書かれている局面をキーにする。
 ///
@@ -891,5 +916,28 @@ mod tests {
                 err.message()
             );
         }
+    }
+
+    /// 辿った先を鍵にできないときの文面が、**辿る文脈の復帰操作で終わること。**
+    ///
+    /// **本物の失敗を食う。** テストが自前のリテラルを書くと、
+    /// `to_book_key` の完成品（復帰操作込み）をそのまま包む実装でも緑のまま通る
+    /// —— そのときは従える操作が1つの文に3つ並ぶ。
+    #[test]
+    fn a_key_that_cannot_be_built_after_walking_says_to_report_it() {
+        let err = to_book_key_after_walk(
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL x -",
+            7,
+        )
+        .unwrap_err();
+
+        let message = err.message();
+        assert_eq!(err.code(), BookErrorCode::Unknown);
+        assert!(message.ends_with("こと"), "{message}");
+        // どこまで辿れたかを添える。添えないと壊れた線を探せない
+        assert!(message.contains("7手"), "{message}");
+        // **他の入口の復帰操作を持ち込まない。** 従える操作が並ぶと、どれも踏まれない
+        assert!(!message.contains("盤面を操作"), "{message}");
+        assert!(!message.contains("取得し直す"), "{message}");
     }
 }
