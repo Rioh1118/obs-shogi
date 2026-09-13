@@ -37,10 +37,14 @@ tauri-plugin-process = "2"
 [package]
 name = "app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+# **ここは雛形の残りではなく配布物のメタデータ。** Linux の `.deb` / `.rpm` と
+# Windows の MSI は、この4つをそのままパッケージの説明・作者・ライセンスに載せる。
+# 説明だけ英語なのは、`.deb` の `Description` と MSI の要約情報が持つ
+# 符号化の扱いがランナーごとに違い、ここで確かめられないため。
+description = "Shogi GUI for opening and joseki research"
+authors = ["Rioh1118"]
+license = "MIT"
+repository = "https://github.com/Rioh1118/obs-shogi"
 edition = "2021"
 rust-version = "1.77.2"
 autobenches = false
@@ -89,6 +93,11 @@ tauri-plugin-process = { workspace = true }
 
 [dev-dependencies]
 test-support = { path = "crates/test-support" }
+# `#[tokio::test(start_paused = true)]` のため。上限を実時間で待つテストが
+# 定数を伸ばすたびに比例して遅くなるのを避ける。
+# **本体には入らない** —— edition 2021 の resolver は dev-dependencies の
+# feature を通常のビルドへ寄せない
+tokio = { workspace = true, features = ["test-util"] }
 # `tidy_csa` の整形が tsshogi の受ける範囲を出ていないかを、
 # tsshogi 自身の正規表現を読んで確かめるために使う（`kifu_reader.rs` のテスト）
 regex = "1.11"

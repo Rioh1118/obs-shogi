@@ -1,6 +1,6 @@
 @use "sass:math";
 
-@use "./shogiBoardGeometry.scss" as geo;
+@use "@/entities/position/ui/shogiBoardGeometry" as geo;
 @use "./handGeometry.scss" as hand;
 
 // 例：派生値

@@ -13,14 +13,14 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  * 2行を同じコミットで動かすことになる。
  */
 const BASELINE: Record<Bucket, number> = {
-  "font-size": 203,
-  "border-radius": 145,
-  spacing: 441,
-  elevation: 50,
+  "font-size": 197,
+  "border-radius": 139,
+  spacing: 434,
+  elevation: 48,
   motion: 67,
-  family: 15,
+  family: 10,
   indirect: 49,
-  exempt: 5,
+  exempt: 10,
 };
 
 /** トークンの定義そのものなので、直値があって当然のファイル */
@@ -102,6 +102,37 @@ describe("SCSS のトークン名", () => {
         "`index.scss` に無いトークンを参照している。**`vite build` が Undefined variable で止まる。**",
         "`npm run verify` はコンパイルしないので、ここが無いと gate を素通りする。",
         ...missing,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+
+  /**
+   * **カスタムプロパティの値に Sass の変数を素で書かない。**
+   *
+   * `--x: rgba(index.$c, 0.1)` はコンパイルを通るが、Sass は custom property の値を
+   * **そのままの文字列**として出す。`var(--x)` は無効値になり、その宣言だけが
+   * 黙って落ちる（面が透明に、枠が `0px none` に）。`vite build` も緑、
+   * 上の「トークンが実在するか」も緑 —— **どの門にも掛からない。**
+   *
+   * `#{}` で包めば値として評価される。見るのはそこだけ。
+   */
+  it("カスタムプロパティの値で Sass の変数が補間されている", () => {
+    const RAW = /^\s*--[\w-]+:\s*([^;]*);/gm;
+    const bare = scssFiles(SRC).flatMap((file) =>
+      [...readFileSync(file, "utf8").matchAll(RAW)]
+        .map((match) => match[1]!)
+        // `#{...}` の中は評価される。外に残った `index.$` だけを見る
+        .filter((value) => /index\.\$/.test(value.replace(/#\{[^}]*\}/g, "")))
+        .map((value) => `${relative(REPO_ROOT, file)}  ${value.trim()}`),
+    );
+
+    expect(
+      bare,
+      [
+        "カスタムプロパティの値に Sass の変数が素で入っている。",
+        "**`var()` が無効値になり、その宣言だけが黙って落ちる**（コンパイルは通る）。",
+        "`#{}` で包むこと。",
+        ...bare,
       ].join("\n"),
     ).toEqual([]);
   });

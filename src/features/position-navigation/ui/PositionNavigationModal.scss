@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-family: "Inter", "Noto Sans JP", sans-serif;
+  font-family: index.$font-sans;
 
   container-type: inline-size;
   --pad-x: clamp(16px, 2.6cqw, 32px);

@@ -16,7 +16,7 @@ html {
 }
 
 body {
-  font-family: "Noto Sans JP", "sans-serif";
+  font-family: index.$font-sans;
   font-weight: 400;
   // ここに基準が無いと root の 10px が継承され、
   // 全コンポーネントが font-size を自分で宣言せざるを得なくなる

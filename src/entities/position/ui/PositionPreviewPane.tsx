@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import BoardPreview from "./BoardPreview";
 import { Color } from "shogi.js";
-import { GOTE_LABEL, SENTE_LABEL } from "@/shared/lib/turn";
+import { GOTE_LABEL, SENTE_LABEL, turnBadgeText } from "@/shared/lib/turn";
 import "./PositionPreviewPane.scss";
 import HandRow from "./HandRow";
 import type { PreviewData } from "@/entities/position/model/preview";
+import { boardSideForFrame } from "@/entities/position/lib/boardSide";
 
 type Props = {
   previewData: PreviewData | null;
 };
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 function PreviewPane({ previewData }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
@@ -26,10 +26,8 @@ function PreviewPane({ previewData }: Props) {
       const style = getComputedStyle(el);
       const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-      const usable = Math.floor(Math.min(rect.width - padX, rect.height - padY));
 
-      const next = clamp(usable, 240, 820);
-      setBoardSize(next);
+      setBoardSize(boardSideForFrame(rect, { x: padX, y: padY }));
     });
 
     ro.observe(el);
@@ -56,6 +54,17 @@ function PreviewPane({ previewData }: Props) {
   return (
     <div className="position-navigation-modal__preview-container">
       <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
+        {/*
+          **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
+          初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
+          呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
+
+          **段を作らず枠の角に重ねる。** 盤の一辺はこの枠の内寸から決まるので、
+          段を1つ足すとその高さのぶん盤が縮む（呼び手によっては測る軸が縦横で
+          入れ替わり、縮む面と広がる面に分かれる）。重ねれば内寸が動かない
+        */}
+        <div className="position-navigation-modal__turn-tab">{turnBadgeText(previewData.turn)}</div>
+
         <BoardPreview
           pieces={previewData.board}
           hands={hands}

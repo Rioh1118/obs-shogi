@@ -74,8 +74,20 @@ function PositionHitItemBase({
       tabIndex={isActive ? 0 : -1}
       className={["pos-hit", isActive ? "pos-hit--active" : ""].join(" ")}
       style={style}
-      onClick={onSelect}
-      onDoubleClick={onAccept}
+      // **`dblclick` を使わない。開くのは「いま選ばれている行をもう一度押したとき」だけ。**
+      //
+      // `dblclick` が保証するのは2打が同じ**要素**に落ちたことだけで、その要素が
+      // どの行を描いていたかは見ていない。一覧は仮想化されていて行の DOM は添字で
+      // 使い回され、車輪で送るあいだポインタは1px も動かない——OS は打鍵間隔と
+      // ポインタの移動だけを見て2打目を数えるので、「行Aを押す → 車輪で送る →
+      // 行Bを押す」が**行Bのダブルクリック**として届く。利用者から見れば行Bは
+      // 1度しか押していないのに棋譜が切り替わる。
+      //
+      // `detail` は打鍵の連なり（1打目なら1、2打目なら2）。`isActive` は1打目が
+      // 選んだ行を指しているので、両方を見れば「2打とも同じ行だったか」が決まる。
+      // 2打目は React が1打目の再描画を流し終えてから来るので、ここで読む
+      // `isActive` は1打目の結果
+      onClick={(e) => (e.detail >= 2 && isActive ? onAccept() : onSelect())}
     >
       <span className="pos-hit__top">
         <span className="pos-hit__file" title={fileName}>

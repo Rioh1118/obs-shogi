@@ -55,6 +55,7 @@ function toNotification(request: VisibleRequest, tier: VisibleTier, seq: number)
     actions: actionsOf(request) ?? [],
     autoDismiss: autoDismissOf(request),
     dedupeKey: request.dedupeKey,
+    dismissKey: request.dismissKey,
     count: 1,
   };
 }
@@ -93,10 +94,27 @@ function foldInto(
 }
 
 /**
+ * 同じ取っ手（`dismissKey`）で来た通知の置き換え。
+ *
+ * **id と並び順は動かさない**（`foldInto` と同じ理由）。**件数は数えない**——
+ * 取っ手は条件と結び付いた通知が持つもので、2件目は「また起きた」ではなく
+ * 「まだ続いている」。数を出す条件は `dedupeKey` のままにしてある
+ * （`Notification.count` / `NotificationLayer`）。
+ */
+function replaceHeld(
+  existing: Notification,
+  request: VisibleRequest,
+  tier: VisibleTier,
+): Notification {
+  return { ...toNotification(request, tier, 0), id: existing.id };
+}
+
+/**
  * 通知の置き場の状態遷移。**呼び出し規約は3つ。**
  *
  * - `silent` の段は何も積まない（ADR-0004 決定2）
  * - 同じ `dedupeKey` は畳む。件数だけが増え、id と並び順は動かず、採番も進まない
+ * - 同じ `dismissKey` は置き換える。件数は増えず、id と並び順は動かない
  * - 消えるものが無い `dismiss` / `dismissByKey` は**同じ参照を返す**
  *
  * どれも「呼んだのに何も起きない」形なので、外から見て区別が付かない。
@@ -123,6 +141,19 @@ export function notificationReducer(
         return { ...state, notifications };
       }
 
+      // **取っ手が同じものは1枚に保つ。** 積み上がると、引っ込めたときに
+      // 1枚しか消えない（`dismissByKey` は最初の1枚を消して終わる形ではないが、
+      // 出した側は1枚のつもりで居る）。**件数は数えない**——条件と結び付いた通知は
+      // 条件が消えれば引っ込むので、2件目は「また起きた」ではなく「まだ続いている」
+      const handle = request.dismissKey;
+      const held =
+        handle === undefined ? -1 : state.notifications.findIndex((n) => n.dismissKey === handle);
+      if (held >= 0) {
+        const notifications = [...state.notifications];
+        notifications[held] = replaceHeld(notifications[held], request, tier);
+        return { ...state, notifications };
+      }
+
       return {
         notifications: [...state.notifications, toNotification(request, tier, state.nextSeq)],
         nextSeq: state.nextSeq + 1,
@@ -133,7 +164,10 @@ export function notificationReducer(
       return withoutMatching(state, (n) => n.id === action.id);
 
     case "dismissByKey":
-      return withoutMatching(state, (n) => n.dedupeKey === action.key);
+      return withoutMatching(
+        state,
+        (n) => n.dedupeKey === action.key || n.dismissKey === action.key,
+      );
   }
 }
 

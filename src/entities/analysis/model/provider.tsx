@@ -5,7 +5,7 @@ import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
 } from "@/entities/engine/api/tauri";
-import { useEngineSeat, type DiscardPoint, type SeatTakeResult } from "./useEngineSeat";
+import { useEngineSeat, type DiscardReleasePoint, type SeatTakeResult } from "./useEngineSeat";
 import { useResultFlush } from "./useResultFlush";
 import { waits } from "./waits";
 import { analysisReducer, initialState } from "./reducer";
@@ -267,7 +267,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 要らなくなった要求がその先へ入ると、直前に立った断りが黙って消える。
    */
   const takeSeatAndGo = useCallback(
-    async (seq: number, want: string, discardBy: DiscardPoint): Promise<SeatTakeResult> => {
+    async (seq: number, want: string, discardBy: DiscardReleasePoint): Promise<SeatTakeResult> => {
       // **入口でも readiness を見る。入口は2つある。**
       //
       // 下の札が守るのは「往復の**前**に読んだ世代」だけで、**世代が上がった後に
@@ -321,7 +321,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
         // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
         //
-        // **判定は札が持つ**（世代とエンジンが使えるかの両方）。ここで足すと、
+        // **判定は札の `engineChanged`**（世代とエンジンが使えるかの両方）。ここで足すと、
         // 成功して返る側（`landed`）と条件が割れる——割れた側は、死んだエンジンの席を
         // 握ったまま「解析中」で固まる。
         if (!take.engineChanged()) throw e;

@@ -18,5 +18,5 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 ## このリポジトリの検証
 
 `vp check` / `vp test` だけでは足りない。**`npm run verify` と `npm run verify:rust`** を通すこと
-（前者は `test:hooks`、後者は `cargo fmt` / `clippy` / `test` / rustdoc のラチェットを含む）。
+（段の内訳は `CLAUDE.md` の検証節。**ここに写さない**）。
 手順と免除は `CONTRIBUTING.md` と `docs/state-transitions/verify-gate-decision.md` が持つ。

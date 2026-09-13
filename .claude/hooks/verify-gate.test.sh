@@ -435,7 +435,10 @@ expect_kinds "ts" "package.json"
 expect_kinds "ts rust" "src-tauri/src/book/commands.rs"
 expect_kinds "ts rust" "src-tauri/tests/root_guard.rs"
 expect_kinds "rust" "src-tauri/Cargo.toml"
-expect_kinds "rust" "src-tauri/tauri.conf.json"
+# 起動の1枚目を作る2ファイル。`index.html` は React が着く前の画面を自分で持ち、
+# `tauri.conf.json` は窓の初期色を持つ。両方を vitest 側の走査が突き合わせる
+expect_kinds "ts" "index.html"
+expect_kinds "ts rust" "src-tauri/tauri.conf.json"
 # capability は両方。`src/__tests__/openerCapability.test.ts`（vitest）が口と許可を突き合わせ、
 # `tauri_build::build()` が識別子を検証する。**書式では絞らない**——
 # ACL は JSON5 でも TOML でも書けるので、片方だけが拾う形にすると

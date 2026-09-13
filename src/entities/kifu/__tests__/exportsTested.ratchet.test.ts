@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { SRC } from "@/__tests__/walk";
 import * as cursorModule from "@/entities/kifu/model/cursor";
 import * as branchModule from "@/entities/kifu/model/branch";
+import * as handicapModule from "@/entities/kifu/model/handicap";
 import * as jkfModule from "@/entities/kifu/model/jkf";
 import * as kifuModule from "@/entities/kifu/model/kifu";
 import * as advanceWithPlanModule from "@/entities/kifu/lib/advanceWithPlan";
@@ -14,6 +15,7 @@ import * as cloneJkfModule from "@/entities/kifu/lib/cloneJkf";
 import * as commentModule from "@/entities/kifu/lib/comment";
 import * as createInitialJKFDataModule from "@/entities/kifu/lib/createInitialJKFData";
 import * as eqMoveModule from "@/entities/kifu/lib/eqMove";
+import * as kifuOverviewModule from "@/entities/kifu/lib/kifuOverview";
 import * as leafTesuuModule from "@/entities/kifu/lib/leafTesuu";
 import * as playerCursorModule from "@/entities/kifu/lib/playerCursor";
 import * as playerNamesModule from "@/entities/kifu/lib/playerNames";
@@ -50,6 +52,7 @@ type Target = { name: string; module: unknown; test: string };
 const MODEL: Target[] = [
   { name: "cursor.ts", module: cursorModule, test: "cursor.test.ts" },
   { name: "branch.ts", module: branchModule, test: "branch.test.ts" },
+  { name: "handicap.ts", module: handicapModule, test: "handicap.test.ts" },
   { name: "jkf.ts", module: jkfModule, test: "jkf.test.ts" },
   { name: "kifu.ts", module: kifuModule, test: "kifu.test.ts" },
 ];
@@ -72,6 +75,7 @@ const LIB: Target[] = [
     test: "createInitialJKFData.test.ts",
   },
   { name: "eqMove.ts", module: eqMoveModule, test: "eqMove.test.ts" },
+  { name: "kifuOverview.ts", module: kifuOverviewModule, test: "kifuOverview.test.ts" },
   { name: "leafTesuu.ts", module: leafTesuuModule, test: "leafTesuu.test.ts" },
   { name: "playerCursor.ts", module: playerCursorModule, test: "playerCursor.test.ts" },
   { name: "playerNames.ts", module: playerNamesModule, test: "playerNames.test.ts" },

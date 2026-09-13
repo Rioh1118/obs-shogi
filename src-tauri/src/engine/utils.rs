@@ -133,7 +133,7 @@ pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 /// 根拠は上と同じ——棋譜と画面に出る値なので、化けた理由を調べる手掛かりを消さない。
 /// ログの行を偽造する力は無い（`tail` も `grep` も U+2028 で分割しない）。
 /// **産地が増えたら見直すこと**——いまの `detail` の出どころは自分のフロントだけで、
-/// 棋譜ファイル由来の文字列が流れ込む口ができたら判断が変わる（#354）。
+/// 棋譜ファイル由来の文字列が流れ込む口ができたら判断が変わる。
 ///
 /// **通した値を `{:?}` で書かないこと。** `{:?}` は制御文字のほかに
 /// `Cf`（BOM）/ `Cn`（未割り当て）も `\u{XXXX}` へ展開するので、
@@ -184,6 +184,22 @@ pub fn with_cause(error: &dyn std::error::Error) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    /// 制御文字を潰し、文字の途中で割らないこと。
+    #[test]
+    fn a_shown_copy_is_bounded_and_readable() {
+        assert_eq!(shown("7g7f", 8), "7g7f");
+        assert!(!shown("a\nb", 8).contains('\n'), "改行を通している");
+
+        // 多バイト文字の途中で割らない
+        let trimmed = shown("あいうえお", 3);
+        assert!(
+            trimmed.starts_with("あいう"),
+            "文字の途中で割っている: {trimmed}"
+        );
+        assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
+    }
+
     use super::*;
 
     /// 原因の連鎖が残ること。
@@ -219,10 +235,10 @@ mod tests {
 /// **エンジンの名乗り（`id name`）も同じ上限で切る**（`engine::registry` の
 /// `spawn_ok_line`）。そちらも `collect_engine_info` が長さを見ずに保持する。
 ///
-/// 縛っている式は2本。掃き出しは `PENDING_LIMIT` 件がまとめて出るので
-/// 1回ぶんで測る（`engine::protocol` の
-/// `flushing_the_queue_cannot_rotate_the_log`）。起動の1行は1行で測る
-/// （`engine::registry` の `the_registry_lines_cannot_rotate_the_log_or_forge_a_line`）。
+/// **縛っている式の数をここに書かない**（口が増えるたびにこの行だけが古くなる）。
+/// この上限を `LOG_FILE_BUDGET` と並べて表明しているテストが赤くなったら、
+/// **どれも一次で乗っている**——「関係の無いラチェット」と読まないこと。
+/// 測り方は口ごとに違う（掃き出しは `PENDING_LIMIT` 件ぶん、起動と停止は1行ぶん）。
 /// **どちらも上限の不等式なので、縮める側は止まらない。**
 ///
 /// 実在する option 名（`USI_Hash` / `EvalDir` / `Threads`）はこの1/4も使わないが、

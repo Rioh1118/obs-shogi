@@ -33,6 +33,16 @@
     }
   }
 
+  // 欄は器の幅いっぱいに伸ばす。**`input` と `textarea` は素の幅を持つ**ので
+  // （`size` / `cols` 由来の 20 文字ぶん）、伸ばす指示が無いと、見出しの左端は揃っているのに
+  // 欄の右端だけがばらばらになる。`--horizontal` の側は自前で `inline-flex` を書いていて、
+  // 伸びていたのはそちらの列に入った欄だけだった
+  &__field {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
   &__input,
   &__textarea,
   &__select {

@@ -18,8 +18,14 @@ import { checkName, existingChecks, rustChecks } from "./checkNames";
  */
 const CONTRIBUTING = join(REPO_ROOT, "CONTRIBUTING.md");
 
-/** 表の始まりと、次の見出し。この間だけを読む */
-const SECTION = /### 機械で止めているもの\n([\s\S]*?)\n## /;
+/**
+ * 表の始まりと、**次の見出し**。この間だけを読む。
+ *
+ * **`###` で切ること。** `##` までにすると節を跨いで別の表まで読み、
+ * 行が隣の表へ移っても名前が拾えて緑のまま通る（実際にマージで3行が
+ * 隣の表へ落ち、列数が合わずに逃げ道の列が描画から消えていた）。
+ */
+const SECTION = /### 機械で止めているもの\n([\s\S]*?)\n##+ /;
 
 /** 表の1列目。`| \`name\` | ... |` の name */
 const ROW = /^\|\s*`([A-Za-z_][A-Za-z0-9_]*)`(?:（Rust）)?\s*\|/gm;
@@ -83,6 +89,7 @@ function ratchetFiles(): string[] {
  * 片方だけ人が覚える形にすると、忘れても何も起きない。
  */
 const RUST_CHECKS = new Set([
+  "log_line_builders",
   "comment_identifiers",
   "engine_timeouts",
   "layering",
@@ -96,6 +103,7 @@ const RUST_CHECKS = new Set([
   "state_transition_cells",
   "index_cache_guard_names",
   "index_writes_are_guarded",
+  "kill_result_is_not_discarded",
   "search_doc_names",
   "state_is_announced_once",
   "temp_dir_names",
@@ -171,6 +179,32 @@ describe("CONTRIBUTING.md の検査の索引", () => {
 
     // ラチェットを名乗らない隣人は巻き込まない
     expect(hasIndexDuty("src/entities/x/__tests__/probe.test.tsx")).toBe(false);
+  });
+
+  /**
+   * 表の行が、見出しと同じ列数を持つこと。
+   *
+   * GFM は見出しより多いセルを捨てるので、**逃げ道の列が描画から消える**。
+   * 表を跨いで行を動かすと必ずこの形になる。
+   */
+  test("表の行の列数が見出しと合っている", () => {
+    const body = readFileSync(CONTRIBUTING, "utf8").split("\n");
+    const offenders: string[] = [];
+
+    let header = 0;
+    for (const [at, line] of body.entries()) {
+      if (!line.startsWith("|")) {
+        header = 0;
+        continue;
+      }
+      // **`\|` は数えない。** セルの中に縦棒を書く正しい綴りで、区切りではない
+      const cells = line.replace(/\\\|/g, "").split("|").length;
+      if (header === 0) header = cells;
+      else if (/^\|[\s:|-]+\|$/.test(line)) continue;
+      else if (cells !== header) offenders.push(`${at + 1}: ${line.slice(0, 40)}`);
+    }
+
+    expect(offenders, "表の行が見出しと違う列数を持っている（逃げ道の列が消える）").toEqual([]);
   });
 
   test("ラチェットは表に載っている", () => {

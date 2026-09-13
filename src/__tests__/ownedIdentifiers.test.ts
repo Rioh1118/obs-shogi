@@ -20,13 +20,7 @@ import { REPO_ROOT, SRC, sourceFiles } from "./walk";
  */
 describe("「`X` の `y`」で指した綴り", () => {
   const docFiles = () => markdownFiles();
-  /**
-   * **この検査自身は走査しない。** 本体とこのファイルは「`X` の `y`」という
-   * 形そのものと、改名跡の例（`FileNode` の `isActive`）を doc に書くので、
-   * 自分を読むと**書式の説明を参照として拾う**。
-   */
-  const srcFiles = () =>
-    sourceFiles(SRC, { includeTests: true }).filter((p) => !/ownedIdentifiers\.(ts|test\.tsx?)$/.test(p));
+  const srcFiles = () => sourceFiles(SRC, { includeTests: true });
 
   /** 0件を見て緑になる形を止める（走査が壊れても落ちない、を防ぐ） */
   test("参照を拾えている", () => {

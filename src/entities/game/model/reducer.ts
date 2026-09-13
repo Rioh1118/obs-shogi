@@ -14,6 +14,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         branchPlan: asBranchPlan([...action.payload.cursor.forkPointers]),
         selectedPosition: null,
         loadedAbsPath: action.payload.absPath,
+        boardSeq: state.boardSeq + 1,
         // 載ったので、前に失敗した印は消す。**回数は戻さない**——戻すと、
         // 控えた値との比較が別の失敗と一致しうる
         loadFailedAbsPath: null,
@@ -69,6 +70,26 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
           }
         : { ...state, jkf: action.payload.jkf };
 
+    // **棋譜・カーソル・分岐の計画に触らない。** 改名・移動は同じ棋譜の名前が
+    // 変わっただけで、盤に並んでいるものは変わらない。ここで載せ直すと、
+    // file-tree が開いた時点で持った `jkfData` に置き換わり、盤も棋譜一覧も
+    // カーソルもその時点まで戻る。
+    //
+    // **`boardSeq` も進めない。** 進めると、盤の中身が入れ替わったことにしか反応しない側
+    // （`boardSeq` の doc に読み手が3つ並ぶ）が、改名を載せ直しと読んで持ち物を捨てる。
+    case "path_renamed":
+      // **盤に何も載っていなければ受けない。** `loadedAbsPath` は「盤に載っている棋譜」なので、
+      // 載っていないのに値を持つと `FileNode` の `canSkipReopen` が真になり、
+      // その行は押しても開かなくなる（盤が空のまま戻せない）。
+      //
+      // 見るのが `jkf` なのは、`loadedAbsPath` と**必ず組で動く**から——立てるのは
+      // `game_loaded` が両方同時、落とすのは `reset_state` が両方同時。どちらで見ても同じ。
+      // 組で動かない欄をあとで足すなら、ここも見直すこと
+      if (state.jkf === null) return state;
+      // 値が変わらないなら同じ参照を返す（`clear_selection` と同じ理由）
+      if (state.loadedAbsPath === action.payload.absPath) return state;
+      return { ...state, loadedAbsPath: action.payload.absPath };
+
     case "set_selection":
       return {
         ...state,
@@ -122,7 +143,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         loadFailedSeq: state.loadFailedSeq + 1,
       };
 
-    // **持ち越す欄が2つある。** `initialGameState` を展開するので、
+    // **持ち越す欄が3つある。** `initialGameState` を展開するので、
     // ここに書かない欄は初期値へ戻る——**戻ってはいけない欄を足したら、ここも足すこと。**
     //
     // - `blockingWrites`: 棋譜を閉じるのは書き込みが走っている最中にも起こる
@@ -130,11 +151,14 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     //   確認ダイアログが押し直せる状態へ戻る
     // - `loadFailedSeq`: 単調増加（`game_loaded` と同じ理由）。戻すと、控えた値と同じ回数で
     //   別の失敗が観測され、待っている側が落ちた要求を捨てそこねる
+    // - `boardSeq`: 単調増加。**ここでは進める**——盤の中身が空へ入れ替わったので、
+    //   「まだ同じ棋譜か」を問う側は入れ替わりとして見る必要がある
     case "reset_state":
       return {
         ...initialGameState,
         blockingWrites: state.blockingWrites,
         isLoading: state.blockingWrites > 0,
+        boardSeq: state.boardSeq + 1,
         loadFailedSeq: state.loadFailedSeq,
       };
 

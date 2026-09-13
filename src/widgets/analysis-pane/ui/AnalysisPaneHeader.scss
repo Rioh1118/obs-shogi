@@ -52,7 +52,7 @@
     letter-spacing: 0.01em;
     color: index.$color-text-light-1;
     opacity: 0.92;
-    font-family: "Noto Sans JP", sans-serif;
+    font-family: index.$font-sans;
     white-space: nowrap;
   }
 
@@ -63,7 +63,7 @@
     color: index.$color-text-light-1;
     opacity: 0.98;
 
-    font-family: "Lato";
+    font-family: "Lato", index.$font-sans;
     font-variant-numeric: tabular-nums;
     min-width: 6ch;
     text-align: left;

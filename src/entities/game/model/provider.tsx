@@ -72,11 +72,16 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
       //
       // **追いつかない場合がある。** 盤に載せられなかった回（`game.md` の E16）は
-      // `activeKifuPath` だけが進み、`loadedAbsPath` は `game_loaded` でしか動かないので、
+      // `activeKifuPath` だけが進み、`loadedAbsPath` は据え置かれるので、
       // 次の棋譜が載るまでこの条件は真であり続ける。その間、盤には前の棋譜が出ているのに
       // 書き込みは全部ここで止まる——`edit` は `jkf_restored` を撃つので、
       // **指した手が一瞬出てから戻る**。読み手のいない `state.error` にしか理由が残らないので、
       // 載せられなかったこと自体は `GameFileTreeBridge` が断りとして出している。
+      //
+      // **改名（`path_renamed`）はこの据え置きを崩さない。** 崩すのは橋が
+      // `renameLoadedPath` を撃ったときだけで、橋は**載せられた回にしか**
+      // 突き合わせ用の `jkfData` を控えない（`loadedJkfDataRef`）。載せられなかった棋譜は
+      // その参照と一致しないので、改名しても宛先はここで止まったまま残る。
       if (persistence.absPath !== state.loadedAbsPath) {
         const msg = "保存先が切り替わったため書き込みを中止しました";
         dispatch({ type: "set_error", payload: msg });
@@ -347,6 +352,10 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
 
   const resetGame = useCallback(() => {
     dispatch({ type: "reset_state" });
+  }, []);
+
+  const renameLoadedPath = useCallback((absPath: string) => {
+    dispatch({ type: "path_renamed", payload: { absPath } });
   }, []);
 
   const goToIndex = useCallback(
@@ -747,6 +756,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       helpers,
       loadGame,
       resetGame,
+      renameLoadedPath,
       goToIndex,
       nextMove,
       previousMove,
@@ -779,6 +789,7 @@ export function GameProvider({ children, persistence }: GameProviderProps) {
       helpers,
       loadGame,
       resetGame,
+      renameLoadedPath,
       goToIndex,
       nextMove,
       previousMove,

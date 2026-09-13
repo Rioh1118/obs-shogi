@@ -1,20 +1,15 @@
 import { useCallback, useMemo, useState } from "react";
-import { turnText } from "@/shared/lib/turn";
 
 import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
 import { formatDate } from "@/shared/lib/date";
-import type { StudyPosition } from "@/entities/study-positions/model/types";
+import {
+  studyPositionStateLabel,
+  type StudyPosition,
+} from "@/entities/study-positions/model/types";
 import "./PositionDetail.scss";
-
-const STATE_LABELS: Record<string, string> = {
-  inbox: "未整理",
-  active: "研究中",
-  reference: "資料",
-  done: "完了",
-};
 
 interface Props {
   position: StudyPosition | null;
@@ -38,8 +33,6 @@ export default function PositionDetail({
     if (!position) return null;
     return buildPreviewDataFromSfen(position.sfen);
   }, [position]);
-
-  const turnBadge = previewData ? turnText(previewData.turn) : null;
 
   const handleDelete = useCallback(async () => {
     if (!position || isDeleting) return;
@@ -82,7 +75,7 @@ export default function PositionDetail({
         <h3 className="sp-detail__label">{displayLabel}</h3>
         <div className="sp-detail__metaRow">
           <span className={`sp-detail__state sp-detail__state--${position.state}`}>
-            {STATE_LABELS[position.state] ?? position.state}
+            {studyPositionStateLabel(position.state)}
           </span>
           {position.tags.map((tag) => (
             <span key={tag} className="sp-detail__tag">
@@ -91,7 +84,6 @@ export default function PositionDetail({
           ))}
         </div>
         <div className="sp-detail__metaSub">
-          {turnBadge && <span>{turnBadge}</span>}
           <span>{formatDate(position.updatedAt)} 更新</span>
         </div>
         {position.description && <div className="sp-detail__memo">{position.description}</div>}

@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: index.$space-6;
+  height: 100%;
   // 余白は中身が持つ（他の対話と同じ形。`Modal` には padding="none" を渡す）。
   // タブと入力欄の左端が揃わないのは `Form` が自分の左右 padding を持つため。
   // ここを合わせておくと、タブの左端が Form の見出しの左端と揃う
@@ -64,8 +65,11 @@
     }
   }
 
-  // Form側は padding 2rem 3rem なので、ここは余計な padding を付けない
+  // Form側は padding 2rem 3rem なので、ここは余計な padding を付けない。
+  // どちらの面も器の高さいっぱいを使う（盤は残りの高さから、貼り付け欄は
+  // 左の列の残りから決まる）ので、ここが伸びる側になる
   &__body {
+    flex: 1 1 auto;
     min-height: 0;
   }
 }

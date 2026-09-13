@@ -47,11 +47,13 @@ const TABLE_DECLS = /export const ([A-Za-z_$][\w$]*): Record<[^>]*NotReadyReason
 
 const tableNames = (code: string) => [...code.matchAll(TABLE_DECLS)].map((m) => m[1]);
 
-/** 断りではない部品。**足すならここに書く**——書かなければ表とテストを要求される */
-const PARTS = new Set([
-  /** 他の断りが末尾に埋め込む文 */
-  "RESTART_ENGINE_HINT",
-]);
+/**
+ * 断りではない部品。**足すならここに書く**——書かなければ表とテストを要求される。
+ *
+ * **いまは空。** 断りの中に埋め込む文（`RESTART_ENGINE_HINT`）は `export` していないので
+ * `NAMES` に拾われず、対応表は `TABLE_DECLS` が型注釈から拾う。名前で外すものが無い。
+ */
+const PARTS = new Set<string>();
 
 /**
  * ※15 の節だけを切り出す。他の注や表のセルに名前が1度出ただけで通るのを止める。

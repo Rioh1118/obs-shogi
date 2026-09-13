@@ -35,15 +35,58 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
     Ok(())
 }
 
-/// プロセスを落とし切れたか。
+/// プロセスを落とし切れたか。**3つに割る。**
 ///
-/// **「落とした」と「落とせなかった」を分ける。** 潰すと、`quit` の書き込みで
-/// 折り返して `process.kill()` に一度も届かなかった場合が「done」と記録され、
+/// 「落とした」と「落とせなかった」の2つに潰すと、`quit` の書き込みで折り返して
+/// `process.kill()` に一度も届かなかった場合が「done」と記録され、
 /// プロセスが残ったことを知る手掛かりが1つも無くなる（→ #353）。
+/// 一方、届かなかった回の**大半は落とせている**ので（`classify_kill_failure`）、
+/// そちらを「落とせなかった」に混ぜると、閉じるたびに残留の疑いが1件増える。
 enum KillOutcome {
-    AlreadyGone,
+    /// `handler` が既に無い。`kill_engine` の2度目以降
+    AlreadyKilled,
+    /// `process.kill()` まで届いた
     Killed,
+    /// 書き込みが EPIPE で折り返し、**出力も既に終わっていた**。
+    /// 子は stdin も stdout も手放している（＝もう居ない）ので、
+    /// `process.kill()` へ届かなかったことは結果に響かない
+    AlreadyExited(String),
+    /// 落ちたか分からない
     Failed(String),
+}
+
+/// `kill` が返した失敗を、**プロセスが残っている疑いがあるか**で割る。
+///
+/// `usi` の `kill` はシグナルの前に `quit` を書き、その書き込みが `?` で返ると
+/// `process.kill()` へ進まない。`EngineRegistry::terminate` は先に `quit` を
+/// 送ってあるので、素直に終わるエンジンでは相手が既に居らず、
+/// この2通目は EPIPE で必ず折り返す——**落とせたときほど `Err` が返る**。
+/// 割らずに全部「残ったかもしれない」と記録すると、閉じるたびに `error` が1行出て、
+/// 本物の残留（`KILL_TIMEOUT` 超過 → #353、`SPAWN_TIMEOUT` 超過 → #381）と
+/// 見分けが付かなくなる。
+///
+/// **EPIPE だけでは足りない。** あれは子が stdin の読み口を手放したことしか
+/// 意味しないので、出力も終わっていること（`output_ended`）と併せて見る。
+/// 両方閉じていれば子はパイプを1本も持っていない。stdin だけ閉じて走り続ける
+/// エンジンはこちらに入らない——`process.kill()` へ届いていないので本当に残る。
+///
+/// **判るのは「もう居ない」まで。** 終わった理由までは判らない——`kill_engine` を
+/// 呼ぶ3箇所のうち、`quit` が先行するのは `terminate` だけで、
+/// `EngineRegistry::spawn` の失敗の枝と `shutdown_all` の `starting` ぶんは
+/// 1通目から `kill` に入る（起動直後に自滅したエンジンがそこを通る）。
+/// `wait` も通らないので、終了状態も観測していない。
+fn classify_kill_failure(error: &usi::Error, output_ended: bool) -> KillOutcome {
+    let text = with_cause(error);
+    let broken_pipe = matches!(
+        error,
+        usi::Error::EngineIo(io) if io.kind() == std::io::ErrorKind::BrokenPipe
+    );
+
+    if broken_pipe && output_ended {
+        KillOutcome::AlreadyExited(text)
+    } else {
+        KillOutcome::Failed(text)
+    }
 }
 
 /// `kill` を待つ上限。
@@ -87,6 +130,22 @@ pub struct UsiProtocol {
     /// `kill_engine` も `Closed` を立てるので、印が無いと
     /// **こちらが落としたのに「エンジンの出力が終わった」と説明する**。
     killed: Arc<std::sync::atomic::AtomicBool>,
+
+    /// stdout が EOF を返したか。**立てる口は読み取りの EOF 1箇所だけ**
+    /// （`start_listening` の hook）。
+    ///
+    /// **「読み取りが終わった」では代用できない。** 読み取りは EOF 以外でも
+    /// 終わる（非 UTF-8 の行、`score` の数値のパース失敗、`listen` 自体の失敗）。
+    /// そこで立てると、**エンジンが生きたまま**この旗が立ち、
+    /// `classify_kill_failure` が残留を「もう居ない」と読む。
+    ///
+    /// **`ReadyState::Closed` とも別。** あちらはどの終わり方でも立てたい側で、
+    /// `kill_engine` 自身も立てる。
+    ///
+    /// **読んでよいのは `handler.kill()` が返った直後だけ**
+    /// （`kill_engine` の `spawn_blocking` の中）。落とした後も立つので、
+    /// 他の場所で「こちらが手を下す前か」の意味には使えない——それは `killed`。
+    output_ended: Arc<std::sync::atomic::AtomicBool>,
 
     /// `isready` に対してエンジンがどう応じたか。
     ///
@@ -181,6 +240,7 @@ impl Clone for UsiProtocol {
             listen_active: Arc::clone(&self.listen_active),
             stalled: Arc::clone(&self.stalled),
             killed: Arc::clone(&self.killed),
+            output_ended: Arc::clone(&self.output_ended),
             ready: Arc::clone(&self.ready),
             runtime_handle: self.runtime_handle.clone(),
             init_task: Arc::clone(&self.init_task),
@@ -597,6 +657,7 @@ impl UsiProtocol {
             listen_active: Arc::new(Mutex::new(false)),
             stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             killed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            output_ended: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             ready: Arc::new(watch::channel(ReadyState::Waiting).0),
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
@@ -770,13 +831,19 @@ impl UsiProtocol {
         let Some(handler) = handler_guard.as_mut() else {
             return Err(EngineError::NotInitialized(GONE.to_string()));
         };
+        let output_ended = Arc::clone(&self.output_ended);
         let result = handler.listen(move |output| -> Result<(), StopListening> {
             let Some(cmd) = output.response() else {
                 // `response` が `None` になるのは**出力が閉じたときだけ**。
                 // `usi` crate はそれを `Err` ではなく `Ok(response: None)` で返すので、
                 // ここで `Err` を返さないと EOF を延々読む busy loop になる。
                 //
+                // **旗を立てるのはここだけ。** 上の転送タスクの末尾は
+                // 読み取りのどの終わり方でも通るので、そこで立てると
+                // エンジンが生きたまま立つ（→ `output_ended` の doc）。
+                //
                 // 待っている側への通知はここではしない（上の転送タスクが行う）
+                output_ended.store(true, std::sync::atomic::Ordering::Relaxed);
                 return Err(StopListening);
             };
 
@@ -1326,20 +1393,27 @@ impl UsiProtocol {
 
         // `kill` も `quit` を書くので、書き込みと同じ理由で専用スレッドへ出す
         let handler = Arc::clone(&self.handler);
+        let output_ended = Arc::clone(&self.output_ended);
         let killed = tokio::task::spawn_blocking(move || {
             let taken = handler.blocking_lock().take();
             let Some(mut handler) = taken else {
-                return KillOutcome::AlreadyGone;
+                return KillOutcome::AlreadyKilled;
             };
 
-            // **失敗を捨てない。** `usi` の `kill` は `quit` を書いてから
-            // `process.kill()` を呼ぶので、書き込みが `?` で返ると
-            // **プロセスは一度も落とされない**。ここは `terminate` の後段で、
-            // `quit` は必ず2通目——stdin を閉じたエンジンでは普通に失敗する。
-            // 捨てると「done」と記録され、残ったことを知る手掛かりが1つも無くなる
+            // **失敗を捨てない。** 書き込みが `?` で返ると**プロセスは一度も
+            // 落とされない**（順序は `classify_kill_failure` の doc）。捨てると
+            // 「done」と記録され、残ったことを知る手掛かりが1つも無くなる。
+            //
+            // **一括りにもしない。** 割り方は `classify_kill_failure`。
+            // `output_ended` を `kill` の**後**に読むのは、EOF が伝わる猶予を
+            // 最大化するため。**同期していないので取りこぼす**——
+            // 取りこぼした側は `Failed`（残留の疑い）に倒れる
             let outcome = match handler.kill() {
                 Ok(()) => KillOutcome::Killed,
-                Err(e) => KillOutcome::Failed(with_cause(&e)),
+                Err(e) => classify_kill_failure(
+                    &e,
+                    output_ended.load(std::sync::atomic::Ordering::Relaxed),
+                ),
             };
             std::mem::forget(handler);
             outcome
@@ -1347,9 +1421,16 @@ impl UsiProtocol {
 
         match tokio::time::timeout(KILL_TIMEOUT, killed).await {
             Ok(Ok(KillOutcome::Killed)) => log::info!(target: LOGT, "kill_engine: done"),
-            Ok(Ok(KillOutcome::AlreadyGone)) => {
-                log::debug!(target: LOGT, "kill_engine: already gone")
+            Ok(Ok(KillOutcome::AlreadyKilled)) => {
+                log::debug!(target: LOGT, "kill_engine: already killed")
             }
+            // シグナルは送っていない。**送る先がもう無いという推定**で、
+            // 根拠は stdin と stdout が両方閉じていること（`classify_kill_failure`）
+            Ok(Ok(KillOutcome::AlreadyExited(e))) => log::info!(
+                target: LOGT,
+                "kill_engine: no signal was sent; stdin and stdout were both closed, \
+                 assuming the process is gone: {e}"
+            ),
             // `quit` の書き込みで折り返したので `process.kill()` へ届いていない
             Ok(Ok(KillOutcome::Failed(e))) => log::error!(
                 target: LOGT,
@@ -1626,6 +1707,71 @@ mod tests {
         let mut unique = texts.to_vec();
         unique.dedup();
         assert_eq!(before, unique.len(), "届かない理由の文言が重なっている");
+    }
+
+    /// `kill` の失敗を、残っている疑いがあるかで割れていること。
+    ///
+    /// **EPIPE を無条件に「終わっていた」と読まないこと。** 読むと、stdin だけ
+    /// 閉じて探索を続けるエンジンが `info` 1行で見送られる——`process.kill()` へは
+    /// 届いていないので、そのプロセスは本当に残る。
+    ///
+    /// **EPIPE 以外を「終わっていた」に混ぜないこと。** 混ぜると、`handler` の
+    /// Mutex の中で起きた別の失敗まで正常終了として記録される。
+    #[test]
+    fn a_failed_kill_is_split_by_whether_the_process_may_remain() {
+        use std::io::{Error as IoError, ErrorKind};
+
+        let epipe = || usi::Error::EngineIo(IoError::from(ErrorKind::BrokenPipe));
+        let denied = || usi::Error::EngineIo(IoError::from(ErrorKind::PermissionDenied));
+
+        assert!(
+            matches!(
+                classify_kill_failure(&epipe(), true),
+                KillOutcome::AlreadyExited(_)
+            ),
+            "両方のパイプが閉じているのに残留として扱っている"
+        );
+        assert!(
+            matches!(
+                classify_kill_failure(&epipe(), false),
+                KillOutcome::Failed(_)
+            ),
+            "出力が続いているのに EPIPE だけで終了と断じている"
+        );
+        assert!(
+            matches!(
+                classify_kill_failure(&denied(), true),
+                KillOutcome::Failed(_)
+            ),
+            "EPIPE 以外の失敗まで終了として扱っている"
+        );
+        assert!(
+            matches!(
+                classify_kill_failure(&usi::Error::IllegalOperation, true),
+                KillOutcome::Failed(_)
+            ),
+            "IO ですらない失敗まで終了として扱っている"
+        );
+    }
+
+    /// 割った後も原因の文言が残ること。
+    ///
+    /// `usi::Error` の `Display` はバリアントごとの定型文しか出さないので、
+    /// `with_cause` を通さないと、どちらの枝でも OS の言葉が消える。
+    #[test]
+    fn classifying_a_failed_kill_keeps_the_cause() {
+        use std::io::{Error as IoError, ErrorKind};
+
+        let text = |outcome| match outcome {
+            KillOutcome::AlreadyExited(t) | KillOutcome::Failed(t) => t,
+            _ => panic!("失敗を割った結果ではない"),
+        };
+
+        let epipe = usi::Error::EngineIo(IoError::from(ErrorKind::BrokenPipe));
+        let os_words = IoError::from(ErrorKind::BrokenPipe).to_string();
+
+        assert!(text(classify_kill_failure(&epipe, true)).contains(&os_words));
+        assert!(text(classify_kill_failure(&epipe, false)).contains(&os_words));
     }
 
     /// `Closed` から戻す口を作らないこと。

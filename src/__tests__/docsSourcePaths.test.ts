@@ -1,12 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { docsPath, markdownFiles } from "./stateTransitionIndex";
-import {
-  lineNumberRefsIn,
-  missingPaths,
-  pathCheckedDocs,
-  sourcePathsIn,
-} from "./docsSourcePaths";
+import { lineNumberRefsIn, missingPaths, pathCheckedDocs, sourcePathsIn } from "./docsSourcePaths";
 
 /**
  * `pathCheckedDocs()` が返す doc がバッククォートで指すソースのパスが実在するかを見る。

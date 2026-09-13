@@ -1,12 +1,12 @@
-import type { StudyPositionState } from "@/entities/study-positions/model/types";
+import {
+  STUDY_POSITION_STATES,
+  type StudyPositionState,
+} from "@/entities/study-positions/model/types";
 import "./StateTabNav.scss";
 
 const TABS: { value: StudyPositionState | null; label: string }[] = [
   { value: null, label: "全て" },
-  { value: "inbox", label: "未整理" },
-  { value: "active", label: "研究中" },
-  { value: "reference", label: "資料" },
-  { value: "done", label: "完了" },
+  ...STUDY_POSITION_STATES,
 ];
 
 interface Props {

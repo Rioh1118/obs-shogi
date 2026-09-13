@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "./sourceText";
-import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
+import { REPO_ROOT, rustRoots, SRC, sourceFiles, TAURI_CONF } from "./walk";
 
 /** 門番とその検査。シェルだが、表が関数名を仕様として引く */
 const HOOKS = join(REPO_ROOT, ".claude/hooks");
@@ -71,6 +71,23 @@ export const EXEMPT = new Set([
   "toBeGreaterThan",
   // React の API。reviewer の定義が「使っていないこと」を確かめる材料に引く
   "dangerouslySetInnerHTML",
+  // vitest の matcher。レビューの手順書が「空振りを止める形」の例に引く
+  "toBeGreaterThan",
+  // `shogi.js`（別リポジトリ）の綴り。局面を組む面が「あちらは編集モードで何を止め、
+  // 何を止めないか」の出典に引く。`deadEnd` はあちらの中の局所変数
+  "checkTurn",
+  "flagEditMode",
+  "nextTurn",
+  "prevTurn",
+  "deadEnd",
+  "pieceHistogram",
+  "fromPreset",
+  "getIllegalUnpromotedRow",
+  "colorToString",
+  // DOM と CSS の綴り。使わない理由を書くために引くので、こちらの識別子ではない
+  "minHeight",
+  "offsetParent",
+  "checkVisibility",
 ]);
 
 /**
@@ -115,6 +132,10 @@ function sourceCorpus(): string {
       ...rustRoots().flatMap((root) => sourceFiles(root)),
     ].map((path) => codeOf(readFileSync(path, "utf8"))),
     ...hookCorpus(),
+    // 窓の設定も数える。画面の仕様が起動の1枚目を `tauri.conf.json` の
+    // `backgroundColor` のように**キーの綴りで**指すので、外すと実在する設定を
+    // 指しているのに「無い」と言われ、直しようが無い
+    readFileSync(TAURI_CONF, "utf8"),
   ].join("\n");
   return corpus;
 }

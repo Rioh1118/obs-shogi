@@ -22,8 +22,11 @@ import type { EngineNotReadyReason, TerminalNotReadyReason } from "@/entities/en
 /**
  * 断りではなく、**複数の断りが末尾に埋め込む部品**。
  * 起こし直し方の出典は `docs/state-transitions/engine.md` の ※5。
+ *
+ * **外へ出さない。** 読み手はこのファイルの中の断りだけで、出すと
+ * 「到達しない公開面」として数に乗る（`scripts/knip-ratchet.sh`）。
  */
-export const RESTART_ENGINE_HINT = "設定でエンジンのオプションを変えて保存すると起こし直せます。";
+const RESTART_ENGINE_HINT = "設定でエンジンのオプションを変えて保存すると起こし直せます。";
 /** 上限まで待っても同期が追いつかない。**押し直しで直りうる。** */
 export const POSITION_SYNC_TIMEOUT_MESSAGE =
   "エンジンが局面を受け取るのに時間が掛かっています。もう一度 ▶ を押してください。";
