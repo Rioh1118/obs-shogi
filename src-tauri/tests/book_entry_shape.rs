@@ -41,7 +41,13 @@ const EXPECTED_LOG_LINES: usize = 5;
 ///
 /// どれも入口の async 関数から呼ばれ、収録局面ぶんの確保か解放を伴う。
 /// 逃がさないと async ランタイムのワーカを占有し、**他のコマンドの応答が止まる。**
-const HEAVY_CALLS: [&str; 3] = ["open_at(", "reader.lookup(", "drop(value)"];
+const HEAVY_CALLS: [&str; 4] = [
+    "open_at(",
+    "reader.lookup(",
+    "drop(value)",
+    // 候補手の本数 × 手数ぶんの lookup を回す。**このモジュールで一番重い**
+    "walk_lines(",
+];
 
 fn entry_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book/commands.rs")
@@ -160,22 +166,34 @@ fn the_log_line_truncates_the_path() {
     // **関数名を並べない。** `*_inner` の3つだけを見ていた版は、
     // `#[tauri::command]` の殻（`open_book` ほか。どれも `input` がスコープに居る）を
     // 丸ごと外していて、そこへ書けば同じ迂回が通った。入口のファイル全体を見る。
-    for field in ["input.path", "input.sfen"] {
+    // **綴りを2つ並べない。** `input.sfen` と `input.path` だけを探していた版は、
+    // 入力の型が1段入れ子になった回（`input.position.sfen`）に**0件を返した。**
+    // 欄の名前で終わるアクセスを探し、その鎖が `input` から始まるかで決める。
+    for field in [".path", ".sfen"] {
         for (at, _) in code.match_indices(field) {
-            let before = &code[..at];
+            // 鎖の頭まで戻る。`book.info.path` のように `input` から始まらないものは、
+            // Rust 側が組み立てた値なので対象外
+            let head = code[..at]
+                .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+                .map_or(0, |b| b + 1);
+            let chain = &code[head..at + field.len()];
+            if !chain.starts_with("input.") {
+                continue;
+            }
+
             // 許すのは4つ。**検査に渡す**（`validate_book_path`）、
             // **打ち切ってログへ出す**（`truncate_path`）、
             // **失敗に添える**（`join_error`。`BookError::with_path` が打ち切る）、
             // **鍵にする**（`to_book_key`。失敗は `excerpt` が抑える）。
             if ALLOWED_BEFORE_INPUT
                 .iter()
-                .any(|allowed| before.ends_with(allowed))
+                .any(|allowed| code[..head].ends_with(allowed))
             {
                 continue;
             }
-            let line = code[..at].matches('\n').count() + 1;
+            let line = code[..head].matches('\n').count() + 1;
             offenders.push(format!(
-                "src/book/commands.rs:{line}  {field} を素のまま持ち回している"
+                "src/book/commands.rs:{line}  {chain} を素のまま持ち回している"
             ));
         }
     }

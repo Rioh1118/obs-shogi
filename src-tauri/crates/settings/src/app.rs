@@ -38,9 +38,12 @@ pub struct AppConfig {
     pub analysis_display_mode: Option<String>,
     /// 最近開いた定跡のパス。**新しいものが先頭。**
     ///
-    /// 中身は濾さない。設定ファイルは利用者も前の版も書くので、
-    /// 消えたファイルのパスも残る —— 開けなかったことは開いたときに出る
-    /// （`readRecentBooks`。`src/entities/book/lib/recents.ts`）。
+    /// **Rust は中身も本数も見ない**（読んで書き戻すだけ）。決めているのは3つとも別の場所。
+    ///
+    /// - 存在を検査しないのも、本数を切るのも `rememberBook`
+    ///   （`src/entities/book/lib/recents.ts`）
+    /// - 画面に出す前に重複と空の綴りを落とすのは `readRecentBooks`（同ファイル）
+    /// - 消えたファイルを開いたことは `open_book` が `NotFound` で返す
     pub book_recent_paths: Option<Vec<String>>,
 
     /// この版が知らない欄。**読んだままの形で書き戻す。**

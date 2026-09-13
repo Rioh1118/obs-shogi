@@ -93,8 +93,11 @@ const MAX_HAND_COUNT: u32 = super::zobrist::MAX_REPRESENTABLE_HAND_COUNT;
 ///                                        持駒 ┘
 /// ```
 ///
-/// **`src/` からの呼び手はいない。** 製品経路は [`position_key_from_sfen`] だけを通る。
-/// `pub` なのは `benches/search_bench.rs` が綴りを解く時間だけを測るため。
+/// **`search` の製品経路はここを通らない。** 索引側は [`position_key_from_sfen`] だけを通る。
+///
+/// **`src/` からの呼び手は `book::walk::start_position`。** 定跡ビューの「この先」列は
+/// 全部ここを通る —— 受理集合を狭めると、あちらが `Err` を返して列ごと失敗する。
+/// `pub` なのはその呼び手と `benches/search_bench.rs` のため。
 pub fn partial_position_from_sfen(input: &str) -> Result<PartialPosition, SfenParseError> {
     let s = input.trim();
     if s.is_empty() {
