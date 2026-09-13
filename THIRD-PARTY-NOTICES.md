@@ -17,9 +17,12 @@ ObsShogi 自身のライセンスは [LICENSE.md](LICENSE.md)（MIT）。
 - **@fontsource/zen-kaku-gothic-antique** 5.3.0 — OFL-1.1
   - Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic)
 
-## npm の依存（80 件）
+## npm の依存（79 件）
 
 `npm query .prod` が返す、配布物に載る依存。開発だけで使うものは含まない。
+`os` / `cpu` / `libc` で入るかが変わるパッケージ（ネイティブの prebuilt）も含まない ——
+入る1つが生成した機械で変わるうえ、配布物に載る npm のコードは `dist` に取り込まれた
+JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだから。
 
 | パッケージ | 版 | ライセンス | 著作権表示 |
 | --- | --- | --- | --- |
@@ -57,7 +60,6 @@ ObsShogi 自身のライセンスは [LICENSE.md](LICENSE.md)（MIT）。
 | @lexical/utils | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | @lexical/yjs | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | @parcel/watcher | 2.6.0 | MIT | Copyright (c) 2017-present Devon Govett |
-| @parcel/watcher-darwin-arm64 | 2.6.0 | MIT | Copyright (c) 2017-present Devon Govett |
 | @preact/signals-core | 1.14.4 | MIT | Copyright (c) 2022-present Preact Team |
 | @tauri-apps/api | 2.11.1 | Apache-2.0 OR MIT | — |
 | @tauri-apps/plugin-dialog | 2.7.2 | MIT OR Apache-2.0 | — |

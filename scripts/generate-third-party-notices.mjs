@@ -154,6 +154,34 @@ function readCopyrightLinesFrom(packageDir) {
   return [];
 }
 
+/**
+ * 入るかが走らせた機械で変わる npm パッケージ。`名前@版` で持つ。
+ *
+ * ネイティブの prebuilt は OS と CPU ごとに別のパッケージに分かれており
+ * （`@parcel/watcher-darwin-arm64` と `@parcel/watcher-linux-x64-glibc` など）、
+ * `npm ci` はその機械に合う1つだけを入れる。**入っているものを数えると、
+ * 表の中身が生成した機械に依存する** —— macOS で生成した表は ubuntu のランナーで
+ * 必ず落ちる。`SHIPPED_TARGETS` を綴りで固定しているのと同じ理由で、ここも
+ * ホストに解かせない。
+ *
+ * 出典は `package-lock.json`。入れなかった分も含めて全ターゲットのパッケージを持ち、
+ * `os` / `cpu` / `libc` でどの機械に入るかを書いている。
+ *
+ * **落としても通知は足りている。** 配布物に載る npm のコードは `dist` に取り込まれた
+ * JS / CSS / 書体だけで（`dist` は `tauri.conf.json` の `frontendDist`）、
+ * ここで落とす prebuilt はビルドする機械で走るだけ。
+ */
+function hostDependentPackages() {
+  const lock = JSON.parse(readFileSync(join(repoRoot, "package-lock.json"), "utf8"));
+  const keys = new Set();
+  for (const [location, entry] of Object.entries(lock.packages ?? {})) {
+    if (!entry.os && !entry.cpu && !entry.libc) continue;
+    const name = location.slice(location.lastIndexOf("node_modules/") + "node_modules/".length);
+    keys.add(`${name}@${entry.version}`);
+  }
+  return keys;
+}
+
 /** 配布物に載る npm パッケージ。`npm ci` が入れた木をそのまま数える。 */
 function collectNpmPackages() {
   const raw = execFileSync("npm", ["query", ".prod", "--json"], {
@@ -162,11 +190,13 @@ function collectNpmPackages() {
     maxBuffer: 64 * 1024 * 1024,
   });
   const nodes = JSON.parse(raw);
+  const hostDependent = hostDependentPackages();
 
   const packages = [];
   for (const node of nodes) {
     // 木の根は ObsShogi 自身。自分の MIT は `LICENSE.md` が持つ。
     if (!node.location) continue;
+    if (hostDependent.has(`${node.name}@${node.version}`)) continue;
     packages.push({
       name: node.name,
       version: node.version,
@@ -381,6 +411,9 @@ function render(npmPackages, cargoPackages) {
     `## npm の依存（${npmPackages.length} 件）`,
     "",
     "`npm query .prod` が返す、配布物に載る依存。開発だけで使うものは含まない。",
+    "`os` / `cpu` / `libc` で入るかが変わるパッケージ（ネイティブの prebuilt）も含まない ——",
+    "入る1つが生成した機械で変わるうえ、配布物に載る npm のコードは `dist` に取り込まれた",
+    "JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだから。",
     "",
     renderTable(npmPackages),
     "",
