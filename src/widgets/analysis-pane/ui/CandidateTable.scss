@@ -1,23 +1,12 @@
 @use "@/index.scss" as index;
 
 // **入りきらない候補手にスクロールで届く。** ドックの高さは窓に従うので、
-// 低い窓では必ずあふれる（それを切り捨てていたのが #563）
+// 低い窓では必ずあふれる（それを切り捨てていたのが #563）。
+// **バーは出さない** —— 全要素で消してあるのが意匠（`docs/spec/design-language.md`）
 .candidate-table {
   height: 100%;
   min-height: 0;
   overflow-y: auto;
-
-  // リセットが全要素のスクロールバーを消しているので、
-  // 続きがあることを示す手掛かりがここだけ無くなる
-  scrollbar-width: thin;
-  &::-webkit-scrollbar {
-    display: block;
-    width: 7px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: rgba(index.$color-secondary-dark, 0.45);
-    border-radius: index.$radius-2;
-  }
 
   &__grid {
     width: 100%;

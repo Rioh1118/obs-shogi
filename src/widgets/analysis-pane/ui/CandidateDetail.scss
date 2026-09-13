@@ -15,18 +15,6 @@
     list-style: none;
 
     border-right: 1px solid rgba(index.$color-white, 0.07);
-
-    // リセットが全要素のスクロールバーを消しているので、
-    // 続きがあることを示す手掛かりがここだけ無くなる
-    scrollbar-width: thin;
-    &::-webkit-scrollbar {
-      display: block;
-      width: 7px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.45);
-      border-radius: index.$radius-2;
-    }
   }
 
   &__item {
@@ -86,16 +74,6 @@
     min-height: 0;
     overflow-y: auto;
     padding: index.$space-4 index.$space-5;
-
-    scrollbar-width: thin;
-    &::-webkit-scrollbar {
-      display: block;
-      width: 7px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.45);
-      border-radius: index.$radius-2;
-    }
   }
 
   // **折り返す。** ここが読み筋の全文に届く唯一の場所なので、切らないし省略もしない
