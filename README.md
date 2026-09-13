@@ -166,3 +166,7 @@ ObsShogi は、**研究・序盤研究のワークフローに特化した将棋
 ## License
 
 This project is licensed under the [MIT License](./LICENSE.md).
+
+配布しているバイナリには、同梱している書体（OFL-1.1）をはじめ第三者のソフトウェアが含まれます。
+その著作権表示とライセンス本文は [`THIRD-PARTY-NOTICES.md`](./THIRD-PARTY-NOTICES.md) にまとめてあり、
+アプリと同じ場所に同梱して配布しています。

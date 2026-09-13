@@ -29,6 +29,15 @@
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": "all",
+    "publisher": "Rioh1118",
+    "homepage": "https://github.com/Rioh1118/obs-shogi",
+    "copyright": "Copyright (c) 2026 Rioh1118",
+    "license": "MIT",
+    "licenseFile": "../LICENSE.md",
+    "resources": {
+      "../LICENSE.md": "LICENSE.md",
+      "../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
