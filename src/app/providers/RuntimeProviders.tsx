@@ -8,6 +8,7 @@ import { SearchRootGate } from "./gates/SearchRootGate";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
 import { BoardOrientationBridge } from "./bridges/BoardOrientationBridge";
 import { StudyPositionsProvider } from "@/entities/study-positions/model/provider";
+import { BookPositionGate } from "./gates/BookPositionGate";
 
 /**
  * `/app` の下でずっと生きている provider の入れ子と、スライス間の配線。
@@ -31,7 +32,8 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
               <SearchRootGate>
                 <AnalysisBridge>
                   <BoardOrientationBridge />
-                  {children}
+                  {/* 置き場の理由は `BookPositionGate` の doc */}
+                  <BookPositionGate>{children}</BookPositionGate>
                 </AnalysisBridge>
               </SearchRootGate>
             </EngineRuntimeBridge>

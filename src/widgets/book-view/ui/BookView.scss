@@ -1,0 +1,28 @@
+@use "@/index.scss" as index;
+
+// 失敗の帯を上に積み、残りを表が取る。**表の高さが窓に従う**ので、
+// 帯が出ても表が押し出されない（`minmax(0, 1fr)`）
+.book-view {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+
+  background: index.$color-primary-dark;
+
+  &__notice {
+    padding: index.$space-2 var(--pane-px, #{index.$space-4});
+  }
+
+  // 開いている最中の一文。**表の空文言と同じ寄せ・同じ始点・同じ段。**
+  // 揃えないと、`opening` から `looking` へ移った回に文言だけが動く
+  // （`CandidatesSection.scss` が解析側で同じ不変条件を持っている）。
+  // 始点を `--pane-px` に揃えるのはドックの決まり（`Dock.scss`）
+  &__busy {
+    margin: 0;
+    padding: index.$space-4 var(--pane-px, #{index.$space-4});
+
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+}

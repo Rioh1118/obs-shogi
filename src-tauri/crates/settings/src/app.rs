@@ -36,6 +36,18 @@ pub struct AppConfig {
     ///
     /// 綴りを enum にしない理由は [`AppConfig::dock_tabs`] と同じ。
     pub analysis_display_mode: Option<String>,
+    /// 最近開いた定跡のパス。**新しいものが先頭。**
+    ///
+    /// **Rust は中身も本数も見ない**（読んで書き戻すだけ）。
+    /// 決めているのは `src/entities/book/lib/recents.ts`。
+    ///
+    /// **本数を切るのも綴りを落とすのも、書く側と読む側の両方が掛ける**
+    /// （`rememberBook` と `readRecentBooks`）。片方だけにしない理由は
+    /// `readRecentBooks` の doc —— 手で書かれた `app.json` の 100 件が
+    /// そのままボタンの数になる。
+    ///
+    /// 消えたファイルのパスは残る。開けなかったことは `open_book` が `NotFound` で返す。
+    pub book_recent_paths: Option<Vec<String>>,
 
     /// この版が知らない欄。**読んだままの形で書き戻す。**
     ///

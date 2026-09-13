@@ -1,0 +1,124 @@
+@use "@/index.scss" as index;
+
+.book-empty {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+
+  padding: index.$space-4 var(--pane-px, #{index.$space-4});
+  background: index.$color-primary-dark;
+  color: rgba(index.$color-text-primary, 0.92);
+
+  &__lead {
+    margin: 0 0 index.$space-4;
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  &__group {
+    margin-bottom: index.$space-4;
+  }
+
+  &__label {
+    margin: 0 0 index.$space-2;
+    font-family: index.$font-mono;
+    font-weight: 600;
+    font-size: index.$font-hint;
+    letter-spacing: 0.09em;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: index.$space-1;
+
+    // **grid item の `min-width` を落とす。** 既定の `auto` は中身の min-content
+    // なので、下流の `__note` に `min-width: 0` を書いても効かず、添え書きは
+    // 一度も省略されないまま**項目ごと器からはみ出す**（器は `overflow-y: auto`
+    // なので横スクロールする箱になり、バーは意匠で消してあるので手掛かりも無い）
+    > li {
+      min-width: 0;
+    }
+  }
+
+  // 1件ぶん。左にファイル名、右に添え書き。**同じ名前のファイルを見分けられること**
+  &__item {
+    display: flex;
+    align-items: baseline;
+    gap: index.$space-3;
+    width: 100%;
+
+    padding: index.$space-2 index.$space-3;
+    border: 0;
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-white, 0.035);
+    color: rgba(index.$color-text-primary, 0.92);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      // 暗い面なので**明るくする**（ADR-0005 決定2）
+      background: rgba(index.$color-white, 0.07);
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+    }
+  }
+
+  // **縮むのはこちら。** 添え書きに `min-width: 0` を置いても、名前が
+  // `min-width: auto` のままだと押し場を越えて描かれ、添え書きは幅 0 まで潰れる
+  // （見分けがいちばん要る長い名前のときに、置き場が消える）
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  // 置き場。**縮まない側。** 同じ名前のファイルを見分ける手掛かりがここなので、
+  // 狭いときに先に削るのは名前のほう（上の `__name`）
+  &__note {
+    flex: none;
+    margin-left: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  &__browse {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-2;
+
+    padding: index.$space-2 index.$space-4;
+    border: 1px solid index.$stroke-weak;
+    border-radius: index.$radius-2;
+    background: transparent;
+    color: rgba(index.$color-text-primary, 0.92);
+    font-size: index.$font-aux;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(index.$color-white, 0.07);
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+    }
+  }
+
+  &__icon {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+}

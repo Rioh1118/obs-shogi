@@ -137,6 +137,28 @@ pub struct BookHandleInput {
     pub handle: BookHandle,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WalkBookLinesInput {
+    /// 辿り始める定跡と局面。
+    ///
+    /// **`handle` と `sfen` を自前で並べず、引く側と同じ型を持つ。** 正規化の関門
+    /// （`resolve_lookup`）がこの型しか受けないので、鍵を作らずに辿り始める書き方が
+    /// 書きにくくなる。
+    ///
+    /// **ただし型の壁を立てているのは flatten ではない。** 辿る側へ生の SFEN が
+    /// 渡らないのは `walk_lines(start: &BookKey, ..)` が鍵しか受けないからで、
+    /// ここを2つの欄にばらしてもその壁は動かない。平らにしてあるのは、
+    /// 線に出る JSON を `lookup_book_moves` と同じ形に保つため。
+    #[serde(flatten)]
+    pub position: LookupBookMovesInput,
+    /// その局面の候補手（USI）。**`lookup_book_moves` が返したものを渡す。**
+    ///
+    /// 定跡に無い手を混ぜても失敗しない（1手で切れるだけ）。仕事の量は
+    /// この本数に比例するので、局面の候補手の数を超えるものを渡さないこと
+    pub moves: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -436,3 +436,79 @@ IPC 型を編集することになり、その同期漏れを捕まえるため�
 
 責務の割り方の判断であり、#441 の欠陥とは独立している。**同じ PR に混ぜると
 差分が読めなくなる**ので送る。
+
+## 辿った局面を、綴りを経由せずに定跡の鍵にする
+
+#95（定跡ビュー）のレビュー（perf reviewer）。実測は release / aarch64 macOS、
+実物の定跡 `user_book1.db`（11.3 MB / 111,176 局面）。
+
+`walk_line` は1手ごとに `position.to_sfen_owned()` で綴りを作り、
+`to_book_key` がそれを読み直して盤・持駒・駒数を検査し、同じ文字列を組み立て直す。
+**1手あたりの時間の 65%、確保の 61%** がこの作り直しに乗っている
+（16.5 回の確保のうち 10 回、2.15us のうち 1.37us）。
+
+`to_sfen_owned()` の出力は既に正規形で、**実物 111,176 局面すべてで
+手数トークンを落としただけの綴りが `to_book_key` の結果と1件もずれない**（ずれ 0 件）。
+`sfen/key.rs` に3つ目の入口（`PartialPosition` → `BookKey`、確保1回）を足せば消える。
+
+同じ回に、`BookReader` へ「先頭の1手の綴りだけ」を返す口を足すと、
+`lookup` が候補手を丸ごと複製して2本目以降を捨てている分も消える
+（1手あたり 候補手1本につき +0.066us。局面に 26 手あると他の全部と並ぶ）。
+
+**実物の分布（平均 1.04 手 / 最大 5 手）では画面に出ない**ので送る。
+効き始めるのは1局面に数十手を書く定跡で、そちらの上限と中断は #577。
+
+## パスの末尾と親を取る実装を1つに寄せる
+
+#95（定跡ビュー）のレビュー（architecture reviewer）。
+`Math.max(lastIndexOf("/"), lastIndexOf("\\"))` の手書きが
+`entities/book/lib/recents.ts` / `features/file-conflict/ui/ConflictMeta.tsx` /
+`entities/file-tree/lib/path.ts` / `features/settings/lib/presetDialog.ts` ほかに散っている。
+`shared/lib/path.ts` は既に在る。
+
+同じ知識（区切りは2種、末尾区切りの扱い、`at === 0` のときに何を返すか）が
+層をまたいで散っていて、差も既にある（`bookParentPath` は `at <= 0` で `""`、
+`ConflictMeta` の `dirname` は先に末尾区切りを落とす）。
+
+走査は書ける（字面の出現数を現在値で固定する件数ラチェット）が、
+**集約が先**。ラチェットだけ張ると、寄せ先が無いまま赤くなる。
+
+## 「ホバーの印＝押せる」を design-language に書く
+
+#95（定跡ビュー）のレビュー（ui reviewer）。
+ドックの隣り合うタブで、同じ濃さのホバーの塗りが片方は「押せる」、
+片方は「押しても何も起きない」を意味していた（#95 では定跡側を下線に替えた）。
+
+**対応そのものがどこにも綴りとして無い**ので、次に表を足す人は同じ判断を
+その場でやり直す。`docs/spec/design-language.md` の「3. 色」か新しい節に、
+面の塗り・下線・`cursor` のどれが何を意味するかを書く。
+
+あわせて、`:disabled` の薄さがリポジトリ全体で
+0.25 / 0.35 / 0.4 / 0.45 / 0.5 / 0.52 / 0.55 / 0.6 / 0.66 の9通りに散っている。
+1つ選んでトークンにすれば、`scssScaleRatchet` と同じ形の件数ラチェットが張れる。
+
+## `sfenConverter.ts` から SFEN 変換が無くなったので改名する
+
+#95（定跡ビュー）のレビュー（architecture reviewer）。
+`convertSfenSequence` を `shared/lib/shogi/moveText.ts` へ下げた結果、
+`widgets/analysis-pane/lib/sfenConverter.ts` に残ったのは
+`formatEvaluation` と `evaluationToPercentage` だけになった。
+
+名前が中身と合っておらず、次に評価値の整形を探す人はこのファイルを開かない。
+`evaluation.ts` へ改名する（import 元は3ファイル）。
+ログのタグ `[SFEN_CONVERTER]` も、もうどのファイルも名乗っていない綴り。
+
+## `pickBookFile` を `entities/book` へ移す
+
+#95（定跡ビュー）のレビュー（architecture reviewer）。
+定跡の4拡張子（`db` / `bin` / `sbk` / `ybb`）が `shared/api/picker/` に手写しされていて、
+受理集合を決めている実装（`src-tauri/src/book/types.rs` の `from_path`）とは別の場所を
+出典として指している。形式を5つ目にすると、`from_path` を直すだけでは選べるファイルが
+増えない。
+
+`shared/` には汎用の口（`pickFile(title, filters)`）だけを残し、定跡の語彙は
+`entities/book/api/` へ移す。隣の `pickDirectory.ts` は `title` を引数で受ける
+完全に汎用の口で、この2つは同じ棚に並ぶものではない。
+
+走査も書ける（`from_path` の `Some("...")` と `extensions: [...]` の突き合わせ。
+どちらも固定の1ファイルなので誤検知が出ない）。

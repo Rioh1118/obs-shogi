@@ -6,7 +6,9 @@ use crate::book::sfen::key::to_book_key;
 use crate::book::sfen::key::BookKey;
 use crate::book::types::{
     BookHandle, BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
+    WalkBookLinesInput,
 };
+use crate::book::walk::{walk_lines, BookLine};
 use std::sync::Arc;
 use tauri::State;
 
@@ -82,6 +84,38 @@ fn resolve_lookup(
     state.info(input.handle)?;
     let key = to_book_key(&input.sfen)?;
     Ok((state.get(input.handle)?, key))
+}
+
+/// 候補手それぞれの先を、定跡が続くかぎり辿る。
+///
+/// 定跡ビューの「この先」列。**盤を持たないビューが、その手の先も定跡にあるかを
+/// 出す唯一の手段**（ADR-0010）。
+///
+/// `lookup_book_moves` と分けてあるのは、辿るのが引くより桁違いに重いため ——
+/// 候補 N 本ぶんの線をそれぞれ、`walk` の `MAX_WALK_PLIES` 手を上限に引く
+/// （リンクにしない —— この関数は公開で、上限は非公開。上限そのものはあちらの doc）。
+/// 現局面の候補手を出すだけなら払わせない。
+#[tauri::command]
+pub async fn walk_book_lines(
+    state: State<'_, BookState>,
+    input: WalkBookLinesInput,
+) -> Result<Vec<BookLine>, BookError> {
+    logged("walk_book_lines", walk_inner(&state, input).await)
+}
+
+async fn walk_inner(
+    state: &BookState,
+    input: WalkBookLinesInput,
+) -> Result<Vec<BookLine>, BookError> {
+    // **引くのと同じ関門を通す。** ハンドルとキーの順序も、生の綴りを正規化するのも
+    // ここが唯一の口（`resolve_lookup` の doc）
+    let (book, key) = resolve_lookup(state, &input.position)?;
+    let handle = input.position.handle;
+    let path = book.info.path.clone();
+
+    tauri::async_runtime::spawn_blocking(move || walk_lines(&book, &key, &input.moves))
+        .await
+        .map_err(join_error(path, Some(handle)))?
 }
 
 /// 開いている定跡のメタ情報。
@@ -264,6 +298,63 @@ mod tests {
         .expect("閉じられるはず");
         assert!(state.list().is_empty());
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// **実ファイルを通して、定跡の線が辿れること。**
+    ///
+    /// `walk` のテストは reader を差し替えているので、**実物の `.db` から読んだ綴りと、
+    /// 局面を進めて作り直した鍵が噛み合うかを見ていない。** 噛み合わないと
+    /// 「この先」列は全部「行き止まり」になり、**エラーは出ない**
+    /// （未収録の局面は空を返す約束なので、区別が付かない）。
+    ///
+    /// **途中に駒を取る手を置いてある。** 持駒の綴りは、局面を進めて作り直した側
+    /// （`to_sfen_owned`）と定跡ファイルに書かれている側で並びが割れうる。
+    /// 持駒の無い手順だけを辿っても、そこは1度も通らない。
+    ///
+    /// 4手ぶんの局面を書いてあるので、辿れれば 4 手。
+    #[test]
+    fn the_entry_walks_a_line_through_a_real_book() {
+        let dir = test_support::dir::temp_dir("book-entry-walk");
+        let path = dir.join("line.db");
+        std::fs::write(
+            &path,
+            "#YANEURAOU-DB2016 1.00\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1\n\
+             7g7f none 50 32 1\n\
+             sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 2\n\
+             3c3d none 40 32 1\n\
+             sfen lnsgkgsnl/1r5b1/pppppp1pp/6p2/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL b - 3\n\
+             8h2b+ none 60 32 1\n\
+             sfen lnsgkgsnl/1r5+B1/pppppp1pp/6p2/9/2P6/PP1PPPPPP/7R1/LNSGKGSNL w B 4\n\
+             8c8d none 30 32 1\n",
+        )
+        .expect("テスト用の定跡");
+
+        let state = BookState::new();
+        let info = open(&state, &path).expect("開けるはず");
+
+        let lines = tauri::async_runtime::block_on(walk_inner(
+            &state,
+            WalkBookLinesInput {
+                position: LookupBookMovesInput {
+                    handle: info.handle,
+                    sfen: "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+                        .to_string(),
+                },
+                moves: vec!["7g7f".to_string()],
+            },
+        ))
+        .expect("辿れるはず");
+
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].usi_move, "7g7f");
+        assert_eq!(
+            lines[0].plies, 4,
+            "実物の定跡を最後まで辿れていない（持駒の付いた局面で鍵が噛み合っていない可能性）"
+        );
+
+        drop(state.close(info.handle).expect("閉じられるはず"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

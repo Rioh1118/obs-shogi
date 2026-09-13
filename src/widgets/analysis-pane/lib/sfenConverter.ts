@@ -1,38 +1,4 @@
 import type { Evaluation, EvaluationKind } from "@/entities/engine";
-import { Color, Record } from "tsshogi";
-// 変換後の指し手データ型
-export interface ConvertedMove {
-  move: string; // 日本語表記（例: "７六歩"）
-  isBlack: boolean; // 先手かどうか
-}
-
-// SFEN手順配列を日本語データ配列に変換
-export function convertSfenSequence(sfen: string | null, sfenMoves: string[]): ConvertedMove[] {
-  if (!sfen) {
-    return [];
-  }
-  const usiString = `position sfen ${sfen} moves ${sfenMoves.join(" ")}`;
-
-  const record = Record.newByUSI(usiString);
-  if (record instanceof Error) {
-    if (record instanceof Error) {
-      console.warn("[SFEN_CONVERTER] parse failed", {
-        err: String(record),
-        sfen: JSON.stringify(sfen),
-        moves: sfenMoves.map((m) => JSON.stringify(m)),
-        usi: JSON.stringify(usiString),
-      });
-      return [];
-    }
-
-    return [];
-  }
-
-  return record.moves.slice(1).map((move) => ({
-    move: move.displayText,
-    isBlack: move.prev!.nextColor === Color.BLACK,
-  }));
-}
 
 export function formatEvaluation(e: Evaluation | null): string {
   if (!e) return "---";

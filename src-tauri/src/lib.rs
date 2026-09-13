@@ -114,6 +114,7 @@ pub fn run() {
             settings::commands::save_updater_state,
             crate::book::commands::open_book,
             crate::book::commands::lookup_book_moves,
+            crate::book::commands::walk_book_lines,
             crate::book::commands::get_book_info,
             crate::book::commands::close_book,
             crate::book::commands::list_books,

@@ -26,9 +26,22 @@ export type AppConfig = {
    * その場（操作列）で切り替えられて、選んだ結果がここに残る（ADR-0010 決定4）。
    */
   analysis_display_mode?: string | null;
+  /**
+   * 最近開いた定跡のパス。**新しいものが先頭。**
+   *
+   * **画面に出す前に `readRecentBooks` を通すこと**（`entities/book/lib/recents.ts`）。
+   * 落とすのは重複と、名前の取れない綴り（`/books/` のような区切りで終わるもの）。
+   * **消えたファイルのパスは残る** —— 外付けを繋ぎ忘れた回に一覧から消さないため。
+   *
+   * **起動時にこれを開き直さない。** 定跡は GB 級になりうるので、開くのは
+   * 必ず押されてから（`widgets/book-view/ui/BookEmpty.tsx`）
+   */
+  book_recent_paths?: string[] | null;
 };
 
-/** 表示の設定。**`AppConfig` のうち、設定「表示」タブとドックが書き換える欄だけ。** */
+/**
+ * 表示の設定。**`AppConfig` のうち、設定「表示」タブとドックのビューが書き換える欄だけ。**
+ */
 export type DisplayConfigPatch = Pick<
   AppConfig,
   | "dock_tabs"
@@ -36,6 +49,7 @@ export type DisplayConfigPatch = Pick<
   | "dock_last_tab"
   | "show_evaluation_bar"
   | "analysis_display_mode"
+  | "book_recent_paths"
 >;
 
 export type ChooseOpts = { force?: boolean };

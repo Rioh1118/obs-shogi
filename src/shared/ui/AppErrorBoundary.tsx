@@ -26,6 +26,8 @@ export const BOUNDARY_LABELS = {
   kifuStream: "棋譜一覧",
   /** 解析ペインを包む */
   analysis: "解析",
+  /** 定跡ビューを包む */
+  book: "定跡",
 } as const;
 
 export type BoundaryLabel = (typeof BOUNDARY_LABELS)[keyof typeof BOUNDARY_LABELS];

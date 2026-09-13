@@ -1,4 +1,5 @@
-import { formatEvaluation, type ConvertedMove } from "@/widgets/analysis-pane/lib/sfenConverter";
+import { formatEvaluation } from "@/widgets/analysis-pane/lib/sfenConverter";
+import type { ConvertedMove } from "@/shared/lib/shogi/moveText";
 import "./MoveSequence.scss";
 import type { Evaluation } from "@/entities/engine";
 

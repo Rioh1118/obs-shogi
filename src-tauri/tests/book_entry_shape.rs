@@ -34,17 +34,33 @@ const ALLOWED_BEFORE_INPUT: [&str; 5] = [
     "to_book_key(",
 ];
 
-/// 入口に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
-const EXPECTED_LOG_LINES: usize = 5;
+/// `logging_files` の全体に在るべきログの本数。**緩い下限にしない**（理由は使う側）。
+const EXPECTED_LOG_LINES: usize = 6;
 
 /// blocking プールへ逃がすべき呼び出し。
 ///
 /// どれも入口の async 関数から呼ばれ、収録局面ぶんの確保か解放を伴う。
 /// 逃がさないと async ランタイムのワーカを占有し、**他のコマンドの応答が止まる。**
-const HEAVY_CALLS: [&str; 3] = ["open_at(", "reader.lookup(", "drop(value)"];
+const HEAVY_CALLS: [&str; 4] = [
+    "open_at(",
+    "reader.lookup(",
+    "drop(value)",
+    // 候補手の本数 × 手数ぶんの lookup を回す。**このモジュールで一番重い**
+    "walk_lines(",
+];
 
 fn entry_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book/commands.rs")
+}
+
+/// `log::` を呼ぶ `book/` のファイル。**入口だけを見ない。**
+///
+/// 診断はコマンドの外にも出る（`walk.rs` は `Ok` で返る失敗を記録するので
+/// `logged` を通らない）。入口の1ファイルだけを見ていると、外に書いた行は
+/// **打ち切りを通したかどうかを誰も見ないまま増える。**
+fn logging_files() -> Vec<PathBuf> {
+    let book = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book");
+    vec![book.join("commands.rs"), book.join("walk.rs")]
 }
 
 /// 入口の本体（テストモジュールを含まない）。
@@ -129,55 +145,11 @@ fn macro_call_at(code: &str, lines: &[&str], number: usize) -> String {
 
 #[test]
 fn the_log_line_truncates_the_path() {
-    let code = entry_source();
-    let lines: Vec<&str> = code.lines().collect();
-
     let mut offenders = Vec::new();
     let mut scanned = 0;
 
-    for (number, line) in lines.iter().enumerate() {
-        if !line.contains("log::") {
-            continue;
-        }
-        scanned += 1;
-        // **固定行数の窓にしない。** rustfmt は引数が増えると `log::info!(` を
-        // 折り返すので、3行の窓だと `input.path` が窓の外へ落ちて素通しする。
-        // マクロ呼び出しの閉じ括弧までを1つの塊として渡す。
-        let block = macro_call_at(&code, &lines, number);
-        if !logs_a_raw_path(&block) {
-            continue;
-        }
-        offenders.push(format!(
-            "src/book/commands.rs:{}  {}",
-            number + 1,
-            line.trim()
-        ));
-    }
-
-    // **ログの行だけを見ても足りない。** 生パスを一度ローカルに束縛してから
-    // `{shown}` で埋め込むと、`log::` の塊には `input.path` の綴りが1つも出ない。
-    //
-    // **関数名を並べない。** `*_inner` の3つだけを見ていた版は、
-    // `#[tauri::command]` の殻（`open_book` ほか。どれも `input` がスコープに居る）を
-    // 丸ごと外していて、そこへ書けば同じ迂回が通った。入口のファイル全体を見る。
-    for field in ["input.path", "input.sfen"] {
-        for (at, _) in code.match_indices(field) {
-            let before = &code[..at];
-            // 許すのは4つ。**検査に渡す**（`validate_book_path`）、
-            // **打ち切ってログへ出す**（`truncate_path`）、
-            // **失敗に添える**（`join_error`。`BookError::with_path` が打ち切る）、
-            // **鍵にする**（`to_book_key`。失敗は `excerpt` が抑える）。
-            if ALLOWED_BEFORE_INPUT
-                .iter()
-                .any(|allowed| before.ends_with(allowed))
-            {
-                continue;
-            }
-            let line = code[..at].matches('\n').count() + 1;
-            offenders.push(format!(
-                "src/book/commands.rs:{line}  {field} を素のまま持ち回している"
-            ));
-        }
+    for path in logging_files() {
+        scan_log_lines(&path, &mut scanned, &mut offenders);
     }
 
     // **等値で見る。** 緩い下限だと、守るはずのログ地点が1本消えても満たされる
@@ -193,6 +165,74 @@ fn the_log_line_truncates_the_path() {
          `truncate_path` を通すこと（ログは 200KB でローテートする）。",
         offenders.join("\n")
     );
+}
+
+fn scan_log_lines(path: &Path, scanned: &mut usize, offenders: &mut Vec<String>) {
+    let raw = fs::read_to_string(path).expect("ログを書くファイルが読めない");
+    // コメントの中の言及は見ない。この検査の理由を書けなくなる
+    let code = blank_out_comments(&raw);
+    let code = code
+        .split_once("#[cfg(test)]")
+        .map_or(code.as_str(), |(body, _)| body)
+        .to_string();
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let lines: Vec<&str> = code.lines().collect();
+
+    for (number, line) in lines.iter().enumerate() {
+        if !line.contains("log::") {
+            continue;
+        }
+        *scanned += 1;
+        // **固定行数の窓にしない。** rustfmt は引数が増えると `log::info!(` を
+        // 折り返すので、3行の窓だと `input.path` が窓の外へ落ちて素通しする。
+        // マクロ呼び出しの閉じ括弧までを1つの塊として渡す。
+        let block = macro_call_at(&code, &lines, number);
+        if !logs_a_raw_path(&block) {
+            continue;
+        }
+        offenders.push(format!("src/book/{name}:{}  {}", number + 1, line.trim()));
+    }
+
+    // **ログの行だけを見ても足りない。** 生パスを一度ローカルに束縛してから
+    // `{shown}` で埋め込むと、`log::` の塊には `input.path` の綴りが1つも出ない。
+    //
+    // **関数名を並べない。** `*_inner` の3つだけを見ていた版は、
+    // `#[tauri::command]` の殻（`open_book` ほか。どれも `input` がスコープに居る）を
+    // 丸ごと外していて、そこへ書けば同じ迂回が通った。入口のファイル全体を見る。
+    // **綴りを2つ並べない。** `input.sfen` と `input.path` だけを探していた版は、
+    // 入力の型が1段入れ子になった回（`input.position.sfen`）に**0件を返した。**
+    // 欄の名前で終わるアクセスを探し、その鎖が `input` から始まるかで決める。
+    for field in [".path", ".sfen"] {
+        for (at, _) in code.match_indices(field) {
+            // 鎖の頭まで戻る。`book.info.path` のように `input` から始まらないものは、
+            // Rust 側が組み立てた値なので対象外
+            let head = code[..at]
+                .rfind(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')
+                .map_or(0, |b| b + 1);
+            let chain = &code[head..at + field.len()];
+            if !chain.starts_with("input.") {
+                continue;
+            }
+
+            // 許すのは4つ。**検査に渡す**（`validate_book_path`）、
+            // **打ち切ってログへ出す**（`truncate_path`）、
+            // **失敗に添える**（`join_error`。`BookError::with_path` が打ち切る）、
+            // **鍵にする**（`to_book_key`。失敗は `excerpt` が抑える）。
+            if ALLOWED_BEFORE_INPUT
+                .iter()
+                .any(|allowed| code[..head].ends_with(allowed))
+            {
+                continue;
+            }
+            let line = code[..head].matches('\n').count() + 1;
+            offenders.push(format!(
+                "src/book/{name}:{line}  {chain} を素のまま持ち回している"
+            ));
+        }
+    }
 }
 
 #[test]
@@ -290,7 +330,15 @@ fn escapes_the_async_runtime(block: &str) -> bool {
 /// 隣の行で名前を出すだけで無罪になる（実測で生き残った）。
 /// 見るのは「`input.path` の出現が、打ち切りの引数の位置にあるか」だけ。
 fn logs_a_raw_path(block: &str) -> bool {
-    block
-        .match_indices("input.path")
-        .any(|(at, _)| !block[..at].ends_with("truncate_path(&"))
+    // **入口の `input.path` だけを見ない。** 入口の外（`walk.rs`）は `input` を
+    // 持たず、定跡のパスを引数で受け取る。綴りが違うだけで同じ長さの値なので、
+    // `path` で終わる名前を全部見る（`truncate_path(&…)` の中だけが素通し）
+    PATH_SPELLINGS.iter().any(|spelling| {
+        block
+            .match_indices(spelling)
+            .any(|(at, _)| !block[..at].ends_with("truncate_path(&"))
+    })
 }
+
+/// ログに出すと長さが抑えられない綴り。**打ち切りを通したものは名前が変わる。**
+const PATH_SPELLINGS: [&str; 3] = ["input.path", "info.path", " path,"];
