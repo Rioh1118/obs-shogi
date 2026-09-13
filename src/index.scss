@@ -237,4 +237,11 @@ $stroke-strong: rgba($color-white, 0.16);
 
 $focus-ring: rgba($color-secondary-dark, 0.85);
 
+// ドックの操作列に並ぶ記号ボタンの当たり。**タブを跨いで同じ値であること**が要件で、
+// ずれるとタブを移った回に下の段の高さが変わって本体が上下にずれる。
+// ファイルごとに直値を書くと、片方を動かしても何も落ちない
+$control-hit: 3.6rem;
+// 指で押す入力機器（`pointer: coarse`）のとき。当たりだけを広げ、記号は変えない
+$control-hit-coarse: 4.4rem;
+
 // このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される

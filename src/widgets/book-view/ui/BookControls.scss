@@ -5,7 +5,7 @@
 //
 // **器と同じ面をここでも宣言する。** 下に並ぶ文字と記号の色は、この面との比で決めてある
 .book-controls {
-  --hit: 3.6rem;
+  --hit: #{index.$control-hit};
 
   width: 100%;
   min-width: 0;
@@ -18,7 +18,7 @@
   background-color: index.$color-primary-dark;
 
   @media (pointer: coarse) {
-    --hit: 4.4rem;
+    --hit: #{index.$control-hit-coarse};
   }
 
   // いま何を開いているかは左。**削らない** —— 狭くなったときに落ちるのは操作の側

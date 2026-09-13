@@ -34,6 +34,14 @@
     list-style: none;
     display: grid;
     gap: index.$space-1;
+
+    // **grid item の `min-width` を落とす。** 既定の `auto` は中身の min-content
+    // なので、下流の `__note` に `min-width: 0` を書いても効かず、添え書きは
+    // 一度も省略されないまま**項目ごと器からはみ出す**（器は `overflow-y: auto`
+    // なので横スクロールする箱になり、バーは意匠で消してあるので手掛かりも無い）
+    > li {
+      min-width: 0;
+    }
   }
 
   // 1件ぶん。左にファイル名、右に添え書き。**同じ名前のファイルを見分けられること**
@@ -62,8 +70,8 @@
     }
 
     &:disabled {
-      opacity: 0.5;
-      cursor: default;
+      opacity: 0.35;
+      cursor: not-allowed;
     }
   }
 
@@ -106,8 +114,8 @@
     }
 
     &:disabled {
-      opacity: 0.5;
-      cursor: default;
+      opacity: 0.35;
+      cursor: not-allowed;
     }
   }
 

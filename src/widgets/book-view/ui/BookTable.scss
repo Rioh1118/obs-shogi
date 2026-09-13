@@ -83,17 +83,24 @@
     width: 1ch;
   }
 
+  // **幅を宣言するのは数字の列。** `table-layout: fixed` では宣言の無い列が
+  // 残りを等分するので、数字の側を空けたままにすると `+42` しか入らない列が
+  // 200px 超を取り、日本語1手が入る列が 70px まで潰れる。
+  // 実測では `☖４一玉引` のような5文字の手が切れ、`title` も無いので届かなくなっていた
   &__th--move {
     width: 8.4rem;
   }
   &__th--num {
     text-align: right;
+    width: 6.8rem;
   }
   &__th--ponder {
-    width: 7.2rem;
+    // 中身は指し手と同じ日本語1手。**同じものに別の幅を当てない**
+    width: 8.4rem;
   }
+  // 余りを取るのはこの列。`→ 123手目以降` がいちばん長い
   &__th--ahead {
-    width: 8.8rem;
+    min-width: 8.8rem;
   }
 
   td {
@@ -105,8 +112,11 @@
     text-overflow: ellipsis;
   }
 
+  // **面の塗りでホバーを示さない。** 同じドックの隣のタブ（解析の表）では
+  // 同じ濃さの塗りが「押せる行」を意味していて、こちらの行は押せない。
+  // 読む位置の手掛かりは下線で出す
   &__row:hover td {
-    background: rgba(index.$color-white, 0.035);
+    border-bottom-color: rgba(index.$color-white, 0.18);
   }
 
   // 数字は右で揃える。**符号と桁の位置で読むものなので、左寄せにしない**

@@ -109,7 +109,14 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
 
             return (
               <tr key={row.move.usiMove} className="book-table__row">
-                <td className="book-table__move">{texts.move}</td>
+                {/*
+                  **切れた先へ届く手段を置く。** 日本語1手は全角4〜6字あり、
+                  幅の足りない窓では成・不成や右・左・引が落ちる。落ちたぶんは
+                  別の手として読めてしまうので、`title` で全文を出す
+                */}
+                <td className="book-table__move" title={texts.move}>
+                  {texts.move}
+                </td>
                 <td className="book-table__num">{formatValue(row.move.value)}</td>
                 <td className="book-table__num book-table__dim">{row.move.depth ?? "—"}</td>
                 <td className="book-table__count">
@@ -128,7 +135,9 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
                     }
                   />
                 </td>
-                <td className="book-table__dim">{texts.ponder}</td>
+                <td className="book-table__dim" title={texts.ponder}>
+                  {texts.ponder}
+                </td>
                 <td
                   className={`book-table__ahead ${label.continues ? "book-table__ahead--continues" : "book-table__dim"}`}
                   title={label.hint}

@@ -5,7 +5,7 @@
 // **器と同じ面をここでも宣言する。** 下に並ぶ文字と記号の色は、この面との比で
 // 決めてある。器の側だけが面を持つと、その比をこのファイルの中で確かめられない
 .analysis-controls {
-  --hit: 3.6rem;
+  --hit: #{index.$control-hit};
   --r: #{index.$radius-2};
 
   width: 100%;
@@ -19,7 +19,7 @@
   background-color: index.$color-primary-dark;
 
   @media (pointer: coarse) {
-    --hit: 4.4rem;
+    --hit: #{index.$control-hit-coarse};
   }
 
   // 状態は左。**削らない** —— 狭くなったときに落ちるのは操作の側
