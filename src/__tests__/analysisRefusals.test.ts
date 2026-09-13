@@ -11,18 +11,26 @@ import { codeOf } from "./sourceText";
  * 人の目では止まらない——doc が散文の言い換えで枝を指していると、突き合わせる鍵が無い。
  * **定数名を鍵にする。**
  *
- * 見るのは2つ。
+ * 見るのは次の観点。**数を書かない**——観点を足すたびにこの行だけが古くなる。
  *
- * - **※15 に名前が出ているか**——枝が増えたのに表が5枝のまま、を止める
+ * - **断りを拾えているか**——抽出が外れて0件になり、下が全部素通しになる、を止める
+ * - **※15 に名前が出ているか**——枝が増えたのに表が追いつかない、を止める
  * - **テストがその文言を見ているか**——出ない断りを足したのに誰も踏まない、を止める
+ * - **対応表を2つとも拾えているか**——抽出が外れて0件のまま緑になる、を止める
+ * - **対応表の値が登録済みの断りそのものか**——表にだけ文言を直書きして、
+ *   ※15 にもテストにも通らない1本が増える、を止める
+ * - **対応表の値が入口の軸を名前に持つか**——▶ 用の断りが解析中の表に入る、を止める
+ *   （規約の全体は `refusals.ts` の冒頭）
  *
- * どちらも「その断りが**正しい**か」は見ない。踏む筋があるか、文言が現物と合うかは
+ * どれも「その断りが**正しい**か」は見ない。踏む筋があるか、文言が現物と合うかは
  * `provider.test.tsx` の側の仕事。
  *
  * **対象は `refusals.ts` の `export const` 全部**（名前の形も問わない）。末尾や大文字で
  * 選ぶと、そこから外れた名前の1本が黙って義務から外れる。断りでない部品だけを、
- * 下の `PARTS` に**名前で書いて**外す——`PARTS` に足すのは「断りではない」と言い切れる
- * ときだけで、それが唯一の逃げ道。
+ * 下の `PARTS` に**名前で書いて**外す——`PARTS` に足すのは「断りではない」と言い切れるときだけ。
+ *
+ * **逃げ道は2つある。** もう1つは `Record<…NotReadyReason…>` と型注釈すること
+ * ——それは「対応表である」の意味なので、義務は下の `describe` の側へ移る。
  */
 const REFUSALS = "src/entities/analysis/model/refusals.ts";
 const NOTES = "docs/state-transitions/analysis.md";
@@ -30,11 +38,22 @@ const TESTS = "src/entities/analysis/model/__tests__/provider.test.tsx";
 
 const NAMES = /export const ([A-Za-z_$][\w$]*)\b/g;
 
-/** 断りではない部品。**足すならここに書く**——書かなければ表とテストを要求される */
-const PARTS = new Set([
-  /** 断りそのものではなく、`EngineNotReadyReason` から断りへの対応表 */
-  "NOT_READY_REFUSALS",
-]);
+/**
+ * 対応表。**ソースから引く**——手で並べると、3つ目を足したときに書き漏らした表だけが
+ * 黙って検査から外れる（`PARTS` の書き漏らしは「※15 に無い」で赤くなるので、
+ * 失敗の向きが非対称になる）。
+ */
+const TABLE_DECLS = /export const ([A-Za-z_$][\w$]*): Record<[^>]*NotReadyReason[^>]*>/g;
+
+const tableNames = (code: string) => [...code.matchAll(TABLE_DECLS)].map((m) => m[1]);
+
+/**
+ * 断りではない部品。**足すならここに書く**——書かなければ表とテストを要求される。
+ *
+ * **いまは空。** 断りの中に埋め込む文（`RESTART_ENGINE_HINT`）は `export` していないので
+ * `NAMES` に拾われず、対応表は `TABLE_DECLS` が型注釈から拾う。名前で外すものが無い。
+ */
+const PARTS = new Set<string>();
 
 /**
  * ※15 の節だけを切り出す。他の注や表のセルに名前が1度出ただけで通るのを止める。
@@ -58,8 +77,14 @@ const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), "utf8");
  */
 const withoutImports = (body: string) => body.replace(/import \{[\s\S]*?\} from "[^"]*";/g, "");
 
-const refusalNames = () =>
-  [...codeOf(read(REFUSALS)).matchAll(NAMES)].map((m) => m[1]).filter((name) => !PARTS.has(name));
+/** 断りそのもの。**対応表は除く**（表は名前ではなく中身を下の describe が見る） */
+const refusalNames = () => {
+  const code = codeOf(read(REFUSALS));
+  const tables = new Set(tableNames(code));
+  return [...code.matchAll(NAMES)]
+    .map((m) => m[1])
+    .filter((name) => !PARTS.has(name) && !tables.has(name));
+};
 
 describe("解析の断り", () => {
   // 対象が0件になって「何も見ていないのに緑」になる形を止める
@@ -83,7 +108,7 @@ describe("解析の断り", () => {
     // あるので、肯定側を落とす改変が黙って通る。
     //
     // **肯定形の綴りまでは要求しない。** 表で回すテスト
-    // （`it.each([["failed", ENGINE_FAILED_MESSAGE]])`）は期待値を変数で渡すので、
+    // （`it.each([["failed", ENGINE_FAILED_ON_START_MESSAGE]])`）は期待値を変数で渡すので、
     // `.toBe(NAME)` を要求すると正しい形が落ちる。否定だけを引いて、
     // **残りに1度でも出るか**を見る。
     // **matcher を列挙しない。** 列挙すると `.not.toStrictEqual` へ書き換えるだけで
@@ -100,18 +125,49 @@ describe("解析の断り", () => {
 });
 
 describe("エンジンが使えない理由への対応", () => {
-  test("対応表の値は、登録済みの断りだけ", () => {
-    const code = codeOf(read(REFUSALS));
-    const table = /NOT_READY_REFUSALS[^=]*=\s*\{([\s\S]*?)\};/.exec(code);
+  // **表は「いつ出すか」で2つに割れている**——▶ を押した回と、走っている解析が
+  // 切れた回。1つに減ったらどちらかの入口の断りが消えているので、番人ごと見直すこと。
+  // 0件で黙る形（宣言の書き方が変わって抽出が外れる）も同じ検査で止まる。
+  test("対応表を2つとも拾えている", () => {
+    expect(tableNames(codeOf(read(REFUSALS))).length).toBe(2);
+  });
 
-    expect(table, `${REFUSALS}: \`NOT_READY_REFUSALS\` が見つからない`).not.toBeNull();
+  test.each(tableNames(codeOf(read(REFUSALS))))("%s の値は、登録済みの断りだけ", (name) => {
+    const code = codeOf(read(REFUSALS));
+    const table = new RegExp(`${name}[^=]*=\\s*\\{([\\s\\S]*?)\\};`).exec(code);
+
+    expect(table, `${REFUSALS}: \`${name}\` が見つからない`).not.toBeNull();
 
     // **文字列リテラルを直に置かない。** 置くと、その1本が ※15 にもテストにも
-    // 通らないまま増える（対応表は `PARTS` に入っているので、こちらは素通りする）。
-    expect(/:\s*["`']/.test(table![1]), `${REFUSALS}: 対応表に文言を直に書いている`).toBe(false);
+    // 通らないまま増える（対応表は断りの一覧から外れるので、こちらは素通りする）。
+    expect(/:\s*["`']/.test(table![1]), `${REFUSALS}: ${name} に文言を直に書いている`).toBe(false);
 
     const values = [...table![1].matchAll(/:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
-    expect(values.length, `${REFUSALS}: 対応表が空`).toBeGreaterThan(0);
+    expect(values.length, `${REFUSALS}: ${name} が空`).toBeGreaterThan(0);
     expect(values.filter((v) => !refusalNames().includes(v))).toEqual([]);
+  });
+
+  /**
+   * **名前で入口が読めること。** 2つの表は同じ `EngineNotReadyReason` を鍵に取るので、
+   * 名前が軸を持たないと「共通の断り」と読んだ人が両方へ入れる
+   * （規約の全体は `refusals.ts` の冒頭）。
+   */
+  test.each(tableNames(codeOf(read(REFUSALS))))("%s の値は入口の軸で終わる", (name) => {
+    // **表名から導く。** ここに対応を手で並べると、3つ目の表を足した人が
+    // 「対応表を2つとも拾えている」の数字だけを直して、新しい表だけ規約から外れる。
+    const suffix = `_${name.replace(/_REFUSALS$/, "")}_MESSAGE`;
+    const code = codeOf(read(REFUSALS));
+    const table = new RegExp(`${name}[^=]*=\\s*\\{([\\s\\S]*?)\\};`).exec(code);
+    const values = [...table![1].matchAll(/:\s*([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
+
+    expect(
+      values.filter((v) => !v.endsWith(suffix)),
+      `期待する接尾辞は ${suffix}`,
+    ).toEqual([]);
+  });
+
+  // 表名が軸を持たないと、上の接尾辞が組めない
+  test.each(tableNames(codeOf(read(REFUSALS))))("%s は _REFUSALS で終わる", (name) => {
+    expect(name.endsWith("_REFUSALS")).toBe(true);
   });
 });

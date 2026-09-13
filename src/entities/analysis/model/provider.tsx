@@ -9,14 +9,20 @@ import { useEngineSeat, type DiscardReleasePoint, type SeatTakeResult } from "./
 import { useResultFlush } from "./useResultFlush";
 import { waits } from "./waits";
 import { analysisReducer, initialState } from "./reducer";
-import { useEngine, type AnalysisResult, type EngineReadiness } from "@/entities/engine";
+import {
+  useEngine,
+  isRecoverableNotReady,
+  type AnalysisResult,
+  type EngineReadiness,
+} from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { AnalysisContext } from "./context";
 import {
   ENGINE_ERROR_MESSAGE,
+  WHILE_ANALYZING_REFUSALS,
   LISTENERS_FAILED_MESSAGE,
-  NOT_READY_REFUSALS,
+  ON_START_REFUSALS,
   POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
   RELEASE_FAILED_MESSAGE,
@@ -90,6 +96,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const readinessRef = useRef<EngineReadiness>(readiness);
 
+  // **この4本（`readinessRef` / `syncedSfenRef` / `currentSfenRef` / `analyzingRef`）は
+  // effect で更新する。** 描画中に代入するほうがこのリポジトリの多数派
+  // （`entities/engine` の `desiredRuntimeRef` ほか）だが、ここは揃えない——
+  // 読むのは `await` の継続とタイマー／イベントのコールバックで、どれも描画の外。
+  // **commit された値であること**のほうが要る——描画中に代入すると、
+  // commit されなかった描画の値を読ませることになる。
   const syncedSfenRef = useRef<string | null>(syncedSfen);
 
   // いま盤が見ている局面。**手動開始が待つ相手をここから読む。**
@@ -250,12 +262,47 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * その理由を `async-result-ignored:` で書くこと
    * （`src/__tests__/asyncResultUse.test.ts` が要求する）。
    *
-   * **呼ぶ前に要求の世代の門（`supersededSince`）を通すこと。** 本体の先頭で
-   * `clear_results` が飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった
-   * 要求がここへ入ると直前に立った断りが黙って消える。
+   * **要求の世代と readiness は、本体の先頭で見る**（呼び手にも門はあるが、
+   * ここが最後の砦）。`clear_results` は `error` も消すので（`reducer.ts`）、
+   * 要らなくなった要求がその先へ入ると、直前に立った断りが黙って消える。
    */
   const takeSeatAndGo = useCallback(
     async (seq: number, want: string, discardBy: DiscardReleasePoint): Promise<SeatTakeResult> => {
+      // **入口でも readiness を見る。入口は2つある。**
+      //
+      // 下の札が守るのは「往復の**前**に読んだ世代」だけで、**世代が上がった後に
+      // ここへ入る要求**は素通りする——`releaseHeld` の `await` を跨いだ自動再開がそれ。
+      // ▶ の側は `sendAndAwaitSync` が守っているように見えるが、`waitUntil` は
+      // `cond()` を先に見るので、盤とエンジンが同じ局面を指していれば**打ち切りも
+      // readiness の見直しも1度も走らない**——`syncPosition()` の `await` の向こうで
+      // 死んだ回は、ここだけが止めている。
+      //
+      // 通してしまうと、Rust はまだ畳んでいないので**もう無いエンジンの席**を握り、
+      // `landed` は `"held"` を返す。**以後どの effect も拾えない**——席の欄を捨てる
+      // effect は先頭の `if (isReady) return;` で降り、`isReady` はもう倒れないため。
+      // 盤は候補手0本で「解析中」を回し続ける。
+      //
+      // **`discardShown()` より前に置く。** 後ろだと、自動再開が死んだエンジンに当たった回に
+      // `clear_results` が立っている断りを消し、**代わりを何も立てずに黙って降りる**
+      // （自動再開の口は3値のどれでも黙って降りる）。
+      // **入れ替えても落ちるテストは無い**——順序を守っているのは人だけ。
+      // **要求の世代も入口で見る。** doc が「呼ぶ前に通すこと」と散文で課していた義務。
+      // 通し忘れると、下の `discardShown()` → `clear_results` が、断つ effect や
+      // 打ち切りが立てたばかりの断りを消す。呼び手は2本とも既に通しているので、
+      // ここは**その前提をコードにしただけ**（振る舞いは変わらない）。
+      if (supersededSince(seq)) {
+        dropPendingForLostSeat();
+        return "superseded";
+      }
+
+      if (!readinessRef.current.isReady) {
+        // **握れなかった回の後始末は1本に揃える。** ここを通さないと、
+        // 「握れなかった回はどれも通る」と名乗っている下の doc が偽になる
+        // （いま席は必ず null なので、振る舞いは変わらない）。
+        dropPendingForLostSeat();
+        return "engine-gone";
+      }
+
       results.discardShown();
 
       // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
@@ -404,23 +451,26 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   // 再開のタイマーを張る口をここ1つにする。畳まれた後に張ると、それを止める
   // cleanup はもう走らない。非同期の再開が返ってきた後の張り直しは、まさにそこを通る。
-  const scheduleRestart = useCallback((seq: number, delayMs: number) => {
-    if (unmountedRef.current) return;
+  const scheduleRestart = useCallback(
+    (seq: number, delayMs: number) => {
+      if (unmountedRef.current) return;
 
-    // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
-    // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
-    // 0ms の分は最新の `seq` なので世代の門で落ちず、同じ局面へ2本並んで
-    // `take_session` に断られる（利用者はボタンを1つも押していない）。
-    clearDebounceTimer();
+      // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
+      // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
+      // 0ms の分は最新の `seq` なので世代の門で落ちず、同じ局面へ2本並んで
+      // `take_session` に断られる（利用者はボタンを1つも押していない）。
+      clearDebounceTimer();
 
-    debounceTimerRef.current = window.setTimeout(() => {
-      // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
-      // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
-      // 間引きのタイマーが同じ形をしている。
-      debounceTimerRef.current = null;
-      runRestartRef.current(seq);
-    }, delayMs);
-  }, [clearDebounceTimer]);
+      debounceTimerRef.current = window.setTimeout(() => {
+        // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
+        // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
+        // 間引きのタイマーが同じ形をしている。
+        debounceTimerRef.current = null;
+        runRestartRef.current(seq);
+      }, delayMs);
+    },
+    [clearDebounceTimer],
+  );
 
   /**
    * エンジンが望みの局面に追いつくのを、刻みながら待つ。**追いつかなければ打ち切る。**
@@ -529,13 +579,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 張る時点しか見ていない。
     if (supersededSince(seq)) return;
     if (!analyzingRef.current) return;
-    if (!isReady) return;
+    // **鏡から読む。** ここは前のコミットで張ったタイマーからも呼ばれるので、
+    // 描画スコープの値を読むと、入口の門（commit された鏡を読む）と1コミットずれる
+    // ——エンジンは生きているのに、門が古い false を見て自動再開が1本落ちる。
+    if (!readinessRef.current.isReady) return;
 
     const want = desiredSfenRef.current;
     if (!want) return;
     if (sentSfenRef.current === want) return;
 
-    if (syncedSfen !== want) {
+    if (syncedSfenRef.current !== want) {
       keepWaitingForSync(seq, want);
       return;
     }
@@ -580,12 +633,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer,
   ]);
 
-  // **エンジンが落ちたら、投げ済みの印と席の欄を捨てる。**
+  // **エンジンが使えなくなったら、投げ済みの印と席の欄を捨てる。**
   //
-  // 落ちる引き金は解析中の起こし直し（設定でオプションを変えて保存する——**この画面の
-  // 断りが案内している操作**）。Rust は畳む前に席を全部空けるので、こちらの欄に残るのは
-  // もう無い席。捨てないと、戻ってきたときに下の effect が「その局面は投げ済み」と読んで
-  // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られ、断りも出ない）。
+  // 引き金は `isReady` の立ち下がり全部——起こし直し・初期化の失敗・起動の設定が
+  // 組み立てられなくなった回（→ `EngineNotReadyReason`）。Rust はどの畳み方でも席を
+  // 先に全部空けるので、こちらの欄に残るのはもう無い席。捨てないと、戻ってきたときに
+  // 下の effect が「その局面は投げ済み」と読んで降り、**「解析中」の表示のまま数字が
+  // 一切動かない**（席は死んだまま握られる）。
+  //
+  // **ここは `isAnalyzing` に触らない。** 戻ってくる回はそのまま張り直したいので、
+  // 止めるかどうかは理由を見てから決める（→ 次の effect）。
   useEffect(() => {
     if (isReady) return;
 
@@ -595,7 +652,51 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     sentSfenRef.current = null;
     clearDebounceTimer();
     seat.onEngineGone();
+    // **鏡の更新とこれは必ず同じ commit で走る**——`readiness` の同一性は `isReady` に
+    // 連動するので（`entities/engine` の `useMemo`）、`isReady` が倒れる回は鏡の effect も
+    // 必ず動く。席を取る往復が着地したときの枝（`landed === "engine-gone"`）は
+    // `await` の継続なので、両方が走り終えた後の値を読む。**順序ではなく同一 commit が要る。**
   }, [isReady, seat, clearDebounceTimer]);
+
+  /**
+   * 走っている解析を、利用者の操作なしに畳む。
+   *
+   * **順序で守っているのは1つ**——`clear_results` は `error` も消すので（`reducer.ts`）、
+   * 断りはその後に撃つ。
+   *
+   * `supersedeRequests()` が要るのは**掃除のため**——張られた debounce のタイマーと
+   * 予約（`pendingAfterRef`）と望みの局面を落とす。残すと、エンジンが戻った回に
+   * **利用者が何も押していないのに**古い要求が再点火する。
+   * （断りが消される筋は `takeSeatAndGo` の入口の門が塞いでいるので、
+   * 世代を上げること自体には**落ちるテストが無い**。）
+   *
+   * `stop_analysis` は `set_error` が既に倒しているので値を動かさない。**撃つ口を
+   * 揃えるために残している**（同期の打ち切りと自動再開の失敗も同じ対で撃つ）。
+   *
+   * **席は撃たない。** どの引き金でも Rust は畳む前に席を空けており、撃つと
+   * 起こし直した先へ裸の `stop` が書かれる（→ `docs/state-transitions/analysis.md` の ※12）。
+   * 欄を空けるのは上の effect。
+   */
+  const cutRunningAnalysis = useCallback(
+    (refusal: string) => {
+      supersedeRequests();
+      results.discardShown();
+      dispatch({ type: "set_error", payload: refusal });
+      dispatch({ type: "stop_analysis" });
+    },
+    [results, supersedeRequests],
+  );
+
+  // **戻ってこない回は、そこで断つ。** 置いておくと「解析中」の丸とタイマーが回り続ける。
+  // **戻るかどうかを決めるのは engine 側**（`isRecoverableNotReady`。判断の全体は
+  // `docs/state-transitions/engine.md` の ※7）。
+  useEffect(() => {
+    if (isReady) return;
+    if (!state.isAnalyzing) return;
+    if (isRecoverableNotReady(notReadyReason)) return;
+
+    cutRunningAnalysis(WHILE_ANALYZING_REFUSALS[notReadyReason]);
+  }, [isReady, notReadyReason, state.isAnalyzing, cutRunningAnalysis]);
 
   // **同期が追いついた回と、エンジンが戻った回の入口。**
   //
@@ -622,7 +723,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (isRestartScheduled()) return;
 
     scheduleRestart(restartSeqRef.current, 0);
-  }, [syncedSfen, state.isAnalyzing, isReady, scheduleRestart, bookIfRestarting, isRestartScheduled]);
+  }, [
+    syncedSfen,
+    state.isAnalyzing,
+    isReady,
+    scheduleRestart,
+    bookIfRestarting,
+    isRestartScheduled,
+  ]);
 
   // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
   // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、
@@ -684,7 +792,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // ここは**いちばん踏まれる枝**。理由は engine 側が決める（`desiredRuntime` を
     // 見られるのはあちらだけ）。`isReady` が false なら理由は必ず在る（`EngineReadiness`）。
     if (!isReady) {
-      failStart(NOT_READY_REFUSALS[notReadyReason], new Error("Engine not ready"));
+      failStart(ON_START_REFUSALS[notReadyReason], new Error("Engine not ready"));
     }
 
     // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisPaneHeader` が
@@ -732,7 +840,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         const engine = readinessRef.current;
         if (!engine.isReady) {
           failStart(
-            NOT_READY_REFUSALS[engine.notReadyReason],
+            ON_START_REFUSALS[engine.notReadyReason],
             new Error("engine went away while syncing"),
           );
         }
@@ -842,7 +950,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       const engine = readinessRef.current;
       const refusal = engine.isReady
         ? ENGINE_RESTARTED_MESSAGE
-        : NOT_READY_REFUSALS[engine.notReadyReason];
+        : ON_START_REFUSALS[engine.notReadyReason];
 
       failStart(refusal, new Error("engine was restarted while taking a seat"));
     }

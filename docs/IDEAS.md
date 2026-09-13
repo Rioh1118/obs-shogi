@@ -153,6 +153,65 @@
 
 - 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
 - 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）
+- **`entities/app-config/index.ts` は、直後のコメントが禁じている口を自分で開けている**
+  （`loadConfig` / `saveConfig` を出しつつ「api を直に出さない。呼ぶのは `useAppConfig()` 経由」
+  と書いている）。スライス外の呼び手は**0件**。落とすだけで済むが、上の走査を足せば
+  この2本も一緒に落ちる。副作用として、いま `sliceBarrels` は
+  「公開すべきでないと自分で書いたモジュール」への deep import を禁じている
+  （#502 の r9 architecture 所見）
+- **`entities/engine-presets` に barrel が無い**ので `sliceBarrels` が見ておらず、
+  `model/types` も `model/provider` も外から素通しで読める。あわせて `PresetId` が
+  `engine-presets` に居るせいで `app-config` との間にスライス単位の双方向依存ができている
+  ——永続する欄（`last_preset_id`）を持つのは `app-config` の側。`import/no-cycle` は
+  型だけの辺を見ないので黙る（#502 の r9 architecture 所見）
+
+## `entities/engine` の context に、命令形の口が呼び手0のまま並んでいる
+
+`initialize` / `shutdown` / `restart` / `clearError` / `state` は `EngineContextType` に
+出ているが、**スライス外の読み手は `isReady` / `notReadyReason` だけ**
+（`entities/analysis/model/provider.tsx` と `features/engine-position-sync`）。
+`clearError` はリポジトリ全体で呼び手0。エンジンの寿命は `desiredRuntime` から導出する、
+というのがこの provider の設計なので、命令形の動詞を context に出す理由が無い。
+
+`restart()` の `Promise<boolean>` が結末5通りを1ビットに潰し、畳みの失敗だけ型の外
+（reject）に出している件も、**降ろせば消える**——いま型を厚くすると、`isReady` /
+`notReadyReason` という既存の観測面と二重に結末を語ることになる。
+
+**`startingSeqRef`（起動の門）も同じ節で見ること。** `initialize_start` の重複以外に
+**テストで観測できている**先が無い（実測）。ただし**外すと窓が開く**——`restart()` は
+`await shutdown()` の間 `phase` が `ready` のままなので、その窓で `desiredRuntime` が
+もう一度動くと effect が再入し、2本目が飛んでいる起動の結果を新しい設定のものとして
+`activeRuntime` に書く（→ `docs/state-transitions/engine.md` の ※2 / 不変条件1、
+`entities/engine/api/initializer.ts` の契約第1条）。**外すなら代わりに何を立てるかまで決めること。**
+
+出どころ: #502 のレビュー r13（architecture）。
+
+## 台帳が、閉じた issue を「これから直すもの」の追跡先に使っている
+
+`docs/state-transitions/failure-surfacing.md` が追跡先として挙げる `#157`（§1 の表）/
+`#314` `#315`（§2 の ※5）/ `#227` `#200`（§4 の散文）は**5件とも closed**（2026-09-09 に確認）。
+「まだ出口が無いもの」の節に居るので、読んだ人は追跡先が生きていると受け取る。
+**§4 の表**（`#170` / `#171` / `#172` / `#179` / `#403` / `#434`）は全部 open で健全。
+
+**判断: 6週間以内に着手しない。** 1件ずつ「本当に直ったか」を現物で確かめる作業で、
+#502 の範囲外。着手するときは、直っているなら §2 / §4 の行ごと書き換え、
+直っていないなら開き直すか #277 に寄せる。
+
+出どころ: #502 のレビュー r14（oss-hygiene）。
+
+## ADR-0007 が指すソースの場所が2つとも存在しない
+
+`docs/decisions/0007-serde-wire-naming.md` の `src-tauri/src/settings/presets.rs` と
+`file_system/types.rs` は、ADR-0009 の crate 分割で移った先（`crates/settings/src/presets.rs` /
+`src-tauri/src/workspace/types.rs`）を書かないまま消えたパスとして残っている。
+同 ADR が「**再現できる形で書く**」と宣言して並べた6本の grep も、`src-tauri/src/` しか
+見ないので `crates/` の型を数えず、いま流すと別の値を返す。
+
+**判断: 6週間以内に着手しない。** ADR は決定の記録なので本文は触らず、
+パスだけを現在地へ直すか、grep の節に「ADR-0009 より前のレイアウトでの実測」と
+1行添えて凍結するかを決める作業。`docsSourcePaths` を `docs/decisions/` へ広げれば機械で拾える。
+
+出どころ: #502 のレビュー r16（oss-hygiene）。**`main` から在る。**
 
 ## 解析の停止が、ロックを握ったまま別のロックを待つ
 
@@ -228,9 +287,10 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 
 `.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
 
-`entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
+`entities/engine/index.ts` は provider・型・**戻るかどうかの分類1本**
+（`isRecoverableNotReady`。意図して解析側へ跨がせている → `engine.md` の ※7）を公開しているが、`api/` は
 **barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で本物の import が10本。内訳は `aiLibrary` 6 / `tauri` 3 / `events` 1。ほかに `vi.mock` の行が4つ——`entities/analysis` のテスト2ファイルと `features/engine-position-sync` のテスト1ファイル）。
+で数えられる。**この一文に件数と内訳を書かない**——触るたびに動く（テストを含めるかで倍近く変わる）。ほかに `vi.mock` の行がある——**そちらの内訳も書かない**。`sliceBarrels` の免除に当たるので、選択肢 (a) の見積もりを取るときに数え直すこと）。
 `sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
 **公開しない限り深く読める**。
 
@@ -376,6 +436,45 @@ lint もテストもラチェットも赤くならない。
 件数ラチェット（`src/shared/ui/**` の外の SCSS が `.form` / `.notice` / `.fsError` /
 `.modal` で始まるセレクタを書く数）なら今日から張れる。0 にはできないので
 `knip-ratchet.sh` と同じ「増える方向にだけ落とす」形。
+
+## `EngineTab` が選択中のプリセット id を `console.log` している
+
+`src/features/settings/ui/tabs/EngineTab.tsx` の、`selectedId` だけを依存に持つ `useEffect` の中。
+`no-console` が lint に入っていないので落ちない。
+
+**判断: 6週間以内に着手しない。** 出るのは開発者コンソールだけで、利用者に見える
+不具合ではない。ただし**`console.log` は他のスライスにもある**し、この1行だけを消しても同じものがまた入るので、
+着手するなら `no-console` を lint に入れるところまで。そのとき、
+**`failure-surfacing.md` の §2 が「いま起きること」に `console.error` のみと書いている行は
+全部残すこと**——あれらは台帳が数えている唯一の出口で、消すと失敗の手掛かりが1つも
+無くなる（解析側の例は `useEngineSeat` の `shootQuietly`）。
+
+出どころ: #502 のレビュー ラウンド1（robustness が範囲外として記録）。
+
+## `engineKey` という名前が、2つのスライスで別の式に束縛されている
+
+- `features/engine-position-sync` の `engineKey` は `` `${selectedPresetId}@${selectedPresetVersion}` ``
+  ——**送信済み局面の記録**を捨てる鍵。中身が変わった回に外したい
+- `widgets/analysis-pane` の `engineKey` は `selectedPresetId` だけ
+  ——**候補手のキャッシュ**の鍵。version を含まないので、オプションを変えただけでは外れない
+
+同じ名前で別の粒度なので、「`engineKey` が動けばキャッシュが外れる」と読んだ人が
+両方に当てはめる（実際、#502 のレビューでその形のコメントを1本書いて指摘された）。
+
+**同じ名前の問題ではなく、粒度の問題として実害がある**——ペインの鍵は version を含まないので、
+**選択中のプリセットのオプションを変えて保存 → 起こし直しが落ちる**回に、
+`cacheKey` が1ビットも動かない。解析が断たれて `state.candidates` が空になっても、
+ペインは停止中にキャッシュを出すので**死んだ設定で出した読み筋がそのまま盤の下に残る**。
+断りの読み手は0（→ #277）なので、画面には何の手掛かりも出ない
+（#502 の r11 react 所見。**`RESTART_ENGINE_HINT`（オプションを変えて保存する）が
+案内している操作が、ちょうどこの窓を踏む**）。
+
+**判断: 6週間以内に着手しない。** 改名は2スライスに跨り、鍵を1箇所から配る形
+（`state.activeRuntime` の同一性など、実際に起きているプロセスを指す値）まで含めて決める必要がある。
+着手するなら `syncKey` / `presetKey` のように**鍵ごとに違う名前**へ。正は
+「同じ名前が別の式に束縛されていないこと」で、どちらを改名するかは問わない。
+
+出どころ: #502 のレビュー ラウンド4（comment）。
 
 ## 自動再開に、差の出る筋を組めていない門が2つある
 

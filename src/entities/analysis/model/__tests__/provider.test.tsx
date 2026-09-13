@@ -7,12 +7,14 @@ import { AnalysisProvider } from "../provider";
 import { useAnalysis } from "../useAnalysis";
 import { shortenWaits, waits } from "../waits";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
-import type { AnalysisResult } from "@/entities/engine";
+import type { AnalysisResult, EngineReadiness } from "@/entities/engine";
 import {
   ENGINE_ERROR_MESSAGE,
-  ENGINE_FAILED_MESSAGE,
-  NO_ENGINE_SELECTED_MESSAGE,
-  ENGINE_STARTING_MESSAGE,
+  ENGINE_FAILED_ON_START_MESSAGE,
+  ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
+  NO_ENGINE_WHILE_ANALYZING_MESSAGE,
+  NO_ENGINE_ON_START_MESSAGE,
+  ENGINE_STARTING_ON_START_MESSAGE,
   ENGINE_RESTARTED_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_FAILED_MESSAGE,
@@ -36,12 +38,16 @@ vi.mock("@/entities/engine/api/tauri", () => ({
 }));
 // エンジンの状態。**理由を決めるのは engine 側**（`EngineNotReadyReason`）なので、
 // 断りを枝ごとに見るテストはその理由を動かす。
-let engine = {
-  isReady: true,
-  notReadyReason: null as "no-engine" | "starting" | "failed" | null,
-};
-vi.mock("@/entities/engine", () => ({
-  useEngine: () => ({ isReady: engine.isReady, notReadyReason: engine.notReadyReason }),
+//
+// **合併のまま持つ**（`EngineReadiness`）。2欄に割ると
+// `{ isReady: false, notReadyReason: null }` が tsc を通り、その回は断りの欄に
+// `undefined` が載ったまま解析が止まる——テストを書いた人はそれを「断りが立った」と読む。
+let engine: EngineReadiness = { isReady: true, notReadyReason: null };
+// **全面モックにしない。** `isRecoverableNotReady` は本物が要る（断つ判断そのもの）。
+// 差し替えたいのは `useEngine` だけ。
+vi.mock("@/entities/engine", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useEngine: () => engine,
 }));
 
 /** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
@@ -62,7 +68,7 @@ vi.mock("@/entities/engine/api/events", () => ({
 
 const oneCandidate: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["7g7f"] }] };
 
-/** 実時間を進める。打ち切りの判定が Date.now() を見るので偽タイマーは使えない。 */
+/** 実時間を進める。**寸法は `shortenWaits` で縮めてある**——実時計で進める理由は `waits.ts` の doc。 */
 const advance = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
 /**
@@ -515,7 +521,7 @@ describe("AnalysisProvider の結果の照合", () => {
       // **黙らない。** 押した人はまだ画面の前に居る。断りが無いと、停止中の
       // ペインが控えを出すので**押す前と1ドットも変わらない**。
       // まだ戻っていないので、案内は起動待ちのほう（押し直しても効かない）。
-      expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
+      expect(view.current.state.error).toBe(ENGINE_STARTING_ON_START_MESSAGE);
 
       // 戻ってきたら ▶ で始められる。
       engine = { isReady: true, notReadyReason: null };
@@ -546,7 +552,7 @@ describe("AnalysisProvider の結果の照合", () => {
     // **上限まで待たせない。** 待っても追いつかないし、待った末に告げる理由
     // （同期が遅い＝押し直し）はここでは効かない。
     expect(elapsed).toBeLessThan(limitMs() / 2);
-    expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
+    expect(view.current.state.error).toBe(ENGINE_STARTING_ON_START_MESSAGE);
     expect(startCore).not.toHaveBeenCalled();
   });
 
@@ -701,8 +707,211 @@ describe("AnalysisProvider の結果の照合", () => {
 
     // **「起こし直してください」と言わない**——利用者がいま済ませた操作。
     // まだ戻っていないので起動待ちの案内になる。
-    expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
+    expect(view.current.state.error).toBe(ENGINE_STARTING_ON_START_MESSAGE);
     expect(view.current.state.error).not.toBe(START_REFUSED_MESSAGE);
+  });
+
+  it(
+    "解析中に初期化が落ちて戻らないなら、止めて断り、state の候補手も落とす",
+    async () => {
+      tauri = true;
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 落ちる前に1本返している。**これを握ったまま「解析中」を続けない。**
+      await act(async () => {
+        listeners?.onUpdate("session-1", oneCandidate);
+      });
+      await advance(150);
+      expect(view.current.state.candidates).toHaveLength(1);
+
+      // 起こし直して初期化が落ちる。設定が同じままなので engine は再トライしない
+      // ——`isReady` は戻ってこない。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", null));
+      await advance(50);
+      engine = { isReady: false, notReadyReason: "failed" };
+      await view.setSync(adapter("P1", null));
+      await advance(150);
+
+      // 断たないと「解析中」の丸とタイマーが回り続ける（→ 不変条件2）。
+      expect(view.current.state.isAnalyzing).toBe(false);
+      expect(view.current.state.error).toBe(ENGINE_FAILED_WHILE_ANALYZING_MESSAGE);
+
+      // **死んだ席の読み筋を state に残さない。** 次の ▶ が最初の `info` を返すまで、
+      // それが現在の解析結果として扱われるため。**画面から消えるとは限らない**
+      // ——ペインは停止中に局面ごとのキャッシュを出す（→ `analysis.md` の ※5）。
+      expect(view.current.state.candidates).toHaveLength(0);
+
+      // もう無い席へは撃たない（→ `analysis.md` の ※12 / ※13）。撃つと起こし直した先へ裸の `stop` が書かれる。
+      expect(stopCore).not.toHaveBeenCalled();
+    },
+    SLOW,
+  );
+
+  it(
+    "解析中に起動の設定が組み立てられなくなったら、止めて場所の確認まで案内する",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 設定でプリセットを消す／必須欄を空にする回。engine 側は `shutdown` して降りるだけで、
+      // 選び直すまで起動する口が無い（`docs/state-transitions/engine.md` の ※7）。
+      engine = { isReady: false, notReadyReason: "no-engine" };
+      await view.setSync(adapter("P1", null));
+      await advance(150);
+
+      expect(view.current.state.isAnalyzing).toBe(false);
+      // **起こし直し方を案内しない**——起こす材料が揃っていない。
+      expect(view.current.state.error).toBe(NO_ENGINE_WHILE_ANALYZING_MESSAGE);
+    },
+    SLOW,
+  );
+
+  it(
+    "起動を待っている間は、解析を止めない",
+    async () => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 起こし直しの途中も、畳み損ねて `idle` に落ちた窓も理由はこれ。**待てば戻る**ので、
+      // ここで断つと戻ってきても読み直さない。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P1", null));
+      await advance(150);
+
+      expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.error).toBeNull();
+
+      engine = { isReady: true, notReadyReason: null };
+      await view.setSync(adapter("P1", "P1"));
+      await advance(300);
+      expect(startCore).toHaveBeenCalledTimes(2);
+    },
+    SLOW,
+  );
+
+  it(
+    "席を返している最中に初期化が落ちても、立てた断りは消えない",
+    async () => {
+      let releaseStop: () => void = () => {};
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤が動いて自動再開が走り、握っている席の返却で止まる。
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseStop = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(200);
+      expect(stopCore).toHaveBeenCalledTimes(1);
+
+      // その最中に初期化が落ちて戻らない。
+      engine = { isReady: false, notReadyReason: "failed" };
+      await view.setSync(adapter("P2", "P2"));
+      await advance(50);
+      expect(view.current.state.error).toBe(ENGINE_FAILED_WHILE_ANALYZING_MESSAGE);
+
+      // 返却が返り、再開の続きが動き出す。**要求の世代を上げていないと**、この先の
+      // `takeSeatAndGo` の先頭の `clear_results` が、いま立てた断りを黙って消す。
+      await act(async () => {
+        releaseStop();
+      });
+      await advance(200);
+
+      expect(view.current.state.error).toBe(ENGINE_FAILED_WHILE_ANALYZING_MESSAGE);
+      expect(view.current.state.isAnalyzing).toBe(false);
+      expect(startCore).toHaveBeenCalledTimes(1);
+    },
+    SLOW,
+  );
+  it(
+    "戻る理由でエンジンが落ちた最中に自動再開が着地しても、席を握らない",
+    async () => {
+      let releaseStop: () => void = () => {};
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+
+      // 盤が動いて自動再開が走り、握っている席の返却で止まる。
+      stopCore.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseStop = resolve;
+          }),
+      );
+      await view.setSync(adapter("P2", "P2"));
+      await advance(200);
+      expect(stopCore).toHaveBeenCalledTimes(1);
+
+      // **その最中に、戻る理由で `isReady` が落ちる**（オプションを保存した回）。
+      // 理由が `starting` なので断つ effect は降り、`isAnalyzing` は true のまま
+      // ——だが席の欄を捨てる effect は走り、エンジンの世代が上がる。
+      engine = { isReady: false, notReadyReason: "starting" };
+      await view.setSync(adapter("P2", "P2"));
+      await advance(50);
+      expect(view.current.state.isAnalyzing).toBe(true);
+
+      // 返却が返り、再開の続きが `takeSeatAndGo` へ入る。**入口で readiness を見ないと**、
+      // 札は往復の前の世代しか見ないので素通りし、**もう無いエンジンの席を握る**
+      // ——`landed` は "held" を返し、以後どの effect も拾えない（席の欄を捨てる
+      // effect の依存は `isReady` だけ）。盤は候補手0本で「解析中」を回し続ける。
+      await act(async () => {
+        releaseStop();
+      });
+      await advance(200);
+
+      expect(startCore).toHaveBeenCalledTimes(1);
+    },
+    SLOW,
+  );
+
+  it("局面が既に揃っていても、同期の往復の向こうでエンジンが死んだら席を取りに行かない", async () => {
+    // **`waitUntil` は `cond()` を先に見る。** 盤とエンジンが同じ局面を指していれば
+    // 打ち切りを1度も評価せず真を返すので、`if (!synced)` の中に在る readiness の
+    // 見直しごと飛ばされる——**入口の門が無いと、その先で死んだ席を握る。**
+    let releaseSync: () => void = () => {};
+    syncPosition.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSync = resolve;
+        }),
+    );
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    const pressed = view.current.startInfiniteAnalysis().catch(() => {});
+    await advance(50);
+
+    // 往復の最中に、起動の設定が組み立てられなくなる。
+    engine = { isReady: false, notReadyReason: "no-engine" };
+    await view.setSync(adapter("P1", "P1"));
+    await advance(50);
+
+    await act(async () => {
+      releaseSync();
+    });
+    await pressed;
+    await advance(50);
+
+    // **席を取りに行かない。** 行くと、Rust が渡した回は死んだ席が欄に残り、
+    // 次の ▶ の停止がその識別子で**別のエンジンへ**飛ぶ。
+    expect(startCore).not.toHaveBeenCalled();
+
+    // **理由に合った断り。** ここで「オプションを変えて保存」と案内すると、
+    // 起こし直す材料が揃っていないのにその操作を指示することになる。
+    expect(view.current.state.error).toBe(NO_ENGINE_ON_START_MESSAGE);
   });
 
   it("席が着く前にエンジンが戻っていたら、押し直しを案内する", async () => {
@@ -1502,9 +1711,9 @@ describe("AnalysisProvider の開始", () => {
   });
 
   it.each([
-    ["starting", ENGINE_STARTING_MESSAGE],
-    ["failed", ENGINE_FAILED_MESSAGE],
-    ["no-engine", NO_ENGINE_SELECTED_MESSAGE],
+    ["starting", ENGINE_STARTING_ON_START_MESSAGE],
+    ["failed", ENGINE_FAILED_ON_START_MESSAGE],
+    ["no-engine", NO_ENGINE_ON_START_MESSAGE],
   ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (reason, message) => {
     // ▶ は `disabled` にならない（ヘッダはエンジンの状態を1つも読まない）ので、
     // **起動を待っている人が必ずここへ来る**。「選んでください」と言ってはいけない。

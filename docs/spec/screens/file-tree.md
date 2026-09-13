@@ -67,6 +67,10 @@ RootNode（ワークスペース名）           [＋ファイル][＋フォル�
 **開くのは最後に選んだ棋譜**で、途中で捨てた要求は成功も失敗も画面に出ない。
 → [state-transitions/file-tree.md](../../state-transitions/file-tree.md) の E13
 
+※ 読み込みは IPC を跨ぐので、続けてクリックすると解決の順が前後する。
+**開くのは最後に選んだ棋譜**で、途中で捨てた要求は成功も失敗も画面に出ない。
+→ [state-transitions/file-tree.md](../../state-transitions/file-tree.md) の E13
+
 ### 削除の確認文
 
 取り消せない操作なので、ファイルとフォルダで文言を変えている。

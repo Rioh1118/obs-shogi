@@ -54,16 +54,24 @@
 
 ### 注
 
-※1 `initialize()` は `state.phase === "initializing"` で早期 return する（`provider.tsx`）
+※1 `initialize()` は**起動の門**で早期 return する（`provider.tsx` の `startingSeqRef`）。
+`state.phase` では割れない——描画のクロージャの値なので、同じコミットで setup が
+2回走る回には `initialize_start` を撃った後でも `"idle"` のまま見える
 
 ※2 **`YaneuraOuInitializer.initialize` は `inFlight` があれば引数を無視して前の promise を返す**
-（`initializer.ts`）。起動中に別のプリセットへ切り替えると、
-**前の runtime の起動結果を新しい runtime のものとして `activeRuntime` に書く**
-（`provider.tsx` の `snap` は新しい方）。
-→ **未検証。テストが無い。** 実機で踏めるかは未確認
+（`initializer.ts`）。その結果を新しい runtime のものとして `activeRuntime` に書く形になるが、
+**1つの provider の中では踏めない**——`initialize` は起動の門（`startingSeqRef`）で塞がれており、
+**門が開いている時点では `inFlight` は必ず空**。開ける口は2つで、`shutdown` の同期区間
+（そこで `inFlight` も空く）と、`initialize` 自身の `finally`（そこへ来るのは
+`initializer` の `.finally` が `inFlight` を空けた後）。
+**踏めるのは provider ごと畳んで張り直した回**（ref は消えるが `inFlight` はモジュールに残る）。
+→ **未検証。踏むテストは無く、`startGate.test.tsx` の構えでは書けない**
+（単一 provider では門が塞ぐ）——provider を畳んで張り直す列が要る
 
-※3 **停止が失敗しても `dispatch({ type: "shutdown" })` は `finally` で必ず走る**
-（`provider.tsx`）。フロントは S0（未起動）になるが、Rust のプロセスは残りうる。
+※3 **停止が失敗しても `dispatch({ type: "shutdown" })` は `finally` で撃つ**
+（`provider.tsx`）。**ただし畳みの世代（`seqRef`）の門を通ったときだけ**——追い越された畳み
+（飛んでいる起動を待っている間に次が起き切った回）は撃たないので、そこは S0 へ落ちない。
+撃った回のフロントは S0（未起動）になるが、Rust のプロセスは残りうる。
 呼び出し元は `shutdown().catch(() => {})`（`provider.tsx`）なので**誰にも届かない**。
 issue #120 と同型の行き止まり
 → [failure-surfacing.md](failure-surfacing.md) F-8
@@ -91,10 +99,68 @@ issue #120 と同型の行き止まり
 
 ※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs`）
 
+※7 **`isReady` が false の理由は3つで、割れ目は「待てば戻るか」。**
+解析側はこれを見て、走っている解析を打ち切るか待つかを決める
+（→ [analysis.md](analysis.md) の ※5）ので、**`phase` の写しではない。**
+
+**当たる順に上から。** 割るのは2段で、`desiredRuntime` の有無を先に見て
+（`provider.tsx` の三項）、残りを `phase` で割る（`reasonForPhase` の `switch`）。
+**`switch` の腕の並びは当たる順ではない**——`phase` で排他なので、順序に意味は無い。
+
+| 理由        | いつ                                                          | 待てば戻るか                                                                                                                                                                                                                                                             |
+| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `no-engine` | `desiredRuntime` が無い                                       | **戻らない**（下の effect は `shutdown` して降りるだけ。起動する口が1つも無い）                                                                                                                                                                                          |
+| `failed`    | 残りのうち S3 で、`desiredRuntime` が**前回試した値と等しい** | **戻らない**（その回だけ再トライしない → ※5 / 不変条件3）                                                                                                                                                                                                                |
+| `starting`  | 残り全部                                                      | 戻る（S1 の起動待ち、S2 で runtime が変わった窓、S0 の窓すべて（初回マウント・畳んだ直後・`restart()` の途中。**畳みの成否を問わない**）※、**S3 で runtime が動いた窓**、**S3 で前回試した値が無い窓**（`initialize` を通らずに `error` へ入った回。いまその口は無い）） |
+
+**`desiredRuntime` の有無を先に見る。** 理由は「そこには起動し直す口が1つも無い」——
+`phase` が何であれ結末は同じなので、`phase` に先を譲ると、初期化が落ちた後に
+設定が組み立てられなくなった窓で `failed` が立ち、**起こし直す材料が揃っていないのに**
+「オプションを変えて保存」と案内することになる。
+
+**`no-engine` は「選んでいない」ではない。** `desiredRuntime` を組み立てられない回すべてで、
+選んだプリセットの欄が埋まっていない回も AI フォルダが外れた回もここへ来る。
+**入口をここに数え上げない**——出典は `entities/engine-presets` の `runtimeConfig` の
+早期 return で、増えるたびにこの行だけが古くなる。案内を書く人はその関数を読むこと。
+
+**`no-engine` を `phase` で割らない。** 割ると、畳んでから起こし直すまでの窓
+（`restart()` の途中、および畳む invoke が落ちて `idle` の枝が拾い直す回）が
+「選んでいない」に落ちる——**そこは待てば戻る**のに、読み手が戻らない側と見分けられなくなる。
+
+※ **`starting` は「いつか ready になる」ではなく「起動し直す口が在る」。**
+
+**`failed` を立てられるのは `initialize` が reject した回だけ**（`reducer.ts` の
+`initialize_error`）。**上限で折れた回に限らない**——起動側は
+`setupYaneuraOuEngine`（`entities/engine/lib/setup.ts`）の3段で、
+パスが消えていて即座に折れる回も同じ枝を通る（E6 が挙げている失敗はここ）。
+**待ちの上限をここに数え上げない**——出典は
+[analysis.md](analysis.md) の不変条件2。
+
+**畳めなかったことは `failed` として出ない。** 根拠は畳む側の戻り値でも `finally` でもなく、
+**`phase: "error"` を立てる action が `initialize_error` しか無い**こと（`model/reducer.ts`）
+——畳みの経路にその口が無いので、将来 `EngineAnalyzer::shutdown` が `Err` を返すようになっても、
+畳みの `dispatch` に門が増えても結論は動かない。**残ったプロセスの話は ※3 / F-8 の管轄**で、
+この理由の分類とは別。
+
+`starting` がいつか `ready` か `failed` へ動くことを、**フロント側だけでは保証しない。**
+根拠は Rust 側の上限（→ [analysis.md](analysis.md) の不変条件2）と、
+**起動の門が世代ごとに必ず降りること**（→ 下の「埋まっていないセル」の
+`startGate.test.tsx`）。**実プロセスでは未確認**（→ F-40）——出典と同じ強さで読むこと。
+
+**`failed` と `starting` を割る述語は `retriesAfterError`**、`phase` から理由を決めるのは
+`reasonForPhase`（どちらも `lib/notReadyReason.ts`）。**述語を呼ぶのは描画時の1箇所だけ**で、
+理由を決める側も起動し直す effect もその値を読む。**effect の中で呼び直さない**
+——`lastTriedRef` の更新は再描画を起こさないので、呼んだ時点によって答えが割れる。
+
+分類は `entities/engine/lib/notReadyReason.ts` の `isRecoverableNotReady` が持ち、
+集合そのもの（`RECOVERABLE_NOT_READY_REASONS`）は `Exclude` の導出元として `model/types.ts` に残る。
+理由の並びは `src/entities/engine/model/__tests__/provider.test.tsx` が固定している。
+**どちらも `engineInitializer` を差し替えた回で、実プロセスでは未確認。**
+
 ## この表が満たすべき不変条件
 
 1. **S2（起動済み）なら `activeRuntime` は実際に起動したプロセスの設定と一致する。**
-   ※2 はこれを破りうる
+   ※2 はこれを破りうる（**入口は provider の張り直しだけ**）
 2. **フロントが S0 なら Rust 側も P0。** ※3 はこれを破る
 3. **S3（失敗）から抜ける道が常にある。** 帯が設定へ送り、そこで `desiredRuntime` を
    前回試した値から動かせば E3 で起動し直す（※5。プリセットを選び直しても、
@@ -102,9 +168,33 @@ issue #120 と同型の行き止まり
 
 ## 埋まっていないセル
 
-- `(S1, E3)` 起動中の runtime 切替（※2）。**`initializer.ts` にテストが無い**
-- `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無く踏めていない**
+- `(S1, E3)` 起動中の runtime 切替（※2）。**単一の provider では踏めない**（※2）
+- `(S3, E4)` 失敗した状態で同じ runtime が入り直す回（※5）。`provider.test.tsx` が見ているのは
+  「落ちた後そのまま放置しても再トライしない」ことだけで、**等値な別オブジェクトを
+  入れ直す回は未検証**（踏めているのは S2 側の同じ形）
+- `(S2, E8)` / `(S1, E8)` 停止の失敗（※3）。**Rust 側を落とす手段が無い。**
+  `provider.test.tsx` が踏んでいるのは `engineInitializer.shutdown()` を reject させた回で、
+  見ているのは**そのとき立つ理由**（※7）だけ——Rust 側に何が残るかは見ていない
+- **`entities/engine` の `__tests__` が見ているのは理由の並び（※7）と、そこに至る
+  `initialize` / `shutdown` の呼び出し回数。** `(S2, E4)` は等値な別オブジェクトを流して
+  踏んでいる（`equalRuntime` が中身で比べていなければ落ちる）。
+  **`phase` の値を見るのは1箇所だけ**——`startGate.test.tsx` の「畳みを待っている間に
+  起動が着地しても ready へ進まない」だけが `phase` を直に見る（理由では割れない窓のため）。
+  他の窓では見ていないので、**並びが合っていても `phase` が合っている根拠にはならない**。
+  `equalRuntime` がどの欄を比べるかは `lib/__tests__/equalRuntime.test.ts` が欄ごとに当てている
+- **`startGate.test.tsx` だけは `engineInitializer` を差し替えず、本物を通す**
+  （差し替えるのは IPC の4つ）。踏んでいるのは、起動を待っている間に設定が2度外れて
+  戻る窓——**※7 が「フロント側だけでは保証しない」と書いている根拠の片方
+  ——起動の門が世代ごとに降りること——は、ここで見ている。** この2本（`startGate.test.tsx` と `provider.test.tsx`）が見ているのは次の門。**数を書かない**——1枚足すたびにこの行だけが古くなる。
+  - `provider.tsx` の起動の門（`startingSeqRef`）——固定しているのは `provider.test.tsx` の StrictMode
+  - `provider.tsx` の `shutdown` の `dispatch` の門、世代（`seqRef`）の繰り上げ、
+    **起動の門を落とす1行**（潰すと `startGate.test.tsx` の、畳みと起動が重なる列が落ちる）
+  - `provider.tsx` の `initialize` の成功側・失敗側の世代の照合
+  - `initializer.ts` の追い越された畳みの IPC と、`finally` の同一性判定
+    **潰しても赤くならないものが残っている**——`provider` 側の `finally` の同一性判定、
+    `initialize` 側の世代の繰り上げ、`initializer` の in-flight の畳み込み。
+    前2つは門が開いた先で `initialize` を撃つ者が居ないため列を組めず、
+    最後の1つは provider を張り直す列でしか踏めない（→ ※2 / 不変条件1）
 
-**`entities/engine` でテストが在るのは `model/provider.tsx` だけ**
-（`model/__tests__/provider.test.tsx` が `(S3, E4)` と `(S3, E3)` を踏む）。
-`model/` の外——`api/` と `lib/`——はどれも素通り。
+- **`initializer.ts` の ※2 の窓**は誰も踏んでいない。`startGate.test.tsx` の構えでは
+  **書けない**（単一 provider では門が塞ぐ）——provider を畳んで張り直す列が要る

@@ -53,7 +53,6 @@ export default function EngineTab() {
   };
 
   const onDup = async (id: PresetId) => {
-    // duplicatePreset は今の実装だと「新しいid」を返さないので、ここでは作るだけにする
     await duplicatePreset(id);
   };
 

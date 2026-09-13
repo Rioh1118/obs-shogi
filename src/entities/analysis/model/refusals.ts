@@ -1,4 +1,4 @@
-import type { EngineNotReadyReason } from "@/entities/engine";
+import type { EngineNotReadyReason, TerminalNotReadyReason } from "@/entities/engine";
 
 /**
  * 解析が利用者に返す断り。**枝ごとに1本ずつ持つ。**
@@ -10,6 +10,11 @@ import type { EngineNotReadyReason } from "@/entities/engine";
  *
  * **ここに1本足したら、`docs/state-transitions/analysis.md` の ※15 にも枝を足すこと。**
  * `src/__tests__/analysisRefusals.test.ts` が突き合わせる。
+ *
+ * **対応表に入れる断りは、入口を名前に持たせる**（`_ON_START_MESSAGE` /
+ * `_WHILE_ANALYZING_MESSAGE`）。2つの表は同じ `EngineNotReadyReason` を鍵に取るので、
+ * 名前が軸を持たないと「共通の断り」と読んだ人が両方へ入れる。
+ * **両方の入口で使いたくなったら、それは2本に割るべき断り。**
  *
  * @packageDocumentation
  */
@@ -54,18 +59,38 @@ export const ENGINE_RESTARTED_MESSAGE =
 export const STOP_FAILED_MESSAGE =
   "解析を止められませんでした。エンジンはまだ読み続けているかもしれません。もう一度 ▶ を押すと、同じ席を止め直してから始めます。";
 /**
- * エンジンがまだ起動していない（→ F-9）。**▶ は押せてしまう**（`AnalysisPaneHeader` は
+ * 起動を待っている間に ▶ を押した。**▶ は押せてしまう**（`AnalysisPaneHeader` は
  * エンジンの状態を1つも読まない）ので、起動を待っている間に押した人が必ずここへ来る。
  * **理由ごとに割る**——「選んでください」を起動中の人に言わないため。
  * 理由を決めるのは `entities/engine`（`EngineNotReadyReason`）。
  */
-export const ENGINE_STARTING_MESSAGE =
+export const ENGINE_STARTING_ON_START_MESSAGE =
   "エンジンの起動を待っています。少し待ってからもう一度 ▶ を押してください。";
-/** エンジンの初期化が落ちている（→ F-9 / #171）。 */
-export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
-/** エンジンをまだ選んでいない。 */
-export const NO_ENGINE_SELECTED_MESSAGE =
-  "エンジンが起動していません。設定でエンジンを選んでください。";
+/**
+ * エンジンの初期化が落ちている（→ F-9 / #171）。**▶ を押した人に出す。**
+ * 解析が走っている最中に落ちた回は `ENGINE_FAILED_WHILE_ANALYZING_MESSAGE`。
+ */
+export const ENGINE_FAILED_ON_START_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
+/**
+ * 解析の最中に初期化が落ちた（→ `docs/state-transitions/analysis.md` の ※5）。
+ *
+ * **▶ を押した人への断りと分ける。** あちらは「まだ起動していない」と告げる文で、
+ * 押していない人が読むと「押しても始まらない」と受け取る。ここで告げるのは
+ * **走っていた解析が切れた**こと。次の一手は同じでも、起きた事が違う。
+ */
+export const ENGINE_FAILED_WHILE_ANALYZING_MESSAGE = `解析中にエンジンが使えなくなったため、解析を止めました。${RESTART_ENGINE_HINT}起こし直したら、もう一度 ▶ を押してください。`;
+/**
+ * 解析の最中に `no-engine` になった（→ `docs/state-transitions/analysis.md` の ※5）。
+ *
+ * **「選んでください」だけで終えない。** 入口は選択が外れた回だけではないので
+ * （`EngineNotReadyReason` の doc）、選び直しだけを案内すると、既に選んでいる人が
+ * 何度やっても同じ文に戻る。
+ */
+export const NO_ENGINE_WHILE_ANALYZING_MESSAGE =
+  "解析中にエンジンが使えなくなったため、解析を止めました。設定でエンジンを選び、AI フォルダとエンジン・評価関数の場所を確かめてから、もう一度 ▶ を押してください。";
+/** `no-engine` で ▶ を押した（入口は `EngineNotReadyReason` の doc）。 */
+export const NO_ENGINE_ON_START_MESSAGE =
+  "エンジンが起動していません。設定でエンジンを選び、AI フォルダとエンジン・評価関数の場所を確かめてください。";
 /** Rust がエラー通知を送ってきた（→ E9。いま `emit` する口は無い）。 */
 export const ENGINE_ERROR_MESSAGE = `エンジンがエラーを返しました。${RESTART_ENGINE_HINT}`;
 /** 盤を動かした後の自動再開が落ちた。**▶ で始め直せる**ことがある。 */
@@ -78,8 +103,21 @@ export const RESTART_FAILED_MESSAGE = `解析を再開できませんでした�
 export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。アプリを起動し直してください。";
 
 /** `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。** */
-export const NOT_READY_REFUSALS: Record<EngineNotReadyReason, string> = {
-  "no-engine": NO_ENGINE_SELECTED_MESSAGE,
-  starting: ENGINE_STARTING_MESSAGE,
-  failed: ENGINE_FAILED_MESSAGE,
+export const ON_START_REFUSALS: Record<EngineNotReadyReason, string> = {
+  "no-engine": NO_ENGINE_ON_START_MESSAGE,
+  starting: ENGINE_STARTING_ON_START_MESSAGE,
+  failed: ENGINE_FAILED_ON_START_MESSAGE,
+};
+
+/**
+ * 走っている解析の最中にエンジンが**戻らなくなった**ときの断り。
+ *
+ * **鍵は終端の理由だけ**（`TerminalNotReadyReason`）。待てば戻る理由をここに書こうとすると
+ * tsc が落とすので、「断つ理由」の集合を写す必要が無い——**どれが戻るかを決めるのは
+ * engine 側**（`isRecoverableNotReady`。判断の全体は `docs/state-transitions/engine.md` の ※7）。
+ * 理由が1つ増えれば、engine で分類した結果としてこの表の過不足を tsc が指摘する。
+ */
+export const WHILE_ANALYZING_REFUSALS: Record<TerminalNotReadyReason, string> = {
+  "no-engine": NO_ENGINE_WHILE_ANALYZING_MESSAGE,
+  failed: ENGINE_FAILED_WHILE_ANALYZING_MESSAGE,
 };

@@ -18,6 +18,9 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
  * **載せられなかったこと自体は `GameFileTreeBridge` が断りとして出す**が、それは
  * 向きを落とす理由にならない。
  *
+ * **載せられなかったこと自体は `GameFileTreeBridge` が断りとして出す**が、それは
+ * 向きを落とす理由にならない。盤に並んでいる駒が同じなら、向きも同じままでよい。
+ *
  * **盤の外で呼ぶ。** 理由は
  * [BoardOrientationBridge](../../../app/providers/bridges/BoardOrientationBridge.tsx) の doc。
  */
