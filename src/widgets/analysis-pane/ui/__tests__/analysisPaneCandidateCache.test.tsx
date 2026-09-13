@@ -61,7 +61,7 @@ vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
 }));
 // ヘッダは `useURLParams` / `useStudyPositions` / `useBoardOrientation` を引く。
 // 控えの経路には関係しない。
-vi.mock("../AnalysisPaneHeader", () => ({ default: () => null }));
+vi.mock("@/entities/app-config", () => ({ useAppConfig: () => ({ config: null }) }));
 
 const { default: AnalysisPane } = await import("../AnalysisPane");
 

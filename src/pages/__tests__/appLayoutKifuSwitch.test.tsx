@@ -28,13 +28,14 @@ vi.mock("@/entities/game", () => ({
 const empty = { default: () => null };
 vi.mock("@/pages/AppModalLayer", () => empty);
 vi.mock("@/pages/WelcomeScreen", () => ({ default: () => <div data-testid="welcome" /> }));
-vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => empty);
+vi.mock("@/widgets/dock/ui/Dock", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);
 vi.mock("@/widgets/kifu-stream/ui/KifuStreamList", () => empty);
 vi.mock("@/widgets/game-board/ui/GameBoard", () => empty);
 vi.mock("@/widgets/game-board/ui/Board", () => empty);
 vi.mock("@/widgets/game-board/ui/Hand", () => empty);
 vi.mock("@/widgets/game-board/ui/GameControls", () => empty);
+vi.mock("@/widgets/game-board/ui/BoardTools", () => empty);
 
 const { default: AppLayout } = await import("../AppLayout");
 

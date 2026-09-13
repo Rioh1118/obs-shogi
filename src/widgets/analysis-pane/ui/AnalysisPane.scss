@@ -1,28 +1,16 @@
-@use "@/index.scss" as index;
-
+// 面と枠は持たない。**器はドックの本体**（`.dock__body`）で、
+// ビューを増やしても同じ枠に載ることをそちらが保証する
 .analysis-pane {
   width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 0.6rem;
 
   --pane-px: 1.6rem;
   --pane-gap: 0.4rem;
 
-  &__surface {
-    height: 100%;
-    min-height: 0;
-    width: 100%;
-    overflow: hidden;
-
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-
-    background: rgba(index.$color-white, 0.03);
-    border: 1px solid rgba(index.$color-white, 0.06);
-    border-radius: 0.6rem;
-  }
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
 
   &__body {
     min-height: 0;

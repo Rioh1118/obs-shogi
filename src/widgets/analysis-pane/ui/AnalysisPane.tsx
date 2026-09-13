@@ -4,9 +4,9 @@ import { useEffect, useMemo } from "react";
 import BestMoveSection from "./BestMoveSection";
 import CandidatesSection from "./CandidatesSection";
 import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/usi";
-import AnalysisPaneHeader from "./AnalysisPaneHeader";
 import "./AnalysisPane.scss";
 import StatsSection from "./StatsSection";
+import { useAppConfig } from "@/entities/app-config";
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
@@ -19,6 +19,7 @@ function AnalysisPane() {
   // （理由は `entities/analysis/lib/candidateCache.ts`）。
   const { state, candidateCache } = useAnalysis();
 
+  const { config } = useAppConfig();
   const { getCurrentTurn, state: gameState, view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const { selectedNode } = useFileTree();
@@ -115,22 +116,20 @@ function AnalysisPane() {
 
   return (
     <section className="analysis-pane">
-      <div className="analysis-pane__surface">
-        <AnalysisPaneHeader />
-        <main className="analysis-pane__body">
-          <BestMoveSection
-            bestMove={displayData.bestMoveSequence}
-            evaluation={displayData.evaluation}
-          />
-          <CandidatesSection
-            candidateSequences={displayData.candidateSequences}
-            candidateEvaluations={displayData?.candidateEvaluations}
-          />
-        </main>
-        <footer className="analysis-pane__footer">
-          <StatsSection searchStats={displayData.searchStats} />
-        </footer>
-      </div>
+      <main className="analysis-pane__body">
+        <BestMoveSection
+          bestMove={displayData.bestMoveSequence}
+          evaluation={displayData.evaluation}
+          showEvaluationBar={config?.show_evaluation_bar === true}
+        />
+        <CandidatesSection
+          candidateSequences={displayData.candidateSequences}
+          candidateEvaluations={displayData?.candidateEvaluations}
+        />
+      </main>
+      <footer className="analysis-pane__footer">
+        <StatsSection searchStats={displayData.searchStats} />
+      </footer>
     </section>
   );
 }

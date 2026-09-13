@@ -1,26 +1,21 @@
 @use "@/index.scss" as index;
 
-.analysis-header {
+// 帯そのもの（面・下線・余白）は持たない。**器はドックのヘッダ。**
+// ここが帯を持つと、タブを移った先のビューの操作列と段が揃わない
+.analysis-controls {
   --hit: 3.6rem;
   --r: 0.9rem;
 
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.9rem;
 
-  padding: 0.35rem 0.9rem;
-  padding-left: 4rem;
-  padding-right: clamp(4rem, 18%, 20%);
-  min-height: calc(var(--hit) + 0.2rem);
-
+  // **器と同じ面をここでも宣言する。** 下に並ぶ文字と記号の色は、この面との比で
+  // 決めてある。器の側だけが面を持つと、その比をこのファイルの中で確かめられない
   background-color: index.$color-primary-black;
-  border-bottom: 1px solid index.$stroke-weak;
 
   @media (pointer: coarse) {
     --hit: 4.4rem;
-    padding: 0.4rem 0.9rem;
-    min-height: calc(var(--hit) + 0.2rem);
   }
 
   &__indicator {
@@ -70,20 +65,10 @@
     white-space: nowrap;
   }
 
-  &__right {
-    display: flex;
-    align-items: center;
-  }
-
   &__group {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-
-    padding: 0;
-    background: none;
-    border: none;
-    border-radius: 0;
   }
 
   &__iconBtn {
@@ -126,10 +111,6 @@
     &:focus-visible {
       outline: 2px solid index.$focus-ring;
       outline-offset: 2px;
-    }
-
-    &--active {
-      color: index.$color-secondary-dark;
     }
   }
 

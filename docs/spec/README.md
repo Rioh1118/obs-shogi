@@ -24,14 +24,14 @@ issue は「直すこと」の集合であって、直っている部分を書�
 
 ### 常設の画面
 
-| 画面                     | 仕様                                                 | 実体                                            |
-| ------------------------ | ---------------------------------------------------- | ----------------------------------------------- |
-| 起動・ワークスペース選択 | [screens/boot.md](screens/boot.md)                   | `pages/AppLoading.tsx` `pages/FolderSelect.tsx` |
-| アプリのシェル           | [screens/app-layout.md](screens/app-layout.md)       | `pages/AppLayout.tsx`（境界は「失敗の見せ方」） |
-| ファイルツリー           | [screens/file-tree.md](screens/file-tree.md)         | `widgets/file-tree/`                            |
-| 盤・駒台・操作列         | [screens/board.md](screens/board.md)                 | `widgets/game-board/`                           |
-| 棋譜ストリーム           | [screens/kifu-stream.md](screens/kifu-stream.md)     | `widgets/kifu-stream/`                          |
-| 解析ペイン               | [screens/analysis-pane.md](screens/analysis-pane.md) | `widgets/analysis-pane/`                        |
+| 画面                     | 仕様                                                 | 実体                                                            |
+| ------------------------ | ---------------------------------------------------- | --------------------------------------------------------------- |
+| 起動・ワークスペース選択 | [screens/boot.md](screens/boot.md)                   | `pages/AppLoading.tsx` `pages/FolderSelect.tsx`                 |
+| アプリのシェル           | [screens/app-layout.md](screens/app-layout.md)       | `pages/AppLayout.tsx` `widgets/dock/`（境界は「失敗の見せ方」） |
+| ファイルツリー           | [screens/file-tree.md](screens/file-tree.md)         | `widgets/file-tree/`                                            |
+| 盤・駒台・操作列         | [screens/board.md](screens/board.md)                 | `widgets/game-board/`                                           |
+| 棋譜ストリーム           | [screens/kifu-stream.md](screens/kifu-stream.md)     | `widgets/kifu-stream/`                                          |
+| 解析ペイン               | [screens/analysis-pane.md](screens/analysis-pane.md) | `widgets/analysis-pane/`                                        |
 
 ### モーダル
 

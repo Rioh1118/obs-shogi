@@ -1,0 +1,53 @@
+@use "@/index.scss" as index;
+
+// 文字色をここで宣言しない。設定の面は勾配なので、載る色が確定しない
+// ——弱めたい行は `opacity` で下げる
+.displayTab {
+  display: grid;
+  gap: index.$space-6;
+
+  &__tabs {
+    display: grid;
+    gap: index.$space-2;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: index.$space-4;
+
+    padding: index.$space-3 index.$space-4;
+    border: 1px solid index.$stroke-weak;
+    border-radius: index.$radius-4;
+    background: rgba(index.$color-primary-black, 0.3);
+
+    // 出していないビュー。**行ごと薄くする** —— チェックだけで区別すると、
+    // 並べ替えの矢印が無いことのほうが先に目に入る
+    &--hidden {
+      opacity: 0.6;
+    }
+  }
+
+  &__check {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-3;
+
+    font-size: index.$font-body;
+    cursor: pointer;
+  }
+
+  &__note {
+    font-size: index.$font-hint;
+    opacity: 0.6;
+  }
+
+  &__order {
+    display: inline-flex;
+    gap: index.$space-1;
+  }
+}

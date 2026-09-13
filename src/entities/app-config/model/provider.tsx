@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from "react";
 import type { ReactNode } from "react";
-import type { AppConfig, AppConfigContextType } from "./types";
+import type { AppConfig, AppConfigContextType, DisplayConfigPatch } from "./types";
 
 import { AppConfigContext } from "./context";
 import { configReducer, initialState } from "./reducer";
@@ -11,7 +11,7 @@ import {
   setRootDir as setRootDirApi,
 } from "../api/directories";
 import type { PresetId } from "@/entities/engine-presets/model/types";
-import { Err, Ok } from "@/shared/lib/result";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 
 export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(configReducer, initialState);
@@ -132,6 +132,27 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // 戻り値の型をここに書くのは、読み捨ての呼びを見る走査が宣言から名前を拾うため。
+  // 書かないと、この関数を投げっぱなしで呼んだ箇所が機械の目から外れる
+  async function setDisplayConfig(patch: DisplayConfigPatch): AsyncResult<void, string> {
+    // **`loading` を立てない。** ドックのタブを押すたびにここを通るので、
+    // 立てると `error` が毎回消え、`WorkspaceTab` が出している設定の失敗が
+    // タブを1つ押すだけで画面から消える
+    try {
+      const base = state.config ?? (await loadConfig());
+      const next: AppConfig = { ...base, ...patch };
+
+      await saveConfig(next);
+      dispatch({ type: "updated", payload: next });
+      return Ok(undefined);
+    } catch (err) {
+      // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
+      // 表示の設定を1つ保存し損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）。
+      // `loading` も立てていないので降ろす先が無い
+      return Err(`表示の設定を保存できませんでした: ${String(err)}`);
+    }
+  }
+
   const value: AppConfigContextType = {
     ...state,
     updateConfig,
@@ -139,6 +160,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     chooseAiRoot,
     setRootDir,
     setLastPresetId,
+    setDisplayConfig,
   };
 
   return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;

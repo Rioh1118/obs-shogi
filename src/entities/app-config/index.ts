@@ -1,4 +1,4 @@
-export type { AppConfig, ChooseOpts } from "./model/types";
+export type { AppConfig, ChooseOpts, DisplayConfigPatch } from "./model/types";
 export { AppConfigProvider } from "./model/provider";
 export { useAppConfig } from "./model/useAppConfig";
 

@@ -102,7 +102,7 @@ function pendingCells(markdown: string): Set<string> {
  *
  * `position-search-view.md` を掛けると20セルが落ちる（測定済み）。→ #435
  */
-const SCANNED = new Set(["board-orientation.md"]);
+const SCANNED = new Set(["board-orientation.md", "dock-tabs.md"]);
 
 /**
  * 遷移を書いたのに ✓ も無く、「埋まっていないセル」にも載っていないセルを返す。

@@ -1,0 +1,20 @@
+@use "@/index.scss" as index;
+
+// 盤の操作列（`.game-controls`）と同じ帯として見えること。
+// 別の面に見えると、隣り合った2つの帯が別々の体系に読める
+.board-tools {
+  display: flex;
+  overflow: hidden;
+  border-radius: index.$radius-6;
+
+  background: rgba(index.$color-primary-black, 0.28);
+  border: 1px solid index.$stroke-weak;
+  box-shadow: index.$shadow-panel;
+
+  // `.control-button` は4つで1本の帯を埋める前提（`flex: 1` と `width: 25%`）。
+  // ここは帯の幅が中身で決まるので、1つぶんの幅を持たせる
+  .control-button {
+    flex: 0 0 4.4rem;
+    width: auto;
+  }
+}

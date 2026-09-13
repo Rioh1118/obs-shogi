@@ -23,7 +23,6 @@ const BASELINE = [
   "shared/ui/IconButton.scss | &--obs-primary | color: index.$color-text-light-1 | background-color: index.$color-secondary-dark",
   "shared/ui/IconButton.scss | &:hover:not(:disabled) | color: index.$color-white | background-color: index.$color-secondary-dark",
   "shared/ui/IconButton.scss | &:active:not(:disabled) | color: index.$color-secondary-dark | background-color: index.$color-secondary-dark-2",
-  "widgets/analysis-pane/ui/AnalysisPaneHeader.scss | &--active | color: index.$color-secondary-dark | background-color: index.$color-primary-black",
   "widgets/file-tree/ui/ContextMenu.scss | &--danger | color: index.$color-secondary-dark | background: index.$color-primary-black",
   "widgets/file-tree/ui/ContextMenu.scss | &:hover:not(:disabled) | color: index.$color-secondary-dark | background-color: rgba(index.$color-secondary-dark, 0.22)",
   "widgets/file-tree/ui/ContextMenu.scss | &:active:not(:disabled) | color: index.$color-secondary-dark | background-color: rgba(index.$color-secondary-dark, 0.28)",
@@ -44,7 +43,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに面の側を直すこと。
  */
-const MEASURED_COUNT = 99;
+const MEASURED_COUNT = 101;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。

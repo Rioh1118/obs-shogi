@@ -7,6 +7,7 @@ import SettingsTabButton from "./SettingsTabButton";
 import { TABS, type TabKey } from "@/features/settings/model/tabs";
 import WorkspaceTab from "./tabs/WorkspaceTab";
 import AiLibraryTab from "./tabs/AiLibraryTab";
+import DisplayTab from "./tabs/DisplayTab";
 import { useMemo } from "react";
 
 function isTabKey(v: unknown, keys: readonly TabKey[]): v is TabKey {
@@ -38,9 +39,13 @@ function SettingsPanel() {
             {TABS.map((t) => {
               const isActive = tab === t.key;
 
-              const showLock = t.key !== "workspace";
+              // 外のもの（AI ライブラリの置き場、エンジン）を指すタブだけ。
+              // **中身は見ていない**ので、設定が済んでいても消えない
+              const needsSetup = t.key === "aiLibrary" || t.key === "engine";
 
-              const showDangerBadge = t.key !== "workspace";
+              const showLock = needsSetup;
+
+              const showDangerBadge = needsSetup;
 
               const badges = [
                 ...(showLock ? [{ tone: "muted" as const, children: "要設定" }] : []),
@@ -65,6 +70,7 @@ function SettingsPanel() {
             {tab === "workspace" && <WorkspaceTab />}
             {tab === "aiLibrary" && <AiLibraryTab />}
             {tab === "engine" && <EngineTab />}
+            {tab === "display" && <DisplayTab />}
           </section>
         </main>
       </div>
