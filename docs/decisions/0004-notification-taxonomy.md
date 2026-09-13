@@ -6,7 +6,7 @@
 
 ## 文脈
 
-失敗が利用者に届かない。実測（`main` `bb29884`）の内訳は
+失敗が利用者に届かない。実測（`main` `bb29884`。**当時の観測で、現在値ではない**——現在値は [`failure-surfacing.md`](../state-transitions/failure-surfacing.md) §1）の内訳は
 `docs/state-transitions/failure-surfacing.md` にある。要点は2つ。
 
 ### 1. `error` の置き場が6つあり、読み手がほとんど居ない

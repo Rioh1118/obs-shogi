@@ -31,7 +31,7 @@ app → pages → widgets → features → entities → shared
 
 ### 3. 責務の置き場
 
-- 同じ知識が複数箇所に手書きで重複していないか。`tesuuPointer` の規約の出典は `src/entities/kifu/model/cursor.ts` の `TesuuPointer` の doc（**解く経路はリポジトリに無い**。見るのは `as TesuuPointer` を**そのファイルの外**に書いている箇所で、件数は grep で数える）
+- 同じ知識が複数箇所に手書きで重複していないか。`tesuuPointer` の規約の出典は `src/entities/kifu/model/cursor.ts` の `TesuuPointer` の doc（**解く経路はリポジトリに無い**。見るのは `as TesuuPointer` を**そのファイルの外**に書いている箇所で、件数は grep で数える。機械の検査は `src/__tests__/cursorConstruction.test.ts`）
 - ドメインの規則が UI コンポーネントの中に染み出していないか
 - `shared/` に「どこにも置けなかったもの」が溜まっていないか。`shared/lib/` の各ファイルが本当に層非依存か確認する
 

@@ -1,6 +1,11 @@
 import { reducer, initialState } from "./reducer";
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import type { EngineContextType, EngineRuntimeConfig } from "./types";
+import type {
+  EngineContextType,
+  EngineNotReadyReason,
+  EngineReadiness,
+  EngineRuntimeConfig,
+} from "./types";
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
 import { EngineContext } from "./context";
@@ -22,6 +27,35 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     !!desiredRuntime &&
     !!state.activeRuntime &&
     equalRuntime(desiredRuntime, state.activeRuntime);
+
+  // **理由はここで決める。** `desiredRuntime` を見られるのはこの provider だけなので、
+  // 解析側からは「選んでいない」と「起こし直している最中」を区別できない。
+  //
+  // **`phase` で割らない。** 起こし直しは `ready → idle → initializing` を通り
+  // （`restart()` は `shutdown()` を await してから `initialize()`）、その `idle` は
+  // **必ず commit される**。`phase` を並べると `idle` の枝を書き落とし、
+  // 「設定でエンジンを選んでください」——この型が避けるために在る文言——が出る。
+  //
+  // **選んでいるかどうかで割る。** `desiredRuntime` が在る限り、**初期化が落ちている段を
+  // 除いて**どの段でも、利用者から見れば「起動を待っている」。
+  // `"no-engine"` の doc（「まだ選んでいない」）とも一致する。
+  //
+  // **選んでいるかを先に見る。** `error` を先に見ると、壊れたプリセットの選択を外した
+  // 直後——`desiredRuntime` が null になってから `phase` が `idle` へ戻るまでの
+  // 本物の IPC 往復——に「設定でエンジンのオプションを変えて保存」と案内する。
+  // **もう選んでいないプリセット**のオプションを変えろ、という実行できない案内になる。
+  const notReadyReason: EngineNotReadyReason = !desiredRuntime
+    ? "no-engine"
+    : state.phase === "error"
+      ? "failed"
+      : "starting";
+
+  // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
+  // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。
+  const readiness: EngineReadiness = useMemo(
+    () => (isReady ? { isReady: true, notReadyReason: null } : { isReady: false, notReadyReason }),
+    [isReady, notReadyReason],
+  );
 
   // lifecycle
   const initialize = useCallback(async (): Promise<boolean> => {
@@ -115,13 +149,13 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   const value = useMemo<EngineContextType>(
     () => ({
       state,
-      isReady,
+      ...readiness,
       initialize,
       shutdown,
       restart,
       clearError,
     }),
-    [state, isReady, initialize, shutdown, restart, clearError],
+    [state, readiness, initialize, shutdown, restart, clearError],
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

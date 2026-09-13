@@ -1,0 +1,151 @@
+import { useCallback, useRef, type Dispatch, type RefObject } from "react";
+import type { AnalysisResult } from "@/entities/engine";
+import type { AnalysisAction } from "./types";
+import { waits } from "./waits";
+
+/**
+ * 届いた解析結果を、間引いて画面へ流す。
+ *
+ * **`info` は数十 ms 間隔で届く**ので、来るたびに commit すると描画が追いつかない。
+ * 反映待ちを1枠だけ持ち、タイマーが起きたときの最新を出す。
+ *
+ * **反映待ちと間引きのタイマーで1組。** 片方だけ落とすと、捨てたはずの結果が
+ * 次のタイマーで画面に出る——**別の局面の評価値と読み筋が、いまの局面の解析結果として**。
+ * その組を外から触らせないためにフックへ閉じてある。捨てる口は `dropPending` の1つで、
+ * 席を握れなかった経路はどれもそこを通ること。
+ */
+export interface ResultFlush {
+  /** 届いた結果を反映待ちに置き、間引きのタイマーを張る */
+  receive: (result: AnalysisResult) => void;
+  /**
+   * 反映待ちを**今すぐ**commit して、タイマーを畳む。
+   *
+   * 探索が終わった通知の口。この後に `stop_analysis` を dispatch するので、
+   * 間引きを待つと `analyzingRef` が倒れて最後の1本が黙って捨てられる。
+   */
+  flushNow: (result: AnalysisResult) => void;
+  /**
+   * 反映待ちの1本と、それが張った間引きのタイマーを**両方**落とす。
+   * **画面に出ている候補手には触らない**（それは `discardShown`）。
+   *
+   * **主の保証は `commitLatest` の席の門**——枠を落とすだけだと、落とす前にタイマーが
+   * 起きた回を守れない。**ただし席の門が開く窓が1つある**（捨てる停止が落ちて、
+   * `keepOrForget` が席を欄へ書き戻す回）ので、そこは枠側でしか塞げない
+   * → `dropPendingForLostSeat`（`provider.tsx`）。**掃除だと読んで呼びを外さないこと。**
+   */
+  dropPending: () => void;
+  /**
+   * 画面に出ている候補手ごと捨てる。**`go` を出す前に、開始する口が必ず通る。**
+   *
+   * 通さないと `start_analysis` が `analyzedSfen` だけを差し替えるので
+   * （`reducer.ts`）、**前の局面の評価値と読み筋が、新しい局面の解析結果として出る**
+   * ——新しい席の最初の `info` が届くまで。`AnalysisPane` はその間に
+   * 現在の局面の鍵でキャッシュへ焼き付けるので、停止中に戻るたび出続ける。
+   *
+   * **`clear_results` は `error` も消す**（`reducer.ts`）ので、
+   * 要らなくなった要求が通らない位置——世代の門の後ろ——で呼ぶこと。
+   */
+  discardShown: () => void;
+  /**
+   * タイマーが張られていなければ張る（張られていれば何もしない）。
+   * **席を握った直後に呼ぶ。**
+   *
+   * 席が欄に入る前に来た1本は反映待ちに入るが、commit は `isAnalyzing` と席を見るので、
+   * そのタイマーが席の確定より先に起きると commit されず、タイマーの欄も空に戻っている
+   * ——張り直す者が居ない。探索が深いほど次の `info` までは伸びるので、
+   * **「解析中」のまま空のペインが残る**。
+   */
+  schedule: () => void;
+}
+
+/**
+ * `analyzing` は**解析中かどうかの観測値**を持つ ref。
+ *
+ * `state` の写しを渡すこと——commit の後に effect が書くので、タイマーの中から読むと
+ * 停止直後の無駄な更新を落とせる。
+ *
+ * `holdsSeat` は席を握っているかの述語。**描画を跨いで同じ関数を渡すこと**
+ * ——返す面は初回の描画で凍るので、毎描画で作り直す述語を渡すと**席の門が初回の答えに
+ * 凍る**。症状は「解析中の表示のまま候補手が出ない」で、断りも `console.error` も出ない
+ * （tsc も lint もラチェットも止めない）。いまの呼び手は `EngineSeat.isHeld` で、
+ * あちらも初回で凍った面のメソッド。
+ */
+export function useResultFlush(
+  dispatch: Dispatch<AnalysisAction>,
+  analyzing: RefObject<boolean>,
+  holdsSeat: () => boolean,
+): ResultFlush {
+  const latestRef = useRef<AnalysisResult | null>(null);
+  const timerRef = useRef<number | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current != null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const commitLatest = useCallback(() => {
+    // 解析中じゃないならUI更新しない（stop直後の無駄更新防止）
+    if (!analyzing.current) return;
+
+    // **席を握っていない間は出さない。** 捨てた席の1本を「枠から落とす」形で防ぐと、
+    // 落とす前にタイマーが起きた回（着地が間引きの1周期より遅い回）を守れない
+    // ——**死んだエンジンの読み筋が、盤が別の局面を映したまま「解析中」で残る**。
+    // 席が欄に入る前に届いた1本は枠に残り、握った直後の `schedule` が出し直す。
+    if (!holdsSeat()) return;
+
+    const r = latestRef.current;
+    if (!r) return;
+
+    dispatch({ type: "update_result", payload: r });
+  }, [dispatch, analyzing, holdsSeat]);
+
+  const schedule = useCallback(() => {
+    if (timerRef.current != null) return;
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      commitLatest();
+    }, waits().resultFlushMs);
+  }, [commitLatest]);
+
+  const dropPending = useCallback(() => {
+    clearTimer();
+    latestRef.current = null;
+  }, [clearTimer]);
+
+  // **同じ物を返し続ける**（理由は `useEngineSeat` の `apiRef` に1つ）。
+  //
+  // `useMemo` は React が値を捨てないことを約束しないので、
+  // 同一性を要求として持つ口は ref で凍らせる。同じスライスに2通りの答えを置かない。
+  const apiRef = useRef<ResultFlush | null>(null);
+
+  // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
+  // ここで読む値は**その1回の値のまま**。上に置いてよいものは
+  // `src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が持つ
+  // （そこが唯一の出典。ここに写すと、機械が広がったときにこちらだけ古くなる）。
+  if (apiRef.current) return apiRef.current;
+
+  apiRef.current = {
+    receive: (result) => {
+      latestRef.current = result;
+      schedule();
+    },
+    flushNow: (result) => {
+      latestRef.current = result;
+      clearTimer();
+      // **席の門を通さない。** 呼び手（`onComplete`）は席を締めてからここへ来るので、
+      // 掛けると探索が終わった最後の1本が消える。
+      if (!analyzing.current) return;
+      dispatch({ type: "update_result", payload: result });
+    },
+    dropPending,
+    discardShown: () => {
+      dropPending();
+      dispatch({ type: "clear_results" });
+    },
+    schedule,
+  };
+
+  return apiRef.current;
+}

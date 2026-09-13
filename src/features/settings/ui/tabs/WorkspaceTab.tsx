@@ -100,7 +100,7 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
  * 迫るのに、こちらは tsc を1つも落とさずに**間違った語を出す**
  * （同じ理由で `entities/search/lib/indexState.ts` も表にしてある）。
  *
- * **`label:` の形で書く。** `screenSpecCoverage` が拾うのは `label:` と
+ * **`label:` の形で書く。** `src/__tests__/screenSpecCoverage.test.ts` が拾うのは `label:` と
  * `return` と三項の両腕だけなので、素の値にすると**仕様書との突き合わせから
  * 落ちる**——網羅は tsc が見るが、語が仕様書と合っているかは誰も見なくなる。
  *

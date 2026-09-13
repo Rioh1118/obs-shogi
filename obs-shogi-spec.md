@@ -4,10 +4,10 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
 判断・取捨選択は含まない「記述的棚卸し」。`shogi-home-spec.md` と対をなし、差分比較の基準とする。
 
 - 対象：`main` ブランチ（本ドキュメント作成時点）
-- 発掘元：`src-tauri/src/lib.rs`（Tauri コマンド正典）、`src-tauri/src/{search,file_system,engine}/*`、`src-tauri/src/{study_positions,kifu}.rs`、`src/pages/AppModalLayer.tsx`、`src/shared/lib/router/useURLParams.ts`、各 `entities/` `features/` `widgets/`
+- 発掘元：`src-tauri/src/lib.rs`（Tauri コマンド正典）、`src-tauri/src/search/`、`src-tauri/src/engine/`、`src-tauri/src/kifu/`、`src-tauri/src/workspace/`、`src-tauri/crates/fs/`、`src-tauri/crates/settings/src/study.rs`、`src/pages/AppModalLayer.tsx`、`src/shared/lib/router/useURLParams.ts`、各 `entities/` `features/` `widgets/`
 - 凡例：`(設定)` = 永続化される設定 / `(別ブランチ)` = main 未マージ / `(進行中)` = 実装途上
 - アーキテクチャ：**Tauri v2 デスクトップ専用**（React 19 + TypeScript + Vite + SCSS / Rust backend）。Web/PWA・モバイル版は無い。
-- Shogi ロジックは `JKFPlayer`（tsshogi 系）と `shogi-kifu-converter`（Rust, v0.3.1）に依存。
+- Shogi ロジックは `JKFPlayer`（tsshogi 系）と `shogi-kifu-converter`（Rust。版は `src-tauri/Cargo.toml` が出典）に依存。
 
 > 設計上の核：**「フォルダ＝プロジェクト」**。ルートフォルダ配下の棋譜群を 1 つのコーパスとして扱い、横断検索・局面ストック・注釈で「育てる」ことを志向する。ShogiHome の「単一棋譜ドキュメント」志向とは出発点が異なる。
 

@@ -1,4 +1,4 @@
-use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
+use crate::engine::utils::{shown, LogThrottle, EMIT_WARN_INTERVAL, MAX_SUMMARY_LEN};
 
 use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
@@ -23,12 +23,14 @@ pub struct EngineBridge {
 
 /// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
 ///
+/// この1エントリを「席」と呼ぶ（doc とフロントも同じ語を使う）。**席は同時に1つだけ。**
+///
 /// 持っているのは、そのセッションで最後に受け取った結果だけ。
 ///
 /// **「解析中か」を表す欄は無い。** 走っているかどうかは
 /// **`active_sessions` に居るかどうか**で表す。欄にすると同じことを2通りで
 /// 表すことになり、片方だけ動いたとき（居るのに `false`、消えたのに `true`）を
-/// 誰も検出できない。終わったセッションは項目ごと消す。
+/// 誰も検出できない。終わったセッションは席ごと消す。
 #[derive(Debug)]
 struct AnalysisSession {
     last_result: Option<AnalysisResult>,
@@ -75,6 +77,26 @@ fn new_session_id(session_type: &SessionType) -> String {
     format!("{}_{}", prefix, uuid::Uuid::new_v4())
 }
 
+/// 停止を受け取ったことを記録する1行。
+///
+/// **フロントから来た綴りを、そのままログへ流さない。** `session_id` も `by` も
+/// 同じ `invoke` の引数で、産地は webview。改行を通すとその後ろに好きなログ行を作れ、
+/// 長さの上限が無いと1回の呼びで `LOG_FILE_BUDGET` を何周もできる——
+/// **席が在ったのかどうかを後から言える記録**を、その1本で流し切れる。
+///
+/// **潰すのは載せる値だけ。** 照合（`sessions.remove`）には生の `session_id` を渡すこと
+/// ——文字数で切るので、上限より長い ID を先に潰すと照合が永久に外れる。
+///
+/// **行を組むのはこの関数だけ。** テストがここを通らないと、入口の潰しを外す変異が
+/// 素通りする（`engine::registry` の `spawn_ok_line` と同じ形）。
+fn stop_start_line(session_id: &str, by: &str) -> String {
+    format!(
+        "stop_session: start session_id='{}' by='{}'",
+        shown(session_id, MAX_SUMMARY_LEN),
+        shown(by, MAX_SUMMARY_LEN)
+    )
+}
+
 impl EngineBridge {
     pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
@@ -90,12 +112,45 @@ impl EngineBridge {
         *self.app_handle.write().await = Some(handle);
     }
 
+    /// エンジンを起こす（走っていれば畳んでから起こし直す）。
+    ///
+    /// **起動を試みる前に `active_sessions` を空にする。** `Err` を返した回も席は空く。
+    ///
+    /// フロントの後始末を当てにできない口が在るため——ワークスペースの切り替えは
+    /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
+    /// （クラッシュでも同じ）。残すと以後の `take_session` が全部断り、
+    /// 利用者には「▶ を押しても何も起きない」としか見えない。
+    ///
+    /// **順序を入れ替えないこと。** 起動が落ちた回に席を残すと、そのまま次の解析が
+    /// 断られる——落ちた回こそ空けておく必要がある。捨ててから畳むので、
+    /// その間だけ席の相互排除を素通りする窓ができる（本体のコメントに1つ）。
     pub async fn initialize_engine_impl(
         &self,
         engine_path: String,
         working_dir: Option<String>,
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
+
+        // 席を捨ててから、下の `initialize_engine` が古いプロセスを畳む。
+        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
+        // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
+        // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
+        // 変えないこと**——落ちた回に席が残り、そのまま次の解析が断られる。
+        let stale: Vec<String> = self
+            .active_sessions
+            .write()
+            .await
+            .drain()
+            .map(|(id, _)| id)
+            .collect();
+        if !stale.is_empty() {
+            log::warn!(
+                target: LOGT,
+                "initialize_engine: dropped {} stale session(s) {:?}",
+                stale.len(),
+                stale
+            );
+        }
 
         // 実行ファイルの検査は `EngineRegistry::spawn` が持つ。
         // 起動する経路を1本にしてあるので、ここで重ねて検査しない。
@@ -139,7 +194,7 @@ impl EngineBridge {
     }
 
     /// セッションを閉じる。**失敗した口も必ず通ること。**
-    /// 通らないと項目が残り、以後の解析が全部「既に走っている」で断られる
+    /// 通らないと席が残り、以後の解析が全部「既に走っている」で断られる
     async fn release_session(&self, session_id: &str) {
         self.active_sessions.write().await.remove(session_id);
     }
@@ -147,10 +202,10 @@ impl EngineBridge {
     pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
         log::info!(target: LOGT, "shutdown_engine: start");
 
-        // **止められなくても台帳の掃除まで進む。** `?` で折れると
+        // **止められなくても席の掃除まで進む。** `?` で折れると
         // `engine_id` が `Some` のまま残り、以降どのコマンドも
         // 「Engine is no longer running」を返すだけになる（終了ボタンが直せない）
-        if let Err(e) = self.stop_all_sessions().await {
+        if let Err(e) = self.stop_all_sessions("shutdown").await {
             log::warn!(
                 target: LOGT,
                 "shutdown_engine: could not stop sessions, continuing: {e}"
@@ -296,9 +351,9 @@ impl EngineBridge {
             // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
-        // **項目ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
+        // **席ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
         // 丸ごと持ったまま溜まる（上限は無い）。居ること自体が「走っている」なので、
-        // 終わった項目を残すと `take_session` が以後ずっと断ることにもなる。
+        // 終わった席を残すと `take_session` が以後ずっと断ることにもなる。
         //
         // ここを通っても**フロントには何も飛ばない**。`sessionId` を握ったままの
         // 画面から「停止」が来るので、`stop_session` はそれを失敗にしない。
@@ -360,11 +415,36 @@ impl EngineBridge {
         result
     }
 
-    pub async fn stop_analysis_impl(&self, session_id: Option<String>) -> Result<(), String> {
+    /// 解析を止める。
+    ///
+    /// **`session_id` を省くと席を全部空ける。** 呼び手が席の ID を持てない場面
+    /// （画面が畳まれた後の後始末）は指せないので、この形が要る。
+    ///
+    /// `by` は**どの口から撃ったか**。ログにだけ出る（意味と値は `stop_all_sessions`）。
+    ///
+    /// **どちらの枝でも、席は止めるより先に消える。** 指した側の `Err` は2種類——
+    /// 照合に落ちた回（席に居るのが別のセッションなので**席は残る**）と、
+    /// 席を消した後にエンジンの停止が落ちた回（**席は空**）。省いた側の `Err` は後者だけ。
+    /// **フロントからこの2つは区別できない**
+    /// （→ `docs/state-transitions/analysis.md` ※12）。
+    ///
+    /// **省いた側は `take_session` の相互排除を素通りする。** 開始の途中
+    /// （席を取ってから `go` が線に出るまで）に割り込むと、席だけ消えて
+    /// エンジンが読み続ける。いまそれが収束しているのは、開始の応答を受け取った
+    /// フロントが**その席をもう一度返す**からで、Rust 側の仕組みではない → #463
+    pub async fn stop_analysis_impl(
+        &self,
+        session_id: Option<String>,
+        by: Option<String>,
+    ) -> Result<(), String> {
+        // 呼び手が名乗らなかったときの既定。**名乗った回と区別できるようにしておく。**
+        //
+        let by = by.as_deref().unwrap_or("unnamed");
+
         if let Some(id) = session_id {
-            self.stop_session(&id).await
+            self.stop_session(&id, by).await
         } else {
-            self.stop_all_sessions().await
+            self.stop_all_sessions(by).await
         }
     }
 
@@ -415,7 +495,7 @@ impl EngineBridge {
 
         let statuses = sessions
             .keys()
-            // 項目が在る＝走っている。消えたら終わっている
+            // 席が在る＝走っている。消えたら終わっている
             .map(|id| AnalysisStatus {
                 is_analyzing: true,
                 session_id: Some(id.clone()),
@@ -443,12 +523,8 @@ impl EngineBridge {
 
     // ===  session === //
 
-    async fn stop_session(&self, session_id: &str) -> Result<(), String> {
-        log::info!(
-            target: LOGT,
-            "stop_session: start session_id={}",
-            session_id
-        );
+    async fn stop_session(&self, session_id: &str, by: &str) -> Result<(), String> {
+        log::info!(target: LOGT, "{}", stop_start_line(session_id, by));
 
         // **他人のセッションは止めない。** `session_id` はフロントから来る任意の文字列で、
         // フロントはエラーの後も `sessionId` を握り続ける
@@ -457,22 +533,33 @@ impl EngineBridge {
         // **いま走っている別の解析が止まって `Ok` が返る**。
         //
         // **「もう無い」は失敗にしない。** エンジンが落ちると
-        // `forward_results_to_ui` が項目を消すが、フロントへは何も飛ばないので
+        // `forward_results_to_ui` が席を消すが、フロントへは何も飛ばないので
         // `sessionId` を握ったまま「停止」が来る。ここで `Err` にすると
         // 呼び出し側の再開が `catch` に落ち、**解析が始まり直さない**。
-        // 要求は「止まっていること」で、項目が無いならその要求は満たせている
+        // 要求は「止まっていること」で、席が無いならその要求は満たせている
         // （`EngineAnalyzer::stop_analysis` と同じ立場）。
         {
             let mut sessions = self.active_sessions.write().await;
             match sessions.remove(session_id) {
                 Some(_) => {}
                 None if sessions.is_empty() => {
-                    log::debug!(target: LOGT, "stop_session: already gone id={session_id}");
+                    log::debug!(
+                        target: LOGT,
+                        "stop_session: already gone id='{}'",
+                        shown(session_id, MAX_SUMMARY_LEN)
+                    );
                 }
                 // 別のセッションが走っている。撃った側のものではないので触らない
                 None => {
-                    log::warn!(target: LOGT, "stop_session: not the running one id={session_id}");
-                    return Err(format!("unknown analysis session: {session_id}"));
+                    log::warn!(
+                        target: LOGT,
+                        "stop_session: not the running one id='{}'",
+                        shown(session_id, MAX_SUMMARY_LEN)
+                    );
+                    return Err(format!(
+                        "unknown analysis session: {}",
+                        shown(session_id, MAX_SUMMARY_LEN)
+                    ));
                 }
             }
         }
@@ -482,25 +569,52 @@ impl EngineBridge {
             format!("Failed to stop analysis: {e}")
         })?;
 
-        log::info!(target: LOGT, "stop_session: ok session_id={}", session_id);
+        log::info!(
+            target: LOGT,
+            "stop_session: ok session_id='{}'",
+            shown(session_id, MAX_SUMMARY_LEN)
+        );
         Ok(())
     }
 
-    async fn stop_all_sessions(&self) -> Result<(), String> {
-        log::info!(target: LOGT, "stop_all_sessions: start");
+    /// 席を全部空ける。
+    ///
+    /// `by` は**どの口から撃ったか**。フロントの `stop_analysis` が名乗った値、
+    /// `shutdown_engine` からの `"shutdown"`、名乗らなかった回の `"unnamed"`
+    /// （`stop_analysis_impl`）の3通り。畳まれた画面から来た停止は、失敗しても
+    /// 利用者にも開発者にも出せない（出す先の画面がもう無い）ので、
+    /// **席が在ったのかどうかを後から言えるのはこのログだけ**。
+    /// エンジンの入れ替えで空いた回や利用者が押した停止と字面が同じだと、
+    /// #441 の再発を追う人が取り違える。
+    async fn stop_all_sessions(&self, by: &str) -> Result<(), String> {
+        log::info!(target: LOGT, "stop_all_sessions: start by={by}");
 
-        self.active_sessions.write().await.clear();
+        let cleared: Vec<String> = self
+            .active_sessions
+            .write()
+            .await
+            .drain()
+            .map(|(id, _)| id)
+            .collect();
+        log::info!(
+            target: LOGT,
+            "stop_all_sessions: by={} cleared {} session(s) {:?}",
+            by,
+            cleared.len(),
+            cleared
+        );
 
         self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(
                 target: LOGT,
-                "stop_all_sessions: analyzer stop failed: {:?}",
+                "stop_all_sessions: by={} analyzer stop failed: {:?}",
+                by,
                 e
             );
             format!("Failed to stop all analysis: {e}")
         })?;
 
-        log::info!(target: LOGT, "stop_all_sessions: ok");
+        log::info!(target: LOGT, "stop_all_sessions: ok by={by}");
         Ok(())
     }
 }
@@ -508,12 +622,18 @@ impl EngineBridge {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::utils::LOG_FILE_BUDGET;
 
     /// セッションの出し入れだけを見る。**エンジンのプロセスは要らない。**
     ///
     /// 起動しないと `analyzer` の側は動かないが、`take_session` /
     /// `release_session` は `active_sessions` しか触らないので、
     /// ここだけを回せる。回さないと、セッションを閉じ忘れる口が素通りする。
+    ///
+    /// **停止まで通す検査も回せる。** `analyzer.stop_analysis()` は
+    /// エンジンが居なければ `Ok` に落ちる（`analyzer.rs`）ので、席の出入りだけが残る。
+    /// 裏を返すと、**ここで見えるのは席の一覧だけ**——エンジンに `stop` が届いたかは
+    /// どのテストも見ていない。
     fn bridge() -> EngineBridge {
         EngineBridge::new(Arc::new(EngineRegistry::new()))
     }
@@ -549,6 +669,76 @@ mod tests {
         );
     }
 
+    /// フロントが名乗る `by` が、ログの行を偽造したり予算を流し切ったりしないこと。
+    ///
+    /// **IPC の境界は素の文字列。** TS 側の型（`SeatReleasePoint`）は閉じた8値だが、
+    /// `invoke` はその型を持って来ない。ここが素通しだと、1回の呼びで
+    /// `LOG_FILE_BUDGET` を何周もでき、**#441 の再発を追う唯一の記録**
+    /// （席が在ったのかどうか）をその1本で流し切れる。改行も同じ1本で通る。
+    ///
+    /// 同じ形は `registry` が
+    /// `the_registry_lines_cannot_rotate_the_log_or_forge_a_line` で押さえている。
+    #[tokio::test]
+    async fn the_release_point_cannot_rotate_the_log_or_forge_a_line() {
+        /// 1行が予算のうち占めてよい割合の逆数
+        const SHARE: u128 = 50;
+
+        // 潰されず（制御文字ではない）、UTF-8 でいちばん重い4バイト文字
+        let heavy = "\u{10ffff}".repeat(LOG_FILE_BUDGET as usize / 4);
+        let forged = "unmount\n[ERROR] forged";
+
+        // **本番が組む行そのものを測る。** `shown` を直に呼ぶと、入口の潰しを
+        // 外す変異が素通りする（`engine::registry` の兄弟と同じ形）。
+        for raw in [heavy.as_str(), forged] {
+            for line in [stop_start_line(raw, "unmount"), stop_start_line("s1", raw)] {
+                assert!(
+                    !line.contains('\n'),
+                    "改行が通っている。偽のログ行を1本作れる: {line:.40}"
+                );
+                assert!(
+                    line.len() as u128 * SHARE <= LOG_FILE_BUDGET,
+                    "1回の停止が予算の1/{SHARE} を超える（{} バイト）",
+                    line.len()
+                );
+            }
+        }
+
+        // **実在する `session_id` が切れないこと**（＝上限の下側）。切れると、
+        // どの席を止めたのかがログから読めなくなる。
+        let real = new_session_id(&SessionType::Depth(u32::MAX));
+        assert!(
+            !stop_start_line(&real, "unmount").contains('…'),
+            "実在する session_id が切れている: {real}"
+        );
+    }
+
+    /// 起こし直しが、残っている席を捨てること。
+    ///
+    /// **フロントの後始末を当てにできない口が在る**——ワークスペースの切り替えは
+    /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
+    /// （クラッシュでも同じ）。残ると以後の `take_session` が全部断り、
+    /// 利用者には「▶ を押しても何も起きない」としか見えない。
+    ///
+    /// **実行ファイルは渡さない。** 起動は落ちてよく、見たいのは席が空くことだけ
+    /// ——席を捨てるのは起動を試みる前でなければならない。
+    #[tokio::test]
+    async fn starting_the_engine_drops_a_seat_that_outlived_the_screen() {
+        let bridge = bridge();
+
+        let stale = bridge.take_session(SessionType::Infinite).await.unwrap();
+        assert!(!stale.is_empty());
+
+        // 起動そのものは落ちる（実行ファイルが無い）。それでよい。
+        let _ = bridge
+            .initialize_engine_impl("/nonexistent/engine".to_string(), None)
+            .await;
+
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_ok(),
+            "起こし直したのに、画面より長生きした席が残っている"
+        );
+    }
+
     /// `session_id` が種類と条件を持つこと。
     ///
     /// 持たないと `SessionType` の payload を誰も読まず、
@@ -576,12 +766,12 @@ mod tests {
 
     /// セッションがもう無いときの「停止」を失敗にしないこと。
     ///
-    /// エンジンが落ちると `forward_results_to_ui` が項目を消すが、フロントへは
+    /// エンジンが落ちると `forward_results_to_ui` が席を消すが、フロントへは
     /// 何も飛ばないので `sessionId` を握ったまま「停止」が来る。ここで `Err` に
     /// すると、呼び出し側の再開が `catch` に落ちて**解析が始まり直さない**。
     /// 利用者から見ると「解析中」の表示が無言で「停止中」に変わる。
     ///
-    /// 要求は「止まっていること」で、項目が無いならその要求は満たせている。
+    /// 要求は「止まっていること」で、席が無いならその要求は満たせている。
     #[tokio::test]
     async fn stopping_a_session_that_is_already_gone_succeeds() {
         let bridge = bridge();
@@ -590,7 +780,7 @@ mod tests {
         bridge.release_session(&id).await;
 
         assert!(
-            bridge.stop_session(&id).await.is_ok(),
+            bridge.stop_session(&id, "test").await.is_ok(),
             "もう無いセッションの停止が失敗している。再開の経路が catch に落ちる"
         );
     }
@@ -605,7 +795,54 @@ mod tests {
         let bridge = bridge();
         let mine = bridge.take_session(SessionType::Infinite).await.unwrap();
 
-        let refused = bridge.stop_session("someone-elses-id").await;
+        let refused = bridge.stop_session("someone-elses-id", "test").await;
+        assert!(refused.is_err(), "知らない ID が成功している");
+
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_err(),
+            "知らない ID で走っているセッションが消えてしまった"
+        );
+        bridge.release_session(&mine).await;
+    }
+
+    /// `session_id` を省いた停止が席を空けること。**見ているのは席の一覧だけ**（→ `bridge`）。
+    ///
+    /// **席の ID を持てない呼び手が居る。** 画面が畳まれた後の後始末は、
+    /// 握っている ID が席の主とずれていることがあるので指せない
+    /// （指すと上の照合に断られて席が残る）。この形が空けられなくなると、
+    /// 以降の解析が全部「Analysis already running」で断られ、
+    /// エンジンを畳み直すまで戻れない。
+    #[tokio::test]
+    async fn stopping_without_naming_a_session_empties_the_seat() {
+        let bridge = bridge();
+
+        bridge.take_session(SessionType::Infinite).await.unwrap();
+
+        assert!(
+            bridge.stop_analysis_impl(None, None).await.is_ok(),
+            "エンジンが居ないときの停止が失敗している"
+        );
+        assert!(
+            bridge.take_session(SessionType::Infinite).await.is_ok(),
+            "指さない停止の後も席が埋まったまま"
+        );
+    }
+
+    /// 指した停止が、公開している口でも他人の席を触らないこと。
+    ///
+    /// 照合しているのは `stop_session` だが、**外から通るのは
+    /// `stop_analysis_impl`**。ここを通さずに検査していると、
+    /// 「`session_id` はログにだけ使い、常に全部止める」に書き換えても緑のまま通る。
+    /// そのとき、古い `sessionId` を握った画面の停止が、
+    /// **いま走っている別の解析を黙って殺す**。
+    #[tokio::test]
+    async fn stopping_by_a_stale_name_does_not_touch_the_running_one() {
+        let bridge = bridge();
+        let mine = bridge.take_session(SessionType::Infinite).await.unwrap();
+
+        let refused = bridge
+            .stop_analysis_impl(Some("someone-elses-id".to_string()), None)
+            .await;
         assert!(refused.is_err(), "知らない ID が成功している");
 
         assert!(

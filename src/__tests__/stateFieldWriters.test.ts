@@ -8,7 +8,7 @@ import { TABLES_DIR, tables } from "./stateTransitionIndex";
 /**
  * **「この欄を動かすのは A と B だけ」という断定が、reducer と食い違わないこと。**
  *
- * この形の腐りは3回出た（#262 のレビュー r1 で2件、r2 で1件）。どれも綴りは実在するので、
+ * この形の腐りは3件在った。どれも綴りは実在するので、
  * `docsIdentifiers` も `ownedIdentifiers` も `docsSourcePaths` も1つも拾えない——
  * **壊れるのは綴りではなく、集合のほう。**
  *

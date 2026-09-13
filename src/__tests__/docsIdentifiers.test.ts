@@ -1,11 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
-import { docsPath, markdownFiles } from "./stateTransitionIndex";
+import { allCheckNames } from "./checkNames";
+import { docsPath } from "./stateTransitionIndex";
 import { codeOf } from "./sourceText";
-import { identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers";
+import { scannedDocs } from "./docsSourcePaths";
+import { EXEMPT, identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers";
 
 /**
- * 状態遷移表がバッククォートで指す識別子が、ソースに実在するかを見る。
+ * `scannedDocs()` が返す doc がバッククォートで指す識別子が、ソースに実在するかを見る。
  *
  * 表は「現物を引くための索引」として書かれている。書いてある名前で grep して
  * 空振りすると、読み手は「表が古い」以上のことを判断できない。
@@ -16,15 +18,13 @@ import { identifiersIn, missingIdentifiers, missingIn } from "./docsIdentifiers"
  * 別の場所に同じ綴りが在る改名・型名やバリアント名・Rust のコメントは
  * すべて素通りする。**この検査が緑でも、doc の識別子は保証されない。**
  *
- * 範囲を状態遷移表に絞る理由は `docsSourcePaths.test.ts` と同じ。
- * ADR と `IDEAS.md` は別リポジトリの識別子を根拠として引く。
+ * **走査する範囲はパスの検査と同じ**（`scannedDocs`。理由もあちらの doc が持つ）。
+ * 片方だけを広げると、同じファイルでパスは検査され識別子は検査されない状態が残る。
  */
-describe("状態遷移表が指す識別子", () => {
-  const tableFiles = () => markdownFiles().filter((f) => f.startsWith("state-transitions/"));
-
+describe("doc が指す識別子", () => {
   // 0件を見て緑になる形を止める
-  test("状態遷移表から識別子を拾えている", () => {
-    const found = tableFiles().flatMap((relative) =>
+  test("doc から識別子を拾えている", () => {
+    const found = scannedDocs().flatMap((relative) =>
       identifiersIn(readFileSync(docsPath(relative), "utf8")),
     );
 
@@ -32,12 +32,44 @@ describe("状態遷移表が指す識別子", () => {
   });
 
   test("ソースに無い識別子を指していない", () => {
-    const broken = tableFiles().flatMap((relative) => {
+    const broken = scannedDocs().flatMap((relative) => {
       const body = readFileSync(docsPath(relative), "utf8");
       return missingIdentifiers(identifiersIn(body)).map((name) => `${relative}: ${name}`);
     });
 
     expect(broken, "改名したら表も直すこと。落とすなら行ごと落とすこと").toEqual([]);
+  });
+});
+
+/**
+ * 免除に**検査の名前**を足すと、その検査が自分で見ている綴りを検査から外す。
+ *
+ * `EXEMPT` は `scannedDocs()` が返す doc と `src/**` の TS コメントの両方に掛かるので、片方の都合で
+ * 1件足すと**両方で二度と検査されない**。検査の名前を免除に入れると、その検査が
+ * 自分の名前を守れなくなる——改名しても、名前を指している doc は赤くならない。
+ * コメントや doc から検査を指したいときはパスで書くこと（`src/__tests__/foo.test.ts`）。
+ */
+describe("免除の中身", () => {
+  test("検査の名前を免除していない", () => {
+    // **母数は `checkNames` が持つ。** ここで作り直すと、TS の検査名しか知らない
+    // 集合になり、Rust の検査名（`state_table_terms`）も検査本体（`ownedSpelling`）も
+    // 黙って免除に入る。
+    const checks = allCheckNames();
+
+    // **母数が痩せる向きも見る。** 0件になれば `named` は空で緑になる。
+    // 由来は3つ（TS の検査・Rust の検査・走査の道具）あり、`helpers` は
+    // `"src/__tests__/"` の直書きに依存するので、置き場を動かすと黙って抜ける。
+    expect(checks.size, "検査の名前を1つも拾えていない").toBeGreaterThan(20);
+    expect(checks, "TS の検査を拾えていない").toContain("ratchetIndex");
+    expect(checks, "Rust の検査を拾えていない").toContain("state_table_terms");
+    expect(checks, "走査の道具を拾えていない").toContain("ownedSpelling");
+
+    const named = [...EXEMPT].filter((name) => checks.has(name)).sort();
+
+    expect(
+      named,
+      "免除に検査の名前が入っている。指したいならパスで書くこと（`src/__tests__/foo.test.ts`）",
+    ).toEqual([]);
   });
 });
 
@@ -55,7 +87,7 @@ describe("identifiersIn", () => {
     expect(identifiersIn("`A3` の行と `E11` と `G0`")).toEqual([]);
   });
 
-  // 下線で切っている。桁数で切ると `SFEN` が残る
+  // 大文字だけの枝は下線を要求している。桁数で切ると `SFEN` が残る
   test("頭字語は拾わない", () => {
     expect(identifiersIn("`USI` と `SFEN` と `KIF`")).toEqual([]);
   });
@@ -64,10 +96,18 @@ describe("identifiersIn", () => {
     expect(identifiersIn("CLOSE_SETTLE_TIMEOUT を見る")).toEqual([]);
   });
 
-  // 型名は下線を含まないので拾わない。拾えると嬉しいが、
+  // 大文字始まりを受ける枝が無い。拾えると嬉しいが、
   // `Phase` のような一語の型は地の文の英単語と区別できない
-  test("キャメルケースの型名は拾わない", () => {
+  test("PascalCase の型名は拾わない", () => {
     expect(identifiersIn("`GameSession` の `Phase`")).toEqual([]);
+  });
+
+  // **このリポジトリで実際に腐るのは TS 側の綴り。** 枝を落とす変異を赤くする
+  test("camelCase の綴りを拾う", () => {
+    expect(identifiersIn("`isReady` と `analyzedSfen` を見る")).toEqual([
+      "analyzedSfen",
+      "isReady",
+    ]);
   });
 });
 

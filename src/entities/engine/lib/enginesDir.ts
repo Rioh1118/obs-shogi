@@ -3,7 +3,7 @@ import type { DirInfo } from "../api/aiLibrary";
 /*
  * **barrel には載せない。** 引数の `DirInfo` は `api/aiLibrary` にあり、そちらは
  * barrel が公開していない。片方だけ公開すると、同じスライスに入口が2つできて
- * 公開境界が働かなくなる（`sliceBarrels` の doc）。呼び出し元はこのモジュールを直に読む
+ * 公開境界が働かなくなる（`src/__tests__/sliceBarrels.test.ts` の doc）。呼び出し元はこのモジュールを直に読む
  */
 
 /**

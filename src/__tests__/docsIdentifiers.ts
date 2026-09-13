@@ -1,40 +1,55 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { codeOf } from "./sourceText";
-import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
+import { REPO_ROOT, rustRoots, SRC, sourceFiles, TAURI_CONF } from "./walk";
 
 /** 門番とその検査。シェルだが、表が関数名を仕様として引く */
 const HOOKS = join(REPO_ROOT, ".claude/hooks");
 
 /**
- * docs がバッククォートで指す**識別子**が実在するかを見る検査の本体。
+ * バッククォートが指す**識別子**が実在するかを見る判定の本体。
  * パスを見る `docsSourcePaths.ts` の隣。あちらはファイル、こちらは名前。
+ *
+ * **走査範囲は持たない。** 渡す側が決める——doc は `docsIdentifiers.test.ts`
+ * （範囲は `docsSourcePaths.ts` の `scannedDocs`）、`src/**` の TS コメントは
+ * `srcCommentIdentifiers.test.ts`。
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */
 
 /**
- * 拾う綴り。**下線を1つ以上含むものだけ。**
+ * 拾う綴り。**下線を1つ以上含むか、大文字の切れ目を持つもの。**
  *
- * 下線を要求するのは、表の記号（`A3` / `E11` / `G0`）と頭字語（`USI` / `SFEN` / `KIF`）を
- * 除くため。長さで切ると `USI` は落とせても `SFEN` が残り、記号の桁数が増えると
- * また拾い始める。**下線の有無は綴りの規則なので、桁数と違って後から破れない。**
+ * 下線か大文字の切れ目を要求するのは、表の記号（`A3` / `E11` / `G0`）と頭字語
+ * （`USI` / `SFEN` / `KIF`）を除くため。長さで切ると `USI` は落とせても `SFEN` が残り、
+ * 記号の桁数が増えるとまた拾い始める。**綴りの規則なので、桁数と違って後から破れない。**
+ *
+ * **camelCase も見る。** このリポジトリで実際に腐るのは TS 側の綴りなので、
+ * 下線だけを見ると肝心のところが空く。
  */
-const IDENTIFIER = /^([A-Z][A-Z0-9]*(_[A-Z0-9]+)+|[a-z][a-z0-9]*(_[a-z0-9]+)+)$/;
+const IDENTIFIER =
+  /^([A-Z][A-Z0-9]*(_[A-Z0-9]+)+|[a-z][a-z0-9]*(_[a-z0-9]+)+|[a-z][a-z0-9]*([A-Z][A-Za-z0-9]*)+)$/;
 
 /**
  * 拾わない綴り。ソースに無くて当然のもの。
  *
  * 増やすときは**なぜソースに無くてよいか**を1件ずつ書くこと。
  * 説明を書けないなら、それは腐った doc であって除外の対象ではない。
+ *
+ * **走査範囲は4つ、免除のリストは3つ。** ここは **`scannedDocs` が返す doc** の
+ * バッククォート**と `src/**` の TS コメント**（`srcCommentIdentifiers` がこのリストごと借りる）。
+ * `state_table_terms.rs` の `NOT_IDENTIFIERS` は状態遷移表の表本体、
+ * `comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
+ *
+ * **doc と `src/**` のコメントは同じリストを共有する。** 片方の都合で1件足すと、
+ * もう片方でもその綴りが二度と検査されない——**検査の名前をここに足さないこと**。
+ * コメントから検査を指したいならパスで書く（`src/__tests__/foo.test.ts`）。
+ *
+ * **綴りの形と、どこに書いたかの掛け算で、要るリストが決まる** ——
+ * 大文字＋下線を表に書けば前2つ、Rust のコメントにも書けば3つとも要る。
+ * 片方にしか要らない綴りが現に在る（`peek_text` は Rust のコメントだけ）。
  */
-/// **他実装の綴りを免除するリストは、走査範囲ごとに3つある。**
-/// ここは `docs/**` のバッククォート、`state_table_terms.rs` の `NOT_IDENTIFIERS` は
-/// 状態遷移表の表本体、`comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
-/// **綴りの形と、どこに書いたかの掛け算で、要るリストが決まる** ——
-/// 大文字＋下線を表に書けば前2つ、Rust のコメントにも書けば3つとも要る。
-/// 片方にしか要らない綴りが現に在る（`peek_text` は3つ目だけ）。
-const EXEMPT = new Set([
+export const EXEMPT = new Set([
   // USI の語。エンジンとの取り決めであって、こちらの識別子ではない
   "go_ponder",
   "position_sfen",
@@ -46,6 +61,31 @@ const EXEMPT = new Set([
   "line_buffer",
   // YaneuraOu-ScriptCollection（Python）の関数。局面数の数え方の出典
   "count_yaneuraou_db_positions",
+  // ShogiHome の設定名。対局の表が「あちらの既定」の出典に引く
+  "enableEngineTimeout",
+  // `@tauri-apps/plugin-opener` のコマンドと口。あちらの綴りであって、こちらの識別子ではない
+  "reveal_item_in_dir",
+  "open_path",
+  "openPath",
+  // React の API。reviewer の定義が「使っていないこと」を確かめる材料に引く
+  "dangerouslySetInnerHTML",
+  // vitest の matcher。レビューの手順書が「空振りを止める形」の例に引く
+  "toBeGreaterThan",
+  // `shogi.js`（別リポジトリ）の綴り。局面を組む面が「あちらは編集モードで何を止め、
+  // 何を止めないか」の出典に引く。`deadEnd` はあちらの中の局所変数
+  "checkTurn",
+  "flagEditMode",
+  "nextTurn",
+  "prevTurn",
+  "deadEnd",
+  "pieceHistogram",
+  "fromPreset",
+  "getIllegalUnpromotedRow",
+  "colorToString",
+  // DOM と CSS の綴り。使わない理由を書くために引くので、こちらの識別子ではない
+  "minHeight",
+  "offsetParent",
+  "checkVisibility",
 ]);
 
 /**
@@ -90,6 +130,10 @@ function sourceCorpus(): string {
       ...rustRoots().flatMap((root) => sourceFiles(root)),
     ].map((path) => codeOf(readFileSync(path, "utf8"))),
     ...hookCorpus(),
+    // 窓の設定も数える。画面の仕様が起動の1枚目を `tauri.conf.json` の
+    // `backgroundColor` のように**キーの綴りで**指すので、外すと実在する設定を
+    // 指しているのに「無い」と言われ、直しようが無い
+    readFileSync(TAURI_CONF, "utf8"),
   ].join("\n");
   return corpus;
 }
@@ -116,11 +160,12 @@ export function identifiersIn(markdown: string): string[] {
  *
  * 1. **別の場所に同じ綴りが在る改名は素通りする。** 関数名を変えても、
  *    その綴りが構造体の欄名として残っていれば緑になる
- * 2. **型名・バリアント名は1つも見ていない。** `IDENTIFIER` が下線を要求するので
+ * 2. **型名・バリアント名は1つも見ていない。** `IDENTIFIER` のどの枝も先頭に
+ *    小文字を要求する（大文字始まりを受けるのは大文字＋下線の枝だけ）ので、
  *    `ClocksView` や `Aborted` は候補にすら入らない
  * 3. 語境界で照合するので接尾辞を足す改名（`FOO` → `STOP_FOO`）は拾えるが、
  *    `Foo::Bar` の `Bar` 側は 2 の理由で拾えない
- * 4. **Rust のコメントが指す識別子は見ていない。** 見るのは `docs/**` だけ
+ * 4. **Rust のコメントが指す識別子は見ていない**（`comment_identifiers.rs` が見る）
  */
 export function missingIdentifiers(identifiers: string[]): string[] {
   return missingIn(identifiers, sourceCorpus());

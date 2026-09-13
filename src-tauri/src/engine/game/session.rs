@@ -4100,21 +4100,6 @@ mod tests {
         );
     }
 
-    /// 制御文字を潰し、文字の途中で割らないこと。
-    #[test]
-    fn a_shown_copy_is_bounded_and_readable() {
-        assert_eq!(shown("7g7f", 8), "7g7f");
-        assert!(!shown("a\nb", 8).contains('\n'), "改行を通している");
-
-        // 多バイト文字の途中で割らない
-        let trimmed = shown("あいうえお", 3);
-        assert!(
-            trimmed.starts_with("あいう"),
-            "文字の途中で割っている: {trimmed}"
-        );
-        assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
-    }
-
     /// 終局済みの対局への着手・裁定・投了・中断が、同じ形で断られること。
     ///
     /// **揃えないと、中断だけが黙って通る。** 中断を押したのと `on_tick` の

@@ -397,7 +397,7 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 | `(G2, P2)` で `loadGame`                               | **テスト無し。** 未保存の編集と先の計画が同時に消える。手で再現していない                                                                                                                          |
 | E16 のあとで編集する                                   | ✓ `persistGuard.test.tsx`「宛先が別のファイルを指している間は書かない」。門番が止めることは固定した（※3）                                                                                          |
 | `(G1/P2, E2)` 保存に失敗したまま棋譜を閉じる           | **テスト無し。** 巻き戻しが通れば消える編集そのものが無い。飛んだときだけ永久に消える（`resetGame` は保存を挟まない）。**書きかけのコメントは失われる**（→ #314）                                  |
-| 線を乗り換えたとき、深い計画をどうするか               | **判断が決まっていない。** `buildCursorWithForkSelection` は `te` 以降を落とすが `mergeBranchPlan` が復活させる。乗り換え先に無い変化を指したまま残り、`computeLeafTesuu` が見たことのない葉を返す |
+| 線を乗り換えたとき、深い計画をどうするか               | **判断が決まっていない。** `resolveForkSelection` は `te` 以降を落とすが `mergeBranchPlan` が復活させる。乗り換え先に無い変化を指したまま残り、`computeLeafTesuu` が見たことのない葉を返す         |
 | R3 / R4 に壊れた `forkIndex` を渡す                    | **テスト無し。** R1 は `leafTesuu.test.ts`、R5 は `buildStreamRows.test.ts` が固定している。捨てない4箇所は誰も固定していない                                                                      |
 | R2 / R6 に壊れた `forkIndex` を渡す                    | **テスト無し。** 捨てる側は `advanceWithPlan.test.ts` が共通の実装を固定し、R1 は `leafTesuu.test.ts`、R5 は `buildStreamRows.test.ts` が重ねて固定している。捨てない R2 / R6 は誰も固定していない |
 | `PositionNavigationModal` の ← で作った `overridePlan` | **テスト無し。** `te > tesuu` を持つカーソルを `applyCursor` に渡す唯一の経路                                                                                                                      |

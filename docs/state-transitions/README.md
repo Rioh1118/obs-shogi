@@ -53,7 +53,7 @@ L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「
 | -------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | [app.md](app.md)                                   | ✅        | L0                                                                                                                                      |
 | [engine.md](engine.md)                             | ✅        | 外部プロセスを列に持つ                                                                                                                  |
-| [analysis.md](analysis.md)                         | ✅        | Rust セッションを列に持つ                                                                                                               |
+| [analysis.md](analysis.md)                         | ✅        | Rust の席を列に持つ。**✓ を使わない**（網羅は表末尾の「埋まっていないセル」）                                                           |
 | [file-tree.md](file-tree.md)                       | ✅        |                                                                                                                                         |
 | [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                                                                                                 |
 | [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）                                                                                          |
@@ -91,16 +91,17 @@ L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「
 
 引くのは実装を論じるのに要る範囲だけで、**成果物をこのリポジトリの配布物に含めない。**
 
-## 他リポジトリのパスの書き方（この置き場の中だけ）
+## 他リポジトリのパスの書き方
 
-**`docs/` の他の場所には掛からない。** `IDEAS.md` / `PREMISES.md` / `decisions/` /
-`proposals/` は ShogiHome のパスをバッククォートのまま書いている。検査が
-`docs/state-transitions/` にしか掛かっていないので、そちらは落ちない。
+**掛かる範囲は `src/__tests__/docsSourcePaths.ts` が1箇所で決める**（この置き場と画面の仕様）。
+**この置き場の外にも掛かる。** `IDEAS.md` / `PREMISES.md` / `decisions/` / `proposals/` は
+ShogiHome のパスをバッククォートのまま書いているが、そちらは範囲外なので落ちない。
+**範囲に入っている置き場でこの書き方を破ると赤くなる**——直し方はこの節が持つ。
 
 **広げるときの手順はこの節が持たない。** 落ちるものには外部リンクで片付かない種類が
 あり、その一覧と順序は `src/__tests__/docsSourcePaths.test.ts` の doc にある。
 
-`src/__tests__/docsSourcePaths.test.ts` が、これらの表の中でバッククォートに囲まれた
+`src/__tests__/docsSourcePaths.test.ts` が、走査範囲の doc の中でバッククォートに囲まれた
 パスの実在を要求する。**要求されるのは自リポジトリの起点と綴りが重なるものだけ** ——
 `src/` / `src-tauri/` / `docs/` で始まるか、`src/` の直下のレイヤ名
 （`entities/` など）で始まるもの。判定を持つのは `src/__tests__/docsSourcePaths.ts`。

@@ -439,7 +439,7 @@ expect_kinds "rust" "src-tauri/Cargo.toml"
 # `tauri.conf.json` は窓の初期色を持つ。両方を vitest 側の走査が突き合わせる
 expect_kinds "ts" "index.html"
 expect_kinds "ts rust" "src-tauri/tauri.conf.json"
-# capability は両方。`openerCapability`（vitest）が口と許可を突き合わせ、
+# capability は両方。`src/__tests__/openerCapability.test.ts`（vitest）が口と許可を突き合わせ、
 # `tauri_build::build()` が識別子を検証する。**書式では絞らない**——
 # ACL は JSON5 でも TOML でも書けるので、片方だけが拾う形にすると
 # その書式で足した1枚がどちらかの検証を素通りする
@@ -450,7 +450,7 @@ expect_kinds "ts hooks" ".claude/hooks/verify-gate.sh"
 expect_kinds "ts rust" "scripts/knip-ratchet.sh"
 expect_kinds "ts rust" "scripts/rustdoc-ratchet.sh"
 expect_kinds "" "README.md"
-# `ratchetIndex` が索引としてこの表を読むので、触ったら vitest を通す
+# `src/__tests__/ratchetIndex.test.ts` が索引としてこの表を読むので、触ったら vitest を通す
 expect_kinds "ts" "CONTRIBUTING.md"
 # docs の中は深さを問わず ts。リンクの検査が docs 全体に掛かっている
 expect_kinds "ts" "docs/decisions/0002-drop-book-read-write.md"

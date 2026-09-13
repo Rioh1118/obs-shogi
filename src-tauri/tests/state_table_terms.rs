@@ -62,7 +62,10 @@ const TABLES: &[(&str, &[&str])] = &[
 /// 対応表を手で書く以上、足し忘れは必ず起きる。`root_guard.rs` と同じで、
 /// 全ての表がここか [`TABLES`] のどちらかに載っていることを機械で見る。
 const NOT_RUST: &[(&str, &str)] = &[
-    ("analysis.md", "解析パネル。TS 側の reducer"),
+    (
+        "analysis.md",
+        "解析の席。Rust を跨ぐが、名指す定数は TS 側だけ",
+    ),
     ("app.md", "アプリ全体の起動と終了。TS 側"),
     ("branch-index.md", "分岐の索引。TS 側"),
     ("board-orientation.md", "盤の向き。TS 側"),
@@ -92,17 +95,13 @@ const NOT_RUST: &[(&str, &str)] = &[
 ///
 /// **理由なしで足さない。** ここへ足すたびに検査の目が粗くなる。
 ///
-/// **他実装の綴りを免除するリストは、走査範囲ごとに3つある。**
-/// ここは状態遷移表の表本体、`src/__tests__/docsIdentifiers.ts` の `EXEMPT` は
-/// `docs/**` のバッククォート、`comment_identifiers.rs` の `EXEMPT` は Rust のコメント。
-/// **同じ綴りを2つ以上へ足すことがある**（`SCORE_NONE` は前2つ）。
+/// **ここは状態遷移表の表本体だけを見る。** 免除のリストは3つあり、それぞれの
+/// 掛かる範囲は `src/__tests__/docsIdentifiers.ts` の `EXEMPT` の doc が持つ。
+/// **同じ綴りを2つ以上へ足すことがある**（`SCORE_NONE` はここと `docsIdentifiers`）。
 const NOT_IDENTIFIERS: &[&str] = &[
     // ShogiHome（TypeScript）の識別子。この crate の定数ではない
     "SCORE_NONE",
     "DEPTH_NONE",
-    // このリポジトリの TS 側の定数（`entities/analysis` の provider）。
-    // 表はそれを「間引きは受け手側にある」の出典として引いている
-    "RESULT_FLUSH_MS",
     // やねうら王の定跡フォーマットの見出し。文字列であって定数名ではない
     "YANEURAOU",
     // 局面数の注記。`# NOE:` の綴りの一部

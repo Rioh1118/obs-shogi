@@ -3,21 +3,22 @@ import type { AnalysisAction, AnalysisState } from "./types";
 
 export const initialState: AnalysisState = {
   isAnalyzing: false,
-  sessionId: null,
-  currentPosition: null,
-  analysisResults: [],
+  analyzedSfen: null,
   candidates: [],
   error: null,
 };
 
+/**
+ * **`error` を消すのは `start_analysis` と `clear_results` だけ。**
+ * 「消すだけ」の action は置かない——消える条件が action の名前から読めなくなる。
+ */
 export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
     case "start_analysis":
       return {
         ...state,
         isAnalyzing: true,
-        sessionId: action.payload.sessionId,
-        currentPosition: action.payload.position,
+        analyzedSfen: action.payload.sfen,
         error: null,
       };
 
@@ -25,7 +26,6 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return {
         ...state,
         isAnalyzing: false,
-        sessionId: null,
       };
 
     case "update_result": {
@@ -34,7 +34,6 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
 
       return {
         ...state,
-        analysisResults: [...state.analysisResults.slice(-9), result],
         candidates,
       };
     }
@@ -42,13 +41,9 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
     case "set_error":
       return { ...state, error: action.payload, isAnalyzing: false };
 
-    case "clear_error":
-      return { ...state, error: null };
-
     case "clear_results":
       return {
         ...state,
-        analysisResults: [],
         candidates: [],
         error: null,
       };

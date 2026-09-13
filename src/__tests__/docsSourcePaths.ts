@@ -1,11 +1,13 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { REPO_ROOT } from "./walk";
+import { markdownFiles } from "./stateTransitionIndex";
 
 /**
  * docs が現物を指せているかを見る検査の本体。**掛かる範囲が2つに分かれる。**
  *
- * - パスの実在（`sourcePathsIn` / `missingPaths`）: `docs/state-transitions/` だけ
+ * - 現物への参照（パス `sourcePathsIn` / 識別子 `docsIdentifiers`）:
+ *   `scannedDocs` が返す範囲だけ
  * - 行番号（`lineNumberRefsIn`）: `docs/` 全体
  *
  * 前者を絞るのは、他リポジトリのパスを根拠として引くファイルがあり、それを
@@ -14,6 +16,35 @@ import { REPO_ROOT } from "./walk";
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */
+
+/**
+ * **現物を指す約束がある doc。** パスの検査と識別子の検査が同じ範囲を見る。
+ *
+ * 見るのは状態遷移表と**画面の仕様**（`spec/screens/`）。`spec/features/` は
+ * 入れない——あちらは「ここに置く」の**予告**を書くので、死んだパスと見分けられない。
+ * `screens/` は「いま画面にあるもの」だけを書く約束（`docs/spec/README.md`）。
+ * ADR と提案と `IDEAS.md` / `PREMISES.md` は**別リポジトリ**（ShogiHome /
+ * YaneuraOu）の綴りを根拠として引くので外す。
+ *
+ * **範囲をここ1箇所に置く。** 2箇所に書くと、片方だけを広げた状態
+ * ——同じファイルでパスは検査され識別子は検査されない——が黙って作れる。
+ */
+export const scannedDocs = (): string[] =>
+  markdownFiles().filter(
+    (f) => f.startsWith("state-transitions/") || f.startsWith("spec/screens/"),
+  );
+
+/**
+ * **パスの実在だけは `decisions/` にも掛ける。** ADR は現物を指す約束を持つが、
+ * 識別子のほうは決定当時の綴りを凍結して書くので、同じ範囲には広げられない。
+ */
+export const pathCheckedDocs = (): string[] =>
+  markdownFiles().filter(
+    (f) =>
+      f.startsWith("state-transitions/") ||
+      f.startsWith("spec/screens/") ||
+      f.startsWith("decisions/"),
+  );
 
 /**
  * リポジトリの起点から書いた接頭辞。この順に前へ付けて実在を探す。

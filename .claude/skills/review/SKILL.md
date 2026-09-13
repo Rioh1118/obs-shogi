@@ -28,6 +28,29 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 
 だから成果物は**直した所見の数ではなく、増えた機械の数**。
 
+## 手順0: ハーネスがどの版から読まれるか確かめる
+
+**worktree で作業していても、agent と skill は主チェックアウトから読まれる。**
+`.claude/` をブランチの中で直しても、**そのブランチのレビューには届かない**
+（主チェックアウトが別のブランチに居れば、そちらの版が配られる）。
+
+**1ファイルだけ見ない。** reviewer に配られるのは `.claude/agents/` と
+`.claude/skills/` の全部なので、1本を確かめて安心すると残りの差を見落とす。
+
+```bash
+MAIN="$(git rev-parse --path-format=absolute --git-common-dir)/.."
+git ls-tree -r --name-only HEAD -- .claude/agents .claude/skills |
+  while read -r f; do
+    diff -q <(git show "HEAD:$f") "$MAIN/$f" >/dev/null 2>&1 || echo "差あり: $f"
+  done
+```
+
+出た行は、**このラウンドの reviewer に効かない。** 効かせたい規約は
+reviewer へ渡すプロンプトに本文ごと書く（指し先だけ書いても読めない）。
+
+**`.claude/` の所見を「直した」と書くときは、その直しが次のラウンドに届く経路が
+あるかを併記すること。** 届かないなら、届いていないことも書く。
+
 ## 手順1: 範囲と reviewer を決める
 
 `$ARGUMENTS` 未指定なら `git diff main...HEAD --stat` と `git status --porcelain`。

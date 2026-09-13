@@ -9,6 +9,12 @@
 const stripLineComments = (text: string): string => text.replace(/\/\/[^\n]*/g, "");
 
 /**
+ * シェルのコメント。**綴りをここ1つにする**——`codeOf` が落とす区間と
+ * `commentsOf` が拾う区間が同じでなければ、どちらからも外れる区間が生まれる。
+ */
+const SHELL_COMMENT = /(^|\n|[ \t])(#(?!!)[^\n]*)/g;
+
+/**
  * シェルのコメントを落とす。
  *
  * **`//` を落とさない。** `sed -E 's/\\$//'` のような本物のコード行が消える。
@@ -24,8 +30,7 @@ const stripLineComments = (text: string): string => text.replace(/\/\/[^\n]*/g, 
  *
  * 行頭の `#!`（shebang）は残す。落としても困らないが、落とす理由も無い。
  */
-const stripShellComments = (text: string): string =>
-  text.replace(/(^|\n|[ \t])#(?!!)[^\n]*/g, "$1");
+const stripShellComments = (text: string): string => text.replace(SHELL_COMMENT, "$1");
 
 /**
  * シェルの文字列リテラルを落とす。
@@ -99,24 +104,56 @@ export const codeOf = (body: string, lang: "c-like" | "shell" = "c-like"): strin
   return out;
 };
 
-/**
- * **コメントだけを返す。** `codeOf` の裏。
- *
- * コメントが指す綴りを検査する側（`ownedIdentifiers`）が要る。`codeOf` の
- * 補集合を各検査で書き直すと、片方だけがブロックの開き方の扱いを外す。
- *
- * 行コメントは `//` から行末まで、ブロックは**行頭で開いたものだけ**——
- * どちらも `codeOf` が落とす範囲と同じにしてある。
- */
-export const commentsOf = (body: string): string => {
-  const out: string[] = [];
+/** 行コメントだけを拾う。`codeOf` の `stripLineComments` の裏返し */
+const lineCommentsIn = (text: string): string => (text.match(/\/\/[^\n]*/g) ?? []).join("\n");
 
-  for (const [, line] of body.matchAll(/\/\/([^\n]*)/g)) out.push(line);
-  for (const [, block] of body.matchAll(/(^|\n)[ \t]*\/\*([\s\S]*?)\*\//g)) {
-    out.push(block);
+/**
+ * コメントだけを残す。**`codeOf` の裏返し**で、同じ `openIndex` の規則に従う
+ * ——行の途中で開いたブロックは、あちらがコードとして数えるのでこちらも拾わない。
+ *
+ * **落とす／残すの規則を2通り持たない**のがここに置く理由。片方だけ直すと、
+ * コードでもコメントでもない区間が生まれ、どちらの検査からも外れる。
+ * 引き手は `srcCommentIdentifiers` と `ownedIdentifiers`。
+ *
+ * `lang` は `codeOf` と同じ。**シェルにも裏返しが要る**——`.claude/hooks/*.sh` は
+ * 検査の名前やパスを「仕様として引く」ので、そこが腐っても赤くならない状態が残る。
+ *
+ * **シェルには第3の区間が在る。** 引用符の中は `codeOf` も `commentsOf` も落とす
+ * （corpus に検査の期待値が混ざるのを止めるため、先に潰している）。
+ * シェルのコメントに書いた綴りを検査に載せたいなら、引用符でくくらないこと。
+ */
+export const commentsOf = (body: string, lang: "c-like" | "shell" = "c-like"): string => {
+  // **シェルは同じ綴りの裏返しで取る。** `stripShellComments` が落とす区間が
+  // そのままコメントなので、規則を2通り持たずに済む（この関数の doc のとおり）。
+  if (lang === "shell") {
+    return [...stripShellStrings(body).matchAll(SHELL_COMMENT)].map((m) => m[2]).join("\n");
   }
 
-  return out.join("\n");
+  let out = "";
+  let rest = body;
+
+  while (rest.length > 0) {
+    const open = openIndex(rest);
+
+    if (open < 0) {
+      out += lineCommentsIn(rest);
+      break;
+    }
+
+    out += `${lineCommentsIn(rest.slice(0, open))}\n`;
+
+    const close = rest.indexOf("*/", open + 2);
+    // 閉じないブロックは末尾まで
+    if (close < 0) {
+      out += rest.slice(open);
+      break;
+    }
+
+    out += `${rest.slice(open, close + 2)}\n`;
+    rest = rest.slice(close + 2);
+  }
+
+  return out;
 };
 
 /**

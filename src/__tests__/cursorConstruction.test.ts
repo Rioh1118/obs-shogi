@@ -1,8 +1,4 @@
-import { describe, expect, test } from "vitest";
-import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
-import { REPO_ROOT, SRC, tsFiles } from "./walk";
-import { hitsIn } from "./sourceText";
+import { describeOwnedSpellings } from "./ownedSpelling";
 
 /**
  * `KifuCursor` の材料を鋳造する綴りを、それを持つファイルの中に閉じる。
@@ -67,27 +63,4 @@ const RULES = [
   },
 ] as const;
 
-const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), "utf8");
-
-describe.each(RULES)("$name", ({ pattern, owners: ownerTuple }) => {
-  // リテラル型の tuple のままだと includes / each の引数が never に狭まる
-  const owners: string[] = [...ownerTuple];
-
-  test("持ち主の外では書いていない", () => {
-    const offenders = tsFiles(SRC, { includeTests: false })
-      .map((path) => relative(REPO_ROOT, path))
-      .filter((rel) => !owners.includes(rel))
-      .flatMap((rel) => hitsIn(rel, readFileSync(join(REPO_ROOT, rel), "utf8"), pattern))
-      .sort();
-
-    expect(offenders).toEqual([]);
-  });
-
-  // 対象が0件になって「何も見ていないのに緑」になる形を止める
-  test.each(owners)("%s では実際に書いている", (rel) => {
-    expect(
-      hitsIn(rel, read(rel), pattern).length > 0,
-      `${rel} からこの綴りが消えたなら、owners から外して番人を減らすこと`,
-    ).toBe(true);
-  });
-});
+describeOwnedSpellings(RULES);

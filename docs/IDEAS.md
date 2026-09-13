@@ -154,6 +154,97 @@
 - 局面検索の `lib/virtual/VirtualList.tsx` は `react-window` の薄い包みで、スライスの知識を1つも持たない。`shared/ui/` へ出せる。あわせて `features/position-search/lib/` に state を持つフックと純関数が混在しているので、兄弟スライス（`board-orientation` など）と同じく `model/` を切るか決める（#447 r2 の architecture 所見）
 - 局面検索の「1つの検索」という単位が `entities/search` に無く、`features` 側が rid・撃ち直しの重複除け・取り下げ・破棄を自前で組んでいる。`useSearchSession(sfen)` として下げると、モーダルから ref 2本と effect 2本が消える（#447 r2 の architecture 所見）
 
+## 解析の停止が、ロックを握ったまま別のロックを待つ
+
+`.claude/reviews/2026-09-07-441-unmount-session-r2.md` の r2-21（rust reviewer）。
+
+`EngineAnalyzer::stop_analysis` の
+`if let Some(id) = self.infinite_listener.lock().await.take()` は、
+`if let` のスクルーティニに置いたガードが本体の終わりまで生きるので、
+**`infinite_listener` を握ったまま `protocol.remove_listener(&id).await`**
+（`listeners` の write ロック待ち）に入る。同時に走る `start_infinite_analysis` は
+そこで詰まる。
+
+**判断: 6週間以内に着手しない。** いま環は無い（取得順は両者とも
+`infinite_listener` → `listeners`）ので、利用者に見える症状も無い。`listeners` を握る側が `infinite_listener` を触る日が来ると環になる。
+**文を分けて `await` の前にガードを落とすだけ**で消える。
+clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
+
+## 公開リポジトリとしての体裁が、配布物とドキュメントで揃っていない
+
+`.claude/reviews/2026-09-07-441-unmount-session-r6.md` の所見（oss-hygiene）。
+#441 の範囲外として持ち越した。**どれも `main` から在る。**
+
+**判断: 6週間以内に着手しない。** 利用者に見える不具合ではなく、
+公開の体裁（画像・前提・帰属）は T1 の機能が落ち着いてからまとめて直す方が安い。
+帰属表示だけは配布を増やす前に要る——**Releases を人に配り始める回**が着手の合図。
+
+- **README のトップ画像が古い。** 解析ペインのヘッダはボタン5つで、🔖（課題局面）が写っていない。
+  仕様（`docs/spec/screens/analysis-pane.md`）と実装は6つ。README の Features にも
+  課題局面が無いので、画像・機能一覧・仕様が揃って1機能を落としている
+  （CONTRIBUTING は両方必須と書いている）
+- **手元でビルドする前提が足りない。** Tauri の Linux 依存（`libwebkit2gtk-4.1-dev` ほか）は
+  `.github/workflows/ci.yml` にしか無い。README と CONTRIBUTING の「前提」は
+  同じ3行が二重にあり、片方だけ直すとまた食い違う
+- **第三者コードの帰属表示が配布物に無い。** `src-tauri/Cargo.toml` は
+  `license = ""` / `authors = ["you"]` / `description = "A Tauri App"` の雛形のままで、
+  `package.json` にも `license` が無い。MIT / BSD 系はバイナリ配布でも著作権表示を求める。
+  **`public/` に、どこからも参照されていない画像2枚が同梱されている**（`駒箱.jpg` /
+  `kaya.jpg`）。`knip.json` の走査は `src/**` だけなので機械でも見つからない
+
+**フォントは別**（→ #503）。`index.html` が読む Google Fonts は、アプリ自身の CSP に
+オリジンが無いので**配布物では1本も読めない**。dev サーバには CSP が乗らないため
+開発中と字面が違う。体裁ではなく不具合なので issue にしてある。
+
+### 着手の合図は、もう過ぎている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（oss-hygiene）。
+上は「**Releases を人に配り始める回**が着手の合図」と書いているが、実測では
+v0.1.0（2026-02-27）から v0.2.1（2026-03-21）まで**9本が既に公開済み**で、
+README がそこへ利用者を誘導している。**帰属表示の判断は据え置けない。**
+
+同じラウンドで挙がった、上に無いもの。
+
+- **`CODE_OF_CONDUCT.md` に報告の連絡先が無い。** 「リポジトリ所有者に連絡」としか
+  書いておらず、GitHub に非公開 DM は無い。公開 issue を立てさせるのは同じ文書の
+  「報告者の身元は秘匿されます」と矛盾する。`SECURITY.md` の窓口を流用できる
+- **CI が `verify` と同じものを走らせていない。** `test:hooks` と `ratchet:rustdoc` が
+  抜けているので、`CONTRIBUTING.md` が「手で流してください」と書いた2つは
+  誰も流さなければ緑のまま通る
+- **`docs/` に索引が無い。** 直下に運用の記録（`IDEAS` / `PREMISES` /
+  `OPEN-QUESTIONS` / `OPERATING-MODEL`）と利用者向け（`spec/`）が並び、
+  アルファベット順で最初に来るのが「やらないこと置き場」
+- **Rust の版が3箇所で違うことを言っている。** README と CONTRIBUTING は `stable`、
+  `rust-toolchain.toml` は固定、`Cargo.toml` の `rust-version` は雛形の既定値
+- **画面仕様2本が、`.gitignore` された `.claude/plans/` を設計の出典に挙げている。**
+  外部の人は辿れない
+- **`AGENTS.md` が `vp install` を指示している。** README / CONTRIBUTING は
+  `npm install` で、`vp` はグローバル導入が前提の綴り
+
+**ここに並べたものは issue にしない**（`docs/OPERATING-MODEL.md`）。着手すると決めた
+時点で昇格すること。
+
+## `entities/engine` の公開面が barrel と deep import に割れている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
+
+`entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
+**barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
+で本物の import が10本。内訳は `aiLibrary` 6 / `tauri` 3 / `events` 1。ほかに `vi.mock` の行が4つ——`entities/analysis` のテスト2ファイルと `features/engine-position-sync` のテスト1ファイル）。
+`sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
+**公開しない限り深く読める**。
+
+**判断: 6週間以内に着手しない。** 利用者に見える不具合ではない。
+どちらへ寄せるかは `entities/engine` の公開面をまとめて決める作業で、
+どちらを選んでも `features/settings` と `features/engine-position-sync` に波及する。
+
+- **(a) `api/` を境界として認めて barrel に載せる。** 載せたモジュールの deep import が
+  その瞬間に `sliceBarrels` の違反になる（`vi.mock` を含むファイルは免除）。
+  `api/tauri` だけなら3ファイル（うち範囲外は `features/engine-position-sync` の1つ）、
+  `api/aiLibrary` まで広げると `features/settings` の6ファイル
+- **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙（`SeatReleasePoint` など）は
+  跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
+
 ## `SetupGuide` が親の状態をフラットに受けている
 
 `.claude/reviews/2026-09-06-404-reveal-item-in-dir-r1.md`（react reviewer）。
@@ -285,3 +376,63 @@ lint もテストもラチェットも赤くならない。
 件数ラチェット（`src/shared/ui/**` の外の SCSS が `.form` / `.notice` / `.fsError` /
 `.modal` で始まるセレクタを書く数）なら今日から張れる。0 にはできないので
 `knip-ratchet.sh` と同じ「増える方向にだけ落とす」形。
+
+## 自動再開に、差の出る筋を組めていない門が2つある
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（react reviewer）。
+`provider.tsx` の追従 effect にある `bookIfRestarting()` と、`runRestart` の
+`sentSfenRef` の門。**3ラウンド続けて、落としても全テストが緑になる筋しか作れていない。**
+落とすのは危ない（差が無いことを示せていないだけで、無いことの証明ではない）が、
+「効いている」と読める根拠も無い。**#489 で自動再開の8本の ref を切り出す回に、
+機構ごと見直す対象として拾うこと。**
+
+## `useEngineSeat` の doc が、`analysis.md` ※12 と同じ知識を二重に持っている
+
+`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（comment reviewer）。
+`shootQuietly` の「落ちても利用者には出せない」の枝の列挙と `onEngineGone` の説明が、
+※12 の「どの失敗で席が本当に残るか」と重なる。そのファイル自身が4箇所で
+「理由は ※12 に1つだけ置いてある」と名乗っているので、方針と現物がずれている。
+コメントとコードの比が 1.8:1 なのはその結果。**密度そのものは指標にしない**
+（削るべき行を名指しできないので）。出典を ※12 に寄せる作業として拾う。
+
+## 解析セッションの IPC が `entities/engine` に在るが、語彙は `entities/analysis` のもの
+
+`.claude/reviews/2026-09-07-441-unmount-session-r30.md`（architecture reviewer）。
+`SeatReleasePoint` の値（`unmount` / `no-position` / `late-start` / `late-restart` /
+`sync-timeout`）は全部**解析ペインのライフサイクルと局面同期**の語なのに、型は
+`entities/engine/api/tauri.ts` に在る。解析側が席を返す口を1本足すたびに別スライスの
+IPC 型を編集することになり、その同期漏れを捕まえるためだけに `_EveryPointIsAssigned`
+という型の仕掛けが要っている。**仕掛けの存在自体が置き場のずれの症状。**
+
+解析の IPC（`startInfiniteAnalysis` / `stopAnalysis` / `AnalysisSessionId` /
+`SeatReleasePoint` / `setupAnalysisEventListeners`）を `entities/analysis/api/` へ
+移せば、同スライスに閉じて仕掛けを落とせる。呼び手は `entities/analysis` の2ファイルだけ。
+**#524（席を取る口が3つ）と同じ回に決めるのが安い。**
+
+## 畳まれたかの合図を `Notify` から `CancellationToken` に替える
+
+`.claude/reviews/2026-09-09-441-unmount-session-r33.md`（rust reviewer）。
+`EngineAnalyzer::infinite_settled` は `Arc<Notify>` で、`notify_one` が
+**待ち手が居なければ permit を1つ貯める**という性質に乗っている。
+停止が2本同時に来ると片方が permit を取り、もう片方は上限まで待って諦める——
+どちらも「畳まれた」を見たはずなのに、結末が呼ぶ順で変わる。
+
+`CancellationToken` なら「一度倒れたら、以後の待ち手は全員すぐ通る」ので、
+何本来ても同じ結末になる。`tokio-util` は既に依存に在る（`Cargo.toml`）ので
+足すものは無い。
+
+替えるかは**合図の型の設計判断**なので、#441 の PR には混ぜない。
+現状でも実害は出ていない（停止を2本同時に撃つ口が無い）が、口が増えたら踏む。
+
+## `useEngineSeat` から、席を返す枠の管理を割る
+
+`.claude/reviews/2026-09-09-441-unmount-session-r33.md`（architecture reviewer）。
+このフックは2つのことをしている——**席を取る/手放す**（`beginTake` /
+`keepOrForget` / `shoot`）と、**返却を1本ずつに並べる枠**（`holdSlot` /
+`queueBehind` / `foldIntoSlot` / `sweepOnUnmount`）。後者は前者を知らなくても書ける。
+
+`useReleaseSlot` として割れば、枠側だけを単体で固定できる。いまは枠の振る舞いを
+見るテストが席の生死をぜんぶ組み立ててからでないと書けない。
+
+責務の割り方の判断であり、#441 の欠陥とは独立している。**同じ PR に混ぜると
+差分が読めなくなる**ので送る。

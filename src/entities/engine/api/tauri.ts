@@ -63,8 +63,20 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
 }
 
 // ===== 解析実行 =====
-export async function startInfiniteAnalysis(): Promise<string> {
-  return await invoke("start_infinite_analysis");
+/**
+ * 無限解析を始め、**Rust が作った席の識別子**を返す。
+ *
+ * **席は応答が返るより先に埋まる。** Rust は `take_session` で席を取ってから `go` を
+ * 待つ（`bridge.rs`）ので、この往復の最中に2本目を投げると必ず断られる。
+ *
+ * **返ってきた席は、要求が要らなくなっていても必ず返すこと**
+ * （`stopAnalysis(sessionId, ...)`）。返さないと以後の開始が全部
+ * 「Analysis already running」で断られ、エンジンを畳み直すまで解析が始まらない（#441）。
+ *
+ * 席を取る口はこれだけではない（`analyze_with_time` / `analyze_with_depth` も同じ席を取る）。
+ */
+export async function startInfiniteAnalysis(): Promise<AnalysisSessionId> {
+  return (await invoke<string>("start_infinite_analysis")) as AnalysisSessionId;
 }
 
 export async function analyzeWithTime(timeSeconds: number): Promise<AnalysisResult> {
@@ -81,12 +93,69 @@ export async function analyzeWithDepth(depth: number): Promise<DepthOutcome> {
   return await invoke("analyze_with_depth", { depth });
 }
 
-export async function stopAnalysis(sessionId?: string): Promise<void> {
-  return await invoke("stop_analysis", { sessionId });
+/**
+ * Rust が渡した解析の席の識別子。
+ *
+ * **素の `string` と取り違えないための brand。** `AnalysisProvider`
+ * （`entities/analysis/model/provider.tsx`）は同じスコープに
+ * SFEN を同じ型で並べて持つので、取り違えても tsc は何も言わない——取り違えた回は
+ * 本物の `info` が全部落ち（席の照合に通らない）、停止は `Err` になり、
+ * **本物の席が Rust に残ったままエンジンを起こし直すまで戻らない**（#441 の症状）。
+ *
+ * **鋳造してよいのは IPC の境界だけ**（`startInfiniteAnalysis` の戻り値と、`api/events` が
+ * `listen` の型引数で受ける通知）。`as` を書けるファイルと、**綴りを書けるファイル**の
+ * 両方を `src/__tests__/analysisSessionId.test.ts` が固定している。
+ */
+declare const analysisSessionIdBrand: unique symbol;
+export type AnalysisSessionId = string & { readonly [analysisSessionIdBrand]: true };
+
+/**
+ * 停止をどの口から撃ったか。**Rust のログにそのまま出る**
+ * （何のために要るかは `bridge.rs` の `stop_all_sessions` に置いてある）。
+ *
+ * 値の集合が閉じていることがこの引数の価値なので、境界を跨いでも `string` に
+ * 落とさず、省略もできない（Rust 側は名乗らない呼び手のために `unnamed` を
+ * 持つが、TS からはそこへ落ちない）。
+ *
+ * **口ごとの部分集合は受け取る側が持つ**（`useEngineSeat`）。分け方は席を返す口の
+ * 性質（応答を待てるか・捨てる側か）で、Rust が受け取る値の集合とは別の関心。
+ *
+ * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
+ * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その口は要らない。
+ */
+export type SeatReleasePoint =
+  | "stop"
+  | "start"
+  | "restart"
+  | "unmount"
+  | "no-position"
+  | "sync-timeout"
+  | "late-start"
+  | "late-restart";
+
+/**
+ * 解析を止める。
+ *
+ * **`sessionId` を省くと走っている解析を全部止める。** 自分の1本ではない
+ * （Rust は `stop_all_sessions` に落ちる）。
+ *
+ * 指したときは持ち主を照合する。**席に居るのが別のセッションなら `Err`**
+ * ——止まらないまま解決しないので、指すなら自分が握っている ID を渡すこと。
+ * 指した相手が既に居ない場合だけは `Ok`（要求は「止まっていること」なので満たせている）。
+ *
+ * `by` の意味と、口ごとの部分集合は `SeatReleasePoint` に置いてある。
+ */
+export async function stopAnalysis(
+  sessionId: AnalysisSessionId | undefined,
+  by: SeatReleasePoint,
+): Promise<void> {
+  return await invoke("stop_analysis", { sessionId, by });
 }
 
 // ===== 結果取得 =====
-export async function getAnalysisResult(sessionId: string): Promise<AnalysisResult | null> {
+export async function getAnalysisResult(
+  sessionId: AnalysisSessionId,
+): Promise<AnalysisResult | null> {
   return await invoke("get_analysis_result", { sessionId });
 }
 

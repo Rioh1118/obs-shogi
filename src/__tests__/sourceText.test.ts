@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
-import { codeOf } from "./sourceText";
+import { codeOf, commentsOf } from "./sourceText";
 
 /**
  * `codeOf` の振る舞いと、それを持ち主の外に書き直させないことを固定する。
@@ -147,6 +147,67 @@ describe("codeOf（shell）", () => {
 
 /** コメント除去を自前で書いている検査を見つける綴り */
 const HAND_ROLLED = /replace\(\s*\/\\\/\\\*/;
+
+/**
+ * `codeOf` の裏返し。**こちらが空振りしても、検査は「違反0」で緑になる。**
+ *
+ * `srcCommentIdentifiers` が見るのは `commentsOf` が返した文字列だけなので、
+ * ブロックを落とす変異は TSDoc を丸ごと走査から外す——**腐りは TSDoc の中に出る**ので、
+ * 行コメントだけを拾う形にすると見つかるはずの腐りが全部素通りする。
+ * 空振りの検査は無いより悪い。
+ */
+describe("commentsOf", () => {
+  test("行頭で開くブロックを拾う", () => {
+    expect(commentsOf("/** 説明 `FOO_BAR` */\nconst a = 1;\n")).toContain("FOO_BAR");
+  });
+
+  test("インデントして開くブロックも拾う", () => {
+    expect(commentsOf("function f() {\n  /** `FOO_BAR` */\n  return 1;\n}\n")).toContain(
+      "FOO_BAR",
+    );
+  });
+
+  test("行コメントを拾う", () => {
+    expect(commentsOf("const a = 1; // `FOO_BAR` のこと\n")).toContain("FOO_BAR");
+  });
+
+  // `codeOf` が「行の途中で開いたブロックはコードとして数える」側なので、
+  // 裏返しのこちらも拾わない。両方が拾うと、同じ区間が二重に数えられる
+  test("行の途中で開いたブロックは拾わない", () => {
+    expect(commentsOf("const a = 1; /* `FOO_BAR` */\n")).not.toContain("FOO_BAR");
+  });
+
+  // **実ファイルは必ず両方を持つ。** 行コメントはほぼ全てのファイルに在るので、
+  // ブロック側だけを固めると、行コメントを落とす変異が1本も落ちない。
+  test("ブロックの前にある行コメントも拾う", () => {
+    expect(commentsOf("// `FOO_BAR` のこと\n/** 説明 */\nconst a = 1;\n")).toContain("FOO_BAR");
+  });
+
+  test("閉じないブロックは末尾まで拾う", () => {
+    expect(commentsOf("/** 説明\n * `FOO_BAR`\n")).toContain("FOO_BAR");
+  });
+
+  // コードを混ぜると、`docsIdentifiers` の corpus と同じ綴りが両側に出て
+  // 「コメントが指す名前は実在する」が常に真になる
+  test("コードは残さない", () => {
+    expect(commentsOf("const FOO_BAR = 1;\n")).not.toContain("FOO_BAR");
+  });
+
+  test("ブロックの右に書いたコードも残さない", () => {
+    expect(commentsOf("/** 説明 */ const FOO_BAR = 1;\n")).not.toContain("FOO_BAR");
+  });
+
+  // **シェルの枝も固定する。** 丸ごと空を返す変異は、`.md` の取り分だけで
+  // 下限を越えるので `srcCommentIdentifiers` では赤くならない
+  test("シェルの行コメントを拾う", () => {
+    expect(commentsOf("needs_ts=1  # `FOO_BAR` のこと\n", "shell")).toContain("FOO_BAR");
+    expect(commentsOf("# `FOO_BAR` のこと\nneeds_ts=1\n", "shell")).toContain("FOO_BAR");
+  });
+
+  test("シェルのコードは残さない", () => {
+    expect(commentsOf("gate_kinds_for_path() {\n", "shell")).not.toContain("gate_kinds_for_path");
+  });
+});
 
 describe("コメント除去の持ち主", () => {
   // 自前で書き直すと、片方だけが「文字列リテラルで壊れる」形のまま残る。
