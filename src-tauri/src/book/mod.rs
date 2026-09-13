@@ -6,8 +6,8 @@
 //! 説明は「型名から読めないもの」にだけ付ける。`BookInfo::handle` のように
 //! 名前と型で決まるものは書かない。書く / 書かないが混ざると、次に足す人が迷う。
 //!
-//! 段は types → error → sfen → reader → yaneuraou_db → formats → open →
-//! session → commands。**これを見ている機械は無い**
+//! 段は types → error → sfen → usi_move → reader → yaneuraou_db → formats →
+//! open → session → walk → commands。**これを見ている機械は無い**
 //! （`tests/layering.rs` が走査するのは `src/engine` だけ。#399）。
 //!
 //! **定跡を開く経路は `open_book` コマンドだけ。** それを保っているのは
@@ -32,6 +32,8 @@ mod reader;
 pub mod session;
 mod sfen;
 mod types;
+mod usi_move;
+mod walk;
 mod yaneuraou_db;
 
 // **再輸出を置かない**（ADR-0009 決定4）。`pub use` の facade があると、

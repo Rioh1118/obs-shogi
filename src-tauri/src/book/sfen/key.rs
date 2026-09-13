@@ -27,13 +27,11 @@ use crate::book::error::{excerpt, truncate_for_message, BookError, BookErrorCode
 pub(crate) struct BookKey(String);
 
 impl BookKey {
-    // 本番の呼び手はまだ無い。メモリへ展開する reader はキーどうしを突き合わせる
-    // ので、綴りを取り出す必要が無い。
+    // 呼び手は `walk` —— 正規化を通した綴りを局面に戻して1手進める。
+    // メモリへ展開する reader はキーどうしを突き合わせるので、こちらは使わない。
     //
-    // #[cfg(test)] で塞がないのは、キーから局面を復元する reader（Apery の
-    // ハッシュキーなど）がこれを入口にするため。塞ぐとその reader が書けない。
-    // TODO(#275): 復元に必要な形を決めるとき、この口の形も一緒に決める。
-    #[allow(dead_code)]
+    // TODO(#275): キーから局面を復元する reader（Apery のハッシュキーなど）を
+    // 足すとき、復元に必要な形と一緒にこの口の形も決める。
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }

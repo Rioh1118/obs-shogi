@@ -6,7 +6,9 @@ use crate::book::sfen::key::to_book_key;
 use crate::book::sfen::key::BookKey;
 use crate::book::types::{
     BookHandle, BookHandleInput, BookInfo, BookMove, LookupBookMovesInput, OpenBookInput,
+    WalkBookLinesInput,
 };
+use crate::book::walk::{walk_lines, BookLine};
 use std::sync::Arc;
 use tauri::State;
 
@@ -82,6 +84,38 @@ fn resolve_lookup(
     state.info(input.handle)?;
     let key = to_book_key(&input.sfen)?;
     Ok((state.get(input.handle)?, key))
+}
+
+/// 候補手それぞれの先を、定跡が続くかぎり辿る。
+///
+/// 定跡ビューの「この先」列。**盤を持たないビューが、その手の先も定跡にあるかを
+/// 出す唯一の手段**（ADR-0010）。
+///
+/// `lookup_book_moves` と分けてあるのは、辿るのが引くより桁違いに重いため ——
+/// 候補 N 本ぶんの線をそれぞれ、`walk` の `MAX_WALK_PLIES` 手を上限に引く
+/// （リンクにしない —— この関数は公開で、上限は非公開。上限そのものはあちらの doc）。
+/// 現局面の候補手を出すだけなら払わせない。
+#[tauri::command]
+pub async fn walk_book_lines(
+    state: State<'_, BookState>,
+    input: WalkBookLinesInput,
+) -> Result<Vec<BookLine>, BookError> {
+    logged("walk_book_lines", walk_inner(&state, input).await)
+}
+
+async fn walk_inner(
+    state: &BookState,
+    input: WalkBookLinesInput,
+) -> Result<Vec<BookLine>, BookError> {
+    // **引くのと同じ関門を通す。** ハンドルとキーの順序も、生の綴りを正規化するのも
+    // ここが唯一の口（`resolve_lookup` の doc）
+    let (book, key) = resolve_lookup(state, &input.position)?;
+    let handle = input.position.handle;
+    let path = book.info.path.clone();
+
+    tauri::async_runtime::spawn_blocking(move || walk_lines(&book, &key, &input.moves))
+        .await
+        .map_err(join_error(path, Some(handle)))?
 }
 
 /// 開いている定跡のメタ情報。
