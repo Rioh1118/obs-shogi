@@ -29,10 +29,10 @@ function CandidateTable({ rows, selectedRank, onSelect }: Props) {
         <thead>
           <tr>
             <th scope="col" className="candidate-table__th--move">
-              手
+              指し手
             </th>
             <th scope="col" className="candidate-table__th--score">
-              評価
+              評価値
             </th>
             <th scope="col">読み筋</th>
           </tr>
