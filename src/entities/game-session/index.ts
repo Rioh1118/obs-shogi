@@ -14,9 +14,10 @@
  * `judgeDeclaration`（`lib/jishogiDeclaration.ts`）を呼ぶ。
  * ただし Rust は手数の上限で `rule` を出す——`endGameByRule` を呼んでいなくても届く。
  *
- * **どちらもまだ `entities/game` の barrel には出していない。** 呼ぶ画面が現れた
- * ときに、最初の呼び出し元と一緒に公開面へ載せる。それまで深い import を
- * 増やさないこと。
+ * **`judgeGameOutcome` は `entities/game` の barrel に載っている**（呼び出し元は
+ * `app/providers/bridges/GameSessionBridge`）。`judgeDeclaration` はまだ呼ぶ側が無いので
+ * 載せていない —— **公開面へ載せるのは、最初の呼び出し元と一緒のときだけ。**
+ * それまで深い import を増やさないこと。
  */
 export {
   abortGame,
@@ -36,13 +37,9 @@ export { GAME_EVENT, listenToGameEvents } from "./api/events";
 // 読み返すと互いを読み合う組ができる
 export { GameSessionProvider } from "./model/provider";
 export { useGameSession } from "./model/useGameSession";
-export type {
-  GameProgressView,
-  GameRuling,
-  GameSessionView,
-  GameStartRequest,
-  RulingAdapter,
-} from "./model/types";
+// **`GameStartRequest` は載せない。** `start` を呼ぶ画面がまだ無いので、
+// 外に読み手が居ない。最初の呼び出し元（対局を始めるモーダル）と一緒に載せる
+export type { GameProgressView, GameRuling, GameSessionView, RulingAdapter } from "./model/types";
 export type {
   ClocksView,
   ClockView,
