@@ -32,9 +32,9 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 自分では出せない**——指した後の局面が終局かどうかを知る手立てが無いため。
 `AwaitingRuling` で止まり、フロントの裁定（`continue_game` / `end_by_rule`）を待つ。
 
-**この表の `end_by_rule` の列は、まだ「呼ばれる口があるだけ」。**
-判定は入ったが、`game-event` を購読して裁定を返す画面がまだ無い
-（`docs/spec/features/game-play.md`）。
+**裁定を返すのは `GameSessionProvider`**（`src/entities/game-session/model/provider.tsx`）。
+判定を組むのは `GameSessionBridge` で、`judgeGameOutcome` を注入で受けている。
+画面の側は `docs/spec/screens/play-view.md`。
 
 **指し手列の権威はフロント。** Rust の `Runner.moves` は `go` を組むための写しで、
 `continue_game` が毎手上書きする。書き込むのは `start`（`initial_moves`）と
@@ -491,18 +491,18 @@ ClocksView {
 
 とくに危ないもの:
 
-| セル                                           | 状態                                                                                                                                                                                                                                                              |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `A4` になったエンジンの後始末                  | 探索したまま `close_game` まで残る。**`gameover` も届かない。** プロセスを落とすのは `close_game` と、終了時の `close_all` → `shutdown_all`                                                                                                                       |
-| `GameManager::close` の `Arc::try_unwrap` 失敗 | 中断だけ通して台帳へ戻り `Err` が返る（※4）。終了時は `close_all` が拾うが、**画面から呼び直す導線が無い**（対局 UI が未着手）                                                                                                                                    |
-| `(G0, E13)` `info` の間引き                    | Rust は対局も解析も1行ごとに `emit` する。間引きは**受け手側**にあり、解析は `src/entities/analysis/model/waits.ts` が持つ（`resultFlushMs`）。対局は受け手そのものが無い。**`run_loop` は単一キューなので、`emit` が詰まると `bestmove` の処理がその後ろに並ぶ** |
-| `(G0, E10)` 出力が終わった                     | 実プロセスを落とす手段がテストに無い                                                                                                                                                                                                                              |
-| `ponderhit` の**送信失敗**                     | ※2 の振り分けはどの行も `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す枝）                                                                                                                      |
-| `(G0, E9)` `bestmove win`                      | 入玉宣言。踏むテストが無い                                                                                                                                                                                                                                        |
-| `enforce_engine_timeout` が true のとき        | ※11 の分岐。既定 false 側しか通していない                                                                                                                                                                                                                         |
-| `E16` 世代違いの `SearchOutcome`               | `req` の照合。`Info` 側は `info_from_a_stopped_search_is_not_shown` が踏んでいる。`SearchOutcome` 側は `Runner` を直に組んで `req` をずらせば踏める（実機は要らない）。未検証                                                                                     |
-| 終了フックがエンジンを落とすこと               | `ExitRequested` / `Exit` のどちらでも走る形にしたが、**実機で確かめていない**（Cmd+Q とウィンドウの × で経路が違う）                                                                                                                                              |
-| `GameOverReason` が潰している区別              | 裁定タイムアウトと利用者の中断が同じ `aborted`。`engineFailure` に落ちる経路は5本あるのに理由は1値                                                                                                                                                                |
+| セル                                           | 状態                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `A4` になったエンジンの後始末                  | 探索したまま `close_game` まで残る。**`gameover` も届かない。** プロセスを落とすのは `close_game` と、終了時の `close_all` → `shutdown_all`                                                                                                                                                                                                     |
+| `GameManager::close` の `Arc::try_unwrap` 失敗 | 中断だけ通して台帳へ戻り `Err` が返る（※4）。終了時は `close_all` が拾う。**画面からは押し直せる** —— 対局ビューの「閉じる」は断られても対局を手放さない（`docs/spec/screens/play-view.md`）。ただし「間隔を空けて呼び直す」ことは画面に出ていない                                                                                              |
+| `(G0, E13)` `info` の間引き                    | Rust は対局も解析も1行ごとに `emit` する。間引きは**受け手側**にあり、解析は `src/entities/analysis/model/waits.ts` が持つ（`resultFlushMs`）。対局の受け手は `GameSessionProvider` に在るが、`searchInfo` を**捨てている**ので間引きの置き場がまだ無い。**`run_loop` は単一キューなので、`emit` が詰まると `bestmove` の処理がその後ろに並ぶ** |
+| `(G0, E10)` 出力が終わった                     | 実プロセスを落とす手段がテストに無い                                                                                                                                                                                                                                                                                                            |
+| `ponderhit` の**送信失敗**                     | ※2 の振り分けはどの行も `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す枝）                                                                                                                                                                                                    |
+| `(G0, E9)` `bestmove win`                      | 入玉宣言。踏むテストが無い                                                                                                                                                                                                                                                                                                                      |
+| `enforce_engine_timeout` が true のとき        | ※11 の分岐。既定 false 側しか通していない                                                                                                                                                                                                                                                                                                       |
+| `E16` 世代違いの `SearchOutcome`               | `req` の照合。`Info` 側は `info_from_a_stopped_search_is_not_shown` が踏んでいる。`SearchOutcome` 側は `Runner` を直に組んで `req` をずらせば踏める（実機は要らない）。未検証                                                                                                                                                                   |
+| 終了フックがエンジンを落とすこと               | `ExitRequested` / `Exit` のどちらでも走る形にしたが、**実機で確かめていない**（Cmd+Q とウィンドウの × で経路が違う）                                                                                                                                                                                                                            |
+| `GameOverReason` が潰している区別              | 裁定タイムアウトと利用者の中断が同じ `aborted`。`engineFailure` に落ちる経路は5本あるのに理由は1値                                                                                                                                                                                                                                              |
 
 ## 実装との対応
 

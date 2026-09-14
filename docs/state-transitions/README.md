@@ -70,7 +70,7 @@ L2    book-view.md             定跡ビュー。引くのが非同期で盤が�
 | [board-orientation.md](board-orientation.md)       | ✅        | 合図は game の `loadedAbsPath` と `boardSeq` の組。ツリー側の `activeKifuPath` / `selectedNode` とのずれが軸                            |
 | [position-editor.md](position-editor.md)           | ✅        | 初期局面を組む面。Esc の段と「組みかけ」の扱いが軸。**未検証はこの4つ**（保存先が消える／作成中の Esc／インポートで作成／盤の鍵盤操作） |
 | [updater.md](updater.md)                           | ✅        | ディスク上のアプリの実体を列に持つ。**未検証は実プロセスと plugin の内側が要る6件**                                                     |
-| [dock-tabs.md](dock-tabs.md)                       | ✅        | **実装より先に書いた表。踏むテストはまだ1つも無い**（#562 で印を付ける）                                                                |
+| [dock-tabs.md](dock-tabs.md)                       | ✅        | 器と表示モードの列は踏んでいる。**器の外の列は1つも踏んでいない**（表末尾の「埋まっていないセル」）                                     |
 | [book-view.md](book-view.md)                       | ✅        | 定跡ビュー。**古い引きを捨てる（※A）が軸。** 実プロセスで返る順を踏んだテストは無い                                                     |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                                                                         |
 

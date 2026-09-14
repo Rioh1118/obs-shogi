@@ -18,9 +18,12 @@ import { BookPositionGate } from "./gates/BookPositionGate";
  * - `gates/` — 上位から取った値を、下位の provider に **prop で渡す器**。`children` を描く
  * - `bridges/` — 2つのスライスを **effect で繋ぐ**。`null` を返す
  *
- * `AnalysisBridge` と `EngineRuntimeBridge` は gate の形（値を prop で渡す器）だが
- * `bridges/` に居る。**基準に合っていない2つ**で、動かすと import が広く変わるため
- * ここでは揃えていない。→ `docs/IDEAS.md`
+ * `AnalysisBridge` `EngineRuntimeBridge` `GameSessionBridge` は gate の形
+ * （値を prop で渡す器）だが `bridges/` に居る。**基準に合っていないもの**で、
+ * 動かすと import が広く変わるためここでは揃えていない。→ `docs/IDEAS.md`
+ *
+ * **数を書かない。** 書くと、次に器を足した人が「自分は例外か数え忘れか」を
+ * 判定できないまま、数だけが古くなる。
  */
 export function RuntimeProviders({ children }: { children: ReactNode }) {
   return (

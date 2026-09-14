@@ -97,7 +97,7 @@
 ### タブの構成を `AppConfig` に置く理由
 
 設定の置き場を2つにしない。`last_preset_id` という UI 寄りの値を
-既に入れた前例がある。払うコストは Rust 側 `config.rs` と serde の既定値で、
+既に入れた前例がある。払うコストは Rust 側 `src-tauri/crates/settings/src/app.rs` と serde の既定値で、
 **古い設定ファイルが読めること**が条件になる。
 
 ## 結果
