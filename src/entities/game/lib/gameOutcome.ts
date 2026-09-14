@@ -174,17 +174,19 @@ function judgeAutomaticJishogi(
  */
 const USI_MOVE = /^(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])$/;
 
-function buildRecord(progress: GameProgress): Result<ShogiRecord, GameOutcomeFailure> {
-  const position = Position.newBySFEN(progress.startSfen);
-  if (!position) {
-    return Err({ code: "unplayable_start_sfen", startSfen: progress.startSfen });
-  }
-
-  // **`Record.newByUSI` を使わない。** あちらは読めない指し手で黙って打ち切り、
-  // 途中までの棋譜を `Ok` として返すので、短い局面を「現在局面」と誤って裁定する
-  const record = new ShogiRecord(position);
-  for (const [index, usiMove] of progress.usiMoves.entries()) {
-    const failure = { code: "unplayable_move", usiMove, ply: index + 1 } as const;
+/**
+ * `record` の末尾へ指し手を積む。**`basePly` は既に積んである手数**
+ * （落ちたときに何手目かを名乗るために要る）。
+ *
+ * **途中で落ちたら `record` は積みかけのまま。** 呼び出し側が捨てること。
+ */
+function appendMoves(
+  record: ShogiRecord,
+  usiMoves: readonly string[],
+  basePly: number,
+): Result<void, GameOutcomeFailure> {
+  for (const [index, usiMove] of usiMoves.entries()) {
+    const failure = { code: "unplayable_move", usiMove, ply: basePly + index + 1 } as const;
     if (!USI_MOVE.test(usiMove)) {
       return Err({ ...failure, sfen: record.position.sfen });
     }
@@ -196,23 +198,33 @@ function buildRecord(progress: GameProgress): Result<ShogiRecord, GameOutcomeFai
     const before = record.position.sfen;
     if (!record.append(move)) return Err({ ...failure, sfen: before });
   }
-  return Ok(record);
+  return Ok(undefined);
+}
+
+function buildRecord(progress: GameProgress): Result<ShogiRecord, GameOutcomeFailure> {
+  const position = Position.newBySFEN(progress.startSfen);
+  if (!position) {
+    return Err({ code: "unplayable_start_sfen", startSfen: progress.startSfen });
+  }
+
+  // **`Record.newByUSI` を使わない。** あちらは読めない指し手で黙って打ち切り、
+  // 途中までの棋譜を `Ok` として返すので、短い局面を「現在局面」と誤って裁定する
+  const record = new ShogiRecord(position);
+  const appended = appendMoves(record, progress.usiMoves, 0);
+  return appended.success ? Ok(record) : appended;
 }
 
 /**
- * 現在局面が終局かを判定する。終わっていなければ `null`。
+ * 組み上がった `Record` の現在局面を裁定する。
  *
  * **判定の順は勝敗が付くものが先。** 詰んだ局面は、最大手数に達していても
  * 引き分けにしない。千日手も最大手数より先に立つ。
  */
-export function judgeGameOutcome(
-  progress: GameProgress,
+function evaluate(
+  record: ShogiRecord,
+  usiMoves: readonly string[],
   rules: GameRules,
 ): Result<GameOutcome | null, GameOutcomeFailure> {
-  const built = buildRecord(progress);
-  if (!built.success) return built;
-  const record = built.data;
-
   const shogi = new Shogi();
   shogi.initializeFromSFENString(record.position.sfen);
   const toMove = shogi.turn;
@@ -225,7 +237,7 @@ export function judgeGameOutcome(
     });
   }
 
-  const jishogi = judgeAutomaticJishogi(shogi, lastMover, progress.usiMoves, rules.jishogiRule);
+  const jishogi = judgeAutomaticJishogi(shogi, lastMover, usiMoves, rules.jishogiRule);
   if (jishogi !== null) return Ok(jishogi);
 
   if (record.repetition) {
@@ -240,9 +252,95 @@ export function judgeGameOutcome(
     );
   }
 
-  if (rules.maxMoves > 0 && progress.usiMoves.length >= rules.maxMoves) {
+  if (rules.maxMoves > 0 && usiMoves.length >= rules.maxMoves) {
     return Ok({ kind: "maxMoves", winner: null });
   }
 
   return Ok(null);
+}
+
+/**
+ * 現在局面が終局かを判定する。終わっていなければ `null`。
+ *
+ * **判定の順は勝敗が付くものが先。** 詰んだ局面は、最大手数に達していても
+ * 引き分けにしない。千日手も最大手数より先に立つ。
+ */
+export function judgeGameOutcome(
+  progress: GameProgress,
+  rules: GameRules,
+): Result<GameOutcome | null, GameOutcomeFailure> {
+  const built = buildRecord(progress);
+  return built.success ? evaluate(built.data, progress.usiMoves, rules) : built;
+}
+
+/**
+ * 対局の間ずっと持ち回る判定器。**進んだぶんだけ積む。**
+ *
+ * `judgeGameOutcome` は呼ばれるたびに根から棋譜を組み直すので、毎手呼ぶと
+ * 合計が手数の2乗で効く（値段はこのファイルの冒頭に実測がある）。
+ * 対局はまさに毎手呼ぶ側なので、そこだけはこちらを使う。
+ *
+ * **消えるのは組み直しの分だけ。** 1手ごとの `hasLegalMove` と千日手の判定は残る。
+ *
+ * **前に裁定した列の続きでなければ、黙って組み直す。** 別の対局が始まった、
+ * 途中局面が変わった、前の裁定が落ちた —— どれも「続きではない」で同じ扱いにする。
+ * 積みかけの `Record` は捨てる（残すと、次の裁定が続きだと思って更に積む）。
+ */
+interface OutcomeJudge {
+  judge(progress: GameProgress, rules: GameRules): Result<GameOutcome | null, GameOutcomeFailure>;
+}
+
+/** 積んである棋譜と、それを組んだ材料 */
+interface HeldRecord {
+  startSfen: string;
+  /** 積んだ指し手。**`record` に入っているものと必ず一致する** */
+  applied: string[];
+  record: ShogiRecord;
+}
+
+/**
+ * 積んである列が `usiMoves` の接頭辞か。
+ *
+ * **末尾と長さだけで決めない。** 途中の手が入れ替わった列でも通ってしまい、
+ * 積んである棋譜とは別の局面を「現在局面」として裁定することになる
+ * （Rust 側が `accept_continue` で接頭辞を丸ごと見ているのと同じ理由）。
+ */
+function continues(held: HeldRecord, progress: GameProgress): boolean {
+  return (
+    held.startSfen === progress.startSfen &&
+    held.applied.length <= progress.usiMoves.length &&
+    held.applied.every((usiMove, ply) => usiMove === progress.usiMoves[ply])
+  );
+}
+
+export function createOutcomeJudge(): OutcomeJudge {
+  let held: HeldRecord | null = null;
+
+  return {
+    judge(progress, rules) {
+      const reusable = held !== null && continues(held, progress) ? held : null;
+
+      if (reusable === null) {
+        held = null;
+        const built = buildRecord(progress);
+        if (!built.success) return built;
+        held = {
+          startSfen: progress.startSfen,
+          applied: [...progress.usiMoves],
+          record: built.data,
+        };
+        return evaluate(held.record, progress.usiMoves, rules);
+      }
+
+      const tail = progress.usiMoves.slice(reusable.applied.length);
+      const appended = appendMoves(reusable.record, tail, reusable.applied.length);
+      if (!appended.success) {
+        held = null;
+        return appended;
+      }
+
+      reusable.applied.push(...tail);
+      return evaluate(reusable.record, progress.usiMoves, rules);
+    },
+  };
 }

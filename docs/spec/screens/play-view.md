@@ -1,7 +1,7 @@
 # 画面仕様: 対局ビュー
 
 対象: `src/widgets/play-view/` `src/entities/game-session/model/`
-`src/app/providers/bridges/GameSessionBridge.tsx`
+`src/features/game-ruling/` `src/app/providers/bridges/GameSessionBridge.tsx`
 
 機能要件は [game-play.md](../features/game-play.md)、
 Rust 側の状態機械は
@@ -60,7 +60,15 @@ Rust は将棋のルールを持たないので、手が決まると裁定待ち
 **進行の側から直に読めない** —— あちらが `Side` を `entities/game-session` から
 取っているので、読み返すと互いを読み合う組ができて
 `src/__tests__/crossSliceImports.test.ts` が落ちる。
-`GameSessionBridge` が裁定を組んで prop で渡す（`AnalysisBridge` と同じ形）。
+`GameSessionBridge` が `features/game-ruling` の裁定器を prop で渡す
+（`AnalysisBridge` が `features/engine-position-sync` を渡しているのと同じ形）。
+**2つのスライスを束ねるので、置ける最下層が `features/`。**
+
+裁定器は**対局の間ずっと同じものを持ち回る**。`judgeGameOutcome` は呼ばれるたびに
+根から棋譜を組み直すので、毎手呼ぶと合計が手数の2乗で効く（実測は
+`entities/game/lib/gameOutcome.ts` の doc）。持ち回る側（`createOutcomeJudge`）は
+進んだぶんしか積まない。**前に裁定した列の続きでなければ黙って組み直す**ので、
+別の対局が始まっても取り違えない。
 
 **ルール（持将棋の規則・最大手数）を持つのも橋の側。** `GameRules` は
 `entities/game` の型なので、進行に持たせると同じ辺ができる。
@@ -164,8 +172,6 @@ Rust の `Phase` は3つ（思考中・裁定待ち・終局）だが、画面�
 - **終局が棋譜に残らない。** 特殊手を挿す経路が1つも無いので（#115）、
   投了した棋譜を開き直すと投了が無い。画面はそのことを言い続ける
 - **対局中のエンジンの読み筋を出していない。** `searchInfo` は届いているが捨てている
-- **裁定が毎手 棋譜を根から組み直す。** `judgeGameOutcome` は持ち回れる形になっておらず、
-  1局の合計が手数の2乗で効く（出典は `entities/game/lib/gameOutcome.ts` の doc）
 - **同時対局は1局だけ。** 走っている対局があるうちは `start` が何もしない。
   Rust 側には上限が無い（#382）
 - **中断した対局を再開できない**（#358）。時計は必ず満額から始まる
