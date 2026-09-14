@@ -120,5 +120,10 @@
 
 → [features/position-edit.md](../features/position-edit.md)
 
-対局中は「自分の手番でだけ指せる」「相手の手番では盤を触れない」が要る。
-→ [features/game-play.md](../features/game-play.md)
+**対局中の着手には門がある。** 盤はそのままだと手番の所有者を見ずに棋譜へ積むので、
+対局中は `features/game-move` の門を通し、**Rust が採るまで積まない**。
+門は `entities/game` へ注入で渡る（渡さない呼び手は素通し）。
+→ [play-view.md](play-view.md) の「対局中の盤」
+
+**押せないことを盤は言わない。** 相手の手番で押しても何も起きず、
+断りの出し先が盤に無い（#277）。手番は対局タブが出す。

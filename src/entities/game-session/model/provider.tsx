@@ -9,6 +9,7 @@ import {
   endGameByRule,
   resignGame,
   startGame,
+  submitGameMove,
 } from "../api/tauri";
 import type { ClocksView, GameEvent, GameId, GameResult, Side } from "../api/rust-types";
 import { GameSessionContext, type GameSessionContextValue } from "./context";
@@ -342,6 +343,10 @@ export function GameSessionProvider({
     [apply, publish],
   );
 
+  const submitMove = useCallback(async (side: Side, usiMove: string): AsyncResult<void> => {
+    return await attempt(() => submitGameMove(requireGameId(), side, usiMove));
+  }, []);
+
   const resign = useCallback(
     async (side: Side): AsyncResult<void> => attempt(() => resignGame(requireGameId(), side)),
     [],
@@ -376,8 +381,8 @@ export function GameSessionProvider({
   }, [publish]);
 
   const value = useMemo<GameSessionContextValue>(
-    () => ({ view, start, resign, abort, closeSession }),
-    [view, start, resign, abort, closeSession],
+    () => ({ view, start, submitMove, resign, abort, closeSession }),
+    [view, start, submitMove, resign, abort, closeSession],
   );
 
   return <GameSessionContext.Provider value={value}>{children}</GameSessionContext.Provider>;

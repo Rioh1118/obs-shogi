@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { FileTreeRootGate } from "./gates/FileTreeRootGate";
-import { GamePersistenceGate } from "./gates/GamePersistenceGate";
+import { GameMoveGate } from "./gates/GameMoveGate";
 import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
 import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
 import { EngineFailureBridge } from "./bridges/EngineFailureBridge";
@@ -34,7 +34,7 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
         `RULING_TIMEOUT` で対局が中断される（`GameSessionProvider` の doc）
       */}
       <GameSessionBridge>
-        <GamePersistenceGate>
+        <GameMoveGate>
           <StudyPositionsProvider>
             <EnginePresetsProvider>
               <EngineRuntimeBridge>
@@ -49,7 +49,7 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
               </EngineRuntimeBridge>
             </EnginePresetsProvider>
           </StudyPositionsProvider>
-        </GamePersistenceGate>
+        </GameMoveGate>
       </GameSessionBridge>
     </FileTreeRootGate>
   );

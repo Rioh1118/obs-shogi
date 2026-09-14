@@ -26,6 +26,15 @@ const passthrough = (name: string) => ({
 
 vi.mock("../gates/FileTreeRootGate", () => passthrough("FileTreeRootGate"));
 vi.mock("../gates/GamePersistenceGate", () => passthrough("GamePersistenceGate"));
+// 対局の門を渡す器。実物は `GameSessionProvider` の内側でしか組めない。
+// **`passthrough` を使わない** —— 計算した鍵では、差し替える先の形と結び付かない
+vi.mock(
+  "../gates/GameMoveGate",
+  () =>
+    ({
+      GameMoveGate: ({ children }: { children: ReactNode }) => <>{children}</>,
+    }) satisfies typeof import("../gates/GameMoveGate"),
+);
 vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
 // `GamePersistenceGate` を素通しにしてあるので、`useGame` を読む器はここでは張れない
 vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));

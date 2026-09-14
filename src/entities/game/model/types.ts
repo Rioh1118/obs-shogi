@@ -402,7 +402,28 @@ export interface GameContextType {
   applyCursor: (cursor: CursorPath) => void;
 }
 
+/**
+ * 盤で決まった手を、棋譜へ積む前に通す門。
+ *
+ * **対局中に、Rust が採るまで積まないための口。** 盤は手番の所有者を見ないので、
+ * これが無いと相手の手番でも積んで自動保存まで走る。
+ *
+ * **注入で受ける。** 対局（`entities/game-session`）を知っているのは上の層で、
+ * ここから読むと互いを読み合う組ができる。
+ */
+export interface MoveGate {
+  /**
+   * `false` なら積まない。
+   *
+   * `kifuPath` は**盤にいま載っている棋譜**。対局は棋譜が入れ替わっても走り続けるので、
+   * 別の棋譜を触っているだけの操作を止めないために渡す。
+   */
+  accept: (move: StandardMoveFormat, kifuPath: string | null) => Promise<boolean>;
+}
+
 export interface GameProviderProps {
   children: ReactNode;
   persistence?: GamePersistence;
+  /** **省略すると素通し。** 対局を知らない呼び手（試験）はそのまま指せる */
+  moveGate?: MoveGate;
 }

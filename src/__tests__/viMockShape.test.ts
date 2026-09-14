@@ -19,7 +19,12 @@ import { codeOf } from "./sourceText";
  * 全部に印を付けるのは別の作業。増える方向にだけ落とす件数ラチェットにして、
  * **今日から新しい差し替えに掛ける**。片付けたら基準を下げること。
  *
- * 出典は `.claude/knowledge/mechanization-backlog.md`（2件目で入れた）。
+ * **基準が上がる向きに動くのは、走査を広げたときだけ。** 数え方を変えると、
+ * 数える範囲の外に居た既存の呼び出しが一度に現れる。
+ * **そのときの上げ幅を「印を付けずに増やした数」と読まないこと** ——
+ * 走査を広げるコミットには、何を新しく数えるのかを併記すること。
+ *
+ * 出典は `.claude/knowledge/mechanization-backlog.md`。
  */
 
 /**
@@ -28,7 +33,7 @@ import { codeOf } from "./sourceText";
  * **動かしてよい向きは下げる方だけ。** 増えて落ちたときは、基準ではなく
  * 足した `vi.mock` の側に `satisfies typeof import("…")` を書く。
  */
-const BASELINE = 180;
+const BASELINE = 184;
 
 /** 走査が壊れて0件になったことを「違反が無い」と読ませないための下限 */
 const MIN_SCANNED = 150;
@@ -73,9 +78,14 @@ function mockCallsIn(file: string, body: string): MockCall[] {
   return calls;
 }
 
-/** ファクトリを渡している呼び出しだけ。`vi.mock("…")` の1引数の形は対象外 */
+/**
+ * ファクトリを渡している呼び出しだけ。`vi.mock("…")` の1引数の形は対象外。
+ *
+ * **引数を取るファクトリも数える。** `async (importActual) => …` の形は
+ * 実物を混ぜる主流の書き方で、**そこが数から漏れると印を付けずに増やせる**。
+ */
 function hasFactory(text: string): boolean {
-  return /,\s*(?:async\s+)?\(\s*\)\s*=>/.test(text) || /,\s*(?:async\s+)?function\b/.test(text);
+  return /,\s*(?:async\s+)?\([^)]*\)\s*=>/.test(text) || /,\s*(?:async\s+)?function\b/.test(text);
 }
 
 /**

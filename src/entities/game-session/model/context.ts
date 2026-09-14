@@ -21,6 +21,17 @@ export interface GameSessionContextValue {
    */
   start: (request: GameStartRequest) => Promise<void>;
   /**
+   * 人の着手を出す。**解決したことが「採られた」の意味。**
+   *
+   * 着手が届くのと持ち時間が尽きるのが同じ tick に入ると断られる（`moveDecided` は
+   * 出ず、代わりに `over { reason: "timeout" }` が届く）。
+   * **棋譜へ積むのは解決してからにすること。**
+   *
+   * **断り方の1つだけは呼び直してよい** —— 裁定の往復の窓
+   * （`a ruling is still pending`）は、人対人なら毎手ある。
+   */
+  submitMove: (side: Side, usiMove: string) => AsyncResult<void>;
+  /**
    * 投了。**人が座っている席しか投げられない**——エンジンの席を指すと Rust が断るので、
    * エンジン同士の対局に投了の口は無い。
    */
