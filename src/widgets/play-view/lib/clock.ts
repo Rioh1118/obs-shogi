@@ -37,8 +37,10 @@ export function clockDisplay(clocks: ClocksView, side: Side, now: number): Clock
 /**
  * `M:SS` か `H:MM:SS`。**切り上げる。**
  *
- * 切り捨てると、残り 1ms の時計が 0:00 を指したまま数えられる時間そのあいだ止まって見える
- * ——「0 なのに終局しない」は、時間切れの判定がこちらに無いことの症状に見えてしまう。
+ * `Math.floor` だと、残り 999ms から 0ms までの**約1秒間ずっと `0:00` を出す**。
+ * 0 に見えてから終局まで間が空くと、時間切れの判定がこちら側に無いこと
+ * （→ {@link clockDisplay}）が不具合のように見える。
+ * 切り上げれば `0:00` は本当に 0 のときだけ出る。
  */
 export function formatClock(ms: number): string {
   const total = Math.ceil(Math.max(0, ms) / 1000);

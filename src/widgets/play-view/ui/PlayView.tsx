@@ -37,7 +37,8 @@ function PlayView() {
         */}
         {view.eventsUnavailable !== null && (
           <p className="play-view__band" role="alert">
-            対局の進行を受け取れません。対局を始めても進みません（{view.eventsUnavailable}）
+            対局の進行を受け取れません。対局を始めても進まないので、アプリを再起動してください（
+            {view.eventsUnavailable}）
           </p>
         )}
       </div>
@@ -70,6 +71,13 @@ function PlayView() {
         <p className="play-view__band" role="alert">
           {view.message}
         </p>
+        {/*
+          **閉じるエンジンは残っていない。** Rust は起動に失敗した対局を台帳に載せず、
+          起こしたプロセスも自分で落とす。「閉じる」はこの面を片付けるだけ
+        */}
+        <p className="play-view__sub">
+          設定を見直してから、もう一度始めてください。「閉じる」でこの面を片付けます。
+        </p>
       </div>
     );
   }
@@ -84,6 +92,16 @@ function PlayView() {
         <p className="play-view__reason">
           {gameResultReason(view.result)} ／ {view.usiMoves.length}手
         </p>
+        {/*
+          **裁定を返せなかったことを終局と一緒に消さない。** 畳まれた対局の理由は
+          利用者の中断と同じ値で届く（#362）ので、消すと「アプリが裁定を返せなかった」を
+          言える欄が1つも無くなる
+        */}
+        {view.rulingFailure !== null && (
+          <p className="play-view__band" role="alert">
+            アプリが裁定を返せなかったため中断されました（{view.rulingFailure}）
+          </p>
+        )}
         {/*
           **棋譜に残っていないことを言い続ける。** 特殊手を挿す経路がまだ無いので、
           この結果は画面にしか無い（開き直すと消える）

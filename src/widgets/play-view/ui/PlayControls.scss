@@ -31,6 +31,15 @@
     opacity: 0.82;
   }
 
+  // 押した操作が断られたときの文言。**段は色で持たせない**
+  // （`$color-danger-text` はこの面で基準を割る）。段を持つのは `role="alert"` と文言
+  &__refusal {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   &__actions {
     display: inline-flex;
     align-items: center;

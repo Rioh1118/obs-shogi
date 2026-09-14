@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Flag, Square, X } from "lucide-react";
-import { useGameSession, type Side } from "@/entities/game-session";
+import { useGameSession, type GameSessionView, type Side } from "@/entities/game-session";
+import type { AsyncResult } from "@/shared/lib/result";
 import { gameResultReason } from "../lib/result";
 import "./PlayControls.scss";
 
@@ -18,22 +20,51 @@ import "./PlayControls.scss";
  * 記号は `lucide-react` から取る（このリポジトリの図案はすべてそこ）。
  */
 function PlayControls() {
-  const { view, resign, abort, close } = useGameSession();
+  const { view, resign, abort, closeSession } = useGameSession();
+
+  /**
+   * 押した操作が断られたときの文言。
+   *
+   * **ここに出す。** 断られた操作は状態を1つも動かさないので、
+   * 対局の状態を描く帯（`PlayView`）には出る場がない —— 押した本人に、
+   * 押した場所で返す。
+   */
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  // 状態が動いたなら、前の断りはもう当てはまらない
+  useEffect(() => {
+    setRefusal(null);
+  }, [view.kind]);
+
+  const run = (action: () => AsyncResult<void>) => {
+    void action().then((result) => {
+      setRefusal(result.success ? null : result.error);
+    });
+  };
 
   const live = view.kind === "live";
   // **人が座っている席が1つだけのときしか投げられない。** どちらも人なら
   // 「誰が投了したのか」を選ばせる必要があり、その口をまだ持っていない
   const resignable: Side | null = live && view.humanSides.length === 1 ? view.humanSides[0] : null;
+  const closable = view.kind === "over" || view.kind === "failed";
 
   return (
     <div className="play-controls">
-      <div className="play-controls__status">{statusText(view)}</div>
+      <div className="play-controls__status">
+        {refusal === null ? (
+          statusText(view)
+        ) : (
+          <span className="play-controls__refusal" role="alert">
+            {refusal}
+          </span>
+        )}
+      </div>
 
       <div className="play-controls__actions" role="group" aria-label="対局">
         <button
           type="button"
           className="play-controls__iconBtn"
-          onClick={() => resignable !== null && void resign(resignable)}
+          onClick={() => resignable !== null && run(() => resign(resignable))}
           disabled={resignable === null}
           title={resignTitle(live, resignable)}
         >
@@ -42,7 +73,7 @@ function PlayControls() {
         <button
           type="button"
           className="play-controls__iconBtn"
-          onClick={() => void abort()}
+          onClick={() => run(abort)}
           disabled={!live}
           title="対局を中断する（勝敗は付きません）"
         >
@@ -51,9 +82,9 @@ function PlayControls() {
         <button
           type="button"
           className="play-controls__iconBtn"
-          onClick={() => void close()}
-          disabled={view.kind !== "over" && view.kind !== "failed"}
-          title="対局を閉じてエンジンを落とす"
+          onClick={() => run(closeSession)}
+          disabled={!closable}
+          title={closeTitle(view)}
         >
           <X className="play-controls__icon" />
         </button>
@@ -68,7 +99,23 @@ function resignTitle(live: boolean, resignable: Side | null): string {
   return live ? "人が座っている席が1つのときだけ投了できます" : "対局中だけ投了できます";
 }
 
-function statusText(view: ReturnType<typeof useGameSession>["view"]): string {
+/**
+ * 「閉じる」の名乗り。**始め損ねた対局には落とすエンジンが居ない**
+ * （Rust は起動に失敗した対局を台帳に載せず、プロセスも自分で落とす）ので、
+ * そこで「エンジンを落とす」と名乗ると嘘になる。
+ */
+function closeTitle(view: GameSessionView): string {
+  switch (view.kind) {
+    case "over":
+      return "対局を閉じてエンジンを落とす";
+    case "failed":
+      return "この対局を片付けて、やり直せるようにする";
+    default:
+      return "終局してから閉じられます";
+  }
+}
+
+function statusText(view: GameSessionView): string {
   switch (view.kind) {
     case "idle":
       return "対局していません";

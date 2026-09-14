@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import { listenToGameEvents } from "../api/events";
 import {
   abortGame,
@@ -10,8 +11,8 @@ import {
   startGame,
 } from "../api/tauri";
 import type { ClocksView, GameEvent, GameId, GameResult, Side } from "../api/rust-types";
-import { GameSessionContext } from "./context";
-import type { GameSessionView, GameStartRequest, RulingAdapter } from "./types";
+import { GameSessionContext, type GameSessionContextValue } from "./context";
+import type { GameRuling, GameSessionView, GameStartRequest, RulingAdapter } from "./types";
 
 /**
  * 進行中の対局1局ぶん。**画面ではなくここが持つ。**
@@ -48,7 +49,8 @@ const IDLE: GameSessionView = { kind: "idle", eventsUnavailable: null };
  *   破れたときに失うのは表示ではなく**対局そのもの**）
  * - **棋譜の有無で畳まれない位置に置くこと。** 対局中に別の棋譜を開くと
  *   ドックごと作り直されるが、対局は走り続けている
- * - `ruling` は**アプリ全体で1つ**を渡すこと。2つあると、同じ手に2つの裁定が出る
+ * - **アプリ全体で1つだけ mount すること。** 2つあると `game-event` を二重に
+ *   畳み込み、同じ手に2つの裁定が出る（`ruling` 自体は無状態でよい）
  *
  * **持てる対局は1局だけ。** `start_game` は台帳に載る数を見ないので
  * （1局あたりエンジンのプロセスが最大2本立つ）、押した回数だけ増えないように
@@ -94,8 +96,21 @@ export function GameSessionProvider({
    * `null` でなければ `start` が断る。
    */
   const [eventsUnavailable, setEventsUnavailable] = useState<string | null>(null);
+  /**
+   * 同じ値の写し。**描画ではなく購読の結果が書く。**
+   *
+   * render 中に `state` から写すと、`catch` が走ってから再描画が commit されるまでの間、
+   * `start` は「張れている」と読む。守りたいのはまさにその窓なので、
+   * 非同期の結果が直接ここへ書く。
+   */
   const eventsUnavailableRef = useRef<string | null>(null);
-  eventsUnavailableRef.current = eventsUnavailable;
+
+  /**
+   * 購読が張り終わるまでの待ち。**`start` はこれを待ってから始める。**
+   *
+   * 待たないと、起動直後に押した1局目だけが「張れているか分からないまま」始まる。
+   */
+  const listenSettledRef = useRef<Promise<void> | null>(null);
 
   const publish = useCallback(() => {
     setView(toView(sessionRef.current, eventsUnavailableRef.current));
@@ -109,10 +124,24 @@ export function GameSessionProvider({
    */
   const answerRuling = useCallback(
     async (session: Session, gameId: GameId) => {
-      const verdict = rulingRef.current.judge({
-        startSfen: session.startSfen,
-        usiMoves: session.usiMoves,
-      });
+      // **判定が投げても裁定は返す。** 中身は注入された他スライスのコードで、
+      // 利用者由来の SFEN とエンジンが返した指し手の上で将棋のライブラリを回す。
+      // 投げたまま返さないと、画面は「裁定中」のまま 30 秒後に対局が死ぬ。
+      // **終局として畳むのは、判定を組む側（`RulingAdapter` の呼び手）が
+      // 「判定が落ちたら終局」と決めているのと同じ向き**
+      let verdict: GameRuling;
+      try {
+        verdict = rulingRef.current.judge({
+          startSfen: session.startSfen,
+          usiMoves: session.usiMoves,
+        });
+      } catch (error) {
+        verdict = { kind: "over", winner: null, detail: "判定できなかったため中断しました" };
+        if (sessionRef.current?.gameId === gameId) {
+          sessionRef.current.rulingFailure = messageOf(error);
+          publish();
+        }
+      }
 
       try {
         if (verdict.kind === "continue") {
@@ -120,14 +149,15 @@ export function GameSessionProvider({
         } else {
           await endGameByRule(gameId, verdict.winner, verdict.detail);
         }
+        return;
       } catch (error) {
-        // **`over` が来れば上書きされる。** 来ないまま `RULING_TIMEOUT` に達した回だけ
-        // これが残り、そのときは「裁定が返らなかった」として畳まれる（#362 で
-        // 利用者の中断と同じ値になる）
-        if (sessionRef.current?.gameId === gameId) {
-          sessionRef.current.rulingFailure = messageOf(error);
-          publish();
-        }
+        if (sessionRef.current?.gameId !== gameId) return;
+        // **対局は止まらない。** Rust は `RULING_TIMEOUT` の後に
+        // `over { reason: "aborted" }` を出す。この文言が見えるのはそれまでの間と、
+        // 終局後は `over` の欄に引き継いだぶん（#362 で利用者の中断と同じ値になるので、
+        // 落とすと「アプリが裁定を返せなかった」を言える欄が無くなる）
+        sessionRef.current.rulingFailure = messageOf(error);
+        publish();
       }
     },
     [publish],
@@ -152,6 +182,9 @@ export function GameSessionProvider({
           session.toMove = event.side;
           session.clocks = event.clocks;
           session.awaitingRuling = false;
+          // **手番が移ったなら裁定は通っている。** 消さないと、直った対局に
+          // 「このままだと中断されます」が最後まで残る
+          session.rulingFailure = null;
           break;
 
         case "clockUpdated":
@@ -159,7 +192,9 @@ export function GameSessionProvider({
           break;
 
         case "moveDecided": {
-          session.usiMoves.push(event.usiMove);
+          // **作り直す。** 写しを配らない代わりに、内容が変わったときだけ
+          // 同一性が変わる形にする（`toView` の `usiMoves`）
+          session.usiMoves = [...session.usiMoves, event.usiMove];
           session.clocks = event.clocks;
           session.awaitingRuling = true;
           publish();
@@ -185,8 +220,12 @@ export function GameSessionProvider({
     [answerRuling, publish],
   );
 
+  /** 購読の中から読む口。**effect の依存を空に保つため**（→ 購読の doc） */
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
+
   /**
-   * 購読はアプリの寿命で張りっぱなしにする。
+   * 購読はアプリの寿命で張りっぱなしにする。**依存は空。**
    *
    * **`startGame` を呼んでから張ると必ず取りこぼす**（最初の `turnChanged` は
    * `start_game` が返る前に飛ぶ）。張る/外すを対局ごとにすると、その窓が毎局できる。
@@ -195,8 +234,11 @@ export function GameSessionProvider({
     let unlisten: UnlistenFn | null = null;
     let disposed = false;
 
-    listenToGameEvents((event) => {
-      apply(event);
+    listenSettledRef.current = listenToGameEvents((event) => {
+      // **ref を通す。** 直に `apply` を渡すと effect がそれに依存することになり、
+      // 依存が動いた回に購読を張り直す窓ができる。その窓に `moveDecided` が落ちると
+      // 裁定が返らず、対局が `RULING_TIMEOUT` で中断される
+      applyRef.current(event);
     })
       .then((fn) => {
         if (disposed) {
@@ -204,19 +246,22 @@ export function GameSessionProvider({
           return;
         }
         unlisten = fn;
+        eventsUnavailableRef.current = null;
         setEventsUnavailable(null);
       })
       .catch((error: unknown) => {
         // **黙って捨てない。** 張れていないことに気づける場所が他に無く、
         // 気づかないまま始めた対局は「押したのに何も起きない」で終わる
-        if (!disposed) setEventsUnavailable(messageOf(error));
+        if (disposed) return;
+        eventsUnavailableRef.current = messageOf(error);
+        setEventsUnavailable(eventsUnavailableRef.current);
       });
 
     return () => {
       disposed = true;
       unlisten?.();
     };
-  }, [apply]);
+  }, []);
 
   // 購読の可否は `publish` を通らずに変わるので、ここで写しに反映させる
   useEffect(() => {
@@ -225,14 +270,22 @@ export function GameSessionProvider({
 
   const start = useCallback(
     async (request: GameStartRequest) => {
-      // **走っている対局があるうちは始めない。** 終局していても `closeGame` を
-      // 通していなければエンジンは起きたままなので、断る側に倒す
-      if (sessionRef.current !== null) return;
+      // **閉じる対象が残っているうちは始めない。** 走っている対局はもちろん、
+      // 終局した対局も `closeGame` を通すまでエンジンが起きたままなので、
+      // 押した回数だけプロセスが増える。
+      // **始め損ねた対局（`failed`）は別** —— Rust は起動に失敗した対局を台帳に載せず、
+      // 起こしたプロセスも自分で落とすので、閉じるものが無い。捨ててやり直す
+      const held = sessionRef.current;
+      if (held !== null && !isFailed(held)) return;
+
+      // **購読が張り終わるのを待つ。** 待たずに始めると、起動直後の1局目だけ
+      // 「張れているか分からないまま」走り出す
+      await listenSettledRef.current;
 
       // 出来事が届かないなら、始めても裁定を返せない
       if (eventsUnavailableRef.current !== null) return;
 
-      sessionRef.current = {
+      const mine: Session = {
         gameId: null,
         kifuPath: request.kifuPath,
         startSfen: request.settings.startSfen,
@@ -251,6 +304,7 @@ export function GameSessionProvider({
         result: null,
         failure: null,
       };
+      sessionRef.current = mine;
       pendingRef.current = [];
       publish();
 
@@ -258,20 +312,24 @@ export function GameSessionProvider({
       try {
         gameId = await startGame(request.settings);
       } catch (error) {
-        if (sessionRef.current !== null) {
-          sessionRef.current.failure = messageOf(error);
-          sessionRef.current.gameId = null;
-        }
+        // **同じものかを見る。** `!== null` で見ると、待っている間に閉じられて
+        // 別の対局が始まっていた回に、こちらの断りをその対局へ書き込む
+        if (sessionRef.current !== mine) return;
+        mine.failure = messageOf(error);
+        mine.gameId = null;
         pendingRef.current = [];
         publish();
         return;
       }
 
-      const session = sessionRef.current;
-      // 待っている間に閉じられた
-      if (session === null) return;
+      // 待っている間に閉じられたか、別の対局に入れ替わった。
+      // **Rust の台帳には載っているので、置き去りにせず閉じる**
+      if (sessionRef.current !== mine) {
+        void closeGame(gameId);
+        return;
+      }
 
-      session.gameId = gameId;
+      mine.gameId = gameId;
 
       // **溜めたものを流し直す。** `apply` は `gameId` が入った後なので、
       // ここから先は突き合わせが効く
@@ -284,40 +342,75 @@ export function GameSessionProvider({
     [apply, publish],
   );
 
-  const resign = useCallback(async (side: Side) => {
-    const gameId = sessionRef.current?.gameId;
-    if (gameId == null) return;
-    await resignGame(gameId, side);
-  }, []);
+  const resign = useCallback(
+    async (side: Side): AsyncResult<void> => attempt(() => resignGame(requireGameId(), side)),
+    [],
+  );
 
-  const abort = useCallback(async () => {
-    const gameId = sessionRef.current?.gameId;
-    if (gameId == null) return;
-    await abortGame(gameId);
-  }, []);
+  const abort = useCallback(
+    async (): AsyncResult<void> => attempt(() => abortGame(requireGameId())),
+    [],
+  );
 
-  const close = useCallback(async () => {
+  const closeSession = useCallback(async (): AsyncResult<void> => {
     const session = sessionRef.current;
-    if (session === null) return;
+    if (session === null) return Ok(undefined);
 
-    // **先に手放す。** `closeGame` は「止める → 畳み待ち → 落とす」の順で
-    // 時間がかかるので、待つ間ずっと終局した対局が画面に残る。
-    // 落とせなかった場合は `Err` が投げられ、呼び出し側が出す
+    // **始め損ねた対局には閉じる相手が居ない**（台帳に載っていない）ので、捨てるだけ
+    if (session.gameId === null) {
+      sessionRef.current = null;
+      pendingRef.current = [];
+      publish();
+      return Ok(undefined);
+    }
+
+    // **落ちるまで手放さない。** 先に捨てると `gameId` が消えて呼び直せなくなり、
+    // 断られた回にエンジンが起きたまま画面だけが「対局していません」に戻る
+    const closed = await attempt(() => closeGame(session.gameId as GameId));
+    if (!closed.success) return closed;
+
     sessionRef.current = null;
     pendingRef.current = [];
     publish();
-
-    if (session.gameId !== null) await closeGame(session.gameId);
+    return Ok(undefined);
   }, [publish]);
 
-  return (
-    <GameSessionContext.Provider value={{ view, start, resign, abort, close }}>
-      {children}
-    </GameSessionContext.Provider>
+  const value = useMemo<GameSessionContextValue>(
+    () => ({ view, start, resign, abort, closeSession }),
+    [view, start, resign, abort, closeSession],
   );
+
+  return <GameSessionContext.Provider value={value}>{children}</GameSessionContext.Provider>;
+
+  /** いま対局を指している識別子。**無ければ投げる**（`attempt` が値に畳む） */
+  function requireGameId(): GameId {
+    const gameId = sessionRef.current?.gameId;
+    if (gameId == null) throw new Error("対局が走っていません");
+    return gameId;
+  }
 }
 
-/** 進行から画面の姿へ。**判定の順は「始まっていない → 終わった → 進んでいる」** */
+/** 投げる呼び出しを値に畳む。**断りの文言はそのまま画面へ出る** */
+async function attempt(run: () => Promise<void>): AsyncResult<void> {
+  try {
+    await run();
+    return Ok(undefined);
+  } catch (error) {
+    return Err(messageOf(error));
+  }
+}
+
+/** 始め損ねた対局。**閉じる相手が居ないので、やり直しで捨ててよい** */
+function isFailed(session: Session): boolean {
+  return session.failure !== null;
+}
+
+/**
+ * 進行から画面の姿へ。
+ *
+ * **`failure` を `gameId === null` より先に見る。** 始め損ねた対局は両方が真になるので、
+ * 逆にすると「エンジンを起こしています…」から抜けられなくなる（取り消す口は無い）。
+ */
 function toView(session: Session | null, eventsUnavailable: string | null): GameSessionView {
   if (session === null) {
     return eventsUnavailable === null ? IDLE : { kind: "idle", eventsUnavailable };
@@ -339,7 +432,8 @@ function toView(session: Session | null, eventsUnavailable: string | null): Game
       result: session.result,
       // `over` は必ず時計を載せて届くので、ここに来た時点で `null` ではない
       clocks: session.clocks ?? emptyClocks(),
-      usiMoves: [...session.usiMoves],
+      usiMoves: session.usiMoves,
+      rulingFailure: session.rulingFailure,
     };
   }
   return {
@@ -348,10 +442,13 @@ function toView(session: Session | null, eventsUnavailable: string | null): Game
     kifuPath: session.kifuPath,
     blackName: session.blackName,
     whiteName: session.whiteName,
-    humanSides: [...session.humanSides],
+    humanSides: session.humanSides,
     toMove: session.toMove,
     clocks: session.clocks,
-    usiMoves: [...session.usiMoves],
+    // **写さない。** `clockUpdated` は 500ms ごとに来るので、写すと手が増えていない
+    // tick でも同一性だけが変わり、指し手列を購読する側が毎秒2回起こされる。
+    // 中身を書き替えないことは `moveDecided` の側（積むときに作り直す）が守る
+    usiMoves: session.usiMoves,
     awaitingRuling: session.awaitingRuling,
     rulingFailure: session.rulingFailure,
   };
@@ -368,7 +465,23 @@ function emptyClocks(): ClocksView {
   return { black: zero, white: zero, running: null };
 }
 
-/** 断りの文言。**そのまま画面に出る**ので、内部の語に置き換えない */
+/**
+ * 断りの文言。**そのまま画面に出る**ので、内部の語に置き換えない。
+ *
+ * Tauri の `invoke` は Rust の `Err(String)` を文字列で返すので普段は読めるが、
+ * IPC の層が落ちた回は文字列でも `Error` でもない値が来る。
+ * **`String(値)` に頼らない** —— `[object Object]` は「エラーが発生しました」と
+ * 同じ情報量で、開発者にとっても原因が消える。
+ */
 function messageOf(error: unknown): string {
-  return typeof error === "string" ? error : error instanceof Error ? error.message : String(error);
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+
+  try {
+    const json = JSON.stringify(error);
+    if (json !== undefined && json !== "{}") return json;
+  } catch {
+    // 循環参照。下の定型文へ落とす
+  }
+  return "原因を取得できませんでした";
 }

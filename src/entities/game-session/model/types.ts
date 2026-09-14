@@ -109,13 +109,25 @@ export type GameSessionView =
       result: GameResult;
       clocks: ClocksView;
       usiMoves: readonly string[];
+      /**
+       * 裁定を返せなかったまま終局した場合の文言。
+       *
+       * **終局と一緒に消さない。** `RULING_TIMEOUT` で畳まれた対局の `reason` は
+       * 利用者の中断と同じ `aborted` になる（#362）ので、**これを落とすと
+       * 「アプリが裁定を返せなかった」を言える欄が1つも無くなる**。
+       */
+      rulingFailure: string | null;
     }
   /**
-   * 始められなかった。**`gameId` が無いので閉じる対象も無い。**
+   * 始められなかった。**`gameId` が無いので閉じる対象も無い**
+   * ——Rust は起動に失敗した対局を台帳に載せず、起こしたプロセスも自分で落とす。
    *
    * 設定の誤り（実行ファイルが `usiok` で答えない、`setoption` が拒まれた）と
    * 内部の取り落としが同じ形で届くので、**原因を断言しない**
    * （`api/tauri.ts` の `startGame`）。
+   *
+   * **ここから `start` をやり直せる。** 閉じる対象が無いので、
+   * 「閉じる」を通させる理由が無い。
    */
   | { kind: "failed"; kifuPath: string | null; message: string };
 
