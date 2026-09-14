@@ -1,0 +1,13 @@
+@use "@/index.scss" as index;
+
+.game-start {
+  // 押せない理由・断りの文言。**入力欄の下に、押した場所の近くで出す**
+  //
+  // **色を決めない。** この箱が載る面はモーダルの中身で、`Form` の文字色をそのまま継ぐ。
+  // ここで色を宣言すると、載る面が決まらないまま比を測れない宣言が1つ増える
+  &__hint {
+    margin: 0;
+    font-size: index.$font-aux;
+    overflow-wrap: anywhere;
+  }
+}

@@ -12,6 +12,7 @@ import { ErrorFallbackAction, RETRY_LABEL } from "@/shared/ui/error-fallback/Err
 import { FloatingErrorFallback } from "@/shared/ui/error-fallback/FloatingErrorFallback";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import SfenKifuCreateModal from "@/features/create-file/ui/SfenKifuCreateModal";
+import { GameStartModal } from "@/features/start-game";
 import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
 import { KifuReadErrorDialog } from "@/features/kifu-read-error";
 import PositionNavigationModal from "@/features/position-navigation/ui/PositionNavigationModal";
@@ -23,7 +24,7 @@ import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/St
 /**
  * この層を包む境界に渡す鍵。
  *
- * **入力を param ごとに数え上げない。** ここに居る9枚は `modal` だけでなく
+ * **入力を param ごとに数え上げない。** ここに居る10枚は `modal` だけでなく
  * `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べる形は**足し忘れる規則**になる。
  * `location.key` は遷移のたびに1つ変わるので、いま読んでいる param も、あとで増える param も、
  * 同じ URL へ開き直した操作もまとめて拾える。
@@ -126,7 +127,7 @@ export default function AppModalLayer() {
 /**
  * 層の中身。**平常時 in-flow の要素を返す部品を、ここに足さないこと。**
  *
- * 9枚とも閉じている間は `null` を返し、開いたときだけ `Modal` が `createPortal` する。
+ * どれも閉じている間は `null` を返し、開いたときだけ `Modal` が `createPortal` する。
  * だからこの層は `.app-layout`（`grid-template-rows` が2段）の中に置けている。
  * 1つでも素の要素を返すと1段目を取り、本体が暗黙の3段目へ押し出されて
  * `overflow: hidden` に切られる —— 本体を畳まないための境界が、本体を畳むことになる。
@@ -158,6 +159,7 @@ function ModalLayerContent() {
     <>
       <CreateFileModal />
       <SfenKifuCreateModal />
+      <GameStartModal />
       <PositionNavigationModal />
       <SettingsModal />
       <PositionSearchModal />

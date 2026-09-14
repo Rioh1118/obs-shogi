@@ -8,7 +8,9 @@ export type ModalType =
   | "position-search"
   | "study-position-save"
   | "study-positions"
-  | "sfen-kifu-create";
+  | "sfen-kifu-create"
+  // 対局を始める。**棋譜を1枚作ってから対局を走らせる**ので、作成の仲間に居る
+  | "game-start";
 
 /**
  * 盤の向き。**後手が手前のときだけ値が付く。**

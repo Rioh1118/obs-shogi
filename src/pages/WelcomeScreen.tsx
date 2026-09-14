@@ -41,6 +41,12 @@ function WelcomeScreen() {
             <Button tone="primary" onClick={() => openModal("create-file")}>
               棋譜を作る
             </Button>
+            {/*
+              **対局もここから始められる。** ドックは棋譜が開かれているときにしか
+              存在しないので、最初の1局を始める導線はこの面に要る
+              （→ `docs/spec/screens/play-view.md`）
+            */}
+            <Button onClick={() => openModal("game-start")}>対局する</Button>
           </div>
 
           <div className="welcome-screen__formats">
