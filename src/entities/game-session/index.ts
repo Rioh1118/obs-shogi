@@ -30,6 +30,19 @@ export {
   submitGameMove,
 } from "./api/tauri";
 export { GAME_EVENT, listenToGameEvents } from "./api/events";
+
+// 進行を持つ層。**裁定を返す口は注入で受ける**（`RulingAdapter`）——
+// 判定は `entities/game` に在るが、あちらが `Side` をここから取っているので、
+// 読み返すと互いを読み合う組ができる
+export { GameSessionProvider } from "./model/provider";
+export { useGameSession } from "./model/useGameSession";
+export type {
+  GameProgressView,
+  GameRuling,
+  GameSessionView,
+  GameStartRequest,
+  RulingAdapter,
+} from "./model/types";
 export type {
   ClocksView,
   ClockView,

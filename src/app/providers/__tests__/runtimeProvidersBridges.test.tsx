@@ -31,6 +31,8 @@ vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
 vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));
 vi.mock("../bridges/EngineRuntimeBridge", () => passthrough("EngineRuntimeBridge"));
 vi.mock("../bridges/AnalysisBridge", () => passthrough("AnalysisBridge"));
+// 対局の進行も器の形。実物は mount した瞬間に Tauri の `listen` を呼ぶ
+vi.mock("../bridges/GameSessionBridge", () => passthrough("GameSessionBridge"));
 vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePresetsProvider"));
 vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPositionsProvider"));
 

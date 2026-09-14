@@ -1,0 +1,134 @@
+@use "@/index.scss" as index;
+
+.play-view {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+
+  padding: index.$space-3 var(--pane-px, #{index.$space-4});
+  background: index.$color-primary-dark;
+  color: rgba(index.$color-text-primary, 0.92);
+
+  display: grid;
+  gap: index.$space-3;
+  align-content: start;
+
+  // 対局を持っていない・準備中・終局・始められなかった。**1枚だけ中央に置く**
+  &--slate {
+    place-content: center;
+    justify-items: center;
+    text-align: center;
+  }
+
+  // **段を文字の色で示さない。** `$color-danger-text` は暗いカード（#1c2325）で
+  // 基準を満たすよう決めてあり、この面（`$color-primary-dark`）では 4.40:1 まで落ちる。
+  // 段を持つのは下の `__band`（帯と `role="alert"`）と文言
+  &__lead {
+    margin: 0;
+    font-size: index.$font-lead;
+  }
+
+  &__sub {
+    margin: 0;
+    max-width: 46ch;
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  &__result {
+    margin: 0;
+    font-size: index.$font-section;
+    font-weight: 700;
+  }
+
+  &__reason {
+    margin: 0;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  // 帯。**段は色だけで持たない** —— `role="alert"` と文言が段を持ち、
+  // 色は「帯が在る」ことを示す
+  &__band {
+    margin: 0;
+    padding: index.$space-2 index.$space-3;
+    border-left: 2px solid index.$color-danger;
+    border-radius: index.$radius-1;
+    background: rgba(index.$color-danger, 0.16);
+
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.92);
+
+    // 知らせるだけの一言。**危険ではない**（対局は壊れていない）
+    &--note {
+      border-left-color: index.$color-info;
+      background: rgba(index.$color-info, 0.16);
+    }
+  }
+
+  &__seats {
+    display: grid;
+    gap: index.$space-1;
+  }
+
+  // 席1つ。左から手番の印・名前・持ち時間・秒読み
+  &__seat {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+    align-items: baseline;
+    gap: index.$space-3;
+
+    padding: index.$space-2 index.$space-3;
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-white, 0.035);
+
+    // 手番の側。**印は帯と面の2つ**（面の濃さだけで示すと、隣の行と見分けが付かない）。
+    // 帯は候補手の表が選択中の行に立てるものと同じ
+    &--turn {
+      box-shadow: index.$marker-bar;
+      background: rgba(index.$color-white, 0.07);
+    }
+  }
+
+  &__side {
+    font-weight: 700;
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__clock {
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    font-size: index.$font-lead;
+    white-space: nowrap;
+  }
+
+  &__byoyomi {
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+    white-space: nowrap;
+  }
+
+  &__progress {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: index.$space-3;
+
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  &__pending {
+    color: index.$color-warning;
+  }
+}

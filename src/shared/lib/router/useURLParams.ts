@@ -42,8 +42,12 @@ export type TabType = "workspace" | "aiLibrary" | "engine" | "display" | "create
  *
  * 名簿の持ち主は `entities/dock/model/views.ts` で、そちらが `satisfies` で
  * ここに合わせてある。**片方だけ増やすと tsc が落ちる。**
+ *
+ * **対局は `game` ではなく `play`。** `game` は既に棋譜を読む側が持っていて
+ * （`entities/game`、`docs/state-transitions/game.md`）、対局は `game-session` の側。
+ * 2つの状態機械は交わらないので、URL に同じ綴りを出すと利用者から見える場所で混ざる。
  */
-export type DockViewType = "analysis" | "book";
+export type DockViewType = "analysis" | "book" | "play";
 
 export interface URLParams {
   modal?: ModalType;

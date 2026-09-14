@@ -6,6 +6,7 @@ import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
 import { EngineFailureBridge } from "./bridges/EngineFailureBridge";
 import { SearchRootGate } from "./gates/SearchRootGate";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
+import { GameSessionBridge } from "./bridges/GameSessionBridge";
 import { BoardOrientationBridge } from "./bridges/BoardOrientationBridge";
 import { StudyPositionsProvider } from "@/entities/study-positions/model/provider";
 import { BookPositionGate } from "./gates/BookPositionGate";
@@ -24,22 +25,29 @@ import { BookPositionGate } from "./gates/BookPositionGate";
 export function RuntimeProviders({ children }: { children: ReactNode }) {
   return (
     <FileTreeRootGate>
-      <GamePersistenceGate>
-        <StudyPositionsProvider>
-          <EnginePresetsProvider>
-            <EngineRuntimeBridge>
-              <EngineFailureBridge />
-              <SearchRootGate>
-                <AnalysisBridge>
-                  <BoardOrientationBridge />
-                  {/* 置き場の理由は `BookPositionGate` の doc */}
-                  <BookPositionGate>{children}</BookPositionGate>
-                </AnalysisBridge>
-              </SearchRootGate>
-            </EngineRuntimeBridge>
-          </EnginePresetsProvider>
-        </StudyPositionsProvider>
-      </GamePersistenceGate>
+      {/*
+        **いちばん外。** 対局はドックのタブより長生きで、棋譜が入れ替わっても走り続ける。
+        棋譜の有無で畳まれる位置に置くと、裁定を返す者が居なくなって
+        `RULING_TIMEOUT` で対局が中断される（`GameSessionProvider` の doc）
+      */}
+      <GameSessionBridge>
+        <GamePersistenceGate>
+          <StudyPositionsProvider>
+            <EnginePresetsProvider>
+              <EngineRuntimeBridge>
+                <EngineFailureBridge />
+                <SearchRootGate>
+                  <AnalysisBridge>
+                    <BoardOrientationBridge />
+                    {/* 置き場の理由は `BookPositionGate` の doc */}
+                    <BookPositionGate>{children}</BookPositionGate>
+                  </AnalysisBridge>
+                </SearchRootGate>
+              </EngineRuntimeBridge>
+            </EnginePresetsProvider>
+          </StudyPositionsProvider>
+        </GamePersistenceGate>
+      </GameSessionBridge>
     </FileTreeRootGate>
   );
 }
