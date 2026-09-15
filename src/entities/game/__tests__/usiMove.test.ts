@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { Color } from "shogi.js";
+import { Color, Shogi } from "shogi.js";
 import { Position } from "tsshogi";
 
-import { toUsiMove } from "../lib/usiMove";
+import { fromUsiMove, toUsiMove } from "../lib/usiMove";
 import type { StandardMoveFormat } from "../model/types";
 
 /**
@@ -108,5 +108,49 @@ describe("USI の綴り", () => {
 
     // 8段目から5段目へ引いた手が、tsshogi にも同じ手として通る
     expect(sfenAfter("5h5e", rookOnly)).toContain("4R4");
+  });
+});
+
+/**
+ * **`promote` の欄は3つの状態を持つ。**
+ *
+ * JKF の README がそう決めている —— `true:成, false:不成, 無いかnull:どちらでもない`。
+ * `getReadableKifu()` はこの欄だけを見て「不成」を出すので、
+ * **成れない手に `false` を載せると「２六歩不成」になる。**
+ *
+ * エンジンが決めた手はここを通ってしか盤へ載らない（`GameMoveBridge`）。
+ * 人の手は `selectSquare` の引数が `undefined` のまま来て
+ * `toIMoveMoveFormat` が欄ごと落とすので、**ずれるのはこちら側だけ。**
+ */
+describe("USI の綴りから戻した手の `promote`", () => {
+  /** 2四に先手の歩を置いた局面。2三へ進むと敵陣に入る */
+  const PAWN_ON_2D = "lnsgkgsnl/1r5b1/ppppppppp/7P1/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+
+  function boardOf(sfen: string): Shogi {
+    const shogi = new Shogi();
+    shogi.initializeFromSFENString(sfen);
+    return shogi;
+  }
+
+  test("成れない手には欄を載せない", () => {
+    const move = fromUsiMove("2g2f", boardOf(HIRATE), Color.Black);
+
+    expect(move).not.toBeNull();
+    // **欄の有無で見る。`toBe(undefined)` では足りない** —— 欄が在って `undefined` でも
+    // 通ってしまうので、`false` を載せる実装へ戻したときにしか落ちない
+    expect("promote" in (move as object)).toBe(false);
+  });
+
+  test("成れるのに成らなかった手には `false` を載せる", () => {
+    const move = fromUsiMove("2d2c", boardOf(PAWN_ON_2D), Color.Black);
+
+    // 落とすと「不成」が消えて、成った手と同じ綴りが2つの手を指す
+    expect(move?.promote).toBe(false);
+  });
+
+  test("成った手には `true` を載せる", () => {
+    const move = fromUsiMove("2d2c+", boardOf(PAWN_ON_2D), Color.Black);
+
+    expect(move?.promote).toBe(true);
   });
 });
