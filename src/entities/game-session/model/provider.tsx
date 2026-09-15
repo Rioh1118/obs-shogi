@@ -33,6 +33,13 @@ interface Session {
   clocks: ClocksView | null;
   awaitingRuling: boolean;
   rulingFailure: string | null;
+  /**
+   * 対局の手を棋譜へ積めなかった理由。**`null` でなければ、棋譜が対局から遅れている。**
+   *
+   * 対局そのものは Rust の写しで進むので止まらない。止まるのは棋譜だけで、
+   * 黙っていると**終局後に開き直したとき初めて**後半が無いことに気づく。
+   */
+  boardFailure: string | null;
   result: GameResult | null;
   failure: string | null;
 }
@@ -269,6 +276,24 @@ export function GameSessionProvider({
     publish();
   }, [eventsUnavailable, publish]);
 
+  /**
+   * 棋譜へ積めなかったことを控える。**進行そのものには触らない。**
+   *
+   * `sessionRef` が権威なので、そちらへ書いてから `publish` で描き直す
+   * （`answerRuling` が `rulingFailure` を扱うのと同じ形）。
+   */
+  const reportBoardFailure = useCallback(
+    (message: string | null) => {
+      const session = sessionRef.current;
+      if (session === null) return;
+      if (session.boardFailure === message) return;
+
+      session.boardFailure = message;
+      publish();
+    },
+    [publish],
+  );
+
   const start = useCallback(
     async (request: GameStartRequest) => {
       // **閉じる対象が残っているうちは始めない。** 走っている対局はもちろん、
@@ -302,6 +327,7 @@ export function GameSessionProvider({
         clocks: null,
         awaitingRuling: false,
         rulingFailure: null,
+        boardFailure: null,
         result: null,
         failure: null,
       };
@@ -381,8 +407,8 @@ export function GameSessionProvider({
   }, [publish]);
 
   const value = useMemo<GameSessionContextValue>(
-    () => ({ view, start, submitMove, resign, abort, closeSession }),
-    [view, start, submitMove, resign, abort, closeSession],
+    () => ({ view, start, submitMove, resign, abort, closeSession, reportBoardFailure }),
+    [view, start, submitMove, resign, abort, closeSession, reportBoardFailure],
   );
 
   return <GameSessionContext.Provider value={value}>{children}</GameSessionContext.Provider>;
@@ -439,6 +465,7 @@ function toView(session: Session | null, eventsUnavailable: string | null): Game
       clocks: session.clocks ?? emptyClocks(),
       usiMoves: session.usiMoves,
       rulingFailure: session.rulingFailure,
+      boardFailure: session.boardFailure,
     };
   }
   return {
@@ -456,6 +483,7 @@ function toView(session: Session | null, eventsUnavailable: string | null): Game
     usiMoves: session.usiMoves,
     awaitingRuling: session.awaitingRuling,
     rulingFailure: session.rulingFailure,
+    boardFailure: session.boardFailure,
   };
 }
 

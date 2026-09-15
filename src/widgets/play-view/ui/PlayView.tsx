@@ -103,6 +103,12 @@ function PlayView() {
             アプリが裁定を返せなかったため中断されました（{view.rulingFailure}）
           </p>
         )}
+        {/* **終局と一緒に消さない。** 抜けている手があることは、開き直しても分からない */}
+        {view.boardFailure !== null && (
+          <p className="play-view__band" role="alert">
+            途中から手を棋譜へ書けていません（{view.boardFailure}）
+          </p>
+        )}
         {/*
           **棋譜に残っていないことを言い続ける。** 特殊手を挿す経路がまだ無いので、
           この結果は画面にしか無い（開き直すと消える）
@@ -120,6 +126,17 @@ function PlayView() {
       {view.rulingFailure !== null && (
         <p className="play-view__band" role="alert">
           裁定を返せませんでした。このままだと対局が中断されます（{view.rulingFailure}）
+        </p>
+      )}
+      {/*
+        **対局が止まっていないことを先に言う。** 止まったのは棋譜だけで、
+        エンジンは指し続ける。「失敗しました」だけを出すと、
+        対局そのものが壊れたと読んで中断されてしまう
+      */}
+      {view.boardFailure !== null && (
+        <p className="play-view__band" role="alert">
+          手を棋譜へ書けていません。対局は続いていますが、この先の手は棋譜に残りません（
+          {view.boardFailure}）
         </p>
       )}
 

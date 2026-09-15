@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { fromUsiMove, isPrefixOf, lineUsiMoves, useGame } from "@/entities/game";
 import { useGameSession } from "@/entities/game-session";
 
@@ -17,12 +17,19 @@ import { useGameSession } from "@/entities/game-session";
  * まとめて積もうとすると、`await` の間に盤が別の棋譜へ入れ替わる窓ができる。
  */
 export function GameMoveBridge() {
-  const { view } = useGameSession();
+  const { view, reportBoardFailure } = useGameSession();
   const { view: board, state, makeMove } = useGame();
 
   const running = view.kind === "live" || view.kind === "over" ? view : null;
   const usiMoves = running?.usiMoves;
   const kifuPath = running?.kifuPath ?? null;
+
+  /**
+   * 最後に積もうとした位置。**積めなかった位置を覚えておくために持つ。**
+   *
+   * 棋譜が入れ替わるか、対局が先へ進むまでは同じ位置を出し直さない。
+   */
+  const attemptedRef = useRef<{ kifuPath: string | null; at: number } | null>(null);
 
   const player = board.player;
   const loadedAbsPath = state.loadedAbsPath;
@@ -53,8 +60,37 @@ export function GameMoveBridge() {
     // 綴りを戻せない＝盤と対局の局面がずれている。**黙って積まない**
     if (move === null) return;
 
-    void makeMove(move); // async-result-ignored: 盤には出す場所が無い → #277
-  }, [usiMoves, player, kifuPath, loadedAbsPath, makeMove]);
+    // **同じ位置を二度出さない。**
+    //
+    // 積めなかった `makeMove` は `jkf_restored` で盤を戻す（`entities/game` の `edit`）。
+    // 戻った盤はまた同じ位置で先頭一致するので、控えが無いと
+    // **積む→書けない→戻す→積む**が止まらない。ディスクの故障は要らない ——
+    // 盤に載せられなかった棋譜を選ぶと `persistIfPossible` が永久に断るので、
+    // そこからは書き込みを1回もせずに描き直しだけが回る。
+    //
+    // **待つ前に控える。** 戻す `dispatch` は `makeMove` が解決するより先に走るので、
+    // 解決を待ってから控えると、その前にこの効果がもう一度走る。
+    const attempted = attemptedRef.current;
+    if (attempted !== null && attempted.kifuPath === kifuPath && attempted.at === line.length) {
+      return;
+    }
+    attemptedRef.current = { kifuPath, at: line.length };
+
+    // **結果を控えてから読む。** `void makeMove(...).then(...)` と続けて書くと、
+    // 戻り値の読み落としを見る走査が「読まずに撃った」形として拾う（`.then` を見ていない）
+    const appended = makeMove(move);
+
+    void appended.then((result) => {
+      // **積めたら控えを捨てる。** 残すと、遡って見てから先端へ戻ったときに
+      // 同じ位置を積み直せなくなる
+      if (result.success) {
+        attemptedRef.current = null;
+        reportBoardFailure(null);
+        return;
+      }
+      reportBoardFailure(result.error);
+    });
+  }, [usiMoves, player, kifuPath, loadedAbsPath, makeMove, reportBoardFailure]);
 
   return null;
 }

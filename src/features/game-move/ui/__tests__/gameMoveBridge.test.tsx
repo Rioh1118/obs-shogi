@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, render } from "@testing-library/react";
 import { JKFPlayer } from "json-kifu-format";
 import type { GameSessionView } from "@/entities/game-session";
-import { Ok } from "@/shared/lib/result";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 
 /**
  * エンジンが決めた手を盤へ載せる橋。
@@ -26,6 +26,9 @@ const MOVES = [
 ];
 
 const USI = ["7g7f", "3c3d", "2g2f", "8c8d"];
+
+/** `persistIfPossible` が断るときの文言 */
+const SAVE_REFUSED = "保存先が決まっていません";
 
 /** `count` 手ぶんの棋譜を組み、`at` 手目へ置いた盤を返す */
 function boardAt(count: number, at: number): JKFPlayer {
@@ -61,12 +64,13 @@ const session = vi.hoisted(() => ({
   resign: vi.fn(async () => Ok(undefined)),
   abort: vi.fn(async () => Ok(undefined)),
   closeSession: vi.fn(async () => Ok(undefined)),
+  reportBoardFailure: vi.fn(),
 }));
 
 const board = vi.hoisted(() => ({
   player: null as JKFPlayer | null,
   loadedAbsPath: null as string | null,
-  makeMove: vi.fn(async () => Ok(undefined)),
+  makeMove: vi.fn((): AsyncResult<void> => Promise.resolve(Ok(undefined))),
 }));
 
 vi.mock(
@@ -115,11 +119,13 @@ function liveView(usiMoves: string[]): GameSessionView {
     usiMoves,
     awaitingRuling: false,
     rulingFailure: null,
+    boardFailure: null,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  board.makeMove.mockResolvedValue(Ok(undefined));
   board.loadedAbsPath = KIFU;
   session.view = { kind: "idle", eventsUnavailable: null };
 });
@@ -179,6 +185,46 @@ describe("エンジンの手を盤へ載せる", () => {
     render(<GameMoveBridge />);
 
     expect(board.makeMove).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **積めなかった位置を二度出さない。**
+   *
+   * 積めなかった `makeMove` は `jkf_restored` で盤を戻す。戻った盤はまた同じ位置で
+   * 先頭一致するので、控えが無いと**積む→書けない→戻す→積む**が止まらない。
+   * ディスクの故障は要らない —— 盤に載せられなかった棋譜を選ぶと
+   * `persistIfPossible` が永久に断るので、書き込みを1回もせずに描き直しだけが回る。
+   *
+   * **戻ってきた盤を作り直すこと。** `jkf_restored` は `state.jkf` と `state.cursor` を
+   * 戻すので `cursorView` が `player` を組み直す —— 同じ局面でも**別の物**になり、
+   * 効果の依存が動いて走り直す。使い回すと依存が変わらず、
+   * 控えが無い実装でも1回で終わってしまう。
+   */
+  test("積めなかった位置は、盤が戻ってきても出し直さない", async () => {
+    board.makeMove.mockResolvedValue(Err(SAVE_REFUSED));
+    session.view = liveView(USI.slice(0, 1));
+    board.player = boardAt(0, 0);
+
+    const { rerender } = render(<GameMoveBridge />);
+    await act(async () => {});
+
+    // 書けずに戻された盤。局面は同じで、物としては別
+    board.player = boardAt(0, 0);
+    rerender(<GameMoveBridge />);
+
+    expect(board.makeMove).toHaveBeenCalledTimes(1);
+  });
+
+  /** **黙らない。** 対局は Rust の写しで進むので、棋譜だけが遅れて終局まで気づかれない */
+  test("積めなかったことを対局へ伝える", async () => {
+    board.makeMove.mockResolvedValue(Err(SAVE_REFUSED));
+    session.view = liveView(USI.slice(0, 1));
+    board.player = boardAt(0, 0);
+
+    render(<GameMoveBridge />);
+    await act(async () => {});
+
+    expect(session.reportBoardFailure).toHaveBeenCalledWith(SAVE_REFUSED);
   });
 
   /**

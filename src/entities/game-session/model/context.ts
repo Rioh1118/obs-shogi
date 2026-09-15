@@ -21,6 +21,14 @@ export interface GameSessionContextValue {
    */
   start: (request: GameStartRequest) => Promise<void>;
   /**
+   * 対局の手を棋譜へ積めなかったことを伝える。**`null` で取り消す。**
+   *
+   * 積む側（`features/game-move`）は何も描かないので、出す場所がここにしか無い。
+   * **対局は止まらない**（Rust の写しで進む）ので、黙ると棋譜だけが遅れ、
+   * 終局後に開き直したとき初めて後半が無いことに気づく。
+   */
+  reportBoardFailure: (message: string | null) => void;
+  /**
    * 人の着手を出す。**解決したことが「採られた」の意味。**
    *
    * 着手が届くのと持ち時間が尽きるのが同じ tick に入ると断られる（`moveDecided` は

@@ -98,6 +98,12 @@ export type GameSessionView =
        * 黙って捨てると、画面は動いているのに対局だけが止まる
        */
       rulingFailure: string | null;
+      /**
+       * 対局の手を棋譜へ積めなかった理由。**`null` でなければ棋譜が対局から遅れている。**
+       *
+       * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
+       */
+      boardFailure: string | null;
     }
   /** 終局。**`closeGame` はまだ呼んでいない**ので、エンジンは起きたまま */
   | {
@@ -117,6 +123,12 @@ export type GameSessionView =
        * 「アプリが裁定を返せなかった」を言える欄が1つも無くなる**。
        */
       rulingFailure: string | null;
+      /**
+       * 対局の手を棋譜へ積めなかった理由。**`null` でなければ棋譜が対局から遅れている。**
+       *
+       * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
+       */
+      boardFailure: string | null;
     }
   /**
    * 始められなかった。**`gameId` が無いので閉じる対象も無い**

@@ -25,6 +25,7 @@ const session = vi.hoisted(() => ({
   resign: vi.fn(async () => Ok(undefined)),
   abort: vi.fn(async () => Ok(undefined)),
   closeSession: vi.fn(async () => Ok(undefined)),
+  reportBoardFailure: vi.fn(),
 }));
 
 vi.mock(
@@ -69,6 +70,7 @@ function liveView(over: Partial<Extract<GameSessionView, { kind: "live" }>> = {}
     usiMoves: [],
     awaitingRuling: false,
     rulingFailure: null,
+    boardFailure: null,
     ...over,
   };
 }
