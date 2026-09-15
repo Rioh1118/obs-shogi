@@ -14,7 +14,13 @@ import {
 } from "../api/tauri";
 import type { ClocksView, GameEvent, GameId, GameResult, Side } from "../api/rust-types";
 import { GameSessionContext, type GameSessionContextValue } from "./context";
-import type { GameRuling, GameSessionView, GameStartRequest, RulingAdapter } from "./types";
+import type {
+  GameRuling,
+  GameSessionView,
+  GameStartRequest,
+  RulingAdapter,
+  StartRefusal,
+} from "./types";
 
 /**
  * 進行中の対局1局ぶん。**画面ではなくここが持つ。**
@@ -302,22 +308,43 @@ export function GameSessionProvider({
     [publish],
   );
 
+  /**
+   * いま始められない理由。**`null` なら始められる。**
+   *
+   * **`start` と押す側が同じものを通すこと。** 押す側は「棋譜を作る前に」断りを知る
+   * 必要がある —— `start` は断っても何も起きないので、先に作ってしまうと
+   * **対局していない棋譜が1枚できて、ドックだけが対局タブへ移る。**
+   *
+   * 押せるかを `view` から組み直すと材料が違う。こちらは `listenSettledRef` を
+   * 待った後の ref を見るのに対し、`view` は描画時の写しなので、
+   * **購読が張り終わる前に押した1回**を「張れている」と読む。
+   */
+  const startRefusal = useCallback(async (): Promise<StartRefusal | null> => {
+    // **閉じる対象が残っているうちは始めない。** 走っている対局はもちろん、
+    // 終局した対局も `closeGame` を通すまでエンジンが起きたままなので、
+    // 押した回数だけプロセスが増える。
+    // **始め損ねた対局（`failed`）は別** —— Rust は起動に失敗した対局を台帳に載せず、
+    // 起こしたプロセスも自分で落とすので、閉じるものが無い。捨ててやり直す
+    if (heldSessionOf(sessionRef.current) !== null) return "held";
+
+    // **購読が張り終わるのを待つ。** 待たずに始めると、起動直後の1局目だけ
+    // 「張れているか分からないまま」走り出す
+    await listenSettledRef.current;
+
+    // 待っている間に別の対局が始まっていることがある。**待った後にもう一度見る**
+    if (heldSessionOf(sessionRef.current) !== null) return "held";
+
+    // 出来事が届かないなら、始めても裁定を返せない
+    if (eventsUnavailableRef.current !== null) return "events-unavailable";
+
+    return null;
+  }, []);
+
   const start = useCallback(
     async (request: GameStartRequest) => {
-      // **閉じる対象が残っているうちは始めない。** 走っている対局はもちろん、
-      // 終局した対局も `closeGame` を通すまでエンジンが起きたままなので、
-      // 押した回数だけプロセスが増える。
-      // **始め損ねた対局（`failed`）は別** —— Rust は起動に失敗した対局を台帳に載せず、
-      // 起こしたプロセスも自分で落とすので、閉じるものが無い。捨ててやり直す
-      const held = sessionRef.current;
-      if (held !== null && !isFailed(held)) return;
-
-      // **購読が張り終わるのを待つ。** 待たずに始めると、起動直後の1局目だけ
-      // 「張れているか分からないまま」走り出す
-      await listenSettledRef.current;
-
-      // 出来事が届かないなら、始めても裁定を返せない
-      if (eventsUnavailableRef.current !== null) return;
+      // **押す側が先に見ていても、ここでもう一度見る。** 権威は `sessionRef` の側で、
+      // 押す側が見てから棋譜を作るまでの間に状態は動きうる
+      if ((await startRefusal()) !== null) return;
 
       const mine: Session = {
         gameId: null,
@@ -374,7 +401,7 @@ export function GameSessionProvider({
 
       publish();
     },
-    [apply, publish],
+    [apply, publish, startRefusal],
   );
 
   const submitMove = useCallback(async (side: Side, usiMove: string): AsyncResult<void> => {
@@ -415,8 +442,17 @@ export function GameSessionProvider({
   }, [publish]);
 
   const value = useMemo<GameSessionContextValue>(
-    () => ({ view, start, submitMove, resign, abort, closeSession, reportBoardFailure }),
-    [view, start, submitMove, resign, abort, closeSession, reportBoardFailure],
+    () => ({
+      view,
+      start,
+      startRefusal,
+      submitMove,
+      resign,
+      abort,
+      closeSession,
+      reportBoardFailure,
+    }),
+    [view, start, startRefusal, submitMove, resign, abort, closeSession, reportBoardFailure],
   );
 
   return <GameSessionContext.Provider value={value}>{children}</GameSessionContext.Provider>;
@@ -439,7 +475,18 @@ async function attempt(run: () => Promise<void>): AsyncResult<void> {
   }
 }
 
-/** 始め損ねた対局。**閉じる相手が居ないので、やり直しで捨ててよい** */
+/**
+ * 閉じる対象として残っている対局。**無ければ `null`。**
+ *
+ * 始め損ねた対局は数えない —— Rust は起動に失敗した対局を台帳に載せないので、
+ * 閉じる相手が居ない。数えると、設定を直してもやり直せなくなる。
+ */
+function heldSessionOf(session: Session | null): Session | null {
+  if (session === null) return null;
+  return isFailed(session) ? null : session;
+}
+
+/** 始め損ねた対局か。**閉じる相手が居ないので、残っていても次を始めてよい** */
 function isFailed(session: Session): boolean {
   return session.failure !== null;
 }

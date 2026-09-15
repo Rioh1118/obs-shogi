@@ -1,7 +1,7 @@
 import { createContext } from "react";
 import type { AsyncResult } from "@/shared/lib/result";
 import type { Side } from "../api/rust-types";
-import type { GameSessionView, GameStartRequest } from "./types";
+import type { GameSessionView, GameStartRequest, StartRefusal } from "./types";
 
 /**
  * 対局への口。
@@ -20,6 +20,15 @@ export interface GameSessionContextValue {
    * `failed` として、始めなかったことは `view` が `idle` 以外のままであることで分かる。
    */
   start: (request: GameStartRequest) => Promise<void>;
+  /**
+   * いま始められない理由。**`null` なら始められる。**
+   *
+   * **棋譜を作る前にこれを見ること。** `start` は断っても何も起きないので、
+   * 先に作ってしまうと**対局していない棋譜が1枚できる**。
+   * 押せるかを `view` から自分で組み直さないこと —— `view` は描画時の写しで、
+   * 購読が張り終わる前に押した1回を「張れている」と読む。
+   */
+  startRefusal: () => Promise<StartRefusal | null>;
   /**
    * 対局の手を棋譜へ積めなかったことを伝える。**`null` で取り消す。**
    *

@@ -21,6 +21,8 @@ const tree = vi.hoisted(() => ({
 const session = vi.hoisted(() => ({
   view: { kind: "idle", eventsUnavailable: null } as Record<string, unknown>,
   start: vi.fn(async () => undefined),
+  // **既定は「始められる」。** 断る形は各試験が差し替える
+  startRefusal: vi.fn(async (): Promise<string | null> => null),
 }));
 
 /**
@@ -187,6 +189,36 @@ describe("対局を始める面", () => {
 
     expect(tree.createNewFile).not.toHaveBeenCalled();
     expect(session.start).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **押せる表示のまま断られる窓がある。**
+   *
+   * 押せるかの表示は描画時の `view` から組むが、進行の側は
+   * `listenSettledRef` を待った**後の** ref を見る。購読が張り終わる前に押した1回は、
+   * 画面が「張れている」と読んで通す。
+   *
+   * そこで `start` が黙って戻ると、**対局していない棋譜が1枚できて、
+   * ドックだけが対局タブへ移る。** 棋譜を作る前に同じ関数で断りを取ること。
+   */
+  test("進行の側が断るなら、棋譜も作らない", async () => {
+    session.startRefusal.mockResolvedValueOnce("events-unavailable");
+    open();
+    await typeInto("ファイル名", "テスト");
+    await submit();
+
+    expect(tree.createNewFile).not.toHaveBeenCalled();
+    expect(session.start).not.toHaveBeenCalled();
+  });
+
+  /** **理由を出す。** 押せたのに何も起きないと、押し損ねたと読まれる */
+  test("断られた理由を、押せない案内と同じ文言で出す", async () => {
+    session.startRefusal.mockResolvedValueOnce("held");
+    open();
+    await typeInto("ファイル名", "テスト");
+    await submit();
+
+    expect(screen.getByText(/すでに対局があります。対局タブで「閉じる」を押してから/)).toBeTruthy();
   });
 
   /**

@@ -36,7 +36,13 @@ export { GameSessionProvider } from "./model/provider";
 export { useGameSession } from "./model/useGameSession";
 // **`GameStartRequest` は載せない。** 呼ぶ画面（`features/start-game`）は在るが、
 // 渡しているのは形の合うリテラルなので、型そのものの読み手が外に居ない
-export type { GameProgressView, GameRuling, GameSessionView, RulingAdapter } from "./model/types";
+export type {
+  GameProgressView,
+  GameRuling,
+  GameSessionView,
+  RulingAdapter,
+  StartRefusal,
+} from "./model/types";
 export type {
   ClocksView,
   ClockView,

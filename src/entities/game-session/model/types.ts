@@ -143,6 +143,19 @@ export type GameSessionView =
    */
   | { kind: "failed"; kifuPath: string | null; message: string };
 
+/**
+ * いま対局を始められない理由。
+ *
+ * **押せるかの判定も、実際に断る判定も、同じ関数から引くこと。**
+ * 画面が `view` から組み直すと材料が違う —— `view` は描画時の写しなので、
+ * **購読が張り終わる前に押した1回**を「張れている」と読む。
+ */
+export type StartRefusal =
+  /** 閉じていない対局がある。エンジンが起きたままなので、押した回数だけ増える */
+  | "held"
+  /** 出来事の購読が張れていない。始めても裁定を返せず、必ず中断される */
+  | "events-unavailable";
+
 /** 対局を始めるときに渡すもの。**宛先が2つに割れている** */
 export interface GameStartRequest {
   /** Rust へ渡す対局者・持ち時間・開始局面 */

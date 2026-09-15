@@ -26,6 +26,7 @@ const session = vi.hoisted(() => ({
   abort: vi.fn(async () => Ok(undefined)),
   closeSession: vi.fn(async () => Ok(undefined)),
   reportBoardFailure: vi.fn(),
+  startRefusal: vi.fn(async () => null),
 }));
 
 vi.mock(

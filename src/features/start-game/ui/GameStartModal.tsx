@@ -5,7 +5,7 @@ import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePrese
 import { isPresetConfigured } from "@/entities/engine-presets/model/types";
 import { collectDirs, FsErrorView, useFileTree, type FsError } from "@/entities/file-tree";
 import { sideToColor } from "@/entities/game";
-import { useGameSession, type GameSettings } from "@/entities/game-session";
+import { useGameSession, type GameSettings, type StartRefusal } from "@/entities/game-session";
 import { turnLabel } from "@/shared/lib/turn";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -37,6 +37,17 @@ import "./GameStartModal.scss";
 const HIRATE_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
 const HUMAN_VALUE = "human";
+
+/**
+ * 断りの文言。**押せない案内と、押した後の断りで同じものを出す。**
+ *
+ * 分けて書くと、押せる表示のまま押せてしまった回に**別の言い回し**が出て、
+ * 同じ原因だと分からない。
+ */
+const REFUSAL_MESSAGE: Record<StartRefusal, string> = {
+  held: "すでに対局があります。対局タブで「閉じる」を押してから始めてください。",
+  "events-unavailable": "対局の進行を受け取れません。アプリを再起動してください",
+};
 
 const TIME_KIND_OPTIONS: { value: TimeControlKind; label: string }[] = [
   { value: "sudden", label: "切れ負け" },
@@ -72,7 +83,7 @@ function GameStartForm({ dir }: { dir: string | null }) {
   const { createNewFile, fileTree, selectNodeByAbsPath } = useFileTree();
   const { state: presetsState } = useEnginePresets();
   const { config } = useAppConfig();
-  const { view, start } = useGameSession();
+  const { view, start, startRefusal } = useGameSession();
 
   const [black, setBlack] = useState<SeatChoice>({ kind: "human" });
   const [white, setWhite] = useState<SeatChoice>({ kind: "human" });
@@ -84,8 +95,14 @@ function GameStartForm({ dir }: { dir: string | null }) {
   const [selectedDir, setSelectedDir] = useState(dir ?? "");
   const [isBusy, setIsBusy] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
-  /** 棋譜は作れたのに、盤へ載せられなかったときの一言 */
-  const [openFailure, setOpenFailure] = useState<string | null>(null);
+  /**
+   * 押した後に止まった理由。**`submitError` とは別に持つ。**
+   *
+   * あちらはファイルの失敗（`FsError`）で、名前を直して押し直す話。
+   * こちらは棋譜を作る前後で止まった話（対局が残っている／購読が張れていない／
+   * 作れたのに盤へ載せられなかった）で、直す場所が画面の外にある。
+   */
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   const rootPath = fileTree?.path ?? "";
   // ようこそ画面から開くと `dir=` が来ない。**欄が無いまま行き止まらないよう、根へ落とす**
@@ -148,10 +165,10 @@ function GameStartForm({ dir }: { dir: string | null }) {
    */
   const blockers: string[] = [];
   if (held) {
-    blockers.push("すでに対局があります。対局タブで「閉じる」を押してから始めてください。");
+    blockers.push(REFUSAL_MESSAGE.held);
   }
   if (eventsUnavailable !== null) {
-    blockers.push(`対局の進行を受け取れません。アプリを再起動してください（${eventsUnavailable}）`);
+    blockers.push(`${REFUSAL_MESSAGE["events-unavailable"]}（${eventsUnavailable}）`);
   }
   if (dirOptions.length === 0) {
     blockers.push("保存先がありません。先にワークスペースを開いてください。");
@@ -180,8 +197,19 @@ function GameStartForm({ dir }: { dir: string | null }) {
       if (!canSubmit || settings === null) return;
 
       setSubmitError(null);
-      setOpenFailure(null);
+      setBlockedReason(null);
       setIsBusy(true);
+
+      // **棋譜を作る前に断りを見る。** 押せるかの表示（`blockers`）は描画時の `view` から
+      // 組んでいて、**購読が張り終わる前に押した1回**を「張れている」と読む。
+      // そこで `start` が黙って戻ると、作った棋譜だけが残って対局は始まらない
+      const refusal = await startRefusal();
+      if (refusal !== null) {
+        setIsBusy(false);
+        setBlockedReason(REFUSAL_MESSAGE[refusal]);
+        return;
+      }
+
       const created = await createNewFile(effectiveDir, {
         fileName: fullFileName,
         format,
@@ -202,7 +230,9 @@ function GameStartForm({ dir }: { dir: string | null }) {
       // 前の棋譜のままになる（ようこそ画面から始めた場合は盤が空で、
       // ドックごと存在しないので進行も断りも出る場所が無い）
       if (!selectNodeByAbsPath(created.data, { forceReopen: true })) {
-        setOpenFailure("作った棋譜がツリーに見つかりませんでした。開き直してから始めてください。");
+        setBlockedReason(
+          "作った棋譜がツリーに見つかりませんでした。開き直してから始めてください。",
+        );
         return;
       }
 
@@ -231,6 +261,7 @@ function GameStartForm({ dir }: { dir: string | null }) {
     [
       canSubmit,
       settings,
+      startRefusal,
       createNewFile,
       selectNodeByAbsPath,
       effectiveDir,
@@ -379,10 +410,10 @@ function GameStartForm({ dir }: { dir: string | null }) {
             </FormField>
           )}
 
-          {openFailure !== null && (
+          {blockedReason !== null && (
             <FormField>
               <p className="game-start__hint" role="alert">
-                {openFailure}
+                {blockedReason}
               </p>
             </FormField>
           )}
