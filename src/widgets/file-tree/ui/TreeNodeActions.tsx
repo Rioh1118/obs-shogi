@@ -1,4 +1,4 @@
-import { FilePlus2, FolderPlus, Swords } from "lucide-react";
+import { Clock, FilePlus2, FolderPlus } from "lucide-react";
 import IconButton from "@/shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { getParentPath } from "@/shared/lib/path";
@@ -57,7 +57,12 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
         title="ここに対局の棋譜を作って始める"
         ariaLabel="ここに対局の棋譜を作って始める"
       >
-        <Swords size={14} />
+        {/*
+          **時計。** この行の他の2つ（`FilePlus2` / `FolderPlus`）は細い輪郭だけで
+          できていて、絵として重い記号を混ぜると1つだけが先に目に入る。
+          対局を時計で指すのは、押した先で必ず持ち時間が動き出すため
+        */}
+        <Clock size={14} />
       </IconButton>
       <IconButton
         handleClick={handleCreateDirectory}

@@ -30,7 +30,7 @@ function PlayView() {
       <div className="play-view play-view--slate">
         <p className="play-view__lead">対局していません</p>
         <p className="play-view__sub">
-          ツリーの行の剣の印か、棋譜を開いていないときの「対局する」から始められます。
+          ツリーの行の時計の印か、棋譜を開いていないときの「対局する」から始められます。
           始めた対局の進行と結果がここに出ます。
         </p>
         {/*
