@@ -13,6 +13,12 @@ import type { EngineRuntimeConfig } from "../model/types";
  * `BookFile`）を後に置く —— 値の解釈が前の `setoption` に依存するエンジンがあるため
  * （`PlayerSpec.options` の doc）。プリセット側が同じ名前を持っていれば、
  * 位置は先のまま値だけが置き場のもので上書きされる。
+ *
+ * **その順序が届くのは対局だけ。** `PlayerSpec.options` は `Vec` なので並びのまま渡るが、
+ * 解析が渡す `EngineSettings.options` は `HashMap` で、**反復順は実行ごとに変わる**
+ * （`src-tauri/src/engine/analyzer.rs` がそのまま `setoption` にする）。
+ * 解析だけが「同じ設定なのに実行のたび並びが違う」状態にある（#579）。
+ * ここで順序を組むのは、**直したときに送る側を書き換えずに済ませる**ため。
  */
 export function usiOptionsOf(config: EngineRuntimeConfig): Record<string, string> {
   return {

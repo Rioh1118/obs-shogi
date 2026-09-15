@@ -33,7 +33,7 @@ import { codeOf } from "./sourceText";
  * **動かしてよい向きは下げる方だけ。** 増えて落ちたときは、基準ではなく
  * 足した `vi.mock` の側に `satisfies typeof import("…")` を書く。
  */
-const BASELINE = 184;
+const BASELINE = 183;
 
 /** 走査が壊れて0件になったことを「違反が無い」と読ませないための下限 */
 const MIN_SCANNED = 150;

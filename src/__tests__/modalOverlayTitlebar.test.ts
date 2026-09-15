@@ -356,7 +356,7 @@ describe("モーダルの overlay とタイトルバー", () => {
     // カードは overlay の内容ボックスで頭打ちになり、`overflow: hidden` で切る。
     // 中身がビューポート基準で高さを決めると短いウィンドウでカードを超え、
     // 超えた分（下端のフッタとそこに載るボタン）はスクロールでも届かなくなる。
-    // Modal を使うのは `src/features/**` の10ファイルだけなのでそこを見る
+    // Modal を使うのは `src/features/**` に限られるのでそこを見る
     expect(
       unboundedForcedHeights(scssUnder("features")),
       [
