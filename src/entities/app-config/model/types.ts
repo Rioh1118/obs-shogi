@@ -14,6 +14,14 @@ export type AppConfig = {
    * tsc を通ってしまう。濾すのは `resolveDockTabs`（`entities/dock`）。
    */
   dock_tabs?: string[] | null;
+  /**
+   * `dock_tabs` を選んだときに名簿にあった綴り。**欠けていれば「何も知らなかった」。**
+   *
+   * `dock_tabs` に無いことが「外した」を意味するのは、**選ぶ機会があったとき**だけ。
+   * これが無いと、後から名簿に足したビューと、利用者が外したビューが見分けられない
+   * （→ `resolveDockTabs`）。
+   */
+  dock_tabs_known?: string[] | null;
   /** 起動時に開くタブ。**欠けていれば「前回のもの」**（`dock_last_tab` を使う） */
   dock_startup_tab?: string | null;
   /** 前回開いていたタブ */
@@ -45,6 +53,7 @@ export type AppConfig = {
 export type DisplayConfigPatch = Pick<
   AppConfig,
   | "dock_tabs"
+  | "dock_tabs_known"
   | "dock_startup_tab"
   | "dock_last_tab"
   | "show_evaluation_bar"

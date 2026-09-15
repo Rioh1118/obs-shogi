@@ -33,6 +33,7 @@ issue は「直すこと」の集合であって、直っている部分を書�
 | 棋譜ストリーム           | [screens/kifu-stream.md](screens/kifu-stream.md)     | `widgets/kifu-stream/`                                          |
 | 解析ペイン               | [screens/analysis-pane.md](screens/analysis-pane.md) | `widgets/analysis-pane/`                                        |
 | 定跡ビュー               | [screens/book-view.md](screens/book-view.md)         | `widgets/book-view/` `entities/book/`                           |
+| 対局ビュー               | [screens/play-view.md](screens/play-view.md)         | `widgets/play-view/` `entities/game-session/`                   |
 
 ### モーダル
 
@@ -48,30 +49,42 @@ issue は「直すこと」の集合であって、直っている部分を書�
 
 ## これからの機能
 
-| 機能                       | 仕様                                                     | 追跡          | main にあるか                   |
-| -------------------------- | -------------------------------------------------------- | ------------- | ------------------------------- |
-| 局面編集モード             | [features/position-edit.md](features/position-edit.md)   | #113 #289     | 無い                            |
-| 棋譜メタデータの編集       | [features/kifu-metadata.md](features/kifu-metadata.md)   | #114 #289     | 無い（作成時のみ入力可）        |
-| 特殊な手の挿入             | [features/special-moves.md](features/special-moves.md)   | #115 #289     | 読むだけ。書けない              |
-| 定跡（book）               | [features/book.md](features/book.md)                     | #283 ほか     | 読むところと見る画面がある      |
-| 対局                       | [features/game-play.md](features/game-play.md)           | #374 ほか     | Rust API と終局判定。画面は無い |
-| USI オプション・解析モード | [features/engine-options.md](features/engine-options.md) | #83 #107 #110 | 無い                            |
+| 機能                       | 仕様                                                     | 追跡          | main にあるか                           |
+| -------------------------- | -------------------------------------------------------- | ------------- | --------------------------------------- |
+| 局面編集モード             | [features/position-edit.md](features/position-edit.md)   | #113 #289     | 無い                                    |
+| 棋譜メタデータの編集       | [features/kifu-metadata.md](features/kifu-metadata.md)   | #114 #289     | 無い（作成時のみ入力可）                |
+| 特殊な手の挿入             | [features/special-moves.md](features/special-moves.md)   | #115 #289     | 読むだけ。書けない                      |
+| 定跡（book）               | [features/book.md](features/book.md)                     | #283 ほか     | 読むところと見る画面がある              |
+| 対局                       | [features/game-play.md](features/game-play.md)           | #374 ほか     | 1局を通して指せる。棋譜に結果が残らない |
+| USI オプション・解析モード | [features/engine-options.md](features/engine-options.md) | #83 #107 #110 | 無い                                    |
 
 ## 書き方
 
 ### `screens/` の節の順
 
-**この順で書く。節を勝手に増やさない。** 増やしたくなったら、それは
-別の仕様書に属している合図。
+**端だけが決まっている。**
 
-1. **目的** — 誰が何のために開くか。1〜2文
-2. **出入口** — どこから来て、どこへ抜けるか
-3. **画面構成** — 何がどこにあるか
-4. **状態** — 画面が取りうる状態。表で書く
-5. **操作と結果** — 押したら何が起きるか。表で書く
-6. **失敗の見せ方** — 落ちたとき何が出るか。**出ないなら「出ない」と書く**
-7. **いま満たしていないこと** — issue 番号つき
-8. **これからの要件** — 決まっているものだけ
+- 冒頭は **目的** — 誰が何のために開くか。1〜2文
+- 末尾は **いま満たしていないこと**（issue 番号つき）→ **これからの要件**（決まっているものだけ）
+
+この2つを末尾に固定するのは、**そこに「無いもの」が書いてあるから**。
+後ろに節を足すと「ここから先は未実装」の線が引けなくなり、
+**書いていないことが「できる」と読まれる。**
+`src/__tests__/specSectionOrder.test.ts` が見ている。
+
+間は画面次第。ほとんどの画面は次の並びで足りる。
+
+1. **出入口** — どこから来て、どこへ抜けるか
+2. **画面構成** — 何がどこにあるか
+3. **状態** — 画面が取りうる状態。表で書く
+4. **操作と結果** — 押したら何が起きるか。表で書く
+5. **失敗の見せ方** — 落ちたとき何が出るか。**出ないなら「出ない」と書く**
+
+**足してよいのは、その画面が実際に持っている区切りだけ。**
+タブを持つ画面はタブごと（`settings.md`）、
+同じ `modal=` を分け合う画面は値ごと（`study-positions.md`）に節を立てている。
+**節を足す代わりに画面を1枚と偽らないこと** —— 逆に、
+1枚に畳むと目的が2つになるなら、それは別の仕様書に属している合図。
 
 ### `features/` の節の順
 

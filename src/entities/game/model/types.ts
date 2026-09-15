@@ -402,7 +402,39 @@ export interface GameContextType {
   applyCursor: (cursor: CursorPath) => void;
 }
 
+/**
+ * 盤で決まった手を、棋譜へ積む前に通す門。
+ *
+ * **対局中に、Rust が採るまで積まないための口。** 盤は手番の所有者を見ないので、
+ * これが無いと相手の手番でも積んで自動保存まで走る。
+ *
+ * **注入で受ける。** 対局（`entities/game-session`）を知っているのは上の層で、
+ * ここから読むと互いを読み合う組ができる。
+ */
+export interface MoveGate {
+  /** `false` なら積まない */
+  accept: (move: StandardMoveFormat, line: BoardLine) => Promise<boolean>;
+}
+
+/**
+ * 盤がいま辿っている線。**門はこれだけで「対局の先端か」を判じる。**
+ *
+ * **手数を渡さない。** 同じ深さの別の線と見分けが付かないので、
+ * 渡すと門が「対局の次の1手」と「分岐で指した手」を取り違える。
+ */
+export interface BoardLine {
+  /**
+   * 盤にいま載っている棋譜。対局は棋譜が入れ替わっても走り続けるので、
+   * 別の棋譜を触っているだけの操作を止めないために渡す。
+   */
+  kifuPath: string | null;
+  /** 根からの USI の綴り。**綴れない手があれば `null`**（→ `lineUsiMoves`） */
+  usiMoves: string[] | null;
+}
+
 export interface GameProviderProps {
   children: ReactNode;
   persistence?: GamePersistence;
+  /** **省略すると素通し。** 対局を知らない呼び手（試験）はそのまま指せる */
+  moveGate?: MoveGate;
 }

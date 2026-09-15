@@ -23,7 +23,10 @@ function Dock({ views }: { views: DockViewBindings }) {
   const { params, updateParams } = useURLParams();
   const { config, setDisplayConfig } = useAppConfig();
 
-  const tabs = useMemo(() => resolveDockTabs(config?.dock_tabs), [config?.dock_tabs]);
+  const tabs = useMemo(
+    () => resolveDockTabs(config?.dock_tabs, config?.dock_tabs_known),
+    [config?.dock_tabs, config?.dock_tabs_known],
+  );
 
   const active = resolveDockView(tabs, {
     fromUrl: params.dock,

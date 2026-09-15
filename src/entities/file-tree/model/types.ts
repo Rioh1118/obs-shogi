@@ -237,7 +237,14 @@ export type FileTreeContextType = FileTreeState & {
   openKifuNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
   closeActiveKifu: () => void;
 
-  createNewFile: (parentPath: string, options: KifuCreationOptions) => AsyncResult<void, FsError>;
+  /**
+   * 棋譜を1枚作る。**返るのは作られた絶対パス。**
+   *
+   * ツリーはこの後で選択をそこへ動かすが、**呼んだ側がそれを待つ手立ては無い**
+   * （読み直しと選択は別の効果）。作ったファイルを指したい呼び手
+   * （対局を始める側）は、返ったパスを使うこと。
+   */
+  createNewFile: (parentPath: string, options: KifuCreationOptions) => AsyncResult<string, FsError>;
 
   importKifuFile: (
     parentPath: string,

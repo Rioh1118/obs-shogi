@@ -1,0 +1,150 @@
+@use "@/index.scss" as index;
+
+.play-view {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+
+  padding: index.$space-3 var(--pane-px, #{index.$space-4});
+  background: index.$color-primary-dark;
+  color: rgba(index.$color-text-primary, 0.92);
+
+  display: grid;
+  gap: index.$space-3;
+  align-content: start;
+
+  // 対局を持っていない・準備中・終局・始められなかった。**1枚だけ中央に置く**
+  //
+  // **`safe` を付ける。** この面が載る枠は高さが固定で、入る文言（Rust の断り）に
+  // 上限が無い。素の `center` は入りきらないぶんを上下に等分にあふれさせるので、
+  // 上端に出たぶんはスクロールで届かない（`ErrorFallbackBody` と同じ理由）
+  &--slate {
+    place-content: safe center;
+    justify-items: safe center;
+    text-align: center;
+  }
+
+  // **段を文字の色で示さない。** `$color-danger-text` は暗いカード（#1c2325）で
+  // 基準を満たすよう決めてあり、この面（`$color-primary-dark`）では 4.40:1 まで落ちる。
+  // 段を持つのは下の `__band`（帯と `role="alert"`）と文言
+  &__lead {
+    margin: 0;
+    font-size: index.$font-lead;
+  }
+
+  // 読ませる散文の行長。**60ch はこのリポジトリで既に使われている値**
+  // （`ErrorFallbackBody` / `RootErrorFallback` / `SettingsPanel`）。
+  // `max-width` はスケールのラチェットが見ないので、緑で通っても揃っている証明にならない
+  &__sub {
+    margin: 0;
+    max-width: 60ch;
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  &__result {
+    margin: 0;
+    font-size: index.$font-section;
+    font-weight: 700;
+  }
+
+  &__reason {
+    margin: 0;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  // 帯。**段は色だけで持たない** —— `role="alert"` と文言が段を持ち、
+  // 色は「帯が在る」ことを示す
+  &__band {
+    margin: 0;
+    padding: index.$space-2 index.$space-3;
+    border-left: 2px solid index.$color-danger;
+    border-radius: index.$radius-1;
+    background: rgba(index.$color-danger, 0.16);
+
+    font-size: index.$font-aux;
+    color: rgba(index.$color-text-primary, 0.92);
+
+    // **切り詰めない。** 入るのは Rust の断りで、実行ファイルのパスのような
+    // 分割候補の無い綴りを含む。`…` で切ると、いちばん要る「どこが」が落ちる
+    overflow-wrap: anywhere;
+
+    // 知らせるだけの一言。**危険ではない**（対局は壊れていない）
+    &--note {
+      border-left-color: index.$color-info;
+      background: rgba(index.$color-info, 0.16);
+    }
+  }
+
+  &__seats {
+    display: grid;
+    gap: index.$space-1;
+  }
+
+  // 席1つ。左から手番の印・名前・持ち時間・秒読み
+  &__seat {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+    align-items: baseline;
+    gap: index.$space-3;
+
+    padding: index.$space-2 index.$space-3;
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-white, 0.035);
+
+    // 手番の側。**印は帯と面の2つ**（面の濃さだけで示すと、隣の行と見分けが付かない）。
+    // 帯は候補手の表が選択中の行に立てるものと同じ
+    &--turn {
+      box-shadow: index.$marker-bar;
+      background: rgba(index.$color-white, 0.07);
+    }
+  }
+
+  &__side {
+    font-weight: 700;
+  }
+
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // **桁が変わっても幅を動かさない。** 1時間を境に `M:SS` と `H:MM:SS` が入れ替わるので、
+  // 片方だけ切り替わった瞬間に上下の時計の端がずれる。2つを見比べる部品なので、
+  // ずれたまま残る（`AnalysisControls` の経過時間と同じ形）
+  &__clock {
+    min-width: 7ch;
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    font-size: index.$font-lead;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  &__byoyomi {
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+    white-space: nowrap;
+  }
+
+  &__progress {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: index.$space-3;
+
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+  }
+
+  &__pending {
+    color: index.$color-warning;
+  }
+}

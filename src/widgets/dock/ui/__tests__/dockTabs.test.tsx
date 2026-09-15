@@ -132,9 +132,14 @@ describe("ドックのタブ", () => {
     expect(tab("定跡").getAttribute("aria-selected")).toBe("true");
   });
 
-  // (Tx, D2) —— 見ているタブを一覧から外した回
+  /**
+   * (Tx, D2) —— 見ているタブを一覧から外した回。
+   *
+   * **知っていた顔ぶれを一緒に置く。** 置かないと「まだ無かったビュー」と区別が付かず、
+   * `resolveDockTabs` が既定で出すものを足し直す（→ `entities/dock/lib/tabs.ts`）。
+   */
   test("いま見ているタブが一覧から外れたら、残っているタブへ落ちる", () => {
-    config.current = { dock_tabs: ["analysis"] };
+    config.current = { dock_tabs: ["analysis"], dock_tabs_known: ["analysis", "book", "play"] };
     mount("/app?dock=book");
 
     expect(screen.getByTestId("analysis-body")).toBeTruthy();

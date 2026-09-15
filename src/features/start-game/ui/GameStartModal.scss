@@ -1,0 +1,40 @@
+@use "@/index.scss" as index;
+
+// 中身の根。**スクロールはここが受ける** ——
+// 器（`Modal --scroll-none`）は `overflow: hidden` なので、
+// ここが受けないと入り切らない中身は切られて届かなくなる。
+// 姉妹の面（`SfenKifuCreateModal`）と同じ形。
+.game-start {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  // **面を不透明で宣言する。** 宣言しないと、下に並ぶ文字が「どの面に載るか」を
+  // 決められず、コントラスト比を測れない宣言が増える（測れないものは
+  // 「基準を満たしている」の数にも入らない）。グラデーションも同じ理由で置かない
+  background: index.$color-primary-dark;
+  color: index.$color-text-light-1;
+
+  // 押せない理由の一覧。**1箇所にまとめる** ——
+  // 別々に置くと、同時に立ったときに性質の違う行が区切りなく積まれる
+  &__blockers {
+    margin: 0;
+    padding-left: index.$space-5;
+    display: grid;
+    gap: index.$space-1;
+
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.75);
+    overflow-wrap: anywhere;
+  }
+
+  // 1行だけの注記。**姉妹の面の `__hint` と同じ組**にする
+  // （同じ文言が別の大きさ・別の明るさで出ないため）
+  &__hint {
+    margin: index.$space-2 0 0;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.75);
+    overflow-wrap: anywhere;
+  }
+}

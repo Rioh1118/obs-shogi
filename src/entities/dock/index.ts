@@ -3,6 +3,7 @@ export { DOCK_VIEWS, dockViewLabel } from "./model/views";
 
 export {
   moveDockTab,
+  knownDockViews,
   resolveDockTabs,
   resolveDockView,
   resolveStartupTab,

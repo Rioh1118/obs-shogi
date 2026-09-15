@@ -25,12 +25,24 @@ const passthrough = (name: string) => ({
 });
 
 vi.mock("../gates/FileTreeRootGate", () => passthrough("FileTreeRootGate"));
-vi.mock("../gates/GamePersistenceGate", () => passthrough("GamePersistenceGate"));
+// 棋譜の器。**`GamePersistenceGate` はここでは差し替えない** —— 張るのは
+// この `GameMoveGate` の中なので、素通しにした時点で実物ごと描かれなくなる。
+// 実物は `GameSessionProvider` の内側でしか組めない。
+// **`passthrough` を使わない** —— 計算した鍵では、差し替える先の形と結び付かない
+vi.mock(
+  "../gates/GameMoveGate",
+  () =>
+    ({
+      GameMoveGate: ({ children }: { children: ReactNode }) => <>{children}</>,
+    }) satisfies typeof import("../gates/GameMoveGate"),
+);
 vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
-// `GamePersistenceGate` を素通しにしてあるので、`useGame` を読む器はここでは張れない
+// `GameMoveGate` を素通しにすると棋譜の器ごと消えるので、`useGame` を読む器は張れない
 vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));
 vi.mock("../bridges/EngineRuntimeBridge", () => passthrough("EngineRuntimeBridge"));
 vi.mock("../bridges/AnalysisBridge", () => passthrough("AnalysisBridge"));
+// 対局の進行も器の形。実物は mount した瞬間に Tauri の `listen` を呼ぶ
+vi.mock("../bridges/GameSessionBridge", () => passthrough("GameSessionBridge"));
 vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePresetsProvider"));
 vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPositionsProvider"));
 

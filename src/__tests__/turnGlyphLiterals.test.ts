@@ -23,7 +23,7 @@ describe("先後の記号の直書き", () => {
     const offenders = scanned
       .map((file) => relative(SRC, file))
       .filter((file) => file !== DEFINITION)
-      .filter((file) => /[☗☖]/.test(codeOf(readFileSync(join(SRC, file), "utf8"))));
+      .filter((file) => /[☗☖▲△]/.test(codeOf(readFileSync(join(SRC, file), "utf8"))));
 
     expect(
       offenders,

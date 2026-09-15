@@ -59,6 +59,17 @@ export async function startGame(settings: GameSettings): Promise<GameId> {
 }
 
 /**
+ * Rust が「もう終わっている」を返すときの綴り。**完全一致で見ること。**
+ *
+ * `src-tauri` 側は5つの口でこの1つの定数を返すので、部分一致で見る必要が無い。
+ * 部分一致にすると、別の原因の文言にこの語が混ざった回まで「正常」に畳む。
+ *
+ * **これは故障ではない。** 中断や時間切れが往復の途中に入っただけで、
+ * 結末は `over` イベントが持っている（→ `continueGame`）。
+ */
+export const ALREADY_OVER = "game is already over";
+
+/**
  * 人間の着手。合法性を確かめてから呼ぶ。
  *
  * **解決したことは「採られた」の意味。** 着手が届くのと持ち時間が尽きるのが
@@ -70,7 +81,7 @@ export async function startGame(settings: GameSettings): Promise<GameId> {
  * - `a ruling is still pending; retry after continue_game` → **一時的**。
  *   `moveDecided` から `continueGame` が返るまでの窓で、人対人なら毎手ある。
  *   裁定の往復が済めば同じ手を指せるので、捨てないこと
- * - `game is already over` → もう変わらない（投了・裁定・中断と同じ文言）。
+ * - {@link ALREADY_OVER} → もう変わらない（投了・裁定・中断と同じ文言）。
  *   **呼び直しても同じ `Err`。** 結末は `over` イベントが持っている
  * - それ以外（手番が違う／その側がエンジン／指し手の書式）→ 呼び出し側の誤り
  */
@@ -96,7 +107,7 @@ export async function submitGameMove(gameId: GameId, side: Side, usiMove: string
  *
  * **失敗しうる。呼び直してよいものは1つも無い。**
  *
- * - `game is already over` → 中断や時間切れが、判定している間に入った。
+ * - {@link ALREADY_OVER} → 中断や時間切れが、判定している間に入った。
  *   **呼び直しても同じ `Err`**（`Phase::Over` は吸収状態）。結末は `over` イベント
  * - `not awaiting a ruling` → 裁定を待っていない（二重に呼んでいる）
  * - それ以外（`moves` がいまの写しの続きでない／末尾が直前の手でない／

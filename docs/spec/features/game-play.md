@@ -1,21 +1,23 @@
 # 機能要件: 対局
 
 追跡: #374 #532 #536 #358 #361 #362 #364 #365 #366 #367 #368 #371 #381 #382 ほか
-main にあるか: **Rust の API と終局判定まで。画面は1つも無い**
+main にあるか: **1局を通して指せる。棋譜に結果が残らない**
 
 ## どこに何があるか
 
-**押せる場所がどこにも無い。** コマンドは登録され、フロントの呼び口も型も終局判定もあるが、
-それを呼ぶ画面が無いので、アプリを起動しても対局は始められない。
+**始める面も進行を見る面もある。** 始めるのは `modal=game-start`
+（起点はツリーの行の操作とようこそ画面）、進行を見るのはドックの「対局」タブ。
+どちらも → [screens/play-view.md](../screens/play-view.md)。
+**残っているのは復帰の導線だけ**（`over` を取りこぼした対局に「同期し直す」が無い。#374）。
 
-| 層             | 状態                                                                                    |
-| -------------- | --------------------------------------------------------------------------------------- |
-| Rust           | 実装済み（`src-tauri/src/engine/game/` の6ファイル＋ `commands/game.rs`）               |
-| Tauri コマンド | **9本**登録済み                                                                         |
-| フロント API   | `src/entities/game-session/`（`tauri.ts` / `events.ts` / `rust-types.ts`）              |
-| 終局判定       | `src/entities/game/lib/`（`gameOutcome.ts` / `jishogiDeclaration.ts` / `gameRules.ts`） |
-| フロント UI    | **無い。** 画面は1つも作られていない                                                    |
-| 状態遷移表     | [game-session.md](../../state-transitions/game-session.md)                              |
+| 層             | 状態                                                                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust           | 実装済み（`src-tauri/src/engine/game/` の6ファイル＋ `commands/game.rs`）                                                                                                        |
+| Tauri コマンド | **9本**登録済み                                                                                                                                                                  |
+| フロント API   | `src/entities/game-session/`（`tauri.ts` / `events.ts` / `rust-types.ts`）                                                                                                       |
+| 終局判定       | `src/entities/game/lib/`（`gameOutcome.ts` / `jishogiDeclaration.ts` / `gameRules.ts`）                                                                                          |
+| フロント UI    | `widgets/play-view/` `features/start-game/` `features/game-move/` `features/game-ruling/` ＋ `entities/game-session/model/`（→ [screens/play-view.md](../screens/play-view.md)） |
+| 状態遷移表     | [game-session.md](../../state-transitions/game-session.md)                                                                                                                       |
 
 登録済みのコマンド9本:
 
@@ -71,12 +73,14 @@ Rust: 次の手番へ進む
 
 ## いま埋まっていない穴
 
-### 終局判定を呼ぶ側が居ない（画面が無い。**issue は未起票**）
+### 宣言の可否を呼ぶ側が居ない（**issue は未起票**）
 
-判定そのものは `entities/game/lib/` に純関数として入った（#354）。
-**呼ぶ側が無い。** `game-event` を購読して `moveDecided` に裁定を返す画面が
-1つも無いので、いま対局を始めても `RULING_TIMEOUT` で中断される。
-下の「作らないといけない画面」と同じ穴で、issue はまだ立てていない。
+裁定を返す側は入った —— `GameSessionProvider`（`entities/game-session/model/`）が
+`game-event` を購読し、`GameSessionBridge` が組んだ裁定器を通して
+`continue_game` / `end_game_by_rule` を返す（→ [screens/play-view.md](../screens/play-view.md)）。
+
+**`judgeDeclaration` だけが呼ばれていない。** 入玉宣言は利用者の操作から呼ぶものなので、
+その操作を持つ画面が要る。`get_game_state` も呼び手が居ない（#374）。
 
 `judgeGameOutcome`（`gameOutcome.ts`）が返す終局:
 
@@ -147,17 +151,17 @@ Rust: 次の手番へ進む
 
 ## 作らないといけない画面
 
-**1つも無い。** 少なくとも次が要る。
+残りは1つ。**対局の設定・対局中の盤・時計・終局は入った**
+（→ [screens/play-view.md](../screens/play-view.md)）。
 
-| 画面       | 何を持つか                                              |
-| ---------- | ------------------------------------------------------- |
-| 対局の設定 | 先後の対局者（人／エンジン）・持ち時間・開始局面        |
-| 対局中の盤 | 自分の手番でだけ指せる。相手の手番では触れない          |
-| 時計       | 先後の残り時間。**動いている側は `*_zero_at` から描く** |
-| 終局       | 結果と理由。棋譜の `special` へ落とす                   |
-| 復帰       | 「同期し直す」（#374）                                  |
+| 画面 | 何を持つか             |
+| ---- | ---------------------- |
+| 復帰 | 「同期し直す」（#374） |
 
-置き場は決まっていない。→ [screens/app-layout.md](../screens/app-layout.md)
+置き場は決まった —— **進行はドックのタブ `play`**（ADR-0010 の語彙でいうビュー）、
+**始める面はモーダル**（棋譜を1枚作る作業なので、起点はツリーとようこそ画面）、
+**対局中の盤の門は `features/game-move`**（盤と対局を束ねるので、置ける最下層がそこ）。
+→ [screens/play-view.md](../screens/play-view.md)
 
 特殊手との対応は [special-moves.md](special-moves.md) に表がある
 （`EngineFailure` に対応する `special` が無い）。

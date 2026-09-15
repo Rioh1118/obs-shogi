@@ -12,11 +12,7 @@ const FORMATS = KIFU_FORMAT_OPTIONS.map((option) => `.${option.value}`);
 /**
  * 棋譜を開いていないときの面
  *
- * **押せるものを1つ置く。** 棋譜が1本も無いワークスペースを開くと、この面は
- * 「ツリーから選べ」としか言わないのに、ツリーには選べるものが無い。
- * 作る側の入口をここに置かないと、`＋ファイル` を見つけるまで先へ進めない。
- *
- * 置くのは1つだけ。開くのはツリーの操作なので、こちらは作る側だけを持つ。
+ * **置くのは作る側の入口だけ。** 開くのはツリーの操作なので、こちらは持たない。
  */
 function WelcomeScreen() {
   const { openModal } = useURLParams();
@@ -41,6 +37,12 @@ function WelcomeScreen() {
             <Button tone="primary" onClick={() => openModal("create-file")}>
               棋譜を作る
             </Button>
+            {/*
+              **対局もここから始められる。** ツリーの行からも始められるが、
+              棋譜が1本も無ければ行が出ないし、サイドバーを閉じていればツリーごと居ない
+              （→ `docs/spec/screens/play-view.md`）
+            */}
+            <Button onClick={() => openModal("game-start")}>対局する</Button>
           </div>
 
           <div className="welcome-screen__formats">

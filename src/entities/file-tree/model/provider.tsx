@@ -356,7 +356,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   }, []);
 
   const createNewFile = useCallback(
-    async (parentPath: string, options: KifuCreationOptions): AsyncResult<void, FsError> => {
+    async (parentPath: string, options: KifuCreationOptions): AsyncResult<string, FsError> => {
       const res = await api.createKifu(parentPath, options);
 
       if (!res.success) {
@@ -370,7 +370,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       pendingRevealPathRef.current = res.data;
 
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
-      return Ok(undefined);
+      return Ok(res.data);
     },
     [failToCaller, loadFileTree],
   );
@@ -627,7 +627,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
           if (result.success) {
             dispatch({ type: "conflict_closed" });
           }
-          return result;
+          // **作られたパスはここでは返さない。** 別名で解決する対話は
+          // 「衝突が片付いたか」だけを見ていて、作った先を使う呼び手は居ない
+          return result.success ? Ok(undefined) : result;
         }
 
         case "import_file": {

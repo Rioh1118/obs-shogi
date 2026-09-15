@@ -98,5 +98,8 @@
 .welcome-screen__actions {
   display: flex;
   justify-content: center;
+  // **押しどころどうしを接しさせない。** 塗りのボタンと枠線だけのボタンが
+  // 辺を接すると、2つで1つのコントロールに見える
+  gap: index.$space-5;
   margin-top: index.$space-8;
 }
