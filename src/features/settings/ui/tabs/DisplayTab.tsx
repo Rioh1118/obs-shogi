@@ -14,6 +14,7 @@ import {
   DOCK_VIEWS,
   dockViewLabel,
   moveDockTab,
+  knownDockViews,
   resolveDockTabs,
   resolveStartupTab,
   toggleDockTab,
@@ -35,7 +36,10 @@ export default function DisplayTab() {
   const { config, setDisplayConfig } = useAppConfig();
   const [error, setError] = useState<string | null>(null);
 
-  const tabs = useMemo(() => resolveDockTabs(config?.dock_tabs), [config?.dock_tabs]);
+  const tabs = useMemo(
+    () => resolveDockTabs(config?.dock_tabs, config?.dock_tabs_known),
+    [config?.dock_tabs, config?.dock_tabs_known],
+  );
   const hidden = useMemo<DockViewMeta[]>(
     () => DOCK_VIEWS.filter((view) => !tabs.includes(view.key)),
     [tabs],
@@ -60,6 +64,9 @@ export default function DisplayTab() {
   const saveTabs = (nextTabs: DockViewType[]) =>
     save({
       dock_tabs: nextTabs,
+      // **選ぶ機会があった顔ぶれを一緒に残す。** 残さないと、後から名簿に足したビューと
+      // ここで外したビューが見分けられず、外した意思が毎回取り消される
+      dock_tabs_known: knownDockViews(),
       dock_startup_tab: resolveStartupTab(nextTabs, config?.dock_startup_tab),
     });
 

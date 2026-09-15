@@ -26,8 +26,21 @@ function isDockViewType(value: unknown): value is DockViewType {
  *
  * **`saved` に在る綴りが名簿に無ければ捨てる。** 前の版が書いた綴りや手で書いた
  * 綴りが混ざるので、ここで濾さないと中身の無いタブが出る。
+ *
+ * `known` は**その `saved` を選んだときに名簿にあった綴り**（`AppConfig.dock_tabs_known`）。
+ * **`saved` に無いことは「外した」を意味しない** —— 後から名簿に足したビューも、
+ * 同じように `saved` から漏れる。`known` に載っていないビューは
+ * 「選ぶ機会が無かった」ものなので、`defaultVisible` なら足す。
+ *
+ * これが無いと、**設定「表示」を一度でも触った利用者には新しいビューが永久に出ない。**
+ * 出す口がそのビューの中にしか無ければ、機能ごと到達できなくなる
+ * （対局は始める口が外に在るので、なお悪い —— エンジンが起きて盤が独りでに動くのに、
+ * 進行も結果も「閉じる」も画面のどこにも無い）。
  */
-export function resolveDockTabs(saved: readonly string[] | null | undefined): DockViewType[] {
+export function resolveDockTabs(
+  saved: readonly string[] | null | undefined,
+  known: readonly string[] | null | undefined,
+): DockViewType[] {
   const chosen =
     saved == null
       ? DOCK_VIEWS.filter((v) => v.defaultVisible).map((v) => v.key)
@@ -38,11 +51,27 @@ export function resolveDockTabs(saved: readonly string[] | null | undefined): Do
     if (!tabs.includes(key)) tabs.push(key);
   }
 
+  // **選ぶ機会が無かったビューを足す。** `known` が欠けている設定（この欄より前の版が
+  // 書いたもの）は「何も知らなかった」として扱う —— 外した意思を1度だけ取り消すことに
+  // なるが、黙って出ないままにするより戻しやすい
+  if (saved != null) {
+    for (const view of DOCK_VIEWS) {
+      if (!view.defaultVisible) continue;
+      if (known?.includes(view.key) === true) continue;
+      if (!tabs.includes(view.key)) tabs.push(view.key);
+    }
+  }
+
   for (const view of DOCK_VIEWS) {
     if (!view.removable && !tabs.includes(view.key)) tabs.push(view.key);
   }
 
   return tabs;
+}
+
+/** いま名簿にあるビューの綴り。**選んだ結果と一緒に残す**（→ `resolveDockTabs` の `known`） */
+export function knownDockViews(): DockViewType[] {
+  return DOCK_VIEWS.map((view) => view.key);
 }
 
 /**

@@ -29,31 +29,68 @@ const { moveDockTab, resolveDockTabs, resolveDockView, resolveStartupTab, toggle
 const view = (key: string) => key as DockViewType;
 const list = (...keys: string[]) => keys.map(view);
 
+/**
+ * 差し替えた名簿の顔ぶれ。**既定はこれを渡す** ——
+ * 渡さない（＝知らなかった）形は、それだけを見る試験で扱う。
+ */
+const KNOWN = ["analysis", "book", "engineLog"];
+
 describe("タブ一覧", () => {
   test("設定が無ければ、既定で出すことになっているものだけが並ぶ", () => {
-    expect(resolveDockTabs(null)).toEqual(["analysis", "book"]);
+    expect(resolveDockTabs(null, KNOWN)).toEqual(["analysis", "book"]);
   });
 
   test("設定の並び順のまま出す", () => {
-    expect(resolveDockTabs(["book", "analysis"])).toEqual(["book", "analysis"]);
+    expect(resolveDockTabs(["book", "analysis"], KNOWN)).toEqual(["book", "analysis"]);
   });
 
   test("既定では出さないビューも、設定に在れば出す", () => {
-    expect(resolveDockTabs(["analysis", "engineLog"])).toEqual(["analysis", "engineLog"]);
+    expect(resolveDockTabs(["analysis", "engineLog"], KNOWN)).toEqual(["analysis", "engineLog"]);
   });
 
   test("名簿に無い綴りは捨てる", () => {
-    expect(resolveDockTabs(["analysis", "kifuGraph"])).toEqual(["analysis"]);
+    expect(resolveDockTabs(["analysis", "kifuGraph"], KNOWN)).toEqual(["analysis"]);
   });
 
   test("同じ綴りが2つ在っても1つにする", () => {
-    expect(resolveDockTabs(["book", "book", "analysis"])).toEqual(["book", "analysis"]);
+    expect(resolveDockTabs(["book", "book", "analysis"], KNOWN)).toEqual(["book", "analysis"]);
+  });
+
+  /**
+   * **一覧に無いことは「外した」を意味しない。**
+   *
+   * 設定「表示」はチェックを1つ触っただけでもその時点の一覧を丸ごと書くので、
+   * 新しいビューを名簿に足すと、**一度でも設定を触った利用者全員の一覧から漏れる。**
+   * `removable: true` のビューは入れ直しの対象でもないので、永久に出ない。
+   *
+   * 出す口がそのビューの中にしか無ければ機能ごと到達できなくなり、
+   * 始める口が外に在るビュー（対局）では、エンジンが起きて盤が独りでに動くのに
+   * 進行も結果も「閉じる」も画面のどこにも無い、という状態になる。
+   */
+  test("選ぶ機会が無かったビューは、既定で出すものなら足す", () => {
+    // `book` を知らなかったころの設定。**外したのではなく、まだ無かった**
+    expect(resolveDockTabs(["analysis"], ["analysis", "engineLog"])).toEqual(["analysis", "book"]);
+  });
+
+  /** **この欄より前の版が書いた設定。** 何も知らなかったものとして扱う */
+  test("知っていた顔ぶれが残っていなければ、既定で出すものを足す", () => {
+    expect(resolveDockTabs(["analysis"], null)).toEqual(["analysis", "book"]);
+  });
+
+  /** **選ぶ機会があったなら、外した意思を尊重する。** 足し直さない */
+  test("選べたのに入れなかったビューは足さない", () => {
+    expect(resolveDockTabs(["analysis"], KNOWN)).toEqual(["analysis"]);
+  });
+
+  /** 既定で出さないビューは、知らなかったとしても勝手に出さない */
+  test("既定で出さないビューは、知らなかったとしても足さない", () => {
+    expect(resolveDockTabs(["analysis", "book"], [])).toEqual(["analysis", "book"]);
   });
 
   // ADR-0010 決定1。空のドックという状態を作らない
   test("外せないビューは、設定が落としていても入れ直す", () => {
-    expect(resolveDockTabs(["book"])).toEqual(["book", "analysis"]);
-    expect(resolveDockTabs([])).toEqual(["analysis"]);
+    expect(resolveDockTabs(["book"], KNOWN)).toEqual(["book", "analysis"]);
+    expect(resolveDockTabs([], KNOWN)).toEqual(["analysis"]);
   });
 });
 
