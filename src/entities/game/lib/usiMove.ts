@@ -1,4 +1,4 @@
-import type { Kind } from "shogi.js";
+import type { Color, Kind, Shogi } from "shogi.js";
 import type { StandardMoveFormat } from "../model/types";
 
 /**
@@ -53,4 +53,58 @@ const DROP_LETTER: Partial<Record<Kind, string>> = {
   KI: "G",
   KA: "B",
   HI: "R",
+};
+
+/**
+ * USI の綴りを、盤へ積める手に戻す。**盤の現局面が要る。**
+ *
+ * USI は「どの駒が動いたか」を綴りに持たないので、`shogi` の升を引いて駒種を決める。
+ * 局面が違えば別の駒種になるので、**その手を指す直前の局面**を渡すこと。
+ *
+ * 使い道は1つ —— **こちらが出していない手**（エンジンが決めた手）を盤へ載せること。
+ * 人の手は盤から出ているので、戻す必要が無い。
+ */
+export function fromUsiMove(
+  usiMove: string,
+  shogi: Shogi,
+  color: Color,
+): StandardMoveFormat | null {
+  const drop = /^([PLNSGBR])\*([1-9])([a-i])$/.exec(usiMove);
+  if (drop !== null) {
+    const piece = DROP_KIND[drop[1]];
+    if (piece === undefined) return null;
+    return { to: { x: Number(drop[2]), y: rankOf(drop[3]) }, piece, color };
+  }
+
+  const move = /^([1-9])([a-i])([1-9])([a-i])(\+?)$/.exec(usiMove);
+  if (move === null) return null;
+
+  const from = { x: Number(move[1]), y: rankOf(move[2]) };
+  const moved = shogi.get(from.x, from.y);
+  // 盤に駒が無い升からは指せない。**局面がずれている合図**なので黙って積まない
+  if (!moved || moved.color !== color) return null;
+
+  return {
+    from,
+    to: { x: Number(move[3]), y: rankOf(move[4]) },
+    piece: moved.kind,
+    color,
+    promote: move[5] === "+",
+  };
+}
+
+/** 段の文字から `y`。**`toUsiMove` の `RANK` と対で、片方だけ直すと綴りが崩れる** */
+function rankOf(rank: string): number {
+  return RANK.indexOf(rank as (typeof RANK)[number]) + 1;
+}
+
+/** 打てる駒の綴りから駒種。**`DROP_LETTER` の逆** */
+const DROP_KIND: Record<string, Kind> = {
+  P: "FU",
+  L: "KY",
+  N: "KE",
+  S: "GI",
+  G: "KI",
+  B: "KA",
+  R: "HI",
 };

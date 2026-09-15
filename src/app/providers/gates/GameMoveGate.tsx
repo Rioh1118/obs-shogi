@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useGameMoveGate } from "@/features/game-move";
+import { GameMoveBridge, useGameMoveGate } from "@/features/game-move";
 import { GamePersistenceGate } from "./GamePersistenceGate";
 
 /**
@@ -14,5 +14,11 @@ import { GamePersistenceGate } from "./GamePersistenceGate";
 export function GameMoveGate({ children }: { children: ReactNode }) {
   const moveGate = useGameMoveGate();
 
-  return <GamePersistenceGate moveGate={moveGate}>{children}</GamePersistenceGate>;
+  return (
+    <GamePersistenceGate moveGate={moveGate}>
+      {/* **盤の内側に居る。** エンジンが決めた手を積むので `useGame` が要る */}
+      <GameMoveBridge />
+      {children}
+    </GamePersistenceGate>
+  );
 }

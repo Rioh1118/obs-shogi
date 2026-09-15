@@ -3,13 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useAppConfig } from "@/entities/app-config";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { isPresetConfigured } from "@/entities/engine-presets/model/types";
-import {
-  collectDirs,
-  FsErrorView,
-  isResolvedByConflictDialog,
-  useFileTree,
-  type FsError,
-} from "@/entities/file-tree";
+import { collectDirs, FsErrorView, useFileTree, type FsError } from "@/entities/file-tree";
 import { useGameSession, type GameSettings } from "@/entities/game-session";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -73,7 +67,7 @@ export default function GameStartModal() {
 function GameStartForm({ dir }: { dir: string | null }) {
   const { closeModal, updateParams } = useURLParams();
 
-  const { createNewFile, fileTree } = useFileTree();
+  const { createNewFile, fileTree, selectNodeByAbsPath } = useFileTree();
   const { state: presetsState } = useEnginePresets();
   const { config } = useAppConfig();
   const { view, start } = useGameSession();
@@ -88,6 +82,8 @@ function GameStartForm({ dir }: { dir: string | null }) {
   const [selectedDir, setSelectedDir] = useState(dir ?? "");
   const [isBusy, setIsBusy] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
+  /** 棋譜は作れたのに、盤へ載せられなかったときの一言 */
+  const [openFailure, setOpenFailure] = useState<string | null>(null);
 
   const rootPath = fileTree?.path ?? "";
   // ようこそ画面から開くと `dir=` が来ない。**欄が無いまま行き止まらないよう、根へ落とす**
@@ -107,8 +103,9 @@ function GameStartForm({ dir }: { dir: string | null }) {
 
   const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
 
+  const aiRoot = config?.ai_root ?? null;
+
   const settings = useMemo((): GameSettings | null => {
-    const aiRoot = config?.ai_root ?? null;
     const blackSpec = playerSpecOf(black, blackName, presetsState.presets, aiRoot, false);
     const whiteSpec = playerSpecOf(white, whiteName, presetsState.presets, aiRoot, false);
     if (blackSpec === null || whiteSpec === null) return null;
@@ -121,17 +118,55 @@ function GameStartForm({ dir }: { dir: string | null }) {
       whiteTime: limit,
       startSfen: HIRATE_SFEN,
     };
-  }, [black, white, blackName, whiteName, presetsState.presets, config?.ai_root, time]);
+  }, [black, white, blackName, whiteName, presetsState.presets, aiRoot, time]);
 
   /**
    * **対局は1局だけ。** 走っているうちに押しても進行の側が黙って断るので、
    * 断られることが分かっている状態では押させない（理由は下に出す）。
+   *
+   * **始め損ねた対局（`failed`）は数えない。** 進行の側もそれだけは断らない
+   * ——Rust は起動に失敗した対局を台帳に載せないので、閉じる相手が居ない。
+   * ここで沈めると、設定を直してもこの面からやり直せなくなる。
    */
-  const held = view.kind !== "idle";
+  const held = view.kind !== "idle" && view.kind !== "failed";
+
+  /**
+   * 出来事の購読が張れていない。**始めても進まない。**
+   *
+   * 進行の側は黙って戻るだけなので、ここで止めないと**棋譜だけが1枚できる**。
+   */
+  const eventsUnavailable = view.kind === "idle" ? view.eventsUnavailable : null;
+
+  /**
+   * 押せない理由。**条件と1対1で並べる。**
+   *
+   * 「押せない」だけを見せると何を直せばよいか分からず、理由が条件から離れていると
+   * 片方だけ直したときに**当たっていない案内**が残る（設定が済んでいるのに
+   * 「エンジン管理で指定してください」と出す形）。
+   */
+  const blockers: string[] = [];
+  if (held) {
+    blockers.push("すでに対局があります。対局タブで「閉じる」を押してから始めてください。");
+  }
+  if (eventsUnavailable !== null) {
+    blockers.push(`対局の進行を受け取れません。アプリを再起動してください（${eventsUnavailable}）`);
+  }
+  if (dirOptions.length === 0) {
+    blockers.push("保存先がありません。先にワークスペースを開いてください。");
+  }
+  if (aiRoot === null && (black.kind === "engine" || white.kind === "engine")) {
+    blockers.push(
+      "AIライブラリの場所が設定されていません。設定の「AIライブラリ」で選んでください。",
+    );
+  }
+  if (!isPlayableTimeControl(time)) {
+    blockers.push("持ち時間を半角数字で入れてください（0 だけでは始められません）。");
+  }
 
   const canSubmit =
     !isBusy &&
     !held &&
+    eventsUnavailable === null &&
     fullFileName !== "" &&
     effectiveDir !== "" &&
     settings !== null &&
@@ -143,6 +178,7 @@ function GameStartForm({ dir }: { dir: string | null }) {
       if (!canSubmit || settings === null) return;
 
       setSubmitError(null);
+      setOpenFailure(null);
       setIsBusy(true);
       const created = await createNewFile(effectiveDir, {
         fileName: fullFileName,
@@ -153,15 +189,38 @@ function GameStartForm({ dir }: { dir: string | null }) {
       setIsBusy(false);
 
       if (!created.success) {
-        // 衝突は別名を選ぶ対話が引き取る。ここで描くと対話の背後に二重に出る
-        if (!isResolvedByConflictDialog(created.error.code)) setSubmitError(created.error);
+        // **衝突は対局では対話へ渡さない。** 渡すと別名で棋譜だけが作られて対話が閉じ、
+        // 対局は始まらない（対話は「衝突が片付いたか」しか見ず、作った先を返さない）。
+        // 名前を直して押し直せるよう、欄の下に出す
+        setSubmitError(created.error);
         return;
       }
 
+      // **作った棋譜を盤へ載せてから始める。** 載せないと、対局の手を積む先が
+      // 前の棋譜のままになる（ようこそ画面から始めた場合は盤が空で、
+      // ドックごと存在しないので進行も断りも出る場所が無い）
+      if (!selectNodeByAbsPath(created.data, { forceReopen: true })) {
+        setOpenFailure("作った棋譜がツリーに見つかりませんでした。開き直してから始めてください。");
+        return;
+      }
+
+      // **遷移は1回にする。** `updateParams` はその描画で捕まえた `searchParams` から
+      // 組み直すので、`closeModal()` の直後に呼ぶと**閉じる前の写し**から組んで
+      // `modal=game-start` を書き戻す —— 対局は走り出すのにフォームが覆いかぶさったまま残る。
+      //
       // **押した人が結果を待っている操作なので、ここだけはタブを移す。**
-      // 進行も断りも対局タブが描くので、この面はもう要らない
-      closeModal();
-      updateParams({ dock: "play" }, { replace: true });
+      // 進行も断りも対局タブが描く
+      updateParams(
+        {
+          modal: undefined,
+          dir: undefined,
+          tab: undefined,
+          sfen: undefined,
+          returnTo: undefined,
+          dock: "play",
+        },
+        { replace: true },
+      );
 
       // **待たない。** `start_game` は評価関数の読み込みを待つので数十秒かかりうる。
       // 待ちも失敗も対局タブが出す（`starting` / `failed`）
@@ -171,10 +230,10 @@ function GameStartForm({ dir }: { dir: string | null }) {
       canSubmit,
       settings,
       createNewFile,
+      selectNodeByAbsPath,
       effectiveDir,
       fullFileName,
       format,
-      closeModal,
       updateParams,
       start,
     ],
@@ -214,123 +273,140 @@ function GameStartForm({ dir }: { dir: string | null }) {
 
   return (
     <Modal
-      onClose={closeModal}
+      /**
+       * **作成中は閉じない。** 閉じる口は4つ（Esc・覆い・✕・「やめる」）あり、
+       * 沈めてあるのは「やめる」だけ。棋譜を作っている最中に Esc を押すと、
+       * この面は消えるのに送信は最後まで走り、**やめたつもりの人の前で対局が始まる**
+       * （`CreateFileModal` の `requestClose` と同じ理由）。
+       */
+      onClose={() => {
+        if (!isBusy) closeModal();
+      }}
       label="対局を始める"
       theme="dark"
       variant="dialog"
       size="md"
       scroll="none"
     >
-      <Form handleSubmit={handleSubmit}>
-        <FormField>
-          <h2 className="form__heading-secondary">対局を始める</h2>
-        </FormField>
+      {/*
+        **スクロールを受け持つ箱を1枚置く。** `scroll="none"` のカードは
+        `overflow: hidden` なので、入り切らない中身は**切られてスクロールでも届かない**。
+        押せなくなるのは下端の「対局を始める」——窓を縮めただけで始められなくなる。
+        姉妹の面（`SfenKifuCreateModal`）も同じ形で根を持っている
+      */}
+      <div className="game-start">
+        <Form handleSubmit={handleSubmit}>
+          <FormField>
+            <h2 className="form__heading-secondary">対局を始める</h2>
+          </FormField>
 
-        {seatField("black", black, setBlack, blackName, setBlackName)}
-        {seatField("white", white, setWhite, whiteName, setWhiteName)}
+          {seatField("black", black, setBlack, blackName, setBlackName)}
+          {seatField("white", white, setWhite, whiteName, setWhiteName)}
 
-        <FormField horizontal>
-          <Select
-            label="持ち時間の形"
-            id="game-start-time-kind"
-            options={TIME_KIND_OPTIONS}
-            value={time.kind}
-            onChange={(kind) => setTime({ ...time, kind })}
-          />
-          <TextInput
-            label="持ち時間（分）"
-            id="game-start-main"
-            value={String(time.mainMinutes)}
-            onChange={(event) => setTime({ ...time, mainMinutes: Number(event.target.value) })}
-          />
-          {time.kind === "byoyomi" && (
-            <TextInput
-              label="秒読み（秒）"
-              id="game-start-byoyomi"
-              value={String(time.byoyomiSeconds)}
-              onChange={(event) => setTime({ ...time, byoyomiSeconds: Number(event.target.value) })}
+          <FormField horizontal>
+            <Select
+              label="持ち時間の形"
+              id="game-start-time-kind"
+              options={TIME_KIND_OPTIONS}
+              value={time.kind}
+              onChange={(kind) => setTime({ ...time, kind })}
             />
-          )}
-          {time.kind === "fischer" && (
             <TextInput
-              label="加算（秒）"
-              id="game-start-increment"
-              value={String(time.incrementSeconds)}
-              onChange={(event) =>
-                setTime({ ...time, incrementSeconds: Number(event.target.value) })
-              }
+              label="持ち時間（分）"
+              id="game-start-main"
+              value={String(time.mainMinutes)}
+              onChange={(event) => setTime({ ...time, mainMinutes: Number(event.target.value) })}
             />
+            {time.kind === "byoyomi" && (
+              <TextInput
+                label="秒読み（秒）"
+                id="game-start-byoyomi"
+                value={String(time.byoyomiSeconds)}
+                onChange={(event) =>
+                  setTime({ ...time, byoyomiSeconds: Number(event.target.value) })
+                }
+              />
+            )}
+            {time.kind === "fischer" && (
+              <TextInput
+                label="加算（秒）"
+                id="game-start-increment"
+                value={String(time.incrementSeconds)}
+                onChange={(event) =>
+                  setTime({ ...time, incrementSeconds: Number(event.target.value) })
+                }
+              />
+            )}
+          </FormField>
+
+          <FormField horizontal>
+            <TextInput
+              label="ファイル名"
+              id="game-start-file"
+              placeholder="2026-09-15 練習"
+              value={fileName}
+              onChange={(event) => setFileName(event.target.value)}
+              required
+            />
+            <Select
+              label="形式"
+              id="game-start-format"
+              options={KIFU_FORMAT_OPTIONS}
+              value={format}
+              onChange={setFormat}
+            />
+          </FormField>
+
+          <FormField>
+            <Select
+              label="保存先フォルダ"
+              id="game-start-dir"
+              options={dirOptions}
+              value={effectiveDir}
+              onChange={setSelectedDir}
+            />
+          </FormField>
+
+          {/*
+          **押せない理由は1箇所にまとめる。** 別々に置くと、同時に立ったときに
+          性質の違う行が区切りなく積まれて、どれが止めているのか読み分けられない
+        */}
+          {blockers.length > 0 && (
+            <FormField>
+              <ul className="game-start__blockers" role="alert">
+                {blockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </FormField>
           )}
-        </FormField>
 
-        <FormField horizontal>
-          <TextInput
-            label="ファイル名"
-            id="game-start-file"
-            placeholder="2026-09-15 練習"
-            value={fileName}
-            onChange={(event) => setFileName(event.target.value)}
-            required
-          />
-          <Select
-            label="形式"
-            id="game-start-format"
-            options={KIFU_FORMAT_OPTIONS}
-            value={format}
-            onChange={setFormat}
-          />
-        </FormField>
-
-        <FormField>
-          <Select
-            label="保存先フォルダ"
-            id="game-start-dir"
-            options={dirOptions}
-            value={effectiveDir}
-            onChange={setSelectedDir}
-          />
-          {dirOptions.length === 0 && (
-            <p className="game-start__hint">
-              保存先がありません。先にワークスペースを開いてください
-            </p>
+          {openFailure !== null && (
+            <FormField>
+              <p className="game-start__hint" role="alert">
+                {openFailure}
+              </p>
+            </FormField>
           )}
-        </FormField>
 
-        {/* **押せない理由を出す。** 「押せない」だけだと、何を直せばよいか分からない */}
-        {held && (
-          <FormField>
-            <p className="game-start__hint" role="alert">
-              すでに対局があります。対局タブで「閉じる」を押してから始めてください。
-            </p>
-          </FormField>
-        )}
+          {submitError && (
+            <FormField>
+              <FsErrorView error={submitError} />
+            </FormField>
+          )}
 
-        {settings === null && (
-          <FormField>
-            <p className="game-start__hint" role="alert">
-              選んだエンジンの設定が揃っていません。設定の「エンジン管理」で
-              実行ファイルと評価関数を指定してください。
-            </p>
-          </FormField>
-        )}
-
-        {submitError && (
-          <FormField>
-            <FsErrorView error={submitError} />
-          </FormField>
-        )}
-
-        {/* フォームは差し替えない。失敗して戻ったときに入力欄が消えると、
+          {/* フォームは差し替えない。失敗して戻ったときに入力欄が消えると、
             キーボードの利用者は自分がどこに居るか分からなくなる */}
-        <ButtonGroup>
-          <Button type="submit" tone="primary" isLoading={isBusy} disabled={!canSubmit}>
-            {isBusy ? "作成中..." : "対局を始める"}
-          </Button>
-          <Button type="button" onClick={() => closeModal()} disabled={isBusy}>
-            やめる
-          </Button>
-        </ButtonGroup>
-      </Form>
+          <ButtonGroup>
+            <Button type="submit" tone="primary" isLoading={isBusy} disabled={!canSubmit}>
+              {isBusy ? "作成中..." : "対局を始める"}
+            </Button>
+            <Button type="button" onClick={() => closeModal()} disabled={isBusy}>
+              やめる
+            </Button>
+          </ButtonGroup>
+        </Form>
+      </div>
     </Modal>
   );
 }

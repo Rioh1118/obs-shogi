@@ -38,13 +38,26 @@ const MS_PER_MINUTE = 60_000;
 const MS_PER_SECOND = 1_000;
 
 /**
+ * 欄の値を、単位を掛けたミリ秒へ。**有限でなければ 0。**
+ *
+ * 欄は素の文字列を受けるので `Number("１０")` も `Number("あ")` も `NaN` になる。
+ * **`Math.max(0, …)` は `NaN` を吸わない** ——通すと `mainMs: NaN` が
+ * `JSON.stringify` で `null` になり、Rust の `u64` が取り込みで落ちる。
+ * そのときには棋譜のファイルが既に作られているので、**押す前に止める**
+ * （`isPlayableTimeControl` が 0 を見て押させない）。
+ */
+function msOf(value: number, unit: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) * unit : 0;
+}
+
+/**
  * 画面の値から Rust へ渡す形へ。**選んだ形に属さない欄は 0 にする。**
  *
  * 0 にしないと、秒読みの欄を触ってからフィッシャーに切り替えただけで
  * 「秒読みと加算の併用」になり、`start_game` が断る。
  */
 export function toTimeLimit(control: TimeControl): TimeLimit {
-  const mainMs = Math.max(0, Math.trunc(control.mainMinutes)) * MS_PER_MINUTE;
+  const mainMs = msOf(control.mainMinutes, MS_PER_MINUTE);
 
   switch (control.kind) {
     case "sudden":
@@ -52,14 +65,14 @@ export function toTimeLimit(control: TimeControl): TimeLimit {
     case "byoyomi":
       return {
         mainMs,
-        byoyomiMs: Math.max(0, Math.trunc(control.byoyomiSeconds)) * MS_PER_SECOND,
+        byoyomiMs: msOf(control.byoyomiSeconds, MS_PER_SECOND),
         incrementMs: 0,
       };
     case "fischer":
       return {
         mainMs,
         byoyomiMs: 0,
-        incrementMs: Math.max(0, Math.trunc(control.incrementSeconds)) * MS_PER_SECOND,
+        incrementMs: msOf(control.incrementSeconds, MS_PER_SECOND),
       };
   }
 }

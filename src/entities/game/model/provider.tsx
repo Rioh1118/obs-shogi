@@ -64,6 +64,15 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   loadedPathRef.current = state.loadedAbsPath;
 
   /**
+   * いま盤に載っている棋譜そのもの。**同一性で見る。**
+   *
+   * パスだけで見分けると、**同じファイルを開き直した回**が素通りする
+   * （改名でパスが動く経路もある）。積む相手が入れ替わったかは中身の同一性で決める。
+   */
+  const loadedJkfRef = useRef(state.jkf);
+  loadedJkfRef.current = state.jkf;
+
+  /**
    * 盤で決まった手を積んでよいか。**門が無ければ素通し。**
    *
    * 対局中は Rust が採るまで積まない —— 積んでしまうと、Rust の写しと
@@ -71,7 +80,16 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
    */
   const acceptsMove = useCallback(async (move: StandardMoveFormat): Promise<boolean> => {
     const gate = moveGateRef.current;
-    return gate === undefined ? true : await gate.accept(move, loadedPathRef.current);
+    if (gate === undefined) return true;
+
+    // **待つ前に、いま積もうとしている相手を控える。**
+    // 門は対局中 `submit_game_move` の往復ぶん待つので、その間にツリーが
+    // 別の棋譜を盤へ載せうる。気づかずに進むと、**`selectSquare` が握っている
+    // 1つ前の棋譜の中身**を、新しく載った棋譜の宛先へ保存することになる
+    const before = loadedJkfRef.current;
+    const accepted = await gate.accept(move, loadedPathRef.current);
+
+    return accepted && loadedJkfRef.current === before;
   }, []);
 
   // 失敗を `state.error` へ積んだうえで、**呼び出し元にも返す**。
