@@ -1,6 +1,6 @@
 import { usiOptionsOf } from "@/entities/engine";
-import { derivePaths } from "@/entities/engine-presets/lib/derivePath";
-import { isPresetConfigured, type EnginePreset } from "@/entities/engine-presets/model/types";
+import { runtimeConfigOf } from "@/entities/engine-presets/lib/derivePath";
+import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { PlayerSpec } from "@/entities/game-session";
 
 /**
@@ -45,23 +45,16 @@ export function enginePlayer(
   aiRoot: string,
   ponder: boolean,
 ): PlayerSpec | null {
-  if (!isPresetConfigured(preset)) return null;
+  const config = runtimeConfigOf(preset, aiRoot);
+  if (config === null) return null;
 
-  const { evalDir, bookDir, workDir } = derivePaths(preset, aiRoot);
-  const options = usiOptionsOf({
-    enginePath: preset.enginePath,
-    workDir,
-    evalDir,
-    bookDir,
-    bookFile: preset.bookEnabled ? preset.bookFilePath : null,
-    options: preset.options,
-  });
+  const options = usiOptionsOf(config);
 
   return {
     kind: "engine",
     name: preset.label,
-    enginePath: preset.enginePath,
-    workDir,
+    enginePath: config.enginePath,
+    workDir: config.workDir,
     // **並べた順にそのまま送られる。** 置き場は値の後（`usiOptionsOf` の doc）
     options: Object.entries(options).map(([name, value]) => ({ name, value })),
     ponder,

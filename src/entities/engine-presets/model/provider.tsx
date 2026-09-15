@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } f
 import { reducer } from "./reducer";
 import {
   initialState,
-  isPresetConfigured,
   type AnalysisDefaults,
   type EnginePreset,
   type EnginePresetsContextType,
@@ -19,7 +18,7 @@ import {
   normalizeOnePreset,
 } from "../lib/normalize";
 import { EnginePresetsContext } from "./context";
-import { derivePaths } from "../lib/derivePath";
+import { runtimeConfigOf } from "../lib/derivePath";
 import type { EngineRuntimeConfig } from "@/entities/engine";
 
 export function EnginePresetsProvider({ children }: { children: ReactNode }) {
@@ -64,18 +63,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const runtimeConfig = useMemo<EngineRuntimeConfig | null>(() => {
     if (!selectedPreset) return null;
     if (!aiRoot) return null;
-    if (!isPresetConfigured(selectedPreset)) return null;
-
-    const { evalDir, bookDir, workDir } = derivePaths(selectedPreset, aiRoot);
-
-    return {
-      enginePath: selectedPreset.enginePath, // absolute
-      workDir, // join(aiRoot, aiName)
-      evalDir, // parent(evalFilePath)
-      bookDir, // parent(bookFilePath) or null
-      bookFile: selectedPreset.bookEnabled ? selectedPreset.bookFilePath : null,
-      options: selectedPreset.options,
-    };
+    return runtimeConfigOf(selectedPreset, aiRoot);
   }, [selectedPreset, aiRoot]);
 
   const analysisDefaults = useMemo<AnalysisDefaults | null>(() => {
