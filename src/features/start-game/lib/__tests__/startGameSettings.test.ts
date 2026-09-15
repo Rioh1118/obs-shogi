@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { usiOptionsOf } from "@/entities/engine";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { enginePlayer, humanPlayer, playerSpecOf } from "../playerSpec";
-import { isPlayableTimeControl, toTimeLimit, type TimeControl } from "../timeLimit";
+import { MAX_TIME_MS, timeControlProblem, toTimeLimit, type TimeControl } from "../timeLimit";
 
 /**
  * 対局を始めるときに Rust へ渡すものの組み立て。
@@ -57,8 +57,46 @@ describe("持ち時間", () => {
   });
 
   test("持ち時間 0 の秒読みは通る。**切れ負けは通らない**", () => {
-    expect(isPlayableTimeControl(control({ mainMinutes: "0" }))).toBe(true);
-    expect(isPlayableTimeControl(control({ kind: "sudden", mainMinutes: "0" }))).toBe(false);
+    expect(timeControlProblem(control({ mainMinutes: "0" }))).toBeNull();
+    expect(timeControlProblem(control({ kind: "sudden", mainMinutes: "0" }))).toBe("empty");
+  });
+
+  /**
+   * **上限を超えた値で押させない。** `TimeLimit::validate` が断るのは
+   * `start_game` の中なので、そこまで行くと**棋譜のファイルが既に作られている** ——
+   * 使われない棋譜が1枚残り、断りは Rust の英文で出る。
+   */
+  test("上限を超えた欄は押させない", () => {
+    const overMinutes = String(MAX_TIME_MS / 60_000 + 1);
+    const overSeconds = String(MAX_TIME_MS / 1_000 + 1);
+
+    expect(timeControlProblem(control({ kind: "sudden", mainMinutes: overMinutes }))).toBe(
+      "too-long",
+    );
+    expect(timeControlProblem(control({ byoyomiSeconds: overSeconds }))).toBe("too-long");
+    expect(timeControlProblem(control({ kind: "fischer", incrementSeconds: overSeconds }))).toBe(
+      "too-long",
+    );
+  });
+
+  /** **境界はちょうど通す。** Rust の検査は `>` なので、等しい値は通る */
+  test("上限ちょうどは通る", () => {
+    expect(
+      timeControlProblem(control({ kind: "sudden", mainMinutes: String(MAX_TIME_MS / 60_000) })),
+    ).toBeNull();
+  });
+
+  /**
+   * **有限かどうかは掛けた後に見ること。**
+   *
+   * 掛ける前だけで見ると `1e308` が `Number.isFinite` を通り、分を掛けた時点で
+   * `Infinity` になる。`JSON.stringify` が `null` に変えるので、
+   * **`validate` にすら届かず serde の取り込みで落ちる** ——
+   * 断りの文言も利用者の言葉でなくなる。
+   */
+  test("掛けると溢れる値も 0 として扱い、押させない", () => {
+    expect(toTimeLimit(control({ mainMinutes: "1e308" })).mainMs).toBe(0);
+    expect(timeControlProblem(control({ kind: "sudden", mainMinutes: "1e308" }))).toBe("empty");
   });
 
   test("負の値と小数は 0 側へ丸める", () => {
@@ -79,7 +117,7 @@ describe("持ち時間", () => {
     expect(toTimeLimit(control({ mainMinutes: "あ" })).mainMs).toBe(0);
     expect(toTimeLimit(control({ mainMinutes: "" })).mainMs).toBe(0);
 
-    expect(isPlayableTimeControl(control({ kind: "sudden", mainMinutes: "１０" }))).toBe(false);
+    expect(timeControlProblem(control({ kind: "sudden", mainMinutes: "１０" }))).toBe("empty");
   });
 
   test("前後の空白は落とす", () => {

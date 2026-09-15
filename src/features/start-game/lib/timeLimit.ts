@@ -45,17 +45,34 @@ const MS_PER_MINUTE = 60_000;
 const MS_PER_SECOND = 1_000;
 
 /**
+ * 1つの欄に入れてよい上限。**Rust の `MAX_TIME_MS` と同じ値を持つ。**
+ *
+ * **写しであることを機械が見ている**（`src/__tests__/timeLimitCap.test.ts`）。
+ * 片方だけ動かすと落ちるので、Rust 側が上げたらここも上がる。
+ *
+ * 写さずに済ませられない —— 上限を知らないと、超えた値でも「押せる」を出したまま
+ * **棋譜のファイルを作ってから** `start_game` が断る。
+ * 断りは Rust の英文（`main time must not exceed ...`）で、使われない棋譜が1枚残る。
+ */
+export const MAX_TIME_MS = 24 * 60 * 60 * 1000;
+
+/**
  * 欄の値を、単位を掛けたミリ秒へ。**有限でなければ 0。**
  *
  * 欄は打った文字列なので `Number("１０")` も `Number("あ")` も `NaN` になる。
  * **`Math.max(0, …)` は `NaN` を吸わない** ——通すと `mainMs: NaN` が
  * `JSON.stringify` で `null` になり、Rust の `u64` が取り込みで落ちる。
  * そのときには棋譜のファイルが既に作られているので、**押す前に止める**
- * （`isPlayableTimeControl` が 0 を見て押させない）。
+ * （{@link timeControlProblem} が 0 を見て押させない）。
+ *
+ * **有限かどうかは掛けた後に見る。** 掛ける前だけで見ると `1e308` が通り、
+ * 分を掛けた時点で `Infinity` になる —— `NaN` と同じく `null` として送られ、
+ * **`validate` にすら届かず取り込みで落ちる**（断りの文言も serde のものになる）。
  */
 function msOf(value: string, unit: number): number {
   const parsed = Number(value.trim());
-  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) * unit : 0;
+  const scaled = Math.max(0, Math.trunc(parsed)) * unit;
+  return Number.isFinite(scaled) ? scaled : 0;
 }
 
 /**
@@ -86,12 +103,29 @@ export function toTimeLimit(control: TimeControl): TimeLimit {
 }
 
 /**
- * その形として成立しているか。**押せるかどうかだけを決める。**
+ * 押せない理由。**押せるなら `null`。**
+ *
+ * **真偽値にしない。** 理由が2つあるので、1つの文言にまとめると
+ * 片方の回に**当たっていない案内**が出る（上限を超えているのに
+ * 「半角数字で入れてください」と言う形）。
  *
  * Rust 側の検査を写しているのではなく、**押した後に断られることが分かっている形**を
- * 手前で止めるだけ。断りの文言は Rust のものをそのまま出す。
+ * 手前で止めるだけ。ここで止めないと、断られる前に棋譜のファイルが作られる。
  */
-export function isPlayableTimeControl(control: TimeControl): boolean {
+export type TimeControlProblem =
+  /** 3つとも 0。数でない入力（全角・空欄）もここに来る */
+  | "empty"
+  /** どれかが {@link MAX_TIME_MS} を超えている */
+  | "too-long";
+
+export function timeControlProblem(control: TimeControl): TimeControlProblem | null {
   const limit = toTimeLimit(control);
-  return limit.mainMs > 0 || limit.byoyomiMs > 0 || limit.incrementMs > 0;
+  const fields = [limit.mainMs, limit.byoyomiMs, limit.incrementMs];
+
+  // **上限を先に見る。** 後にすると、上限を超えた欄しか埋めていない形が
+  // 「3つとも 0 ではない」を先に通って `empty` にならず、順序に意味が出る
+  if (fields.some((ms) => ms > MAX_TIME_MS)) return "too-long";
+  if (fields.every((ms) => ms === 0)) return "empty";
+
+  return null;
 }

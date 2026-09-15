@@ -21,7 +21,8 @@ import Modal from "@/shared/ui/Modal";
 import { PONDER_DISABLED, playerSpecOf, type SeatChoice } from "../lib/playerSpec";
 import {
   DEFAULT_TIME_CONTROL,
-  isPlayableTimeControl,
+  timeControlProblem,
+  type TimeControlProblem,
   toTimeLimit,
   type TimeControl,
   type TimeControlKind,
@@ -37,6 +38,18 @@ import "./GameStartModal.scss";
 const HIRATE_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 
 const HUMAN_VALUE = "human";
+
+/**
+ * 持ち時間が通らない理由の文言。**理由ごとに1つ。**
+ *
+ * まとめると、上限を超えているのに「半角数字で入れてください」と出る。
+ * 上限の値は書かない —— Rust が上げたときにここだけが古くなる
+ * （`MAX_TIME_MS` は写しであることを機械が見ているが、文章の中の数は見ていない）。
+ */
+const TIME_PROBLEM_MESSAGE: Record<TimeControlProblem, string> = {
+  empty: "持ち時間を半角数字で入れてください（0 だけでは始められません）。",
+  "too-long": "持ち時間が長すぎます。1日（24時間）より短くしてください。",
+};
 
 /**
  * 断りの文言。**押せない案内と、押した後の断りで同じものを出す。**
@@ -178,8 +191,9 @@ function GameStartForm({ dir }: { dir: string | null }) {
       "AIライブラリの場所が設定されていません。設定の「AIライブラリ」で選んでください。",
     );
   }
-  if (!isPlayableTimeControl(time)) {
-    blockers.push("持ち時間を半角数字で入れてください（0 だけでは始められません）。");
+  const timeProblem = timeControlProblem(time);
+  if (timeProblem !== null) {
+    blockers.push(TIME_PROBLEM_MESSAGE[timeProblem]);
   }
 
   const canSubmit =
@@ -189,7 +203,7 @@ function GameStartForm({ dir }: { dir: string | null }) {
     fullFileName !== "" &&
     effectiveDir !== "" &&
     settings !== null &&
-    isPlayableTimeControl(time);
+    timeProblem === null;
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
