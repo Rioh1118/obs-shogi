@@ -91,7 +91,7 @@ describe("盤の着手と門", () => {
     expect(game.current!.state.selectedPosition).toBeNull();
   });
 
-  test("門に、いま盤に載っている棋譜を渡す", async () => {
+  test("門に、いま盤が辿っている線を渡す", async () => {
     const accept = vi.fn(async () => true);
     const game = mountGame({ accept });
 
@@ -100,10 +100,12 @@ describe("盤の着手と門", () => {
     });
     await playPawn(game);
 
-    expect(accept).toHaveBeenCalledWith(
-      expect.objectContaining({ to: { x: 7, y: 6 } }),
-      "/w/a.kif",
-    );
+    // **手数ではなく綴りの列を渡すこと。** 手数では同じ深さの別の線と
+    // 見分けが付かず、門が「対局の次の1手」と「分岐で指した手」を取り違える
+    expect(accept).toHaveBeenCalledWith(expect.objectContaining({ to: { x: 7, y: 6 } }), {
+      kifuPath: "/w/a.kif",
+      usiMoves: [],
+    });
   });
 
   /**

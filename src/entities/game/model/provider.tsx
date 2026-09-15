@@ -38,6 +38,8 @@ import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
 import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConverter";
+import { lineUsiMoves } from "../lib/usiMove";
+import type { BoardLine } from "./types";
 import { buildPlayer, gotoPath } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import { cursorFromPlayer, observedPointerOf } from "@/entities/kifu/lib/playerCursor";
@@ -78,19 +80,29 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
    * 対局中は Rust が採るまで積まない —— 積んでしまうと、Rust の写しと
    * 食い違った指し手列で裁定を返すことになり、断られたまま対局が畳まれる。
    */
-  const acceptsMove = useCallback(async (move: StandardMoveFormat): Promise<boolean> => {
-    const gate = moveGateRef.current;
-    if (gate === undefined) return true;
+  const acceptsMove = useCallback(
+    async (move: StandardMoveFormat, player: JKFPlayer): Promise<boolean> => {
+      const gate = moveGateRef.current;
+      if (gate === undefined) return true;
 
-    // **待つ前に、いま積もうとしている相手を控える。**
-    // 門は対局中 `submit_game_move` の往復ぶん待つので、その間にツリーが
-    // 別の棋譜を盤へ載せうる。気づかずに進むと、**`selectSquare` が握っている
-    // 1つ前の棋譜の中身**を、新しく載った棋譜の宛先へ保存することになる
-    const before = loadedJkfRef.current;
-    const accepted = await gate.accept(move, loadedPathRef.current);
+      // **どの線の上で指したかを渡す。** 手数だけでは、分岐で指した手と
+      // 対局の次の1手が見分けられない（`lineUsiMoves` の doc）
+      const line: BoardLine = {
+        kifuPath: loadedPathRef.current,
+        usiMoves: lineUsiMoves(player),
+      };
 
-    return accepted && loadedJkfRef.current === before;
-  }, []);
+      // **待つ前に、いま積もうとしている相手を控える。**
+      // 門は対局中 `submit_game_move` の往復ぶん待つので、その間にツリーが
+      // 別の棋譜を盤へ載せうる。気づかずに進むと、**`selectSquare` が握っている
+      // 1つ前の棋譜の中身**を、新しく載った棋譜の宛先へ保存することになる
+      const before = loadedJkfRef.current;
+      const accepted = await gate.accept(move, line);
+
+      return accepted && loadedJkfRef.current === before;
+    },
+    [],
+  );
 
   // 失敗を `state.error` へ積んだうえで、**呼び出し元にも返す**。
   //
@@ -617,7 +629,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
               state.selectedPosition.color,
             );
             // **対局中は Rust が採ってから積む。** 採られなければ選択だけ解く
-            if (!(await acceptsMove(standardMove))) {
+            if (!(await acceptsMove(standardMove, player))) {
               dispatch({ type: "clear_selection" });
               return;
             }
@@ -641,7 +653,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
             if (fromPiece) {
               const standardMove = fromIMove(move, fromPiece.kind, fromPiece.color, promote);
               // **対局中は Rust が採ってから積む**（上の駒打ちと同じ）
-              if (!(await acceptsMove(standardMove))) {
+              if (!(await acceptsMove(standardMove, player))) {
                 dispatch({ type: "clear_selection" });
                 return;
               }

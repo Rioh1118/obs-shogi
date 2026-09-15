@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { fromUsiMove, useGame } from "@/entities/game";
+import { fromUsiMove, isPrefixOf, lineUsiMoves, useGame } from "@/entities/game";
 import { useGameSession } from "@/entities/game-session";
 
 /**
@@ -34,13 +34,22 @@ export function GameMoveBridge() {
     // ここで積むと関係の無い棋譜へ対局の手が入る
     if (kifuPath !== loadedAbsPath) return;
 
-    // **末尾の1手ぶんだけ遅れているときにしか積まない。**
-    // 盤の手数で「どこまで積んだか」を見るので、人の手を二度積むことは無い
-    // （盤から出た手は既に入っている）。**過去へ戻って見ているときも積まない**
-    // —— まとめて積み直すと、遡って見ていた枝に対局の手が生える
-    if (player.tesuu !== usiMoves.length - 1) return;
+    // **盤が対局の線の上に居るときだけ積む。**
+    //
+    // **手数で見ない。** 遡って分岐を並べた盤は、同じ深さでも別の手順を辿っている。
+    // そこへ積むと、遡って見ていた枝に対局の手が生える。
+    // 手数の一致だけを条件にすると、その枝を「まだ積んでいない対局の線」と読む。
+    //
+    // 先頭一致で見るので、**2手以上遅れた盤も追いつく**（1回の描画で1手ずつ）。
+    // 等号で見ると、遡っている間に2手決まった対局からは二度と追いつけない
+    // —— 差が縮まらないまま、対局タブだけが手数を数え続ける。
+    const line = lineUsiMoves(player);
+    if (line === null || !isPrefixOf(line, usiMoves)) return;
 
-    const move = fromUsiMove(usiMoves[player.tesuu], player.shogi, player.shogi.turn);
+    // 盤が先端に追いついている。積むものは無い
+    if (line.length === usiMoves.length) return;
+
+    const move = fromUsiMove(usiMoves[line.length], player.shogi, player.shogi.turn);
     // 綴りを戻せない＝盤と対局の局面がずれている。**黙って積まない**
     if (move === null) return;
 

@@ -11,7 +11,7 @@ export * from "./model/types";
 export { createOutcomeJudge } from "./lib/gameOutcome";
 export type { GameOutcome, GameOutcomeFailure } from "./lib/gameOutcome";
 // 盤の手を対局の境界へ出す綴り。呼び出し元は `features/game-move`
-export { fromUsiMove, toUsiMove } from "./lib/usiMove";
+export { fromUsiMove, isPrefixOf, lineUsiMoves, toUsiMove } from "./lib/usiMove";
 export { colorToSide } from "./lib/ruleColor";
 export { DEFAULT_GAME_RULES } from "./lib/gameRules";
 export type { GameRules } from "./lib/gameRules";

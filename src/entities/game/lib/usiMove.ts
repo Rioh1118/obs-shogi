@@ -1,4 +1,5 @@
 import type { Color, Kind, Shogi } from "shogi.js";
+import type { JKFPlayer } from "json-kifu-format";
 import type { StandardMoveFormat } from "../model/types";
 
 /**
@@ -108,3 +109,38 @@ const DROP_KIND: Record<string, Kind> = {
   B: "KA",
   R: "HI",
 };
+
+/**
+ * 盤がいま辿っている線を、根からの USI の綴りで表す。**綴れない手が1つでもあれば `null`。**
+ *
+ * **`tesuu` では線を見分けられない。** `goto` は届かなければ黙って止まり、
+ * 実在しない変化は黙って捨てて同じ `tesuu` の別の線に着く。
+ * 4手目から分岐を1本作った盤も、本譜を4手進めた盤も、`tesuu` は等しく 4 になる。
+ *
+ * 対局と突き合わせるときに要るのは**同じ手順を辿っているか**であって、
+ * 同じ深さに居るかではない —— 深さだけで見ると、分岐で指した手が
+ * 対局の次の1手として Rust へ出る（`useGameMoveGate`）し、
+ * 分岐の枝に対局の手が生える（`GameMoveBridge`）。
+ *
+ * 綴れない手は `null` にして**分からないことを「一致」と読ませない。**
+ * 特殊手（投了・中断）は綴りを持たないので、入った時点でここから先は比べられない。
+ */
+export function lineUsiMoves(player: JKFPlayer): string[] | null {
+  const moves: string[] = [];
+
+  for (let te = 1; te <= player.tesuu; te++) {
+    const move = player.getMove(te);
+    if (move === undefined) return null;
+
+    const usiMove = toUsiMove(move as StandardMoveFormat);
+    if (usiMove === null) return null;
+    moves.push(usiMove);
+  }
+
+  return moves;
+}
+
+/** `a` が `b` の先頭と一致するか。**同じ長さも「先頭」に含む** */
+export function isPrefixOf(a: readonly string[], b: readonly string[]): boolean {
+  return a.length <= b.length && a.every((move, i) => move === b[i]);
+}

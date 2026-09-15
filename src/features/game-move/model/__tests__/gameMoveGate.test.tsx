@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, renderHook } from "@testing-library/react";
 import { Color } from "shogi.js";
-import type { StandardMoveFormat } from "@/entities/game";
+import type { BoardLine, StandardMoveFormat } from "@/entities/game";
 import type { GameSessionView } from "@/entities/game-session";
 import { Err, Ok } from "@/shared/lib/result";
 
@@ -73,9 +73,15 @@ function liveView(over: Partial<Extract<GameSessionView, { kind: "live" }>> = {}
   };
 }
 
-function accept(move: StandardMoveFormat, kifuPath: string | null = KIFU) {
+/**
+ * 盤の線を組む。**既定は「対局の先端に居る」** ——
+ * 線がずれている形は、そのつど `usiMoves` を渡して作る。
+ */
+function accept(move: StandardMoveFormat, line: Partial<BoardLine> = {}): Promise<boolean> {
   const { result } = renderHook(() => useGameMoveGate());
-  return result.current.accept(move, kifuPath);
+  const view = session.view;
+  const played = view.kind === "live" ? view.usiMoves : [];
+  return result.current.accept(move, { kifuPath: KIFU, usiMoves: [...played], ...line });
 }
 
 beforeEach(() => {
@@ -139,7 +145,7 @@ describe("対局中の着手", () => {
   test("別の棋譜を触っているだけなら素通し", async () => {
     session.view = liveView();
 
-    await expect(accept(BLACK_MOVE, "/w/other.kif")).resolves.toBe(true);
+    await expect(accept(BLACK_MOVE, { kifuPath: "/w/other.kif" })).resolves.toBe(true);
     expect(session.submitMove).not.toHaveBeenCalled();
   });
 
@@ -161,7 +167,44 @@ describe("対局中の着手", () => {
   test("始まりきる前でも、別の棋譜なら素通し", async () => {
     session.view = { kind: "starting", kifuPath: KIFU };
 
-    await expect(accept(BLACK_MOVE, "/w/other.kif")).resolves.toBe(true);
+    await expect(accept(BLACK_MOVE, { kifuPath: "/w/other.kif" })).resolves.toBe(true);
+  });
+
+  /**
+   * **遡って分岐を並べるのは、対局中も止めていない普通の操作。**
+   * そこで指した手は「対局の次の1手」ではない。
+   *
+   * 出すと Rust の写しに異物として載り（`validate_usi_move` は書式しか見ない）、
+   * `continue_game` の突き合わせで弾かれて**対局そのものが中断される**。
+   * 終局理由に出るのは「n手目を指せない」で、遡った操作とは結び付かない。
+   * 運悪くその手が本譜の局面でも合法なら中断もせず、
+   * **盤とエンジンが別の局面を進み続ける。**
+   */
+  test("遡った先で指した手は出さない", async () => {
+    session.view = liveView({ usiMoves: ["7g7f", "3c3d", "2g2f", "8c8d"], toMove: "black" });
+
+    // 盤は2手目まで戻って、そこから別の手を指している
+    await expect(accept(BLACK_MOVE, { usiMoves: ["7g7f", "3c3d"] })).resolves.toBe(false);
+    expect(session.submitMove).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **手数が合っていても、辿った線が違えば出さない。**
+   * `tesuu` で見ると通ってしまう形（CLAUDE.md の「`tesuu` では判定できない」）。
+   */
+  test("手数が同じでも、別の線なら出さない", async () => {
+    session.view = liveView({ usiMoves: ["7g7f", "3c3d"], toMove: "black" });
+
+    await expect(accept(BLACK_MOVE, { usiMoves: ["2g2f", "3c3d"] })).resolves.toBe(false);
+    expect(session.submitMove).not.toHaveBeenCalled();
+  });
+
+  /** **綴れない手が線に混じったら、一致とも不一致とも言えない。** 出さない */
+  test("線を綴れないなら出さない", async () => {
+    session.view = liveView();
+
+    await expect(accept(BLACK_MOVE, { usiMoves: null })).resolves.toBe(false);
+    expect(session.submitMove).not.toHaveBeenCalled();
   });
 
   test("綴れない手は出さない", async () => {

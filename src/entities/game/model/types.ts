@@ -412,13 +412,24 @@ export interface GameContextType {
  * ここから読むと互いを読み合う組ができる。
  */
 export interface MoveGate {
+  /** `false` なら積まない */
+  accept: (move: StandardMoveFormat, line: BoardLine) => Promise<boolean>;
+}
+
+/**
+ * 盤がいま辿っている線。**門はこれだけで「対局の先端か」を判じる。**
+ *
+ * **手数を渡さない。** 同じ深さの別の線と見分けが付かないので、
+ * 渡すと門が「対局の次の1手」と「分岐で指した手」を取り違える。
+ */
+export interface BoardLine {
   /**
-   * `false` なら積まない。
-   *
-   * `kifuPath` は**盤にいま載っている棋譜**。対局は棋譜が入れ替わっても走り続けるので、
+   * 盤にいま載っている棋譜。対局は棋譜が入れ替わっても走り続けるので、
    * 別の棋譜を触っているだけの操作を止めないために渡す。
    */
-  accept: (move: StandardMoveFormat, kifuPath: string | null) => Promise<boolean>;
+  kifuPath: string | null;
+  /** 根からの USI の綴り。**綴れない手があれば `null`**（→ `lineUsiMoves`） */
+  usiMoves: string[] | null;
 }
 
 export interface GameProviderProps {
