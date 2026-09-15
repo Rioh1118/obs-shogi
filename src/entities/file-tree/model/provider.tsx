@@ -43,6 +43,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // - 付け替え: `jkfData` は新しい棋譜・`activeKifuPath` は古い棋譜になり、
   //   保存が**別のファイルへ書かれる**（`GamePersistenceGate` は path で書く）
   // - 削除: 消したフォルダの中に**無い**棋譜を「中にある」と判定して閉じる
+  //
+  // **節を引く2つ（`findNodeByPath` / `revealNodeInCurrentTree`）も同じ理由でここから読む。**
+  // 呼び手が握るのは押した時点の口なので、`createNewFile` を待ってから引くと、
+  // 待っている間に届いたツリーが見えない —— **作ったばかりの棋譜が「無い」と返る。**
   const activeKifuPathRef = useRef(state.activeKifuPath);
   activeKifuPathRef.current = state.activeKifuPath;
   const fileTreeRef = useRef(state.fileTree);
@@ -56,24 +60,21 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // 番号で見ると古いが、開くべき棋譜としては正しい。
   const requestedKifuPathRef = useRef<string | null>(null);
 
-  const revealNodeInCurrentTree = useCallback(
-    (absPath: string) => {
-      const root = state.fileTree;
-      if (!root) return;
+  const revealNodeInCurrentTree = useCallback((absPath: string) => {
+    const root = fileTreeRef.current;
+    if (!root) return;
 
-      const chain = findNodeChain(root, absPath);
-      if (!chain) return;
-      const expandPaths = chain
-        .slice(0, -1)
-        .filter((n) => n.isDirectory)
-        .map((n) => n.path);
+    const chain = findNodeChain(root, absPath);
+    if (!chain) return;
+    const expandPaths = chain
+      .slice(0, -1)
+      .filter((n) => n.isDirectory)
+      .map((n) => n.path);
 
-      dispatch({ type: "nodes_expanded", payload: expandPaths });
+    dispatch({ type: "nodes_expanded", payload: expandPaths });
 
-      scrollNodeIntoView(absPath);
-    },
-    [state.fileTree],
-  );
+    scrollNodeIntoView(absPath);
+  }, []);
 
   const pushError = useCallback((error: FsError) => {
     dispatch({ type: "error", payload: error });
@@ -259,16 +260,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     dispatch({ type: "node_selected", payload: node });
   }, []);
 
-  const findNodeByPath = useCallback(
-    (absPath: string): FileTreeNode | null => {
-      const root = state.fileTree;
-      if (!root) return null;
+  const findNodeByPath = useCallback((absPath: string): FileTreeNode | null => {
+    const root = fileTreeRef.current;
+    if (!root) return null;
 
-      const chain = findNodeChain(root, absPath);
-      return chain ? chain[chain.length - 1] : null;
-    },
-    [state.fileTree],
-  );
+    const chain = findNodeChain(root, absPath);
+    return chain ? chain[chain.length - 1] : null;
+  }, []);
 
   const openKifuNode = useCallback(
     async (node: FileTreeNode): AsyncResult<void, FsError> => {
