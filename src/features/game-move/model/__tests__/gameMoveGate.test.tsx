@@ -83,7 +83,7 @@ function liveView(over: Partial<Extract<GameSessionView, { kind: "live" }>> = {}
 function accept(move: StandardMoveFormat, line: Partial<BoardLine> = {}): Promise<boolean> {
   const { result } = renderHook(() => useGameMoveGate());
   const view = session.view;
-  const played = view.kind === "live" ? view.usiMoves : [];
+  const played = view.kind === "live" || view.kind === "over" ? view.usiMoves : [];
   return result.current.accept(move, { kifuPath: KIFU, usiMoves: [...played], ...line });
 }
 
@@ -217,5 +217,65 @@ describe("対局中の着手", () => {
       false,
     );
     expect(session.submitMove).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * **終局しても、閉じるまでは対局が残っている。**
+ *
+ * そこを素通しにすると、時間切れで負けた局面から盤が普段の編集として受けて
+ * 自動保存まで走る。終局は棋譜に残らない（#115）ので、開き直すと
+ * **対局がそのまま続いたようにしか見えない。**
+ */
+describe("終局した対局の盤", () => {
+  function overView(
+    over: Partial<Extract<GameSessionView, { kind: "over" }>> = {},
+  ): GameSessionView {
+    return {
+      kind: "over",
+      gameId: "g1" as never,
+      kifuPath: KIFU,
+      blackName: "あなた",
+      whiteName: "エンジン",
+      result: { reason: "timeout", winner: "white" } as never,
+      clocks: {
+        black: { mainMs: 0, byoyomiMs: 0 },
+        white: { mainMs: 0, byoyomiMs: 0 },
+        running: null,
+      },
+      usiMoves: ["7g7f", "3c3d"],
+      rulingFailure: null,
+      boardFailure: null,
+      ...over,
+    };
+  }
+
+  test("対局の線の先端には足せない", async () => {
+    session.view = overView();
+
+    await expect(accept(BLACK_MOVE)).resolves.toBe(false);
+    // **終局後なので Rust へは出さない。** 断るだけ
+    expect(session.submitMove).not.toHaveBeenCalled();
+  });
+
+  /** 遡って並べる検討は普段の操作。**止めると終局後に1手も並べられなくなる** */
+  test("遡った先の分岐は並べられる", async () => {
+    session.view = overView();
+
+    await expect(accept(BLACK_MOVE, { usiMoves: ["7g7f"] })).resolves.toBe(true);
+  });
+
+  /** 対局は棋譜が入れ替わっても残る。**別の棋譜の編集まで止めない** */
+  test("別の棋譜なら素通し", async () => {
+    session.view = overView();
+
+    await expect(accept(BLACK_MOVE, { kifuPath: "/w/other.kif" })).resolves.toBe(true);
+  });
+
+  /** 「閉じる」を押せば足せる。**続きを書きたい人の逃げ道** */
+  test("閉じれば素通しに戻る", async () => {
+    session.view = { kind: "idle", eventsUnavailable: null };
+
+    await expect(accept(BLACK_MOVE, { usiMoves: ["7g7f", "3c3d"] })).resolves.toBe(true);
   });
 });
