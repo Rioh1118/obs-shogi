@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import type { GameSessionView } from "@/entities/game-session";
-import { Err, Ok } from "@/shared/lib/result";
+import { Ok } from "@/shared/lib/result";
 
 /**
  * 終局を知らせる面。
@@ -51,6 +51,8 @@ function overView(over: Partial<Extract<GameSessionView, { kind: "over" }>> = {}
     usiMoves: ["7g7f", "3c3d"],
     rulingFailure: null,
     boardFailure: null,
+    engineClosed: true,
+    closeFailure: null,
     ...over,
   };
 }
@@ -94,46 +96,45 @@ describe("終局を知らせる面", () => {
     expect(screen.queryByText("閉じる")).toBeNull();
   });
 
-  test("「閉じる」でエンジンを落とす", async () => {
+  /**
+   * **エンジンを落とす口はここに無い。** 終局した時点で進行の側が落としている。
+   * 置くと「利用者が押すまでプロセスが残る」形に戻る。
+   */
+  test("閉じても対局へは何も投げない", async () => {
     session.view = overView();
     render(<GameOverModal />);
 
     await click("閉じる");
-
-    expect(session.closeSession).toHaveBeenCalledTimes(1);
-  });
-
-  /** **落とせなかったら、押した場所に理由を返す。** 他に出す場がない */
-  test("閉じられなければ理由を出し、押し直せる", async () => {
-    session.view = overView();
-    session.closeSession.mockResolvedValue(Err("engine is busy") as never);
-    render(<GameOverModal />);
-
-    await click("閉じる");
-
-    expect(screen.getByRole("alert").textContent).toContain("engine is busy");
-    expect(screen.getByRole("button", { name: "閉じる" })).not.toBeNull();
-  });
-
-  test("「盤を見る」では対局を閉じない", async () => {
-    session.view = overView();
-    render(<GameOverModal />);
-
-    await click("盤を見る");
 
     expect(session.closeSession).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
+  });
+
+  /** **選ばせない。** 2つ並べていた間は、どちらが何を畳むのか読めなかった */
+  test("押せる口は「閉じる」ひとつだけ", () => {
+    session.view = overView();
+    render(<GameOverModal />);
+
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["閉じる"]);
+  });
+
+  /** **落とせなかったことを黙らない。** 押し直す人が居ないので、出さないと気づけない */
+  test("エンジンを落とせなかった理由を出す", () => {
+    session.view = overView({ engineClosed: false, closeFailure: "the game is busy" });
+    render(<GameOverModal />);
+
+    expect(screen.getByRole("alert").textContent).toContain("the game is busy");
   });
 
   /**
    * **見送りを真偽で持つと、2局目以降の終局が一度も出ない。**
    * 下ろしたままの旗が次の対局まで残る。
    */
-  test("見送った後でも、別の対局の終局は出る", async () => {
+  test("閉じた後でも、別の対局の終局は出る", async () => {
     session.view = overView();
     const { rerender } = render(<GameOverModal />);
 
-    await click("盤を見る");
+    await click("閉じる");
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
 
     session.view = overView({ gameId: "g2" as never });

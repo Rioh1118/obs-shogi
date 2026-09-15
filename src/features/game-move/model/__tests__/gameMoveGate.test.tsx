@@ -221,11 +221,11 @@ describe("対局中の着手", () => {
 });
 
 /**
- * **終局しても、閉じるまでは対局が残っている。**
+ * **終局した対局の盤は、普段の盤に戻る。**
  *
- * そこを素通しにすると、時間切れで負けた局面から盤が普段の編集として受けて
- * 自動保存まで走る。終局は棋譜に残らない（#115）ので、開き直すと
- * **対局がそのまま続いたようにしか見えない。**
+ * 結末が決まった時点でエンジンは落ちている（進行の側が落とす）ので、
+ * 門が止めても守るものが無い。止めた版は、盤に断りの出し先が無い（#277）せいで
+ * **押しても何も起きない盤**になった —— 利用者からは故障と見分けが付かない。
  */
 describe("終局した対局の盤", () => {
   function overView(
@@ -246,20 +246,22 @@ describe("終局した対局の盤", () => {
       usiMoves: ["7g7f", "3c3d"],
       rulingFailure: null,
       boardFailure: null,
+      engineClosed: true,
+      closeFailure: null,
       ...over,
     };
   }
 
-  test("対局の線の先端には足せない", async () => {
+  test("対局の線の先端にも足せる", async () => {
     session.view = overView();
 
-    await expect(accept(BLACK_MOVE)).resolves.toBe(false);
-    // **終局後なので Rust へは出さない。** 断るだけ
+    await expect(accept(BLACK_MOVE)).resolves.toBe(true);
+    // **Rust へは出さない。** 受ける対局はもう無い
     expect(session.submitMove).not.toHaveBeenCalled();
   });
 
-  /** 遡って並べる検討は普段の操作。**止めると終局後に1手も並べられなくなる** */
-  test("遡った先の分岐は並べられる", async () => {
+  /** 遡って並べる検討も普段の操作。**止めると終局後に1手も並べられなくなる** */
+  test("遡った先の分岐も並べられる", async () => {
     session.view = overView();
 
     await expect(accept(BLACK_MOVE, { usiMoves: ["7g7f"] })).resolves.toBe(true);
@@ -270,12 +272,5 @@ describe("終局した対局の盤", () => {
     session.view = overView();
 
     await expect(accept(BLACK_MOVE, { kifuPath: "/w/other.kif" })).resolves.toBe(true);
-  });
-
-  /** 「閉じる」を押せば足せる。**続きを書きたい人の逃げ道** */
-  test("閉じれば素通しに戻る", async () => {
-    session.view = { kind: "idle", eventsUnavailable: null };
-
-    await expect(accept(BLACK_MOVE, { usiMoves: ["7g7f", "3c3d"] })).resolves.toBe(true);
   });
 });

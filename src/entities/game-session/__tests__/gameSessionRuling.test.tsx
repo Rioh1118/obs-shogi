@@ -93,6 +93,8 @@ function Body() {
       <div data-testid="rulingFailure">
         {view.kind === "live" || view.kind === "over" ? (view.rulingFailure ?? "") : ""}
       </div>
+      <div data-testid="closeFailure">{view.kind === "over" ? (view.closeFailure ?? "") : ""}</div>
+      <div data-testid="engineClosed">{view.kind === "over" ? String(view.engineClosed) : ""}</div>
     </>
   );
 }
@@ -133,6 +135,11 @@ function kindText(): string | null {
 /** 画面に出ている「裁定を返せなかった」の文言 */
 function rulingFailureText(): string | null {
   return screen.getByTestId("rulingFailure").textContent;
+}
+
+/** 画面に出ている「エンジンを落とせなかった」の文言 */
+function closeFailureText(): string | null {
+  return screen.getByTestId("closeFailure").textContent;
 }
 
 async function emit(event: GameEvent) {
@@ -435,7 +442,39 @@ describe("対局の進行", () => {
     expect(rulingFailureText()).toBe("shogi.js が投げた");
   });
 
-  test("閉じられなかったら対局を手放さない。**手放すと呼び直せなくなる**", async () => {
+  /**
+   * **終局したらエンジンを落とす。利用者に押させない。**
+   *
+   * 終局は探索を畳まないので、`close_game` を通すまで1局あたり最大2本が起きたまま。
+   * 押す口を置いていた間は、押し忘れがそのままプロセスの残りになった。
+   */
+  test("終局したら、押されなくてもエンジンを落とす", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    expect(tauri.closeGame).not.toHaveBeenCalled();
+
+    await emit({
+      type: "over",
+      gameId: GAME_ID,
+      result: { winner: "black", reason: "resign", detail: null },
+      clocks: CLOCKS,
+    });
+
+    expect(tauri.closeGame).toHaveBeenCalledWith(GAME_ID);
+    expect(screen.getByTestId("engineClosed").textContent).toBe("true");
+    // **結末は残す。** 畳むと結果を出す先が無くなり、最後の1手を積む橋も止まる
+    expect(kindText()).toBe("over");
+  });
+
+  /**
+   * **落とせなかったことを黙らない。**
+   *
+   * 落とすのは進行の側で、押し直す利用者が居ない ——
+   * 出さないと、起きたままのプロセスに気づく手段が1つも無い。
+   */
+  test("エンジンを落とせなかったら、その理由を画面へ出す", async () => {
     tauri.closeGame.mockRejectedValueOnce(new Error("the game is busy"));
     mount(alwaysContinue);
     await act(async () => {
@@ -448,21 +487,34 @@ describe("対局の進行", () => {
       clocks: CLOCKS,
     });
 
-    let refusal: string | null = null;
-    await act(async () => {
-      const result = await closer?.();
-      refusal = result !== undefined && !result.success ? result.error : null;
-    });
-
-    expect(refusal).toBe("the game is busy");
-    // 閉じ損ねた対局は画面に残る（残らないと押し直す先が消える）
+    expect(closeFailureText()).toBe("the game is busy");
+    expect(screen.getByTestId("engineClosed").textContent).toBe("false");
     expect(kindText()).toBe("over");
+  });
+
+  /**
+   * **落とし終えた対局は、次を始めるのを邪魔しない。**
+   *
+   * 断る理由は「エンジンが起きたままだから」なので、落ちた後まで断ると
+   * 結末を読んでいる間ずっと次の対局を始められない —— しかも畳む口はもう無い。
+   */
+  test("終局した対局が残っていても、次の対局を始められる", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    await emit({
+      type: "over",
+      gameId: GAME_ID,
+      result: { winner: "black", reason: "resign", detail: null },
+      clocks: CLOCKS,
+    });
 
     await act(async () => {
-      await closer?.();
+      await startOnce();
     });
-    expect(tauri.closeGame).toHaveBeenCalledTimes(2);
-    expect(kindText()).toBe("idle");
+
+    expect(tauri.startGame).toHaveBeenCalledTimes(2);
   });
 
   test("始め損ねた対局は、閉じずにやり直せる", async () => {
@@ -479,6 +531,29 @@ describe("対局の進行", () => {
 
     expect(tauri.startGame).toHaveBeenCalledTimes(2);
     expect(kindText()).toBe("live");
+  });
+
+  /**
+   * **始め損ねた対局には落とす相手が居ない。**
+   *
+   * Rust は起動に失敗した対局を台帳に載せず、起こしたプロセスも自分で落とす。
+   * ここで `close_game` を呼ぶと、知らない識別子として断られたぶんが
+   * **片付けの失敗として画面に出る**。
+   */
+  test("始め損ねた対局は、エンジンを呼ばずに片付く", async () => {
+    tauri.startGame.mockRejectedValueOnce(new Error("engine did not answer usiok"));
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    expect(kindText()).toBe("failed");
+
+    await act(async () => {
+      await closer?.();
+    });
+
+    expect(tauri.closeGame).not.toHaveBeenCalled();
+    expect(kindText()).toBe("idle");
   });
 
   test("別の対局のイベントは畳み込まない", async () => {

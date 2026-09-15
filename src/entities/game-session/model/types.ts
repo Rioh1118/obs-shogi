@@ -105,7 +105,12 @@ export type GameSessionView =
        */
       boardFailure: string | null;
     }
-  /** 終局。**`closeGame` はまだ呼んでいない**ので、エンジンは起きたまま */
+  /**
+   * 終局。**エンジンは進行の側が自分で落とす**（`closeGame` を利用者に押させない）。
+   *
+   * 落とし終えるまでの短い間だけ `engineClosed` が `false` で、
+   * その間に始めようとする対局は断られる（`heldSessionOf`）。
+   */
   | {
       kind: "over";
       gameId: GameId;
@@ -129,6 +134,15 @@ export type GameSessionView =
        * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
        */
       boardFailure: string | null;
+      /** エンジンを落とし終えたか。**`false` のうちは次の対局を始められない** */
+      engineClosed: boolean;
+      /**
+       * エンジンを落とせなかった理由。
+       *
+       * **黙らない。** 落とすのは進行の側で、押し直す利用者が居ない ——
+       * 出さないと、起きたままのプロセスに気づく手段が1つも無い。
+       */
+      closeFailure: string | null;
     }
   /**
    * 始められなかった。**`gameId` が無いので閉じる対象も無い**

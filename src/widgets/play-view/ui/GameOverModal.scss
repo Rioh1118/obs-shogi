@@ -27,6 +27,37 @@
     font-size: index.$font-hint;
   }
 
+  // 席2つ。**上が後手**で盤の並びに合わせる（対局ビューと同じ向き）
+  &__seats {
+    margin: 0;
+    justify-self: stretch;
+    display: grid;
+    gap: index.$space-1;
+  }
+
+  &__seat {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: baseline;
+    gap: index.$space-3;
+
+    padding: index.$space-2 index.$space-3;
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-white, 0.035);
+
+    dt {
+      font-weight: 700;
+    }
+
+    // **切り詰めない。** 入るのは利用者が付けたプリセットの見出しで、長さに上限が無い
+    dd {
+      margin: 0;
+      min-width: 0;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+  }
+
   // 読ませる散文の行長。**60ch はこのリポジトリで既に使われている値**
   &__sub {
     margin: 0;

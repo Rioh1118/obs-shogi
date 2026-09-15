@@ -1,6 +1,8 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { useGameSession, type GameId } from "@/entities/game-session";
+import { sideToColor } from "@/entities/game";
+import { turnLabel } from "@/shared/lib/turn";
 import Button from "@/shared/ui/Button/Button";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Modal from "@/shared/ui/Modal";
@@ -16,9 +18,10 @@ import "./GameOverModal.scss";
  * `modal=` に載せると**開けない面を指す URL**が残る。
  * 状態から開く対話は既にこの層に居る（`FileConflictDialog` / `KifuReadErrorDialog`）。
  *
- * **エンジンを落とす口をここにも置く。** 終局は探索を畳まないので、`close_game` を
- * 通すまでプロセスは起きたまま。押す場所がドックの対局タブにしか無いと、
- * **タブを開いていない人は終局に気づかないまま**エンジンを残す。
+ * **出すのは結末と、閉じる口ひとつだけ。** エンジンを落とすのは進行の側の仕事で
+ * （終局した時点で自分で落とす）、ここに置くと**利用者が押すまでプロセスが残る**。
+ * 口を2つ並べると、**どちらが何を畳むのか**——この面だけか、対局ごとか——が
+ * 押す前に読めない。畳む対象が1つしか無いなら、選ばせる理由も無い。
  *
  * **`failed` は出さない。** 始め損ねた対局は落とす相手が居ないうえ、
  * 押した直後の `modal=game-start` の上に重なる（断りは V4 の帯が出す）。
@@ -26,7 +29,7 @@ import "./GameOverModal.scss";
  * **`GameSessionProvider` の内側に置くこと**（`useGameSession` を読む）。
  */
 export function GameOverModal() {
-  const { view, closeSession } = useGameSession();
+  const { view } = useGameSession();
 
   /**
    * 見終わった対局。**`gameId` で控える。**
@@ -35,31 +38,12 @@ export function GameOverModal() {
    * 2局目以降の終局が一度も出ない。
    */
   const [dismissed, setDismissed] = useState<GameId | null>(null);
-  const [pending, setPending] = useState(false);
-  /** 閉じられなかった理由。**押した場所に返す**（他に出す場がない） */
-  const [refusal, setRefusal] = useState<string | null>(null);
-
-  const close = useCallback(() => {
-    setRefusal(null);
-    setPending(true);
-    // **結果を控えてから読む。** `void closeSession().then(...)` と続けて書くと、
-    // 戻り値の読み落としを見る走査が「読まずに撃った」形として拾う（`.then` を見ていない）
-    const closed = closeSession();
-
-    void closed.then((result) => {
-      setPending(false);
-      // **成功したら何も消さない。** 対局が `idle` になるとこの面ごと消える
-      if (!result.success) setRefusal(result.error);
-    });
-  }, [closeSession]);
 
   const over = view.kind === "over" ? view : null;
   if (over === null || over.gameId === dismissed) return null;
 
-  /** 盤を見る。**対局は `over` のまま残す**（エンジンはドックの「閉じる」で落とせる） */
-  const dismiss = () => {
-    if (!pending) setDismissed(over.gameId);
-  };
+  /** 閉じる。**畳むのはこの面だけ** —— 結末は対局タブに残り、盤はそのまま触れる */
+  const dismiss = () => setDismissed(over.gameId);
 
   return (
     <Modal
@@ -75,6 +59,18 @@ export function GameOverModal() {
         <p className="game-over__reason">
           {gameResultReason(over.result)} ／ {over.usiMoves.length}手
         </p>
+
+        {/* 席2つ。**盤の並びに合わせて上が後手** */}
+        <dl className="game-over__seats">
+          <div className="game-over__seat">
+            <dt>{turnLabel(sideToColor("white"))}</dt>
+            <dd>{over.whiteName}</dd>
+          </div>
+          <div className="game-over__seat">
+            <dt>{turnLabel(sideToColor("black"))}</dt>
+            <dd>{over.blackName}</dd>
+          </div>
+        </dl>
 
         {/*
           **裁定を返せなかったことを終局と一緒に消さない。** 畳まれた対局の理由は
@@ -92,38 +88,24 @@ export function GameOverModal() {
           </p>
         )}
 
-        {/* **棋譜に残っていないことを言い続ける。** この結果は画面にしか無い（#115） */}
-        <p className="game-over__sub">結果は棋譜に書けていません。</p>
-
-        {refusal !== null && (
+        {/*
+          **エンジンを落とせなかったことを黙らない。** 落とすのは進行の側で、
+          押し直す利用者が居ない —— 出さないと起きたままのプロセスに気づけない
+        */}
+        {over.closeFailure !== null && (
           <p className="game-over__band" role="alert">
-            {refusal}
+            エンジンを終了できませんでした（{over.closeFailure}）
           </p>
         )}
 
-        {/*
-          **投げている間は両方沈める。** 「閉じる」は探索を畳めないエンジンで
-          十数秒かかるのに画面が変わらないので、効いていないと読んで押し直され、
-          2発目の断り（英文と UUID）が成功した1発目の上に貼り付く
-        */}
+        {/* **棋譜に残っていないことを言い続ける。** この結果は画面にしか無い（#115） */}
+        <p className="game-over__sub">結果は棋譜に書けていません。閉じると棋譜を並べ直せます。</p>
+
         <ButtonGroup>
-          <Button
-            type="button"
-            tone="primary"
-            onClick={close}
-            isLoading={pending}
-            disabled={pending}
-          >
-            {pending ? "閉じています..." : "閉じる"}
-          </Button>
-          <Button type="button" onClick={dismiss} disabled={pending}>
-            盤を見る
+          <Button type="button" tone="primary" onClick={dismiss}>
+            閉じる
           </Button>
         </ButtonGroup>
-
-        <p className="game-over__sub">
-          「盤を見る」を選ぶと、エンジンは起きたまま残ります（対局タブの「閉じる」で落とせます）。
-        </p>
       </div>
     </Modal>
   );

@@ -269,6 +269,8 @@ describe("終局した対局の盤", () => {
       usiMoves,
       rulingFailure: null,
       boardFailure: null,
+      engineClosed: true,
+      closeFailure: null,
     };
   }
 
