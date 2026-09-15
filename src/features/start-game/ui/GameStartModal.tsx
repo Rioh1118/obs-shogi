@@ -314,27 +314,23 @@ function GameStartForm({ dir }: { dir: string | null }) {
             <TextInput
               label="持ち時間（分）"
               id="game-start-main"
-              value={String(time.mainMinutes)}
-              onChange={(event) => setTime({ ...time, mainMinutes: Number(event.target.value) })}
+              value={time.mainMinutes}
+              onChange={(event) => setTime({ ...time, mainMinutes: event.target.value })}
             />
             {time.kind === "byoyomi" && (
               <TextInput
                 label="秒読み（秒）"
                 id="game-start-byoyomi"
-                value={String(time.byoyomiSeconds)}
-                onChange={(event) =>
-                  setTime({ ...time, byoyomiSeconds: Number(event.target.value) })
-                }
+                value={time.byoyomiSeconds}
+                onChange={(event) => setTime({ ...time, byoyomiSeconds: event.target.value })}
               />
             )}
             {time.kind === "fischer" && (
               <TextInput
                 label="加算（秒）"
                 id="game-start-increment"
-                value={String(time.incrementSeconds)}
-                onChange={(event) =>
-                  setTime({ ...time, incrementSeconds: Number(event.target.value) })
-                }
+                value={time.incrementSeconds}
+                onChange={(event) => setTime({ ...time, incrementSeconds: event.target.value })}
               />
             )}
           </FormField>

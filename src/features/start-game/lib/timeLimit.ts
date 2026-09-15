@@ -17,21 +17,28 @@ export type TimeControlKind =
   /** フィッシャー。指すたびに加算する。**秒読みとは併用できない** */
   | "fischer";
 
+/**
+ * 画面が持つ持ち時間。**欄は打った文字列のまま持つ。**
+ *
+ * 数へ直して持つと、`Number("")` の 0 が欄に居座って**空にできなくなる**し、
+ * `Number("１０")` の `NaN` はそのまま `NaN` と表示されて1文字ずつ消しても戻らない。
+ * 数に直すのは送る直前の1箇所（{@link toTimeLimit}）だけにする。
+ */
 export interface TimeControl {
   kind: TimeControlKind;
   /** 分 */
-  mainMinutes: number;
+  mainMinutes: string;
   /** 秒 */
-  byoyomiSeconds: number;
+  byoyomiSeconds: string;
   /** 秒 */
-  incrementSeconds: number;
+  incrementSeconds: string;
 }
 
 export const DEFAULT_TIME_CONTROL: TimeControl = {
   kind: "byoyomi",
-  mainMinutes: 10,
-  byoyomiSeconds: 30,
-  incrementSeconds: 0,
+  mainMinutes: "10",
+  byoyomiSeconds: "30",
+  incrementSeconds: "0",
 };
 
 const MS_PER_MINUTE = 60_000;
@@ -40,14 +47,15 @@ const MS_PER_SECOND = 1_000;
 /**
  * 欄の値を、単位を掛けたミリ秒へ。**有限でなければ 0。**
  *
- * 欄は素の文字列を受けるので `Number("１０")` も `Number("あ")` も `NaN` になる。
+ * 欄は打った文字列なので `Number("１０")` も `Number("あ")` も `NaN` になる。
  * **`Math.max(0, …)` は `NaN` を吸わない** ——通すと `mainMs: NaN` が
  * `JSON.stringify` で `null` になり、Rust の `u64` が取り込みで落ちる。
  * そのときには棋譜のファイルが既に作られているので、**押す前に止める**
  * （`isPlayableTimeControl` が 0 を見て押させない）。
  */
-function msOf(value: number, unit: number): number {
-  return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) * unit : 0;
+function msOf(value: string, unit: number): number {
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) * unit : 0;
 }
 
 /**

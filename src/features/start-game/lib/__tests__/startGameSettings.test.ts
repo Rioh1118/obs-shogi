@@ -25,9 +25,9 @@ const PRESET: EnginePreset = {
 
 const control = (over: Partial<TimeControl>): TimeControl => ({
   kind: "byoyomi",
-  mainMinutes: 10,
-  byoyomiSeconds: 30,
-  incrementSeconds: 0,
+  mainMinutes: "10",
+  byoyomiSeconds: "30",
+  incrementSeconds: "0",
   ...over,
 });
 
@@ -37,7 +37,7 @@ describe("持ち時間", () => {
    * その組み合わせになるので、選んだ形に属さない欄は 0 にする。
    */
   test("選んだ形に属さない欄は 0 になる", () => {
-    const touched = control({ byoyomiSeconds: 30, incrementSeconds: 10 });
+    const touched = control({ byoyomiSeconds: "30", incrementSeconds: "10" });
 
     expect(toTimeLimit({ ...touched, kind: "byoyomi" })).toEqual({
       mainMs: 600_000,
@@ -57,16 +57,33 @@ describe("持ち時間", () => {
   });
 
   test("持ち時間 0 の秒読みは通る。**切れ負けは通らない**", () => {
-    expect(isPlayableTimeControl(control({ mainMinutes: 0 }))).toBe(true);
-    expect(isPlayableTimeControl(control({ kind: "sudden", mainMinutes: 0 }))).toBe(false);
+    expect(isPlayableTimeControl(control({ mainMinutes: "0" }))).toBe(true);
+    expect(isPlayableTimeControl(control({ kind: "sudden", mainMinutes: "0" }))).toBe(false);
   });
 
   test("負の値と小数は 0 側へ丸める", () => {
-    expect(toTimeLimit(control({ mainMinutes: -5, byoyomiSeconds: 2.9 }))).toEqual({
+    expect(toTimeLimit(control({ mainMinutes: "-5", byoyomiSeconds: "2.9" }))).toEqual({
       mainMs: 0,
       byoyomiMs: 2_000,
       incrementMs: 0,
     });
+  });
+
+  /**
+   * **`Math.max(0, …)` は `NaN` を吸わない。** 通すと `mainMs: NaN` が
+   * `JSON.stringify` で `null` になり、Rust の `u64` が取り込みで落ちる ——
+   * そのときには棋譜のファイルが既に作られている。
+   */
+  test("数でない欄は 0 として扱い、押させない", () => {
+    expect(toTimeLimit(control({ mainMinutes: "１０" })).mainMs).toBe(0);
+    expect(toTimeLimit(control({ mainMinutes: "あ" })).mainMs).toBe(0);
+    expect(toTimeLimit(control({ mainMinutes: "" })).mainMs).toBe(0);
+
+    expect(isPlayableTimeControl(control({ kind: "sudden", mainMinutes: "１０" }))).toBe(false);
+  });
+
+  test("前後の空白は落とす", () => {
+    expect(toTimeLimit(control({ mainMinutes: " 10 " })).mainMs).toBe(600_000);
   });
 });
 
