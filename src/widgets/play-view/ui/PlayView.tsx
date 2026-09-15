@@ -27,9 +27,10 @@ function PlayView() {
   if (view.kind === "idle") {
     return (
       <div className="play-view play-view--slate">
-        <p className="play-view__lead">対局はまだ始められません</p>
+        <p className="play-view__lead">対局していません</p>
         <p className="play-view__sub">
-          始めた対局の進行と結果がここに出ます。始める画面はこれから作ります。
+          ツリーの行の剣の印か、棋譜を開いていないときの「対局する」から始められます。
+          始めた対局の進行と結果がここに出ます。
         </p>
         {/*
           **出来事が届かないことを黙らない。** この状態で対局を始めると、

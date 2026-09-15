@@ -5,19 +5,19 @@ main にあるか: **1局を通して指せる。棋譜に結果が残らない*
 
 ## どこに何があるか
 
-**進行を見る画面はある。始める画面が無い。** ドックの「対局」タブ
-（→ [screens/play-view.md](../screens/play-view.md)）が走っている対局を描き、
-投了・中断・閉じるを持つ。**始める口だけがどこにも無い**ので、
-アプリを起動しても対局は始められない。
+**始める面も進行を見る面もある。** 始めるのは `modal=game-start`
+（起点はツリーの行の操作とようこそ画面）、進行を見るのはドックの「対局」タブ。
+どちらも → [screens/play-view.md](../screens/play-view.md)。
+**残っているのは復帰の導線だけ**（`over` を取りこぼした対局に「同期し直す」が無い。#374）。
 
-| 層             | 状態                                                                                                                                    |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Rust           | 実装済み（`src-tauri/src/engine/game/` の6ファイル＋ `commands/game.rs`）                                                               |
-| Tauri コマンド | **9本**登録済み                                                                                                                         |
-| フロント API   | `src/entities/game-session/`（`tauri.ts` / `events.ts` / `rust-types.ts`）                                                              |
-| 終局判定       | `src/entities/game/lib/`（`gameOutcome.ts` / `jishogiDeclaration.ts` / `gameRules.ts`）                                                 |
-| フロント UI    | `src/widgets/play-view/` ＋ `entities/game-session/model/`（→ [screens/play-view.md](../screens/play-view.md)）。**始める画面だけ無い** |
-| 状態遷移表     | [game-session.md](../../state-transitions/game-session.md)                                                                              |
+| 層             | 状態                                                                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust           | 実装済み（`src-tauri/src/engine/game/` の6ファイル＋ `commands/game.rs`）                                                                                                        |
+| Tauri コマンド | **9本**登録済み                                                                                                                                                                  |
+| フロント API   | `src/entities/game-session/`（`tauri.ts` / `events.ts` / `rust-types.ts`）                                                                                                       |
+| 終局判定       | `src/entities/game/lib/`（`gameOutcome.ts` / `jishogiDeclaration.ts` / `gameRules.ts`）                                                                                          |
+| フロント UI    | `widgets/play-view/` `features/start-game/` `features/game-move/` `features/game-ruling/` ＋ `entities/game-session/model/`（→ [screens/play-view.md](../screens/play-view.md)） |
+| 状態遷移表     | [game-session.md](../../state-transitions/game-session.md)                                                                                                                       |
 
 登録済みのコマンド9本:
 

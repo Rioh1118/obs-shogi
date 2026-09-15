@@ -36,8 +36,11 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
     startCreateDirectory(targetDir);
   };
 
+  // **余分な器を挟まない。** 間隔を決めているのは `node-box__actions` の `gap` で、
+  // 直下の子が1枚だと何にも効かない（`variant="ghost"` は面も枠も透明なので、
+  // 接した辺は当たり判定でしか分からない）
   return (
-    <div className="tree-node-actions">
+    <>
       <IconButton
         handleClick={handleCreateFile}
         size="small"
@@ -52,7 +55,7 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
         size="small"
         variant="ghost"
         title="ここに対局の棋譜を作って始める"
-        ariaLabel="対局を始める"
+        ariaLabel="ここに対局の棋譜を作って始める"
       >
         <Swords size={14} />
       </IconButton>
@@ -65,7 +68,7 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
       >
         <FolderPlus size={14} />
       </IconButton>
-    </div>
+    </>
   );
 }
 

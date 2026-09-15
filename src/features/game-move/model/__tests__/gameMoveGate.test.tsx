@@ -143,6 +143,27 @@ describe("対局中の着手", () => {
     expect(session.submitMove).not.toHaveBeenCalled();
   });
 
+  /**
+   * **`start_game` は評価関数の読み込みを待つ。** 重いエンジンでは数十秒かかり、
+   * その間も盤は触れる。素通しにすると、Rust の知らない手が棋譜に入ったまま対局が始まり、
+   * **棋譜が対局の記録として使えなくなる**（対局そのものは Rust の写しで進むので、
+   * 食い違いは終局まで誰も気づかない）。
+   *
+   * 出す先の `gameId` がまだ無いので、**採ってもらうこともできない**。
+   */
+  test("始まりきる前の盤は、同じ棋譜なら止める", async () => {
+    session.view = { kind: "starting", kifuPath: KIFU };
+
+    await expect(accept(BLACK_MOVE)).resolves.toBe(false);
+    expect(session.submitMove).not.toHaveBeenCalled();
+  });
+
+  test("始まりきる前でも、別の棋譜なら素通し", async () => {
+    session.view = { kind: "starting", kifuPath: KIFU };
+
+    await expect(accept(BLACK_MOVE, "/w/other.kif")).resolves.toBe(true);
+  });
+
   test("綴れない手は出さない", async () => {
     session.view = liveView();
 

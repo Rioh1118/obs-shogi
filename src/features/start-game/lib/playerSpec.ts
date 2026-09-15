@@ -3,6 +3,15 @@ import { derivePaths } from "@/entities/engine-presets/lib/derivePath";
 import { isPresetConfigured, type EnginePreset } from "@/entities/engine-presets/model/types";
 import type { PlayerSpec } from "@/entities/game-session";
 
+/**
+ * 相手の手番の間も読ませるか。**常に切る。**
+ *
+ * 入れると、手番が移るときに時計が `running: null` で飛ぶ経路が生きる
+ * （既定の設定では起きない）。**受け手がそれを「対局が止まった」と読まない**ことを
+ * 確かめるまで、選ばせる欄も作らない（→ `docs/spec/screens/play-view.md`）。
+ */
+export const PONDER_DISABLED = false;
+
 /** 席に座れるもの。**プリセットが揃っていないエンジンは座れない** */
 export type SeatChoice = { kind: "human" } | { kind: "engine"; presetId: string };
 
@@ -62,8 +71,13 @@ export function enginePlayer(
 /**
  * 席の選択を `PlayerSpec` にする。**座れないなら `null`。**
  *
- * `null` が返る条件は2つ —— 選んだプリセットが見つからない、揃っていない。
- * どちらも「始められない」ので、呼ぶ側は送信を止めること。
+ * `null` が返る条件は3つ —— **AI ライブラリの置き場が決まっていない**、
+ * 選んだプリセットが見つからない、揃っていない。どれも「始められない」ので、
+ * 呼ぶ側は送信を止めること。
+ *
+ * **画面から踏めるのは1つ目だけ。** 選択肢は揃ったプリセットだけを出すので、
+ * 残る2つは URL や設定を手で書いた場合にしか起きない。
+ * 案内を1つにまとめると、**済んでいる手順を指す文言**が出る。
  */
 export function playerSpecOf(
   choice: SeatChoice,

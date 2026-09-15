@@ -16,7 +16,7 @@ import Select from "@/shared/ui/Form/Select";
 import TextInput from "@/shared/ui/Form/TextInput";
 import Modal from "@/shared/ui/Modal";
 
-import { playerSpecOf, type SeatChoice } from "../lib/playerSpec";
+import { PONDER_DISABLED, playerSpecOf, type SeatChoice } from "../lib/playerSpec";
 import {
   DEFAULT_TIME_CONTROL,
   isPlayableTimeControl,
@@ -106,8 +106,8 @@ function GameStartForm({ dir }: { dir: string | null }) {
   const aiRoot = config?.ai_root ?? null;
 
   const settings = useMemo((): GameSettings | null => {
-    const blackSpec = playerSpecOf(black, blackName, presetsState.presets, aiRoot, false);
-    const whiteSpec = playerSpecOf(white, whiteName, presetsState.presets, aiRoot, false);
+    const blackSpec = playerSpecOf(black, blackName, presetsState.presets, aiRoot, PONDER_DISABLED);
+    const whiteSpec = playerSpecOf(white, whiteName, presetsState.presets, aiRoot, PONDER_DISABLED);
     if (blackSpec === null || whiteSpec === null) return null;
 
     const limit = toTimeLimit(time);
