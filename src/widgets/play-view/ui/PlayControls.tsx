@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Flag, Square, X } from "lucide-react";
+import { Flag, RotateCw, Square, X } from "lucide-react";
 import { useGameSession, type GameSessionView, type Side } from "@/entities/game-session";
+import { useBoardOrientation } from "@/features/board-orientation";
 import { sideToColor } from "@/entities/game";
 import type { AsyncResult } from "@/shared/lib/result";
 import { turnLabel } from "@/shared/lib/turn";
@@ -23,6 +24,7 @@ import "./PlayControls.scss";
  */
 function PlayControls() {
   const { view, resign, abort, closeSession } = useGameSession();
+  const { isGotePov, toggle: togglePov } = useBoardOrientation();
 
   /**
    * 押した操作が断られたときの文言。
@@ -83,7 +85,25 @@ function PlayControls() {
         )}
       </div>
 
-      <div className="play-controls__actions" role="group" aria-label="対局">
+      <div className="play-controls__actions" role="group" aria-label="盤と対局">
+        {/*
+          **盤の向きだけは、対局の状態で沈めない。** 見え方を変えるだけで
+          セッションに1バイトも触らないので、投げている最中も終局後も押せてよい。
+          ここで `pending` に巻き込むと、十数秒かかる「閉じる」の間だけ
+          **盤を戻せなくなる**。
+
+          記号と文言は解析側の同じ操作（`AnalysisControls`）から取る。
+          同じことをする口が2つあるので、別の図案を当てると別の操作に見える
+        */}
+        <button
+          type="button"
+          className="play-controls__iconBtn"
+          onClick={togglePov}
+          title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
+          aria-pressed={isGotePov}
+        >
+          <RotateCw className="play-controls__icon" />
+        </button>
         <button
           type="button"
           className="play-controls__iconBtn"
