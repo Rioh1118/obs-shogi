@@ -1,4 +1,6 @@
 import type { GameResult, GameOverReason } from "@/entities/game-session";
+import { sideToColor } from "@/entities/game";
+import { turnGlyph } from "@/shared/lib/turn";
 
 /** 勝敗の一行。**引き分けは「どちらの勝ちでもない」ので勝者を出さない** */
 export function gameResultLabel(
@@ -7,7 +9,7 @@ export function gameResultLabel(
 ): string {
   if (result.winner === null) return "引き分け";
   const name = result.winner === "black" ? players.blackName : players.whiteName;
-  return `${result.winner === "black" ? "▲" : "△"}${name} の勝ち`;
+  return `${turnGlyph(sideToColor(result.winner))}${name} の勝ち`;
 }
 
 /**

@@ -28,6 +28,7 @@ const tauri = vi.hoisted(() => ({
   closeGame: vi.fn(async () => undefined),
   getGameState: vi.fn(),
   listGames: vi.fn(),
+  ALREADY_OVER: "game is already over" as const,
 }));
 
 vi.mock("../api/tauri", () => tauri satisfies typeof import("../api/tauri"));
@@ -327,6 +328,34 @@ describe("対局の進行", () => {
     // **文言が画面に出ていること。** `kind` だけを見ると、欄を落とす変異が素通りする
     expect(kindText()).toBe("live");
     expect(rulingFailureText()).toBe("not awaiting a ruling");
+  });
+
+  /**
+   * **「もう終わっていた」は故障ではない。**
+   *
+   * 「中断」は `awaitingRuling` の間も押せる。押すと Rust は `Phase::Over` になり、
+   * 飛んでいた `continue_game` が `ALREADY_OVER` で断られる。これを故障として立てると、
+   * **自分で中断した利用者の終局画面に**「アプリが裁定を返せなかったため中断されました
+   * （game is already over）」が `role="alert"` で出る。
+   * 時間切れが裁定の往復に重なった回も同じ。
+   */
+  test("もう終わっていたという断りは、故障として出さない", async () => {
+    tauri.continueGame.mockRejectedValueOnce(new Error("game is already over"));
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    await emit({
+      type: "moveDecided",
+      gameId: GAME_ID,
+      side: "black",
+      usiMove: "7g7f",
+      elapsedMs: 1000,
+      clocks: CLOCKS,
+    });
+
+    expect(rulingFailureText()).toBe("");
   });
 
   test("手番が移ったら、裁定の断りは消える", async () => {

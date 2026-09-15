@@ -4,7 +4,9 @@ import { useAppConfig } from "@/entities/app-config";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { isPresetConfigured } from "@/entities/engine-presets/model/types";
 import { collectDirs, FsErrorView, useFileTree, type FsError } from "@/entities/file-tree";
+import { sideToColor } from "@/entities/game";
 import { useGameSession, type GameSettings } from "@/entities/game-session";
+import { turnLabel } from "@/shared/lib/turn";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
@@ -248,7 +250,7 @@ function GameStartForm({ dir }: { dir: string | null }) {
   ) => (
     <FormField horizontal>
       <Select
-        label={side === "black" ? "▲先手" : "△後手"}
+        label={turnLabel(sideToColor(side))}
         id={`game-start-${side}`}
         options={seatOptions}
         value={choice.kind === "human" ? HUMAN_VALUE : choice.presetId}

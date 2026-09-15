@@ -4,7 +4,8 @@ import {
   type GameSessionView,
   type Side,
 } from "@/entities/game-session";
-import { useLoadedKifuPath } from "@/entities/game";
+import { sideToColor, useLoadedKifuPath } from "@/entities/game";
+import { turnGlyph } from "@/shared/lib/turn";
 import { clockDisplay, formatClock, tickIntervalMs } from "../lib/clock";
 import { useNow } from "../lib/useNow";
 import { gameResultLabel, gameResultReason } from "../lib/result";
@@ -183,7 +184,7 @@ function Seat({
 
   return (
     <div className={`play-view__seat ${toMove === side ? "play-view__seat--turn" : ""}`}>
-      <span className="play-view__side">{side === "black" ? "▲" : "△"}</span>
+      <span className="play-view__side">{turnGlyph(sideToColor(side))}</span>
       <span className="play-view__name" title={name}>
         {name}
       </span>

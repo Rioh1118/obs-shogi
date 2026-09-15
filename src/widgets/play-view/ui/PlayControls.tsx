@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Flag, Square, X } from "lucide-react";
 import { useGameSession, type GameSessionView, type Side } from "@/entities/game-session";
+import { sideToColor } from "@/entities/game";
 import type { AsyncResult } from "@/shared/lib/result";
+import { turnLabel } from "@/shared/lib/turn";
 import { gameResultReason } from "../lib/result";
 import "./PlayControls.scss";
 
@@ -36,8 +38,23 @@ function PlayControls() {
     setRefusal(null);
   }, [view.kind]);
 
-  const run = (action: () => AsyncResult<void>) => {
+  /**
+   * 投げている操作。**解決するまで3つとも沈める。**
+   *
+   * 沈めないと、**往復の間ずっと押せたまま**になる —— `disabled` の根拠は `view` で、
+   * `view` が動くのは Rust が投げ返してからなので。「閉じる」は探索を畳めないエンジンで
+   * 最大十数秒かかる（`CLOSE_IDLE_TIMEOUT` + `CLOSE_ABORT_TIMEOUT`）のに、
+   * その間画面は1ピクセルも変わらない。効いていないと読んでもう一度押すと、
+   * 2発目が Rust の英文と UUID で断られ、**成功した1発目の結果の上に貼り付く。**
+   */
+  const [pending, setPending] = useState<string | null>(null);
+
+  const run = (label: string, action: () => AsyncResult<void>) => {
+    // **前の断りを先に消す。** 残すと、投げ直したのに古い理由が出たままになる
+    setRefusal(null);
+    setPending(label);
     void action().then((result) => {
+      setPending(null);
       setRefusal(result.success ? null : result.error);
     });
   };
@@ -51,7 +68,13 @@ function PlayControls() {
   return (
     <div className="play-controls">
       <div className="play-controls__status">
-        {refusal === null ? (
+        {/*
+          **投げている間は、それを言う。** 「閉じる」は十数秒かかりうるので、
+          手番の表示のまま黙って待たせると押し損ねたと読まれる
+        */}
+        {pending !== null ? (
+          <span role="status">{pending}</span>
+        ) : refusal === null ? (
           statusText(view)
         ) : (
           <span className="play-controls__refusal" role="alert">
@@ -64,8 +87,8 @@ function PlayControls() {
         <button
           type="button"
           className="play-controls__iconBtn"
-          onClick={() => resignable !== null && run(() => resign(resignable))}
-          disabled={resignable === null}
+          onClick={() => resignable !== null && run("投了しています…", () => resign(resignable))}
+          disabled={resignable === null || pending !== null}
           title={resignTitle(live, resignable)}
         >
           <Flag className="play-controls__icon" />
@@ -73,8 +96,8 @@ function PlayControls() {
         <button
           type="button"
           className="play-controls__iconBtn"
-          onClick={() => run(abort)}
-          disabled={!live}
+          onClick={() => run("中断しています…", abort)}
+          disabled={!live || pending !== null}
           title="対局を中断する（勝敗は付きません）"
         >
           <Square className="play-controls__icon" />
@@ -82,8 +105,8 @@ function PlayControls() {
         <button
           type="button"
           className="play-controls__iconBtn"
-          onClick={() => run(closeSession)}
-          disabled={!closable}
+          onClick={() => run("閉じています…", closeSession)}
+          disabled={!closable || pending !== null}
           title={closeTitle(view)}
         >
           <X className="play-controls__icon" />
@@ -126,9 +149,7 @@ function statusText(view: GameSessionView): string {
     case "over":
       return `終局 ／ ${gameResultReason(view.result)}`;
     case "live":
-      return view.awaitingRuling
-        ? "裁定中"
-        : `${view.toMove === "black" ? "▲先手" : "△後手"}の手番`;
+      return view.awaitingRuling ? "裁定中" : `${turnLabel(sideToColor(view.toMove))}の手番`;
   }
 }
 

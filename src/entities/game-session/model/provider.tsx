@@ -10,6 +10,7 @@ import {
   resignGame,
   startGame,
   submitGameMove,
+  ALREADY_OVER,
 } from "../api/tauri";
 import type { ClocksView, GameEvent, GameId, GameResult, Side } from "../api/rust-types";
 import { GameSessionContext, type GameSessionContextValue } from "./context";
@@ -160,6 +161,13 @@ export function GameSessionProvider({
         return;
       } catch (error) {
         if (sessionRef.current?.gameId !== gameId) return;
+
+        // **もう終わっていた、は故障ではない。** 中断や時間切れが裁定の往復に
+        // 入っただけで、結末は `over` イベントが持っている。ここで立てると、
+        // 自分で「中断」を押した利用者の終局画面に
+        // 「アプリが裁定を返せなかったため中断されました」が出る
+        if (messageOf(error) === ALREADY_OVER) return;
+
         // **対局は止まらない。** Rust は `RULING_TIMEOUT` の後に
         // `over { reason: "aborted" }` を出す。この文言が見えるのはそれまでの間と、
         // 終局後は `over` の欄に引き継いだぶん（#362 で利用者の中断と同じ値になるので、
