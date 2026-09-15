@@ -49,6 +49,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // 待っている間に届いたツリーが見えない —— **作ったばかりの棋譜が「無い」と返る。**
   const activeKifuPathRef = useRef(state.activeKifuPath);
   activeKifuPathRef.current = state.activeKifuPath;
+  // **ツリーだけは描画の外からも書く**（`loadFileTree`）。描画で書く欄は再描画が
+  // 起きてからしか進まないが、読み直しを待った呼び手はその前に引く。
+  // 2箇所が書いても行き先は同じ `tree_loaded` の payload なので食い違わない
   const fileTreeRef = useRef(state.fileTree);
   fileTreeRef.current = state.fileTree;
   // **ツリーが開くべき棋譜。読み出しが返った時点でここと違うパスなら、その結果は捨てる。**
@@ -176,6 +179,12 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       return Err(res.error);
     }
 
+    // **ref は dispatch と同時に進める。描画を待たない。**
+    //
+    // 待つ側（`createNewFile` など）はこの関数が返った直後に節を引くが、そこはまだ
+    // 同じ microtask の鎖の中で、React の再描画は scheduler の macrotask なので
+    // **一度も起きていない**。描画で書く欄だけに頼ると、待ったのに古いツリーを引く。
+    fileTreeRef.current = res.data;
     dispatch({ type: "tree_loaded", payload: res.data });
     return Ok(undefined);
   }, [rootDir]);

@@ -224,18 +224,25 @@ describe("IPC を跨いだあとの読み出し", () => {
       },
     });
 
-    const found = vi.fn();
+    let resolveFound: (found: boolean) => void;
+    const found = new Promise<boolean>((resolve) => {
+      resolveFound = resolve;
+    });
     render(
       <FileTreeProvider rootDir="/ws">
-        <CreateThenSelect onResult={found} />
+        <CreateThenSelect onResult={(hit) => resolveFound(hit)} />
       </FileTreeProvider>,
     );
     await act(async () => {});
 
-    await act(async () => {
+    // **`await act()` で包まない。** あれは React の作業を microtask の合間に流すので、
+    // 送信の鎖の途中に**本番には無い再描画**が挟まる。挟まると ref が描画で書き直されて
+    // 緑になり、実機だけが落ちる。本番の再描画は scheduler の macrotask なので、
+    // 鎖は**一度も描画されないまま**最後まで走る
+    act(() => {
       screen.getByTestId("create-then-select").click();
     });
 
-    expect(found).toHaveBeenCalledWith(true);
+    expect(await found).toBe(true);
   });
 });
