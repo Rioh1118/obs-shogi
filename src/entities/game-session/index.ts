@@ -14,31 +14,28 @@
  * `judgeDeclaration`（`lib/jishogiDeclaration.ts`）を呼ぶ。
  * ただし Rust は手数の上限で `rule` を出す——`endGameByRule` を呼んでいなくても届く。
  *
- * **`judgeGameOutcome` は `entities/game` の barrel に載っている**（呼び出し元は
- * `app/providers/bridges/GameSessionBridge`）。`judgeDeclaration` はまだ呼ぶ側が無いので
- * 載せていない —— **公開面へ載せるのは、最初の呼び出し元と一緒のときだけ。**
+ * `entities/game` の barrel に載っているのは `createOutcomeJudge`（差分で進む形）で、
+ * 唯一の呼び出し元は `features/game-ruling/lib/rulingAdapter.ts`。
+ * **根から組み直す `judgeGameOutcome` は載せていない** —— 毎手呼ぶと手数の2乗になる。
+ * `judgeDeclaration` もまだ呼ぶ側が無いので載せていない。
+ * **公開面へ載せるのは、最初の呼び出し元と一緒のときだけ。**
  * それまで深い import を増やさないこと。
+ *
+ * **生の Tauri コマンドは載せない。** このスライスの対外的な口は
+ * `GameSessionProvider` と `useGameSession` で、進行の権威は provider の中の
+ * `sessionRef` に在る。並べて出すと `useGameSession` を通さずに
+ * `closeGame(gameId)` を直に呼ぶのが自然に見える —— 呼ばれると Rust の台帳からは
+ * 消えるのに `sessionRef` は残り、`start` が永久に断って
+ * 「すでに対局があります」から抜けられなくなる。
  */
-export {
-  abortGame,
-  closeGame,
-  continueGame,
-  endGameByRule,
-  getGameState,
-  listGames,
-  resignGame,
-  startGame,
-  submitGameMove,
-} from "./api/tauri";
-export { GAME_EVENT, listenToGameEvents } from "./api/events";
 
 // 進行を持つ層。**裁定を返す口は注入で受ける**（`RulingAdapter`）——
 // 判定は `entities/game` に在るが、あちらが `Side` をここから取っているので、
 // 読み返すと互いを読み合う組ができる
 export { GameSessionProvider } from "./model/provider";
 export { useGameSession } from "./model/useGameSession";
-// **`GameStartRequest` は載せない。** `start` を呼ぶ画面がまだ無いので、
-// 外に読み手が居ない。最初の呼び出し元（対局を始めるモーダル）と一緒に載せる
+// **`GameStartRequest` は載せない。** 呼ぶ画面（`features/start-game`）は在るが、
+// 渡しているのは形の合うリテラルなので、型そのものの読み手が外に居ない
 export type { GameProgressView, GameRuling, GameSessionView, RulingAdapter } from "./model/types";
 export type {
   ClocksView,
