@@ -17,6 +17,10 @@ import { useGameSession } from "@/entities/game-session";
  * 数十秒かかりうる。その間に盤を触れると、Rust の知らない手が棋譜に入る ——
  * 対局そのものは Rust の写しで進むので壊れないが、**棋譜が対局の記録として使えなくなる。**
  *
+ * **`over` は素通し。** 結末が決まった時点でエンジンは落ちているので、
+ * 止めても守るものが無い。止めた版は、盤に断りの出し先が無い（#277）せいで
+ * **押しても何も起きない盤**になった。
+ *
  * どの層がこの門を持つかは `docs/spec/screens/play-view.md` が決めている
  * ——`entities/game`（盤）と `entities/game-session`（対局）の2つを束ねるので、
  * 置ける最下層がここ。
@@ -26,7 +30,11 @@ export function useGameMoveGate(): MoveGate {
 
   const accept = useCallback<MoveGate["accept"]>(
     async (move, line) => {
-      // 手を受け付けている対局が無い。盤は普段どおり
+      // 手を受け付けている対局が無い。盤は普段どおり。
+      //
+      // **終局した対局もここに入る。** 結末が決まった時点でエンジンは落ちていて、
+      // 出す先がもう無い。止めても Rust の写しを守ることにはならないうえ、
+      // 盤には断りの出し先が無い（#277）ので**押しても何も起きない盤**になる
       if (view.kind !== "live" && view.kind !== "starting") return true;
 
       // **別の棋譜を触っている。** 対局は棋譜が入れ替わっても走り続けるので、
@@ -43,9 +51,7 @@ export function useGameMoveGate(): MoveGate {
       // 「n手目を指せない」で、遡った操作とは結び付かない。
       //
       // **手数では見ない。** 同じ深さの別の線と区別が付かない（`lineUsiMoves`）
-      if (line.usiMoves === null) return false;
-      if (line.usiMoves.length !== view.usiMoves.length) return false;
-      if (!isPrefixOf(line.usiMoves, view.usiMoves)) return false;
+      if (!isGameTip(line.usiMoves, view.usiMoves)) return false;
 
       const side = colorToSide(move.color);
 
@@ -67,4 +73,20 @@ export function useGameMoveGate(): MoveGate {
   );
 
   return { accept };
+}
+
+/**
+ * 盤が対局の線の先端に居るか。**綴れない手が混じった線は「先端ではない」。**
+ *
+ * 根からの綴りを丸ごと突き合わせる（Rust の `accept_continue` と同じ形）。
+ * **手数で見ない** —— 遡って分岐を並べた盤は同じ深さでも別の手順を辿っているので、
+ * 深さだけで見ると分岐で指した手が「対局の次の1手」として扱われる。
+ */
+function isGameTip(
+  lineUsiMoves: readonly string[] | null,
+  gameUsiMoves: readonly string[],
+): boolean {
+  if (lineUsiMoves === null) return false;
+  if (lineUsiMoves.length !== gameUsiMoves.length) return false;
+  return isPrefixOf(lineUsiMoves, gameUsiMoves);
 }

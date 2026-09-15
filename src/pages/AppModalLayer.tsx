@@ -20,6 +20,7 @@ import PositionSearchModal from "@/features/position-search/ui/PositionSearchMod
 import SettingsModal from "@/features/settings/ui/SettingsModal";
 import StudyPositionSaveModal from "@/features/study-position-save/ui/StudyPositionSaveModal";
 import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/StudyPositionsManagerModal";
+import GameOverModal from "@/widgets/play-view/ui/GameOverModal";
 
 /**
  * この層を包む境界に渡す鍵。
@@ -165,6 +166,11 @@ function ModalLayerContent() {
       <PositionSearchModal />
       <StudyPositionSaveModal />
       <StudyPositionsManagerModal />
+      {/*
+        **出来事で開く面。** `modal=` を読まず、対局が終わったことで開く
+        （下の2枚と同じ形）。URL に載せると、再読み込みで開けない面を指す URL が残る
+      */}
+      <GameOverModal />
       <FileConflictDialog
         conflict={conflict}
         onCancel={closeConflict}

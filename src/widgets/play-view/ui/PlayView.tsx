@@ -30,7 +30,7 @@ function PlayView() {
       <div className="play-view play-view--slate">
         <p className="play-view__lead">対局していません</p>
         <p className="play-view__sub">
-          ツリーの行の剣の印か、棋譜を開いていないときの「対局する」から始められます。
+          ツリーの行の時計の印か、棋譜を開いていないときの「対局する」から始められます。
           始めた対局の進行と結果がここに出ます。
         </p>
         {/*
@@ -114,9 +114,16 @@ function PlayView() {
           **棋譜に残っていないことを言い続ける。** 特殊手を挿す経路がまだ無いので、
           この結果は画面にしか無い（開き直すと消える）
         */}
-        <p className="play-view__sub">
-          結果は棋譜に書けていません。エンジンは「閉じる」を押すまで起きたままです。
-        </p>
+        {/*
+          **エンジンを落とせなかったことを黙らない。** 終局した時点で進行の側が
+          落とすので押し直す人が居ない —— 出さないと起きたままのプロセスに気づけない
+        */}
+        {view.closeFailure !== null && (
+          <p className="play-view__band" role="alert">
+            エンジンを終了できませんでした（{view.closeFailure}）
+          </p>
+        )}
+        <p className="play-view__sub">結果は棋譜に書けていません。</p>
       </div>
     );
   }

@@ -49,6 +49,15 @@ interface Session {
   boardFailure: string | null;
   result: GameResult | null;
   failure: string | null;
+  /**
+   * エンジンを落とし終えたか。**終局したら進行の側が自分で落とす。**
+   *
+   * 押させる形にしていた間は、押し忘れたぶんだけプロセスが残った ——
+   * 終局は探索を畳まないので、`close_game` を通すまで最大2本が起きたままになる。
+   */
+  engineClosed: boolean;
+  /** エンジンを落とせなかった理由。**押し直す人が居ないので、黙ると気づけない** */
+  closeFailure: string | null;
 }
 
 const IDLE: GameSessionView = { kind: "idle", eventsUnavailable: null };
@@ -185,6 +194,33 @@ export function GameSessionProvider({
     [publish],
   );
 
+  /**
+   * 終局したエンジンを落とす。**利用者に押させない。**
+   *
+   * 終局は探索を畳まないので、`close_game` を通すまで1局あたり最大2本が起きたまま。
+   * 押す口を置いていた間は、押し忘れがそのままプロセスの残りになった。
+   *
+   * **進行は畳まない。** `sessionRef` を消すと結果を出す先が無くなり、
+   * 最後の1手を棋譜へ積む途中の橋（`GameMoveBridge`）も止まる。
+   * ここで落とすのは Rust 側のプロセスだけで、結末は次の対局が始まるまで残す。
+   */
+  const retireEngines = useCallback(
+    async (session: Session, gameId: GameId) => {
+      try {
+        await closeGame(gameId);
+        if (sessionRef.current !== session) return;
+        session.engineClosed = true;
+      } catch (error) {
+        if (sessionRef.current !== session) return;
+        // **黙らない。** 押し直す人が居ないので、出さないと起きたままのプロセスに
+        // 気づく手段が1つも無い
+        session.closeFailure = messageOf(error);
+      }
+      publish();
+    },
+    [publish],
+  );
+
   const apply = useCallback(
     (event: GameEvent) => {
       const session = sessionRef.current;
@@ -228,6 +264,9 @@ export function GameSessionProvider({
           session.result = event.result;
           session.clocks = event.clocks;
           session.awaitingRuling = false;
+          // **終局はエンジンを畳まない。** 押させる形にしていた間は、押し忘れたぶんだけ
+          // プロセスが残った。結末が決まった時点でこちらから落とす
+          void retireEngines(session, session.gameId);
           break;
 
         // 対局中のエンジンの読み筋。**畳み込む先をまだ持っていない**——
@@ -239,7 +278,7 @@ export function GameSessionProvider({
 
       publish();
     },
-    [answerRuling, publish],
+    [answerRuling, publish, retireEngines],
   );
 
   /** 購読の中から読む口。**effect の依存を空に保つため**（→ 購読の doc） */
@@ -365,6 +404,8 @@ export function GameSessionProvider({
         boardFailure: null,
         result: null,
         failure: null,
+        engineClosed: false,
+        closeFailure: null,
       };
       sessionRef.current = mine;
       pendingRef.current = [];
@@ -480,10 +521,16 @@ async function attempt(run: () => Promise<void>): AsyncResult<void> {
  *
  * 始め損ねた対局は数えない —— Rust は起動に失敗した対局を台帳に載せないので、
  * 閉じる相手が居ない。数えると、設定を直してもやり直せなくなる。
+ *
+ * **落とし終えた対局も数えない。** 断る理由は「エンジンが起きたままだから」なので、
+ * 落ちた後まで断ると、**結末を読んでいる間ずっと次の対局を始められない**
+ * ——しかも畳む口はもうどこにも無い（終局したエンジンは自分で落ちる）。
  */
 function heldSessionOf(session: Session | null): Session | null {
   if (session === null) return null;
-  return isFailed(session) ? null : session;
+  if (isFailed(session)) return null;
+  if (session.result !== null && session.engineClosed) return null;
+  return session;
 }
 
 /** 始め損ねた対局か。**閉じる相手が居ないので、残っていても次を始めてよい** */
@@ -521,6 +568,8 @@ function toView(session: Session | null, eventsUnavailable: string | null): Game
       usiMoves: session.usiMoves,
       rulingFailure: session.rulingFailure,
       boardFailure: session.boardFailure,
+      engineClosed: session.engineClosed,
+      closeFailure: session.closeFailure,
     };
   }
   return {

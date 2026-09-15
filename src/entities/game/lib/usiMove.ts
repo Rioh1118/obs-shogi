@@ -1,6 +1,7 @@
 import type { Color, Kind, Shogi } from "shogi.js";
 import type { JKFPlayer } from "json-kifu-format";
 import type { StandardMoveFormat } from "../model/types";
+import { canPromote } from "./moveValidation";
 
 /**
  * 盤で決まった手を USI の綴りにする。
@@ -85,12 +86,21 @@ export function fromUsiMove(
   // 盤に駒が無い升からは指せない。**局面がずれている合図**なので黙って積まない
   if (!moved || moved.color !== color) return null;
 
+  const to = { x: Number(move[3]), y: rankOf(move[4]) };
+  const promoted = move[5] === "+";
+
   return {
     from,
-    to: { x: Number(move[3]), y: rankOf(move[4]) },
+    to,
     piece: moved.kind,
     color,
-    promote: move[5] === "+",
+    // **成れない手に `promote` を載せない。**
+    //
+    // JKF は欄の有無で「不成」を出し分ける（`toIMoveMoveFormat`）ので、
+    // `false` を常に載せると成れない手まで「２六歩不成」になる。
+    // 逆に落とし切ると、成れたのに成らなかった手から「不成」が消えて
+    // **同じ綴りが2つの手を指す**ようになる。載せるのは成れたときだけ
+    ...(promoted || canPromote(shogi, { from, to }) ? { promote: promoted } : {}),
   };
 }
 

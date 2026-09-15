@@ -1,0 +1,85 @@
+@use "@/index.scss" as index;
+
+// 終局を知らせる面の中身。**寸法は対局ビュー（`PlayView.scss`）と同じトークンから取る。**
+// 同じ結果を2つの場所で出すので、別の値を選ぶと片方だけが後から動く。
+//
+// **文字の色を宣言しない。** 載る面はモーダルのカードで、そちらは半透明
+// （`rgba($color-primary-black, 0.95)`）なので、ここで色を足すと
+// **面が決まらないまま測れない対**が増える（`contrastRatchet` の枠）。
+// 濃淡は継いだ色のままにして、段は大きさと太さで持たせる。
+// 帯の段も色ではなく `border-left` と `role="alert"` と文言が持つ（`design-language.md`）
+.game-over {
+  display: grid;
+  gap: index.$space-3;
+  align-content: start;
+  text-align: center;
+  justify-items: center;
+
+  &__result {
+    margin: 0;
+    font-size: index.$font-section;
+    font-weight: 700;
+  }
+
+  &__reason {
+    margin: 0;
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+  }
+
+  // 席2つ。**上が後手**で盤の並びに合わせる（対局ビューと同じ向き）
+  &__seats {
+    margin: 0;
+    justify-self: stretch;
+    display: grid;
+    gap: index.$space-1;
+  }
+
+  &__seat {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: baseline;
+    gap: index.$space-3;
+
+    padding: index.$space-2 index.$space-3;
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-white, 0.035);
+
+    dt {
+      font-weight: 700;
+    }
+
+    // **切り詰めない。** 入るのは利用者が付けたプリセットの見出しで、長さに上限が無い
+    dd {
+      margin: 0;
+      min-width: 0;
+      text-align: left;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  // 読ませる散文の行長。**60ch はこのリポジトリで既に使われている値**
+  &__sub {
+    margin: 0;
+    max-width: 60ch;
+    font-size: index.$font-aux;
+  }
+
+  // 帯。**段は色だけで持たない** —— `role="alert"` と文言が段を持ち、
+  // 帯が在ることを示すのが `border-left` と面
+  &__band {
+    margin: 0;
+    justify-self: stretch;
+    padding: index.$space-2 index.$space-3;
+    border-left: 2px solid index.$color-danger;
+    border-radius: index.$radius-1;
+    background: rgba(index.$color-danger, 0.16);
+
+    text-align: left;
+    font-size: index.$font-aux;
+
+    // **切り詰めない。** 入るのは Rust の断りで、実行ファイルのパスのような
+    // 分割候補の無い綴りを含む。`…` で切ると、いちばん要る「どこが」が落ちる
+    overflow-wrap: anywhere;
+  }
+}

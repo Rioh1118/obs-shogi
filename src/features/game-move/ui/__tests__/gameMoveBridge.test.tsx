@@ -242,3 +242,63 @@ describe("エンジンの手を盤へ載せる", () => {
     expect(board.makeMove).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * **終局した対局の棋譜を、利用者が遡れること。**
+ *
+ * 橋は「先頭一致していて短い盤＝まだ積んでいない」と読む。終局後もそう読むと、
+ * **遡った盤を「遅れている盤」と取り違えて1手ずつ押し戻す** ——
+ * 1回の描画で1手進むので、利用者は先端から動けない。
+ *
+ * 終局後は追いつく相手がもう増えないので、一度届けたら押すのをやめる。
+ */
+describe("終局した対局の盤", () => {
+  function overView(usiMoves: string[]): GameSessionView {
+    return {
+      kind: "over",
+      gameId: "g1" as never,
+      kifuPath: KIFU,
+      blackName: "エンジンA",
+      whiteName: "エンジンB",
+      result: { reason: "resign", winner: "black", detail: null } as never,
+      clocks: {
+        black: { mainMs: 0, byoyomiMs: 0 },
+        white: { mainMs: 0, byoyomiMs: 0 },
+        running: null,
+      },
+      usiMoves,
+      rulingFailure: null,
+      boardFailure: null,
+      engineClosed: true,
+      closeFailure: null,
+    };
+  }
+
+  /** **終局の1手は届ける。** 届けないと最後の手が棋譜に入らない */
+  test("終局しても、まだ届いていない手は積む", () => {
+    session.view = overView(USI);
+    board.player = boardAt(3, 3);
+
+    render(<GameMoveBridge />);
+
+    expect(board.makeMove).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * **先端まで届いた後に遡った盤を、押し戻さない。**
+   * これが効いていないと、終局後の棋譜は先端に貼り付いて並べ替えられない。
+   */
+  test("先端まで届いた後は、遡っても押し戻さない", () => {
+    session.view = overView(USI);
+    board.player = boardAt(4, 4);
+
+    const { rerender } = render(<GameMoveBridge />);
+    expect(board.makeMove).not.toHaveBeenCalled();
+
+    // 利用者が2手目まで遡った
+    board.player = boardAt(4, 2);
+    rerender(<GameMoveBridge />);
+
+    expect(board.makeMove).not.toHaveBeenCalled();
+  });
+});

@@ -51,6 +51,9 @@ for (const path of [
   "@/features/position-search/ui/PositionSearchModal",
   "@/features/study-position-save/ui/StudyPositionSaveModal",
   "@/features/study-positions-manager/ui/StudyPositionsManagerModal",
+  // **中身は gameOverModal.test.tsx が見る。** ここで差し替えるのは、この面だけが
+  // `modal=` ではなく対局の状態から開くので、外すと `GameSessionProvider` が要ること
+  "@/widgets/play-view/ui/GameOverModal",
 ]) {
   vi.doMock(path, () => noModal);
 }

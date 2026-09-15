@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Flag, Square, X } from "lucide-react";
+import { Flag, RotateCw, Square, X } from "lucide-react";
 import { useGameSession, type GameSessionView, type Side } from "@/entities/game-session";
+import { useBoardOrientation } from "@/features/board-orientation";
 import { sideToColor } from "@/entities/game";
 import type { AsyncResult } from "@/shared/lib/result";
 import { turnLabel } from "@/shared/lib/turn";
@@ -23,6 +24,7 @@ import "./PlayControls.scss";
  */
 function PlayControls() {
   const { view, resign, abort, closeSession } = useGameSession();
+  const { isGotePov, toggle: togglePov } = useBoardOrientation();
 
   /**
    * 押した操作が断られたときの文言。
@@ -63,7 +65,13 @@ function PlayControls() {
   // **人が座っている席が1つだけのときしか投げられない。** どちらも人なら
   // 「誰が投了したのか」を選ばせる必要があり、その口をまだ持っていない
   const resignable: Side | null = live && view.humanSides.length === 1 ? view.humanSides[0] : null;
-  const closable = view.kind === "over" || view.kind === "failed";
+  /**
+   * 片付ける相手が居るのは、始め損ねた対局だけ。
+   *
+   * **終局した対局は数えない** —— エンジンは終局した時点で進行の側が落としていて、
+   * ここで押せる形にすると「まだ何か残っている」と読める口だけが残る。
+   */
+  const closable = view.kind === "failed";
 
   return (
     <div className="play-controls">
@@ -83,7 +91,25 @@ function PlayControls() {
         )}
       </div>
 
-      <div className="play-controls__actions" role="group" aria-label="対局">
+      <div className="play-controls__actions" role="group" aria-label="盤と対局">
+        {/*
+          **盤の向きだけは、対局の状態で沈めない。** 見え方を変えるだけで
+          セッションに1バイトも触らないので、投げている最中も終局後も押せてよい。
+          ここで `pending` に巻き込むと、十数秒かかる「閉じる」の間だけ
+          **盤を戻せなくなる**。
+
+          記号と文言は解析側の同じ操作（`AnalysisControls`）から取る。
+          同じことをする口が2つあるので、別の図案を当てると別の操作に見える
+        */}
+        <button
+          type="button"
+          className="play-controls__iconBtn"
+          onClick={togglePov}
+          title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
+          aria-pressed={isGotePov}
+        >
+          <RotateCw className="play-controls__icon" />
+        </button>
         <button
           type="button"
           className="play-controls__iconBtn"
@@ -123,19 +149,16 @@ function resignTitle(live: boolean, resignable: Side | null): string {
 }
 
 /**
- * 「閉じる」の名乗り。**始め損ねた対局には落とすエンジンが居ない**
- * （Rust は起動に失敗した対局を台帳に載せず、プロセスも自分で落とす）ので、
- * そこで「エンジンを落とす」と名乗ると嘘になる。
+ * 「閉じる」の名乗り。**落とすエンジンはもう居ない。**
+ *
+ * 始め損ねた対局は Rust が台帳に載せずプロセスも自分で落とし、終局した対局は
+ * 進行の側が落としている。**残っているのは画面の片付けだけ**なので、
+ * どの状態でも「エンジンを落とす」とは名乗らない。
  */
 function closeTitle(view: GameSessionView): string {
-  switch (view.kind) {
-    case "over":
-      return "対局を閉じてエンジンを落とす";
-    case "failed":
-      return "この対局を片付けて、やり直せるようにする";
-    default:
-      return "終局してから閉じられます";
-  }
+  return view.kind === "failed"
+    ? "この対局を片付けて、やり直せるようにする"
+    : "始められなかった対局が残っているときだけ片付けられます";
 }
 
 function statusText(view: GameSessionView): string {

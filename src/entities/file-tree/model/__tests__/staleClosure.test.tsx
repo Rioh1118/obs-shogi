@@ -15,14 +15,15 @@ const removeDir = vi.fn();
 const renameDir = vi.fn();
 const fetchTree = vi.fn();
 const readKifu = vi.fn();
+const createKifu = vi.fn();
 
 vi.mock("../../api/service", () => ({
   fetchTree: (...a: unknown[]) => fetchTree(...a),
   removeDir: (...a: unknown[]) => removeDir(...a),
   renameDir: (...a: unknown[]) => renameDir(...a),
   readKifu: (...a: unknown[]) => readKifu(...a),
+  createKifu: (...a: unknown[]) => createKifu(...a),
   readText: vi.fn(),
-  createKifu: vi.fn(),
   importKifu: vi.fn(),
   createDir: vi.fn(),
   removeFile: vi.fn(),
@@ -45,6 +46,8 @@ const { useFileTree } = await import("../useFileTree");
 const A_DIR = "/ws/A";
 const A_KIFU = "/ws/A/a.kif";
 const B_KIFU = "/ws/b.kif";
+/** 作ってから選ぶ棋譜。**最初のツリーには無い**（作った後の読み直しで生える） */
+const NEW_KIFU = "/ws/new.kif";
 
 const TREE = {
   id: "root",
@@ -112,6 +115,33 @@ function Probe() {
   );
 }
 
+/**
+ * 作ってから選ぶ。**2つを1つの closure で握る**——`GameStartModal` の送信と同じ形。
+ *
+ * 押した時点の `selectNodeByAbsPath` を握ったまま `createNewFile` を待つので、
+ * 待っている間に届いたツリーは握った側からは見えない。
+ */
+function CreateThenSelect({ onResult }: { onResult: (found: boolean) => void }) {
+  const { createNewFile, selectNodeByAbsPath } = useFileTree();
+  return (
+    <button
+      data-testid="create-then-select"
+      onClick={() => {
+        void (async () => {
+          const created = await createNewFile("/ws", {
+            fileName: "new.kif",
+            format: "kif",
+          } as never);
+          if (!created.success) return;
+          onResult(selectNodeByAbsPath(created.data, { forceReopen: true }));
+        })();
+      }}
+    >
+      create
+    </button>
+  );
+}
+
 afterEach(cleanup);
 
 beforeEach(() => {
@@ -161,5 +191,58 @@ describe("IPC を跨いだあとの読み出し", () => {
 
     // B は消したフォルダの中に無い。閉じてはいけない
     expect(screen.getByTestId("active").textContent).toBe(B_KIFU);
+  });
+
+  /**
+   * **作ったばかりの棋譜を、同じ closure から選べること。**
+   *
+   * `createNewFile` はツリーの読み直しを待ってから返るので、返った時点で節は在る。
+   * それでも呼び出し側が握っているのは**押した時点の** `selectNodeByAbsPath` で、
+   * そこから見えるツリーには作ったファイルがまだ無い。
+   *
+   * 見つからないと `GameStartModal` は送信を打ち切る。**棋譜だけが1枚できて、
+   * モーダルは開いたまま、対局は始まらない。**
+   */
+  it("作った棋譜を、作る前に握った口から選べる", async () => {
+    createKifu.mockResolvedValue({ success: true, data: NEW_KIFU });
+    // 作った後の読み直しでだけ生える
+    fetchTree.mockResolvedValueOnce({ success: true, data: TREE }).mockResolvedValue({
+      success: true,
+      data: {
+        ...TREE,
+        children: [
+          ...TREE.children,
+          {
+            id: "new",
+            name: "new.kif",
+            path: NEW_KIFU,
+            isDirectory: false,
+            displayInfo: { iconType: "kif-file" as const },
+            kifuInfo: { format: "kif" as const },
+          },
+        ],
+      },
+    });
+
+    let resolveFound: (found: boolean) => void;
+    const found = new Promise<boolean>((resolve) => {
+      resolveFound = resolve;
+    });
+    render(
+      <FileTreeProvider rootDir="/ws">
+        <CreateThenSelect onResult={(hit) => resolveFound(hit)} />
+      </FileTreeProvider>,
+    );
+    await act(async () => {});
+
+    // **`await act()` で包まない。** あれは React の作業を microtask の合間に流すので、
+    // 送信の鎖の途中に**本番には無い再描画**が挟まる。挟まると ref が描画で書き直されて
+    // 緑になり、実機だけが落ちる。本番の再描画は scheduler の macrotask なので、
+    // 鎖は**一度も描画されないまま**最後まで走る
+    act(() => {
+      screen.getByTestId("create-then-select").click();
+    });
+
+    expect(await found).toBe(true);
   });
 });

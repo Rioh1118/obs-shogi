@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { fromUsiMove, isPrefixOf, lineUsiMoves, useGame } from "@/entities/game";
-import { useGameSession } from "@/entities/game-session";
+import { useGameSession, type GameId } from "@/entities/game-session";
 
 /**
  * 対局で決まった手を盤へ載せる。
@@ -23,6 +23,18 @@ export function GameMoveBridge() {
   const running = view.kind === "live" || view.kind === "over" ? view : null;
   const usiMoves = running?.usiMoves;
   const kifuPath = running?.kifuPath ?? null;
+  const gameId = running?.gameId ?? null;
+  const isOver = view.kind === "over";
+
+  /**
+   * 先端まで届け終えた対局。**届けたら、その対局にはもう押さない。**
+   *
+   * 橋は「先頭一致していて短い盤＝まだ積んでいない」と読むが、その読みが正しいのは
+   * **積む相手がまだ増えるあいだ**だけ。終局した対局で同じように読むと、
+   * 利用者が遡った盤を「遅れている盤」と取り違えて1手ずつ押し戻す ——
+   * 1回の描画で1手進むので、**終局した棋譜は先端に貼り付いて動かせなくなる。**
+   */
+  const settledRef = useRef<GameId | null>(null);
 
   /**
    * 最後に積もうとした位置。**積めなかった位置を覚えておくために持つ。**
@@ -41,6 +53,9 @@ export function GameMoveBridge() {
     // ここで積むと関係の無い棋譜へ対局の手が入る
     if (kifuPath !== loadedAbsPath) return;
 
+    // 届け終えた対局。**遡ったのは利用者なので、追いかけない**
+    if (isOver && settledRef.current === gameId) return;
+
     // **盤が対局の線の上に居るときだけ積む。**
     //
     // **手数で見ない。** 遡って分岐を並べた盤は、同じ深さでも別の手順を辿っている。
@@ -54,7 +69,12 @@ export function GameMoveBridge() {
     if (line === null || !isPrefixOf(line, usiMoves)) return;
 
     // 盤が先端に追いついている。積むものは無い
-    if (line.length === usiMoves.length) return;
+    if (line.length === usiMoves.length) {
+      // **終局した対局はここで打ち止め。** 手はもう増えないので、この先に
+      // 短い盤が来たら「遅れている」のではなく**利用者が遡った**ということ
+      if (isOver) settledRef.current = gameId;
+      return;
+    }
 
     const move = fromUsiMove(usiMoves[line.length], player.shogi, player.shogi.turn);
     // 綴りを戻せない＝盤と対局の局面がずれている。**黙って積まない**
@@ -90,7 +110,7 @@ export function GameMoveBridge() {
       }
       reportBoardFailure(result.error);
     });
-  }, [usiMoves, player, kifuPath, loadedAbsPath, makeMove, reportBoardFailure]);
+  }, [usiMoves, player, kifuPath, loadedAbsPath, makeMove, reportBoardFailure, gameId, isOver]);
 
   return null;
 }
