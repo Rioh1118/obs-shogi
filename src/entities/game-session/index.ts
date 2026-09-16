@@ -45,7 +45,7 @@ export type {
 } from "./model/types";
 // 対局の姿から描く材料を引く側。**2面が別々に組まない**ため、判定式はここ1つ
 // （ヘッダの対局の行と対局タブが同じものを読む）
-export { clocksOf, isForeignKifuSession } from "./model/selectors";
+export { clocksOf, isForeignKifuSession, liveGameOf } from "./model/selectors";
 // 時計の描き方。**進行と同じスライスに置く** —— 読み手が widgets に2つ居るので、
 // どちらかの widget に置くと同層横断になる（ADR-0011 着手順3）
 // **`ClockDisplay` は載せない。** 返り値は呼ぶ側が推論で受けていて、

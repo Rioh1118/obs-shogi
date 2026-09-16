@@ -6,6 +6,8 @@ import { GOTE_GLYPH, SENTE_GLYPH } from "@/shared/lib/turn";
 import "./AppLayoutHeader.scss";
 import Title from "@/shared/ui/Title";
 import { useHeaderCenterInfo } from "@/widgets/app-layout-header/lib/useHeaderCenterInfo";
+import { liveGameOf, useGameSession } from "@/entities/game-session";
+import HeaderGameLine from "./HeaderGameLine";
 
 type Props = {
   toggleSidebar: () => void;
@@ -17,6 +19,10 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
   const openSettings = useOpenSettings();
 
   const info = useHeaderCenterInfo();
+  const { view: gameView } = useGameSession();
+  // 行を出すかは1つの判定から引く。**中身を描く側（`HeaderGameLine`）と同じもの**を
+  // 読まないと、片方だけが「対局中」と読んだ回に中身の無い行のぶんだけ高さが伸びる
+  const isGameLive = liveGameOf(gameView) !== null;
 
   const hasKifu = info.hasKifu;
 
@@ -35,7 +41,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
   );
 
   return (
-    <header className="app-header">
+    <header className={`app-header ${isGameLive ? "app-header--game" : ""}`}>
       <div className="app-header__left">
         <IconButton
           handleClick={toggleSidebar}
@@ -68,6 +74,13 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
             {metaNode && <span className="app-header__divider" aria-hidden="true" />}
             {metaNode}
           </div>
+          {/*
+            **1行目は棋譜の行、2行目は対局の行。** 対局は棋譜が入れ替わっても
+            走り続けるので、別の棋譜を見ている間もこの行は対局の時計を出す。
+            1行目の手番バッジは盤の局面のもの、2行目の印は対局のもので、
+            遡って並べている間は**食い違って見えるが、それでよい**（ADR-0011 決定2）
+          */}
+          <HeaderGameLine />
         </div>
       </div>
       <div className="app-header__right">

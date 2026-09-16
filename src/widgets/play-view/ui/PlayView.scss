@@ -83,10 +83,10 @@
     gap: index.$space-1;
   }
 
-  // 席1つ。左から手番の印・名前・持ち時間・秒読み
+  // 席1つ。左から手番の印・名前。**時計はヘッダの対局の行が持つ**（ADR-0011 決定2）
   &__seat {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+    grid-template-columns: max-content minmax(0, 1fr);
     align-items: baseline;
     gap: index.$space-3;
 
@@ -110,26 +110,6 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  // **桁が変わっても幅を動かさない。** 1時間を境に `M:SS` と `H:MM:SS` が入れ替わるので、
-  // 片方だけ切り替わった瞬間に上下の時計の端がずれる。2つを見比べる部品なので、
-  // ずれたまま残る（`AnalysisControls` の経過時間と同じ形）
-  &__clock {
-    min-width: 7ch;
-    font-family: index.$font-mono;
-    font-variant-numeric: tabular-nums;
-    font-size: index.$font-lead;
-    white-space: nowrap;
-    text-align: right;
-  }
-
-  &__byoyomi {
-    font-family: index.$font-mono;
-    font-variant-numeric: tabular-nums;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.72);
     white-space: nowrap;
   }
 

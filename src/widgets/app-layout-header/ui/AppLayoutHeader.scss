@@ -1,9 +1,9 @@
 @use "@/index.scss" as index;
 
 .app-header {
-  // **再宣言しない。** 高さの出典は `index.scss` の `$app-header-height` 1つで、
-  // ここで上書きすると `.app-layout` の grid の1段目と独立に動き、片方だけ直したときに
-  // 隙間が空くか `overflow: hidden` に切られる
+  // **1行ぶんの高さ。出典は `index.scss` の `$app-header-height` 1つ。**
+  // `.app-layout` の grid の1段目はこの高さに従う（`auto`）ので、
+  // ここを直値で上書きすると両者が独立に動く
   height: index.$app-header-height;
   display: flex;
   align-items: center;
@@ -12,6 +12,14 @@
   padding: 0 1.2rem;
   background-color: index.$color-primary-dark;
   border-bottom: 1px solid var(--stroke);
+
+  // **対局中だけ2行分。** 行の高さは上と同じ出典で、掛ける行数だけが対局の有無で動く。
+  // 常時2行分を予約すると、対局していない画面がその欄のぶんだけ空く
+  // （盤の枠に置く形を退けたのと同じ症状。ADR-0011 決定2）。
+  // 盤の寸法が動くのは対局の開始と終局の2回だけで、どちらも利用者が起こした節目
+  &--game {
+    height: calc(#{index.$app-header-height} * 2);
+  }
 
   &__left,
   &__center,
@@ -135,6 +143,83 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  // 2行目の「対局の行」。**この面の上に載る**ので、`.app-header` と同じファイルに置く
+  // （別のファイルへ出すと、面を名乗る綴りが2つになる）
+  &__game {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: index.$space-4;
+
+    // **折り返さない。** 高さが行数で決まっているので、折り返すと時計が枠の外に落ちる
+    flex-wrap: nowrap;
+  }
+
+  // 片側。左から手番の印・名前・持ち時間・秒読み
+  &__game-side {
+    min-width: 0;
+    display: inline-flex;
+    align-items: baseline;
+    gap: index.$space-3;
+
+    padding: index.$space-1 index.$space-3;
+    border-radius: index.$radius-2;
+
+    // **手番の印は帯と面の2つ。** 面の濃さだけだと隣の側と見分けが付かない。
+    // 帯は対局タブの席（`PlayView.scss` の `&__seat--turn`）と同じもの
+    &--turn {
+      box-shadow: index.$marker-bar;
+      background: rgba(index.$color-white, 0.07);
+    }
+  }
+
+  &__game-glyph {
+    flex: 0 0 auto;
+    font-weight: 700;
+  }
+
+  // **譲るのはここだけ。** 時計と秒読みは縮めない（`HeaderGameLine.tsx`）。
+  // 幅の決め方は1行目の対局者名（`&__meta-name`）と同じ
+  &__game-name {
+    min-width: 0;
+    max-width: clamp(6rem, 14vw, 12rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // **桁が変わっても幅を動かさない。** 1時間を境に `M:SS` と `H:MM:SS` が
+  // 入れ替わるので、片方だけ切り替わった瞬間に左右の時計の端がずれる
+  &__game-clock {
+    flex: 0 0 auto;
+    min-width: 7ch;
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    font-size: index.$font-lead;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  &__game-byoyomi {
+    flex: 0 0 auto;
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    font-size: index.$font-hint;
+    color: rgba(index.$color-text-primary, 0.72);
+    white-space: nowrap;
+  }
+
+  // 盤の棋譜と対局の棋譜が違うことの印。**伝えるだけ**で、対局は壊れていない
+  &__game-foreign {
+    flex: 0 0 auto;
+    font-size: index.$font-hint;
+    padding: index.$space-1 index.$space-3;
+    border-radius: index.$radius-3;
+    border: 1px solid index.$color-info;
+    color: rgba(index.$color-text-primary, 0.92);
+    white-space: nowrap;
   }
 
   &__sidebar-toggle {

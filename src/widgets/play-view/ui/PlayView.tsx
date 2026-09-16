@@ -1,14 +1,4 @@
-import {
-  clockDisplay,
-  clocksOf,
-  formatClock,
-  isForeignKifuSession,
-  tickIntervalMs,
-  useGameSession,
-  useNow,
-  type ClocksView,
-  type Side,
-} from "@/entities/game-session";
+import { isForeignKifuSession, useGameSession, type Side } from "@/entities/game-session";
 import { sideToColor, useLoadedKifuPath } from "@/entities/game";
 import { turnGlyph } from "@/shared/lib/turn";
 import { gameResultLabel, gameResultReason } from "../lib/result";
@@ -22,11 +12,13 @@ import "./PlayView.scss";
  * （`docs/spec/screens/play-view.md`）。
  *
  * **盤は無い。** 盤は `AppLayout` のものが現局面で、定跡ビューが盤を外したのと同じ理由。
+ *
+ * **時計も無い。** 残り時間はどのタブを開いていても見えているべき値なので、
+ * 持ち主はヘッダの対局の行（`HeaderGameLine`）——タブは1度に1枚しか出ない（ADR-0010）。
  */
 function PlayView() {
   const { view } = useGameSession();
   const loadedKifuPath = useLoadedKifuPath();
-  const now = useNow(tickIntervalMs(clocksOf(view)));
 
   if (view.kind === "idle") {
     return (
@@ -157,20 +149,8 @@ function PlayView() {
       )}
 
       <div className="play-view__seats">
-        <Seat
-          side="white"
-          name={view.whiteName}
-          clocks={view.clocks}
-          toMove={view.toMove}
-          now={now}
-        />
-        <Seat
-          side="black"
-          name={view.blackName}
-          clocks={view.clocks}
-          toMove={view.toMove}
-          now={now}
-        />
+        <Seat side="white" name={view.whiteName} toMove={view.toMove} />
+        <Seat side="black" name={view.blackName} toMove={view.toMove} />
       </div>
 
       <p className="play-view__progress">
@@ -182,36 +162,12 @@ function PlayView() {
 }
 
 /** 席1つ。**上が後手・下が先手**で盤の並びに合わせる */
-function Seat({
-  side,
-  name,
-  clocks,
-  toMove,
-  now,
-}: {
-  side: Side;
-  name: string;
-  clocks: ClocksView | null;
-  toMove: Side;
-  now: number;
-}) {
-  const display = clocks === null ? null : clockDisplay(clocks, side, now);
-
+function Seat({ side, name, toMove }: { side: Side; name: string; toMove: Side }) {
   return (
     <div className={`play-view__seat ${toMove === side ? "play-view__seat--turn" : ""}`}>
       <span className="play-view__side">{turnGlyph(sideToColor(side))}</span>
       <span className="play-view__name" title={name}>
         {name}
-      </span>
-      {/*
-        **最初のイベントが届くまでは数字を出さない。** 0 で埋めると
-        「時間切れ寸前の対局」として描かれる
-      */}
-      <span className="play-view__clock">
-        {display === null ? "—" : formatClock(display.mainMs)}
-      </span>
-      <span className="play-view__byoyomi">
-        {display === null || display.byoyomiMs === 0 ? "" : formatClock(display.byoyomiMs)}
       </span>
     </div>
   );

@@ -1,7 +1,6 @@
 @use "../index.scss" as index;
 
 .app-layout {
-  --header-h: #{index.$app-header-height};
   --sidebar-w: clamp(26rem, 20vw, 44rem);
   --dock-h: clamp(22rem, 28vh, 42rem);
   --stroke: rgba(255, 255, 255, 0.06);
@@ -14,7 +13,10 @@
   overflow: hidden;
 
   display: grid;
-  grid-template-rows: var(--header-h) 1fr;
+  // **1段目の高さはヘッダが決める。** 対局中は対局の行が生えて2行分になる
+  // （`AppLayoutHeader.scss` の `--game`）ので、ここで値を持つと
+  // 対局の有無を2箇所が別々に知ることになる
+  grid-template-rows: auto 1fr;
 
   background-color: index.$color-primary-light;
   color: index.$color-text-light-1;
