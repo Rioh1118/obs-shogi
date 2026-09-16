@@ -294,8 +294,9 @@ pub struct GameSettings {
 ///
 /// フロントの呼び出しから入るのは `Rule` / `Resign`（人間の投了）/
 /// `Aborted`（中断）の3つ。残りは Rust が決める。
-/// **`Rule` だけは両方から入る**——盤に載る手数の上限（`MAX_PLIES`）に
-/// 当たったときは Rust が `Rule` で畳む。
+/// **`Rule` と `Resign` は両方から入る**——`Rule` は盤に載る手数の上限
+/// （`MAX_PLIES`）に当たったとき、`Resign` はエンジンが `bestmove resign` を
+/// 返したときに Rust が畳む。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GameOverReason {
@@ -312,7 +313,10 @@ pub enum GameOverReason {
     /// 後者は `endGameByRule` を呼んでいないのに届くので、
     /// 「自分が投げた終局のこだま」として捨てないこと。
     Rule,
-    /// 利用者の中断（`abort`）。**入口はフロントの呼び出しだけ。**
+    /// 利用者の中断。**入口は `Command::Abort` だけ**——`abort_game` と
+    /// `close_game`、それに終了時の掃除（`close_all`）が通す。
+    /// **どれも利用者の操作から始まる**ので、フロントの呼び出しが無い回
+    /// （Cmd+Q で走ったまま畳まれた対局）もここに入る。
     ///
     /// アプリが裁定を返せずに畳んだ終局は `RulingTimeout` で、この値には入らない。
     /// 受け手の対処が正反対（中断は利用者の意図なので何も名乗らなくてよい、
