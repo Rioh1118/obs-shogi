@@ -15,7 +15,7 @@ import "./PlayView.scss";
  * 対局ビューの本体。**進行を持たない。**
  *
  * 持ち主は `GameSessionProvider`（`RuntimeProviders` に居る）。ここがそれを持つと、
- * タブを離れた瞬間に裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で中断される
+ * タブを離れた瞬間に裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で畳まれる
  * （`docs/spec/screens/play-view.md`）。
  *
  * **盤は無い。** 盤は `AppLayout` のものが現局面で、定跡ビューが盤を外したのと同じ理由。
@@ -35,7 +35,7 @@ function PlayView() {
         </p>
         {/*
           **出来事が届かないことを黙らない。** この状態で対局を始めると、
-          手が決まっても裁定を返す者が居ないので必ず中断される
+          手が決まっても裁定を返す者が居ないので必ずアプリの異常で畳まれる
         */}
         {view.eventsUnavailable !== null && (
           <p className="play-view__band" role="alert">
@@ -95,13 +95,14 @@ function PlayView() {
           {gameResultReason(view.result)} ／ {view.usiMoves.length}手
         </p>
         {/*
-          **裁定を返せなかったことを終局と一緒に消さない。** 畳まれた対局の理由は
-          利用者の中断と同じ値で届く（#362）ので、消すと「アプリが裁定を返せなかった」を
-          言える欄が1つも無くなる
+          **終わり方を言い直さない。** どう終わったかは理由の欄が言う。
+          **帯は消せない** —— 判定が投げて `endGameByRule` が通った回は理由が
+          「規則による終局（判定できなかった…）」までしか言えず、
+          **投げた中身を出せる欄がここしか無い**
         */}
         {view.rulingFailure !== null && (
           <p className="play-view__band" role="alert">
-            アプリが裁定を返せなかったため中断されました（{view.rulingFailure}）
+            アプリが裁定を返せませんでした（{view.rulingFailure}）
           </p>
         )}
         {/* **終局と一緒に消さない。** 抜けている手があることは、開き直しても分からない */}
@@ -131,9 +132,13 @@ function PlayView() {
   return (
     <div className="play-view">
       {foreign && <ForeignNote />}
+      {/*
+        **「中断されます」と書かない。** その語は利用者が中断を押したときのもので
+        （ADR-0011 決定1）、ここで待っている終局は理由が「アプリの異常」になる
+      */}
       {view.rulingFailure !== null && (
         <p className="play-view__band" role="alert">
-          裁定を返せませんでした。このままだと対局が中断されます（{view.rulingFailure}）
+          裁定を返せませんでした。このままだと「アプリの異常」で終局します（{view.rulingFailure}）
         </p>
       )}
       {/*

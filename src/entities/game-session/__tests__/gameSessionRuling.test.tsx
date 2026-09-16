@@ -10,7 +10,7 @@ import type { GameRuling, RulingAdapter } from "../model/types";
  * 画面の側は `docs/spec/screens/play-view.md`。
  *
  * ここが守っているのは1つ —— **手が決まったら必ず裁定が返る**。
- * 返らないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で対局が中断される。
+ * 返らないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で対局が畳まれる。
  * **画面を畳んでも返ること**まで見る（ドックのタブは選ばれていない間アンマウントされる）。
  */
 
@@ -223,7 +223,7 @@ describe("対局の進行", () => {
 
   /**
    * **これがこの層を置いた理由。** 裁定を対局ビューの中に置くと、
-   * 別のタブを開いた瞬間に返す者が居なくなり、対局が `RULING_TIMEOUT` で中断される。
+   * 別のタブを開いた瞬間に返す者が居なくなり、対局が `RULING_TIMEOUT` で畳まれる。
    */
   test("本体が畳まれていても裁定は返る", async () => {
     const { rerender } = mount(alwaysContinue);
@@ -342,7 +342,7 @@ describe("対局の進行", () => {
    *
    * 「中断」は `awaitingRuling` の間も押せる。押すと Rust は `Phase::Over` になり、
    * 飛んでいた `continue_game` が `ALREADY_OVER` で断られる。これを故障として立てると、
-   * **自分で中断した利用者の終局画面に**「アプリが裁定を返せなかったため中断されました
+   * **自分で中断した利用者の終局画面に**「アプリが裁定を返せませんでした
    * （game is already over）」が `role="alert"` で出る。
    * 時間切れが裁定の往復に重なった回も同じ。
    */
@@ -402,11 +402,11 @@ describe("対局の進行", () => {
       elapsedMs: 1000,
       clocks: CLOCKS,
     });
-    // Rust が `RULING_TIMEOUT` で畳む。**理由は利用者の中断と同じ値で届く**（#362）
+    // Rust が `RULING_TIMEOUT` で畳む。理由は「アプリの異常」で届く
     await emit({
       type: "over",
       gameId: GAME_ID,
-      result: { winner: null, reason: "aborted", detail: "no ruling came back from the app" },
+      result: { winner: null, reason: "rulingTimeout", detail: "no ruling came back from the app" },
       clocks: CLOCKS,
     });
 
@@ -437,7 +437,7 @@ describe("対局の進行", () => {
     expect(tauri.endGameByRule).toHaveBeenCalledWith(
       GAME_ID,
       null,
-      "判定できなかったため中断しました",
+      "判定できなかったため終局にしました",
     );
     expect(rulingFailureText()).toBe("shogi.js が投げた");
   });

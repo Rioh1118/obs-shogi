@@ -3,7 +3,7 @@ import type { ClocksView, GameId, GameResult, GameSettings, Side } from "../api/
 /**
  * 裁定の答え。**`moveDecided` を受けたら必ずどちらかを返す。**
  *
- * どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で中断される
+ * どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で畳まれる
  * （`api/tauri.ts` の `continueGame`）。
  */
 export type GameRuling =
@@ -52,7 +52,7 @@ export type GameSessionView =
    *
    * `eventsUnavailable` が `null` でなければ**出来事の購読そのものが張れていない**。
    * このまま始めると、手が決まっても裁定を返す者が居ないので
-   * 必ず `RULING_TIMEOUT` で中断される。**始めさせないこと。**
+   * 必ず `RULING_TIMEOUT` で畳まれる。**始めさせないこと。**
    */
   | { kind: "idle"; eventsUnavailable: string | null }
   /**
@@ -123,9 +123,10 @@ export type GameSessionView =
       /**
        * 裁定を返せなかったまま終局した場合の文言。
        *
-       * **終局と一緒に消さない。** `RULING_TIMEOUT` で畳まれた対局の `reason` は
-       * 利用者の中断と同じ `aborted` になる（#362）ので、**これを落とすと
-       * 「アプリが裁定を返せなかった」を言える欄が1つも無くなる**。
+       * **終局と一緒に消さない。** 理由の欄が名乗れるのは原因の名詞と、
+       * Rust が載せた `detail` まで。**投げた中身（`messageOf(error)`）を持つのは
+       * この欄だけ**で、判定器が投げた回はそれが唯一の手掛かりになる
+       * （そのとき理由は `rule` で、`detail` は「判定できなかった」としか言わない）。
        */
       rulingFailure: string | null;
       /**
@@ -167,7 +168,7 @@ export type GameSessionView =
 export type StartRefusal =
   /** 閉じていない対局がある。エンジンが起きたままなので、押した回数だけ増える */
   | "held"
-  /** 出来事の購読が張れていない。始めても裁定を返せず、必ず中断される */
+  /** 出来事の購読が張れていない。始めても裁定を返せず、必ずアプリの異常で畳まれる */
   | "events-unavailable";
 
 /** 対局を始めるときに渡すもの。**宛先が2つに割れている** */

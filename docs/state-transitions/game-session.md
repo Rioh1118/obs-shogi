@@ -54,7 +54,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 | **G1** | 手が決まり、裁定待ち。**時計は止まる**                  | `Phase::AwaitingRuling { last_mover, .. }` |
 | **G2** | 終局                                                    | `Phase::Over { result }`                   |
 
-`G1` の `since` から `RULING_TIMEOUT`で中断する。
+`G1` の `since` から `RULING_TIMEOUT` で畳む（`RulingTimeout`。**利用者の中断とは別の値**）。
 時計が止まっているので、この打ち切りが対局者の持ち時間を削ることはない。
 
 ## 外部の状態（エンジンプロセス）
@@ -127,7 +127,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 | **E12** `stop` に応じない             | → G2（`EngineFailure`）。**その側は `A4` になり `gameover` を送らない**※6  | 同左                                                                          | 同左                         | △※10   |
 | **E13** `info`                        | 手番側のものだけ流す※8                                                     | 流さない※8                                                                    | 流さない                     | △※10   |
 | **E14** 時計が尽きた                  | 成立するなら → G2（`Timeout`）※11                                          | 起きない（時計が止まっている）                                                | —                            | ✓※10   |
-| **E15** 裁定が返らない                | —                                                                          | → G2（`Aborted`、`detail` 付き）                                              | —                            | ✓      |
+| **E15** 裁定が返らない                | —                                                                          | → G2（`RulingTimeout`、`detail` 付き）                                        | —                            | ✓      |
 | **E17** 畳み待ちが長すぎる            | → G2（`EngineFailure`）                                                    | 起きない（畳み待ちは `G0` だけ）                                              | —                            | ✓      |
 | **E18** 思考が長すぎる                | ※12 の締切に当たれば → G2（`EngineFailure`）                               | 起きない                                                                      | —                            | △      |
 | **E16** 世代違い                      | 捨てる                                                                     | 捨てる                                                                        | 捨てる                       | △※13   |
@@ -173,7 +173,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 **写しの側（`self.moves`）の形は見ない。** 書き込む口は `start` と
 `accept_continue` の2つ（不変条件6）で、どちらも入るものを検証しているから。
 3つ目を増やすなら、そこでも形を見ること。
-4つのどれかで落ちると `G1` のまま留まるので、フロントが直さなければ E15（`RULING_TIMEOUT`）で中断される。
+4つのどれかで落ちると `G1` のまま留まるので、フロントが直さなければ E15（`RULING_TIMEOUT`）で畳まれる。
 
 ※4 `GameSession::close` は「止める（`CLOSE_ABORT_TIMEOUT`） →
 **畳まれるのを待つ**（`CLOSE_IDLE_TIMEOUT`） → 落とす」の順。
@@ -502,7 +502,7 @@ ClocksView {
 | `enforce_engine_timeout` が true のとき        | ※11 の分岐。既定 false 側しか通していない                                                                                                                                                                                                                                                                                                       |
 | `E16` 世代違いの `SearchOutcome`               | `req` の照合。`Info` 側は `info_from_a_stopped_search_is_not_shown` が踏んでいる。`SearchOutcome` 側は `Runner` を直に組んで `req` をずらせば踏める（実機は要らない）。未検証                                                                                                                                                                   |
 | 終了フックがエンジンを落とすこと               | `ExitRequested` / `Exit` のどちらでも走る形にしたが、**実機で確かめていない**（Cmd+Q とウィンドウの × で経路が違う）                                                                                                                                                                                                                            |
-| `GameOverReason` が潰している区別              | 裁定タイムアウトと利用者の中断が同じ `aborted`。`engineFailure` に落ちる経路は5本あるのに理由は1値                                                                                                                                                                                                                                              |
+| `GameOverReason` が潰している区別              | `engineFailure` に落ちる経路は5本あるのに理由は1値（裁定タイムアウトと利用者の中断は `rulingTimeout` / `aborted` に分かれた）                                                                                                                                                                                                                   |
 
 ## 実装との対応
 

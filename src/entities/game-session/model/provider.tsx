@@ -68,7 +68,7 @@ const IDLE: GameSessionView = { kind: "idle", eventsUnavailable: null };
  * **呼び手が守ること。**
  *
  * - **ドックのタブの中に置かない。** タブは選ばれていない間アンマウントされるので、
- *   裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で中断される。
+ *   裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で畳まれる。
  *   置き場は `RuntimeProviders`（`AnalysisProvider` と同じ理由だが、
  *   破れたときに失うのは表示ではなく**対局そのもの**）
  * - **棋譜の有無で畳まれない位置に置くこと。** 対局中に別の棋譜を開くと
@@ -116,7 +116,7 @@ export function GameSessionProvider({
    * 出来事の購読が張れなかったときの文言。
    *
    * **張れていないまま対局を始めると、手が決まっても裁定を返す者が居ない**ので、
-   * 必ず `RULING_TIMEOUT` で中断される。始めさせないための旗で、
+   * 必ず `RULING_TIMEOUT` で畳まれる。始めさせないための旗で、
    * `null` でなければ `start` が断る。
    */
   const [eventsUnavailable, setEventsUnavailable] = useState<string | null>(null);
@@ -160,7 +160,9 @@ export function GameSessionProvider({
           usiMoves: session.usiMoves,
         });
       } catch (error) {
-        verdict = { kind: "over", winner: null, detail: "判定できなかったため中断しました" };
+        // **「中断」と書かない。** その語は利用者の意思で終わらせたときのもの
+        // （ADR-0011 決定1）で、これはアプリが判定に失敗した回
+        verdict = { kind: "over", winner: null, detail: "判定できなかったため終局にしました" };
         if (sessionRef.current?.gameId === gameId) {
           sessionRef.current.rulingFailure = messageOf(error);
           publish();
@@ -180,13 +182,13 @@ export function GameSessionProvider({
         // **もう終わっていた、は故障ではない。** 中断や時間切れが裁定の往復に
         // 入っただけで、結末は `over` イベントが持っている。ここで立てると、
         // 自分で「中断」を押した利用者の終局画面に
-        // 「アプリが裁定を返せなかったため中断されました」が出る
+        // 「アプリが裁定を返せませんでした」が `role="alert"` で出る
         if (messageOf(error) === ALREADY_OVER) return;
 
         // **対局は止まらない。** Rust は `RULING_TIMEOUT` の後に
-        // `over { reason: "aborted" }` を出す。この文言が見えるのはそれまでの間と、
-        // 終局後は `over` の欄に引き継いだぶん（#362 で利用者の中断と同じ値になるので、
-        // 落とすと「アプリが裁定を返せなかった」を言える欄が無くなる）
+        // `over { reason: "rulingTimeout" }` を出す。この文言が見えるのはそれまでの間と、
+        // 終局後は `over` の欄に引き継いだぶん——理由の欄が名乗るのは原因の名詞と
+        // Rust の `detail` までで、**断られた呼び出しの文言を持つのはこちらだけ**
         sessionRef.current.rulingFailure = messageOf(error);
         publish();
       }
@@ -241,7 +243,7 @@ export function GameSessionProvider({
           session.clocks = event.clocks;
           session.awaitingRuling = false;
           // **手番が移ったなら裁定は通っている。** 消さないと、直った対局に
-          // 「このままだと中断されます」が最後まで残る
+          // 「このままだと『アプリの異常』で終局します」が最後まで残る
           session.rulingFailure = null;
           break;
 
@@ -298,7 +300,7 @@ export function GameSessionProvider({
     listenSettledRef.current = listenToGameEvents((event) => {
       // **ref を通す。** 直に `apply` を渡すと effect がそれに依存することになり、
       // 依存が動いた回に購読を張り直す窓ができる。その窓に `moveDecided` が落ちると
-      // 裁定が返らず、対局が `RULING_TIMEOUT` で中断される
+      // 裁定が返らず、対局が `RULING_TIMEOUT` で畳まれる
       applyRef.current(event);
     })
       .then((fn) => {

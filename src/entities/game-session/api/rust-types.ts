@@ -161,10 +161,16 @@ export interface GameSettings {
  *   `endGameByRule` を呼んでいないのに届くので、「自分が投げた終局のこだま」として
  *   捨てないこと。そのときの `detail` は Rust が入れた英文
  * - `resign` — `resignGame`（人間の投了）。エンジンの投了は Rust が決める
- * - `aborted` — `abortGame`。**ただし「裁定を `RULING_TIMEOUT` の間返さなかった」ときも
- *   同じ値になる。** いまの型では区別できない
+ * - `aborted` — `abortGame`（利用者の中断）
  *
- * `timeout` / `engineFailure` / `declareWin` は Rust が決める。
+ * `timeout` / `engineFailure` / `declareWin` / `rulingTimeout` は Rust が決める。
+ * **`rulingTimeout` は「アプリの異常」**——`moveDecided` を受けたまま
+ * `continueGame` も `endGameByRule` も `RULING_TIMEOUT` の間通せず、Rust が畳んだ対局。
+ * 利用者の中断（`aborted`）とは受け手の対処が正反対なので、値が分けてある。
+ *
+ * **綴りを足したら `REASON_LABEL`（`widgets/play-view/lib/result.ts`）も足す。**
+ * `Record` なので tsc が落とす。Rust にだけ足した状態は
+ * `src/__tests__/gameOverReasonWire.test.ts` が落とす。
  */
 export type GameOverReason =
   | "resign"
@@ -172,7 +178,8 @@ export type GameOverReason =
   | "timeout"
   | "engineFailure"
   | "rule"
-  | "aborted";
+  | "aborted"
+  | "rulingTimeout";
 
 export interface GameResult {
   /** 引き分けなら null */
@@ -277,7 +284,7 @@ export type GameEvent =
    *
    * この手の合法性と、指した後の局面が終局かどうか（詰み・千日手・持将棋・
    * 最大手数）を判定して、`continueGame` か `endGameByRule` を呼ぶこと。
-   * どちらも呼ばないと次の手番は始まらない（`RULING_TIMEOUT` で中断される）。
+   * どちらも呼ばないと次の手番は始まらない（`RULING_TIMEOUT` で畳まれる）。
    */
   | {
       type: "moveDecided";

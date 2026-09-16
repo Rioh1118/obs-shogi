@@ -58,9 +58,16 @@ const OUTCOME_DETAIL: Record<GameOutcome["kind"], string> = {
   maxMoves: "最大手数",
 };
 
-/** 指し手列を組み立てられなかったときの説明。**何手目で詰まったかを残す** */
+/**
+ * 指し手列を組み立てられなかったときの説明。**何手目で詰まったかを残す。**
+ *
+ * **「中断」と書かない。** その語は利用者が中断を押したときのもの（ADR-0011 決定1）で、
+ * これはアプリが局面を組めなかった回。**この経路は帯を立てない**
+ * （判定は投げずに値で失敗を返すので `rulingFailure` が `null` のまま）ので、
+ * 故障が起きたことを言えるのはこの文言だけになる。
+ */
 function unplayableDetail(failure: GameOutcomeFailure): string {
   return failure.code === "unplayable_start_sfen"
-    ? "開始局面を読めないため中断しました"
-    : `${failure.ply}手目（${failure.usiMove}）を指せないため中断しました`;
+    ? "開始局面を読めないため終局にしました"
+    : `${failure.ply}手目（${failure.usiMove}）を指せないため終局にしました`;
 }

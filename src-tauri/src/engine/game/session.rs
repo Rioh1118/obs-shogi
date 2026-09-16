@@ -1027,7 +1027,7 @@ impl Runner {
 
         // **上限に達したら終局にする。断らない。** 断ると、フロントは
         // 接頭辞と長さで一意に固定された列しか返せないのでやり直しても同じ `Err` になり、
-        // `RULING_TIMEOUT` 後に `Aborted { "no ruling came back from the app" }` で
+        // `RULING_TIMEOUT` 後に `RulingTimeout { "no ruling came back from the app" }` で
         // 畳まれる——**返しているのに「返さなかった」と棋譜に残る。**
         // 上限は GUI 側の都合なので、理由も GUI 側のもの（`Rule`）として持つ。
         //
@@ -1084,8 +1084,8 @@ impl Runner {
             return Err(ALREADY_OVER.to_string());
         }
         // **断らない。** 裁定を拒否すると、フロントが呼び直さない限り
-        // `RULING_TIMEOUT` が `Aborted { winner: None }` で畳む——
-        // **「先手の勝ち・詰み」が「中断・勝者なし」に化ける**。
+        // `RULING_TIMEOUT` が `RulingTimeout { winner: None }` で畳む——
+        // **「先手の勝ち・詰み」が「アプリの異常・勝者なし」に化ける**。
         // `MAX_PLIES` が同じ理由で「超えたら終局にする」に倒しているのと同じ。
         //
         // 切るのは `finish`。入口ごとに通すと、通し忘れた入口ができる。
@@ -1338,9 +1338,11 @@ impl Runner {
             }
             Phase::AwaitingRuling { since, .. } => {
                 if since.elapsed() >= RULING_TIMEOUT {
+                    // **利用者の中断（`Aborted`）とは別の値で畳む。** 受け手の対処が
+                    // 正反対で、こちらは故障として名乗らせる必要がある
                     self.finish(GameResult {
                         winner: None,
-                        reason: GameOverReason::Aborted,
+                        reason: GameOverReason::RulingTimeout,
                         detail: Some("no ruling came back from the app".to_string()),
                     })
                     .await;
@@ -4499,13 +4501,16 @@ mod tests {
         );
     }
 
-    /// 裁定が返らないまま `RULING_TIMEOUT` を過ぎたら中断すること（表の `(G1, E15)`）。
+    /// 裁定が返らないまま `RULING_TIMEOUT` を過ぎたら畳むこと（表の `(G1, E15)`）。
     ///
-    /// **上限に当たった裁定を「断らずに終局」にした根拠がこの番人。**
+    /// **利用者の中断（`Aborted`）と同じ値にしない。** 同じにすると、自分で中断を
+    /// 押した回とアプリが故障した回が画面で見分けられず、理由の欄はどちらかで嘘になる。
+    ///
+    /// **上限に当たった裁定を「断らずに終局」にした根拠もこの番人。**
     /// 断ると同じ `Err` を返し続けてここに落ち、`detail` は「アプリが裁定を
     /// 返さなかった」と書く——返しているのに。その番人が働くことをここで固定する。
     #[tokio::test]
-    async fn a_ruling_that_never_comes_back_aborts_the_game() {
+    async fn a_ruling_that_never_comes_back_ends_the_game_as_an_app_failure() {
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut runner = test_runner(&tx);
         runner.phase = Phase::AwaitingRuling {
@@ -4519,7 +4524,11 @@ mod tests {
 
         match &runner.phase {
             Phase::Over { result } => {
-                assert_eq!(result.reason, GameOverReason::Aborted, "終局の理由が違う");
+                assert_eq!(
+                    result.reason,
+                    GameOverReason::RulingTimeout,
+                    "終局の理由が違う。利用者の中断と同じ値にしないこと"
+                );
                 assert!(
                     result.winner.is_none(),
                     "裁定が返らないのに勝敗が付いている"

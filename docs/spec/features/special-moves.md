@@ -76,7 +76,11 @@ Rust 側の `kifu_reader.rs` には
 | `Timeout`        | `TIME_UP`                                   |
 | `Rule`           | `TSUMI` / `SENNICHITE` / `JISHOGI` のどれか |
 | `Aborted`        | `CHUDAN`                                    |
+| `RulingTimeout`  | `CHUDAN`                                    |
 | `EngineFailure`  | **対応が無い**                              |
+
+**`Aborted` と `RulingTimeout` が同じ綴りなのは意図**（理由は
+[ADR-0011](../../decisions/0011-game-vocabulary-and-placement.md) 決定1）。
 
 最後の1行が決まっていない。→ [game-play.md](game-play.md)
 

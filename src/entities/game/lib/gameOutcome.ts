@@ -3,7 +3,7 @@
  *
  * **`moveDecided` を受けた側が呼ぶ。** `null` が返ったときだけ `continueGame` を
  * 返してよい。どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で
- * 中断される（`entities/game-session/api/tauri.ts`）。
+ * 畳まれる（`entities/game-session/api/tauri.ts`）。
  *
  * **利用者に見せる文言はここで決めない。** 返すのは種別と勝者だけで、
  * `endGameByRule` に渡す `detail` の綴りは呼び出し側が決める。理由は
@@ -77,7 +77,7 @@ export interface GameOutcome {
  * 局面を組み立てられなかった。**「まだ終わっていない」と混ぜないこと。**
  *
  * これが返ったら、渡された指し手列からいまの局面を再現できていない。
- * `continueGame` を返しても Rust 側の検算で弾かれるので、対局を中断して
+ * `continueGame` を返しても Rust 側の検算で弾かれるので、対局を終局にして
  * 利用者に見せるほかない。
  *
  * **「その手が反則だった」の受け皿ではない。** 対局者が指した手の合法性は、

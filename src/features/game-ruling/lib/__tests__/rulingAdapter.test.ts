@@ -57,7 +57,7 @@ describe("裁定器", () => {
     expect(ruling.judge({ startSfen: "こわれた sfen", usiMoves: [] })).toEqual({
       kind: "over",
       winner: null,
-      detail: "開始局面を読めないため中断しました",
+      detail: "開始局面を読めないため終局にしました",
     });
   });
 
@@ -67,7 +67,7 @@ describe("裁定器", () => {
     expect(ruling.judge({ startSfen: HIRATE, usiMoves: ["7g7f", "9i9z"] })).toEqual({
       kind: "over",
       winner: null,
-      detail: "2手目（9i9z）を指せないため中断しました",
+      detail: "2手目（9i9z）を指せないため終局にしました",
     });
   });
 

@@ -294,8 +294,9 @@ pub struct GameSettings {
 ///
 /// フロントの呼び出しから入るのは `Rule` / `Resign`（人間の投了）/
 /// `Aborted`（中断）の3つ。残りは Rust が決める。
-/// **`Rule` と `Aborted` は両方から入る**——`Rule` は盤に載る手数の上限
-/// （`MAX_PLIES`）、`Aborted` は裁定が返らなかったとき。
+/// **`Rule` と `Resign` は両方から入る**——`Rule` は盤に載る手数の上限
+/// （`MAX_PLIES`）に当たったとき、`Resign` はエンジンが `bestmove resign` を
+/// 返したときに Rust が畳む。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GameOverReason {
@@ -312,13 +313,24 @@ pub enum GameOverReason {
     /// 後者は `endGameByRule` を呼んでいないのに届くので、
     /// 「自分が投げた終局のこだま」として捨てないこと。
     Rule,
-    /// 利用者の中断（`abort`）。
+    /// 利用者の中断。**入口は `Command::Abort` だけ**——`abort_game` と
+    /// `close_game`、それに終了時の掃除（`close_all`）が通す。
+    /// **どれも利用者の操作から始まる**ので、フロントの呼び出しが無い回
+    /// （Cmd+Q で走ったまま畳まれた対局）もここに入る。
     ///
-    /// **裁定が `RULING_TIMEOUT` 返らなかったときも同じ値**になる。
-    /// 区別できるのは `detail` だけ（アプリが落としたほうには文言が入る）。
-    /// 受け手の対処は正反対（前者は利用者の意図、後者は故障）。
-    /// TODO(#362): 型で分ける
+    /// アプリが裁定を返せずに畳んだ終局は `RulingTimeout` で、この値には入らない。
+    /// 受け手の対処が正反対（中断は利用者の意図なので何も名乗らなくてよい、
+    /// 故障は名乗る必要がある）なので、値で分けてある。
     Aborted,
+    /// アプリの異常。**裁定が `RULING_TIMEOUT` の間返らず、Rust が畳んだ。**
+    ///
+    /// **フロントの呼び出しからは入らない。** 入るのは `MoveDecided` を出したまま
+    /// `continue_game` も `end_by_rule` も受け取れなかった対局で、原因は
+    /// フロント側（listener が死んだ、画面が落ちた）か、`emit` が落ちて
+    /// `MoveDecided` 自体が届かなかったとき（→ 台帳の F-19）。
+    /// 後者では **`detail` の「アプリが裁定を返さなかった」が原因を取り違えている**
+    /// ——フロントは裁定を返しようがなかった。
+    RulingTimeout,
 }
 
 /// 終局の結末。**`over` のイベントと `GameSnapshot` の両方に載る同じ値。**
@@ -1052,41 +1064,75 @@ mod tests {
         }
     }
 
+    /// この宣言のバリアント名。**手で並べた一覧を持たないための足場。**
+    ///
+    /// 手で並べると、バリアントを足した時点でその一覧が古くなり、
+    /// 足したものが覆われていないことに誰も気付かない。
+    ///
+    /// `declaration` は `pub enum X {` の行そのもの。**最初に現れたものを採る**ので、
+    /// 同じ綴りがこのテストモジュールにもう一度出ても宣言のほうを読む。
+    fn variants_of(declaration: &str) -> Vec<&'static str> {
+        let source: &'static str = include_str!("types.rs");
+        let body = source
+            .split_once(declaration)
+            .unwrap_or_else(|| panic!("{declaration} が見つからない"))
+            .1;
+        body.lines()
+            .take_while(|line| *line != "}")
+            .map(|line| line.trim().split([' ', '{', ',']).next().unwrap_or(""))
+            .filter(|token| token.starts_with(char::is_uppercase))
+            .collect()
+    }
+
+    /// バリアント名 → 線に出る綴り。`serde(rename_all = "camelCase")` と同じ写像
+    fn wire_name(variant: &str) -> String {
+        let mut chars = variant.chars();
+        match chars.next() {
+            Some(first) => first.to_lowercase().collect::<String>() + chars.as_str(),
+            None => String::new(),
+        }
+    }
+
+    /// 終局の理由が、**宣言の綴りをそのまま camelCase にした形**で線に出ること。
+    ///
+    /// **写しとの突き合わせは TS 側にある**（`src/__tests__/gameOverReasonWire.test.ts`）。
+    /// あちらは宣言の綴りを camelCase にして union を引くので、
+    /// **その写像が本物の serde と一致していることを誰かが保証しないと丸ごと嘘になる。**
+    /// `#[serde(rename = "…")]` を1つ付ければ線の綴りだけが変わり、
+    /// 写しを引く側は宣言の綴りを引き続けて緑で通る。
+    ///
+    /// ここが見るのは serde 本体。**宣言から組んだ綴りで実際に読めるか**を問う。
+    #[test]
+    fn every_game_over_reason_goes_on_the_wire_as_camel_case() {
+        let declared = variants_of("pub enum GameOverReason {");
+        assert!(!declared.is_empty(), "宣言を1つも拾えていない");
+
+        for name in &declared {
+            let wire = wire_name(name);
+            serde_json::from_str::<GameOverReason>(&format!("\"{wire}\"")).unwrap_or_else(|_| {
+                panic!(
+                    "{name} は線に `{wire}` として出ない。`serde(rename)` が付いているなら、\
+                     写しを引く側（src/__tests__/gameOverReasonWire.test.ts）が宣言の綴りを\
+                     引き続けて素通りする"
+                )
+            });
+        }
+    }
+
     /// 出来事の分類が、バリアントを足したときに黙って既定へ落ちないこと。
     ///
     /// **見本は宣言から突き合わせる。** 手で並べた見本は、バリアントを足した
     /// 時点で古くなり、足したものが分類されていないことに誰も気付かない。
-    /// `include_str!` で自分の宣言を読み、見本が全バリアントを覆っているかを見る。
     #[test]
     fn every_event_is_classified() {
-        let source = include_str!("types.rs");
-        let body = source
-            .split_once("pub enum GameEvent {")
-            .expect("GameEvent の宣言が見つからない")
-            .1;
-        let declared: Vec<&str> = body
-            .lines()
-            .take_while(|line| *line != "}")
-            .map(|line| line.trim().split([' ', '{', ',']).next().unwrap_or(""))
-            .filter(|token| token.starts_with(char::is_uppercase))
-            .collect();
+        let declared = variants_of("pub enum GameEvent {");
         assert!(!declared.is_empty(), "宣言を1つも拾えていない");
 
         let samples = sample_of_every_event();
-        let covered: Vec<String> = samples
-            .iter()
-            .map(|e| {
-                let kind = e.kind();
-                let mut chars = kind.chars();
-                match chars.next() {
-                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                    None => String::new(),
-                }
-            })
-            .collect();
+        let covered: Vec<&str> = samples.iter().map(|e| e.kind()).collect();
         for name in &declared {
             assert!(
-                covered.iter().any(|c| c == name),
+                covered.contains(&wire_name(name).as_str()),
                 "{name} の見本が無い。分類（is_terminal）も見られていない"
             );
         }
