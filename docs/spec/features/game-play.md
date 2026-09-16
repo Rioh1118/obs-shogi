@@ -133,7 +133,7 @@ Rust: 次の手番へ進む
 ### 復帰導線が無い（#374）
 
 `over` の emit が落ちると、**盤が止まったまま何も起きない画面**が残る。
-`turnChanged` / `moveDecided` は30秒で `aborted` に畳まれるが、`over` だけが例外。
+`turnChanged` / `moveDecided` は30秒で `rulingTimeout` に畳まれるが、`over` だけが例外。
 
 `get_game_state` は API として在り、呼び口も `tauri.ts` にある。**呼ぶ側が居ない。**
 
