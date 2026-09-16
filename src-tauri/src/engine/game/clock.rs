@@ -153,8 +153,9 @@ impl GameClocks {
             let into_byoyomi = elapsed_ms.saturating_sub(clock.remaining_ms);
 
             // **尽きた後は過去を指す。** 指し始めた時刻（`now_epoch_ms - elapsed_ms`）に
-            // 持ち時間の残りを足したもので、`main_left` と `into_byoyomi` は
-            // 片方しか 0 でないので、この式はそのどちらの向きにも倒れる。
+            // 持ち時間の残りを足したもの。`main_left` と `into_byoyomi` が
+            // **同時に非 0 になることはない**ので、この式は加算と減算の
+            // どちらの向きにも倒れる（両方 0 なのは、ちょうど尽きた瞬間）。
             //
             // **0 でクランプして `now_epoch_ms` を返さない。** そうすると、尽きた側の
             // 期限は呼ばれるたびに前へ進む。受け手の「いま」は毎秒しか動かないので
@@ -168,8 +169,8 @@ impl GameClocks {
                 side,
                 main_zero_at,
                 // 秒読みは持ち時間が尽きた時点から減り始めるので、期限はその1つ後ろ。
-                // **`into_byoyomi` で引き直さない** ——引くと、秒読みまで使い切った側
-                // （`enforce_engine_timeout` が偽のエンジン）で同じ往復が再発する
+                // **`into_byoyomi` を引き直さない** —— `main_zero_at` が既に引いているので、
+                // ここで引くと二重に引くことになり、秒読みが2倍の速さで減る
                 byoyomi_zero_at: main_zero_at.saturating_add(clock.limit.byoyomi_ms),
             }
         });
@@ -416,6 +417,28 @@ mod tests {
         assert_eq!(into_byoyomi.byoyomi_zero_at, NOW + 25_000);
     }
 
+    /// ちょうど尽きた瞬間に、期限が「いま」を指すこと。
+    ///
+    /// **`main_left` と `into_byoyomi` が両方 0 になる唯一の入力。** 式が
+    /// `now + main_left - into_byoyomi` である根拠がこの境界なので、
+    /// ここを踏まないと `saturating_*` の向きを取り違えても緑で通る
+    #[test]
+    fn a_deadline_that_has_just_run_out_points_at_now() {
+        let clocks = GameClocks::new(byoyomi(10_000, 30_000), minutes_ms(10));
+        const NOW: u64 = 1_700_000_000_000;
+
+        let running = clocks
+            .view(Some((Side::Black, 10_000)), NOW)
+            .running
+            .unwrap();
+        assert_eq!(running.main_zero_at, NOW);
+        assert_eq!(
+            running.byoyomi_zero_at,
+            NOW + 30_000,
+            "秒読みが満額で出ていない"
+        );
+    }
+
     /// 尽きた後の期限が、組み直すたびに前へ進まないこと。
     ///
     /// `main_zero_at` を 0 でクランプして「いま」にすると、この値は emit
@@ -446,7 +469,8 @@ mod tests {
     /// 秒読みまで使い切った側でも、期限が動かないこと。
     ///
     /// `enforce_engine_timeout` が偽のままエンジンが長考すると、この状態が続く。
-    /// 秒読みの残りを 0 でクランプしてから足す形だと、**こちらだけ往復が残る**
+    /// 秒読みの残りを 0 でクランプしてから `now_epoch_ms` に足す形だと、
+    /// **こちらだけ往復が残る**
     #[test]
     fn a_deadline_past_the_byoyomi_does_not_advance_either() {
         let clocks = GameClocks::new(byoyomi(10_000, 30_000), minutes_ms(10));

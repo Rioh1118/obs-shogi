@@ -1,24 +1,29 @@
 @use "@/index.scss" as index;
 
 .app-header {
-  // **1行ぶんの高さ。出典は `index.scss` の `$app-header-height` 1つ。**
-  // `.app-layout` の grid の1段目はこの高さに従う（`auto`）ので、
-  // ここを直値で上書きすると両者が独立に動く
-  height: index.$app-header-height;
+  // **高さを持たない。行が積まれたぶんだけ伸びる。**
+  // 対局中は対局の行が生えて2行分になるが、対局の有無を知っているのは
+  // その行（`HeaderGameLine`）だけ —— 器も高さを持つと、片方だけ条件が動いた回に
+  // 中身の無い帯が出るか、行が器の下へはみ出す。
+  // `.app-layout` の grid の1段目も同じ理由で `auto`。
+  // 常時2行分を予約する形は取らない（対局していない画面がその欄のぶんだけ空く。
+  // 盤の枠に置く形を退けたのと同じ症状。ADR-0011 決定2）
+
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4rem;
-  padding: 0 1.2rem;
+  flex-direction: column;
   background-color: index.$color-primary-dark;
   border-bottom: 1px solid var(--stroke);
 
-  // **対局中だけ2行分。** 行の高さは上と同じ出典で、掛ける行数だけが対局の有無で動く。
-  // 常時2行分を予約すると、対局していない画面がその欄のぶんだけ空く
-  // （盤の枠に置く形を退けたのと同じ症状。ADR-0011 決定2）。
-  // 盤の寸法が動くのは対局の開始と終局の2回だけで、どちらも利用者が起こした節目
-  &--game {
-    height: calc(#{index.$app-header-height} * 2);
+  // 1行目（棋譜の行）。**高さの出典は `index.scss` の `$app-header-height` 1つ。**
+  // 行ごとに高さを持つので、対局の行が生えてもここに並ぶものは動かない
+  &__bar {
+    height: index.$app-header-height;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4rem;
+    padding: 0 index.$space-6;
   }
 
   &__left,
@@ -113,7 +118,7 @@
 
   &__meta-name {
     display: inline-block;
-    max-width: clamp(6rem, 14vw, 12rem);
+    max-width: index.$header-name-width;
     overflow: hidden;
     text-overflow: ellipsis;
     vertical-align: bottom;
@@ -146,15 +151,23 @@
   }
 
   // 2行目の「対局の行」。**この面の上に載る**ので、`.app-header` と同じファイルに置く
-  // （別のファイルへ出すと、面を名乗る綴りが2つになる）
+  // （別のファイルへ出すと、面を名乗る綴りが2つになる）。
+  // 高さは1行目と同じ出典で、2行分になるのはこの行が生えた結果
   &__game {
+    height: index.$app-header-height;
+    flex: 0 0 auto;
     min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: index.$space-4;
+    padding: 0 index.$space-6;
 
-    // **折り返さない。** 高さが行数で決まっているので、折り返すと時計が枠の外に落ちる
+    // **折り返さない。** 高さが行1つぶんなので、折り返すと時計が枠の外に落ちる
     flex-wrap: nowrap;
+    // **あふれはここで切る。** 1行目は要素ごとに切っているが、この行は縮まない欄
+    // （時計・秒読み・印）を持つので、要素ごとに切ると切られないまま右へ流れる
+    overflow: hidden;
   }
 
   // 片側。左から手番の印・名前・持ち時間・秒読み
@@ -168,7 +181,7 @@
     border-radius: index.$radius-2;
 
     // **手番の印は帯と面の2つ。** 面の濃さだけだと隣の側と見分けが付かない。
-    // 帯は対局タブの席（`PlayView.scss` の `&__seat--turn`）と同じもの
+    // 帯は対局タブの席（`PlayView.scss` の `.play-view__seat--turn`）と同じもの
     &--turn {
       box-shadow: index.$marker-bar;
       background: rgba(index.$color-white, 0.07);
@@ -180,21 +193,23 @@
     font-weight: 700;
   }
 
-  // **譲るのはここだけ。** 時計と秒読みは縮めない（`HeaderGameLine.tsx`）。
-  // 幅の決め方は1行目の対局者名（`&__meta-name`）と同じ
+  // **譲るのはここだけ。** 時計と秒読みは縮めない（`HeaderGameLine.tsx`）
   &__game-name {
     min-width: 0;
-    max-width: clamp(6rem, 14vw, 12rem);
+    max-width: index.$header-name-width;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  // **桁が変わっても幅を動かさない。** 1時間を境に `M:SS` と `H:MM:SS` が
-  // 入れ替わるので、片方だけ切り替わった瞬間に左右の時計の端がずれる
+  // **桁が変わっても欄の幅を動かさない。** 1時間を境に `M:SS` と `H:MM:SS` が
+  // 入れ替わるので、幅を中身に任せると桁を跨いだ瞬間にこの席の右にあるもの
+  // （秒読み・区切り・もう一方の席）がまとめて横へ動く。
+  // **`8ch` は上限（`MAX_TIME_MS` = 24時間）の `24:00:00` に合わせてある。**
+  // 合っていることは `clockColumnWidth.test.ts` が見る
   &__game-clock {
     flex: 0 0 auto;
-    min-width: 7ch;
+    min-width: 8ch;
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
     font-size: index.$font-lead;
@@ -211,15 +226,12 @@
     white-space: nowrap;
   }
 
-  // 盤の棋譜と対局の棋譜が違うことの印。**伝えるだけ**で、対局は壊れていない
+  // 盤の棋譜と対局の棋譜が違うことの印。**伝えるだけ**で、対局は壊れていない。
+  // 形は1行目のバッジ（`&__badge`）に乗せ、差分は枠の色だけにする
   &__game-foreign {
     flex: 0 0 auto;
-    font-size: index.$font-hint;
-    padding: index.$space-1 index.$space-3;
-    border-radius: index.$radius-3;
-    border: 1px solid index.$color-info;
+    border-color: index.$color-info;
     color: rgba(index.$color-text-primary, 0.92);
-    white-space: nowrap;
   }
 
   &__sidebar-toggle {

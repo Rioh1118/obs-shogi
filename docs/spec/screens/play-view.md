@@ -105,9 +105,15 @@ Rust は将棋のルールを持たないので、手が決まると裁定待ち
 「解析を見ながら残り時間を知る」ができない。時計は対局が走っている間
 **常に見えているべき値**で、それはヘッダの性質（ADR-0011 決定2）。
 
-描く材料（`clockDisplay` / `useNow` / `clocksOf`）は `entities/game-session` に在る。
-**この画面から参照し直さない** ——widgets どうしの横断は
+描く材料（`clockDisplay` / `useNow` / `clocksOf`）は `entities/game-session` に在る
+（`ClocksView` は Rust から来る型なので、読み方も型と同じスライスに置く）。
+**ヘッダ側がこの画面から何かを読むことはない** ——widgets どうしの横断は
 `src/__tests__/crossSliceImports.test.ts` が止める。
+
+**対局の失敗を出すのはこの画面だけ**（`rulingFailure` / `boardFailure` の帯）。
+ヘッダの行が出すのは時計と手番と「別の棋譜」の印までなので、
+**別のタブを開いている利用者には、対局が止まった理由が届かない** ——
+時計が黙って止まり、終局の面で初めて分かる。
 
 ## 対局を始める面（`modal=game-start`）
 

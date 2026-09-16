@@ -4,13 +4,23 @@ import { clockDisplay, formatClock, tickIntervalMs } from "../clock";
 
 const NOW = 1_700_000_000_000;
 
-/** 先手が動いている時計。`mainZeroAt` と `byoyomiZeroAt` は呼び手が決める */
-function running(mainZeroAt: number, byoyomiZeroAt: number): ClocksView {
+/**
+ * 先手が動いている時計。
+ *
+ * **秒読みの期限は `mainZeroAt + byoyomiMs`。** 送り手が出す形がそれ1つなので
+ * （`GameClocks::view`）、2つを独立に選べる fixture は送り手が作れない値になる。
+ */
+function running(mainZeroAt: number, byoyomiZeroAt = mainZeroAt + 30_000): ClocksView {
   return {
     black: { mainMs: 0, byoyomiMs: 30_000 },
     white: { mainMs: 600_000, byoyomiMs: 30_000 },
     running: { side: "black", mainZeroAt, byoyomiZeroAt },
   };
+}
+
+/** 動いている側の持ち時間の表示。**動かす値は `mainZeroAt` だけ** */
+function mainAt(mainZeroAt: number, now: number): string {
+  return formatClock(clockDisplay(running(mainZeroAt), "black", now).mainMs);
 }
 
 describe("clockDisplay", () => {
@@ -38,17 +48,31 @@ describe("clockDisplay", () => {
   });
 
   /**
-   * 点滅の再現。**尽きた側の期限が送るたびに前へ進む**と、受け手の「いま」は
-   * 毎秒しか動かない（`useNow`）ので、切り上げが `0:00` と `0:01` を交互に出す。
-   * 期限が動かないことは `GameClocks::view` の側が保証する
+   * **受け手には点滅を止める手が無い。** 尽きた側の期限が送るたびに前へ進むと、
+   * 受け手の「いま」は毎秒しか動かない（`useNow`）ので、差が 0 と1秒弱を往復し、
+   * 切り上げが `0:00` と `0:01` を交互に出す。
+   *
+   * ここが固定しているのは**受け手が往復を作らないこと**（同じ期限には同じ表示）で、
+   * **期限が動かないことの保証は送り手の側**
+   * （`GameClocks::view` と `an_exhausted_deadline_does_not_advance_when_the_view_is_rebuilt`）。
    */
-  test("期限が動かなければ、いまが据え置かれても表示は往復しない", () => {
+  test("期限が動く形を渡されたら往復する", () => {
     const shown: string[] = [];
-    // 500ms ごとに届く更新と、1秒ごとにしか動かない「いま」
+    // 期限が emit のたびに「いま」へ貼り直される形（直す前の Rust が出していた値）
     for (let i = 0; i < 4; i += 1) {
       const emittedAt = NOW + i * 500;
       const now = NOW + Math.floor(i / 2) * 1000;
-      shown.push(formatClock(clockDisplay(running(NOW - 2_000, emittedAt), "black", now).mainMs));
+      shown.push(mainAt(emittedAt, now));
+    }
+
+    expect(shown).toEqual(["0:00", "0:01", "0:00", "0:01"]);
+  });
+
+  test("期限が動かなければ、いまが据え置かれても表示は動かない", () => {
+    const shown: string[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const now = NOW + Math.floor(i / 2) * 1000;
+      shown.push(mainAt(NOW - 2_000, now));
     }
 
     expect(shown).toEqual(["0:00", "0:00", "0:00", "0:00"]);

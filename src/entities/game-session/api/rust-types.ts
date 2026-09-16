@@ -225,7 +225,15 @@ export interface ClockView {
  */
 export interface RunningClock {
   side: Side;
+  /**
+   * 持ち時間が 0 になる時刻。**既に尽きていれば過去を指す。**
+   *
+   * `Math.max(0, …)` のクランプはこのためにある —— 秒読みの間はずっと
+   * 「いま」がこの時刻を追い越した状態で、異常ではない。
+   * **同じ手の間は動かない**（壁時計が飛ばない限り）ので、送り直しても同じ値が来る
+   */
   mainZeroAt: number;
+  /** 秒読みが 0 になる時刻。**常に `mainZeroAt + byoyomiMs`** */
   byoyomiZeroAt: number;
 }
 

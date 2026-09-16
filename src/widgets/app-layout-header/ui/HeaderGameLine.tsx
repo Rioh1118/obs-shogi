@@ -3,7 +3,6 @@ import {
   clocksOf,
   formatClock,
   isForeignKifuSession,
-  liveGameOf,
   tickIntervalMs,
   useGameSession,
   useNow,
@@ -21,6 +20,8 @@ import { turnGlyph } from "@/shared/lib/turn";
  * **常に見えているべき値**で、それはヘッダの性質（ADR-0011 決定2）。
  *
  * **進行は持たない。** 持ち主は `GameSessionProvider`（`RuntimeProviders` に居る）。
+ * **ヘッダの高さもこの行が決める** —— 生えたぶんだけ器が伸びる。器の側が
+ * 対局の有無を別に判定すると、片方だけ条件が動いた回に中身の無い帯が出る。
  */
 function HeaderGameLine() {
   const { view } = useGameSession();
@@ -29,8 +30,8 @@ function HeaderGameLine() {
   // 起こしても出る文字は変わらない。**narrowing より前に呼ぶ**（フックの順）
   const now = useNow(tickIntervalMs(clocksOf(view)));
 
-  const game = liveGameOf(view);
-  if (game === null) return null;
+  // 終局で消える。終局後の残り時間を出す場所はまだ無い（→ ADR-0011 決定4）
+  if (view.kind !== "live") return null;
 
   return (
     <div className="app-header__game">
@@ -38,29 +39,27 @@ function HeaderGameLine() {
         **上が後手・下が先手**という席の並び（`PlayView`）を横に倒したもの。
         左から後手・先手で、盤の並びと同じ向きに読める
       */}
-      <GameClock
+      <Seat
         side="white"
-        name={game.whiteName}
-        clocks={game.clocks}
-        toMove={game.toMove}
+        name={view.whiteName}
+        clocks={view.clocks}
+        toMove={view.toMove}
         now={now}
       />
       <span className="app-header__divider" aria-hidden="true" />
-      <GameClock
+      <Seat
         side="black"
-        name={game.blackName}
-        clocks={game.clocks}
-        toMove={game.toMove}
+        name={view.blackName}
+        clocks={view.clocks}
+        toMove={view.toMove}
         now={now}
       />
-      {/*
-        **行が自分で印を出す。** 対局は棋譜が入れ替わっても走り続けるので、
-        別の棋譜を開いている間もこの行は対局の時計を出し続ける。
-        黙って出すと、いま盤に出ている棋譜の対局に見える。
-        説明の本文は対局タブの帯が持つ（ここは行1つに収める）
-      */}
+      {/* **行が自分で印を出す。** 判定は `isForeignKifuSession`、説明の本文は対局タブの帯 */}
       {isForeignKifuSession(view, loadedKifuPath) && (
-        <span className="app-header__game-foreign" title="いま盤に出ている棋譜の対局ではありません">
+        <span
+          className="app-header__badge app-header__game-foreign"
+          title="いま盤に出ている棋譜の対局ではありません"
+        >
           別の棋譜
         </span>
       )}
@@ -69,12 +68,12 @@ function HeaderGameLine() {
 }
 
 /**
- * 片側の名前と時計。
+ * 席1つ。名前と時計を横に並べる（対局タブの `Seat` は縦に積む）。
  *
  * **手番の印は `toMove` から引く。** 時計の動きを流用すると、裁定待ちや畳み待ちで
  * `running` が `null` になる窓（`ClocksView.running` の doc）で手番が消える。
  */
-function GameClock({
+function Seat({
   side,
   name,
   clocks,

@@ -43,11 +43,13 @@ export type {
   RulingAdapter,
   StartRefusal,
 } from "./model/types";
-// 対局の姿から描く材料を引く側。**2面が別々に組まない**ため、判定式はここ1つ
-// （ヘッダの対局の行と対局タブが同じものを読む）
-export { clocksOf, isForeignKifuSession, liveGameOf } from "./model/selectors";
-// 時計の描き方。**進行と同じスライスに置く** —— 読み手が widgets に2つ居るので、
-// どちらかの widget に置くと同層横断になる（ADR-0011 着手順3）
+// `GameSessionView` から描く材料を引く側。
+// **`isForeignKifuSession` の式を2面が別々に組まない** —— この印を出すのは
+// ヘッダの対局の行と対局タブで、式を2箇所に置くと #538（改名での誤検知）の
+// 直しが片面にだけ入る
+export { clocksOf, isForeignKifuSession } from "./model/selectors";
+// 時計の描き方。**`ClocksView` は Rust から来る型なので、読み方も型と同じスライスに置く。**
+// widget に置くと、次にこれを読む面が増えたとき widgets どうしの横断になる。
 // **`ClockDisplay` は載せない。** 返り値は呼ぶ側が推論で受けていて、
 // 型そのものの読み手が外に居ない
 export { clockDisplay, formatClock, tickIntervalMs } from "./lib/clock";
