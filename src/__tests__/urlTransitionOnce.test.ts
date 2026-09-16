@@ -22,7 +22,7 @@ import { codeOf } from "./sourceText";
 const MOVERS = ["updateParams", "openModal", "closeModal", "navigateToPosition"] as const;
 
 /** 走査が壊れて0件になったことを「違反が無い」と読ませないための下限 */
-const MIN_SCANNED = 10;
+const MIN_SCANNED = 8;
 
 /** 走査器そのもの。**自分を数えない**（綴りを本文に持っているため） */
 const SELF = "src/__tests__/urlTransitionOnce.test.ts";

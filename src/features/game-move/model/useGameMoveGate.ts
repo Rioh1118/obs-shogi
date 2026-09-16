@@ -21,7 +21,7 @@ import { useGameSession } from "@/entities/game-session";
  * 止めても守るものが無い。止めた版は、盤に断りの出し先が無い（#277）せいで
  * **押しても何も起きない盤**になった。
  *
- * どの層がこの門を持つかは `docs/spec/screens/play-view.md` が決めている
+ * どの層がこの門を持つかは `docs/spec/features/game-play.md` が決めている
  * ——`entities/game`（盤）と `entities/game-session`（対局）の2つを束ねるので、
  * 置ける最下層がここ。
  */

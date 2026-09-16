@@ -1,9 +1,9 @@
 export { EngineProvider } from "./model/provider";
 export { useEngine } from "./model/useEngine";
 
-// **解析と対局が同じ `setoption` を送るための1箇所。** 対局は自分で並べて渡すので、
-// ここを通さないと同じ規則が2箇所に生える
-export { usiOptionsOf } from "./lib/setup";
+// **`usiOptionsOf` は載せていない。** 外から読んでいたのは対局を始める面だけで、
+// その面は外してある（`docs/spec/features/game-play.md`）。合成そのものは
+// `lib/setup.ts` に残してある —— 面を戻すときに、呼び出し元と一緒に載せ直すこと
 
 export type {
   EngineRuntimeConfig,

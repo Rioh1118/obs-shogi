@@ -7,7 +7,7 @@ import type { GameRuling, RulingAdapter } from "../model/types";
 
 /**
  * 対局の進行と裁定。表は `docs/state-transitions/game-session.md`（Rust 側）、
- * 画面の側は `docs/spec/screens/play-view.md`。
+ * 画面の側は `docs/spec/features/game-play.md`（**対局の画面はいま1枚も無い**）。
  *
  * ここが守っているのは1つ —— **手が決まったら必ず裁定が返る**。
  * 返らないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で対局が畳まれる。
@@ -222,7 +222,7 @@ describe("対局の進行", () => {
   });
 
   /**
-   * **これがこの層を置いた理由。** 裁定を対局ビューの中に置くと、
+   * **これがこの層を置いた理由。** 裁定をドックのタブの中に置くと、
    * 別のタブを開いた瞬間に返す者が居なくなり、対局が `RULING_TIMEOUT` で畳まれる。
    */
   test("本体が畳まれていても裁定は返る", async () => {

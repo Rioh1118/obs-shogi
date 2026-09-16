@@ -34,28 +34,11 @@
 // 読み返すと互いを読み合う組ができる
 export { GameSessionProvider } from "./model/provider";
 export { useGameSession } from "./model/useGameSession";
-// **`GameStartRequest` は載せない。** 呼ぶ画面（`features/start-game`）は在るが、
-// 渡しているのは形の合うリテラルなので、型そのものの読み手が外に居ない
-export type {
-  GameProgressView,
-  GameRuling,
-  GameSessionView,
-  RulingAdapter,
-  StartRefusal,
-} from "./model/types";
-export type {
-  ClocksView,
-  ClockView,
-  RunningClock,
-  GameEvent,
-  GameId,
-  GameOverReason,
-  GamePhaseView,
-  GameResult,
-  GameSettings,
-  GameSnapshot,
-  PlayerSpec,
-  SetOptionValue,
-  Side,
-  TimeLimit,
-} from "./api/rust-types";
+// **対局の画面を外したので、公開面はそこまで縮んでいる**
+// （`docs/spec/features/game-play.md`）。いま残っているのは、進行の外側
+// （橋・ゲート・盤の門）が実際に読んでいるものだけ。
+// **面を戻すときに、要るものだけを呼び出し元と一緒に載せ直すこと** ——
+// 先に並べておくと、何が使われているかが公開面から読めなくなる
+// （`GameStartRequest` を載せていないのも同じ理由）。
+export type { GameProgressView, GameRuling, GameSessionView, RulingAdapter } from "./model/types";
+export type { GameId, Side } from "./api/rust-types";

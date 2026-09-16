@@ -34,7 +34,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 
 **裁定を返すのは `GameSessionProvider`**（`src/entities/game-session/model/provider.tsx`）。
 判定を組むのは `GameSessionBridge` で、`judgeGameOutcome` を注入で受けている。
-画面の側は `docs/spec/screens/play-view.md`。
+画面の側は `docs/spec/features/game-play.md`（**対局の画面はいま1枚も無い**）。
 
 **指し手列の権威はフロント。** Rust の `Runner.moves` は `go` を組むための写しで、
 `continue_game` が毎手上書きする。書き込むのは `start`（`initial_moves`）と
@@ -494,7 +494,7 @@ ClocksView {
 | セル                                           | 状態                                                                                                                                                                                                                                                                                                                                            |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `A4` になったエンジンの後始末                  | 探索したまま `close_game` まで残る。**`gameover` も届かない。** プロセスを落とすのは `close_game` と、終了時の `close_all` → `shutdown_all`                                                                                                                                                                                                     |
-| `GameManager::close` の `Arc::try_unwrap` 失敗 | 中断だけ通して台帳へ戻り `Err` が返る（※4）。終了時は `close_all` が拾う。**画面からは押し直せる** —— 対局ビューの「閉じる」は断られても対局を手放さない（`docs/spec/screens/play-view.md`）。ただし「間隔を空けて呼び直す」ことは画面に出ていない                                                                                              |
+| `GameManager::close` の `Arc::try_unwrap` 失敗 | 中断だけ通して台帳へ戻り `Err` が返る（※4）。終了時は `close_all` が拾う。**押し直す口は画面に無い** —— 対局の画面を外してあるので（`docs/spec/features/game-play.md`）、断られた対局は台帳に残ったままになる                                                                                                                                   |
 | `(G0, E13)` `info` の間引き                    | Rust は対局も解析も1行ごとに `emit` する。間引きは**受け手側**にあり、解析は `src/entities/analysis/model/waits.ts` が持つ（`resultFlushMs`）。対局の受け手は `GameSessionProvider` に在るが、`searchInfo` を**捨てている**ので間引きの置き場がまだ無い。**`run_loop` は単一キューなので、`emit` が詰まると `bestmove` の処理がその後ろに並ぶ** |
 | `(G0, E10)` 出力が終わった                     | 実プロセスを落とす手段がテストに無い                                                                                                                                                                                                                                                                                                            |
 | `ponderhit` の**送信失敗**                     | ※2 の振り分けはどの行も `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す枝）                                                                                                                                                                                                    |

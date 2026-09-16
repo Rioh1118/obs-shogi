@@ -33,7 +33,6 @@ issue は「直すこと」の集合であって、直っている部分を書�
 | 棋譜ストリーム           | [screens/kifu-stream.md](screens/kifu-stream.md)     | `widgets/kifu-stream/`                                          |
 | 解析ペイン               | [screens/analysis-pane.md](screens/analysis-pane.md) | `widgets/analysis-pane/`                                        |
 | 定跡ビュー               | [screens/book-view.md](screens/book-view.md)         | `widgets/book-view/` `entities/book/`                           |
-| 対局ビュー               | [screens/play-view.md](screens/play-view.md)         | `widgets/play-view/` `entities/game-session/`                   |
 
 ### モーダル
 

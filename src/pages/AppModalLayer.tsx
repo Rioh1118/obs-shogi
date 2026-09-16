@@ -12,7 +12,6 @@ import { ErrorFallbackAction, RETRY_LABEL } from "@/shared/ui/error-fallback/Err
 import { FloatingErrorFallback } from "@/shared/ui/error-fallback/FloatingErrorFallback";
 import CreateFileModal from "@/features/create-file/ui/CreateFileModal";
 import SfenKifuCreateModal from "@/features/create-file/ui/SfenKifuCreateModal";
-import { GameStartModal } from "@/features/start-game";
 import FileConflictDialog from "@/features/file-conflict/ui/FileConflictDialog";
 import { KifuReadErrorDialog } from "@/features/kifu-read-error";
 import PositionNavigationModal from "@/features/position-navigation/ui/PositionNavigationModal";
@@ -20,12 +19,11 @@ import PositionSearchModal from "@/features/position-search/ui/PositionSearchMod
 import SettingsModal from "@/features/settings/ui/SettingsModal";
 import StudyPositionSaveModal from "@/features/study-position-save/ui/StudyPositionSaveModal";
 import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/StudyPositionsManagerModal";
-import GameOverModal from "@/widgets/play-view/ui/GameOverModal";
 
 /**
  * この層を包む境界に渡す鍵。
  *
- * **入力を param ごとに数え上げない。** ここに居る10枚は `modal` だけでなく
+ * **入力を param ごとに数え上げない。** ここに居る8枚は `modal` だけでなく
  * `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べる形は**足し忘れる規則**になる。
  * `location.key` は遷移のたびに1つ変わるので、いま読んでいる param も、あとで増える param も、
  * 同じ URL へ開き直した操作もまとめて拾える。
@@ -160,17 +158,11 @@ function ModalLayerContent() {
     <>
       <CreateFileModal />
       <SfenKifuCreateModal />
-      <GameStartModal />
       <PositionNavigationModal />
       <SettingsModal />
       <PositionSearchModal />
       <StudyPositionSaveModal />
       <StudyPositionsManagerModal />
-      {/*
-        **出来事で開く面。** `modal=` を読まず、対局が終わったことで開く
-        （下の2枚と同じ形）。URL に載せると、再読み込みで開けない面を指す URL が残る
-      */}
-      <GameOverModal />
       <FileConflictDialog
         conflict={conflict}
         onCancel={closeConflict}
