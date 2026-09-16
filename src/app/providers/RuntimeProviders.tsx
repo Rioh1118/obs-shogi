@@ -31,7 +31,7 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
       {/*
         **いちばん外。** 対局はドックのタブより長生きで、棋譜が入れ替わっても走り続ける。
         棋譜の有無で畳まれる位置に置くと、裁定を返す者が居なくなって
-        `RULING_TIMEOUT` で対局が中断される（`GameSessionProvider` の doc）
+        `RULING_TIMEOUT` で対局が畳まれる（`GameSessionProvider` の doc）
       */}
       <GameSessionBridge>
         <GameMoveGate>

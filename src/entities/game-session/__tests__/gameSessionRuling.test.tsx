@@ -10,7 +10,7 @@ import type { GameRuling, RulingAdapter } from "../model/types";
  * 画面の側は `docs/spec/screens/play-view.md`。
  *
  * ここが守っているのは1つ —— **手が決まったら必ず裁定が返る**。
- * 返らないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で対局が中断される。
+ * 返らないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で対局が畳まれる。
  * **画面を畳んでも返ること**まで見る（ドックのタブは選ばれていない間アンマウントされる）。
  */
 
@@ -223,7 +223,7 @@ describe("対局の進行", () => {
 
   /**
    * **これがこの層を置いた理由。** 裁定を対局ビューの中に置くと、
-   * 別のタブを開いた瞬間に返す者が居なくなり、対局が `RULING_TIMEOUT` で中断される。
+   * 別のタブを開いた瞬間に返す者が居なくなり、対局が `RULING_TIMEOUT` で畳まれる。
    */
   test("本体が畳まれていても裁定は返る", async () => {
     const { rerender } = mount(alwaysContinue);

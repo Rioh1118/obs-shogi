@@ -284,7 +284,7 @@ export type GameEvent =
    *
    * この手の合法性と、指した後の局面が終局かどうか（詰み・千日手・持将棋・
    * 最大手数）を判定して、`continueGame` か `endGameByRule` を呼ぶこと。
-   * どちらも呼ばないと次の手番は始まらない（`RULING_TIMEOUT` で中断される）。
+   * どちらも呼ばないと次の手番は始まらない（`RULING_TIMEOUT` で畳まれる）。
    */
   | {
       type: "moveDecided";

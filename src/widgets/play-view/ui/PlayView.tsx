@@ -15,7 +15,7 @@ import "./PlayView.scss";
  * 対局ビューの本体。**進行を持たない。**
  *
  * 持ち主は `GameSessionProvider`（`RuntimeProviders` に居る）。ここがそれを持つと、
- * タブを離れた瞬間に裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で中断される
+ * タブを離れた瞬間に裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で畳まれる
  * （`docs/spec/screens/play-view.md`）。
  *
  * **盤は無い。** 盤は `AppLayout` のものが現局面で、定跡ビューが盤を外したのと同じ理由。
@@ -132,9 +132,13 @@ function PlayView() {
   return (
     <div className="play-view">
       {foreign && <ForeignNote />}
+      {/*
+        **「中断されます」と書かない。** その語は利用者が中断を押したときのもので
+        （ADR-0011 決定1）、ここで待っている終局は理由が「アプリの異常」になる
+      */}
       {view.rulingFailure !== null && (
         <p className="play-view__band" role="alert">
-          裁定を返せませんでした。このままだと対局が中断されます（{view.rulingFailure}）
+          裁定を返せませんでした。このままだと「アプリの異常」で終局します（{view.rulingFailure}）
         </p>
       )}
       {/*

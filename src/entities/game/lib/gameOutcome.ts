@@ -3,7 +3,7 @@
  *
  * **`moveDecided` を受けた側が呼ぶ。** `null` が返ったときだけ `continueGame` を
  * 返してよい。どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で
- * 中断される（`entities/game-session/api/tauri.ts`）。
+ * 畳まれる（`entities/game-session/api/tauri.ts`）。
  *
  * **利用者に見せる文言はここで決めない。** 返すのは種別と勝者だけで、
  * `endGameByRule` に渡す `detail` の綴りは呼び出し側が決める。理由は

@@ -68,7 +68,7 @@ const IDLE: GameSessionView = { kind: "idle", eventsUnavailable: null };
  * **呼び手が守ること。**
  *
  * - **ドックのタブの中に置かない。** タブは選ばれていない間アンマウントされるので、
- *   裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で中断される。
+ *   裁定を返す者が居なくなり、対局が `RULING_TIMEOUT` で畳まれる。
  *   置き場は `RuntimeProviders`（`AnalysisProvider` と同じ理由だが、
  *   破れたときに失うのは表示ではなく**対局そのもの**）
  * - **棋譜の有無で畳まれない位置に置くこと。** 対局中に別の棋譜を開くと
@@ -116,7 +116,7 @@ export function GameSessionProvider({
    * 出来事の購読が張れなかったときの文言。
    *
    * **張れていないまま対局を始めると、手が決まっても裁定を返す者が居ない**ので、
-   * 必ず `RULING_TIMEOUT` で中断される。始めさせないための旗で、
+   * 必ず `RULING_TIMEOUT` で畳まれる。始めさせないための旗で、
    * `null` でなければ `start` が断る。
    */
   const [eventsUnavailable, setEventsUnavailable] = useState<string | null>(null);
@@ -300,7 +300,7 @@ export function GameSessionProvider({
     listenSettledRef.current = listenToGameEvents((event) => {
       // **ref を通す。** 直に `apply` を渡すと effect がそれに依存することになり、
       // 依存が動いた回に購読を張り直す窓ができる。その窓に `moveDecided` が落ちると
-      // 裁定が返らず、対局が `RULING_TIMEOUT` で中断される
+      // 裁定が返らず、対局が `RULING_TIMEOUT` で畳まれる
       applyRef.current(event);
     })
       .then((fn) => {

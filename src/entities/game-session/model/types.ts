@@ -3,7 +3,7 @@ import type { ClocksView, GameId, GameResult, GameSettings, Side } from "../api/
 /**
  * 裁定の答え。**`moveDecided` を受けたら必ずどちらかを返す。**
  *
- * どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で中断される
+ * どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で畳まれる
  * （`api/tauri.ts` の `continueGame`）。
  */
 export type GameRuling =
@@ -52,7 +52,7 @@ export type GameSessionView =
    *
    * `eventsUnavailable` が `null` でなければ**出来事の購読そのものが張れていない**。
    * このまま始めると、手が決まっても裁定を返す者が居ないので
-   * 必ず `RULING_TIMEOUT` で中断される。**始めさせないこと。**
+   * 必ず `RULING_TIMEOUT` で畳まれる。**始めさせないこと。**
    */
   | { kind: "idle"; eventsUnavailable: string | null }
   /**
