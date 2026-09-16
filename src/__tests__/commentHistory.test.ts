@@ -63,6 +63,7 @@ const HISTORY_WORDS = [
   "頃は",
   "と言っていた",
   "る前は",
+  "す前は",
   "そうなっていた",
   "抜けていた",
 ];
@@ -167,7 +168,11 @@ describe("コメント", () => {
           // 分岐が壊れても数える側が独立に正しい形を名乗ってしまう
           if (text.length > 2) {
             const kind =
-              commentPatternFor(file) === HASH_COMMENT ? "hash" : text.startsWith("//") ? "line" : "block";
+              commentPatternFor(file) === HASH_COMMENT
+                ? "hash"
+                : text.startsWith("//")
+                  ? "line"
+                  : "block";
             read[kind] += 1;
             chars[kind] += text.length;
           }
