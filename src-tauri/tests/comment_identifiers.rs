@@ -7,12 +7,19 @@
 //! そのコメントが「番人は別の場所にある」のような構造の説明を含んでいると、
 //! grep が空振りしたうえで「探しても無いから足そう」まで進む。
 //!
+//! **境界を跨ぐ綴りも見る。** 候補は下線を含む綴りと camelCase の2形で、
+//! 綴りが在るかは `src-tauri/src` / `src-tauri/tests` に加えて**フロントの
+//! `src/**`**（`.ts` / `.tsx`）からも探す。Rust の doc は受け手の関数名と、
+//! `serde(rename_all = "camelCase")` で wire に出る欄名を名指すため。
+//!
 //! **止められるのは綴りが1つも残っていない名前だけ。** 限界は5つ。
 //!
 //! 1. 別の場所に同じ綴りが在る改名（関数名 → 欄名として生存）は素通りする
-//! 2. 型名・バリアント名は下線を含まないので候補にすら入らない
+//! 2. 大文字で始まる綴り（型名・バリアント名・`PascalCase` の component）は
+//!    文頭の英単語と区別できないので候補にすら入らない
 //! 3. **違反を探すのは `src-tauri/src` のコメントだけ**（綴りが在るかは
-//!    `src-tauri/tests` も含めて探す）。`tests/` のコメントの改名し忘れは見ていない
+//!    `src-tauri/tests` とフロントの `src/**` も含めて探す）。
+//!    `tests/` のコメントの改名し忘れは見ていない
 //! 4. 行頭が `//` の行だけ。**行末コメントは見ていない**
 //! 5. 綴りが在るかしか見ない。種類（関数か定数か欄名か）は見ていない
 
@@ -56,6 +63,37 @@ fn sources() -> Vec<PathBuf> {
 
 fn src_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
+}
+
+/// フロント側のソース。**干し草に入れるが、違反は探さない。**
+///
+/// 境界を説明する Rust の doc は、受け手の綴りを名指すことがある
+/// （`clock.rs` の `useNow` / `formatClock`、`serde(rename_all = "camelCase")` で
+/// wire に出る欄名）。ここを干し草へ入れないと、**camelCase の綴りは全て
+/// 「実在しない」になる**。
+fn frontend_files() -> Vec<PathBuf> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("src-tauri の親が無い")
+        .join("src");
+    let mut found = Vec::new();
+    collect_frontend_files(&root, &mut found);
+    found.sort();
+    found
+}
+
+fn collect_frontend_files(dir: &Path, found: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_frontend_files(&path, found);
+        } else if path.extension().is_some_and(|e| e == "ts" || e == "tsx") {
+            found.push(path);
+        }
+    }
 }
 
 /// このリポジトリの外にある綴り。
@@ -109,6 +147,11 @@ const EXEMPT: &[&str] = &[
     "peek_text",
     // 末尾の改行を要求しないことの根拠
     "line_buffer",
+    // --- ShogiHome（先行 GUI。`research/shogihome/` の出典） ---
+    // 空の定跡を書き出す側の綴り。「見出し1行だけのファイルは利用者が作れる」の根拠
+    "storeYaneuraOuBook",
+    // 向こうの設定名。エンジンの時間切れを既定で成立させない根拠
+    "enableEngineTimeout",
 ];
 
 /// コメントの**行頭から**の行だけを返す。`///` `//!` `//` を拾う。
@@ -136,10 +179,12 @@ fn is_comment_line(trimmed: &str) -> bool {
     !trimmed.is_empty() && blank_out_comments(trimmed).trim().is_empty()
 }
 
-/// バッククォートの中の、下線を1つ以上含む綴りを拾う。
+/// バッククォートの中の、識別子の形をした綴りを拾う。
 ///
-/// 下線を要求するのは、頭字語（`USI` / `SFEN`）と型名を除くため。
-/// 型名も見られると嬉しいが、一語の型は地の文の英単語と区別できない。
+/// 拾うのは2形。**下線を1つ以上含む綴り**（Rust の関数・定数・欄名）と、
+/// **camelCase**（フロント側の関数名と、`serde(rename_all = "camelCase")` で
+/// wire に出る欄名）。頭字語（`USI` / `SFEN`）と一語の型名は、地の文の英単語と
+/// 区別できないので拾わない。
 fn identifiers_in(line: &str) -> Vec<String> {
     raw_identifiers_in(line)
         .into_iter()
@@ -167,8 +212,11 @@ fn raw_identifiers_in(line: &str) -> Vec<String> {
 }
 
 fn is_identifier(text: &str) -> bool {
-    if !text.contains('_') {
+    if !text.starts_with(|c: char| c.is_ascii_alphabetic()) {
         return false;
+    }
+    if !text.contains('_') {
+        return is_camel_case(text);
     }
     let all_upper = text
         .chars()
@@ -176,7 +224,19 @@ fn is_identifier(text: &str) -> bool {
     let all_lower = text
         .chars()
         .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-    (all_upper || all_lower) && text.starts_with(|c: char| c.is_ascii_alphabetic())
+    all_upper || all_lower
+}
+
+/// 小文字で始まり、大文字を1つ以上含む英数字の綴り。
+///
+/// **地の文の英単語を巻き込まないのは、大文字を要求しているから。**
+/// `usiok` や `bestmove` は1つも大文字を持たないので候補に入らない。
+/// 大文字で始まる綴り（型名・`PascalCase` の component）は拾わない ——
+/// 文頭の英単語と区別できない。
+fn is_camel_case(text: &str) -> bool {
+    text.starts_with(|c: char| c.is_ascii_lowercase())
+        && text.chars().all(|c| c.is_ascii_alphanumeric())
+        && text.chars().any(|c| c.is_ascii_uppercase())
 }
 
 /// コメントを落としたソース。**コメントどうしで名前を生き返らせない。**
@@ -320,6 +380,15 @@ fn comments_do_not_point_at_names_that_are_gone() {
     // **違反を探すのは `src/` の中だけ**——テストのコメントは別の検査が見る
     let mut haystack = files.clone();
     haystack.extend(rust_files(&tests_dir()));
+    // **フロントも干し草に入れる。** 境界を説明する doc は受け手の綴りを名指す
+    let frontend = frontend_files();
+    assert!(
+        frontend.len() > 200,
+        "フロントのソースを歩けていない（{}件）。\
+         0件でも違反が出ないので、干し草が空のまま緑になる",
+        frontend.len()
+    );
+    haystack.extend(frontend);
     let code: String = haystack
         .iter()
         .map(|p| code_only(&fs::read_to_string(p).unwrap_or_default()))
@@ -516,6 +585,29 @@ fn the_scanner_finds_identifiers_in_comments() {
         .sum();
 
     assert!(found > 100, "コメントから {found} 件しか拾えていない");
+}
+
+/// 候補に入る綴りの形を固定すること。
+///
+/// **camelCase を落とすと、境界を跨ぐ綴りが丸ごと見えなくなる** ——
+/// `useNow` を改名しても Rust の doc だけが取り残され、件数も減らないので
+/// `the_scanner_finds_identifiers_in_comments` では気づけない。
+/// 逆に大文字始まりまで広げると、地の文の英単語と外部クレートの型名が雪崩れ込む。
+#[test]
+fn the_candidate_shapes_cover_both_sides_of_the_boundary() {
+    for name in [
+        "main_zero_at",
+        "CLOCK_EMIT_INTERVAL",
+        "useNow",
+        "formatClock",
+        "mainZeroAt",
+    ] {
+        assert!(is_identifier(name), "候補に入っていない: {name}");
+    }
+    // 地の文の英単語・表のセル・大文字始まりの型名は拾わない
+    for word in ["usiok", "bestmove", "G2", "H", "JoinError", "TryFrom"] {
+        assert!(!is_identifier(word), "地の文を候補にしている: {word}");
+    }
 }
 
 /// `EXEMPT` に死んだ項目を残さない。
