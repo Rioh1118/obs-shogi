@@ -377,10 +377,14 @@ pub struct ClockView {
 #[serde(rename_all = "camelCase")]
 pub struct RunningClock {
     pub side: Side,
-    /// 持ち時間の表示が 0 になる時刻
+    /// 持ち時間の表示が 0 になる時刻。**既に尽きていれば過去を指す。**
+    ///
+    /// **壁時計が動かない限り**、同じ手の間は動かない値で、送り直しても同じ時刻が来る
+    /// （飛んだときの振る舞いは上の段落）。0 でクランプして「いま」を指す形にすると、
+    /// 送り直すたびに前へ進んで受け手の表示が往復する（`GameClocks::view`）
     pub main_zero_at: u64,
-    /// 秒読みの表示が 0 になる時刻。持ち時間が残っている間は
-    /// `main_zero_at + byoyomi_ms` なので、`byoyomi_ms` でクランプすれば満額に見える
+    /// 秒読みの表示が 0 になる時刻。常に `main_zero_at + byoyomi_ms` なので、
+    /// `byoyomi_ms` でクランプすれば持ち時間が残っている間は満額に見える
     pub byoyomi_zero_at: u64,
 }
 
