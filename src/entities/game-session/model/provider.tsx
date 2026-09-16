@@ -182,13 +182,13 @@ export function GameSessionProvider({
         // **もう終わっていた、は故障ではない。** 中断や時間切れが裁定の往復に
         // 入っただけで、結末は `over` イベントが持っている。ここで立てると、
         // 自分で「中断」を押した利用者の終局画面に
-        // 「アプリが裁定を返せなかったため中断されました」が出る
+        // 「アプリが裁定を返せませんでした」が `role="alert"` で出る
         if (messageOf(error) === ALREADY_OVER) return;
 
         // **対局は止まらない。** Rust は `RULING_TIMEOUT` の後に
         // `over { reason: "rulingTimeout" }` を出す。この文言が見えるのはそれまでの間と、
-        // 終局後は `over` の欄に引き継いだぶん——理由の欄は「アプリの異常」としか
-        // 言えないので、何が起きたかを持つのはこの文言だけ
+        // 終局後は `over` の欄に引き継いだぶん——理由の欄が名乗るのは原因の名詞と
+        // Rust の `detail` までで、**断られた呼び出しの文言を持つのはこちらだけ**
         sessionRef.current.rulingFailure = messageOf(error);
         publish();
       }
@@ -243,7 +243,7 @@ export function GameSessionProvider({
           session.clocks = event.clocks;
           session.awaitingRuling = false;
           // **手番が移ったなら裁定は通っている。** 消さないと、直った対局に
-          // 「このままだと中断されます」が最後まで残る
+          // 「このままだと『アプリの異常』で終局します」が最後まで残る
           session.rulingFailure = null;
           break;
 

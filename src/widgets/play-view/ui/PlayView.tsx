@@ -35,7 +35,7 @@ function PlayView() {
         </p>
         {/*
           **出来事が届かないことを黙らない。** この状態で対局を始めると、
-          手が決まっても裁定を返す者が居ないので必ず中断される
+          手が決まっても裁定を返す者が居ないので必ずアプリの異常で畳まれる
         */}
         {view.eventsUnavailable !== null && (
           <p className="play-view__band" role="alert">
@@ -95,10 +95,10 @@ function PlayView() {
           {gameResultReason(view.result)} ／ {view.usiMoves.length}手
         </p>
         {/*
-          **終わり方を言い直さない。** どう終わったかは理由の欄（「アプリの異常」）が
-          言う。ここが言うのは何が起きたか。**帯は消せない** —— 判定が投げて
-          `endGameByRule` が通った回は理由が「規則による終局」になり、
-          故障を言える欄がここしか無い
+          **終わり方を言い直さない。** どう終わったかは理由の欄が言う。
+          **帯は消せない** —— 判定が投げて `endGameByRule` が通った回は理由が
+          「規則による終局（判定できなかった…）」までしか言えず、
+          **投げた中身を出せる欄がここしか無い**
         */}
         {view.rulingFailure !== null && (
           <p className="play-view__band" role="alert">
