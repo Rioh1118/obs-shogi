@@ -170,7 +170,7 @@ export interface GameSettings {
  *
  * **綴りを足したら `REASON_LABEL`（`widgets/play-view/lib/result.ts`）も足す。**
  * `Record` なので tsc が落とす。Rust にだけ足した状態は
- * `the_typescript_copy_has_every_game_over_reason`（`engine/game/types.rs`）が落とす。
+ * `src/__tests__/gameOverReasonWire.test.ts` が落とす。
  */
 export type GameOverReason =
   | "resign"

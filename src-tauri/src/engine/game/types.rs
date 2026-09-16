@@ -1089,40 +1089,30 @@ mod tests {
         }
     }
 
-    /// 終局の理由が**全部** TS の写しの union に在ること。
+    /// 終局の理由が、**宣言の綴りをそのまま camelCase にした形**で線に出ること。
     ///
-    /// **欄を持たない enum は `the_typescript_copy_has_every_field` が見ない。**
-    /// あちらは見本の JSON の object のキーを突き合わせるので、`reason` の
-    /// **値**が写しに無くても緑で通る。写しの `REASON_LABEL`
-    /// （`src/widgets/play-view/lib/result.ts`）は `Record` なので、綴りを足さなければ
-    /// tsc が落ちる——が、**落ちるのは TS の union を編集した後だけ**。
-    /// ここを足す前は、Rust に理由を1つ足した状態を赤くするものが1つも無く、
-    /// 画面は知らない理由を受け取って `undefined` を描いた。
+    /// **写しとの突き合わせは TS 側にある**（`src/__tests__/gameOverReasonWire.test.ts`）。
+    /// あちらは宣言の綴りを camelCase にして union を引くので、
+    /// **その写像が本物の serde と一致していることを誰かが保証しないと丸ごと嘘になる。**
+    /// `#[serde(rename = "…")]` を1つ付ければ線の綴りだけが変わり、
+    /// 写しを引く側は宣言の綴りを引き続けて緑で通る。
+    ///
+    /// ここが見るのは serde 本体。**宣言から組んだ綴りで実際に読めるか**を問う。
     #[test]
-    fn the_typescript_copy_has_every_game_over_reason() {
-        let copy = include_str!("../../../../src/entities/game-session/api/rust-types.ts");
-        // 宣言の本体だけを見る。doc コメントまで含めると、
-        // 「いずれ足す」と書いてあるだけの綴りが在ることになる
-        let union = copy
-            .split_once("export type GameOverReason =")
-            .expect("写しに GameOverReason の宣言が無い")
-            .1
-            .split_once(';')
-            .expect("union が `;` で終わっていない")
-            .0;
-
+    fn every_game_over_reason_goes_on_the_wire_as_camel_case() {
         let declared = variants_of("pub enum GameOverReason {");
         assert!(!declared.is_empty(), "宣言を1つも拾えていない");
 
-        let missing: Vec<String> = declared
-            .iter()
-            .map(|name| wire_name(name))
-            .filter(|wire| !union.contains(&format!("\"{wire}\"")))
-            .collect();
-        assert!(
-            missing.is_empty(),
-            "終局の理由が TS の写しに無い。写しと `REASON_LABEL` を直すこと:\n{missing:?}"
-        );
+        for name in &declared {
+            let wire = wire_name(name);
+            serde_json::from_str::<GameOverReason>(&format!("\"{wire}\"")).unwrap_or_else(|_| {
+                panic!(
+                    "{name} は線に `{wire}` として出ない。`serde(rename)` が付いているなら、\
+                     写しを引く側（src/__tests__/gameOverReasonWire.test.ts）が宣言の綴りを\
+                     引き続けて素通りする"
+                )
+            });
+        }
     }
 
     /// 出来事の分類が、バリアントを足したときに黙って既定へ落ちないこと。
