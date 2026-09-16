@@ -53,6 +53,13 @@ main にあるか: **1局を通して指せる。棋譜に結果が残らない*
 
 **戻すときに読むもの。** 面を消したので、下の3つの不変条件は**このファイルが唯一の出典**になった。
 
+面を作り直すときに読み直す所見（いま踏めないので閉じてある）——
+[#586](https://github.com/Rioh1118/obs-shogi/issues/586)（止まっている時計と
+動いている時計が同じ見た目）/
+[#587](https://github.com/Rioh1118/obs-shogi/issues/587)（通知の帯が時計を覆う）/
+[#588](https://github.com/Rioh1118/obs-shogi/issues/588)（対局が止まった理由が
+別のタブを開いている利用者に届かない）。
+
 ### 進行はドックのタブに置けない
 
 **`GameSessionProvider` が持ち、`RuntimeProviders` に居る。**
