@@ -402,11 +402,11 @@ describe("対局の進行", () => {
       elapsedMs: 1000,
       clocks: CLOCKS,
     });
-    // Rust が `RULING_TIMEOUT` で畳む。**理由は利用者の中断と同じ値で届く**（#362）
+    // Rust が `RULING_TIMEOUT` で畳む。理由は「アプリの異常」で届く
     await emit({
       type: "over",
       gameId: GAME_ID,
-      result: { winner: null, reason: "aborted", detail: "no ruling came back from the app" },
+      result: { winner: null, reason: "rulingTimeout", detail: "no ruling came back from the app" },
       clocks: CLOCKS,
     });
 

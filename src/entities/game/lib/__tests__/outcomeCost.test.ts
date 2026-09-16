@@ -3,7 +3,7 @@
  *
  * 守るのは「判定が入れ子の数え上げに落ちないこと」。落ちると Rust の
  * `RULING_TIMEOUT`（30秒、`src-tauri/src/engine/game/session.rs`）を越え、
- * `over { aborted, winner: null }` で畳まれて**勝敗そのものが消える**。
+ * `over { rulingTimeout, winner: null }` で畳まれて**勝敗そのものが消える**。
  *
  * **数えるのは時間ではなく局面の写しの回数。** 王手放置と打ち歩詰めの検査は
  * 候補1手ごとに `Shogi` を1つ作って SFEN で写すので、写した回数がそのまま

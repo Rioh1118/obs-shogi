@@ -51,7 +51,9 @@ pub struct GameManager {
 /// 網羅の `match` を通すので、理由を1つ増やせば `Display` で数え直させられる
 /// （→ ADR-0008 決定3。`cannot_reach_text` と `Stall::detail` が同じ形）。
 ///
-/// 型で割るのは #362。ここは Rust 側で1本にするところまで。
+/// **線の向こうまでは型で割っていない。** フロントへ渡るのは `Display` の文字列だけで、
+/// 呼び出し側（`closeGame`）はそれを文言で分類する。ここが持てるのは
+/// Rust 側で綴りを1本にするところまで。
 enum Rejection<'a> {
     /// 台帳に無い。何も起きていない
     Unknown(&'a GameId),
@@ -232,7 +234,7 @@ impl GameManager {
     ///
     /// **`AwaitingRuling` でだけ通る。** Rust は将棋の規則で終局を判定しないので、
     /// これか `end_by_rule` のどちらかが来るまで対局は進まない
-    /// （来ないと `RULING_TIMEOUT` で中断される）。
+    /// （来ないと `RULING_TIMEOUT` で `RulingTimeout` として畳まれる）。
     ///
     /// # エラー
     ///
@@ -262,7 +264,8 @@ impl GameManager {
 
     /// 利用者の中断で終局させる。**エンジンプロセスは落ちない**——落とすのは `close`。
     ///
-    /// 結末の `Aborted` は「裁定が返らなかった」とも共用する（→ #362）。
+    /// 結末は `Aborted`。アプリが裁定を返せずに畳んだ終局は `RulingTimeout` で、
+    /// ここを通らない。
     pub async fn abort(&self, game_id: &GameId) -> Result<(), String> {
         self.get(game_id).await?.abort().await
     }

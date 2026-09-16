@@ -184,9 +184,9 @@ export function GameSessionProvider({
         if (messageOf(error) === ALREADY_OVER) return;
 
         // **対局は止まらない。** Rust は `RULING_TIMEOUT` の後に
-        // `over { reason: "aborted" }` を出す。この文言が見えるのはそれまでの間と、
-        // 終局後は `over` の欄に引き継いだぶん（#362 で利用者の中断と同じ値になるので、
-        // 落とすと「アプリが裁定を返せなかった」を言える欄が無くなる）
+        // `over { reason: "rulingTimeout" }` を出す。この文言が見えるのはそれまでの間と、
+        // 終局後は `over` の欄に引き継いだぶん——理由の欄は「アプリの異常」としか
+        // 言えないので、何が起きたかを持つのはこの文言だけ
         sessionRef.current.rulingFailure = messageOf(error);
         publish();
       }

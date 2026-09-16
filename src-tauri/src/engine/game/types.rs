@@ -294,8 +294,8 @@ pub struct GameSettings {
 ///
 /// フロントの呼び出しから入るのは `Rule` / `Resign`（人間の投了）/
 /// `Aborted`（中断）の3つ。残りは Rust が決める。
-/// **`Rule` と `Aborted` は両方から入る**——`Rule` は盤に載る手数の上限
-/// （`MAX_PLIES`）、`Aborted` は裁定が返らなかったとき。
+/// **`Rule` だけは両方から入る**——盤に載る手数の上限（`MAX_PLIES`）に
+/// 当たったときは Rust が `Rule` で畳む。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GameOverReason {
@@ -312,13 +312,21 @@ pub enum GameOverReason {
     /// 後者は `endGameByRule` を呼んでいないのに届くので、
     /// 「自分が投げた終局のこだま」として捨てないこと。
     Rule,
-    /// 利用者の中断（`abort`）。
+    /// 利用者の中断（`abort`）。**入口はフロントの呼び出しだけ。**
     ///
-    /// **裁定が `RULING_TIMEOUT` 返らなかったときも同じ値**になる。
-    /// 区別できるのは `detail` だけ（アプリが落としたほうには文言が入る）。
-    /// 受け手の対処は正反対（前者は利用者の意図、後者は故障）。
-    /// TODO(#362): 型で分ける
+    /// アプリが裁定を返せずに畳んだ終局は `RulingTimeout` で、この値には入らない。
+    /// 受け手の対処が正反対（中断は利用者の意図なので何も名乗らなくてよい、
+    /// 故障は名乗る必要がある）なので、値で分けてある。
     Aborted,
+    /// アプリの異常。**裁定が `RULING_TIMEOUT` の間返らず、Rust が畳んだ。**
+    ///
+    /// **フロントの呼び出しからは入らない。** 入るのは `MoveDecided` を出したまま
+    /// `continue_game` も `end_by_rule` も受け取れなかった対局で、原因は
+    /// フロント側（listener が死んだ、画面が落ちた）か、`emit` が落ちて
+    /// `MoveDecided` 自体が届かなかったとき（→ 台帳の F-19）。
+    /// 後者では **`detail` の「アプリが裁定を返さなかった」が原因を取り違えている**
+    /// ——フロントは裁定を返しようがなかった。
+    RulingTimeout,
 }
 
 /// 終局の結末。**`over` のイベントと `GameSnapshot` の両方に載る同じ値。**
@@ -1052,41 +1060,85 @@ mod tests {
         }
     }
 
+    /// この宣言のバリアント名。**手で並べた一覧を持たないための足場。**
+    ///
+    /// 手で並べると、バリアントを足した時点でその一覧が古くなり、
+    /// 足したものが覆われていないことに誰も気付かない。
+    ///
+    /// `declaration` は `pub enum X {` の行そのもの。**最初に現れたものを採る**ので、
+    /// 同じ綴りがこのテストモジュールにもう一度出ても宣言のほうを読む。
+    fn variants_of(declaration: &str) -> Vec<&'static str> {
+        let source: &'static str = include_str!("types.rs");
+        let body = source
+            .split_once(declaration)
+            .unwrap_or_else(|| panic!("{declaration} が見つからない"))
+            .1;
+        body.lines()
+            .take_while(|line| *line != "}")
+            .map(|line| line.trim().split([' ', '{', ',']).next().unwrap_or(""))
+            .filter(|token| token.starts_with(char::is_uppercase))
+            .collect()
+    }
+
+    /// バリアント名 → 線に出る綴り。`serde(rename_all = "camelCase")` と同じ写像
+    fn wire_name(variant: &str) -> String {
+        let mut chars = variant.chars();
+        match chars.next() {
+            Some(first) => first.to_lowercase().collect::<String>() + chars.as_str(),
+            None => String::new(),
+        }
+    }
+
+    /// 終局の理由が**全部** TS の写しの union に在ること。
+    ///
+    /// **欄を持たない enum は `the_typescript_copy_has_every_field` が見ない。**
+    /// あちらは見本の JSON の object のキーを突き合わせるので、`reason` の
+    /// **値**が写しに無くても緑で通る。写しの `REASON_LABEL`
+    /// （`src/widgets/play-view/lib/result.ts`）は `Record` なので、綴りを足さなければ
+    /// tsc が落ちる——が、**落ちるのは TS の union を編集した後だけ**。
+    /// ここを足す前は、Rust に理由を1つ足した状態を赤くするものが1つも無く、
+    /// 画面は知らない理由を受け取って `undefined` を描いた。
+    #[test]
+    fn the_typescript_copy_has_every_game_over_reason() {
+        let copy = include_str!("../../../../src/entities/game-session/api/rust-types.ts");
+        // 宣言の本体だけを見る。doc コメントまで含めると、
+        // 「いずれ足す」と書いてあるだけの綴りが在ることになる
+        let union = copy
+            .split_once("export type GameOverReason =")
+            .expect("写しに GameOverReason の宣言が無い")
+            .1
+            .split_once(';')
+            .expect("union が `;` で終わっていない")
+            .0;
+
+        let declared = variants_of("pub enum GameOverReason {");
+        assert!(!declared.is_empty(), "宣言を1つも拾えていない");
+
+        let missing: Vec<String> = declared
+            .iter()
+            .map(|name| wire_name(name))
+            .filter(|wire| !union.contains(&format!("\"{wire}\"")))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "終局の理由が TS の写しに無い。写しと `REASON_LABEL` を直すこと:\n{missing:?}"
+        );
+    }
+
     /// 出来事の分類が、バリアントを足したときに黙って既定へ落ちないこと。
     ///
     /// **見本は宣言から突き合わせる。** 手で並べた見本は、バリアントを足した
     /// 時点で古くなり、足したものが分類されていないことに誰も気付かない。
-    /// `include_str!` で自分の宣言を読み、見本が全バリアントを覆っているかを見る。
     #[test]
     fn every_event_is_classified() {
-        let source = include_str!("types.rs");
-        let body = source
-            .split_once("pub enum GameEvent {")
-            .expect("GameEvent の宣言が見つからない")
-            .1;
-        let declared: Vec<&str> = body
-            .lines()
-            .take_while(|line| *line != "}")
-            .map(|line| line.trim().split([' ', '{', ',']).next().unwrap_or(""))
-            .filter(|token| token.starts_with(char::is_uppercase))
-            .collect();
+        let declared = variants_of("pub enum GameEvent {");
         assert!(!declared.is_empty(), "宣言を1つも拾えていない");
 
         let samples = sample_of_every_event();
-        let covered: Vec<String> = samples
-            .iter()
-            .map(|e| {
-                let kind = e.kind();
-                let mut chars = kind.chars();
-                match chars.next() {
-                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                    None => String::new(),
-                }
-            })
-            .collect();
+        let covered: Vec<&str> = samples.iter().map(|e| e.kind()).collect();
         for name in &declared {
             assert!(
-                covered.iter().any(|c| c == name),
+                covered.contains(&wire_name(name).as_str()),
                 "{name} の見本が無い。分類（is_terminal）も見られていない"
             );
         }

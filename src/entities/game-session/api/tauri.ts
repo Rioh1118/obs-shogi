@@ -38,7 +38,8 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * `setoption` が拒まれた、`startSfen` の書式）だが、
  * 内部の取り落とし（ブロッキングタスクが落ちた、通知の経路が閉じた）も
  * 同じ形で届く。**「エンジンのパスを直せ」と断言しないこと**——文言をそのまま
- * 見せて、再試行の口も残すのが安全側。**型で割るのは #362 と同じ形の話。**
+ * 見せて、再試行の口も残すのが安全側。**型で割れば断言できる**が、
+ * Rust 側の `start_game` はどちらも `Err(String)` で返すのでいまは割れない。
  *
  * **`startGame` を呼ぶ前に `listenToGameEvents` を張ること。**
  * 最初の `turnChanged` と最初の `go` は、`start_game` が返る**前に**走る。
@@ -124,7 +125,7 @@ export async function continueGame(gameId: GameId, moves: string[]): Promise<voi
  * `MAX_DETAIL_LEN`）。超えると**断らずに切り詰める**ので、返ってきた `over` の
  * `detail` が渡した文字列と違うことがある（末尾に `…` が付く）。
  * **断らないのは意図。** ここで reject すると、呼び直さない限り Rust の
- * `RULING_TIMEOUT` が `over { aborted, winner: null }` で畳み、**勝敗が消える**。
+ * `RULING_TIMEOUT` が `over { rulingTimeout, winner: null }` で畳み、**勝敗が消える**。
  * **制御文字は置換文字に化ける。** 改行やタブを含む文言を渡すと、返ってくる
  * `detail` ではそこが `\uFFFD` になる（この値はログの1行にも載るため）。
  * 複数行を出したいなら、フロント側で組み立てて表示すること。
@@ -188,7 +189,8 @@ export async function abortGame(gameId: GameId): Promise<void> {
  * - `the game is being closed` → 別の呼び出しがいま閉じている最中。待つこと
  * - `unknown game:` → その `gameId` は台帳に無い。何も起きていない
  *
- * 文言で区別することになる。型で割るのは #362 と同じ形の話。
+ * **文言で区別することになる。** Rust 側は3つを型（`Rejection`）で持っているが、
+ * 線に出るときに `Display` の文字列へ潰れる。
  */
 export async function closeGame(gameId: GameId): Promise<void> {
   return await invoke("close_game", { gameId });

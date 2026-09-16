@@ -143,7 +143,11 @@ describe("終局を知らせる面", () => {
     expect(screen.getByRole("button", { name: "閉じる" })).not.toBeNull();
   });
 
-  /** **裁定を返せなかったことを終局と一緒に消さない**（#362） */
+  /**
+   * **裁定を返せなかったことを終局と一緒に消さない。** 判定が投げて
+   * `endGameByRule` が通った回は理由が「規則による終局」になり、
+   * 故障を言える欄がこの帯しか無い
+   */
   test("裁定を返せなかった理由を残す", () => {
     session.view = overView({ rulingFailure: "ruling rejected" });
     render(<GameOverModal />);

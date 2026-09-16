@@ -73,13 +73,14 @@ export function GameOverModal() {
         </dl>
 
         {/*
-          **裁定を返せなかったことを終局と一緒に消さない。** 畳まれた対局の理由は
-          利用者の中断と同じ値で届く（#362）ので、消すと「アプリが裁定を返せなかった」を
-          言える欄が1つも無くなる
+          **終わり方を言い直さない。** どう終わったかは理由の欄（「アプリの異常」）が
+          言う。ここが言うのは何が起きたか。**帯は消せない** —— 判定が投げて
+          `endGameByRule` が通った回は理由が「規則による終局」になり、
+          故障を言える欄がここしか無い
         */}
         {over.rulingFailure !== null && (
           <p className="game-over__band" role="alert">
-            アプリが裁定を返せなかったため中断されました（{over.rulingFailure}）
+            アプリが裁定を返せませんでした（{over.rulingFailure}）
           </p>
         )}
         {over.boardFailure !== null && (
