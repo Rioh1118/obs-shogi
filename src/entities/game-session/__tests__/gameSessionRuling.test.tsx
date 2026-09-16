@@ -437,7 +437,7 @@ describe("対局の進行", () => {
     expect(tauri.endGameByRule).toHaveBeenCalledWith(
       GAME_ID,
       null,
-      "判定できなかったため中断しました",
+      "判定できなかったため終局にしました",
     );
     expect(rulingFailureText()).toBe("shogi.js が投げた");
   });

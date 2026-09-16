@@ -160,7 +160,9 @@ export function GameSessionProvider({
           usiMoves: session.usiMoves,
         });
       } catch (error) {
-        verdict = { kind: "over", winner: null, detail: "判定できなかったため中断しました" };
+        // **「中断」と書かない。** その語は利用者の意思で終わらせたときのもの
+        // （ADR-0011 決定1）で、これはアプリが判定に失敗した回
+        verdict = { kind: "over", winner: null, detail: "判定できなかったため終局にしました" };
         if (sessionRef.current?.gameId === gameId) {
           sessionRef.current.rulingFailure = messageOf(error);
           publish();
