@@ -151,14 +151,26 @@ impl GameClocks {
             // **数を書くのはここだけ**（表からはこの doc を指す）
             let main_left = clock.remaining_ms.saturating_sub(elapsed_ms);
             let into_byoyomi = elapsed_ms.saturating_sub(clock.remaining_ms);
-            let byoyomi_left = clock.limit.byoyomi_ms.saturating_sub(into_byoyomi);
+
+            // **尽きた後は過去を指す。** 指し始めた時刻（`now_epoch_ms - elapsed_ms`）に
+            // 持ち時間の残りを足したもので、`main_left` と `into_byoyomi` は
+            // 片方しか 0 でないので、この式はそのどちらの向きにも倒れる。
+            //
+            // **0 でクランプして `now_epoch_ms` を返さない。** そうすると、尽きた側の
+            // 期限は呼ばれるたびに前へ進む。受け手の「いま」は毎秒しか動かないので
+            // （`useNow`）、`main_zero_at - now` が 0 と1秒弱を往復し、
+            // 切り上げ（`formatClock`）が `0:00` と `0:01` を交互に出す。
+            let main_zero_at = now_epoch_ms
+                .saturating_add(main_left)
+                .saturating_sub(into_byoyomi);
 
             RunningClock {
                 side,
-                main_zero_at: now_epoch_ms.saturating_add(main_left),
-                byoyomi_zero_at: now_epoch_ms
-                    .saturating_add(main_left)
-                    .saturating_add(byoyomi_left),
+                main_zero_at,
+                // 秒読みは持ち時間が尽きた時点から減り始めるので、期限はその1つ後ろ。
+                // **`into_byoyomi` で引き直さない** ——引くと、秒読みまで使い切った側
+                // （`enforce_engine_timeout` が偽のエンジン）で同じ往復が再発する
+                byoyomi_zero_at: main_zero_at.saturating_add(clock.limit.byoyomi_ms),
             }
         });
 
@@ -394,13 +406,65 @@ mod tests {
         assert_eq!(during_main.main_zero_at, NOW + 6_000);
         assert_eq!(during_main.byoyomi_zero_at, NOW + 6_000 + 30_000);
 
-        // 持ち時間を使い切った後は、秒読みだけが減る
+        // 持ち時間を使い切った後は、秒読みだけが減る。
+        // 持ち時間の期限は**尽きた時刻**（5秒前）を指したまま動かない
         let into_byoyomi = clocks
             .view(Some((Side::Black, 15_000)), NOW)
             .running
             .unwrap();
-        assert_eq!(into_byoyomi.main_zero_at, NOW);
+        assert_eq!(into_byoyomi.main_zero_at, NOW - 5_000);
         assert_eq!(into_byoyomi.byoyomi_zero_at, NOW + 25_000);
+    }
+
+    /// 尽きた後の期限が、組み直すたびに前へ進まないこと。
+    ///
+    /// `main_zero_at` を 0 でクランプして「いま」にすると、この値は emit
+    /// （`CLOCK_EMIT_INTERVAL`）のたびに動く。受け手の「いま」は毎秒しか進まないので、
+    /// 差が 0 と1秒弱を往復し、**表示が `0:00` と `0:01` で点滅する**
+    #[test]
+    fn an_exhausted_deadline_does_not_advance_when_the_view_is_rebuilt() {
+        let clocks = GameClocks::new(byoyomi(10_000, 30_000), minutes_ms(10));
+        const NOW: u64 = 1_700_000_000_000;
+        // 持ち時間 10 秒は 12 秒目には尽きている
+        let expected = NOW - 2_000;
+
+        for (elapsed_ms, at) in [(12_000, NOW), (12_500, NOW + 500), (15_000, NOW + 3_000)] {
+            let running = clocks.view(Some((Side::Black, elapsed_ms)), at).running;
+            let running = running.expect("手番側の時計が出ていない");
+            assert_eq!(
+                running.main_zero_at, expected,
+                "{elapsed_ms}ms 時点で持ち時間の期限が動いた"
+            );
+            assert_eq!(
+                running.byoyomi_zero_at,
+                expected + 30_000,
+                "{elapsed_ms}ms 時点で秒読みの期限が動いた"
+            );
+        }
+    }
+
+    /// 秒読みまで使い切った側でも、期限が動かないこと。
+    ///
+    /// `enforce_engine_timeout` が偽のままエンジンが長考すると、この状態が続く。
+    /// 秒読みの残りを 0 でクランプしてから足す形だと、**こちらだけ往復が残る**
+    #[test]
+    fn a_deadline_past_the_byoyomi_does_not_advance_either() {
+        let clocks = GameClocks::new(byoyomi(10_000, 30_000), minutes_ms(10));
+        const NOW: u64 = 1_700_000_000_000;
+
+        let first = clocks
+            .view(Some((Side::Black, 60_000)), NOW)
+            .running
+            .unwrap();
+        let later = clocks
+            .view(Some((Side::Black, 60_500)), NOW + 500)
+            .running
+            .unwrap();
+
+        assert_eq!(first.main_zero_at, NOW - 50_000);
+        assert_eq!(first.byoyomi_zero_at, NOW - 20_000);
+        assert_eq!(later.main_zero_at, first.main_zero_at);
+        assert_eq!(later.byoyomi_zero_at, first.byoyomi_zero_at);
     }
 
     /// 止まっている側は時刻を持たない。**受け手が減らす余地を作らない**
