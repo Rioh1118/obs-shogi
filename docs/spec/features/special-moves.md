@@ -76,7 +76,12 @@ Rust 側の `kifu_reader.rs` には
 | `Timeout`        | `TIME_UP`                                   |
 | `Rule`           | `TSUMI` / `SENNICHITE` / `JISHOGI` のどれか |
 | `Aborted`        | `CHUDAN`                                    |
+| `RulingTimeout`  | `CHUDAN`                                    |
 | `EngineFailure`  | **対応が無い**                              |
+
+**`Aborted` と `RulingTimeout` が同じ綴りなのは意図。** 棋譜の綴りに故障の概念が
+無いし、要らない —— 棋譜に残すのは「勝敗が付かずに終わった」ことだけで、
+なぜ畳まれたかはアプリの故障記録の仕事（[ADR-0011](../../decisions/0011-game-vocabulary-and-placement.md) 決定1）。
 
 最後の1行が決まっていない。→ [game-play.md](game-play.md)
 
