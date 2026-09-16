@@ -2,15 +2,33 @@ import type { GameResult, GameOverReason } from "@/entities/game-session";
 import { sideToColor } from "@/entities/game";
 import { turnGlyph } from "@/shared/lib/turn";
 
-/** 勝敗の一行。**引き分けは「どちらの勝ちでもない」ので勝者を出さない** */
+/**
+ * 勝敗の一行。**勝者が居ないことと、引き分けたことを分ける。**
+ *
+ * `winner` が `null` になるのは3通りで、うち中断とアプリの異常は
+ * **勝敗を付けずに終わった**回（ADR-0011 決定1）。「引き分け」と名乗ると、
+ * 面のいちばん大きい行が結果を偽る —— アプリが故障して畳んだ対局を
+ * 引き分けとして記録することになる。残る `rule`（千日手・最大手数）が本物の引き分け。
+ */
 export function gameResultLabel(
   result: GameResult,
   players: { blackName: string; whiteName: string },
 ): string {
-  if (result.winner === null) return "引き分け";
+  if (result.winner === null) return NO_WINNER.has(result.reason) ? "勝敗なし" : "引き分け";
   const name = result.winner === "black" ? players.blackName : players.whiteName;
   return `${turnGlyph(sideToColor(result.winner))}${name} の勝ち`;
 }
+
+/**
+ * 勝敗が付かずに終わる理由。**引き分けとは別。**
+ *
+ * `engineFailure` は入らない —— 落ちた側の負けとして勝者が付く
+ * （`session.rs` は `winner: Some(side.opponent())` で畳む）。
+ */
+const NO_WINNER: ReadonlySet<GameOverReason> = new Set<GameOverReason>([
+  "aborted",
+  "rulingTimeout",
+]);
 
 /**
  * 終局の理由。**`detail` が付いていれば添える。**
