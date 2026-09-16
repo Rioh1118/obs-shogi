@@ -1,4 +1,5 @@
-import type { ClocksView, Side } from "@/entities/game-session";
+// スライスの中からは実体を直に読む（barrel を読み返すと循環の種になる）
+import type { ClocksView, Side } from "../api/rust-types";
 
 /** 片側の表示値。**どちらも「いま出す残り」**で、止まっている側は最後に届いた値 */
 export interface ClockDisplay {

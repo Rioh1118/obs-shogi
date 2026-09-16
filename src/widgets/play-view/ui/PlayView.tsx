@@ -1,13 +1,16 @@
 import {
+  clockDisplay,
+  clocksOf,
+  formatClock,
+  isForeignKifuSession,
+  tickIntervalMs,
   useGameSession,
+  useNow,
   type ClocksView,
-  type GameSessionView,
   type Side,
 } from "@/entities/game-session";
 import { sideToColor, useLoadedKifuPath } from "@/entities/game";
 import { turnGlyph } from "@/shared/lib/turn";
-import { clockDisplay, formatClock, tickIntervalMs } from "../lib/clock";
-import { useNow } from "../lib/useNow";
 import { gameResultLabel, gameResultReason } from "../lib/result";
 import "./PlayView.scss";
 
@@ -84,7 +87,7 @@ function PlayView() {
     );
   }
 
-  const foreign = view.kifuPath !== loadedKifuPath;
+  const foreign = isForeignKifuSession(view, loadedKifuPath);
 
   if (view.kind === "over") {
     return (
@@ -226,13 +229,6 @@ function ForeignNote() {
       いま盤に出ている棋譜の対局ではありません
     </p>
   );
-}
-
-/** 時計を持っている状態だけが持つ。**描き直す間隔はこれで決まる** */
-function clocksOf(view: GameSessionView): ClocksView | null {
-  if (view.kind === "live") return view.clocks;
-  if (view.kind === "over") return view.clocks;
-  return null;
 }
 
 export default PlayView;

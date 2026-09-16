@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { ClocksView } from "@/entities/game-session";
+import type { ClocksView } from "@/entities/game-session/api/rust-types";
 import { clockDisplay, formatClock, tickIntervalMs } from "../clock";
 
 const NOW = 1_700_000_000_000;
