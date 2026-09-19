@@ -64,7 +64,7 @@ export function GameMoveBridge() {
     //
     // 先頭一致で見るので、**2手以上遅れた盤も追いつく**（1回の描画で1手ずつ）。
     // 等号で見ると、遡っている間に2手決まった対局からは二度と追いつけない
-    // —— 差が縮まらないまま、対局タブだけが手数を数え続ける。
+    // —— 差が縮まらないまま、棋譜だけが対局から置き去りになる。
     const line = lineUsiMoves(player);
     if (line === null || !isPrefixOf(line, usiMoves)) return;
 

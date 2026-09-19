@@ -4,8 +4,6 @@ import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
 import AnalysisControls from "@/widgets/analysis-pane/ui/AnalysisControls";
 import BookView from "@/widgets/book-view/ui/BookView";
 import BookControls from "@/widgets/book-view/ui/BookControls";
-import PlayView from "@/widgets/play-view/ui/PlayView";
-import PlayControls from "@/widgets/play-view/ui/PlayControls";
 import type { DockViewBindings } from "@/widgets/dock/model/bindings";
 
 /**
@@ -32,14 +30,5 @@ export const DOCK_VIEWS_BINDINGS: DockViewBindings = {
     Controls: BookControls,
     boundary: BOUNDARY_LABELS.book,
     fallbackHint: `別の定跡を開き直してから「${RETRY_LABEL}」を押してください。`,
-  },
-  play: {
-    Body: PlayView,
-    Controls: PlayControls,
-    boundary: BOUNDARY_LABELS.play,
-    // **対局そのものは畳まれても走り続ける**（進行はドックの外に居る）ので、
-    // 案内するのは描き直しだけ。「対局をやり直せ」と言うと、走っている対局を
-    // 捨てさせることになる
-    fallbackHint: `「${RETRY_LABEL}」を押すと描き直します。対局は走ったままです。`,
   },
 };

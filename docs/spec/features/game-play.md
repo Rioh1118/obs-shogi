@@ -10,24 +10,127 @@ main にあるか: **1局を通して指せる。棋譜に結果が残らない*
 
 ## どこに何があるか
 
-**始める面も進行を見る面もある。** 始めるのは `modal=game-start`
-（起点はツリーの行の操作とようこそ画面）、進行を見るのはドックの「対局」タブ。
-どちらも → [screens/play-view.md](../screens/play-view.md)。
-**残っているのは復帰の導線だけ**（`over` を取りこぼした対局に「同期し直す」が無い。#374）。
+**画面は1枚も無い。** 始める口も、進行を見る面も、終局を知らせる面も外してある
+（下の「画面を外してある」）。対局を始める手段は利用者にも開発者にも無い。
 
-| 層             | 状態                                                                                                                                                                             |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rust           | 実装済み（`src-tauri/src/engine/game/` の6ファイル＋ `commands/game.rs`）                                                                                                        |
-| Tauri コマンド | **9本**登録済み                                                                                                                                                                  |
-| フロント API   | `src/entities/game-session/`（`tauri.ts` / `events.ts` / `rust-types.ts`）                                                                                                       |
-| 終局判定       | `src/entities/game/lib/`（`gameOutcome.ts` / `jishogiDeclaration.ts` / `gameRules.ts`）                                                                                          |
-| フロント UI    | `widgets/play-view/` `features/start-game/` `features/game-move/` `features/game-ruling/` ＋ `entities/game-session/model/`（→ [screens/play-view.md](../screens/play-view.md)） |
-| 状態遷移表     | [game-session.md](../../state-transitions/game-session.md)                                                                                                                       |
+| 層             | 状態                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Rust           | 実装済み（`src-tauri/src/engine/game/` の6ファイル＋ `commands/game.rs`）                                                |
+| Tauri コマンド | **9本**登録済み                                                                                                          |
+| フロント API   | `src/entities/game-session/`（`tauri.ts` / `events.ts` / `rust-types.ts`）                                               |
+| 終局判定       | `src/entities/game/lib/`（`gameOutcome.ts` / `jishogiDeclaration.ts` / `gameRules.ts`）                                  |
+| 進行           | `entities/game-session/model/` `features/game-ruling/` `features/game-move/` ＋ `app/providers` の橋とゲート（**残す**） |
+| 画面           | **無い**                                                                                                                 |
+| 状態遷移表     | [game-session.md](../../state-transitions/game-session.md)                                                               |
 
 登録済みのコマンド9本:
 
 `start_game` / `submit_game_move` / `continue_game` / `end_game_by_rule` /
 `resign_game` / `abort_game` / `close_game` / `get_game_state` / `list_games`
+
+## 画面を外してある
+
+**対局に触れる面は1枚も無い。** 外したのは次の6つ。
+
+| 何                         | どこに在った                                 |
+| -------------------------- | -------------------------------------------- |
+| 進行を見るタブ             | `widgets/play-view/`（`dock=play`）          |
+| 操作列（向き・投了・中断） | 同上                                         |
+| 終局を知らせる面           | 同上（`GameOverModal`）                      |
+| 対局を始める面             | `features/start-game/`（`modal=game-start`） |
+| ツリーの行の時計の印       | `widgets/file-tree/ui/TreeNodeActions.tsx`   |
+| ようこそ画面の「対局する」 | `pages/WelcomeScreen.tsx`                    |
+
+**進行と Rust は残してある。** `GameSessionProvider` は `RuntimeProviders` に居たままで、
+出来事の購読も裁定器も動く —— ただし `start_game` を呼ぶ口が無いので、
+`view` は `idle` から動かない。
+
+外したのは、**1局を通して指せる状態にまだ遠いのに、画面だけが「できる」と名乗っていた**ため。
+戻すときの置き場と語彙は
+[ADR-0011](../../decisions/0011-game-vocabulary-and-placement.md) が決めてある
+（決定2 の「対局の行」は一度実装して外した。レビューの記録は
+`.claude/reviews/2026-09-16-clock-in-header.md`）。
+
+**戻すときに読むもの。** 面を消したので、下の3つの不変条件は**このファイルが唯一の出典**になった。
+
+面を作り直すときに読み直す所見（いま踏めないので閉じてある）——
+[#586](https://github.com/Rioh1118/obs-shogi/issues/586)（止まっている時計と
+動いている時計が同じ見た目）/
+[#587](https://github.com/Rioh1118/obs-shogi/issues/587)（通知の帯が時計を覆う）/
+[#588](https://github.com/Rioh1118/obs-shogi/issues/588)（対局が止まった理由が
+別のタブを開いている利用者に届かない）。
+
+### 進行はドックのタブに置けない
+
+**`GameSessionProvider` が持ち、`RuntimeProviders` に居る。**
+
+Rust は将棋のルールを持たないので、手が決まると裁定待ちで止まり、
+フロントが `continueGame` か `endGameByRule` を返すまで進まない。
+**どちらも返さないと `RULING_TIMEOUT` で対局が畳まれる**（理由は「アプリの異常」）。
+
+ドックのタブは選ばれていない間アンマウントされるので、
+**裁定を返す購読をタブに置くと、別のタブを開いただけで対局が畳まれる。**
+利用者から見れば「タブを移ったら対局が壊れた」で、原因は画面のどこにも出ない。
+
+終局の判定（`judgeGameOutcome`）は `entities/game` に在るが、
+**進行の側から直に読めない** —— あちらが `Side` を `entities/game-session` から
+取っているので、読み返すと互いを読み合う組ができて
+`src/__tests__/crossSliceImports.test.ts` が落ちる。
+`GameSessionBridge` が `features/game-ruling` の裁定器を prop で渡す
+（`AnalysisBridge` が `features/engine-position-sync` を渡しているのと同じ形）。
+**2つのスライスを束ねるので、置ける最下層が `features/`。**
+
+裁定器は**対局の間ずっと同じものを持ち回る**。`judgeGameOutcome` は呼ばれるたびに
+根から棋譜を組み直すので、毎手呼ぶと合計が手数の2乗で効く（実測は
+`entities/game/lib/gameOutcome.ts` の doc）。持ち回る側（`createOutcomeJudge`）は
+進んだぶんしか積まない。**前に裁定した列の続きでなければ黙って組み直す**ので、
+別の対局が始まっても取り違えない。
+
+**ルール（持将棋の規則・最大手数）を持つのも橋の側。** `GameRules` は
+`entities/game` の型なので、進行に持たせると同じ辺ができる。
+
+### 対局中の盤は、門を通った手しか積まない
+
+**Rust が採った手しか棋譜へ積まない。** 盤はそのままだと手番の所有者を見ずに積んで
+自動保存まで走るので、相手の手番で指せてしまうと **Rust は着手を受けていないのに
+棋譜だけが1手先へ進む**。次の裁定に渡す指し手列が Rust の写しと食い違って断られ、
+**呼び直しても直らないまま `RULING_TIMEOUT` で対局が畳まれる。**
+
+門は `features/game-move` が持ち、`entities/game` へ**注入で渡す**
+（盤と対局の2つを束ねるので、置ける最下層がそこ）。**門を渡さない呼び手は素通し**
+——盤だけを立てる場所に対局を持ち込まないため。
+
+止めるのは6つ。**盤が対局の先端に居ない**・**まだ始まりきっていない**・
+**終局した対局の先端**・**相手の手番**・**エンジンの席**・**綴れない手**。
+どれも `submit_game_move` を呼ぶ前に落とす。
+
+**終局した対局の盤は止めない。** 結末が決まった時点でエンジンは落ちていて、
+出す先がもう無いので、止めても Rust の写しを守ることにはならない。
+止めた版は、盤に断りの出し先が無い（#277）せいで**押しても何も起きない盤**になった ——
+利用者からは故障と見分けが付かない。呼んだ結果が断られた場合も積まない
+（着手が届くのと持ち時間が尽きるのが同じ tick に入ると断られる）。
+
+**先端に居るかは手数で見ない。** 遡って分岐を並べるのは対局中も止めていない普通の操作で、
+同じ深さの別の線と手数では区別が付かない。根からの USI の綴りを丸ごと突き合わせる
+（Rust の `accept_continue` と同じ形）。手数で見ると、**分岐で指した手が
+「対局の次の1手」として Rust へ出て**、写しに異物として載ったまま
+`continue_game` で弾かれ、対局そのものが「アプリの異常」で畳まれる。
+
+**始まりきる前も止める。** `start_game` は評価関数の読み込みを待つので数十秒あり、
+その間の手は Rust の写しに無い。対局は Rust 側で進むので壊れないが、
+**棋譜だけが1手多いまま終局まで進む。**
+
+**別の棋譜を触っているだけの操作は止めない。** 対局は棋譜が入れ替わっても走り続けるので、
+止めると対局中は他の棋譜を1手も並べ替えられなくなる。
+
+### 面を戻すときに、そのまま拾えないもの
+
+- **終局の理由を画面の語に直す写しが消えた**（`REASON_LABEL` は `widgets/play-view` に在った）。
+  戻すときは `Record<GameOverReason, string>` で持つこと —— 網羅を tsc に見させるため
+- **持ち時間の上限の TS 側の写しが消えた。** 押す前に断るには `MAX_TIME_MS` を
+  もう一度持つ必要があり、Rust と一致しているかを見る検査
+  （`timeLimitCap`）も一緒に戻す
+- **対局の綴りは `play`。** `game` は棋譜を読む側が持っている（`entities/game`）
 
 ## 設計の骨格（Rust 側が決めていること）
 
@@ -84,7 +187,7 @@ Rust: 次の手番へ進む
 
 裁定を返す側は入った —— `GameSessionProvider`（`entities/game-session/model/`）が
 `game-event` を購読し、`GameSessionBridge` が組んだ裁定器を通して
-`continue_game` / `end_game_by_rule` を返す（→ [screens/play-view.md](../screens/play-view.md)）。
+`continue_game` / `end_game_by_rule` を返す（→ 上の「進行はドックのタブに置けない」）。
 
 **`judgeDeclaration` だけが呼ばれていない。** 入玉宣言は利用者の操作から呼ぶものなので、
 その操作を持つ画面が要る。**置き場は決まった —— 対局ビューの操作列**（将棋所が
@@ -159,21 +262,21 @@ Rust: 次の手番へ進む
 
 ## 作らないといけない画面
 
-新規の面は1つ。**対局の設定・対局中の盤・時計・終局は入った**
-（→ [screens/play-view.md](../screens/play-view.md)）。
+**全部。** 一度入れて外したので、戻すときは設定・進行・時計・終局・復帰の5つが要る。
 
-| 画面 | 何を持つか             |
-| ---- | ---------------------- |
-| 復帰 | 「同期し直す」（#374） |
+| 画面 | 何を持つか                                     |
+| ---- | ---------------------------------------------- |
+| 設定 | 席・持ち時間・棋譜のファイル（ADR-0011 決定6） |
+| 進行 | 席2つ・手数・裁定中・帯3種（同 決定3）         |
+| 時計 | 残り時間と秒読み（同 決定2）                   |
+| 終局 | 結末とスタッツ（同 決定4）                     |
+| 復帰 | 「同期し直す」（#374）                         |
 
-**入った面の置き場は作り替える。** 時計はヘッダへ、スタッツは終局後の対局タブへ、
-開始の面はチップ＋ステッパーと記憶へ。順序ごと
-[ADR-0011](../../decisions/0011-game-vocabulary-and-placement.md) の「着手順」が持つ。
-
-置き場は決まった —— **進行はドックのタブ `play`**（ADR-0010 の語彙でいうビュー）、
+置き場と語彙は [ADR-0011](../../decisions/0011-game-vocabulary-and-placement.md) が決めてある
+—— **進行はドックのタブ `play`**（ADR-0010 の語彙でいうビュー）、
 **始める面はモーダル**（棋譜を1枚作る作業なので、起点はツリーとようこそ画面）、
-**対局中の盤の門は `features/game-move`**（盤と対局を束ねるので、置ける最下層がそこ）。
-→ [screens/play-view.md](../screens/play-view.md)
+**時計はヘッダの「対局の行」**、
+**対局中の盤の門は `features/game-move`**（これだけは残っている）。
 
 特殊手との対応は [special-moves.md](special-moves.md) に表がある
 （`EngineFailure` に対応する `special` が無い）。

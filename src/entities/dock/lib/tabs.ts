@@ -34,8 +34,7 @@ function isDockViewType(value: unknown): value is DockViewType {
  *
  * これが無いと、**設定「表示」を一度でも触った利用者には新しいビューが永久に出ない。**
  * 出す口がそのビューの中にしか無ければ、機能ごと到達できなくなる
- * （対局は始める口が外に在るので、なお悪い —— エンジンが起きて盤が独りでに動くのに、
- * 進行も結果も「閉じる」も画面のどこにも無い）。
+ * （定跡を開く口は定跡ビューの中にしか無い）。
  */
 export function resolveDockTabs(
   saved: readonly string[] | null | undefined,

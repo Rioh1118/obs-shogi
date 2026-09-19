@@ -272,8 +272,8 @@ export function GameSessionProvider({
           break;
 
         // 対局中のエンジンの読み筋。**畳み込む先をまだ持っていない**——
-        // 出すのは対局ビューの仕事で、置き場が決まるまで捨てる（→ 画面仕様の
-        // 「いま満たしていないこと」）
+        // 出す面が無い（対局の画面は外してある）ので捨てる。
+        // 畳み込む先は ADR-0011 決定4 が決めてある
         case "searchInfo":
           return;
       }
@@ -354,7 +354,7 @@ export function GameSessionProvider({
    *
    * **`start` と押す側が同じものを通すこと。** 押す側は「棋譜を作る前に」断りを知る
    * 必要がある —— `start` は断っても何も起きないので、先に作ってしまうと
-   * **対局していない棋譜が1枚できて、ドックだけが対局タブへ移る。**
+   * **対局していない棋譜が1枚できる。**
    *
    * 押せるかを `view` から組み直すと材料が違う。こちらは `listenSettledRef` を
    * 待った後の ref を見るのに対し、`view` は描画時の写しなので、
@@ -397,8 +397,8 @@ export function GameSessionProvider({
         humanSides: (["black", "white"] as const).filter(
           (side) => request.settings[side].kind === "human",
         ),
-        // 最初の `turnChanged` が来るまでの仮。**盤には出さない**（`clocks` が
-        // `null` のうちは対局ビューが手番を描かない）
+        // 最初の `turnChanged` が来るまでの仮。**手番の印に使わせない**
+        // ——描く側は `clocks` が `null` の間を「まだ届いていない」として扱う
         toMove: "black",
         clocks: null,
         awaitingRuling: false,

@@ -101,7 +101,6 @@ describe("書き込むファイル名を組む口", () => {
       "src/features/create-file/model/useKifuImportDraft.ts",
       "src/features/create-file/ui/SfenKifuCreateModal.tsx",
       "src/features/position-editor/ui/EditorCreateForm.tsx",
-      "src/features/start-game/ui/GameStartModal.tsx",
     ]);
   });
 });

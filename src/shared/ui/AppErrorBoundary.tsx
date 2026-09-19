@@ -28,8 +28,6 @@ export const BOUNDARY_LABELS = {
   analysis: "解析",
   /** 定跡ビューを包む */
   book: "定跡",
-  /** 対局ビューを包む */
-  play: "対局",
 } as const;
 
 export type BoundaryLabel = (typeof BOUNDARY_LABELS)[keyof typeof BOUNDARY_LABELS];

@@ -168,8 +168,9 @@ export interface GameSettings {
  * `continueGame` も `endGameByRule` も `RULING_TIMEOUT` の間通せず、Rust が畳んだ対局。
  * 利用者の中断（`aborted`）とは受け手の対処が正反対なので、値が分けてある。
  *
- * **綴りを足したら `REASON_LABEL`（`widgets/play-view/lib/result.ts`）も足す。**
- * `Record` なので tsc が落とす。Rust にだけ足した状態は
+ * **画面の語に直す写しは、いまリポジトリに1つも無い**——対局の UI を外したときに
+ * 一緒に消えた。戻すときは `Record<GameOverReason, string>` で持つこと
+ * （網羅を tsc に見させるため）。Rust にだけ綴りを足した状態は
  * `src/__tests__/gameOverReasonWire.test.ts` が落とす。
  */
 export type GameOverReason =

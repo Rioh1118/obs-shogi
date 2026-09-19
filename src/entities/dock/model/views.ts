@@ -41,15 +41,6 @@ const SPECS = {
     // どこにも無い状態から始まる（開く口はこのビューの中にしか無い）
     defaultVisible: true,
   },
-  play: {
-    label: "対局",
-    removable: true,
-    // **対局していなくても出す。** 定跡とは理由が違う——対局を始める導線は
-    // このビューの外（ツリー）に置くので、開く口の話ではない。
-    // 出すのは、**進行と故障を見る口がここにしか無い**ため。
-    // 外した人には手番も故障も届かなくなるが、それは本人の意思として扱う
-    defaultVisible: true,
-  },
 } as const satisfies Record<DockViewType, Omit<DockViewMeta, "key">>;
 
 /**

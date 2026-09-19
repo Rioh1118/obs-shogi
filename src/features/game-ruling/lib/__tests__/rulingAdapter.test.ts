@@ -8,7 +8,7 @@ import { createRulingAdapter } from "../rulingAdapter";
  * 「判定の答えを、棋譜と画面に残る綴りへどう写すか」を見るのはここだけ。
  *
  * 綴りそのものを固定するのは、**`endGameByRule` に渡した `detail` が棋譜に残る**ため
- * （`docs/spec/screens/play-view.md`）。判定の正しさは `entities/game` の側が見る。
+ * （`docs/spec/features/game-play.md`）。判定の正しさは `entities/game` の側が見る。
  */
 
 const HIRATE = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";

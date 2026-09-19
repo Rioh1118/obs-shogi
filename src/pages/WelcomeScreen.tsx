@@ -37,12 +37,6 @@ function WelcomeScreen() {
             <Button tone="primary" onClick={() => openModal("create-file")}>
               棋譜を作る
             </Button>
-            {/*
-              **対局もここから始められる。** ツリーの行からも始められるが、
-              棋譜が1本も無ければ行が出ないし、サイドバーを閉じていればツリーごと居ない
-              （→ `docs/spec/screens/play-view.md`）
-            */}
-            <Button onClick={() => openModal("game-start")}>対局する</Button>
           </div>
 
           <div className="welcome-screen__formats">
