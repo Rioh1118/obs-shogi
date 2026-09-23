@@ -92,23 +92,20 @@ describe("applyMoveWithBranch", () => {
 
     test("A4. promote 違い (不成 既存 / 成り 入力) → 新規 fork", () => {
       const player = newHiratePlayer();
-      // 2四歩交換まで進めて 2五歩 / 8五歩 の局面を作る
+      // 2四まで歩を伸ばし、2三（敵陣）へ入る手を成と不成で指し分ける
       play(player, [
         FU_27_TO_26,
         FU_83_TO_84,
         FU_26_TO_25,
-        {
-          from: { x: 8, y: 4 },
-          to: { x: 8, y: 5 },
-          piece: "FU",
-          color: Color.White,
-        },
+        { from: { x: 8, y: 4 }, to: { x: 8, y: 5 }, piece: "FU", color: Color.White },
+        { from: { x: 2, y: 5 }, to: { x: 2, y: 4 }, piece: "FU", color: Color.Black },
+        { from: { x: 8, y: 5 }, to: { x: 8, y: 6 }, piece: "FU", color: Color.White },
       ]);
 
-      // 既存: 不成で 2五 → 2四 (歩は 3段目以内なら不成可)
+      // 既存: 2三歩不成
       const ascend: IMoveMoveFormat = {
-        from: { x: 2, y: 5 },
-        to: { x: 2, y: 4 },
+        from: { x: 2, y: 4 },
+        to: { x: 2, y: 3 },
         piece: "FU",
         color: Color.Black,
         promote: false,
@@ -122,7 +119,7 @@ describe("applyMoveWithBranch", () => {
 
       expect(r2.createdNew).toBe(true);
       expect(r2.usedExisting).toBe(false);
-      expect(player.kifu.moves[5].forks?.length).toBe(1);
+      expect(player.kifu.moves[7].forks?.length).toBe(1);
     });
   });
 
@@ -401,6 +398,22 @@ describe("applyMoveWithBranch", () => {
       expect(JSON.stringify(player.kifu)).toBe(before);
       expect(player.shogi.get(1, 2)?.kind).toBe("FU");
       expect(player.shogi.get(1, 1)).toBeNull();
+    });
+
+    test.each([
+      ["成駒をさらに成らせる", "TO" as const, { x: 2, y: 4 }, { x: 2, y: 3 }],
+      ["敵陣の外で成る", "FU" as const, { x: 2, y: 7 }, { x: 2, y: 6 }],
+    ])("E6. %s手は、盤も棋譜も変えずに投げる", (_, kind, from, to) => {
+      const player = new JKFPlayer(
+        buildJkf([...KINGS, { ...from, color: Color.Black, kind }], [hand(), hand()], [{}]),
+      );
+      const before = JSON.stringify(player.kifu);
+
+      expect(() =>
+        apply(player, { from, to, piece: kind, color: Color.Black, promote: true }),
+      ).toThrow();
+      expect(JSON.stringify(player.kifu)).toBe(before);
+      expect(player.shogi.get(from.x, from.y)?.kind).toBe(kind);
     });
   });
 });

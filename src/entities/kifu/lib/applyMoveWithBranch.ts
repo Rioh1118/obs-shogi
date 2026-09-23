@@ -114,12 +114,16 @@ function normalizeNewMove(
     if (!move.piece) {
       move.piece = shogi.get(move.from.x, move.from.y).kind;
     }
-    if (
-      !move.promote &&
+    const promotable =
       !Piece.isPromoted(move.piece) &&
       Piece.canPromote(move.piece) &&
-      (Normalizer.canPromote(to, shogi.turn) || Normalizer.canPromote(move.from, shogi.turn))
-    ) {
+      (Normalizer.canPromote(to, shogi.turn) || Normalizer.canPromote(move.from, shogi.turn));
+    // `shogi.js` は成れるかを見ずに成らせ、戻すときは成駒を生駒に戻す。
+    // 成駒に「成」を付けた手を通すと、1手戻るたびに と金が歩に化ける
+    if (move.promote && !promotable) {
+      throw new Error("成れない駒・位置で成る手は棋譜に足せません");
+    }
+    if (!move.promote && promotable) {
       move.promote = false;
     }
     Normalizer.addRelativeInformation(shogi, move);
