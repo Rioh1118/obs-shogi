@@ -129,7 +129,8 @@ gh release delete v0.0.1-1 --cleanup-tag -y
 
 **ダウンロードの URL を手で組む文書はここを見て書くこと。**
 
-自動更新の `.sig` は各資産の隣に、`darwin` は `.app.tar.gz` も出る。
+`darwin` は自動更新用の `.app.tar.gz` も出る。`.sig` は上げない
+（`uploadUpdaterSignatures: false`）。署名は `latest.json` の `signature` に中身ごと入っている。
 `latest.json` の `platforms` は bundle ごとに分かれた11個の鍵を持ち
 （`linux-x86_64-appimage` / `-deb` / `-rpm` など）、**`[arch]` の綴りとは別の語**を使う。
 `latest.json` を読む側はそちらの鍵を見ること。
