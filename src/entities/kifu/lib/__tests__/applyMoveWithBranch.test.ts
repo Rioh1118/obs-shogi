@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import type { JKFPlayer } from "json-kifu-format";
+import { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color } from "shogi.js";
 import { applyMoveWithBranch } from "../applyMoveWithBranch";
 import { readableMove } from "../readableMove";
-import { newGoldToTheSameSquarePlayer, newHiratePlayer } from "./fixtures";
+import { KINGS, buildJkf, hand, newGoldToTheSameSquarePlayer, newHiratePlayer } from "./fixtures";
 
 /**
  * 指定した手を順に inputMove していく (初期手順構築)
@@ -92,23 +92,20 @@ describe("applyMoveWithBranch", () => {
 
     test("A4. promote 違い (不成 既存 / 成り 入力) → 新規 fork", () => {
       const player = newHiratePlayer();
-      // 2四歩交換まで進めて 2五歩 / 8五歩 の局面を作る
+      // 2四まで歩を伸ばし、2三（敵陣）へ入る手を成と不成で指し分ける
       play(player, [
         FU_27_TO_26,
         FU_83_TO_84,
         FU_26_TO_25,
-        {
-          from: { x: 8, y: 4 },
-          to: { x: 8, y: 5 },
-          piece: "FU",
-          color: Color.White,
-        },
+        { from: { x: 8, y: 4 }, to: { x: 8, y: 5 }, piece: "FU", color: Color.White },
+        { from: { x: 2, y: 5 }, to: { x: 2, y: 4 }, piece: "FU", color: Color.Black },
+        { from: { x: 8, y: 5 }, to: { x: 8, y: 6 }, piece: "FU", color: Color.White },
       ]);
 
-      // 既存: 不成で 2五 → 2四 (歩は 3段目以内なら不成可)
+      // 既存: 2三歩不成
       const ascend: IMoveMoveFormat = {
-        from: { x: 2, y: 5 },
-        to: { x: 2, y: 4 },
+        from: { x: 2, y: 4 },
+        to: { x: 2, y: 3 },
         piece: "FU",
         color: Color.Black,
         promote: false,
@@ -122,7 +119,7 @@ describe("applyMoveWithBranch", () => {
 
       expect(r2.createdNew).toBe(true);
       expect(r2.usedExisting).toBe(false);
-      expect(player.kifu.moves[5].forks?.length).toBe(1);
+      expect(player.kifu.moves[7].forks?.length).toBe(1);
     });
   });
 
@@ -230,8 +227,8 @@ describe("applyMoveWithBranch", () => {
     });
 
     test("C7. 指し手と打ちが分岐一覧で別の文字列になる", () => {
-      // 「打」が付くのは applyMoveWithBranch が棋譜全体を再正規化して relative:"H" を
-      // 入れるため。この再正規化を外すと、分岐カードに同じ文字列が2枚並ぶ。
+      // 「打」が付くのは applyMoveWithBranch が足した手を正規化して relative:"H" を
+      // 入れるため。この正規化を外すと、分岐カードに同じ文字列が2枚並ぶ。
       const player = newGoldToTheSameSquarePlayer();
       play(player, [KI_49_TO_39]);
       player.goto(0);
@@ -254,6 +251,169 @@ describe("applyMoveWithBranch", () => {
       expect(player.kifu.moves[1].forks?.length).toBe(2);
       expect(player.kifu.moves[1].forks?.[0][0].move?.from).toEqual({ x: 7, y: 7 });
       expect(player.kifu.moves[1].forks?.[1][0].move?.from).toEqual({ x: 5, y: 7 });
+    });
+  });
+
+  describe("D. 棋譜のどこかに盤上で指せない手があっても足せる", () => {
+    /**
+     * 1手目 2六歩 の変化「7六歩 → 6八玉(59)」の2手目は後手番に先手の玉を動かす。
+     * 盤上で指せないので、棋譜全体を正規化すると必ずここで throw する。
+     */
+    function newPlayerWithBrokenFork(): JKFPlayer {
+      return new JKFPlayer({
+        header: {},
+        initial: { preset: "HIRATE" },
+        moves: [
+          {},
+          {
+            move: { ...FU_27_TO_26 },
+            forks: [
+              [
+                { move: { ...FU_77_TO_76 } },
+                {
+                  move: {
+                    from: { x: 5, y: 9 },
+                    to: { x: 6, y: 8 },
+                    piece: "OU",
+                    color: Color.White,
+                  },
+                },
+              ],
+            ],
+          },
+        ],
+      });
+    }
+
+    test("D1. 別の手順で新規分岐を足せる", () => {
+      const player = newPlayerWithBrokenFork();
+
+      const r = apply(player, FU_57_TO_56);
+
+      expect(r.createdNew).toBe(true);
+      expect(player.tesuu).toBe(1);
+      expect(player.kifu.moves[1].forks?.length).toBe(2);
+    });
+
+    test("D2. 線の末尾に足せる", () => {
+      const player = newPlayerWithBrokenFork();
+      player.forward();
+
+      const r = apply(player, FU_83_TO_84);
+
+      expect(r.createdNew).toBe(true);
+      expect(player.tesuu).toBe(2);
+      expect(player.kifu.moves[2].move?.to).toEqual({ x: 8, y: 4 });
+    });
+  });
+
+  describe("E. 足した1手の正規化", () => {
+    test("E1. 変化の中の末端で足した手は、その変化の末尾に入る（本譜ではない）", () => {
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
+      player.goto(0);
+      apply(player, FU_77_TO_76);
+
+      const r = apply(player, FU_83_TO_84);
+
+      expect(r.tesuu).toBe(2);
+      expect(r.forkPointers).toEqual([{ te: 1, forkIndex: 0 }]);
+      expect(player.kifu.moves.length).toBe(2);
+      expect(player.kifu.moves[1].forks?.[0].length).toBe(2);
+      expect(player.kifu.moves[1].forks?.[0][1].move?.to).toEqual({ x: 8, y: 4 });
+      // 足した手を player が指している
+      expect(player.shogi.get(8, 4)?.kind).toBe("FU");
+    });
+
+    test("E2. 直前の手と同じ地点へ行く手に same が付き、取った駒が capture に入る", () => {
+      const player = newHiratePlayer();
+      play(player, [
+        FU_77_TO_76,
+        { from: { x: 3, y: 3 }, to: { x: 3, y: 4 }, piece: "FU", color: Color.White },
+        {
+          from: { x: 8, y: 8 },
+          to: { x: 2, y: 2 },
+          piece: "KA",
+          color: Color.Black,
+          promote: true,
+        },
+      ]);
+
+      apply(player, { from: { x: 3, y: 1 }, to: { x: 2, y: 2 }, piece: "GI", color: Color.White });
+
+      const added = player.kifu.moves[4].move!;
+      expect(added.color).toBe(Color.White);
+      expect(added.same).toBe(true);
+      expect(added.capture).toBe("UM");
+      expect(readableMove(player.kifu.moves[4])).toBe("☖同　銀");
+    });
+
+    test("E3. 終局の手の後には足さず、棋譜も変えない", () => {
+      const player = new JKFPlayer({
+        header: {},
+        initial: { preset: "HIRATE" },
+        moves: [{}, { move: { ...FU_27_TO_26 } }, { special: "TORYO" }],
+      });
+      player.goto(2);
+      const before = JSON.stringify(player.kifu);
+
+      expect(() => apply(player, FU_83_TO_84)).toThrow();
+      expect(JSON.stringify(player.kifu)).toBe(before);
+    });
+
+    test("E4. 盤上で指せない手は、棋譜を変える前に投げる", () => {
+      const player = newHiratePlayer();
+      play(player, [FU_27_TO_26]);
+      player.goto(0);
+      const before = JSON.stringify(player.kifu);
+
+      // 先手番に後手の歩を動かす
+      expect(() => apply(player, FU_83_TO_84)).toThrow();
+      expect(JSON.stringify(player.kifu)).toBe(before);
+      expect(player.tesuu).toBe(0);
+    });
+
+    test.each([
+      ["promote 省略", undefined],
+      ["promote: false", false],
+    ])("E5. 行き所の無い駒を成らずに進める手（%s）は、盤も棋譜も変えずに投げる", (_, promote) => {
+      const player = new JKFPlayer(
+        buildJkf(
+          [...KINGS, { x: 1, y: 2, color: Color.Black, kind: "FU" }],
+          [hand(), hand()],
+          [{}],
+        ),
+      );
+      const before = JSON.stringify(player.kifu);
+
+      expect(() =>
+        apply(player, {
+          from: { x: 1, y: 2 },
+          to: { x: 1, y: 1 },
+          piece: "FU",
+          color: Color.Black,
+          promote,
+        }),
+      ).toThrow();
+      expect(JSON.stringify(player.kifu)).toBe(before);
+      expect(player.shogi.get(1, 2)?.kind).toBe("FU");
+      expect(player.shogi.get(1, 1)).toBeNull();
+    });
+
+    test.each([
+      ["成駒をさらに成らせる", "TO" as const, { x: 2, y: 4 }, { x: 2, y: 3 }],
+      ["敵陣の外で成る", "FU" as const, { x: 2, y: 7 }, { x: 2, y: 6 }],
+    ])("E6. %s手は、盤も棋譜も変えずに投げる", (_, kind, from, to) => {
+      const player = new JKFPlayer(
+        buildJkf([...KINGS, { ...from, color: Color.Black, kind }], [hand(), hand()], [{}]),
+      );
+      const before = JSON.stringify(player.kifu);
+
+      expect(() =>
+        apply(player, { from, to, piece: kind, color: Color.Black, promote: true }),
+      ).toThrow();
+      expect(JSON.stringify(player.kifu)).toBe(before);
+      expect(player.shogi.get(from.x, from.y)?.kind).toBe(kind);
     });
   });
 });
