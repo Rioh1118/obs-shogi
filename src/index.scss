@@ -232,10 +232,11 @@ $shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
 $shadow-control: 0 $space-2 $space-4 rgba(0, 0, 0, 0.22);
 $shadow-control-press: 0 $space-1 $space-2 rgba(0, 0, 0, 0.16);
 
-// 選ばれている行・最善の行を示す左の帯。**浮きの高さではなく印**なので、
+// 最善の行を示す左の帯。**浮きの高さではなく印**なので、
 // 上の3つとは別に置く。面の塗りだけで示すと、隣の行のホバーと見分けが付かない
 $marker-bar: inset 2px 0 0 $color-secondary-dark;
-// 同じ印を行の右端に置く版。**選択と最善が同じ行に重なる**ので、左右で描き分ける
+// 選ばれている行を示す、同じ印の右端版。**選択と最善が同じ行に重なりうる**
+// （`.candidate-table` では最善の行も選べる）ので、左右で描き分ける
 $marker-bar-end: inset -2px 0 0 $color-secondary-dark;
 
 $stroke-weak: rgba($color-white, 0.06);

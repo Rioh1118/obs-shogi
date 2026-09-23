@@ -34,3 +34,25 @@ describe("解析の停止が残すもの", () => {
     expect(cleared.analyzedSfen).toBe("SFEN-A");
   });
 });
+
+/**
+ * **並びが最善手の唯一の印になる面がある。** 行モード（`CandidatesSection`）は
+ * 最善手に帯も太さも付けず、1行目にあることだけで示す。届いた順のまま置くと、
+ * エンジンが rank を逆順で送った回に最善手がどれか画面から読めなくなる。
+ */
+describe("解析結果の並び", () => {
+  it("届いた順によらず rank の昇順に置く", () => {
+    const state = analysisReducer(initialState, {
+      type: "update_result",
+      payload: {
+        candidates: [
+          { rank: 3, pv_line: [] },
+          { rank: 1, pv_line: [] },
+          { rank: 2, pv_line: [] },
+        ],
+      },
+    });
+
+    expect(state.candidates.map((c) => c.rank)).toEqual([1, 2, 3]);
+  });
+});
