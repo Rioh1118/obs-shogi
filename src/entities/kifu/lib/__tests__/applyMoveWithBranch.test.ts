@@ -4,7 +4,7 @@ import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color } from "shogi.js";
 import { applyMoveWithBranch } from "../applyMoveWithBranch";
 import { readableMove } from "../readableMove";
-import { newGoldToTheSameSquarePlayer, newHiratePlayer } from "./fixtures";
+import { KINGS, buildJkf, hand, newGoldToTheSameSquarePlayer, newHiratePlayer } from "./fixtures";
 
 /**
  * 指定した手を順に inputMove していく (初期手順構築)
@@ -374,6 +374,33 @@ describe("applyMoveWithBranch", () => {
       expect(() => apply(player, FU_83_TO_84)).toThrow();
       expect(JSON.stringify(player.kifu)).toBe(before);
       expect(player.tesuu).toBe(0);
+    });
+
+    test.each([
+      ["promote 省略", undefined],
+      ["promote: false", false],
+    ])("E5. 行き所の無い駒を成らずに進める手（%s）は、盤も棋譜も変えずに投げる", (_, promote) => {
+      const player = new JKFPlayer(
+        buildJkf(
+          [...KINGS, { x: 1, y: 2, color: Color.Black, kind: "FU" }],
+          [hand(), hand()],
+          [{}],
+        ),
+      );
+      const before = JSON.stringify(player.kifu);
+
+      expect(() =>
+        apply(player, {
+          from: { x: 1, y: 2 },
+          to: { x: 1, y: 1 },
+          piece: "FU",
+          color: Color.Black,
+          promote,
+        }),
+      ).toThrow();
+      expect(JSON.stringify(player.kifu)).toBe(before);
+      expect(player.shogi.get(1, 2)?.kind).toBe("FU");
+      expect(player.shogi.get(1, 1)).toBeNull();
     });
   });
 });

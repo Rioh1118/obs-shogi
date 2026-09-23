@@ -128,7 +128,15 @@ function normalizeNewMove(
   }
 
   JKFPlayer.doMove(shogi, move);
-  JKFPlayer.undoMove(shogi, move);
+  // 行き所の無い駒（1段目の歩など）は `promote` が偽でも `shogi.js` が成らせる。
+  // そのまま足すと棋譜には「不成」と残り、戻すと `undoMove` が成駒を盤に置き去りにする
+  const landed = shogi.get(to.x, to.y);
+  const forcedPromotion =
+    !!move.from && !move.promote && !Piece.isPromoted(move.piece) && Piece.isPromoted(landed.kind);
+  JKFPlayer.undoMove(shogi, forcedPromotion ? { ...move, promote: true } : move);
+  if (forcedPromotion) {
+    throw new Error("行き所の無い駒は成らずに進められません");
+  }
 }
 
 /**
@@ -136,16 +144,14 @@ function normalizeNewMove(
  *
  * `player.currentStream` は線を繋いだ**写し**で、棋譜の配列を足しても伸びない。
  * `JKFPlayer` が写しを作り直す口（`updateForksAndCurrentStream`）は非公開なので、
- * 写しの側にも同じ手を足す。
+ * 写しの側にも同じ手を足す。写しは棋譜を足す前に取る —— 未構築のまま足すと、
+ * 棋譜から組まれた写しに同じ手がもう1つ乗る。
  */
 function appendToCurrentLine(player: JKFPlayer, entry: IMoveFormat): void {
   const stream = player.currentStream;
-  const lengthBefore = stream.length;
   const { line } = resolveLine(player.kifu, player.getForkPointers(), player.tesuu + 1);
   line.push(entry);
-  if (stream.length === lengthBefore) {
-    stream.push(entry);
-  }
+  stream.push(entry);
 }
 
 function buildResult(
