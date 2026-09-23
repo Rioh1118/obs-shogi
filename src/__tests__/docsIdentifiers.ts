@@ -82,6 +82,10 @@ export const EXEMPT = new Set([
   "fromPreset",
   "getIllegalUnpromotedRow",
   "colorToString",
+  // `json-kifu-format`（別リポジトリ）の `JKFPlayer` の口。棋譜を書き換える側が
+  // 「あちらのこの口を通さない理由」と「非公開なので呼べない口」の出典に引く
+  "inputMove",
+  "updateForksAndCurrentStream",
   // DOM と CSS の綴り。使わない理由を書くために引くので、こちらの識別子ではない
   "minHeight",
   "offsetParent",
