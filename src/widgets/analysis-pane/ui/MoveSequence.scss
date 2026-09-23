@@ -15,17 +15,7 @@
   overflow: hidden;
 
   font-size: 1.22rem;
-
-  // 最善手。**面は敷かない** —— 載る面は `.candidates-section` が宣言しているが、
-  // 薄い面を重ねると隣の行のホバーと見分けが付かない。左の帯と太さで示す
-  &__primary {
-    font-weight: 600;
-    box-shadow: index.$marker-bar;
-  }
-
-  &__candidate {
-    font-weight: 440;
-  }
+  font-weight: 440;
 
   &__pv {
     min-width: 0;

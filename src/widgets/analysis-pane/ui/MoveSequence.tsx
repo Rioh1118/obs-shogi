@@ -5,13 +5,12 @@ import type { Evaluation } from "@/entities/engine";
 
 interface MoveSequenceProps {
   moves: ConvertedMove[];
-  variant: "primary" | "candidate";
   evaluation?: Evaluation | null;
 }
 
-function MoveSequence({ moves, variant, evaluation }: MoveSequenceProps) {
+function MoveSequence({ moves, evaluation }: MoveSequenceProps) {
   return (
-    <p className={`move-sequence move-sequence__${variant}`}>
+    <p className="move-sequence">
       <span className="move-sequence__evaluation">
         {evaluation !== undefined && evaluation !== null ? formatEvaluation(evaluation) : ""}
       </span>
