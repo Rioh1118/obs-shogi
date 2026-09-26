@@ -13,18 +13,6 @@ use crate::engine::types::*;
 
 // === Tauriコマンド定義 ===
 
-#[tauri::command]
-pub async fn initialize_engine(
-    state: tauri::State<'_, AppState>,
-    engine_path: String,
-    working_dir: Option<String>,
-) -> Result<(), String> {
-    state
-        .bridge
-        .initialize_engine_impl(engine_path, working_dir)
-        .await
-}
-
 /// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ。失敗は種類つきで返す
 #[tauri::command]
 pub async fn start_analysis_engine(
@@ -98,30 +86,8 @@ pub async fn get_last_result(
 }
 
 #[tauri::command]
-pub async fn apply_engine_settings(
-    state: tauri::State<'_, AppState>,
-    settings: EngineSettings,
-) -> Result<(), String> {
-    state.bridge.apply_engine_settings_impl(settings).await
-}
-
-#[tauri::command]
-pub async fn get_engine_settings(
-    state: tauri::State<'_, AppState>,
-) -> Result<EngineSettings, String> {
-    state.bridge.get_engine_settings_impl().await
-}
-
-#[tauri::command]
 pub async fn get_analysis_status(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<AnalysisStatus>, String> {
     state.bridge.get_analysis_status_impl().await
-}
-
-#[tauri::command]
-pub async fn get_engine_info(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<EngineInfo>, String> {
-    state.bridge.get_engine_info_impl().await
 }

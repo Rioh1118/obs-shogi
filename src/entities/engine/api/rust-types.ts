@@ -25,8 +25,30 @@ export interface EngineOptionType {
   Filename?: { default?: string };
 }
 
-export interface EngineSettings {
-  options: Record<string, string>;
+/** `setoption` 1件（Rust の `SetOptionValue`）。**並べた順に送られる** */
+export interface SetOptionValue {
+  name: string;
+  value: string;
+}
+
+/**
+ * エンジンを起動できなかった理由の種類（Rust の `StartFailureKind`）。
+ * 利用者が取れる行動で分けてある。画面の文言はこれから組む
+ */
+export type StartFailureKind =
+  | "spawnFailed"
+  | "quarantined"
+  | "notUsi"
+  | "exitedEarly"
+  | "timedOut"
+  | "invalidValue"
+  | "cancelled"
+  | "other";
+
+/** `start_analysis_engine` が断ったときの値（Rust の `StartFailure`）。`message` はエンジンの出力を含みうる */
+export interface StartFailure {
+  kind: StartFailureKind;
+  message: string;
 }
 
 export interface AnalysisConfig {
@@ -99,11 +121,4 @@ export interface BatchAnalysisResult {
   position: string;
   name?: string;
   result: AnalysisResult;
-}
-
-export interface EngineStatus {
-  isInitialized: boolean;
-  engineInfo: EngineInfo | null;
-  currentSettings: EngineSettings | null;
-  analysisStatus: AnalysisStatus[];
 }

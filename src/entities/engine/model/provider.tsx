@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
+import { asEngineFailure } from "../lib/engineFailure";
 import { EngineContext } from "./context";
 
 type Props = {
@@ -58,9 +59,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   );
 
   // lifecycle
+  // **起動中でも撃ってよい。** 前の起動は Rust が落とし（前の呼び出しは `cancelled` で断られる）、
+  // その結果は世代（`seqRef`）で捨てる。起動中に設定が変わった回（表の (S1, E3)）がここを通る
   const initialize = useCallback(async (): Promise<boolean> => {
     if (!desiredRuntime) return false;
-    if (state.phase === "initializing") return false;
 
     const mySeq = ++seqRef.current;
 
@@ -87,13 +89,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       return true;
     } catch (e) {
       if (seqRef.current !== mySeq) return false;
-      dispatch({
-        type: "initialize_error",
-        payload: `Engine initialization failed: ${String(e)}`,
-      });
+      dispatch({ type: "initialize_error", payload: asEngineFailure(e) });
       return false;
     }
-  }, [desiredRuntime, state.phase]);
+  }, [desiredRuntime]);
 
   const shutdown = useCallback(async (): Promise<void> => {
     seqRef.current++;
@@ -133,6 +132,14 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     // idle → 起動
     if (state.phase === "idle") {
       initialize().catch(() => {});
+      return;
+    }
+
+    // 起動中に別の設定になった → その設定で起動し直す（前の起動は Rust が落とす）。
+    // 同じ値の設定が来ただけなら何もしない
+    if (state.phase === "initializing") {
+      const last = lastTriedRef.current;
+      if (!last || !equalRuntime(desiredRuntime, last)) initialize().catch(() => {});
       return;
     }
 

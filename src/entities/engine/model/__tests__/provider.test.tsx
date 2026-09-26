@@ -74,6 +74,9 @@ function mountWith(runtime: EngineRuntimeConfig) {
     get phase() {
       return engine.state.phase;
     },
+    get state() {
+      return engine.state;
+    },
   };
 }
 
@@ -128,5 +131,78 @@ describe("EngineProvider の失敗からの復帰", () => {
 
     expect(initialize).toHaveBeenCalledTimes(2);
     expect(app.phase).toBe("ready");
+  });
+});
+/** 解決を外から決める promise。起動の途中に割り込む順序を作るのに使う */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+describe("EngineProvider の起動中の切り替え", () => {
+  /**
+   * 表の (S1, E3)。起動中に別の設定になったら、**待たずに**その設定で起動し直す
+   * （前の起動は Rust が落とし、前の呼び出しは `cancelled` で断られる）。
+   *
+   * 前の起動の結果を待ってから起こし直す形だと、`readyok` を返さないエンジンを
+   * 選んだ回に、設定を直しても何も起きない
+   */
+  test("起動中に設定が変わったら、その設定で起動し直す", async () => {
+    const first = deferred<EngineInfo>();
+    initialize.mockReturnValueOnce(first.promise);
+    initialize.mockResolvedValueOnce({ ...INFO, name: "Naoetsu" });
+
+    const app = mountWith(RUNTIME);
+    await settle();
+    expect(app.phase).toBe("initializing");
+
+    const next = { ...sameValues(), enginePath: "/ai/engines/naoetsu" };
+    await app.setRuntime(next);
+    await settle();
+
+    expect(initialize).toHaveBeenCalledTimes(2);
+    expect(initialize.mock.calls[1][0].enginePath).toBe("/ai/engines/naoetsu");
+    expect(app.phase).toBe("ready");
+    expect(app.state.activeRuntime?.enginePath).toBe("/ai/engines/naoetsu");
+
+    // 前の起動が遅れて断られても、後の起動の結果を上書きしない
+    await act(async () => {
+      first.reject({ kind: "cancelled", message: "the engine start was cancelled" });
+    });
+    expect(app.phase).toBe("ready");
+    expect(app.state.error).toBeNull();
+  });
+
+  /** 表の (S1, E4)。同じ値の設定が来ただけなら起こし直さない */
+  test("起動中に同じ値の設定が来ても、起こし直さない", async () => {
+    const first = deferred<EngineInfo>();
+    initialize.mockReturnValueOnce(first.promise);
+
+    const app = mountWith(RUNTIME);
+    await settle();
+    await app.setRuntime(sameValues());
+    await settle();
+
+    expect(initialize).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      first.resolve(INFO);
+    });
+    expect(app.phase).toBe("ready");
+  });
+
+  /** 失敗は種類ごと state に載る（帯の文言は種類から組む） */
+  test("失敗の種類を state に載せる", async () => {
+    initialize.mockRejectedValueOnce({ kind: "exitedEarly", message: "engine exited" });
+
+    const app = mountWith(RUNTIME);
+    await settle();
+
+    expect(app.phase).toBe("error");
+    expect(app.state.error).toEqual({ kind: "exitedEarly", message: "engine exited" });
   });
 });

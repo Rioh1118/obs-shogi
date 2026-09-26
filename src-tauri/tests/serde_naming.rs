@@ -54,7 +54,7 @@ const EXEMPT: [(&str, &str); 12] = [
 ///
 /// **減る方向にだけ動かす。** 1つ揃えたら1つ減らす。
 /// 既存の移行は issue で追う。
-const BASELINE: usize = 25;
+const BASELINE: usize = 24;
 
 /// 値つきのバリアントを持つのに internally tagged になっていない enum の数。
 ///

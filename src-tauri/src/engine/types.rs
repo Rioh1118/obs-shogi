@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,33 +39,6 @@ pub enum EngineOptionType {
     Filename {
         default: Option<String>,
     },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineSettings {
-    pub options: HashMap<String, String>,
-}
-
-impl EngineSettings {
-    pub fn new() -> Self {
-        Self {
-            options: HashMap::new(),
-        }
-    }
-
-    pub fn set_option(&mut self, name: &str, value: &str) {
-        self.options.insert(name.to_string(), value.to_string());
-    }
-
-    pub fn get_option(&self, name: &str) -> Option<&String> {
-        self.options.get(name)
-    }
-}
-
-impl Default for EngineSettings {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 /// 時間切れの目印。**先頭に置く。**

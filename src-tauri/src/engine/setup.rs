@@ -1,8 +1,8 @@
 //! 起動したエンジンへ設定を送り、使える状態（`readyok`）にする段。
 //!
-//! 通るのは対局（`game/session.rs` の `prepare_engine`）と解析（`EngineAnalyzer::start_engine`。
-//! `apply_settings` は送るところだけ）。手順を別々に書くと片方にだけ直しが入り（`readyok` を待つ／待たない、
-//! 順序を保つ／保たない）、食い違いはエンジンを起こしてからしか出ない。
+//! 通るのは対局（`game/session.rs` の `prepare_engine`）と解析（`EngineAnalyzer::start_engine`）。
+//! 手順を別々に書くと片方にだけ直しが入り（`readyok` を待つ／待たない、順序を保つ／保たない）、
+//! 食い違いはエンジンを起こしてからしか出ない。
 //! `setoption` を組むのがこのファイルだけであることは `tests/layering.rs` が見る。
 
 use std::time::{Duration, Instant};
@@ -85,12 +85,9 @@ pub async fn send_setup(
     protocol.become_ready(limit).await
 }
 
-/// `setoption` を並べた順に送るだけ。`readyok` は待たない。
-///
-/// 送る途中でエンジンが落ちたら、`readyok` の前に落ちたときと同じく直近の出力を添えて返す。
-/// **待たない呼び手は `EngineAnalyzer::apply_settings` だけ**——フロントの停止が進行中の起動を
-/// 待ってから止めるので、そこで `readyok` を待つと、答えないエンジンで停止ごと固まる。
-pub async fn send_options(
+/// `setoption` を並べた順に送る。送る途中でエンジンが落ちたら、`readyok` の前に落ちたときと
+/// 同じく直近の出力を添えて返す。
+async fn send_options(
     protocol: &UsiProtocol,
     options: &[SetOptionValue],
     deadline: Option<Instant>,

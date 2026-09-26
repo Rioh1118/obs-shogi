@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { ENGINE_FAILURE_NOTICES } from "./engineFailureNotice";
 
 /**
  * 引っ込めるための取っ手。**帯は条件（`phase === "error"`）と結び付いている**ので、
@@ -22,17 +23,18 @@ const ENGINE_INIT_FAILURE = "engine-init-failure";
  * 帯にするのは、エンジンが要る画面（解析ペイン）と直せる画面（設定）が
  * 別なので、**どちらを開いていても届く必要がある**ため。
  *
- * **見ているのは `phase`。** `state.error` は画面に出さない（本文は利用者の言葉に
- * 限るため）ので、`notify` の中身はこの段に入ったこと自体から組む。
+ * **見ているのは `phase` と失敗の種類（`state.error.kind`）。** 文言は種類ごとの表
+ * （`ENGINE_FAILURE_NOTICES`）から組む。`state.error.message` はエンジンの出力を含み
+ * 利用者の言葉ではないので、画面に出さずログへ回す。
  * 状態としてのエラーを描かずに通知へ回すのは ADR-0004 決定6——
  * 帯を閉じてもエンジンが起動していないことは変わらない。
  *
- * **段は `danger`。** 同じ設定では直る見込みが無い（原因はパスや評価関数の不備で、
- * `provider.tsx` も同じ runtime では再トライしない）。`warning` にすると
- * 「もう一度で直る」と読める。
+ * **段は種類で決まる。** 同じ設定では直る見込みが無い種類は `danger`（`provider.tsx` も
+ * 同じ runtime では再トライしない）。同じ設定のまま直る見込みがある種類だけ `warning` で、
+ * 「もう一度起動」を並べる。
  */
 export function EngineFailureBridge() {
-  const { state } = useEngine();
+  const { state, initialize } = useEngine();
   const { notify, dismissByKey } = useNotify();
   const { openModal } = useURLParams();
 
@@ -43,44 +45,52 @@ export function EngineFailureBridge() {
   useEffect(() => {
     openSettings.current = openModal;
   }, [openModal]);
+  // `initialize` も同じ理由で掴み直す（設定が変わるたびに別物になる）
+  const startAgain = useRef(initialize);
+  useEffect(() => {
+    startAgain.current = initialize;
+  }, [initialize]);
 
   const { phase, error } = state;
 
   useEffect(() => {
     if (phase !== "error") return;
+    const kind = error?.kind ?? "unknown";
+    const notice = ENGINE_FAILURE_NOTICES[kind];
 
     // **画面には利用者の言葉、原因はログ**（`Notice` の `invoke` と同じ分け方）。
     // 配布ビルドの記録は Rust 側が持つ（`bridge.rs` が `tauri-plugin-log` へ書く）ので、
     // ここは開発中に webview のコンソールで追うためのもの
-    console.error("[engine] 初期化に失敗した", error);
+    console.error("[engine] 起動に失敗した", kind, error?.message);
+
+    const openSettingsAction = {
+      label: "設定を開く",
+      run: () => openSettings.current("settings", { tab: "engine" }),
+      // 帯はヘッダを覆っているので、閉じるまで歯車には届かない。
+      // **タブまで書く**——歯車が開くのはワークスペースタブ
+      failureBody:
+        "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
+    };
 
     notify({
-      tier: "danger",
+      tier: notice.tier,
       // **帯はヘッダを覆う**ので、閉じる以外にやることが無い帯は出せない
-      //（`NotificationLayer.scss`）。ここでは「設定を開く」がそれに当たる
+      //（`NotificationLayer.scss`）。「設定を開く」は全種類に付ける
       presentation: "banner",
       dismissKey: ENGINE_INIT_FAILURE,
       title: "エンジンを起動できませんでした",
-      // **「同じ設定でもう一度」を勧めない**（ADR-0004 の F-9）。原因が設定にある回は
-      // 直さない限り同じ結果になり、押させるだけになる。
-      //
-      // **自動で起動し直すのは、設定を直した回だけ。** 起動できない原因は設定の外にも
-      // ある（実行権限、応答しないボリューム）ので、そこまで「直せば起動する」と
-      // 書くと、設定を確かめ終えた利用者が行き止まりに座る。最後の一手を書いておく
-      body:
-        "解析はできません。設定の「エンジン管理」で、選んでいるプリセットの" +
-        "エンジンと評価関数の場所を確かめてください。設定を直せば自動でもう一度起動します。" +
-        "設定が正しいのに起動しないときは、アプリを再起動してください。",
-      actions: [
-        {
-          label: "設定を開く",
-          run: () => openSettings.current("settings", { tab: "engine" }),
-          // 帯はヘッダを覆っているので、閉じるまで歯車には届かない。
-          // **タブまで書く**——歯車が開くのはワークスペースタブ
-          failureBody:
-            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
-        },
-      ],
+      body: notice.body,
+      actions: notice.retry
+        ? [
+            {
+              label: "もう一度起動",
+              run: async () => {
+                await startAgain.current();
+              },
+            },
+            openSettingsAction,
+          ]
+        : [openSettingsAction],
     });
 
     // **失敗の段を抜けたら引っ込める。** 起動し直せた回だけでなく、設定が外れて

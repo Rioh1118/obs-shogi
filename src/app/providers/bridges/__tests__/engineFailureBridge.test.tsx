@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 
-import type { EnginePhase } from "@/entities/engine";
+import type { EngineFailure, EngineFailureKind, EnginePhase } from "@/entities/engine";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
 import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
 
@@ -14,7 +14,14 @@ import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
  * どの画面にも出ないまま「解析が始まらない」だけになる。
  */
 
-const engine = { state: { phase: "idle" as EnginePhase, error: null as string | null } };
+const initialize = vi.fn<() => Promise<boolean>>();
+const engine = {
+  state: { phase: "idle" as EnginePhase, error: null as EngineFailure | null },
+  initialize: () => initialize(),
+};
+
+/** 失敗の値。**種類だけが文言を決める**ので、理由の文字列は何でもよい */
+const failure = (kind: EngineFailureKind, message = "boom"): EngineFailure => ({ kind, message });
 
 const notify = vi.fn<(request: NotifyRequest) => void>();
 const dismissByKey = vi.fn<(key: string) => void>();
@@ -49,7 +56,7 @@ function shown(at = 0) {
   return req;
 }
 
-async function mountWith(phase: EnginePhase, error: string | null = null) {
+async function mountWith(phase: EnginePhase, error: EngineFailure | null = null) {
   engine.state = { phase, error };
 
   let view!: ReturnType<typeof render>;
@@ -65,7 +72,7 @@ async function mountWith(phase: EnginePhase, error: string | null = null) {
 
   return Object.assign(
     /** エンジンの段が動いた、を実物と同じ順序で起こす */
-    async (next: EnginePhase, nextError: string | null = null) => {
+    async (next: EnginePhase, nextError: EngineFailure | null = null) => {
       engine.state = { phase: next, error: nextError };
       await draw();
     },
@@ -81,6 +88,8 @@ async function mountWith(phase: EnginePhase, error: string | null = null) {
 beforeEach(() => {
   notify.mockClear();
   dismissByKey.mockClear();
+  initialize.mockReset();
+  initialize.mockResolvedValue(true);
   openModal = vi.fn<OpenModal>();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -96,7 +105,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * **帯**なのは ADR-0004 の割り当てで、解析ペインを開いていない利用者にも届く。
    */
   test("失敗したら danger の帯を出す", async () => {
-    await mountWith("error", "Engine initialization failed: no such file");
+    await mountWith("error", failure("unknown", "Engine initialization failed: no such file"));
 
     expect(notify).toHaveBeenCalledTimes(1);
     expect(shown().tier).toBe("danger");
@@ -108,7 +117,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * やることが無い帯を出してはいけない。F-9 の復帰導線は設定（ADR-0004 決定3）。
    */
   test("設定へ送る動作を必ず持たせる", async () => {
-    await mountWith("error", "boom");
+    await mountWith("error", failure("unknown"));
 
     const actions = shown().actions ?? [];
     expect(actions).toHaveLength(1);
@@ -127,7 +136,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * 書けるのは「設定を直せば自動で起動し直す」まで。
    */
   test("本文は設定を直す道だけを案内する", async () => {
-    await mountWith("error", "boom");
+    await mountWith("error", failure("unknown"));
 
     expect(shown().body).toContain("設定を直せば自動で");
     expect(shown().body).not.toContain("再試行");
@@ -140,16 +149,23 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * アプリを再起動する以外に道が無い。
    */
   test("設定に原因が無かった回の一手も書く", async () => {
-    await mountWith("error", "boom");
+    await mountWith("error", failure("unknown"));
 
     expect(shown().body).toContain("アプリを再起動");
   });
 
-  /** 内部の語を画面に出さない（`NotifyRequest` の `title` / `body`） */
+  /** 内部の語とエンジンの出力を画面に出さない（`NotifyRequest` の `title` / `body`） */
   test("Rust から来た文言を画面に出さない", async () => {
-    await mountWith("error", "Engine initialization failed: NotInitialized");
+    await mountWith(
+      "error",
+      failure(
+        "exitedEarly",
+        "Communication failed: engine exited (last output: Error! : failed to read nn.bin)",
+      ),
+    );
 
-    expect(`${shown().title}${shown().body}`).not.toContain("Engine initialization failed");
+    expect(`${shown().title}${shown().body}`).not.toContain("Communication failed");
+    expect(`${shown().title}${shown().body}`).not.toContain("nn.bin");
   });
 
   test("起動できていれば何も出さない", async () => {
@@ -167,7 +183,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
     const move = await mountWith("initializing");
     expect(notify).not.toHaveBeenCalled();
 
-    await move("error", "boom");
+    await move("error", failure("unknown"));
 
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -177,7 +193,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * 動いているエンジンの上に「起動できませんでした」が出たまま**ヘッダを覆い続ける**。
    */
   test("起動し直せたら帯を引っ込める", async () => {
-    const move = await mountWith("error", "boom");
+    const move = await mountWith("error", failure("unknown"));
     expect(dismissByKey).not.toHaveBeenCalled();
 
     await move("ready");
@@ -191,7 +207,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * 取っ手が無いと `dismissByKey` の指し先が無く、出しっぱなしになる。
    */
   test("引っ込めるための取っ手を持つ", async () => {
-    await mountWith("error", "boom");
+    await mountWith("error", failure("unknown"));
 
     expect(shown().dismissKey).toEqual(expect.any(String));
   });
@@ -201,7 +217,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * 畳む鍵にすると「1件」が出たまま動かない（`Notification.count`）。
    */
   test("件数の付く鍵は持たない", async () => {
-    await mountWith("error", "boom");
+    await mountWith("error", failure("unknown"));
 
     expect(shown().dedupeKey).toBeUndefined();
   });
@@ -211,7 +227,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * effect の依存に入れると cleanup → `notify` が走り、**利用者が閉じた帯が黙って戻る**。
    */
   test("URL が動いただけでは出し直さない", async () => {
-    const move = await mountWith("error", "boom");
+    const move = await mountWith("error", failure("unknown"));
     expect(notify).toHaveBeenCalledTimes(1);
 
     openModal = vi.fn<OpenModal>();
@@ -227,7 +243,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * `navigate` することになる。
    */
   test("押したときに走るのは、いまの画面の口", async () => {
-    const move = await mountWith("error", "boom");
+    const move = await mountWith("error", failure("unknown"));
     const stale = openModal;
 
     openModal = vi.fn<OpenModal>();
@@ -239,5 +255,56 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
 
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "engine" });
     expect(stale).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **同じ設定のまま直る見込みがある種類にだけ「もう一度起動」を出す**（ADR-0004 の F-9）。
+   * 原因が設定にある種類に出すと、押しても同じ結果になり、利用者は押し続ける。
+   */
+  test.each<[EngineFailureKind, boolean]>([
+    ["spawnFailed", false],
+    ["notUsi", false],
+    ["exitedEarly", false],
+    ["invalidValue", false],
+    ["other", false],
+    ["unknown", false],
+    ["quarantined", true],
+    ["timedOut", true],
+    ["cancelled", true],
+  ])("%s に「もう一度起動」を出すか: %s", async (kind, retry) => {
+    await mountWith("error", failure(kind));
+
+    const labels = (shown().actions ?? []).map((action) => action.label);
+    expect(labels.includes("もう一度起動")).toBe(retry);
+    expect(labels).toContain("設定を開く");
+  });
+
+  /** 押したら、いまの設定で起動し直す（`useEngine().initialize`） */
+  test("「もう一度起動」は起動し直す", async () => {
+    await mountWith("error", failure("timedOut"));
+
+    const again = (shown().actions ?? []).find((action) => action.label === "もう一度起動");
+    await act(async () => {
+      await again?.run();
+    });
+
+    expect(initialize).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 種類ごとに本文が違うこと。**同じ文言に潰すと、何を直せばよいかが種類から届かない**
+   * （macOS が止めたものに「エンジンの場所を確かめて」と案内する）
+   */
+  test("種類ごとに違う一手を案内する", async () => {
+    await mountWith("error", failure("quarantined"));
+    const quarantined = shown().body;
+    notify.mockClear();
+    cleanup();
+    await mountWith("error", failure("exitedEarly"));
+    const exited = shown().body;
+
+    expect(quarantined).toContain("プライバシーとセキュリティ");
+    expect(exited).toContain("評価関数");
+    expect(quarantined).not.toBe(exited);
   });
 });

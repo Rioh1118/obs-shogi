@@ -4,47 +4,31 @@ import type {
   AnalysisStatus,
   DepthOutcome,
   EngineInfo,
-  EngineSettings,
+  SetOptionValue,
 } from "./rust-types";
 
 // ===== エンジン初期化・管理 =====
-export async function initializeEngine(enginePath: string, workDir: string): Promise<void> {
-  return await invoke("initialize_engine", {
+/**
+ * 解析用のエンジンを起動し、`setoption` を**並べた順に**送って `readyok` まで待つ。
+ *
+ * 断るときは `StartFailure`（`asEngineFailure` で読む）。**`readyok` の待ちに上限は無い**
+ * ——止める口は `shutdownEngine` と、次の `startAnalysisEngine`（Rust が前の起動を落とし、
+ * 前の呼び出しは `cancelled` で断られる）。
+ */
+export async function startAnalysisEngine(
+  enginePath: string,
+  workDir: string,
+  options: SetOptionValue[],
+): Promise<EngineInfo> {
+  return await invoke("start_analysis_engine", {
     enginePath,
     workingDir: workDir,
+    options,
   });
 }
 
 export async function shutdownEngine(): Promise<void> {
   return await invoke("shutdown_engine");
-}
-
-export async function getEngineInfo(): Promise<EngineInfo | null> {
-  return await invoke("get_engine_info");
-}
-
-// ===== エンジン設定 =====
-export async function applyEngineSettings(settings: EngineSettings): Promise<void> {
-  return await invoke("apply_engine_settings", { settings });
-}
-
-export async function getEngineSettings(): Promise<EngineSettings> {
-  return await invoke("get_engine_settings");
-}
-
-export async function applyCustomSettings(
-  hashSizeMB: number = 1024,
-  threads: number = 4,
-  multiPV: number = 1,
-): Promise<void> {
-  const settings: EngineSettings = {
-    options: {
-      USI_Hash: hashSizeMB.toString(),
-      Threads: threads.toString(),
-      MultiPV: multiPV.toString(),
-    },
-  };
-  return await applyEngineSettings(settings);
 }
 
 // ===== 局面設定 =====

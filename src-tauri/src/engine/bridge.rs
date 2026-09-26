@@ -18,7 +18,6 @@ const LOGT: &str = "obs_shogi::engine::bridge";
 pub struct EngineBridge {
     analyzer: EngineAnalyzer,
     active_sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
-    settings: Arc<RwLock<EngineSettings>>,
     app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
 }
 
@@ -103,7 +102,6 @@ impl EngineBridge {
         Self {
             analyzer: EngineAnalyzer::new(registry),
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
-            settings: Arc::new(RwLock::new(EngineSettings::default())),
             app_handle: Arc::new(RwLock::new(None)),
         }
     }
@@ -111,35 +109,6 @@ impl EngineBridge {
     // AppHandleを設定するメソッド
     pub async fn set_app_handle(&self, handle: tauri::AppHandle) {
         *self.app_handle.write().await = Some(handle);
-    }
-
-    /// エンジンを起こす（走っていれば畳んでから起こし直す）。
-    ///
-    /// **起動を試みる前に席を空ける**（`release_sessions`）。`Err` を返した回も席は空く。
-    pub async fn initialize_engine_impl(
-        &self,
-        engine_path: String,
-        working_dir: Option<String>,
-    ) -> Result<(), String> {
-        log::info!(target: LOGT, "initialize_engine: start");
-        self.release_sessions("initialize_engine").await;
-
-        // 実行ファイルの検査は `EngineRegistry::spawn` が持つ。
-        // 起動する経路を1本にしてあるので、ここで重ねて検査しない。
-        match self
-            .analyzer
-            .initialize_engine(engine_path, working_dir)
-            .await
-        {
-            Ok(_) => {
-                log::info!(target: LOGT, "initialize_engine: ok");
-                Ok(())
-            }
-            Err(e) => {
-                log::error!(target: LOGT, "initialize_engine: failed: {:?}", e);
-                Err(format!("Engine initialization failed: {e}"))
-            }
-        }
     }
 
     /// 解析の席（`active_sessions`）を全部空ける。エンジンを起こし直す前に、起動を試みる前に通す。
@@ -152,8 +121,7 @@ impl EngineBridge {
     /// **起動より前に呼ぶこと。** 起動が落ちた回に席を残すと、そのまま次の解析が
     /// 断られる——落ちた回こそ空けておく必要がある。
     async fn release_sessions(&self, what: &str) {
-        // 席を捨ててから、呼び手の起動（`EngineAnalyzer` の `initialize_engine` /
-        // `start_engine`）が古いプロセスを畳む。
+        // 席を捨ててから、呼び手の起動（`EngineAnalyzer::start_engine`）が古いプロセスを畳む。
         // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
         // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
         // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
@@ -194,14 +162,6 @@ impl EngineBridge {
             .await;
         match started {
             Ok(info) => {
-                // TODO(#600): 世代のロックの外で書いている。重なった起動の後では、
-                // `engine_id` が指すエンジンと別の起動の設定がここに残りうる
-                *self.settings.write().await = EngineSettings {
-                    options: options
-                        .into_iter()
-                        .map(|SetOptionValue { name, value }| (name, value))
-                        .collect(),
-                };
                 log::info!(target: LOGT, "start_analysis_engine: ok");
                 Ok(info)
             }
@@ -515,32 +475,6 @@ impl EngineBridge {
         Ok(self.analyzer.get_last_result().await)
     }
 
-    pub async fn apply_engine_settings_impl(&self, settings: EngineSettings) -> Result<(), String> {
-        log::info!(
-            target: LOGT,
-            "apply_engine_settings: start options={}",
-            settings.options.len()
-        );
-
-        self.analyzer
-            .apply_settings(settings.clone())
-            .await
-            .map_err(|e| {
-                log::error!(target: LOGT, "apply_engine_settings: failed: {:?}", e);
-                format!("Failed to apply settings: {e}")
-            })?;
-
-        // 設定を保存
-        *self.settings.write().await = settings;
-
-        log::info!(target: LOGT, "apply_engine_settings: ok");
-        Ok(())
-    }
-
-    pub async fn get_engine_settings_impl(&self) -> Result<EngineSettings, String> {
-        Ok(self.settings.read().await.clone())
-    }
-
     pub async fn get_analysis_status_impl(&self) -> Result<Vec<AnalysisStatus>, String> {
         let analysis_count = self.analyzer.get_analysis_stats().await;
         let sessions = self.active_sessions.read().await;
@@ -558,19 +492,6 @@ impl EngineBridge {
             .collect();
 
         Ok(statuses)
-    }
-
-    pub async fn get_engine_info_impl(&self) -> Result<Option<EngineInfo>, String> {
-        log::debug!(target: LOGT, "get_engine_info");
-
-        match self.analyzer.get_engine_info().await {
-            Ok(info) => Ok(Some(info)),
-            Err(EngineError::NotInitialized(_)) => Ok(None),
-            Err(e) => {
-                log::warn!(target: LOGT, "get_engine_info: failed: {:?}", e);
-                Err(format!("Failed to get engine info: {e}"))
-            }
-        }
     }
 
     // ===  session === //
@@ -782,7 +703,7 @@ mod tests {
 
         // 起動そのものは落ちる（実行ファイルが無い）。それでよい。
         let _ = bridge
-            .initialize_engine_impl("/nonexistent/engine".to_string(), None)
+            .start_analysis_engine_impl("/nonexistent/engine".to_string(), None, vec![])
             .await;
 
         assert!(
