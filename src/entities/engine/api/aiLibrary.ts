@@ -10,10 +10,18 @@ export type DirInfo = {
   kind: FsKind;
 };
 
+/**
+ * 候補を起動できる見込み。一覧から外す理由ではなく、利用者に見せる理由
+ * （Rust `ai_library/engines.rs` の `Launchability`）。
+ * `quarantined` は macOS が開くのをまだ許可していないもの。許可済みなら属性が残っていても `ready`
+ */
+export type Launchability = "ready" | "notExecutable" | "quarantined";
+
 export type EngineCandidate = {
-  entry: string; // file name under engines/
+  entry: string; // engines/ からの相対。1段下のフォルダなら "<フォルダ>/<ファイル>"
   path: string; // full path
   kind: FsKind;
+  launch: Launchability;
 };
 
 export type FileCandidate = {
