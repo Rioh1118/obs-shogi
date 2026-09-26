@@ -1385,18 +1385,29 @@ async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> S
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
 ///
+/// **stderr の行を先に選ぶ。** 評価関数や共有ライブラリの失敗、assert の文言はそちらに出る。
+/// 着いた順の末尾だけを取ると、その後に stdout の `info` が `RECENT_IN_REASON` 行続いた
+/// だけで stderr の行が消える。足りない分を stdout の末尾で埋め、選んだ行は着いた順に並べる。
+///
 /// **エンジンが書いた文字列なので、長さと制御文字を落としてから載せる**
 /// （`shown`）。素で載せると、改行を含む行1つで偽のログ行を作れる。
-/// stderr の行は `stderr: ` を頭に付ける（評価関数や共有ライブラリの失敗はそちらに出る）。
+/// stderr の行は `stderr: ` を頭に付ける。
 fn summarize_recent(lines: &[(Source, String)]) -> Option<String> {
-    let tail: Vec<String> = lines
-        .iter()
-        .rev()
-        .take(RECENT_IN_REASON)
-        .rev()
-        .map(|(source, text)| match source {
-            Source::Stdout => shown(text, MAX_SUMMARY_LEN),
-            Source::Stderr => format!("stderr: {}", shown(text, MAX_SUMMARY_LEN)),
+    let latest = |wanted: Source| {
+        (0..lines.len())
+            .rev()
+            .filter(move |&at| lines[at].0 == wanted)
+    };
+    let mut picked: Vec<usize> = latest(Source::Stderr).take(RECENT_IN_REASON).collect();
+    let room = RECENT_IN_REASON - picked.len();
+    picked.extend(latest(Source::Stdout).take(room));
+    picked.sort_unstable();
+
+    let tail: Vec<String> = picked
+        .into_iter()
+        .map(|at| match &lines[at] {
+            (Source::Stdout, text) => shown(text, MAX_SUMMARY_LEN),
+            (Source::Stderr, text) => format!("stderr: {}", shown(text, MAX_SUMMARY_LEN)),
         })
         .collect();
     (!tail.is_empty()).then(|| tail.join(" / "))
@@ -1809,6 +1820,56 @@ mod tests {
             "Closed の後に Waiting を通している"
         );
         assert_eq!(*ready.borrow(), ReadyState::Closed);
+    }
+
+    fn recent(lines: &[(Source, &str)]) -> Vec<(Source, String)> {
+        lines
+            .iter()
+            .map(|(source, text)| (*source, text.to_string()))
+            .collect()
+    }
+
+    /// stderr の行は、後から stdout の行が続いても理由から押し出されない。
+    /// 評価関数や共有ライブラリの失敗、assert の文言はそちらに出る
+    #[test]
+    fn a_stderr_line_is_not_pushed_out_by_later_stdout() {
+        let lines = recent(&[
+            (Source::Stderr, "boom"),
+            (Source::Stdout, "info a"),
+            (Source::Stdout, "info b"),
+            (Source::Stdout, "info c"),
+        ]);
+        assert_eq!(
+            summarize_recent(&lines).as_deref(),
+            Some("stderr: boom / info b / info c"),
+            "stderr を選ばないか、着いた順に並べていない"
+        );
+    }
+
+    /// stderr が多ければ stderr の末尾だけ。無ければ stdout の末尾。空なら何も添えない
+    #[test]
+    fn the_summary_fills_from_the_latest_lines() {
+        let many_stderr = recent(&[
+            (Source::Stderr, "e1"),
+            (Source::Stderr, "e2"),
+            (Source::Stdout, "info"),
+            (Source::Stderr, "e3"),
+            (Source::Stderr, "e4"),
+        ]);
+        assert_eq!(
+            summarize_recent(&many_stderr).as_deref(),
+            Some("stderr: e2 / stderr: e3 / stderr: e4")
+        );
+
+        let stdout_only = recent(&[
+            (Source::Stdout, "a"),
+            (Source::Stdout, "b"),
+            (Source::Stdout, "c"),
+            (Source::Stdout, "d"),
+        ]);
+        assert_eq!(summarize_recent(&stdout_only).as_deref(), Some("b / c / d"));
+
+        assert_eq!(summarize_recent(&[]), None);
     }
 
     /// 実プロセスで確かめる。`#!/bin/sh` の台本を置いて起こす
