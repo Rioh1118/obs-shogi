@@ -41,6 +41,7 @@ use crate::engine::protocol::UsiProtocol;
 use crate::engine::protocol::{NO_USIOK, READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
+use crate::engine::setup;
 use crate::engine::types::{engine_error_text, AnalysisResult, EngineError, TIMED_OUT};
 use crate::engine::utils::LogThrottle;
 use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
@@ -1937,42 +1938,21 @@ async fn prepare_engine(
     Ok(process)
 }
 
-/// `setoption` を送ってから `readyok` を待つ。
+/// `setoption` を送って `readyok` を待ち、`usinewgame` を出す。
 ///
-/// **締切を引き直しながら進む。** `setoption` の件数はフロントから来るので、
-/// 1件あたり `WRITE_TIMEOUT` が積まれる。前もって計算した残りを
-/// `ensure_ready` に渡すと、書き込みに食われたぶんだけ全体の締切を超える。
+/// 送って待つところは解析と同じ段（`setup::send_setup`）を通す。**締切を引き直しながら進む**
+/// （`setoption` の件数はフロントから来るので、1件あたり `WRITE_TIMEOUT` が積まれる）。
 async fn send_setup(
     process: &EngineProcess,
     options: &[SetOptionValue],
     deadline: Instant,
 ) -> Result<(), String> {
     let protocol = process.protocol();
-
-    // **並べた順にそのまま送る。** 値の解釈が前の `setoption` に依存する
-    // エンジンがあるので、ここで並べ替えない（→ `PlayerSpec::Engine::options`）
-    for SetOptionValue { name, value } in options {
-        // USI は行指向なので、改行を混ぜられると別のコマンドを注入できる
-        if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
-            return Err(format!(
-                "option '{name}' contains a forbidden control character"
-            ));
-        }
-        remaining(deadline, "the options were sent")?;
-        protocol
-            .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
-            .await
-            .map_err(|e| engine_error_text(&e))?;
-    }
-
-    // `readyok` まで待ってから `usinewgame` を出す。待たずに積むと、
-    // 呼び出し側は「対局が始まった」と思ったまま何も起きない状態になりうる
-    protocol
-        .ensure_ready(READY_TIMEOUT.min(remaining(deadline, "the engine said readyok")?))
+    setup::send_setup(&protocol, options, Some(deadline), Some(READY_TIMEOUT))
         .await
         .map_err(|e| engine_error_text(&e))?;
 
-    // **ここも残りを見る。** 見ないと、`ensure_ready` が残りを使い切った直後でも
+    // **ここも残りを見る。** 見ないと、`readyok` の待ちが残りを使い切った直後でも
     // 無条件に書きに行く。しかもその `usinewgame` は、直後に2体目の
     // `prepare_engine` が締切で断って**落とすエンジン**へ送っていることがある
     remaining(deadline, "usinewgame was sent")?;

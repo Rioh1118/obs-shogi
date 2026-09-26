@@ -110,23 +110,30 @@ const LAYERS: &[Layer] = &[
         may_use: &["types", "utils", "child", "protocol"],
         forbids: &[],
     },
+    Layer {
+        name: "setup",
+        decides: "起動したエンジンへ設定を送り、使える状態にする手順と、起動の失敗の分類",
+        may_use: &["types", "utils", "child", "protocol", "launchable"],
+        forbids: &[],
+    },
     // `game` と `analyzer` は同位。互いを知らない
     Layer {
         name: "game",
         decides: "対局の状態機械と持ち時間",
-        may_use: &["types", "utils", "protocol", "registry"],
+        may_use: &["types", "utils", "protocol", "registry", "setup"],
         forbids: &["tauri"],
     },
     Layer {
         name: "analyzer",
         decides: "解析の探索1回ぶん",
-        may_use: &["types", "utils", "protocol", "registry"],
+        // `child` はテストの台本（`child::script`）だけ
+        may_use: &["types", "utils", "child", "protocol", "registry", "setup"],
         forbids: &[],
     },
     Layer {
         name: "bridge",
         decides: "解析のファサード",
-        may_use: &["types", "utils", "registry", "analyzer"],
+        may_use: &["types", "utils", "registry", "analyzer", "setup"],
         forbids: &[],
     },
     Layer {

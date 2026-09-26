@@ -136,17 +136,7 @@ impl Side {
     }
 }
 
-/// `setoption` で送る値1件。**並べた順にそのまま送る。**
-///
-/// **`engine::types::EngineOption` とは別物。** あちらはエンジンが `usi` の
-/// 応答で宣言してくる option の**定義**（型・既定値・現在値）で、向きが逆。
-/// 同じ綴りにすると、コメントや報告書で名前を書いた瞬間にどちらか分からなくなる。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetOptionValue {
-    pub name: String,
-    pub value: String,
-}
+pub use crate::engine::types::SetOptionValue;
 
 /// 対局者。
 ///

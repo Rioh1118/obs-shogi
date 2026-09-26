@@ -91,6 +91,49 @@ impl Default for EngineSettings {
 /// **実引数に直接置くこと**——変数へ括り出すと、目印が入っていても落ちる。
 pub const TIMED_OUT: &str = "timed out";
 
+/// `setoption` で送る値1件。**並べた順にそのまま送る**（`setup::send_setup`）。
+///
+/// **`EngineOption` とは別物。** あちらはエンジンが `usi` の応答で宣言してくる option の
+/// **定義**（型・既定値・現在値）で、向きが逆。同じ綴りにすると、コメントや報告書で
+/// 名前を書いた瞬間にどちらか分からなくなる。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetOptionValue {
+    pub name: String,
+    pub value: String,
+}
+
+/// エンジンを起動できなかった理由の種類。**画面の文言はこれから組む**
+/// （エンジンが書いた文字列は `StartFailure::message` の側にしか載せない）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StartFailureKind {
+    /// OS が起動させなかった（パスが無い、実行権限が無い、など）
+    SpawnFailed,
+    /// macOS が開くのをまだ許可していない（`engine::launchable`）
+    Quarantined,
+    /// 起動したが `usi` に `usiok` で答えなかった。USI エンジンではない見込み
+    NotUsi,
+    /// `readyok` の前に終わった。評価関数・共有ライブラリの失敗が多い
+    ExitedEarly,
+    /// 締切までに段が終わらなかった
+    TimedOut,
+    /// `setoption` の値が行を壊す文字を含んでいた
+    InvalidValue,
+    /// こちらが止めた（起動中に別の設定へ切り替えた、など）。失敗として見せない
+    Cancelled,
+    Other,
+}
+
+/// エンジンを起動できなかったこと。`message` はログと詳細の欄に使う
+/// （エンジンの出力を含むことがある。長さと制御文字は落としてある）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartFailure {
+    pub kind: StartFailureKind,
+    pub message: String,
+}
+
 /// `EngineError` を、フロントへ返す1本の文字列にする。
 ///
 /// **時間切れだけは包まない。** `Display` は `Operation timeout: …` を前置するので、
@@ -105,7 +148,8 @@ pub fn engine_error_text(error: &EngineError) -> String {
         | EngineError::InvalidState(_)
         | EngineError::ProtocolViolation(_)
         | EngineError::AnalysisFailed(_)
-        | EngineError::AlreadyListening(_) => error.to_string(),
+        | EngineError::AlreadyListening(_)
+        | EngineError::Cancelled(_) => error.to_string(),
     }
 }
 
@@ -127,6 +171,9 @@ pub enum EngineError {
     AnalysisFailed(String),
     #[error("Already listening: {0}")]
     AlreadyListening(String),
+    /// こちらが止めた。起動中の取り消しや、待っている最中の kill
+    #[error("Cancelled: {0}")]
+    Cancelled(String),
 }
 
 #[cfg(test)]

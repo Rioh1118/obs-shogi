@@ -2,6 +2,7 @@ use crate::engine::utils::{shown, LogThrottle, EMIT_WARN_INTERVAL, MAX_SUMMARY_L
 
 use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
+use super::setup;
 use super::types::*;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -130,27 +131,7 @@ impl EngineBridge {
         working_dir: Option<String>,
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
-
-        // 席を捨ててから、下の `initialize_engine` が古いプロセスを畳む。
-        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
-        // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
-        // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
-        // 変えないこと**——落ちた回に席が残り、そのまま次の解析が断られる。
-        let stale: Vec<String> = self
-            .active_sessions
-            .write()
-            .await
-            .drain()
-            .map(|(id, _)| id)
-            .collect();
-        if !stale.is_empty() {
-            log::warn!(
-                target: LOGT,
-                "initialize_engine: dropped {} stale session(s) {:?}",
-                stale.len(),
-                stale
-            );
-        }
+        self.release_sessions("initialize_engine").await;
 
         // 実行ファイルの検査は `EngineRegistry::spawn` が持つ。
         // 起動する経路を1本にしてあるので、ここで重ねて検査しない。
@@ -166,6 +147,71 @@ impl EngineBridge {
             Err(e) => {
                 log::error!(target: LOGT, "initialize_engine: failed: {:?}", e);
                 Err(format!("Engine initialization failed: {e}"))
+            }
+        }
+    }
+
+    /// 解析の席を全部空ける。エンジンを起こし直す前に通す（理由は `initialize_engine_impl` の doc）
+    async fn release_sessions(&self, what: &str) {
+        // 席を捨ててから、呼び手の起動（`EngineAnalyzer` の `initialize_engine` /
+        // `start_engine`）が古いプロセスを畳む。
+        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
+        // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
+        // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
+        // 変えないこと**——落ちた回に席が残り、そのまま次の解析が断られる。
+        let stale: Vec<String> = self
+            .active_sessions
+            .write()
+            .await
+            .drain()
+            .map(|(id, _)| id)
+            .collect();
+        if !stale.is_empty() {
+            log::warn!(
+                target: LOGT,
+                "{what}: dropped {} stale session(s) {:?}",
+                stale.len(),
+                stale
+            );
+        }
+    }
+
+    /// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ（`EngineAnalyzer::start_engine`）。
+    ///
+    /// 席は `initialize_engine_impl` と同じ理由で先に空ける。失敗は種類に分けて返す
+    /// （`setup::classify`）。画面の文言は種類から組み、`message` は詳細の欄とログに使う。
+    pub async fn start_engine_impl(
+        &self,
+        engine_path: String,
+        working_dir: Option<String>,
+        options: Vec<SetOptionValue>,
+    ) -> Result<EngineInfo, StartFailure> {
+        log::info!(target: LOGT, "start_engine: start");
+        self.release_sessions("start_engine").await;
+
+        let started = self
+            .analyzer
+            .start_engine(&engine_path, working_dir.as_deref(), &options)
+            .await;
+        match started {
+            Ok(info) => {
+                *self.settings.write().await = EngineSettings {
+                    options: options
+                        .into_iter()
+                        .map(|SetOptionValue { name, value }| (name, value))
+                        .collect(),
+                };
+                log::info!(target: LOGT, "start_engine: ok");
+                Ok(info)
+            }
+            Err(e) => {
+                let failure = setup::classify(&e, &engine_path);
+                if failure.kind == StartFailureKind::Cancelled {
+                    log::info!(target: LOGT, "start_engine: cancelled");
+                } else {
+                    log::error!(target: LOGT, "start_engine: failed: {:?}", failure.kind);
+                }
+                Err(failure)
             }
         }
     }

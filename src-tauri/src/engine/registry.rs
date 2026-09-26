@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::engine::child::{self, EngineChild, KillOutcome, KILL_TIMEOUT};
@@ -121,6 +122,28 @@ impl EngineRegistry {
         spawn_timeout: Duration,
         info_timeout: Duration,
     ) -> Result<Arc<EngineProcess>, EngineError> {
+        self.spawn_cancellable(
+            engine_path,
+            work_dir,
+            spawn_timeout,
+            info_timeout,
+            &CancellationToken::new(),
+        )
+        .await
+    }
+
+    /// `spawn` と同じ。ただし `cancel` が立ったら、起動の途中でも落として `Cancelled` で返る。
+    ///
+    /// 起動中（`usiok` を待っている間）のプロセスは本台帳に居ないので、呼び手は ID で
+    /// 落とせない。取り消しの口をここに持たないと、止めたはずの起動が後から台帳に載る。
+    pub async fn spawn_cancellable(
+        &self,
+        engine_path: &str,
+        work_dir: Option<&str>,
+        spawn_timeout: Duration,
+        info_timeout: Duration,
+        cancel: &CancellationToken,
+    ) -> Result<Arc<EngineProcess>, EngineError> {
         // **同期の口をまとめて専用スレッドへ出す。** `canonicalize` も
         // `is_file` も `child::spawn`（中の fork/exec）も同期の
         // システムコールで、`.await` を1つも挟まない。async のタスクの中で
@@ -212,6 +235,11 @@ impl EngineRegistry {
                 }
             };
 
+        if cancel.is_cancelled() {
+            // 起き上がる前に止められた。捨てれば落ちる（`EngineChild` の Drop）
+            drop(spawned);
+            return Err(cancelled_while_starting());
+        }
         let protocol = Arc::new(UsiProtocol::new(spawned));
 
         // **起動中の置き場へ先に載せる。** `usiok` を待つ間に終了されると、
@@ -220,7 +248,11 @@ impl EngineRegistry {
 
         // `usiok` を取り切るまでは本台帳に載せない。載せてから失敗すると、
         // 誰も参照していないプロセスが残る。
-        let info = match protocol.get_engine_info(info_timeout).await {
+        let answered = tokio::select! {
+            answered = protocol.get_engine_info(info_timeout) => answered,
+            _ = cancel.cancelled() => Err(cancelled_while_starting()),
+        };
+        let info = match answered {
             Ok(info) => info,
             Err(e) => {
                 self.forget_starting(&protocol).await;
@@ -252,6 +284,10 @@ impl EngineRegistry {
         log::info!(target: LOGT, "{}", spawn_ok_line(&id, &process.info.name));
         Ok(process)
     }
+}
+
+fn cancelled_while_starting() -> EngineError {
+    EngineError::Cancelled("the engine was stopped while starting".to_string())
 }
 
 /// 起動できたことを記録する1行。

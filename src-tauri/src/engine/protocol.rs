@@ -1241,36 +1241,57 @@ impl UsiProtocol {
         if self.is_ready() {
             return Ok(());
         }
+        self.become_ready(Some(timeout)).await
+    }
 
-        let deadline = tokio::time::Instant::now() + timeout;
+    /// `isready` を**必ず**送り、`readyok` が返るまで待つ。`limit` が `None` なら上限なし。
+    ///
+    /// `ensure_ready` と違って準備済みでも送る。`setoption` を送った後は、評価関数や定跡を
+    /// 読み直させるために `isready` が要る（やねうら王はそこで読む）。準備済みを理由に
+    /// 飛ばすと、送った設定が効かない。
+    ///
+    /// **`limit` は待ちだけでなく `isready` の書き込みも含む**（`ensure_ready` の doc）。
+    /// 待っている最中に `kill_engine` されたら `Cancelled` で返る。
+    pub async fn become_ready(&self, limit: Option<Duration>) -> Result<(), EngineError> {
+        let deadline = limit.map(|limit| tokio::time::Instant::now() + limit);
         // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
         // 出力が終わった場合に `Closed` を見落として上限まで待つ
         let mut rx = self.link.ready.subscribe();
         self.send_command(&GuiCommand::IsReady).await?;
 
-        // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
-        // 内側を1回 poll してから `Elapsed` を返すので、そのまま渡すと
-        // 「エンジンが `readyok` を返さなかった」で返る——**そのエンジンには
-        // 1ナノ秒も与えていない**のに、利用者は評価関数のパスを疑うことになる。
-        // 段の取り分が 0 なら段に入る前に断る（`prepare_engine` の `for_usiok` と同じ形）
-        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if left.is_zero() {
-            return Err(EngineError::Timeout(format!(
-                "{TIMED_OUT} before waiting for readyok"
-            )));
-        }
-
+        let wait = rx.wait_for(|state| *state != ReadyState::Waiting);
         // `Ref` はこの式の中で読み捨てる。束ねたまま下の await を跨ぐと `Send` でなくなる
-        let settled: ReadyState =
-            *tokio::time::timeout(left, rx.wait_for(|state| *state != ReadyState::Waiting))
-                .await
-                .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
-                .map_err(|_| {
-                    EngineError::CommunicationFailed("ready channel closed".to_string())
-                })?;
+        let settled: ReadyState = match deadline {
+            Some(deadline) => {
+                // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
+                // 内側を1回 poll してから `Elapsed` を返すので、そのまま渡すと
+                // 「エンジンが `readyok` を返さなかった」で返る——**そのエンジンには
+                // 1ナノ秒も与えていない**のに、利用者は評価関数のパスを疑うことになる
+                let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+                if left.is_zero() {
+                    return Err(EngineError::Timeout(format!(
+                        "{TIMED_OUT} before waiting for readyok"
+                    )));
+                }
+                *tokio::time::timeout(left, wait)
+                    .await
+                    .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
+                    .map_err(|_| {
+                        EngineError::CommunicationFailed("ready channel closed".to_string())
+                    })?
+            }
+            None => *wait.await.map_err(|_| {
+                EngineError::CommunicationFailed("ready channel closed".to_string())
+            })?,
+        };
 
         // **上限まで待たずに返る。** 出力が終わっているなら `readyok` は来ない
         if settled == ReadyState::Closed {
+            if self.killed.load(std::sync::atomic::Ordering::Relaxed) {
+                return Err(EngineError::Cancelled(
+                    "the engine was stopped before it became ready".to_string(),
+                ));
+            }
             return Err(self
                 .with_recent_output(EngineError::CommunicationFailed(
                     "engine exited before it became ready".to_string(),
