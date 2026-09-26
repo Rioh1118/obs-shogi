@@ -462,22 +462,49 @@ where
     }
 }
 
+/// 実プロセスのテストが台本を置いて起こす口。`child` と `protocol` のテストが共有する。
 #[cfg(all(test, unix))]
-mod tests {
-    use super::*;
+pub(crate) mod script {
+    use super::{spawn, EngineChild};
+    use rustix::io::Errno;
     use std::os::unix::fs::PermissionsExt;
-    use std::path::PathBuf;
-    use test_support::dir::temp_dir;
-    use tokio::sync::mpsc;
+    use std::path::Path;
+    use std::time::Duration;
 
-    /// `#!/bin/sh` の台本を実行ファイルとして置く
-    fn script(dir: &Path, body: &str) -> PathBuf {
+    /// 書き込み中として断られたときに起こし直す回数。1回あたり `BUSY_WAIT` 待つ
+    const BUSY_RETRIES: usize = 100;
+    const BUSY_WAIT: Duration = Duration::from_millis(10);
+
+    /// `#!/bin/sh` の台本を `dir` に置いて起こす。
+    ///
+    /// **`ExecutableFileBusy`（ETXTBSY）なら起こし直す。** テストは並列に走る。台本を
+    /// 書いている間に別のテストが fork すると、書き込み用の fd がその子へ exec までの間だけ
+    /// 継がれ、その隙に台本を exec すると「書き込み中のファイル」として OS に断られる。
+    /// 窓は他人の fork から exec までなので、待てば閉じる
+    pub(crate) async fn spawn_script(dir: &Path, body: &str) -> EngineChild {
         let path = dir.join("engine.sh");
         std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("書けない");
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
             .expect("権限を変えられない");
-        path
+        for _ in 0..BUSY_RETRIES {
+            match spawn(&path, dir) {
+                // `ErrorKind::ExecutableFileBusy` は MSRV より新しいので errno で見る
+                Err(e) if Errno::from_io_error(&e) == Some(Errno::TXTBSY) => {
+                    tokio::time::sleep(BUSY_WAIT).await;
+                }
+                spawned => return spawned.expect("起こせる"),
+            }
+        }
+        panic!("台本が書き込み中のまま起こせない: {}", path.display());
     }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::script::spawn_script;
+    use super::*;
+    use test_support::dir::temp_dir;
+    use tokio::sync::mpsc;
 
     /// stdout の全件を集める。`Eof` まで
     async fn read_all(child: &EngineChild) -> Vec<ReadEvent> {
@@ -524,11 +551,10 @@ mod tests {
     #[tokio::test]
     async fn reading_goes_on_past_lines_it_cannot_parse() {
         let dir = temp_dir("child-lines");
-        let path = script(
+        let child = spawn_script(
             &dir,
             r#"printf 'id name T\n\n\377\376 garbage\ninfo score cp 99999999999999999999\nusiok\n'"#,
-        );
-        let child = spawn(&path, &dir).expect("起こせる");
+        ).await;
 
         let events = read_all(&child).await;
         let commands: Vec<_> = events
@@ -554,14 +580,14 @@ mod tests {
     #[tokio::test]
     async fn an_overlong_line_is_cut_and_not_parsed() {
         let dir = temp_dir("child-long");
-        let path = script(
+        let child = spawn_script(
             &dir,
             &format!(
                 "head -c {} /dev/zero | tr '\\000' 'a'; printf '\\nusiok\\n'",
                 MAX_LINE * 2
             ),
-        );
-        let child = spawn(&path, &dir).expect("起こせる");
+        )
+        .await;
 
         let events = read_all(&child).await;
         let ReadEvent::Line { raw, parsed } = &events[0] else {
@@ -577,8 +603,7 @@ mod tests {
     #[tokio::test]
     async fn stderr_and_the_exit_status_are_kept() {
         let dir = temp_dir("child-stderr");
-        let path = script(&dir, "echo 'dyld: Library not loaded' >&2; exit 3");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "echo 'dyld: Library not loaded' >&2; exit 3").await;
 
         let Exit::Status(status) = exited(&child).await else {
             panic!("終わり方が取れていない");
@@ -599,8 +624,7 @@ mod tests {
     #[tokio::test]
     async fn settling_waits_for_stderr_that_arrives_after_stdout_closes() {
         let dir = temp_dir("child-late-stderr");
-        let path = script(&dir, "exec 1>&-; sleep 0.3; echo 'late' >&2");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec 1>&-; sleep 0.3; echo 'late' >&2").await;
 
         let events = read_all(&child).await;
         assert!(matches!(events.as_slice(), [ReadEvent::Eof]), "{events:?}");
@@ -619,8 +643,7 @@ mod tests {
     #[tokio::test]
     async fn eof_arrives_when_stdout_closes_even_if_stderr_stays_open() {
         let dir = temp_dir("child-stdout-closed");
-        let path = script(&dir, "exec 1>&-; exec sleep 30");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec 1>&-; exec sleep 30").await;
 
         let events = read_all(&child).await;
         assert!(matches!(events.as_slice(), [ReadEvent::Eof]), "{events:?}");
@@ -635,8 +658,7 @@ mod tests {
     #[tokio::test]
     async fn a_written_line_arrives_and_kill_ends_the_process() {
         let dir = temp_dir("child-echo");
-        let path = script(&dir, "exec cat");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec cat").await;
         let (tx, mut rx) = mpsc::unbounded_channel();
         assert!(child.read_stdout(move |event| tx.send(event).is_ok()));
         assert!(!child.read_stdout(|_| true), "2度読み始めている");
@@ -672,8 +694,7 @@ mod tests {
     async fn kill_is_not_blocked_by_a_stuck_write() {
         let dir = temp_dir("child-stuck");
         // stdin を一切読まない
-        let path = script(&dir, "exec sleep 30");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec sleep 30").await;
 
         let writer = child.take_writer().expect("書く口が取れる");
         let big = "x".repeat(4 * 1024 * 1024);
@@ -693,11 +714,11 @@ mod tests {
     async fn killing_a_wrapper_also_ends_its_children() {
         let dir = temp_dir("child-grandchild");
         let pid_file = dir.join("grandchild.pid");
-        let path = script(
+        let child = spawn_script(
             &dir,
             &format!("sleep 30 & echo $! > '{}'; wait", pid_file.display()),
-        );
-        let child = spawn(&path, &dir).expect("起こせる");
+        )
+        .await;
         // 並列で走るテストの負荷で台本の起動が遅れても待てるだけ取る
         let mut grandchild = String::new();
         for _ in 0..1000 {
@@ -729,8 +750,7 @@ mod tests {
     #[tokio::test]
     async fn dropping_the_child_ends_the_process() {
         let dir = temp_dir("child-drop");
-        let path = script(&dir, "exec sleep 30");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec sleep 30").await;
         let diagnostics = child.diagnostics();
         drop(child);
 

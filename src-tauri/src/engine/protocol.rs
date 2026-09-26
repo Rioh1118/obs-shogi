@@ -1783,20 +1783,11 @@ mod tests {
     #[cfg(unix)]
     mod with_a_process {
         use super::*;
-        use std::os::unix::fs::PermissionsExt;
-        use std::path::{Path, PathBuf};
+        use crate::engine::child::script::spawn_script;
+        use std::path::Path;
 
-        fn script(dir: &Path, body: &str) -> PathBuf {
-            let path = dir.join("engine.sh");
-            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("書けない");
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
-                .expect("権限を変えられない");
-            path
-        }
-
-        fn protocol_for(dir: &Path, body: &str) -> UsiProtocol {
-            let path = script(dir, body);
-            UsiProtocol::new(crate::engine::child::spawn(&path, dir).expect("起こせる"))
+        async fn protocol_for(dir: &Path, body: &str) -> UsiProtocol {
+            UsiProtocol::new(spawn_script(dir, body).await)
         }
 
         /// 書き込みが詰まっていても落とせる。**`KILL_TIMEOUT` の内に返る。**
@@ -1805,7 +1796,7 @@ mod tests {
         async fn a_stuck_write_does_not_block_the_kill() {
             let dir = test_support::dir::temp_dir("protocol-stuck-kill");
             // stdin を一切読まない
-            let protocol = protocol_for(&dir, "exec sleep 30");
+            let protocol = protocol_for(&dir, "exec sleep 30").await;
             let big = "x".repeat(4 * 1024 * 1024);
             let writing = {
                 let protocol = protocol.clone();
@@ -1840,7 +1831,8 @@ mod tests {
             let protocol = protocol_for(
                 &dir,
                 "echo 'dyld: Library not loaded: libomp.dylib' >&2; exit 1",
-            );
+            )
+            .await;
 
             let error = protocol
                 .get_engine_info(Duration::from_secs(10))
@@ -1864,7 +1856,8 @@ mod tests {
             let protocol = protocol_for(
                 &dir,
                 r#"printf 'info score cp 99999999999999999999\n\377\376\nid name Overflow\nusiok\n'; exec sleep 30"#,
-            );
+            )
+            .await;
 
             let info = protocol
                 .get_engine_info(Duration::from_secs(10))
@@ -1881,7 +1874,7 @@ mod tests {
         #[tokio::test]
         async fn dropping_the_protocol_ends_the_process() {
             let dir = test_support::dir::temp_dir("protocol-drop");
-            let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat");
+            let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat").await;
             protocol
                 .get_engine_info(Duration::from_secs(10))
                 .await
@@ -1904,7 +1897,7 @@ mod tests {
         #[tokio::test]
         async fn a_second_listen_is_told_apart() {
             let dir = test_support::dir::temp_dir("protocol-double-listen");
-            let protocol = protocol_for(&dir, "exec sleep 30");
+            let protocol = protocol_for(&dir, "exec sleep 30").await;
 
             protocol.start_listening().await.expect("1度目は始められる");
             let error = protocol
