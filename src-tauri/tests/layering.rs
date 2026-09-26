@@ -38,7 +38,7 @@
 
 mod scanning;
 
-use scanning::{blank_out_noncode, mentions_crate};
+use scanning::{blank_out_noncode, matching, mentions_crate, strip_test_modules};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -112,8 +112,14 @@ const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "setup",
-        decides: "起動したエンジンへ設定を送り、使える状態にする手順と、起動の失敗の分類",
-        may_use: &["types", "utils", "child", "protocol", "launchable"],
+        decides: "起動したエンジンへ設定を送り、使える状態にする手順",
+        may_use: &["types", "utils", "protocol"],
+        forbids: &[],
+    },
+    Layer {
+        name: "start_failure",
+        decides: "起動の失敗を、利用者が取れる行動の種類に分ける",
+        may_use: &["types", "utils", "protocol", "launchable"],
         forbids: &[],
     },
     // `game` と `analyzer` は同位。互いを知らない
@@ -126,14 +132,13 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "analyzer",
         decides: "解析の探索1回ぶん",
-        // `child` はテストの台本（`child::script`）だけ
-        may_use: &["types", "utils", "child", "protocol", "registry", "setup"],
+        may_use: &["types", "utils", "protocol", "registry", "setup"],
         forbids: &[],
     },
     Layer {
         name: "bridge",
         decides: "解析のファサード",
-        may_use: &["types", "utils", "registry", "analyzer", "setup"],
+        may_use: &["types", "utils", "registry", "analyzer", "start_failure"],
         forbids: &[],
     },
     Layer {
@@ -772,6 +777,74 @@ fn only_the_option_line_parser_builds_engine_options() {
     assert!(
         !builders.is_empty(),
         "`option_line.rs` の組み立ても見つからない。走査の綴りを直すこと"
+    );
+}
+
+/// `setoption` を組む綴り。**組むのは `engine/setup.rs` だけ**（本番のコード）。
+///
+/// 送る手順（並べた順、`isready` を必ず送り `readyok` を待つ）を別の場所に書くと、片方にだけ
+/// 直しが入る。食い違いはエンジンを起こしてからしか出ない（`setup.rs` の `//!`）。
+const SET_OPTION: &str = "GuiCommand::SetOption(";
+
+/// `code` の中で `SetOption` を**組んでいる**位置。`match` の腕（閉じ括弧の後が `=>` か `|`）は
+/// 読んでいるだけなので数えない
+fn set_option_builds(code: &str) -> Vec<usize> {
+    code.match_indices(SET_OPTION)
+        .filter(|(at, _)| {
+            let open = at + SET_OPTION.len() - 1;
+            let Some(len) = matching(&code[open..], '(', ')') else {
+                return true;
+            };
+            let after = code[open + len..].trim_start();
+            !(after.starts_with("=>") || after.starts_with('|'))
+        })
+        .map(|(at, _)| at)
+        .collect()
+}
+
+#[test]
+fn the_set_option_scanner_tells_a_build_from_a_match_arm() {
+    assert_eq!(
+        set_option_builds("GuiCommand::SetOption(name, _v) => {}").len(),
+        0
+    );
+    assert_eq!(
+        set_option_builds("GuiCommand::SetOption(..) | GuiCommand::Go(_) => 1").len(),
+        0
+    );
+    assert_eq!(
+        set_option_builds("send(&GuiCommand::SetOption(name.clone(), Some(v)))").len(),
+        1
+    );
+}
+
+#[test]
+fn only_the_setup_stage_builds_set_option() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let files = rust_files(&src);
+    assert!(
+        files.len() >= 50,
+        "走査が空振りしている: {} 件",
+        files.len()
+    );
+
+    let mut builders = Vec::new();
+    for path in files {
+        let relative = path.strip_prefix(&src).unwrap_or(&path).to_path_buf();
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let code = blank_out_noncode(&strip_test_modules(&source, &path));
+        for _ in set_option_builds(&code) {
+            builders.push(relative.display().to_string());
+        }
+    }
+
+    assert!(
+        builders.iter().any(|at| at == "engine/setup.rs"),
+        "`setup.rs` の組み立ても見つからない。走査の綴りを直すこと"
+    );
+    assert!(
+        builders.iter().all(|at| at == "engine/setup.rs"),
+        "`setoption` を `engine/setup.rs` の外で組んでいる。`setup::send_setup` を通すこと: {builders:?}"
     );
 }
 

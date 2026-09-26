@@ -35,7 +35,7 @@ pub async fn start_analysis_engine(
 ) -> Result<EngineInfo, StartFailure> {
     state
         .bridge
-        .start_engine_impl(engine_path, working_dir, options)
+        .start_analysis_engine_impl(engine_path, working_dir, options)
         .await
 }
 

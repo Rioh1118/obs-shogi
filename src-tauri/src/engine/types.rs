@@ -112,13 +112,14 @@ pub enum StartFailureKind {
     SpawnFailed,
     /// macOS が開くのをまだ許可していない（`engine::launchable`）
     Quarantined,
-    /// 起動したが `usi` に `usiok` で答えなかった。USI エンジンではない見込み
+    /// 起動したが `usi` に `usiok` で答えなかったか、名乗らなかった。USI エンジンではない見込み
     NotUsi,
-    /// `readyok` の前に終わった。評価関数・共有ライブラリの失敗が多い
+    /// 使える状態になる前に出力が終わった・書き込めなくなった。評価関数・共有ライブラリの
+    /// 失敗が多い（`usiok` の前に終わったものも含む）
     ExitedEarly,
     /// 締切までに段が終わらなかった
     TimedOut,
-    /// `setoption` の値が行を壊す文字を含んでいた
+    /// 送る前に断った `setoption`（件数・長さ・行を壊す文字。`setup::validate_options`）
     InvalidValue,
     /// こちらが止めた（起動中に別の設定へ切り替えた、など）。失敗として見せない
     Cancelled,

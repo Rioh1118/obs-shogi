@@ -273,7 +273,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 読み取り自体の `Err`＝非 UTF-8 の行や数値のパース失敗では `usi` crate が
 hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line_tx` は落ちるので、
 そこ1箇所で全部を拾う。同じ場所で `ready` にも `Closed` を立てる
-（そうしないと `ensure_ready` が `READY_TIMEOUT` まで待つ）。
+（そうしないと `UsiProtocol::become_ready` が `READY_TIMEOUT` まで待つ）。
 
 ※10 **踏めているのは先後とも人間の1局と、`Runner` を直に組んだ単体のみ。**
 `spawn_players` は人間側を飛ばすので、その設定なら**エンジンを1つも起動せずに
