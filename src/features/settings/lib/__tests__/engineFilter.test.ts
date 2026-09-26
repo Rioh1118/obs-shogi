@@ -29,4 +29,16 @@ describe("プリセット編集で選べるエンジン", () => {
 
     expect(listed).toEqual([]);
   });
+
+  // 選べると、保存して起動するまで何も警告されない
+  test("別の OS 向けと読めないものは出さない。直せば動くものは出す", () => {
+    const listed = presetEngineCandidates([
+      { ...candidate("YaneuraOu_AVX2.exe"), launchability: "wrongPlatform" },
+      { ...candidate("YaneuraOu_locked"), launchability: "unreadable" },
+      { ...candidate("YaneuraOu_noexec"), launchability: "notExecutable" },
+      { ...candidate("YaneuraOu_downloaded"), launchability: "quarantined" },
+    ]);
+
+    expect(listed.map((e) => e.entry)).toEqual(["YaneuraOu_noexec", "YaneuraOu_downloaded"]);
+  });
 });

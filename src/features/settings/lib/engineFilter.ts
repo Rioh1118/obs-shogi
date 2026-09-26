@@ -1,6 +1,7 @@
 // Dialogで使うだけなので、Presetには保存しない前提の util。
 
 import type { EngineCandidate } from "@/entities/engine/api/aiLibrary";
+import { isEngineForThisMachine } from "@/entities/engine/lib/engineCandidate";
 
 export type EvalTypeId = string;
 
@@ -38,14 +39,18 @@ export function evalTypeOfAiLabel(aiLabel: string | null | undefined): EvalTypeI
 const YANEURAOU_PREFIX = "YaneuraOu_";
 
 /**
- * プリセット編集で選べるエンジン。engines/ の**直下**にあり、名前が `YaneuraOu_` で始まるもの。
+ * プリセット編集で選べるエンジン。engines/ の**直下**にあり、名前が `YaneuraOu_` で始まり、
+ * このマシンで使えるもの（`isEngineForThisMachine`）。
  *
  * 1段下のフォルダにあるもの（`entry` が `/` を含む）と他の名前のエンジンは出さない。
  * 起動時の作業フォルダと評価関数の渡し方（`runtimeConfigOf`）が、プロファイルの `eval/` を
  * `EvalDir` で渡すやねうら王の平置きしか想定していないため（→ #492）
  */
 export function presetEngineCandidates(engines: EngineCandidate[]): EngineCandidate[] {
-  return engines.filter((e) => !e.entry.includes("/") && e.entry.startsWith(YANEURAOU_PREFIX));
+  return engines.filter(
+    (e) =>
+      !e.entry.includes("/") && e.entry.startsWith(YANEURAOU_PREFIX) && isEngineForThisMachine(e),
+  );
 }
 
 /**

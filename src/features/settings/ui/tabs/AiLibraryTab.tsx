@@ -21,6 +21,7 @@ import {
   type AiRootIndex,
   type ProfileCandidate,
 } from "@/entities/engine/api/aiLibrary";
+import { isEngineForThisMachine } from "@/entities/engine/lib/engineCandidate";
 
 import { describeFsError, isNameInputError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
@@ -241,7 +242,7 @@ export default function AiLibraryTab() {
 
     // **`engines/` が使えるときだけ言う。** 無い回・フォルダでない回に続けて言うと、
     // 1行目が「フォルダではない」と言った当のものの中へ置け、と指示することになる
-    if (enginesDirUsable(dir) && (data.engines?.length ?? 0) === 0) {
+    if (enginesDirUsable(dir) && !(data.engines ?? []).some(isEngineForThisMachine)) {
       ws.push("エンジン実行ファイルが未検出です。engines/ 配下に置いてください。");
     }
     for (const p of data.profiles ?? []) {
@@ -252,8 +253,9 @@ export default function AiLibraryTab() {
     return ws;
   }, [data]);
 
-  const enginesCount = data?.engines?.length ?? 0;
-  const engineNames = useMemo(() => data?.engines?.map((e) => e.entry) ?? [], [data]);
+  const usableEngines = useMemo(() => (data?.engines ?? []).filter(isEngineForThisMachine), [data]);
+  const enginesCount = usableEngines.length;
+  const engineNames = useMemo(() => usableEngines.map((e) => e.entry), [usableEngines]);
 
   const guideProfiles = useMemo<SetupGuideProfile[]>(
     () =>

@@ -1,8 +1,9 @@
 //! OS がこのファイルをエンジンとして起動させるか。**起動する前に分かる範囲だけ**を見る。
 //!
-//! 候補の一覧（`ai_library::engines`）と、起動に失敗したときの理由の分類の両方が
-//! 同じ答えを使う。片方だけ直すと、一覧は「起動できる」と言うのに起動で止まる、
-//! という食い違いが生まれる。
+//! いまの使い手は候補の一覧（`ai_library::engines`）だけ。起動に失敗したときの理由
+//! （`registry::spawn` の `StartupFailed`）はまだこれを通しておらず、一覧が
+//! `NotExecutable` と言うものは、起動では OS のエラー文言のまま失敗する。
+// TODO(#523): 起動失敗の理由の分類もここを通し、一覧と同じ言葉で説明する
 
 use serde::Serialize;
 use std::fs;
@@ -13,7 +14,8 @@ use std::path::Path;
 /// 外してしまうと「置いたのに出てこない」になり、直し方（実行権限を付ける、
 /// macOS で開くのを許可する、読み取り権限を付ける）に辿り着けない。
 ///
-/// **理由は1つだけ返す。** 見る順は `inspect` の本文の順で、直す順と同じにしてある
+/// **理由は1つだけ返す。** 見る順は `inspect`（読めるか → この OS 向けか）、
+/// 続いて `launchability`（実行権限 → 隔離属性）で、直す順と同じにしてある
 /// （実行権限が無いと、macOS の許可を与えても起動できない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -28,7 +30,8 @@ pub enum Launchability {
     Quarantined,
     /// 読めないので、実行ファイルかどうかも判らない（読み取り権限が無い、など）
     Unreadable,
-    /// 別の OS 向けの実行ファイル（macOS / Linux に置かれた Windows の `.exe`）
+    /// 別の OS 向けの実行ファイル（macOS に置いた Linux 版・Windows 版、Linux に置いた
+    /// macOS 版・Windows 版）。Windows では `.exe` 以外を中身で見ないので出ない
     WrongPlatform,
 }
 
@@ -109,8 +112,9 @@ fn program_kind(path: &Path) -> Kind {
     }
 }
 
-/// Mach-O（32/64 ビット、両エンディアン、universal）、ELF、`#!` で始まるスクリプトは
-/// この OS で動く。`MZ`（Windows の実行形式）は別の OS 向け
+/// 実行形式の先頭。Mach-O（32/64 ビット、両エンディアン、universal）と ELF は
+/// どちらが動くかが OS で決まる（`native_format`）。`#!` で始まるスクリプトはどちらでも動く。
+/// `MZ` は Windows の実行形式
 #[cfg_attr(windows, allow(dead_code))]
 fn header_kind(head: [u8; 4]) -> Kind {
     const MACH_O: [[u8; 4]; 5] = [
@@ -121,12 +125,41 @@ fn header_kind(head: [u8; 4]) -> Kind {
         [0xca, 0xfe, 0xba, 0xbe],
     ];
     const ELF: [u8; 4] = [0x7f, b'E', b'L', b'F'];
-    if MACH_O.contains(&head) || head == ELF || head.starts_with(b"#!") {
-        Kind::Native
+
+    let format = if MACH_O.contains(&head) {
+        Format::MachO
+    } else if head == ELF {
+        Format::Elf
+    } else if head.starts_with(b"#!") {
+        return Kind::Native;
     } else if head.starts_with(b"MZ") {
-        Kind::OtherPlatform
+        return Kind::OtherPlatform;
     } else {
-        Kind::NotAProgram
+        return Kind::NotAProgram;
+    };
+    if Some(format) == native_format() {
+        Kind::Native
+    } else {
+        Kind::OtherPlatform
+    }
+}
+
+#[cfg_attr(windows, allow(dead_code))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Format {
+    MachO,
+    Elf,
+}
+
+/// この OS が起動する形式。macOS は Mach-O、それ以外の Unix は ELF
+#[cfg_attr(windows, allow(dead_code))]
+fn native_format() -> Option<Format> {
+    if cfg!(target_os = "macos") {
+        Some(Format::MachO)
+    } else if cfg!(unix) {
+        Some(Format::Elf)
+    } else {
+        None
     }
 }
 
@@ -185,6 +218,18 @@ mod tests {
     use test_support::dir::temp_dir;
 
     const MACH_O_64: [u8; 4] = [0xcf, 0xfa, 0xed, 0xfe];
+    const ELF: [u8; 4] = [0x7f, b'E', b'L', b'F'];
+    /// この OS で動く形式と、動かない形式の先頭
+    const NATIVE: [u8; 4] = if cfg!(target_os = "macos") {
+        MACH_O_64
+    } else {
+        ELF
+    };
+    const FOREIGN: [u8; 4] = if cfg!(target_os = "macos") {
+        ELF
+    } else {
+        MACH_O_64
+    };
 
     fn write(path: &Path, head: &[u8], mode: u32) {
         let mut bytes = head.to_vec();
@@ -200,14 +245,12 @@ mod tests {
     #[test]
     fn native_formats_are_programs_and_others_are_not() {
         let dir = temp_dir("launchable-formats");
-        write(&dir.join("macho"), &MACH_O_64, 0o755);
-        write(&dir.join("elf"), b"\x7fELF", 0o755);
+        write(&dir.join("native"), &NATIVE, 0o755);
         write(&dir.join("run.sh"), b"#!/bin/sh\n", 0o755);
         write(&dir.join("nn.bin"), b"\x00\x01\x02\x03", 0o755);
         fs::write(dir.join("tiny"), b"#").expect("書けない");
 
-        assert_eq!(inspect(&dir.join("macho")), program(Launchability::Ready));
-        assert_eq!(inspect(&dir.join("elf")), program(Launchability::Ready));
+        assert_eq!(inspect(&dir.join("native")), program(Launchability::Ready));
         assert_eq!(inspect(&dir.join("run.sh")), program(Launchability::Ready));
         assert_eq!(inspect(&dir.join("nn.bin")), Inspection::NotAProgram);
         // 4バイトに満たないものは読めないのではなく、実行ファイルではない
@@ -215,14 +258,19 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// Mac に置かれた Windows 版は、黙って外さず別の OS 向けと言う
+    /// 別の OS 向けの版は、黙って外さず別の OS 向けと言う（Windows 版、Mac と Linux の取り違え）
     #[test]
-    fn a_windows_executable_is_reported_as_the_wrong_platform() {
-        let dir = temp_dir("launchable-mz");
+    fn executables_for_another_os_are_reported_as_the_wrong_platform() {
+        let dir = temp_dir("launchable-foreign");
         write(&dir.join("YaneuraOu_AVX2.exe"), b"MZ\x90\x00", 0o644);
+        write(&dir.join("foreign"), &FOREIGN, 0o755);
 
         assert_eq!(
             inspect(&dir.join("YaneuraOu_AVX2.exe")),
+            program(Launchability::WrongPlatform)
+        );
+        assert_eq!(
+            inspect(&dir.join("foreign")),
             program(Launchability::WrongPlatform)
         );
         let _ = fs::remove_dir_all(&dir);
@@ -234,8 +282,8 @@ mod tests {
         let dir = temp_dir("launchable-libs");
         fs::create_dir_all(dir.join("v1.so.2")).expect("作れない");
         write(&dir.join("libomp.dylib"), &MACH_O_64, 0o755);
-        write(&dir.join("libfoo.so.1"), b"\x7fELF", 0o755);
-        write(&dir.join("v1.so.2/engine"), &MACH_O_64, 0o755);
+        write(&dir.join("libfoo.so.1"), &ELF, 0o755);
+        write(&dir.join("v1.so.2/engine"), &NATIVE, 0o755);
 
         assert_eq!(inspect(&dir.join("libomp.dylib")), Inspection::NotAProgram);
         assert_eq!(inspect(&dir.join("libfoo.so.1")), Inspection::NotAProgram);
@@ -249,7 +297,7 @@ mod tests {
     #[test]
     fn a_program_without_the_execute_bit_is_not_executable() {
         let dir = temp_dir("launchable-noexec");
-        write(&dir.join("engine"), &MACH_O_64, 0o644);
+        write(&dir.join("engine"), &NATIVE, 0o644);
 
         assert_eq!(
             inspect(&dir.join("engine")),
@@ -262,7 +310,7 @@ mod tests {
     #[test]
     fn an_unreadable_file_is_reported_as_unreadable() {
         let dir = temp_dir("launchable-unreadable");
-        write(&dir.join("engine"), &MACH_O_64, 0o000);
+        write(&dir.join("engine"), &NATIVE, 0o000);
         if fs::File::open(dir.join("engine")).is_ok() {
             let _ = fs::remove_dir_all(&dir);
             return;
@@ -280,7 +328,7 @@ mod tests {
     #[test]
     fn a_symlink_is_judged_by_its_target() {
         let dir = temp_dir("launchable-link");
-        write(&dir.join("real"), &MACH_O_64, 0o644);
+        write(&dir.join("real"), &NATIVE, 0o644);
         symlink(dir.join("real"), dir.join("link")).expect("リンクを作れない");
 
         assert_eq!(

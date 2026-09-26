@@ -584,6 +584,72 @@ fn the_engine_does_not_reach_out_of_itself() {
     );
 }
 
+/// `engine/` の外から `engine/` の段へ入る `use` の控え。**（入る側の枝, 段）で持つ。**
+///
+/// 出る辺は上のテストが止める。**入る辺はこの控えが止める。** 控えが無いと、
+/// `ai_library` に `use crate::engine::state::AppState;` を1行書くだけで、
+/// ADR-0009 決定3（`commands` より下は `AppState` を受け取らない）を外から迂回できる。
+/// 同じ crate の中なので Cargo も止めない。
+///
+/// crate の根（`lib.rs`）は数えない。コマンドの登録と `AppState` の再輸出を持つ
+/// 組み立ての場所で、`engine` の段を外へ見せるのがそこの仕事。
+///
+/// いま在る1本は、候補の一覧が「起動できるか」の答えを起動の側と共有するため
+/// （`engine/launchable.rs` の冒頭）。
+const ENGINE_ENTRIES_FROM_OUTSIDE: [(&str, &str); 1] = [("ai_library", "launchable")];
+
+/// `engine/` の外から入っている（枝, 段）が、控えと一致すること。
+///
+/// **等値で見る。** 下限だと、使うのをやめて辺が消えたときに控えだけが残る。
+/// 控えが空でないので、走査が何も拾わなくなった場合もここで赤くなる。
+#[test]
+fn the_engine_is_entered_from_outside_only_where_it_is_recorded() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut found: BTreeSet<(String, String)> = BTreeSet::new();
+    let mut statements: Vec<String> = Vec::new();
+
+    for path in rust_files(&src) {
+        let relative = path.strip_prefix(&src).unwrap_or(&path).to_path_buf();
+        let branch = module_of(&relative);
+        if branch == "engine" || branch == "lib" || branch == "main" {
+            continue;
+        }
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let (_, reaching) = scan_file(&source, &branch, relative.components().count());
+        for statement in reaching {
+            if let Some(layer) = engine_layer(&statement) {
+                found.insert((branch.clone(), layer));
+                statements.push(format!("{}  {statement}", relative.display()));
+            }
+        }
+    }
+
+    let recorded: BTreeSet<(String, String)> = ENGINE_ENTRIES_FROM_OUTSIDE
+        .iter()
+        .map(|(branch, layer)| (branch.to_string(), layer.to_string()))
+        .collect();
+    assert_eq!(
+        found,
+        recorded,
+        "`engine/` の外から入る辺が控えと違う。\n\
+         増やすなら、なぜその段を外へ見せるのかをコミットに書くこと:\n{}",
+        statements.join("\n")
+    );
+}
+
+/// 外へ出ている `use` が `engine` を指していれば、その段の名前。
+///
+/// `crate::engine::launchable::…` も `super::super::engine::launchable::…` も `launchable`。
+fn engine_layer(statement: &str) -> Option<String> {
+    let body = use_body(statement).unwrap_or(statement).trim();
+    let mut rest = body.trim_start_matches("::");
+    rest = rest.strip_prefix("crate::").unwrap_or(rest);
+    while let Some(next) = rest.strip_prefix("super::") {
+        rest = next;
+    }
+    leading_name(rest.strip_prefix("engine::")?)
+}
+
 /// `book/` が `crate` の他の枝へ伸ばす辺の控え。**枝の名前で持つ。**
 ///
 /// **1件で始められるのはいまだけ。** 2本目が生えた時点で「どちらが器か」が

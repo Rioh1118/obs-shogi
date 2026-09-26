@@ -23,7 +23,9 @@ pub const ENGINES_DIR: &str = "engines";
 /// 開けなかったフォルダも、中身が出ない理由を見せるために1件として返す（`kind: Dir`）
 #[derive(Debug, Clone, Serialize)]
 pub struct EngineCandidate {
-    /// engines/ からの相対。1段下のフォルダにあるものは `<フォルダ>/<ファイル>`（区切りは常に `/`）
+    /// engines/ からの相対。区切りは常に `/`。形は3つ:
+    /// 直下のファイルは `<ファイル>`、1段下は `<フォルダ>/<ファイル>`、
+    /// 開けなかったフォルダは `<フォルダ>/`（`kind: Dir`、`launchability: Unreadable`）
     pub entry: String,
     /// フルパス
     pub path: String,
@@ -36,9 +38,11 @@ pub struct EngineCandidate {
 /// 1段下まで見るのは、フォルダごと置いた配布物のエンジンを選べるようにするため
 /// （同梱の評価関数や `engine_options.txt` をそのエンジンに読ませる仕組みはまだ無い）。
 ///
-/// **Err になるのは engines/ 自体を読めないときだけ。** 中の1件が読めないときは、
-/// その1件を `Launchability::Unreadable` として返し、列挙は続ける。
-/// 止めると関係の無いエンジンまで選べなくなる。
+/// **Err になるのは engines/ 自体を読めないときだけ。** 中の1件の失敗では列挙を止めない
+/// （止めると関係の無いエンジンまで選べなくなる）。失敗の扱いは2つに分かれる:
+/// - 読み取り権限が無いファイル・開けないフォルダは `Launchability::Unreadable` として返す
+/// - `stat` できないもの（切れたリンク、検索権限の無い先を指すリンク）は候補にしない。
+///   ファイルかフォルダかも判らないので、見せる形が無い
 pub fn read_all(engines_dir: &Path) -> Result<Vec<EngineCandidate>, String> {
     let mut out = vec![];
 
@@ -130,7 +134,12 @@ mod tests {
     use std::os::unix::fs::{symlink, PermissionsExt};
     use test_support::dir::temp_dir;
 
-    const MACH_O_64: [u8; 4] = [0xcf, 0xfa, 0xed, 0xfe];
+    /// この OS で動く実行形式の先頭（macOS は Mach-O、それ以外の Unix は ELF）
+    const NATIVE: [u8; 4] = if cfg!(target_os = "macos") {
+        [0xcf, 0xfa, 0xed, 0xfe]
+    } else {
+        [0x7f, b'E', b'L', b'F']
+    };
 
     fn write(path: &Path, head: &[u8], mode: u32) {
         if let Some(parent) = path.parent() {
@@ -163,7 +172,7 @@ mod tests {
     fn a_program_is_listed_whatever_its_name() {
         let dir = temp_dir("engines-any-name");
         for name in ["zermelo-f558898", "YaneuraOu_NNUE-V900", "gikou"] {
-            write(&dir.join(name), &MACH_O_64, 0o755);
+            write(&dir.join(name), &NATIVE, 0o755);
         }
 
         assert_eq!(
@@ -179,8 +188,8 @@ mod tests {
         let dir = temp_dir("engines-non-programs");
         write(&dir.join("nn.bin"), b"\x00\x01\x02\x03", 0o755);
         write(&dir.join("README.txt"), b"read", 0o644);
-        write(&dir.join(".DS_Store"), &MACH_O_64, 0o755);
-        write(&dir.join("libomp.dylib"), &MACH_O_64, 0o755);
+        write(&dir.join(".DS_Store"), &NATIVE, 0o755);
+        write(&dir.join("libomp.dylib"), &NATIVE, 0o755);
 
         assert!(entries(&dir).is_empty(), "{:?}", entries(&dir));
         let _ = fs::remove_dir_all(&dir);
@@ -190,7 +199,7 @@ mod tests {
     #[test]
     fn programs_that_cannot_start_are_listed_with_the_reason() {
         let dir = temp_dir("engines-reasons");
-        write(&dir.join("engine"), &MACH_O_64, 0o644);
+        write(&dir.join("engine"), &NATIVE, 0o644);
         write(&dir.join("YaneuraOu_AVX2.exe"), b"MZ\x90\x00", 0o644);
 
         assert_eq!(
@@ -208,10 +217,10 @@ mod tests {
     #[test]
     fn programs_one_folder_down_are_listed_but_not_deeper() {
         let dir = temp_dir("engines-depth");
-        write(&dir.join("suisho5/YaneuraOu-by-gcc"), &MACH_O_64, 0o755);
+        write(&dir.join("suisho5/YaneuraOu-by-gcc"), &NATIVE, 0o755);
         write(&dir.join("suisho5/eval/nn.bin"), b"\x00\x00\x00\x00", 0o644);
-        write(&dir.join("tanuki.so.2024/engine"), &MACH_O_64, 0o755);
-        write(&dir.join("pkg/bin/deep-engine"), &MACH_O_64, 0o755);
+        write(&dir.join("tanuki.so.2024/engine"), &NATIVE, 0o755);
+        write(&dir.join("pkg/bin/deep-engine"), &NATIVE, 0o755);
 
         assert_eq!(
             entries(&dir),
@@ -231,8 +240,8 @@ mod tests {
     #[test]
     fn an_unreadable_folder_is_listed_as_unreadable() {
         let dir = temp_dir("engines-unreadable-folder");
-        write(&dir.join("locked/engine"), &MACH_O_64, 0o755);
-        write(&dir.join("other"), &MACH_O_64, 0o755);
+        write(&dir.join("locked/engine"), &NATIVE, 0o755);
+        write(&dir.join("other"), &NATIVE, 0o755);
         fs::set_permissions(dir.join("locked"), fs::Permissions::from_mode(0o000))
             .expect("権限を変えられない");
         let readable_anyway = fs::read_dir(dir.join("locked")).is_ok();
@@ -256,8 +265,8 @@ mod tests {
     fn symlinks_are_followed_and_broken_ones_are_skipped() {
         let dir = temp_dir("engines-symlink");
         let outside = temp_dir("engines-symlink-target");
-        write(&outside.join("real-engine"), &MACH_O_64, 0o755);
-        write(&outside.join("pkg/inner-engine"), &MACH_O_64, 0o755);
+        write(&outside.join("real-engine"), &NATIVE, 0o755);
+        write(&outside.join("pkg/inner-engine"), &NATIVE, 0o755);
 
         symlink(outside.join("real-engine"), dir.join("linked")).expect("リンクを作れない");
         symlink(outside.join("pkg"), dir.join("linked-dir")).expect("リンクを作れない");
