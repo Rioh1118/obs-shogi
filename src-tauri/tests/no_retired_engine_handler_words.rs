@@ -17,12 +17,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// 手放した仕組みの綴り。**足すときは、その仕組みを手放したときに。**
-const RETIRED: [&str; 5] = [
+const RETIRED: [&str; 8] = [
     "UsiEngineHandler",
     "handler.kill()",
     "classify_kill_failure",
     "output_ended",
     "kill().unwrap()",
+    "KillRequest",
+    // 閉じのバッククォートまで綴る。`EngineChild::kill_and_wait` に当てない
+    "`EngineChild::kill`",
+    "`protocol.rs` の `KILL_TIMEOUT`",
 ];
 
 /// このファイル自身は綴りを持つので見ない
@@ -113,4 +117,10 @@ fn the_retired_words_are_what_the_old_docs_used() {
     assert!(RETIRED.iter().any(|word| old_line.contains(word)));
     let current_line = "`EngineChild::kill_and_wait` はプロセスグループへシグナルを送る";
     assert!(!RETIRED.iter().any(|word| current_line.contains(word)));
+    assert!(RETIRED
+        .iter()
+        .any(|word| "（`protocol.rs` の `KILL_TIMEOUT`）".contains(word)));
+    assert!(!RETIRED
+        .iter()
+        .any(|word| "（`engine/child.rs` の `KILL_TIMEOUT`）".contains(word)));
 }

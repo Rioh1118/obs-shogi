@@ -84,7 +84,8 @@ pub enum Exit {
 pub enum KillOutcome {
     /// 頼んで、終わるのを見届けた
     Ended(Exit),
-    /// 既に頼んであった。2度目以降。見届けるのは最初に頼んだ側
+    /// 既に頼んであり、まだ終わりを見ていない（先の呼び手が待っている最中か、
+    /// `TimedOut` で諦めた後）。終わった後の呼び出しは `AlreadyExited` になる
     AlreadyRequested,
     /// 頼む前に終わっていた
     AlreadyExited,
@@ -103,6 +104,16 @@ pub struct EngineChild {
     writer: StdMutex<Option<ChildWriter>>,
     stdout: StdMutex<Option<ChildStdout>>,
     kill: StdMutex<Option<oneshot::Sender<()>>>,
+    diagnostics: ChildDiagnostics,
+}
+
+/// 子プロセスの様子を見るだけの取っ手。**落とす口を持たない。**
+///
+/// 読み取りの後始末など、プロセスより長く生きうるタスクにはこちらを渡す。
+/// `EngineChild` そのものを渡すと、そのタスクが生きている間 Drop が起きず、
+/// 「捨てればプロセスも落ちる」が効かなくなる。
+#[derive(Clone)]
+pub struct ChildDiagnostics {
     exit: watch::Receiver<Option<Exit>>,
     stderr_done: watch::Receiver<bool>,
     recent: Arc<StdMutex<VecDeque<(Source, String)>>>,
@@ -180,9 +191,11 @@ pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
         stdin,
         stdout: StdMutex::new(stdout),
         kill: StdMutex::new(Some(kill_tx)),
-        exit: exit_rx,
-        stderr_done: stderr_done_rx,
-        recent,
+        diagnostics: ChildDiagnostics {
+            exit: exit_rx,
+            stderr_done: stderr_done_rx,
+            recent,
+        },
     })
 }
 
@@ -223,7 +236,7 @@ impl EngineChild {
         };
         tokio::spawn(read_stdout(
             BufReader::new(stdout),
-            Arc::clone(&self.recent),
+            Arc::clone(&self.diagnostics.recent),
             hook,
         ));
         true
@@ -236,7 +249,7 @@ impl EngineChild {
     /// 先に `quit` を送る）。
     pub async fn kill_and_wait(&self, limit: Duration) -> KillOutcome {
         self.close_stdin();
-        if self.exit.borrow().is_some() {
+        if self.diagnostics.exit_now().is_some() {
             return KillOutcome::AlreadyExited;
         }
         let Some(tx) = lock(&self.kill).take() else {
@@ -247,20 +260,17 @@ impl EngineChild {
             return KillOutcome::AlreadyExited;
         }
 
-        let mut exit = self.exit.clone();
-        let waited = tokio::time::timeout(limit, exit.wait_for(|e| e.is_some()))
-            .await
-            .map(|watched| watched.map(|exit| *exit));
-        match waited {
-            Ok(Ok(Some(exit))) => KillOutcome::Ended(exit),
-            Ok(Ok(None)) | Ok(Err(_)) => KillOutcome::WatcherGone,
-            Err(_) => KillOutcome::TimedOut,
+        match self.diagnostics.wait_exit(limit).await {
+            Waited::Ended(exit) => KillOutcome::Ended(exit),
+            Waited::WatcherGone => KillOutcome::WatcherGone,
+            Waited::TimedOut => KillOutcome::TimedOut,
         }
     }
 
     /// stdin を閉じる。書き込みがロックを握っているとき（詰まっているとき）は、
-    /// 空くのを待つタスクに任せて返る。**閉じないまま残さない**——`#!` のラッパーの
-    /// 孫は stdin の EOF で終わるものが多い
+    /// 空くのを待つタスクに任せて返る。**閉じないまま残さない**——子が先に終わっていた回
+    /// （`AlreadyExited`。グループへのシグナルは送らない）と非 unix では、`#!` のラッパーの
+    /// 孫を止める手段が stdin の EOF しか無い
     fn close_stdin(&self) {
         if let Ok(mut stdin) = self.stdin.try_lock() {
             stdin.take();
@@ -272,9 +282,38 @@ impl EngineChild {
         });
     }
 
-    /// 終わり方。終わるまでは `None`
-    pub fn exit(&self) -> watch::Receiver<Option<Exit>> {
-        self.exit.clone()
+    /// 様子を見るだけの取っ手（落とす口を持たない）
+    pub fn diagnostics(&self) -> ChildDiagnostics {
+        self.diagnostics.clone()
+    }
+}
+
+/// `ChildDiagnostics::wait_exit` の結果
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Waited {
+    Ended(Exit),
+    TimedOut,
+    /// 終わりを見届ける待ち手が消えた
+    WatcherGone,
+}
+
+impl ChildDiagnostics {
+    /// 今の時点の終わり方。終わっていなければ `None`
+    pub fn exit_now(&self) -> Option<Exit> {
+        *self.exit.borrow()
+    }
+
+    /// 終わるのを `limit` まで待つ
+    pub async fn wait_exit(&self, limit: Duration) -> Waited {
+        let mut exit = self.exit.clone();
+        let waited = tokio::time::timeout(limit, exit.wait_for(|e| e.is_some()))
+            .await
+            .map(|watched| watched.map(|exit| *exit));
+        match waited {
+            Ok(Ok(Some(exit))) => Waited::Ended(exit),
+            Ok(Ok(None)) | Ok(Err(_)) => Waited::WatcherGone,
+            Err(_) => Waited::TimedOut,
+        }
     }
 
     /// stderr を読み切るのを `limit` まで待つ。**stdout の EOF と stderr の EOF は
@@ -459,12 +498,10 @@ mod tests {
     }
 
     async fn exited(child: &EngineChild) -> Exit {
-        let mut exit = child.exit();
-        let settled = tokio::time::timeout(Duration::from_secs(10), exit.wait_for(|e| e.is_some()))
-            .await
-            .expect("上限内に終わらない")
-            .expect("待ち手が消えた");
-        settled.expect("終わっている")
+        match child.diagnostics().wait_exit(Duration::from_secs(10)).await {
+            Waited::Ended(exit) => exit,
+            other => panic!("終わっていない: {other:?}"),
+        }
     }
 
     fn parsed_of(event: &ReadEvent) -> Option<EngineCommand> {
@@ -547,9 +584,12 @@ mod tests {
             panic!("終わり方が取れていない");
         };
         assert_eq!(status.code(), Some(3));
-        child.settle_output(Duration::from_secs(10)).await;
+        child
+            .diagnostics()
+            .settle_output(Duration::from_secs(10))
+            .await;
         assert_eq!(
-            child.recent_lines(),
+            child.diagnostics().recent_lines(),
             [(Source::Stderr, "dyld: Library not loaded".to_string())]
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -564,8 +604,14 @@ mod tests {
 
         let events = read_all(&child).await;
         assert!(matches!(events.as_slice(), [ReadEvent::Eof]), "{events:?}");
-        child.settle_output(Duration::from_secs(10)).await;
-        assert_eq!(child.recent_lines(), [(Source::Stderr, "late".to_string())]);
+        child
+            .diagnostics()
+            .settle_output(Duration::from_secs(10))
+            .await;
+        assert_eq!(
+            child.diagnostics().recent_lines(),
+            [(Source::Stderr, "late".to_string())]
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -608,10 +654,10 @@ mod tests {
             child.kill_and_wait(KILL_TIMEOUT).await,
             KillOutcome::Ended(_)
         ));
-        assert_ne!(
+        assert_eq!(
             child.kill_and_wait(KILL_TIMEOUT).await,
-            KillOutcome::TimedOut,
-            "2度目で待ちに入っている"
+            KillOutcome::AlreadyExited,
+            "終わった後の2度目が頼み直している"
         );
         let error = writer
             .write_line("isready")
@@ -685,13 +731,16 @@ mod tests {
         let dir = temp_dir("child-drop");
         let path = script(&dir, "exec sleep 30");
         let child = spawn(&path, &dir).expect("起こせる");
-        let mut exit = child.exit();
+        let diagnostics = child.diagnostics();
         drop(child);
 
-        tokio::time::timeout(Duration::from_secs(10), exit.wait_for(|e| e.is_some()))
-            .await
-            .expect("捨てても落ちていない")
-            .expect("待ち手が消えた");
+        assert!(
+            matches!(
+                diagnostics.wait_exit(Duration::from_secs(10)).await,
+                Waited::Ended(_)
+            ),
+            "捨てても落ちていない"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

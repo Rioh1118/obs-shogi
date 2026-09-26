@@ -182,7 +182,7 @@ impl EngineRegistry {
         });
 
         // **上限を掛ける。** `spawn_blocking` は上限を効かせるための前提で、
-        // 上限そのものではない（`protocol.rs` の `KILL_TIMEOUT` と対）。
+        // 上限そのものではない。
         // 応答しないネットワークボリューム上の `engine_path` に対する
         // `canonicalize` は割り込み不能でブロックするので、包まないと
         // `start_game` の future が返らず、フロントの `invoke` は永久に解決しない。
@@ -241,7 +241,8 @@ impl EngineRegistry {
         // **本台帳へ載せてから起動中の置き場を外す。** 逆にすると、
         // その間このプロセスはどちらの置き場にも居ない。並行する `shutdown_all` が
         // 素通りして孤児になる。両方に居る側は二度落とすだけで、
-        // `kill_engine` の2回目は空振りする（`KillRequest::AlreadySent`）
+        // `kill_engine` の2回目は空振りする（`KillOutcome::AlreadyExited` か
+        // `KillOutcome::AlreadyRequested`）
         self.processes
             .write()
             .await

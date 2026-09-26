@@ -721,6 +721,47 @@ fn outward_branch(statement: &str) -> Option<String> {
     leading_name(rest)
 }
 
+/// 子プロセスの型（`tokio::process`）を綴れるのは `engine/child.rs` だけ。
+///
+/// `child` は stdin・stdout・プロセスを別々の持ち主にし、書く口と読む口を1回きりにしている。
+/// 外で `tokio::process` を綴ると、その約束を通らない2本目の書き手や、落とす口の無い
+/// 子プロセスが作れる。**`forbids` はクレート単位なので `tokio` の一部だけは止められない。**
+/// 綴りで止める。
+#[test]
+fn only_the_child_layer_spells_tokio_process() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let files = rust_files(&src);
+    assert!(
+        files.len() >= 50,
+        "走査が空振りしている: {} 件",
+        files.len()
+    );
+
+    let mut offenders = Vec::new();
+    let mut seen_in_child = false;
+    for path in files {
+        let relative = path.strip_prefix(&src).unwrap_or(&path).to_path_buf();
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        if !source.contains("tokio::process") {
+            continue;
+        }
+        if relative == Path::new("engine/child.rs") {
+            seen_in_child = true;
+        } else {
+            offenders.push(relative.display().to_string());
+        }
+    }
+
+    assert!(
+        seen_in_child,
+        "`engine/child.rs` に `tokio::process` が無い。走査の綴りを直すこと"
+    );
+    assert!(
+        offenders.is_empty(),
+        "`tokio::process` を `engine/child.rs` の外で綴っている。子プロセスは `child` を通すこと: {offenders:?}"
+    );
+}
+
 /// 段が「使わない」と決めた外部クレートを**参照していない**こと。
 ///
 /// **ADR-0008 決定2 の核はここにある。** `game/` から `tauri` への `use` が

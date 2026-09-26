@@ -39,9 +39,9 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
     Ok(())
 }
 
-/// 落としたエンジンの出力を読み切るのを待つ上限。stdout と stderr の EOF は別々に着く
-/// （`EngineChild::settle_output`）。失敗の理由に stderr の最後の行を載せるための待ちで、
-/// 人が待たされていると感じない長さに留める
+/// 出力が終わった、または起動に失敗したエンジンの stderr を読み切るのを待つ上限。
+/// stdout と stderr の EOF は別々に着く（`ChildDiagnostics::settle_output`）。失敗の理由に
+/// stderr の最後の行を載せるための待ちで、人が待たされていると感じない長さに留める
 const SETTLE_OUTPUT: Duration = Duration::from_millis(200);
 
 /// 解けなかった行を記録する間隔。**1行ずつ書かない。** ノード数が i32 を超えた
@@ -273,9 +273,9 @@ fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
 /// 後から終了させたとき**で、そのとき見せるべきは自分の操作の結果のほう。
 /// 「自分で終了させた」と「エンジンが応じなくなった」では次の手が違う。
 ///
-/// 逆順（落としてから詰まる）は起きない。`kill_engine` の後の書き込みは、stdin を閉じられた
-/// 回は `run_writer` が即 `NotInitialized` にし、閉じられなかった回（書き込みが詰まっていた）
-/// もプロセスが落ちて読み口が閉じるので `BrokenPipe` で返る。どちらも `Timeout` にならない。
+/// 逆順（落としてから詰まる）も起きうる。`kill_engine` が `killed` を立ててから SIGKILL が
+/// 効くまでの間に、先に詰まっていた書き込みが `WRITE_TIMEOUT` に達する回。そのときも
+/// `killed` を先に見るので、見せるのは `GONE`。
 fn cannot_reach_text(killed: bool, stalled: bool) -> &'static str {
     if killed {
         GONE
@@ -701,9 +701,45 @@ impl UsiProtocol {
         // 読み取り側は `send` するだけで、`unbounded` なので詰まらない。
         // ロックを待つのは配る側の1本に閉じる。
         let (line_tx, mut line_rx) = mpsc::unbounded_channel::<EngineCommand>();
+
+        // 解けなかった行は配らない（受け手は `EngineCommand` しか読まない）。
+        // **読み取りは止めない**——止めると、エンジンが生きたまま以後の出力が全部消える
+        let mut skipped = 0u64;
+        let mut throttle = LogThrottle::new(SKIPPED_LINE_LOG_INTERVAL);
+        let started = self.child.read_stdout(move |event| match event {
+            ReadEvent::Line {
+                parsed: Some(cmd), ..
+            } => line_tx.send(cmd).is_ok(),
+            ReadEvent::Line { parsed: None, raw } => {
+                skipped += 1;
+                if throttle.allow() {
+                    log::debug!(
+                        target: LOGT,
+                        "listen: skipped {skipped} line(s) it could not parse; last: {}",
+                        shown(&raw, MAX_SUMMARY_LEN)
+                    );
+                    skipped = 0;
+                }
+                true
+            }
+            // 読み手が抜けると `line_tx` が落ち、下の転送タスクが後始末をする
+            ReadEvent::Eof => false,
+        });
+
+        // **始められなかったら転送タスクを立てない。** 立てると、落ちた `line_tx` を
+        // 「出力が終わった」と読んで生きているエンジンを `Closed` にする
+        if !started {
+            log::debug!(target: LOGT, "start_listening: already listening");
+            return Err(EngineError::AlreadyListening(
+                "the engine output is already being read".to_string(),
+            ));
+        }
+
         let listeners = Arc::clone(&self.listeners);
         let ready = Arc::clone(&self.ready);
-        let child = Arc::clone(&self.child);
+        // 落とす口を持たない取っ手を渡す。`EngineChild` を渡すと、このタスクが生きている
+        // 間（stdout が開いている間ずっと）Drop が起きず、捨てたプロセスが落ちない
+        let diagnostics = self.child.diagnostics();
         let killed = Arc::clone(&self.killed);
         self.runtime_handle.spawn(async move {
             while let Some(cmd) = line_rx.recv().await {
@@ -733,47 +769,16 @@ impl UsiProtocol {
             }
             // **原因を残す。** 解析や対局の途中で落ちたエンジンの手掛かりは、
             // 直近の出力（assert の文言は stderr に出る）と終わり方しか無い
-            child.settle_output(SETTLE_OUTPUT).await;
-            let exit = *child.exit().borrow();
+            diagnostics.settle_output(SETTLE_OUTPUT).await;
             log::warn!(
                 target: LOGT,
-                "listen: engine output ended exit={exit:?} last={}",
-                summarize_recent(&child.recent_lines()).unwrap_or_default()
+                "listen: engine output ended exit={:?} last={}",
+                diagnostics.exit_now(),
+                summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
             );
         });
 
-        // 解けなかった行は配らない（受け手は `EngineCommand` しか読まない）。
-        // **読み取りは止めない**——止めると、エンジンが生きたまま以後の出力が全部消える
-        let mut skipped = 0u64;
-        let mut throttle = LogThrottle::new(SKIPPED_LINE_LOG_INTERVAL);
-        let started = self.child.read_stdout(move |event| match event {
-            ReadEvent::Line {
-                parsed: Some(cmd), ..
-            } => line_tx.send(cmd).is_ok(),
-            ReadEvent::Line { parsed: None, raw } => {
-                skipped += 1;
-                if throttle.allow() {
-                    log::debug!(
-                        target: LOGT,
-                        "listen: skipped {skipped} line(s) it could not parse; last: {}",
-                        shown(&raw, MAX_SUMMARY_LEN)
-                    );
-                    skipped = 0;
-                }
-                true
-            }
-            // 読み手が抜けると `line_tx` が落ち、上の転送タスクが後始末をする
-            ReadEvent::Eof => false,
-        });
-
-        if started {
-            Ok(())
-        } else {
-            log::debug!(target: LOGT, "start_listening: already listening");
-            Err(EngineError::AlreadyListening(
-                "the engine output is already being read".to_string(),
-            ))
-        }
+        Ok(())
     }
 
     /// エンジンの出力1行を、購読している全員へ配る。
@@ -1272,7 +1277,7 @@ impl UsiProtocol {
 
     /// プロセスを落とす。2度目以降は何もしない。
     ///
-    /// 落とすのは待ち手のタスクに頼むだけで（`EngineChild::kill`）、stdin のロックも
+    /// 落とすのは待ち手のタスクに頼むだけで（`EngineChild::kill_and_wait`）、stdin のロックも
     /// 書き込みの列も通らない。**書き込みが詰まっていても落とせる。**
     /// 待つのはプロセスが畳まれるのを見届けるところだけで、上限は `KILL_TIMEOUT`。
     ///
@@ -1318,8 +1323,20 @@ impl UsiProtocol {
     /// 頭の綴りで分類し直す呼び手がいる）。添えるのは `StartupFailed` と
     /// `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で始まる）には添えない
     async fn with_recent_output(&self, error: EngineError) -> EngineError {
-        self.child.settle_output(SETTLE_OUTPUT).await;
-        let Some(output) = summarize_recent(&self.child.recent_lines()) else {
+        if !matches!(
+            error,
+            EngineError::StartupFailed(_) | EngineError::CommunicationFailed(_)
+        ) {
+            return error;
+        }
+        let diagnostics = self.child.diagnostics();
+        // stderr の読み切りを待つのは、出力が終わったかプロセスが終わった回だけ。
+        // 生きているプロセスの stderr は待っても閉じず、待ちが起動の締切の外に出る
+        let ended = *self.ready.borrow() == ReadyState::Closed || diagnostics.exit_now().is_some();
+        if ended {
+            diagnostics.settle_output(SETTLE_OUTPUT).await;
+        }
+        let Some(output) = summarize_recent(&diagnostics.recent_lines()) else {
             return error;
         };
         match error {
@@ -1807,20 +1824,22 @@ mod tests {
             tokio::time::timeout(KILL_TIMEOUT * 2, protocol.kill_engine())
                 .await
                 .expect("書き込みが詰まったまま kill が返らない");
-            let exited = protocol.child.exit().borrow().is_some();
-            assert!(exited, "落とせていない");
+            assert!(
+                protocol.child.diagnostics().exit_now().is_some(),
+                "落とせていない"
+            );
             let _ = std::fs::remove_dir_all(&dir);
         }
 
         /// `usiok` の前に終わったエンジンの理由に、stderr の最後の行が載る。
         /// 共有ライブラリが見つからない、評価関数が読めない、はそちらに出る。
-        /// **stderr は stdout が閉じた後に遅れて着く**形で固定する（EOF は別々に着く）
+        /// 遅れて着く stderr を待つことは `child` のテストが固定する（実時計の余裕に頼らない）
         #[tokio::test]
         async fn a_startup_failure_carries_the_last_stderr_line() {
             let dir = test_support::dir::temp_dir("protocol-stderr");
             let protocol = protocol_for(
                 &dir,
-                "exec 1>&-; sleep 0.1; echo 'dyld: Library not loaded: libomp.dylib' >&2; exit 1",
+                "echo 'dyld: Library not loaded: libomp.dylib' >&2; exit 1",
             );
 
             let error = protocol
@@ -1856,6 +1875,30 @@ mod tests {
             let _ = std::fs::remove_dir_all(&dir);
         }
 
+        /// `kill_engine` を通さずに `UsiProtocol` を全部捨てても、プロセスは落ちる。
+        /// 読み取りの後始末のタスクが `EngineChild` を握っていると、stdout が開いている間
+        /// Drop が起きずに残る
+        #[tokio::test]
+        async fn dropping_the_protocol_ends_the_process() {
+            let dir = test_support::dir::temp_dir("protocol-drop");
+            let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat");
+            protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("読み取りまで始まる");
+            let diagnostics = protocol.child.diagnostics();
+            drop(protocol);
+
+            assert!(
+                matches!(
+                    diagnostics.wait_exit(Duration::from_secs(10)).await,
+                    crate::engine::child::Waited::Ended(_)
+                ),
+                "捨てた protocol のプロセスが残っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
         /// 読み取りを2度始めると `AlreadyListening`。**プロセスは生きている**ので
         /// 落とさなくてよい、という区別を呼び手が読む（`send_command` の doc）
         #[tokio::test]
@@ -1869,6 +1912,11 @@ mod tests {
                 .await
                 .expect_err("2度目も始めている");
             assert!(matches!(error, EngineError::AlreadyListening(_)), "{error}");
+            assert_ne!(
+                *protocol.ready.borrow(),
+                ReadyState::Closed,
+                "始められなかった2度目が、生きているエンジンを閉じている"
+            );
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }
