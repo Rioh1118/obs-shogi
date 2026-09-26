@@ -1907,7 +1907,8 @@ mod tests {
     #[cfg(unix)]
     mod with_a_process {
         use super::*;
-        use crate::engine::child::script::spawn_script;
+        use crate::engine::child::script::{ends_within, is_alive, read_pid, spawn_script};
+        use crate::engine::child::Waited;
         use std::path::Path;
 
         async fn protocol_for(dir: &Path, body: &str) -> UsiProtocol {
@@ -2076,6 +2077,55 @@ mod tests {
                 );
                 let _ = std::fs::remove_dir_all(&dir);
             }
+        }
+
+        /// ラッパーが先に終わっていても、`readyok` を待っている最中に捨てれば孫が残らない。
+        ///
+        /// 子が終わった後はグループへシグナルを送らないので、孫を止めるのは stdin の EOF だけ。
+        /// 待つタスクは書き込みの列（`Link`）を握っているので、捨てるときに stdin を閉じないと
+        /// 孫に EOF が届かず、孫が stdout を開けている間は待つタスクも抜けない
+        #[tokio::test]
+        async fn dropping_the_protocol_closes_stdin_for_a_grandchild_of_a_finished_wrapper() {
+            let dir = test_support::dir::temp_dir("protocol-drop-grandchild");
+            let pid_file = dir.join("grandchild.pid");
+            // 孫の `cat` は stdin を読み続け、stdout を開けたままにする。ラッパーはすぐ終わる。
+            // 裏で起こすコマンドの stdin は `/dev/null` に付け替えられるので、fd 3 に写して渡す
+            let protocol = protocol_for(
+                &dir,
+                &format!(
+                    "exec 3<&0; printf 'id name G\\nusiok\\n'; cat <&3 3<&- & echo $! > '{}'; exit 0",
+                    pid_file.display()
+                ),
+            )
+            .await;
+            protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("usiok まで読める");
+            assert!(
+                matches!(
+                    protocol
+                        .child
+                        .diagnostics()
+                        .wait_exit(Duration::from_secs(10))
+                        .await,
+                    Waited::Ended(_)
+                ),
+                "ラッパーが終わらない"
+            );
+            let grandchild = read_pid(&pid_file).await;
+            protocol
+                .send_command(&GuiCommand::IsReady)
+                .await
+                .expect("isready を送れる");
+            assert!(is_alive(&grandchild), "孫が起きていない");
+
+            drop(protocol);
+            assert!(
+                ends_within(&grandchild, Duration::from_secs(10)).await,
+                "捨てた protocol の孫が stdin の EOF を受けずに残っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
         }
 
         /// 終わりを待っている間にこちらが落としたら、ログの行を組まない。

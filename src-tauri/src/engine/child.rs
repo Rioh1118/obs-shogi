@@ -100,7 +100,9 @@ pub enum KillOutcome {
 /// 子プロセス1本。
 ///
 /// **Drop するとプロセスも落ちる**（待ち手が kill の頼みの口が閉じたことで気付き、
-/// プロセスグループごと落とす）。落とし損ねてもパニックはしない。
+/// unix で子がまだ生きていればプロセスグループごと落とす）。**stdin も閉じる**
+/// （`kill_and_wait` と同じ。グループへ送らない回の孫を止める手段は stdin の EOF しか無く、
+/// 書き込みの口 `ChildWriter` を誰かが握っていると閉じない）。落とし損ねてもパニックはしない。
 pub struct EngineChild {
     stdin: Arc<Mutex<Option<ChildStdin>>>,
     writer: StdMutex<Option<ChildWriter>>,
@@ -273,13 +275,19 @@ impl EngineChild {
     /// 空くのを待つタスクに任せて返る。**閉じないまま残さない**——子が先に終わっていた回
     /// （`AlreadyExited`。グループへのシグナルは送らない）と非 unix では、`#!` のラッパーの
     /// 孫を止める手段が stdin の EOF しか無い
+    ///
+    /// ランタイムの外（ランタイムを畳んだ後の Drop）では空くのを待てない。そのときは
+    /// 書き込みの口（`ChildWriter`）が全部捨てられた時点で閉じる
     fn close_stdin(&self) {
         if let Ok(mut stdin) = self.stdin.try_lock() {
             stdin.take();
             return;
         }
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
         let stdin = Arc::clone(&self.stdin);
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             stdin.lock().await.take();
         });
     }
@@ -287,6 +295,13 @@ impl EngineChild {
     /// 様子を見るだけの取っ手（落とす口を持たない）
     pub fn diagnostics(&self) -> ChildDiagnostics {
         self.diagnostics.clone()
+    }
+}
+
+impl Drop for EngineChild {
+    fn drop(&mut self) {
+        // 落とすのは欄の `kill` が落ちたのを待ち手が見て行う。ここで足すのは stdin だけ
+        self.close_stdin();
     }
 }
 
@@ -605,11 +620,44 @@ pub(crate) mod script {
         }
         panic!("台本が書き込み中のまま起こせない: {}", path.display());
     }
+
+    /// 台本が書いた pid を読む。並列で走るテストの負荷で台本の起動が遅れても待てるだけ取る
+    pub(crate) async fn read_pid(path: &Path) -> String {
+        for _ in 0..1000 {
+            if let Ok(pid) = std::fs::read_to_string(path) {
+                if !pid.trim().is_empty() {
+                    return pid.trim().to_string();
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("台本が pid を書かない: {}", path.display());
+    }
+
+    /// その pid のプロセスが生きているか（`kill -0`）
+    pub(crate) fn is_alive(pid: &str) -> bool {
+        std::process::Command::new("kill")
+            .args(["-0", pid])
+            .status()
+            .is_ok_and(|s| s.success())
+    }
+
+    /// その pid のプロセスが `limit` のうちに終わるか
+    pub(crate) async fn ends_within(pid: &str, limit: Duration) -> bool {
+        let deadline = tokio::time::Instant::now() + limit;
+        while is_alive(pid) {
+            if tokio::time::Instant::now() >= deadline {
+                return false;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        true
+    }
 }
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::script::spawn_script;
+    use super::script::{ends_within, is_alive, read_pid, spawn_script};
     use super::*;
     use test_support::dir::temp_dir;
     use tokio::sync::mpsc;
@@ -644,13 +692,6 @@ mod tests {
             ReadEvent::Line { parsed, .. } => parsed.clone(),
             ReadEvent::Eof => None,
         }
-    }
-
-    fn is_alive(pid: &str) -> bool {
-        std::process::Command::new("kill")
-            .args(["-0", pid.trim()])
-            .status()
-            .is_ok_and(|s| s.success())
     }
 
     /// 解けない行・UTF-8 でない行・空行があっても読み続ける。
@@ -831,30 +872,17 @@ mod tests {
             &format!("sleep 30 & echo $! > '{}'; wait", pid_file.display()),
         )
         .await;
-        // 並列で走るテストの負荷で台本の起動が遅れても待てるだけ取る
-        let mut grandchild = String::new();
-        for _ in 0..1000 {
-            if let Ok(pid) = std::fs::read_to_string(&pid_file) {
-                if !pid.trim().is_empty() {
-                    grandchild = pid;
-                    break;
-                }
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        let grandchild = read_pid(&pid_file).await;
         assert!(is_alive(&grandchild), "孫が起きていない");
 
         assert!(matches!(
             child.kill_and_wait(KILL_TIMEOUT).await,
             KillOutcome::Ended(_)
         ));
-        for _ in 0..1000 {
-            if !is_alive(&grandchild) {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-        assert!(!is_alive(&grandchild), "孫が孤児として残っている");
+        assert!(
+            ends_within(&grandchild, Duration::from_secs(10)).await,
+            "孫が孤児として残っている"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
