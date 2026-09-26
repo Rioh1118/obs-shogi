@@ -107,8 +107,8 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
 ## 5. エンジン解析（研究専用・対局なし）
 
 - 単一エンジンの常駐運用（`engine/manager` / `engine/protocol` / `engine/raw_handler`）
-  - 初期化 / 終了（`initialize_engine` / `shutdown_engine`）、局面設定（`set_position`）
-  - エンジン情報取得（`get_engine_info`）、状態取得（`get_analysis_status`）
+  - 起動（`start_analysis_engine`。起動・`setoption`・`readyok` までを1回で）/ 終了（`shutdown_engine`）、局面設定（`set_position`）
+  - 状態取得（`get_analysis_status`）
 - 解析モード（main）
   - 無限解析（`start_infinite_analysis`、go infinite）
   - 時間指定（`analyze_with_time`、go movetime）
@@ -129,7 +129,7 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
 - AI ライブラリ（エンジン置き場、`ai_library`）
   - ルート選択（`chooseAiRoot`、`AppConfig.ai_root`）、ディレクトリ確保（`ensure_engines_dir`）、スキャン（`scan_ai_root`）
   - セットアップガイド（`AiLibraryTab` / `SetupGuide`、Step1–4：ルート選択→engine 作成→配置→アセット配置）
-- エンジン設定の適用 / 取得（`apply_engine_settings` / `get_engine_settings`）
+- エンジン設定の適用（起動のたびに `start_analysis_engine` へ `setoption` の並びとして渡す）
 
 ---
 
@@ -154,15 +154,15 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
 
 ## 付録 A：Tauri コマンド一覧（バックエンド正典 `lib.rs`）
 
-| 分類          | コマンド                                                                                                                                                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 設定          | load_config / save_config                                                                                                                                                                                                                                           |
-| ファイル      | get_file_tree / create_kifu_file / save_kifu_file / read_file / import_kifu_file / delete_file / rename_kifu_file / mv_kifu_file / create_directory / delete_directory / rename_directory / mv_directory                                                            |
-| 棋譜変換      | convert_jkf_to_format / normalize_jkf / write_kifu_to_file                                                                                                                                                                                                          |
-| エンジン      | initialize_engine / shutdown_engine / set_position / start_infinite_analysis / analyze_with_time / analyze_with_depth / stop_analysis / get_analysis_result / get_last_result / get_analysis_status / get_engine_info / apply_engine_settings / get_engine_settings |
-| プリセット/AI | load_presets / save_presets / ensure_engines_dir / scan_ai_root                                                                                                                                                                                                     |
-| 横断検索      | open_project / search_position / cancel_search                                                                                                                                                                                                                      |
-| 局面ストック  | load_study_positions / save_study_positions                                                                                                                                                                                                                         |
+| 分類          | コマンド                                                                                                                                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 設定          | load_config / save_config                                                                                                                                                                                |
+| ファイル      | get_file_tree / create_kifu_file / save_kifu_file / read_file / import_kifu_file / delete_file / rename_kifu_file / mv_kifu_file / create_directory / delete_directory / rename_directory / mv_directory |
+| 棋譜変換      | convert_jkf_to_format / normalize_jkf / write_kifu_to_file                                                                                                                                               |
+| エンジン      | start_analysis_engine / shutdown_engine / set_position / start_infinite_analysis / analyze_with_time / analyze_with_depth / stop_analysis / get_analysis_result / get_last_result / get_analysis_status  |
+| プリセット/AI | load_presets / save_presets / ensure_engines_dir / scan_ai_root                                                                                                                                          |
+| 横断検索      | open_project / search_position / cancel_search                                                                                                                                                           |
+| 局面ストック  | load_study_positions / save_study_positions                                                                                                                                                              |
 
 ---
 

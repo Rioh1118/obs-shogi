@@ -7,7 +7,7 @@
 //! ここがやるのは `AppState` から持ち物を取り出して渡すことだけ。
 //! **判断を書かない**——書くと、同じ判断が `EngineBridge` 側にもできる。
 
-use crate::engine::analyzer::DepthOutcome;
+use crate::engine::analyzer::{DepthOutcome, Request};
 use crate::engine::state::AppState;
 use crate::engine::types::*;
 
@@ -20,16 +20,20 @@ pub async fn start_analysis_engine(
     engine_path: String,
     working_dir: Option<String>,
     options: Vec<SetOptionValue>,
+    request: Request,
 ) -> Result<EngineInfo, StartFailure> {
     state
         .bridge
-        .start_analysis_engine_impl(engine_path, working_dir, options)
+        .start_analysis_engine_impl(engine_path, working_dir, options, request)
         .await
 }
 
 #[tauri::command]
-pub async fn shutdown_engine(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    state.bridge.shutdown_engine_impl().await
+pub async fn shutdown_engine(
+    state: tauri::State<'_, AppState>,
+    request: Request,
+) -> Result<(), String> {
+    state.bridge.shutdown_engine_impl(request).await
 }
 
 #[tauri::command]

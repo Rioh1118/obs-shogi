@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { ENGINE_FAILURE_NOTICES } from "./engineFailureNotice";
+import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "./engineStartFailureNotice";
 
 /**
  * 引っ込めるための取っ手。**帯は条件（`phase === "error"`）と結び付いている**ので、
@@ -11,11 +11,14 @@ import { ENGINE_FAILURE_NOTICES } from "./engineFailureNotice";
  * **畳む鍵（`dedupeKey`）ではない。** この帯は条件から出ていて2枚目が積まれようが
  * ないので、畳む鍵にすると「1件」が出たまま動かない（`Notification.count`）。
  */
-const ENGINE_INIT_FAILURE = "engine-init-failure";
+const ENGINE_START_FAILURE = "engine-start-failure";
+
+/** 起動に時間が掛かっている帯の取っ手。起動中の段を抜けたら引っ込める */
+const ENGINE_SLOW_START = "engine-slow-start";
 
 /**
- * エンジンを起動できなかったことを利用者へ届ける
- * （`failure-surfacing.md` の F-9 / ADR-0004 の割り当ては `danger` の帯）。
+ * エンジンを起動できなかったこと、起動に時間が掛かっていることを利用者へ届ける
+ * （`failure-surfacing.md` の F-9。帯の段は種類ごと。`ENGINE_START_FAILURE_NOTICES`）。
  *
  * **エンジンの失敗を描く UI はここだけ。** ここが黙ると、失敗しても画面は
  * 「解析を始められない」だけになり、理由も次の一手もどこにも出ない
@@ -23,18 +26,14 @@ const ENGINE_INIT_FAILURE = "engine-init-failure";
  * 帯にするのは、エンジンが要る画面（解析ペイン）と直せる画面（設定）が
  * 別なので、**どちらを開いていても届く必要がある**ため。
  *
- * **見ているのは `phase` と失敗の種類（`state.error.kind`）。** 文言は種類ごとの表
- * （`ENGINE_FAILURE_NOTICES`）から組む。`state.error.message` はエンジンの出力を含み
- * 利用者の言葉ではないので、画面に出さずログへ回す。
+ * **見ているのは `phase` と失敗の種類（`state.error.kind`）。** 段・本文・「もう一度起動」を
+ * 出すかは種類ごとの表（`ENGINE_START_FAILURE_NOTICES`。決め方はその doc）から組む。
+ * `state.error.message` はエンジンの出力を含み利用者の言葉ではないので、画面に出さずログへ回す。
  * 状態としてのエラーを描かずに通知へ回すのは ADR-0004 決定6——
  * 帯を閉じてもエンジンが起動していないことは変わらない。
- *
- * **段は種類で決まる。** 同じ設定では直る見込みが無い種類は `danger`（`provider.tsx` も
- * 同じ runtime では再トライしない）。同じ設定のまま直る見込みがある種類だけ `warning` で、
- * 「もう一度起動」を並べる。
  */
 export function EngineFailureBridge() {
-  const { state, initialize } = useEngine();
+  const { state, initialize, cancelStart } = useEngine();
   const { notify, dismissByKey } = useNotify();
   const { openModal } = useURLParams();
 
@@ -45,18 +44,52 @@ export function EngineFailureBridge() {
   useEffect(() => {
     openSettings.current = openModal;
   }, [openModal]);
-  // `initialize` も同じ理由で掴み直す（設定が変わるたびに別物になる）
+  // `initialize` は `desiredRuntime` が変わるたびに別物になる。下の effect の依存に入れると、
+  // 設定を触るたびに cleanup → `notify` が走り、閉じた帯が出し直される。押したときに最新を掴む
   const startAgain = useRef(initialize);
   useEffect(() => {
     startAgain.current = initialize;
   }, [initialize]);
+  const stopStarting = useRef(cancelStart);
+  useEffect(() => {
+    stopStarting.current = cancelStart;
+  }, [cancelStart]);
 
   const { phase, error } = state;
+
+  // 起動中が長引いたら、止める口を出す。段を抜けたら（起動できた・失敗した・止めた）引っ込める
+  useEffect(() => {
+    if (phase !== "initializing") return;
+    const timer = setTimeout(() => {
+      notify({
+        tier: "warning",
+        presentation: "banner",
+        dismissKey: ENGINE_SLOW_START,
+        title: "エンジンの準備に時間が掛かっています",
+        body:
+          "評価関数の読み込みに時間が掛かるエンジンでは、このまま待てば使えるようになります。" +
+          "止めるときは「起動をやめる」を押してください。",
+        actions: [
+          { label: "起動をやめる", run: () => stopStarting.current() },
+          {
+            label: "設定を開く",
+            run: () => openSettings.current("settings", { tab: "engine" }),
+            failureBody:
+              "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
+          },
+        ],
+      });
+    }, SLOW_START_MS);
+    return () => {
+      clearTimeout(timer);
+      dismissByKey(ENGINE_SLOW_START);
+    };
+  }, [phase, notify, dismissByKey]);
 
   useEffect(() => {
     if (phase !== "error") return;
     const kind = error?.kind ?? "unknown";
-    const notice = ENGINE_FAILURE_NOTICES[kind];
+    const notice = ENGINE_START_FAILURE_NOTICES[kind];
 
     // **画面には利用者の言葉、原因はログ**（`Notice` の `invoke` と同じ分け方）。
     // 配布ビルドの記録は Rust 側が持つ（`bridge.rs` が `tauri-plugin-log` へ書く）ので、
@@ -77,7 +110,7 @@ export function EngineFailureBridge() {
       // **帯はヘッダを覆う**ので、閉じる以外にやることが無い帯は出せない
       //（`NotificationLayer.scss`）。「設定を開く」は全種類に付ける
       presentation: "banner",
-      dismissKey: ENGINE_INIT_FAILURE,
+      dismissKey: ENGINE_START_FAILURE,
       title: "エンジンを起動できませんでした",
       body: notice.body,
       actions: notice.retry
@@ -103,7 +136,7 @@ export function EngineFailureBridge() {
     // TODO(#533): `idle` へ落ちた回（設定を外した／プリセットを消した）は、
     // エンジンが止まったまま画面から断りが消える。差し替える断りを決めるまで、
     // 引っ込め方は変えない
-    return () => dismissByKey(ENGINE_INIT_FAILURE);
+    return () => dismissByKey(ENGINE_START_FAILURE);
   }, [phase, error, notify, dismissByKey]);
 
   return null;

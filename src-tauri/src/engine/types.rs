@@ -93,12 +93,13 @@ pub enum StartFailureKind {
     TimedOut,
     /// 送る前に断った `setoption`（件数・長さ・行を壊す文字。`setup::validate_options`）
     InvalidValue,
-    /// こちらが止めた（起動中に別の設定へ切り替えた、など）。失敗として見せない
+    /// こちらが止めた（起動中に別の設定へ切り替えた、利用者が起動をやめた）。フロントは
+    /// 自分が別の要求で止めた回を世代で捨てるので、帯に届くのは利用者がやめた回だけ
     Cancelled,
     Other,
 }
 
-/// エンジンを起動できなかったこと。`message` はログと詳細の欄に使う
+/// エンジンを起動できなかったこと。`message` はログにだけ使う（画面の文言は `kind` から組む）
 /// （エンジンの出力を含むことがある。長さと制御文字は落としてある）
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]

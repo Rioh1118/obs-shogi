@@ -216,7 +216,18 @@ pub struct EngineAnalyzer {
 struct Startup {
     generation: u64,
     cancel: Option<CancellationToken>,
+    /// これまでに受けた起動・停止の要求のうち最も新しい番号（`Request`）
+    latest_request: Request,
 }
+
+/// フロントが起動・停止を撃つたびに上げる番号（`provider.tsx` の `seqRef`）。
+///
+/// **順序の出典はフロントの1箇所にする。** Tauri の async コマンドは別々のタスクで走り、
+/// `startup` のロックに着く前に別の `await` を挟む（`bridge.rs` の `release_sessions` /
+/// `stop_all_sessions`）。後から撃った要求が先にロックを取ると、Rust の世代の順が逆転し、
+/// フロントが捨てた古い起動が `engine_id` に載って、新しい要求のほうが取り消される。
+/// 番号が最新より古い要求は、何もせずに断る
+pub type Request = u64;
 
 #[derive(Debug, Clone, Default)]
 struct AnalyzerState {
@@ -258,16 +269,29 @@ impl EngineAnalyzer {
     /// プロセスも落として `Cancelled` で返る。`readyok` を待つ上限は置かない（DNN 系の初回の
     /// 読み込みに上限を置けない）——止める口はこの取り消しで担保する。
     ///
-    /// **値だけで断れる設定は、前のエンジンに触る前に断る**（`setup::validate_options`）。
-    /// 起こしてから断ると、動いていたエンジンを落とした後に何も残らない。
+    /// 値だけで断れる設定（`setup::validate_options`）は、プロセスを起こす前に断る。
+    /// **前の起動と起動済みのエンジンは、断る回も落とす**——起動の要求は「いまの設定で
+    /// 動かす」なので、断った設定の前のエンジンを残すと、フロントの失敗と並んで動き続ける。
+    /// `request` が既に受けた要求より古ければ、何もせずに `Cancelled`（`Request`）。
     pub async fn start_engine(
         &self,
         engine_path: &str,
         working_dir: Option<&str>,
         options: &[SetOptionValue],
+        request: Request,
     ) -> Result<EngineInfo, EngineError> {
-        setup::validate_options(options)?;
-        let (generation, cancel) = self.begin_start().await;
+        let Some((generation, cancel)) = self.begin_start(request).await else {
+            return Err(superseded_request());
+        };
+        // **前の起動を取り消してから断る。** 利用者は既に別の設定へ移っている。
+        // 断るだけにすると、前の起動が進んで `engine_id` に載り、フロントの失敗と並ぶ
+        if let Err(e) = setup::validate_options(options) {
+            let mut startup = self.startup.lock().await;
+            if startup.generation == generation {
+                startup.cancel = None;
+            }
+            return Err(e);
+        }
 
         let started = self
             .start_engine_steps(engine_path, working_dir, options, &cancel)
@@ -286,10 +310,15 @@ impl EngineAnalyzer {
         self.publish(generation, process).await
     }
 
-    /// 世代を上げ、進行中の起動を取り消し、起動済みのエンジンを落とす
-    async fn begin_start(&self) -> (u64, CancellationToken) {
+    /// 世代を上げ、進行中の起動を取り消し、起動済みのエンジンを落とす。
+    /// `request` が既に受けた要求より古ければ何もせず `None`
+    async fn begin_start(&self, request: Request) -> Option<(u64, CancellationToken)> {
         let (generation, cancel, previous) = {
             let mut startup = self.startup.lock().await;
+            if request < startup.latest_request {
+                return None;
+            }
+            startup.latest_request = request;
             startup.generation += 1;
             if let Some(previous) = startup.cancel.take() {
                 previous.cancel();
@@ -305,7 +334,7 @@ impl EngineAnalyzer {
         if let Some(previous) = previous {
             self.registry.shutdown(&previous).await;
         }
-        (generation, cancel)
+        Some((generation, cancel))
     }
 
     /// 起こして設定を送り、`usinewgame` まで通す。失敗したら起こしたプロセスを落とす
@@ -382,20 +411,34 @@ impl EngineAnalyzer {
         Ok(process.protocol())
     }
 
-    pub async fn shutdown(&self) -> Result<(), EngineError> {
-        // 起動中のものも止める。世代を上げるので、後から終わった起動は `engine_id` へ書かない
-        {
+    /// 解析用のエンジンを落とす。起動中のものも止める。
+    ///
+    /// `request` が既に受けた要求より古ければ何もしない——後から撃たれた起動を落とさない。
+    /// 世代を上げるので、後から終わった起動は `engine_id` へ書かない
+    pub async fn shutdown(&self, request: Request) -> Result<(), EngineError> {
+        let id = {
             let mut startup = self.startup.lock().await;
+            if request < startup.latest_request {
+                log::debug!(target: LOGT, "shutdown: superseded by a newer request");
+                return Ok(());
+            }
+            startup.latest_request = request;
             startup.generation += 1;
             if let Some(cancel) = startup.cancel.take() {
                 cancel.cancel();
             }
-        }
-        let id = self.engine_id.write().await.take();
+            self.engine_id.write().await.take()
+        };
         if let Some(id) = id {
             self.registry.shutdown(&id).await;
         }
         Ok(())
+    }
+
+    /// `request` が既に受けた要求より古いか（読むだけ。確定は `start_engine` / `shutdown` が
+    /// 同じロックの下で決める）
+    pub async fn is_superseded(&self, request: Request) -> bool {
+        request < self.startup.lock().await.latest_request
     }
 
     /// 局面を設定
@@ -918,6 +961,11 @@ impl Clone for EngineAnalyzer {
     }
 }
 
+/// 要求が、既に受けたより新しい要求に追い越されていた（`Request`）
+fn superseded_request() -> EngineError {
+    EngineError::Cancelled("a newer request was already received".to_string())
+}
+
 /// 起動が取り消されたこと（`shutdown` か、より新しい起動が来た）
 fn cancelled_start() -> EngineError {
     EngineError::Cancelled("the engine start was cancelled".to_string())
@@ -1180,13 +1228,13 @@ done"#;
             let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
 
             let info = analyzer
-                .start_engine(engine(&path), None, &[])
+                .start_engine(engine(&path), None, &[], 1)
                 .await
                 .expect("起動できる");
             assert_eq!(info.name, "Ready");
             assert!(analyzer.protocol().await.is_ok(), "解析の口に載っていない");
 
-            analyzer.shutdown().await.expect("落とせる");
+            analyzer.shutdown(8).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());
             let _ = std::fs::remove_dir_all(&dir);
         }
@@ -1202,11 +1250,13 @@ done"#;
             let starting = {
                 let analyzer = Arc::clone(&analyzer);
                 let path = path.clone();
-                tokio::spawn(async move { analyzer.start_engine(engine(&path), None, &[]).await })
+                tokio::spawn(
+                    async move { analyzer.start_engine(engine(&path), None, &[], 2).await },
+                )
             };
             // 握手を終えて `readyok` を待つところまで進める
             wait_until(|| async { !registry.ids().await.is_empty() }).await;
-            analyzer.shutdown().await.expect("止められる");
+            analyzer.shutdown(9).await.expect("止められる");
 
             let result = tokio::time::timeout(Duration::from_secs(10), starting)
                 .await
@@ -1238,12 +1288,14 @@ done"#;
 
             let first = {
                 let analyzer = Arc::clone(&analyzer);
-                tokio::spawn(async move { analyzer.start_engine(engine(&silent), None, &[]).await })
+                tokio::spawn(
+                    async move { analyzer.start_engine(engine(&silent), None, &[], 3).await },
+                )
             };
             wait_until(|| async { !registry.ids().await.is_empty() }).await;
 
             let info = analyzer
-                .start_engine(engine(&ready), None, &[])
+                .start_engine(engine(&ready), None, &[], 4)
                 .await
                 .expect("後の起動は通る");
             assert_eq!(info.name, "Ready");
@@ -1260,7 +1312,7 @@ done"#;
             assert_eq!(ids.len(), 1, "残っているプロセスが1本でない: {ids:?}");
             assert_eq!(analyzer.engine_id.read().await.as_ref(), ids.first());
 
-            analyzer.shutdown().await.expect("落とせる");
+            analyzer.shutdown(10).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
         }
 
@@ -1283,7 +1335,9 @@ done"#;
             let starting = {
                 let analyzer = Arc::clone(&analyzer);
                 let path = path.clone();
-                tokio::spawn(async move { analyzer.start_engine(engine(&path), None, &[]).await })
+                tokio::spawn(
+                    async move { analyzer.start_engine(engine(&path), None, &[], 5).await },
+                )
             };
             let saw_usi = dir.join("saw-usi");
             wait_until(|| {
@@ -1291,7 +1345,7 @@ done"#;
                 async move { saw_usi.exists() }
             })
             .await;
-            analyzer.shutdown().await.expect("止められる");
+            analyzer.shutdown(11).await.expect("止められる");
 
             assert!(
                 Duration::from_secs(10) < USI_OK_TIMEOUT,
@@ -1312,36 +1366,83 @@ done"#;
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// 送れない値は、動いているエンジンに触る前に断る
+        /// 送れない値の起動も、前の起動を取り消してから断る。利用者は既に別の設定へ移っており、
+        /// 断るだけだと前の起動が `engine_id` に載って、フロントの失敗と並んで動き続ける
         #[tokio::test]
-        async fn an_unsendable_option_leaves_the_running_engine_alone() {
+        async fn an_unsendable_option_still_replaces_the_start_in_flight() {
             let dir = test_support::dir::temp_dir("analyzer-start-invalid");
-            let path = place(&dir, "ready.sh", READY).await;
+            let path = place(&dir, "silent.sh", NEVER_READY).await;
             let registry = Arc::new(EngineRegistry::new());
-            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
-            analyzer
-                .start_engine(engine(&path), None, &[])
-                .await
-                .expect("起動できる");
-            let before = registry.ids().await;
+            let analyzer = Arc::new(EngineAnalyzer::new(Arc::clone(&registry)));
+
+            let first = {
+                let analyzer = Arc::clone(&analyzer);
+                let path = path.clone();
+                tokio::spawn(
+                    async move { analyzer.start_engine(engine(&path), None, &[], 1).await },
+                )
+            };
+            wait_until(|| async { !registry.ids().await.is_empty() }).await;
 
             let broken = SetOptionValue {
                 name: "EvalDir".to_string(),
                 value: "/eval\nquit".to_string(),
             };
             let error = analyzer
-                .start_engine(engine(&path), None, &[broken])
+                .start_engine(engine(&path), None, &[broken], 2)
                 .await
                 .expect_err("改行を含む値を通している");
             assert!(matches!(error, EngineError::InvalidState(_)), "{error}");
+
+            let first = tokio::time::timeout(Duration::from_secs(10), first)
+                .await
+                .expect("前の起動の待ちが解けない")
+                .expect("タスク");
+            assert!(
+                matches!(first, Err(EngineError::Cancelled(_))),
+                "前の起動が取り消されていない: {first:?}"
+            );
+            assert!(registry.ids().await.is_empty(), "前の起動が残っている");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 既に受けた要求より古い起動は、何もせずに断る（`Request`）。Rust に着く順が
+        /// 撃った順と逆になっても、フロントが捨てた古い起動が動いているエンジンを落とさない
+        #[tokio::test]
+        async fn an_older_start_request_does_not_replace_a_newer_one() {
+            let dir = test_support::dir::temp_dir("analyzer-start-stale");
+            let path = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            analyzer
+                .start_engine(engine(&path), None, &[], 5)
+                .await
+                .expect("起動できる");
+            let before = registry.ids().await;
+
+            let stale = analyzer.start_engine(engine(&path), None, &[], 3).await;
+            assert!(
+                matches!(stale, Err(EngineError::Cancelled(_))),
+                "古い要求が通っている: {stale:?}"
+            );
             assert_eq!(
                 registry.ids().await,
                 before,
-                "断る前に前のエンジンを落としている"
+                "古い要求が動いているエンジンを入れ替えた"
+            );
+
+            // 古い停止も効かない
+            analyzer.shutdown(4).await.expect("断るだけ");
+            assert_eq!(
+                registry.ids().await,
+                before,
+                "古い停止が動いているエンジンを落とした"
             );
             assert!(analyzer.protocol().await.is_ok(), "解析の口から外れている");
 
-            analyzer.shutdown().await.expect("落とせる");
+            analyzer.shutdown(6).await.expect("落とせる");
+            assert!(registry.ids().await.is_empty());
             let _ = std::fs::remove_dir_all(&dir);
         }
 

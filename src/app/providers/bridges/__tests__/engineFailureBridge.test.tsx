@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 
-import type { EngineFailure, EngineFailureKind, EnginePhase } from "@/entities/engine";
+import type { EngineStartFailure, EngineStartFailureKind, EnginePhase } from "@/entities/engine";
+import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "../engineStartFailureNotice";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
 import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
 
@@ -15,13 +16,18 @@ import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
  */
 
 const initialize = vi.fn<() => Promise<boolean>>();
+const cancelStart = vi.fn<() => void>();
 const engine = {
-  state: { phase: "idle" as EnginePhase, error: null as EngineFailure | null },
+  state: { phase: "idle" as EnginePhase, error: null as EngineStartFailure | null },
   initialize: () => initialize(),
+  cancelStart: () => cancelStart(),
 };
 
 /** 失敗の値。**種類だけが文言を決める**ので、理由の文字列は何でもよい */
-const failure = (kind: EngineFailureKind, message = "boom"): EngineFailure => ({ kind, message });
+const failure = (kind: EngineStartFailureKind, message = "boom"): EngineStartFailure => ({
+  kind,
+  message,
+});
 
 const notify = vi.fn<(request: NotifyRequest) => void>();
 const dismissByKey = vi.fn<(key: string) => void>();
@@ -56,7 +62,14 @@ function shown(at = 0) {
   return req;
 }
 
-async function mountWith(phase: EnginePhase, error: EngineFailure | null = null) {
+/** 帯の動作を名前で引く。並びに頼ると「もう一度起動」の有無で指す先がずれる */
+function action(label: string, at = 0) {
+  const found = (shown(at).actions ?? []).find((a) => a.label === label);
+  if (!found) throw new Error(`「${label}」が無い`);
+  return found;
+}
+
+async function mountWith(phase: EnginePhase, error: EngineStartFailure | null = null) {
   engine.state = { phase, error };
 
   let view!: ReturnType<typeof render>;
@@ -72,7 +85,7 @@ async function mountWith(phase: EnginePhase, error: EngineFailure | null = null)
 
   return Object.assign(
     /** エンジンの段が動いた、を実物と同じ順序で起こす */
-    async (next: EnginePhase, nextError: EngineFailure | null = null) => {
+    async (next: EnginePhase, nextError: EngineStartFailure | null = null) => {
       engine.state = { phase: next, error: nextError };
       await draw();
     },
@@ -90,6 +103,7 @@ beforeEach(() => {
   dismissByKey.mockClear();
   initialize.mockReset();
   initialize.mockResolvedValue(true);
+  cancelStart.mockReset();
   openModal = vi.fn<OpenModal>();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -104,7 +118,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * 設定タブを開いていなくても分かること（#171 の受入条件）。
    * **帯**なのは ADR-0004 の割り当てで、解析ペインを開いていない利用者にも届く。
    */
-  test("失敗したら danger の帯を出す", async () => {
+  test("種類が分からない失敗は danger の帯を出す", async () => {
     await mountWith("error", failure("unknown", "Engine initialization failed: no such file"));
 
     expect(notify).toHaveBeenCalledTimes(1);
@@ -119,11 +133,8 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   test("設定へ送る動作を必ず持たせる", async () => {
     await mountWith("error", failure("unknown"));
 
-    const actions = shown().actions ?? [];
-    expect(actions).toHaveLength(1);
-
     await act(async () => {
-      await actions[0].run();
+      await action("設定を開く").run();
     });
     // プリセットを直す場所まで開く。タブを指さないと、押した先で
     // ワークスペースの設定が出る（`SettingsPanel` の既定）
@@ -131,24 +142,19 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   });
 
   /**
-   * **同じ設定のままの再試行を勧めない**（#171 の受入条件）。
-   * 押しても何も起きないので（同じ runtime では再トライしない）、
-   * 書けるのは「設定を直せば自動で起動し直す」まで。
+   * 種類が分からない失敗（`unknown` / `other`）は、**直した場所ごとに起動し直す経路を書く**。
+   * 設定を直した回は自動で起動し直すが、ファイルや権限を直した回は設定が変わらないので、
+   * 「もう一度起動」を押す場所を書かないと行き止まりになる
    */
-  test("本文は設定を直す道だけを案内する", async () => {
+  test("種類が分からない失敗は、直した場所ごとの起動し直し方を書く", async () => {
     await mountWith("error", failure("unknown"));
 
-    expect(shown().body).toContain("設定を直せば自動で");
-    expect(shown().body).not.toContain("再試行");
+    expect(shown().body).toContain("設定を直したときは自動で");
+    expect(shown().body).toContain("「もう一度起動」");
   });
 
-  /**
-   * **設定を直しても直らない失敗がある**（実行権限が無い、応答しないボリューム）。
-   * その回に案内が「設定を確かめてください」で終わっていると、確かめ終えた利用者に
-   * 次の一手が残らない——同じ設定では自動でも手動でも起動し直さないので、
-   * アプリを再起動する以外に道が無い。
-   */
-  test("設定に原因が無かった回の一手も書く", async () => {
+  /** それでも起動しない回の最後の一手（種類が分からない失敗） */
+  test("種類が分からない失敗は、最後の一手も書く", async () => {
     await mountWith("error", failure("unknown"));
 
     expect(shown().body).toContain("アプリを再起動");
@@ -250,7 +256,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
     await move.redraw();
 
     await act(async () => {
-      await (shown().actions ?? [])[0].run();
+      await action("設定を開く").run();
     });
 
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "engine" });
@@ -258,34 +264,51 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   });
 
   /**
-   * **同じ設定のまま直る見込みがある種類にだけ「もう一度起動」を出す**（ADR-0004 の F-9）。
-   * 原因が設定にある種類に出すと、押しても同じ結果になり、利用者は押し続ける。
+   * 種類ごとの段と「もう一度起動」。**2つは別の軸**（`ENGINE_START_FAILURE_NOTICES` の doc）——
+   * `quarantined` は `danger` なのに「もう一度起動」を出す。段から再試行を導く形に畳むと、
+   * macOS で許可した後に押すボタンが消え、同じ設定なので自動でも起動しない
    */
-  test.each<[EngineFailureKind, boolean]>([
-    ["spawnFailed", false],
-    ["notUsi", false],
-    ["exitedEarly", false],
-    ["invalidValue", false],
-    ["other", false],
-    ["unknown", false],
-    ["quarantined", true],
-    ["timedOut", true],
-    ["cancelled", true],
-  ])("%s に「もう一度起動」を出すか: %s", async (kind, retry) => {
+  test.each<[EngineStartFailureKind, "warning" | "danger", boolean]>([
+    ["spawnFailed", "danger", true],
+    ["quarantined", "danger", true],
+    ["notUsi", "danger", true],
+    ["exitedEarly", "danger", true],
+    ["timedOut", "warning", true],
+    ["invalidValue", "danger", false],
+    ["cancelled", "warning", true],
+    ["other", "danger", true],
+    ["unknown", "danger", true],
+  ])("%s は %s の帯で、「もう一度起動」を出すか: %s", async (kind, tier, retry) => {
     await mountWith("error", failure(kind));
 
-    const labels = (shown().actions ?? []).map((action) => action.label);
+    const labels = (shown().actions ?? []).map((a) => a.label);
+    expect(shown().tier).toBe(tier);
     expect(labels.includes("もう一度起動")).toBe(retry);
     expect(labels).toContain("設定を開く");
+  });
+
+  /**
+   * **行き止まりの帯を作らない。** 「もう一度起動」を出さない種類は、設定を直すしか道が無く、
+   * 直せば自動で起動し直す種類でなければならない（本文がそれを言う）。原因が設定の外にも
+   * ありうる種類で出さないと、ファイルや権限を直し終えた利用者に押す口が残らない
+   */
+  test("「もう一度起動」を出さない種類は、設定を直せば自動で起動し直すと言う", () => {
+    const withoutRetry = Object.entries(ENGINE_START_FAILURE_NOTICES).filter(
+      ([, notice]) => !notice.retry,
+    );
+
+    expect(withoutRetry.map(([kind]) => kind)).toEqual(["invalidValue"]);
+    for (const [, notice] of withoutRetry) {
+      expect(notice.body).toContain("設定を直せば自動でもう一度起動します");
+    }
   });
 
   /** 押したら、いまの設定で起動し直す（`useEngine().initialize`） */
   test("「もう一度起動」は起動し直す", async () => {
     await mountWith("error", failure("timedOut"));
 
-    const again = (shown().actions ?? []).find((action) => action.label === "もう一度起動");
     await act(async () => {
-      await again?.run();
+      await action("もう一度起動").run();
     });
 
     expect(initialize).toHaveBeenCalledTimes(1);
@@ -306,5 +329,54 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
     expect(quarantined).toContain("プライバシーとセキュリティ");
     expect(exited).toContain("評価関数");
     expect(quarantined).not.toBe(exited);
+  });
+});
+
+describe("起動に時間が掛かっていることを届ける", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /**
+   * **`readyok` の待ちに上限は無い。** 帯が無いと、答えないエンジンを選んだ回に起動中のまま
+   * 何も出ず、止める口もどこにも無い
+   */
+  test("起動中が長引いたら、止める口を持つ帯を出す", async () => {
+    await mountWith("initializing");
+    expect(notify).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(SLOW_START_MS);
+    });
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(shown().tier).toBe("warning");
+    await act(async () => {
+      await action("起動をやめる").run();
+    });
+    expect(cancelStart).toHaveBeenCalledTimes(1);
+  });
+
+  test("上限の前に起動できたら出さず、出した帯は段を抜けたら引っ込める", async () => {
+    const move = await mountWith("initializing");
+    await act(async () => {
+      vi.advanceTimersByTime(SLOW_START_MS - 1);
+    });
+    await move("ready");
+    await act(async () => {
+      vi.advanceTimersByTime(SLOW_START_MS);
+    });
+    expect(notify).not.toHaveBeenCalled();
+
+    const again = await mountWith("initializing");
+    await act(async () => {
+      vi.advanceTimersByTime(SLOW_START_MS);
+    });
+    const key = shown().dismissKey;
+    await again("ready");
+    expect(dismissByKey).toHaveBeenCalledWith(key);
   });
 });

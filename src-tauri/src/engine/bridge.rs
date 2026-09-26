@@ -1,6 +1,6 @@
 use crate::engine::utils::{shown, LogThrottle, EMIT_WARN_INTERVAL, MAX_SUMMARY_LEN};
 
-use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
+use super::analyzer::{DepthOutcome, EngineAnalyzer, Request, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;
@@ -146,19 +146,30 @@ impl EngineBridge {
     /// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ（`EngineAnalyzer::start_engine`）。
     ///
     /// 席は先に空ける（`release_sessions`）。失敗は種類に分けて返す
-    /// （`start_failure::describe`）。画面の文言は種類から組み、`message` は詳細の欄とログに使う。
+    /// （`start_failure::describe`）。画面の文言は種類から組み、`message` はログにだけ使う。
+    ///
+    /// `request` は順序の番号（`analyzer::Request`）。既に新しい要求を受けていれば、席にも
+    /// 触らずに `Cancelled` で返す
     pub async fn start_analysis_engine_impl(
         &self,
         engine_path: String,
         working_dir: Option<String>,
         options: Vec<SetOptionValue>,
+        request: Request,
     ) -> Result<EngineInfo, StartFailure> {
         log::info!(target: LOGT, "start_analysis_engine: start");
+        if self.analyzer.is_superseded(request).await {
+            log::info!(target: LOGT, "start_analysis_engine: superseded");
+            return Err(start_failure::classify(
+                &EngineError::Cancelled("a newer request was already received".to_string()),
+                false,
+            ));
+        }
         self.release_sessions("start_analysis_engine").await;
 
         let started = self
             .analyzer
-            .start_engine(&engine_path, working_dir.as_deref(), &options)
+            .start_engine(&engine_path, working_dir.as_deref(), &options, request)
             .await;
         match started {
             Ok(info) => {
@@ -211,8 +222,14 @@ impl EngineBridge {
         self.active_sessions.write().await.remove(session_id);
     }
 
-    pub async fn shutdown_engine_impl(&self) -> Result<(), String> {
+    /// 解析用のエンジンを落とす。`request` は順序の番号（`analyzer::Request`）で、既に新しい
+    /// 要求を受けていれば何もしない（後から撃たれた起動を落とさない）
+    pub async fn shutdown_engine_impl(&self, request: Request) -> Result<(), String> {
         log::info!(target: LOGT, "shutdown_engine: start");
+        if self.analyzer.is_superseded(request).await {
+            log::info!(target: LOGT, "shutdown_engine: superseded");
+            return Ok(());
+        }
 
         // **止められなくても席の掃除まで進む。** `?` で折れると
         // `engine_id` が `Some` のまま残り、以降どのコマンドも
@@ -224,7 +241,7 @@ impl EngineBridge {
             );
         }
 
-        match self.analyzer.shutdown().await {
+        match self.analyzer.shutdown(request).await {
             Ok(_) => {
                 log::info!(target: LOGT, "shutdown_engine: ok");
                 Ok(())
@@ -703,7 +720,7 @@ mod tests {
 
         // 起動そのものは落ちる（実行ファイルが無い）。それでよい。
         let _ = bridge
-            .start_analysis_engine_impl("/nonexistent/engine".to_string(), None, vec![])
+            .start_analysis_engine_impl("/nonexistent/engine".to_string(), None, vec![], 1)
             .await;
 
         assert!(

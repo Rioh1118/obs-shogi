@@ -7,28 +7,40 @@ import type {
   SetOptionValue,
 } from "./rust-types";
 
-// ===== エンジン初期化・管理 =====
+// ===== エンジンの起動・停止 =====
+/**
+ * 起動・停止の要求の番号。**撃つたびに上げる**（`provider.tsx` の `seqRef`）。
+ *
+ * Rust は既に受けた番号より古い要求を何もせずに断る。Tauri のコマンドは別々のタスクで走るので、
+ * 撃った順と Rust に着く順が逆転しうる——番号が無いと、フロントが捨てた古い起動が動いている
+ * エンジンを落とし、新しい要求のほうが取り消される（`analyzer.rs` の `Request`）。
+ */
+export type EngineRequest = number;
+
 /**
  * 解析用のエンジンを起動し、`setoption` を**並べた順に**送って `readyok` まで待つ。
  *
- * 断るときは `StartFailure`（`asEngineFailure` で読む）。**`readyok` の待ちに上限は無い**
- * ——止める口は `shutdownEngine` と、次の `startAnalysisEngine`（Rust が前の起動を落とし、
- * 前の呼び出しは `cancelled` で断られる）。
+ * 断るときは `StartFailure`（`asStartFailure` で読む）。**`readyok` の待ちに上限は無い**
+ * ——止める口は、より新しい番号の `shutdownEngine` と `startAnalysisEngine`
+ * （Rust が起動中のプロセスを落とし、この呼び出しは `cancelled` で断られる）。
  */
 export async function startAnalysisEngine(
   enginePath: string,
   workDir: string,
   options: SetOptionValue[],
+  request: EngineRequest,
 ): Promise<EngineInfo> {
   return await invoke("start_analysis_engine", {
     enginePath,
     workingDir: workDir,
     options,
+    request,
   });
 }
 
-export async function shutdownEngine(): Promise<void> {
-  return await invoke("shutdown_engine");
+/** 解析用のエンジンを落とす。起動中のものも止める。既に新しい番号を受けていれば何もしない */
+export async function shutdownEngine(request: EngineRequest): Promise<void> {
+  return await invoke("shutdown_engine", { request });
 }
 
 // ===== 局面設定 =====

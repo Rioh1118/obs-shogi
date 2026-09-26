@@ -1,12 +1,11 @@
-import type { EngineInfo, SetOptionValue } from "../api/rust-types";
-import { startAnalysisEngine } from "../api/tauri";
+import type { SetOptionValue } from "../api/rust-types";
 import type { EngineRuntimeConfig } from "../model/types";
 
 /**
  * 起動した子へ送る `setoption` の全体。**並べた順に送られる**（`start_analysis_engine`）。
  *
- * **解析と対局で同じものを送る。** 対局は `start_game` に自分で並べて渡す形
- * （`PlayerSpec.options`）なので、合成をここへ出していないと**同じ規則が2箇所に生える**。
+ * **対局の面を戻すときも、ここを通すこと。** 対局は `start_game` に自分で並べて渡す形
+ * （`PlayerSpec.options`）なので、合成を別に書くと**同じ規則が2箇所に生える**。
  * 片方だけ `BookDir` を足すような食い違いは、**エンジンが起動してから**しか出ない。
  *
  * **順序に意味がある。** プリセットの値を先に置き、置き場（`EvalDir` / `BookDir` /
@@ -22,9 +21,4 @@ export function usiOptionsOf(config: EngineRuntimeConfig): SetOptionValue[] {
     ...(config.bookFile ? { BookFile: config.bookFile } : {}),
   };
   return Object.entries(merged).map(([name, value]) => ({ name, value }));
-}
-
-/** 設定を送って `readyok` まで通す。断るときは `StartFailure`（`asEngineFailure` で読む） */
-export async function startEngine(config: EngineRuntimeConfig): Promise<EngineInfo> {
-  return await startAnalysisEngine(config.enginePath, config.workDir, usiOptionsOf(config));
 }

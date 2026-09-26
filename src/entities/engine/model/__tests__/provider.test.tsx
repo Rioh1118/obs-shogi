@@ -8,19 +8,19 @@ import type { EngineContextType, EngineRuntimeConfig } from "../types";
 /**
  * 失敗（`engine.md` の S3）から抜ける道を固定する。
  *
- * **同じ設定のまま再トライしない**のは無限リトライを避けるためで、直すべき
- * 振る舞いではない（ADR-0004 の F-9 も「押しても直らない」側に置いている）。
+ * **同じ設定のまま自動では再トライしない**のは無限リトライを避けるためで、直すべき
+ * 振る舞いではない（同じ設定での起動し直しは、帯の「もう一度起動」を押した回だけ）。
  * ただしこれを落とすと、パスが無いまま毎フレーム起動しにいく形に戻る——
  * その形は画面からは「重い」としか見えないので、ここで止める。
  */
 
-const initialize = vi.fn<(runtime: EngineRuntimeConfig) => Promise<EngineInfo>>();
-const shutdown = vi.fn<() => Promise<void>>();
+const initialize = vi.fn<(runtime: EngineRuntimeConfig, request: number) => Promise<EngineInfo>>();
+const shutdown = vi.fn<(request: number) => Promise<void>>();
 
 vi.mock("@/entities/engine/api/initializer", () => ({
   engineInitializer: {
-    initialize: (runtime: EngineRuntimeConfig) => initialize(runtime),
-    shutdown: () => shutdown(),
+    initialize: (runtime: EngineRuntimeConfig, request: number) => initialize(runtime, request),
+    shutdown: (request: number) => shutdown(request),
   },
 }));
 
@@ -56,7 +56,7 @@ function mountWith(runtime: EngineRuntimeConfig) {
     return null;
   }
 
-  const app = (desired: EngineRuntimeConfig) => (
+  const app = (desired: EngineRuntimeConfig | null) => (
     <EngineProvider desiredRuntime={desired}>
       <Probe />
     </EngineProvider>
@@ -66,7 +66,7 @@ function mountWith(runtime: EngineRuntimeConfig) {
 
   return {
     /** 設定が入れ替わった、を実物と同じ順序で起こす */
-    async setRuntime(next: EngineRuntimeConfig) {
+    async setRuntime(next: EngineRuntimeConfig | null) {
       await act(async () => {
         view.rerender(app(next));
       });
@@ -76,6 +76,9 @@ function mountWith(runtime: EngineRuntimeConfig) {
     },
     get state() {
       return engine.state;
+    },
+    get engine() {
+      return engine;
     },
   };
 }
@@ -113,7 +116,7 @@ describe("EngineProvider の失敗からの復帰", () => {
   });
 
   /**
-   * 表の (S3, E3)。別の runtime。**復帰の唯一の入口。**
+   * 表の (S3, E3)。別の runtime。**自動で起動し直す唯一の入口**（手動は帯の「もう一度起動」）。
    *
    * 帯の「設定を開く」が連れて行く先はここで、設定を直せば自動で起動し直す。
    * これが落ちると、帯の本文（「設定を直せば自動でもう一度起動します」）が嘘になる
@@ -204,5 +207,92 @@ describe("EngineProvider の起動中の切り替え", () => {
 
     expect(app.phase).toBe("error");
     expect(app.state.error).toEqual({ kind: "exitedEarly", message: "engine exited" });
+  });
+});
+
+describe("EngineProvider の要求の順序", () => {
+  /**
+   * **撃った順の番号を Rust に渡す**（`startAnalysisEngine` の `request`）。Rust はより古い番号の
+   * 要求を断るので、番号は撃つたびに上がっていなければならない
+   */
+  test("起動と停止に、撃つたびに上がる番号を付ける", async () => {
+    initialize.mockResolvedValue(INFO);
+
+    const app = mountWith(RUNTIME);
+    await settle();
+    await app.setRuntime(null);
+    await settle();
+    await app.setRuntime({ ...sameValues(), enginePath: "/ai/engines/naoetsu" });
+    await settle();
+
+    const first = initialize.mock.calls[0][1];
+    const stop = shutdown.mock.calls[0][0];
+    const second = initialize.mock.calls[1][1];
+    expect(first).toBeLessThan(stop);
+    expect(stop).toBeLessThan(second);
+  });
+
+  /**
+   * 表の (S1, E2) の後に E1。**停止の往復の間に撃った起動を、停止の結果が `idle` で上書きしない。**
+   * 上書きすると effect の `idle` の枝が同じ設定でもう1回起動し、進行中の起動が捨てられる
+   * （読み込みの重いエンジンでは1回ぶんの読み込みがまるごと無駄になる）
+   */
+  test("停止の往復中に撃った起動を、停止の結果で撃ち直さない", async () => {
+    const first = deferred<EngineInfo>();
+    const stopping = deferred<void>();
+    const next = deferred<EngineInfo>();
+    initialize.mockReturnValueOnce(first.promise).mockReturnValueOnce(next.promise);
+    initialize.mockResolvedValue(INFO);
+    shutdown.mockReturnValueOnce(stopping.promise);
+
+    const app = mountWith(RUNTIME);
+    await settle();
+    await app.setRuntime(null);
+    await settle();
+    const b = { ...sameValues(), enginePath: "/ai/engines/naoetsu" };
+    await app.setRuntime(b);
+    await settle();
+    expect(initialize).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      stopping.resolve();
+    });
+    await settle();
+
+    expect(initialize).toHaveBeenCalledTimes(2);
+    expect(app.phase).toBe("initializing");
+    await act(async () => {
+      next.resolve(INFO);
+    });
+    expect(app.phase).toBe("ready");
+    expect(app.state.activeRuntime?.enginePath).toBe("/ai/engines/naoetsu");
+  });
+
+  /**
+   * 「起動をやめる」。**失敗（`cancelled`）として止まる**——`idle` に戻すと、設定が選ばれたままなので
+   * 同じ設定で起動し直す。止めた起動が遅れて返っても書かない
+   */
+  test("起動をやめたら、同じ設定では起動し直さずに止まる", async () => {
+    const first = deferred<EngineInfo>();
+    initialize.mockReturnValueOnce(first.promise);
+
+    const app = mountWith(RUNTIME);
+    await settle();
+    await act(async () => {
+      app.engine.cancelStart();
+    });
+    await settle();
+
+    expect(app.phase).toBe("error");
+    expect(app.state.error?.kind).toBe("cancelled");
+    expect(shutdown).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve(INFO);
+    });
+    await app.setRuntime(sameValues());
+    await settle();
+    expect(app.phase).toBe("error");
+    expect(initialize).toHaveBeenCalledTimes(1);
   });
 });

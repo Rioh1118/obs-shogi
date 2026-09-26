@@ -11,7 +11,7 @@ export type {
   EngineNotReadyReason,
   EngineReadiness,
 } from "./model/types";
-export type { EngineFailure, EngineFailureKind } from "./lib/engineFailure";
+export type { EngineStartFailure, EngineStartFailureKind } from "./lib/engineFailure";
 export type {
   EngineInfo,
   AnalysisResult,
