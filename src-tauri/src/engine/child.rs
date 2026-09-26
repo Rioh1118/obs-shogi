@@ -431,8 +431,9 @@ struct BoundedLine {
     truncated: bool,
 }
 
-/// 改行まで読む。`max` を超えた分は**読みながら捨てる**（読み切ってから切ると、
-/// 改行の無いストリームで確保が際限なく伸びる）。EOF で読めた分が無ければ `None`
+/// 改行まで読む。返す中身に改行は含めない。`max` を超えた分は**読みながら捨てる**
+/// （読み切ってから切ると、改行の無いストリームで確保が際限なく伸びる）。
+/// `max` が縛るのは中身だけで、改行は数えない。EOF で読めた分が無ければ `None`
 async fn read_bounded_line<R>(reader: &mut R, max: usize) -> std::io::Result<Option<BoundedLine>>
 where
     R: AsyncBufRead + Unpin,
@@ -446,20 +447,125 @@ where
             return Ok(read_any.then_some(BoundedLine { bytes, truncated }));
         }
         read_any = true;
-        let (chunk, found_newline) = match available.iter().position(|b| *b == b'\n') {
-            Some(i) => (&available[..=i], true),
+        let (content, found_newline) = match available.iter().position(|b| *b == b'\n') {
+            Some(i) => (&available[..i], true),
             None => (available, false),
         };
         let room = max.saturating_sub(bytes.len());
-        if chunk.len() > room {
+        if content.len() > room {
             truncated = true;
         }
-        bytes.extend_from_slice(&chunk[..chunk.len().min(room)]);
-        let used = chunk.len();
+        bytes.extend_from_slice(&content[..content.len().min(room)]);
+        let used = content.len() + usize::from(found_newline);
         reader.consume(used);
         if found_newline {
             return Ok(Some(BoundedLine { bytes, truncated }));
         }
+    }
+}
+
+/// 行の読み方を、プロセスを起こさずにバイト列で確かめる。**unix に限らない**
+/// （実プロセスのテストは `#!/bin/sh` の台本を使うので、unix でしか走らない）。
+///
+/// 読み口の容量を小さく取り、1行が `fill_buf` の何回かに分かれて届く形にする。
+#[cfg(test)]
+mod reading_tests {
+    use super::*;
+
+    /// `bytes` を、1回の `fill_buf` で `capacity` バイトずつ届く読み口にする
+    fn reader(bytes: &'static [u8], capacity: usize) -> BufReader<&'static [u8]> {
+        BufReader::with_capacity(capacity, bytes)
+    }
+
+    async fn lines(bytes: &'static [u8], capacity: usize, max: usize) -> Vec<(Vec<u8>, bool)> {
+        let mut reader = reader(bytes, capacity);
+        let mut found = Vec::new();
+        while let Some(line) = read_bounded_line(&mut reader, max)
+            .await
+            .expect("バイト列は読み切れる")
+        {
+            found.push((line.bytes, line.truncated));
+        }
+        found
+    }
+
+    /// 中身がちょうど `max` の行は切らない。改行は数えない
+    #[tokio::test]
+    async fn a_line_of_exactly_max_bytes_is_not_cut() {
+        assert_eq!(
+            lines(b"abcd\nnext\n", 3, 4).await,
+            [(b"abcd".to_vec(), false), (b"next".to_vec(), false)]
+        );
+    }
+
+    /// 超えた分は捨て、次の行へ混ぜない。切るのはバイトの位置なので、多バイト文字の
+    /// 途中でも切る（文字にするときに置き換え文字になる → `read_stdout`）
+    #[tokio::test]
+    async fn the_rest_of_a_cut_line_does_not_leak_into_the_next() {
+        assert_eq!(
+            lines(b"abcdef\nxy\n", 3, 4).await,
+            [(b"abcd".to_vec(), true), (b"xy".to_vec(), false)]
+        );
+        assert_eq!(
+            lines("あい\n".as_bytes(), 2, 4).await,
+            [(vec![0xE3, 0x81, 0x82, 0xE3], true)]
+        );
+    }
+
+    /// 1バイトずつ届いても行が割れない。改行の無い末尾も1行として返す
+    #[tokio::test]
+    async fn a_line_split_across_reads_and_a_last_line_without_a_newline() {
+        assert_eq!(
+            lines(b"ab\n\ncd", 1, 16).await,
+            [
+                (b"ab".to_vec(), false),
+                (Vec::new(), false),
+                (b"cd".to_vec(), false)
+            ]
+        );
+        assert!(lines(b"", 1, 16).await.is_empty());
+    }
+
+    /// stdout から読んだ件を、`Eof` まで集める
+    async fn events(bytes: &'static [u8], capacity: usize) -> Vec<ReadEvent> {
+        let recent = Arc::new(StdMutex::new(VecDeque::new()));
+        let mut found = Vec::new();
+        read_stdout(reader(bytes, capacity), recent, |event| {
+            found.push(event);
+            true
+        })
+        .await;
+        found
+    }
+
+    /// `\r\n` の行は `\r` を落として解く。UTF-8 でない行は置き換え文字にして渡し、
+    /// 読み取りを続ける。空行は捨てる
+    #[tokio::test]
+    async fn the_reader_goes_on_whatever_the_line_looks_like() {
+        let found = events(b"id name T\r\n\r\n\xff\xfe\nusiok\r\n", 2).await;
+        let raws: Vec<Option<&str>> = found
+            .iter()
+            .map(|event| match event {
+                ReadEvent::Line { raw, .. } => Some(raw.as_str()),
+                ReadEvent::Eof => None,
+            })
+            .collect();
+        assert_eq!(
+            raws,
+            [
+                Some("id name T"),
+                Some("\u{fffd}\u{fffd}"),
+                Some("usiok"),
+                None
+            ]
+        );
+        assert!(matches!(
+            found[2],
+            ReadEvent::Line {
+                parsed: Some(EngineCommand::UsiOk),
+                ..
+            }
+        ));
     }
 }
 
@@ -690,7 +796,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 書き込みが詰まって stdin のロックが取られていても、kill は返り、プロセスは落ちる
+    /// 書き込みが詰まって stdin のロックが取られていても、kill は返り、プロセスは落ちる。
+    ///
+    /// **`KILL_TIMEOUT` の2倍で打ち切る。** 打ち切らないと、kill が stdin のロックを待つ形に
+    /// 戻ったとき、台本の `sleep` が終わるまで30秒止まってから `AlreadyExited` で落ち、
+    /// 何を待っていたのかが出ない
     #[tokio::test]
     async fn kill_is_not_blocked_by_a_stuck_write() {
         let dir = temp_dir("child-stuck");
@@ -703,10 +813,10 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(!stuck.is_finished(), "詰まっていない（パイプが大きすぎる）");
 
-        assert!(matches!(
-            child.kill_and_wait(KILL_TIMEOUT).await,
-            KillOutcome::Ended(_)
-        ));
+        let killed = tokio::time::timeout(KILL_TIMEOUT * 2, child.kill_and_wait(KILL_TIMEOUT))
+            .await
+            .expect("書き込みが詰まったまま kill が返らない");
+        assert!(matches!(killed, KillOutcome::Ended(_)), "{killed:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
