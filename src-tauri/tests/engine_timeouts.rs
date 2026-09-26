@@ -7,10 +7,11 @@
 //! 同じ段の中で閉じる関係は `session.rs` の `the_watchdogs_are_ordered` にある。
 //! **散文で「どちらも同じ長さ」と書かない**——書くと、片方を動かしたときに何も落ちない。
 
+use app_lib::engine::child::KILL_TIMEOUT;
 use app_lib::engine::game::session::{
     CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
 };
-use app_lib::engine::protocol::{KILL_TIMEOUT, READY_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT};
+use app_lib::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT};
 use app_lib::engine::registry::SPAWN_TIMEOUT;
 
 use app_lib::{CLOSE_TIMEOUT, SWEEP_TIMEOUT};
@@ -61,9 +62,13 @@ fn the_close_budget_is_deliberately_short() {
 
 /// 掃除の予算が、1本を落とす上限より**長い**こと。
 ///
-/// `shutdown_all` は台帳に残った全部を落とす。1本ぶんの `kill` の上限
+/// `shutdown_all` は台帳に残った全部を1本ずつ順に落とす。1本ぶんの `kill` の上限
 /// （`KILL_TIMEOUT`）を下回ると、**1本も落とし切れないまま予算が尽きる**。
-/// そのときプロセスは残り、回収する仕掛けは無い（→ #353）。
+/// 予算が尽きると、順番が回ってこなかった後続には `kill` が1度も届かず、残る。
+///
+/// **見ているのは `kill` の段だけ。** 1本を落とす手順（`EngineRegistry::terminate`）は
+/// `quit` の書き込み（`WRITE_TIMEOUT`）→ 猶予 → `kill` の3段で、書き込みが詰まった
+/// エンジンでは3段の和がこの予算を超えうる。
 #[test]
 fn the_sweep_can_finish_at_least_one_kill() {
     assert!(

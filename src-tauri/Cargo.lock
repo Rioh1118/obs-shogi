@@ -85,6 +85,7 @@ dependencies = [
  "parking_lot",
  "rayon",
  "regex",
+ "rustix",
  "serde",
  "serde_json",
  "settings",
