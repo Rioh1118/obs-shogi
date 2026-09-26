@@ -1,14 +1,14 @@
 //! エンジンを落とした結果を捨てない。
 //!
-//! `usi` の `UsiEngineHandler::kill` はシグナルの前に `quit` を書き、その書き込みが
-//! `?` で返ると `process.kill()` へ進まない。**失敗した回はプロセスが残る。**
-//! 戻り値を `let _ =` で捨てると、残ったことを知る手掛かりが1本も無くなる——
-//! 落とし手はどの経路も1回きりで、`SPAWN_TIMEOUT` を超えた子に至っては
-//! どの台帳にも居ない（`registry.rs` の `starting` の doc、#381）。
+//! `EngineChild::kill` は落とすのを頼むだけで、既に頼んであった・既に終わっていた、
+//! も返す（`KillRequest`）。**頼めた回だけ、終わるのを見届ける必要がある。**
+//! 戻り値を `let _ =` で捨てると、見届けずに「落とした」と扱うことになり、
+//! 残ったことを知る手掛かりが1本も無くなる——落とし手はどの経路も1回きりで、
+//! `SPAWN_TIMEOUT` を超えた子に至ってはどの台帳にも居ない
+//! （`registry.rs` の `starting` の doc、#381）。
 //!
-//! **捨てた側は緑のまま。** `kill` を呼ぶ口は2つしかないので人が見て回れる、
-//! という前提が今まさに1件（`dispose_late_spawn`）を通した。数えるのではなく
-//! 0 で固定して、増やす側に説明を書かせる。
+//! **捨てた側は緑のまま**（`#[must_use]` は `let _ =` を止めない）。
+//! 数えるのではなく 0 で固定して、増やす側に説明を書かせる。
 //!
 //! 通すのは、**結果を読む**形だけ（`match` / `if let` / `?` / 束縛）。
 //! 記録しない判断をしたいなら、その理由をコメントではなくログに書くこと。
@@ -50,12 +50,12 @@ fn sources() -> Vec<PathBuf> {
         .collect()
 }
 
-/// `handler.kill()` を呼んでいる行か。
+/// `EngineChild::kill` を呼んでいる行か（`child.kill()` / `self.child.kill()`）。
 ///
-/// **`process.kill()` は対象外**——あれは `usi` crate の中の呼び出しで、
-/// こちらのソースには doc の中の綴りとしてしか出てこない。
+/// **`start_kill()` は対象外**——待ち手のタスクの中の OS への頼みで、
+/// 結果はそこでログに残している。
 fn calls_handler_kill(line: &str) -> bool {
-    line.contains("handler.kill()")
+    line.contains("child.kill()")
 }
 
 /// 戻り値を捨てている行か。
@@ -107,7 +107,7 @@ fn the_scanner_still_sees_the_kill_call_sites() {
 
     assert!(
         calls.len() >= 2,
-        "`handler.kill()` の呼び口を {} 件しか見つけられていない。\
+        "`child.kill()` の呼び口を {} 件しか見つけられていない。\
          綴りが変わったなら `calls_handler_kill` を直すこと",
         calls.len()
     );
@@ -118,14 +118,12 @@ fn the_scanner_still_sees_the_kill_call_sites() {
 /// **現物を食わせて違反0、では述語が壊れても緑になる。**
 #[test]
 fn the_predicates_split_reading_from_discarding() {
-    assert!(discards_result("        let _ = handler.kill();"));
-    assert!(!discards_result("        let outcome = handler.kill();"));
-    assert!(!discards_result("        if let Err(e) = handler.kill() {"));
-    assert!(!discards_result("        match handler.kill() {"));
+    assert!(discards_result("        let _ = self.child.kill();"));
+    assert!(!discards_result("        let request = child.kill();"));
+    assert!(!discards_result("        match self.child.kill() {"));
 
-    assert!(calls_handler_kill("let _ = handler.kill();"));
-    // `usi` crate の中の呼び出しを指す doc に当てない
-    assert!(!calls_handler_kill(
-        "/// `Drop` は `kill().unwrap()` を呼び、`kill` は先に `quit` を書く"
-    ));
+    assert!(calls_handler_kill("let _ = child.kill();"));
+    assert!(calls_handler_kill("match self.child.kill() {"));
+    // 待ち手の中の OS への頼みには当てない
+    assert!(!calls_handler_kill("if let Err(e) = child.start_kill() {"));
 }

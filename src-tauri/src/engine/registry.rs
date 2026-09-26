@@ -9,10 +9,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::RwLock;
-use usi::UsiEngineHandler;
 use uuid::Uuid;
 
-use crate::engine::protocol::UsiProtocol;
+use crate::engine::child::{self, EngineChild, KillRequest};
+use crate::engine::protocol::{UsiProtocol, KILL_TIMEOUT};
 use crate::engine::types::{EngineError, EngineInfo, TIMED_OUT};
 use crate::engine::utils::{shown, with_cause, MAX_SUMMARY_LEN};
 
@@ -28,7 +28,7 @@ const LOGT: &str = "obs_shogi::engine::registry";
 /// 解決しない（押しても何も起きず、ログにも何も出ない）。
 ///
 /// 超えてもブロッキングのスレッドは残る。`timeout` は `spawn_blocking` を
-/// 取り消せないので、そのぶんワーカが1本減ったままになる → #353 と同じ形。
+/// 取り消せないので、そのぶんワーカが1本減ったままになる。
 ///
 /// **超えた後の子プロセスはどの台帳にも居ない。** 唯一の参照は
 /// `dispose_late_spawn` のタスクで、`shutdown_all` はそれを見つけられない → #381。
@@ -122,7 +122,7 @@ impl EngineRegistry {
         info_timeout: Duration,
     ) -> Result<Arc<EngineProcess>, EngineError> {
         // **同期の口をまとめて専用スレッドへ出す。** `canonicalize` も
-        // `is_file` も `UsiEngineHandler::spawn`（`Command::spawn`）も同期の
+        // `is_file` も `child::spawn`（中の fork/exec）も同期の
         // システムコールで、`.await` を1つも挟まない。async のタスクの中で
         // 直に呼ぶと `poll` が返らず、同じスレッドに載っている他の対局の
         // `run_loop` / `tick_loop` / `run_writer` が進まない
@@ -170,12 +170,16 @@ impl EngineRegistry {
 
             log::info!(target: LOGT, "{}", spawn_start_line(&engine_path));
 
-            let handler = UsiEngineHandler::spawn(&engine_path, &work_dir).map_err(|e| {
+            let spawned = child::spawn(
+                std::path::Path::new(&engine_path),
+                std::path::Path::new(&work_dir),
+            )
+            .map_err(|e| {
                 let why = with_cause(&e);
                 log::error!(target: LOGT, "spawn: failed: {why}");
                 EngineError::StartupFailed(format!("Failed to spawn engine: {why}"))
             })?;
-            Ok((engine_path, work_dir, handler))
+            Ok((engine_path, work_dir, spawned))
         });
 
         // **上限を掛ける。** `spawn_blocking` は上限を効かせるための前提で、
@@ -185,9 +189,9 @@ impl EngineRegistry {
         // `start_game` の future が返らず、フロントの `invoke` は永久に解決しない。
         //
         // 超えてもブロッキングのスレッドは残る（`timeout` は取り消せない）。
-        // そのぶんワーカが1本減ったままになる → #353 と同じ形。
+        // そのぶんワーカが1本減ったままになる。
         let mut started = started;
-        let (engine_path, work_dir, handler) =
+        let (engine_path, work_dir, spawned) =
             match tokio::time::timeout(spawn_timeout, &mut started).await {
                 Ok(Ok(Ok(started))) => started,
                 Ok(Ok(Err(e))) => return Err(e),
@@ -199,13 +203,9 @@ impl EngineRegistry {
                 }
                 Err(_) => {
                     log::error!(target: LOGT, "spawn: timed out before the process started");
-                    // **待ち手を捨てない。** 捨てると、遅れて起き上がった
-                    // `UsiEngineHandler` をランタイムが drop する。`usi` crate の
-                    // `Drop` は `kill().unwrap()` を呼び、既に死んだプロセスへの
-                    // 書き込みは EPIPE で失敗するので**パニックする**——
-                    // このコードベースが `Option` + `mem::forget` で避けている唯一の形
-                    // （→ `UsiProtocol::kill_engine`）。
-                    // 起き上がるのを別のタスクで待って、同じ手順で畳む
+                    // **待ち手を捨てない。** 捨てても遅れて起き上がった子は
+                    // Drop で落ちるが、落とせたかがどこにも残らない。
+                    // 起き上がるのを別のタスクで待って、落とせたかを記録する
                     tokio::spawn(dispose_late_spawn(started));
                     return Err(EngineError::Timeout(format!(
                         "{TIMED_OUT} before the process started; check the path and the volume"
@@ -213,7 +213,7 @@ impl EngineRegistry {
                 }
             };
 
-        let protocol = Arc::new(UsiProtocol::new(handler));
+        let protocol = Arc::new(UsiProtocol::new(spawned));
 
         // **起動中の置き場へ先に載せる。** `usiok` を待つ間に終了されると、
         // ここに居ないプロセスは掃除から見えず孤児になる
@@ -242,7 +242,7 @@ impl EngineRegistry {
         // **本台帳へ載せてから起動中の置き場を外す。** 逆にすると、
         // その間このプロセスはどちらの置き場にも居ない。並行する `shutdown_all` が
         // 素通りして孤児になる。両方に居る側は二度落とすだけで、
-        // `kill_engine` は handler を `take` するので2回目は空振りする
+        // `kill_engine` の2回目は空振りする（`KillRequest::AlreadySent`）
         self.processes
             .write()
             .await
@@ -297,39 +297,37 @@ fn disposing_line(path: &str) -> String {
 
 /// 上限を超えた後に起き上がったプロセスを畳む。
 ///
-/// **`Drop` に任せない。** `usi` crate の `UsiEngineHandler::Drop` は
-/// `kill().unwrap()` を呼び、`kill` は先に `quit` を書く。既に死んだプロセスへの
-/// 書き込みは EPIPE で失敗するのでパニックする（`UsiProtocol` が
-/// `Option` + `mem::forget` を持っているのと同じ理由）。
-///
 /// **落とせなかったことは記録する。** ここへ来る子はどの台帳にも居ないので
-/// （→ `starting` の doc、#381）、落とし手はこの1回きり。`kill` が `quit` の
-/// 書き込みで折り返すとシグナルは一度も送られないので、捨てると
-/// **残ったことを知る手掛かりが1本も無くなる**。
-///
-/// 判るのは「送れなかった」までで、`output_ended` に当たる材料がここには無い
-/// （`UsiProtocol` を通っていないので読み取りが始まっていない）。
-/// 既に死んでいるだけの回も同じ `error` に出る。
+/// （→ `starting` の doc、#381）、落とし手はこの1回きり。Drop に任せても落ちるが、
+/// それだと落とせたかがどこにも残らない。
 async fn dispose_late_spawn(
-    started: tokio::task::JoinHandle<Result<(String, String, UsiEngineHandler), EngineError>>,
+    started: tokio::task::JoinHandle<Result<(String, String, EngineChild), EngineError>>,
 ) {
-    let Ok(Ok((path, _, mut handler))) = started.await else {
+    let Ok(Ok((path, _, child))) = started.await else {
         return;
     };
     log::warn!(target: LOGT, "{}", disposing_line(&path));
 
-    // `kill` も同期の書き込みを含むので専用スレッドへ出す
-    let _ = tokio::task::spawn_blocking(move || {
-        if let Err(e) = handler.kill() {
-            log::error!(
-                target: LOGT,
-                "spawn: could not kill a late engine; it may still be running: {}",
-                with_cause(&e)
-            );
-        }
-        std::mem::forget(handler);
-    })
-    .await;
+    match child.kill() {
+        KillRequest::Sent => {}
+        KillRequest::AlreadySent | KillRequest::AlreadyExited => return,
+    }
+    let mut exit = child.exit();
+    // `Ref` を持ち越さない（`exit` より長く生きる一時値にしない）
+    let waited = tokio::time::timeout(KILL_TIMEOUT, exit.wait_for(|e| e.is_some()))
+        .await
+        .map(|watched| watched.map(|_| ()));
+    match waited {
+        Ok(Ok(())) => {}
+        Ok(Err(_)) => log::error!(
+            target: LOGT,
+            "spawn: the exit watcher of a late engine is gone; it may still be running"
+        ),
+        Err(_) => log::error!(
+            target: LOGT,
+            "spawn: a late engine did not end in time; it may still be running"
+        ),
+    }
 }
 
 impl EngineRegistry {
@@ -396,11 +394,9 @@ impl EngineRegistry {
     /// `quit` の上限は書き込みの列の中、`kill` の上限は `kill_engine` の中。
     /// `quit` が超えても `kill` へ進む。待ち続けるよりましだという判断。
     ///
-    /// **`kill` はここでは2通目の `quit` になる。** `usi` の `kill` はシグナルの
-    /// 前に `quit` を書くので、上の1通で終わったエンジンに対しては必ず EPIPE で
-    /// 折り返し、`process.kill()` へは届かない。届く先がもう無いので害は無いが、
-    /// **stdin だけ閉じて走り続けるエンジンでは残る**——そちらは上限では拾えない。
-    /// 見分けは `classify_kill_failure`（`protocol.rs`）。
+    /// `kill` は `quit` を書かずにシグナルを送り、プロセスが畳まれるのを見届ける
+    /// （`EngineChild::kill`）。上の `quit` で自発的に終わったエンジンには
+    /// 「もう終わっていた」と返るだけで、stdin だけ閉じて走り続けるエンジンも落ちる。
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);
         let protocol = process.protocol();

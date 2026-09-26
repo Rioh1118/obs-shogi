@@ -67,8 +67,8 @@ main にあるか: **無い**
 **エンジンの比較実験をするなら、送ったコマンドと測りたい条件が一致していないと意味が無い。**
 
 塞がっている理由: `usi` crate 0.6.2 の `ThinkParams` に
-`movetime` / `depth` / `nodes` が無く、`UsiEngineHandler` が raw な
-stdin 書き込み経路を公開していない。
+`movetime` / `depth` / `nodes` が無い。stdin は自前で持っている（`engine/child.rs`）ので、
+行を組み立てれば書く口はある。
 
 ### 4. 切替に進捗が出ること（#85）
 

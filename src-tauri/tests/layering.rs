@@ -84,15 +84,21 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
+        name: "child",
+        decides: "子プロセスと、その標準入出力の持ち主",
+        may_use: &[],
+        forbids: &[],
+    },
+    Layer {
         name: "protocol",
         decides: "1本のプロセスへ何を送れるか",
-        may_use: &["types", "utils"],
+        may_use: &["types", "utils", "child"],
         forbids: &[],
     },
     Layer {
         name: "registry",
         decides: "どのプロセスが生きているか",
-        may_use: &["types", "utils", "protocol"],
+        may_use: &["types", "utils", "child", "protocol"],
         forbids: &[],
     },
     // `game` と `analyzer` は同位。互いを知らない

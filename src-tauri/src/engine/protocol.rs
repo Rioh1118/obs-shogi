@@ -3,11 +3,13 @@ use std::time::Duration;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+use crate::engine::child::{self, EngineChild, KillRequest, ReadEvent, Source};
+use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
 use crate::engine::{types::*, utils::cmd_summary, utils::with_cause};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
-use usi::{EngineCommand, GuiCommand, IdParams, OptionParams, UsiEngineHandler};
+use usi::{EngineCommand, GuiCommand, IdParams, OptionParams};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
@@ -35,70 +37,13 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
     Ok(())
 }
 
-/// プロセスを落とし切れたか。**3つに割る。**
+/// `kill` を頼んでから、プロセスが終わるのを見届けるまでの上限。
 ///
-/// 「落とした」と「落とせなかった」の2つに潰すと、`quit` の書き込みで折り返して
-/// `process.kill()` に一度も届かなかった場合が「done」と記録され、
-/// プロセスが残ったことを知る手掛かりが1つも無くなる（→ #353）。
-/// 一方、届かなかった回の**大半は落とせている**ので（`classify_kill_failure`）、
-/// そちらを「落とせなかった」に混ぜると、閉じるたびに残留の疑いが1件増える。
-enum KillOutcome {
-    /// `handler` が既に無い。`kill_engine` の2度目以降
-    AlreadyKilled,
-    /// `process.kill()` まで届いた
-    Killed,
-    /// 書き込みが EPIPE で折り返し、**出力も既に終わっていた**。
-    /// 子は stdin も stdout も手放している（＝もう居ない）ので、
-    /// `process.kill()` へ届かなかったことは結果に響かない
-    AlreadyExited(String),
-    /// 落ちたか分からない
-    Failed(String),
-}
-
-/// `kill` が返した失敗を、**プロセスが残っている疑いがあるか**で割る。
+/// 頼むこと自体は待たない（`EngineChild::kill` はチャンネルで待ち手へ頼むだけで、
+/// stdin のロックも取らない）。待つのは OS がプロセスを畳むまで。
 ///
-/// `usi` の `kill` はシグナルの前に `quit` を書き、その書き込みが `?` で返ると
-/// `process.kill()` へ進まない。`EngineRegistry::terminate` は先に `quit` を
-/// 送ってあるので、素直に終わるエンジンでは相手が既に居らず、
-/// この2通目は EPIPE で必ず折り返す——**落とせたときほど `Err` が返る**。
-/// 割らずに全部「残ったかもしれない」と記録すると、閉じるたびに `error` が1行出て、
-/// 本物の残留（`KILL_TIMEOUT` 超過 → #353、`SPAWN_TIMEOUT` 超過 → #381）と
-/// 見分けが付かなくなる。
-///
-/// **EPIPE だけでは足りない。** あれは子が stdin の読み口を手放したことしか
-/// 意味しないので、出力も終わっていること（`output_ended`）と併せて見る。
-/// 両方閉じていれば子はパイプを1本も持っていない。stdin だけ閉じて走り続ける
-/// エンジンはこちらに入らない——`process.kill()` へ届いていないので本当に残る。
-///
-/// **判るのは「もう居ない」まで。** 終わった理由までは判らない——`kill_engine` を
-/// 呼ぶ3箇所のうち、`quit` が先行するのは `terminate` だけで、
-/// `EngineRegistry::spawn` の失敗の枝と `shutdown_all` の `starting` ぶんは
-/// 1通目から `kill` に入る（起動直後に自滅したエンジンがそこを通る）。
-/// `wait` も通らないので、終了状態も観測していない。
-fn classify_kill_failure(error: &usi::Error, output_ended: bool) -> KillOutcome {
-    let text = with_cause(error);
-    let broken_pipe = matches!(
-        error,
-        usi::Error::EngineIo(io) if io.kind() == std::io::ErrorKind::BrokenPipe
-    );
-
-    if broken_pipe && output_ended {
-        KillOutcome::AlreadyExited(text)
-    } else {
-        KillOutcome::Failed(text)
-    }
-}
-
-/// `kill` を待つ上限。
-///
-/// `kill` は書き込みの列を通らない（`handler` を `take` して直接落とす）ので、
-/// 列に掛かる `WRITE_TIMEOUT` は効かない。上限はここに要る。
-///
-/// **この上限が効くのは、`kill` が `spawn_blocking` の中にあるから。**
-/// async のタスクの中で同期 write を直に呼ぶと `poll` が返らず、
-/// `timeout` は発火する機会そのものを持たない。
-///
-/// 超えるとプロセスが残る。回収する仕掛けは無い → #353
+/// 超えても待ち手は終わりを待ち続けるので、後から畳まれれば回収される。
+/// 超えたことはログに残す（SIGKILL が効かない状態のプロセス）。
 pub const KILL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// プロセスを落とした後に送ろうとしたときの文言
@@ -111,9 +56,9 @@ const CLOSED: &str = "engine output has ended; the process cannot be reached";
 const STALLED: &str = "the engine stopped reading stdin; the process cannot be reached";
 /// USI プロトコル処理層
 pub struct UsiProtocol {
-    /// `Option` なのは、落とした後に **`Drop` を走らせない**ため。
-    /// `UsiEngineHandler::Drop` は `kill().unwrap()` を呼ぶ（`usi` crate）。
-    handler: Arc<Mutex<Option<UsiEngineHandler>>>,
+    /// 子プロセスと標準入出力。**書き込み・読み取り・落とす口がそれぞれ別の持ち主**
+    /// なので、書き込みが詰まっても落とせる（`engine/child.rs`）。
+    child: Arc<EngineChild>,
     state: Arc<RwLock<ProtocolState>>,
     listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
     listen_active: Arc<Mutex<bool>>,
@@ -130,22 +75,6 @@ pub struct UsiProtocol {
     /// `kill_engine` も `Closed` を立てるので、印が無いと
     /// **こちらが落としたのに「エンジンの出力が終わった」と説明する**。
     killed: Arc<std::sync::atomic::AtomicBool>,
-
-    /// stdout が EOF を返したか。**立てる口は読み取りの EOF 1箇所だけ**
-    /// （`start_listening` の hook）。
-    ///
-    /// **「読み取りが終わった」では代用できない。** 読み取りは EOF 以外でも
-    /// 終わる（非 UTF-8 の行、`score` の数値のパース失敗、`listen` 自体の失敗）。
-    /// そこで立てると、**エンジンが生きたまま**この旗が立ち、
-    /// `classify_kill_failure` が残留を「もう居ない」と読む。
-    ///
-    /// **`ReadyState::Closed` とも別。** あちらはどの終わり方でも立てたい側で、
-    /// `kill_engine` 自身も立てる。
-    ///
-    /// **読んでよいのは `handler.kill()` が返った直後だけ**
-    /// （`kill_engine` の `spawn_blocking` の中）。落とした後も立つので、
-    /// 他の場所で「こちらが手を下す前か」の意味には使えない——それは `killed`。
-    output_ended: Arc<std::sync::atomic::AtomicBool>,
 
     /// `isready` に対してエンジンがどう応じたか。
     ///
@@ -197,20 +126,6 @@ struct Pending {
 /// 正常な流れでこの数に届くことはない
 const PENDING_LIMIT: usize = 32;
 
-/// `listen` の失敗を分類する。
-///
-/// **バリアントで見る。** 文言で照合すると、`usi` が1語直しただけで
-/// 二重 listen が `CommunicationFailed` に化け、`send_command` の doc が
-/// 契約として書いている区別（`AlreadyListening` は**プロセスが生きているので
-/// 落とさない**）が静かに入れ替わる。
-fn listen_error(error: &usi::Error) -> EngineError {
-    if matches!(error, usi::Error::IllegalOperation) {
-        EngineError::AlreadyListening(with_cause(error))
-    } else {
-        EngineError::CommunicationFailed(with_cause(error))
-    }
-}
-
 /// 積み置きを捨てたことを記録する1行。
 ///
 /// **理由ごとに書式を分けない。** 掃き出しはここを `PENDING_LIMIT` 回まとめて
@@ -234,13 +149,12 @@ fn dropped_line(cmd: &GuiCommand, why: DropReason) -> String {
 impl Clone for UsiProtocol {
     fn clone(&self) -> Self {
         Self {
-            handler: Arc::clone(&self.handler),
+            child: Arc::clone(&self.child),
             state: Arc::clone(&self.state),
             listeners: Arc::clone(&self.listeners),
             listen_active: Arc::clone(&self.listen_active),
             stalled: Arc::clone(&self.stalled),
             killed: Arc::clone(&self.killed),
-            output_ended: Arc::clone(&self.output_ended),
             ready: Arc::clone(&self.ready),
             runtime_handle: self.runtime_handle.clone(),
             init_task: Arc::clone(&self.init_task),
@@ -356,8 +270,8 @@ fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
 /// 後から終了させたとき**で、そのとき見せるべきは自分の操作の結果のほう。
 /// 「自分で終了させた」と「エンジンが応じなくなった」では次の手が違う。
 ///
-/// 逆順（落としてから詰まる）は起きない。`kill_engine` が `handler` を `take` した
-/// 後の書き込みは `run_writer` が即 `NotInitialized` にするので、`Timeout` にならない。
+/// 逆順（落としてから詰まる）は起きない。`kill_engine` が stdin を閉じた後の書き込みは
+/// `run_writer` が即 `NotInitialized` にするので、`Timeout` にならない。
 fn cannot_reach_text(killed: bool, stalled: bool) -> &'static str {
     if killed {
         GONE
@@ -426,16 +340,15 @@ struct WriteJob {
 /// 書き込みを1本の列にする理由。
 ///
 /// **投入順＝ワイヤ上の順**であることを、この列だけで保証する。
-/// 呼び出しごとに `spawn_blocking` を投げると、どのスレッドが先に
-/// `handler` の Mutex を取るかは**投入順と無関係**になる。
-/// `stop` が `go` を追い越す／flush が直書きに追い越される、が両方そこから出る。
+/// 呼び出しごとにタスクを投げると、どのタスクが先に stdin のロックを取るかは
+/// **投入順と無関係**になる。`stop` が `go` を追い越す／flush が直書きに追い越される、
+/// が両方そこから出る。
 ///
-/// 書き込み自体を `spawn_blocking` に出すのは、`usi` crate の書き込みが
-/// `ChildStdin` への `write_all` + `flush`（同期）だから。async のタスクの中で
-/// 直に呼ぶと `poll` が返らず、**それを包んだ `tokio::time::timeout` が
-/// 発火する機会そのものを失う**（タイマーが鳴っても poll する者が居ない）。
+/// 1件の書き込みは別のタスクに出し、その完了を上限つきで待つ。**待つのをやめても
+/// 書き込みは取り消さない**——途中で取り消すと行の半分だけがワイヤに残り、
+/// エンジンは次の行と繋げて読む。
 async fn run_writer(
-    handler: Arc<Mutex<Option<UsiEngineHandler>>>,
+    stdin: Arc<Mutex<Option<tokio::process::ChildStdin>>>,
     mut jobs: mpsc::UnboundedReceiver<WriteJob>,
 ) {
     // 1件でも上限に達したら、**それ以降は書かずに断る。**
@@ -455,14 +368,17 @@ async fn run_writer(
             continue;
         }
 
-        let handler = Arc::clone(&handler);
-        let write = tokio::task::spawn_blocking(move || {
-            let mut guard = handler.blocking_lock();
-            let Some(h) = guard.as_mut() else {
-                return Err(EngineError::NotInitialized(GONE.to_string()));
-            };
-            h.send_command(&command)
-                .map_err(|e| EngineError::CommunicationFailed(with_cause(&e)))
+        let stdin = Arc::clone(&stdin);
+        let line = command.to_string();
+        let write = tokio::spawn(async move {
+            match child::write_line(&stdin, &line).await {
+                Ok(()) => Ok(()),
+                // 閉じてあるのは落とした後だけ（`EngineChild::kill`）
+                Err(e) if e.kind() == std::io::ErrorKind::NotConnected => {
+                    Err(EngineError::NotInitialized(GONE.to_string()))
+                }
+                Err(e) => Err(EngineError::CommunicationFailed(with_cause(&e))),
+            }
         });
 
         // **上限はここ。** 待っている側で包むと、前のジョブの処理時間が入る
@@ -500,22 +416,6 @@ fn set_ready_state(ready: &watch::Sender<ReadyState>, requested: ReadyState) -> 
     });
     settled
 }
-
-/// 読み取りを終わらせる合図。`usi` crate の `listen` へ返すためだけの型。
-///
-/// `listen` のループは、hook が `Err` を返すか、**読み取り自体が `Err` になった**
-/// ときに終わる（`usi::UsiEngineHandler::listen`）。後者では hook が呼ばれない。
-/// EOF だけは `Ok(response: None)` で来るので、hook がこれを返さないと終わらない。
-#[derive(Debug)]
-struct StopListening;
-
-impl std::fmt::Display for StopListening {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "stop listening")
-    }
-}
-
-impl std::error::Error for StopListening {}
 
 /// `readyok` が返るまで送れないコマンド。
 ///
@@ -642,13 +542,12 @@ fn cancel_queued_go(queue: &mut VecDeque<GuiCommand>) -> usize {
 }
 
 impl UsiProtocol {
-    pub fn new(handler: UsiEngineHandler) -> Self {
-        let handler = Arc::new(Mutex::new(Some(handler)));
+    pub fn new(child: EngineChild) -> Self {
         let (writer, jobs) = mpsc::unbounded_channel();
-        tokio::spawn(run_writer(Arc::clone(&handler), jobs));
+        tokio::spawn(run_writer(child.stdin(), jobs));
 
         Self {
-            handler,
+            child: Arc::new(child),
             state: Arc::new(RwLock::new(ProtocolState {
                 engine_info: None,
                 last_command: None,
@@ -657,7 +556,6 @@ impl UsiProtocol {
             listen_active: Arc::new(Mutex::new(false)),
             stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             killed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            output_ended: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             ready: Arc::new(watch::channel(ReadyState::Waiting).0),
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
@@ -809,10 +707,8 @@ impl UsiProtocol {
             // 「もう来ない」を届ける。落とさないと `raw_rx.recv()` が永久に
             // 返らず、対局は手番のまま無音で止まる。
             //
-            // 読み取りの終わり方は1つではない。EOF は下の hook が `Err` を
-            // 返して終わらせるが、`usi` crate は読み取り自体の `Err`
-            // （非 UTF-8 の行、数値のパース失敗）では**hook を呼ばずに**
-            // スレッドを抜ける。**どの終わり方でも `line_tx` は落ちる**ので、
+            // 読み取りの終わり方は1つではない（stdout の EOF、読み取り自体の失敗、
+            // 受け手が居なくなった）。**どの終わり方でも `line_tx` は落ちる**ので、
             // ここに置けば終わり方を数え上げずに済む。
             //
             // hook の中で落とすと、まだ配っていない行を捨てることになる。
@@ -827,44 +723,32 @@ impl UsiProtocol {
             log::warn!(target: LOGT, "listen: engine output ended");
         });
 
-        let mut handler_guard = self.handler.lock().await;
-        let Some(handler) = handler_guard.as_mut() else {
-            return Err(EngineError::NotInitialized(GONE.to_string()));
-        };
-        let output_ended = Arc::clone(&self.output_ended);
-        let result = handler.listen(move |output| -> Result<(), StopListening> {
-            let Some(cmd) = output.response() else {
-                // `response` が `None` になるのは**出力が閉じたときだけ**。
-                // `usi` crate はそれを `Err` ではなく `Ok(response: None)` で返すので、
-                // ここで `Err` を返さないと EOF を延々読む busy loop になる。
-                //
-                // **旗を立てるのはここだけ。** 上の転送タスクの末尾は
-                // 読み取りのどの終わり方でも通るので、そこで立てると
-                // エンジンが生きたまま立つ（→ `output_ended` の doc）。
-                //
-                // 待っている側への通知はここではしない（上の転送タスクが行う）
-                output_ended.store(true, std::sync::atomic::Ordering::Relaxed);
-                return Err(StopListening);
-            };
-
-            if line_tx.send(cmd.clone()).is_err() {
-                // 配る側が落ちている。読み続けても届け先が無い
-                return Err(StopListening);
+        // 解けなかった行は配らない（受け手は `EngineCommand` しか読まない）。
+        // **読み取りは止めない**——止めると、エンジンが生きたまま以後の出力が全部消える
+        let started = self.child.read_stdout(move |event| match event {
+            ReadEvent::Line {
+                parsed: Some(cmd), ..
+            } => line_tx.send(cmd).is_ok(),
+            ReadEvent::Line { parsed: None, raw } => {
+                log::debug!(
+                    target: LOGT,
+                    "listen: skipped a line it could not parse: {}",
+                    shown(&raw, MAX_SUMMARY_LEN)
+                );
+                true
             }
-            Ok(())
+            // 読み手が抜けると `line_tx` が落ち、上の転送タスクが後始末をする
+            ReadEvent::Eof => false,
         });
 
-        drop(handler_guard);
-
-        result.map_err(|e| {
-            let classified = listen_error(&e);
-            if matches!(classified, EngineError::AlreadyListening(_)) {
-                log::debug!(target: LOGT, "start_listening: already listening");
-            } else {
-                log::error!(target: LOGT, "start_listening: failed: {classified}");
-            }
-            classified
-        })
+        if started {
+            Ok(())
+        } else {
+            log::debug!(target: LOGT, "start_listening: already listening");
+            Err(EngineError::AlreadyListening(
+                "the engine output is already being read".to_string(),
+            ))
+        }
     }
 
     /// エンジンの出力1行を、購読している全員へ配る。
@@ -917,7 +801,7 @@ impl UsiProtocol {
     /// - `Timeout`: 上限内に書き終わらなかった。**後から届く可能性がある**。
     ///   ただしこの時点で `fail_writes` が走っているので、後続は全部断られる
     /// - `NotInitialized`: 送る先が無い。列が消えたか、`kill_engine` が
-    ///   `handler` を取った後に書き込みが列を抜けた
+    ///   stdin を閉じた後に書き込みが列を抜けた
     /// - `AlreadyListening`: `isready` のときだけ。読み取りが二重に始まった。
     ///   プロセスは生きているので落とさないこと
     pub async fn send_command(&self, command: &GuiCommand) -> Result<(), EngineError> {
@@ -972,9 +856,9 @@ impl UsiProtocol {
     ///
     /// やることは、詰まった印を立てる・`Closed` を立てる・積み置きを捨てるの3つ。
     ///
-    /// **このプロセスは落とせない。** 詰まった `spawn_blocking` のスレッドが
-    /// `handler` の Mutex を握ったままなので、`kill_engine` も返らない（→ #353）。
-    /// 復帰は新しいプロセスを起動し直すこと。
+    /// **このプロセスには二度と書けない。** 詰まった書き込みのタスクが stdin の
+    /// ロックを握ったままになる。落とすことはできる（`kill_engine` は stdin の
+    /// ロックを待たない）ので、復帰は落として新しいプロセスを起動し直すこと。
     async fn fail_writes(&self) {
         self.stalled
             .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -1188,7 +1072,7 @@ impl UsiProtocol {
         // 誰も読まないチャンネルへ配られ続ける。
         self.remove_listener(&listener_name).await;
 
-        let engine_info = collected?;
+        let engine_info = collected.map_err(|e| self.with_recent_output(e))?;
         self.state.write().await.engine_info = Some(engine_info.clone());
 
         Ok(engine_info)
@@ -1287,9 +1171,9 @@ impl UsiProtocol {
 
         // **上限まで待たずに返る。** 出力が終わっているなら `readyok` は来ない
         if *settled == ReadyState::Closed {
-            return Err(EngineError::CommunicationFailed(
+            return Err(self.with_recent_output(EngineError::CommunicationFailed(
                 "engine exited before it became ready".to_string(),
-            ));
+            )));
         }
 
         Ok(())
@@ -1357,31 +1241,18 @@ impl UsiProtocol {
 
     /// プロセスを落とす。2度目以降は何もしない。
     ///
-    /// **待つ上限はここに閉じてある。** `handler` の Mutex を書き込みの
-    /// `spawn_blocking` が握ったままだと、取りに行くスレッドは返らない（→ #353）。
-    /// 呼び出し側に上限を任せると、裸で呼ぶ口が1つできただけで
-    /// そこが終了処理の行き止まりになる。
+    /// 落とすのは待ち手のタスクに頼むだけで（`EngineChild::kill`）、stdin のロックも
+    /// 書き込みの列も通らない。**書き込みが詰まっていても落とせる。**
+    /// 待つのはプロセスが畳まれるのを見届けるところだけで、上限は `KILL_TIMEOUT`。
     ///
-    /// 超えたときプロセスは走ったまま残る。待ち続けてアプリが終われないより
-    /// ましだという判断。`tokio::time::timeout` は `spawn_blocking` を
-    /// 取り消さないので、詰まったスレッドはそのまま残る。
-    ///
-    /// **落とした handler を drop させない。** `usi 0.6` の
-    /// `UsiEngineHandler` は `Drop` で `kill().unwrap()` を呼び、その `kill` は
-    /// 先に `quit` を書く。既に死んだプロセスへの書き込みは EPIPE で失敗するので、
-    /// **2度目の `kill` は必ずパニックする**。
-    ///
-    /// 行番号で指さないのは、版を上げた瞬間に無言でずれるため。
-    /// 確かめるときは `Cargo.lock` の版で crate を開き、`Drop` と `kill` を読む。
-    ///
-    /// `forget` で漏れるのはパイプの fd。子プロセスの回収はどちらにせよ
-    /// 起きない（Rust の `Child::drop` は `wait` しない）。→ #353
+    /// `quit` は書かない。行儀よく終わらせたい呼び手は先に `quit` を送る
+    /// （`EngineRegistry::terminate`）。
     pub async fn kill_engine(&self) {
         log::info!(target: LOGT, "kill_engine: start");
 
-        // **落とす前に `Closed` を立てる。** 立てないと、`handler` を `take` した
-        // 後も `ready` が `Waiting` のまま残り、死んだプロセス向けに
-        // `position` / `go` が積める（`Ok` が返り、掃く者は永久に来ない）。
+        // **落とす前に `Closed` を立てる。** 立てないと、落とした後も `ready` が
+        // `Waiting` のまま残り、死んだプロセス向けに `position` / `go` が積める
+        // （`Ok` が返り、掃く者は永久に来ない）。
         //
         // 印も一緒に立てる。立てないと、以後の `Refuse` が
         // 「エンジンの出力が終わった」と説明する（落としたのはこちら）
@@ -1391,59 +1262,77 @@ impl UsiProtocol {
 
         self.abort_init().await;
 
-        // `kill` も `quit` を書くので、書き込みと同じ理由で専用スレッドへ出す
-        let handler = Arc::clone(&self.handler);
-        let output_ended = Arc::clone(&self.output_ended);
-        let killed = tokio::task::spawn_blocking(move || {
-            let taken = handler.blocking_lock().take();
-            let Some(mut handler) = taken else {
-                return KillOutcome::AlreadyKilled;
-            };
-
-            // **失敗を捨てない。** 書き込みが `?` で返ると**プロセスは一度も
-            // 落とされない**（順序は `classify_kill_failure` の doc）。捨てると
-            // 「done」と記録され、残ったことを知る手掛かりが1つも無くなる。
-            //
-            // **一括りにもしない。** 割り方は `classify_kill_failure`。
-            // `output_ended` を `kill` の**後**に読むのは、EOF が伝わる猶予を
-            // 最大化するため。**同期していないので取りこぼす**——
-            // 取りこぼした側は `Failed`（残留の疑い）に倒れる
-            let outcome = match handler.kill() {
-                Ok(()) => KillOutcome::Killed,
-                Err(e) => classify_kill_failure(
-                    &e,
-                    output_ended.load(std::sync::atomic::Ordering::Relaxed),
-                ),
-            };
-            std::mem::forget(handler);
-            outcome
-        });
-
-        match tokio::time::timeout(KILL_TIMEOUT, killed).await {
-            Ok(Ok(KillOutcome::Killed)) => log::info!(target: LOGT, "kill_engine: done"),
-            Ok(Ok(KillOutcome::AlreadyKilled)) => {
-                log::debug!(target: LOGT, "kill_engine: already killed")
+        match self.child.kill() {
+            KillRequest::Sent => {}
+            KillRequest::AlreadySent => {
+                log::debug!(target: LOGT, "kill_engine: already killed");
+                return;
             }
-            // シグナルは送っていない。**送る先がもう無いという推定**で、
-            // 根拠は stdin と stdout が両方閉じていること（`classify_kill_failure`）
-            Ok(Ok(KillOutcome::AlreadyExited(e))) => log::info!(
+            KillRequest::AlreadyExited => {
+                log::info!(target: LOGT, "kill_engine: the process had already exited");
+                return;
+            }
+        }
+
+        let mut exit = self.child.exit();
+        // `Ref` を持ち越さない（`exit` より長く生きる一時値にしない）
+        let waited = tokio::time::timeout(KILL_TIMEOUT, exit.wait_for(|e| e.is_some()))
+            .await
+            .map(|watched| watched.map(|_| ()));
+        match waited {
+            Ok(Ok(())) => log::info!(target: LOGT, "kill_engine: done"),
+            Ok(Err(_)) => log::warn!(
                 target: LOGT,
-                "kill_engine: no signal was sent; stdin and stdout were both closed, \
-                 assuming the process is gone: {e}"
+                "kill_engine: the exit watcher is gone; the process may still be running"
             ),
-            // `quit` の書き込みで折り返したので `process.kill()` へ届いていない
-            Ok(Ok(KillOutcome::Failed(e))) => log::error!(
-                target: LOGT,
-                "kill_engine: could not kill the process; it may still be running: {e}"
-            ),
-            Ok(Err(e)) => log::warn!(target: LOGT, "kill_engine: task failed: {e}"),
             Err(_) => log::error!(
                 target: LOGT,
-                "kill_engine: timed out — the process is left running"
+                "kill_engine: timed out waiting for the process to end — it may be left running"
             ),
         }
     }
+
+    /// 起動の失敗に直近の出力を添える。**頭は変えない**（`NO_USIOK` のように
+    /// 頭の綴りで分類し直す呼び手がいる）。添えるのは `StartupFailed` と
+    /// `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で始まる）には添えない
+    fn with_recent_output(&self, error: EngineError) -> EngineError {
+        let Some(output) = self.recent_output_summary() else {
+            return error;
+        };
+        match error {
+            EngineError::StartupFailed(why) => {
+                EngineError::StartupFailed(format!("{why} (last output: {output})"))
+            }
+            EngineError::CommunicationFailed(why) => {
+                EngineError::CommunicationFailed(format!("{why} (last output: {output})"))
+            }
+            other => other,
+        }
+    }
+
+    /// 直近の出力を1行に畳む。起動に失敗したときの理由に添える。
+    ///
+    /// **エンジンが書いた文字列なので、長さと制御文字を落としてから載せる**
+    /// （`shown`）。素で載せると、改行を含む行1つで偽のログ行を作れる。
+    /// stderr の行は `stderr: ` を頭に付ける（評価関数や共有ライブラリの失敗はそちらに出る）。
+    pub fn recent_output_summary(&self) -> Option<String> {
+        let lines = self.child.recent_lines();
+        let tail: Vec<String> = lines
+            .iter()
+            .rev()
+            .take(RECENT_IN_REASON)
+            .rev()
+            .map(|(source, text)| match source {
+                Source::Stdout => shown(text, MAX_SUMMARY_LEN),
+                Source::Stderr => format!("stderr: {}", shown(text, MAX_SUMMARY_LEN)),
+            })
+            .collect();
+        (!tail.is_empty()).then(|| tail.join(" / "))
+    }
 }
+
+/// 起動の失敗の理由に添える直近の行数。多いと理由の本文が読めなくなる
+const RECENT_IN_REASON: usize = 3;
 
 // ヘルパー関数（高速化のためインライン化）
 #[inline]
@@ -1709,71 +1598,6 @@ mod tests {
         assert_eq!(before, unique.len(), "届かない理由の文言が重なっている");
     }
 
-    /// `kill` の失敗を、残っている疑いがあるかで割れていること。
-    ///
-    /// **EPIPE を無条件に「終わっていた」と読まないこと。** 読むと、stdin だけ
-    /// 閉じて探索を続けるエンジンが `info` 1行で見送られる——`process.kill()` へは
-    /// 届いていないので、そのプロセスは本当に残る。
-    ///
-    /// **EPIPE 以外を「終わっていた」に混ぜないこと。** 混ぜると、`handler` の
-    /// Mutex の中で起きた別の失敗まで正常終了として記録される。
-    #[test]
-    fn a_failed_kill_is_split_by_whether_the_process_may_remain() {
-        use std::io::{Error as IoError, ErrorKind};
-
-        let epipe = || usi::Error::EngineIo(IoError::from(ErrorKind::BrokenPipe));
-        let denied = || usi::Error::EngineIo(IoError::from(ErrorKind::PermissionDenied));
-
-        assert!(
-            matches!(
-                classify_kill_failure(&epipe(), true),
-                KillOutcome::AlreadyExited(_)
-            ),
-            "両方のパイプが閉じているのに残留として扱っている"
-        );
-        assert!(
-            matches!(
-                classify_kill_failure(&epipe(), false),
-                KillOutcome::Failed(_)
-            ),
-            "出力が続いているのに EPIPE だけで終了と断じている"
-        );
-        assert!(
-            matches!(
-                classify_kill_failure(&denied(), true),
-                KillOutcome::Failed(_)
-            ),
-            "EPIPE 以外の失敗まで終了として扱っている"
-        );
-        assert!(
-            matches!(
-                classify_kill_failure(&usi::Error::IllegalOperation, true),
-                KillOutcome::Failed(_)
-            ),
-            "IO ですらない失敗まで終了として扱っている"
-        );
-    }
-
-    /// 割った後も原因の文言が残ること。
-    ///
-    /// `usi::Error` の `Display` はバリアントごとの定型文しか出さないので、
-    /// `with_cause` を通さないと、どちらの枝でも OS の言葉が消える。
-    #[test]
-    fn classifying_a_failed_kill_keeps_the_cause() {
-        use std::io::{Error as IoError, ErrorKind};
-
-        let text = |outcome| match outcome {
-            KillOutcome::AlreadyExited(t) | KillOutcome::Failed(t) => t,
-            _ => panic!("失敗を割った結果ではない"),
-        };
-
-        let epipe = usi::Error::EngineIo(IoError::from(ErrorKind::BrokenPipe));
-        let os_words = IoError::from(ErrorKind::BrokenPipe).to_string();
-
-        assert!(text(classify_kill_failure(&epipe, true)).contains(&os_words));
-        assert!(text(classify_kill_failure(&epipe, false)).contains(&os_words));
-    }
-
     /// `Closed` から戻す口を作らないこと。
     ///
     /// 戻せると `dispatch_for` の `Refuse` も `register_listener` の拒否も、
@@ -1849,30 +1673,6 @@ mod tests {
         assert_eq!(pending.queue.len(), PENDING_LIMIT);
     }
 
-    /// `listen` の失敗の分類が、文言ではなくバリアントで決まること。
-    ///
-    /// **`AlreadyListening` は「プロセスは生きている」の意味**（`send_command` の
-    /// doc が契約として書いている）。文言で照合していると、`usi` が1語直すだけで
-    /// 二重 listen が `CommunicationFailed` に化け、落とさなくてよいプロセスを
-    /// 落とす側の分岐へ入る。
-    #[test]
-    fn a_double_listen_is_told_apart_from_a_broken_pipe() {
-        assert!(
-            matches!(
-                listen_error(&usi::Error::IllegalOperation),
-                EngineError::AlreadyListening(_)
-            ),
-            "二重 listen を別の分類にしている"
-        );
-        assert!(
-            matches!(
-                listen_error(&usi::Error::EngineIo(std::io::Error::from_raw_os_error(32))),
-                EngineError::CommunicationFailed(_)
-            ),
-            "壊れたパイプを二重 listen として扱っている"
-        );
-    }
-
     /// 積み置きの掃き出しが、ログの予算を一周させられないこと。
     ///
     /// **`MAX_SUMMARY_LEN` はここから決まる。** 上限があるだけでは足りない
@@ -1938,5 +1738,116 @@ mod tests {
             "Closed の後に Waiting を通している"
         );
         assert_eq!(*ready.borrow(), ReadyState::Closed);
+    }
+
+    /// 実プロセスで確かめる。`#!/bin/sh` の台本を置いて起こす
+    #[cfg(unix)]
+    mod with_a_process {
+        use super::*;
+        use std::os::unix::fs::PermissionsExt;
+        use std::path::{Path, PathBuf};
+
+        fn script(dir: &Path, body: &str) -> PathBuf {
+            let path = dir.join("engine.sh");
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("書けない");
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+                .expect("権限を変えられない");
+            path
+        }
+
+        fn protocol_for(dir: &Path, body: &str) -> UsiProtocol {
+            let path = script(dir, body);
+            UsiProtocol::new(child::spawn(&path, dir).expect("起こせる"))
+        }
+
+        /// 書き込みが詰まっていても落とせる。**`KILL_TIMEOUT` の内に返る。**
+        /// 書き込みと kill が同じロックを取り合う形にすると、詰まったときに kill も返らない
+        #[tokio::test]
+        async fn a_stuck_write_does_not_block_the_kill() {
+            let dir = test_support::dir::temp_dir("protocol-stuck-kill");
+            // stdin を一切読まない
+            let protocol = protocol_for(&dir, "exec sleep 30");
+            let big = "x".repeat(4 * 1024 * 1024);
+            let writing = {
+                let protocol = protocol.clone();
+                tokio::spawn(async move {
+                    let _ = protocol
+                        .write(GuiCommand::SetOption("Big".to_string(), Some(big)))
+                        .await;
+                })
+            };
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            assert!(
+                !writing.is_finished(),
+                "詰まっていない（パイプが大きすぎる）"
+            );
+
+            tokio::time::timeout(KILL_TIMEOUT * 2, protocol.kill_engine())
+                .await
+                .expect("書き込みが詰まったまま kill が返らない");
+            let exited = protocol.child.exit().borrow().is_some();
+            assert!(exited, "落とせていない");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `usiok` の前に終わったエンジンの理由に、stderr の最後の行が載る。
+        /// 共有ライブラリが見つからない、評価関数が読めない、はそちらに出る
+        #[tokio::test]
+        async fn a_startup_failure_carries_the_last_stderr_line() {
+            let dir = test_support::dir::temp_dir("protocol-stderr");
+            let protocol = protocol_for(
+                &dir,
+                "echo 'dyld: Library not loaded: libomp.dylib' >&2; exit 1",
+            );
+
+            let error = protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect_err("起動が成功している");
+
+            let text = error.to_string();
+            assert!(
+                text.contains("stderr: dyld: Library not loaded"),
+                "理由に stderr が載っていない: {text}"
+            );
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 数値が溢れた `info` があっても読み取りが止まらず、`usiok` まで読める。
+        /// `usi` crate の `listen` は、この1行でそこから先を全部捨てる
+        #[tokio::test]
+        async fn an_overflowing_number_does_not_end_the_reading() {
+            let dir = test_support::dir::temp_dir("protocol-overflow");
+            let protocol = protocol_for(
+                &dir,
+                r#"printf 'info nodes 99999999999999999999\nid name Overflow\nusiok\n'; exec sleep 30"#,
+            );
+
+            let info = protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("usiok まで読めていない");
+            assert_eq!(info.name, "Overflow");
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 読み取りを2度始めると `AlreadyListening`。**プロセスは生きている**ので
+        /// 落とさなくてよい、という区別を呼び手が読む（`send_command` の doc）
+        #[tokio::test]
+        async fn a_second_listen_is_told_apart() {
+            let dir = test_support::dir::temp_dir("protocol-double-listen");
+            let protocol = protocol_for(&dir, "exec sleep 30");
+
+            protocol.start_listening().await.expect("1度目は始められる");
+            let error = protocol
+                .start_listening()
+                .await
+                .expect_err("2度目も始めている");
+            assert!(matches!(error, EngineError::AlreadyListening(_)), "{error}");
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }
