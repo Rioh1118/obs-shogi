@@ -63,8 +63,12 @@ const STALLED: &str = "the engine stopped reading stdin; the process cannot be r
 /// **子プロセスの持ち主はこれ1つにする。** `Clone` を持たせず、`EngineChild` を `Arc` に
 /// 包まない。`&self` から持ち主を増やせると、それをタスクへ渡した瞬間に「捨てればプロセスも
 /// 落ちる」がそのタスクの寿命に縛られる（`readyok` を返さないエンジンでは、待つタスクが
-/// 抜けないままプロセスが残る）。共有は `Arc<UsiProtocol>` で、プロセスより長く生きうる
-/// タスクへは子プロセスを持たない `Link` か `ChildDiagnostics` を渡す。
+/// 抜けないままプロセスが残る）。ここで起こすタスクへは、子プロセスを持たない欄だけを渡す
+/// （`Link`、`ChildDiagnostics`、`start_listening` が渡す `killed` のような `Arc` の欄）。
+///
+/// **型が止めるのはこの中だけ。** 共有は `Arc<UsiProtocol>` で行うので、それを握ったまま
+/// 抜けないタスク（`game/search.rs` の探索、`analyzer.rs` の無限解析）がある間は、
+/// 捨ててもプロセスは落ちない。そちらを落とす保証は台帳の `kill_engine` にある。
 pub struct UsiProtocol {
     /// 子プロセスと標準入出力。**書き込み・読み取り・落とす口がそれぞれ別の持ち主**
     /// なので、書き込みが詰まっても落とせる（`engine/child.rs`）。
@@ -84,7 +88,8 @@ pub struct UsiProtocol {
     init_cancel: Arc<Mutex<Option<CancellationToken>>>,
 }
 
-/// エンジンとの繋がりのうち、**子プロセスを持たない側**。書き込みの列と、送れるかを決める状態。
+/// エンジンとの繋がりのうち、**子プロセスを持たない側**。書き込みの列、送れるかを決める状態、
+/// 読んだ行の配り先（`listeners`）。`readyok` を待つタスクが要るものを集めてある。
 ///
 /// `readyok` を待つタスク（`start_ready_watch_and_send`）には `UsiProtocol` ではなくこれを渡す。
 /// そのタスクは `readyok` か出力の終わりかキャンセルでしか抜けないので、`EngineChild` を
@@ -2049,8 +2054,9 @@ mod tests {
         /// 出力が終わった後のログに、終わり方が載る。stdout の EOF とプロセスの回収は
         /// 別々に着くので、EOF の直後に覗くだけだと空の回がある。
         ///
-        /// **競合なので回数を取る。** 覗くだけの形に戻す変異は1回あたり1割ほどしか当たらず、
-        /// 20回ではテスト5回のうち1回すり抜けた
+        /// **競合なので回数を取る。** `wait_exit` を待たずに `exit_now` を覗く形へ戻す変異が
+        /// 1回で当たるのは1割に満たないので、見逃す確率はおよそ 0.92 の回数乗になる。
+        /// 100回で 10⁻³ を切る（20回では2割に近い）
         #[tokio::test]
         async fn the_line_after_the_output_ends_carries_the_exit() {
             for round in 0..100 {
