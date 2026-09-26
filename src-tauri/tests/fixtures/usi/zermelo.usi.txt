@@ -1,0 +1,18 @@
+id name ZERMELO
+id author riohatta
+option name USI_Hash type spin default 16 min 1 max 1048576
+option name USI_Ponder type check default false
+option name MaxMovesToDraw type spin default 0 min 0 max 10000
+option name GenerateAllLegalMoves type check default false
+option name NetworkDelay type spin default 30 min 0 max 10000
+option name EvalFile type string default 
+option name FV_SCALE type spin default 16 min 1 max 128
+option name EvalPawnValue type spin default 90 min 1 max 1000
+option name EvalSpecHash type string default 
+option name EnteringKingDeclaration type check default true
+option name DeclarationPointBlack type spin default 28 min 0 max 1000
+option name DeclarationPointWhite type spin default 27 min 0 max 1000
+option name DeclarationPiecesInZone type spin default 10 min 0 max 81
+option name DeclarationBigPiecePoints type spin default 5 min 0 max 1000
+option name DeclarationSmallPiecePoints type spin default 1 min 0 max 1000
+usiok

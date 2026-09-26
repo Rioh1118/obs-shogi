@@ -1,0 +1,41 @@
+id name YaneuraOu NNUE V8.30Git 64APPLEM1 TOURNAMENT
+id author by yaneurao
+option name Threads type spin default 4 min 1 max 1024
+option name USI_Hash type spin default 1024 min 1 max 33554432
+option name USI_Ponder type check default false
+option name Stochastic_Ponder type check default false
+option name MultiPV type spin default 1 min 1 max 600
+option name NetworkDelay type spin default 120 min 0 max 10000
+option name NetworkDelay2 type spin default 1120 min 0 max 10000
+option name MinimumThinkingTime type spin default 2000 min 1000 max 100000
+option name SlowMover type spin default 100 min 1 max 1000
+option name MaxMovesToDraw type spin default 0 min 0 max 100000
+option name DepthLimit type spin default 0 min 0 max 2147483647
+option name NodesLimit type spin default 0 min 0 max 9223372036854775807
+option name EvalDir type string default eval
+option name WriteDebugLog type string default 
+option name GenerateAllLegalMoves type check default false
+option name EnteringKingRule type combo default CSARule27 var NoEnteringKing var CSARule24 var CSARule24H var CSARule27 var CSARule27H var TryRule
+option name USI_OwnBook type check default true
+option name NarrowBook type check default false
+option name BookMoves type spin default 16 min 0 max 10000
+option name BookIgnoreRate type spin default 0 min 0 max 100
+option name BookFile type combo default standard_book.db var no_book var standard_book.db var yaneura_book1.db var yaneura_book2.db var yaneura_book3.db var yaneura_book4.db var user_book1.db var user_book2.db var user_book3.db var book.bin
+option name BookDir type string default book
+option name BookEvalDiff type spin default 30 min 0 max 99999
+option name BookEvalBlackLimit type spin default 0 min -99999 max 99999
+option name BookEvalWhiteLimit type spin default -140 min -99999 max 99999
+option name BookDepthLimit type spin default 16 min 0 max 99999
+option name BookOnTheFly type check default false
+option name ConsiderBookMoveCount type check default false
+option name BookPvMoves type spin default 8 min 1 max 246
+option name IgnoreBookPly type check default false
+option name FlippedBook type check default true
+option name DrawValueBlack type spin default -2 min -30000 max 30000
+option name DrawValueWhite type spin default -2 min -30000 max 30000
+option name PvInterval type spin default 300 min 0 max 100000000
+option name ResignValue type spin default 99999 min 0 max 99999
+option name ConsiderationMode type check default true
+option name OutputFailLHPV type check default true
+option name FV_SCALE type spin default 16 min 1 max 128
+usiok

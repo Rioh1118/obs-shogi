@@ -6,12 +6,13 @@ use tokio_util::sync::CancellationToken;
 use crate::engine::child::{
     ChildDiagnostics, ChildWriter, EngineChild, KillOutcome, ReadEvent, Source, KILL_TIMEOUT,
 };
+use crate::engine::option_line::{parse_option_line, MAX_DECLARED_BYTES, MAX_OPTIONS};
 use crate::engine::utils::{shown, LogThrottle, MAX_SUMMARY_LEN};
 use crate::engine::{types::*, utils::cmd_summary, utils::with_cause};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
-use usi::{EngineCommand, GuiCommand, IdParams, OptionParams};
+use usi::{EngineCommand, GuiCommand, IdParams};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
@@ -72,6 +73,17 @@ pub struct UsiProtocol {
     link: Link,
     state: Arc<RwLock<ProtocolState>>,
     listen_active: Arc<Mutex<bool>>,
+
+    /// 読み取りが解いた `option` 行（`option_line::parse_option_line`）。
+    ///
+    /// **溜めるのは `usi` への応答の `option` 行だけ。** `get_engine_info` が読み取りを始める前に
+    /// 開き、読み取りの hook が `usiok` の行を見たところで閉じる。読み取りは1本のタスクが
+    /// 行を順に処理するので、境界は行の順序で決まる（`usiok` より前の行は入り終え、後の行は入らない）
+    declared: Arc<std::sync::Mutex<DeclaredOptions>>,
+
+    /// `get_engine_info` を1本ずつ通す。2本が同時に `usi` を送ると、1つの `declared` を
+    /// 取り合って片方の定義が空になる
+    info_gate: Arc<Mutex<()>>,
 
     /// こちらが落としたか。
     ///
@@ -678,6 +690,8 @@ impl UsiProtocol {
                 last_command: None,
             })),
             listen_active: Arc::new(Mutex::new(false)),
+            declared: Arc::new(std::sync::Mutex::new(DeclaredOptions::default())),
+            info_gate: Arc::new(Mutex::new(())),
             killed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
@@ -754,7 +768,8 @@ impl UsiProtocol {
         // **読み取りは止めない**——止めると、エンジンが生きたまま以後の出力が全部消える
         let mut skipped = 0u64;
         let mut throttle = LogThrottle::new(SKIPPED_LINE_LOG_INTERVAL);
-        let started = self.child.read_stdout(move |event| match event {
+        // 下の転送タスクへ流す。解けなかった行はログを間引いて捨てる
+        let mut forward = move |event: ReadEvent| match event {
             ReadEvent::Line {
                 parsed: Some(cmd), ..
             } => line_tx.send(cmd).is_ok(),
@@ -772,6 +787,15 @@ impl UsiProtocol {
             }
             // 読み手が抜けると `line_tx` が落ち、下の転送タスクが後始末をする
             ReadEvent::Eof => false,
+        };
+        let declared = Arc::clone(&self.declared);
+        let started = self.child.read_stdout(move |event| {
+            // `option` 行は `usi` crate の解析の成否に関係なくここで解く（理由は
+            // `option_line.rs` の冒頭）。判定はパーサの入口と同じ（語の区切りはタブも含む）
+            if let ReadEvent::Line { raw, .. } = &event {
+                lock_declared(&declared).note(raw);
+            }
+            forward(event)
         });
 
         // **始められなかったら転送タスクを立てない。** 立てると、落ちた `line_tx` を
@@ -1103,7 +1127,12 @@ impl UsiProtocol {
     /// 答えない実行ファイルは、待ち直しても同じ時間を使って同じ結果になる。
     /// `TIMED_OUT`（`engine/types.rs`）で始まる文言は「遅かっただけで設定は正しい」
     /// という意味に受け手が使う（F-27）ので、ここが名乗ると**パスを直す導線が出ない**。
+    ///
+    /// **同時に呼ぶと1本ずつ通す**（`info_gate`）。後の呼び手は先の呼び手が返るまで待ち、
+    /// その待ちは `timeout` に含まれない。先の呼び手が成功していれば、後の呼び手はキャッシュを返す。
     pub async fn get_engine_info(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
+        // 1本ずつ通す（`info_gate` の doc）。ゲートを取ってからキャッシュを見直す
+        let _gate = self.info_gate.lock().await;
         {
             let state = self.state.read().await;
             if let Some(info) = &state.engine_info {
@@ -1114,7 +1143,13 @@ impl UsiProtocol {
         let (tx, rx) = mpsc::unbounded_channel();
         let listener_name = format!("info_collection_{}", uuid::Uuid::new_v4());
 
-        self.register_listener(listener_name.clone(), tx).await?;
+        // 読み取りを始める（`register_listener`）前に開く。後に開くと、`usi` を待たずに
+        // 出力するエンジンの `option` 行を、開く前に読んで捨てることがある
+        lock_declared(&self.declared).begin();
+        if let Err(e) = self.register_listener(listener_name.clone(), tx).await {
+            lock_declared(&self.declared).finish();
+            return Err(e);
+        }
         let sent = self.send_command(&GuiCommand::Usi).await;
         let collected = match sent {
             Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
@@ -1128,31 +1163,39 @@ impl UsiProtocol {
         // 打ち切ったときもリスナーを外す。残すと、以降の `info` が
         // 誰も読まないチャンネルへ配られ続ける。
         self.remove_listener(&listener_name).await;
+        // 取り出して閉じる。`usiok` が来なかった回（失敗した回）も閉じないと、
+        // 以後の出力の `option` 行を溜め続ける
+        let declared = lock_declared(&self.declared).finish();
 
-        let engine_info = match collected {
-            Ok(info) => info,
+        let (name, author) = match collected {
+            Ok(id) => id,
             Err(e) => return Err(self.with_recent_output(e).await),
+        };
+        declared.log_problems();
+        let engine_info = EngineInfo {
+            name,
+            author,
+            options: declared.options,
         };
         self.state.write().await.engine_info = Some(engine_info.clone());
 
         Ok(engine_info)
     }
 
+    /// `usiok` までの `id name` / `id author` を集める。オプションの定義は、読み取りの hook
+    /// （`start_listening` の `read_stdout` に渡すもの）が `declared` に溜める。
+    /// 解き方は `option_line::parse_option_line`
     async fn collect_engine_info(
         mut rx: mpsc::UnboundedReceiver<EngineCommand>,
-    ) -> Result<EngineInfo, EngineError> {
+    ) -> Result<(String, String), EngineError> {
         let mut name = String::new();
         let mut author = String::new();
-        let mut options = Vec::new();
         let mut saw_usiok = false;
 
         while let Some(cmd) = rx.recv().await {
             match cmd {
                 EngineCommand::Id(IdParams::Name(n)) => name = n,
                 EngineCommand::Id(IdParams::Author(a)) => author = a,
-                EngineCommand::Option(option_params) => {
-                    options.push(convert_option_params(&option_params));
-                }
                 EngineCommand::UsiOk => {
                     saw_usiok = true;
                     break;
@@ -1171,11 +1214,7 @@ impl UsiProtocol {
             }));
         }
 
-        Ok(EngineInfo {
-            name,
-            author,
-            options,
-        })
+        Ok((name, author))
     }
 
     /// `readyok` を受け取り済みか
@@ -1416,48 +1455,106 @@ fn summarize_recent(lines: &[(Source, String)]) -> Option<String> {
 /// 起動の失敗の理由に添える直近の行数。多いと理由の本文が読めなくなる
 const RECENT_IN_REASON: usize = 3;
 
-// ヘルパー関数（高速化のためインライン化）
-#[inline]
-fn convert_option_params(params: &OptionParams) -> EngineOption {
-    use usi::OptionKind;
+/// 読み取りが解いた `option` 行と、解けなかった行の記録。
+///
+/// **開いている間だけ溜める**（`begin` から、`usiok` の行を見た `close` か `finish` まで）。
+/// 閉じた後の `option` 行（`usiok` の後も吐き続けるエンジン）は誰も取り出さないので、溜めずに捨てる
+#[derive(Default)]
+struct DeclaredOptions {
+    open: bool,
+    options: Vec<crate::engine::types::EngineOption>,
+    /// 溜めた行の合計（バイト）。足すと `MAX_DECLARED_BYTES` を超える行は捨てる
+    /// （その後の短い行は入りうる）
+    bytes: usize,
+    /// 解けなかった行の数。上限なしで数える
+    rejected: usize,
+    /// 解けなかった最初の行と理由。エンジンが書いた文字列を含むので、理由ごと `shown` を通す
+    first_rejected: Option<String>,
+    /// 定義の数（`MAX_OPTIONS`）か合計の大きさ（`MAX_DECLARED_BYTES`）を超えて捨てた行の数
+    beyond_limit: usize,
+    /// `combo` の選択肢の上限を超えて捨てた数
+    dropped_vars: usize,
+}
 
-    let option_type = match &params.value {
-        OptionKind::Check { default } => EngineOptionType::Check { default: *default },
-        OptionKind::Spin { default, min, max } => EngineOptionType::Spin {
-            default: *default,
-            min: *min,
-            max: *max,
-        },
-        OptionKind::Combo { default, vars } => EngineOptionType::Combo {
-            default: default.clone(),
-            vars: vars.clone(),
-        },
-        OptionKind::Button { default } => EngineOptionType::Button {
-            default: default.clone(),
-        },
-        OptionKind::String { default } => EngineOptionType::String {
-            default: default.clone(),
-        },
-        OptionKind::Filename { default } => EngineOptionType::Filename {
-            default: default.clone(),
-        },
-    };
-
-    let default_value = match &params.value {
-        OptionKind::Check { default } => default.map(|b| b.to_string()),
-        OptionKind::Spin { default, .. } => default.map(|i| i.to_string()),
-        OptionKind::Combo { default, .. } => default.clone(),
-        OptionKind::Button { default } => default.clone(),
-        OptionKind::String { default } => default.clone(),
-        OptionKind::Filename { default } => default.clone(),
-    };
-
-    EngineOption {
-        name: params.name.clone(),
-        option_type,
-        default_value,
-        current_value: None,
+impl DeclaredOptions {
+    fn begin(&mut self) {
+        *self = Self {
+            open: true,
+            ..Self::default()
+        };
     }
+
+    /// 読み取りの hook が1行ごとに渡す。`option` 行を溜め、`usiok` の行で閉じる
+    /// （後に続く `option` 行は `usi` への応答ではない）。判定はパーサの入口と同じで、
+    /// 語の区切りにタブも含む
+    fn note(&mut self, raw: &str) {
+        match raw.split_whitespace().next() {
+            Some("option") => self.record(raw),
+            Some("usiok") => self.close(),
+            _ => {}
+        }
+    }
+
+    /// 以後の行を溜めない。溜めたものは `finish` で取り出すまで残す
+    fn close(&mut self) {
+        self.open = false;
+    }
+
+    /// 溜めたものを取り出して閉じる
+    fn finish(&mut self) -> Self {
+        std::mem::take(self)
+    }
+
+    fn record(&mut self, raw: &str) {
+        if !self.open {
+            return;
+        }
+        if self.options.len() >= MAX_OPTIONS || self.bytes + raw.len() > MAX_DECLARED_BYTES {
+            self.beyond_limit += 1;
+            return;
+        }
+        match parse_option_line(raw) {
+            Ok(parsed) => {
+                self.bytes += raw.len();
+                self.dropped_vars += parsed.dropped_vars;
+                self.options.push(parsed.option);
+            }
+            Err(e) => {
+                if self.first_rejected.is_none() {
+                    let reason = shown(&format!("{e}: {raw}"), MAX_SUMMARY_LEN * 2);
+                    self.first_rejected = Some(reason);
+                }
+                self.rejected += 1;
+            }
+        }
+    }
+
+    /// 捨てたものがあれば1行残す。**利用者の画面には、捨てた定義が黙って欠ける**ので、
+    /// 開発者が気付ける手掛かりはここしか無い
+    fn log_problems(&self) {
+        if self.rejected == 0 && self.beyond_limit == 0 && self.dropped_vars == 0 {
+            return;
+        }
+        log::warn!(
+            target: LOGT,
+            "usi: dropped option lines: {} unreadable, {} beyond the limits, {} combo values; first: {}",
+            self.rejected,
+            self.beyond_limit,
+            self.dropped_vars,
+            self.first_rejected.as_deref().unwrap_or("")
+        );
+    }
+}
+
+/// 毒の入ったロックもそのまま取る。`record` の途中で panic して残りうるのは欄どうしの数の
+/// 食い違い（`bytes` だけ増えて `options` に無い、など）で、影響は `log_problems` の1行の
+/// 数字と、以後の予算の見積りに留まる。定義そのもの（`options` の各要素）が半端になることは無い
+fn lock_declared(
+    declared: &std::sync::Mutex<DeclaredOptions>,
+) -> std::sync::MutexGuard<'_, DeclaredOptions> {
+    declared
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 #[cfg(test)]
@@ -1872,6 +1969,97 @@ mod tests {
         assert_eq!(summarize_recent(&[]), None);
     }
 
+    /// 閉じた後の `option` 行は溜めない（`usiok` の後も吐き続けるエンジン）
+    #[test]
+    fn declared_options_are_kept_only_while_open() {
+        let mut declared = DeclaredOptions::default();
+        declared.record("option name Before type check default true");
+        declared.begin();
+        declared.record("option name During type check default true");
+        let taken = declared.finish();
+        declared.record("option name After type check default true");
+
+        let names: Vec<_> = taken.options.iter().map(|o| o.name.as_str()).collect();
+        assert_eq!(names, ["During"]);
+        assert!(declared.options.is_empty(), "閉じた後も溜めている");
+    }
+
+    /// `usiok` の行で閉じた後は溜めない。溜めたものは `finish` まで残る。
+    /// タブ区切りの `option` 行も拾う
+    #[test]
+    fn declared_options_stop_at_usiok() {
+        let mut declared = DeclaredOptions::default();
+        declared.begin();
+        declared.note("id name X");
+        declared.note("option\tname During type check default true");
+        declared.note("usiok");
+        declared.note("option name After type check default true");
+        let names: Vec<_> = declared
+            .finish()
+            .options
+            .into_iter()
+            .map(|o| o.name)
+            .collect();
+        assert_eq!(names, ["During"]);
+    }
+
+    /// 予算に入らない長い行を捨てても、その後の短い行は入る
+    #[test]
+    fn a_line_beyond_the_byte_budget_is_dropped_but_later_short_ones_are_kept() {
+        let mut declared = DeclaredOptions::default();
+        declared.begin();
+        declared.bytes = MAX_DECLARED_BYTES - 100;
+        declared.record(&format!(
+            "option name Long type string default {}",
+            "a".repeat(200)
+        ));
+        declared.record("option name Short type check default true");
+        assert_eq!(declared.beyond_limit, 1);
+        let names: Vec<_> = declared.options.iter().map(|o| o.name.as_str()).collect();
+        assert_eq!(names, ["Short"]);
+    }
+
+    /// 上限を超えた行も、解けなかった行も数える。解けなかった行は上限なしで数える
+    #[test]
+    fn declared_options_count_what_they_drop() {
+        let mut declared = DeclaredOptions::default();
+        declared.begin();
+        for i in 0..MAX_OPTIONS + 1 {
+            declared.record(&format!("option name O{i} type check default true"));
+        }
+        for _ in 0..MAX_OPTIONS + 1 {
+            declared.record("option name X type slider");
+        }
+        assert_eq!(declared.options.len(), MAX_OPTIONS);
+        // 上限に達した後は、解けない行も上限の側で数える
+        assert_eq!(declared.beyond_limit, MAX_OPTIONS + 2);
+
+        let mut unreadable = DeclaredOptions::default();
+        unreadable.begin();
+        for _ in 0..MAX_OPTIONS + 1 {
+            unreadable.record("option name X type slider");
+        }
+        assert_eq!(unreadable.rejected, MAX_OPTIONS + 1);
+    }
+
+    /// 解けなかった理由は、エンジンが書いた語ごと長さと制御文字を落として持つ
+    #[test]
+    fn a_rejected_line_is_kept_short_and_without_control_characters() {
+        let mut declared = DeclaredOptions::default();
+        declared.begin();
+        declared.record(&format!(
+            "option name X type \u{1b}]{}",
+            "z".repeat(100_000)
+        ));
+        let first = declared.first_rejected.expect("理由が残っていない");
+        assert!(
+            first.chars().count() <= MAX_SUMMARY_LEN * 2 + 1,
+            "{}",
+            first.len()
+        );
+        assert!(!first.chars().any(char::is_control), "{first:?}");
+    }
+
     /// 実プロセスで確かめる。`#!/bin/sh` の台本を置いて起こす
     #[cfg(unix)]
     mod with_a_process {
@@ -2041,6 +2229,99 @@ mod tests {
                 );
                 let _ = std::fs::remove_dir_all(&dir);
             }
+        }
+
+        /// `usi` の応答の `option` 行が、`usi` crate の解析を通らないものも含めて定義になる。
+        /// 実機のやねうら王の応答（fixture）に、名前に空白を含む1行を足して流す
+        #[tokio::test]
+        async fn engine_info_carries_every_declared_option() {
+            let dir = test_support::dir::temp_dir("protocol-options");
+            let fixture = include_str!("../../tests/fixtures/usi/yaneuraou-v900.usi.txt").replace(
+                "usiok\n",
+                "option name Book Path type string default a b\noption\tname Tab\ttype check default true\nusiok\n",
+            );
+            std::fs::write(dir.join("usi.txt"), fixture).expect("書けない");
+            let protocol = protocol_for(&dir, "read _; cat usi.txt; exec sleep 30").await;
+
+            let info = protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("usiok まで読める");
+
+            assert_eq!(info.options.len(), 41, "落とした option 行がある");
+            assert!(
+                info.options.iter().any(|o| o.name == "Tab"),
+                "タブ区切りの行を落としている"
+            );
+            let book_file = info
+                .options
+                .iter()
+                .find(|o| o.name == "BookFile")
+                .expect("BookFile が無い");
+            let crate::engine::types::EngineOptionType::Combo { vars, .. } = &book_file.option_type
+            else {
+                panic!("combo として読めていない");
+            };
+            assert_eq!(vars.len(), 10, "`var` の語を選択肢に混ぜている: {vars:?}");
+            let spaced = info
+                .options
+                .iter()
+                .find(|o| o.name == "Book Path")
+                .expect("空白入りの名前を落としている");
+            assert_eq!(spaced.default_value.as_deref(), Some("a b"));
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `usiok` の後に出た `option` 行は、`usi` への応答ではないので定義に入らない
+        #[tokio::test]
+        async fn option_lines_after_usiok_are_not_declared() {
+            let dir = test_support::dir::temp_dir("protocol-options-late");
+            std::fs::write(
+                dir.join("usi.txt"),
+                include_str!("../../tests/fixtures/usi/yaneuraou-v900.usi.txt"),
+            )
+            .expect("書けない");
+            let protocol = protocol_for(
+                &dir,
+                "read _; cat usi.txt; echo 'option name Late type check default true'; exec sleep 30",
+            )
+            .await;
+
+            let info = protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("読める");
+            assert_eq!(info.options.len(), 39);
+            assert!(
+                info.options.iter().all(|o| o.name != "Late"),
+                "`usiok` の後の行を定義に入れている"
+            );
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `get_engine_info` を同時に2本呼んでも、どちらも（その後のキャッシュも）全部の定義を持つ
+        #[tokio::test]
+        async fn concurrent_engine_info_requests_share_every_option() {
+            let dir = test_support::dir::temp_dir("protocol-options-join");
+            std::fs::write(
+                dir.join("usi.txt"),
+                include_str!("../../tests/fixtures/usi/yaneuraou-v900.usi.txt"),
+            )
+            .expect("書けない");
+            let protocol = protocol_for(&dir, "read _; cat usi.txt; exec sleep 30").await;
+
+            let (a, b) = tokio::join!(
+                protocol.get_engine_info(Duration::from_secs(10)),
+                protocol.get_engine_info(Duration::from_secs(10)),
+            );
+            let cached = protocol.get_engine_info(Duration::from_secs(10)).await;
+            for info in [a, b, cached] {
+                assert_eq!(info.expect("読める").options.len(), 39);
+            }
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
         }
 
         /// 読み取りを2度始めると `AlreadyListening`。**プロセスは生きている**ので
