@@ -44,7 +44,8 @@ pub const KILL_TIMEOUT: Duration = Duration::from_secs(2);
 ///
 /// 理由に載せるのは数行だが、stdout と stderr を着いた順に1つに持つので、失敗の後に
 /// stdout の `info` が続くと stderr の行は古い側へ追いやられる。stderr の行はこの数の行が
-/// 後から着くまで残り、理由を組む側（`protocol.rs` の `summarize_recent`）がそちらを先に選ぶ
+/// 後から着くまで残り、理由を組む側（`protocol.rs` の `summarize_recent`）は、いちばん
+/// 新しい1行の次に stderr の行を選ぶ
 const RECENT_LINES: usize = 32;
 
 /// 直近の出力として持つ1行の長さ（文字）。理由に添えるだけなので短く切る

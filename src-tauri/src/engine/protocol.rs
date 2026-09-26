@@ -1398,22 +1398,23 @@ async fn listen_ended_line(
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
 ///
-/// **stderr の行を先に選ぶ。** 評価関数や共有ライブラリの失敗、assert の文言はそちらに出る。
-/// 着いた順の末尾だけを取ると、その後に stdout の `info` が `RECENT_IN_REASON` 行続いた
-/// だけで stderr の行が消える。足りない分を stdout の末尾で埋め、選んだ行は着いた順に並べる。
+/// **いちばん新しい1行は出どころを問わず載せ、残りを stderr の行から先に選ぶ。**
+/// 失敗の行は両方に出る。共有ライブラリ・assert の文言は stderr に、USI エンジンが自分で
+/// 書く失敗（`info string` や独自の `Error!` の行）は stdout に出る。着いた順の末尾だけを
+/// 取ると、stderr の行の後に stdout の `info` が続いただけで stderr の行が消える。
+/// stderr だけを先に取ると、stderr の警告が `RECENT_IN_REASON` 行あるだけで最後の stdout の
+/// 行が消える。足りない分は stdout の新しい行で埋め、選んだ行は着いた順に並べる。
 ///
 /// **エンジンが書いた文字列なので、長さと制御文字を落としてから載せる**
 /// （`shown`）。素で載せると、改行を含む行1つで偽のログ行を作れる。
 /// stderr の行は `stderr: ` を頭に付ける。
 fn summarize_recent(lines: &[(Source, String)]) -> Option<String> {
-    let latest = |wanted: Source| {
-        (0..lines.len())
-            .rev()
-            .filter(move |&at| lines[at].0 == wanted)
-    };
-    let mut picked: Vec<usize> = latest(Source::Stderr).take(RECENT_IN_REASON).collect();
+    let newest = lines.len().checked_sub(1)?;
+    let older = |wanted: Source| (0..newest).rev().filter(move |&at| lines[at].0 == wanted);
+    let mut picked = vec![newest];
+    picked.extend(older(Source::Stderr).take(RECENT_IN_REASON - 1));
     let room = RECENT_IN_REASON - picked.len();
-    picked.extend(latest(Source::Stdout).take(room));
+    picked.extend(older(Source::Stdout).take(room));
     picked.sort_unstable();
 
     let tail: Vec<String> = picked
@@ -1859,7 +1860,24 @@ mod tests {
         );
     }
 
-    /// stderr が多ければ stderr の末尾だけ。無ければ stdout の末尾。空なら何も添えない
+    /// stderr の警告が何行あっても、いちばん新しい stdout の行は消えない。
+    /// USI エンジンは自分の失敗（評価関数が読めない、など）を stdout に書いて終わることがある
+    #[test]
+    fn the_newest_line_is_kept_whatever_the_stderr() {
+        let lines = recent(&[
+            (Source::Stderr, "w1"),
+            (Source::Stderr, "w2"),
+            (Source::Stderr, "w3"),
+            (Source::Stdout, "Error! : failed to read eval/nn.bin"),
+        ]);
+        assert_eq!(
+            summarize_recent(&lines).as_deref(),
+            Some("stderr: w2 / stderr: w3 / Error! : failed to read eval/nn.bin"),
+            "最後の行を載せていない"
+        );
+    }
+
+    /// stderr が多ければ最後の1行と stderr の末尾。無ければ stdout の末尾。空なら何も添えない
     #[test]
     fn the_summary_fills_from_the_latest_lines() {
         let many_stderr = recent(&[
