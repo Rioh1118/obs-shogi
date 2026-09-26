@@ -96,6 +96,12 @@ tauri-plugin-process = { workspace = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 xattr = "1.6"
 
+# エンジンを落とすときに、子プロセスのグループへまとめてシグナルを送るため。
+# `#!` のラッパーから起こしたエンジンは孫プロセスで、子だけを落とすと孤児として残る
+# （`engine/child.rs`）。libc を直に呼ぶと `unsafe` が要るので、安全な口を持つこれを使う
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1", features = ["process"] }
+
 [dev-dependencies]
 test-support = { path = "crates/test-support" }
 # `#[tokio::test(start_paused = true)]` のため。上限を実時間で待つテストが

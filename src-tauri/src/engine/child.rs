@@ -1,9 +1,13 @@
 //! エンジンの子プロセスと、その標準入出力の持ち主。
 //!
 //! **stdin・stdout・stderr・プロセスをそれぞれ別の持ち主にする。** 1つの構造体を
-//! 1つのロックの下に置くと、stdin への書き込みが詰まったときに同じロックを取る
-//! kill が返らない（#353）。ここでは kill はチャンネルで待ち手のタスクへ頼むだけで、
-//! どのロックも取らない。
+//! 1つのロックの下に置くと、stdin への書き込みが詰まったときに同じロックを待つ
+//! kill が返らない。ここでは kill はチャンネルで待ち手のタスクへ頼むだけで、
+//! stdin のロックを**待たない**。
+//!
+//! 書く口（`ChildWriter`）と読む口（`read_stdout`）は**1回きり**しか渡さない。
+//! 2本目の書き手ができると、書き込みの列（`protocol::run_writer`）が守っている
+//! 「投入順＝ワイヤ上の順」を迂回できる。
 //!
 //! 行の解析は `usi` crate の `EngineCommand::parse` に任せる。任せないのは読み方で、
 //! 解けない行・UTF-8 でない行・長すぎる行があっても**読み取りを止めない**
@@ -13,11 +17,14 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::process::{ExitStatus, Stdio};
 use std::sync::{Arc, Mutex as StdMutex};
+use std::time::Duration;
 
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, ChildStdout};
 use tokio::sync::{oneshot, watch, Mutex};
 use usi::EngineCommand;
+
+const LOGT: &str = "obs_shogi::engine::child";
 
 /// 1行として受け取る上限（バイト）。**メモリを守るためだけ**の値。
 ///
@@ -26,7 +33,17 @@ use usi::EngineCommand;
 /// 正常なエンジンの行がここに届くことはない。
 pub const MAX_LINE: usize = 1024 * 1024;
 
-/// 直近の出力として持つ行数。起動に失敗したときの理由に添える材料
+/// 落とすよう頼んでから、プロセスが畳まれるのを見届けるまでの上限。
+///
+/// SIGKILL は普通ミリ秒で効く。これを超えたら、OS がすぐには畳めない状態
+/// （応答しないボリュームの上で止まっている、など）とみなして待つのをやめる。
+/// やめても待ち手は終わりを待ち続けるので、後から畳まれれば回収される。
+pub const KILL_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// 直近の出力として持つ行数。起動や実行の失敗の理由に添える材料。
+///
+/// 使うのは末尾の数行だが、stdout と stderr を着いた順に1つに持つので、
+/// 失敗の直前に stdout の `info` が続いても stderr の行が押し出されない程度に取る
 const RECENT_LINES: usize = 32;
 
 /// 直近の出力として持つ1行の長さ（文字）。理由に添えるだけなので短く切る
@@ -42,8 +59,9 @@ pub enum Source {
 /// stdout から読んだ1件。
 #[derive(Debug)]
 pub enum ReadEvent {
-    /// 1行。`parsed` は解けなかったとき `None`（`usi` crate が知らない形、
-    /// 数値が溢れた、`MAX_LINE` を超えて切った）。**読み取りは続く。**
+    /// 1行。`parsed` が `None` になるのは、`usi` crate が知っている語なのに形が
+    /// 崩れている（数値が溢れた、など）ときと、`MAX_LINE` を超えて切ったとき。
+    /// 知らない語で始まる行は `Some(EngineCommand::Unknown)` で来る。**読み取りは続く。**
     Line {
         raw: String,
         parsed: Option<EngineCommand>,
@@ -60,51 +78,75 @@ pub enum Exit {
     Unknown,
 }
 
-/// `kill` を頼んだ結果
+/// `kill_and_wait` の結果
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[must_use = "落とせたかどうかを読まないと、残ったことを知る手掛かりが無くなる"]
-pub enum KillRequest {
-    /// 待ち手へ頼んだ
-    Sent,
-    /// 既に頼んであった。2度目以降
-    AlreadySent,
+#[must_use = "落とせたか・残ったかを記録しないと、残ったことを知る手掛かりが無くなる"]
+pub enum KillOutcome {
+    /// 頼んで、終わるのを見届けた
+    Ended(Exit),
+    /// 既に頼んであった。2度目以降。見届けるのは最初に頼んだ側
+    AlreadyRequested,
     /// 頼む前に終わっていた
     AlreadyExited,
+    /// 上限内に終わらなかった。**残っている**
+    TimedOut,
+    /// 終わりを見届ける待ち手が消えた。残っているかは判らない
+    WatcherGone,
 }
 
 /// 子プロセス1本。
 ///
-/// **Drop するとプロセスも落ちる**（待ち手が kill の頼みの口が閉じたことで気付く）。
-/// 落とし損ねてもパニックはしない。
+/// **Drop するとプロセスも落ちる**（待ち手が kill の頼みの口が閉じたことで気付き、
+/// プロセスグループごと落とす）。落とし損ねてもパニックはしない。
 pub struct EngineChild {
-    pid: Option<u32>,
     stdin: Arc<Mutex<Option<ChildStdin>>>,
+    writer: StdMutex<Option<ChildWriter>>,
     stdout: StdMutex<Option<ChildStdout>>,
     kill: StdMutex<Option<oneshot::Sender<()>>>,
     exit: watch::Receiver<Option<Exit>>,
+    stderr_done: watch::Receiver<bool>,
     recent: Arc<StdMutex<VecDeque<(Source, String)>>>,
+}
+
+/// stdin に書く口。**`EngineChild::take_writer` から1回だけ取れる。**
+pub struct ChildWriter {
+    stdin: Arc<Mutex<Option<ChildStdin>>>,
 }
 
 /// 子プロセスを起こす。**tokio のランタイムの中で呼ぶこと**（`spawn_blocking` の中でもよい）。
 ///
-/// 引数は渡さない。cwd は `work_dir`。
+/// 引数は渡さない。cwd は `work_dir`。子は自分のプロセスグループの頭になる
+/// （落とすときに孫まで届けるため）。
 pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
-    let mut child = tokio::process::Command::new(program)
+    let mut command = tokio::process::Command::new(program);
+    command
         .current_dir(work_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()?;
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = command.spawn()?;
 
     let pid = child.id();
-    let stdin = child.stdin.take();
+    let stdin = Arc::new(Mutex::new(child.stdin.take()));
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
     let recent = Arc::new(StdMutex::new(VecDeque::with_capacity(RECENT_LINES)));
-    if let Some(stderr) = stderr {
-        tokio::spawn(read_stderr(BufReader::new(stderr), Arc::clone(&recent)));
+    let (stderr_done_tx, stderr_done_rx) = watch::channel(false);
+    match stderr {
+        Some(stderr) => {
+            let recent = Arc::clone(&recent);
+            tokio::spawn(async move {
+                read_stderr(BufReader::new(stderr), recent).await;
+                let _ = stderr_done_tx.send(true);
+            });
+        }
+        None => {
+            let _ = stderr_done_tx.send(true);
+        }
     }
 
     let (kill_tx, kill_rx) = oneshot::channel::<()>();
@@ -114,6 +156,7 @@ pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
         let waited = tokio::select! {
             waited = child.wait() => waited,
             _ = kill_rx => {
+                signal_group(pid);
                 if let Err(e) = child.start_kill() {
                     log::warn!(target: LOGT, "kill: could not signal the process: {e}");
                 }
@@ -131,28 +174,40 @@ pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
     });
 
     Ok(EngineChild {
-        pid,
-        stdin: Arc::new(Mutex::new(stdin)),
+        writer: StdMutex::new(Some(ChildWriter {
+            stdin: Arc::clone(&stdin),
+        })),
+        stdin,
         stdout: StdMutex::new(stdout),
         kill: StdMutex::new(Some(kill_tx)),
         exit: exit_rx,
+        stderr_done: stderr_done_rx,
         recent,
     })
 }
 
-const LOGT: &str = "obs_shogi::engine::child";
+/// プロセスグループの全員へ SIGKILL を送る。`#!` のラッパーから起こしたエンジンは
+/// 孫なので、子（シェル）だけを落とすと stdin・stdout を継いだまま孤児として残る
+#[cfg(unix)]
+fn signal_group(pid: Option<u32>) {
+    let group = pid
+        .and_then(|pid| i32::try_from(pid).ok())
+        .and_then(rustix::process::Pid::from_raw);
+    let Some(group) = group else {
+        return;
+    };
+    if let Err(e) = rustix::process::kill_process_group(group, rustix::process::Signal::KILL) {
+        log::debug!(target: LOGT, "kill: could not signal the process group: {e}");
+    }
+}
+
+#[cfg(not(unix))]
+fn signal_group(_pid: Option<u32>) {}
 
 impl EngineChild {
-    /// OS のプロセス番号。起動直後に終わっていると無いことがある
-    pub fn pid(&self) -> Option<u32> {
-        self.pid
-    }
-
-    /// stdin の口。書き込みの列（`protocol::run_writer`）が持つ。
-    ///
-    /// `None` になっているのは落とした後。
-    pub fn stdin(&self) -> Arc<Mutex<Option<ChildStdin>>> {
-        Arc::clone(&self.stdin)
+    /// stdin に書く口を取る。**1回きり**（2回目は `None`）
+    pub fn take_writer(&self) -> Option<ChildWriter> {
+        lock(&self.writer).take()
     }
 
     /// stdout を読み始める。**1回きり**（2回目は `false`）。
@@ -174,28 +229,47 @@ impl EngineChild {
         true
     }
 
-    /// 落とすよう待ち手に頼む。**待たない。** 終わったかは `exit` で見る。
+    /// 落とし、終わるのを `limit` まで見届ける。2度目以降は頼み直さない。
     ///
-    /// stdin も閉じる。ただし書き込みが詰まって stdin のロックが取れないときは
-    /// 閉じずに進む——落とせばパイプはどのみち閉じる。
-    pub fn kill(&self) -> KillRequest {
+    /// 落とすのは待ち手のタスクに頼むだけで、stdin のロックを**待たない**。
+    /// 書き込みが詰まっていても落とせる。`quit` は書かない（行儀よく終わらせたい呼び手は
+    /// 先に `quit` を送る）。
+    pub async fn kill_and_wait(&self, limit: Duration) -> KillOutcome {
+        self.close_stdin();
+        if self.exit.borrow().is_some() {
+            return KillOutcome::AlreadyExited;
+        }
+        let Some(tx) = lock(&self.kill).take() else {
+            return KillOutcome::AlreadyRequested;
+        };
+        // 受け手が居ないのは、待ち手が終了を見届けて抜けた後だけ
+        if tx.send(()).is_err() {
+            return KillOutcome::AlreadyExited;
+        }
+
+        let mut exit = self.exit.clone();
+        let waited = tokio::time::timeout(limit, exit.wait_for(|e| e.is_some()))
+            .await
+            .map(|watched| watched.map(|exit| *exit));
+        match waited {
+            Ok(Ok(Some(exit))) => KillOutcome::Ended(exit),
+            Ok(Ok(None)) | Ok(Err(_)) => KillOutcome::WatcherGone,
+            Err(_) => KillOutcome::TimedOut,
+        }
+    }
+
+    /// stdin を閉じる。書き込みがロックを握っているとき（詰まっているとき）は、
+    /// 空くのを待つタスクに任せて返る。**閉じないまま残さない**——`#!` のラッパーの
+    /// 孫は stdin の EOF で終わるものが多い
+    fn close_stdin(&self) {
         if let Ok(mut stdin) = self.stdin.try_lock() {
             stdin.take();
+            return;
         }
-        if self.exit.borrow().is_some() {
-            return KillRequest::AlreadyExited;
-        }
-        match lock(&self.kill).take() {
-            Some(tx) => {
-                // 受け手が居ないのは、待ち手が終了を見届けて抜けた後だけ
-                if tx.send(()).is_err() {
-                    KillRequest::AlreadyExited
-                } else {
-                    KillRequest::Sent
-                }
-            }
-            None => KillRequest::AlreadySent,
-        }
+        let stdin = Arc::clone(&self.stdin);
+        tokio::spawn(async move {
+            stdin.lock().await.take();
+        });
     }
 
     /// 終わり方。終わるまでは `None`
@@ -203,31 +277,50 @@ impl EngineChild {
         self.exit.clone()
     }
 
-    /// 直近の出力（stdout と stderr を着いた順に）。起動に失敗したときの理由に添える
+    /// stderr を読み切るのを `limit` まで待つ。**stdout の EOF と stderr の EOF は
+    /// 別々に着く**ので、stdout が閉じた直後に直近の出力を読むと、stderr の最後の行
+    /// （共有ライブラリや評価関数の失敗）がまだ入っていないことがある
+    pub async fn settle_output(&self, limit: Duration) {
+        let mut done = self.stderr_done.clone();
+        let waited = tokio::time::timeout(limit, done.wait_for(|done| *done))
+            .await
+            .map(|watched| watched.map(|_| ()));
+        match waited {
+            // 読み切った。送り手が消えたのも、読み手のタスクが抜けた後
+            Ok(Ok(())) | Ok(Err(_)) => {}
+            // stderr を孫が握って開けたままにしている、など。読めた分で進む
+            Err(_) => log::debug!(target: LOGT, "settle: stderr did not close within {limit:?}"),
+        }
+    }
+
+    /// 直近の出力（stdout と stderr を着いた順に）。起動や実行の失敗の理由に添える
     pub fn recent_lines(&self) -> Vec<(Source, String)> {
         lock(&self.recent).iter().cloned().collect()
     }
 }
 
-/// 1行を書く。改行はこちらで足す。
-///
-/// 落とした後（stdin を閉じた後）は `NotConnected` を返す。相手が読み口を閉じた
-/// `BrokenPipe` とは原因が違うので分ける
-pub async fn write_line(stdin: &Mutex<Option<ChildStdin>>, line: &str) -> std::io::Result<()> {
-    let mut guard = stdin.lock().await;
-    let Some(stdin) = guard.as_mut() else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotConnected,
-            "stdin has been closed",
-        ));
-    };
-    stdin.write_all(line.as_bytes()).await?;
-    stdin.write_all(b"\n").await?;
-    stdin.flush().await
+impl ChildWriter {
+    /// 1行を書く。改行はこちらで足す。
+    ///
+    /// 落とした後（stdin を閉じた後）は `NotConnected` を返す。相手が読み口を閉じた
+    /// `BrokenPipe` とは原因が違うので分ける
+    pub async fn write_line(&self, line: &str) -> std::io::Result<()> {
+        let mut guard = self.stdin.lock().await;
+        let Some(stdin) = guard.as_mut() else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotConnected,
+                "stdin has been closed",
+            ));
+        };
+        stdin.write_all(line.as_bytes()).await?;
+        stdin.write_all(b"\n").await?;
+        stdin.flush().await
+    }
 }
 
+/// どのロックも、中で行うのは1回の差し替え（`take`）か `push` / `pop` だけで、
+/// 途中で panic しても半端な値を残さない。毒されていても中身をそのまま使う
 fn lock<T>(mutex: &StdMutex<T>) -> std::sync::MutexGuard<'_, T> {
-    // 中身は `Option` の差し替えだけなので、毒されても値は壊れていない
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -335,7 +428,6 @@ mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
-    use std::time::Duration;
     use test_support::dir::temp_dir;
     use tokio::sync::mpsc;
 
@@ -375,35 +467,47 @@ mod tests {
         settled.expect("終わっている")
     }
 
-    fn parsed(events: &[ReadEvent]) -> Vec<Option<EngineCommand>> {
-        events
-            .iter()
-            .filter_map(|e| match e {
-                ReadEvent::Line { parsed, .. } => Some(parsed.clone()),
-                ReadEvent::Eof => None,
-            })
-            .collect()
+    fn parsed_of(event: &ReadEvent) -> Option<EngineCommand> {
+        match event {
+            ReadEvent::Line { parsed, .. } => parsed.clone(),
+            ReadEvent::Eof => None,
+        }
+    }
+
+    fn is_alive(pid: &str) -> bool {
+        std::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .status()
+            .is_ok_and(|s| s.success())
     }
 
     /// 解けない行・UTF-8 でない行・空行があっても読み続ける。
-    /// `usi` crate の `listen` は、数値の溢れや UTF-8 でない行でそこから先を全部捨てる
+    /// `usi` crate の `listen` は、`score` の数値の溢れ（`IllegalNumberFormat`）と
+    /// UTF-8 でない行（読み取りの `InvalidData`）で、そこから先を全部捨てる
     #[tokio::test]
     async fn reading_goes_on_past_lines_it_cannot_parse() {
         let dir = temp_dir("child-lines");
         let path = script(
             &dir,
-            r#"printf 'id name T\n\n\377\376 garbage\ninfo nodes 99999999999999999999\nusiok\n'"#,
+            r#"printf 'id name T\n\n\377\376 garbage\ninfo score cp 99999999999999999999\nusiok\n'"#,
         );
         let child = spawn(&path, &dir).expect("起こせる");
 
         let events = read_all(&child).await;
-        let commands = parsed(&events);
+        let commands: Vec<_> = events
+            .iter()
+            .filter(|e| !matches!(e, ReadEvent::Eof))
+            .map(parsed_of)
+            .collect();
 
         assert_eq!(commands.len(), 4, "空行は捨て、残り4行は届く: {events:?}");
         assert!(matches!(commands[0], Some(EngineCommand::Id(_))));
-        // UTF-8 でない行は置き換え文字にして渡す（`usi` crate は知らない語を `Unknown` と解く）
+        // UTF-8 でない行は置き換え文字にして渡す（知らない語なので `Unknown`）
         assert_eq!(commands[1], Some(EngineCommand::Unknown));
-        assert_eq!(commands[2], None, "数値が溢れた行も読み取りを止めない");
+        assert_eq!(
+            commands[2], None,
+            "`score` の数値が溢れた行は解けないが届く"
+        );
         assert_eq!(commands[3], Some(EngineCommand::UsiOk));
         assert!(matches!(events.last(), Some(ReadEvent::Eof)));
         let _ = std::fs::remove_dir_all(&dir);
@@ -432,13 +536,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    fn parsed_of(event: &ReadEvent) -> Option<EngineCommand> {
-        match event {
-            ReadEvent::Line { parsed, .. } => parsed.clone(),
-            ReadEvent::Eof => None,
-        }
-    }
-
     /// stderr は直近の出力として残り、終わり方も取れる
     #[tokio::test]
     async fn stderr_and_the_exit_status_are_kept() {
@@ -450,13 +547,7 @@ mod tests {
             panic!("終わり方が取れていない");
         };
         assert_eq!(status.code(), Some(3));
-        // 待ち手と stderr の読み手は別のタスクなので、行が着くまで少し待つ
-        for _ in 0..100 {
-            if !child.recent_lines().is_empty() {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
+        child.settle_output(Duration::from_secs(10)).await;
         assert_eq!(
             child.recent_lines(),
             [(Source::Stderr, "dyld: Library not loaded".to_string())]
@@ -464,20 +555,37 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// stdout を閉じても stderr を開いたまま走り続ける子で、`Eof` が届く
+    /// stdout が先に閉じ、stderr が遅れて書かれても、`settle_output` の後には読めている
     #[tokio::test]
-    async fn eof_arrives_when_stdout_closes_even_if_stderr_stays_open() {
-        let dir = temp_dir("child-stdout-closed");
-        let path = script(&dir, "exec 1>&-; sleep 30");
+    async fn settling_waits_for_stderr_that_arrives_after_stdout_closes() {
+        let dir = temp_dir("child-late-stderr");
+        let path = script(&dir, "exec 1>&-; sleep 0.3; echo 'late' >&2");
         let child = spawn(&path, &dir).expect("起こせる");
 
         let events = read_all(&child).await;
         assert!(matches!(events.as_slice(), [ReadEvent::Eof]), "{events:?}");
-        assert_eq!(child.kill(), KillRequest::Sent);
+        child.settle_output(Duration::from_secs(10)).await;
+        assert_eq!(child.recent_lines(), [(Source::Stderr, "late".to_string())]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 書いた行が届き、`kill` で落ち、2度目の `kill` は頼み直さない
+    /// stdout を閉じても stderr を開いたまま走り続ける子で、`Eof` が届く
+    #[tokio::test]
+    async fn eof_arrives_when_stdout_closes_even_if_stderr_stays_open() {
+        let dir = temp_dir("child-stdout-closed");
+        let path = script(&dir, "exec 1>&-; exec sleep 30");
+        let child = spawn(&path, &dir).expect("起こせる");
+
+        let events = read_all(&child).await;
+        assert!(matches!(events.as_slice(), [ReadEvent::Eof]), "{events:?}");
+        assert!(matches!(
+            child.kill_and_wait(KILL_TIMEOUT).await,
+            KillOutcome::Ended(_)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 書いた行が届き、落とすと終わりを見届け、2度目は頼み直さない。書く口は1回きり
     #[tokio::test]
     async fn a_written_line_arrives_and_kill_ends_the_process() {
         let dir = temp_dir("child-echo");
@@ -486,21 +594,30 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
         assert!(child.read_stdout(move |event| tx.send(event).is_ok()));
         assert!(!child.read_stdout(|_| true), "2度読み始めている");
+        let writer = child.take_writer().expect("書く口が取れる");
+        assert!(child.take_writer().is_none(), "書く口を2本渡している");
 
-        write_line(&child.stdin(), "usiok").await.expect("書ける");
+        writer.write_line("usiok").await.expect("書ける");
         let echoed = tokio::time::timeout(Duration::from_secs(10), rx.recv())
             .await
             .expect("届かない")
             .expect("読み手が消えた");
         assert_eq!(parsed_of(&echoed), Some(EngineCommand::UsiOk));
 
-        assert_eq!(child.kill(), KillRequest::Sent);
-        assert!(matches!(exited(&child).await, Exit::Status(_)));
-        assert_ne!(child.kill(), KillRequest::Sent, "2度頼んでいる");
-        assert!(
-            write_line(&child.stdin(), "isready").await.is_err(),
-            "落とした後も書けている"
+        assert!(matches!(
+            child.kill_and_wait(KILL_TIMEOUT).await,
+            KillOutcome::Ended(_)
+        ));
+        assert_ne!(
+            child.kill_and_wait(KILL_TIMEOUT).await,
+            KillOutcome::TimedOut,
+            "2度目で待ちに入っている"
         );
+        let error = writer
+            .write_line("isready")
+            .await
+            .expect_err("落とした後も書けている");
+        assert_eq!(error.kind(), std::io::ErrorKind::NotConnected);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -512,14 +629,53 @@ mod tests {
         let path = script(&dir, "exec sleep 30");
         let child = spawn(&path, &dir).expect("起こせる");
 
-        let stdin = child.stdin();
+        let writer = child.take_writer().expect("書く口が取れる");
         let big = "x".repeat(4 * 1024 * 1024);
-        let stuck = tokio::spawn(async move { write_line(&stdin, &big).await });
+        let stuck = tokio::spawn(async move { writer.write_line(&big).await });
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(!stuck.is_finished(), "詰まっていない（パイプが大きすぎる）");
 
-        assert_eq!(child.kill(), KillRequest::Sent);
-        assert!(matches!(exited(&child).await, Exit::Status(_)));
+        assert!(matches!(
+            child.kill_and_wait(KILL_TIMEOUT).await,
+            KillOutcome::Ended(_)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `#!` のラッパーから起こした孫プロセスも落ちる（プロセスグループごと落とす）
+    #[tokio::test]
+    async fn killing_a_wrapper_also_ends_its_children() {
+        let dir = temp_dir("child-grandchild");
+        let pid_file = dir.join("grandchild.pid");
+        let path = script(
+            &dir,
+            &format!("sleep 30 & echo $! > '{}'; wait", pid_file.display()),
+        );
+        let child = spawn(&path, &dir).expect("起こせる");
+        // 並列で走るテストの負荷で台本の起動が遅れても待てるだけ取る
+        let mut grandchild = String::new();
+        for _ in 0..1000 {
+            if let Ok(pid) = std::fs::read_to_string(&pid_file) {
+                if !pid.trim().is_empty() {
+                    grandchild = pid;
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(is_alive(&grandchild), "孫が起きていない");
+
+        assert!(matches!(
+            child.kill_and_wait(KILL_TIMEOUT).await,
+            KillOutcome::Ended(_)
+        ));
+        for _ in 0..1000 {
+            if !is_alive(&grandchild) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(!is_alive(&grandchild), "孫が孤児として残っている");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

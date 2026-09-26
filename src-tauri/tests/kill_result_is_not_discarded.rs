@@ -1,11 +1,9 @@
 //! エンジンを落とした結果を捨てない。
 //!
-//! `EngineChild::kill` は落とすのを頼むだけで、既に頼んであった・既に終わっていた、
-//! も返す（`KillRequest`）。**頼めた回だけ、終わるのを見届ける必要がある。**
-//! 戻り値を `let _ =` で捨てると、見届けずに「落とした」と扱うことになり、
-//! 残ったことを知る手掛かりが1本も無くなる——落とし手はどの経路も1回きりで、
-//! `SPAWN_TIMEOUT` を超えた子に至ってはどの台帳にも居ない
-//! （`registry.rs` の `starting` の doc、#381）。
+//! `EngineChild::kill_and_wait` は、落とせたか・上限内に終わらなかったか（**残っている**）
+//! を返す（`KillOutcome`）。戻り値を `let _ =` で捨てると、残ったことを知る手掛かりが
+//! 1本も無くなる——落とし手はどの経路も1回きりで、`SPAWN_TIMEOUT` を超えた子に至っては
+//! どの台帳にも居ない（`registry.rs` の `starting` の doc、#381）。
 //!
 //! **捨てた側は緑のまま**（`#[must_use]` は `let _ =` を止めない）。
 //! 数えるのではなく 0 で固定して、増やす側に説明を書かせる。
@@ -50,12 +48,12 @@ fn sources() -> Vec<PathBuf> {
         .collect()
 }
 
-/// `EngineChild::kill` を呼んでいる行か（`child.kill()` / `self.child.kill()`）。
+/// `EngineChild::kill_and_wait` を呼んでいる行か。
 ///
 /// **`start_kill()` は対象外**——待ち手のタスクの中の OS への頼みで、
 /// 結果はそこでログに残している。
-fn calls_handler_kill(line: &str) -> bool {
-    line.contains("child.kill()")
+fn calls_child_kill(line: &str) -> bool {
+    line.contains("kill_and_wait(")
 }
 
 /// 戻り値を捨てている行か。
@@ -69,7 +67,7 @@ fn a_failed_kill_is_never_discarded() {
 
     for path in sources() {
         for (number, line) in production_code(&path).lines().enumerate() {
-            if calls_handler_kill(line) && discards_result(line) {
+            if calls_child_kill(line) && discards_result(line) {
                 offenders.push(format!(
                     "{}:{}  {}",
                     path.display(),
@@ -99,7 +97,7 @@ fn the_scanner_still_sees_the_kill_call_sites() {
         .flat_map(|path| {
             production_code(path)
                 .lines()
-                .filter(|line| calls_handler_kill(line))
+                .filter(|line| calls_child_kill(line))
                 .map(|line| format!("{}  {}", path.display(), line.trim()))
                 .collect::<Vec<_>>()
         })
@@ -107,8 +105,8 @@ fn the_scanner_still_sees_the_kill_call_sites() {
 
     assert!(
         calls.len() >= 2,
-        "`child.kill()` の呼び口を {} 件しか見つけられていない。\
-         綴りが変わったなら `calls_handler_kill` を直すこと",
+        "`kill_and_wait` の呼び口を {} 件しか見つけられていない。\
+         綴りが変わったなら `calls_child_kill` を直すこと",
         calls.len()
     );
 }
@@ -118,12 +116,22 @@ fn the_scanner_still_sees_the_kill_call_sites() {
 /// **現物を食わせて違反0、では述語が壊れても緑になる。**
 #[test]
 fn the_predicates_split_reading_from_discarding() {
-    assert!(discards_result("        let _ = self.child.kill();"));
-    assert!(!discards_result("        let request = child.kill();"));
-    assert!(!discards_result("        match self.child.kill() {"));
+    assert!(discards_result(
+        "        let _ = self.child.kill_and_wait(KILL_TIMEOUT).await;"
+    ));
+    assert!(!discards_result(
+        "        let outcome = child.kill_and_wait(KILL_TIMEOUT).await;"
+    ));
+    assert!(!discards_result(
+        "        match self.child.kill_and_wait(KILL_TIMEOUT).await {"
+    ));
 
-    assert!(calls_handler_kill("let _ = child.kill();"));
-    assert!(calls_handler_kill("match self.child.kill() {"));
+    assert!(calls_child_kill(
+        "let _ = child.kill_and_wait(KILL_TIMEOUT).await;"
+    ));
+    assert!(calls_child_kill(
+        "match self.child.kill_and_wait(KILL_TIMEOUT).await {"
+    ));
     // 待ち手の中の OS への頼みには当てない
-    assert!(!calls_handler_kill("if let Err(e) = child.start_kill() {"));
+    assert!(!calls_child_kill("if let Err(e) = child.start_kill() {"));
 }

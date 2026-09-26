@@ -201,8 +201,8 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 （`dispatch_for` の `Queue`）はまだ列に入っていないので、この上限の外にある。
 そちらを見張るのは `READY_TIMEOUT` と `on_tick` の見張り。
 
-**これらの上限が効くのは、書き込みが `spawn_blocking` の中にあるから。**
-async のタスクの中で同期 write を直に呼ぶと `poll` が返らず、
+**これらの上限が効くのは、書き込みが非同期だから**（`ChildWriter::write_line`）。
+同期の write を async のタスクの中で直に呼ぶと `poll` が返らず、
 `timeout` は発火する機会そのものを持たない。
 
 なお `GameManager::close` は `Arc::try_unwrap` が通らないと、中断だけ通して
@@ -217,10 +217,11 @@ async のタスクの中で同期 write を直に呼ぶと `poll` が返らず�
 1つで包むと、対局を閉じるのに使い切ったときに掃除の future が1度も poll されず、
 **解析用エンジンは掃除からしか届かない**ので必ず残る。
 
-`CLOSE_TIMEOUT` を超えても掃除が拾う。残るのは `SWEEP_TIMEOUT` か
-`KILL_TIMEOUT` を超えたときだけ（→ 台帳の F-25）。`kill` は `quit` を書かずに
-シグナルを送り、待ち手のタスクが終了状態を見届ける（`engine/child.rs`）ので、
-stdin を閉じて走り続けるエンジンも落ちる。
+`CLOSE_TIMEOUT` を超えても掃除が拾う。残るのは `SWEEP_TIMEOUT` が尽きて `kill` が
+届かなかった後続と、`KILL_TIMEOUT` を超えても OS が畳まなかった回（→ 台帳の F-25）。
+`kill` は `quit` を書かずにプロセスグループへシグナルを送り、待ち手のタスクが終了状態を
+見届ける（`engine/child.rs`）ので、stdin を閉じて走り続けるエンジンも、`#!` のラッパーから
+起こした孫のエンジンも落ちる。
 
 ※5 `G1` に入るのは手番側の探索が終わった直後なので、その側は既に `A0`。
 

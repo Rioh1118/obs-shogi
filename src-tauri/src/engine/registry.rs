@@ -11,8 +11,8 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::engine::child::{self, EngineChild, KillRequest};
-use crate::engine::protocol::{UsiProtocol, KILL_TIMEOUT};
+use crate::engine::child::{self, EngineChild, KillOutcome, KILL_TIMEOUT};
+use crate::engine::protocol::UsiProtocol;
 use crate::engine::types::{EngineError, EngineInfo, TIMED_OUT};
 use crate::engine::utils::{shown, with_cause, MAX_SUMMARY_LEN};
 
@@ -125,8 +125,7 @@ impl EngineRegistry {
         // `is_file` も `child::spawn`（中の fork/exec）も同期の
         // システムコールで、`.await` を1つも挟まない。async のタスクの中で
         // 直に呼ぶと `poll` が返らず、同じスレッドに載っている他の対局の
-        // `run_loop` / `tick_loop` / `run_writer` が進まない
-        // （`protocol.rs` が `kill` と書き込みを逃がしているのと同じ理由）。
+        // `run_loop` / `tick_loop` / `run_writer` が進まない。
         //
         // ネットワークボリューム上のエンジンや、`fork` が重い状況で効く。
         // 対局はこれを2本ぶん直列に通る。
@@ -308,22 +307,13 @@ async fn dispose_late_spawn(
     };
     log::warn!(target: LOGT, "{}", disposing_line(&path));
 
-    match child.kill() {
-        KillRequest::Sent => {}
-        KillRequest::AlreadySent | KillRequest::AlreadyExited => return,
-    }
-    let mut exit = child.exit();
-    // `Ref` を持ち越さない（`exit` より長く生きる一時値にしない）
-    let waited = tokio::time::timeout(KILL_TIMEOUT, exit.wait_for(|e| e.is_some()))
-        .await
-        .map(|watched| watched.map(|_| ()));
-    match waited {
-        Ok(Ok(())) => {}
-        Ok(Err(_)) => log::error!(
+    match child.kill_and_wait(KILL_TIMEOUT).await {
+        KillOutcome::Ended(_) | KillOutcome::AlreadyRequested | KillOutcome::AlreadyExited => {}
+        KillOutcome::WatcherGone => log::error!(
             target: LOGT,
             "spawn: the exit watcher of a late engine is gone; it may still be running"
         ),
-        Err(_) => log::error!(
+        KillOutcome::TimedOut => log::error!(
             target: LOGT,
             "spawn: a late engine did not end in time; it may still be running"
         ),
@@ -395,7 +385,7 @@ impl EngineRegistry {
     /// `quit` が超えても `kill` へ進む。待ち続けるよりましだという判断。
     ///
     /// `kill` は `quit` を書かずにシグナルを送り、プロセスが畳まれるのを見届ける
-    /// （`EngineChild::kill`）。上の `quit` で自発的に終わったエンジンには
+    /// （`EngineChild::kill_and_wait`）。上の `quit` で自発的に終わったエンジンには
     /// 「もう終わっていた」と返るだけで、stdin だけ閉じて走り続けるエンジンも落ちる。
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);

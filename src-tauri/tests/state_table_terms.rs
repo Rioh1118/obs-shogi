@@ -43,6 +43,7 @@ const TABLES: &[(&str, &[&str])] = &[
         &[
             "src/lib.rs",
             "src/engine/analyzer.rs",
+            "src/engine/child.rs",
             "src/engine/protocol.rs",
             "src/engine/registry.rs",
             "src/engine/commands/game.rs",
