@@ -9,12 +9,12 @@ import {
   type UsiOptionMap,
 } from "./types";
 import { useAppConfig } from "@/entities/app-config";
-import { loadPresets, savePresets } from "../api/presets";
+import { asSaveFailure, loadPresets, savePresets } from "../api/presets";
 import {
   clonePreset,
   createDefaultPreset,
   genPresetId,
-  normalizeLoadedFile,
+  normalizeLoadedPresets,
   normalizeOnePreset,
 } from "../lib/normalize";
 import { EnginePresetsContext } from "./context";
@@ -51,12 +51,33 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     return presetVersionRef.current.get(id) ?? 0;
   }, [state.selectedPresetId, versionEpoch]);
 
-  const persist = useCallback(async (presets: EnginePreset[]) => {
+  // 読んだ（か直前に書いた）ファイルの印。保存に渡し、別の書き手の変更を Rust が見分ける
+  const revisionRef = useRef<string | null>(null);
+  // 書けるか。**決めるのは読み込みだけ**なので、読み込みの口でだけ書き換える
+  // （`state.writable` と同じ値。`persist` を state に依存させないために ref で持つ）
+  const writableRef = useRef(false);
+
+  /**
+   * 書く。**書けたら `true`。** 呼び手は `true` のときだけ state を変える（悲観更新）——
+   * 先に変えると、書けなかった変更が画面にだけ残り、次に開いたときに消える。
+   * 書けない状態（`writable` が偽）では書かずに `false`
+   */
+  const persist = useCallback(async (presets: EnginePreset[]): Promise<boolean> => {
+    if (!writableRef.current) {
+      dispatch({
+        type: "save_failed",
+        payload: { kind: "readOnly", message: "the presets file is read-only" },
+      });
+      return false;
+    }
     try {
-      await savePresets({ presets });
+      revisionRef.current = await savePresets(presets, revisionRef.current);
+      return true;
     } catch (e) {
-      console.error("savePresets failed:", e);
-      throw e;
+      const failure = asSaveFailure(e);
+      console.error("[presets] 保存に失敗した", failure.kind, failure.message);
+      dispatch({ type: "save_failed", payload: failure });
+      return false;
     }
   }, []);
 
@@ -97,20 +118,29 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     (async () => {
       dispatch({ type: "loading" });
       try {
-        const file = await loadPresets();
-        let presets = normalizeLoadedFile(file);
+        const loaded = await loadPresets();
+        revisionRef.current = loaded.revision;
+        writableRef.current = loaded.writable;
+        let presets = normalizeLoadedPresets(loaded.presets);
 
-        if (presets.length === 0) {
+        // **書ける状態のときだけ**既定の1件を作る。読めなかったファイルや新しい版のファイルに
+        // 書くと、読めていない中身を上書きする
+        if (presets.length === 0 && loaded.writable) {
           const p = createDefaultPreset();
-          presets = [p];
-          await persist(presets);
+          if (await persist([p])) presets = [p];
         }
 
         const selectedId = chooseInitialSelectedId(presets);
 
         dispatch({
           type: "loaded",
-          payload: { presets, selectedPresetId: selectedId },
+          payload: {
+            presets,
+            selectedPresetId: selectedId,
+            writable: loaded.writable,
+            unreadableCount: loaded.unreadableCount,
+            fileNotice: loaded.notice,
+          },
         });
 
         if ((config?.last_preset_id ?? null) !== selectedId) {
@@ -128,8 +158,10 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     dispatch({ type: "loading" });
     try {
-      const file = await loadPresets();
-      const presets = normalizeLoadedFile(file);
+      const loaded = await loadPresets();
+      revisionRef.current = loaded.revision;
+      writableRef.current = loaded.writable;
+      const presets = normalizeLoadedPresets(loaded.presets);
 
       const cur = state.selectedPresetId;
       const stillExists = cur && presets.some((p) => p.id === cur);
@@ -137,7 +169,13 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
 
       dispatch({
         type: "loaded",
-        payload: { presets, selectedPresetId: nextSelected },
+        payload: {
+          presets,
+          selectedPresetId: nextSelected,
+          writable: loaded.writable,
+          unreadableCount: loaded.unreadableCount,
+          fileNotice: loaded.notice,
+        },
       });
       await setLastPresetId(nextSelected);
       touchPreset(nextSelected);
@@ -161,8 +199,8 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     async (partial: Partial<EnginePreset> = {}) => {
       const p = createDefaultPreset({ label: "New Preset", ...partial });
       const next = [...state.presets, p];
+      if (!(await persist(next))) return null;
       dispatch({ type: "set_presets", payload: next });
-      await persist(next);
       touchPreset(p.id);
       return p;
     },
@@ -181,8 +219,8 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         label: `${src.label} (copy)`,
       });
       const next = [...state.presets, nextPreset];
+      if (!(await persist(next))) return null;
       dispatch({ type: "set_presets", payload: next });
-      await persist(next);
       await selectPreset(nextPreset.id);
       return nextPreset;
     },
@@ -192,9 +230,10 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const updatePreset = useCallback(
     async (id: PresetId, patch: Partial<EnginePreset>) => {
       const next = state.presets.map((p) => (p.id === id ? { ...p, ...patch } : p));
+      if (!(await persist(next))) return false;
       dispatch({ type: "set_presets", payload: next });
-      await persist(next);
       touchPreset(id);
+      return true;
     },
     [persist, state.presets, touchPreset],
   );
@@ -204,8 +243,9 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       const next = state.presets.map((p) =>
         p.id === id ? { ...p, options: { ...p.options, ...partial } } : p,
       );
+      if (!(await persist(next))) return false;
       dispatch({ type: "set_presets", payload: next });
-      await persist(next);
+      return true;
     },
     [persist, state.presets],
   );
@@ -213,13 +253,14 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const deletePreset = useCallback(
     async (id: PresetId) => {
       const next = state.presets.filter((p) => p.id !== id);
+      if (!(await persist(next))) return false;
       dispatch({ type: "set_presets", payload: next });
-      await persist(next);
 
       if (state.selectedPresetId === id) {
         const fallback = next[0]?.id ?? null;
         await selectPreset(fallback);
       }
+      return true;
     },
     [persist, selectPreset, state.presets, state.selectedPresetId],
   );

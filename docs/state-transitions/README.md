@@ -38,6 +38,7 @@ L2    book-view.md             定跡ビュー。引くのが非同期で盤が�
 判定  book-key-failures.md     book_key_or_reason の検査の順序 × 入力の形
 判定  yaneuraou-db-parse.md    .db の読み取り。行の種類 × パーサの状態
 判定  verify-gate-decision.md  verify-gate の段 × コマンドの形
+判定  presets-file.md          プリセットのファイルの読み込み（版・壊れ方）× 書けるか
 ```
 
 `branch-index.md` だけ粒度が違う。スライスの状態ではなく**1つの値が取りうる形**を軸にしている。
@@ -63,6 +64,7 @@ L2    book-view.md             定跡ビュー。引くのが非同期で盤が�
 | [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                                                                                               |
 | [yaneuraou-db-parse.md](yaneuraou-db-parse.md)     | ✅        | 判定表。`.db` の行の種類 × パーサの状態。一次資料の表を持つ                                                                             |
 | [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                                                                                              |
+| [presets-file.md](presets-file.md)                 | ✅        | 判定表。プリセットのファイルの版・壊れ方 × 書けるか。**書き込みを失敗させるセルは未検証**                                               |
 | [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸                                                                                    |
 | [game-session.md](game-session.md)                 | ✅        | Rust 側。人間だけの経路は固定済み。**エンジンの実プロセスを要するセルは未検証**                                                         |
 | [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                                                                             |

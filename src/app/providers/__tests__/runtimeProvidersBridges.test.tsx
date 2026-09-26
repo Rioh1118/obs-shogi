@@ -4,8 +4,8 @@ import { cleanup, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 /**
- * `RuntimeProviders` に載っている橋のうち、**外しても何も落ちない2つ**
- * （`BoardOrientationBridge` / `EngineFailureBridge`）が載っていること。
+ * `RuntimeProviders` に載っている橋のうち、**外しても何も落ちないもの**
+ * （`BoardOrientationBridge` / `EngineFailureBridge` / `PresetsFileBridge`）が載っていること。
  * 型も通るしレンダも通る。起きるのは「棋譜を変えても向きが戻らない」
  * 「エンジンが起動できなくても画面に何も出ない」だけで、例外もエラー表示も出ない。
  *
@@ -48,6 +48,7 @@ vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPos
 
 const resetOrientation = vi.fn();
 const engineFailureBridge = vi.fn();
+const presetsFileBridge = vi.fn();
 
 // **中身は差し替える。** 実物は `EngineProvider` の中に居る前提なのに、
 // この試験は `EngineRuntimeBridge` を素通しに差し替えている。
@@ -58,6 +59,18 @@ vi.mock("../bridges/EngineFailureBridge", () => ({
     return null;
   },
 }));
+
+// 同じく、実物は `EnginePresetsProvider` の中に居る前提（ここでは素通しに差し替えている）
+vi.mock(
+  "../bridges/PresetsFileBridge",
+  () =>
+    ({
+      PresetsFileBridge: () => {
+        presetsFileBridge();
+        return null;
+      },
+    }) satisfies typeof import("../bridges/PresetsFileBridge"),
+);
 
 // 向きを読む側はこの部分木に居ないので、落とす側だけを差し替える。
 // 使わない口を形だけ書くと、実物が変わっても気付けない
@@ -93,5 +106,19 @@ describe("RuntimeProviders", () => {
     );
 
     expect(engineFailureBridge).toHaveBeenCalled();
+  });
+
+  /**
+   * プリセットのファイルで起きたこと（移した・読めなかった・保存を断られた）を届ける橋。
+   * **外すと、書けない状態で開いたことも保存を断られたことも画面に出ない**
+   */
+  test("プリセットのファイルを届ける橋を載せる", () => {
+    render(
+      <RuntimeProviders>
+        <div />
+      </RuntimeProviders>,
+    );
+
+    expect(presetsFileBridge).toHaveBeenCalled();
   });
 });

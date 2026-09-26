@@ -9,3 +9,6 @@ fs = { path = "../fs" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tauri = { workspace = true }
+
+[dev-dependencies]
+test-support = { path = "../test-support" }

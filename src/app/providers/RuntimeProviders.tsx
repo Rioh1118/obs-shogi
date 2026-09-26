@@ -4,6 +4,7 @@ import { GameMoveGate } from "./gates/GameMoveGate";
 import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
 import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
 import { EngineFailureBridge } from "./bridges/EngineFailureBridge";
+import { PresetsFileBridge } from "./bridges/PresetsFileBridge";
 import { SearchRootGate } from "./gates/SearchRootGate";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
 import { GameSessionBridge } from "./bridges/GameSessionBridge";
@@ -37,6 +38,7 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
         <GameMoveGate>
           <StudyPositionsProvider>
             <EnginePresetsProvider>
+              <PresetsFileBridge />
               <EngineRuntimeBridge>
                 <EngineFailureBridge />
                 <SearchRootGate>
