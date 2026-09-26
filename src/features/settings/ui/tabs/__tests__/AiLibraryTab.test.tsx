@@ -84,7 +84,14 @@ function indexWithEngine(root = AI_ROOT): AiRootIndex {
   return {
     ...index(true),
     ai_root: root,
-    engines: [{ entry: "YaneuraOu", path: `${root}/engines/YaneuraOu`, kind: "file" }],
+    engines: [
+      {
+        entry: "YaneuraOu",
+        path: `${root}/engines/YaneuraOu`,
+        kind: "file",
+        launchability: "ready",
+      },
+    ],
   };
 }
 
@@ -626,6 +633,32 @@ describe("AI ライブラリタブの「開く」", () => {
     await renderScanned(true);
 
     expect(screen.getByText(/エンジン実行ファイルが未検出です/)).toBeTruthy();
+  });
+
+  // 置いたのが別の OS 向けだけなら、このマシンで使えるエンジンは0件
+  test("別の OS 向けと読めないものしか無ければ、未検出と言う", async () => {
+    scanAiRoot.mockResolvedValue({
+      ...index(true),
+      engines: [
+        {
+          entry: "YaneuraOu_AVX2.exe",
+          path: `${AI_ROOT}/engines/YaneuraOu_AVX2.exe`,
+          kind: "file",
+          launchability: "wrongPlatform",
+        },
+        {
+          entry: "locked/",
+          path: `${AI_ROOT}/engines/locked`,
+          kind: "dir",
+          launchability: "unreadable",
+        },
+      ],
+    });
+    render(<AiLibraryTab />);
+    await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
+
+    expect(screen.getByText(/エンジン実行ファイルが未検出です/)).toBeTruthy();
+    expect(screen.queryByText("検出済み")).toBeNull();
   });
 
   test("engines がフォルダでなければ、その中へ置けとは言わない", async () => {

@@ -91,6 +91,11 @@ tauri-plugin-opener = { workspace = true }
 tauri-plugin-updater = { workspace = true }
 tauri-plugin-process = { workspace = true }
 
+# 隔離属性（`com.apple.quarantine`）を読むため。候補のエンジンを macOS が
+# まだ開かせていないかを、起動する前に利用者へ示す（`engine/launchable.rs`）
+[target.'cfg(target_os = "macos")'.dependencies]
+xattr = "1.6"
+
 [dev-dependencies]
 test-support = { path = "crates/test-support" }
 # `#[tokio::test(start_paused = true)]` のため。上限を実時間で待つテストが

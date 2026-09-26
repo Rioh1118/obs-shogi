@@ -10,10 +10,25 @@ export type DirInfo = {
   kind: FsKind;
 };
 
+/**
+ * 候補を起動できる見込み。一覧から外す理由ではなく、利用者に見せる理由
+ * （Rust `engine/launchable.rs` の `Launchability`）。理由は1つだけで、直す順に見る。
+ * `quarantined` は macOS が開くのをまだ許可していないもの（許可済みなら属性が残っていても
+ * 他の条件次第で `ready`）。`wrongPlatform` は macOS / Linux に置かれた別の OS 向けの
+ * 実行ファイル（Windows では `.exe` 以外を中身で見ないので出ない）
+ */
+export type Launchability =
+  | "ready"
+  | "notExecutable"
+  | "quarantined"
+  | "unreadable"
+  | "wrongPlatform";
+
 export type EngineCandidate = {
-  entry: string; // file name under engines/
+  entry: string; // engines/ からの相対。1段下のフォルダなら "<フォルダ>/<ファイル>"、開けないフォルダは "<フォルダ>/"
   path: string; // full path
   kind: FsKind;
+  launchability: Launchability;
 };
 
 export type FileCandidate = {
