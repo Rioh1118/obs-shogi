@@ -220,7 +220,7 @@ pub fn doc_above(lines: &[&str], at: usize) -> Vec<(usize, String)> {
     block
 }
 
-/// `#[cfg(test)]` が付いた item を落とす。
+/// テストのときだけ組まれる item を落とす（`test_only_cfg`）。
 ///
 /// **塊とは限らない。** `#[cfg(test)] use ...;` `#[cfg(test)] const ...;` は
 /// 波括弧を持たない。「次の `{` から釣り合うまで」で落とすと、**その先にある
@@ -240,16 +240,21 @@ pub fn strip_test_modules(source: &str, path: &Path) -> String {
     // doc コメントに `#[cfg(test)]` と書いた行から走査が始まり、その直後の
     // **本番の item が丸ごと落ちる**（`lib.rs` の `CLOSE_TIMEOUT` の doc がその綴りを含む）。
     // この壊れ方は `item_end` が `None` を返さないので、下の panic には掛からない
-    while let Some(at) = find_in_code(rest, "#[cfg(test)]") {
+    while let Some(at) = find_in_code(rest, CFG_OPEN) {
         out.push_str(&rest[..at]);
         let after = &rest[at..];
+        if !test_only_cfg(after) {
+            out.push_str(CFG_OPEN);
+            rest = &after[CFG_OPEN.len()..];
+            continue;
+        }
 
         // **黙って打ち切らない。** 「以降は全部テスト」で `return` すると、
         // 括弧を数え違えた瞬間にその後ろの本番コードが検査から消え、
         // `.unwrap()` を書いても緑で通る。走査の故障はここで落とす
         let end = item_end(after).unwrap_or_else(|| {
             panic!(
-                "{}: `#[cfg(test)]` の item の終わりを見つけられない。\
+                "{}: テスト用の `#[cfg(..)]` の item の終わりを見つけられない。\
                  走査が壊れている（括弧の数え違い）",
                 path.display()
             )
@@ -260,6 +265,65 @@ pub fn strip_test_modules(source: &str, path: &Path) -> String {
 
     out.push_str(rest);
     out
+}
+
+const CFG_OPEN: &str = "#[cfg(";
+
+/// `rest` の頭の `#[cfg(..)]` が、テストのときだけ組まれる item に付くものか。
+///
+/// `#[cfg(test)]` と、`all(..)` の引数に `test` を持つもの（`#[cfg(all(test, unix))]`）。
+/// **`any(test, ..)` と `not(test)` は当てない**——どちらも本番で組まれうるので、当てると
+/// 本番のコードを検査から落とす。
+fn test_only_cfg(rest: &str) -> bool {
+    let Some(parens) = rest.strip_prefix("#[cfg") else {
+        return false;
+    };
+    let Some(len) = matching(parens, '(', ')') else {
+        return false;
+    };
+    // 外側の `(` と `)` を剥がした中身
+    let predicate = parens[1..len - 1].trim();
+    if predicate == "test" {
+        return true;
+    }
+    let Some(arguments) = predicate
+        .strip_prefix("all(")
+        .and_then(|inner| inner.strip_suffix(')'))
+    else {
+        return false;
+    };
+    top_level_arguments(arguments)
+        .iter()
+        .any(|argument| argument.trim() == "test")
+}
+
+/// `,` で区切った並びを、入れ子の括弧と文字列の中の `,` で切らずに分ける
+/// （`all(test, feature = "a,b")` の `"a,b"` を2つに割らない）
+fn top_level_arguments(list: &str) -> Vec<&str> {
+    let mut found = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    let mut at = 0;
+    while at < list.len() {
+        let rest = &list[at..];
+        if let Some(len) = skip_literal_or_comment(rest) {
+            at += len;
+            continue;
+        }
+        let ch = rest.chars().next().expect("残りがあれば1文字は取れる");
+        match ch {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                found.push(&list[start..at]);
+                start = at + 1;
+            }
+            _ => {}
+        }
+        at += ch.len_utf8();
+    }
+    found.push(&list[start..]);
+    found
 }
 
 /// 走査の合成。**テストから直に食わせられる形にしておく。**
@@ -795,6 +859,46 @@ mod tests {
 
         // 途中に紛れ物があっても、本物が別の場所にあれば拾う
         assert!(mentions_crate("mock_tauri::X; tauri::Y;", "tauri"));
+    }
+
+    /// テストのときだけ組まれる item は、`cfg` の書き方によらず落とす。
+    /// 本番でも組まれうるもの（`any(test, ..)` / `not(test)` / `test` を持たない `cfg`）は残す
+    #[test]
+    fn a_test_only_cfg_is_stripped_whatever_else_it_requires() {
+        let path = Path::new("x.rs");
+        for source in [
+            "#[cfg(test)]\nmod t {\n    fn x() { a.unwrap(); }\n}\npub fn real() {}\n",
+            "#[cfg(all(test, unix))]\nmod t {\n    fn x() { a.unwrap(); }\n}\npub fn real() {}\n",
+            "#[cfg(all(unix, test))]\nfn x() { a.unwrap(); }\npub fn real() {}\n",
+            "#[cfg(all(test, feature = \"a,b\"))]\nfn x() { a.unwrap(); }\npub fn real() {}\n",
+        ] {
+            let stripped = strip_test_modules(source, path);
+            assert!(
+                !stripped.contains("unwrap"),
+                "テストの item を残している: {source}"
+            );
+            assert!(
+                stripped.contains("pub fn real"),
+                "本番の item まで落としている: {source}"
+            );
+            assert_eq!(
+                stripped.lines().count(),
+                source.lines().count(),
+                "行数が変わっている: {source}"
+            );
+        }
+
+        for source in [
+            "#[cfg(any(test, feature = \"x\"))]\npub fn kept() { a.unwrap(); }\n",
+            "#[cfg(all(not(test), unix))]\npub fn kept() { a.unwrap(); }\n",
+            "#[cfg(all(unix, testing))]\npub fn kept() { a.unwrap(); }\n",
+            "#[cfg(unix)]\npub fn kept() { a.unwrap(); }\n",
+        ] {
+            assert!(
+                strip_test_modules(source, path).contains("unwrap"),
+                "本番でも組まれうる item を落としている: {source}"
+            );
+        }
     }
 
     #[test]
