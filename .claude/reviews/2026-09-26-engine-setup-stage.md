@@ -19,7 +19,7 @@
 
 ## 直した所見
 
-1巡目の直しは1コミットにまとめた（同じファイルの中で所見が重なり、ファイル単位で割れない）。
+1巡目の直しは1コミット `bb3bd9b5` にまとめた（同じファイルの中で所見が重なり、ファイル単位で割れない）。
 
 - `id name` を欠いたエンジンが `ExitedEarly`（評価関数の失敗）に分類される → `NO_ID_NAME` で `StartupFailed` にし `NotUsi` へ（robustness / comment）
 - 取り消した後に折れた起動が本物の失敗で返る → `start_engine` の失敗の出口で `cancel.is_cancelled()` なら `Cancelled`。`select!` を `biased` に。`spawn_cancellable` は起こす前と起こす段の最中にも取り消しを見る（robustness / rust）
