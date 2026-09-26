@@ -101,9 +101,10 @@ pub trait EngineChannel: Send + Sync + 'static {
 （手数・option の件数・欄の長さ）が**実際に線に出る1行を短く保っている**
 ことの確認まで届く。いまはどれも入口の値しか見ていない。
 
-`protocol` の下の段（`child`）は段の表に載っている。継ぎ目を trait にするときは、
-`forbids` がクレート単位なので「`tokio::process` は `child` の中だけ」を今の走査では
-書けない。**綴りを名指しする検査が別に要る**ことを、着手する側が知っている必要がある。
+`protocol` の下の段（`child`）は段の表に載っている。`forbids` はクレート単位なので
+「子プロセスを作れるのは `child` の中だけ」は書けず、綴りを名指しする検査を別に置いてある
+（`layering.rs` の `only_the_child_layer_spawns_processes`）。継ぎ目を trait にするときも、
+子プロセスを作る側はその検査の内側（`engine/child.rs`）に置くこと。
 
 ### 3. 探索と解析が `Arc<UsiProtocol>` に直に依存する — 逆転しない
 

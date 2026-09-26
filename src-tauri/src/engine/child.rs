@@ -42,8 +42,9 @@ pub const KILL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 直近の出力として持つ行数。起動や実行の失敗の理由に添える材料。
 ///
-/// 使うのは末尾の数行だが、stdout と stderr を着いた順に1つに持つので、
-/// 失敗の直前に stdout の `info` が続いても stderr の行が押し出されない程度に取る
+/// 理由に載せるのは数行だが、stdout と stderr を着いた順に1つに持つので、失敗の後に
+/// stdout の `info` が続くと stderr の行は古い側へ追いやられる。stderr の行はこの数の行が
+/// 後から着くまで残り、理由を組む側（`protocol.rs` の `summarize_recent`）がそちらを先に選ぶ
 const RECENT_LINES: usize = 32;
 
 /// 直近の出力として持つ1行の長さ（文字）。理由に添えるだけなので短く切る
@@ -430,8 +431,9 @@ struct BoundedLine {
     truncated: bool,
 }
 
-/// 改行まで読む。`max` を超えた分は**読みながら捨てる**（読み切ってから切ると、
-/// 改行の無いストリームで確保が際限なく伸びる）。EOF で読めた分が無ければ `None`
+/// 改行まで読む。返す中身に改行は含めない。`max` を超えた分は**読みながら捨てる**
+/// （読み切ってから切ると、改行の無いストリームで確保が際限なく伸びる）。
+/// `max` が縛るのは中身だけで、改行は数えない。EOF で読めた分が無ければ `None`
 async fn read_bounded_line<R>(reader: &mut R, max: usize) -> std::io::Result<Option<BoundedLine>>
 where
     R: AsyncBufRead + Unpin,
@@ -445,16 +447,16 @@ where
             return Ok(read_any.then_some(BoundedLine { bytes, truncated }));
         }
         read_any = true;
-        let (chunk, found_newline) = match available.iter().position(|b| *b == b'\n') {
-            Some(i) => (&available[..=i], true),
+        let (content, found_newline) = match available.iter().position(|b| *b == b'\n') {
+            Some(i) => (&available[..i], true),
             None => (available, false),
         };
         let room = max.saturating_sub(bytes.len());
-        if chunk.len() > room {
+        if content.len() > room {
             truncated = true;
         }
-        bytes.extend_from_slice(&chunk[..chunk.len().min(room)]);
-        let used = chunk.len();
+        bytes.extend_from_slice(&content[..content.len().min(room)]);
+        let used = content.len() + usize::from(found_newline);
         reader.consume(used);
         if found_newline {
             return Ok(Some(BoundedLine { bytes, truncated }));
@@ -462,22 +464,154 @@ where
     }
 }
 
-#[cfg(all(test, unix))]
-mod tests {
+/// 行の読み方を、プロセスを起こさずにバイト列で確かめる。**unix に限らない**
+/// （実プロセスのテストは `#!/bin/sh` の台本を使うので、unix でしか走らない）。
+///
+/// 読み口の容量を小さく取り、1行が `fill_buf` の何回かに分かれて届く形にする。
+#[cfg(test)]
+mod reading_tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
-    use std::path::PathBuf;
-    use test_support::dir::temp_dir;
-    use tokio::sync::mpsc;
 
-    /// `#!/bin/sh` の台本を実行ファイルとして置く
-    fn script(dir: &Path, body: &str) -> PathBuf {
+    /// `bytes` を、1回の `fill_buf` で `capacity` バイトずつ届く読み口にする
+    fn reader(bytes: &'static [u8], capacity: usize) -> BufReader<&'static [u8]> {
+        BufReader::with_capacity(capacity, bytes)
+    }
+
+    async fn lines(bytes: &'static [u8], capacity: usize, max: usize) -> Vec<(Vec<u8>, bool)> {
+        let mut reader = reader(bytes, capacity);
+        let mut found = Vec::new();
+        while let Some(line) = read_bounded_line(&mut reader, max)
+            .await
+            .expect("バイト列は読み切れる")
+        {
+            found.push((line.bytes, line.truncated));
+        }
+        found
+    }
+
+    /// 中身がちょうど `max` の行は切らない。改行は数えない
+    #[tokio::test]
+    async fn a_line_of_exactly_max_bytes_is_not_cut() {
+        assert_eq!(
+            lines(b"abcd\nnext\n", 3, 4).await,
+            [(b"abcd".to_vec(), false), (b"next".to_vec(), false)]
+        );
+    }
+
+    /// 超えた分は捨て、次の行へ混ぜない。切るのはバイトの位置なので、多バイト文字の
+    /// 途中でも切る（文字にするときに置き換え文字になる → `read_stdout`）
+    #[tokio::test]
+    async fn the_rest_of_a_cut_line_does_not_leak_into_the_next() {
+        assert_eq!(
+            lines(b"abcdef\nxy\n", 3, 4).await,
+            [(b"abcd".to_vec(), true), (b"xy".to_vec(), false)]
+        );
+        assert_eq!(
+            lines("あい\n".as_bytes(), 2, 4).await,
+            [(vec![0xE3, 0x81, 0x82, 0xE3], true)]
+        );
+    }
+
+    /// 1バイトずつ届いても行が割れない。改行の無い末尾も1行として返す
+    #[tokio::test]
+    async fn a_line_split_across_reads_and_a_last_line_without_a_newline() {
+        assert_eq!(
+            lines(b"ab\n\ncd", 1, 16).await,
+            [
+                (b"ab".to_vec(), false),
+                (Vec::new(), false),
+                (b"cd".to_vec(), false)
+            ]
+        );
+        assert!(lines(b"", 1, 16).await.is_empty());
+    }
+
+    /// stdout から読んだ件を、`Eof` まで集める
+    async fn events(bytes: &'static [u8], capacity: usize) -> Vec<ReadEvent> {
+        let recent = Arc::new(StdMutex::new(VecDeque::new()));
+        let mut found = Vec::new();
+        read_stdout(reader(bytes, capacity), recent, |event| {
+            found.push(event);
+            true
+        })
+        .await;
+        found
+    }
+
+    /// `\r\n` の行は `\r` を落として解く。UTF-8 でない行は置き換え文字にして渡し、
+    /// 読み取りを続ける。空行は捨てる
+    #[tokio::test]
+    async fn the_reader_goes_on_whatever_the_line_looks_like() {
+        let found = events(b"id name T\r\n\r\n\xff\xfe\nusiok\r\n", 2).await;
+        let raws: Vec<Option<&str>> = found
+            .iter()
+            .map(|event| match event {
+                ReadEvent::Line { raw, .. } => Some(raw.as_str()),
+                ReadEvent::Eof => None,
+            })
+            .collect();
+        assert_eq!(
+            raws,
+            [
+                Some("id name T"),
+                Some("\u{fffd}\u{fffd}"),
+                Some("usiok"),
+                None
+            ]
+        );
+        assert!(matches!(
+            found[2],
+            ReadEvent::Line {
+                parsed: Some(EngineCommand::UsiOk),
+                ..
+            }
+        ));
+    }
+}
+
+/// 実プロセスのテストが台本を置いて起こす口。`child` と `protocol` のテストが共有する。
+#[cfg(all(test, unix))]
+pub(crate) mod script {
+    use super::{spawn, EngineChild};
+    use rustix::io::Errno;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+    use std::time::Duration;
+
+    /// 書き込み中として断られたときに起こし直す回数。1回あたり `BUSY_WAIT` 待つ
+    const BUSY_RETRIES: usize = 100;
+    const BUSY_WAIT: Duration = Duration::from_millis(10);
+
+    /// `#!/bin/sh` の台本を `dir` に置いて起こす。
+    ///
+    /// **`ExecutableFileBusy`（ETXTBSY）なら起こし直す。** テストは並列に走る。台本を
+    /// 書いている間に別のテストが fork すると、書き込み用の fd がその子へ exec までの間だけ
+    /// 継がれ、その隙に台本を exec すると「書き込み中のファイル」として OS に断られる。
+    /// 窓は他人の fork から exec までなので、待てば閉じる
+    pub(crate) async fn spawn_script(dir: &Path, body: &str) -> EngineChild {
         let path = dir.join("engine.sh");
         std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("書けない");
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
             .expect("権限を変えられない");
-        path
+        for _ in 0..BUSY_RETRIES {
+            match spawn(&path, dir) {
+                // `ErrorKind::ExecutableFileBusy` は MSRV より新しいので errno で見る
+                Err(e) if Errno::from_io_error(&e) == Some(Errno::TXTBSY) => {
+                    tokio::time::sleep(BUSY_WAIT).await;
+                }
+                spawned => return spawned.expect("起こせる"),
+            }
+        }
+        panic!("台本が書き込み中のまま起こせない: {}", path.display());
     }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::script::spawn_script;
+    use super::*;
+    use test_support::dir::temp_dir;
+    use tokio::sync::mpsc;
 
     /// stdout の全件を集める。`Eof` まで
     async fn read_all(child: &EngineChild) -> Vec<ReadEvent> {
@@ -524,11 +658,10 @@ mod tests {
     #[tokio::test]
     async fn reading_goes_on_past_lines_it_cannot_parse() {
         let dir = temp_dir("child-lines");
-        let path = script(
+        let child = spawn_script(
             &dir,
             r#"printf 'id name T\n\n\377\376 garbage\ninfo score cp 99999999999999999999\nusiok\n'"#,
-        );
-        let child = spawn(&path, &dir).expect("起こせる");
+        ).await;
 
         let events = read_all(&child).await;
         let commands: Vec<_> = events
@@ -554,14 +687,14 @@ mod tests {
     #[tokio::test]
     async fn an_overlong_line_is_cut_and_not_parsed() {
         let dir = temp_dir("child-long");
-        let path = script(
+        let child = spawn_script(
             &dir,
             &format!(
                 "head -c {} /dev/zero | tr '\\000' 'a'; printf '\\nusiok\\n'",
                 MAX_LINE * 2
             ),
-        );
-        let child = spawn(&path, &dir).expect("起こせる");
+        )
+        .await;
 
         let events = read_all(&child).await;
         let ReadEvent::Line { raw, parsed } = &events[0] else {
@@ -577,8 +710,7 @@ mod tests {
     #[tokio::test]
     async fn stderr_and_the_exit_status_are_kept() {
         let dir = temp_dir("child-stderr");
-        let path = script(&dir, "echo 'dyld: Library not loaded' >&2; exit 3");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "echo 'dyld: Library not loaded' >&2; exit 3").await;
 
         let Exit::Status(status) = exited(&child).await else {
             panic!("終わり方が取れていない");
@@ -599,8 +731,7 @@ mod tests {
     #[tokio::test]
     async fn settling_waits_for_stderr_that_arrives_after_stdout_closes() {
         let dir = temp_dir("child-late-stderr");
-        let path = script(&dir, "exec 1>&-; sleep 0.3; echo 'late' >&2");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec 1>&-; sleep 0.3; echo 'late' >&2").await;
 
         let events = read_all(&child).await;
         assert!(matches!(events.as_slice(), [ReadEvent::Eof]), "{events:?}");
@@ -619,8 +750,7 @@ mod tests {
     #[tokio::test]
     async fn eof_arrives_when_stdout_closes_even_if_stderr_stays_open() {
         let dir = temp_dir("child-stdout-closed");
-        let path = script(&dir, "exec 1>&-; exec sleep 30");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec 1>&-; exec sleep 30").await;
 
         let events = read_all(&child).await;
         assert!(matches!(events.as_slice(), [ReadEvent::Eof]), "{events:?}");
@@ -635,8 +765,7 @@ mod tests {
     #[tokio::test]
     async fn a_written_line_arrives_and_kill_ends_the_process() {
         let dir = temp_dir("child-echo");
-        let path = script(&dir, "exec cat");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec cat").await;
         let (tx, mut rx) = mpsc::unbounded_channel();
         assert!(child.read_stdout(move |event| tx.send(event).is_ok()));
         assert!(!child.read_stdout(|_| true), "2度読み始めている");
@@ -667,13 +796,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 書き込みが詰まって stdin のロックが取られていても、kill は返り、プロセスは落ちる
+    /// 書き込みが詰まって stdin のロックが取られていても、kill は返り、プロセスは落ちる。
+    ///
+    /// **`KILL_TIMEOUT` の2倍で打ち切る。** 打ち切らないと、kill が stdin のロックを待つ形に
+    /// 戻ったとき、台本の `sleep` が終わるまで30秒止まってから `AlreadyExited` で落ち、
+    /// 何を待っていたのかが出ない
     #[tokio::test]
     async fn kill_is_not_blocked_by_a_stuck_write() {
         let dir = temp_dir("child-stuck");
         // stdin を一切読まない
-        let path = script(&dir, "exec sleep 30");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec sleep 30").await;
 
         let writer = child.take_writer().expect("書く口が取れる");
         let big = "x".repeat(4 * 1024 * 1024);
@@ -681,10 +813,10 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
         assert!(!stuck.is_finished(), "詰まっていない（パイプが大きすぎる）");
 
-        assert!(matches!(
-            child.kill_and_wait(KILL_TIMEOUT).await,
-            KillOutcome::Ended(_)
-        ));
+        let killed = tokio::time::timeout(KILL_TIMEOUT * 2, child.kill_and_wait(KILL_TIMEOUT))
+            .await
+            .expect("書き込みが詰まったまま kill が返らない");
+        assert!(matches!(killed, KillOutcome::Ended(_)), "{killed:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -693,11 +825,11 @@ mod tests {
     async fn killing_a_wrapper_also_ends_its_children() {
         let dir = temp_dir("child-grandchild");
         let pid_file = dir.join("grandchild.pid");
-        let path = script(
+        let child = spawn_script(
             &dir,
             &format!("sleep 30 & echo $! > '{}'; wait", pid_file.display()),
-        );
-        let child = spawn(&path, &dir).expect("起こせる");
+        )
+        .await;
         // 並列で走るテストの負荷で台本の起動が遅れても待てるだけ取る
         let mut grandchild = String::new();
         for _ in 0..1000 {
@@ -729,8 +861,7 @@ mod tests {
     #[tokio::test]
     async fn dropping_the_child_ends_the_process() {
         let dir = temp_dir("child-drop");
-        let path = script(&dir, "exec sleep 30");
-        let child = spawn(&path, &dir).expect("起こせる");
+        let child = spawn_script(&dir, "exec sleep 30").await;
         let diagnostics = child.diagnostics();
         drop(child);
 

@@ -4,7 +4,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::engine::child::{
-    ChildWriter, EngineChild, KillOutcome, ReadEvent, Source, KILL_TIMEOUT,
+    ChildDiagnostics, ChildWriter, EngineChild, KillOutcome, ReadEvent, Source, KILL_TIMEOUT,
 };
 use crate::engine::utils::{shown, LogThrottle, MAX_SUMMARY_LEN};
 use crate::engine::{types::*, utils::cmd_summary, utils::with_cause};
@@ -41,7 +41,8 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
 
 /// 出力が終わった、または起動に失敗したエンジンの stderr を読み切るのを待つ上限。
 /// stdout と stderr の EOF は別々に着く（`ChildDiagnostics::settle_output`）。失敗の理由に
-/// stderr の最後の行を載せるための待ちで、人が待たされていると感じない長さに留める
+/// stderr の最後の行を載せるための待ちで、人が待たされていると感じない長さに留める。
+/// 出力が終わった後のログでは、終わりを見届けるのもこの上限で並べて待つ（`listen_ended_line`）
 const SETTLE_OUTPUT: Duration = Duration::from_millis(200);
 
 /// 解けなかった行を記録する間隔。**1行ずつ書かない。** ノード数が i32 を超えた
@@ -58,13 +59,40 @@ const CLOSED: &str = "engine output has ended; the process cannot be reached";
 /// 出力は続いているのに stdin を読まなくなった状態。原因も直し方も違う
 const STALLED: &str = "the engine stopped reading stdin; the process cannot be reached";
 /// USI プロトコル処理層
+///
+/// **子プロセスの持ち主はこれ1つにする。** `Clone` を持たせず、`EngineChild` を `Arc` に
+/// 包まない。`&self` から持ち主を増やせると、それをタスクへ渡した瞬間に「捨てればプロセスも
+/// 落ちる」がそのタスクの寿命に縛られる（`readyok` を返さないエンジンでは、待つタスクが
+/// 抜けないままプロセスが残る）。共有は `Arc<UsiProtocol>` で、プロセスより長く生きうる
+/// タスクへは子プロセスを持たない `Link` か `ChildDiagnostics` を渡す。
 pub struct UsiProtocol {
     /// 子プロセスと標準入出力。**書き込み・読み取り・落とす口がそれぞれ別の持ち主**
     /// なので、書き込みが詰まっても落とせる（`engine/child.rs`）。
-    child: Arc<EngineChild>,
+    child: EngineChild,
+    link: Link,
     state: Arc<RwLock<ProtocolState>>,
-    listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
     listen_active: Arc<Mutex<bool>>,
+
+    /// こちらが落としたか。
+    ///
+    /// `kill_engine` も `Closed` を立てるので、印が無いと
+    /// **こちらが落としたのに「エンジンの出力が終わった」と説明する**。
+    killed: Arc<std::sync::atomic::AtomicBool>,
+
+    runtime_handle: tokio::runtime::Handle,
+    init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+    init_cancel: Arc<Mutex<Option<CancellationToken>>>,
+}
+
+/// エンジンとの繋がりのうち、**子プロセスを持たない側**。書き込みの列と、送れるかを決める状態。
+///
+/// `readyok` を待つタスク（`start_ready_watch_and_send`）には `UsiProtocol` ではなくこれを渡す。
+/// そのタスクは `readyok` か出力の終わりかキャンセルでしか抜けないので、`EngineChild` を
+/// 握らせると、`readyok` を返さないまま stdout を開けているエンジンでは `UsiProtocol` を
+/// 全部捨てても Drop が起きず、プロセスが落ちない（`EngineChild` の doc）。
+#[derive(Clone)]
+struct Link {
+    listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
 
     /// 書き込みが詰まったか。
     ///
@@ -72,12 +100,6 @@ pub struct UsiProtocol {
     /// 読み取りが終わった（EOF）のと、stdin を読まなくなったのとでは、
     /// 利用者にとっての意味も次の手も違う。`Refuse` を返すときに文言を選ぶのに使う。
     stalled: Arc<std::sync::atomic::AtomicBool>,
-
-    /// こちらが落としたか。
-    ///
-    /// `kill_engine` も `Closed` を立てるので、印が無いと
-    /// **こちらが落としたのに「エンジンの出力が終わった」と説明する**。
-    killed: Arc<std::sync::atomic::AtomicBool>,
 
     /// `isready` に対してエンジンがどう応じたか。
     ///
@@ -90,9 +112,6 @@ pub struct UsiProtocol {
     /// watch なのは、**待つ側がポーリングしないで済む**ため。
     ready: Arc<watch::Sender<ReadyState>>,
 
-    runtime_handle: tokio::runtime::Handle,
-    init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
-    init_cancel: Arc<Mutex<Option<CancellationToken>>>,
     pending: Arc<Mutex<Pending>>,
 
     /// 書き込みの列。**投入順がそのままワイヤ上の順になる**
@@ -147,25 +166,6 @@ fn dropped_line(cmd: &GuiCommand, why: DropReason) -> String {
         cmd_summary(cmd),
         why.text()
     )
-}
-
-impl Clone for UsiProtocol {
-    fn clone(&self) -> Self {
-        Self {
-            child: Arc::clone(&self.child),
-            state: Arc::clone(&self.state),
-            listeners: Arc::clone(&self.listeners),
-            listen_active: Arc::clone(&self.listen_active),
-            stalled: Arc::clone(&self.stalled),
-            killed: Arc::clone(&self.killed),
-            ready: Arc::clone(&self.ready),
-            runtime_handle: self.runtime_handle.clone(),
-            init_task: Arc::clone(&self.init_task),
-            init_cancel: Arc::clone(&self.init_cancel),
-            pending: Arc::clone(&self.pending),
-            writer: self.writer.clone(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -546,34 +546,7 @@ fn cancel_queued_go(queue: &mut VecDeque<GuiCommand>) -> usize {
     before - queue.len()
 }
 
-impl UsiProtocol {
-    pub fn new(child: EngineChild) -> Self {
-        let (writer, jobs) = mpsc::unbounded_channel();
-        tokio::spawn(run_writer(child.take_writer(), jobs));
-
-        Self {
-            child: Arc::new(child),
-            state: Arc::new(RwLock::new(ProtocolState {
-                engine_info: None,
-                last_command: None,
-            })),
-            listeners: Arc::new(RwLock::new(HashMap::new())),
-            listen_active: Arc::new(Mutex::new(false)),
-            stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            killed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            ready: Arc::new(watch::channel(ReadyState::Waiting).0),
-            runtime_handle: tokio::runtime::Handle::current(),
-            init_task: Arc::new(Mutex::new(None)),
-            init_cancel: Arc::new(Mutex::new(None)),
-            pending: Arc::new(Mutex::new(Pending {
-                generation: 0,
-                queue: VecDeque::new(),
-                draining: false,
-            })),
-            writer,
-        }
-    }
-
+impl Link {
     /// 書き込みの列へ入れて、書けたかを待つ。
     ///
     /// **待つだけ。** 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
@@ -641,6 +614,77 @@ impl UsiProtocol {
         result
     }
 
+    /// 書き込みが詰まった後の後始末。
+    ///
+    /// 断る口は2つに分かれる。**既に列にあるジョブ**は `run_writer` の `stalled` が、
+    /// **これから `send_command` に入る呼び出し**はここで立てる `Closed` が断る。
+    ///
+    /// やることは、詰まった印を立てる・`Closed` を立てる・積み置きを捨てるの3つ。
+    ///
+    /// **このプロセスには二度と書けない。** 詰まった書き込みのタスクが stdin の
+    /// ロックを握ったままになる。落とすことはできる（`kill_engine` は stdin の
+    /// ロックを待たない）ので、復帰は落として新しいプロセスを起動し直すこと。
+    async fn fail_writes(&self) {
+        self.stalled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+        set_ready_state(&self.ready, ReadyState::Closed);
+        log::error!(
+            target: LOGT,
+            "write: stalled; refusing every later write on this process (→ F-26)"
+        );
+        self.discard_pending(DropReason::StdinStalled).await;
+    }
+
+    /// 積み置きを捨てる。**捨てるものがあったら必ず1行残す。**
+    ///
+    /// 積んだ時点で呼び出し側には `Ok` が返っているので、ここで黙ると
+    /// 「送ったつもりのコマンドがどこにも書かれない」が痕跡なしに起きる
+    async fn discard_pending(&self, why: DropReason) {
+        let dropped = {
+            let mut pending = self.pending.lock().await;
+            pending.draining = false;
+            std::mem::take(&mut pending.queue)
+        };
+        for cmd in &dropped {
+            log::warn!(target: LOGT, "{}", dropped_line(cmd, why));
+        }
+    }
+
+    async fn remove_listener(&self, name: &str) {
+        self.listeners.write().await.remove(name);
+    }
+}
+
+impl UsiProtocol {
+    pub fn new(child: EngineChild) -> Self {
+        let (writer, jobs) = mpsc::unbounded_channel();
+        tokio::spawn(run_writer(child.take_writer(), jobs));
+
+        Self {
+            child,
+            link: Link {
+                listeners: Arc::new(RwLock::new(HashMap::new())),
+                stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                ready: Arc::new(watch::channel(ReadyState::Waiting).0),
+                pending: Arc::new(Mutex::new(Pending {
+                    generation: 0,
+                    queue: VecDeque::new(),
+                    draining: false,
+                })),
+                writer,
+            },
+            state: Arc::new(RwLock::new(ProtocolState {
+                engine_info: None,
+                last_command: None,
+            })),
+            listen_active: Arc::new(Mutex::new(false)),
+            killed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            runtime_handle: tokio::runtime::Handle::current(),
+            init_task: Arc::new(Mutex::new(None)),
+            init_cancel: Arc::new(Mutex::new(None)),
+        }
+    }
+
     /// リスナー登録
     pub async fn register_listener(
         &self,
@@ -652,12 +696,16 @@ impl UsiProtocol {
         // `listen_active` は `true` のまま戻らず、読み取りは二度と始まらない
         // （`EngineChild::read_stdout` は1回きり）。
         // 入れても誰も配らないので、`raw_rx.recv()` が永久に返らない待ちができる
-        let state: ReadyState = *self.ready.borrow();
+        let state: ReadyState = *self.link.ready.borrow();
         if state == ReadyState::Closed {
             return Err(self.cannot_reach());
         }
 
-        self.listeners.write().await.insert(name.clone(), sender);
+        self.link
+            .listeners
+            .write()
+            .await
+            .insert(name.clone(), sender);
 
         // await をまたがないように「必要かどうか」だけ決める
         let need_start = {
@@ -684,7 +732,7 @@ impl UsiProtocol {
 
     /// リスナー削除
     pub async fn remove_listener(&self, name: &str) {
-        self.listeners.write().await.remove(name);
+        self.link.remove_listener(name).await;
     }
 
     /// リスニング開始(内部用)
@@ -735,8 +783,8 @@ impl UsiProtocol {
             ));
         }
 
-        let listeners = Arc::clone(&self.listeners);
-        let ready = Arc::clone(&self.ready);
+        let listeners = Arc::clone(&self.link.listeners);
+        let ready = Arc::clone(&self.link.ready);
         // 落とす口を持たない取っ手を渡す。`EngineChild` を渡すと、このタスクが生きている
         // 間（stdout が開いている間ずっと）Drop が起きず、捨てたプロセスが落ちない
         let diagnostics = self.child.diagnostics();
@@ -769,12 +817,10 @@ impl UsiProtocol {
             }
             // **原因を残す。** 解析や対局の途中で落ちたエンジンの手掛かりは、
             // 直近の出力（assert の文言は stderr に出る）と終わり方しか無い
-            diagnostics.settle_output(SETTLE_OUTPUT).await;
             log::warn!(
                 target: LOGT,
-                "listen: engine output ended exit={:?} last={}",
-                diagnostics.exit_now(),
-                summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
+                "{}",
+                listen_ended_line(&diagnostics, SETTLE_OUTPUT).await
             );
         });
 
@@ -848,10 +894,10 @@ impl UsiProtocol {
         //
         // `IsReady` もここを通す。手前で分岐すると `Refuse` を誰も聞かない
         {
-            let mut pending = self.pending.lock().await;
+            let mut pending = self.link.pending.lock().await;
             // `watch::Ref` を `match` のスクルーティニに置かない。
             // 置くと全アームの間じゅう読み取りロックを握り、`set_ready_state` が待つ
-            let state: ReadyState = *self.ready.borrow();
+            let state: ReadyState = *self.link.ready.borrow();
             match dispatch_for(state, pending.draining, command) {
                 Dispatch::Refuse => return Err(self.cannot_reach()),
                 Dispatch::Queue => return push_pending(&mut pending, command),
@@ -863,7 +909,7 @@ impl UsiProtocol {
             return self.start_ready_watch_and_send().await;
         }
 
-        self.write(command.clone()).await
+        self.link.write(command.clone()).await
     }
 
     /// 届かなくなった理由を文言にする。
@@ -875,29 +921,9 @@ impl UsiProtocol {
         use std::sync::atomic::Ordering::Relaxed;
 
         EngineError::CommunicationFailed(
-            cannot_reach_text(self.killed.load(Relaxed), self.stalled.load(Relaxed)).to_string(),
+            cannot_reach_text(self.killed.load(Relaxed), self.link.stalled.load(Relaxed))
+                .to_string(),
         )
-    }
-
-    /// 書き込みが詰まった後の後始末。
-    ///
-    /// 断る口は2つに分かれる。**既に列にあるジョブ**は `run_writer` の `stalled` が、
-    /// **これから `send_command` に入る呼び出し**はここで立てる `Closed` が断る。
-    ///
-    /// やることは、詰まった印を立てる・`Closed` を立てる・積み置きを捨てるの3つ。
-    ///
-    /// **このプロセスには二度と書けない。** 詰まった書き込みのタスクが stdin の
-    /// ロックを握ったままになる。落とすことはできる（`kill_engine` は stdin の
-    /// ロックを待たない）ので、復帰は落として新しいプロセスを起動し直すこと。
-    async fn fail_writes(&self) {
-        self.stalled
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        set_ready_state(&self.ready, ReadyState::Closed);
-        log::error!(
-            target: LOGT,
-            "write: stalled; refusing every later write on this process (→ F-26)"
-        );
-        self.discard_pending(DropReason::StdinStalled).await;
     }
 
     /// 探索を止める。**「書いた」と「書く必要が無かった」を分けて返す。**
@@ -910,14 +936,14 @@ impl UsiProtocol {
     /// 積み置きの `go` を落とせたときに `Ok(())` を返すと、待ち手が
     /// 「この後 `bestmove` が来る」と読んで永久に待つ。だから戻り値で分ける。
     pub async fn stop(&self) -> Result<StopEffect, EngineError> {
-        let state: ReadyState = *self.ready.borrow();
-        let draining = self.pending.lock().await.draining;
+        let state: ReadyState = *self.link.ready.borrow();
+        let draining = self.link.pending.lock().await.draining;
         if dispatch_for(state, draining, &GuiCommand::Stop) == Dispatch::Refuse {
             return Err(self.cannot_reach());
         }
 
         let cancelled = {
-            let mut pending = self.pending.lock().await;
+            let mut pending = self.link.pending.lock().await;
             cancel_queued_go(&mut pending.queue)
         };
         if cancelled > 0 {
@@ -936,7 +962,7 @@ impl UsiProtocol {
 
         // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
         // 呼び出し側の順序に依存させない。手前に分岐が1つ増えるだけで穴が開く
-        if set_ready_state(&self.ready, ReadyState::Waiting) == ReadyState::Closed {
+        if set_ready_state(&self.link.ready, ReadyState::Waiting) == ReadyState::Closed {
             return Err(self.cannot_reach());
         }
 
@@ -947,10 +973,11 @@ impl UsiProtocol {
         let listener_name = format!("ready_wait_{}_{}", gen, uuid::Uuid::new_v4());
         self.register_listener(listener_name.clone(), tx).await?;
 
-        self.write(GuiCommand::IsReady).await?;
+        self.link.write(GuiCommand::IsReady).await?;
 
-        // 非ブロッキングに readyok 待ち
-        let protocol = Arc::new(self.clone());
+        // 非ブロッキングに readyok 待ち。**子プロセスを持たない `Link` だけを渡す**
+        // （このタスクは `readyok` を返さないエンジンでは抜けない → `Link` の doc）
+        let link = self.link.clone();
         let handle = tokio::spawn(async move {
             let mut ready = false;
 
@@ -970,7 +997,7 @@ impl UsiProtocol {
                 }
             }
 
-            protocol.remove_listener(&listener_name).await;
+            link.remove_listener(&listener_name).await;
 
             // **世代の確認と `Ready` の書き込みを同じロック区間に入れる。**
             // 確認だけして手放すと、その隙に次の `isready` が世代を上げて
@@ -978,13 +1005,13 @@ impl UsiProtocol {
             // 確認を通過済みのこのタスクは構わず `Ready` を書く。
             // 結果、`readyok` が返っていないエンジンに対して `ensure_ready` が
             // 即 `Ok` を返し、まだ評価関数を読んでいる相手へ `position` / `go` が流れる
-            let mut pending = protocol.pending.lock().await;
+            let mut pending = link.pending.lock().await;
             if pending.generation != gen {
                 return;
             }
 
             if ready {
-                set_ready_state(&protocol.ready, ReadyState::Ready);
+                set_ready_state(&link.ready, ReadyState::Ready);
                 log::info!(target: LOGT, "ready: ok gen={}", gen);
 
                 // **掃き始めから掃き終わりまで印を立てる。** 立てないと、
@@ -1005,14 +1032,14 @@ impl UsiProtocol {
                     // ワイヤへ出る。`enqueue_write` は await 点を持たないので、
                     // ロックを握ったまま呼べる
                     let next = {
-                        let mut pending = protocol.pending.lock().await;
+                        let mut pending = link.pending.lock().await;
                         if pending.generation != gen {
                             // 次の `isready` が来た。残りは `begin_generation` が残す。
                             // 印はそちらが降ろす
                             break;
                         }
                         match pending.queue.pop_front() {
-                            Some(cmd) => Some((cmd.clone(), protocol.enqueue_write(cmd))),
+                            Some(cmd) => Some((cmd.clone(), link.enqueue_write(cmd))),
                             None => {
                                 // 掃き終わり。**印を降ろすのは列が空になった瞬間**で、
                                 // 同じロック区間でないと最後の1件を追い越される
@@ -1024,7 +1051,7 @@ impl UsiProtocol {
                     let Some((cmd, enqueued)) = next else { break };
 
                     let written = match enqueued {
-                        Ok(rx) => protocol.await_write(rx).await,
+                        Ok(rx) => link.await_write(rx).await,
                         Err(e) => Err(e),
                     };
 
@@ -1036,7 +1063,7 @@ impl UsiProtocol {
                             e
                         );
                         let rest = {
-                            let mut pending = protocol.pending.lock().await;
+                            let mut pending = link.pending.lock().await;
                             // **自分の世代のキューしか触らない。** 世代が
                             // 変わっていたら、そこにあるのは次の世代の積み置き
                             if pending.generation != gen {
@@ -1153,7 +1180,7 @@ impl UsiProtocol {
 
     /// `readyok` を受け取り済みか
     pub fn is_ready(&self) -> bool {
-        let state: ReadyState = *self.ready.borrow();
+        let state: ReadyState = *self.link.ready.borrow();
         state == ReadyState::Ready
     }
 
@@ -1179,7 +1206,7 @@ impl UsiProtocol {
         let deadline = tokio::time::Instant::now() + timeout;
         // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
         // 出力が終わった場合に `Closed` を見落として上限まで待つ
-        let mut rx = self.ready.subscribe();
+        let mut rx = self.link.ready.subscribe();
         self.send_command(&GuiCommand::IsReady).await?;
 
         // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
@@ -1217,7 +1244,7 @@ impl UsiProtocol {
 
     /// 現在のリスナー数取得（デバッグ用）
     pub async fn listener_count(&self) -> usize {
-        self.listeners.read().await.len()
+        self.link.listeners.read().await.len()
     }
 
     async fn abort_init(&self) {
@@ -1230,7 +1257,9 @@ impl UsiProtocol {
             h.abort();
         }
 
-        self.discard_pending(DropReason::ReadyWaitAborted).await;
+        self.link
+            .discard_pending(DropReason::ReadyWaitAborted)
+            .await;
     }
 
     /// 世代を上げ、前の世代の積み置きを捨てる。**同じロックの中で行う。**
@@ -1238,7 +1267,7 @@ impl UsiProtocol {
     /// 別々にすると、上げてから捨てるまでの間に積まれたぶんが、
     /// 新しい世代のキューに前の世代のコマンドとして残る
     async fn begin_generation(&self) -> u64 {
-        let mut pending = self.pending.lock().await;
+        let mut pending = self.link.pending.lock().await;
         pending.generation += 1;
         pending.draining = false;
         let gen = pending.generation;
@@ -1249,21 +1278,6 @@ impl UsiProtocol {
             log::warn!(target: LOGT, "{}", dropped_line(cmd, DropReason::NewIsready));
         }
         gen
-    }
-
-    /// 積み置きを捨てる。**捨てるものがあったら必ず1行残す。**
-    ///
-    /// 積んだ時点で呼び出し側には `Ok` が返っているので、ここで黙ると
-    /// 「送ったつもりのコマンドがどこにも書かれない」が痕跡なしに起きる
-    async fn discard_pending(&self, why: DropReason) {
-        let dropped = {
-            let mut pending = self.pending.lock().await;
-            pending.draining = false;
-            std::mem::take(&mut pending.queue)
-        };
-        for cmd in &dropped {
-            log::warn!(target: LOGT, "{}", dropped_line(cmd, why));
-        }
     }
 
     /// `quit` を送る。**送れたとは限らない。**
@@ -1294,7 +1308,7 @@ impl UsiProtocol {
         // 「エンジンの出力が終わった」と説明する（落としたのはこちら）
         self.killed
             .store(true, std::sync::atomic::Ordering::Relaxed);
-        set_ready_state(&self.ready, ReadyState::Closed);
+        set_ready_state(&self.link.ready, ReadyState::Closed);
 
         self.abort_init().await;
 
@@ -1332,7 +1346,8 @@ impl UsiProtocol {
         let diagnostics = self.child.diagnostics();
         // stderr の読み切りを待つのは、出力が終わったかプロセスが終わった回だけ。
         // 生きているプロセスの stderr は待っても閉じず、待ちが起動の締切の外に出る
-        let ended = *self.ready.borrow() == ReadyState::Closed || diagnostics.exit_now().is_some();
+        let ended =
+            *self.link.ready.borrow() == ReadyState::Closed || diagnostics.exit_now().is_some();
         if ended {
             diagnostics.settle_output(SETTLE_OUTPUT).await;
         }
@@ -1351,20 +1366,48 @@ impl UsiProtocol {
     }
 }
 
+/// 出力が終わったエンジンのログの1行。終わり方と直近の出力を載せる。
+///
+/// **終わり方は見届けてから載せる。** stdout の EOF・stderr の EOF・プロセスの回収は
+/// 別々に着くので、stdout が閉じた直後に `exit_now` を覗くと、まだ回収されていないことが
+/// ある。stderr の読み切りと並べて `limit` まで待つ。待っても終わらなければ
+/// `Waited::TimedOut` が載る（stdout だけを閉じて走り続けている）
+async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> String {
+    let ((), exit) = tokio::join!(
+        diagnostics.settle_output(limit),
+        diagnostics.wait_exit(limit)
+    );
+    format!(
+        "listen: engine output ended exit={exit:?} last={}",
+        summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
+    )
+}
+
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
+///
+/// **stderr の行を先に選ぶ。** 評価関数や共有ライブラリの失敗、assert の文言はそちらに出る。
+/// 着いた順の末尾だけを取ると、その後に stdout の `info` が `RECENT_IN_REASON` 行続いた
+/// だけで stderr の行が消える。足りない分を stdout の末尾で埋め、選んだ行は着いた順に並べる。
 ///
 /// **エンジンが書いた文字列なので、長さと制御文字を落としてから載せる**
 /// （`shown`）。素で載せると、改行を含む行1つで偽のログ行を作れる。
-/// stderr の行は `stderr: ` を頭に付ける（評価関数や共有ライブラリの失敗はそちらに出る）。
+/// stderr の行は `stderr: ` を頭に付ける。
 fn summarize_recent(lines: &[(Source, String)]) -> Option<String> {
-    let tail: Vec<String> = lines
-        .iter()
-        .rev()
-        .take(RECENT_IN_REASON)
-        .rev()
-        .map(|(source, text)| match source {
-            Source::Stdout => shown(text, MAX_SUMMARY_LEN),
-            Source::Stderr => format!("stderr: {}", shown(text, MAX_SUMMARY_LEN)),
+    let latest = |wanted: Source| {
+        (0..lines.len())
+            .rev()
+            .filter(move |&at| lines[at].0 == wanted)
+    };
+    let mut picked: Vec<usize> = latest(Source::Stderr).take(RECENT_IN_REASON).collect();
+    let room = RECENT_IN_REASON - picked.len();
+    picked.extend(latest(Source::Stdout).take(room));
+    picked.sort_unstable();
+
+    let tail: Vec<String> = picked
+        .into_iter()
+        .map(|at| match &lines[at] {
+            (Source::Stdout, text) => shown(text, MAX_SUMMARY_LEN),
+            (Source::Stderr, text) => format!("stderr: {}", shown(text, MAX_SUMMARY_LEN)),
         })
         .collect();
     (!tail.is_empty()).then(|| tail.join(" / "))
@@ -1779,24 +1822,65 @@ mod tests {
         assert_eq!(*ready.borrow(), ReadyState::Closed);
     }
 
+    fn recent(lines: &[(Source, &str)]) -> Vec<(Source, String)> {
+        lines
+            .iter()
+            .map(|(source, text)| (*source, text.to_string()))
+            .collect()
+    }
+
+    /// stderr の行は、後から stdout の行が続いても理由から押し出されない。
+    /// 評価関数や共有ライブラリの失敗、assert の文言はそちらに出る
+    #[test]
+    fn a_stderr_line_is_not_pushed_out_by_later_stdout() {
+        let lines = recent(&[
+            (Source::Stderr, "boom"),
+            (Source::Stdout, "info a"),
+            (Source::Stdout, "info b"),
+            (Source::Stdout, "info c"),
+        ]);
+        assert_eq!(
+            summarize_recent(&lines).as_deref(),
+            Some("stderr: boom / info b / info c"),
+            "stderr を選ばないか、着いた順に並べていない"
+        );
+    }
+
+    /// stderr が多ければ stderr の末尾だけ。無ければ stdout の末尾。空なら何も添えない
+    #[test]
+    fn the_summary_fills_from_the_latest_lines() {
+        let many_stderr = recent(&[
+            (Source::Stderr, "e1"),
+            (Source::Stderr, "e2"),
+            (Source::Stdout, "info"),
+            (Source::Stderr, "e3"),
+            (Source::Stderr, "e4"),
+        ]);
+        assert_eq!(
+            summarize_recent(&many_stderr).as_deref(),
+            Some("stderr: e2 / stderr: e3 / stderr: e4")
+        );
+
+        let stdout_only = recent(&[
+            (Source::Stdout, "a"),
+            (Source::Stdout, "b"),
+            (Source::Stdout, "c"),
+            (Source::Stdout, "d"),
+        ]);
+        assert_eq!(summarize_recent(&stdout_only).as_deref(), Some("b / c / d"));
+
+        assert_eq!(summarize_recent(&[]), None);
+    }
+
     /// 実プロセスで確かめる。`#!/bin/sh` の台本を置いて起こす
     #[cfg(unix)]
     mod with_a_process {
         use super::*;
-        use std::os::unix::fs::PermissionsExt;
-        use std::path::{Path, PathBuf};
+        use crate::engine::child::script::spawn_script;
+        use std::path::Path;
 
-        fn script(dir: &Path, body: &str) -> PathBuf {
-            let path = dir.join("engine.sh");
-            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("書けない");
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
-                .expect("権限を変えられない");
-            path
-        }
-
-        fn protocol_for(dir: &Path, body: &str) -> UsiProtocol {
-            let path = script(dir, body);
-            UsiProtocol::new(crate::engine::child::spawn(&path, dir).expect("起こせる"))
+        async fn protocol_for(dir: &Path, body: &str) -> UsiProtocol {
+            UsiProtocol::new(spawn_script(dir, body).await)
         }
 
         /// 書き込みが詰まっていても落とせる。**`KILL_TIMEOUT` の内に返る。**
@@ -1805,12 +1889,12 @@ mod tests {
         async fn a_stuck_write_does_not_block_the_kill() {
             let dir = test_support::dir::temp_dir("protocol-stuck-kill");
             // stdin を一切読まない
-            let protocol = protocol_for(&dir, "exec sleep 30");
+            let protocol = protocol_for(&dir, "exec sleep 30").await;
             let big = "x".repeat(4 * 1024 * 1024);
             let writing = {
-                let protocol = protocol.clone();
+                let link = protocol.link.clone();
                 tokio::spawn(async move {
-                    let _ = protocol
+                    let _ = link
                         .write(GuiCommand::SetOption("Big".to_string(), Some(big)))
                         .await;
                 })
@@ -1840,7 +1924,8 @@ mod tests {
             let protocol = protocol_for(
                 &dir,
                 "echo 'dyld: Library not loaded: libomp.dylib' >&2; exit 1",
-            );
+            )
+            .await;
 
             let error = protocol
                 .get_engine_info(Duration::from_secs(10))
@@ -1864,7 +1949,8 @@ mod tests {
             let protocol = protocol_for(
                 &dir,
                 r#"printf 'info score cp 99999999999999999999\n\377\376\nid name Overflow\nusiok\n'; exec sleep 30"#,
-            );
+            )
+            .await;
 
             let info = protocol
                 .get_engine_info(Duration::from_secs(10))
@@ -1881,7 +1967,7 @@ mod tests {
         #[tokio::test]
         async fn dropping_the_protocol_ends_the_process() {
             let dir = test_support::dir::temp_dir("protocol-drop");
-            let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat");
+            let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat").await;
             protocol
                 .get_engine_info(Duration::from_secs(10))
                 .await
@@ -1899,12 +1985,70 @@ mod tests {
             let _ = std::fs::remove_dir_all(&dir);
         }
 
+        /// `readyok` を待っている最中に `UsiProtocol` を全部捨てても、プロセスは落ちる。
+        /// 待つタスクは `readyok` か出力の終わりかキャンセルでしか抜けないので、
+        /// そこに `EngineChild` を握らせると、`readyok` を返さないエンジンでは Drop が起きずに残る
+        #[tokio::test]
+        async fn dropping_the_protocol_while_waiting_for_readyok_ends_the_process() {
+            let dir = test_support::dir::temp_dir("protocol-drop-waiting");
+            // `isready` を読んでも `readyok` を返さない（`cat` は受けた行をそのまま返す）
+            let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat").await;
+            protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("読み取りまで始まる");
+            protocol
+                .send_command(&GuiCommand::IsReady)
+                .await
+                .expect("isready を送れる");
+            let diagnostics = protocol.child.diagnostics();
+            drop(protocol);
+
+            assert!(
+                matches!(
+                    diagnostics.wait_exit(Duration::from_secs(10)).await,
+                    crate::engine::child::Waited::Ended(_)
+                ),
+                "readyok を待っている間に捨てた protocol のプロセスが残っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 出力が終わった後のログに、終わり方が載る。stdout の EOF とプロセスの回収は
+        /// 別々に着くので、EOF の直後に覗くだけだと空の回がある。
+        ///
+        /// **競合なので回数を取る。** 覗くだけの形に戻す変異は1回あたり1割ほどしか当たらず、
+        /// 20回ではテスト5回のうち1回すり抜けた
+        #[tokio::test]
+        async fn the_line_after_the_output_ends_carries_the_exit() {
+            for round in 0..100 {
+                let dir = test_support::dir::temp_dir("protocol-exit-seen");
+                let child = spawn_script(&dir, "echo x; echo e >&2; exit 3").await;
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                assert!(child.read_stdout(move |event| {
+                    tx.send(matches!(event, ReadEvent::Eof)).is_ok()
+                }));
+                while !rx.recv().await.expect("Eof の前に読み手が消えた") {}
+
+                let line = listen_ended_line(&child.diagnostics(), Duration::from_secs(10)).await;
+                assert!(
+                    line.contains("exit=Ended(Status("),
+                    "{round} 回目: 終わりを見届けずに載せている: {line}"
+                );
+                assert!(
+                    line.contains("stderr: e"),
+                    "{round} 回目: stderr の行が載っていない: {line}"
+                );
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        }
+
         /// 読み取りを2度始めると `AlreadyListening`。**プロセスは生きている**ので
         /// 落とさなくてよい、という区別を呼び手が読む（`send_command` の doc）
         #[tokio::test]
         async fn a_second_listen_is_told_apart() {
             let dir = test_support::dir::temp_dir("protocol-double-listen");
-            let protocol = protocol_for(&dir, "exec sleep 30");
+            let protocol = protocol_for(&dir, "exec sleep 30").await;
 
             protocol.start_listening().await.expect("1度目は始められる");
             let error = protocol
@@ -1913,7 +2057,7 @@ mod tests {
                 .expect_err("2度目も始めている");
             assert!(matches!(error, EngineError::AlreadyListening(_)), "{error}");
             assert_ne!(
-                *protocol.ready.borrow(),
+                *protocol.link.ready.borrow(),
                 ReadyState::Closed,
                 "始められなかった2度目が、生きているエンジンを閉じている"
             );
