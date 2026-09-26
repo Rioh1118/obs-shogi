@@ -650,6 +650,24 @@ impl Link {
         }
     }
 
+    /// 世代を上げ、前の世代の積み置きを捨てる。**同じロックの中で行う。**
+    ///
+    /// 別々にすると、上げてから捨てるまでの間に積まれたぶんが、
+    /// 新しい世代のキューに前の世代のコマンドとして残る
+    async fn begin_generation(&self) -> u64 {
+        let mut pending = self.pending.lock().await;
+        pending.generation += 1;
+        pending.draining = false;
+        let gen = pending.generation;
+        let dropped = std::mem::take(&mut pending.queue);
+        drop(pending);
+
+        for cmd in &dropped {
+            log::warn!(target: LOGT, "{}", dropped_line(cmd, DropReason::NewIsready));
+        }
+        gen
+    }
+
     async fn remove_listener(&self, name: &str) {
         self.listeners.write().await.remove(name);
     }
@@ -953,7 +971,7 @@ impl UsiProtocol {
     async fn start_ready_watch_and_send(&self) -> Result<(), EngineError> {
         self.abort_init().await;
 
-        let gen = self.begin_generation().await;
+        let gen = self.link.begin_generation().await;
 
         // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
         // 呼び出し側の順序に依存させない。手前に分岐が1つ増えるだけで穴が開く
@@ -1255,24 +1273,6 @@ impl UsiProtocol {
         self.link
             .discard_pending(DropReason::ReadyWaitAborted)
             .await;
-    }
-
-    /// 世代を上げ、前の世代の積み置きを捨てる。**同じロックの中で行う。**
-    ///
-    /// 別々にすると、上げてから捨てるまでの間に積まれたぶんが、
-    /// 新しい世代のキューに前の世代のコマンドとして残る
-    async fn begin_generation(&self) -> u64 {
-        let mut pending = self.link.pending.lock().await;
-        pending.generation += 1;
-        pending.draining = false;
-        let gen = pending.generation;
-        let dropped = std::mem::take(&mut pending.queue);
-        drop(pending);
-
-        for cmd in &dropped {
-            log::warn!(target: LOGT, "{}", dropped_line(cmd, DropReason::NewIsready));
-        }
-        gen
     }
 
     /// `quit` を送る。**送れたとは限らない。**

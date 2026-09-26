@@ -485,7 +485,7 @@ where
 ///
 /// 読み口の容量を小さく取り、1行が `fill_buf` の何回かに分かれて届く形にする。
 #[cfg(test)]
-mod reading_tests {
+mod without_a_process {
     use super::*;
 
     /// `bytes` を、1回の `fill_buf` で `capacity` バイトずつ届く読み口にする
@@ -594,7 +594,7 @@ pub(crate) mod script {
     use std::path::Path;
     use std::time::Duration;
 
-    /// 書き込み中として断られたときに起こし直す回数。1回あたり `BUSY_WAIT` 待つ
+    /// 起こす回数の上限。書き込み中として断られるたびに `BUSY_WAIT` 待って起こし直す
     const BUSY_RETRIES: usize = 100;
     const BUSY_WAIT: Duration = Duration::from_millis(10);
 
@@ -655,8 +655,9 @@ pub(crate) mod script {
     }
 }
 
+/// 実プロセスで確かめる。`#!/bin/sh` の台本を起こすので unix だけで走る
 #[cfg(all(test, unix))]
-mod tests {
+mod with_a_process {
     use super::script::{ends_within, is_alive, read_pid, spawn_script};
     use super::*;
     use test_support::dir::temp_dir;
