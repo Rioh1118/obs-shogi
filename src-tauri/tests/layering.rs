@@ -7,12 +7,13 @@
 //! 片方を差し替えるともう片方が壊れる。テストの継ぎ目も作れない
 //! （下の層だけを組んで回す、ができない）。
 //!
-//! ここで見るのは4つ。
+//! ここで見るのは5つ。
 //!
 //! 1. モジュール間に環が無いこと
 //! 2. 決めた段より上のものを、下の段が `use` していないこと
 //! 3. `engine/` が crate の他の枝を `use` していないこと
 //! 4. 段が「使わない」と決めた外部クレートを**参照していない**こと（`Layer::forbids`）
+//! 5. 子プロセスを作る綴りが `engine/child.rs` の外に無いこと（`SPAWNING`）
 //!
 //! ## 走査の限界
 //!
@@ -721,14 +722,39 @@ fn outward_branch(statement: &str) -> Option<String> {
     leading_name(rest)
 }
 
-/// 子プロセスの型（`tokio::process`）を綴れるのは `engine/child.rs` だけ。
+/// 子プロセスを作る綴り。**`engine/child.rs` の外に1つも現れないこと。**
 ///
-/// `child` は stdin・stdout・プロセスを別々の持ち主にし、書く口と読む口を1回きりにしている。
-/// 外で `tokio::process` を綴ると、その約束を通らない2本目の書き手や、落とす口の無い
-/// 子プロセスが作れる。**`forbids` はクレート単位なので `tokio` の一部だけは止められない。**
-/// 綴りで止める。
+/// `tokio::process` だけを見ると、`std::process::Command::new(..).spawn()` も
+/// `use tokio::{process::Command}` も素通りする。`use std::process::{Command, ..}` の形は
+/// `process::Command` と綴らないが、作る側で `Command::new` が要る。
+const SPAWNING: [&str; 3] = ["tokio::process", "process::Command", "Command::new"];
+
+/// `code` に現れる `SPAWNING` の綴り。**語の頭から当てる**（`GuiCommand::new` を
+/// `Command::new` と読まない）。コメントと文字列は呼び手が潰してから渡す
+fn spawning_spellings(code: &str) -> Vec<&'static str> {
+    SPAWNING
+        .into_iter()
+        .filter(|word| {
+            code.match_indices(word).any(|(at, _)| {
+                !code[..at]
+                    .chars()
+                    .next_back()
+                    .is_some_and(|c| c.is_alphanumeric() || c == '_')
+            })
+        })
+        .collect()
+}
+
+/// 子プロセスを作れるのは `engine/child.rs` だけ。
+///
+/// `child` は stdin・stdout・プロセスを別々の持ち主にし、書く口と読む口を1回きりにし、
+/// 捨てればプロセスグループごと落とす。外で子プロセスを作ると、その約束を通らない
+/// 2本目の書き手や、落とす口の無い子プロセスが作れる。**`forbids` はクレート単位なので
+/// `tokio` や `std` の一部だけは止められない。** 綴りで止める（`SPAWNING`）。
+///
+/// テストも見る。子プロセスを起こすテストの台本は `child::script` が持つ。
 #[test]
-fn only_the_child_layer_spells_tokio_process() {
+fn only_the_child_layer_spawns_processes() {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let files = rust_files(&src);
     assert!(
@@ -738,28 +764,57 @@ fn only_the_child_layer_spells_tokio_process() {
     );
 
     let mut offenders = Vec::new();
-    let mut seen_in_child = false;
+    let mut seen_in_child = Vec::new();
     for path in files {
         let relative = path.strip_prefix(&src).unwrap_or(&path).to_path_buf();
         let source = fs::read_to_string(&path).unwrap_or_default();
-        if !source.contains("tokio::process") {
+        let spelled = spawning_spellings(&blank_out_noncode(&source));
+        if spelled.is_empty() {
             continue;
         }
         if relative == Path::new("engine/child.rs") {
-            seen_in_child = true;
+            seen_in_child = spelled;
         } else {
-            offenders.push(relative.display().to_string());
+            offenders.push(format!("{}  {spelled:?}", relative.display()));
         }
     }
 
-    assert!(
-        seen_in_child,
-        "`engine/child.rs` に `tokio::process` が無い。走査の綴りを直すこと"
+    assert_eq!(
+        seen_in_child, SPAWNING,
+        "`engine/child.rs` に見えない綴りがある。走査か `SPAWNING` を直すこと"
     );
     assert!(
         offenders.is_empty(),
-        "`tokio::process` を `engine/child.rs` の外で綴っている。子プロセスは `child` を通すこと: {offenders:?}"
+        "子プロセスを `engine/child.rs` の外で作っている。`child` を通すこと: {offenders:?}"
     );
+}
+
+/// 綴りの判定そのものを、文字列を直に食わせて確かめる。
+///
+/// **現物を食わせて違反0、では判定が壊れても緑になる。**
+#[test]
+fn a_spawn_is_seen_whatever_the_import() {
+    for code in [
+        "let child = std::process::Command::new(path).spawn();",
+        "use tokio::{io, process::Command};",
+        "use std::process::{Command, Stdio};\nlet child = Command::new(path);",
+        "let child = tokio::process::Command::new(path);",
+    ] {
+        assert!(
+            !spawning_spellings(code).is_empty(),
+            "子プロセスを作る綴りを見逃している: {code}"
+        );
+    }
+
+    for code in [
+        "let dir = std::env::temp_dir().join(std::process::id().to_string());",
+        "let line = GuiCommand::new(); EngineCommand::parse(text);",
+    ] {
+        assert!(
+            spawning_spellings(code).is_empty(),
+            "子プロセスを作らない綴りに当てている: {code}"
+        );
+    }
 }
 
 /// 段が「使わない」と決めた外部クレートを**参照していない**こと。
