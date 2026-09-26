@@ -25,6 +25,20 @@ pub async fn initialize_engine(
         .await
 }
 
+/// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ。失敗は種類つきで返す
+#[tauri::command]
+pub async fn start_analysis_engine(
+    state: tauri::State<'_, AppState>,
+    engine_path: String,
+    working_dir: Option<String>,
+    options: Vec<SetOptionValue>,
+) -> Result<EngineInfo, StartFailure> {
+    state
+        .bridge
+        .start_analysis_engine_impl(engine_path, working_dir, options)
+        .await
+}
+
 #[tauri::command]
 pub async fn shutdown_engine(state: tauri::State<'_, AppState>) -> Result<(), String> {
     state.bridge.shutdown_engine_impl().await

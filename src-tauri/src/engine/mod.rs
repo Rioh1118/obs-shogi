@@ -7,6 +7,8 @@ pub mod launchable; // OS がこのファイルを起動させるか
 pub mod option_line; // USI の option 行を定義に写す
 pub mod protocol; // USI プロトコル
 pub mod registry; // 起動済みプロセスの台帳
+pub mod setup; // 設定を送って使える状態にする段
+pub mod start_failure; // 起動の失敗を種類に分ける
 pub mod state; // Tauri コマンドが共有する持ち物
 pub mod types;
 pub mod utils;

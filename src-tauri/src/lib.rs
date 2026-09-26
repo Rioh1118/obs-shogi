@@ -84,6 +84,7 @@ pub fn run() {
             crate::kifu::commands::convert_jkf_to_format,
             crate::kifu::commands::normalize_jkf,
             crate::engine::commands::analysis::initialize_engine,
+            crate::engine::commands::analysis::start_analysis_engine,
             crate::engine::commands::analysis::shutdown_engine,
             crate::engine::commands::analysis::set_position,
             crate::engine::commands::analysis::start_infinite_analysis,

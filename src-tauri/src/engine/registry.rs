@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::engine::child::{self, EngineChild, KillOutcome, KILL_TIMEOUT};
@@ -121,6 +122,33 @@ impl EngineRegistry {
         spawn_timeout: Duration,
         info_timeout: Duration,
     ) -> Result<Arc<EngineProcess>, EngineError> {
+        self.spawn_cancellable(
+            engine_path,
+            work_dir,
+            spawn_timeout,
+            info_timeout,
+            &CancellationToken::new(),
+        )
+        .await
+    }
+
+    /// `spawn` と同じ。ただし `cancel` が立ったら、`usiok` を受け取るまでの間なら
+    /// 起こしたプロセスを落として `Cancelled` で返る。
+    ///
+    /// 起動中（`usiok` を待っている間）のプロセスは本台帳に居ないので、呼び手は ID で
+    /// 落とせない。取り消しの口をここに持たないと、止めたはずの起動が後から台帳に載る。
+    ///
+    /// **`usiok` を受け取った後に立った取り消しは見ない。** 返った `EngineProcess` は
+    /// 本台帳に居るので、呼び手が ID で落とす。起こす段（専用スレッドの fork/exec）の
+    /// 最中に立ったら、起き上がるのを待たずに返り、遅れて起きた子は別のタスクが落とす。
+    pub async fn spawn_cancellable(
+        &self,
+        engine_path: &str,
+        work_dir: Option<&str>,
+        spawn_timeout: Duration,
+        info_timeout: Duration,
+        cancel: &CancellationToken,
+    ) -> Result<Arc<EngineProcess>, EngineError> {
         // **同期の口をまとめて専用スレッドへ出す。** `canonicalize` も
         // `is_file` も `child::spawn`（中の fork/exec）も同期の
         // システムコールで、`.await` を1つも挟まない。async のタスクの中で
@@ -129,6 +157,9 @@ impl EngineRegistry {
         //
         // ネットワークボリューム上のエンジンや、`fork` が重い状況で効く。
         // 対局はこれを2本ぶん直列に通る。
+        if cancel.is_cancelled() {
+            return Err(cancelled_while_starting());
+        }
         let path_for_task = engine_path.to_string();
         let dir_for_task = work_dir.map(|d| d.to_string());
         let started = tokio::task::spawn_blocking(move || {
@@ -190,28 +221,42 @@ impl EngineRegistry {
         // 超えてもブロッキングのスレッドは残る（`timeout` は取り消せない）。
         // そのぶんワーカが1本減ったままになる。
         let mut started = started;
-        let (engine_path, work_dir, spawned) =
-            match tokio::time::timeout(spawn_timeout, &mut started).await {
-                Ok(Ok(Ok(started))) => started,
-                Ok(Ok(Err(e))) => return Err(e),
-                // 専用スレッドが落ちた。プロセスは起きていない
-                Ok(Err(e)) => {
-                    return Err(EngineError::StartupFailed(format!(
-                        "failed to run the spawn task: {e}"
-                    )))
-                }
-                Err(_) => {
-                    log::error!(target: LOGT, "spawn: timed out before the process started");
-                    // **待ち手を捨てない。** 捨てても遅れて起き上がった子は
-                    // Drop で落ちるが、落とせたかがどこにも残らない。
-                    // 起き上がるのを別のタスクで待って、落とせたかを記録する
-                    tokio::spawn(dispose_late_spawn(started));
-                    return Err(EngineError::Timeout(format!(
-                        "{TIMED_OUT} before the process started; check the path and the volume"
-                    )));
-                }
-            };
+        let waited = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => None,
+            waited = tokio::time::timeout(spawn_timeout, &mut started) => Some(waited),
+        };
+        let Some(waited) = waited else {
+            // 起き上がる前に止められた。時間切れと同じく、遅れて起きた子は別のタスクが落とす
+            tokio::spawn(dispose_late_spawn(started));
+            return Err(cancelled_while_starting());
+        };
+        let (engine_path, work_dir, spawned) = match waited {
+            Ok(Ok(Ok(started))) => started,
+            Ok(Ok(Err(e))) => return Err(e),
+            // 専用スレッドが落ちた。プロセスは起きていない
+            Ok(Err(e)) => {
+                return Err(EngineError::StartupFailed(format!(
+                    "failed to run the spawn task: {e}"
+                )))
+            }
+            Err(_) => {
+                log::error!(target: LOGT, "spawn: timed out before the process started");
+                // **待ち手を捨てない。** 捨てても遅れて起き上がった子は
+                // Drop で落ちるが、落とせたかがどこにも残らない。
+                // 起き上がるのを別のタスクで待って、落とせたかを記録する
+                tokio::spawn(dispose_late_spawn(started));
+                return Err(EngineError::Timeout(format!(
+                    "{TIMED_OUT} before the process started; check the path and the volume"
+                )));
+            }
+        };
 
+        if cancel.is_cancelled() {
+            // 起き上がる前に止められた。捨てれば落ちる（`EngineChild` の Drop）
+            drop(spawned);
+            return Err(cancelled_while_starting());
+        }
         let protocol = Arc::new(UsiProtocol::new(spawned));
 
         // **起動中の置き場へ先に載せる。** `usiok` を待つ間に終了されると、
@@ -220,7 +265,13 @@ impl EngineRegistry {
 
         // `usiok` を取り切るまでは本台帳に載せない。載せてから失敗すると、
         // 誰も参照していないプロセスが残る。
-        let info = match protocol.get_engine_info(info_timeout).await {
+        // `biased`: 取り消しと失敗が同時に揃ったら取り消しを採る
+        let answered = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => Err(cancelled_while_starting()),
+            answered = protocol.get_engine_info(info_timeout) => answered,
+        };
+        let info = match answered {
             Ok(info) => info,
             Err(e) => {
                 self.forget_starting(&protocol).await;
@@ -252,6 +303,10 @@ impl EngineRegistry {
         log::info!(target: LOGT, "{}", spawn_ok_line(&id, &process.info.name));
         Ok(process)
     }
+}
+
+fn cancelled_while_starting() -> EngineError {
+    EngineError::Cancelled("the engine was stopped while starting".to_string())
 }
 
 /// 起動できたことを記録する1行。
@@ -400,6 +455,14 @@ impl EngineRegistry {
 
         protocol.kill_engine().await;
     }
+}
+
+/// パスを渡して起こす口（`EngineRegistry::spawn` など）を通すテストの台本。
+///
+/// 上の段のテストはここを通す（`child` を直に使うと、`tests/layering.rs` の辺を本番にも開く）
+#[cfg(all(test, unix))]
+pub(crate) mod script {
+    pub(crate) use crate::engine::child::script::place_script;
 }
 
 #[cfg(test)]

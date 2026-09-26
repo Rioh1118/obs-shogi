@@ -2,6 +2,7 @@ use crate::engine::utils::{shown, LogThrottle, EMIT_WARN_INTERVAL, MAX_SUMMARY_L
 
 use super::analyzer::{DepthOutcome, EngineAnalyzer, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
+use super::start_failure;
 use super::types::*;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -114,43 +115,14 @@ impl EngineBridge {
 
     /// エンジンを起こす（走っていれば畳んでから起こし直す）。
     ///
-    /// **起動を試みる前に `active_sessions` を空にする。** `Err` を返した回も席は空く。
-    ///
-    /// フロントの後始末を当てにできない口が在るため——ワークスペースの切り替えは
-    /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
-    /// （クラッシュでも同じ）。残すと以後の `take_session` が全部断り、
-    /// 利用者には「▶ を押しても何も起きない」としか見えない。
-    ///
-    /// **順序を入れ替えないこと。** 起動が落ちた回に席を残すと、そのまま次の解析が
-    /// 断られる——落ちた回こそ空けておく必要がある。捨ててから畳むので、
-    /// その間だけ席の相互排除を素通りする窓ができる（本体のコメントに1つ）。
+    /// **起動を試みる前に席を空ける**（`release_sessions`）。`Err` を返した回も席は空く。
     pub async fn initialize_engine_impl(
         &self,
         engine_path: String,
         working_dir: Option<String>,
     ) -> Result<(), String> {
         log::info!(target: LOGT, "initialize_engine: start");
-
-        // 席を捨ててから、下の `initialize_engine` が古いプロセスを畳む。
-        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
-        // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
-        // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
-        // 変えないこと**——落ちた回に席が残り、そのまま次の解析が断られる。
-        let stale: Vec<String> = self
-            .active_sessions
-            .write()
-            .await
-            .drain()
-            .map(|(id, _)| id)
-            .collect();
-        if !stale.is_empty() {
-            log::warn!(
-                target: LOGT,
-                "initialize_engine: dropped {} stale session(s) {:?}",
-                stale.len(),
-                stale
-            );
-        }
+        self.release_sessions("initialize_engine").await;
 
         // 実行ファイルの検査は `EngineRegistry::spawn` が持つ。
         // 起動する経路を1本にしてあるので、ここで重ねて検査しない。
@@ -166,6 +138,86 @@ impl EngineBridge {
             Err(e) => {
                 log::error!(target: LOGT, "initialize_engine: failed: {:?}", e);
                 Err(format!("Engine initialization failed: {e}"))
+            }
+        }
+    }
+
+    /// 解析の席（`active_sessions`）を全部空ける。エンジンを起こし直す前に、起動を試みる前に通す。
+    ///
+    /// フロントの後始末を当てにできない口が在るため——ワークスペースの切り替えは
+    /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
+    /// （クラッシュでも同じ）。残すと以後の `take_session` が全部断り、
+    /// 利用者には「▶ を押しても何も起きない」としか見えない。
+    ///
+    /// **起動より前に呼ぶこと。** 起動が落ちた回に席を残すと、そのまま次の解析が
+    /// 断られる——落ちた回こそ空けておく必要がある。
+    async fn release_sessions(&self, what: &str) {
+        // 席を捨ててから、呼び手の起動（`EngineAnalyzer` の `initialize_engine` /
+        // `start_engine`）が古いプロセスを畳む。
+        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
+        // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
+        // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
+        // 変えないこと**——落ちた回に席が残り、そのまま次の解析が断られる。
+        let stale: Vec<String> = self
+            .active_sessions
+            .write()
+            .await
+            .drain()
+            .map(|(id, _)| id)
+            .collect();
+        if !stale.is_empty() {
+            log::warn!(
+                target: LOGT,
+                "{what}: dropped {} stale session(s) {:?}",
+                stale.len(),
+                stale
+            );
+        }
+    }
+
+    /// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ（`EngineAnalyzer::start_engine`）。
+    ///
+    /// 席は先に空ける（`release_sessions`）。失敗は種類に分けて返す
+    /// （`start_failure::describe`）。画面の文言は種類から組み、`message` は詳細の欄とログに使う。
+    pub async fn start_analysis_engine_impl(
+        &self,
+        engine_path: String,
+        working_dir: Option<String>,
+        options: Vec<SetOptionValue>,
+    ) -> Result<EngineInfo, StartFailure> {
+        log::info!(target: LOGT, "start_analysis_engine: start");
+        self.release_sessions("start_analysis_engine").await;
+
+        let started = self
+            .analyzer
+            .start_engine(&engine_path, working_dir.as_deref(), &options)
+            .await;
+        match started {
+            Ok(info) => {
+                // TODO(#600): 世代のロックの外で書いている。重なった起動の後では、
+                // `engine_id` が指すエンジンと別の起動の設定がここに残りうる
+                *self.settings.write().await = EngineSettings {
+                    options: options
+                        .into_iter()
+                        .map(|SetOptionValue { name, value }| (name, value))
+                        .collect(),
+                };
+                log::info!(target: LOGT, "start_analysis_engine: ok");
+                Ok(info)
+            }
+            Err(e) => {
+                let failure = start_failure::describe(&e, &engine_path).await;
+                if failure.kind == StartFailureKind::Cancelled {
+                    log::info!(target: LOGT, "start_analysis_engine: cancelled: {}", failure.message);
+                } else {
+                    log::error!(
+                        target: LOGT,
+                        "start_analysis_engine: failed: {:?}: {}",
+                        failure.kind,
+                        failure.message
+                    );
+                }
+                Err(failure)
             }
         }
     }

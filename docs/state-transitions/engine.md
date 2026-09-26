@@ -29,6 +29,15 @@
 | **P2** | 生きている                       | `analyzer` が初期化済み                                 |
 | **P3** | 生きているが解析セッションを保持 | `active_sessions` に席あり → [analysis.md](analysis.md) |
 
+**Rust の側では、起動中（P1 に当たる段）を取り消せる。** 起動を1回で通す口
+`start_analysis_engine`（`EngineAnalyzer::start_engine`。起動・`setoption`・`readyok` まで）も、
+いまフロントが使う `initialize_engine`（`EngineAnalyzer::initialize_engine`。`usiok` まで）も
+同じ世代を通る。その間に `shutdown_engine`（`EngineAnalyzer::shutdown`）か次の起動が来たら、
+起動中のプロセスも落として `Cancelled` で返る。`engine_id` に載せるのは世代が最新のときだけ
+（`analyzer.rs` の `Startup` と `publish`）。踏んでいるテストは `analyzer.rs` の `tests::starting`。
+**フロントはまだ `start_analysis_engine` を使っておらず、`Cancelled` を区別しない**——下の表と注は
+`initialize_engine` → `apply_engine_settings` を通る現状の経路のもの。
+
 ## イベント
 
 | 記号   | イベント                                        | 発生源                                      |

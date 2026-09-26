@@ -5,12 +5,14 @@ use serde::Serialize;
 use super::protocol::USI_OK_TIMEOUT;
 use super::protocol::{contains_usi_breaking_char, StopEffect, UsiProtocol};
 use super::registry::SPAWN_TIMEOUT;
-use super::registry::{EngineId, EngineRegistry};
+use super::registry::{EngineId, EngineProcess, EngineRegistry};
+use super::setup;
 use super::types::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 use usi::{EngineCommand, GuiCommand, ThinkParams};
 
 const LOGT: &str = "obs_shogi::engine::analyzer";
@@ -200,6 +202,20 @@ pub struct EngineAnalyzer {
     /// `Notify` なのは、待つ側より先に畳まれても取りこぼさないため
     /// （`notify_one` は permit を1つ残す）。
     infinite_settled: Arc<Mutex<Option<Arc<tokio::sync::Notify>>>>,
+
+    /// 進行中の起動（`start_engine` / `initialize_engine`）の世代と取り消し口。
+    ///
+    /// **世代を Rust の側に持つ。** 起動中のプロセスは `usiok` と `readyok` を待つ間
+    /// `engine_id` に居ないので、止める・切り替える呼び出しは ID では届かない。
+    /// ここの取り消し口を立てれば、起動中のプロセスも落ちる。起動が `engine_id` へ書くのは
+    /// `publish` を通して、世代が最新のときだけ（同じロックの下で確かめる）
+    startup: Arc<Mutex<Startup>>,
+}
+
+#[derive(Default)]
+struct Startup {
+    generation: u64,
+    cancel: Option<CancellationToken>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -231,29 +247,151 @@ impl EngineAnalyzer {
             infinite_stop_requested: Arc::new(Mutex::new(None)),
             infinite_listener: Arc::new(Mutex::new(None)),
             infinite_settled: Arc::new(Mutex::new(None)),
+            startup: Arc::new(Mutex::new(Startup::default())),
         }
     }
 
-    /// 解析用のエンジンを起動する。既に持っていれば先に落とす。
+    /// 解析用のエンジンを起動し、設定を送って `readyok` まで待つ。**1つの呼び出しで通す。**
+    ///
+    /// 前の起動が進行中なら取り消し、起動済みのエンジンは落としてから始める。
+    /// 待っている間に `shutdown` か次の `start_engine` / `initialize_engine` が来たら、起動中の
+    /// プロセスも落として `Cancelled` で返る。`readyok` を待つ上限は置かない（DNN 系の初回の
+    /// 読み込みに上限を置けない）——止める口はこの取り消しで担保する。
+    ///
+    /// **値だけで断れる設定は、前のエンジンに触る前に断る**（`setup::validate_options`）。
+    /// 起こしてから断ると、動いていたエンジンを落とした後に何も残らない。
+    pub async fn start_engine(
+        &self,
+        engine_path: &str,
+        working_dir: Option<&str>,
+        options: &[SetOptionValue],
+    ) -> Result<EngineInfo, EngineError> {
+        setup::validate_options(options)?;
+        let (generation, cancel) = self.begin_start().await;
+
+        let started = self
+            .start_engine_steps(engine_path, working_dir, options, &cancel)
+            .await;
+        let process = match started {
+            Ok(process) => process,
+            // **取り消された後の失敗は取り消しとして返す。** 取り消しは待ちとしか競わないので、
+            // 起こす段や書き込みで折れた起動は、止めた後でも本物の失敗の顔で返ってくる。
+            // 利用者が既に離れた起動に「起動できませんでした」を出さない
+            Err(e) if cancel.is_cancelled() => {
+                log::debug!(target: LOGT, "start_engine: failed after it was cancelled: {e}");
+                return Err(cancelled_start());
+            }
+            Err(e) => return Err(e),
+        };
+        self.publish(generation, process).await
+    }
+
+    /// 世代を上げ、進行中の起動を取り消し、起動済みのエンジンを落とす
+    async fn begin_start(&self) -> (u64, CancellationToken) {
+        let (generation, cancel, previous) = {
+            let mut startup = self.startup.lock().await;
+            startup.generation += 1;
+            if let Some(previous) = startup.cancel.take() {
+                previous.cancel();
+            }
+            let cancel = CancellationToken::new();
+            startup.cancel = Some(cancel.clone());
+            (
+                startup.generation,
+                cancel,
+                self.engine_id.write().await.take(),
+            )
+        };
+        if let Some(previous) = previous {
+            self.registry.shutdown(&previous).await;
+        }
+        (generation, cancel)
+    }
+
+    /// 起こして設定を送り、`usinewgame` まで通す。失敗したら起こしたプロセスを落とす
+    async fn start_engine_steps(
+        &self,
+        engine_path: &str,
+        working_dir: Option<&str>,
+        options: &[SetOptionValue],
+        cancel: &CancellationToken,
+    ) -> Result<Arc<EngineProcess>, EngineError> {
+        let process = self
+            .registry
+            .spawn_cancellable(
+                engine_path,
+                working_dir,
+                SPAWN_TIMEOUT,
+                USI_OK_TIMEOUT,
+                cancel,
+            )
+            .await?;
+        let protocol = process.protocol();
+
+        // `biased`: 取り消しと失敗が同時に揃ったら取り消しを採る
+        let prepared = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => Err(cancelled_start()),
+            prepared = setup::send_setup(&protocol, options, None, None) => prepared,
+        };
+        let prepared = match prepared {
+            Ok(()) => protocol.send_command(&GuiCommand::UsiNewGame).await,
+            Err(e) => Err(e),
+        };
+        if let Err(e) = prepared {
+            self.registry.shutdown(&process.id).await;
+            return Err(e);
+        }
+        Ok(process)
+    }
+
+    /// 起動を終えたプロセスを解析の口に載せる。世代が古ければ落として `Cancelled`。
+    ///
+    /// **世代の確認と `engine_id` への書き込みを同じロックの下で。** 離すと、確かめてから
+    /// 書くまでの間に次の起動が前の `engine_id` を落とし終え、ここが古いプロセスを書き戻す
+    async fn publish(
+        &self,
+        generation: u64,
+        process: Arc<EngineProcess>,
+    ) -> Result<EngineInfo, EngineError> {
+        let mut startup = self.startup.lock().await;
+        if startup.generation != generation {
+            drop(startup);
+            self.registry.shutdown(&process.id).await;
+            return Err(cancelled_start());
+        }
+        startup.cancel = None;
+        *self.engine_id.write().await = Some(process.id.clone());
+        Ok(process.info.clone())
+    }
+
+    /// 解析用のエンジンを起動する（設定は送らない）。既に持っていれば先に落とす。
+    /// TODO(#600): フロントが `start_engine` に移ったら `apply_settings` と共に消す
+    ///
+    /// `start_engine` と同じ世代を通す。途中で `shutdown` か次の起動が来たら、起こした
+    /// プロセスを落として `Cancelled` で返る（`engine_id` を上書きして前の起動を孤児にしない）。
     pub async fn initialize_engine(
         &self,
         engine_path: String,
         working_dir: Option<String>,
     ) -> Result<(), EngineError> {
-        self.shutdown().await?;
-
+        let (generation, cancel) = self.begin_start().await;
         let process = self
             .registry
-            .spawn(
+            .spawn_cancellable(
                 &engine_path,
                 working_dir.as_deref(),
                 SPAWN_TIMEOUT,
                 USI_OK_TIMEOUT,
+                &cancel,
             )
-            .await?;
-
-        *self.engine_id.write().await = Some(process.id.clone());
-        Ok(())
+            .await;
+        let process = match process {
+            Ok(process) => process,
+            Err(_) if cancel.is_cancelled() => return Err(cancelled_start()),
+            Err(e) => return Err(e),
+        };
+        self.publish(generation, process).await.map(|_| ())
     }
 
     /// 解析用エンジンのプロトコル層。起動していなければ `NotInitialized`。
@@ -273,26 +411,33 @@ impl EngineAnalyzer {
         Ok(process.protocol())
     }
 
+    /// 起動済みのエンジンへ設定を送り、`isready` と `usinewgame` を出す。**`readyok` は待たない**
+    /// （理由は `setup::send_options`。待つ経路は `start_engine`）。
+    ///
+    /// 送る順は `EngineSettings.options`（`HashMap`）の反復順で、実行ごとに変わる（#579）。
     pub async fn apply_settings(&self, settings: EngineSettings) -> Result<(), EngineError> {
+        let options: Vec<SetOptionValue> = settings
+            .options
+            .into_iter()
+            .map(|(name, value)| SetOptionValue { name, value })
+            .collect();
+        setup::validate_options(&options)?;
         let protocol = self.protocol().await?;
-
-        for (name, value) in &settings.options {
-            // USI プロトコルは行指向なので、name/value への改行注入を拒否する
-            if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
-                return Err(EngineError::CommunicationFailed(
-                    "setoption name/value contains forbidden control character".to_string(),
-                ));
-            }
-            let cmd = GuiCommand::SetOption(name.clone(), Some(value.clone()));
-            protocol.send_command(&cmd).await?;
-        }
-
+        setup::send_options(&protocol, &options, None).await?;
         protocol.send_command(&GuiCommand::IsReady).await?;
         protocol.send_command(&GuiCommand::UsiNewGame).await?;
         Ok(())
     }
 
     pub async fn shutdown(&self) -> Result<(), EngineError> {
+        // 起動中のものも止める。世代を上げるので、後から終わった起動は `engine_id` へ書かない
+        {
+            let mut startup = self.startup.lock().await;
+            startup.generation += 1;
+            if let Some(cancel) = startup.cancel.take() {
+                cancel.cancel();
+            }
+        }
         let id = self.engine_id.write().await.take();
         if let Some(id) = id {
             self.registry.shutdown(&id).await;
@@ -820,8 +965,14 @@ impl Clone for EngineAnalyzer {
             infinite_stop_requested: Arc::clone(&self.infinite_stop_requested),
             infinite_listener: Arc::clone(&self.infinite_listener),
             infinite_settled: Arc::clone(&self.infinite_settled),
+            startup: Arc::clone(&self.startup),
         }
     }
+}
+
+/// 起動が取り消されたこと（`shutdown` か、より新しい起動が来た）
+fn cancelled_start() -> EngineError {
+    EngineError::Cancelled("the engine start was cancelled".to_string())
 }
 
 #[cfg(test)]
@@ -1044,5 +1195,312 @@ mod tests {
 
         assert_eq!(drain_stale(&mut rx), 2);
         assert_eq!(drain_stale(&mut rx), 0, "2度目は何も残っていない");
+    }
+
+    /// 起動（`start_engine`）を実プロセスで確かめる
+    #[cfg(unix)]
+    mod starting {
+        use super::*;
+        use crate::engine::registry::script::place_script as place;
+        use std::path::Path;
+
+        /// `usi` に答え、`isready` に答えない台本
+        const NEVER_READY: &str = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Silent\nusiok\n' ;;
+  esac
+done"#;
+
+        /// `usi` と `isready` に答える台本
+        const READY: &str = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Ready\nusiok\n' ;;
+    isready) echo readyok ;;
+  esac
+done"#;
+
+        fn engine(path: &Path) -> &str {
+            path.to_str().expect("パス")
+        }
+
+        /// 設定を送り `readyok` まで通したら、エンジンの情報を返し解析の口に載せる
+        #[tokio::test]
+        async fn a_start_returns_the_info_and_keeps_the_engine() {
+            let dir = test_support::dir::temp_dir("analyzer-start-ok");
+            let path = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            let info = analyzer
+                .start_engine(engine(&path), None, &[])
+                .await
+                .expect("起動できる");
+            assert_eq!(info.name, "Ready");
+            assert!(analyzer.protocol().await.is_ok(), "解析の口に載っていない");
+
+            analyzer.shutdown().await.expect("落とせる");
+            assert!(registry.ids().await.is_empty());
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `readyok` を待っている間に止めたら、取り消しで返り、起動中のプロセスも残さない
+        #[tokio::test]
+        async fn stopping_while_loading_cancels_and_leaves_nothing() {
+            let dir = test_support::dir::temp_dir("analyzer-start-stop");
+            let path = place(&dir, "silent.sh", NEVER_READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = Arc::new(EngineAnalyzer::new(Arc::clone(&registry)));
+
+            let starting = {
+                let analyzer = Arc::clone(&analyzer);
+                let path = path.clone();
+                tokio::spawn(async move { analyzer.start_engine(engine(&path), None, &[]).await })
+            };
+            // 握手を終えて `readyok` を待つところまで進める
+            wait_until(|| async { !registry.ids().await.is_empty() }).await;
+            analyzer.shutdown().await.expect("止められる");
+
+            let result = tokio::time::timeout(Duration::from_secs(10), starting)
+                .await
+                .expect("止めても起動の待ちが解けない")
+                .expect("タスク");
+            assert!(
+                matches!(result, Err(EngineError::Cancelled(_))),
+                "取り消しとして返っていない: {result:?}"
+            );
+            assert!(
+                registry.ids().await.is_empty(),
+                "起動中のプロセスが残っている"
+            );
+            assert!(
+                analyzer.protocol().await.is_err(),
+                "止めたのに解析の口に載っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 起動中に次の起動が来たら、前の起動は取り消され、残るのは後の1本だけ
+        #[tokio::test]
+        async fn a_newer_start_replaces_the_one_still_loading() {
+            let dir = test_support::dir::temp_dir("analyzer-start-replace");
+            let silent = place(&dir, "silent.sh", NEVER_READY).await;
+            let ready = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = Arc::new(EngineAnalyzer::new(Arc::clone(&registry)));
+
+            let first = {
+                let analyzer = Arc::clone(&analyzer);
+                tokio::spawn(async move { analyzer.start_engine(engine(&silent), None, &[]).await })
+            };
+            wait_until(|| async { !registry.ids().await.is_empty() }).await;
+
+            let info = analyzer
+                .start_engine(engine(&ready), None, &[])
+                .await
+                .expect("後の起動は通る");
+            assert_eq!(info.name, "Ready");
+
+            let first = tokio::time::timeout(Duration::from_secs(10), first)
+                .await
+                .expect("前の起動の待ちが解けない")
+                .expect("タスク");
+            assert!(
+                matches!(first, Err(EngineError::Cancelled(_))),
+                "前の起動が取り消されていない: {first:?}"
+            );
+            let ids = registry.ids().await;
+            assert_eq!(ids.len(), 1, "残っているプロセスが1本でない: {ids:?}");
+            assert_eq!(analyzer.engine_id.read().await.as_ref(), ids.first());
+
+            analyzer.shutdown().await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `usi` を受けたら印を置き、答えない台本
+        const NEVER_USIOK: &str = r#"while read line; do
+  case "$line" in
+    usi) touch saw-usi ;;
+  esac
+done"#;
+
+        /// `usi` を受けたら印を置き、少し待ってから答える台本
+        const SLOW_USIOK: &str = r#"while read line; do
+  case "$line" in
+    usi) touch saw-usi; sleep 1; printf 'id name Slow\nusiok\n' ;;
+    isready) echo readyok ;;
+  esac
+done"#;
+
+        /// `usiok` を待っている間に止めたら、待ちの上限（`USI_OK_TIMEOUT`）を待たずに
+        /// 取り消しで返り、起動中のプロセスも残さない
+        #[tokio::test]
+        async fn stopping_before_usiok_cancels_without_waiting_for_the_limit() {
+            let dir = test_support::dir::temp_dir("analyzer-start-before-usiok");
+            let path = place(&dir, "mute.sh", NEVER_USIOK).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = Arc::new(EngineAnalyzer::new(Arc::clone(&registry)));
+
+            let starting = {
+                let analyzer = Arc::clone(&analyzer);
+                let path = path.clone();
+                tokio::spawn(async move { analyzer.start_engine(engine(&path), None, &[]).await })
+            };
+            let saw_usi = dir.join("saw-usi");
+            wait_until(|| {
+                let saw_usi = saw_usi.clone();
+                async move { saw_usi.exists() }
+            })
+            .await;
+            analyzer.shutdown().await.expect("止められる");
+
+            assert!(
+                Duration::from_secs(10) < USI_OK_TIMEOUT,
+                "待ちの上限より先に諦めていない"
+            );
+            let result = tokio::time::timeout(Duration::from_secs(10), starting)
+                .await
+                .expect("止めても `usiok` の待ちが解けない")
+                .expect("タスク");
+            assert!(
+                matches!(result, Err(EngineError::Cancelled(_))),
+                "取り消しとして返っていない: {result:?}"
+            );
+            assert!(
+                registry.ids().await.is_empty(),
+                "起動中のプロセスが台帳に載っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 設定を送らない起動（`initialize_engine`）も同じ世代を通る。後から来た起動に
+        /// 追い越されたら取り消しで返り、`engine_id` を上書きして後の1本を孤児にしない
+        #[tokio::test]
+        async fn a_bare_start_is_cancelled_by_a_newer_start() {
+            let dir = test_support::dir::temp_dir("analyzer-initialize-replaced");
+            let slow = place(&dir, "slow.sh", SLOW_USIOK).await;
+            let ready = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = Arc::new(EngineAnalyzer::new(Arc::clone(&registry)));
+
+            let bare = {
+                let analyzer = Arc::clone(&analyzer);
+                let slow = engine(&slow).to_string();
+                tokio::spawn(async move { analyzer.initialize_engine(slow, None).await })
+            };
+            let saw_usi = dir.join("saw-usi");
+            wait_until(|| {
+                let saw_usi = saw_usi.clone();
+                async move { saw_usi.exists() }
+            })
+            .await;
+            analyzer
+                .start_engine(engine(&ready), None, &[])
+                .await
+                .expect("後の起動は通る");
+
+            let bare = tokio::time::timeout(Duration::from_secs(10), bare)
+                .await
+                .expect("前の起動の待ちが解けない")
+                .expect("タスク");
+            assert!(
+                matches!(bare, Err(EngineError::Cancelled(_))),
+                "追い越された起動が取り消されていない: {bare:?}"
+            );
+            let ids = registry.ids().await;
+            assert_eq!(ids.len(), 1, "残っているプロセスが1本でない: {ids:?}");
+            assert_eq!(analyzer.engine_id.read().await.as_ref(), ids.first());
+
+            analyzer.shutdown().await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 設定を送らない起動が2本重なっても、残るのは後の1本だけ（前の1本は取り消しで返る）。
+        /// 重なった前の1本が台帳に載ったまま誰からも参照されない、を起こさない
+        #[tokio::test]
+        async fn two_overlapping_bare_starts_leave_one_engine() {
+            let dir = test_support::dir::temp_dir("analyzer-initialize-twice");
+            let slow = place(&dir, "slow.sh", SLOW_USIOK).await;
+            let ready = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = Arc::new(EngineAnalyzer::new(Arc::clone(&registry)));
+
+            let first = {
+                let analyzer = Arc::clone(&analyzer);
+                let slow = engine(&slow).to_string();
+                tokio::spawn(async move { analyzer.initialize_engine(slow, None).await })
+            };
+            let saw_usi = dir.join("saw-usi");
+            wait_until(|| {
+                let saw_usi = saw_usi.clone();
+                async move { saw_usi.exists() }
+            })
+            .await;
+            analyzer
+                .initialize_engine(engine(&ready).to_string(), None)
+                .await
+                .expect("後の起動は通る");
+
+            let first = tokio::time::timeout(Duration::from_secs(10), first)
+                .await
+                .expect("前の起動の待ちが解けない")
+                .expect("タスク");
+            assert!(
+                matches!(first, Err(EngineError::Cancelled(_))),
+                "前の起動が取り消されていない: {first:?}"
+            );
+            let ids = registry.ids().await;
+            assert_eq!(ids.len(), 1, "残っているプロセスが1本でない: {ids:?}");
+            assert_eq!(analyzer.engine_id.read().await.as_ref(), ids.first());
+
+            analyzer.shutdown().await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 送れない値は、動いているエンジンに触る前に断る
+        #[tokio::test]
+        async fn an_unsendable_option_leaves_the_running_engine_alone() {
+            let dir = test_support::dir::temp_dir("analyzer-start-invalid");
+            let path = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+            analyzer
+                .start_engine(engine(&path), None, &[])
+                .await
+                .expect("起動できる");
+            let before = registry.ids().await;
+
+            let broken = SetOptionValue {
+                name: "EvalDir".to_string(),
+                value: "/eval\nquit".to_string(),
+            };
+            let error = analyzer
+                .start_engine(engine(&path), None, &[broken])
+                .await
+                .expect_err("改行を含む値を通している");
+            assert!(matches!(error, EngineError::InvalidState(_)), "{error}");
+            assert_eq!(
+                registry.ids().await,
+                before,
+                "断る前に前のエンジンを落としている"
+            );
+            assert!(analyzer.protocol().await.is_ok(), "解析の口から外れている");
+
+            analyzer.shutdown().await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        async fn wait_until<F, Fut>(condition: F)
+        where
+            F: Fn() -> Fut,
+            Fut: std::future::Future<Output = bool>,
+        {
+            for _ in 0..500 {
+                if condition().await {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            panic!("上限内に条件が満たされない");
+        }
     }
 }

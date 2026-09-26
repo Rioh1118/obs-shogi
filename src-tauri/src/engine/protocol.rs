@@ -341,6 +341,13 @@ pub const USI_OK_TIMEOUT: Duration = Duration::from_secs(30);
 /// この綴りを目印にして断り文句を差し替える。
 pub const NO_USIOK: &str = "the engine did not answer `usi` with `usiok`";
 
+/// `usiok` までに `id name` が無かったときの断り文句の頭。
+///
+/// 答えはしたが名乗らなかった——USI の応答が足りないので、分類は `NO_USIOK` と同じ側
+/// （そのファイルは使える USI エンジンではない）。出力が終わった失敗と同じ変種にすると、
+/// 評価関数や共有ライブラリの失敗と見分けられない
+pub const NO_ID_NAME: &str = "the engine did not send `id name` before `usiok`";
+
 /// `isready` を送ってから `readyok` を待つ上限。
 ///
 /// `usiok` より桁で長いのは、評価関数やハッシュの確保がここで走るため。
@@ -832,7 +839,7 @@ impl UsiProtocol {
             listeners.write().await.clear();
 
             // `readyok` を待っている側にも届ける。listeners を落とすだけでは
-            // `ensure_ready` は watch を見ているので気付かず、上限まで待つ
+            // `become_ready` は watch を見ているので気付かず、上限まで待つ
             set_ready_state(&ready, ReadyState::Closed);
 
             if killed.load(std::sync::atomic::Ordering::Relaxed) {
@@ -1027,7 +1034,7 @@ impl UsiProtocol {
             // 確認だけして手放すと、その隙に次の `isready` が世代を上げて
             // `Waiting` に落とせる。`abort()` は次の await 点までしか効かないので、
             // 確認を通過済みのこのタスクは構わず `Ready` を書く。
-            // 結果、`readyok` が返っていないエンジンに対して `ensure_ready` が
+            // 結果、`readyok` が返っていないエンジンに対して `become_ready` が
             // 即 `Ok` を返し、まだ評価関数を読んでいる相手へ `position` / `go` が流れる
             let mut pending = link.pending.lock().await;
             if pending.generation != gen {
@@ -1207,11 +1214,11 @@ impl UsiProtocol {
         if name.is_empty() {
             // 出力が終わったのか、`usiok` までに `id name` が無かったのかで
             // 呼び出し側の対処が違う。潰さない
-            return Err(EngineError::CommunicationFailed(if saw_usiok {
-                "engine did not send `id name` before `usiok`".to_string()
+            return Err(if saw_usiok {
+                EngineError::StartupFailed(NO_ID_NAME.to_string())
             } else {
-                "engine output ended before `usiok`".to_string()
-            }));
+                EngineError::CommunicationFailed("engine output ended before `usiok`".to_string())
+            });
         }
 
         Ok((name, author))
@@ -1223,54 +1230,60 @@ impl UsiProtocol {
         state == ReadyState::Ready
     }
 
-    /// `isready` を送り、`readyok` が返るまで待つ。
+    /// `isready` を**必ず**送り、`readyok` が返るまで待つ。`limit` が `None` なら上限なし。
     ///
-    /// 既に ready なら何も送らない。対局の開始前と、局面を送る前にこれを通す。
-    /// 待たずに `position` / `go` を送っても `send_command` が ready まで
-    /// 積んでくれるが、**積まれたまま返ってこないことを呼び出し側が知れない。**
+    /// 準備済みでも送る。`setoption` を送った後は、評価関数や定跡を読み直させるために
+    /// `isready` が要る（やねうら王はそこで読む）。準備済みを理由に飛ばすと、送った設定が効かない。
     ///
-    /// **`timeout` は待ちだけでなく `isready` の書き込みも含む。** 待ちにしか
-    /// 掛けないと、締切から時間を借りて呼ぶ側（対局の `START_TIMEOUT`）で
-    /// 書き込みぶんが締切の外に出る。書き込みで使い切ったら、待たずに
-    /// `Timeout` で断る。
+    /// 待たずに `position` / `go` を送っても `send_command` が ready まで積むが、
+    /// **積まれたまま返ってこないことを呼び出し側が知れない。** だから待つ口を持つ。
     ///
-    /// **上限として使えるとは書かない。** 書き込みは列に入るので、先客が
-    /// 居ればその処理時間が足される（→ `WRITE_TIMEOUT`）。ここが覆うのは
-    /// 「書き込みを渡してから `readyok` を待ち終わるまで」で、実時間の上限ではない。
-    pub async fn ensure_ready(&self, timeout: Duration) -> Result<(), EngineError> {
-        if self.is_ready() {
-            return Ok(());
-        }
-
-        let deadline = tokio::time::Instant::now() + timeout;
+    /// **`limit` は待ちだけでなく `isready` の書き込みも含む。** 待ちにしか掛けないと、
+    /// 締切から時間を借りて呼ぶ側（対局の `START_TIMEOUT`）で書き込みぶんが締切の外に出る。
+    /// **上限として使えるとは書かない。** 書き込みは列に入るので、先客が居ればその処理時間が
+    /// 足される（→ `WRITE_TIMEOUT`）。覆うのは「書き込みを渡してから `readyok` を待ち終わるまで」。
+    ///
+    /// 待っている最中に `kill_engine` されたら `Cancelled` で返る。
+    pub async fn become_ready(&self, limit: Option<Duration>) -> Result<(), EngineError> {
+        let deadline = limit.map(|limit| tokio::time::Instant::now() + limit);
         // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
         // 出力が終わった場合に `Closed` を見落として上限まで待つ
         let mut rx = self.link.ready.subscribe();
         self.send_command(&GuiCommand::IsReady).await?;
 
-        // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
-        // 内側を1回 poll してから `Elapsed` を返すので、そのまま渡すと
-        // 「エンジンが `readyok` を返さなかった」で返る——**そのエンジンには
-        // 1ナノ秒も与えていない**のに、利用者は評価関数のパスを疑うことになる。
-        // 段の取り分が 0 なら段に入る前に断る（`prepare_engine` の `for_usiok` と同じ形）
-        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-        if left.is_zero() {
-            return Err(EngineError::Timeout(format!(
-                "{TIMED_OUT} before waiting for readyok"
-            )));
-        }
-
+        let wait = rx.wait_for(|state| *state != ReadyState::Waiting);
         // `Ref` はこの式の中で読み捨てる。束ねたまま下の await を跨ぐと `Send` でなくなる
-        let settled: ReadyState =
-            *tokio::time::timeout(left, rx.wait_for(|state| *state != ReadyState::Waiting))
-                .await
-                .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
-                .map_err(|_| {
-                    EngineError::CommunicationFailed("ready channel closed".to_string())
-                })?;
+        let settled: ReadyState = match deadline {
+            Some(deadline) => {
+                // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
+                // 内側を1回 poll してから `Elapsed` を返すので、そのまま渡すと
+                // 「エンジンが `readyok` を返さなかった」で返る——**そのエンジンには
+                // 1ナノ秒も与えていない**のに、利用者は評価関数のパスを疑うことになる
+                let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+                if left.is_zero() {
+                    return Err(EngineError::Timeout(format!(
+                        "{TIMED_OUT} before waiting for readyok"
+                    )));
+                }
+                *tokio::time::timeout(left, wait)
+                    .await
+                    .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
+                    .map_err(|_| {
+                        EngineError::CommunicationFailed("ready channel closed".to_string())
+                    })?
+            }
+            None => *wait.await.map_err(|_| {
+                EngineError::CommunicationFailed("ready channel closed".to_string())
+            })?,
+        };
 
         // **上限まで待たずに返る。** 出力が終わっているなら `readyok` は来ない
         if settled == ReadyState::Closed {
+            if self.killed.load(std::sync::atomic::Ordering::Relaxed) {
+                return Err(EngineError::Cancelled(
+                    "the engine was stopped before it became ready".to_string(),
+                ));
+            }
             return Err(self
                 .with_recent_output(EngineError::CommunicationFailed(
                     "engine exited before it became ready".to_string(),
@@ -1375,7 +1388,7 @@ impl UsiProtocol {
     /// 起動の失敗に直近の出力を添える。**頭は変えない**（`NO_USIOK` のように
     /// 頭の綴りで分類し直す呼び手がいる）。添えるのは `StartupFailed` と
     /// `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で始まる）には添えない
-    async fn with_recent_output(&self, error: EngineError) -> EngineError {
+    pub(crate) async fn with_recent_output(&self, error: EngineError) -> EngineError {
         if !matches!(
             error,
             EngineError::StartupFailed(_) | EngineError::CommunicationFailed(_)
@@ -1555,6 +1568,22 @@ fn lock_declared(
     declared
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// 実プロセスで確かめるテストの台本（`child::script`）を、プロトコル層に包んで起こす口。
+///
+/// 上の段のテストはここを通す。`child` を直に使うと、テストのためだけに
+/// `tests/layering.rs` の辺（`may_use` の `child`）を本番にも開くことになる
+#[cfg(all(test, unix))]
+pub(crate) mod script {
+    use super::UsiProtocol;
+    use crate::engine::child::script::spawn_script;
+    use std::path::Path;
+
+    /// `#!/bin/sh` の台本を `dir` に置いて起こし、プロトコル層に載せる
+    pub(crate) async fn spawn_protocol(dir: &Path, body: &str) -> UsiProtocol {
+        UsiProtocol::new(spawn_script(dir, body).await)
+    }
 }
 
 #[cfg(test)]

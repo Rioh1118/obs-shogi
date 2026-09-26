@@ -41,6 +41,7 @@ use crate::engine::protocol::UsiProtocol;
 use crate::engine::protocol::{NO_USIOK, READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
+use crate::engine::setup::{self, MAX_WIRE_FIELD};
 use crate::engine::types::{engine_error_text, AnalysisResult, EngineError, TIMED_OUT};
 use crate::engine::utils::LogThrottle;
 use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
@@ -55,29 +56,6 @@ const LOGT: &str = "obs_shogi::engine::game";
 
 /// 時計を見る間隔。時間切れの検出はこの粒度になる
 const TICK: Duration = Duration::from_millis(100);
-
-/// 線に出る1行の長さの上限。
-///
-/// **`MAX_PLIES` と同じ理由で、同じ経路を守る。** `position` も `setoption` も
-/// 1行にまとめて出るので、長さを見ないと `check_writable` の `to_string` で
-/// 写しが1本、`push_pending` の `clone` でもう1本作られ、積み置きは
-/// `PENDING_LIMIT` 件まで滞留する。書き込みは `WRITE_TIMEOUT` で切れて
-/// `fail_writes` が走り、**そのエンジンは以後何も受け付けなくなる**——
-/// 出るのは「stdin を読まなくなった」で、長すぎたことは分からない。
-///
-/// **同じ1行を伸ばせる経路は3つあり、見る場所も3つ。** 手数は `MAX_PLIES`、
-/// `setoption` の件数は `MAX_OPTIONS`、`start_sfen` と `setoption` の名前・値の
-/// 長さがここ。1つでも欠けると、そこから1行を伸ばせる。
-///
-/// 8KB にしたのは、平手の SFEN が 60 バイト前後、最長の駒落ちでも 100 バイト未満で、
-/// `setoption` の値（評価関数のパス、`USI_Hash` の数値）も収まる幅だから。
-const MAX_WIRE_FIELD: usize = 8 * 1024;
-
-/// `setoption` で送れる件数の上限。
-///
-/// 1件ごとに `WRITE_TIMEOUT` が積まれるので、件数がそのまま起動の待ち時間になる。
-/// 実在するエンジンの option は多くて数十件。
-const MAX_OPTIONS: usize = 128;
 
 /// `start_game` が返るまでの上限。**1局ぶん全体で見る。**
 ///
@@ -96,7 +74,7 @@ const MAX_OPTIONS: usize = 128;
 /// **厳密な上限ではない。** 段に入る前に残りを見るので、入った段が
 /// 締切を跨ぐぶんは超える。**どの段も入口で残りを見る**ので、跨ぎうるのは
 /// 書き込み1件ぶん（`WRITE_TIMEOUT`）と、失敗したときの後始末
-/// （`registry::shutdown`）。どのコマンドかは書かない——`send_setup` に
+/// （`registry::shutdown`）。どのコマンドかは書かない——`send_game_setup` に
 /// 1行足すたびに離れたここが嘘になる。
 ///
 /// 90秒にしたのは、評価関数の読み込みが重いエンジン（数十秒）を通し、
@@ -1805,18 +1783,9 @@ impl Runner {
 
 // ===== 起動時の段取り =====
 
-/// 締切までの残り。尽きていたら `Err`。
-///
-/// **`timeout` で包まない。** 包むと、上限に当たったときに中の future ごと
-/// 落ちる——`registry.spawn` が返した直後だと、台帳に載ったプロセスの ID を
-/// 誰も知らないまま消える。残りを渡して各段に自分で締めさせれば、
-/// `Err` は普通に返り、起こしたぶんの後始末が走る。
+/// 締切までの残り（`setup::remaining`）を、対局の断り文句の形で返す。
 fn remaining(deadline: Instant, what: &str) -> Result<Duration, String> {
-    let left = deadline.saturating_duration_since(Instant::now());
-    if left.is_zero() {
-        return Err(format!("{TIMED_OUT} before {what}"));
-    }
-    Ok(left)
+    setup::remaining(deadline, what).map_err(|e| engine_error_text(&e))
 }
 
 /// エンジン側の対局者を全部起動する。
@@ -1929,7 +1898,7 @@ async fn prepare_engine(
         .await
         .map_err(|e| usiok_refusal(e, for_usiok))?;
 
-    let prepared = send_setup(&process, options, deadline).await;
+    let prepared = send_game_setup(&process, options, deadline).await;
     if let Err(e) = prepared {
         registry.shutdown(&process.id).await;
         return Err(e);
@@ -1937,42 +1906,22 @@ async fn prepare_engine(
     Ok(process)
 }
 
-/// `setoption` を送ってから `readyok` を待つ。
+/// `setoption` を送って `readyok` を待ち、`usinewgame` を出す。
 ///
-/// **締切を引き直しながら進む。** `setoption` の件数はフロントから来るので、
-/// 1件あたり `WRITE_TIMEOUT` が積まれる。前もって計算した残りを
-/// `ensure_ready` に渡すと、書き込みに食われたぶんだけ全体の締切を超える。
-async fn send_setup(
+/// 送って待つところは `setup::send_setup`（解析の `EngineAnalyzer::start_engine` と同じ段）を通す。
+/// **締切を引き直しながら進む**
+/// （`setoption` の件数はフロントから来るので、1件あたり `WRITE_TIMEOUT` が積まれる）。
+async fn send_game_setup(
     process: &EngineProcess,
     options: &[SetOptionValue],
     deadline: Instant,
 ) -> Result<(), String> {
     let protocol = process.protocol();
-
-    // **並べた順にそのまま送る。** 値の解釈が前の `setoption` に依存する
-    // エンジンがあるので、ここで並べ替えない（→ `PlayerSpec::Engine::options`）
-    for SetOptionValue { name, value } in options {
-        // USI は行指向なので、改行を混ぜられると別のコマンドを注入できる
-        if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
-            return Err(format!(
-                "option '{name}' contains a forbidden control character"
-            ));
-        }
-        remaining(deadline, "the options were sent")?;
-        protocol
-            .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
-            .await
-            .map_err(|e| engine_error_text(&e))?;
-    }
-
-    // `readyok` まで待ってから `usinewgame` を出す。待たずに積むと、
-    // 呼び出し側は「対局が始まった」と思ったまま何も起きない状態になりうる
-    protocol
-        .ensure_ready(READY_TIMEOUT.min(remaining(deadline, "the engine said readyok")?))
+    setup::send_setup(&protocol, options, Some(deadline), Some(READY_TIMEOUT))
         .await
         .map_err(|e| engine_error_text(&e))?;
 
-    // **ここも残りを見る。** 見ないと、`ensure_ready` が残りを使い切った直後でも
+    // **ここも残りを見る。** 見ないと、`readyok` の待ちが残りを使い切った直後でも
     // 無条件に書きに行く。しかもその `usinewgame` は、直後に2体目の
     // `prepare_engine` が締切で断って**落とすエンジン**へ送っていることがある
     remaining(deadline, "usinewgame was sent")?;
@@ -2044,29 +1993,10 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
         let PlayerSpec::Engine { options, .. } = settings.spec(side) else {
             continue;
         };
-        if options.len() > MAX_OPTIONS {
-            return Err(format!(
-                "{side:?} has {} options; the limit is {MAX_OPTIONS}",
-                options.len()
-            ));
-        }
-        for SetOptionValue { name, value } in options {
-            if name.len() > MAX_WIRE_FIELD || value.len() > MAX_WIRE_FIELD {
-                return Err(format!(
-                    "option '{}' is longer than {MAX_WIRE_FIELD} bytes",
-                    name.chars().take(40).collect::<String>()
-                ));
-            }
-            // **入口で断る。** `send_setup` も同じことを見るが、そちらは
-            // 起動を始めた後——プロセスを起こしてから断ることになる。
-            // `start_sfen` の制御文字は入口で見ているので、非対称にしない
-            if contains_usi_breaking_char(name) || contains_usi_breaking_char(value) {
-                return Err(format!(
-                    "option '{}' contains a forbidden control character",
-                    name.chars().take(40).collect::<String>()
-                ));
-            }
-        }
+        // **入口で断る**（`setup::validate_options`）。`setup::send_setup` も同じことを見るが、
+        // そちらはプロセスを起こした後に断ることになる。`start_sfen` の長さと制御文字も入口で見る。
+        // 同じ1行を伸ばせる経路は、手数（`MAX_PLIES`）・`setoption`（ここ）・`start_sfen` の3つ
+        setup::validate_options(options).map_err(|e| format!("{side:?}: {e}"))?;
     }
     validate_start_sfen(&settings.start_sfen)?;
     // **`>=` で弾く。** ちょうど `MAX_PLIES` を通すと、最初の手の裁定が
@@ -2279,6 +2209,7 @@ fn now_epoch_ms() -> Option<u64> {
 mod tests {
     use super::super::events::{DiscardEvents, RecordedEvents};
     use super::*;
+    use crate::engine::setup::MAX_SENT_OPTIONS;
 
     use crate::engine::utils::LOG_FILE_BUDGET;
 
@@ -2406,14 +2337,14 @@ mod tests {
         assert!(error.contains("bytes"), "断る理由が変わっている: {error}");
 
         let mut settings = two_humans(vec![]);
-        settings.black = engine(vec![option("x".to_string()); MAX_OPTIONS + 1]);
+        settings.black = engine(vec![option("x".to_string()); MAX_SENT_OPTIONS + 1]);
         validate_settings(&settings).expect_err("多すぎる option を通している");
 
         let mut settings = two_humans(vec![]);
         settings.black = engine(vec![option("x".repeat(MAX_WIRE_FIELD + 1))]);
         validate_settings(&settings).expect_err("長すぎる option の値を通している");
 
-        // **制御文字も入口で断る。** `send_setup` も見るが、そちらは
+        // **制御文字も入口で断る。** `setup::send_setup` も見るが、そちらは
         // プロセスを起こした後——起こしてから断ることになる
         let mut settings = two_humans(vec![]);
         settings.black = engine(vec![option("/eval\ninjected".to_string())]);
@@ -2614,8 +2545,9 @@ mod tests {
     /// **フロントが「再試行してよい失敗」を見分ける唯一の鍵。**（→ 台帳の F-27）
     /// 綴りが揃っていないと、**再試行で通る失敗を見分けられない**。
     ///
-    /// 見ているのは `remaining` と `prepare_engine` の2つだけ。実プロセスを
-    /// 要する側（`registry::spawn` / `ensure_ready` / 書き込み）は踏めない。
+    /// 見ているのは `remaining` と `prepare_engine` の2つだけ。実プロセスを要する側の
+    /// `readyok` の締切は `setup.rs` の `a_spent_deadline_is_a_timeout_before_sending` が踏む。
+    /// `registry::spawn` と書き込みの締切は踏めない。
     #[test]
     fn a_startup_timeout_always_carries_the_marker() {
         let past = Instant::now() - Duration::from_secs(1);

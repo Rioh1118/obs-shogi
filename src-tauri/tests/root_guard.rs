@@ -72,7 +72,7 @@ const STRUCT_CARRIED_PATH: [&str; 6] = [
 /// 2. root を決める側。関門より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
 ///
 /// 「まだ直していない」は理由にならない
-const EXEMPT: [(&str, &str); 9] = [
+const EXEMPT: [(&str, &str); 10] = [
     (
         "open_book",
         "(1) 定跡はエンジン同梱のディレクトリや外付けドライブなど、ワークスペースの外に置かれる。\
@@ -93,6 +93,11 @@ const EXEMPT: [(&str, &str); 9] = [
     (
         "initialize_engine",
         "(1) engine_path は思考エンジンの実行ファイル。ワークスペースの外にある",
+    ),
+    (
+        "start_analysis_engine",
+        "(1) 同上。engine_path / working_dir は思考エンジンの実行ファイルと置き場 \
+         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る）",
     ),
     (
         "save_presets",

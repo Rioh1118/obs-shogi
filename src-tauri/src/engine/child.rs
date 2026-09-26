@@ -575,7 +575,7 @@ pub(crate) mod script {
     use super::{spawn, EngineChild};
     use rustix::io::Errno;
     use std::os::unix::fs::PermissionsExt;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::time::Duration;
 
     /// 書き込み中として断られたときに起こし直す回数。1回あたり `BUSY_WAIT` 待つ
@@ -589,12 +589,38 @@ pub(crate) mod script {
     /// 継がれ、その隙に台本を exec すると「書き込み中のファイル」として OS に断られる。
     /// 窓は他人の fork から exec までなので、待てば閉じる
     pub(crate) async fn spawn_script(dir: &Path, body: &str) -> EngineChild {
-        let path = dir.join("engine.sh");
+        let path = write_script(dir, "engine.sh", body);
+        spawn_when_not_busy(&path, dir).await
+    }
+
+    /// `#!/bin/sh` の台本を `dir/name` に置き、**起こせるようになってから**パスを返す。
+    /// パスを渡して起こす口（`EngineRegistry::spawn` など）を通すテスト用。
+    ///
+    /// 一度起こして通ったら、書き込み用の fd を継いだ他人の子はもう exec を済ませている
+    /// （閉じた後の fork はこの fd を継がない）。確かめた子はすぐ落とす
+    pub(crate) async fn place_script(dir: &Path, name: &str, body: &str) -> PathBuf {
+        let path = write_script(dir, name, body);
+        let probe = spawn_when_not_busy(&path, dir).await;
+        let outcome = probe.kill_and_wait(super::KILL_TIMEOUT).await;
+        assert!(
+            !matches!(outcome, super::KillOutcome::TimedOut),
+            "確かめに起こした子が落ちない: {}",
+            path.display()
+        );
+        path
+    }
+
+    fn write_script(dir: &Path, name: &str, body: &str) -> PathBuf {
+        let path = dir.join(name);
         std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("書けない");
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
             .expect("権限を変えられない");
+        path
+    }
+
+    async fn spawn_when_not_busy(path: &Path, dir: &Path) -> EngineChild {
         for _ in 0..BUSY_RETRIES {
-            match spawn(&path, dir) {
+            match spawn(path, dir) {
                 // `ErrorKind::ExecutableFileBusy` は MSRV より新しいので errno で見る
                 Err(e) if Errno::from_io_error(&e) == Some(Errno::TXTBSY) => {
                     tokio::time::sleep(BUSY_WAIT).await;
