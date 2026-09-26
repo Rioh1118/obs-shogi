@@ -126,7 +126,7 @@ TS 側が `switch (o.kind)` で絞り込める形になる。
 ### 4. 対象外は2種類だけ。理由を伴わせる
 
 1. **保存ファイルの形**。綴りを変えると利用者の既存ファイルが読めなくなる
-   （`AppConfig` / `PresetsFile` / `StudyPositionsFile` とその要素）
+   （`AppConfig` / `EnginePreset` / `StudyPositionsFile` とその要素）
 2. **Tauri の境界に出ない**。TS が読まないので揃える相手がいない
    （検索インデックスのキャッシュ）
 

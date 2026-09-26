@@ -1,4 +1,5 @@
 import type { EngineRuntimeConfig } from "@/entities/engine";
+import type { PresetsLoadNotice, SaveFailureKind } from "../api/rust-types";
 
 export type PresetId = string;
 export type UsiOptionMap = Record<string, string>;
@@ -25,35 +26,13 @@ export type EnginePreset = {
   analysis?: AnalysisDefaults;
 };
 
-/**
- * 読み込みで起きたこと（Rust の `PresetsNotice`）。画面の文言は種類から組む
- * （`app/providers/bridges/presetsFileNotice.ts`）
- */
-export type PresetsNotice =
-  | { kind: "migrated"; backup: string }
-  | { kind: "backupFailed"; reason: string }
-  | { kind: "migrationFailed"; reason: string }
-  | { kind: "recovered"; destination: string }
-  | { kind: "notRecovered"; reason: string }
-  | { kind: "newerVersion"; version: number }
-  | { kind: "unreadable"; reason: string };
+export type { LoadedPresets, PresetsLoadNotice, SaveFailureKind } from "../api/rust-types";
 
-/** 読み込みの結果（Rust の `LoadedPresets`） */
-export type LoadedPresets = {
-  presets: EnginePreset[];
-  /** 読んだファイルの中身の印。保存に渡す。ファイルが無ければ `null` */
-  revision: string | null;
-  writable: boolean;
-  /** 読めなかった件の数。ファイルには残してあり、保存しても消えない */
-  unreadableCount: number;
-  notice: PresetsNotice | null;
+/** 保存を断ったこと（`asSaveFailure` で読む）。`message` はログにだけ出す */
+export type SaveFailure = {
+  kind: SaveFailureKind | "unknown";
+  message: string;
 };
-
-/** 保存を断った理由の種類（Rust の `SaveFailureKind`） */
-export type SaveFailureKind = "conflict" | "readOnly" | "io" | "invalid";
-
-/** 保存を断ったこと（Rust の `SaveFailure`）。`message` はログにだけ出す */
-export type SaveFailure = { kind: SaveFailureKind | "unknown"; message: string };
 
 export function isPresetConfigured(p: EnginePreset): boolean {
   return Boolean(p.aiName && p.enginePath && p.evalFilePath);
@@ -71,7 +50,9 @@ export type EnginePresetsState = {
   /** 読めなかった件の数（ファイルには残してある） */
   unreadableCount: number;
   /** 直近の読み込みで起きたこと。読み直すまで残る */
-  fileNotice: PresetsNotice | null;
+  loadNotice: PresetsLoadNotice | null;
+  /** 読み込むたびに上がる。同じ値のまま読み直しても通知を出し直すために使う */
+  loadSeq: number;
   /** 直近の保存の失敗。次の保存か読み直しで消える */
   saveFailure: SaveFailure | null;
 };
@@ -83,7 +64,8 @@ export const initialState: EnginePresetsState = {
   selectedPresetId: null,
   writable: false,
   unreadableCount: 0,
-  fileNotice: null,
+  loadNotice: null,
+  loadSeq: 0,
   saveFailure: null,
 };
 

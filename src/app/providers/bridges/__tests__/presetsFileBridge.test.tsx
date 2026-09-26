@@ -5,12 +5,12 @@ import { act, cleanup, render } from "@testing-library/react";
 import type {
   EnginePresetsContextType,
   EnginePresetsState,
-  PresetsNotice,
+  PresetsLoadNotice,
   SaveFailure,
 } from "@/entities/engine-presets/model/types";
 import { initialState } from "@/entities/engine-presets/model/types";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
-import { PRESETS_LOAD_NOTICES, PRESETS_SAVE_NOTICES } from "../presetsFileNotice";
+import { PRESETS_SAVE_NOTICES, presetsLoadNoticeView } from "../presetsFileNotice";
 
 /**
  * プリセットのファイルで起きたことを届ける橋。**設定を開いていなくても届く**——移行は
@@ -97,24 +97,27 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
 
   /** 移したことは伝えるだけ（何もしなくてよい）。自分で消える */
   test("移したことは info のトーストで1回だけ伝える", async () => {
-    await mountWith({ fileNotice: { kind: "migrated", backup: "/cfg/engine_presets.v1.bak" } });
+    await mountWith({
+      loadNotice: { kind: "migrated", from: 1, backup: "/cfg/engine_presets.v1.bak" },
+    });
 
     expect(notify).toHaveBeenCalledTimes(1);
     const req = shown();
     expect(req.tier).toBe("info");
     expect(req.presentation).toBe("toast");
-    // Rust の理由（パス・OS の文言）を本文に出さない
+    // 残したファイルの名前は出す（探して戻せるように）。置き場のフルパスは出さない
+    expect(req.body).toContain("engine_presets.v1.bak");
     expect(`${req.title}${req.body}`).not.toContain("/cfg/");
   });
 
   /** 書けない状態で開いた種類は、読み直す口を持つ帯 */
-  test.each<PresetsNotice>([
+  test.each<PresetsLoadNotice>([
     { kind: "backupFailed", reason: "EACCES" },
     { kind: "migrationFailed", reason: "EACCES" },
     { kind: "notRecovered", reason: "EACCES" },
     { kind: "unreadable", reason: "EIO" },
   ])("$kind は danger の帯で「読み直す」を持つ", async (notice) => {
-    await mountWith({ fileNotice: notice });
+    await mountWith({ loadNotice: notice });
 
     const req = banner();
     expect(req.tier).toBe("danger");
@@ -147,6 +150,65 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
     for (const view of Object.values(PRESETS_SAVE_NOTICES)) {
       expect(view.body).toContain("変更は保存していません");
     }
-    expect(Object.keys(PRESETS_LOAD_NOTICES).length).toBeGreaterThan(4);
+  });
+
+  /**
+   * 段と動作を種類ごとに固定する。**書けない状態で開く種類は `danger`、新しい版だけ `warning`**
+   * （直す手段がアプリの更新で、フォルダの問題ではない）
+   */
+  test.each<[PresetsLoadNotice, string, string | null]>([
+    [{ kind: "migrated", from: 1, backup: "/b" }, "info", null],
+    [{ kind: "backupFailed", reason: "x" }, "danger", "reload"],
+    [{ kind: "migrationFailed", reason: "x" }, "danger", "reload"],
+    [{ kind: "recovered", destination: "/d" }, "warning", "settings"],
+    [{ kind: "notRecovered", reason: "x" }, "danger", "reload"],
+    [{ kind: "newerVersion", version: 3 }, "warning", "settings"],
+    [{ kind: "unreadable", reason: "x" }, "danger", "reload"],
+  ])("$kind の段と動作", (notice, tier, action) => {
+    const view = presetsLoadNoticeView(notice);
+    expect(view.tier).toBe(tier);
+    expect(view.presentation === "banner" ? view.action : null).toBe(action);
+  });
+
+  /** 読めなかったファイルを移した先の名前を出す（1文字直して戻せるように） */
+  test("移した先のファイル名を本文に出す", async () => {
+    await mountWith({
+      loadNotice: { kind: "recovered", destination: "/cfg/engine_presets.unreadable-42.json" },
+    });
+    expect(banner().body).toContain("engine_presets.unreadable-42.json");
+  });
+
+  /** Rust にだけ足された種類でも落ちず、汎用の帯を出す */
+  test("知らない種類でも落ちずに帯を出す", async () => {
+    await mountWith({ loadNotice: { kind: "somethingNew" } as unknown as PresetsLoadNotice });
+    expect(banner().actions.map((a) => a.label)).toEqual(["読み直す"]);
+  });
+
+  /** 読み込みの呼び出しそのものが落ちたら、設定を開いていなくても届ける */
+  test("読み込めなかったら読み直す口を持つ帯を出す", async () => {
+    await mountWith({ status: "error", error: "ipc closed" });
+    const req = banner();
+    expect(req.tier).toBe("danger");
+    expect(req.body).not.toContain("ipc closed");
+    await act(async () => {
+      await req.actions[0].run();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  /** 読むたびに出し直す。件数が同じままでも、読み直した回には閉じた通知が戻る */
+  test("読み直したら、同じ件数でも読めなかった件を伝え直す", async () => {
+    presets.state = { ...initialState, unreadableCount: 1, loadSeq: 1 };
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(<PresetsFileBridge />);
+    });
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    presets.state = { ...presets.state, loadSeq: 2 };
+    await act(async () => {
+      view.rerender(<PresetsFileBridge />);
+    });
+    expect(notify).toHaveBeenCalledTimes(2);
   });
 });

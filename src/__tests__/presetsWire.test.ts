@@ -2,14 +2,17 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { REPO_ROOT, SRC } from "./walk";
+import { camelField, camelWire, rustEnumVariants, rustStructFields } from "./rustEnum";
 
 /**
- * プリセットのファイルの読み書きで Rust が返す種類（`PresetsNotice` / `SaveFailureKind`）が、
+ * プリセットのファイルの読み書きで Rust が返す種類（`PresetsLoadNotice` / `SaveFailureKind`）と、
+ * 読み込みの結果（`LoadedPresets`）の欄が、
  * TS の写しに全部届いていることを見る。
  *
- * 写し先の表（`PRESETS_LOAD_NOTICES` / `PRESETS_SAVE_NOTICES`）は `Record` なので、TS の union に
- * 足せば tsc が落ちる。**Rust にだけ足した種類は、これが無いと誰も赤くしない**——画面は
- * 知らない種類を受け取って `undefined` を引き、通知を1枚も出さない。
+ * 写し先の表は全種類を書かせる形なので、TS の union に足せば tsc が落ちる。
+ * **Rust にだけ足した種類は、これが無いと誰も赤くしない**——読み込みの種類は汎用の帯に落ち、
+ * 保存の種類は `unknown` の帯になって、種類ごとの案内が出ない。欄の綴りが割れると、
+ * TS は `undefined` を受け取る（`writable` なら常に読み取り専用になる）。
  *
  * **宣言の綴りを camelCase にした形が線の綴り**、という前提は Rust 側が固定する
  * （`presets::tests::every_kind_goes_on_the_wire_as_camel_case`）。
@@ -17,27 +20,10 @@ import { REPO_ROOT, SRC } from "./walk";
  */
 
 const RUST = join(REPO_ROOT, "src-tauri", "crates", "settings", "src", "presets.rs");
-const TS_TYPES = join(SRC, "entities", "engine-presets", "model", "types.ts");
+const TS_TYPES = join(SRC, "entities", "engine-presets", "api", "rust-types.ts");
 
-/** `pub enum <name> {` の本体からバリアント名を取る（値つき `Foo { .. },` と値なし `Foo,` の両方） */
-function rustVariants(name: string): string[] {
-  const source = readFileSync(RUST, "utf8");
-  const start = source.indexOf(`pub enum ${name} {`);
-  if (start < 0) throw new Error(`presets.rs に ${name} の宣言が無い`);
-  const body = source.slice(start);
-  const end = body.indexOf("\n}");
-  if (end < 0) throw new Error(`${name} の宣言が閉じていない`);
-  return body
-    .slice(0, end)
-    .split("\n")
-    .map((line) => line.trim())
-    .map((line) => /^([A-Z]\w*)(?: \{|,)/.exec(line)?.[1])
-    .filter((variant): variant is string => variant !== undefined);
-}
-
-function wireName(variant: string): string {
-  return variant.charAt(0).toLowerCase() + variant.slice(1);
-}
+const rustVariants = (name: string) => rustEnumVariants(RUST, name);
+const wireName = camelWire;
 
 /** TS の宣言 `export type <name> = ...;` の中の綴り。コメント行を落としてから読む */
 function tsDeclaration(name: string): string {
@@ -55,19 +41,19 @@ function tsDeclaration(name: string): string {
 }
 
 describe("プリセットのファイルの種類の受け渡し", () => {
-  it("読み込みで起きたこと（PresetsNotice）が TS の写しに全部ある", () => {
-    const variants = rustVariants("PresetsNotice");
+  it("読み込みで起きたこと（PresetsLoadNotice）が TS の写しに全部ある", () => {
+    const variants = rustVariants("PresetsLoadNotice");
     expect(variants.length, "バリアントを拾えていない").toBeGreaterThan(4);
 
     const kinds = new Set(
-      [...tsDeclaration("PresetsNotice").matchAll(/kind: "(\w+)"/g)].map((m) => m[1]),
+      [...tsDeclaration("PresetsLoadNotice").matchAll(/kind: "(\w+)"/g)].map((m) => m[1]),
     );
     expect(kinds.size, "写しの kind を拾えていない").toBeGreaterThan(4);
 
     const missing = variants.map(wireName).filter((wire) => !kinds.has(wire));
     expect(
       missing,
-      "Rust だけにある種類。model/types.ts の PresetsNotice と PRESETS_LOAD_NOTICES に足すこと",
+      "Rust だけにある種類。api/rust-types.ts の PresetsLoadNotice と presetsFileNotice.ts の表に足すこと",
     ).toEqual([]);
   });
 
@@ -81,7 +67,19 @@ describe("プリセットのファイルの種類の受け渡し", () => {
     const missing = variants.map(wireName).filter((wire) => !members.has(wire));
     expect(
       missing,
-      "Rust だけにある種類。model/types.ts の SaveFailureKind と PRESETS_SAVE_NOTICES に足すこと",
+      "Rust だけにある種類。api/rust-types.ts の SaveFailureKind と PRESETS_SAVE_NOTICES に足すこと",
     ).toEqual([]);
+  });
+
+  it("読み込みの結果（LoadedPresets）の欄が TS の写しと同じ綴り", () => {
+    const fields = rustStructFields(RUST, "LoadedPresets").map(camelField);
+    expect(fields.length, "欄を拾えていない").toBeGreaterThan(3);
+
+    const source = readFileSync(TS_TYPES, "utf8");
+    const start = source.indexOf("export type LoadedPresets = {");
+    expect(start, "写しに LoadedPresets の宣言が無い").toBeGreaterThanOrEqual(0);
+    const body = source.slice(start, source.indexOf("\n};", start));
+    const declared = new Set([...body.matchAll(/^ {2}(\w+):/gm)].map((m) => m[1]));
+    expect([...declared].sort()).toEqual([...fields].sort());
   });
 });

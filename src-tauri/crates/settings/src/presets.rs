@@ -1,12 +1,13 @@
 //! エンジンのプリセットの形と置き場、読み込み時の移行。
 //!
-//! 判定表は `.claude/plans/presets-migration.plan.md` の §3（読み込み）と §4（書き込み）。
-//! 守っていること:
+//! 判定表は `docs/state-transitions/presets-file.md`（「読み込み」「保存」の節。記号 F0〜F5 もそこ）。
+//! **判定の出典はこのファイル。** 画面の `writable` は操作を出さないための写しで、保存を断るのは
+//! [`save_to`]。守っていること:
 //!
 //! 1. **読めなかったファイルを上書きしない。** 上書きする前に退避するか、書かない
-//! 2. **知らない欄と読めない件を落とさない。** 1件の中の未知の欄、最上位の未知の欄、
-//!    読めない件の生の値は、保存を通しても残る
-//! 3. **v1 の原本は完全な形で1つは残る**（`.bak` を書けなければ移行しない）
+//! 2. **知らない欄と読めない件を落とさない。** 1件の中（`analysis` の中も）の知らない欄、最上位の
+//!    知らない欄、読めない件の生の値は、保存を通しても残る（値として。数の表記と欄の順は保たない）
+//! 3. **古い版の原本は完全な形で1つは残る**（`.bak` を書けなければ移さない）
 //! 4. **別の書き手の変更を黙って上書きしない**（`revision`）
 
 use serde::{Deserialize, Serialize};
@@ -23,11 +24,11 @@ use ::fs::write::atomic_write;
 
 const PRESETS_FILE: &str = "engine_presets.json";
 
-/// v1 の原本を残す名前。既に在って中身が違えば後ろに時刻を足す
-const V1_BACKUP: &str = "engine_presets.v1.bak";
-
-/// いま書く版。**欄の形は v1 と同じ**で、版の欄が付いただけ。
-/// 形を変えるときは版を上げ、[`load_from`] に移し方を足す
+/// いま書く版。
+///
+/// **版を上げるとき**（欄の形を変えるとき）に触るのは3つ: この定数、[`upgrade`] に1段足すこと、
+/// その段のテスト。古い版の原本は `engine_presets.v<元の版>.bak` に残る（[`back_up_original`]）。
+/// v2 の欄の形は v1 と同じ（v1 → v2 は版の欄を付けるだけ）
 pub const CURRENT_VERSION: u64 = 2;
 
 /// プリセット1件。**必須は `id` だけ。** 欠けた欄は既定値で読む——1つの欄が欠けただけで
@@ -51,22 +52,27 @@ pub struct EnginePreset {
     pub options: HashMap<String, String>,
     pub analysis: Option<AnalysisDefaults>,
 
-    /// この版が知らない欄。**読んだままの形で書き戻す**（先の版が足した欄を、戻した版の
-    /// 保存1回で消さない。`AppConfig::extra` と同じ理由）
+    /// この版が知らない欄。**値として書き戻す**（先の版が足した欄を、戻した版の保存1回で消さない。
+    /// `AppConfig::extra` と同じ理由）。数の表記（`2.0` → `2`、64ビットに収まらない整数の丸め）と
+    /// 欄の順は保たない
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
 
+/// 解析の既定。**知らない欄を持ち回る**（`EnginePreset::extra` と同じ理由。入れ子の中で
+/// 先の版が足した欄も、戻した版の保存で消さない）
 #[derive(Serialize, Deserialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AnalysisDefaults {
     pub time_seconds: Option<u32>,
     pub depth: Option<u32>,
     pub nodes: Option<u64>,
     pub mate_search: Option<bool>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
-/// 読み込みの結果。**画面は `writable` が偽なら変更の操作を出さない。**
+/// 読み込みの結果。**画面は `writable` が偽なら変更の操作を出さない**（断るのは [`save_to`]）
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LoadedPresets {
@@ -77,7 +83,7 @@ pub struct LoadedPresets {
     /// 読めなかった件の数。ファイルには残してあり、保存しても消えない
     pub unreadable_count: usize,
     /// 利用者に1回伝えること。無ければ `None`
-    pub notice: Option<PresetsNotice>,
+    pub load_notice: Option<PresetsLoadNotice>,
 }
 
 /// 読み込みで起きたこと。画面の文言は種類から組む
@@ -87,12 +93,12 @@ pub struct LoadedPresets {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum PresetsNotice {
-    /// v1 を v2 に書き直した。原本は `backup` に残してある
-    Migrated { backup: String },
+pub enum PresetsLoadNotice {
+    /// 古い版（`from`）を今の版に書き直した。原本は `backup` に残してある
+    Migrated { from: u64, backup: String },
     /// 移す前に原本を残せなかったので、移していない（読み取り専用）
     BackupFailed { reason: String },
-    /// v1 を読めたが書き戻せなかった（読み取り専用）
+    /// 古い版を読めたが書き戻せなかった（読み取り専用）
     MigrationFailed { reason: String },
     /// JSON として読めなかったので `destination` へ移し、空から始めた
     Recovered { destination: String },
@@ -110,7 +116,7 @@ pub enum PresetsNotice {
 pub enum SaveFailureKind {
     /// 読んだ後にファイルが変わっていた（別のウィンドウ・手で編集した、など）
     Conflict,
-    /// 書いてはいけないファイル（新しい版・読めない）
+    /// 書いてはいけないファイル（今の版でない・読めない）
     ReadOnly,
     /// 書き込みに失敗した
     Io,
@@ -118,6 +124,7 @@ pub enum SaveFailureKind {
     Invalid,
 }
 
+/// 保存を断ったこと。`message` はログ用（利用者の言葉ではない）
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveFailure {
@@ -138,10 +145,12 @@ fn presets_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_config_dir().map_err(|e| e.to_string())
 }
 
+/// 置き場を引いて [`load_from`]
 pub fn load(app: &AppHandle) -> Result<LoadedPresets, String> {
     Ok(load_from(&presets_dir(app)?, SystemTime::now()))
 }
 
+/// 置き場を引いて [`save_to`]
 pub fn save(
     app: &AppHandle,
     presets: Vec<EnginePreset>,
@@ -181,31 +190,72 @@ fn unused_path(dir: &Path, stem: &str, suffix: &str, now: SystemTime) -> PathBuf
     candidate
 }
 
-/// 最上位の形。**`presets` は1件ずつ解く**（1件の欠けで全件を捨てない）
-struct Parsed {
-    version: Option<u64>,
-    presets: Vec<EnginePreset>,
-    /// 解けなかった件の生の値。保存のときに書き戻す
-    unreadable: Vec<Value>,
-    /// 最上位の知らない欄
-    extra: Map<String, Value>,
+/// 版の欄の読み方。**版は形より先に見る**——先の版が `presets` の形を変えたファイルを
+/// 「壊れた」と読むと、退避して空から始め、新しい版のデータを今の版で書き潰す
+enum VersionField {
+    /// 欄が無い（`null` も同じ）。版の欄を持たない最初の形（v1）
+    Missing,
+    Known(u64),
+    /// 今の版より新しい（64ビットに収まらない数も含む）
+    Newer(u64),
+    /// 数でない・負・小数
+    Invalid,
 }
 
-/// 最上位を解く。**JSON として読めない・欄の型が違う**ものは `None`（壊れたファイル）
-fn parse(bytes: &[u8]) -> Option<Parsed> {
-    let Value::Object(mut top) = serde_json::from_slice::<Value>(bytes).ok()? else {
-        return None;
+fn version_field(value: Option<&Value>) -> VersionField {
+    let Some(value) = value else {
+        return VersionField::Missing;
     };
-    let version = match top.remove("version") {
-        None => None,
-        Some(v) => Some(v.as_u64()?),
+    if value.is_null() {
+        return VersionField::Missing;
+    }
+    let version = match (value.as_u64(), value.as_f64()) {
+        (Some(v), _) => v,
+        // `2.0` のような整数値の小数は受ける。手で編集すると付くことがある
+        (None, Some(f)) if f.is_finite() && f >= 0.0 && f.fract() == 0.0 => {
+            if f > u64::MAX as f64 {
+                return VersionField::Newer(u64::MAX);
+            }
+            f as u64
+        }
+        _ => return VersionField::Invalid,
     };
-    let entries = match top.remove("presets") {
-        None => Vec::new(),
-        Some(Value::Array(entries)) => entries,
-        Some(_) => return None,
-    };
+    if version > CURRENT_VERSION {
+        VersionField::Newer(version)
+    } else {
+        VersionField::Known(version)
+    }
+}
 
+/// ファイルの形の判定
+enum Parsed {
+    /// 今の版か、それより古い版（`version` は元の版。欄が無ければ 1）
+    Readable {
+        version: u64,
+        presets: Vec<EnginePreset>,
+        /// 解けなかった件の生の値。保存のときに書き戻す
+        unreadable: Vec<Value>,
+        /// 最上位の知らない欄
+        extra: Map<String, Value>,
+    },
+    /// 新しい版。`presets` は読めた範囲（形が違えば空）
+    Newer {
+        version: u64,
+        presets: Vec<EnginePreset>,
+    },
+    /// JSON として読めない・最上位の形が違う
+    Broken,
+}
+
+/// 古い版の最上位を、今の版の最上位へ移す。**版を上げるときはここに1段足す。**
+///
+/// v1 → v2 は欄の形が同じなので何もしない（版の欄は [`render`] が付ける）
+fn upgrade(_from: u64, top: Map<String, Value>) -> Map<String, Value> {
+    top
+}
+
+/// `presets` の各件を解く。**1件ずつ**（1件の欠けで全件を捨てない）
+fn split_entries(entries: Vec<Value>) -> (Vec<EnginePreset>, Vec<Value>) {
     let mut presets = Vec::new();
     let mut unreadable = Vec::new();
     for entry in entries {
@@ -214,12 +264,41 @@ fn parse(bytes: &[u8]) -> Option<Parsed> {
             _ => unreadable.push(entry),
         }
     }
-    Some(Parsed {
+    (presets, unreadable)
+}
+
+/// 判定順は「版 → 最上位の形 → 各件」（[`VersionField`]）。UTF-8 の BOM は読み飛ばす
+fn parse(bytes: &[u8]) -> Parsed {
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let Ok(Value::Object(mut top)) = serde_json::from_slice::<Value>(bytes) else {
+        return Parsed::Broken;
+    };
+    let version = match version_field(top.get("version")) {
+        VersionField::Invalid => return Parsed::Broken,
+        VersionField::Newer(version) => {
+            let presets = match top.remove("presets") {
+                Some(Value::Array(entries)) => split_entries(entries).0,
+                _ => Vec::new(),
+            };
+            return Parsed::Newer { version, presets };
+        }
+        VersionField::Missing => 1,
+        VersionField::Known(version) => version,
+    };
+    top.remove("version");
+    let mut top = upgrade(version, top);
+    let entries = match top.remove("presets") {
+        None => Vec::new(),
+        Some(Value::Array(entries)) => entries,
+        Some(_) => return Parsed::Broken,
+    };
+    let (presets, unreadable) = split_entries(entries);
+    Parsed::Readable {
         version,
         presets,
         unreadable,
         extra: top,
-    })
+    }
 }
 
 /// 書く形。読めない件は末尾に、最上位の知らない欄はそのまま
@@ -240,22 +319,28 @@ fn render(
 }
 
 /// 空で始める結果
-fn empty(revision: Option<String>, writable: bool, notice: Option<PresetsNotice>) -> LoadedPresets {
+fn empty(
+    revision: Option<String>,
+    writable: bool,
+    load_notice: Option<PresetsLoadNotice>,
+) -> LoadedPresets {
     LoadedPresets {
         presets: Vec::new(),
         revision,
         writable,
         unreadable_count: 0,
-        notice,
+        load_notice,
     }
 }
 
-/// v1 の原本を残す。**既に同じ中身の `.bak` が在れば書かない**（開き直すたびに増やさない）
-fn back_up_v1(dir: &Path, bytes: &[u8], now: SystemTime) -> io::Result<PathBuf> {
-    let plain = dir.join(V1_BACKUP);
+/// 古い版の原本を `engine_presets.v<from>.bak` に残す。**既に同じ中身の `.bak` が在れば書かない**
+/// （開き直すたびに増やさない）。中身が違えば上書きせず、後ろに時刻を足した名前にする
+fn back_up_original(dir: &Path, from: u64, bytes: &[u8], now: SystemTime) -> io::Result<PathBuf> {
+    let name = format!("engine_presets.v{from}.bak");
+    let plain = dir.join(&name);
     let target = match fs::read(&plain) {
         Ok(existing) if existing == bytes => return Ok(plain),
-        Ok(_) => unused_path(dir, V1_BACKUP, "", now),
+        Ok(_) => unused_path(dir, &name, "", now),
         Err(e) if e.kind() == io::ErrorKind::NotFound => plain,
         Err(e) => return Err(e),
     };
@@ -263,7 +348,7 @@ fn back_up_v1(dir: &Path, bytes: &[u8], now: SystemTime) -> io::Result<PathBuf> 
     Ok(target)
 }
 
-/// 置き場 `dir` のプリセットを読む。判定表は `presets-migration.plan.md` §3
+/// 置き場 `dir` のプリセットを読む。判定表は `docs/state-transitions/presets-file.md` の「読み込み」
 pub fn load_from(dir: &Path, now: SystemTime) -> LoadedPresets {
     let path = dir.join(PRESETS_FILE);
     let bytes = match fs::read(&path) {
@@ -275,7 +360,7 @@ pub fn load_from(dir: &Path, now: SystemTime) -> LoadedPresets {
             return empty(
                 None,
                 false,
-                Some(PresetsNotice::Unreadable {
+                Some(PresetsLoadNotice::Unreadable {
                     reason: e.to_string(),
                 }),
             )
@@ -283,85 +368,105 @@ pub fn load_from(dir: &Path, now: SystemTime) -> LoadedPresets {
     };
     let revision = revision_of(&bytes);
 
-    let Some(parsed) = parse(&bytes) else {
+    let (version, presets, unreadable, extra) = match parse(&bytes) {
         // F3: 移してから空で始める。移せなければ書かない（F3x）
-        let destination = unused_path(dir, "engine_presets.unreadable", ".json", now);
-        return match fs::rename(&path, &destination) {
-            Ok(()) => empty(
-                None,
-                true,
-                Some(PresetsNotice::Recovered {
-                    destination: destination.to_string_lossy().into_owned(),
-                }),
-            ),
-            Err(e) => empty(
-                Some(revision),
-                false,
-                Some(PresetsNotice::NotRecovered {
-                    reason: e.to_string(),
-                }),
-            ),
-        };
-    };
-    let unreadable_count = parsed.unreadable.len();
-    let loaded = |revision: String, writable: bool, notice: Option<PresetsNotice>| LoadedPresets {
-        presets: parsed.presets.clone(),
-        revision: Some(revision),
-        writable,
-        unreadable_count,
-        notice,
-    };
-
-    match parsed.version {
-        // F4: 新しい版の欄を知らないまま書き戻さない
-        Some(version) if version > CURRENT_VERSION => loaded(
-            revision,
-            false,
-            Some(PresetsNotice::NewerVersion { version }),
-        ),
-        // F2
-        Some(CURRENT_VERSION) => loaded(revision, true, None),
-        // F1: 原本を残してから書き戻す
-        _ => {
-            let backup = match back_up_v1(dir, &bytes, now) {
-                Ok(backup) => backup,
-                Err(e) => {
-                    return loaded(
-                        revision,
-                        false,
-                        Some(PresetsNotice::BackupFailed {
-                            reason: e.to_string(),
-                        }),
-                    )
-                }
-            };
-            let written =
-                render(&parsed.presets, &parsed.unreadable, &parsed.extra).and_then(|next| {
-                    atomic_write(&path, &next).map_err(|e| e.to_string())?;
-                    Ok(next)
-                });
-            match written {
-                Ok(next) => loaded(
-                    revision_of(&next),
+        Parsed::Broken => {
+            let destination = unused_path(dir, "engine_presets.unreadable", ".json", now);
+            return match fs::rename(&path, &destination) {
+                Ok(()) => empty(
+                    None,
                     true,
-                    Some(PresetsNotice::Migrated {
-                        backup: backup.to_string_lossy().into_owned(),
+                    Some(PresetsLoadNotice::Recovered {
+                        destination: destination.to_string_lossy().into_owned(),
                     }),
                 ),
-                Err(reason) => loaded(
-                    revision,
+                Err(e) => empty(
+                    Some(revision),
                     false,
-                    Some(PresetsNotice::MigrationFailed { reason }),
+                    Some(PresetsLoadNotice::NotRecovered {
+                        reason: e.to_string(),
+                    }),
                 ),
+            };
+        }
+        // F4: 新しい版の欄を知らないまま書き戻さない
+        Parsed::Newer { version, presets } => {
+            return LoadedPresets {
+                presets,
+                revision: Some(revision),
+                writable: false,
+                unreadable_count: 0,
+                load_notice: Some(PresetsLoadNotice::NewerVersion { version }),
             }
         }
+        Parsed::Readable {
+            version,
+            presets,
+            unreadable,
+            extra,
+        } => (version, presets, unreadable, extra),
+    };
+    let unreadable_count = unreadable.len();
+    let loaded =
+        |revision: String, writable: bool, load_notice: Option<PresetsLoadNotice>| LoadedPresets {
+            presets: presets.clone(),
+            revision: Some(revision),
+            writable,
+            unreadable_count,
+            load_notice,
+        };
+
+    // F2
+    if version == CURRENT_VERSION {
+        return loaded(revision, true, None);
+    }
+
+    // F1: 原本を残してから書き戻す
+    let backup = match back_up_original(dir, version, &bytes, now) {
+        Ok(backup) => backup,
+        Err(e) => {
+            return loaded(
+                revision,
+                false,
+                Some(PresetsLoadNotice::BackupFailed {
+                    reason: e.to_string(),
+                }),
+            )
+        }
+    };
+    let written = render(&presets, &unreadable, &extra).and_then(|next| {
+        // **書く直前に読み直す。** 読んでから原本を残すまでの間に他が書いていたら、その変更は
+        // `.bak` にも無いので、古い中身から作った今の版で上書きすると失う
+        let still = fs::read(&path).map_err(|e| e.to_string())?;
+        if still != bytes {
+            return Err("the presets file changed while it was being migrated".to_string());
+        }
+        atomic_write(&path, &next).map_err(|e| e.to_string())?;
+        Ok(next)
+    });
+    match written {
+        Ok(next) => loaded(
+            revision_of(&next),
+            true,
+            Some(PresetsLoadNotice::Migrated {
+                from: version,
+                backup: backup.to_string_lossy().into_owned(),
+            }),
+        ),
+        Err(reason) => loaded(
+            revision,
+            false,
+            Some(PresetsLoadNotice::MigrationFailed { reason }),
+        ),
     }
 }
 
-/// 置き場 `dir` へ書く。**書く直前にディスクを読み直す**——`expected_revision` と違えば書かない。
-/// 読めない件の生の値と最上位の知らない欄は、読み直したファイルから持ち回る。
+/// 置き場 `dir` へ書く。判定表は `docs/state-transitions/presets-file.md` の「保存」。
 ///
-/// 読み直しから書くまでの間に他が書いた分は見分けられない（ファイルの鍵は取らない）。
+/// **書く直前にディスクを読み直す**——`expected_revision` と違えば `Conflict`。一致しても、
+/// ディスクが**今の版でなければ書かない**（`ReadOnly`）: 古い版は原本を残さずに上書きすることになり、
+/// 新しい版は知らない欄を落とす。読めない件の生の値と最上位の知らない欄は、読み直したファイルから
+/// 持ち回る。読み直しから書くまでの間に他が書いた分は見分けられない（ファイルの鍵は取らない）。
 pub fn save_to(
     dir: &Path,
     presets: Vec<EnginePreset>,
@@ -388,23 +493,32 @@ pub fn save_to(
         ));
     }
 
-    let (unreadable, extra) = match current.as_deref() {
+    let (unreadable, extra) = match current.as_deref().map(parse) {
         None => (Vec::new(), Map::new()),
-        Some(bytes) => match parse(bytes) {
-            Some(parsed) if parsed.version.is_some_and(|v| v > CURRENT_VERSION) => {
-                return Err(SaveFailure::new(
-                    SaveFailureKind::ReadOnly,
-                    "the presets file was written by a newer version",
-                ))
-            }
-            Some(parsed) => (parsed.unreadable, parsed.extra),
-            None => {
-                return Err(SaveFailure::new(
-                    SaveFailureKind::ReadOnly,
-                    "the presets file is not readable JSON",
-                ))
-            }
-        },
+        Some(Parsed::Readable {
+            version: CURRENT_VERSION,
+            unreadable,
+            extra,
+            ..
+        }) => (unreadable, extra),
+        Some(Parsed::Readable { version, .. }) => {
+            return Err(SaveFailure::new(
+                SaveFailureKind::ReadOnly,
+                format!("the presets file is version {version} and has not been migrated"),
+            ))
+        }
+        Some(Parsed::Newer { .. }) => {
+            return Err(SaveFailure::new(
+                SaveFailureKind::ReadOnly,
+                "the presets file was written by a newer version",
+            ))
+        }
+        Some(Parsed::Broken) => {
+            return Err(SaveFailure::new(
+                SaveFailureKind::ReadOnly,
+                "the presets file is not readable JSON",
+            ))
+        }
     };
 
     let next = render(&presets, &unreadable, &extra)
@@ -461,8 +575,8 @@ mod tests {
         assert!(loaded.writable);
         assert_eq!(loaded.presets.len(), 1);
         assert_eq!(loaded.presets[0].label, "水匠");
-        let Some(PresetsNotice::Migrated { backup }) = &loaded.notice else {
-            panic!("移したことを伝えていない: {:?}", loaded.notice);
+        let Some(PresetsLoadNotice::Migrated { backup, .. }) = &loaded.load_notice else {
+            panic!("移したことを伝えていない: {:?}", loaded.load_notice);
         };
         assert_eq!(
             fs::read(backup).unwrap(),
@@ -472,7 +586,7 @@ mod tests {
         assert_eq!(read_json(&file(&dir))["version"], CURRENT_VERSION);
 
         let again = load_from(&dir, at(200));
-        assert_eq!(again.notice, None, "2回目も移している");
+        assert_eq!(again.load_notice, None, "2回目も移している");
         assert_eq!(again.revision, loaded.revision);
         assert_eq!(again.presets[0].eval_file_path, "/ai/suisho/eval/nn.bin");
         let _ = fs::remove_dir_all(&dir);
@@ -482,15 +596,18 @@ mod tests {
     #[test]
     fn a_different_v1_does_not_overwrite_the_earlier_backup() {
         let dir = dir("presets-v1-twice");
-        fs::write(dir.join(V1_BACKUP), "older original").unwrap();
+        fs::write(dir.join("engine_presets.v1.bak"), "older original").unwrap();
         fs::write(file(&dir), V1).unwrap();
 
         let loaded = load_from(&dir, at(100));
-        let Some(PresetsNotice::Migrated { backup }) = &loaded.notice else {
-            panic!("移していない: {:?}", loaded.notice);
+        let Some(PresetsLoadNotice::Migrated { backup, .. }) = &loaded.load_notice else {
+            panic!("移していない: {:?}", loaded.load_notice);
         };
-        assert_ne!(Path::new(backup), dir.join(V1_BACKUP));
-        assert_eq!(fs::read(dir.join(V1_BACKUP)).unwrap(), b"older original");
+        assert_ne!(Path::new(backup), dir.join("engine_presets.v1.bak"));
+        assert_eq!(
+            fs::read(dir.join("engine_presets.v1.bak")).unwrap(),
+            b"older original"
+        );
         assert_eq!(fs::read(backup).unwrap(), V1.as_bytes());
         let _ = fs::remove_dir_all(&dir);
     }
@@ -557,8 +674,8 @@ mod tests {
         let loaded = load_from(&dir, at(1));
         assert!(!loaded.writable);
         assert_eq!(
-            loaded.notice,
-            Some(PresetsNotice::NewerVersion { version: 3 })
+            loaded.load_notice,
+            Some(PresetsLoadNotice::NewerVersion { version: 3 })
         );
         assert_eq!(loaded.presets.len(), 1);
 
@@ -579,8 +696,8 @@ mod tests {
         let loaded = load_from(&dir, at(42));
         assert!(loaded.writable);
         assert!(loaded.presets.is_empty());
-        let Some(PresetsNotice::Recovered { destination }) = &loaded.notice else {
-            panic!("移していない: {:?}", loaded.notice);
+        let Some(PresetsLoadNotice::Recovered { destination }) = &loaded.load_notice else {
+            panic!("移していない: {:?}", loaded.load_notice);
         };
         assert_eq!(fs::read(destination).unwrap(), broken);
         assert!(
@@ -598,9 +715,12 @@ mod tests {
             fs::write(file(&dir), body).unwrap();
             let loaded = load_from(&dir, at(1));
             assert!(
-                matches!(loaded.notice, Some(PresetsNotice::Recovered { .. })),
+                matches!(
+                    loaded.load_notice,
+                    Some(PresetsLoadNotice::Recovered { .. })
+                ),
                 "{body}: {:?}",
-                loaded.notice
+                loaded.load_notice
             );
             let _ = fs::remove_dir_all(&dir);
         }
@@ -687,29 +807,41 @@ mod tests {
         }
         let reason = || "x".to_string();
         let notices = [
-            ("Migrated", PresetsNotice::Migrated { backup: reason() }),
+            (
+                "Migrated",
+                PresetsLoadNotice::Migrated {
+                    from: 1,
+                    backup: reason(),
+                },
+            ),
             (
                 "BackupFailed",
-                PresetsNotice::BackupFailed { reason: reason() },
+                PresetsLoadNotice::BackupFailed { reason: reason() },
             ),
             (
                 "MigrationFailed",
-                PresetsNotice::MigrationFailed { reason: reason() },
+                PresetsLoadNotice::MigrationFailed { reason: reason() },
             ),
             (
                 "Recovered",
-                PresetsNotice::Recovered {
+                PresetsLoadNotice::Recovered {
                     destination: reason(),
                 },
             ),
             (
                 "NotRecovered",
-                PresetsNotice::NotRecovered { reason: reason() },
+                PresetsLoadNotice::NotRecovered { reason: reason() },
             ),
-            ("NewerVersion", PresetsNotice::NewerVersion { version: 3 }),
-            ("Unreadable", PresetsNotice::Unreadable { reason: reason() }),
+            (
+                "NewerVersion",
+                PresetsLoadNotice::NewerVersion { version: 3 },
+            ),
+            (
+                "Unreadable",
+                PresetsLoadNotice::Unreadable { reason: reason() },
+            ),
         ];
-        let declared_notices = declared("PresetsNotice");
+        let declared_notices = declared("PresetsLoadNotice");
         assert!(declared_notices.len() > 4, "{declared_notices:?}");
         assert_eq!(
             declared_notices.len(),
@@ -744,6 +876,112 @@ mod tests {
                 "{name} の線の綴りが違う"
             );
         }
+    }
+
+    /// 新しい版は、`presets` の形が違っても（先の版が形を変えた）壊れた扱いにしない。
+    /// 64ビットに収まらない版も新しい版。どちらもファイルは1バイトも変わらない
+    #[test]
+    fn a_newer_version_is_decided_before_the_shape() {
+        for body in [
+            r#"{"version":3,"presets":{"a":{"id":"a"}}}"#,
+            r#"{"version":1e30,"presets":[]}"#,
+        ] {
+            let dir = dir("presets-newer-shape");
+            fs::write(file(&dir), body).unwrap();
+
+            let loaded = load_from(&dir, at(1));
+            assert!(!loaded.writable, "{body}");
+            assert!(
+                matches!(
+                    loaded.load_notice,
+                    Some(PresetsLoadNotice::NewerVersion { .. })
+                ),
+                "{body}: {:?}",
+                loaded.load_notice
+            );
+            assert_eq!(fs::read(file(&dir)).unwrap(), body.as_bytes(), "{body}");
+            let _ = fs::remove_dir_all(&dir);
+        }
+    }
+
+    /// 手で編集すると付く形（BOM・`2.0`・`null`）は、壊れた扱いにせず読む
+    #[test]
+    fn hand_edited_forms_are_read_rather_than_moved_aside() {
+        let cases: [(&[u8], bool); 3] = [
+            (
+                b"\xEF\xBB\xBF{\"version\":2,\"presets\":[{\"id\":\"a\"}]}",
+                false,
+            ),
+            (b"{\"version\":2.0,\"presets\":[{\"id\":\"a\"}]}", false),
+            // `null` は欄が無いのと同じ（v1）。移す
+            (b"{\"version\":null,\"presets\":[{\"id\":\"a\"}]}", true),
+        ];
+        for (body, migrates) in cases {
+            let dir = dir("presets-hand-edited");
+            fs::write(file(&dir), body).unwrap();
+
+            let loaded = load_from(&dir, at(1));
+            assert!(loaded.writable);
+            assert_eq!(
+                loaded.presets.len(),
+                1,
+                "{:?}",
+                String::from_utf8_lossy(body)
+            );
+            assert_eq!(
+                matches!(loaded.load_notice, Some(PresetsLoadNotice::Migrated { .. })),
+                migrates,
+                "{:?}",
+                loaded.load_notice
+            );
+            let _ = fs::remove_dir_all(&dir);
+        }
+    }
+
+    /// 負の版は壊れた扱い（移してから空で始める）
+    #[test]
+    fn a_negative_version_counts_as_broken() {
+        let dir = dir("presets-negative");
+        fs::write(file(&dir), r#"{"version":-1,"presets":[]}"#).unwrap();
+        let loaded = load_from(&dir, at(1));
+        assert!(matches!(
+            loaded.load_notice,
+            Some(PresetsLoadNotice::Recovered { .. })
+        ));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// **保存を断るのは Rust。** まだ移していない古い版は、読んだ印が合っていても書かない——
+    /// 書くと原本を `.bak` に残さずに上書きする（原本を残せず読み取り専用で開いた回が、ここに来る）
+    #[test]
+    fn an_unmigrated_file_is_never_overwritten() {
+        let dir = dir("presets-unmigrated");
+        fs::write(file(&dir), V1).unwrap();
+
+        let refused = save_to(&dir, Vec::new(), Some(&revision_of(V1.as_bytes())))
+            .expect_err("古い版を原本を残さずに上書きしている");
+        assert_eq!(refused.kind, SaveFailureKind::ReadOnly);
+        assert_eq!(fs::read(file(&dir)).unwrap(), V1.as_bytes());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// `analysis` の中の知らない欄も保存を通して残る
+    #[test]
+    fn fields_it_does_not_know_inside_analysis_survive_a_save() {
+        let dir = dir("presets-analysis-extra");
+        fs::write(
+            file(&dir),
+            r#"{"version":2,"presets":[{"id":"a","analysis":{"depth":3,"multiPv":5}}]}"#,
+        )
+        .unwrap();
+
+        let loaded = load_from(&dir, at(1));
+        save_to(&dir, loaded.presets, loaded.revision.as_deref()).expect("書ける");
+
+        let written = read_json(&file(&dir));
+        assert_eq!(written["presets"][0]["analysis"]["multiPv"], 5);
+        assert_eq!(written["presets"][0]["analysis"]["depth"], 3);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     /// 印は実行をまたいで同じ（読み込みと保存が別の実行でも比べられる）

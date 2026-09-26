@@ -9,7 +9,7 @@ import type {
 } from "@/entities/engine-presets/model/types";
 
 /**
- * プリセットの読み書き（`presets-migration.plan.md` §4・§5）。
+ * プリセットの読み書き（`docs/state-transitions/presets-file.md` の「保存」）。
  *
  * **画面に出ている内容は、ディスクに書けた内容。** 書けなかった変更を画面にだけ残すと、
  * 次に開いたときに黙って消える（ADR-0004 の F-5）。
@@ -62,7 +62,7 @@ function loaded(overrides: Partial<LoadedPresets> = {}): LoadedPresets {
     revision: "r1",
     writable: true,
     unreadableCount: 0,
-    notice: null,
+    loadNotice: null,
     ...overrides,
   };
 }
@@ -137,6 +137,53 @@ describe("プリセットの保存は、書けてから画面に反映する", (
     expect(ctx().state.presets[0].label).toBe("2回目");
     expect(ctx().state.saveFailure).toBeNull();
   });
+
+  /**
+   * **次の一覧は最後に書けた一覧から組む。** 描画を挟まずに別の欄を続けて変えると、
+   * 2回目が1回目を知らない一覧から組まれ、1回目の変更が黙って消える
+   */
+  test("描画を挟まずに続けた変更は、どちらも残る", async () => {
+    loadPresets.mockResolvedValue(loaded({ revision: "r1" }));
+    savePresets.mockResolvedValueOnce("r2").mockResolvedValueOnce("r3");
+    const ctx = await mount();
+    const { updatePreset } = ctx();
+
+    await act(async () => {
+      await updatePreset("a", { label: "新しい名前" });
+      await updatePreset("a", { aiName: "naoetsu" });
+    });
+
+    const written = savePresets.mock.calls[1][0][0];
+    expect(written.label).toBe("新しい名前");
+    expect(written.aiName).toBe("naoetsu");
+    expect(ctx().state.presets[0]).toMatchObject({ label: "新しい名前", aiName: "naoetsu" });
+  });
+
+  /**
+   * **同時に2本書かない。** 2本目が1本目の前の印を持って書くと、自分の変更どうしが
+   * `conflict` になる（「別の場所で変更されました」と誤って伝える）
+   */
+  test("同時に撃った変更は1本ずつ通り、どちらも書ける", async () => {
+    let disk = "r1";
+    let n = 1;
+    loadPresets.mockResolvedValue(loaded({ revision: "r1" }));
+    savePresets.mockImplementation(async (_presets, rev) => {
+      if (rev !== disk) throw { kind: "conflict", message: "changed" };
+      disk = `r${++n}`;
+      return disk;
+    });
+    const ctx = await mount();
+    const { createPreset } = ctx();
+
+    let made: unknown[] = [];
+    await act(async () => {
+      made = await Promise.all([createPreset({ label: "1" }), createPreset({ label: "2" })]);
+    });
+
+    expect(made.every((p) => p !== null)).toBe(true);
+    expect(ctx().state.presets.map((p) => p.label)).toEqual(["水匠", "1", "2"]);
+    expect(ctx().state.saveFailure).toBeNull();
+  });
 });
 
 describe("書けないファイルには書かない", () => {
@@ -150,20 +197,30 @@ describe("書けないファイルには書かない", () => {
         presets: [],
         revision: null,
         writable: false,
-        notice: { kind: "unreadable", reason: "EACCES" },
+        loadNotice: { kind: "unreadable", reason: "EACCES" },
       }),
     );
     const ctx = await mount();
 
     expect(savePresets).not.toHaveBeenCalled();
     expect(ctx().state.writable).toBe(false);
-    expect(ctx().state.fileNotice?.kind).toBe("unreadable");
+    expect(ctx().state.loadNotice?.kind).toBe("unreadable");
 
     await act(async () => {
       expect(await ctx().createPreset()).toBeNull();
     });
     expect(savePresets).not.toHaveBeenCalled();
     expect(ctx().state.saveFailure?.kind).toBe("readOnly");
+  });
+
+  /** 既定の1件を書けなかった理由は、取り込みと一緒に残る（取り込みが消すと、0件の理由がどこにも出ない） */
+  test("0件で開いて既定の1件を書けなかったら、その理由が残る", async () => {
+    loadPresets.mockResolvedValue(loaded({ presets: [], revision: null }));
+    savePresets.mockRejectedValue({ kind: "io", message: "EACCES" });
+    const ctx = await mount();
+
+    expect(ctx().state.presets).toHaveLength(0);
+    expect(ctx().state.saveFailure?.kind).toBe("io");
   });
 
   test("書ける状態で0件なら、既定の1件を書いてから出す", async () => {

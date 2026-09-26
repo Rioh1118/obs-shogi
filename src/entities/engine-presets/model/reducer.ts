@@ -2,7 +2,7 @@ import type {
   EnginePreset,
   EnginePresetsState,
   PresetId,
-  PresetsNotice,
+  PresetsLoadNotice,
   SaveFailure,
 } from "./types";
 
@@ -15,7 +15,9 @@ type EnginePresetsAction =
         selectedPresetId: PresetId | null;
         writable: boolean;
         unreadableCount: number;
-        fileNotice: PresetsNotice | null;
+        loadNotice: PresetsLoadNotice | null;
+        /** 読み込みの中で書けなかった理由（既定の1件）。無ければ `null` */
+        saveFailure: SaveFailure | null;
       };
     }
   | { type: "error"; payload: string }
@@ -38,8 +40,9 @@ export function reducer(
         selectedPresetId: action.payload.selectedPresetId,
         writable: action.payload.writable,
         unreadableCount: action.payload.unreadableCount,
-        fileNotice: action.payload.fileNotice,
-        saveFailure: null,
+        loadNotice: action.payload.loadNotice,
+        loadSeq: state.loadSeq + 1,
+        saveFailure: action.payload.saveFailure,
       };
     case "error":
       return { ...state, status: "error", error: action.payload };

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { camelWire, rustEnumVariants } from "./rustEnum";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { rustFile, SRC } from "./walk";
@@ -29,28 +30,8 @@ import { rustFile, SRC } from "./walk";
 const RUST_ENUM = rustFile("engine", "types.rs");
 const TS_WIRE = join(SRC, "entities", "engine", "api", "rust-types.ts");
 
-/** `StartFailureKind` のバリアント名。**属性行と doc は落とす** */
-function rustVariants(): string[] {
-  const source = readFileSync(RUST_ENUM, "utf8");
-  const start = source.indexOf("pub enum StartFailureKind {");
-  if (start < 0) throw new Error("types.rs に StartFailureKind の宣言が無い");
-
-  const body = source.slice(start);
-  const end = body.indexOf("\n}");
-  if (end < 0) throw new Error("StartFailureKind の宣言が閉じていない");
-
-  return body
-    .slice(0, end)
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => /^[A-Z]\w*,$/.test(line))
-    .map((line) => line.slice(0, -1));
-}
-
-/** バリアント名 → 線に出る綴り（`serde(rename_all = "camelCase")` と同じ写像） */
-function wireName(variant: string): string {
-  return variant.charAt(0).toLowerCase() + variant.slice(1);
-}
+const rustVariants = () => rustEnumVariants(RUST_ENUM, "StartFailureKind");
+const wireName = camelWire;
 
 /**
  * 写しの union が並べている綴り。
