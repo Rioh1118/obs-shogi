@@ -344,17 +344,20 @@ pub fn production_code_of(source: &str, path: &Path) -> String {
 ///
 /// 先頭の `::` は名前の一部ではないので境目として通す（`use ::tauri::X;`）。
 pub fn mentions_crate(code: &str, name: &str) -> bool {
-    let needle = format!("{name}::");
-    let mut from = 0;
-    while let Some(at) = code[from..].find(&needle) {
-        let at = from + at;
-        let before = code[..at].chars().next_back();
-        if !before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
-            return true;
-        }
-        from = at + needle.len();
-    }
-    false
+    starts_word(code, &format!("{name}::"))
+}
+
+/// `needle` が語の頭から現れるか（直前が英数字でも `_` でもない）。
+///
+/// 部分一致にすると、`GuiCommand::new` を `Command::new` と、`mock_tauri::` を
+/// `tauri::` と読む。
+pub fn starts_word(code: &str, needle: &str) -> bool {
+    code.match_indices(needle).any(|(at, _)| {
+        !code[..at]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_')
+    })
 }
 
 /// コードの中の `needle` の位置。**文字列とコメントの中は数えない。**

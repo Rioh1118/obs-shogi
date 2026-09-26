@@ -13,7 +13,7 @@
 //! 2. 決めた段より上のものを、下の段が `use` していないこと
 //! 3. `engine/` が crate の他の枝を `use` していないこと
 //! 4. 段が「使わない」と決めた外部クレートを**参照していない**こと（`Layer::forbids`）
-//! 5. 子プロセスを作る綴りが `engine/child.rs` の外に無いこと（`SPAWNING`）
+//! 5. 子プロセスとその入出力の綴りが `engine/child.rs` の外に無いこと（`CHILD_PROCESS_SPELLINGS`）
 //!
 //! ## 走査の限界
 //!
@@ -34,9 +34,10 @@
 //! は `engine::types` ではなく `engine::game::types` なので、段の名前空間に
 //! 混ぜない（`game` の中は段を割らないので、辺として意味を持たない）。
 
+mod roots;
 mod scanning;
 
-use scanning::{blank_out_noncode, mentions_crate};
+use scanning::{blank_out_noncode, mentions_crate, starts_word};
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -722,41 +723,63 @@ fn outward_branch(statement: &str) -> Option<String> {
     leading_name(rest)
 }
 
-/// 子プロセスを作る綴り。**`engine/child.rs` の外に1つも現れないこと。**
+/// 子プロセスとその入出力の綴り。**`engine/child.rs` の外に1つも現れないこと。**
 ///
-/// `tokio::process` だけを見ると、`std::process::Command::new(..).spawn()` も
-/// `use tokio::{process::Command}` も素通りする。`use std::process::{Command, ..}` の形は
-/// `process::Command` と綴らないが、作る側で `Command::new` が要る。
-const SPAWNING: [&str; 3] = ["tokio::process", "process::Command", "Command::new"];
+/// `tokio::process` は子プロセスの型（`ChildStdin` なども）ごと当たる。`std` の側は
+/// `process::Command` / `process::Child` と、作る口の `Command::new`。`use` で取り込んで
+/// 別名を付けると綴りが消えるので、`use` は別に見る（`imports_a_child_process`）。
+const CHILD_PROCESS_SPELLINGS: [&str; 4] = [
+    "tokio::process",
+    "process::Command",
+    "process::Child",
+    "Command::new",
+];
 
-/// `code` に現れる `SPAWNING` の綴り。**語の頭から当てる**（`GuiCommand::new` を
-/// `Command::new` と読まない）。コメントと文字列は呼び手が潰してから渡す
-fn spawning_spellings(code: &str) -> Vec<&'static str> {
-    SPAWNING
-        .into_iter()
-        .filter(|word| {
-            code.match_indices(word).any(|(at, _)| {
-                !code[..at]
-                    .chars()
-                    .next_back()
-                    .is_some_and(|c| c.is_alphanumeric() || c == '_')
-            })
-        })
-        .collect()
+/// `use` の中で、`process` の下から `Command` か `Child…` を取り込むか。
+/// 別名（`as`）でも、波括弧の中でも当たる（`use std::process::{Stdio, Command as Cmd};`）。
+/// 取り込んだ後の `Cmd::new(..)` は `CHILD_PROCESS_SPELLINGS` の綴りを1つも含まない
+fn imports_a_child_process(statement: &str) -> bool {
+    let Some(at) = statement.find("process::") else {
+        return false;
+    };
+    statement[at..]
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .any(|word| word == "Command" || word.starts_with("Child"))
 }
 
-/// 子プロセスを作れるのは `engine/child.rs` だけ。
+/// `code` の中で子プロセスかその入出力を綴っている所。**語の頭から当てる**
+/// （`GuiCommand::new` を `Command::new` と読まない）。コメントと文字列は呼び手が潰してから渡す
+fn child_process_spellings(code: &str) -> Vec<String> {
+    let mut found: Vec<String> = CHILD_PROCESS_SPELLINGS
+        .into_iter()
+        .filter(|word| starts_word(code, word))
+        .map(String::from)
+        .collect();
+    found.extend(
+        use_statements(code)
+            .into_iter()
+            .map(|(statement, _)| statement)
+            .filter(|statement| imports_a_child_process(statement)),
+    );
+    found
+}
+
+/// 子プロセスとその入出力を綴れるのは `engine/child.rs` だけ。
 ///
 /// `child` は stdin・stdout・プロセスを別々の持ち主にし、書く口と読む口を1回きりにし、
-/// 捨てればプロセスグループごと落とす。外で子プロセスを作ると、その約束を通らない
+/// 捨てれば落として stdin も閉じる。外で子プロセスを作ると、その約束を通らない
 /// 2本目の書き手や、落とす口の無い子プロセスが作れる。**`forbids` はクレート単位なので
-/// `tokio` や `std` の一部だけは止められない。** 綴りで止める（`SPAWNING`）。
+/// `tokio` や `std` の一部だけは止められない。** 綴りで止める（`CHILD_PROCESS_SPELLINGS`）。
 ///
-/// テストも見る。子プロセスを起こすテストの台本は `child::script` が持つ。
+/// 歩くのは本番の根の全部（`roots::production_roots`。`crates/` の下も）。テストの中も見る。
+/// 子プロセスを起こすテストの台本は `child::script` が持つ。
 #[test]
-fn only_the_child_layer_spawns_processes() {
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let files = rust_files(&src);
+fn only_the_child_layer_spells_child_processes() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let files: Vec<PathBuf> = roots::production_roots()
+        .iter()
+        .flat_map(|dir| rust_files(dir))
+        .collect();
     assert!(
         files.len() >= 50,
         "走査が空振りしている: {} 件",
@@ -764,55 +787,64 @@ fn only_the_child_layer_spawns_processes() {
     );
 
     let mut offenders = Vec::new();
-    let mut seen_in_child = Vec::new();
+    let mut seen_in_child = false;
     for path in files {
-        let relative = path.strip_prefix(&src).unwrap_or(&path).to_path_buf();
+        let relative = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
         let source = fs::read_to_string(&path).unwrap_or_default();
-        let spelled = spawning_spellings(&blank_out_noncode(&source));
+        let spelled = child_process_spellings(&blank_out_noncode(&source));
         if spelled.is_empty() {
             continue;
         }
-        if relative == Path::new("engine/child.rs") {
-            seen_in_child = spelled;
+        if relative == Path::new("src/engine/child.rs") {
+            seen_in_child = true;
         } else {
             offenders.push(format!("{}  {spelled:?}", relative.display()));
         }
     }
 
-    assert_eq!(
-        seen_in_child, SPAWNING,
-        "`engine/child.rs` に見えない綴りがある。走査か `SPAWNING` を直すこと"
+    assert!(
+        seen_in_child,
+        "`engine/child.rs` の綴りが見えていない。走査が空振りしている"
     );
     assert!(
         offenders.is_empty(),
-        "子プロセスを `engine/child.rs` の外で作っている。`child` を通すこと: {offenders:?}"
+        "子プロセスか、その入出力の型を `engine/child.rs` の外で綴っている。\
+         `child` を通すこと: {offenders:?}"
     );
 }
 
 /// 綴りの判定そのものを、文字列を直に食わせて確かめる。
 ///
-/// **現物を食わせて違反0、では判定が壊れても緑になる。**
+/// **確かめているのは、ここに並べた書き方だけ。** 並べていない書き方で素通りしないかは、
+/// この表に足してから信じること。
 #[test]
-fn a_spawn_is_seen_whatever_the_import() {
+fn a_child_process_is_seen_through_these_spellings() {
     for code in [
         "let child = std::process::Command::new(path).spawn();",
+        "let child = tokio::process::Command::new(path);",
         "use tokio::{io, process::Command};",
         "use std::process::{Command, Stdio};\nlet child = Command::new(path);",
-        "let child = tokio::process::Command::new(path);",
+        "use std::process::{Command as StdCommand, Stdio};\nlet child = StdCommand::new(path);",
+        "use std::process::{Stdio, Command as Cmd};",
+        "use std::{process::{Command as C}};",
+        "fn feed(stdin: tokio::process::ChildStdin) {}",
+        "let child: std::process::Child = spawned;",
     ] {
         assert!(
-            !spawning_spellings(code).is_empty(),
-            "子プロセスを作る綴りを見逃している: {code}"
+            !child_process_spellings(code).is_empty(),
+            "子プロセスの綴りを見逃している: {code}"
         );
     }
 
     for code in [
         "let dir = std::env::temp_dir().join(std::process::id().to_string());",
+        "std::process::exit(1);",
+        "use std::process::{ExitStatus, Stdio};",
         "let line = GuiCommand::new(); EngineCommand::parse(text);",
     ] {
         assert!(
-            spawning_spellings(code).is_empty(),
-            "子プロセスを作らない綴りに当てている: {code}"
+            child_process_spellings(code).is_empty(),
+            "子プロセスでない綴りに当てている: {code}"
         );
     }
 }

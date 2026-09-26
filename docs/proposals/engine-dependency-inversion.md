@@ -103,7 +103,7 @@ pub trait EngineChannel: Send + Sync + 'static {
 
 `protocol` の下の段（`child`）は段の表に載っている。`forbids` はクレート単位なので
 「子プロセスを作れるのは `child` の中だけ」は書けず、綴りを名指しする検査を別に置いてある
-（`layering.rs` の `only_the_child_layer_spawns_processes`）。継ぎ目を trait にするときも、
+（`layering.rs` の `only_the_child_layer_spells_child_processes`）。継ぎ目を trait にするときも、
 子プロセスを作る側はその検査の内側（`engine/child.rs`）に置くこと。
 
 ### 3. 探索と解析が `Arc<UsiProtocol>` に直に依存する — 逆転しない
