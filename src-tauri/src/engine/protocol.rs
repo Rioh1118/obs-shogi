@@ -811,17 +811,12 @@ impl UsiProtocol {
             // `ensure_ready` は watch を見ているので気付かず、上限まで待つ
             set_ready_state(&ready, ReadyState::Closed);
 
-            if killed.load(std::sync::atomic::Ordering::Relaxed) {
-                log::debug!(target: LOGT, "listen: engine output ended after the kill");
-                return;
-            }
             // **原因を残す。** 解析や対局の途中で落ちたエンジンの手掛かりは、
             // 直近の出力（assert の文言は stderr に出る）と終わり方しか無い
-            log::warn!(
-                target: LOGT,
-                "{}",
-                listen_ended_line(&diagnostics, SETTLE_OUTPUT).await
-            );
+            match listen_ended_line(&diagnostics, SETTLE_OUTPUT, &killed).await {
+                Some(line) => log::warn!(target: LOGT, "{line}"),
+                None => log::debug!(target: LOGT, "listen: engine output ended after the kill"),
+            }
         });
 
         Ok(())
@@ -1367,20 +1362,38 @@ impl UsiProtocol {
 }
 
 /// 出力が終わったエンジンのログの1行。終わり方と直近の出力を載せる。
+/// こちらが落とした（`killed` が立った）回は `None`。
 ///
 /// **終わり方は見届けてから載せる。** stdout の EOF・stderr の EOF・プロセスの回収は
 /// 別々に着くので、stdout が閉じた直後に `exit_now` を覗くと、まだ回収されていないことが
 /// ある。stderr の読み切りと並べて `limit` まで待つ。待っても終わらなければ
-/// `Waited::TimedOut` が載る（stdout だけを閉じて走り続けている）
-async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> String {
+/// `Waited::TimedOut` が載る（stdout だけを閉じて走り続けている）。
+///
+/// **`killed` は待った後にも見る。** 待っている間に `kill_engine` が落とすと、見届ける
+/// 終わり方はこちらの SIGKILL になる。待つ前にしか見ないと、それをエンジンの終わり方として
+/// 載せる（stdout と stderr を閉じて走り続ける実行ファイルで、`get_engine_info` の失敗を
+/// 受けた `kill_engine` がこの待ちに重なる）
+async fn listen_ended_line(
+    diagnostics: &ChildDiagnostics,
+    limit: Duration,
+    killed: &std::sync::atomic::AtomicBool,
+) -> Option<String> {
+    use std::sync::atomic::Ordering::Relaxed;
+
+    if killed.load(Relaxed) {
+        return None;
+    }
     let ((), exit) = tokio::join!(
         diagnostics.settle_output(limit),
         diagnostics.wait_exit(limit)
     );
-    format!(
+    if killed.load(Relaxed) {
+        return None;
+    }
+    Some(format!(
         "listen: engine output ended exit={exit:?} last={}",
         summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
-    )
+    ))
 }
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
@@ -2030,7 +2043,11 @@ mod tests {
                 }));
                 while !rx.recv().await.expect("Eof の前に読み手が消えた") {}
 
-                let line = listen_ended_line(&child.diagnostics(), Duration::from_secs(10)).await;
+                let not_killed = std::sync::atomic::AtomicBool::new(false);
+                let line =
+                    listen_ended_line(&child.diagnostics(), Duration::from_secs(10), &not_killed)
+                        .await
+                        .expect("落としていないのに行を組んでいない");
                 assert!(
                     line.contains("exit=Ended(Status("),
                     "{round} 回目: 終わりを見届けずに載せている: {line}"
@@ -2041,6 +2058,38 @@ mod tests {
                 );
                 let _ = std::fs::remove_dir_all(&dir);
             }
+        }
+
+        /// 終わりを待っている間にこちらが落としたら、ログの行を組まない。
+        /// 組むと、見届けたこちらの SIGKILL をエンジンの終わり方として warn に載せる
+        #[tokio::test]
+        async fn our_own_kill_is_not_reported_as_the_engine_ending() {
+            let dir = test_support::dir::temp_dir("protocol-own-kill");
+            // stdout と stderr を閉じて走り続ける
+            let child = spawn_script(&dir, "exec 1>&- 2>&-; exec sleep 30").await;
+            let (tx, mut rx) = mpsc::unbounded_channel();
+            assert!(child
+                .read_stdout(move |event| { tx.send(matches!(event, ReadEvent::Eof)).is_ok() }));
+            while !rx.recv().await.expect("Eof の前に読み手が消えた") {}
+
+            let killed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            let line = tokio::spawn({
+                let diagnostics = child.diagnostics();
+                let killed = Arc::clone(&killed);
+                async move { listen_ended_line(&diagnostics, Duration::from_secs(10), &killed).await }
+            });
+            // 行を組む側が終わりを待ち始めてから落とす
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            killed.store(true, std::sync::atomic::Ordering::Relaxed);
+            let outcome = child.kill_and_wait(KILL_TIMEOUT).await;
+            assert!(matches!(outcome, KillOutcome::Ended(_)), "{outcome:?}");
+
+            let line = line.await.expect("行を組むタスクが落ちた");
+            assert_eq!(
+                line, None,
+                "こちらの kill をエンジンの終わり方として載せている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
         }
 
         /// 読み取りを2度始めると `AlreadyListening`。**プロセスは生きている**ので
