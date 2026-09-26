@@ -7,13 +7,15 @@
 //! 片方を差し替えるともう片方が壊れる。テストの継ぎ目も作れない
 //! （下の層だけを組んで回す、ができない）。
 //!
-//! ここで見るのは5つ。
+//! ここで見るのは7つ。
 //!
 //! 1. モジュール間に環が無いこと
 //! 2. 決めた段より上のものを、下の段が `use` していないこと
 //! 3. `engine/` が crate の他の枝を `use` していないこと
 //! 4. 段が「使わない」と決めた外部クレートを**参照していない**こと（`Layer::forbids`）
 //! 5. 子プロセスを作る綴りが `engine/child.rs` の外に無いこと（`SPAWNING`）
+//! 6. `engine/` の外から入る `use` が控えと一致すること（`ENGINE_ENTRIES_FROM_OUTSIDE`）
+//! 7. エンジンのオプションの定義を組み立てるのが `engine/option_line.rs` だけであること
 //!
 //! ## 走査の限界
 //!
@@ -80,7 +82,7 @@ const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "utils",
-        decides: "USI の行を値に写す変換と、ログの間引き・伏字",
+        decides: "`info` 行を解析結果へ畳む変換と、ログの間引き・伏字",
         may_use: &["types"],
         forbids: &[],
     },
@@ -91,9 +93,15 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
+        name: "option_line",
+        decides: "USI の `option` 行を定義に写す（定義を作る口はここ1つ）",
+        may_use: &["types"],
+        forbids: &[],
+    },
+    Layer {
         name: "protocol",
         decides: "1本のプロセスへ何を送れるか",
-        may_use: &["types", "utils", "child"],
+        may_use: &["types", "utils", "child", "option_line"],
         forbids: &[],
     },
     Layer {
@@ -720,6 +728,44 @@ fn outward_branch(statement: &str) -> Option<String> {
         rest = next;
     }
     leading_name(rest)
+}
+
+/// エンジンのオプションの定義（`EngineOption`）を組み立てるのは `engine/option_line.rs` だけ。
+///
+/// 組み立てる口が2つあると、同じ `option` 行が経路によって違う定義になる
+/// （`usi` crate の解析は `combo` の選択肢に `var` の語を混ぜ、既定値を1語目で切る）。
+#[test]
+fn only_the_option_line_parser_builds_engine_options() {
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let files = rust_files(&src);
+    assert!(
+        files.len() >= 50,
+        "走査が空振りしている: {} 件",
+        files.len()
+    );
+
+    let mut builders = Vec::new();
+    for path in files {
+        let relative = path.strip_prefix(&src).unwrap_or(&path).to_path_buf();
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        for (number, line) in source.lines().enumerate() {
+            let code = line.split("//").next().unwrap_or("");
+            if code.contains("EngineOption {") && !code.contains("struct EngineOption {") {
+                builders.push(format!("{}:{}", relative.display(), number + 1));
+            }
+        }
+    }
+
+    assert!(
+        builders
+            .iter()
+            .all(|at| at.starts_with("engine/option_line.rs:")),
+        "`EngineOption` を `option_line.rs` の外で組み立てている: {builders:?}"
+    );
+    assert!(
+        !builders.is_empty(),
+        "`option_line.rs` の組み立ても見つからない。走査の綴りを直すこと"
+    );
 }
 
 /// 子プロセスを作る綴り。**`engine/child.rs` の外に1つも現れないこと。**

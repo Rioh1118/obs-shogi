@@ -17,7 +17,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// 手放した仕組みの綴り。**足すときは、その仕組みを手放したときに。**
-const RETIRED: [&str; 8] = [
+const RETIRED: [&str; 9] = [
     "UsiEngineHandler",
     "handler.kill()",
     "classify_kill_failure",
@@ -27,6 +27,7 @@ const RETIRED: [&str; 8] = [
     // 閉じのバッククォートまで綴る。`EngineChild::kill_and_wait` に当てない
     "`EngineChild::kill`",
     "`protocol.rs` の `KILL_TIMEOUT`",
+    "convert_option_params",
 ];
 
 /// このファイル自身は綴りを持つので見ない
