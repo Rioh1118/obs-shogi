@@ -4,7 +4,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::engine::child::{
-    ChildWriter, EngineChild, KillOutcome, ReadEvent, Source, KILL_TIMEOUT,
+    ChildDiagnostics, ChildWriter, EngineChild, KillOutcome, ReadEvent, Source, KILL_TIMEOUT,
 };
 use crate::engine::utils::{shown, LogThrottle, MAX_SUMMARY_LEN};
 use crate::engine::{types::*, utils::cmd_summary, utils::with_cause};
@@ -41,7 +41,8 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
 
 /// 出力が終わった、または起動に失敗したエンジンの stderr を読み切るのを待つ上限。
 /// stdout と stderr の EOF は別々に着く（`ChildDiagnostics::settle_output`）。失敗の理由に
-/// stderr の最後の行を載せるための待ちで、人が待たされていると感じない長さに留める
+/// stderr の最後の行を載せるための待ちで、人が待たされていると感じない長さに留める。
+/// 出力が終わった後のログでは、終わりを見届けるのもこの上限で並べて待つ（`listen_ended_line`）
 const SETTLE_OUTPUT: Duration = Duration::from_millis(200);
 
 /// 解けなかった行を記録する間隔。**1行ずつ書かない。** ノード数が i32 を超えた
@@ -816,12 +817,10 @@ impl UsiProtocol {
             }
             // **原因を残す。** 解析や対局の途中で落ちたエンジンの手掛かりは、
             // 直近の出力（assert の文言は stderr に出る）と終わり方しか無い
-            diagnostics.settle_output(SETTLE_OUTPUT).await;
             log::warn!(
                 target: LOGT,
-                "listen: engine output ended exit={:?} last={}",
-                diagnostics.exit_now(),
-                summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
+                "{}",
+                listen_ended_line(&diagnostics, SETTLE_OUTPUT).await
             );
         });
 
@@ -1365,6 +1364,23 @@ impl UsiProtocol {
             other => other,
         }
     }
+}
+
+/// 出力が終わったエンジンのログの1行。終わり方と直近の出力を載せる。
+///
+/// **終わり方は見届けてから載せる。** stdout の EOF・stderr の EOF・プロセスの回収は
+/// 別々に着くので、stdout が閉じた直後に `exit_now` を覗くと、まだ回収されていないことが
+/// ある。stderr の読み切りと並べて `limit` まで待つ。待っても終わらなければ
+/// `Waited::TimedOut` が載る（stdout だけを閉じて走り続けている）
+async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> String {
+    let ((), exit) = tokio::join!(
+        diagnostics.settle_output(limit),
+        diagnostics.wait_exit(limit)
+    );
+    format!(
+        "listen: engine output ended exit={exit:?} last={}",
+        summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
+    )
 }
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
@@ -1935,6 +1951,35 @@ mod tests {
                 "readyok を待っている間に捨てた protocol のプロセスが残っている"
             );
             let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 出力が終わった後のログに、終わり方が載る。stdout の EOF とプロセスの回収は
+        /// 別々に着くので、EOF の直後に覗くだけだと空の回がある。
+        ///
+        /// **競合なので回数を取る。** 覗くだけの形に戻す変異は1回あたり1割ほどしか当たらず、
+        /// 20回ではテスト5回のうち1回すり抜けた
+        #[tokio::test]
+        async fn the_line_after_the_output_ends_carries_the_exit() {
+            for round in 0..100 {
+                let dir = test_support::dir::temp_dir("protocol-exit-seen");
+                let child = spawn_script(&dir, "echo x; echo e >&2; exit 3").await;
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                assert!(child.read_stdout(move |event| {
+                    tx.send(matches!(event, ReadEvent::Eof)).is_ok()
+                }));
+                while !rx.recv().await.expect("Eof の前に読み手が消えた") {}
+
+                let line = listen_ended_line(&child.diagnostics(), Duration::from_secs(10)).await;
+                assert!(
+                    line.contains("exit=Ended(Status("),
+                    "{round} 回目: 終わりを見届けずに載せている: {line}"
+                );
+                assert!(
+                    line.contains("stderr: e"),
+                    "{round} 回目: stderr の行が載っていない: {line}"
+                );
+                let _ = std::fs::remove_dir_all(&dir);
+            }
         }
 
         /// 読み取りを2度始めると `AlreadyListening`。**プロセスは生きている**ので
