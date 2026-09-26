@@ -149,6 +149,78 @@ mod tests {
         assert!(!failure.message.chars().any(char::is_control));
     }
 
+    /// 起動の失敗の種類が、**宣言の綴りをそのまま camelCase にした形**で線に出ること。
+    ///
+    /// **写しとの突き合わせは TS 側にある**（`src/__tests__/startFailureKindWire.test.ts`）。
+    /// あちらは宣言の綴りを camelCase にして union を引くので、その写像が本物の serde と
+    /// 一致していることをここで保証する。`#[serde(rename = "…")]` を1つ付ければ線の綴りだけが
+    /// 変わり、写しを引く側は宣言の綴りを引き続けて緑で通る。
+    ///
+    /// **見本は宣言と数で突き合わせる。** 見本の並びに足し忘れた種類は、ここでは見えないまま
+    /// 通ってしまう（`match` は網羅を強いるが、並びへの追加は強いない）。
+    #[test]
+    fn every_start_failure_kind_goes_on_the_wire_as_camel_case() {
+        use StartFailureKind::*;
+        let samples = [
+            SpawnFailed,
+            Quarantined,
+            NotUsi,
+            ExitedEarly,
+            TimedOut,
+            InvalidValue,
+            Cancelled,
+            Other,
+        ];
+        let name = |kind: &StartFailureKind| match kind {
+            SpawnFailed => "SpawnFailed",
+            Quarantined => "Quarantined",
+            NotUsi => "NotUsi",
+            ExitedEarly => "ExitedEarly",
+            TimedOut => "TimedOut",
+            InvalidValue => "InvalidValue",
+            Cancelled => "Cancelled",
+            Other => "Other",
+        };
+
+        let source = include_str!("types.rs");
+        let body = source
+            .split_once("pub enum StartFailureKind {")
+            .expect("StartFailureKind の宣言が見つからない")
+            .1;
+        let declared: Vec<&str> = body
+            .lines()
+            .take_while(|line| *line != "}")
+            .map(|line| line.trim().trim_end_matches(','))
+            .filter(|token| token.starts_with(char::is_uppercase) && !token.contains(' '))
+            .collect();
+        assert!(declared.len() > 4, "宣言を拾えていない: {declared:?}");
+        assert_eq!(
+            declared.len(),
+            samples.len(),
+            "見本に無い種類がある。見本と `name` に足すこと: {declared:?}"
+        );
+
+        for kind in &samples {
+            let declared_name = name(kind);
+            assert!(
+                declared.contains(&declared_name),
+                "{declared_name} が宣言に無い"
+            );
+            let wire = serde_json::to_string(kind).expect("直列化できる");
+            let mut chars = declared_name.chars();
+            let camel = chars
+                .next()
+                .map(|first| first.to_lowercase().collect::<String>() + chars.as_str())
+                .unwrap_or_default();
+            assert_eq!(
+                wire,
+                format!("\"{camel}\""),
+                "{declared_name} は線に `{camel}` として出ない。写しを引く側\
+                 （src/__tests__/startFailureKindWire.test.ts）が宣言の綴りを引き続けて素通りする"
+            );
+        }
+    }
+
     /// 無いパスは隔離ではない（読めないときは隔離でない側に倒す）
     #[tokio::test]
     async fn a_missing_file_is_not_reported_as_quarantined() {

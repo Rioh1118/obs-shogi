@@ -36,7 +36,7 @@ main にあるか: **無い**
 - 既定値が分かり、既定と違う値は目立つ
 - **シンプル表示では現状と同じ3つだけ**が見え、詳細トグルで全部出る
 - 一覧を `enginePath` ごとにキャッシュする（毎回プローブ起動しない）
-- 保存した値が `apply_engine_settings` から `setoption` として実際に流れる
+- 保存した値が `start_analysis_engine` から `setoption` として実際に流れる
 
 `ImportantOptionsSection` を廃して `UsiOptionsSection` に一本化する
 （設計は #83 のコメント欄と `.claude/plans/issue-83-usi-options-gui.md`）。

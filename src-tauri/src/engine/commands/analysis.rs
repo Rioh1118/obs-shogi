@@ -7,23 +7,11 @@
 //! ここがやるのは `AppState` から持ち物を取り出して渡すことだけ。
 //! **判断を書かない**——書くと、同じ判断が `EngineBridge` 側にもできる。
 
-use crate::engine::analyzer::DepthOutcome;
+use crate::engine::analyzer::{DepthOutcome, Request};
 use crate::engine::state::AppState;
 use crate::engine::types::*;
 
 // === Tauriコマンド定義 ===
-
-#[tauri::command]
-pub async fn initialize_engine(
-    state: tauri::State<'_, AppState>,
-    engine_path: String,
-    working_dir: Option<String>,
-) -> Result<(), String> {
-    state
-        .bridge
-        .initialize_engine_impl(engine_path, working_dir)
-        .await
-}
 
 /// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ。失敗は種類つきで返す
 #[tauri::command]
@@ -32,16 +20,20 @@ pub async fn start_analysis_engine(
     engine_path: String,
     working_dir: Option<String>,
     options: Vec<SetOptionValue>,
+    request: Request,
 ) -> Result<EngineInfo, StartFailure> {
     state
         .bridge
-        .start_analysis_engine_impl(engine_path, working_dir, options)
+        .start_analysis_engine_impl(engine_path, working_dir, options, request)
         .await
 }
 
 #[tauri::command]
-pub async fn shutdown_engine(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    state.bridge.shutdown_engine_impl().await
+pub async fn shutdown_engine(
+    state: tauri::State<'_, AppState>,
+    request: Request,
+) -> Result<(), String> {
+    state.bridge.shutdown_engine_impl(request).await
 }
 
 #[tauri::command]
@@ -98,30 +90,8 @@ pub async fn get_last_result(
 }
 
 #[tauri::command]
-pub async fn apply_engine_settings(
-    state: tauri::State<'_, AppState>,
-    settings: EngineSettings,
-) -> Result<(), String> {
-    state.bridge.apply_engine_settings_impl(settings).await
-}
-
-#[tauri::command]
-pub async fn get_engine_settings(
-    state: tauri::State<'_, AppState>,
-) -> Result<EngineSettings, String> {
-    state.bridge.get_engine_settings_impl().await
-}
-
-#[tauri::command]
 pub async fn get_analysis_status(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<AnalysisStatus>, String> {
     state.bridge.get_analysis_status_impl().await
-}
-
-#[tauri::command]
-pub async fn get_engine_info(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<EngineInfo>, String> {
-    state.bridge.get_engine_info_impl().await
 }

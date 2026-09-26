@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
+import { asStartFailure } from "../lib/engineFailure";
 import { EngineContext } from "./context";
 
 type Props = {
@@ -58,9 +59,12 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   );
 
   // lifecycle
+  // **起動中でも撃ってよい。** 前の起動は Rust が落とし（前の呼び出しは `cancelled` で断られる）、
+  // その結果は世代（`seqRef`）で捨てる。世代は Rust にも渡し、撃った順と着く順の逆転を Rust が断る
+  // （`startAnalysisEngine` の `request`）。起動中に設定が変わった回
+  // （`docs/state-transitions/engine.md` の (S1, E3)）がここを通る
   const initialize = useCallback(async (): Promise<boolean> => {
     if (!desiredRuntime) return false;
-    if (state.phase === "initializing") return false;
 
     const mySeq = ++seqRef.current;
 
@@ -73,7 +77,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     dispatch({ type: "initialize_start" });
 
     try {
-      const info = await engineInitializer.initialize(desiredRuntime);
+      const info = await engineInitializer.initialize(desiredRuntime, mySeq);
       if (seqRef.current !== mySeq) return false;
 
       dispatch({
@@ -87,21 +91,32 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       return true;
     } catch (e) {
       if (seqRef.current !== mySeq) return false;
-      dispatch({
-        type: "initialize_error",
-        payload: `Engine initialization failed: ${String(e)}`,
-      });
+      dispatch({ type: "initialize_error", payload: asStartFailure(e) });
       return false;
     }
-  }, [desiredRuntime, state.phase]);
+  }, [desiredRuntime]);
 
   const shutdown = useCallback(async (): Promise<void> => {
-    seqRef.current++;
+    const mySeq = ++seqRef.current;
     try {
-      await engineInitializer.shutdown();
+      await engineInitializer.shutdown(mySeq);
     } finally {
-      dispatch({ type: "shutdown" });
+      // **停止の往復の間に次の起動が撃たれていたら、`idle` を書かない。** 書くと起動中の段が
+      // `idle` に落ち、effect の `idle` の枝が同じ設定でもう1回起動する（進行中の起動は捨てられる）
+      if (seqRef.current === mySeq) dispatch({ type: "shutdown" });
     }
+  }, []);
+
+  const cancelStart = useCallback((): void => {
+    const mySeq = ++seqRef.current;
+    // 失敗として止める。`idle` に戻すと、設定が選ばれたままなので effect が起動し直す
+    dispatch({
+      type: "initialize_error",
+      payload: { kind: "cancelled", message: "the user stopped the engine start" },
+    });
+    engineInitializer.shutdown(mySeq).catch((e: unknown) => {
+      console.error("[engine] 起動をやめる停止に失敗した", e);
+    });
   }, []);
 
   const restart = useCallback(async (): Promise<boolean> => {
@@ -136,6 +151,14 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       return;
     }
 
+    // 起動中に別の設定になった → その設定で起動し直す（前の起動は Rust が落とす）。
+    // 同じ値の設定が来ただけなら何もしない
+    if (state.phase === "initializing") {
+      const last = lastTriedRef.current;
+      if (!last || !equalRuntime(desiredRuntime, last)) initialize().catch(() => {});
+      return;
+    }
+
     // ready で設定が変わった → 再起動
     if (state.phase === "ready" && state.activeRuntime) {
       const runtimeChanged = !equalRuntime(desiredRuntime, state.activeRuntime);
@@ -152,10 +175,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       ...readiness,
       initialize,
       shutdown,
+      cancelStart,
       restart,
       clearError,
     }),
-    [state, readiness, initialize, shutdown, restart, clearError],
+    [state, readiness, initialize, shutdown, cancelStart, restart, clearError],
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

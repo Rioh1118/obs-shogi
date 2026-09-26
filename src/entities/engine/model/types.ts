@@ -1,4 +1,5 @@
 import type { EngineInfo } from "../api/rust-types";
+import type { EngineStartFailure } from "../lib/engineFailure";
 
 export type EnginePhase = "idle" | "initializing" | "ready" | "error";
 
@@ -14,7 +15,8 @@ export type EngineRuntimeConfig = {
 export type EngineState = {
   phase: EnginePhase;
   engineInfo: EngineInfo | null;
-  error: string | null;
+  /** 起動の失敗。`phase === "error"` のときだけ非 null。画面の文言は `kind` から組む */
+  error: EngineStartFailure | null;
 
   activeRuntime: EngineRuntimeConfig | null;
 };
@@ -28,7 +30,7 @@ export type EngineAction =
         activeRuntime: EngineRuntimeConfig;
       };
     }
-  | { type: "initialize_error"; payload: string }
+  | { type: "initialize_error"; payload: EngineStartFailure }
   | { type: "shutdown" }
   | { type: "clear_error" };
 
@@ -63,6 +65,11 @@ export type EngineContextType = EngineReadiness & {
 
   initialize: () => Promise<boolean>;
   shutdown: () => Promise<void>;
+  /**
+   * 進行中の起動をやめる。エンジンを落とし、失敗（種類 `cancelled`）として止まる——
+   * `idle` に戻すと、設定が選ばれたままなので同じ設定で起動し直してしまう
+   */
+  cancelStart: () => void;
   restart: () => Promise<boolean>;
   clearError: () => void;
 };
