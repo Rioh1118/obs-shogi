@@ -60,15 +60,15 @@ const CLOSED: &str = "engine output has ended; the process cannot be reached";
 const STALLED: &str = "the engine stopped reading stdin; the process cannot be reached";
 /// USI プロトコル処理層
 ///
-/// **`Clone` を持たせない。** 複製はどれも `EngineChild` の持ち主になる。`&self` から
-/// 複製を作れると、それをタスクへ渡した瞬間に「捨てればプロセスも落ちる」が
-/// そのタスクの寿命に縛られる（`readyok` を返さないエンジンでは、待つタスクが抜けないまま
-/// プロセスが残る）。共有は `Arc<UsiProtocol>` で、プロセスより長く生きうるタスクへは
-/// 子プロセスを持たない `Link` を渡す。
+/// **子プロセスの持ち主はこれ1つにする。** `Clone` を持たせず、`EngineChild` を `Arc` に
+/// 包まない。`&self` から持ち主を増やせると、それをタスクへ渡した瞬間に「捨てればプロセスも
+/// 落ちる」がそのタスクの寿命に縛られる（`readyok` を返さないエンジンでは、待つタスクが
+/// 抜けないままプロセスが残る）。共有は `Arc<UsiProtocol>` で、プロセスより長く生きうる
+/// タスクへは子プロセスを持たない `Link` か `ChildDiagnostics` を渡す。
 pub struct UsiProtocol {
     /// 子プロセスと標準入出力。**書き込み・読み取り・落とす口がそれぞれ別の持ち主**
     /// なので、書き込みが詰まっても落とせる（`engine/child.rs`）。
-    child: Arc<EngineChild>,
+    child: EngineChild,
     link: Link,
     state: Arc<RwLock<ProtocolState>>,
     listen_active: Arc<Mutex<bool>>,
@@ -661,7 +661,7 @@ impl UsiProtocol {
         tokio::spawn(run_writer(child.take_writer(), jobs));
 
         Self {
-            child: Arc::new(child),
+            child,
             link: Link {
                 listeners: Arc::new(RwLock::new(HashMap::new())),
                 stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
