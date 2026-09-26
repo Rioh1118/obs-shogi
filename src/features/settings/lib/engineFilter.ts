@@ -34,8 +34,22 @@ export function evalTypeOfAiLabel(aiLabel: string | null | undefined): EvalTypeI
   return AI_NAME_TO_EVAL[key] ?? null;
 }
 
+/** プリセット編集が候補にするエンジンの名前の頭。`parseEvalTypeFromEngineEntry` の前提でもある */
+const YANEURAOU_PREFIX = "YaneuraOu_";
+
 /**
- * エンジンファイル名から "YaneuraOu_<EVAL>-Vxxx_..." の <EVAL> を取り出す。
+ * プリセット編集で選べるエンジン。engines/ の**直下**にあり、名前が `YaneuraOu_` で始まるもの。
+ *
+ * 1段下のフォルダにあるもの（`entry` が `/` を含む）と他の名前のエンジンは出さない。
+ * 起動時の作業フォルダと評価関数の渡し方（`runtimeConfigOf`）が、プロファイルの `eval/` を
+ * `EvalDir` で渡すやねうら王の平置きしか想定していないため（→ #492）
+ */
+export function presetEngineCandidates(engines: EngineCandidate[]): EngineCandidate[] {
+  return engines.filter((e) => !e.entry.includes("/") && e.entry.startsWith(YANEURAOU_PREFIX));
+}
+
+/**
+ * `EngineCandidate.entry` から "YaneuraOu_<EVAL>-Vxxx_..." の <EVAL> を取り出す。
  * 例: YaneuraOu_NNUE_halfkp_512x2_8_64-V830Git_AVX2.exe
  *   -> NNUE_halfkp_512x2_8_64
  */
@@ -48,7 +62,7 @@ export function parseEvalTypeFromEngineEntry(entry: string): EvalTypeId | null {
 
   // 先頭が YaneuraOu_ で、途中に -V がある前提
   // "YaneuraOu_" の次から "-V" の直前までが eval/core 部分
-  const prefix = "YaneuraOu_";
+  const prefix = YANEURAOU_PREFIX;
   if (!base.startsWith(prefix)) return null;
 
   const i = base.indexOf("-V", prefix.length);

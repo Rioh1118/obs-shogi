@@ -26,15 +26,14 @@ import { useAppConfig } from "@/entities/app-config";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
-import { filterEnginesByAiLabel, listAiLabels } from "@/features/settings/lib/engineFilter";
+import {
+  filterEnginesByAiLabel,
+  listAiLabels,
+  presetEngineCandidates,
+} from "@/features/settings/lib/engineFilter";
 import type { ThreadsMode } from "@/features/settings/model/types";
 import PresetDialogHeader from "./PresetDialogHeader";
-import {
-  ensureEnginesDir,
-  scanAiRoot,
-  type AiRootIndex,
-  type EngineCandidate,
-} from "@/entities/engine/api/aiLibrary";
+import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engine/api/aiLibrary";
 
 type Props = {
   presetId: PresetId;
@@ -132,11 +131,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const enginesAll = useMemo(() => index?.engines ?? [], [index?.engines]);
   const profiles = useMemo(() => index?.profiles ?? [], [index?.profiles]);
 
-  // "YaneuraOu*" のみ表示したいなら、ここで最小限フィルタ（parse不要）
-  const engines = useMemo(
-    () => enginesAll.filter((e: EngineCandidate) => String(e.entry ?? "").startsWith("YaneuraOu_")),
-    [enginesAll],
-  );
+  const engines = useMemo(() => presetEngineCandidates(enginesAll), [enginesAll]);
 
   // ---- draft ----
   const [draft, setDraft] = useState<EnginePreset | null>(null);

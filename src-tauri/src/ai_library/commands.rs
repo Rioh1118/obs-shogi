@@ -14,10 +14,20 @@ use super::engines::ENGINES_DIR;
 use super::scan::AiRootIndex;
 use super::{engines, profile, scan};
 
+/// AI ルートの中身を1回で数え上げる。
+///
+/// **専用スレッドで走らせる。** 同期のコマンドは Tauri のメインスレッドで動くうえ、
+/// エンジンの候補を決めるために engines/ の各ファイルを開いて先頭を読む。
+/// ネットワークボリュームや、中身がクラウドへ退避されたファイルでは1件ごとに
+/// 取得を待つので、その間画面全体が固まる
 #[command]
-pub fn scan_ai_root(ai_root: String) -> Result<AiRootIndex, String> {
-    validate_dir("ai_root", &ai_root)?;
-    scan::index(ai_root)
+pub async fn scan_ai_root(ai_root: String) -> Result<AiRootIndex, String> {
+    tokio::task::spawn_blocking(move || {
+        validate_dir("ai_root", &ai_root)?;
+        scan::index(ai_root)
+    })
+    .await
+    .map_err(|e| format!("failed to run the scan task: {e}"))?
 }
 
 /// AI プロファイル（`<ai_root>/<name>/{eval,book}`）を作る。

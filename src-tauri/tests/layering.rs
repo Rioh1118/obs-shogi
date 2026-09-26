@@ -66,6 +66,12 @@ struct Layer {
 
 const LAYERS: &[Layer] = &[
     Layer {
+        name: "launchable",
+        decides: "OS がこのファイルをエンジンとして起動させるか（起動する前に分かる範囲）",
+        may_use: &[],
+        forbids: &[],
+    },
+    Layer {
         name: "types",
         decides: "線に出す形と失敗の型。何も決めない",
         may_use: &[],

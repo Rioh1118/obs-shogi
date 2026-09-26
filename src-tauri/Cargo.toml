@@ -92,7 +92,7 @@ tauri-plugin-updater = { workspace = true }
 tauri-plugin-process = { workspace = true }
 
 # 隔離属性（`com.apple.quarantine`）を読むため。候補のエンジンを macOS が
-# まだ開かせていないかを、起動する前に利用者へ示す（`ai_library/engines.rs`）
+# まだ開かせていないかを、起動する前に利用者へ示す（`engine/launchable.rs`）
 [target.'cfg(target_os = "macos")'.dependencies]
 xattr = "1.6"
 

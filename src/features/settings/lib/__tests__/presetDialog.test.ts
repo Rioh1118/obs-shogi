@@ -25,7 +25,7 @@ const ENGINE: EngineCandidate = {
   entry: "YaneuraOu",
   path: "/ai/engines/YaneuraOu",
   kind: "file",
-  launch: "ready",
+  launchability: "ready",
 };
 
 const PROFILE: ProfileCandidate = {

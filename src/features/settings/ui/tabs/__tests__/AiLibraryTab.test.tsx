@@ -85,7 +85,12 @@ function indexWithEngine(root = AI_ROOT): AiRootIndex {
     ...index(true),
     ai_root: root,
     engines: [
-      { entry: "YaneuraOu", path: `${root}/engines/YaneuraOu`, kind: "file", launch: "ready" },
+      {
+        entry: "YaneuraOu",
+        path: `${root}/engines/YaneuraOu`,
+        kind: "file",
+        launchability: "ready",
+      },
     ],
   };
 }
