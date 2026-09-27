@@ -306,4 +306,55 @@ describe("プリセット編集でのオプションの取得", () => {
     // 欄の無い値（NetworkDelay）は触らない
     expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
   }, 20000);
+
+  /** 取り直すたびに当て直しても、一覧はいつも「保存済みの値から何を変えるか」を言う */
+  test("同じエンジンで取り直しても、外した値の一覧は消えない", async () => {
+    presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByText(/NetworkDelay = 120 を外しました/);
+
+    fireEvent.click(screen.getByRole("button", { name: "オプションを読み込む" }));
+    probes[1].resolve(outcome(probes[1], "Engine A"));
+    await screen.findByText(/取得済み/);
+
+    expect(screen.getByText(/NetworkDelay = 120 を外しました/)).toBeTruthy();
+  }, 20000);
+
+  /** A で外した値を、それを受ける B に選び直したら戻す（黙って消さない） */
+  test("A で外した値は、それを受ける B に選び直すと戻る", async () => {
+    presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByText(/NetworkDelay = 120 を外しました/);
+
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_B } });
+    probes[1].resolve({
+      ...outcome(probes[1], "Engine B"),
+      definitions: [{ name: "NetworkDelay", type: "spin", default: 0, min: 0, max: 10000 }],
+    });
+    await screen.findByText(/（Engine B）/);
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
+  }, 20000);
+
+  /** 読み直しで下書きが保存済みの値に戻ったら、戻る前の一覧を出さない */
+  test("プリセットが読み直されたら、外した値の一覧を消す", async () => {
+    // 読み直しの前後で同じエンジン（一覧がエンジンの違いで隠れない形）
+    presets.current = { ...PRESET, enginePath: ENGINE_A, options: { NetworkDelay: "120" } };
+    const view = await openWithEnginesView();
+    fireEvent.click(screen.getByRole("button", { name: "オプションを読み込む" }));
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByText(/NetworkDelay = 120 を外しました/);
+
+    presets.current = { ...presets.current };
+    view.rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.queryByText(/NetworkDelay = 120 を外しました/)).toBeNull();
+  }, 20000);
 });
