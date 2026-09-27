@@ -4,6 +4,7 @@ import type {
   ProfileCandidate,
 } from "@/entities/engine/api/aiLibrary";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
+import { isSelectableEngine } from "@/features/settings/lib/presetEngineOptions";
 
 export const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
@@ -56,16 +57,19 @@ export function pickDefaultBookDb(profile: ProfileCandidate | null): FileCandida
  *
  * すでに入っている値は上書きしない。定跡は「解析で使う」ときだけ、空なら埋める
  * （使わないときもパスは残す。定跡ビューが出す）。
+ *
+ * **エンジンは選べる候補がちょうど1つのときだけ埋める。** 候補は名前で絞っていないので
+ * （`presetEngineOptions`）、2つ以上あるときの先頭は並びの都合でしかなく、
+ * 利用者が選んでいないエンジンで保存される
  */
 export function autofillPreset(
   cur: EnginePreset,
   candidates: {
     profiles: ProfileCandidate[];
     engines: EngineCandidate[];
-    filteredEngines: EngineCandidate[];
   },
 ): EnginePreset {
-  const { profiles, engines, filteredEngines } = candidates;
+  const { profiles, engines } = candidates;
   const next = { ...cur };
   let changed = false;
 
@@ -80,9 +84,9 @@ export function autofillPreset(
   const prof = profiles.find((p) => p.name === cleanText(next.aiName)) ?? null;
 
   if (!cleanText(next.enginePath)) {
-    const first = filteredEngines[0] ?? engines[0] ?? null;
-    if (first) {
-      next.enginePath = first.path;
+    const selectable = engines.filter(isSelectableEngine);
+    if (selectable.length === 1) {
+      next.enginePath = selectable[0].path;
       changed = true;
     }
   }

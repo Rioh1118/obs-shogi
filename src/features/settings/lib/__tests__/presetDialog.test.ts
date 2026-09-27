@@ -37,8 +37,8 @@ const PROFILE: ProfileCandidate = {
   book_db_files: [{ entry: "user_book1.db", path: "/ai/Suisho/book/user_book1.db", kind: "file" }],
 };
 
-const NOTHING = { profiles: [], engines: [], filteredEngines: [] };
-const CANDIDATES = { profiles: [PROFILE], engines: [ENGINE], filteredEngines: [ENGINE] };
+const NOTHING = { profiles: [], engines: [] };
+const CANDIDATES = { profiles: [PROFILE], engines: [ENGINE] };
 
 describe("autofillPreset", () => {
   test("候補が1つも無ければ、同じ参照を返す", () => {
@@ -57,13 +57,12 @@ describe("autofillPreset", () => {
       autofillPreset(filled, {
         profiles: [PROFILE],
         engines: [ENGINE],
-        filteredEngines: [ENGINE],
       }),
     ).toBe(filled);
   });
 
   test("2回続けて呼ぶと、2回目は同じ参照を返す", () => {
-    const candidates = { profiles: [PROFILE], engines: [ENGINE], filteredEngines: [ENGINE] };
+    const candidates = { profiles: [PROFILE], engines: [ENGINE] };
     const once = autofillPreset(PRESET, candidates);
 
     expect(once).not.toBe(PRESET);
@@ -74,7 +73,6 @@ describe("autofillPreset", () => {
     const next = autofillPreset(PRESET, {
       profiles: [PROFILE],
       engines: [ENGINE],
-      filteredEngines: [ENGINE],
     });
 
     expect(next.aiName).toBe("Suisho");
@@ -132,7 +130,6 @@ describe("autofillPreset", () => {
     const next = autofillPreset(chosen, {
       profiles: [PROFILE],
       engines: [ENGINE],
-      filteredEngines: [ENGINE],
     });
 
     expect(next.aiName).toBe("手で選んだ名前");
@@ -141,7 +138,7 @@ describe("autofillPreset", () => {
   test("定跡を使うなら、既定の .db を入れる", () => {
     const next = autofillPreset(
       { ...PRESET, bookEnabled: true },
-      { profiles: [PROFILE], engines: [ENGINE], filteredEngines: [ENGINE] },
+      { profiles: [PROFILE], engines: [ENGINE] },
     );
 
     expect(next.bookFilePath).toBe(PROFILE.book_db_files[0].path);
@@ -156,5 +153,27 @@ describe("autofillPreset", () => {
     const next = autofillPreset(cur, NOTHING);
 
     expect(next.bookFilePath).toBe("/ai/Suisho/book/x.db");
+  });
+
+  /**
+   * 候補は名前で絞っていないので、2つ以上あるときの先頭は並びの都合でしかない。
+   * 選べないもの（別の OS 向け）は数えない
+   */
+  test("エンジンは、選べる候補がちょうど1つのときだけ埋める", () => {
+    const other: EngineCandidate = { ...ENGINE, entry: "gikou", path: "/ai/engines/gikou" };
+    const windows: EngineCandidate = {
+      ...ENGINE,
+      entry: "YaneuraOu.exe",
+      path: "/ai/engines/YaneuraOu.exe",
+      launchability: "wrongPlatform",
+    };
+    const cur: EnginePreset = { ...PRESET, aiName: "Suisho" };
+
+    expect(autofillPreset(cur, { profiles: [PROFILE], engines: [ENGINE, other] }).enginePath).toBe(
+      "",
+    );
+    expect(
+      autofillPreset(cur, { profiles: [PROFILE], engines: [windows, ENGINE] }).enginePath,
+    ).toBe(ENGINE.path);
   });
 });
