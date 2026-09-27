@@ -1,12 +1,13 @@
 import { MULTIPV_MAX, MULTIPV_MIN } from "@/entities/engine-presets/model/multiPv";
 import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
+import { parseSpinValue } from "@/entities/engine-presets/lib/fitValues";
 import type { EnginePreset, UsiOptionMap } from "@/entities/engine-presets/model/types";
 
 /** 保存した値を整数で読む。値が無い（エンジン既定）・整数でないなら `null` */
 export function savedInt(options: UsiOptionMap, name: string): number | null {
   const raw = options[name];
-  if (raw == null || !/^\s*[+-]?\d+\s*$/.test(raw)) return null;
-  return Number.parseInt(raw, 10);
+  const n = raw == null ? null : parseSpinValue(raw);
+  return n == null ? null : Number(n);
 }
 
 /**

@@ -278,7 +278,9 @@ describe("プリセット編集でのオプションの取得", () => {
     });
 
     await screen.findByText("NetworkDelay = 120 を外しました（このエンジンに無い）");
-    expect(screen.getByText("Threads を 512 に丸めました（範囲の外）")).toBeTruthy();
+    expect(
+      screen.getByText("Threads を 999 から 512 に丸めました（このエンジンの範囲は 1〜512）"),
+    ).toBeTruthy();
 
     fireEvent.click(saveButton());
     await waitFor(() => expect(updatePreset).toHaveBeenCalled());

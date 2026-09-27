@@ -5,14 +5,14 @@ import { fitNoteLines, type FitNote } from "../fitNote";
 const NOTE: FitNote = {
   enginePath: "/e/a",
   dropped: [{ name: "NetworkDelay", value: "120", reason: "notDeclared" }],
-  clamped: [{ name: "Threads", value: "512" }],
+  clamped: [{ name: "Threads", from: "999", value: "512", min: 1, max: 512 }],
 };
 
 describe("fitNoteLines", () => {
   test("外した値と丸めた値を1件1行で言う", () => {
     expect(fitNoteLines(NOTE, "/e/a")).toEqual([
       "NetworkDelay = 120 を外しました（このエンジンに無い）",
-      "Threads を 512 に丸めました（範囲の外）",
+      "Threads を 999 から 512 に丸めました（このエンジンの範囲は 1〜512）",
     ]);
   });
 

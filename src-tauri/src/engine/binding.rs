@@ -865,4 +865,45 @@ mod tests {
             name: "EvalFile".to_string()
         }));
     }
+
+    /// **画面（TS の `fitValues`）と同じ表を当てる。** 画面は取得した定義に利用者の値を当てて
+    /// 「外した・丸めた」を保存の前に見せる。規則がずれると、画面で残した値が起動のたびに捨てられる。
+    /// 表は `tests/fixtures/option_fit_cases.json`（TS は `fitValues.test.ts` が同じ表を読む）。
+    /// 保存する定義の形（`UsiOptionDef`）が表の `def` と一致することも見る
+    #[test]
+    fn user_values_follow_the_shared_fit_table() {
+        use crate::engine::types::UsiOptionDef;
+
+        let cases: Vec<serde_json::Value> =
+            serde_json::from_str(include_str!("../../tests/fixtures/option_fit_cases.json"))
+                .expect("表を読める");
+        assert!(cases.len() >= 10, "表が空に近い: {}", cases.len());
+
+        for case in cases {
+            let line = case["line"].as_str().expect("line");
+            let option = one(line);
+            assert_eq!(
+                serde_json::to_value(UsiOptionDef::from(&option)).expect("書ける"),
+                case["def"],
+                "{line}"
+            );
+
+            let value = case["value"].as_str().expect("value");
+            let mut warnings = Vec::new();
+            let sent = user_value(&option, value, &mut warnings);
+            let got = match (sent, warnings.as_slice()) {
+                (Some(v), []) => serde_json::json!({ "sent": v }),
+                (Some(v), [StartWarning::Clamped { .. }]) => serde_json::json!({ "clamped": v }),
+                (None, [StartWarning::InvalidType { .. }]) => {
+                    serde_json::json!({ "dropped": "invalidType" })
+                }
+                (None, [StartWarning::NotInVars { .. }]) => {
+                    serde_json::json!({ "dropped": "notInVars" })
+                }
+                (None, []) => serde_json::json!({ "dropped": "button" }),
+                other => panic!("表に無い形: {line} {value:?} → {other:?}"),
+            };
+            assert_eq!(got, case["expect"], "{line} に {value:?}");
+        }
+    }
 }
