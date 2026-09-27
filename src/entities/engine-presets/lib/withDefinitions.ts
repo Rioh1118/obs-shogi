@@ -9,12 +9,20 @@ export function probePathOf(enginePath: string): string {
 /**
  * 下書きの定義が、いま選んでいるエンジンのものか。**定義を読む側は必ずこれを通す**——エンジンを
  * 選び直しても前のエンジンの定義は下書きに残るので、`definitions` の有無だけを見ると別のエンジンの
- * 定義を使う
+ * 定義を使う。
+ *
+ * **アプリが決める名前（`reservedNames`）が無い定義も「いまの定義」と扱わない。** それを持たずに
+ * 保存された定義では、評価関数・定跡の欄が持つ名前の欄が編集できるように見え、入れた値は起動のたびに
+ * 捨てられる（「分からない」を「無い」と読まない）。取り直せば揃う
  */
 export function hasCurrentDefinitions(
-  preset: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor">,
+  preset: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor" | "reservedNames">,
 ): boolean {
-  return Boolean(preset.definitions) && preset.definitionsFor === probePathOf(preset.enginePath);
+  return (
+    Boolean(preset.definitions) &&
+    preset.reservedNames != null &&
+    preset.definitionsFor === probePathOf(preset.enginePath)
+  );
 }
 
 /**

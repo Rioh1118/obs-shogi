@@ -46,7 +46,8 @@ const probes: Pending[] = [];
 const presets = { current: PRESET };
 const updatePreset = vi.fn<(id: PresetId, patch: Partial<EnginePreset>) => Promise<boolean>>();
 
-// Tauri の口だけを差し替え、番号の数え方（`probeEngine` / `isLatestProbe`）は本物を通す
+// Tauri の口だけを差し替え、番号の払い出し（`probeEngine` の `nextRequestNumber`）は本物を通す。
+// 捨てる判定は `presetDialogReducer`
 vi.mock(
   "@tauri-apps/api/core",
   async (importActual) =>
@@ -63,6 +64,17 @@ vi.mock(
         );
       }) as typeof import("@tauri-apps/api/core").invoke,
     }) satisfies typeof import("@tauri-apps/api/core"),
+);
+
+/** ファイルを選ぶ画面。開けなかった形（権限の設定漏れ・プラグインの失敗）を当てる */
+const dialogOpen = vi.fn<() => Promise<string | null>>();
+vi.mock(
+  "@tauri-apps/plugin-dialog",
+  async (importActual) =>
+    ({
+      ...(await importActual<typeof import("@tauri-apps/plugin-dialog")>()),
+      open: (() => dialogOpen()) as unknown as typeof import("@tauri-apps/plugin-dialog").open,
+    }) satisfies typeof import("@tauri-apps/plugin-dialog"),
 );
 
 vi.mock(
@@ -404,12 +416,14 @@ describe("プリセット編集でのオプションの取得", () => {
   }, 20000);
 
   const FULL_DEFS = [
-    { name: "Threads", type: "spin" as const, default: 4, min: 1, max: 512 },
+    { name: "SlowMover", type: "spin" as const, default: 100, min: 1, max: 512 },
     { name: "USI_Ponder", type: "check" as const, default: false },
     { name: "Style", type: "combo" as const, default: "a", vars: ["a", "b"] },
     { name: "Model", type: "filename" as const, default: "nn.bin" },
     { name: "EvalDir", type: "string" as const, default: "eval" },
     { name: "Clear_Hash", type: "button" as const },
+    // 重要オプションの名前。全部の欄には出ない
+    { name: "MultiPV", type: "spin" as const, default: 1, min: 1, max: 500 },
   ];
 
   /** 定義を取得したエンジンの全部の欄を開いた状態にする */
@@ -421,7 +435,7 @@ describe("プリセット編集でのオプションの取得", () => {
       definitions: FULL_DEFS,
       reserved: ["EvalDir"],
     });
-    const summary = await screen.findByText(/5 件（変えた値/);
+    const summary = await screen.findByText(/5 件（既定と違う値/);
     fireEvent.click(summary);
   }
 
@@ -445,27 +459,41 @@ describe("プリセット編集でのオプションの取得", () => {
     expect(updatePreset.mock.calls[0][1].options).toEqual({
       USI_Ponder: "true",
       Style: "b",
-      Threads: "512",
+      SlowMover: "512",
       Model: "/e/model.bin",
     });
   }, 20000);
 
-  test("アプリが決める名前は読み取り専用。名前で絞り込め、すべて既定に戻せる", async () => {
-    presets.current = { ...PRESET, options: { Threads: "8" } };
+  test("アプリが決める名前は読み取り専用。絞り込むと、表示中の行だけを既定に戻す", async () => {
+    presets.current = { ...PRESET, options: { Style: "b", SlowMover: "8", MultiPV: "5" } };
     await openFullList();
 
     expect(screen.getByText(/アプリが決めます/)).toBeTruthy();
+    // 読み取り専用の行は値も既定値も出さない（送るのは欄や方針の値）
     expect(screen.queryByPlaceholderText("エンジン既定（eval）")).toBeNull();
+    expect(screen.queryByText(/エンジン既定（eval）/)).toBeNull();
 
     fireEvent.change(screen.getByLabelText("オプションを名前で絞り込む"), {
       target: { value: "sty" },
     });
     expect(screen.queryByPlaceholderText(/範囲 1〜512/)).toBeNull();
-    expect(screen.getByDisplayValue("エンジン既定（a）")).toBeTruthy();
+    expect(screen.getByDisplayValue("b")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "すべてエンジン既定に戻す" }));
+    // 絞り込みで見えない行（SlowMover）と、別の節の値（MultiPV）は残す
+    fireEvent.click(screen.getByRole("button", { name: "表示中の 1 件をエンジン既定に戻す" }));
     fireEvent.click(saveButton());
     await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].options).toEqual({});
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ SlowMover: "8", MultiPV: "5" });
+  }, 20000);
+
+  /** 選ぶ画面を開けなければ、そう言って文字の欄へ誘う（黙って何も起きない、にしない） */
+  test("ファイルを選ぶ画面を開けなければ、理由と代わりの手を出す", async () => {
+    dialogOpen.mockRejectedValueOnce(new Error("dialog.open not allowed"));
+    await openFullList();
+
+    fireEvent.click(screen.getByRole("button", { name: "選択…" }));
+
+    const alert = await screen.findByText(/ファイルを選ぶ画面を開けませんでした/);
+    expect(alert.textContent).toContain("欄にパスを直接入力してください");
   }, 20000);
 });

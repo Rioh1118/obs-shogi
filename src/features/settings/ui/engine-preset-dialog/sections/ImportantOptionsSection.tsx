@@ -5,6 +5,7 @@ import { cx, HASH_CHOICES, parseIntSafe } from "@/features/settings/lib/presetDi
 import {
   engineDefaultLabel,
   engineDefaultOf,
+  QUICK_OPTION_NAMES,
   savedInt,
 } from "@/features/settings/lib/quickOptions";
 import { valuesWithoutField } from "@/features/settings/lib/optionRows";
@@ -17,9 +18,6 @@ import type { EnginePreset } from "@/entities/engine-presets/model/types";
 
 /** 「エンジン既定」から「指定する」に切り替えたときに入れる最初の値（エンジンの既定値ではない） */
 const FIRST_HASH = 1024;
-
-/** この節が欄を持つ名前。定義が無ければ、他の名前の保存済みの値は「その他の値」に並べる */
-const QUICK_NAMES = new Set(["MultiPV", "Threads", "USI_Hash"]);
 
 const ENGINE_DEFAULT_DESCRIPTION = "エンジンの初期値のまま使います";
 
@@ -46,7 +44,7 @@ export default function ImportantOptionsSection(props: {
   const hash = savedInt(draft.options, "USI_Hash");
   const multiPvDefault = engineDefaultOf(draft, "MultiPV");
   // 定義があれば、全部の欄（`UsiOptionsSection`）に無い名前だけ
-  const others = valuesWithoutField(draft, QUICK_NAMES);
+  const others = valuesWithoutField(draft, QUICK_OPTION_NAMES);
   const probed = hasCurrentDefinitions(draft);
 
   const quickMultiPv = QUICK_MULTIPV.filter((n) => n <= multiPvMax);

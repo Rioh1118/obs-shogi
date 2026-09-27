@@ -19,7 +19,8 @@ export type PresetDialogState = {
   draft: EnginePreset | null;
   /**
    * 定義に当てる**元の値**: 開いたときのプリセットの値に、このダイアログで利用者が変えた値を重ねたもの。
-   * **当てた後の下書きから当て直さない**——A で外した値が、それを受ける B に選び直しても戻らない
+   * **当てた後の下書きから当て直さない。** 当て直すと、あるエンジンの定義で外した値が、その値を受ける
+   * 別のエンジンを選び直しても戻らなくなる
    */
   baseline: UsiOptionMap;
   /** 進んでいる取得。`null` なら取得していない（やめた回も） */
@@ -44,8 +45,11 @@ export type PresetDialogAction =
   | { type: "edited"; update: SetStateAction<EnginePreset | null> }
   /** オプションの値を変える。`null` で消す（エンジン既定） */
   | { type: "optionSet"; name: string; value: string | null }
-  /** オプションの値を全部消す（すべてエンジン既定） */
-  | { type: "optionsCleared" }
+  /**
+   * 挙げた名前のオプションの値を消す（エンジン既定に戻す）。全部の欄のうち画面に出ている行だけを
+   * 渡す——絞り込みで見えていない行や、別の節（重要オプション）の値まで消さない
+   */
+  | { type: "optionsCleared"; names: string[] }
   | { type: "probeStarted"; token: number; enginePath: string }
   | { type: "probeSucceeded"; token: number; outcome: ProbeOutcome; probedAt: string }
   | { type: "probeFailed"; token: number; failure: Omit<ProbeFailure, "enginePath"> }
@@ -97,9 +101,17 @@ export function presetDialogReducer(
         baseline: withOption(state.baseline, action.name, action.value),
       };
 
-    case "optionsCleared":
+    case "optionsCleared": {
       if (!state.draft) return state;
-      return { ...state, draft: { ...state.draft, options: {} }, baseline: {} };
+      let options = state.draft.options;
+      let baseline = state.baseline;
+      for (const name of action.names) {
+        options = withOption(options, name, null);
+        baseline = withOption(baseline, name, null);
+      }
+      // 当てて変えた値の一覧も消す。消した値について「保存すると確定します」と言い続けない
+      return { ...state, draft: { ...state.draft, options }, baseline, fitNote: null };
+    }
 
     case "probeStarted":
       return {

@@ -64,10 +64,17 @@ describe("P0（取得なし）", () => {
     expect(next.baseline).toEqual({ Threads: "999", MultiPV: "3" });
   });
 
-  test("C: 値を全部消す", () => {
-    const next = run(opened, { type: "optionsCleared" });
-    expect(next.draft?.options).toEqual({});
-    expect(next.baseline).toEqual({});
+  /** 画面に出ている行だけを消す（絞り込みで見えない行・別の節の値は残す）。一覧も消す */
+  test("C: 挙げた名前の値だけを消し、当てて変えた値の一覧も消す", () => {
+    const withNote = { ...opened, fitNote: { enginePath: "/e/a", clamped: [], dropped: [] } };
+    const next = run(withNote, { type: "optionsCleared", names: ["NetworkDelay"] });
+    expect(next.draft?.options).toEqual({ Threads: "999" });
+    expect(next.baseline).toEqual({ Threads: "999" });
+    expect(next.fitNote).toBeNull();
+  });
+
+  test("A: 待っている取得が無ければ何も変えない", () => {
+    expect(run(opened, { type: "probeAbandoned" }).probe).toBeNull();
   });
 
   test("S: 取得中にし、前の失敗を消す", () => {
@@ -94,6 +101,19 @@ describe("P1（取得中）", () => {
   test("O: 下書きを作り直しても取得中のまま（下ろすと取得中に保存が開く）", () => {
     const next = run(probing, { type: "opened", preset: { ...PRESET } });
     expect(next.probe).not.toBeNull();
+  });
+
+  test("V: 取得中も下書きと当てる元の値の両方に重ね、取得中のまま", () => {
+    const next = run(probing, { type: "optionSet", name: "MultiPV", value: "3" });
+    expect(next.draft?.options.MultiPV).toBe("3");
+    expect(next.baseline.MultiPV).toBe("3");
+    expect(next.probe).toEqual(probing.probe);
+  });
+
+  test("F2: 待っていない取得の失敗は捨てる", () => {
+    expect(
+      run(probing, { type: "probeFailed", token: 9, failure: { kind: "notUsi", message: "" } }),
+    ).toBe(probing);
   });
 
   test("S: 前の取得を置き換える。前の取得の結果は捨てる", () => {

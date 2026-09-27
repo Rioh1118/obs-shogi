@@ -3,6 +3,12 @@ import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinit
 import { parseSpinValue } from "@/entities/engine-presets/lib/fitValues";
 import type { EnginePreset, UsiOptionMap } from "@/entities/engine-presets/model/types";
 
+/**
+ * 重要オプションの節が欄を持つ名前。**全部の欄（`optionRows`）には出さない**——同じ値を2つの欄が
+ * 違う範囲で書く形になる（MultiPV は解析ビューが出せる本数で頭打ちにするが、全部の欄は申告の上限までしか見ない）
+ */
+export const QUICK_OPTION_NAMES: ReadonlySet<string> = new Set(["MultiPV", "Threads", "USI_Hash"]);
+
 /** 保存した値を整数で読む。値が無い（エンジン既定）・整数でないなら `null` */
 export function savedInt(options: UsiOptionMap, name: string): number | null {
   const raw = options[name];
@@ -15,7 +21,7 @@ export function savedInt(options: UsiOptionMap, name: string): number | null {
  * 「エンジン既定」が実際にいくつなのかを添えるために使う
  */
 export function engineDefaultOf(
-  preset: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor">,
+  preset: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor" | "reservedNames">,
   name: string,
 ): string | null {
   if (!hasCurrentDefinitions(preset)) return null;
@@ -34,7 +40,7 @@ export function engineDefaultLabel(defaultValue: string | null, unit = ""): stri
  * 定義が無い・別のエンジンの定義なら `MULTIPV_MAX`（送るときに Rust が申告の範囲へ丸める）
  */
 export function multiPvMax(
-  preset: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor">,
+  preset: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor" | "reservedNames">,
 ): number {
   if (!hasCurrentDefinitions(preset)) return MULTIPV_MAX;
   const def = preset.definitions?.find((d) => d.name === "MultiPV");

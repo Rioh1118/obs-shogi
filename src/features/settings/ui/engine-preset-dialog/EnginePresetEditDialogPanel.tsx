@@ -278,7 +278,10 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     (name: string, value: string | null) => dispatch({ type: "optionSet", name, value }),
     [],
   );
-  const clearOptions = useCallback(() => dispatch({ type: "optionsCleared" }), []);
+  const clearOptions = useCallback(
+    (names: string[]) => dispatch({ type: "optionsCleared", names }),
+    [],
+  );
 
   const onCreateEnginesDir = useCallback(async () => {
     const root = aiRoot;
