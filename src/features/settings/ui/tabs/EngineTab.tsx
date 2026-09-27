@@ -9,7 +9,11 @@ import SSection from "../kit/SSection";
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { isPresetConfigured, type PresetId } from "@/entities/engine-presets/model/types";
-import { savedInt } from "@/features/settings/lib/quickOptions";
+import {
+  engineDefaultLabel,
+  engineDefaultOf,
+  savedInt,
+} from "@/features/settings/lib/quickOptions";
 
 const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
@@ -18,9 +22,6 @@ function basename(p: string) {
   const last = s.split("/").filter(Boolean).pop();
   return last || (p ?? "");
 }
-
-/** 値が無ければ「エンジン既定」（送らず、エンジンが自分の既定で動く） */
-const ENGINE_DEFAULT = "エンジン既定";
 
 export default function EngineTab() {
   const { state, reload, selectPreset, createPreset, duplicatePreset, deletePreset } =
@@ -218,17 +219,21 @@ export default function EngineTab() {
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">MultiPV</div>
                         <div className={cx("engineTab__miniV", multiPvWarn && "is-warn")}>
-                          {multiPv ?? ENGINE_DEFAULT}
+                          {multiPv ?? engineDefaultLabel(engineDefaultOf(p, "MultiPV"))}
                         </div>
                       </div>
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">Threads</div>
-                        <div className="engineTab__miniV">{threads ?? ENGINE_DEFAULT}</div>
+                        <div className="engineTab__miniV">
+                          {threads ?? engineDefaultLabel(engineDefaultOf(p, "Threads"))}
+                        </div>
                       </div>
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">Hash</div>
                         <div className="engineTab__miniV">
-                          {hash == null ? ENGINE_DEFAULT : `${hash}MB`}
+                          {hash == null
+                            ? engineDefaultLabel(engineDefaultOf(p, "USI_Hash"), "MB")
+                            : `${hash}MB`}
                         </div>
                       </div>
                       <div className="engineTab__mini">

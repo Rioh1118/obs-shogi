@@ -2,15 +2,24 @@ import { useState } from "react";
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SRadioGroup, SSection, SSelect } from "@/features/settings/ui/kit";
 import { cx, HASH_CHOICES, parseIntSafe } from "@/features/settings/lib/presetDialog";
-import { savedInt } from "@/features/settings/lib/quickOptions";
+import {
+  engineDefaultLabel,
+  engineDefaultOf,
+  savedInt,
+} from "@/features/settings/lib/quickOptions";
 
 import { MULTIPV_MIN, QUICK_MULTIPV } from "@/entities/engine-presets/model/multiPv";
 
 import "./ImportantOptionsSection.scss";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 
-/** 「エンジン既定」を選んだときに Hash の欄を開いた最初の値 */
+/** 「エンジン既定」から「指定する」に切り替えたときに入れる最初の値（エンジンの既定値ではない） */
 const FIRST_HASH = 1024;
+
+/** この節が欄を持つ名前。他の名前の保存済みの値は「その他の値」に並べる */
+const QUICK_NAMES = new Set(["MultiPV", "Threads", "USI_Hash"]);
+
+const ENGINE_DEFAULT_DESCRIPTION = "エンジンの初期値のまま使います";
 
 /**
  * よく触る3つ（MultiPV / Threads / USI_Hash）。**値は下書きの `options` だけに持つ**——
@@ -33,11 +42,15 @@ export default function ImportantOptionsSection(props: {
   const multiPv = savedInt(draft.options, "MultiPV");
   const threads = savedInt(draft.options, "Threads");
   const hash = savedInt(draft.options, "USI_Hash");
+  const multiPvDefault = engineDefaultOf(draft, "MultiPV");
+  const others = Object.entries(draft.options).filter(([name]) => !QUICK_NAMES.has(name));
 
-  // 画面だけの状態（保存しない）。選択肢に無い値が入っていれば開いておく
-  const [showMultiPvCustom, setShowMultiPvCustom] = useState(
-    multiPv != null && !(QUICK_MULTIPV as readonly number[]).includes(multiPv),
-  );
+  const quickMultiPv = QUICK_MULTIPV.filter((n) => n <= multiPvMax);
+  // 利用者が開いたか、値がどのボタンにも無いときに開く。**値から導く**——取得で丸められて
+  // ボタンに無い値になったとき、閉じたままだと値が画面のどこにも出ない
+  const [customOpened, setCustomOpened] = useState(false);
+  const offQuick = multiPv != null && !(quickMultiPv as number[]).includes(multiPv);
+  const showMultiPvCustom = customOpened || offQuick;
   const setMultiPv = (n: number) =>
     setOpt("MultiPV", String(Math.max(MULTIPV_MIN, Math.min(n, multiPvMax))));
 
@@ -63,9 +76,9 @@ export default function ImportantOptionsSection(props: {
                 className={cx("presetDialog__segBtn", multiPv == null && "is-active")}
                 onClick={() => setOpt("MultiPV", null)}
               >
-                エンジン既定
+                {engineDefaultLabel(multiPvDefault)}
               </button>
-              {QUICK_MULTIPV.filter((n) => n <= multiPvMax).map((n) => (
+              {quickMultiPv.map((n) => (
                 <button
                   key={n}
                   type="button"
@@ -79,7 +92,7 @@ export default function ImportantOptionsSection(props: {
 
             <Button
               size="sm"
-              onClick={() => setShowMultiPvCustom(!showMultiPvCustom)}
+              onClick={() => setCustomOpened(!showMultiPvCustom)}
               className="presetDialog__segRight"
             >
               カスタム…
@@ -106,7 +119,12 @@ export default function ImportantOptionsSection(props: {
                 max={multiPvMax}
                 value={multiPv ?? ""}
                 placeholder="既定"
-                onChange={(e) => setMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))}
+                // 空にしたらエンジン既定（1 を入れない）
+                onChange={(e) =>
+                  e.target.value.trim() === ""
+                    ? setOpt("MultiPV", null)
+                    : setMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))
+                }
               />
 
               <Button
@@ -121,6 +139,12 @@ export default function ImportantOptionsSection(props: {
               <div className="presetDialog__stepperHint">
                 範囲: {MULTIPV_MIN}〜{multiPvMax}
               </div>
+            </div>
+          )}
+
+          {multiPv == null && multiPvDefault === "1" && (
+            <div className="presetDialog__hintMuted">
+              このエンジンの既定は 1 です。解析の候補は1本だけになります。
             </div>
           )}
 
@@ -144,7 +168,11 @@ export default function ImportantOptionsSection(props: {
           <SRadioGroup
             name="threadsMode"
             options={[
-              { value: "engine", label: "エンジン既定", description: "送らない" },
+              {
+                value: "engine",
+                label: engineDefaultLabel(engineDefaultOf(draft, "Threads")),
+                description: ENGINE_DEFAULT_DESCRIPTION,
+              },
               {
                 value: "set",
                 label: "指定する",
@@ -188,7 +216,11 @@ export default function ImportantOptionsSection(props: {
           <SRadioGroup
             name="hashMode"
             options={[
-              { value: "engine", label: "エンジン既定", description: "送らない" },
+              {
+                value: "engine",
+                label: engineDefaultLabel(engineDefaultOf(draft, "USI_Hash"), "MB"),
+                description: ENGINE_DEFAULT_DESCRIPTION,
+              },
               { value: "set", label: "指定する" },
             ]}
             value={hash == null ? "engine" : "set"}
@@ -218,6 +250,34 @@ export default function ImportantOptionsSection(props: {
             </div>
           )}
         </div>
+
+        {/* 欄の無い保存済みの値。見えないまま送り続けないように、ここで消せる */}
+        {others.length > 0 && (
+          <div className="presetDialog__block">
+            <div className="presetDialog__blockHead">
+              <div className="presetDialog__blockTitle">その他の保存済みの値</div>
+              <div className="presetDialog__blockSub">
+                エンジンが申告していれば起動のたびに送ります。要らない値は外してください。
+              </div>
+            </div>
+            <ul className="presetDialog__stack" style={{ margin: 0, paddingLeft: 0 }}>
+              {others.map(([name, value]) => (
+                <li key={name} style={{ listStyle: "none" }}>
+                  <code>
+                    {name} = {value}
+                  </code>{" "}
+                  <Button
+                    size="sm"
+                    onClick={() => setOpt(name, null)}
+                    aria-label={`${name} を外す`}
+                  >
+                    外す
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </SSection>
   );

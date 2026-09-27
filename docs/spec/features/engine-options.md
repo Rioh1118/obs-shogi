@@ -21,9 +21,11 @@ main にあるか: **無い**
 
 決め打ちの既定値は無い。値を持たない名前は**エンジン既定**（送らず、エンジンが自分の既定で動く）。
 新しいプリセットだけが `MultiPV = 5` を持つ（`normalize.ts` の `NEW_PRESET_OPTIONS`）。
-以前の版は全プリセットに7項目（`USI_Hash` / `Threads` / `MultiPV` / `NetworkDelay` / `NetworkDelay2` /
-`MinimumThinkingTime` / `SlowMover`）を入れて保存していた。**保存済みの値はそのまま残す**
-（利用者が触った値か見分けられない。申告に無い名前は送る側が落とす）。
+保存済みのプリセットには、利用者が選んでいない7項目（`USI_Hash` / `Threads` / `MultiPV` /
+`NetworkDelay` / `NetworkDelay2` / `MinimumThinkingTime` / `SlowMover`）を持つものがある。
+**読み込みでは消さない**（利用者が触った値か見分けられない）。起動では申告に無い名前を送る側が落とし、
+プリセット編集で定義を取得すると `fitValues` が申告に無いものを外す（保存の前に一覧で見せる）。
+欄の無い値は「その他の保存済みの値」から外せる。
 
 ## 要件
 

@@ -357,4 +357,48 @@ describe("プリセット編集でのオプションの取得", () => {
 
     expect(screen.queryByText(/NetworkDelay = 120 を外しました/)).toBeNull();
   }, 20000);
+
+  test("MultiPV の入力欄を空にしたら、1 でなくエンジン既定にする", async () => {
+    presets.current = { ...PRESET, enginePath: ENGINE_A, options: { MultiPV: "6" } };
+    await openWithEngines();
+
+    fireEvent.change(screen.getByPlaceholderText("既定"), { target: { value: "" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({});
+  }, 20000);
+
+  /** 取得で丸められてボタンに無い値になっても、値が画面から消えない */
+  test("丸められて選択肢に無い値になったら、MultiPV の入力欄を開いて値を出す", async () => {
+    presets.current = { ...PRESET, options: { MultiPV: "5" } };
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[0].resolve({
+      ...outcome(probes[0], "Engine A"),
+      definitions: [{ name: "MultiPV", type: "spin", default: 1, min: 1, max: 4 }],
+    });
+    await screen.findByText(/取得済み/);
+
+    expect((screen.getByPlaceholderText("既定") as HTMLInputElement).value).toBe("4");
+    // 既定値が分かれば添え、既定が 1 なら候補が1本になることを言う
+    fireEvent.click(screen.getByRole("button", { name: "エンジン既定（1）" }));
+    expect(screen.getByText(/解析の候補は1本だけになります/)).toBeTruthy();
+  }, 20000);
+
+  /** 欄の無い保存済みの値も、見えないまま送り続けないように外せる */
+  test("その他の保存済みの値を外せる", async () => {
+    presets.current = {
+      ...PRESET,
+      enginePath: ENGINE_A,
+      options: { NetworkDelay: "120", SlowMover: "100" },
+    };
+    await openWithEngines();
+
+    fireEvent.click(screen.getByRole("button", { name: "NetworkDelay を外す" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ SlowMover: "100" });
+  }, 20000);
 });

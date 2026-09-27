@@ -11,6 +11,25 @@ export function savedInt(options: UsiOptionMap, name: string): number | null {
 }
 
 /**
+ * エンジンが申告した既定値（表示用の文字列）。定義が無い・別のエンジンの定義・既定値が無いなら `null`。
+ * 「エンジン既定」が実際にいくつなのかを添えるために使う
+ */
+export function engineDefaultOf(
+  preset: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor">,
+  name: string,
+): string | null {
+  if (!hasCurrentDefinitions(preset)) return null;
+  const def = preset.definitions?.find((d) => d.name === name);
+  if (!def || def.type === "button" || def.default == null) return null;
+  return String(def.default);
+}
+
+/** 「エンジン既定」の表示。既定値が分かれば添える */
+export function engineDefaultLabel(defaultValue: string | null, unit = ""): string {
+  return defaultValue == null ? "エンジン既定" : `エンジン既定（${defaultValue}${unit}）`;
+}
+
+/**
  * MultiPV の入力の上限。解析ビューが出せる本数（`MULTIPV_MAX`）と、エンジンが申告した上限の小さい方。
  * 定義が無い・別のエンジンの定義なら `MULTIPV_MAX`（送るときに Rust が申告の範囲へ丸める）
  */
