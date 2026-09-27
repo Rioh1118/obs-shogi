@@ -9,7 +9,7 @@ import SSection from "../kit/SSection";
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { isPresetConfigured, type PresetId } from "@/entities/engine-presets/model/types";
-import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
+import { savedInt } from "@/features/settings/lib/quickOptions";
 
 const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
@@ -19,11 +19,8 @@ function basename(p: string) {
   return last || (p ?? "");
 }
 
-function optionNum(options: Record<string, string> | undefined, key: string, fallback: string) {
-  const raw = options?.[key] ?? fallback;
-  const n = Number.parseInt(String(raw), 10);
-  return Number.isFinite(n) ? n : Number.parseInt(fallback, 10);
-}
+/** 値が無ければ「エンジン既定」（送らず、エンジンが自分の既定で動く） */
+const ENGINE_DEFAULT = "エンジン既定";
 
 export default function EngineTab() {
   const { state, reload, selectPreset, createPreset, duplicatePreset, deletePreset } =
@@ -105,11 +102,11 @@ export default function EngineTab() {
               const configured = isPresetConfigured(p);
               const isSelected = p.id === selectedId;
 
-              const multiPv = optionNum(p.options, "MultiPV", DEFAULT_USI_OPTIONS.MultiPV);
-              const threads = optionNum(p.options, "Threads", DEFAULT_USI_OPTIONS.Threads);
-              const hash = optionNum(p.options, "USI_Hash", DEFAULT_USI_OPTIONS.USI_Hash);
+              const multiPv = savedInt(p.options, "MultiPV");
+              const threads = savedInt(p.options, "Threads");
+              const hash = savedInt(p.options, "USI_Hash");
 
-              const multiPvWarn = multiPv >= 2; // 研究用途ではOKだが注意
+              const multiPvWarn = multiPv != null && multiPv >= 2; // 研究用途ではOKだが注意
               const title = p.label?.trim() || "（無名プリセット）";
 
               return (
@@ -221,16 +218,18 @@ export default function EngineTab() {
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">MultiPV</div>
                         <div className={cx("engineTab__miniV", multiPvWarn && "is-warn")}>
-                          {multiPv}
+                          {multiPv ?? ENGINE_DEFAULT}
                         </div>
                       </div>
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">Threads</div>
-                        <div className="engineTab__miniV">{threads}</div>
+                        <div className="engineTab__miniV">{threads ?? ENGINE_DEFAULT}</div>
                       </div>
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">Hash</div>
-                        <div className="engineTab__miniV">{hash}MB</div>
+                        <div className="engineTab__miniV">
+                          {hash == null ? ENGINE_DEFAULT : `${hash}MB`}
+                        </div>
                       </div>
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">Book</div>

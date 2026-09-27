@@ -1,4 +1,3 @@
-import { DEFAULT_USI_OPTIONS } from "../model/defaultOptions";
 import type { EnginePreset, PresetId, UsiOptionMap } from "../model/types";
 
 export function genPresetId(): PresetId {
@@ -10,7 +9,20 @@ export function clonePreset<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
 }
 
+/**
+ * 新しく作るプリセットだけが持つ値。**他の名前はエンジン既定**（値を持たず、送らない）。
+ *
+ * MultiPV だけを入れるのは、解析ビューが候補手を並べる画面だから——やねうら王の既定は 1 で、
+ * 何も入れないと候補が1本しか出ない。**読み込んだプリセットには足さない**（`normalizeOnePreset`）
+ */
+const NEW_PRESET_OPTIONS: UsiOptionMap = { MultiPV: "5" };
+
+/** 新しいプリセットを作る（`NEW_PRESET_OPTIONS` を持つ） */
 export function createDefaultPreset(partial: Partial<EnginePreset> = {}): EnginePreset {
+  return withDefaults(partial, NEW_PRESET_OPTIONS);
+}
+
+function withDefaults(partial: Partial<EnginePreset>, options: UsiOptionMap): EnginePreset {
   const id = partial.id ?? genPresetId();
   const base: EnginePreset = {
     id,
@@ -21,7 +33,7 @@ export function createDefaultPreset(partial: Partial<EnginePreset> = {}): Engine
     evalFilePath: "",
     bookEnabled: false,
     bookFilePath: null,
-    options: { ...DEFAULT_USI_OPTIONS },
+    options: { ...options },
     analysis: undefined,
   };
 
@@ -37,8 +49,12 @@ export function createDefaultPreset(partial: Partial<EnginePreset> = {}): Engine
   return merged;
 }
 
+/**
+ * 読み込んだ・複製したプリセットの形を整える。**値を足さない**——無い名前はエンジン既定で、
+ * 足すと利用者が選んでいない値を送る
+ */
 export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
-  const p = createDefaultPreset(raw);
+  const p = withDefaults(raw, {});
 
   p.label = (p.label ?? "").trim() || "";
   p.aiName = (p.aiName ?? "").trim();
@@ -56,7 +72,7 @@ export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
     if (!vv) continue;
     nextOptions[k] = vv;
   }
-  p.options = { ...DEFAULT_USI_OPTIONS, ...nextOptions };
+  p.options = nextOptions;
 
   if (p.analysis) {
     const a = { ...p.analysis };

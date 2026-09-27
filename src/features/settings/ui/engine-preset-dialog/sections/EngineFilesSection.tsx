@@ -8,6 +8,7 @@ import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 import type { PresetEngineOption } from "@/features/settings/lib/presetEngineOptions";
 import { probeStatusText, type ProbeFailure } from "@/features/settings/lib/probeStatus";
+import { fitNoteLines, type FitNote } from "@/features/settings/lib/fitNote";
 
 /**
  * 帯の文言。網羅の理由は `EnginesDir` の doc。
@@ -29,6 +30,8 @@ export default function EngineFilesSection(props: {
   onProbe: (enginePath: string) => void;
   /** 取得の待ちをやめる（保存できるようにする） */
   onStopProbe: () => void;
+  /** 取得した定義に当てて変えた値 */
+  fitNote: FitNote | null;
   draft: EnginePreset;
   setDraft: Dispatch<SetStateAction<EnginePreset | null>>;
   errors: Record<string, string>;
@@ -57,6 +60,7 @@ export default function EngineFilesSection(props: {
     probeFailure,
     onProbe,
     onStopProbe,
+    fitNote,
     draft,
     setDraft,
     errors,
@@ -82,6 +86,7 @@ export default function EngineFilesSection(props: {
   const hint = ENGINES_DIR_HINT[enginesDir];
   const selectedNote = engineOptions.find((o) => o.value === draft.enginePath)?.note ?? null;
   const probeStatus = probeStatusText(draft, probing, probeFailure);
+  const fitLines = fitNoteLines(fitNote, draft.enginePath);
 
   return (
     <SSection
@@ -174,6 +179,16 @@ export default function EngineFilesSection(props: {
                   詳細: {probeStatus.detail}
                 </div>
               )}
+            </div>
+          )}
+          {fitLines.length > 0 && (
+            <div className="presetDialog__hintWarn" style={{ marginTop: 8 }}>
+              このエンジンに合わせて値を変えました（保存すると確定します。やめるならキャンセル）
+              <ul style={{ margin: 0 }}>
+                {fitLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
             </div>
           )}
         </SField>

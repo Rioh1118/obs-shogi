@@ -19,10 +19,11 @@ main にあるか: **無い**
 **それを呼ぶ画面が1つも無い**（`src/` を grep して 0 件）。
 この2本には古い探索の応答を採る経路が5つある → #371
 
-`DEFAULT_USI_OPTIONS`（`entities/engine-presets/model/defaultOptions.ts`）が
-決め打ちで持っているのは7つ:
-`USI_Hash` / `Threads` / `MultiPV` / `NetworkDelay` / `NetworkDelay2` /
-`MinimumThinkingTime` / `SlowMover`。
+決め打ちの既定値は無い。値を持たない名前は**エンジン既定**（送らず、エンジンが自分の既定で動く）。
+新しいプリセットだけが `MultiPV = 5` を持つ（`normalize.ts` の `NEW_PRESET_OPTIONS`）。
+以前の版は全プリセットに7項目（`USI_Hash` / `Threads` / `MultiPV` / `NetworkDelay` / `NetworkDelay2` /
+`MinimumThinkingTime` / `SlowMover`）を入れて保存していた。**保存済みの値はそのまま残す**
+（利用者が触った値か見分けられない。申告に無い名前は送る側が落とす）。
 
 ## 要件
 

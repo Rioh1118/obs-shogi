@@ -1,63 +1,50 @@
-import type { SRadioOption } from "@/features/settings/ui/kit/SRadioGroup";
+import { useState } from "react";
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SRadioGroup, SSection, SSelect } from "@/features/settings/ui/kit";
 import { cx, HASH_CHOICES, parseIntSafe } from "@/features/settings/lib/presetDialog";
+import { savedInt } from "@/features/settings/lib/quickOptions";
 
-import { MULTIPV_MAX, MULTIPV_MIN, QUICK_MULTIPV } from "@/entities/engine-presets/model/multiPv";
+import { MULTIPV_MIN, QUICK_MULTIPV } from "@/entities/engine-presets/model/multiPv";
 
 import "./ImportantOptionsSection.scss";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
-import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
-import type { HashMode, ThreadsMode } from "@/features/settings/model/types";
 
+/** 「エンジン既定」を選んだときに Hash の欄を開いた最初の値 */
+const FIRST_HASH = 1024;
+
+/**
+ * よく触る3つ（MultiPV / Threads / USI_Hash）。**値は下書きの `options` だけに持つ**——
+ * 値が無いことが「エンジン既定」（送らない。エンジンが自分の既定で動く）。
+ *
+ * 他のオプションの値は触らない（ここに欄が無くても、保存した値は残る）
+ */
 export default function ImportantOptionsSection(props: {
   draft: EnginePreset;
-  setOpt: (k: string, v: string) => void;
-
-  multiPv: number;
-  showMultiPvCustom: boolean;
-  setShowMultiPvCustom: (v: boolean) => void;
-  onChangeMultiPv: (n: number) => void;
-
+  /** `null` で値を消す（エンジン既定に戻す） */
+  setOpt: (name: string, value: string | null) => void;
   cores: number;
-  threadsMode: "auto" | "manual";
-  threadsModeOptions: SRadioOption[];
-  onThreadsModeChange: (m: "auto" | "manual") => void;
-  threadsManual: number;
+  recommendedThreads: number;
   threadChoices: number[];
-  onThreadsManualChange: (n: number) => void;
-
-  hashMode: "auto" | "manual";
-  hashModeOptions: SRadioOption[];
-  hashManual: number;
-  onHashModeChange: (m: "auto" | "manual") => void;
-  onHashManualChange: (n: number) => void;
+  /** MultiPV の上限（`multiPvMax`） */
+  multiPvMax: number;
 }) {
-  const {
-    draft,
-    setOpt,
-    multiPv,
-    showMultiPvCustom,
-    setShowMultiPvCustom,
-    onChangeMultiPv,
-    cores,
-    threadsMode,
-    threadsModeOptions,
-    onThreadsModeChange,
-    threadsManual,
-    threadChoices,
-    onThreadsManualChange,
-    hashMode,
-    hashModeOptions,
-    hashManual,
-    onHashModeChange,
-    onHashManualChange,
-  } = props;
+  const { draft, setOpt, cores, recommendedThreads, threadChoices, multiPvMax } = props;
+
+  const multiPv = savedInt(draft.options, "MultiPV");
+  const threads = savedInt(draft.options, "Threads");
+  const hash = savedInt(draft.options, "USI_Hash");
+
+  // 画面だけの状態（保存しない）。選択肢に無い値が入っていれば開いておく
+  const [showMultiPvCustom, setShowMultiPvCustom] = useState(
+    multiPv != null && !(QUICK_MULTIPV as readonly number[]).includes(multiPv),
+  );
+  const setMultiPv = (n: number) =>
+    setOpt("MultiPV", String(Math.max(MULTIPV_MIN, Math.min(n, multiPvMax))));
 
   return (
     <SSection
       title="重要オプション"
-      description="研究・定跡管理では対局向けの時間調整系は基本不要です（下の折りたたみに隔離）。"
+      description="何も選ばない項目は送らず、エンジンが自分の既定で動きます（エンジン既定）。"
     >
       <div className="presetDialog__stack">
         {/* MultiPV */}
@@ -71,12 +58,19 @@ export default function ImportantOptionsSection(props: {
 
           <div className="presetDialog__segRow">
             <div className="presetDialog__seg" role="tablist" aria-label="MultiPV presets">
-              {QUICK_MULTIPV.map((n) => (
+              <button
+                type="button"
+                className={cx("presetDialog__segBtn", multiPv == null && "is-active")}
+                onClick={() => setOpt("MultiPV", null)}
+              >
+                エンジン既定
+              </button>
+              {QUICK_MULTIPV.filter((n) => n <= multiPvMax).map((n) => (
                 <button
                   key={n}
                   type="button"
                   className={cx("presetDialog__segBtn", multiPv === n && "is-active")}
-                  onClick={() => onChangeMultiPv(n)}
+                  onClick={() => setMultiPv(n)}
                 >
                   {n}
                 </button>
@@ -98,8 +92,8 @@ export default function ImportantOptionsSection(props: {
               <Button
                 size="sm"
                 motion={false}
-                onClick={() => onChangeMultiPv(multiPv - 1)}
-                disabled={multiPv <= MULTIPV_MIN}
+                onClick={() => setMultiPv((multiPv ?? MULTIPV_MIN) - 1)}
+                disabled={(multiPv ?? MULTIPV_MIN) <= MULTIPV_MIN}
               >
                 −
               </Button>
@@ -109,27 +103,28 @@ export default function ImportantOptionsSection(props: {
                 inputMode="numeric"
                 type="number"
                 min={MULTIPV_MIN}
-                max={MULTIPV_MAX}
-                value={multiPv}
-                onChange={(e) => onChangeMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))}
+                max={multiPvMax}
+                value={multiPv ?? ""}
+                placeholder="既定"
+                onChange={(e) => setMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))}
               />
 
               <Button
                 size="sm"
                 motion={false}
-                onClick={() => onChangeMultiPv(multiPv + 1)}
-                disabled={multiPv >= MULTIPV_MAX}
+                onClick={() => setMultiPv((multiPv ?? 0) + 1)}
+                disabled={(multiPv ?? 0) >= multiPvMax}
               >
                 ＋
               </Button>
 
               <div className="presetDialog__stepperHint">
-                範囲: {MULTIPV_MIN}〜{MULTIPV_MAX}
+                範囲: {MULTIPV_MIN}〜{multiPvMax}
               </div>
             </div>
           )}
 
-          {multiPv >= 2 && (
+          {multiPv != null && multiPv >= 2 && (
             <div className="presetDialog__hintWarn">
               注意: MultiPV を 2以上にすると棋力が低下し得ます（研究用途では “幅 vs 深さ”
               の調整として有用）。
@@ -148,21 +143,32 @@ export default function ImportantOptionsSection(props: {
 
           <SRadioGroup
             name="threadsMode"
-            options={threadsModeOptions}
-            value={threadsMode}
-            onChange={(v) => onThreadsModeChange(v as ThreadsMode)}
+            options={[
+              { value: "engine", label: "エンジン既定", description: "送らない" },
+              {
+                value: "set",
+                label: "指定する",
+                description: `この端末の論理コア数は ${cores}（推奨 ${recommendedThreads}）`,
+              },
+            ]}
+            value={threads == null ? "engine" : "set"}
+            onChange={(v) => setOpt("Threads", v === "engine" ? null : String(recommendedThreads))}
             layout="list"
           />
 
-          {threadsMode === "manual" && (
+          {threads != null && (
             <div className="presetDialog__inline">
-              <SField label="手動 Threads" description={`最大: 論理コア数 ${cores}`}>
+              <SField label="Threads" description={`最大: 論理コア数 ${cores}`}>
                 <SSelect
-                  value={String(threadsManual)}
-                  onChange={(e) => onThreadsManualChange(parseIntSafe(e.target.value, 1))}
-                  options={threadChoices.map((n) => ({
+                  value={String(threads)}
+                  onChange={(e) => setOpt("Threads", e.target.value)}
+                  options={[
+                    // 他の端末で保存した値（この端末のコア数を超える）も選択として残す
+                    ...(threadChoices.includes(threads) ? [] : [threads]),
+                    ...threadChoices,
+                  ].map((n) => ({
                     value: String(n),
-                    label: String(n),
+                    label: n === recommendedThreads ? `${n}（推奨）` : String(n),
                   }))}
                 />
               </SField>
@@ -181,80 +187,38 @@ export default function ImportantOptionsSection(props: {
 
           <SRadioGroup
             name="hashMode"
-            options={hashModeOptions}
-            value={hashMode}
-            onChange={(v) => onHashModeChange(v as HashMode)}
+            options={[
+              { value: "engine", label: "エンジン既定", description: "送らない" },
+              { value: "set", label: "指定する" },
+            ]}
+            value={hash == null ? "engine" : "set"}
+            onChange={(v) => setOpt("USI_Hash", v === "engine" ? null : String(FIRST_HASH))}
             layout="list"
           />
 
-          {hashMode === "manual" && (
+          {hash != null && (
             <div className="presetDialog__inline">
               <SField
-                label="手動 Hash"
+                label="Hash"
                 description={
                   <span>
-                    推定使用RAM: <b>{hashManual}MB</b>（＋α）
+                    推定使用RAM: <b>{hash}MB</b>（＋α）
                   </span>
                 }
               >
                 <SSelect
-                  value={String(hashManual)}
-                  onChange={(e) => onHashManualChange(parseIntSafe(e.target.value, 1024))}
-                  options={HASH_CHOICES.map((n) => ({
-                    value: String(n),
-                    label: `${n} MB`,
-                  }))}
+                  value={String(hash)}
+                  onChange={(e) => setOpt("USI_Hash", e.target.value)}
+                  options={[
+                    ...((HASH_CHOICES as readonly number[]).includes(hash) ? [] : [hash]),
+                    ...HASH_CHOICES,
+                  ].map((n) => ({ value: String(n), label: `${n} MB` }))}
                 />
               </SField>
             </div>
           )}
         </div>
       </div>
-
-      <details className="presetDialog__details">
-        <summary className="presetDialog__summary">対局向け（非推奨）</summary>
-        <div className="presetDialog__detailsBody">
-          <div className="presetDialog__grid2">
-            <SField label="NetworkDelay" description="通信遅延の想定（対局向け）">
-              <SInput
-                type="number"
-                value={draft.options.NetworkDelay ?? DEFAULT_USI_OPTIONS.NetworkDelay}
-                onChange={(e) => setOpt("NetworkDelay", String(parseIntSafe(e.target.value, 0)))}
-              />
-            </SField>
-
-            <SField label="NetworkDelay2" description="通信遅延2（対局向け）">
-              <SInput
-                type="number"
-                value={draft.options.NetworkDelay2 ?? DEFAULT_USI_OPTIONS.NetworkDelay2}
-                onChange={(e) => setOpt("NetworkDelay2", String(parseIntSafe(e.target.value, 0)))}
-              />
-            </SField>
-
-            <SField label="MinimumThinkingTime" description="最小思考時間（対局向け）">
-              <SInput
-                type="number"
-                value={draft.options.MinimumThinkingTime ?? DEFAULT_USI_OPTIONS.MinimumThinkingTime}
-                onChange={(e) =>
-                  setOpt("MinimumThinkingTime", String(parseIntSafe(e.target.value, 0)))
-                }
-              />
-            </SField>
-
-            <SField label="SlowMover" description="秒読み配分（対局向け）">
-              <SInput
-                type="number"
-                value={draft.options.SlowMover ?? DEFAULT_USI_OPTIONS.SlowMover}
-                onChange={(e) => setOpt("SlowMover", String(parseIntSafe(e.target.value, 0)))}
-              />
-            </SField>
-          </div>
-
-          <div className="presetDialog__hintMuted">
-            研究・定跡管理アプリ（対戦なし）なら、ここは基本いじらなくてOKです。
-          </div>
-        </div>
-      </details>
     </SSection>
   );
 }

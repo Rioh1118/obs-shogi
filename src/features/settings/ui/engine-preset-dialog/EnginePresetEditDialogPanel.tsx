@@ -12,11 +12,6 @@ import {
   deepClone,
   parseIntSafe,
 } from "@/features/settings/lib/presetDialog";
-import {
-  MULTIPV_MAX,
-  MULTIPV_MIN,
-  QUICK_MULTIPV_SET,
-} from "@/entities/engine-presets/model/multiPv";
 import BasicSection from "./sections/BasicSection";
 import EngineFilesSection from "./sections/EngineFilesSection";
 import ImportantOptionsSection from "./sections/ImportantOptionsSection";
@@ -25,13 +20,14 @@ import PresetDialogFooter from "./PresetDialogFooter";
 import { useAppConfig } from "@/entities/app-config";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
+import { multiPvMax } from "@/features/settings/lib/quickOptions";
 import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
 import { asStartFailure } from "@/entities/engine";
 import { abandonProbe, isLatestProbe, probeEngine } from "@/entities/engine/api/tauri";
 import type { ProbeFailure } from "@/features/settings/lib/probeStatus";
 import { probePathOf, withDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import type { ThreadsMode } from "@/features/settings/model/types";
+import { fitValues } from "@/entities/engine-presets/lib/fitValues";
+import type { FitNote } from "@/features/settings/lib/fitNote";
 import PresetDialogHeader from "./PresetDialogHeader";
 import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engine/api/aiLibrary";
 
@@ -138,6 +134,15 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   // ---- オプションの定義の取得 ----
   const [probing, setProbing] = useState(false);
   const [probeFailure, setProbeFailure] = useState<ProbeFailure | null>(null);
+  /** 取得した定義に当てて変えた値。保存の前に見せる（黙って消さない） */
+  const [fitNote, setFitNote] = useState<FitNote | null>(null);
+
+  // 取得が返ったときに、その時点の下書きから値を当てる（取得を待つ間の編集を失わない）。
+  // 当てた結果（外した値）を画面に出すので、`setDraft` の更新関数の中では組めない
+  const draftRef = useRef(draft);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   /**
    * `enginePath` の申告を取り、下書きに定義を入れる。**最後に撃った取得の結果だけを使う**
@@ -153,9 +158,19 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     outcome.then(
       (result) => {
         if (!isLatestProbe(token)) return;
-        const probedAt = new Date().toISOString();
-        setDraft((cur) => (cur ? withDefinitions(cur, result, probedAt) : cur));
         setProbing(false);
+        const cur = draftRef.current;
+        if (!cur) return;
+        const withDefs = withDefinitions(cur, result, new Date().toISOString());
+        // 取得を撃たずにパスが変わっていた（`withDefinitions` が同じ参照を返した）なら当てない
+        if (withDefs === cur) return;
+        const fitted = fitValues(cur.options, result.definitions, result.reserved);
+        setDraft({ ...withDefs, options: fitted.options });
+        setFitNote({
+          enginePath: result.enginePath,
+          clamped: fitted.clamped,
+          dropped: fitted.dropped,
+        });
       },
       (e: unknown) => {
         if (!isLatestProbe(token)) return;
@@ -184,16 +199,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   const recommendedThreads = useMemo(() => clampInt(Math.min(cores, 8), 1, cores), [cores]);
 
-  // ---- MultiPV/Threads/Hash UI state ----
-  const [multiPv, setMultiPv] = useState(1);
-  const [showMultiPvCustom, setShowMultiPvCustom] = useState(false);
-
-  const [threadsMode, setThreadsMode] = useState<"auto" | "manual">("auto");
-  const [threadsManual, setThreadsManual] = useState(recommendedThreads);
-
-  const [hashMode, setHashMode] = useState<"auto" | "manual">("auto");
-  const [hashManual, setHashManual] = useState(parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024));
-
   // preset → draft 初期化
   useEffect(() => {
     if (!open) return;
@@ -202,34 +207,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const d = deepClone(preset);
     setDraft(d);
     setErrors({});
-
-    const mpv = clampInt(
-      parseIntSafe(d.options?.MultiPV, parseIntSafe(DEFAULT_USI_OPTIONS.MultiPV, 1)),
-      MULTIPV_MIN,
-      MULTIPV_MAX,
-    );
-    setMultiPv(mpv);
-    setShowMultiPvCustom(!QUICK_MULTIPV_SET.has(mpv));
-
-    const t = clampInt(
-      parseIntSafe(
-        d.options?.Threads,
-        parseIntSafe(DEFAULT_USI_OPTIONS.Threads, recommendedThreads),
-      ),
-      1,
-      cores,
-    );
-    setThreadsManual(t);
-    setThreadsMode(t === recommendedThreads ? "auto" : "manual");
-
-    const h = clampInt(
-      parseIntSafe(d.options?.USI_Hash, parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024)),
-      128,
-      65536,
-    );
-    setHashManual(h);
-    setHashMode(h === parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024) ? "auto" : "manual");
-  }, [open, preset, cores, recommendedThreads]);
+  }, [open, preset]);
 
   const currentProfile = useMemo(() => {
     const name = cleanText(draft?.aiName ?? "");
@@ -310,99 +288,16 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     );
   }, [open, draft, index, profiles, engines]);
 
-  const setOpt = useCallback((key: string, value: string) => {
+  /** `null` で値を消す（エンジン既定。送らない） */
+  const setOpt = useCallback((key: string, value: string | null) => {
     setDraft((cur) => {
       if (!cur) return cur;
-      return { ...cur, options: { ...cur.options, [key]: value } };
+      const options = { ...cur.options };
+      if (value == null) delete options[key];
+      else options[key] = value;
+      return { ...cur, options };
     });
   }, []);
-
-  const onChangeMultiPv = useCallback(
-    (n: number) => {
-      const v = clampInt(n, MULTIPV_MIN, MULTIPV_MAX);
-      setMultiPv(v);
-      setOpt("MultiPV", String(v));
-    },
-    [setOpt],
-  );
-
-  const onThreadsModeChange = useCallback(
-    (mode: ThreadsMode) => {
-      setThreadsMode(mode);
-      if (mode === "auto") {
-        setThreadsManual(recommendedThreads);
-        setOpt("Threads", String(recommendedThreads));
-      } else {
-        setOpt("Threads", String(clampInt(threadsManual, 1, cores)));
-      }
-    },
-    [cores, recommendedThreads, setOpt, threadsManual],
-  );
-
-  const onThreadsManualChange = useCallback(
-    (n: number) => {
-      const v = clampInt(n, 1, cores);
-      setThreadsManual(v);
-      setOpt("Threads", String(v));
-    },
-    [cores, setOpt],
-  );
-
-  const onHashModeChange = useCallback(
-    (mode: "auto" | "manual") => {
-      setHashMode(mode);
-      if (mode === "auto") {
-        const v = parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024);
-        setHashManual(v);
-        setOpt("USI_Hash", String(v));
-      } else {
-        const v = clampInt(hashManual, 128, 65536);
-        setOpt("USI_Hash", String(v));
-      }
-    },
-    [hashManual, setOpt],
-  );
-
-  const onHashManualChange = useCallback(
-    (n: number) => {
-      const v = clampInt(n, 128, 65536);
-      setHashManual(v);
-      setOpt("USI_Hash", String(v));
-    },
-    [setOpt],
-  );
-
-  const threadsModeOptions = useMemo(
-    () => [
-      {
-        value: "auto",
-        label: "自動（推奨）",
-        description: `この端末の論理コア数を元に推奨値 ${recommendedThreads} を設定`,
-      },
-      {
-        value: "manual",
-        label: "手動",
-        description: "数を固定します（上げすぎると熱/騒音や効率低下の可能性）",
-      },
-    ],
-    [recommendedThreads],
-  );
-
-  const hashModeOptions = useMemo(
-    () => [
-      {
-        value: "auto",
-        label: "自動（推奨）",
-        description: `デフォルト ${DEFAULT_USI_OPTIONS.USI_Hash}MB を使用`,
-      },
-      {
-        value: "manual",
-        label: "手動",
-        description: "長時間思考で効くことがあります（大きすぎるとRAM消費）",
-      },
-    ],
-    [],
-  );
 
   const onCreateEnginesDir = useCallback(async () => {
     const root = aiRoot;
@@ -472,7 +367,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
           }
         : undefined;
 
-    // options: 空は入れない + UI state 優先
+    // options: 空は入れない。値は下書きのとおり（無い名前はエンジン既定で、送らない）
     const rawOpt = draft.options ?? {};
     const options: Record<string, string> = {};
     for (const [k, v] of Object.entries(rawOpt)) {
@@ -481,16 +376,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       options[k] = vv;
     }
 
-    options.MultiPV = String(clampInt(multiPv, MULTIPV_MIN, MULTIPV_MAX));
-    options.Threads =
-      threadsMode === "auto"
-        ? String(recommendedThreads)
-        : String(clampInt(threadsManual, 1, cores));
-    options.USI_Hash =
-      hashMode === "auto"
-        ? String(parseIntSafe(DEFAULT_USI_OPTIONS.USI_Hash, 1024))
-        : String(clampInt(hashManual, 128, 65536));
-
     const patch: Partial<EnginePreset> = {
       label,
       aiName,
@@ -498,7 +383,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       evalFilePath,
       bookEnabled,
       bookFilePath,
-      options: { ...DEFAULT_USI_OPTIONS, ...options },
+      options,
       analysis,
       definitions: draft.definitions ?? null,
       definitionsFor: draft.definitionsFor ?? null,
@@ -509,20 +394,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
     // 書けなかったら閉じない（入力を残す）。理由は帯が出す（`PresetsFileBridge`）
     if (await updatePreset(presetId, patch)) onClose();
-  }, [
-    cores,
-    draft,
-    hashManual,
-    hashMode,
-    multiPv,
-    onClose,
-    presetId,
-    probing,
-    recommendedThreads,
-    threadsManual,
-    threadsMode,
-    updatePreset,
-  ]);
+  }, [draft, onClose, presetId, probing, updatePreset]);
 
   if (!preset || !draft) return null;
 
@@ -581,6 +453,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             probeFailure={probeFailure}
             onProbe={runProbe}
             onStopProbe={stopProbe}
+            fitNote={fitNote}
             draft={draft}
             setDraft={setDraft}
             errors={errors}
@@ -604,25 +477,10 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
           <ImportantOptionsSection
             draft={draft}
             setOpt={setOpt}
-            // MultiPV
-            multiPv={multiPv}
-            showMultiPvCustom={showMultiPvCustom}
-            setShowMultiPvCustom={setShowMultiPvCustom}
-            onChangeMultiPv={onChangeMultiPv}
-            // Threads
             cores={cores}
-            threadsMode={threadsMode}
-            threadsModeOptions={threadsModeOptions}
-            onThreadsModeChange={onThreadsModeChange}
-            threadsManual={threadsManual}
+            recommendedThreads={recommendedThreads}
             threadChoices={threadChoices}
-            onThreadsManualChange={onThreadsManualChange}
-            // Hash
-            hashMode={hashMode}
-            hashModeOptions={hashModeOptions}
-            hashManual={hashManual}
-            onHashModeChange={onHashModeChange}
-            onHashManualChange={onHashManualChange}
+            multiPvMax={multiPvMax(draft)}
           />
 
           <AnalysisDefaultsSection draft={draft} setDraft={setDraft} />
