@@ -484,8 +484,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       analysis,
     };
 
-    await updatePreset(presetId, patch);
-    onClose();
+    // 書けなかったら閉じない（入力を残す）。理由は帯が出す（`PresetsFileBridge`）
+    if (await updatePreset(presetId, patch)) onClose();
   }, [
     cores,
     draft,

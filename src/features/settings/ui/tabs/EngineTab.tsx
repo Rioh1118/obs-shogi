@@ -48,6 +48,10 @@ export default function EngineTab() {
     console.log(selectedId);
   }, [selectedId]);
 
+  // 書けないファイル（新しい版・読めない・移せなかった）では変更の操作を出さない。
+  // 理由は帯が出す（`PresetsFileBridge`）
+  const readOnly = !state.writable;
+
   const onAdd = async () => {
     await createPreset({ label: "新規プリセット" });
   };
@@ -75,7 +79,12 @@ export default function EngineTab() {
               <RefreshCcw size={16} style={{ marginRight: 6 }} />
               再読み込み
             </Button>
-            <Button tone="primary" size="sm" onClick={onAdd} disabled={state.status === "loading"}>
+            <Button
+              tone="primary"
+              size="sm"
+              onClick={onAdd}
+              disabled={state.status === "loading" || readOnly}
+            >
               <Plus size={16} style={{ marginRight: 6 }} />
               追加
             </Button>
@@ -148,11 +157,18 @@ export default function EngineTab() {
                         onClick={() => setEditingId(p.id)}
                         aria-label="編集"
                         title="編集"
+                        disabled={readOnly}
                       >
                         <Pencil size={16} />
                       </Button>
 
-                      <Button size="sm" onClick={() => onDup(p.id)} aria-label="複製" title="複製">
+                      <Button
+                        size="sm"
+                        onClick={() => onDup(p.id)}
+                        aria-label="複製"
+                        title="複製"
+                        disabled={readOnly}
+                      >
                         <Copy size={16} />
                       </Button>
 
@@ -162,7 +178,7 @@ export default function EngineTab() {
                         onClick={() => onDelete(p.id)}
                         aria-label="削除"
                         title="削除"
-                        disabled={presets.length <= 1}
+                        disabled={readOnly || presets.length <= 1}
                       >
                         <Trash2 size={16} />
                       </Button>

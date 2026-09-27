@@ -1,3 +1,4 @@
+import { readKindedFailure } from "@/shared/lib/kindedFailure";
 import type { StartFailure, StartFailureKind } from "../api/rust-types";
 
 /**
@@ -6,9 +7,8 @@ import type { StartFailure, StartFailureKind } from "../api/rust-types";
  *
  * 対局中のエンジンの異常による終局（`GameOverReason` の `engineFailure`）とは別物。
  */
-export type EngineStartFailure = {
+export type EngineStartFailure = Omit<StartFailure, "kind"> & {
   kind: EngineStartFailureKind;
-  message: string;
 };
 
 /**
@@ -17,10 +17,7 @@ export type EngineStartFailure = {
  */
 export type EngineStartFailureKind = StartFailureKind | "unknown";
 
-/**
- * Rust の種類の一覧。**`satisfies Record` で union と揃える**——配列で別に並べると、
- * union に足して一覧に足し忘れた種類が、実行時は必ず `unknown` に落ちる
- */
+/** Rust の種類の一覧（`readKindedFailure` に渡す。`satisfies Record` で union と揃える） */
 const START_FAILURE_KINDS = {
   spawnFailed: true,
   quarantined: true,
@@ -32,18 +29,7 @@ const START_FAILURE_KINDS = {
   other: true,
 } satisfies Record<StartFailureKind, true>;
 
-function isStartFailureKind(kind: unknown): kind is StartFailureKind {
-  return (
-    typeof kind === "string" && Object.prototype.hasOwnProperty.call(START_FAILURE_KINDS, kind)
-  );
-}
-
-/** `invoke` が投げた値を読む。**形を信じない**——知らない種類は `unknown` に落とす */
+/** `invoke` が投げた値を読む（`readKindedFailure`） */
 export function asStartFailure(error: unknown): EngineStartFailure {
-  if (typeof error === "object" && error !== null && "kind" in error) {
-    const { kind, message } = error as Partial<StartFailure> & { kind: unknown };
-    const text = typeof message === "string" ? message : String(error);
-    return { kind: isStartFailureKind(kind) ? kind : "unknown", message: text };
-  }
-  return { kind: "unknown", message: error instanceof Error ? error.message : String(error) };
+  return readKindedFailure(error, START_FAILURE_KINDS);
 }

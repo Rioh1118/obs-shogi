@@ -5,7 +5,7 @@
 use tauri::{AppHandle, Runtime};
 
 use crate::app::AppConfig;
-use crate::presets::PresetsFile;
+use crate::presets::{EnginePreset, LoadedPresets, SaveFailure};
 use crate::study::StudyPositionsFile;
 use crate::updater::UpdaterState;
 use crate::{app, presets, study, updater};
@@ -28,14 +28,21 @@ pub fn backup_broken_config(app_handle: AppHandle) -> Result<Option<String>, Str
     app::back_up_broken(&app_handle)
 }
 
+/// 読み込む。**古い版のファイルはここで移す**（`presets::load_from`）
 #[tauri::command]
-pub fn load_presets(app_handle: AppHandle) -> Result<PresetsFile, String> {
-    presets::read_or_default(&app_handle)
+pub fn load_presets(app_handle: AppHandle) -> Result<LoadedPresets, String> {
+    presets::load(&app_handle)
 }
 
+/// 書く。`expected_revision` は読み込みで受け取った印で、ファイルがその後に変わっていたら
+/// 書かずに断る。成功したら新しい印を返す
 #[tauri::command]
-pub fn save_presets(app_handle: AppHandle, file: PresetsFile) -> Result<(), String> {
-    presets::write(&app_handle, &file)
+pub fn save_presets(
+    app_handle: AppHandle,
+    presets: Vec<EnginePreset>,
+    expected_revision: Option<String>,
+) -> Result<String, SaveFailure> {
+    presets::save(&app_handle, presets, expected_revision.as_deref())
 }
 
 #[tauri::command]

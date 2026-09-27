@@ -56,6 +56,10 @@ const TABLES: &[(&str, &[&str])] = &[
         ],
     ),
     ("docs/state-transitions/search.md", &["src/search"]),
+    (
+        "docs/state-transitions/presets-file.md",
+        &["crates/settings/src/presets.rs"],
+    ),
 ];
 
 /// Rust の実装を指していない表。**理由を書かずに足さない。**

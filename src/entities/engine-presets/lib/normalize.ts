@@ -1,5 +1,5 @@
 import { DEFAULT_USI_OPTIONS } from "../model/defaultOptions";
-import type { EnginePreset, PresetId, PresetsFile, UsiOptionMap } from "../model/types";
+import type { EnginePreset, PresetId, UsiOptionMap } from "../model/types";
 
 export function genPresetId(): PresetId {
   return crypto.randomUUID();
@@ -75,8 +75,7 @@ export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
   return p;
 }
 
-export function normalizeLoadedFile(file: PresetsFile | null): EnginePreset[] {
-  const presets = file?.presets ?? [];
+export function normalizeLoadedPresets(presets: EnginePreset[]): EnginePreset[] {
   const normalized = presets.map((p) => normalizeOnePreset(p));
 
   // id 重複の保険（もし壊れてたら再採番）

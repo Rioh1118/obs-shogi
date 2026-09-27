@@ -29,18 +29,17 @@ use std::path::Path;
 /// 2. **Tauri の境界に出ない**。TS が読まないので揃える相手がいない
 ///
 /// 「まだ直していない」は理由にならない。それは下の `BASELINE` が数える側。
-const EXEMPT: [(&str, &str); 12] = [
+const EXEMPT: [(&str, &str); 11] = [
     (
         "Fixture",
         "境界に出ない: テストの入力（`#[cfg(test)]` の中で fixture を読むだけ）",
     ),
     ("AppConfig", "保存ファイル: アプリ設定"),
-    ("PresetsFile", "保存ファイル: エンジンプリセット"),
     (
         "EnginePreset",
-        "同上の要素。既に camelCase だが変えられないことは同じ",
+        "保存ファイル: エンジンプリセットの1件（`engine_presets.json` の `presets`）。既に camelCase だが変えられないことは同じ",
     ),
-    ("AnalysisDefaults", "同上"),
+    ("AnalysisDefaults", "保存ファイル: エンジンプリセットの1件の `analysis`"),
     ("StudyPositionsFile", "保存ファイル: 研究局面"),
     ("StudyPosition", "同上の要素"),
     ("StudyPositionState", "同上の欄"),
@@ -370,5 +369,23 @@ fn untagged_data_enums_only_go_down() {
         UNTAGGED_ENUM_BASELINE,
         "{} 件まで減った。UNTAGGED_ENUM_BASELINE を下げること",
         untagged.len()
+    );
+}
+
+/// 対象外に並べた名前が、走査で見つかる型に実在すること。
+///
+/// 型を消したり改名したりしても対象外の行は残り、残った行の理由（「同上」など）は
+/// 消えた型を指したまま読めなくなる。
+#[test]
+fn every_exempt_name_is_a_real_type() {
+    let names: BTreeSet<String> = all_types().into_iter().map(|t| t.name).collect();
+    let stale: Vec<&str> = EXEMPT
+        .iter()
+        .map(|(name, _)| *name)
+        .filter(|name| !names.contains(*name))
+        .collect();
+    assert!(
+        stale.is_empty(),
+        "対象外に並んでいるが、もう無い型: {stale:?}"
     );
 }
