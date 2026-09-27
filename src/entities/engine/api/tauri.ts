@@ -4,6 +4,7 @@ import type {
   AnalysisStatus,
   DepthOutcome,
   BookChoice,
+  ProbeOutcome,
   SetOptionValue,
   StartOutcome,
 } from "./rust-types";
@@ -42,6 +43,30 @@ type StartAnalysisEngineArgs = {
  */
 export async function startAnalysisEngine(args: StartAnalysisEngineArgs): Promise<StartOutcome> {
   return await invoke("start_analysis_engine", args);
+}
+
+/**
+ * 申告の取得の番号。**アプリ全体で1本の列**にする——Rust は既に受けた番号より古い取得を断るので、
+ * ダイアログを開き直すたびに0から数えると、2回目以降の取得が全部断られる
+ */
+let lastProbeToken = 0;
+
+/**
+ * エンジンを起こして申告（名前・作者・オプションの定義）だけを取り、落とす。cwd は実行ファイルのフォルダ。
+ * 前の取得が進んでいれば Rust が取り消す（そちらは `cancelled` で断られる）。
+ *
+ * 返った結果も失敗も、`token` が最後に撃ったものでなければ捨てること（`isLatestProbe`）。
+ * 断るときは `StartFailure`（`asStartFailure` で読む）
+ */
+export function probeEngine(enginePath: string): { token: number; outcome: Promise<ProbeOutcome> } {
+  lastProbeToken += 1;
+  const token = lastProbeToken;
+  return { token, outcome: invoke<ProbeOutcome>("probe_engine", { enginePath, token }) };
+}
+
+/** `token` が最後に撃った取得か */
+export function isLatestProbe(token: number): boolean {
+  return token === lastProbeToken;
 }
 
 /** 解析用のエンジンを落とす。起動中のものも止める。既に新しい番号を受けていれば何もしない */

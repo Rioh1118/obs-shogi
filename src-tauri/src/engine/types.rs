@@ -117,6 +117,93 @@ pub enum StartWarning {
     InvalidType { name: String, value: String },
 }
 
+/// プリセットに**保存する**オプションの定義1件。画面に欄を出すためだけに使う（送るときは起動のたびの
+/// 申告を見る。`binding::bind`）。
+///
+/// **線の形（`EngineOption`）とは別に持つ。** あちらの形（外部タグ・snake_case）をそのままファイルに
+/// 残すと、線の形を変えるたびにプリセットのファイルの移行が要る。こちらはファイルに残る形なので、
+/// 変えるときは版を上げる
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsiOptionDef {
+    pub name: String,
+    #[serde(flatten)]
+    pub kind: UsiOptionKind,
+}
+
+/// 定義の型と、型ごとの既定値・範囲
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum UsiOptionKind {
+    Check {
+        default: Option<bool>,
+    },
+    Spin {
+        default: Option<i32>,
+        min: Option<i32>,
+        max: Option<i32>,
+    },
+    Combo {
+        default: Option<String>,
+        vars: Vec<String>,
+    },
+    String {
+        default: Option<String>,
+    },
+    Filename {
+        default: Option<String>,
+    },
+    /// 押すだけの口。値を持たないので保存しない
+    Button,
+}
+
+impl From<&EngineOption> for UsiOptionDef {
+    fn from(option: &EngineOption) -> Self {
+        let kind = match &option.option_type {
+            EngineOptionType::Check { default } => UsiOptionKind::Check { default: *default },
+            EngineOptionType::Spin { default, min, max } => UsiOptionKind::Spin {
+                default: *default,
+                min: *min,
+                max: *max,
+            },
+            EngineOptionType::Combo { default, vars } => UsiOptionKind::Combo {
+                default: default.clone(),
+                vars: vars.clone(),
+            },
+            EngineOptionType::String { default } => UsiOptionKind::String {
+                default: default.clone(),
+            },
+            EngineOptionType::Filename { default } => UsiOptionKind::Filename {
+                default: default.clone(),
+            },
+            EngineOptionType::Button { .. } => UsiOptionKind::Button,
+        };
+        Self {
+            name: option.name.clone(),
+            kind,
+        }
+    }
+}
+
+/// エンジンの申告を取った結果（`probe_engine`）。`token` と `engine_path` は受けたものをそのまま返す——
+/// 画面は、いまの取得・いまのパスのものでなければ捨てる
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProbeOutcome {
+    pub token: u64,
+    pub engine_path: String,
+    pub name: String,
+    pub author: String,
+    /// 申告の順
+    pub definitions: Vec<UsiOptionDef>,
+    /// 評価関数・定跡・固定値が持つ名前（`binding::reserved_names`）。利用者の値としては送らない
+    pub reserved: Vec<String>,
+}
+
 /// 解析の起動が返すもの。警告は起動を止めない
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

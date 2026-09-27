@@ -27,6 +27,9 @@ import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/typ
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
+import { asStartFailure, type EngineStartFailureKind } from "@/entities/engine";
+import { isLatestProbe, probeEngine } from "@/entities/engine/api/tauri";
+import { withDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
 import type { ThreadsMode } from "@/features/settings/model/types";
 import PresetDialogHeader from "./PresetDialogHeader";
 import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engine/api/aiLibrary";
@@ -131,6 +134,37 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const [draft, setDraft] = useState<EnginePreset | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // ---- オプションの定義の取得 ----
+  const [probing, setProbing] = useState(false);
+  const [probeFailure, setProbeFailure] = useState<EngineStartFailureKind | null>(null);
+
+  /**
+   * `enginePath` の申告を取り、下書きに定義を入れる。**最後に撃った取得の結果だけを使う**
+   * （`isLatestProbe`）。取得を待つ間にエンジンを選び直していれば、`withDefinitions` が捨てる
+   */
+  const runProbe = useCallback((enginePath: string) => {
+    if (!enginePath) return;
+    const { token, outcome } = probeEngine(enginePath);
+    setProbing(true);
+    setProbeFailure(null);
+    outcome.then(
+      (result) => {
+        if (!isLatestProbe(token)) return;
+        const probedAt = new Date().toISOString();
+        setDraft((cur) => (cur ? withDefinitions(cur, result, probedAt) : cur));
+        setProbing(false);
+      },
+      (e: unknown) => {
+        if (!isLatestProbe(token)) return;
+        setProbing(false);
+        const failure = asStartFailure(e);
+        console.warn("[EnginePresetEditDialog] probe failed:", failure.message);
+        // 取り消し（`cancelled`）も残す。出すかは `probeStatusText` が決める
+        setProbeFailure(failure.kind);
+      },
+    );
+  }, []);
+
   // ---- CPU recommended ----
   const cores = useMemo(() => {
     const c =
@@ -160,6 +194,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const d = deepClone(preset);
     setDraft(d);
     setErrors({});
+    setProbing(false);
+    setProbeFailure(null);
 
     const mpv = clampInt(
       parseIntSafe(d.options?.MultiPV, parseIntSafe(DEFAULT_USI_OPTIONS.MultiPV, 1)),
@@ -385,6 +421,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   const onSave = useCallback(async () => {
     if (!draft) return;
+    // 取得中に保存すると、取得が返る前のエンジンの定義（または無し）で書く
+    if (probing) return;
 
     const nextErrors: Record<string, string> = {};
 
@@ -456,6 +494,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       bookFilePath,
       options: { ...DEFAULT_USI_OPTIONS, ...options },
       analysis,
+      definitions: draft.definitions ?? null,
+      definitionsFor: draft.definitionsFor ?? null,
+      probedAt: draft.probedAt ?? null,
+      engineName: draft.engineName ?? null,
+      engineAuthor: draft.engineAuthor ?? null,
     };
 
     // 書けなかったら閉じない（入力を残す）。理由は帯が出す（`PresetsFileBridge`）
@@ -468,6 +511,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     multiPv,
     onClose,
     presetId,
+    probing,
     recommendedThreads,
     threadsManual,
     threadsMode,
@@ -527,6 +571,9 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
           />
 
           <EngineFilesSection
+            probing={probing}
+            probeFailure={probeFailure}
+            onProbe={runProbe}
             draft={draft}
             setDraft={setDraft}
             errors={errors}
@@ -574,7 +621,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
           <AnalysisDefaultsSection draft={draft} setDraft={setDraft} />
         </div>
 
-        <PresetDialogFooter onClose={onClose} onSave={onSave} />
+        <PresetDialogFooter onClose={onClose} onSave={onSave} saveDisabled={probing} />
       </div>
     </Modal>
   );

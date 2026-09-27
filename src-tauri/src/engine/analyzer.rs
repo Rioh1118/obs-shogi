@@ -1007,7 +1007,7 @@ async fn eval_target(path: &str) -> EvalTarget {
 }
 
 /// 解析の方針として送る値（申告にある名前だけが送られる）: 検討モードを入れ、先読みを切る
-fn analysis_fixed_values() -> Vec<SetOptionValue> {
+pub fn analysis_fixed_values() -> Vec<SetOptionValue> {
     [("ConsiderationMode", "true"), ("USI_Ponder", "false")]
         .into_iter()
         .map(|(name, value)| SetOptionValue {

@@ -211,6 +211,26 @@ fn bind_book(
     }
 }
 
+/// **評価関数・定跡・固定値が持つ名前**（申告にあるものだけ、申告の順）。利用者の値としては送らない。
+///
+/// 評価関数を受ける名前（E1〜E4 で当たった1つ）と定跡を受ける名前（`BookFile` / `Book_File` /
+/// `BookDir` / 切る口）は、**その回に送るかに依らず**持つ——評価関数・定跡を選んでいない回に
+/// 利用者の値が通ると、欄で選んでいない評価関数・定跡でエンジンが動く。画面はこの一覧を
+/// 取得で受け取り、その欄を読み取り専用にする（`ProbeOutcome::reserved`）
+pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Vec<String> {
+    let eval = eval_option(declared).map(|(name, _)| name);
+    declared
+        .iter()
+        .map(|o| o.name.as_str())
+        .filter(|name| {
+            Some(*name) == eval
+                || ["BookFile", "Book_File", "BookDir", "USI_OwnBook", "OwnBook"].contains(name)
+                || fixed.iter().any(|f| f.name == *name)
+        })
+        .map(str::to_string)
+        .collect()
+}
+
 /// 利用者の値1件を、申告の型に合わせて送る形にする。送らないなら `None`（警告を積む）。
 /// **起動は断らない**——型の合わない値を送るとエンジンが落ちる（`spin` に整数以外）ので送らない
 fn user_value(
@@ -269,8 +289,8 @@ fn user_value(
 /// 送る `setoption` を決める。判定表は `docs/state-transitions/option-binding.md`。
 ///
 /// 順は「利用者の値（**申告の順**）→ 評価関数 → 定跡 → 固定値」。評価関数・定跡・固定値と
-/// 同じ名前の利用者の値は送らない（そちらが勝つ）。**定跡を受ける名前**（`BookFile` / `Book_File` /
-/// `BookDir` / 切る口）の利用者の値は、定跡を送らなかった回も送らない——定跡の選択で決めるものなので
+/// 同じ名前の利用者の値は送らない（そちらが勝つ）。評価関数・定跡を受ける名前の利用者の値は、
+/// それらを送らなかった回も送らない（`reserved_names`）
 pub fn bind(declared: &[EngineOption], input: &BindingInput) -> Bound {
     let mut warnings = Vec::new();
     let mut bound = Vec::new();
@@ -282,8 +302,8 @@ pub fn bind(declared: &[EngineOption], input: &BindingInput) -> Bound {
         }
     }
 
-    let mut taken: HashSet<&str> = bound.iter().map(|o| o.name.as_str()).collect();
-    taken.extend(["BookFile", "Book_File", "BookDir", "USI_OwnBook", "OwnBook"]);
+    let reserved = reserved_names(declared, &input.fixed);
+    let taken: HashSet<&str> = reserved.iter().map(String::as_str).collect();
     let values: HashMap<&str, &str> = input
         .values
         .iter()
@@ -799,5 +819,50 @@ mod tests {
                 .unwrap_or_default();
             assert_eq!(wire["kind"], camel, "{name} の線の綴りが違う");
         }
+    }
+
+    /// 評価関数・定跡・固定値の名前を、申告にあるものだけ申告の順で挙げる。利用者が触る
+    /// 一般の名前（`Threads`）は入らない
+    #[test]
+    fn reserved_names_are_what_the_fields_own() {
+        let fixed = [
+            value("ConsiderationMode", "true"),
+            value("USI_Ponder", "false"),
+        ];
+        let reserved = reserved_names(&declared(V900), &fixed);
+
+        for name in [
+            "EvalDir",
+            "BookDir",
+            "BookFile",
+            "USI_OwnBook",
+            "ConsiderationMode",
+        ] {
+            assert!(
+                reserved.iter().any(|r| r == name),
+                "{name} が無い: {reserved:?}"
+            );
+        }
+        assert!(!reserved.iter().any(|r| r == "Threads"), "{reserved:?}");
+        let zermelo = reserved_names(&declared(ZERMELO), &[]);
+        assert!(zermelo.iter().any(|r| r == "EvalFile"), "{zermelo:?}");
+    }
+
+    /// 評価関数を選んでいない回も、評価関数を受ける名前の利用者の値は送らない——
+    /// 欄で選んでいない評価関数でエンジンが動く
+    #[test]
+    fn an_eval_value_is_not_sent_even_without_an_eval() {
+        let bound = bind(
+            &declared(ZERMELO),
+            &BindingInput {
+                values: vec![value("EvalFile", "/elsewhere/model.bin")],
+                ..BindingInput::default()
+            },
+        );
+
+        assert_eq!(lookup(&bound, "EvalFile"), None);
+        assert!(bound.warnings.contains(&StartWarning::OverriddenByBinding {
+            name: "EvalFile".to_string()
+        }));
     }
 }

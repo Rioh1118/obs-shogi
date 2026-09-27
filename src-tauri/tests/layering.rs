@@ -159,15 +159,21 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
+        name: "probe",
+        decides: "エンジンを起こして申告だけを取る",
+        may_use: &["types", "protocol", "registry", "binding", "start_failure"],
+        forbids: &["tauri"],
+    },
+    Layer {
         name: "state",
         decides: "Tauri が持つ持ち物",
-        may_use: &["registry", "game", "bridge"],
+        may_use: &["registry", "game", "bridge", "probe"],
         forbids: &[],
     },
     Layer {
         name: "commands",
         decides: "Tauri コマンドの入口",
-        may_use: &["types", "utils", "game", "analyzer", "state"],
+        may_use: &["types", "utils", "game", "analyzer", "probe", "state"],
         forbids: &[],
     },
 ];

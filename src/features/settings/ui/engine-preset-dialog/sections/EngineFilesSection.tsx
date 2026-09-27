@@ -7,6 +7,8 @@ import { basename, cleanText, pickDefaultBookDb } from "@/features/settings/lib/
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 import type { PresetEngineOption } from "@/features/settings/lib/presetEngineOptions";
+import { probeStatusText } from "@/features/settings/lib/probeStatus";
+import type { EngineStartFailureKind } from "@/entities/engine";
 
 /**
  * 帯の文言。網羅の理由は `EnginesDir` の doc。
@@ -22,6 +24,10 @@ const ENGINES_DIR_HINT: Record<EnginesDir, ((path: string) => string) | null> = 
 };
 
 export default function EngineFilesSection(props: {
+  probing: boolean;
+  probeFailure: EngineStartFailureKind | null;
+  /** そのエンジンのオプションの定義を取る */
+  onProbe: (enginePath: string) => void;
   draft: EnginePreset;
   setDraft: Dispatch<SetStateAction<EnginePreset | null>>;
   errors: Record<string, string>;
@@ -46,6 +52,9 @@ export default function EngineFilesSection(props: {
   profiles: ProfileCandidate[];
 }) {
   const {
+    probing,
+    probeFailure,
+    onProbe,
     draft,
     setDraft,
     errors,
@@ -70,6 +79,7 @@ export default function EngineFilesSection(props: {
   // 片方を緩めた人が `unknown` に嘘を言わせる形が戻る
   const hint = ENGINES_DIR_HINT[enginesDir];
   const selectedNote = engineOptions.find((o) => o.value === draft.enginePath)?.note ?? null;
+  const probeStatus = probeStatusText(draft, probing, probeFailure);
 
   return (
     <SSection
@@ -115,6 +125,7 @@ export default function EngineFilesSection(props: {
               const path = e.target.value;
               setDraft({ ...draft, enginePath: path });
               setErrors((es) => ({ ...es, enginePath: "" }));
+              onProbe(path);
             }}
             options={engineOptions}
             placeholder={
@@ -135,6 +146,14 @@ export default function EngineFilesSection(props: {
             <div className="presetDialog__hintMuted" style={{ marginTop: 8 }}>
               選択: <b>{basename(draft.enginePath)}</b>
               {selectedNote && <>（{selectedNote}）</>}
+            </div>
+          )}
+          {probeStatus && (
+            <div className="presetDialog__hintMuted" style={{ marginTop: 8 }}>
+              {probeStatus}{" "}
+              <Button size="sm" onClick={() => onProbe(draft.enginePath)} busy={probing}>
+                オプションを読み込む
+              </Button>
             </div>
           )}
         </SField>
