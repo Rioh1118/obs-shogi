@@ -75,6 +75,56 @@ pub struct SetOptionValue {
     pub value: String,
 }
 
+/// 解析の起動で選んだ定跡（絶対パス）と、解析で使うか
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookChoice {
+    pub path: String,
+    pub use_in_analysis: bool,
+}
+
+/// 起動で送らなかった・変えて送った設定。**起動はできている**（失敗は `StartFailure`）。
+/// 画面の文言は種類から組む
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum StartWarning {
+    /// このエンジンが申告していない名前。送っていない
+    NotDeclared { name: String },
+    /// 評価関数・定跡・固定値と同じ名前。そちらを送った
+    OverriddenByBinding { name: String },
+    /// 範囲の外。`value` に丸めて送った
+    Clamped { name: String, value: String },
+    /// 選択肢に無い値。送っていない
+    NotInVars { name: String, value: String },
+    /// 評価関数を指定できないエンジン。送っていない
+    EvalNotSupported,
+    /// 評価関数を受ける名前（`name`）があるのに選んでいない。エンジンは自分の既定で探す
+    EvalNotChosen { name: String },
+    /// 評価関数にファイルを要るエンジンに、フォルダを選んでいる。送っていない
+    EvalNeedsFile { name: String },
+    /// 定跡を指定できないエンジン。送らずに（切れるなら）定跡を切った
+    BookNotSupported,
+    /// 定跡のファイル名がエンジンの選択肢に無い（名前しか受けないエンジン）。送らずに定跡を切った
+    BookNameNotInVars { file: String },
+    /// 定跡を受ける名前はあるが、切る口（`USI_OwnBook` / `no_book`）が無い。エンジンは自分の
+    /// 既定の定跡で指しうる
+    BookCannotBeDisabled,
+    /// 申告の型に合わない値（`check` に真偽以外、`spin` に整数以外）。送っていない
+    InvalidType { name: String, value: String },
+}
+
+/// 解析の起動が返すもの。警告は起動を止めない
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartOutcome {
+    pub info: EngineInfo,
+    pub warnings: Vec<StartWarning>,
+}
+
 /// エンジンを起動できなかった理由の種類。**画面の文言はこれから組む**
 /// （エンジンが書いた文字列は `StartFailure::message` の側にしか載せない）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -91,7 +141,8 @@ pub enum StartFailureKind {
     ExitedEarly,
     /// 締切までに段が終わらなかった
     TimedOut,
-    /// 送る前に断った `setoption`（件数・長さ・行を壊す文字。`setup::validate_options`）
+    /// 送る前に断った値（件数・長さ・行を壊す文字。利用者の値と評価関数・定跡のパス。`setup::validate_options`）。
+    /// 型の合わない値は断らずに送らない（`StartWarning::InvalidType`）
     InvalidValue,
     /// こちらが止めた（起動中に別の設定へ切り替えた、利用者が起動をやめた）。フロントは
     /// 自分が別の要求で止めた回を世代で捨てるので、帯に届くのは利用者がやめた回だけ

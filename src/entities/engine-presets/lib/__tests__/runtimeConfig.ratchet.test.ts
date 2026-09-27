@@ -8,7 +8,7 @@ import { codeOf } from "@/__tests__/sourceText";
  * `EnginePreset` から `EngineRuntimeConfig` を組む場所が1つだけか。
  *
  * **2箇所で書くと、tsc が片方しか守らない。** 必須欄が増えたときは両方落ちるが、
- * `bookFile` の出し方を変える・欄の値の出どころを変える、といった変更は
+ * 定跡の出し方を変える・欄の値の出どころを変える、といった変更は
  * **片方だけ直しても通る。** 結果は「解析では定跡を読むのに対局では読まない」で、
  * 起動して対局を1局進めるまで分からない。
  *
@@ -18,9 +18,9 @@ import { codeOf } from "@/__tests__/sourceText";
  * だけで、**プリセットのどの欄が設定のどの欄になるかは2回手書きされていた。**
  *
  * **見るのは「プリセットから組んでいる」形だけ。** 型名を名乗らないリテラルでも
- * 引っかかるように、`evalDir` と `bookFile` と `workDir` が同じ括弧の中に並び、
+ * 引っかかるように、`enginePath` と `evalPath` が同じ括弧の中に並び、
  * かつその中で `preset` を引いているかで見る。型注釈で見ると、`playerSpec.ts` が
- * やっていた「名乗らないリテラルを `usiOptionsOf` に直接渡す」形を1件も拾えない。
+ * やっていた「名乗らないリテラルを直接渡す」形を1件も拾えない。
  *
  * **`preset` を引いていない組み立ては見ない。** 既にある設定を写す形
  * （`api/initializer.ts`）や、2つを比べる形（`lib/equalRuntime.ts`）は、
@@ -31,17 +31,18 @@ import { codeOf } from "@/__tests__/sourceText";
 const OWNER = "src/entities/engine-presets/lib/derivePath.ts";
 
 /**
- * 設定を組んでいる形。`evalDir` と `bookFile` と `workDir` が近くに並ぶ。
+ * 設定を組んでいる形。`enginePath` と `evalPath` が近くに並ぶ（`book` は入れ子の括弧を持つので、
+ * 下の雑な走査では同じ塊に入らない。並ぶ欄だけで見る）。
  *
  * **順不同で見る。** 欄の並べ替えだけで走査を外せると、止めたい変更の多くが抜ける。
  */
-const FIELDS = ["evalDir", "bookFile", "workDir"] as const;
+const FIELDS = ["enginePath", "evalPath"] as const;
 
 /** 走査が壊れて0件になったことを「違反が無い」と読ませないための下限 */
 const MIN_SCANNED = 100;
 
 /**
- * 1つの括弧の中に3つとも在るか。
+ * 1つの括弧の中に `FIELDS` が全部在るか。
  *
  * **括弧の対応は取らない。** `{` から次の `}` までを1つの塊として見る雑な走査で、
  * 入れ子があると塊が短く切れる —— 見落とす側に倒れるので、
@@ -75,6 +76,14 @@ describe("エンジンの設定を組む口", () => {
   it("走査がソースを見つけている", () => {
     // **「違反0件」と「見たファイル0件」を区別する**
     expect(scan().scanned).toBeGreaterThan(MIN_SCANNED);
+  });
+
+  /**
+   * **持ち主の組み立てを、この走査が「組んでいる」と読めること。** 欄の名前を変えたのに
+   * `FIELDS` を直さないと、持ち主の外で組んでも拾えない（違反0件のまま緑になる）
+   */
+  it("持ち主の組み立てを拾える", () => {
+    expect(assemblesConfig(codeOf(readFileSync(join(REPO_ROOT, OWNER), "utf8")))).toBe(true);
   });
 
   it("持ち主の外で組んでいない", () => {

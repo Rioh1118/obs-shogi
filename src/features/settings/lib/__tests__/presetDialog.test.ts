@@ -147,9 +147,14 @@ describe("autofillPreset", () => {
     expect(next.bookFilePath).toBe(PROFILE.book_db_files[0].path);
   });
 
-  test("定跡を使わないなら落とす", () => {
-    const next = autofillPreset({ ...PRESET, bookFilePath: "/ai/Suisho/book/x.db" }, NOTHING);
+  /**
+   * **解析で使わなくても定跡のパスは残す。** 定跡ビューはこのパスを出し、切ったことは起動のたびに
+   * Rust が送る。落とすと、切り替えるたびに定跡を選び直すことになり、定跡ビューからも消える
+   */
+  test("定跡を解析で使わなくても、選んだ定跡は残す", () => {
+    const cur = { ...PRESET, bookEnabled: false, bookFilePath: "/ai/Suisho/book/x.db" };
+    const next = autofillPreset(cur, NOTHING);
 
-    expect(next.bookFilePath).toBeNull();
+    expect(next.bookFilePath).toBe("/ai/Suisho/book/x.db");
   });
 });

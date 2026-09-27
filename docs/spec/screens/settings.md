@@ -159,13 +159,13 @@
 
 プリセットの一覧（カード）。1枚が1プリセット。
 
-| カードに出るもの                | 元                                                                          |
-| ------------------------------- | --------------------------------------------------------------------------- |
-| 名前                            | `label`（空なら「（無名プリセット）」）                                     |
-| 適用中                          | `selectedPresetId` と一致                                                   |
-| 要設定／設定済み                | `isPresetConfigured`（`aiName` `enginePath` `evalFilePath` が揃っているか） |
-| AI名／エンジン／評価関数        | パスは basename だけ                                                        |
-| MultiPV / Threads / Hash / Book | `options` と `bookEnabled`                                                  |
+| カードに出るもの                | 元                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| 名前                            | `label`（空なら「（無名プリセット）」）                                          |
+| 適用中                          | `selectedPresetId` と一致                                                        |
+| 要設定／設定済み                | `isPresetConfigured`（`aiName` `enginePath` が揃っているか。評価関数は要らない） |
+| AI名／エンジン／評価関数        | パスは basename だけ                                                             |
+| MultiPV / Threads / Hash / Book | `options` と `bookEnabled`（Book は「解析で定跡を使うか」）                      |
 
 `MultiPV >= 2` のときだけ「幅 vs 深さ」の注意書きを出す。
 

@@ -3,8 +3,9 @@ import type {
   AnalysisResult,
   AnalysisStatus,
   DepthOutcome,
-  EngineInfo,
+  BookChoice,
   SetOptionValue,
+  StartOutcome,
 } from "./rust-types";
 
 // ===== エンジンの起動・停止 =====
@@ -17,25 +18,30 @@ import type {
  */
 export type EngineRequest = number;
 
+/** 解析の起動で渡すもの。**USI の名前は含まない**（どの名前で送るかは Rust が申告から決める） */
+type StartAnalysisEngineArgs = {
+  enginePath: string;
+  /** 利用者の値（プリセットの `options`） */
+  values: SetOptionValue[];
+  /** 選んだ評価関数（絶対パス。ファイルでもフォルダでもよい） */
+  evalPath: string | null;
+  book: BookChoice | null;
+  request: EngineRequest;
+};
+
 /**
- * 解析用のエンジンを起動し、`setoption` を**並べた順に**送って `readyok` まで待つ。
+ * 解析用のエンジンを起動し、設定を送って `readyok` まで待つ。
+ *
+ * 評価関数と定跡は**パスで**渡し、どの USI の名前（`EvalDir` / `EvalFile` / `BookFile` …）で
+ * 送るかは Rust がその回の申告から決める（`binding.rs`）。送らなかった設定は `warnings` で返る。
+ * cwd は実行ファイルのフォルダ。
  *
  * 断るときは `StartFailure`（`asStartFailure` で読む）。**`readyok` の待ちに上限は無い**
  * ——止める口は、より新しい番号の `shutdownEngine` と `startAnalysisEngine`
  * （Rust が起動中のプロセスを落とし、この呼び出しは `cancelled` で断られる）。
  */
-export async function startAnalysisEngine(
-  enginePath: string,
-  workDir: string,
-  options: SetOptionValue[],
-  request: EngineRequest,
-): Promise<EngineInfo> {
-  return await invoke("start_analysis_engine", {
-    enginePath,
-    workingDir: workDir,
-    options,
-    request,
-  });
+export async function startAnalysisEngine(args: StartAnalysisEngineArgs): Promise<StartOutcome> {
+  return await invoke("start_analysis_engine", args);
 }
 
 /** 解析用のエンジンを落とす。起動中のものも止める。既に新しい番号を受けていれば何もしない */

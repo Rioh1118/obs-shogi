@@ -1,6 +1,6 @@
-import { usiOptionsOf } from "../lib/setup";
+import { valuesOf } from "../lib/setup";
 import type { EngineRuntimeConfig } from "../model/types";
-import type { EngineInfo } from "./rust-types";
+import type { StartOutcome } from "./rust-types";
 import { shutdownEngine, startAnalysisEngine, type EngineRequest } from "./tauri";
 
 /**
@@ -13,12 +13,18 @@ import { shutdownEngine, startAnalysisEngine, type EngineRequest } from "./tauri
  * `readyok` を返さないエンジンで停止ごと固まる。
  */
 export interface EngineInitializer {
-  initialize(runtime: EngineRuntimeConfig, request: EngineRequest): Promise<EngineInfo>;
+  initialize(runtime: EngineRuntimeConfig, request: EngineRequest): Promise<StartOutcome>;
   shutdown(request: EngineRequest): Promise<void>;
 }
 
 export const engineInitializer: EngineInitializer = {
   initialize: (runtime, request) =>
-    startAnalysisEngine(runtime.enginePath, runtime.workDir, usiOptionsOf(runtime), request),
+    startAnalysisEngine({
+      enginePath: runtime.enginePath,
+      values: valuesOf(runtime),
+      evalPath: runtime.evalPath,
+      book: runtime.book,
+      request,
+    }),
   shutdown: (request) => shutdownEngine(request),
 };

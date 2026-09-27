@@ -88,7 +88,7 @@ export const ENGINE_START_FAILURE_NOTICES: Record<
   invalidValue: {
     tier: "danger",
     body:
-      "選んでいるプリセットの設定値に、エンジンへ送れない文字（改行など）か長すぎる値が含まれています。" +
+      "選んでいるプリセットの設定値か評価関数・定跡のパスに、エンジンへ送れない文字（改行など）か長すぎる値が含まれています。" +
       "設定の「エンジン管理」でプリセットを直してください。" +
       FIX_SETTINGS,
     retry: false,

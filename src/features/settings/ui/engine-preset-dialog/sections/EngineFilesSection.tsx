@@ -204,11 +204,9 @@ export default function EngineFilesSection(props: {
 
                 setDraft((cur) => {
                   if (!cur) return cur;
-                  const next: EnginePreset = {
-                    ...cur,
-                    bookEnabled: on,
-                    bookFilePath: on ? (cur.bookFilePath ?? null) : null,
-                  };
+                  // **切っても定跡のパスは残す。** 定跡ビューはこのパスを出し、切ったことは
+                  // 起動のたびに Rust が送る（`USI_OwnBook=false` など）
+                  const next: EnginePreset = { ...cur, bookEnabled: on };
 
                   if (on) {
                     // ONにした瞬間、空ならデフォルト
@@ -226,43 +224,41 @@ export default function EngineFilesSection(props: {
                 setErrors((es) => ({ ...es, bookFilePath: "" }));
               }}
             />
-            <span className="presetDialog__checkLabel">定跡（book）を使う</span>
+            <span className="presetDialog__checkLabel">解析で定跡（book）を使う</span>
           </label>
         </div>
 
-        {draft.bookEnabled && (
-          <SField
-            label="定跡ファイル（<profile>/book/*.db）"
-            description="book/ 配下の .db のみ候補になります。"
-            error={errors.bookFilePath}
-          >
-            <SSelect
-              value={draft.bookFilePath ?? ""}
-              onChange={(e) => {
-                const path = e.target.value;
-                setDraft({ ...draft, bookFilePath: path || null });
-                setErrors((es) => ({ ...es, bookFilePath: "" }));
-              }}
-              options={bookOptions}
-              placeholder={
-                !currentProfile
-                  ? "まずプロファイルを選択"
-                  : currentProfile.has_book_dir
-                    ? bookDbsCount > 0
-                      ? "定跡ファイルを選択"
-                      : "book/ に .db がありません"
-                    : "このプロファイルには book/ がありません"
-              }
-              disabled={!currentProfile || !currentProfile.has_book_dir || bookDbsCount === 0}
-              invalid={!!errors.bookFilePath}
-            />
-            {!!draft.bookFilePath && (
-              <div className="presetDialog__hintMuted" style={{ marginTop: 8 }}>
-                選択: <b>{basename(draft.bookFilePath)}</b>
-              </div>
-            )}
-          </SField>
-        )}
+        <SField
+          label="定跡ファイル（<profile>/book/*.db）"
+          description="book/ 配下の .db のみ候補になります。"
+          error={errors.bookFilePath}
+        >
+          <SSelect
+            value={draft.bookFilePath ?? ""}
+            onChange={(e) => {
+              const path = e.target.value;
+              setDraft({ ...draft, bookFilePath: path || null });
+              setErrors((es) => ({ ...es, bookFilePath: "" }));
+            }}
+            options={bookOptions}
+            placeholder={
+              !currentProfile
+                ? "まずプロファイルを選択"
+                : currentProfile.has_book_dir
+                  ? bookDbsCount > 0
+                    ? "定跡ファイルを選択"
+                    : "book/ に .db がありません"
+                  : "このプロファイルには book/ がありません"
+            }
+            disabled={!currentProfile || !currentProfile.has_book_dir || bookDbsCount === 0}
+            invalid={!!errors.bookFilePath}
+          />
+          {!!draft.bookFilePath && (
+            <div className="presetDialog__hintMuted" style={{ marginTop: 8 }}>
+              選択: <b>{basename(draft.bookFilePath)}</b>
+            </div>
+          )}
+        </SField>
 
         <details className="presetDialog__details">
           <summary className="presetDialog__summary">高度な設定（手動パス編集）</summary>
@@ -282,15 +278,13 @@ export default function EngineFilesSection(props: {
                   placeholder="/path/to/eval/nn.bin"
                 />
               </SField>
-              {draft.bookEnabled && (
-                <SField label="定跡ファイル（手動）">
-                  <SInput
-                    value={draft.bookFilePath ?? ""}
-                    onChange={(e) => setDraft({ ...draft, bookFilePath: e.target.value })}
-                    placeholder="/path/to/book/*.db"
-                  />
-                </SField>
-              )}
+              <SField label="定跡ファイル（手動）">
+                <SInput
+                  value={draft.bookFilePath ?? ""}
+                  onChange={(e) => setDraft({ ...draft, bookFilePath: e.target.value || null })}
+                  placeholder="/path/to/book/*.db"
+                />
+              </SField>
             </div>
           </div>
         </details>

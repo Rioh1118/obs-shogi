@@ -6,6 +6,7 @@ export const initialState: EngineState = {
   error: null,
 
   activeRuntime: null,
+  startWarnings: [],
 };
 
 export function reducer(state: EngineState, action: EngineAction): EngineState {
@@ -18,6 +19,7 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         phase: "ready",
         engineInfo: action.payload.engineInfo,
         activeRuntime: action.payload.activeRuntime,
+        startWarnings: action.payload.warnings,
         error: null,
       };
     }
@@ -28,6 +30,7 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         phase: "error",
         engineInfo: null,
         activeRuntime: null,
+        startWarnings: [],
         error: action.payload,
       };
 
@@ -37,6 +40,7 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         phase: "idle",
         engineInfo: null,
         activeRuntime: null,
+        startWarnings: [],
         error: null,
       };
     }

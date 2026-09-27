@@ -101,7 +101,7 @@ issue #120 と同型の行き止まり
 その場で起動し直す。
 
 **「同じ runtime」はプリセットの同一性ではない**——見るのは `enginePath` /
-`workDir` / `evalDir` / `bookDir` / `bookFile` / `options`（`entities/engine/lib/equalRuntime.ts`。
+`evalPath` / `book`（パスと解析で使うか）/ `values`（名前で。並びは見ない）（`entities/engine/lib/equalRuntime.ts`。
 この判定がここの唯一の出典で、他の doc はここを指す）。だから**選択中のプリセットの
 オプションを1つ変えて保存するだけでも起動し直す**——プリセットが1つしか無い利用者に
 残っている道はこれだけ
@@ -136,6 +136,6 @@ effect が同じ設定で起動し直す。起動し直すのは E3（設定を�
 **`entities/engine` のテスト**は `model/__tests__/provider.test.tsx`（`(S3, E4)` / `(S3, E3)` /
 `(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 撃つたびに上がる番号）、
 `model/__tests__/notReadyReason.test.tsx`（`notReadyReason` の割り当て）と
-`lib/__tests__/`（`asStartFailure`、`usiOptionsOf` の順序）。
+`lib/__tests__/`（`asStartFailure`、`valuesOf` と `equalRuntime`）。
 `(S3, E9)` と E10 の帯は `app/providers/bridges/__tests__/engineFailureBridge.test.tsx`。
 Rust の側の順序（古い番号の要求を断る）は `analyzer.rs` の `tests::starting`。

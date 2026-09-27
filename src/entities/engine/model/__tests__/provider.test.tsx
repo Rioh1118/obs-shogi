@@ -19,7 +19,9 @@ const shutdown = vi.fn<(request: number) => Promise<void>>();
 
 vi.mock("@/entities/engine/api/initializer", () => ({
   engineInitializer: {
-    initialize: (runtime: EngineRuntimeConfig, request: number) => initialize(runtime, request),
+    // 起動が返す警告はここでは見ない（橋のテストが見る）。`info` だけを差し替える
+    initialize: (runtime: EngineRuntimeConfig, request: number) =>
+      initialize(runtime, request).then((info) => ({ info, warnings: [] })),
     shutdown: (request: number) => shutdown(request),
   },
 }));
@@ -29,11 +31,9 @@ const { useEngine } = await import("../useEngine");
 
 const RUNTIME: EngineRuntimeConfig = {
   enginePath: "/ai/engines/yaneuraou",
-  workDir: "/ai/yaneuraou",
-  evalDir: "/ai/eval/suisho",
-  bookDir: null,
-  bookFile: null,
-  options: { MultiPV: "1" },
+  evalPath: "/ai/suisho/eval/nn.bin",
+  book: null,
+  values: { MultiPV: "1" },
 };
 
 /**
@@ -44,7 +44,7 @@ const RUNTIME: EngineRuntimeConfig = {
  * プリセットの**読み直し**。同じプリセットを選び直しても `selectedPresetId` は
  * 動かないので、そちらでは `runtimeConfig` のメモが再計算されない
  */
-const sameValues = (): EngineRuntimeConfig => ({ ...RUNTIME, options: { ...RUNTIME.options } });
+const sameValues = (): EngineRuntimeConfig => ({ ...RUNTIME, values: { ...RUNTIME.values } });
 
 const INFO: EngineInfo = { name: "YaneuraOu", author: "yaneurao", options: [] };
 

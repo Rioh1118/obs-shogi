@@ -34,8 +34,6 @@ export function createDefaultPreset(partial: Partial<EnginePreset> = {}): Engine
     },
     analysis: partial.analysis ? { ...partial.analysis } : base.analysis,
   };
-  if (!merged.bookEnabled) merged.bookFilePath = null;
-
   return merged;
 }
 
@@ -47,14 +45,10 @@ export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
   p.enginePath = (p.enginePath ?? "").trim();
   p.evalFilePath = (p.evalFilePath ?? "").trim();
 
-  // book
+  // book: **解析で使わなくてもパスは残す**（定跡ビューが出す。切ったことは起動のたびに Rust が送る）
   p.bookEnabled = Boolean(p.bookEnabled);
-  if (!p.bookEnabled) {
-    p.bookFilePath = null;
-  } else {
-    const bp = (p.bookFilePath ?? "").trim();
-    p.bookFilePath = bp.length > 0 ? bp : null;
-  }
+  const bp = (p.bookFilePath ?? "").trim();
+  p.bookFilePath = bp.length > 0 ? bp : null;
 
   const nextOptions: UsiOptionMap = {};
   for (const [k, v] of Object.entries(p.options ?? {})) {

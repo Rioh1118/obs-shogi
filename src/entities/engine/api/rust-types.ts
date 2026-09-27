@@ -31,6 +31,35 @@ export interface SetOptionValue {
   value: string;
 }
 
+/** 解析の起動で選んだ定跡（Rust の `BookChoice`）。`path` は絶対パス */
+export interface BookChoice {
+  path: string;
+  useInAnalysis: boolean;
+}
+
+/**
+ * 起動で送らなかった・変えて送った設定（Rust の `StartWarning`）。**起動はできている。**
+ * 画面の文言は種類から組む（`app/providers/bridges/startWarningNotice.ts`）
+ */
+export type StartWarning =
+  | { kind: "notDeclared"; name: string }
+  | { kind: "overriddenByBinding"; name: string }
+  | { kind: "clamped"; name: string; value: string }
+  | { kind: "notInVars"; name: string; value: string }
+  | { kind: "evalNotSupported" }
+  | { kind: "evalNotChosen"; name: string }
+  | { kind: "evalNeedsFile"; name: string }
+  | { kind: "bookNotSupported" }
+  | { kind: "bookNameNotInVars"; file: string }
+  | { kind: "bookCannotBeDisabled" }
+  | { kind: "invalidType"; name: string; value: string };
+
+/** 解析の起動が返すもの（Rust の `StartOutcome`） */
+export interface StartOutcome {
+  info: EngineInfo;
+  warnings: StartWarning[];
+}
+
 /**
  * エンジンを起動できなかった理由の種類（Rust の `StartFailureKind`）。
  * 利用者が取れる行動で分けてある。画面の文言はこれから組む

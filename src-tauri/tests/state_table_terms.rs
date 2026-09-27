@@ -68,6 +68,11 @@ const TABLES: &[(&str, &[&str])] = &[
 /// 全ての表がここか [`TABLES`] のどちらかに載っていることを機械で見る。
 const NOT_RUST: &[(&str, &str)] = &[
     (
+        "option-binding.md",
+        "評価関数・定跡の流し先。Rust（`binding.rs`）の判定表だが、名指すのは USI のオプション名と \
+         関数名だけで、Rust の定数を1つも名指さない",
+    ),
+    (
         "analysis.md",
         "解析の席。Rust を跨ぐが、名指す定数は TS 側だけ",
     ),

@@ -423,10 +423,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     if (!label) nextErrors.label = "名前は必須です";
     if (!aiName) nextErrors.aiName = "AI名（プロファイル）を選択してください";
     if (!enginePath) nextErrors.enginePath = "エンジンを選択してください";
-    if (!evalFilePath) nextErrors.evalFilePath = "評価関数ファイルを選択してください";
+    // 評価関数は必須にしない（指定できないエンジンがある。流し先は起動のたびに Rust が決める）
 
     const bookEnabled = Boolean(draft.bookEnabled);
-    const bookFilePath = bookEnabled ? cleanText(draft.bookFilePath ?? "") || null : null;
+    // 解析で使わなくても定跡のパスは残す（定跡ビューが出す）
+    const bookFilePath = cleanText(draft.bookFilePath ?? "") || null;
     if (bookEnabled && !bookFilePath) nextErrors.bookFilePath = "定跡ファイルを選択してください";
 
     if (Object.keys(nextErrors).length > 0) {

@@ -1,15 +1,20 @@
-import type { EngineInfo } from "../api/rust-types";
+import type { BookChoice, EngineInfo, StartWarning } from "../api/rust-types";
 import type { EngineStartFailure } from "../lib/engineFailure";
 
 export type EnginePhase = "idle" | "initializing" | "ready" | "error";
 
+/**
+ * エンジンを起こすときの設定。**USI の名前を持たない**——評価関数と定跡はパスで持ち、
+ * どの名前で送るかは Rust が起動のたびの申告から決める（`binding.rs`）
+ */
 export type EngineRuntimeConfig = {
   enginePath: string;
-  workDir: string;
-  evalDir: string;
-  bookDir: string | null;
-  bookFile: string | null;
-  options: Record<string, string>; // USI setoptions
+  /** 評価関数（絶対パス）。選んでいなければ `null`（指定できないエンジンもある） */
+  evalPath: string | null;
+  /** 定跡。選んでいなければ `null`。`useInAnalysis` が偽でも、切ったことを Rust が送る */
+  book: BookChoice | null;
+  /** 利用者の値（プリセットの `options`） */
+  values: Record<string, string>;
 };
 
 export type EngineState = {
@@ -19,6 +24,8 @@ export type EngineState = {
   error: EngineStartFailure | null;
 
   activeRuntime: EngineRuntimeConfig | null;
+  /** 直近の起動で送らなかった・変えて送った設定。起動はできている */
+  startWarnings: StartWarning[];
 };
 
 export type EngineAction =
@@ -28,6 +35,7 @@ export type EngineAction =
       payload: {
         engineInfo: EngineInfo;
         activeRuntime: EngineRuntimeConfig;
+        warnings: StartWarning[];
       };
     }
   | { type: "initialize_error"; payload: EngineStartFailure }

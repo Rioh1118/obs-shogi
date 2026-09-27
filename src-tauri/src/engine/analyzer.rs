@@ -2,6 +2,7 @@ use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
 
 use serde::Serialize;
 
+use super::binding::{self, BindingInput, EvalTarget};
 use super::protocol::USI_OK_TIMEOUT;
 use super::protocol::{contains_usi_breaking_char, StopEffect, UsiProtocol};
 use super::registry::SPAWN_TIMEOUT;
@@ -276,16 +277,15 @@ impl EngineAnalyzer {
     pub async fn start_engine(
         &self,
         engine_path: &str,
-        working_dir: Option<&str>,
-        options: &[SetOptionValue],
+        input: &StartInput,
         request: Request,
-    ) -> Result<EngineInfo, EngineError> {
+    ) -> Result<StartOutcome, EngineError> {
         let Some((generation, cancel)) = self.begin_start(request).await else {
             return Err(superseded_request());
         };
         // **前の起動を取り消してから断る。** 利用者は既に別の設定へ移っている。
         // 断るだけにすると、前の起動が進んで `engine_id` に載り、フロントの失敗と並ぶ
-        if let Err(e) = setup::validate_options(options) {
+        if let Err(e) = validate_input(input) {
             let mut startup = self.startup.lock().await;
             if startup.generation == generation {
                 startup.cancel = None;
@@ -293,10 +293,8 @@ impl EngineAnalyzer {
             return Err(e);
         }
 
-        let started = self
-            .start_engine_steps(engine_path, working_dir, options, &cancel)
-            .await;
-        let process = match started {
+        let started = self.start_engine_steps(engine_path, input, &cancel).await;
+        let (process, warnings) = match started {
             Ok(process) => process,
             // **取り消された後の失敗は取り消しとして返す。** 取り消しは待ちとしか競わないので、
             // 起こす段や書き込みで折れた起動は、止めた後でも本物の失敗の顔で返ってくる。
@@ -307,7 +305,8 @@ impl EngineAnalyzer {
             }
             Err(e) => return Err(e),
         };
-        self.publish(generation, process).await
+        let info = self.publish(generation, process).await?;
+        Ok(StartOutcome { info, warnings })
     }
 
     /// 世代を上げ、進行中の起動を取り消し、起動済みのエンジンを落とす。
@@ -337,31 +336,48 @@ impl EngineAnalyzer {
         Some((generation, cancel))
     }
 
-    /// 起こして設定を送り、`usinewgame` まで通す。失敗したら起こしたプロセスを落とす
+    /// 起こし、**その回の申告から**送る設定を決め（`binding::bind`）、送って `usinewgame` まで通す。
+    /// 失敗したら起こしたプロセスを落とす。cwd は実行ファイルのフォルダ（`spawn_cancellable` の
+    /// 作業フォルダに `None` を渡す）——相対パスを cwd 基準で解くエンジンがあり、プロファイルを cwd に
+    /// すると同じ設定がプロファイルごとに違うファイルを指す
     async fn start_engine_steps(
         &self,
         engine_path: &str,
-        working_dir: Option<&str>,
-        options: &[SetOptionValue],
+        input: &StartInput,
         cancel: &CancellationToken,
-    ) -> Result<Arc<EngineProcess>, EngineError> {
+    ) -> Result<(Arc<EngineProcess>, Vec<StartWarning>), EngineError> {
+        // **評価関数を見るのは起こす前。** ディスクを見る待ちは取り消しと上限の外に出さない——
+        // 起こした後で待つと、応答しないボリュームで握手を済ませたプロセスが残る
+        let eval = match &input.eval_path {
+            Some(path) => Some(tokio::select! {
+                biased;
+                _ = cancel.cancelled() => return Err(cancelled_start()),
+                target = eval_target(path) => target,
+            }),
+            None => None,
+        };
         let process = self
             .registry
-            .spawn_cancellable(
-                engine_path,
-                working_dir,
-                SPAWN_TIMEOUT,
-                USI_OK_TIMEOUT,
-                cancel,
-            )
+            .spawn_cancellable(engine_path, None, SPAWN_TIMEOUT, USI_OK_TIMEOUT, cancel)
             .await?;
         let protocol = process.protocol();
+
+        let binding_input = BindingInput {
+            values: input.values.clone(),
+            eval,
+            book: input.book.clone(),
+            fixed: analysis_fixed_values(),
+        };
+        let bound = binding::bind(&process.info.options, &binding_input);
+        for warning in &bound.warnings {
+            log::info!(target: LOGT, "start_engine: not sent as saved: {warning:?}");
+        }
 
         // `biased`: 取り消しと失敗が同時に揃ったら取り消しを採る
         let prepared = tokio::select! {
             biased;
             _ = cancel.cancelled() => Err(cancelled_start()),
-            prepared = setup::send_setup(&protocol, options, None, None) => prepared,
+            prepared = setup::send_setup(&protocol, &bound.options, None, None) => prepared,
         };
         let prepared = match prepared {
             Ok(()) => protocol.send_command(&GuiCommand::UsiNewGame).await,
@@ -371,7 +387,7 @@ impl EngineAnalyzer {
             self.registry.shutdown(&process.id).await;
             return Err(e);
         }
-        Ok(process)
+        Ok((process, bound.warnings))
     }
 
     /// 起動を終えたプロセスを解析の口に載せる。世代が古ければ落として `Cancelled`。
@@ -966,6 +982,58 @@ fn superseded_request() -> EngineError {
     EngineError::Cancelled("a newer request was already received".to_string())
 }
 
+/// 解析の起動で渡すもの。**USI の名前は含まない**——どの名前で送るかは `binding::bind` が
+/// その回の申告から決める
+#[derive(Debug, Clone, Default)]
+pub struct StartInput {
+    /// 利用者の値（プリセットの `options`）
+    pub values: Vec<SetOptionValue>,
+    /// 選んだ評価関数（絶対パス。ファイルでもフォルダでもよい）
+    pub eval_path: Option<String>,
+    pub book: Option<BookChoice>,
+}
+
+/// ディスクを見に行く上限。応答しないボリュームで起動ごと止めない
+const EVAL_STAT_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// 評価関数のパスがフォルダかファイルか。**読めなければファイル扱い**——そのまま送れば、無いパスは
+/// エンジンが読み込みの失敗として返す。フォルダ扱いにすると、ファイルを受けるエンジンに
+/// 「フォルダを選んでいる」（`EvalNeedsFile`）という事実と違う警告が出る
+async fn eval_target(path: &str) -> EvalTarget {
+    match tokio::time::timeout(EVAL_STAT_TIMEOUT, tokio::fs::metadata(path)).await {
+        Ok(Ok(meta)) if meta.is_dir() => EvalTarget::Dir(path.to_string()),
+        _ => EvalTarget::File(path.to_string()),
+    }
+}
+
+/// 解析の方針として送る値（申告にある名前だけが送られる）: 検討モードを入れ、先読みを切る
+fn analysis_fixed_values() -> Vec<SetOptionValue> {
+    [("ConsiderationMode", "true"), ("USI_Ponder", "false")]
+        .into_iter()
+        .map(|(name, value)| SetOptionValue {
+            name: name.to_string(),
+            value: value.to_string(),
+        })
+        .collect()
+}
+
+/// 値だけで断れる入力を、起こす前に断る。利用者の値に加えて、**評価関数と定跡のパスも**
+/// （`setoption` の値として送るので、改行や長さの制約は同じ）
+fn validate_input(input: &StartInput) -> Result<(), EngineError> {
+    let mut all = input.values.clone();
+    let path = |name: &str, value: &str| SetOptionValue {
+        name: name.to_string(),
+        value: value.to_string(),
+    };
+    if let Some(eval) = &input.eval_path {
+        all.push(path("(evaluation)", eval));
+    }
+    if let Some(book) = &input.book {
+        all.push(path("(book)", &book.path));
+    }
+    setup::validate_options(&all)
+}
+
 /// 起動が取り消されたこと（`shutdown` か、より新しい起動が来た）
 fn cancelled_start() -> EngineError {
     EngineError::Cancelled("the engine start was cancelled".to_string())
@@ -1228,10 +1296,10 @@ done"#;
             let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
 
             let info = analyzer
-                .start_engine(engine(&path), None, &[], 1)
+                .start_engine(engine(&path), &StartInput::default(), 1)
                 .await
                 .expect("起動できる");
-            assert_eq!(info.name, "Ready");
+            assert_eq!(info.info.name, "Ready");
             assert!(analyzer.protocol().await.is_ok(), "解析の口に載っていない");
 
             analyzer.shutdown(8).await.expect("落とせる");
@@ -1250,9 +1318,11 @@ done"#;
             let starting = {
                 let analyzer = Arc::clone(&analyzer);
                 let path = path.clone();
-                tokio::spawn(
-                    async move { analyzer.start_engine(engine(&path), None, &[], 2).await },
-                )
+                tokio::spawn(async move {
+                    analyzer
+                        .start_engine(engine(&path), &StartInput::default(), 2)
+                        .await
+                })
             };
             // 握手を終えて `readyok` を待つところまで進める
             wait_until(|| async { !registry.ids().await.is_empty() }).await;
@@ -1288,17 +1358,19 @@ done"#;
 
             let first = {
                 let analyzer = Arc::clone(&analyzer);
-                tokio::spawn(
-                    async move { analyzer.start_engine(engine(&silent), None, &[], 3).await },
-                )
+                tokio::spawn(async move {
+                    analyzer
+                        .start_engine(engine(&silent), &StartInput::default(), 3)
+                        .await
+                })
             };
             wait_until(|| async { !registry.ids().await.is_empty() }).await;
 
             let info = analyzer
-                .start_engine(engine(&ready), None, &[], 4)
+                .start_engine(engine(&ready), &StartInput::default(), 4)
                 .await
                 .expect("後の起動は通る");
-            assert_eq!(info.name, "Ready");
+            assert_eq!(info.info.name, "Ready");
 
             let first = tokio::time::timeout(Duration::from_secs(10), first)
                 .await
@@ -1335,9 +1407,11 @@ done"#;
             let starting = {
                 let analyzer = Arc::clone(&analyzer);
                 let path = path.clone();
-                tokio::spawn(
-                    async move { analyzer.start_engine(engine(&path), None, &[], 5).await },
-                )
+                tokio::spawn(async move {
+                    analyzer
+                        .start_engine(engine(&path), &StartInput::default(), 5)
+                        .await
+                })
             };
             let saw_usi = dir.join("saw-usi");
             wait_until(|| {
@@ -1378,9 +1452,11 @@ done"#;
             let first = {
                 let analyzer = Arc::clone(&analyzer);
                 let path = path.clone();
-                tokio::spawn(
-                    async move { analyzer.start_engine(engine(&path), None, &[], 1).await },
-                )
+                tokio::spawn(async move {
+                    analyzer
+                        .start_engine(engine(&path), &StartInput::default(), 1)
+                        .await
+                })
             };
             wait_until(|| async { !registry.ids().await.is_empty() }).await;
 
@@ -1389,7 +1465,14 @@ done"#;
                 value: "/eval\nquit".to_string(),
             };
             let error = analyzer
-                .start_engine(engine(&path), None, &[broken], 2)
+                .start_engine(
+                    engine(&path),
+                    &StartInput {
+                        values: vec![broken],
+                        ..StartInput::default()
+                    },
+                    2,
+                )
                 .await
                 .expect_err("改行を含む値を通している");
             assert!(matches!(error, EngineError::InvalidState(_)), "{error}");
@@ -1416,12 +1499,14 @@ done"#;
             let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
 
             analyzer
-                .start_engine(engine(&path), None, &[], 5)
+                .start_engine(engine(&path), &StartInput::default(), 5)
                 .await
                 .expect("起動できる");
             let before = registry.ids().await;
 
-            let stale = analyzer.start_engine(engine(&path), None, &[], 3).await;
+            let stale = analyzer
+                .start_engine(engine(&path), &StartInput::default(), 3)
+                .await;
             assert!(
                 matches!(stale, Err(EngineError::Cancelled(_))),
                 "古い要求が通っている: {stale:?}"
@@ -1443,6 +1528,105 @@ done"#;
 
             analyzer.shutdown(6).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `EvalFile` を申告し、受けた行と cwd を書き残す台本（zermelo の形）
+        const LOGS_WHAT_IT_GETS: &str = r#"pwd > cwd.txt
+while read line; do
+  echo "$line" >> got.txt
+  case "$line" in
+    usi) printf 'id name Logged\noption name EvalFile type string default \noption name USI_Ponder type check default false\nusiok\n' ;;
+    isready) echo readyok ;;
+  esac
+done"#;
+
+        /// 評価関数は**申告した名前で**届き（`EvalFile` を申告するエンジンに `EvalDir` を送らない）、
+        /// cwd は実行ファイルのフォルダ
+        #[tokio::test]
+        async fn the_eval_goes_by_the_declared_name_and_cwd_is_the_engine_folder() {
+            let dir = test_support::dir::temp_dir("analyzer-start-binding");
+            let path = place(&dir, "logged.sh", LOGS_WHAT_IT_GETS).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            let input = StartInput {
+                values: vec![SetOptionValue {
+                    name: "Unknown".to_string(),
+                    value: "1".to_string(),
+                }],
+                eval_path: Some("/ai/zermelo/eval/model.bin".to_string()),
+                book: None,
+            };
+            let outcome = analyzer
+                .start_engine(engine(&path), &input, 1)
+                .await
+                .expect("起動できる");
+
+            let got = std::fs::read_to_string(dir.join("got.txt")).expect("受けた行");
+            assert!(
+                got.contains("setoption name EvalFile value /ai/zermelo/eval/model.bin"),
+                "{got}"
+            );
+            assert!(
+                !got.contains("EvalDir"),
+                "申告に無い名前を送っている: {got}"
+            );
+            assert!(
+                !got.contains("Unknown"),
+                "申告に無い利用者の値を送っている: {got}"
+            );
+            assert!(outcome.warnings.contains(&StartWarning::NotDeclared {
+                name: "Unknown".to_string()
+            }));
+            let cwd = std::fs::read_to_string(dir.join("cwd.txt")).expect("cwd");
+            assert_eq!(
+                std::fs::canonicalize(cwd.trim()).expect("cwd"),
+                std::fs::canonicalize(&dir).expect("dir"),
+                "cwd が実行ファイルのフォルダでない"
+            );
+
+            analyzer.shutdown(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 評価関数・定跡のパスも、改行を含めば**起こす前に**断る（`setoption` の値として送るので）
+        #[tokio::test]
+        async fn a_path_with_a_newline_is_refused_before_starting() {
+            let dir = test_support::dir::temp_dir("analyzer-start-bad-path");
+            // 起きたら印を置く台本（起こしてから断ると、落としても印が残る）
+            let path = place(&dir, "marked.sh", &format!("touch started\n{READY}")).await;
+            let _ = std::fs::remove_file(dir.join("started"));
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            for input in [
+                StartInput {
+                    eval_path: Some("/ai/e\nquit/nn.bin".to_string()),
+                    ..StartInput::default()
+                },
+                StartInput {
+                    book: Some(BookChoice {
+                        path: "/ai/b\nquit.db".to_string(),
+                        use_in_analysis: true,
+                    }),
+                    ..StartInput::default()
+                },
+            ] {
+                let error = analyzer
+                    .start_engine(engine(&path), &input, 1)
+                    .await
+                    .expect_err("改行を含むパスを通している");
+                assert!(matches!(error, EngineError::InvalidState(_)), "{error}");
+                assert!(
+                    registry.ids().await.is_empty(),
+                    "断る前にエンジンを起こしている"
+                );
+                assert!(
+                    !dir.join("started").exists(),
+                    "断る前にエンジンを起こしている"
+                );
+            }
             let _ = std::fs::remove_dir_all(&dir);
         }
 
