@@ -19,11 +19,11 @@ export function hasCurrentDefinitions(
 
 /**
  * 取得の結果（定義・エンジンの名前・取った時刻）をプリセットの下書きに入れる。**この関数は利用者の
- * 値に触らない**——値を定義に当てるのは `fitValues`（呼び手は `EnginePresetEditDialogPanel` の `runProbe`）。
+ * 値に触らない**——値を定義に当てるのは `fitValues`（両方を呼ぶのは `presetDialogReducer`）。
  *
  * 取得を撃たずにエンジンのパスが変わっていた（手動のパス欄で打ち換えた）ら、何もせずに同じ参照を
  * 返す。一覧で選び直した回は、新しい取得が撃たれるので古い結果はここへ来る前に捨てられる
- * （`isLatestProbe`）
+ * （呼び手が、いま待っている取得の結果だけを渡す。プリセット編集は `presetDialogReducer`）
  */
 export function withDefinitions(
   cur: EnginePreset,
