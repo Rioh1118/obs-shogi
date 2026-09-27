@@ -27,9 +27,10 @@ import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/typ
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
 import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
-import { asStartFailure, type EngineStartFailureKind } from "@/entities/engine";
-import { isLatestProbe, probeEngine } from "@/entities/engine/api/tauri";
-import { withDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
+import { asStartFailure } from "@/entities/engine";
+import { abandonProbe, isLatestProbe, probeEngine } from "@/entities/engine/api/tauri";
+import type { ProbeFailure } from "@/features/settings/lib/probeStatus";
+import { probePathOf, withDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
 import type { ThreadsMode } from "@/features/settings/model/types";
 import PresetDialogHeader from "./PresetDialogHeader";
 import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engine/api/aiLibrary";
@@ -136,13 +137,15 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   // ---- オプションの定義の取得 ----
   const [probing, setProbing] = useState(false);
-  const [probeFailure, setProbeFailure] = useState<EngineStartFailureKind | null>(null);
+  const [probeFailure, setProbeFailure] = useState<ProbeFailure | null>(null);
 
   /**
    * `enginePath` の申告を取り、下書きに定義を入れる。**最後に撃った取得の結果だけを使う**
-   * （`isLatestProbe`）。取得を待つ間にエンジンを選び直していれば、`withDefinitions` が捨てる
+   * （`isLatestProbe`。一覧で選び直すと新しい取得が撃たれるので、前の結果はここで捨てる）。
+   * 取得を撃たずにパスだけが変わった（手動のパス欄）回は `withDefinitions` が捨てる
    */
-  const runProbe = useCallback((enginePath: string) => {
+  const runProbe = useCallback((rawPath: string) => {
+    const enginePath = probePathOf(rawPath);
     if (!enginePath) return;
     const { token, outcome } = probeEngine(enginePath);
     setProbing(true);
@@ -159,10 +162,15 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
         setProbing(false);
         const failure = asStartFailure(e);
         console.warn("[EnginePresetEditDialog] probe failed:", failure.message);
-        // 取り消し（`cancelled`）も残す。出すかは `probeStatusText` が決める
-        setProbeFailure(failure.kind);
+        setProbeFailure({ kind: failure.kind, message: failure.message, enginePath });
       },
     );
+  }, []);
+
+  /** 待ちをやめ、保存できるようにする。待っていた取得の結果は来ても捨てる（`abandonProbe`） */
+  const stopProbe = useCallback(() => {
+    abandonProbe();
+    setProbing(false);
   }, []);
 
   // ---- CPU recommended ----
@@ -194,8 +202,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const d = deepClone(preset);
     setDraft(d);
     setErrors({});
-    setProbing(false);
-    setProbeFailure(null);
 
     const mpv = clampInt(
       parseIntSafe(d.options?.MultiPV, parseIntSafe(DEFAULT_USI_OPTIONS.MultiPV, 1)),
@@ -574,6 +580,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             probing={probing}
             probeFailure={probeFailure}
             onProbe={runProbe}
+            onStopProbe={stopProbe}
             draft={draft}
             setDraft={setDraft}
             errors={errors}

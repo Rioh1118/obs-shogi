@@ -42,6 +42,8 @@ type Pending = {
   reject: (e: unknown) => void;
 };
 const probes: Pending[] = [];
+/** ストアが持つプリセット。差し替えると、読み直しで同じ id の別オブジェクトが来た形になる */
+const presets = { current: PRESET };
 const updatePreset = vi.fn<(id: PresetId, patch: Partial<EnginePreset>) => Promise<boolean>>();
 
 // Tauri の口だけを差し替え、番号の数え方（`probeEngine` / `isLatestProbe`）は本物を通す
@@ -80,7 +82,7 @@ vi.mock(
   () =>
     ({
       useEnginePresets: () =>
-        ({ state: { presets: [PRESET] }, updatePreset }) as unknown as ReturnType<
+        ({ state: { presets: [presets.current] }, updatePreset }) as unknown as ReturnType<
           typeof import("@/entities/engine-presets/model/useEnginePresets").useEnginePresets
         >,
     }) satisfies typeof import("@/entities/engine-presets/model/useEnginePresets"),
@@ -117,9 +119,14 @@ function engineSelect(): HTMLSelectElement {
   return select;
 }
 
-async function openWithEngines() {
-  render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+async function openWithEnginesView() {
+  const view = render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
   await waitFor(() => engineSelect(), { timeout: 5000 });
+  return view;
+}
+
+async function openWithEngines() {
+  await openWithEnginesView();
 }
 
 function saveButton(): HTMLButtonElement {
@@ -128,6 +135,7 @@ function saveButton(): HTMLButtonElement {
 
 beforeEach(() => {
   probes.length = 0;
+  presets.current = PRESET;
   updatePreset.mockReset().mockResolvedValue(true);
 });
 
@@ -189,17 +197,62 @@ describe("プリセット編集でのオプションの取得", () => {
     expect(saveButton().disabled).toBe(false);
   }, 20000);
 
-  test("取得に失敗したら理由を出す。次の取得に置き換わった取り消しは出さない", async () => {
+  test("取得に失敗したら理由と次にすることを出す。前のエンジンの失敗は出さない", async () => {
     await openWithEngines();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     probes[0].reject({ kind: "notUsi", message: "no usiok" });
 
-    await screen.findByText(/USI エンジンとして応答しませんでした/);
+    const failure = await screen.findByRole("alert");
+    expect(failure.textContent).toContain("USI エンジンとして応答しませんでした");
+    expect(failure.textContent).toContain("詳細: no usiok");
     expect(saveButton().disabled).toBe(false);
 
     fireEvent.change(engineSelect(), { target: { value: ENGINE_B } });
-    probes[1].reject({ kind: "cancelled", message: "" });
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[1].reject({ kind: "spawnFailed", message: "" });
     await new Promise((r) => setTimeout(r, 0));
-    expect(screen.queryByText(/取得できませんでした/)).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  }, 20000);
+
+  /** 返らない取得（応答しないドライブ）で保存が塞がったままにならない */
+  test("読み込みをやめると保存でき、後から返った結果は使わない", async () => {
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    await waitFor(() => expect(saveButton().disabled).toBe(true));
+
+    fireEvent.click(screen.getByRole("button", { name: "読み込みをやめる" }));
+    expect(saveButton().disabled).toBe(false);
+
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText(/取得済み/)).toBeNull();
+  }, 20000);
+
+  /** 手動のパス欄は取得を撃たない。待っていた取得の結果を、打ち換えたパスに付けない */
+  test("取得を待つ間に手でパスを打ち換えたら、前のエンジンの定義を付けない", async () => {
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    fireEvent.change(screen.getByPlaceholderText("/path/to/engine"), {
+      target: { value: "/elsewhere/engine" },
+    });
+
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByText("オプションは未取得です", { exact: false });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].definitionsFor).toBeNull();
+  }, 20000);
+
+  /** 読み直しで同じプリセットの別オブジェクトが来ても、取得中なら保存を開けない */
+  test("取得中にプリセットが読み直されても、保存は塞がったまま", async () => {
+    const view = await openWithEnginesView();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    await waitFor(() => expect(saveButton().disabled).toBe(true));
+
+    presets.current = { ...PRESET };
+    view.rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(saveButton().disabled).toBe(true);
   }, 20000);
 });

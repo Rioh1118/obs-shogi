@@ -76,7 +76,7 @@ export interface ProbeOutcome {
   author: string;
   /** 申告の順 */
   definitions: UsiOptionDef[];
-  /** 評価関数・定跡・固定値が持つ名前。利用者の値としては送らない（欄は読み取り専用） */
+  /** 評価関数・定跡・固定値が持つ名前（Rust の `binding::reserved_names`）。利用者の値としては送らない */
   reserved: string[];
 }
 

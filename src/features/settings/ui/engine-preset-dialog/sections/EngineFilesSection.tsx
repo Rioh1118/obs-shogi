@@ -7,8 +7,7 @@ import { basename, cleanText, pickDefaultBookDb } from "@/features/settings/lib/
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 import type { PresetEngineOption } from "@/features/settings/lib/presetEngineOptions";
-import { probeStatusText } from "@/features/settings/lib/probeStatus";
-import type { EngineStartFailureKind } from "@/entities/engine";
+import { probeStatusText, type ProbeFailure } from "@/features/settings/lib/probeStatus";
 
 /**
  * 帯の文言。網羅の理由は `EnginesDir` の doc。
@@ -25,9 +24,11 @@ const ENGINES_DIR_HINT: Record<EnginesDir, ((path: string) => string) | null> = 
 
 export default function EngineFilesSection(props: {
   probing: boolean;
-  probeFailure: EngineStartFailureKind | null;
+  probeFailure: ProbeFailure | null;
   /** そのエンジンのオプションの定義を取る */
   onProbe: (enginePath: string) => void;
+  /** 取得の待ちをやめる（保存できるようにする） */
+  onStopProbe: () => void;
   draft: EnginePreset;
   setDraft: Dispatch<SetStateAction<EnginePreset | null>>;
   errors: Record<string, string>;
@@ -55,6 +56,7 @@ export default function EngineFilesSection(props: {
     probing,
     probeFailure,
     onProbe,
+    onStopProbe,
     draft,
     setDraft,
     errors,
@@ -149,11 +151,29 @@ export default function EngineFilesSection(props: {
             </div>
           )}
           {probeStatus && (
-            <div className="presetDialog__hintMuted" style={{ marginTop: 8 }}>
-              {probeStatus}{" "}
-              <Button size="sm" onClick={() => onProbe(draft.enginePath)} busy={probing}>
-                オプションを読み込む
-              </Button>
+            <div
+              className={
+                probeStatus.tone === "warn" ? "presetDialog__hintWarn" : "presetDialog__hintMuted"
+              }
+              role={probeStatus.tone === "warn" ? "alert" : undefined}
+              style={{ marginTop: 8 }}
+            >
+              {probeStatus.text}{" "}
+              {/* 取得中は「やめる」にする。同じボタンで撃ち直すと待ちが延びるだけになる */}
+              {probing ? (
+                <Button size="sm" onClick={onStopProbe}>
+                  読み込みをやめる
+                </Button>
+              ) : (
+                <Button size="sm" onClick={() => onProbe(draft.enginePath)}>
+                  オプションを読み込む
+                </Button>
+              )}
+              {probeStatus.detail && (
+                <div className="presetDialog__hintMuted" style={{ marginTop: 4 }}>
+                  詳細: {probeStatus.detail}
+                </div>
+              )}
             </div>
           )}
         </SField>

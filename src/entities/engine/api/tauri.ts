@@ -51,7 +51,8 @@ let lastProbeToken = 0;
 
 /**
  * エンジンを起こして申告（名前・作者・オプションの定義）だけを取り、落とす。cwd は実行ファイルのフォルダ。
- * 前の取得が進んでいれば Rust が取り消す（そちらは `cancelled` で断られる）。
+ * 前の取得が起こしている途中なら Rust が取り消し（そちらは `cancelled` で断られる）、既に取り終えて
+ * いればそちらの結果も返る。
  *
  * 返った結果も失敗も、`token` が最後に撃ったものでなければ捨てること（`isLatestProbe`）。
  * 断るときは `StartFailure`（`asStartFailure` で読む）
@@ -60,6 +61,16 @@ export function probeEngine(enginePath: string): { token: number; outcome: Promi
   const token = nextRequestNumber();
   lastProbeToken = token;
   return { token, outcome: invoke<ProbeOutcome>("probe_engine", { enginePath, token }) };
+}
+
+/**
+ * 進んでいる取得の結果を待たないことにする。以後に返る結果と失敗は `isLatestProbe` で捨てられる。
+ *
+ * **Rust の取得は止めない**——起こしている途中のプロセスは `usiok` の上限まで残りうる
+ * （次の `probeEngine` が来れば Rust が取り消す）
+ */
+export function abandonProbe(): void {
+  lastProbeToken = nextRequestNumber();
 }
 
 /** `token` が最後に撃った取得か */

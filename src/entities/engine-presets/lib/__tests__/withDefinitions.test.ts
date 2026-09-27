@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { ProbeOutcome } from "@/entities/engine";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
-import { withDefinitions } from "../withDefinitions";
+import { hasCurrentDefinitions, withDefinitions } from "../withDefinitions";
 
 const PRESET: EnginePreset = {
   id: "p1" as PresetId,
@@ -32,12 +32,24 @@ describe("withDefinitions", () => {
     expect(next.definitionsFor).toBe("/e/a");
     expect(next.probedAt).toBe("2026-09-27T00:00:00Z");
     expect([next.engineName, next.engineAuthor]).toEqual(["A", "x"]);
-    // 範囲外でも丸めない（送る側が起動のたびに申告へ当てる）
+    // この関数は値に触らない（値を定義に当てるのは別の段）
     expect(next.options).toEqual({ Threads: "999" });
   });
 
   test("取得を待つ間にエンジンを選び直していたら、同じ参照を返す", () => {
     const moved = { ...PRESET, enginePath: "/e/b" };
     expect(withDefinitions(moved, OUTCOME, "t")).toBe(moved);
+  });
+
+  test("手で打ったパスの前後の空白は落として比べ、定義を取ったパスは空白無しで残す", () => {
+    const next = withDefinitions({ ...PRESET, enginePath: " /e/a " }, OUTCOME, "t");
+    expect(next.definitionsFor).toBe("/e/a");
+    expect(hasCurrentDefinitions(next)).toBe(true);
+  });
+
+  test("別のエンジンの定義はいまの定義でない", () => {
+    const next = withDefinitions(PRESET, OUTCOME, "t");
+    expect(hasCurrentDefinitions({ ...next, enginePath: "/e/b" })).toBe(false);
+    expect(hasCurrentDefinitions(PRESET)).toBe(false);
   });
 });
