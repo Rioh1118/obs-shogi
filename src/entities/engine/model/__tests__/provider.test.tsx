@@ -233,6 +233,21 @@ describe("EngineProvider の要求の順序", () => {
   });
 
   /**
+   * **番号は webview の読み直しを跨いで下がらない**（`nextRequestNumber`）。Rust の「最新」は
+   * アプリのプロセスが続く間残るので、読み直した後に 1 から数えると起動が黙って断られる。
+   * 読み直しはこのテストでは作れないので、番号が時刻を下限にしていること（0 から数えていないこと）を見る
+   */
+  test("番号は時刻を下限にしていて、0 から数え直さない", async () => {
+    initialize.mockResolvedValue(INFO);
+    const before = Date.now();
+
+    mountWith(RUNTIME);
+    await settle();
+
+    expect(initialize.mock.calls[0][1]).toBeGreaterThanOrEqual(before);
+  });
+
+  /**
    * 表の (S1, E2) の後に E1。**停止の往復の間に撃った起動を、停止の結果が `idle` で上書きしない。**
    * 上書きすると effect の `idle` の枝が同じ設定でもう1回起動し、進行中の起動が捨てられる
    * （読み込みの重いエンジンでは1回ぶんの読み込みがまるごと無駄になる）

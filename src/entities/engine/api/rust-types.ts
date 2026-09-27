@@ -54,6 +54,32 @@ export type StartWarning =
   | { kind: "bookCannotBeDisabled" }
   | { kind: "invalidType"; name: string; value: string };
 
+/**
+ * プリセットに**保存する**オプションの定義1件（Rust の `UsiOptionDef`）。画面に欄を出すためだけに使い、
+ * 送るときは起動のたびの申告を見る。**ファイルに残る形なので、変えるときはプリセットの版を上げる**
+ */
+export type UsiOptionDef =
+  | { name: string; type: "check"; default: boolean | null }
+  | { name: string; type: "spin"; default: number | null; min: number | null; max: number | null }
+  | { name: string; type: "combo"; default: string | null; vars: string[] }
+  | { name: string; type: "string"; default: string | null }
+  | { name: string; type: "filename"; default: string | null }
+  | { name: string; type: "button" };
+
+/** エンジンの申告を取った結果（Rust の `ProbeOutcome`） */
+export interface ProbeOutcome {
+  /** 受けた番号をそのまま返す。いまの取得でなければ捨てる */
+  token: number;
+  /** 受けたパスをそのまま返す */
+  enginePath: string;
+  name: string;
+  author: string;
+  /** 申告の順 */
+  definitions: UsiOptionDef[];
+  /** 評価関数・定跡・固定値が持つ名前（Rust の `binding::reserved_names`）。利用者の値としては送らない */
+  reserved: string[];
+}
+
 /** 解析の起動が返すもの（Rust の `StartOutcome`） */
 export interface StartOutcome {
   info: EngineInfo;

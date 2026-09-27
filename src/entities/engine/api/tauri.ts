@@ -1,16 +1,18 @@
 import { invoke } from "@tauri-apps/api/core";
+import { nextRequestNumber } from "./requestNumber";
 import type {
   AnalysisResult,
   AnalysisStatus,
   DepthOutcome,
   BookChoice,
+  ProbeOutcome,
   SetOptionValue,
   StartOutcome,
 } from "./rust-types";
 
 // ===== エンジンの起動・停止 =====
 /**
- * 起動・停止の要求の番号。**撃つたびに上げる**（`provider.tsx` の `seqRef`）。
+ * 起動・停止の要求の番号。**撃つたびに上げる**（`nextRequestNumber`。webview を読み直しても下がらない）。
  *
  * Rust は既に受けた番号より古い要求を何もせずに断る。Tauri のコマンドは別々のタスクで走るので、
  * 撃った順と Rust に着く順が逆転しうる——番号が無いと、フロントが捨てた古い起動が動いている
@@ -42,6 +44,38 @@ type StartAnalysisEngineArgs = {
  */
 export async function startAnalysisEngine(args: StartAnalysisEngineArgs): Promise<StartOutcome> {
   return await invoke("start_analysis_engine", args);
+}
+
+/** 最後に撃った取得の番号（`isLatestProbe` が比べる）。番号の作り方は `nextRequestNumber` */
+let lastProbeToken = 0;
+
+/**
+ * エンジンを起こして申告（名前・作者・オプションの定義）だけを取り、落とす。cwd は実行ファイルのフォルダ。
+ * 前の取得が起こしている途中なら Rust が取り消し（そちらは `cancelled` で断られる）、既に取り終えて
+ * いればそちらの結果も返る。
+ *
+ * 返った結果も失敗も、`token` が最後に撃ったものでなければ捨てること（`isLatestProbe`）。
+ * 断るときは `StartFailure`（`asStartFailure` で読む）
+ */
+export function probeEngine(enginePath: string): { token: number; outcome: Promise<ProbeOutcome> } {
+  const token = nextRequestNumber();
+  lastProbeToken = token;
+  return { token, outcome: invoke<ProbeOutcome>("probe_engine", { enginePath, token }) };
+}
+
+/**
+ * 進んでいる取得の結果を待たないことにする。以後に返る結果と失敗は `isLatestProbe` で捨てられる。
+ *
+ * **Rust の取得は止めない**——起こしている途中のプロセスは `usiok` の上限まで残りうる
+ * （次の `probeEngine` が来れば Rust が取り消す）
+ */
+export function abandonProbe(): void {
+  lastProbeToken = nextRequestNumber();
+}
+
+/** `token` が最後に撃った取得か */
+export function isLatestProbe(token: number): boolean {
+  return token === lastProbeToken;
 }
 
 /** 解析用のエンジンを落とす。起動中のものも止める。既に新しい番号を受けていれば何もしない */

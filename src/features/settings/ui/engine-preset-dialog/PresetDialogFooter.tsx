@@ -4,9 +4,12 @@ import "./PresetDialogFooter.scss";
 export default function PresetDialogFooter({
   onClose,
   onSave,
+  saveDisabled = false,
 }: {
   onClose: () => void;
   onSave: () => void;
+  /** オプションを取得している間は保存させない */
+  saveDisabled?: boolean;
 }) {
   return (
     <footer className="presetDialog__footer">
@@ -16,7 +19,7 @@ export default function PresetDialogFooter({
 
       <div className="presetDialog__footerRight">
         <Button onClick={onClose}>キャンセル</Button>
-        <Button tone="primary" onClick={onSave}>
+        <Button tone="primary" onClick={onSave} disabled={saveDisabled}>
           保存
         </Button>
       </div>

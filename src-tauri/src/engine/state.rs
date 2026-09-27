@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use super::bridge::EngineBridge;
 use super::game::manager::GameManager;
+use super::probe::EngineProber;
 use super::registry::EngineRegistry;
 
 /// Tauri の `State` に載せる持ち物。
@@ -21,6 +22,8 @@ pub struct AppState {
     pub bridge: Arc<EngineBridge>,
     pub registry: Arc<EngineRegistry>,
     pub games: Arc<GameManager>,
+    /// プリセット編集が申告を取る口
+    pub prober: Arc<EngineProber>,
 }
 
 impl AppState {
@@ -29,6 +32,7 @@ impl AppState {
         Self {
             bridge: Arc::new(EngineBridge::new(Arc::clone(&registry))),
             games: Arc::new(GameManager::new(Arc::clone(&registry))),
+            prober: Arc::new(EngineProber::new(Arc::clone(&registry))),
             registry,
         }
     }

@@ -1,4 +1,4 @@
-import type { EngineRuntimeConfig } from "@/entities/engine";
+import type { EngineRuntimeConfig, UsiOptionDef } from "@/entities/engine";
 import type { PresetsLoadNotice, SaveFailureKind } from "../api/rust-types";
 
 export type PresetId = string;
@@ -30,6 +30,19 @@ export type EnginePreset = {
 
   options: UsiOptionMap;
   analysis?: AnalysisDefaults;
+
+  /**
+   * 画面に欄を出すためのオプションの定義（申告の順）。**送る側は使わない**——起動のたびにその回の
+   * 申告を見る。取っていなければ `null`
+   */
+  definitions?: UsiOptionDef[] | null;
+  /** `definitions` を取ったエンジンのパス。`enginePath` と違えば定義は別のエンジンのもの */
+  definitionsFor?: string | null;
+  /** 定義を取った時刻（ISO 8601） */
+  probedAt?: string | null;
+  /** 申告の `id name` / `id author` */
+  engineName?: string | null;
+  engineAuthor?: string | null;
 };
 
 export type { LoadedPresets, PresetsLoadNotice, SaveFailureKind } from "../api/rust-types";
