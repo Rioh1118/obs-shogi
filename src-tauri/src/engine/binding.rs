@@ -215,8 +215,8 @@ fn bind_book(
 ///
 /// 評価関数を受ける名前（E1〜E4 で当たった1つ）と定跡を受ける名前（`BookFile` / `Book_File` /
 /// `BookDir` / 切る口）は、**その回に送るかに依らず**持つ——評価関数・定跡を選んでいない回に
-/// 利用者の値が通ると、欄で選んでいない評価関数・定跡でエンジンが動く。画面はこの一覧を
-/// 取得で受け取り、その欄を読み取り専用にする（`ProbeOutcome::reserved`）
+/// 利用者の値が通ると、欄で選んでいない評価関数・定跡でエンジンが動く。一覧は取得の結果
+/// （`ProbeOutcome::reserved`）で画面にも渡る
 pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Vec<String> {
     let eval = eval_option(declared).map(|(name, _)| name);
     declared

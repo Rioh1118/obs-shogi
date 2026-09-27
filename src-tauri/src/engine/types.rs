@@ -157,7 +157,7 @@ pub enum UsiOptionKind {
     Filename {
         default: Option<String>,
     },
-    /// 押すだけの口。値を持たないので保存しない
+    /// 押すだけの口。値を持たない（利用者の値の欄を作らない）。定義としては保存する
     Button,
 }
 

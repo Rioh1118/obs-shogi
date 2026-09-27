@@ -1,9 +1,10 @@
 //! エンジンを起こして申告（`id` と `option` 行）だけを取り、すぐ落とす段。
 //!
-//! プリセット編集の画面が、そのエンジンの設定欄を作るために使う。**送る側はここを使わない**——
+//! プリセット編集の画面が、取った定義をプリセットに残すために使う。**送る側はここを使わない**——
 //! 起動のたびにその回の申告を見る（`binding::bind`）。ここで取った定義は画面に出すためだけのもの。
 //!
-//! 取得は同時に1本。新しい取得が来たら前の取得を取り消す（起こしている途中のプロセスも落ちる）。
+//! 新しい取得が来たら、起こしている途中（`usiok` まで）の前の取得を取り消す（起こしたプロセスも落ちる）。
+//! 申告を取り終えて落としている最中の前の取得は取り消さず、結果も返す——その間だけプロセスが2本並びうる。
 
 use std::sync::Arc;
 
@@ -18,8 +19,10 @@ use crate::engine::types::{EngineError, ProbeOutcome, SetOptionValue, StartFailu
 
 const LOGT: &str = "obs_shogi::engine::probe";
 
-/// 画面が取得を撃つたびに上げる番号。**古い番号の取得は何もせずに断る**——Tauri の async コマンドは
-/// 別々のタスクで走るので、後から撃った取得が先にロックを取ることがある
+/// 画面が取得を撃つたびに上げる番号。**既に受けた番号以下の取得は何もせずに断る**——Tauri の async
+/// コマンドは別々のタスクで走るので、後から撃った取得が先にロックを取ることがある。**同じ番号も断る**:
+/// 通すと、取り消された前の取得の後始末（`latest == token` を見て取り消し口を外す）が、後の取得の
+/// 取り消し口を外してしまい、次の取得がそれを取り消せない
 pub type ProbeToken = u64;
 
 #[derive(Default)]
@@ -41,7 +44,7 @@ impl EngineProber {
         }
     }
 
-    /// `probe_steps` の失敗を、起動の失敗と同じ種類に分けて返す（画面は起動と同じ文言を使える）
+    /// `probe_steps` の失敗を、起動の失敗と同じ種類（`StartFailureKind`）に分けて返す
     pub async fn probe(
         &self,
         engine_path: &str,
@@ -70,7 +73,7 @@ impl EngineProber {
     ) -> Result<ProbeOutcome, EngineError> {
         let cancel = {
             let mut in_flight = self.in_flight.lock().await;
-            if token < in_flight.latest {
+            if token <= in_flight.latest {
                 return Err(superseded());
             }
             in_flight.latest = token;
@@ -251,6 +254,29 @@ while read line; do :; done"#;
                 "{stale:?}"
             );
             assert!(!dir.join("started").exists(), "古い取得が起こしている");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 既に受けた番号と同じ番号の取得も、起こさずに断る
+        #[tokio::test]
+        async fn the_same_token_twice_is_refused_without_starting() {
+            let dir = test_support::dir::temp_dir("probe-same-token");
+            let path = place(&dir, "declares.sh", DECLARES).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let prober = EngineProber::new(Arc::clone(&registry));
+
+            prober.probe(path_of(&path), 7, &[]).await.expect("取れる");
+            let _ = std::fs::remove_file(dir.join("started"));
+
+            let again = prober.probe(path_of(&path), 7, &[]).await;
+            assert!(
+                matches!(&again, Err(f) if f.kind == StartFailureKind::Cancelled),
+                "{again:?}"
+            );
+            assert!(
+                !dir.join("started").exists(),
+                "同じ番号の取得が起こしている"
+            );
             let _ = std::fs::remove_dir_all(&dir);
         }
 
