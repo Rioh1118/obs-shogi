@@ -6,6 +6,7 @@ import { SField, SInput, SSection, SSelect } from "@/features/settings/ui/kit";
 import { basename, cleanText, pickDefaultBookDb } from "@/features/settings/lib/presetDialog";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
+import type { PresetEngineOption } from "@/features/settings/lib/presetEngineOptions";
 
 /**
  * 帯の文言。網羅の理由は `EnginesDir` の doc。
@@ -34,12 +35,7 @@ export default function EngineFilesSection(props: {
   onCreateEnginesDir: () => void;
   rescan: () => void;
 
-  engineFilterAi: string;
-  setEngineFilterAi: (v: string) => void;
-  engineFilterOptions: Array<{ value: string; label: string }>;
-  engineFilteredEvalType: string | null;
-
-  engineOptions: Array<{ value: string; label: string; disabled?: boolean }>;
+  engineOptions: PresetEngineOption[];
 
   currentProfile: ProfileCandidate | null;
   evalOptions: Array<{ value: string; label: string; disabled?: boolean }>;
@@ -61,10 +57,6 @@ export default function EngineFilesSection(props: {
     enginesDirPath,
     onCreateEnginesDir,
     rescan,
-    engineFilterAi,
-    setEngineFilterAi,
-    engineFilterOptions,
-    engineFilteredEvalType,
     engineOptions,
     currentProfile,
     evalOptions,
@@ -77,6 +69,7 @@ export default function EngineFilesSection(props: {
   // 分類そのもので出し分ける。`scanReady && index` を重ねると門番が2つになり、
   // 片方を緩めた人が `unknown` に嘘を言わせる形が戻る
   const hint = ENGINES_DIR_HINT[enginesDir];
+  const selectedNote = engineOptions.find((o) => o.value === draft.enginePath)?.note ?? null;
 
   return (
     <SSection
@@ -112,25 +105,8 @@ export default function EngineFilesSection(props: {
 
       <div className="presetDialog__stack">
         <SField
-          label="エンジン絞り込み（任意）"
-          description={
-            engineFilteredEvalType
-              ? `EvalType: ${engineFilteredEvalType}（保存されません）`
-              : "AIラベル → EvalType で候補を絞ります（保存されません）"
-          }
-        >
-          <SSelect
-            value={engineFilterAi}
-            onChange={(e) => setEngineFilterAi(e.target.value)}
-            options={engineFilterOptions}
-            disabled={!aiRootReady || !scanReady}
-            placeholder={!scanReady ? "スキャン結果なし" : "絞り込みなし"}
-          />
-        </SField>
-
-        <SField
           label="エンジン（ai_root/engines）"
-          description="YaneuraOu* のみ表示されます。"
+          description="engines/ の直下と、その1段下のフォルダにある実行ファイルが候補になります。"
           error={errors.enginePath}
         >
           <SSelect
@@ -147,7 +123,7 @@ export default function EngineFilesSection(props: {
                 : scanReady
                   ? engineOptions.length > 0
                     ? "エンジンを選択"
-                    : "候補がありません（engines/にYaneuraOu*を配置）"
+                    : "候補がありません（engines/ にエンジンを置いてください）"
                   : indexStatus === "loading"
                     ? "スキャン中…"
                     : "スキャン結果なし"
@@ -158,6 +134,7 @@ export default function EngineFilesSection(props: {
           {!!draft.enginePath && (
             <div className="presetDialog__hintMuted" style={{ marginTop: 8 }}>
               選択: <b>{basename(draft.enginePath)}</b>
+              {selectedNote && <>（{selectedNote}）</>}
             </div>
           )}
         </SField>
@@ -268,7 +245,7 @@ export default function EngineFilesSection(props: {
                 <SInput
                   value={draft.enginePath}
                   onChange={(e) => setDraft({ ...draft, enginePath: e.target.value })}
-                  placeholder="/path/to/YaneuraOu*"
+                  placeholder="/path/to/engine"
                 />
               </SField>
               <SField label="評価関数ファイル（手動）">

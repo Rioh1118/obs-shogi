@@ -26,11 +26,7 @@ import { useAppConfig } from "@/entities/app-config";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { DEFAULT_USI_OPTIONS } from "@/entities/engine-presets/model/defaultOptions";
-import {
-  filterEnginesByAiLabel,
-  listAiLabels,
-  presetEngineCandidates,
-} from "@/features/settings/lib/engineFilter";
+import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
 import type { ThreadsMode } from "@/features/settings/model/types";
 import PresetDialogHeader from "./PresetDialogHeader";
 import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engine/api/aiLibrary";
@@ -128,17 +124,12 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   // 切り替えた直後は「まだ何も読めていない」が正しい
   const index = loaded && loaded.root === aiRoot ? loaded.index : null;
 
-  const enginesAll = useMemo(() => index?.engines ?? [], [index?.engines]);
+  const engines = useMemo(() => index?.engines ?? [], [index?.engines]);
   const profiles = useMemo(() => index?.profiles ?? [], [index?.profiles]);
-
-  const engines = useMemo(() => presetEngineCandidates(enginesAll), [enginesAll]);
 
   // ---- draft ----
   const [draft, setDraft] = useState<EnginePreset | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Dialog-only: エンジン絞り込み（保存しない）
-  const [engineFilterAi, setEngineFilterAi] = useState("");
 
   // ---- CPU recommended ----
   const cores = useMemo(() => {
@@ -213,40 +204,23 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   const bookDbs = useMemo(() => currentProfile?.book_db_files ?? [], [currentProfile]);
 
-  // ---- engine filter ----
-  const engineFilterOptions = useMemo(() => {
-    const labels = listAiLabels();
-    return [
-      { value: "", label: "（絞り込みなし）" },
-      ...labels.map((x) => ({ value: x, label: x })),
-    ];
-  }, []);
-
-  const engineFiltered = useMemo(() => {
-    return filterEnginesByAiLabel(engines, engineFilterAi);
-  }, [engines, engineFilterAi]);
-
   const engineOptions = useMemo(() => {
-    const filtered = engineFiltered.filtered;
+    const opts = presetEngineOptions(engines);
 
-    const opts = filtered.map((e) => ({
-      value: e.path,
-      label: e.entry,
-      disabled: !(e.kind === "file" || e.kind === "symlink"),
-    }));
-
-    // フィルタ外の現在選択を落とさない（UI壊れ防止）
+    // 候補に無いパス（手で入れた、engines/ の外、消えた）も選択として残す。
+    // 落とすと select が空になり、保存したパスが画面から見えなくなる
     const cur = cleanText(draft?.enginePath ?? "");
-    if (cur && !filtered.some((e) => e.path === cur)) {
+    if (cur && !opts.some((o) => o.value === cur)) {
       opts.unshift({
         value: cur,
         label: `${basename(cur)}（現在の選択）`,
         disabled: false,
+        note: null,
       });
     }
 
     return opts;
-  }, [engineFiltered.filtered, draft?.enginePath]);
+  }, [engines, draft?.enginePath]);
 
   const evalOptions = useMemo(
     () =>
@@ -289,11 +263,10 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
         ? autofillPreset(cur, {
             profiles,
             engines,
-            filteredEngines: engineFiltered.filtered,
           })
         : cur,
     );
-  }, [open, draft, index, profiles, engines, engineFiltered.filtered]);
+  }, [open, draft, index, profiles, engines]);
 
   const setOpt = useCallback((key: string, value: string) => {
     setDraft((cur) => {
@@ -565,10 +538,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             enginesDirPath={index?.engines_dir?.path ?? ""}
             onCreateEnginesDir={onCreateEnginesDir}
             rescan={rescan}
-            engineFilterAi={engineFilterAi}
-            setEngineFilterAi={setEngineFilterAi}
-            engineFilterOptions={engineFilterOptions}
-            engineFilteredEvalType={engineFiltered.evalType}
             engineOptions={engineOptions}
             currentProfile={currentProfile}
             evalOptions={evalOptions}
