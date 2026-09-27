@@ -9,6 +9,7 @@ import type {
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
 import { asStartFailure } from "../lib/engineFailure";
+import { nextRequestNumber } from "../api/requestNumber";
 import { EngineContext } from "./context";
 
 type Props = {
@@ -19,6 +20,7 @@ type Props = {
 export function EngineProvider({ children, desiredRuntime }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // 最後に撃った起動・停止の番号。番号は `nextRequestNumber`（webview を読み直しても下がらない）
   const seqRef = useRef(0);
   const lastTriedRef = useRef<EngineRuntimeConfig | null>(null);
 
@@ -66,7 +68,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   const initialize = useCallback(async (): Promise<boolean> => {
     if (!desiredRuntime) return false;
 
-    const mySeq = ++seqRef.current;
+    const mySeq = nextRequestNumber();
+    seqRef.current = mySeq;
 
     const snap: EngineRuntimeConfig =
       typeof structuredClone === "function"
@@ -98,7 +101,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   }, [desiredRuntime]);
 
   const shutdown = useCallback(async (): Promise<void> => {
-    const mySeq = ++seqRef.current;
+    const mySeq = nextRequestNumber();
+    seqRef.current = mySeq;
     try {
       await engineInitializer.shutdown(mySeq);
     } finally {
@@ -109,7 +113,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   }, []);
 
   const cancelStart = useCallback((): void => {
-    const mySeq = ++seqRef.current;
+    const mySeq = nextRequestNumber();
+    seqRef.current = mySeq;
     // 失敗として止める。`idle` に戻すと、設定が選ばれたままなので effect が起動し直す
     dispatch({
       type: "initialize_error",

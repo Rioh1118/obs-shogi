@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { nextRequestNumber } from "./requestNumber";
 import type {
   AnalysisResult,
   AnalysisStatus,
@@ -11,7 +12,7 @@ import type {
 
 // ===== エンジンの起動・停止 =====
 /**
- * 起動・停止の要求の番号。**撃つたびに上げる**（`provider.tsx` の `seqRef`）。
+ * 起動・停止の要求の番号。**撃つたびに上げる**（`nextRequestNumber`。webview を読み直しても下がらない）。
  *
  * Rust は既に受けた番号より古い要求を何もせずに断る。Tauri のコマンドは別々のタスクで走るので、
  * 撃った順と Rust に着く順が逆転しうる——番号が無いと、フロントが捨てた古い起動が動いている
@@ -45,10 +46,7 @@ export async function startAnalysisEngine(args: StartAnalysisEngineArgs): Promis
   return await invoke("start_analysis_engine", args);
 }
 
-/**
- * 申告の取得の番号。**アプリ全体で1本の列**にする——Rust は既に受けた番号より古い取得を断るので、
- * ダイアログを開き直すたびに0から数えると、2回目以降の取得が全部断られる
- */
+/** 最後に撃った取得の番号（`isLatestProbe` が比べる）。番号の作り方は `nextRequestNumber` */
 let lastProbeToken = 0;
 
 /**
@@ -59,8 +57,8 @@ let lastProbeToken = 0;
  * 断るときは `StartFailure`（`asStartFailure` で読む）
  */
 export function probeEngine(enginePath: string): { token: number; outcome: Promise<ProbeOutcome> } {
-  lastProbeToken += 1;
-  const token = lastProbeToken;
+  const token = nextRequestNumber();
+  lastProbeToken = token;
   return { token, outcome: invoke<ProbeOutcome>("probe_engine", { enginePath, token }) };
 }
 
