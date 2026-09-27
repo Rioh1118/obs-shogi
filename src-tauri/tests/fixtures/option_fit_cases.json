@@ -82,5 +82,17 @@
     "def": { "name": "Model", "type": "filename", "default": "nn.bin" },
     "value": "/e/nn.bin",
     "expect": { "sent": "/e/nn.bin" }
+  },
+  {
+    "line": "option name Rev type spin default 5 min 10 max 1",
+    "def": { "name": "Rev", "type": "spin", "default": 5, "min": 10, "max": 1 },
+    "value": "5",
+    "expect": { "sent": "5" }
+  },
+  {
+    "line": "option name Rev type spin default 5 min 10 max 1",
+    "def": { "name": "Rev", "type": "spin", "default": 5, "min": 10, "max": 1 },
+    "value": "0",
+    "expect": { "clamped": "1" }
   }
 ]
