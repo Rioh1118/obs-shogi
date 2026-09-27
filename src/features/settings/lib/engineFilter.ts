@@ -42,9 +42,9 @@ const YANEURAOU_PREFIX = "YaneuraOu_";
  * プリセット編集で選べるエンジン。engines/ の**直下**にあり、名前が `YaneuraOu_` で始まり、
  * このマシンで使えるもの（`isEngineForThisMachine`）。
  *
- * 1段下のフォルダにあるもの（`entry` が `/` を含む）と他の名前のエンジンは出さない。
- * 起動時の作業フォルダと評価関数の渡し方（`runtimeConfigOf`）が、プロファイルの `eval/` を
- * `EvalDir` で渡すやねうら王の平置きしか想定していないため（→ #492）
+ * 1段下のフォルダにあるもの（`entry` が `/` を含む）と他の名前のエンジンは、まだ出さない。
+ * 評価関数・定跡の流し先はエンジンの申告から決まる（`binding.rs`）が、候補の見せ方
+ * （起動できない理由・名前の出し方）を決めていないため（→ #492。候補を広げるのはそこで）
  */
 export function presetEngineCandidates(engines: EngineCandidate[]): EngineCandidate[] {
   return engines.filter(

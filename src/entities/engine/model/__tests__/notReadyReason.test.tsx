@@ -12,13 +12,14 @@ const initialize = vi.fn<(runtime: EngineRuntimeConfig) => Promise<EngineInfo>>(
 const shutdown = vi.fn<() => Promise<void>>();
 vi.mock("@/entities/engine/api/initializer", () => ({
   engineInitializer: {
-    initialize: (runtime: EngineRuntimeConfig) => initialize(runtime),
+    initialize: (runtime: EngineRuntimeConfig) =>
+      initialize(runtime).then((info) => ({ info, warnings: [] })),
     shutdown: () => shutdown(),
   },
 }));
 
 const runtime = (enginePath: string): EngineRuntimeConfig =>
-  ({ enginePath, workDir: "/w", evalDir: "/e", options: {} }) as EngineRuntimeConfig;
+  ({ enginePath, evalPath: "/e/nn.bin", book: null, values: {} }) as EngineRuntimeConfig;
 
 const info = { name: "YaneuraOu", author: "yaneurao" } as EngineInfo;
 

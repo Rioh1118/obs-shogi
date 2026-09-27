@@ -67,6 +67,17 @@ struct Layer {
     forbids: &'static [&'static str],
 }
 
+/// **テストのコードだけに許す辺**（`#[cfg(test)] mod` の中の `use`）。`(使う段, 使われる段, 理由)`。
+///
+/// `may_use` はテストと本番を区別しないので、テストのためだけの辺を `may_use` に足すと本番の
+/// コードも同じ辺を使えてしまう（コメントの「テストだけ」は実装されない）。本番の辺は
+/// [`graph`]（テストの `mod` を剥いだコード）で `may_use` と、テストを含む辺はここと突き合わせる
+const TEST_ONLY_EDGES: &[(&str, &str, &str)] = &[(
+    "binding",
+    "option_line",
+    "申告の行を解いてテストの入力にする（`EngineOption` を組める口は `option_line` だけ）",
+)];
+
 const LAYERS: &[Layer] = &[
     Layer {
         name: "launchable",
@@ -111,6 +122,12 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
+        name: "binding",
+        decides: "評価関数・定跡をどの名前で送るか（その回の申告から）",
+        may_use: &["types"],
+        forbids: &[],
+    },
+    Layer {
         name: "setup",
         decides: "起動したエンジンへ設定を送り、使える状態にする手順",
         may_use: &["types", "utils", "protocol"],
@@ -132,7 +149,7 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "analyzer",
         decides: "解析の探索1回ぶん",
-        may_use: &["types", "utils", "protocol", "registry", "setup"],
+        may_use: &["types", "utils", "protocol", "registry", "setup", "binding"],
         forbids: &[],
     },
     Layer {
@@ -405,7 +422,17 @@ fn scan_file_all(
 }
 
 /// モジュール名 → そのモジュールが `use` しているモジュール名。
+/// 本番のコードの辺（`#[cfg(test)] mod` を剥いで数える）
 fn graph() -> BTreeMap<String, BTreeSet<String>> {
+    edges_of(true)
+}
+
+/// テストを含む全部の辺
+fn graph_with_tests() -> BTreeMap<String, BTreeSet<String>> {
+    edges_of(false)
+}
+
+fn edges_of(production_only: bool) -> BTreeMap<String, BTreeSet<String>> {
     let root = engine_dir();
     let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
@@ -418,6 +445,11 @@ fn graph() -> BTreeMap<String, BTreeSet<String>> {
             continue;
         }
         let source = fs::read_to_string(&path).unwrap_or_default();
+        let source = if production_only {
+            strip_test_modules(&source, &path)
+        } else {
+            source
+        };
         let (targets, _) = scan_file(&source, "engine", relative.components().count());
         let edges = graph.entry(module.clone()).or_default();
         for target in targets {
@@ -742,6 +774,52 @@ fn outward_branch(statement: &str) -> Option<String> {
     leading_name(rest)
 }
 
+/// `code` の中で `EngineOption { .. }` を**組み立てている**行（1始まり）。
+///
+/// 宣言（`struct EngineOption {`）、戻り値の型（`-> EngineOption {`）、分解のパターン
+/// （本体が `..` で終わる `EngineOption { name, .. }`）は組み立てではないので数えない。
+/// 数えると、読むだけのコードが型の別名などで走査を避けることになる
+fn engine_option_literals(code: &str) -> Vec<usize> {
+    const NEEDLE: &str = "EngineOption {";
+    code.match_indices(NEEDLE)
+        .filter(|(at, _)| {
+            let before = code[..*at].trim_end();
+            if before.ends_with("struct") || before.ends_with("->") {
+                return false;
+            }
+            let open = at + NEEDLE.len() - 1;
+            match matching(&code[open..], '{', '}') {
+                Some(len) => !code[open + 1..open + len - 1].trim_end().ends_with(".."),
+                None => true,
+            }
+        })
+        .map(|(at, _)| code[..at].matches('\n').count() + 1)
+        .collect()
+}
+
+#[test]
+fn the_engine_option_scanner_tells_a_literal_from_a_type_or_a_pattern() {
+    let count = |code: &str| engine_option_literals(code).len();
+    assert_eq!(
+        count("pub struct EngineOption {\n    pub name: String,\n}"),
+        0
+    );
+    assert_eq!(
+        count("fn one(line: &str) -> EngineOption {\n    parse(line)\n}"),
+        0
+    );
+    assert_eq!(
+        count("if let Some(EngineOption {\n    name,\n    ..\n}) = x {}"),
+        0
+    );
+    assert_eq!(
+        count("let o = EngineOption {\n    name,\n    option_type,\n};"),
+        1
+    );
+    // 構造体の更新（`..base`）は組み立て
+    assert_eq!(count("let o = EngineOption { name, ..base };"), 1);
+}
+
 /// エンジンのオプションの定義（`EngineOption`）を組み立てるのは `engine/option_line.rs` だけ。
 ///
 /// 組み立てる口が2つあると、同じ `option` 行が経路によって違う定義になる
@@ -760,11 +838,8 @@ fn only_the_option_line_parser_builds_engine_options() {
     for path in files {
         let relative = path.strip_prefix(&src).unwrap_or(&path).to_path_buf();
         let source = fs::read_to_string(&path).unwrap_or_default();
-        for (number, line) in source.lines().enumerate() {
-            let code = line.split("//").next().unwrap_or("");
-            if code.contains("EngineOption {") && !code.contains("struct EngineOption {") {
-                builders.push(format!("{}:{}", relative.display(), number + 1));
-            }
+        for line in engine_option_literals(&blank_out_noncode(&source)) {
+            builders.push(format!("{}:{line}", relative.display()));
         }
     }
 
@@ -1256,4 +1331,41 @@ fn dependencies_only_point_downwards() {
         "許していない段を使っている。共有したいものは共有できる段まで下げること:\n{}",
         upward.join("\n")
     );
+}
+
+/// テストのコードの辺は、`may_use` か [`TEST_ONLY_EDGES`] に在ること。テストだけに許した辺は、
+/// 本番のコードに現れないこと、そしてテストに実際に在ること
+#[test]
+fn test_only_edges_stay_in_the_tests() {
+    let production = graph();
+    let with_tests = graph_with_tests();
+    let mut offenders = Vec::new();
+    for (from, targets) in &with_tests {
+        let Some(layer) = layer(from) else { continue };
+        for to in targets {
+            if layer.may_use.contains(&to.as_str()) {
+                continue;
+            }
+            if !TEST_ONLY_EDGES.iter().any(|(f, t, _)| f == from && t == to) {
+                offenders.push(format!("{from} -> {to}"));
+            }
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "テストが許していない段を使っている。テストのためだけなら TEST_ONLY_EDGES に理由と足すこと: {offenders:?}"
+    );
+
+    for (from, to, _) in TEST_ONLY_EDGES {
+        let in_production = production.get(*from).is_some_and(|t| t.contains(*to));
+        assert!(
+            !in_production,
+            "テストだけに許した {from} -> {to} を本番のコードが使っている。本番で要るなら may_use へ"
+        );
+        let in_tests = with_tests.get(*from).is_some_and(|t| t.contains(*to));
+        assert!(
+            in_tests,
+            "{from} -> {to} はもうテストに無い。TEST_ONLY_EDGES から消すこと"
+        );
+    }
 }

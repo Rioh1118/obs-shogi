@@ -5,7 +5,8 @@ import type { ReactNode } from "react";
 
 /**
  * `RuntimeProviders` に載っている橋のうち、**外しても何も落ちないもの**
- * （`BoardOrientationBridge` / `EngineFailureBridge` / `PresetsFileBridge`）が載っていること。
+ * （`BoardOrientationBridge` / `EngineFailureBridge` / `EngineStartWarningBridge` / `PresetsFileBridge`）
+ * が載っていること。
  * 型も通るしレンダも通る。起きるのは「棋譜を変えても向きが戻らない」
  * 「エンジンが起動できなくても画面に何も出ない」だけで、例外もエラー表示も出ない。
  *
@@ -49,6 +50,7 @@ vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPos
 const resetOrientation = vi.fn();
 const engineFailureBridge = vi.fn();
 const presetsFileBridge = vi.fn();
+const engineStartWarningBridge = vi.fn();
 
 // **中身は差し替える。** 実物は `EngineProvider` の中に居る前提なのに、
 // この試験は `EngineRuntimeBridge` を素通しに差し替えている。
@@ -59,6 +61,18 @@ vi.mock("../bridges/EngineFailureBridge", () => ({
     return null;
   },
 }));
+
+// 実物は `EngineProvider` の中に居る前提（ここでは素通しに差し替えている）
+vi.mock(
+  "../bridges/EngineStartWarningBridge",
+  () =>
+    ({
+      EngineStartWarningBridge: () => {
+        engineStartWarningBridge();
+        return null;
+      },
+    }) satisfies typeof import("../bridges/EngineStartWarningBridge"),
+);
 
 // 同じく、実物は `EnginePresetsProvider` の中に居る前提（ここでは素通しに差し替えている）
 vi.mock(
@@ -120,5 +134,16 @@ describe("RuntimeProviders", () => {
     );
 
     expect(presetsFileBridge).toHaveBeenCalled();
+  });
+
+  /** 起動で送らなかった設定を届ける橋。**外すと、定跡や評価関数が届いていないことが画面に出ない** */
+  test("起動の警告を届ける橋を載せる", () => {
+    render(
+      <RuntimeProviders>
+        <div />
+      </RuntimeProviders>,
+    );
+
+    expect(engineStartWarningBridge).toHaveBeenCalled();
   });
 });

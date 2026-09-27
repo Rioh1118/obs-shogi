@@ -54,8 +54,8 @@ export function pickDefaultBookDb(profile: ProfileCandidate | null): FileCandida
  * commit → effect → `setDraft` → commit … が閉じて、ダイアログを開いている間ずっと回る
  * （欄が全部埋まっている回でも、候補が0件の回でも止まらない）。
  *
- * すでに入っている値は上書きしない。`book` だけは「使わない」に切り替えた回に
- * 落とす必要があるので、空でなくても触る。
+ * すでに入っている値は上書きしない。定跡は「解析で使う」ときだけ、空なら埋める
+ * （使わないときもパスは残す。定跡ビューが出す）。
  */
 export function autofillPreset(
   cur: EnginePreset,
@@ -96,12 +96,7 @@ export function autofillPreset(
     }
   }
 
-  if (!next.bookEnabled) {
-    if (next.bookFilePath !== null) {
-      next.bookFilePath = null;
-      changed = true;
-    }
-  } else if (!cleanText(next.bookFilePath ?? "")) {
+  if (next.bookEnabled && !cleanText(next.bookFilePath ?? "")) {
     const defBook = pickDefaultBookDb(prof);
     const path = defBook ? defBook.path : null;
     if (next.bookFilePath !== path) {

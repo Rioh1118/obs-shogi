@@ -10,7 +10,7 @@ export type BookOpenTarget = {
 };
 
 type Sources = {
-  /** いま選んでいるプリセットが `BookFile` として指しているパス */
+  /** いま選んでいるプリセットの定跡ファイル（解析で使うかに依らない） */
   presetBookPath: string | null;
   /** そのプリセットの名前。添え書きに出す */
   presetName: string | null;
@@ -23,8 +23,8 @@ type Sources = {
 /**
  * 空の画面に出す一覧を組む。
  *
- * **2つの束に分けるのは、探し方が違うから。** プリセットが指している定跡は
- * 「いま回しているエンジンが実際に食っているもの」で、いちばん見たい1件。
+ * **2つの束に分けるのは、探し方が違うから。** プリセットの定跡は「いま選んでいるプリセットに
+ * 結び付けた定跡」で、いちばん見たい1件（解析で使うかどうかは別。切ってあっても出す）。
  * 最近開いたものは「さっき見ていたもの」。
  *
  * **AI ライブラリを列挙しない。** そちらは*エンジンに食わせる*定跡を選ぶ場所で、
@@ -46,7 +46,7 @@ export function bookOpenTargets(sources: Sources): {
           {
             path: presetBookPath,
             name: bookFileName(presetBookPath),
-            note: presetName ? `${presetName} が使っている` : "選んでいるエンジンが使っている",
+            note: presetName ? `${presetName} の定跡` : "選んでいるプリセットの定跡",
           },
         ]
       : [];

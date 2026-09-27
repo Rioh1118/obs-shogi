@@ -7,24 +7,33 @@
 //! ここがやるのは `AppState` から持ち物を取り出して渡すことだけ。
 //! **判断を書かない**——書くと、同じ判断が `EngineBridge` 側にもできる。
 
-use crate::engine::analyzer::{DepthOutcome, Request};
+use crate::engine::analyzer::{DepthOutcome, Request, StartInput};
 use crate::engine::state::AppState;
 use crate::engine::types::*;
 
 // === Tauriコマンド定義 ===
 
-/// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ。失敗は種類つきで返す
+/// 解析用のエンジンを起こし、設定を送って `readyok` まで待つ。失敗は種類つきで返す。
+///
+/// 評価関数と定跡は**パスで**受ける。どの USI の名前で送るかは Rust が申告から決める
+/// （`binding::bind`）。`values` は利用者の値
 #[tauri::command]
 pub async fn start_analysis_engine(
     state: tauri::State<'_, AppState>,
     engine_path: String,
-    working_dir: Option<String>,
-    options: Vec<SetOptionValue>,
+    values: Vec<SetOptionValue>,
+    eval_path: Option<String>,
+    book: Option<BookChoice>,
     request: Request,
-) -> Result<EngineInfo, StartFailure> {
+) -> Result<StartOutcome, StartFailure> {
+    let input = StartInput {
+        values,
+        eval_path,
+        book,
+    };
     state
         .bridge
-        .start_analysis_engine_impl(engine_path, working_dir, options, request)
+        .start_analysis_engine_impl(engine_path, input, request)
         .await
 }
 

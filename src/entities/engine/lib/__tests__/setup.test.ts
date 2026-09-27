@@ -1,43 +1,48 @@
 import { describe, expect, test } from "vitest";
 import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
-import { usiOptionsOf } from "../setup";
+import { equalRuntime } from "../equalRuntime";
+import { valuesOf } from "../setup";
 
 const CONFIG: EngineRuntimeConfig = {
   enginePath: "/ai/engines/yaneuraou",
-  workDir: "/ai/yaneuraou",
-  evalDir: "/ai/eval/suisho",
-  bookDir: "/ai/book",
-  bookFile: "user_book1.db",
-  options: { Threads: "4", USI_Hash: "1024", MultiPV: "3" },
+  evalPath: "/ai/suisho/eval/nn.bin",
+  book: { path: "/ai/suisho/book/standard_book.db", useInAnalysis: true },
+  values: { Threads: "4", USI_Hash: "1024", MultiPV: "3" },
 };
 
 /**
- * **順序がそのまま送られる**（`start_analysis_engine` は並べた順に `setoption` を送る）。
- * プリセットの値が先、置き場（`EvalDir` / `BookDir` / `BookFile`）が後。
+ * **TS は USI の名前を足さない。** 評価関数・定跡・固定値の名前は Rust が起動のたびの申告から
+ * 決める（`binding.rs`）。足すと、申告しないエンジン（zermelo の `EvalDir`）に届かない名前を送る
  */
-describe("usiOptionsOf", () => {
-  test("プリセットの値を先に、置き場を後に並べる", () => {
-    expect(usiOptionsOf(CONFIG).map((option) => option.name)).toEqual([
-      "Threads",
-      "USI_Hash",
-      "MultiPV",
-      "EvalDir",
-      "BookDir",
-      "BookFile",
-    ]);
+describe("valuesOf", () => {
+  test("利用者の値だけを送る形にし、評価関数・定跡の名前を足さない", () => {
+    const names = valuesOf(CONFIG).map((option) => option.name);
+
+    expect(names).toEqual(["Threads", "USI_Hash", "MultiPV"]);
+    for (const usiName of ["EvalDir", "EvalFile", "BookDir", "BookFile", "USI_OwnBook"]) {
+      expect(names).not.toContain(usiName);
+    }
+  });
+});
+
+describe("equalRuntime", () => {
+  /** 送る順は Rust が申告から決めるので、利用者の値の並びでは起動し直さない */
+  test("利用者の値は名前で比べ、並びを見ない", () => {
+    const reordered = { ...CONFIG, values: { MultiPV: "3", Threads: "4", USI_Hash: "1024" } };
+    expect(equalRuntime(CONFIG, reordered)).toBe(true);
   });
 
-  test("プリセットが置き場と同じ名前を持つなら、位置は先のまま値は置き場のもの", () => {
-    const options = usiOptionsOf({ ...CONFIG, options: { EvalDir: "/stale", Threads: "4" } });
-
-    expect(options[0]).toEqual({ name: "EvalDir", value: "/ai/eval/suisho" });
-    expect(options.filter((option) => option.name === "EvalDir")).toHaveLength(1);
-  });
-
-  test("定跡の置き場が無ければ送らない", () => {
-    const names = usiOptionsOf({ ...CONFIG, bookDir: null, bookFile: null }).map((o) => o.name);
-
-    expect(names).not.toContain("BookDir");
-    expect(names).not.toContain("BookFile");
+  test("評価関数・定跡・解析で使うかのどれが変わっても起動し直す", () => {
+    expect(equalRuntime(CONFIG, { ...CONFIG, evalPath: "/ai/suisho/eval/other.bin" })).toBe(false);
+    expect(equalRuntime(CONFIG, { ...CONFIG, evalPath: null })).toBe(false);
+    expect(
+      equalRuntime(CONFIG, { ...CONFIG, book: { path: "/b/other.db", useInAnalysis: true } }),
+    ).toBe(false);
+    expect(
+      equalRuntime(CONFIG, { ...CONFIG, book: { ...CONFIG.book!, useInAnalysis: false } }),
+    ).toBe(false);
+    expect(equalRuntime(CONFIG, { ...CONFIG, values: { ...CONFIG.values, Threads: "8" } })).toBe(
+      false,
+    );
   });
 });

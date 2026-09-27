@@ -92,8 +92,9 @@ const EXEMPT: [(&str, &str); 9] = [
     ),
     (
         "start_analysis_engine",
-        "(1) engine_path / working_dir は思考エンジンの実行ファイルと置き場で、ワークスペースの外にある \
-         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る）",
+        "(1) engine_path / eval_path / book.path は思考エンジンの実行ファイル・評価関数・定跡で、ワークスペースの外にある \
+         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る。評価関数と定跡の \
+         パスはエンジンへ文字列で渡すだけで、アプリは中身を開かない——フォルダかどうかを見るだけ）",
     ),
     (
         "save_presets",

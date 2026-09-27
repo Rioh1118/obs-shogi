@@ -77,14 +77,15 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     dispatch({ type: "initialize_start" });
 
     try {
-      const info = await engineInitializer.initialize(desiredRuntime, mySeq);
+      const outcome = await engineInitializer.initialize(desiredRuntime, mySeq);
       if (seqRef.current !== mySeq) return false;
 
       dispatch({
         type: "initialize_success",
         payload: {
-          engineInfo: info,
+          engineInfo: outcome.info,
           activeRuntime: snap,
+          warnings: outcome.warnings,
         },
       });
 

@@ -18,7 +18,10 @@ import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
 const initialize = vi.fn<() => Promise<boolean>>();
 const cancelStart = vi.fn<() => void>();
 const engine = {
-  state: { phase: "idle" as EnginePhase, error: null as EngineStartFailure | null },
+  state: {
+    phase: "idle" as EnginePhase,
+    error: null as EngineStartFailure | null,
+  },
   initialize: () => initialize(),
   cancelStart: () => cancelStart(),
 };

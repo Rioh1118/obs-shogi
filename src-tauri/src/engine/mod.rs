@@ -1,4 +1,5 @@
 pub mod analyzer; // 解析処理
+pub mod binding; // 評価関数・定跡の流し先を申告から決める
 pub mod bridge; // 解析のファサード
 pub mod child; // 子プロセスと標準入出力
 pub mod commands; // Tauri コマンドの入口

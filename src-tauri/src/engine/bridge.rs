@@ -1,6 +1,6 @@
 use crate::engine::utils::{shown, LogThrottle, EMIT_WARN_INTERVAL, MAX_SUMMARY_LEN};
 
-use super::analyzer::{DepthOutcome, EngineAnalyzer, Request, MAX_THINK_TIME};
+use super::analyzer::{DepthOutcome, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;
@@ -153,10 +153,9 @@ impl EngineBridge {
     pub async fn start_analysis_engine_impl(
         &self,
         engine_path: String,
-        working_dir: Option<String>,
-        options: Vec<SetOptionValue>,
+        input: StartInput,
         request: Request,
-    ) -> Result<EngineInfo, StartFailure> {
+    ) -> Result<StartOutcome, StartFailure> {
         log::info!(target: LOGT, "start_analysis_engine: start");
         if self.analyzer.is_superseded(request).await {
             log::info!(target: LOGT, "start_analysis_engine: superseded");
@@ -169,12 +168,16 @@ impl EngineBridge {
 
         let started = self
             .analyzer
-            .start_engine(&engine_path, working_dir.as_deref(), &options, request)
+            .start_engine(&engine_path, &input, request)
             .await;
         match started {
-            Ok(info) => {
-                log::info!(target: LOGT, "start_analysis_engine: ok");
-                Ok(info)
+            Ok(outcome) => {
+                log::info!(
+                    target: LOGT,
+                    "start_analysis_engine: ok ({} warning(s))",
+                    outcome.warnings.len()
+                );
+                Ok(outcome)
             }
             Err(e) => {
                 let failure = start_failure::describe(&e, &engine_path).await;
@@ -720,7 +723,7 @@ mod tests {
 
         // 起動そのものは落ちる（実行ファイルが無い）。それでよい。
         let _ = bridge
-            .start_analysis_engine_impl("/nonexistent/engine".to_string(), None, vec![], 1)
+            .start_analysis_engine_impl("/nonexistent/engine".to_string(), StartInput::default(), 1)
             .await;
 
         assert!(

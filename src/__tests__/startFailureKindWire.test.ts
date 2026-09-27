@@ -81,4 +81,26 @@ describe("StartFailureKind の受け渡し", () => {
       ].join("\n"),
     ).toEqual([]);
   });
+
+  /**
+   * 起動の警告（`StartWarning`）も同じ。Rust にだけ足した種類は、画面が汎用の1文に落とす
+   * （`startWarningNotice.ts`）。線の綴りは Rust 側の
+   * `engine::binding::tests::every_start_warning_goes_on_the_wire_as_camel_case`
+   */
+  it("Rust の起動の警告の種類が TS の写しに全部ある", () => {
+    const variants = rustEnumVariants(RUST_ENUM, "StartWarning");
+    expect(variants.length, "バリアントを拾えていない").toBeGreaterThan(4);
+
+    const source = readFileSync(TS_WIRE, "utf8");
+    const start = source.indexOf("export type StartWarning =");
+    expect(start, "写しに StartWarning の宣言が無い").toBeGreaterThanOrEqual(0);
+    const body = source.slice(start, source.indexOf(";\n", start));
+    const kinds = new Set([...body.matchAll(/kind: "(\w+)"/g)].map((m) => m[1]));
+
+    const missing = variants.map(camelWire).filter((wire) => !kinds.has(wire));
+    expect(
+      missing,
+      "Rust だけにある警告の種類。api/rust-types.ts の StartWarning と startWarningNotice.ts に足すこと",
+    ).toEqual([]);
+  });
 });

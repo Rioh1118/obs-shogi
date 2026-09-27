@@ -30,7 +30,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const { config, isLoading: appConfigLoading, setLastPresetId } = useAppConfig();
 
   const initializedRef = useRef(false);
-  const aiRoot = config?.ai_root ?? null;
 
   const presetVersionRef = useRef<Map<PresetId, number>>(new Map());
   const [versionEpoch, bumpVersionEpoch] = useReducer((x) => x + 1, 0);
@@ -141,11 +140,10 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const runtimeConfig = useMemo<EngineRuntimeConfig | null>(() => {
-    if (!selectedPreset) return null;
-    if (!aiRoot) return null;
-    return runtimeConfigOf(selectedPreset, aiRoot);
-  }, [selectedPreset, aiRoot]);
+  const runtimeConfig = useMemo<EngineRuntimeConfig | null>(
+    () => (selectedPreset ? runtimeConfigOf(selectedPreset) : null),
+    [selectedPreset],
+  );
 
   const analysisDefaults = useMemo<AnalysisDefaults | null>(() => {
     if (!selectedPreset) return null;

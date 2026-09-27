@@ -17,9 +17,15 @@ export type EnginePreset = {
 
   aiName: string;
   enginePath: string;
+  /** 評価関数（絶対パス。ファイルでもフォルダでもよい）。空なら選んでいない（必須でない） */
   evalFilePath: string;
 
+  /**
+   * **解析で定跡を使うか。** 定跡を選んであるか・定跡ビューに出すかとは別（パスは切っても残る）。
+   * 保存ファイルの鍵なので名前を変えていない
+   */
   bookEnabled: boolean;
+  /** 定跡ファイル（絶対パス）。解析で使わなくても残す（定跡ビューが出す） */
   bookFilePath: string | null;
 
   options: UsiOptionMap;
@@ -34,8 +40,12 @@ export type SaveFailure = {
   message: string;
 };
 
+/**
+ * 起動できるだけ揃っているか。**評価関数は要らない**——指定できないエンジンがある
+ * （流し先は起動のたびの申告から Rust が決める。受ける名前が無ければ警告になる）
+ */
 export function isPresetConfigured(p: EnginePreset): boolean {
-  return Boolean(p.aiName && p.enginePath && p.evalFilePath);
+  return Boolean(p.aiName && p.enginePath);
 }
 
 export type AsyncStatus = "idle" | "loading" | "ok" | "error";

@@ -41,9 +41,9 @@ function BookView() {
 
   const preset = presetsState.presets.find((p) => p.id === presetsState.selectedPresetId) ?? null;
   const targets = bookOpenTargets({
-    // **`bookEnabled` が偽なら出さない。** 綴りは残っていても、そのプリセットは
-    // エンジンに定跡を食わせていない
-    presetBookPath: preset?.bookEnabled ? preset.bookFilePath : null,
+    // **解析で使うかに依らず出す。** 解析で使わない定跡でも、ここで開いて眺める対象になる
+    // （`bookEnabled` は「解析で使うか」）
+    presetBookPath: preset?.bookFilePath ?? null,
     presetName: preset?.label ?? null,
     recents: config?.book_recent_paths,
     openPath: info?.path ?? null,
