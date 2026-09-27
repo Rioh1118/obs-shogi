@@ -34,6 +34,7 @@ export function withDefinitions(
   return {
     ...cur,
     definitions: outcome.definitions,
+    reservedNames: outcome.reserved,
     definitionsFor: outcome.enginePath,
     probedAt,
     engineName: outcome.name,

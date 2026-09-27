@@ -159,6 +159,7 @@ describe("プリセット編集でのオプションの取得", () => {
     expect(patch.definitionsFor).toBe(ENGINE_A);
     expect(patch.engineName).toBe("Engine A");
     expect(patch.definitions).toHaveLength(1);
+    expect(patch.reservedNames).toEqual([]);
   }, 20000);
 
   test("選び直した後に前の取得が返っても、選び直したエンジンの定義を使う", async () => {
@@ -400,5 +401,71 @@ describe("プリセット編集でのオプションの取得", () => {
 
     await waitFor(() => expect(updatePreset).toHaveBeenCalled());
     expect(updatePreset.mock.calls[0][1].options).toEqual({ SlowMover: "100" });
+  }, 20000);
+
+  const FULL_DEFS = [
+    { name: "Threads", type: "spin" as const, default: 4, min: 1, max: 512 },
+    { name: "USI_Ponder", type: "check" as const, default: false },
+    { name: "Style", type: "combo" as const, default: "a", vars: ["a", "b"] },
+    { name: "Model", type: "filename" as const, default: "nn.bin" },
+    { name: "EvalDir", type: "string" as const, default: "eval" },
+    { name: "Clear_Hash", type: "button" as const },
+  ];
+
+  /** 定義を取得したエンジンの全部の欄を開いた状態にする */
+  async function openFullList() {
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[0].resolve({
+      ...outcome(probes[0], "Engine A"),
+      definitions: FULL_DEFS,
+      reserved: ["EvalDir"],
+    });
+    const summary = await screen.findByText(/5 件（変えた値/);
+    fireEvent.click(summary);
+  }
+
+  test("全部の欄で型ごとに値を変え、保存に載る。button は欄を作らない", async () => {
+    await openFullList();
+
+    fireEvent.change(screen.getByDisplayValue("エンジン既定（OFF）"), {
+      target: { value: "true" },
+    });
+    fireEvent.change(screen.getByDisplayValue("エンジン既定（a）"), { target: { value: "b" } });
+    const threads = screen.getByPlaceholderText(/範囲 1〜512/);
+    fireEvent.change(threads, { target: { value: "999" } });
+    fireEvent.blur(threads);
+    fireEvent.change(screen.getByPlaceholderText("エンジン既定（nn.bin）"), {
+      target: { value: "/e/model.bin" },
+    });
+    expect(screen.queryByText("Clear_Hash")).toBeNull();
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({
+      USI_Ponder: "true",
+      Style: "b",
+      Threads: "512",
+      Model: "/e/model.bin",
+    });
+  }, 20000);
+
+  test("アプリが決める名前は読み取り専用。名前で絞り込め、すべて既定に戻せる", async () => {
+    presets.current = { ...PRESET, options: { Threads: "8" } };
+    await openFullList();
+
+    expect(screen.getByText(/アプリが決めます/)).toBeTruthy();
+    expect(screen.queryByPlaceholderText("エンジン既定（eval）")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("オプションを名前で絞り込む"), {
+      target: { value: "sty" },
+    });
+    expect(screen.queryByPlaceholderText(/範囲 1〜512/)).toBeNull();
+    expect(screen.getByDisplayValue("エンジン既定（a）")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "すべてエンジン既定に戻す" }));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({});
   }, 20000);
 });

@@ -16,6 +16,7 @@ import {
 import BasicSection from "./sections/BasicSection";
 import EngineFilesSection from "./sections/EngineFilesSection";
 import ImportantOptionsSection from "./sections/ImportantOptionsSection";
+import UsiOptionsSection from "./sections/UsiOptionsSection";
 import AnalysisDefaultsSection from "./sections/AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
 import { useAppConfig } from "@/entities/app-config";
@@ -277,6 +278,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     (name: string, value: string | null) => dispatch({ type: "optionSet", name, value }),
     [],
   );
+  const clearOptions = useCallback(() => dispatch({ type: "optionsCleared" }), []);
 
   const onCreateEnginesDir = useCallback(async () => {
     const root = aiRoot;
@@ -365,6 +367,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       options,
       analysis,
       definitions: draft.definitions ?? null,
+      reservedNames: draft.reservedNames ?? null,
       definitionsFor: draft.definitionsFor ?? null,
       probedAt: draft.probedAt ?? null,
       engineName: draft.engineName ?? null,
@@ -461,6 +464,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             threadChoices={threadChoices}
             multiPvMax={multiPvMax(draft)}
           />
+
+          <UsiOptionsSection draft={draft} setOpt={setOpt} clearOptions={clearOptions} />
 
           <AnalysisDefaultsSection draft={draft} setDraft={setDraft} />
         </div>
