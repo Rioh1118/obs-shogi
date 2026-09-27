@@ -10,4 +10,3 @@ export const MULTIPV_MAX = 8;
 
 /** 入力欄の脇に並べる既定の選択肢 */
 export const QUICK_MULTIPV = [1, 3, 5, 8] as const;
-export const QUICK_MULTIPV_SET = new Set<number>(QUICK_MULTIPV);

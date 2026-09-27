@@ -1,7 +1,7 @@
 import React from "react";
 import "./SRadioGroup.scss";
 
-export type SRadioOption = {
+type SRadioOption = {
   value: string;
   label: React.ReactNode;
   description?: React.ReactNode;

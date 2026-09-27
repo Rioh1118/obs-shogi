@@ -229,7 +229,8 @@ describe("プリセット編集でのオプションの取得", () => {
   }, 20000);
 
   /** 手動のパス欄は取得を撃たない。待っていた取得の結果を、打ち換えたパスに付けない */
-  test("取得を待つ間に手でパスを打ち換えたら、前のエンジンの定義を付けない", async () => {
+  test("取得を待つ間に手でパスを打ち換えたら、前のエンジンの定義を付けず、値にも当てない", async () => {
+    presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
     await openWithEngines();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     fireEvent.change(screen.getByPlaceholderText("/path/to/engine"), {
@@ -241,6 +242,8 @@ describe("プリセット編集でのオプションの取得", () => {
     fireEvent.click(saveButton());
     await waitFor(() => expect(updatePreset).toHaveBeenCalled());
     expect(updatePreset.mock.calls[0][1].definitionsFor).toBeNull();
+    // 前のエンジンの定義（NetworkDelay を持たない）で値を外していない
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
   }, 20000);
 
   /** 読み直しで同じプリセットの別オブジェクトが来ても、取得中なら保存を開けない */
@@ -254,5 +257,148 @@ describe("プリセット編集でのオプションの取得", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(saveButton().disabled).toBe(true);
+  }, 20000);
+
+  /**
+   * 取得が返ったら、**その時点の下書き**に定義を当てる（取得を待つ間の編集を失わない）。
+   * 外した値・丸めた値は保存の前に見せ、保存に載るのは当てた後の値
+   */
+  test("取得が返ったら値を定義に当て、変えた値を見せる。待つ間の編集は残る", async () => {
+    presets.current = { ...PRESET, options: { NetworkDelay: "120", Threads: "999" } };
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+
+    probes[0].resolve({
+      ...outcome(probes[0], "Engine A"),
+      definitions: [
+        { name: "Threads", type: "spin", default: 4, min: 1, max: 512 },
+        { name: "MultiPV", type: "spin", default: 1, min: 1, max: 500 },
+      ],
+    });
+
+    await screen.findByText("NetworkDelay = 120 を外しました（このエンジンに無い）");
+    expect(
+      screen.getByText("Threads を 999 から 512 に丸めました（このエンジンの範囲は 1〜512）"),
+    ).toBeTruthy();
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ Threads: "512", MultiPV: "3" });
+  }, 20000);
+
+  /** 値が無いことが「エンジン既定」。既定値を敷いて保存しない */
+  test("エンジン既定を選ぶと、その値を持たずに保存する", async () => {
+    presets.current = {
+      ...PRESET,
+      enginePath: ENGINE_A,
+      options: { MultiPV: "5", Threads: "8", USI_Hash: "2048", NetworkDelay: "120" },
+    };
+    await openWithEngines();
+
+    fireEvent.click(screen.getByRole("button", { name: "エンジン既定" }));
+    for (const radio of screen.getAllByRole("radio", { name: /エンジン既定/ })) {
+      fireEvent.click(radio);
+    }
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    // 欄の無い値（NetworkDelay）は触らない
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
+  }, 20000);
+
+  /** 取り直すたびに当て直しても、一覧はいつも「保存済みの値から何を変えるか」を言う */
+  test("同じエンジンで取り直しても、外した値の一覧は消えない", async () => {
+    presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByText(/NetworkDelay = 120 を外しました/);
+
+    fireEvent.click(screen.getByRole("button", { name: "オプションを読み込む" }));
+    probes[1].resolve(outcome(probes[1], "Engine A"));
+    await screen.findByText(/取得済み/);
+
+    expect(screen.getByText(/NetworkDelay = 120 を外しました/)).toBeTruthy();
+  }, 20000);
+
+  /** A で外した値を、それを受ける B に選び直したら戻す（黙って消さない） */
+  test("A で外した値は、それを受ける B に選び直すと戻る", async () => {
+    presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByText(/NetworkDelay = 120 を外しました/);
+
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_B } });
+    probes[1].resolve({
+      ...outcome(probes[1], "Engine B"),
+      definitions: [{ name: "NetworkDelay", type: "spin", default: 0, min: 0, max: 10000 }],
+    });
+    await screen.findByText(/（Engine B）/);
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
+  }, 20000);
+
+  /** 読み直しで下書きが保存済みの値に戻ったら、戻る前の一覧を出さない */
+  test("プリセットが読み直されたら、外した値の一覧を消す", async () => {
+    // 読み直しの前後で同じエンジン（一覧がエンジンの違いで隠れない形）
+    presets.current = { ...PRESET, enginePath: ENGINE_A, options: { NetworkDelay: "120" } };
+    const view = await openWithEnginesView();
+    fireEvent.click(screen.getByRole("button", { name: "オプションを読み込む" }));
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByText(/NetworkDelay = 120 を外しました/);
+
+    presets.current = { ...presets.current };
+    view.rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(screen.queryByText(/NetworkDelay = 120 を外しました/)).toBeNull();
+  }, 20000);
+
+  test("MultiPV の入力欄を空にしたら、1 でなくエンジン既定にする", async () => {
+    presets.current = { ...PRESET, enginePath: ENGINE_A, options: { MultiPV: "6" } };
+    await openWithEngines();
+
+    fireEvent.change(screen.getByPlaceholderText("既定"), { target: { value: "" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({});
+  }, 20000);
+
+  /** 取得で丸められてボタンに無い値になっても、値が画面から消えない */
+  test("丸められて選択肢に無い値になったら、MultiPV の入力欄を開いて値を出す", async () => {
+    presets.current = { ...PRESET, options: { MultiPV: "5" } };
+    await openWithEngines();
+    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+    probes[0].resolve({
+      ...outcome(probes[0], "Engine A"),
+      definitions: [{ name: "MultiPV", type: "spin", default: 1, min: 1, max: 4 }],
+    });
+    await screen.findByText(/取得済み/);
+
+    expect((screen.getByPlaceholderText("既定") as HTMLInputElement).value).toBe("4");
+    // 既定値が分かれば添え、既定が 1 なら候補が1本になることを言う
+    fireEvent.click(screen.getByRole("button", { name: "エンジン既定（1）" }));
+    expect(screen.getByText(/解析の候補は1本だけになります/)).toBeTruthy();
+  }, 20000);
+
+  /** 欄の無い保存済みの値も、見えないまま送り続けないように外せる */
+  test("その他の保存済みの値を外せる", async () => {
+    presets.current = {
+      ...PRESET,
+      enginePath: ENGINE_A,
+      options: { NetworkDelay: "120", SlowMover: "100" },
+    };
+    await openWithEngines();
+
+    fireEvent.click(screen.getByRole("button", { name: "NetworkDelay を外す" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+    expect(updatePreset.mock.calls[0][1].options).toEqual({ SlowMover: "100" });
   }, 20000);
 });

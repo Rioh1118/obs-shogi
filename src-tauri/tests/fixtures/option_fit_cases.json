@@ -1,0 +1,86 @@
+[
+  {
+    "line": "option name Threads type spin default 4 min 1 max 512",
+    "def": { "name": "Threads", "type": "spin", "default": 4, "min": 1, "max": 512 },
+    "value": "8",
+    "expect": { "sent": "8" }
+  },
+  {
+    "line": "option name Threads type spin default 4 min 1 max 512",
+    "def": { "name": "Threads", "type": "spin", "default": 4, "min": 1, "max": 512 },
+    "value": " 8 ",
+    "expect": { "sent": "8" }
+  },
+  {
+    "line": "option name Threads type spin default 4 min 1 max 512",
+    "def": { "name": "Threads", "type": "spin", "default": 4, "min": 1, "max": 512 },
+    "value": "999",
+    "expect": { "clamped": "512" }
+  },
+  {
+    "line": "option name Threads type spin default 4 min 1 max 512",
+    "def": { "name": "Threads", "type": "spin", "default": 4, "min": 1, "max": 512 },
+    "value": "-3",
+    "expect": { "clamped": "1" }
+  },
+  {
+    "line": "option name Threads type spin default 4 min 1 max 512",
+    "def": { "name": "Threads", "type": "spin", "default": 4, "min": 1, "max": 512 },
+    "value": "4.5",
+    "expect": { "dropped": "invalidType" }
+  },
+  {
+    "line": "option name Big type spin default 0",
+    "def": { "name": "Big", "type": "spin", "default": 0, "min": null, "max": null },
+    "value": "9000000000000000000",
+    "expect": { "sent": "9000000000000000000" }
+  },
+  {
+    "line": "option name Big type spin default 0",
+    "def": { "name": "Big", "type": "spin", "default": 0, "min": null, "max": null },
+    "value": "99999999999999999999",
+    "expect": { "dropped": "invalidType" }
+  },
+  {
+    "line": "option name USI_Ponder type check default false",
+    "def": { "name": "USI_Ponder", "type": "check", "default": false },
+    "value": "True",
+    "expect": { "sent": "true" }
+  },
+  {
+    "line": "option name USI_Ponder type check default false",
+    "def": { "name": "USI_Ponder", "type": "check", "default": false },
+    "value": "yes",
+    "expect": { "dropped": "invalidType" }
+  },
+  {
+    "line": "option name Style type combo default a var a var b",
+    "def": { "name": "Style", "type": "combo", "default": "a", "vars": ["a", "b"] },
+    "value": "b",
+    "expect": { "sent": "b" }
+  },
+  {
+    "line": "option name Style type combo default a var a var b",
+    "def": { "name": "Style", "type": "combo", "default": "a", "vars": ["a", "b"] },
+    "value": "A",
+    "expect": { "dropped": "notInVars" }
+  },
+  {
+    "line": "option name Clear_Hash type button",
+    "def": { "name": "Clear_Hash", "type": "button" },
+    "value": "1",
+    "expect": { "dropped": "button" }
+  },
+  {
+    "line": "option name Path type string default x",
+    "def": { "name": "Path", "type": "string", "default": "x" },
+    "value": " a b ",
+    "expect": { "sent": " a b " }
+  },
+  {
+    "line": "option name Model type filename default nn.bin",
+    "def": { "name": "Model", "type": "filename", "default": "nn.bin" },
+    "value": "/e/nn.bin",
+    "expect": { "sent": "/e/nn.bin" }
+  }
+]
