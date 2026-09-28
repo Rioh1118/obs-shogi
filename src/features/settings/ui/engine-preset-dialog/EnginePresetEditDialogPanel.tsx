@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import type { SetStateAction } from "react";
 import { classifyEnginesDir } from "@/entities/engine/lib/enginesDir";
 import "./EnginePresetEditDialogPanel.scss";
 
@@ -15,19 +16,21 @@ import {
 import BasicSection from "./sections/BasicSection";
 import EngineFilesSection from "./sections/EngineFilesSection";
 import ImportantOptionsSection from "./sections/ImportantOptionsSection";
+import UsiOptionsSection from "./sections/UsiOptionsSection";
 import AnalysisDefaultsSection from "./sections/AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
 import { useAppConfig } from "@/entities/app-config";
-import type { EnginePreset, PresetId, UsiOptionMap } from "@/entities/engine-presets/model/types";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { multiPvMax } from "@/features/settings/lib/quickOptions";
 import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
 import { asStartFailure } from "@/entities/engine";
-import { abandonProbe, isLatestProbe, probeEngine } from "@/entities/engine/api/tauri";
-import type { ProbeFailure } from "@/features/settings/lib/probeStatus";
-import { probePathOf, withDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import { fitValues } from "@/entities/engine-presets/lib/fitValues";
-import type { FitNote } from "@/features/settings/lib/fitNote";
+import { probeEngine } from "@/entities/engine/api/tauri";
+import { probePathOf } from "@/entities/engine-presets/lib/withDefinitions";
+import {
+  initialPresetDialogState,
+  presetDialogReducer,
+} from "@/features/settings/model/presetDialogReducer";
 import PresetDialogHeader from "./PresetDialogHeader";
 import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engine/api/aiLibrary";
 
@@ -127,73 +130,49 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const engines = useMemo(() => index?.engines ?? [], [index?.engines]);
   const profiles = useMemo(() => index?.profiles ?? [], [index?.profiles]);
 
-  // ---- draft ----
-  const [draft, setDraft] = useState<EnginePreset | null>(null);
+  // ---- draft と取得（`presetDialogReducer`） ----
+  const [dialog, dispatch] = useReducer(presetDialogReducer, initialPresetDialogState);
+  const { draft, probeFailure, fitNote } = dialog;
+  const probing = dialog.probe !== null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // ---- オプションの定義の取得 ----
-  const [probing, setProbing] = useState(false);
-  const [probeFailure, setProbeFailure] = useState<ProbeFailure | null>(null);
-  /** 取得した定義に当てて変えた値。保存の前に見せる（黙って消さない） */
-  const [fitNote, setFitNote] = useState<FitNote | null>(null);
+  /** 各節が下書きを直す口（値以外の欄）。reducer の `edited` に渡す */
+  const setDraft = useCallback(
+    (update: SetStateAction<EnginePreset | null>) => dispatch({ type: "edited", update }),
+    [],
+  );
 
   /**
-   * 定義に当てる**元の値**: 開いたときのプリセットの値に、このダイアログで利用者が変えた値を重ねたもの。
-   *
-   * **当てた後の下書きから当て直さない。** エンジン A で外した値は、それを受けるエンジン B に選び直しても
-   * 戻らず、B の結果の一覧（何も外していない）が A の一覧を置き換えて、保存で黙って消える。同じエンジンで
-   * 取り直しても、2回目は何も外さず一覧が消える。元の値から当てれば、一覧はいつも「保存済みの値から
-   * 何を変えるか」を言い、A → B → A で A の値も戻る
-   */
-  const baselineRef = useRef<UsiOptionMap>({});
-
-  /**
-   * `enginePath` の申告を取り、下書きに定義を入れる。**最後に撃った取得の結果だけを使う**
-   * （`isLatestProbe`。一覧で選び直すと新しい取得が撃たれるので、前の結果はここで捨てる）。
-   * 取得を撃たずにパスだけが変わった（手動のパス欄）回は `withDefinitions` が捨てる
+   * `enginePath` の申告を取る。結果を使うかは reducer が決める（いま待っている取得の結果だけ。
+   * 取得を撃たずにパスだけが変わっていたら当てない）
    */
   const runProbe = useCallback((rawPath: string) => {
     const enginePath = probePathOf(rawPath);
     if (!enginePath) return;
     const { token, outcome } = probeEngine(enginePath);
-    setProbing(true);
-    setProbeFailure(null);
+    dispatch({ type: "probeStarted", token, enginePath });
     outcome.then(
-      (result) => {
-        if (!isLatestProbe(token)) return;
-        setProbing(false);
-        const probedAt = new Date().toISOString();
-        const fitted = fitValues(baselineRef.current, result.definitions, result.reserved);
-        // 更新関数の中で組む。値を渡すと、まだ描画されていない更新（空欄の自動補完など）を上書きする
-        setDraft((cur) => {
-          if (!cur) return cur;
-          const withDefs = withDefinitions(cur, result, probedAt);
-          // 取得を撃たずにパスが変わっていた（`withDefinitions` が同じ参照を返した）なら当てない
-          if (withDefs === cur) return cur;
-          return { ...withDefs, options: fitted.options };
-        });
-        // 当てなかった回（パスが変わっていた）は、一覧もそのパスには出ない（`fitNoteLines`）
-        setFitNote({
-          enginePath: result.enginePath,
-          clamped: fitted.clamped,
-          dropped: fitted.dropped,
-        });
-      },
+      (result) =>
+        dispatch({
+          type: "probeSucceeded",
+          token,
+          outcome: result,
+          probedAt: new Date().toISOString(),
+        }),
       (e: unknown) => {
-        if (!isLatestProbe(token)) return;
-        setProbing(false);
         const failure = asStartFailure(e);
         console.warn("[EnginePresetEditDialog] probe failed:", failure.message);
-        setProbeFailure({ kind: failure.kind, message: failure.message, enginePath });
+        dispatch({
+          type: "probeFailed",
+          token,
+          failure: { kind: failure.kind, message: failure.message },
+        });
       },
     );
   }, []);
 
-  /** 待ちをやめ、保存できるようにする。待っていた取得の結果は来ても捨てる（`abandonProbe`） */
-  const stopProbe = useCallback(() => {
-    abandonProbe();
-    setProbing(false);
-  }, []);
+  /** 待ちをやめ、保存できるようにする。待っていた取得の結果は来ても捨てる */
+  const stopProbe = useCallback(() => dispatch({ type: "probeAbandoned" }), []);
 
   // ---- CPU recommended ----
   const cores = useMemo(() => {
@@ -211,12 +190,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     if (!open) return;
     if (!preset) return;
 
-    const d = deepClone(preset);
-    setDraft(d);
+    dispatch({ type: "opened", preset: deepClone(preset) });
     setErrors({});
-    // 下書きを作り直したので、当てる元の値と一覧もそこから始め直す
-    baselineRef.current = { ...d.options };
-    setFitNote(null);
   }, [open, preset]);
 
   const currentProfile = useMemo(() => {
@@ -296,23 +271,17 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
           })
         : cur,
     );
-  }, [open, draft, index, profiles, engines]);
+  }, [open, draft, index, profiles, engines, setDraft]);
 
   /** `null` で値を消す（エンジン既定。送らない） */
-  const setOpt = useCallback((key: string, value: string | null) => {
-    setDraft((cur) => {
-      if (!cur) return cur;
-      const options = { ...cur.options };
-      if (value == null) delete options[key];
-      else options[key] = value;
-      return { ...cur, options };
-    });
-    // 利用者が変えた値は、定義に当て直しても残す（当てる元の値にも重ねる）
-    const base = { ...baselineRef.current };
-    if (value == null) delete base[key];
-    else base[key] = value;
-    baselineRef.current = base;
-  }, []);
+  const setOpt = useCallback(
+    (name: string, value: string | null) => dispatch({ type: "optionSet", name, value }),
+    [],
+  );
+  const clearOptions = useCallback(
+    (names: string[]) => dispatch({ type: "optionsCleared", names }),
+    [],
+  );
 
   const onCreateEnginesDir = useCallback(async () => {
     const root = aiRoot;
@@ -401,6 +370,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       options,
       analysis,
       definitions: draft.definitions ?? null,
+      reservedNames: draft.reservedNames ?? null,
       definitionsFor: draft.definitionsFor ?? null,
       probedAt: draft.probedAt ?? null,
       engineName: draft.engineName ?? null,
@@ -497,6 +467,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             threadChoices={threadChoices}
             multiPvMax={multiPvMax(draft)}
           />
+
+          <UsiOptionsSection draft={draft} setOpt={setOpt} clearOptions={clearOptions} />
 
           <AnalysisDefaultsSection draft={draft} setDraft={setDraft} />
         </div>

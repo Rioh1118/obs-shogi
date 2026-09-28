@@ -21,7 +21,7 @@ const OUTCOME: ProbeOutcome = {
   name: "A",
   author: "x",
   definitions: [{ name: "Threads", type: "spin", default: 4, min: 1, max: 8 }],
-  reserved: [],
+  reserved: ["EvalFile"],
 };
 
 describe("withDefinitions", () => {
@@ -30,6 +30,7 @@ describe("withDefinitions", () => {
 
     expect(next.definitions).toEqual(OUTCOME.definitions);
     expect(next.definitionsFor).toBe("/e/a");
+    expect(next.reservedNames).toEqual(OUTCOME.reserved);
     expect(next.probedAt).toBe("2026-09-27T00:00:00Z");
     expect([next.engineName, next.engineAuthor]).toEqual(["A", "x"]);
     // この関数は値に触らない（値を定義に当てるのは別の段）

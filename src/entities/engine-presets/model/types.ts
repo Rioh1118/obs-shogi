@@ -36,6 +36,11 @@ export type EnginePreset = {
    * 申告を見る。取っていなければ `null`
    */
   definitions?: UsiOptionDef[] | null;
+  /**
+   * アプリが決める名前（評価関数・定跡の欄と解析の固定値。取得の `reserved`）。**表示専用**で、
+   * その欄を読み取り専用にするために残す——送る側は起動のたびに Rust が決め直す
+   */
+  reservedNames?: string[] | null;
   /** `definitions` を取ったエンジンのパス。`enginePath` と違えば定義は別のエンジンのもの */
   definitionsFor?: string | null;
   /** 定義を取った時刻（ISO 8601） */

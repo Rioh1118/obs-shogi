@@ -46,36 +46,19 @@ export async function startAnalysisEngine(args: StartAnalysisEngineArgs): Promis
   return await invoke("start_analysis_engine", args);
 }
 
-/** 最後に撃った取得の番号（`isLatestProbe` が比べる）。番号の作り方は `nextRequestNumber` */
-let lastProbeToken = 0;
-
 /**
  * エンジンを起こして申告（名前・作者・オプションの定義）だけを取り、落とす。cwd は実行ファイルのフォルダ。
  * 前の取得が起こしている途中なら Rust が取り消し（そちらは `cancelled` で断られる）、既に取り終えて
  * いればそちらの結果も返る。
  *
- * 返った結果も失敗も、`token` が最後に撃ったものでなければ捨てること（`isLatestProbe`）。
+ * 返った結果も失敗も、`token` がいま待っている取得のものでなければ捨てること（呼び手が持つ。
+ * プリセット編集は `presetDialogReducer`）。やめた取得も Rust では止まらず、起こしている途中の
+ * プロセスは `usiok` の上限まで残りうる（次の取得が来れば Rust が取り消す）。
  * 断るときは `StartFailure`（`asStartFailure` で読む）
  */
 export function probeEngine(enginePath: string): { token: number; outcome: Promise<ProbeOutcome> } {
   const token = nextRequestNumber();
-  lastProbeToken = token;
   return { token, outcome: invoke<ProbeOutcome>("probe_engine", { enginePath, token }) };
-}
-
-/**
- * 進んでいる取得の結果を待たないことにする。以後に返る結果と失敗は `isLatestProbe` で捨てられる。
- *
- * **Rust の取得は止めない**——起こしている途中のプロセスは `usiok` の上限まで残りうる
- * （次の `probeEngine` が来れば Rust が取り消す）
- */
-export function abandonProbe(): void {
-  lastProbeToken = nextRequestNumber();
-}
-
-/** `token` が最後に撃った取得か */
-export function isLatestProbe(token: number): boolean {
-  return token === lastProbeToken;
 }
 
 /** 解析用のエンジンを落とす。起動中のものも止める。既に新しい番号を受けていれば何もしない */

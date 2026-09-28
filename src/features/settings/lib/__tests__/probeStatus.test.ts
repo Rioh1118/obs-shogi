@@ -3,11 +3,19 @@ import { describe, expect, test } from "vitest";
 import type { EngineStartFailureKind } from "@/entities/engine";
 import { probeStatusText, type ProbeFailure } from "../probeStatus";
 
-const BASE = { enginePath: "/e/a", definitions: null, definitionsFor: null, engineName: null };
+const BASE = {
+  enginePath: "/e/a",
+  definitions: null,
+  definitionsFor: null,
+  reservedNames: null,
+  engineName: null,
+  probedAt: null,
+};
 const PROBED = {
   ...BASE,
   definitions: [{ name: "Threads", type: "spin" as const, default: 4, min: 1, max: 8 }],
   definitionsFor: "/e/a",
+  reservedNames: [],
   engineName: "A",
 };
 const failure = (kind: EngineStartFailureKind, enginePath = "/e/a"): ProbeFailure => ({
@@ -70,5 +78,18 @@ describe("probeStatusText", () => {
 
   test("取得中", () => {
     expect(probeStatusText(PROBED, true, null)?.text).toBe("オプションを取得中…");
+  });
+
+  test("取った日を添える", () => {
+    expect(
+      probeStatusText({ ...PROBED, probedAt: "2026-09-20T01:02:03Z" }, false, null)?.text,
+    ).toBe("オプション 1 件を取得済み（A）。2026-09-20 に取得");
+  });
+
+  /** アプリが決める名前を持たずに保存した定義では、その欄が編集できるように見える。取り直させる */
+  test("アプリが決める名前の無い定義は未取得として扱う", () => {
+    expect(probeStatusText({ ...PROBED, reservedNames: null }, false, null)?.text).toBe(
+      "オプションは未取得です",
+    );
   });
 });

@@ -40,7 +40,10 @@ type ProbeStatus = { tone: "muted" | "warn"; text: string; detail: string | null
  * 失敗は、失敗したパスがいまのパスと同じときだけ出す
  */
 export function probeStatusText(
-  draft: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor" | "engineName">,
+  draft: Pick<
+    EnginePreset,
+    "enginePath" | "definitions" | "definitionsFor" | "reservedNames" | "engineName" | "probedAt"
+  >,
   probing: boolean,
   failure: ProbeFailure | null,
 ): ProbeStatus | null {
@@ -55,9 +58,11 @@ export function probeStatusText(
   }
   if (hasCurrentDefinitions(draft)) {
     const name = draft.engineName ? `（${draft.engineName}）` : "";
+    // 同じパスのエンジンを差し替えても定義は古いまま。いつ取ったかを見せて、取り直すかを決められるように
+    const when = draft.probedAt ? `。${draft.probedAt.slice(0, 10)} に取得` : "";
     return {
       tone: "muted",
-      text: `オプション ${draft.definitions?.length ?? 0} 件を取得済み${name}`,
+      text: `オプション ${draft.definitions?.length ?? 0} 件を取得済み${name}${when}`,
       detail: null,
     };
   }

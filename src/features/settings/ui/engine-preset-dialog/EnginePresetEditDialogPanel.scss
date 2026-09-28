@@ -261,6 +261,26 @@
     margin-top: 12px;
   }
 
+  /* 入力と、それに対するボタンを横に並べる（入力が縮み、ボタンは折り返さない） */
+  .presetDialog__inputRow {
+    display: flex;
+    align-items: center;
+    gap: index.$space-5;
+
+    > :first-child {
+      flex: 1;
+      min-width: 0;
+    }
+
+    > button {
+      white-space: nowrap;
+    }
+  }
+
+  .presetDialog__searchRow {
+    margin-bottom: index.$space-6;
+  }
+
   /* ========== details (match options) ========== */
   .presetDialog__details {
     margin-top: 14px;

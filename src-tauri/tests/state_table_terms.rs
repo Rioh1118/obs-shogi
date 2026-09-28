@@ -72,6 +72,7 @@ const NOT_RUST: &[(&str, &str)] = &[
         "評価関数・定跡の流し先。Rust（`binding.rs`）の判定表だが、名指すのは USI のオプション名と \
          関数名だけで、Rust の定数を1つも名指さない",
     ),
+    ("engine-preset-dialog.md", "プリセット編集の下書きと取得。TS 側（`presetDialogReducer`）"),
     (
         "analysis.md",
         "解析の席。Rust を跨ぐが、名指す定数は TS 側だけ",

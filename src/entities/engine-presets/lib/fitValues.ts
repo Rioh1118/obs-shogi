@@ -45,6 +45,26 @@ export function parseSpinValue(value: string): bigint | null {
 
 type Fit = { value: string } | { clampedTo: string } | { dropped: DroppedValue["reason"] };
 
+type SpinDef = Extract<UsiOptionDef, { type: "spin" }>;
+
+/**
+ * spin の値1件を申告の範囲に当てる。整数でなければ `null`。範囲が逆順の申告（min > max）は入れ替えて読む
+ * （送る側 `binding::user_value` と同じ）。画面の欄が確定する値もこれを通す——別に書くと、欄が確定した値を
+ * 送る側が別の値として扱う
+ */
+export function fitSpin(
+  def: SpinDef,
+  value: string,
+): { value: string } | { clampedTo: string } | null {
+  const n = parseSpinValue(value);
+  if (n == null) return null;
+  const lo = def.min == null ? I64_MIN : BigInt(def.min);
+  const hi = def.max == null ? I64_MAX : BigInt(def.max);
+  const [low, high] = lo <= hi ? [lo, hi] : [hi, lo];
+  const clamped = n < low ? low : n > high ? high : n;
+  return clamped === n ? { value: String(n) } : { clampedTo: String(clamped) };
+}
+
 /**
  * 値1件を定義に当てる。**送る側（Rust の `binding::user_value`）と同じ規則**にする——画面で残した値が
  * 起動のたびに捨てられる・丸められる、を作らない。両方が同じ表（`src-tauri/tests/fixtures/
@@ -56,15 +76,8 @@ function fit(def: UsiOptionDef, value: string): Fit {
       const v = value.toLowerCase();
       return v === "true" || v === "false" ? { value: v } : { dropped: "invalidType" };
     }
-    case "spin": {
-      const n = parseSpinValue(value);
-      if (n == null) return { dropped: "invalidType" };
-      const lo = def.min == null ? I64_MIN : BigInt(def.min);
-      const hi = def.max == null ? I64_MAX : BigInt(def.max);
-      const [low, high] = lo <= hi ? [lo, hi] : [hi, lo];
-      const clamped = n < low ? low : n > high ? high : n;
-      return clamped === n ? { value: String(n) } : { clampedTo: String(clamped) };
-    }
+    case "spin":
+      return fitSpin(def, value) ?? { dropped: "invalidType" };
     case "combo":
       return def.vars.includes(value) ? { value } : { dropped: "notInVars" };
     case "button":

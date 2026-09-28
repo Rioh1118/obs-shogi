@@ -5,8 +5,11 @@ import { cx, HASH_CHOICES, parseIntSafe } from "@/features/settings/lib/presetDi
 import {
   engineDefaultLabel,
   engineDefaultOf,
+  QUICK_OPTION_NAMES,
   savedInt,
 } from "@/features/settings/lib/quickOptions";
+import { valuesWithoutField } from "@/features/settings/lib/optionRows";
+import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
 
 import { MULTIPV_MIN, QUICK_MULTIPV } from "@/entities/engine-presets/model/multiPv";
 
@@ -15,9 +18,6 @@ import type { EnginePreset } from "@/entities/engine-presets/model/types";
 
 /** 「エンジン既定」から「指定する」に切り替えたときに入れる最初の値（エンジンの既定値ではない） */
 const FIRST_HASH = 1024;
-
-/** この節が欄を持つ名前。他の名前の保存済みの値は「その他の値」に並べる */
-const QUICK_NAMES = new Set(["MultiPV", "Threads", "USI_Hash"]);
 
 const ENGINE_DEFAULT_DESCRIPTION = "エンジンの初期値のまま使います";
 
@@ -43,7 +43,9 @@ export default function ImportantOptionsSection(props: {
   const threads = savedInt(draft.options, "Threads");
   const hash = savedInt(draft.options, "USI_Hash");
   const multiPvDefault = engineDefaultOf(draft, "MultiPV");
-  const others = Object.entries(draft.options).filter(([name]) => !QUICK_NAMES.has(name));
+  // 定義があれば、全部の欄（`UsiOptionsSection`）に無い名前だけ
+  const others = valuesWithoutField(draft, QUICK_OPTION_NAMES);
+  const probed = hasCurrentDefinitions(draft);
 
   const quickMultiPv = QUICK_MULTIPV.filter((n) => n <= multiPvMax);
   // 利用者が開いたか、値がどのボタンにも無いときに開く。**値から導く**——取得で丸められて
@@ -255,9 +257,13 @@ export default function ImportantOptionsSection(props: {
         {others.length > 0 && (
           <div className="presetDialog__block">
             <div className="presetDialog__blockHead">
-              <div className="presetDialog__blockTitle">その他の保存済みの値</div>
+              <div className="presetDialog__blockTitle">
+                {probed ? "このエンジンに無い保存済みの値" : "その他の保存済みの値"}
+              </div>
               <div className="presetDialog__blockSub">
-                エンジンが申告していれば起動のたびに送ります。要らない値は外してください。
+                {probed
+                  ? "このエンジンには送りません。要らない値は外してください。"
+                  : "エンジンが申告していれば起動のたびに送ります。オプションを読み込むと全部の欄が出ます。"}
               </div>
             </div>
             <ul className="presetDialog__stack" style={{ margin: 0, paddingLeft: 0 }}>
