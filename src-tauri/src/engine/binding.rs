@@ -30,6 +30,9 @@ pub struct BindingInput {
     pub book: Option<BookChoice>,
     /// 呼び手の方針として決めた値（解析の `ConsiderationMode=true` など）。**申告にある名前だけ送る**
     pub fixed: Vec<SetOptionValue>,
+    /// 選択肢で申告した `BookFile` が、選択肢に無い値をパスとして受けるか（`setup::accepts_path_in` で
+    /// その回のプロセスに確かめた結果）。確かめていなければ `false`（受けない扱い）
+    pub book_file_accepts_path: bool,
 }
 
 /// 送る `setoption` の並びと、送らなかった・変えて送った設定
@@ -157,6 +160,7 @@ fn switch_book_off(
 fn bind_book(
     declared: &[EngineOption],
     book: Option<&BookChoice>,
+    accepts_path: bool,
     out: &mut Vec<SetOptionValue>,
     warnings: &mut Vec<StartWarning>,
 ) {
@@ -183,6 +187,12 @@ fn bind_book(
                 Some(var) => {
                     out.push(set("BookDir", parent_of(&book.path)));
                     out.push(set(name, var.clone()));
+                    true
+                }
+                // 選択肢に無い名前でも、パスを受けるエンジン（`book_file_accepts_path`）にはパスで送る
+                None if accepts_path => {
+                    out.push(set("BookDir", parent_of(&book.path)));
+                    out.push(set(name, book.path.clone()));
                     true
                 }
                 None => {
@@ -229,6 +239,26 @@ pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Ve
         })
         .map(str::to_string)
         .collect()
+}
+
+/// 定跡を**パスとして受けるかを確かめる必要がある**とき、確かめる名前（`BookFile` / `Book_File`）。
+///
+/// 判定表の B1（`BookDir` と選択肢の `BookFile`）で、解析で使う定跡のファイル名が選択肢に（大小を
+/// 無視しても）無いときだけ。それ以外は確かめても結果を使わない（選択肢にあれば名前で、B2 ならパスで
+/// 送る）。確かめるのは呼び手（`setup::accepts_path_in`）で、この段は起こしたプロセスに触らない
+pub fn book_path_check(declared: &[EngineOption], book: Option<&BookChoice>) -> Option<String> {
+    let book = book.filter(|b| b.use_in_analysis)?;
+    let find = |name: &str| declared.iter().find(|o| o.name == name);
+    find("BookDir")?;
+    let option = find("BookFile").or_else(|| find("Book_File"))?;
+    let EngineOptionType::Combo { vars, .. } = &option.option_type else {
+        return None;
+    };
+    let file = file_name_of(&book.path);
+    if vars.iter().any(|v| v.eq_ignore_ascii_case(&file)) {
+        return None;
+    }
+    Some(option.name.clone())
 }
 
 /// 利用者の値1件を、申告の型に合わせて送る形にする。送らないなら `None`（警告を積む）。
@@ -295,7 +325,13 @@ pub fn bind(declared: &[EngineOption], input: &BindingInput) -> Bound {
     let mut warnings = Vec::new();
     let mut bound = Vec::new();
     bind_eval(declared, input.eval.as_ref(), &mut bound, &mut warnings);
-    bind_book(declared, input.book.as_ref(), &mut bound, &mut warnings);
+    bind_book(
+        declared,
+        input.book.as_ref(),
+        input.book_file_accepts_path,
+        &mut bound,
+        &mut warnings,
+    );
     for fixed in &input.fixed {
         if declared.iter().any(|o| o.name == fixed.name) {
             bound.push(fixed.clone());
@@ -638,6 +674,7 @@ mod tests {
             eval: file("/ai/e/nn.bin"),
             book: None,
             fixed: analysis_fixed(),
+            book_file_accepts_path: false,
         };
         let bound = bind(&declared(V900), &input);
         assert_eq!(lookup(&bound, "USI_Ponder"), Some("false"));
@@ -736,6 +773,7 @@ mod tests {
             eval: file("/ai/e/nn.bin"),
             book: book("/ai/b/standard_book.db", true),
             fixed: analysis_fixed(),
+            book_file_accepts_path: false,
         };
         let bound = bind(&declared(V900), &input);
         let names: Vec<&str> = bound.options.iter().map(|o| o.name.as_str()).collect();
@@ -905,5 +943,59 @@ mod tests {
             };
             assert_eq!(got, case["expect"], "{line} に {value:?}");
         }
+    }
+
+    /// パスを受けるかを確かめるのは、B1 で名前が選択肢に無いときだけ（他は結果を使わない）
+    #[test]
+    fn the_path_check_is_asked_only_for_a_name_outside_the_vars() {
+        let v900 = declared(V900);
+        assert_eq!(
+            book_path_check(&v900, book("/ai/li/book/mybook.db", true).as_ref()).as_deref(),
+            Some("BookFile")
+        );
+        // 選択肢にある（大小を無視しても）
+        assert_eq!(
+            book_path_check(&v900, book("/ai/li/book/USER_BOOK1.db", true).as_ref()),
+            None
+        );
+        // 解析で使わない・選んでいない
+        assert_eq!(
+            book_path_check(&v900, book("/ai/li/book/mybook.db", false).as_ref()),
+            None
+        );
+        assert_eq!(book_path_check(&v900, None), None);
+        // B1 の形でない（zermelo は定跡を申告しない）
+        assert_eq!(
+            book_path_check(
+                &declared(ZERMELO),
+                book("/ai/z/book/mybook.db", true).as_ref()
+            ),
+            None
+        );
+    }
+
+    /// パスを受けるエンジン（V8.30）には、選択肢に無い名前でもパスで送り、定跡を使う
+    #[test]
+    fn a_name_outside_the_vars_goes_as_a_path_when_the_engine_accepts_paths() {
+        let bound = bind(
+            &declared(V830),
+            &BindingInput {
+                book: book("/ai/li/book/mybook.db", true),
+                book_file_accepts_path: true,
+                ..BindingInput::default()
+            },
+        );
+
+        assert_eq!(lookup(&bound, "BookFile"), Some("/ai/li/book/mybook.db"));
+        assert_eq!(lookup(&bound, "BookDir"), Some("/ai/li/book"));
+        assert_eq!(lookup(&bound, "USI_OwnBook"), Some("true"));
+        assert!(
+            !bound
+                .warnings
+                .iter()
+                .any(|w| matches!(w, StartWarning::BookNameNotInVars { .. })),
+            "{:?}",
+            bound.warnings
+        );
     }
 }

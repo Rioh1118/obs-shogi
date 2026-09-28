@@ -362,11 +362,35 @@ impl EngineAnalyzer {
             .await?;
         let protocol = process.protocol();
 
+        // 選んだ定跡の名前が選択肢に無いときだけ、パスを受けるかをこのプロセスに確かめる
+        // （保存した結果を使うと、同じパスに別の版を置いたときに食い違う）
+        let book_file_accepts_path = match binding::book_path_check(
+            &process.info.options,
+            input.book.as_ref(),
+        ) {
+            Some(name) => {
+                let checked = tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => Err(cancelled_start()),
+                    checked = setup::accepts_path_in(&protocol, &name, BOOK_PATH_CHECK_LIMIT) => checked,
+                };
+                match checked {
+                    Ok(accepts) => accepts,
+                    Err(e) => {
+                        self.registry.shutdown(&process.id).await;
+                        return Err(e);
+                    }
+                }
+            }
+            None => false,
+        };
+
         let binding_input = BindingInput {
             values: input.values.clone(),
             eval,
             book: input.book.clone(),
             fixed: analysis_fixed_values(),
+            book_file_accepts_path,
         };
         let bound = binding::bind(&process.info.options, &binding_input);
         for warning in &bound.warnings {
@@ -1006,6 +1030,11 @@ async fn eval_target(path: &str) -> EvalTarget {
     }
 }
 
+/// 定跡をパスで受けるかを確かめる（`setup::accepts_path_in`）ときに、`usiok` を待つ上限。
+/// 起動の `usi` に答えたエンジンが2回目に答えないことは想定していない——来なければ「受けない」として
+/// 定跡を切る（別の定跡で動くより安全）
+const BOOK_PATH_CHECK_LIMIT: Duration = Duration::from_secs(5);
+
 /// 解析の方針として送る値（申告にある名前だけが送られる）: 検討モードを入れ、先読みを切る
 pub fn analysis_fixed_values() -> Vec<SetOptionValue> {
     [("ConsiderationMode", "true"), ("USI_Ponder", "false")]
@@ -1588,6 +1617,73 @@ done"#;
 
             analyzer.shutdown(2).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `BookDir` と選択肢の `BookFile` を申告し、受けた行を書き残す台本。`REJECT` が 1 なら、選択肢に無い
+        /// `BookFile` に V9.00 と同じ `combo value not found` を返す（0 なら V8.30 と同じく黙って受ける）
+        fn book_engine(reject: bool) -> String {
+            format!(
+                r#"REJECT={}
+while read line; do
+  echo "$line" >> got.txt
+  case "$line" in
+    usi) printf 'id name Book\noption name BookDir type string default book\noption name BookFile type combo default standard_book.db var no_book var standard_book.db var user_book1.db\noption name USI_OwnBook type check default true\nusiok\n' ;;
+    "setoption name BookFile value no_book"|"setoption name BookFile value standard_book.db"|"setoption name BookFile value user_book1.db") ;;
+    "setoption name BookFile value "*) [ "$REJECT" = 1 ] && echo "info string Error! : combo value not found, value = x" ;;
+    isready) echo readyok ;;
+  esac
+done"#,
+                if reject { 1 } else { 0 }
+            )
+        }
+
+        /// 選択肢に無い名前の定跡は、**その回のプロセスに**パスを受けるかを確かめてから送る。
+        /// V9.00 の形（捨てて別の定跡に落ちる）には送らずに切り、V8.30 の形（パスを読む）にはパスで送る
+        #[tokio::test]
+        async fn a_book_outside_the_vars_goes_as_a_path_only_to_an_engine_that_accepts_it() {
+            for (reject, expect_path) in [(true, false), (false, true)] {
+                let dir = test_support::dir::temp_dir("analyzer-start-book-path");
+                let path = place(&dir, "book.sh", &book_engine(reject)).await;
+                let registry = Arc::new(EngineRegistry::new());
+                let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+                let input = StartInput {
+                    book: Some(BookChoice {
+                        path: "/ai/li/book/mybook.db".to_string(),
+                        use_in_analysis: true,
+                    }),
+                    ..StartInput::default()
+                };
+                let outcome = analyzer
+                    .start_engine(engine(&path), &input, 1)
+                    .await
+                    .expect("起動できる");
+
+                let got = std::fs::read_to_string(dir.join("got.txt")).expect("受けた行");
+                assert_eq!(
+                    got.contains("setoption name BookFile value /ai/li/book/mybook.db"),
+                    expect_path,
+                    "reject={reject}: {got}"
+                );
+                assert_eq!(
+                    outcome
+                        .warnings
+                        .iter()
+                        .any(|w| matches!(w, StartWarning::BookNameNotInVars { .. })),
+                    !expect_path,
+                    "reject={reject}: {:?}",
+                    outcome.warnings
+                );
+                if !expect_path {
+                    assert!(
+                        got.contains("setoption name BookFile value no_book"),
+                        "{got}"
+                    );
+                }
+
+                analyzer.shutdown(2).await.expect("落とせる");
+                let _ = std::fs::remove_dir_all(&dir);
+            }
         }
 
         /// 評価関数・定跡のパスも、改行を含めば**起こす前に**断る（`setoption` の値として送るので）

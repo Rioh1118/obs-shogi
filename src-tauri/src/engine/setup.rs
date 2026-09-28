@@ -7,7 +7,8 @@
 
 use std::time::{Duration, Instant};
 
-use usi::GuiCommand;
+use tokio::sync::mpsc;
+use usi::{EngineCommand, GuiCommand, InfoParams};
 
 use crate::engine::protocol::{contains_usi_breaking_char, UsiProtocol};
 use crate::engine::types::{EngineError, SetOptionValue, TIMED_OUT};
@@ -105,6 +106,73 @@ async fn send_options(
         }
     }
     Ok(())
+}
+
+/// 選択肢（combo）で申告した名前が、**選択肢に無い値をパスとして受けるか**を、送って確かめる。
+///
+/// 存在しないパスを1つ送り、続けて `usi` を送って `usiok` を待つ（`isready` を使わない——評価関数の
+/// 読み込みが走る）。その間に `combo value not found` を出せば受けない（やねうら王 V9.00 は選択肢に無い値を
+/// 捨てて既定の定跡に落ちる）、出さなければ受ける（V8.30 は絶対パスを読む）。
+///
+/// 送った値は後から送る本物の値で上書きされる前提で、`readyok` の前に呼ぶ。`limit` までに `usiok` が
+/// 来なければ「受けない」とする（送らずに定跡を切るほうが、別の定跡で動くより安全）
+pub async fn accepts_path_in(
+    protocol: &UsiProtocol,
+    name: &str,
+    limit: Duration,
+) -> Result<bool, EngineError> {
+    // 実在しない絶対パス。実在すると、受けたエンジンがそのファイルを定跡として読みにいく
+    let probe_path = std::env::temp_dir()
+        .join(format!(
+            "obs-shogi-no-such-book-{}.db",
+            uuid::Uuid::new_v4()
+        ))
+        .to_string_lossy()
+        .into_owned();
+    validate_options(&[SetOptionValue {
+        name: name.to_string(),
+        value: probe_path.clone(),
+    }])?;
+
+    let (tx, rx) = mpsc::unbounded_channel();
+    let listener = format!("book_path_probe_{}", uuid::Uuid::new_v4());
+    protocol.register_listener(listener.clone(), tx).await?;
+    let sent = async {
+        protocol
+            .send_command(&GuiCommand::SetOption(name.to_string(), Some(probe_path)))
+            .await?;
+        protocol.send_command(&GuiCommand::Usi).await
+    }
+    .await;
+    let verdict = match sent {
+        Ok(()) => tokio::time::timeout(limit, rejected_before_usiok(rx))
+            .await
+            .map_or(Ok(false), |rejected| rejected.map(|r| !r)),
+        Err(e) => Err(e),
+    };
+    protocol.remove_listener(&listener).await;
+    verdict
+}
+
+/// `usiok` までに `combo value not found` が出たか。出力が終わったら `CommunicationFailed`
+async fn rejected_before_usiok(
+    mut rx: mpsc::UnboundedReceiver<EngineCommand>,
+) -> Result<bool, EngineError> {
+    let mut rejected = false;
+    while let Some(command) = rx.recv().await {
+        match command {
+            EngineCommand::Info(params) => {
+                rejected |= params.iter().any(
+                    |p| matches!(p, InfoParams::Text(text) if text.contains("combo value not found")),
+                );
+            }
+            EngineCommand::UsiOk => return Ok(rejected),
+            _ => {}
+        }
+    }
+    Err(EngineError::CommunicationFailed(
+        "engine output ended before `usiok`".to_string(),
+    ))
 }
 
 /// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
