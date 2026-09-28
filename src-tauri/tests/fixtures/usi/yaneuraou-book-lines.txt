@@ -1,0 +1,4 @@
+# やねうら王の実機の出力（定跡まわり）。1行目 V9.00 が選択肢に無い BookFile を断る行、2行目 V8.30 がパスの定跡を読んだ行、3行目 読めない定跡の行
+info string Error! : combo value not found, value = `mybook.db`, values = standard_book.db var no_book var standard_book.db var yaneura_book1.db var yaneura_book2.db var yaneura_book3.db var yaneura_book4.db var user_book1.db var user_book2.db var user_book3.db var book.bin
+info string read book file : /Users/riohatta/test_shogi_engine/li/book/user_book1.db
+info string Error! : can't read file : /Users/riohatta/test_shogi_engine/li/book/standard_book.db

@@ -52,6 +52,9 @@ export type StartWarning =
   | { kind: "bookNotSupported" }
   | { kind: "bookNameNotInVars"; file: string }
   | { kind: "bookCannotBeDisabled" }
+  | { kind: "bookPathCheckTimedOut"; file: string }
+  | { kind: "bookNotLoaded"; file: string }
+  | { kind: "bookLoadUnconfirmed"; file: string }
   | { kind: "invalidType"; name: string; value: string };
 
 /**
