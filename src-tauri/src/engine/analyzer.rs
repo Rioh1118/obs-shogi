@@ -362,16 +362,63 @@ impl EngineAnalyzer {
             .await?;
         let protocol = process.protocol();
 
+        // 選んだ定跡の名前が選択肢に無いときだけ、パスを受けるかをこのプロセスに確かめる
+        // （保存した結果を使うと、同じパスに別の版を置いたときに食い違う）
+        let book_path_support = match binding::book_path_probe_name(
+            &process.info.options,
+            input.book.as_ref(),
+        ) {
+            Some(name) => {
+                let checked = tokio::select! {
+                    biased;
+                    _ = cancel.cancelled() => Err(cancelled_start()),
+                    checked = setup::accepts_path_in(&protocol, &name, BOOK_PATH_CHECK_LIMIT) => checked,
+                };
+                match checked {
+                    Ok(BookPathSupport::NoAnswer) => {
+                        log::warn!(
+                            target: LOGT,
+                            "start_engine: {} did not answer whether `{name}` accepts a path in {BOOK_PATH_CHECK_LIMIT:?}",
+                            process.info.name
+                        );
+                        BookPathSupport::NoAnswer
+                    }
+                    Ok(support) => support,
+                    Err(e) => {
+                        self.registry.shutdown(&process.id).await;
+                        return Err(e);
+                    }
+                }
+            }
+            None => BookPathSupport::Unchecked,
+        };
+
         let binding_input = BindingInput {
             values: input.values.clone(),
             eval,
             book: input.book.clone(),
             fixed: analysis_fixed_values(),
+            book_path_support,
         };
         let bound = binding::bind(&process.info.options, &binding_input);
-        for warning in &bound.warnings {
-            log::info!(target: LOGT, "start_engine: not sent as saved: {warning:?}");
-        }
+        let mut warnings = bound.warnings;
+
+        // 定跡をパスで送った回は、`readyok` までの出力を聞いて、読めたかを確かめる
+        // （`binding::book_load_warning`）。「断らなかった」だけでは、黙って捨てたエンジンを通してしまう
+        let book_watch = match &bound.book_path_sent {
+            Some(_) => {
+                let (tx, rx) = mpsc::unbounded_channel();
+                let name = format!("book_load_{}", uuid::Uuid::new_v4());
+                match protocol.register_listener(name.clone(), tx).await {
+                    Ok(()) => Some((name, rx)),
+                    Err(e) => {
+                        self.registry.shutdown(&process.id).await;
+                        return Err(e);
+                    }
+                }
+            }
+            None => None,
+        };
 
         // `biased`: 取り消しと失敗が同時に揃ったら取り消しを採る
         let prepared = tokio::select! {
@@ -379,6 +426,25 @@ impl EngineAnalyzer {
             _ = cancel.cancelled() => Err(cancelled_start()),
             prepared = setup::send_setup(&protocol, &bound.options, None, None) => prepared,
         };
+        if let Some((name, mut rx)) = book_watch {
+            protocol.remove_listener(&name).await;
+            // `readyok` より前の行は、`readyok` を配る前に同じ配り手が配り終えている
+            let mut lines = Vec::new();
+            while let Ok(command) = rx.try_recv() {
+                if let EngineCommand::Info(params) = command {
+                    lines.extend(params.into_iter().filter_map(|p| match p {
+                        usi::InfoParams::Text(text) => Some(text),
+                        _ => None,
+                    }));
+                }
+            }
+            if let (Ok(()), Some(sent)) = (&prepared, &bound.book_path_sent) {
+                warnings.extend(binding::book_load_warning(&lines, sent));
+            }
+        }
+        for warning in &warnings {
+            log::info!(target: LOGT, "start_engine: not sent as saved: {warning:?}");
+        }
         let prepared = match prepared {
             Ok(()) => protocol.send_command(&GuiCommand::UsiNewGame).await,
             Err(e) => Err(e),
@@ -387,7 +453,7 @@ impl EngineAnalyzer {
             self.registry.shutdown(&process.id).await;
             return Err(e);
         }
-        Ok((process, bound.warnings))
+        Ok((process, warnings))
     }
 
     /// 起動を終えたプロセスを解析の口に載せる。世代が古ければ落として `Cancelled`。
@@ -1006,6 +1072,10 @@ async fn eval_target(path: &str) -> EvalTarget {
     }
 }
 
+/// 定跡をパスで受けるかを確かめる（`setup::accepts_path_in`）ときに、2回目の `usiok` を待つ上限。
+/// 来なければ `NoAnswer` として定跡を切り、`BookPathCheckTimedOut` で知らせる（別の定跡で動くより安全）
+const BOOK_PATH_CHECK_LIMIT: Duration = Duration::from_secs(5);
+
 /// 解析の方針として送る値（申告にある名前だけが送られる）: 検討モードを入れ、先読みを切る
 pub fn analysis_fixed_values() -> Vec<SetOptionValue> {
     [("ConsiderationMode", "true"), ("USI_Ponder", "false")]
@@ -1587,6 +1657,153 @@ done"#;
             );
 
             analyzer.shutdown(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `BookDir` と選択肢の `BookFile` を申告し、受けた行を書き残す台本。`mode` で定跡まわりの答え方を変える:
+        /// `reject`（V9.00: 選択肢に無い `BookFile` に `combo value not found`）、`read`（V8.30: 黙って受け、
+        /// `isready` で `read book file : <パス>`）、`cantread`（受けて `can't read file : <パス>`）、
+        /// `silent`（受けて何も言わない）、`noanswer`（2回目の `usi` に答えない）、`exit`（確かめで落ちる）
+        fn book_engine(mode: &str) -> String {
+            format!(
+                r#"MODE={mode}
+N=0
+V=
+while read line; do
+  echo "$line" >> got.txt
+  case "$line" in
+    usi)
+      N=$((N+1))
+      if [ "$N" -gt 1 ] && [ "$MODE" = noanswer ]; then continue; fi
+      printf 'id name Book\noption name BookDir type string default book\noption name BookFile type combo default standard_book.db var no_book var standard_book.db var user_book1.db\noption name USI_OwnBook type check default true\nusiok\n' ;;
+    "setoption name BookFile value no_book"|"setoption name BookFile value standard_book.db"|"setoption name BookFile value user_book1.db") V= ;;
+    "setoption name BookFile value "*)
+      V="${{line#setoption name BookFile value }}"
+      case "$MODE" in
+        reject) echo "info string Error! : combo value not found, value = x" ;;
+        exit) echo boom >&2; exit 1 ;;
+      esac ;;
+    isready)
+      if [ -n "$V" ]; then
+        case "$MODE" in
+          read) echo "info string read book file : $V" ;;
+          cantread) echo "info string Error! : can't read file : $V" ;;
+        esac
+      fi
+      echo readyok ;;
+  esac
+done"#
+            )
+        }
+
+        fn mybook() -> StartInput {
+            StartInput {
+                book: Some(BookChoice {
+                    path: "/ai/li/book/mybook.db".to_string(),
+                    use_in_analysis: true,
+                }),
+                ..StartInput::default()
+            }
+        }
+
+        /// 選択肢に無い名前の定跡は、**その回のプロセスに**パスを受けるかを確かめてから送り、送ったら
+        /// 読めたかを `readyok` までの出力で確かめる。どの答え方でも黙って別の定跡で動かさない
+        #[tokio::test]
+        async fn a_book_outside_the_vars_is_sent_as_a_path_only_when_it_is_accepted_and_read() {
+            let file = || "mybook.db".to_string();
+            for (mode, sent_path, warning) in [
+                (
+                    "reject",
+                    false,
+                    Some(StartWarning::BookNameNotInVars { file: file() }),
+                ),
+                ("read", true, None),
+                (
+                    "cantread",
+                    true,
+                    Some(StartWarning::BookNotLoaded { file: file() }),
+                ),
+                (
+                    "silent",
+                    true,
+                    Some(StartWarning::BookLoadUnconfirmed { file: file() }),
+                ),
+            ] {
+                let dir = test_support::dir::temp_dir("analyzer-start-book-path");
+                let path = place(&dir, "book.sh", &book_engine(mode)).await;
+                let registry = Arc::new(EngineRegistry::new());
+                let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+                let outcome = analyzer
+                    .start_engine(engine(&path), &mybook(), 1)
+                    .await
+                    .expect("起動できる");
+
+                let got = std::fs::read_to_string(dir.join("got.txt")).expect("受けた行");
+                assert_eq!(
+                    got.contains("setoption name BookFile value /ai/li/book/mybook.db"),
+                    sent_path,
+                    "{mode}: {got}"
+                );
+                let book_warnings: Vec<&StartWarning> = outcome
+                    .warnings
+                    .iter()
+                    .filter(|w| {
+                        matches!(
+                            w,
+                            StartWarning::BookNameNotInVars { .. }
+                                | StartWarning::BookNotLoaded { .. }
+                                | StartWarning::BookLoadUnconfirmed { .. }
+                                | StartWarning::BookPathCheckTimedOut { .. }
+                        )
+                    })
+                    .collect();
+                assert_eq!(book_warnings, warning.iter().collect::<Vec<_>>(), "{mode}");
+
+                analyzer.shutdown(2).await.expect("落とせる");
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        }
+
+        /// 2回目の `usi` に答えないエンジンは、上限で「答えなかった」として定跡を切り、名前の問題とは別の
+        /// 警告で知らせる（`BOOK_PATH_CHECK_LIMIT` ぶん待つ）
+        #[tokio::test]
+        async fn no_answer_to_the_path_check_switches_the_book_off_with_its_own_warning() {
+            let dir = test_support::dir::temp_dir("analyzer-start-book-noanswer");
+            let path = place(&dir, "book.sh", &book_engine("noanswer")).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            let outcome = analyzer
+                .start_engine(engine(&path), &mybook(), 1)
+                .await
+                .expect("起動できる");
+
+            assert!(
+                outcome
+                    .warnings
+                    .contains(&StartWarning::BookPathCheckTimedOut {
+                        file: "mybook.db".to_string()
+                    }),
+                "{:?}",
+                outcome.warnings
+            );
+            analyzer.shutdown(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 確かめの途中で落ちたら、起動の他の段と同じく直近の出力（stderr）を添えて断る
+        #[tokio::test]
+        async fn an_engine_that_dies_during_the_path_check_fails_with_its_output() {
+            let dir = test_support::dir::temp_dir("analyzer-start-book-exit");
+            let path = place(&dir, "book.sh", &book_engine("exit")).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            let failed = analyzer.start_engine(engine(&path), &mybook(), 1).await;
+            let message = format!("{:?}", failed.expect_err("落ちる"));
+            assert!(message.contains("boom"), "{message}");
+            assert!(registry.ids().await.is_empty(), "プロセスが残っている");
             let _ = std::fs::remove_dir_all(&dir);
         }
 

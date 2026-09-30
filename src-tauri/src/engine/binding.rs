@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::engine::types::{
-    BookChoice, EngineOption, EngineOptionType, SetOptionValue, StartWarning,
+    BookChoice, BookPathSupport, EngineOption, EngineOptionType, SetOptionValue, StartWarning,
 };
 
 /// 選んだ評価関数。ファイルかフォルダかは呼び手がディスクを見て決める（この段はディスクを見ない）
@@ -30,6 +30,9 @@ pub struct BindingInput {
     pub book: Option<BookChoice>,
     /// 呼び手の方針として決めた値（解析の `ConsiderationMode=true` など）。**申告にある名前だけ送る**
     pub fixed: Vec<SetOptionValue>,
+    /// 選択肢で申告した `BookFile` / `Book_File` が、選択肢に無い値をパスとして受けるか
+    /// （`setup::accepts_path_in` でその回のプロセスに確かめた結果）。確かめていなければ `Unchecked`
+    pub book_path_support: BookPathSupport,
 }
 
 /// 送る `setoption` の並びと、送らなかった・変えて送った設定
@@ -37,6 +40,17 @@ pub struct BindingInput {
 pub struct Bound {
     pub options: Vec<SetOptionValue>,
     pub warnings: Vec<StartWarning>,
+    /// 定跡を**パスで**送ったとき、そのパス。送った後に読んだかを確かめる（`book_load_warning`）
+    pub book_path_sent: Option<SentBookPath>,
+}
+
+/// パスで送った定跡
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SentBookPath {
+    pub path: String,
+    /// 読んだと言うはずのエンジンか（B1 の形。やねうら王は読むと `read book file : <パス>` を出す）。
+    /// 偽なら「読めない」と言ったときだけ警告する（言わないエンジンを疑わない）
+    pub expect_read_line: bool,
 }
 
 /// 評価関数をファイルで受ける名前か、フォルダで受ける名前か
@@ -157,22 +171,24 @@ fn switch_book_off(
 fn bind_book(
     declared: &[EngineOption],
     book: Option<&BookChoice>,
+    book_path_support: BookPathSupport,
     out: &mut Vec<SetOptionValue>,
     warnings: &mut Vec<StartWarning>,
-) {
+) -> Option<SentBookPath> {
     let find = |name: &str| declared.iter().find(|o| o.name == name);
     let book_file = find("BookFile").or_else(|| find("Book_File"));
 
     let Some(book) = book.filter(|b| b.use_in_analysis) else {
         switch_book_off(declared, book_file, out, warnings);
-        return;
+        return None;
     };
+    let mut path_sent = None;
 
     let has_book_dir = find("BookDir").is_some();
     let sent = match book_file.map(|o| (o.name.as_str(), &o.option_type)) {
-        // B1: 名前しか受けない。選択肢にある名前ならその綴りで送る（まず大小も一致するもの、
-        // 無ければ大小を無視して）。無ければ送らない——絶対パスを送ると、選択肢に無い値として
-        // 捨てて別の定跡に落ちるエンジンがある
+        // B1: 選択肢にある名前ならその綴りで送る（まず大小も一致するもの、無ければ大小を無視して）。
+        // 無ければ、パスを受けると確かめたエンジン（`book_path_support`）にだけパスで送る——確かめずに
+        // 送ると、選択肢に無い値として捨てて別の定跡に落ちるエンジンがある（やねうら王 V9.00）
         Some((name, EngineOptionType::Combo { vars, .. })) if has_book_dir => {
             let file = file_name_of(&book.path);
             let var = vars
@@ -185,6 +201,19 @@ fn bind_book(
                     out.push(set(name, var.clone()));
                     true
                 }
+                None if book_path_support == BookPathSupport::Accepts => {
+                    out.push(set("BookDir", parent_of(&book.path)));
+                    out.push(set(name, book.path.clone()));
+                    path_sent = Some(SentBookPath {
+                        path: book.path.clone(),
+                        expect_read_line: true,
+                    });
+                    true
+                }
+                None if book_path_support == BookPathSupport::NoAnswer => {
+                    warnings.push(StartWarning::BookPathCheckTimedOut { file });
+                    false
+                }
                 None => {
                     warnings.push(StartWarning::BookNameNotInVars { file });
                     false
@@ -194,6 +223,10 @@ fn bind_book(
         // B2: パスを受ける
         Some((name, EngineOptionType::String { .. } | EngineOptionType::Filename { .. })) => {
             out.push(set(name, book.path.clone()));
+            path_sent = Some(SentBookPath {
+                path: book.path.clone(),
+                expect_read_line: false,
+            });
             true
         }
         // B3: B1・B2 に当たらない（`BookDir` の無い combo も）
@@ -209,6 +242,27 @@ fn bind_book(
     } else {
         switch_book_off(declared, book_file, out, warnings);
     }
+    path_sent
+}
+
+/// 定跡をパスで送った後、`readyok` までにエンジンが出した `info string` の行から、読めたかを判じる。
+///
+/// - 「読めない」（`can't read file`）にそのパスが載っていれば `BookNotLoaded`（やねうら王 V8.30 は読めない
+///   ファイルでも `readyok` を返し、定跡なしで動く）
+/// - 読んだと言うはずのエンジン（`expect_read_line`）が、そのパスで `read book file` を言わなければ
+///   `BookLoadUnconfirmed`（パスを黙って捨てて別の定跡で動くエンジンを、黙って通さない）
+pub fn book_load_warning(lines: &[String], sent: &SentBookPath) -> Option<StartWarning> {
+    let file = file_name_of(&sent.path);
+    let mentions = |line: &String, what: &str| {
+        line.to_ascii_lowercase().contains(what) && line.contains(sent.path.as_str())
+    };
+    if lines.iter().any(|l| mentions(l, "can't read file")) {
+        return Some(StartWarning::BookNotLoaded { file });
+    }
+    if sent.expect_read_line && !lines.iter().any(|l| mentions(l, "read book file")) {
+        return Some(StartWarning::BookLoadUnconfirmed { file });
+    }
+    None
 }
 
 /// **評価関数・定跡・固定値が持つ名前**（申告にあるものだけ、申告の順）。利用者の値としては送らない。
@@ -229,6 +283,30 @@ pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Ve
         })
         .map(str::to_string)
         .collect()
+}
+
+/// 定跡を**パスとして受けるかを確かめる必要がある**とき、確かめる相手の名前（`BookFile` / `Book_File`）。
+/// 確かめた結果ではない（結果は `BookPathSupport`）。
+///
+/// 判定表の B1（`BookDir` と選択肢の `BookFile`）で、解析で使う定跡のファイル名が選択肢に（大小を
+/// 無視しても）無いときだけ。それ以外は確かめても結果を使わない（選択肢にあれば名前で、B2 ならパスで
+/// 送る）。確かめるのは呼び手（`setup::accepts_path_in`）で、この段は起こしたプロセスに触らない
+pub fn book_path_probe_name(
+    declared: &[EngineOption],
+    book: Option<&BookChoice>,
+) -> Option<String> {
+    let book = book.filter(|b| b.use_in_analysis)?;
+    let find = |name: &str| declared.iter().find(|o| o.name == name);
+    find("BookDir")?;
+    let option = find("BookFile").or_else(|| find("Book_File"))?;
+    let EngineOptionType::Combo { vars, .. } = &option.option_type else {
+        return None;
+    };
+    let file = file_name_of(&book.path);
+    if vars.iter().any(|v| v.eq_ignore_ascii_case(&file)) {
+        return None;
+    }
+    Some(option.name.clone())
 }
 
 /// 利用者の値1件を、申告の型に合わせて送る形にする。送らないなら `None`（警告を積む）。
@@ -295,7 +373,13 @@ pub fn bind(declared: &[EngineOption], input: &BindingInput) -> Bound {
     let mut warnings = Vec::new();
     let mut bound = Vec::new();
     bind_eval(declared, input.eval.as_ref(), &mut bound, &mut warnings);
-    bind_book(declared, input.book.as_ref(), &mut bound, &mut warnings);
+    let book_path_sent = bind_book(
+        declared,
+        input.book.as_ref(),
+        input.book_path_support,
+        &mut bound,
+        &mut warnings,
+    );
     for fixed in &input.fixed {
         if declared.iter().any(|o| o.name == fixed.name) {
             bound.push(fixed.clone());
@@ -335,7 +419,11 @@ pub fn bind(declared: &[EngineOption], input: &BindingInput) -> Bound {
     }
 
     options.extend(bound);
-    Bound { options, warnings }
+    Bound {
+        options,
+        warnings,
+        book_path_sent,
+    }
 }
 
 #[cfg(test)]
@@ -638,6 +726,7 @@ mod tests {
             eval: file("/ai/e/nn.bin"),
             book: None,
             fixed: analysis_fixed(),
+            book_path_support: BookPathSupport::Unchecked,
         };
         let bound = bind(&declared(V900), &input);
         assert_eq!(lookup(&bound, "USI_Ponder"), Some("false"));
@@ -736,6 +825,7 @@ mod tests {
             eval: file("/ai/e/nn.bin"),
             book: book("/ai/b/standard_book.db", true),
             fixed: analysis_fixed(),
+            book_path_support: BookPathSupport::Unchecked,
         };
         let bound = bind(&declared(V900), &input);
         let names: Vec<&str> = bound.options.iter().map(|o| o.name.as_str()).collect();
@@ -784,6 +874,15 @@ mod tests {
             ),
             ("EvalNotChosen", StartWarning::EvalNotChosen { name: n() }),
             ("BookCannotBeDisabled", StartWarning::BookCannotBeDisabled),
+            (
+                "BookPathCheckTimedOut",
+                StartWarning::BookPathCheckTimedOut { file: n() },
+            ),
+            ("BookNotLoaded", StartWarning::BookNotLoaded { file: n() }),
+            (
+                "BookLoadUnconfirmed",
+                StartWarning::BookLoadUnconfirmed { file: n() },
+            ),
             (
                 "InvalidType",
                 StartWarning::InvalidType {
@@ -905,5 +1004,135 @@ mod tests {
             };
             assert_eq!(got, case["expect"], "{line} に {value:?}");
         }
+    }
+
+    /// パスを受けるかを確かめるのは、B1 で名前が選択肢に無いときだけ（他は結果を使わない）
+    #[test]
+    fn the_path_check_is_asked_only_for_a_name_outside_the_vars() {
+        let v900 = declared(V900);
+        assert_eq!(
+            book_path_probe_name(&v900, book("/ai/li/book/mybook.db", true).as_ref()).as_deref(),
+            Some("BookFile")
+        );
+        // 選択肢にある（大小を無視しても）
+        assert_eq!(
+            book_path_probe_name(&v900, book("/ai/li/book/USER_BOOK1.db", true).as_ref()),
+            None
+        );
+        // 解析で使わない・選んでいない
+        assert_eq!(
+            book_path_probe_name(&v900, book("/ai/li/book/mybook.db", false).as_ref()),
+            None
+        );
+        assert_eq!(book_path_probe_name(&v900, None), None);
+        // B1 の形でない（zermelo は定跡を申告しない）
+        assert_eq!(
+            book_path_probe_name(
+                &declared(ZERMELO),
+                book("/ai/z/book/mybook.db", true).as_ref()
+            ),
+            None
+        );
+    }
+
+    /// パスを受けるエンジン（V8.30）には、選択肢に無い名前でもパスで送り、定跡を使う
+    #[test]
+    fn a_name_outside_the_vars_goes_as_a_path_when_the_engine_accepts_paths() {
+        let bound = bind(
+            &declared(V830),
+            &BindingInput {
+                book: book("/ai/li/book/mybook.db", true),
+                book_path_support: BookPathSupport::Accepts,
+                ..BindingInput::default()
+            },
+        );
+
+        assert_eq!(lookup(&bound, "BookFile"), Some("/ai/li/book/mybook.db"));
+        assert_eq!(lookup(&bound, "BookDir"), Some("/ai/li/book"));
+        assert_eq!(lookup(&bound, "USI_OwnBook"), Some("true"));
+        assert!(
+            !bound
+                .warnings
+                .iter()
+                .any(|w| matches!(w, StartWarning::BookNameNotInVars { .. })),
+            "{:?}",
+            bound.warnings
+        );
+    }
+
+    /// 実機の行（`tests/fixtures/usi/yaneuraou-book-lines.txt`）から、送った定跡を読めたかを判じる
+    #[test]
+    fn a_sent_book_path_is_checked_against_what_the_engine_said() {
+        let real: Vec<String> = include_str!("../../tests/fixtures/usi/yaneuraou-book-lines.txt")
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .map(|l| l.trim_start_matches("info string ").to_string())
+            .collect();
+        let read = real[1].clone();
+        let unreadable = real[2].clone();
+        let sent = |path: &str, expect_read_line| SentBookPath {
+            path: path.to_string(),
+            expect_read_line,
+        };
+
+        let v830 = sent(
+            "/Users/riohatta/test_shogi_engine/li/book/user_book1.db",
+            true,
+        );
+        assert_eq!(book_load_warning(std::slice::from_ref(&read), &v830), None);
+        assert_eq!(
+            book_load_warning(&[], &v830),
+            Some(StartWarning::BookLoadUnconfirmed {
+                file: "user_book1.db".to_string()
+            })
+        );
+
+        let missing = sent(
+            "/Users/riohatta/test_shogi_engine/li/book/standard_book.db",
+            false,
+        );
+        assert_eq!(
+            book_load_warning(&[unreadable], &missing),
+            Some(StartWarning::BookNotLoaded {
+                file: "standard_book.db".to_string()
+            })
+        );
+        // 読んだと言わないエンジン（B2）は、読めないと言わない限り疑わない
+        assert_eq!(book_load_warning(&[], &missing), None);
+    }
+
+    /// 答えなかったのは名前の問題ではない。別の警告で知らせ、定跡は切る
+    #[test]
+    fn no_answer_to_the_path_check_switches_the_book_off_with_its_own_warning() {
+        let bound = bind(
+            &declared(V900),
+            &BindingInput {
+                book: book("/ai/li/book/mybook.db", true),
+                book_path_support: BookPathSupport::NoAnswer,
+                ..BindingInput::default()
+            },
+        );
+        assert_eq!(lookup(&bound, "BookFile"), Some("no_book"));
+        assert!(bound
+            .warnings
+            .contains(&StartWarning::BookPathCheckTimedOut {
+                file: "mybook.db".to_string()
+            }));
+        assert!(bound.book_path_sent.is_none());
+    }
+
+    /// V8.30 と V9.00 は**定跡の申告が同じ**なので、申告からはパスを受けるかを見分けられない。
+    /// 崩れたら、確かめ（`setup::accepts_path_in`）を申告の見分けに置き換えられるかを見直す
+    #[test]
+    fn v830_and_v900_declare_the_book_the_same_way() {
+        let book_lines = |text: &str| -> Vec<String> {
+            text.lines()
+                .filter(|l| l.contains("name BookDir ") || l.contains("name BookFile "))
+                .map(str::to_string)
+                .collect()
+        };
+        let v830 = book_lines(V830);
+        assert_eq!(v830.len(), 2, "{v830:?}");
+        assert_eq!(v830, book_lines(V900));
     }
 }

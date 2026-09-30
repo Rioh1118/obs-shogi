@@ -113,6 +113,14 @@ pub enum StartWarning {
     /// 定跡を受ける名前はあるが、切る口（`USI_OwnBook` / `no_book`）が無い。エンジンは自分の
     /// 既定の定跡で指しうる
     BookCannotBeDisabled,
+    /// 定跡のファイル名が選択肢に無く、パスを受けるかを確かめたがエンジンが上限までに答えなかった。
+    /// 送らずに定跡を切った（名前の問題ではないので `BookNameNotInVars` と分ける）
+    BookPathCheckTimedOut { file: String },
+    /// 定跡をパスで送ったが、エンジンが「読めない」と言った（`can't read file`）。定跡なしで動いている
+    BookNotLoaded { file: String },
+    /// 定跡をパスで送ったが、読んだと言わなかった（やねうら王は読むと `read book file : <パス>` を出す）。
+    /// 選んだ定跡が使われていない見込みがある
+    BookLoadUnconfirmed { file: String },
     /// 申告の型に合わない値（`check` に真偽以外、`spin` に整数以外）。送っていない
     InvalidType { name: String, value: String },
 }
@@ -202,6 +210,20 @@ pub struct ProbeOutcome {
     pub definitions: Vec<UsiOptionDef>,
     /// 評価関数・定跡・固定値が持つ名前（`binding::reserved_names`）。利用者の値としては送らない
     pub reserved: Vec<String>,
+}
+
+/// 選択肢（combo）で申告した定跡の名前が、選択肢に無い値をパスとして受けるか。**起こしたプロセスに
+/// 確かめた結果**（`setup::accepts_path_in`）。申告からは分からない——やねうら王 V8.30 と V9.00 は定跡の
+/// 申告が同じで、V8.30 はパスを読み、V9.00 は捨てて既定の定跡に落ちる
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BookPathSupport {
+    /// 確かめていない（確かめる要が無かった）。受けない扱い
+    #[default]
+    Unchecked,
+    Accepts,
+    Rejects,
+    /// 上限までに答えなかった。受けない扱い（別の定跡で動くより、切るほうが安全）
+    NoAnswer,
 }
 
 /// 解析の起動が返すもの。警告は起動を止めない

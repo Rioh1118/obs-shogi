@@ -7,10 +7,11 @@
 
 use std::time::{Duration, Instant};
 
-use usi::GuiCommand;
+use tokio::sync::mpsc;
+use usi::{EngineCommand, GuiCommand, InfoParams};
 
 use crate::engine::protocol::{contains_usi_breaking_char, UsiProtocol};
-use crate::engine::types::{EngineError, SetOptionValue, TIMED_OUT};
+use crate::engine::types::{BookPathSupport, EngineError, SetOptionValue, TIMED_OUT};
 use crate::engine::utils::shown;
 
 /// 線に出る1行の欄（`setoption` の名前・値、対局の開始局面）の長さの上限（バイト）。
@@ -105,6 +106,87 @@ async fn send_options(
         }
     }
     Ok(())
+}
+
+/// 選択肢（combo）で申告した名前が、**選択肢に無い値をパスとして受けるか**を、送って確かめる。
+///
+/// 実在しないパスを1つ送り、続けて `usi` を送って `usiok` を待つ（`isready` を使わない——評価関数の
+/// 読み込みが走る）。その間に選択肢に無いという行（`value not found`。大小を問わない。やねうら王 V9.00 は
+/// `info string Error! : combo value not found, …`）が出れば `Rejects`、出なければ `Accepts`、`limit` までに
+/// `usiok` が来なければ `NoAnswer`。
+///
+/// **`Accepts` は「断らなかった」でしかない。** 黙って捨てるエンジンもここを通るので、送った後に読んだかを
+/// 確かめる（`binding::book_load_warning`）。確かめに送ったパスは実在しないので、後から本物の値で上書き
+/// されなくても（`no_book` の無いエンジン）、読める定跡は無い。`readyok` の前に呼ぶ
+pub async fn accepts_path_in(
+    protocol: &UsiProtocol,
+    name: &str,
+    limit: Duration,
+) -> Result<BookPathSupport, EngineError> {
+    let probe_path = std::env::temp_dir()
+        .join(format!(
+            "obs-shogi-no-such-book-{}.db",
+            uuid::Uuid::new_v4()
+        ))
+        .to_string_lossy()
+        .into_owned();
+    validate_options(&[SetOptionValue {
+        name: name.to_string(),
+        value: probe_path.clone(),
+    }])?;
+
+    let (tx, rx) = mpsc::unbounded_channel();
+    let listener = format!("book_path_probe_{}", uuid::Uuid::new_v4());
+    protocol.register_listener(listener.clone(), tx).await?;
+    let sent = async {
+        protocol
+            .send_command(&GuiCommand::SetOption(name.to_string(), Some(probe_path)))
+            .await?;
+        protocol.send_command(&GuiCommand::Usi).await
+    }
+    .await;
+    let verdict = match sent {
+        Ok(()) => match tokio::time::timeout(limit, rejected_before_usiok(rx, name)).await {
+            Ok(Ok(true)) => Ok(BookPathSupport::Rejects),
+            Ok(Ok(false)) => Ok(BookPathSupport::Accepts),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Ok(BookPathSupport::NoAnswer),
+        },
+        Err(e) => Err(e),
+    };
+    protocol.remove_listener(&listener).await;
+    // 落ちたら直近の出力を添える（起動の他の段と同じ。原因は stderr にある）
+    match verdict {
+        Ok(v) => Ok(v),
+        Err(e) => Err(protocol.with_recent_output(e).await),
+    }
+}
+
+/// `info string` の行が「選択肢に無い値」を言っているか（やねうら王 V9.00 の綴りを大小を問わずに）
+pub fn says_value_not_in_vars(text: &str) -> bool {
+    text.to_ascii_lowercase().contains("value not found")
+}
+
+/// `usiok` までに選択肢に無いという行が出たか。出力が終わったら `CommunicationFailed`
+async fn rejected_before_usiok(
+    mut rx: mpsc::UnboundedReceiver<EngineCommand>,
+    name: &str,
+) -> Result<bool, EngineError> {
+    let mut rejected = false;
+    while let Some(command) = rx.recv().await {
+        match command {
+            EngineCommand::Info(params) => {
+                rejected |= params
+                    .iter()
+                    .any(|p| matches!(p, InfoParams::Text(text) if says_value_not_in_vars(text)));
+            }
+            EngineCommand::UsiOk => return Ok(rejected),
+            _ => {}
+        }
+    }
+    Err(EngineError::CommunicationFailed(format!(
+        "engine output ended while checking whether `{name}` accepts a path"
+    )))
 }
 
 /// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
@@ -309,5 +391,27 @@ done"#,
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }
+    }
+
+    /// やねうら王 V9.00 の実機の行（`tests/fixtures/usi/yaneuraou-book-lines.txt` の1行目）が、読み取りの
+    /// 解析を通って「選択肢に無い」と読めること。**読めないと「断らなかった」になり、パスを送る**
+    #[test]
+    fn the_real_v900_rejection_line_is_read_as_a_rejection() {
+        let lines: Vec<&str> = include_str!("../../tests/fixtures/usi/yaneuraou-book-lines.txt")
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .collect();
+        let parsed = usi::EngineCommand::parse(lines[0]).expect("解ける");
+        let usi::EngineCommand::Info(params) = parsed else {
+            panic!("info として読めない: {parsed:?}");
+        };
+        assert!(params
+            .iter()
+            .any(|p| matches!(p, InfoParams::Text(t) if says_value_not_in_vars(t))));
+        // 別の行（読んだ・読めない）は断りと読まない
+        for line in &lines[1..] {
+            assert!(!says_value_not_in_vars(line), "{line}");
+        }
+        assert!(says_value_not_in_vars("info string COMBO VALUE NOT FOUND"));
     }
 }
