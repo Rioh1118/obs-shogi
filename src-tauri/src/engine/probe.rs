@@ -176,6 +176,7 @@ mod tests {
                 def(UsiOptionKind::Button),
                 r#"{"name":"X","type":"button"}"#,
             ),
+            // 画面の名前と分類は取得の結果にだけ載る（保存の前に画面が外す。`UsiOptionDef::label`）
             (
                 UsiOptionDef {
                     label: Some("定跡を使う手数".to_string()),

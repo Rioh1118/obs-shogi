@@ -118,7 +118,9 @@ function outcome(p: Pending, name: string): ProbeOutcome {
     enginePath: p.args.enginePath,
     name,
     author: "someone",
-    definitions: [{ name: "Threads", type: "spin", default: 4, min: 1, max: 512 }],
+    definitions: [
+      { name: "Threads", type: "spin", default: 4, min: 1, max: 512, label: "スレッド数" },
+    ],
     reserved: [],
   };
 }
@@ -171,6 +173,8 @@ describe("プリセット編集でのオプションの取得", () => {
     expect(patch.definitionsFor).toBe(ENGINE_A);
     expect(patch.engineName).toBe("Engine A");
     expect(patch.definitions).toHaveLength(1);
+    // 画面の名前は保存しない
+    expect(patch.definitions?.[0]).not.toHaveProperty("label");
     expect(patch.reservedNames).toEqual([]);
   }, 20000);
 
