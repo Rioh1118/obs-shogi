@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { ProbeOutcome } from "@/entities/engine";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
-import { hasCurrentDefinitions, withDefinitions } from "../withDefinitions";
+import { hasCurrentDefinitions, storedDefinitions, withDefinitions } from "../withDefinitions";
 
 const PRESET: EnginePreset = {
   id: "p1" as PresetId,
@@ -52,5 +52,22 @@ describe("withDefinitions", () => {
     const next = withDefinitions(PRESET, OUTCOME, "t");
     expect(hasCurrentDefinitions({ ...next, enginePath: "/e/b" })).toBe(false);
     expect(hasCurrentDefinitions(PRESET)).toBe(false);
+  });
+
+  /** 画面の名前は保存しない（辞書を直したら既存のプリセットにも届くように） */
+  test("保存する定義は画面の名前と分類を持たない", () => {
+    const stored = storedDefinitions([
+      {
+        name: "BookMoves",
+        type: "spin",
+        default: 16,
+        min: 0,
+        max: 10000,
+        label: "定跡を使う手数",
+        group: "book",
+      },
+    ]);
+    expect(stored).toEqual([{ name: "BookMoves", type: "spin", default: 16, min: 0, max: 10000 }]);
+    expect(storedDefinitions(null)).toBeNull();
   });
 });

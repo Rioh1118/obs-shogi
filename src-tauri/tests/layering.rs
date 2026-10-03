@@ -72,11 +72,18 @@ struct Layer {
 /// `may_use` はテストと本番を区別しないので、テストのためだけの辺を `may_use` に足すと本番の
 /// コードも同じ辺を使えてしまう（コメントの「テストだけ」は実装されない）。本番の辺は
 /// [`graph`]（テストの `mod` を剥いだコード）で `may_use` と、テストを含む辺はここと突き合わせる
-const TEST_ONLY_EDGES: &[(&str, &str, &str)] = &[(
-    "binding",
-    "option_line",
-    "申告の行を解いてテストの入力にする（`EngineOption` を組める口は `option_line` だけ）",
-)];
+const TEST_ONLY_EDGES: &[(&str, &str, &str)] = &[
+    (
+        "binding",
+        "option_line",
+        "申告の行を解いてテストの入力にする（`EngineOption` を組める口は `option_line` だけ）",
+    ),
+    (
+        "option_labels",
+        "option_line",
+        "標準のエンジンの申告を解いて、全部に名前があることを見る",
+    ),
+];
 
 const LAYERS: &[Layer] = &[
     Layer {
@@ -122,6 +129,12 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
+        name: "option_labels",
+        decides: "オプションの画面の名前（日本語）と分類（表示だけ）",
+        may_use: &["types"],
+        forbids: &[],
+    },
+    Layer {
         name: "binding",
         decides: "評価関数・定跡をどの名前で送るか（その回の申告から）",
         may_use: &["types"],
@@ -161,7 +174,14 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "probe",
         decides: "エンジンを起こして申告だけを取る",
-        may_use: &["types", "protocol", "registry", "binding", "start_failure"],
+        may_use: &[
+            "types",
+            "protocol",
+            "registry",
+            "binding",
+            "option_labels",
+            "start_failure",
+        ],
         forbids: &["tauri"],
     },
     Layer {

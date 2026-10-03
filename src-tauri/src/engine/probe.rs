@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::engine::binding;
+use crate::engine::option_labels;
 use crate::engine::protocol::USI_OK_TIMEOUT;
 use crate::engine::registry::{EngineRegistry, SPAWN_TIMEOUT};
 use crate::engine::start_failure;
@@ -111,7 +112,11 @@ impl EngineProber {
             token,
             engine_path: engine_path.to_string(),
             reserved: binding::reserved_names(&info.options, fixed),
-            definitions: info.options.iter().map(UsiOptionDef::from).collect(),
+            definitions: info
+                .options
+                .iter()
+                .map(|o| option_labels::describe(UsiOptionDef::from(o)))
+                .collect(),
             name: info.name,
             author: info.author,
         })
@@ -134,6 +139,8 @@ mod tests {
         let def = |kind| UsiOptionDef {
             name: "X".to_string(),
             kind,
+            label: None,
+            group: None,
         };
         let cases = [
             (
@@ -168,6 +175,15 @@ mod tests {
             (
                 def(UsiOptionKind::Button),
                 r#"{"name":"X","type":"button"}"#,
+            ),
+            // 画面の名前と分類は取得の結果にだけ載る（保存の前に画面が外す。`UsiOptionDef::label`）
+            (
+                UsiOptionDef {
+                    label: Some("定跡を使う手数".to_string()),
+                    group: Some(crate::engine::types::OptionGroup::Book),
+                    ..def(UsiOptionKind::Button)
+                },
+                r#"{"name":"X","type":"button","label":"定跡を使う手数","group":"book"}"#,
             ),
         ];
         for (value, wire) in cases {
@@ -230,6 +246,8 @@ while read line; do :; done"#;
                 .collect();
             assert_eq!(names, ["Threads", "EvalFile", "ConsiderationMode"]);
             assert_eq!(outcome.reserved, ["EvalFile", "ConsiderationMode"]);
+            // 画面の名前を辞書から添える（`option_labels`）
+            assert_eq!(outcome.definitions[0].label.as_deref(), Some("スレッド数"));
             assert!(
                 registry.ids().await.is_empty(),
                 "取った後もプロセスが残っている"

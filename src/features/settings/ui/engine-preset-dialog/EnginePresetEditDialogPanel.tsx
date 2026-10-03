@@ -26,7 +26,7 @@ import { multiPvMax } from "@/features/settings/lib/quickOptions";
 import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
 import { asStartFailure } from "@/entities/engine";
 import { probeEngine } from "@/entities/engine/api/tauri";
-import { probePathOf } from "@/entities/engine-presets/lib/withDefinitions";
+import { probePathOf, storedDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
 import {
   initialPresetDialogState,
   presetDialogReducer,
@@ -369,7 +369,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       bookFilePath,
       options,
       analysis,
-      definitions: draft.definitions ?? null,
+      definitions: storedDefinitions(draft.definitions),
       reservedNames: draft.reservedNames ?? null,
       definitionsFor: draft.definitionsFor ?? null,
       probedAt: draft.probedAt ?? null,
