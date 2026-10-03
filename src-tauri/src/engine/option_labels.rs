@@ -1,14 +1,17 @@
 //! エンジンのオプションの**画面の名前**（日本語）と分類。純関数。
 //!
-//! やねうら王を標準にする（利用者の決定）。名前は「思考エンジンオプション」の説明に合わせた。
+//! 名前は、やねうら王の wiki「思考エンジンオプション」
+//! （<https://github.com/yaneurao/YaneuraOu/wiki/思考エンジンオプション>）の説明を正とする。
+//! やねうら王 V9.00 の申告（`tests/fixtures/usi/yaneuraou-v900.usi.txt`）を全部覆う。
 //! 辞書に無い名前は `None` で、画面はエンジンの綴りのまま出す。**送る側は使わない**——表示だけの辞書。
+//! **保存もしない**（`UsiOptionDef::label` の doc）。
 //!
 //! 辞書を Rust に置くのは、画面（TS）が USI の名前を綴らない決まりのため（`src/__tests__/usiNamesStayInRust.test.ts`）。
 //! 取得の結果（`ProbeOutcome::definitions`）に名前と分類を添えて渡す。
 
 use crate::engine::types::{OptionGroup, UsiOptionDef};
 
-/// （エンジンの名前, 画面の名前, 分類）
+/// （エンジンの名前, 画面の名前, 分類）。分類は定跡の設定にだけ付ける
 const LABELS: &[(&str, &str, Option<OptionGroup>)] = &[
     ("Threads", "スレッド数", None),
     ("USI_Hash", "ハッシュ（MB）", None),
@@ -30,24 +33,12 @@ const LABELS: &[(&str, &str, Option<OptionGroup>)] = &[
     ("FV_SCALE", "評価値のスケール（NNUE）", None),
     ("EvalDir", "評価関数のフォルダ", None),
     ("EvalFile", "評価関数のファイル", None),
-    ("ResignValue", "投了する評価値", Some(OptionGroup::Match)),
-    ("NetworkDelay", "通信の遅延（ms）", Some(OptionGroup::Match)),
-    (
-        "NetworkDelay2",
-        "秒読みの最大遅延（ms）",
-        Some(OptionGroup::Match),
-    ),
-    (
-        "MinimumThinkingTime",
-        "最小思考時間（ms）",
-        Some(OptionGroup::Match),
-    ),
-    ("SlowMover", "序盤重視率（%）", Some(OptionGroup::Match)),
-    (
-        "RoundUpToFullSecond",
-        "秒のぎりぎりまで考える",
-        Some(OptionGroup::Match),
-    ),
+    ("ResignValue", "投了する評価値", None),
+    ("NetworkDelay", "通信の遅延（ms）", None),
+    ("NetworkDelay2", "秒読みの最大遅延（ms）", None),
+    ("MinimumThinkingTime", "最小思考時間（ms）", None),
+    ("SlowMover", "序盤重視率（%）", None),
+    ("RoundUpToFullSecond", "秒のぎりぎりまで考える", None),
     ("USI_OwnBook", "定跡を使う", Some(OptionGroup::Book)),
     ("BookFile", "定跡ファイル", Some(OptionGroup::Book)),
     ("BookDir", "定跡のフォルダ", Some(OptionGroup::Book)),
@@ -135,12 +126,20 @@ mod tests {
         }
     }
 
-    /// 標準（やねうら王 V9.00）の申告は全部、日本語の名前を持つ。版を上げて名前が増えたら、ここが落ちて辞書に足す
+    /// 標準（やねうら王 V9.00）の申告は全部、日本語の名前を持つ。fixture を新しい版の申告に差し替えたら、
+    /// 増えた名前でここが落ちる（辞書に足す）
     #[test]
     fn every_option_the_standard_engine_declares_has_a_label() {
-        let missing: Vec<String> = V900
-            .lines()
-            .filter_map(|line| parse_option_line(line).ok())
+        let option_lines: Vec<&str> = V900.lines().filter(|l| l.starts_with("option ")).collect();
+        assert!(
+            option_lines.len() >= 30,
+            "申告が少ない: {}",
+            option_lines.len()
+        );
+        let missing: Vec<String> = option_lines
+            .iter()
+            // 解けない行を黙って捨てると「全部」の確認が素通りする
+            .map(|line| parse_option_line(line).expect("option 行を解ける"))
             .map(|parsed| describe(UsiOptionDef::from(&parsed.option)))
             .filter(|d| d.label.is_none())
             .map(|d| d.name)
@@ -155,7 +154,7 @@ mod tests {
         assert_eq!(described.group, None);
     }
 
-    /// 定跡の項目は、定跡を使わないときに画面が隠す（分類が要る）
+    /// 定跡の項目は定跡の分類を持つ（表示側が、定跡を使うかで出し分けるための印）
     #[test]
     fn book_settings_are_grouped_as_book() {
         for name in [

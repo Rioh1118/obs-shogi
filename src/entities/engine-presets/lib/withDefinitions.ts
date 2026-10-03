@@ -1,5 +1,17 @@
-import type { ProbeOutcome } from "@/entities/engine";
+import type { ProbeOutcome, UsiOptionDef } from "@/entities/engine";
 import type { EnginePreset } from "../model/types";
+
+/**
+ * プリセットに残す形の定義。**画面の名前と分類（`label` / `group`）を外す**——表示のためにだけ取得の結果に
+ * 載るもので、保存すると辞書（Rust の `option_labels`）を直しても既存のプリセットに届かない
+ */
+export function storedDefinitions(defs: UsiOptionDef[] | null | undefined): UsiOptionDef[] | null {
+  if (!defs) return null;
+  return defs.map((d) => {
+    const { label: _label, group: _group, ...stored } = d;
+    return stored as UsiOptionDef;
+  });
+}
 
 /** 取得に渡すパスと、定義を取ったパス（`definitionsFor`）の比べ方。保存は前後の空白を落とすので揃える */
 export function probePathOf(enginePath: string): string {

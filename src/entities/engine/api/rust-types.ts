@@ -72,12 +72,13 @@ export type UsiOptionDef = UsiOptionLabel &
   );
 
 /**
- * 画面の名前と分類（Rust の `option_labels`）。辞書に無い名前は持たない——画面はエンジンの綴りのまま出す。
- * 定跡を使わないとき、画面は `group: "book"` を隠す
+ * 画面の名前と分類（Rust の `option_labels`）。辞書に無い名前は持たない。
+ * **取得の結果にだけ載り、プリセットには保存しない**（`storedDefinitions` が外す）
  */
 export type UsiOptionLabel = {
   label?: string;
-  group?: "book" | "match";
+  /** 定跡の設定の印 */
+  group?: "book";
 };
 
 /** エンジンの申告を取った結果（Rust の `ProbeOutcome`） */
