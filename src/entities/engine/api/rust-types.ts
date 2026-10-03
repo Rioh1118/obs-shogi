@@ -61,13 +61,24 @@ export type StartWarning =
  * プリセットに**保存する**オプションの定義1件（Rust の `UsiOptionDef`）。画面に欄を出すためだけに使い、
  * 送るときは起動のたびの申告を見る。**ファイルに残る形なので、変えるときはプリセットの版を上げる**
  */
-export type UsiOptionDef =
-  | { name: string; type: "check"; default: boolean | null }
-  | { name: string; type: "spin"; default: number | null; min: number | null; max: number | null }
-  | { name: string; type: "combo"; default: string | null; vars: string[] }
-  | { name: string; type: "string"; default: string | null }
-  | { name: string; type: "filename"; default: string | null }
-  | { name: string; type: "button" };
+export type UsiOptionDef = UsiOptionLabel &
+  (
+    | { name: string; type: "check"; default: boolean | null }
+    | { name: string; type: "spin"; default: number | null; min: number | null; max: number | null }
+    | { name: string; type: "combo"; default: string | null; vars: string[] }
+    | { name: string; type: "string"; default: string | null }
+    | { name: string; type: "filename"; default: string | null }
+    | { name: string; type: "button" }
+  );
+
+/**
+ * 画面の名前と分類（Rust の `option_labels`）。辞書に無い名前は持たない——画面はエンジンの綴りのまま出す。
+ * 定跡を使わないとき、画面は `group: "book"` を隠す
+ */
+export type UsiOptionLabel = {
+  label?: string;
+  group?: "book" | "match";
+};
 
 /** エンジンの申告を取った結果（Rust の `ProbeOutcome`） */
 export interface ProbeOutcome {
