@@ -123,9 +123,11 @@ pub async fn accepts_path_in(
     name: &str,
     limit: Duration,
 ) -> Result<BookPathSupport, EngineError> {
+    // 一時フォルダはワークツリー・プロセスをまたいで共有されるので、プロセスの番号も混ぜる
     let probe_path = std::env::temp_dir()
         .join(format!(
-            "obs-shogi-no-such-book-{}.db",
+            "obs-shogi-no-such-book-{}-{}.db",
+            std::process::id(),
             uuid::Uuid::new_v4()
         ))
         .to_string_lossy()
