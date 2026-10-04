@@ -137,6 +137,23 @@ pub struct UsiOptionDef {
     pub name: String,
     #[serde(flatten)]
     pub kind: UsiOptionKind,
+    /// 画面の名前（日本語。`option_labels`）。辞書に無ければ `None`。
+    ///
+    /// **取得の結果にだけ載せ、プリセットには保存しない**（保存の前に画面が外す）。保存すると、辞書を
+    /// 直しても既存のプリセットに届かず、保存する定義の形も変わる
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// 分類（`option_labels`）。`label` と同じく保存しない
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<OptionGroup>,
+}
+
+/// オプションの分類。表示だけに使う（送る側は見ない）
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OptionGroup {
+    /// 定跡の設定（表示側が、定跡を使うかで出し分けるための印）
+    Book,
 }
 
 /// 定義の型と、型ごとの既定値・範囲
@@ -193,6 +210,8 @@ impl From<&EngineOption> for UsiOptionDef {
         Self {
             name: option.name.clone(),
             kind,
+            label: None,
+            group: None,
         }
     }
 }
