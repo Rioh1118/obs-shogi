@@ -1,3 +1,6 @@
+/** 候補手の数を送るオプションの名前。プリセットの値はこの名前で持つ */
+export const MULTIPV_OPTION = "MultiPV";
+
 /**
  * `MultiPV`（候補手を何本読むか）の範囲。
  *

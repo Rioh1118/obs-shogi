@@ -7,8 +7,8 @@ import type { ProbeOutcome } from "@/entities/engine";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 
 /**
- * エンジンを選んだときに申告を取り、下書きへ定義を入れること。**最後に撃った取得の結果だけを使う**
- * ——前のエンジンの取得が後から返っても、選び直したエンジンの定義を上書きしない
+ * プリセット編集（使うもの／解析／エンジンの設定）。エンジンは選べば裏で読み込み、うまくいけば何も言わない。
+ * 状態の判定表は `docs/state-transitions/engine-preset-dialog.md`（reducer のセルは reducer のテストが踏む）
  */
 
 const AI_ROOT = "/Users/me/ai";
@@ -18,7 +18,7 @@ const ENGINE_B = `${AI_ROOT}/engines/b`;
 const PRESET: EnginePreset = {
   id: "p1" as PresetId,
   label: "テスト",
-  aiName: "Suisho",
+  aiName: "",
   enginePath: "",
   evalFilePath: "",
   bookEnabled: false,
@@ -33,7 +33,30 @@ const INDEX: AiRootIndex = {
     { entry: "a", path: ENGINE_A, kind: "file", launchability: "ready" },
     { entry: "b", path: ENGINE_B, kind: "file", launchability: "ready" },
   ],
-  profiles: [],
+  profiles: [
+    {
+      name: "hao",
+      path: `${AI_ROOT}/hao`,
+      has_eval_dir: true,
+      has_book_dir: false,
+      eval_files: [{ entry: "nn.bin", path: `${AI_ROOT}/hao/eval/nn.bin`, kind: "file" }],
+      book_db_files: [],
+    },
+    {
+      name: "li",
+      path: `${AI_ROOT}/li`,
+      has_eval_dir: true,
+      has_book_dir: true,
+      eval_files: [{ entry: "nn.bin", path: `${AI_ROOT}/li/eval/nn.bin`, kind: "file" }],
+      book_db_files: [
+        {
+          entry: "user_book1.db",
+          path: `${AI_ROOT}/li/book/user_book1.db`,
+          kind: "file",
+        },
+      ],
+    },
+  ],
 };
 
 type Pending = {
@@ -83,7 +106,7 @@ vi.mock(
     ({
       ...(await importActual<typeof import("@/entities/app-config")>()),
       useAppConfig: () =>
-        ({ config: { ai_root: AI_ROOT }, chooseAiRoot: vi.fn() }) as unknown as ReturnType<
+        ({ config: { ai_root: AI_ROOT } }) as unknown as ReturnType<
           typeof import("@/entities/app-config").useAppConfig
         >,
     }) satisfies typeof import("@/entities/app-config"),
@@ -94,7 +117,10 @@ vi.mock(
   () =>
     ({
       useEnginePresets: () =>
-        ({ state: { presets: [presets.current] }, updatePreset }) as unknown as ReturnType<
+        ({
+          state: { presets: [presets.current] },
+          updatePreset,
+        }) as unknown as ReturnType<
           typeof import("@/entities/engine-presets/model/useEnginePresets").useEnginePresets
         >,
     }) satisfies typeof import("@/entities/engine-presets/model/useEnginePresets"),
@@ -112,392 +138,427 @@ vi.mock(
 
 const { default: EnginePresetEditDialogPanel } = await import("../EnginePresetEditDialogPanel");
 
-function outcome(p: Pending, name: string): ProbeOutcome {
+const DEFS: ProbeOutcome["definitions"] = [
+  {
+    name: "Threads",
+    type: "spin",
+    default: 4,
+    min: 1,
+    max: 512,
+    label: "スレッド数",
+  },
+  {
+    name: "USI_Hash",
+    type: "spin",
+    default: 1024,
+    min: 1,
+    max: 65536,
+    label: "ハッシュ（MB）",
+  },
+  {
+    name: "MultiPV",
+    type: "spin",
+    default: 1,
+    min: 1,
+    max: 500,
+    label: "候補手の数",
+  },
+  {
+    name: "USI_Ponder",
+    type: "check",
+    default: false,
+    label: "相手の手番でも考える",
+  },
+  { name: "Style", type: "combo", default: "a", vars: ["a", "b"] },
+  { name: "Model", type: "filename", default: "nn.bin" },
+  {
+    name: "BookMoves",
+    type: "spin",
+    default: 16,
+    min: 0,
+    max: 10000,
+    label: "定跡を使う手数",
+    group: "book",
+  },
+  { name: "Clear_Hash", type: "button" },
+];
+
+function outcome(p: Pending, name: string, defs = DEFS): ProbeOutcome {
   return {
     token: p.args.token,
     enginePath: p.args.enginePath,
     name,
     author: "someone",
-    definitions: [
-      { name: "Threads", type: "spin", default: 4, min: 1, max: 512, label: "スレッド数" },
-    ],
-    reserved: [],
+    definitions: defs,
+    reserved: ["USI_Ponder"],
   };
 }
 
-function engineSelect(): HTMLSelectElement {
-  const select = [...document.querySelectorAll("select")].find((s) =>
-    [...s.options].some((o) => o.value === ENGINE_A),
-  );
-  if (!select) throw new Error("エンジンの欄が無い");
-  return select;
-}
+const engineSelect = () =>
+  screen.getByLabelText("エンジン", {
+    selector: "select",
+  }) as HTMLSelectElement;
+const saveButton = () => screen.getByRole("button", { name: "保存" }) as HTMLButtonElement;
+const tick = () => new Promise((r) => setTimeout(r, 0));
 
-async function openWithEnginesView() {
+async function open(): Promise<ReturnType<typeof render>> {
   const view = render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
-  await waitFor(() => engineSelect(), { timeout: 5000 });
+  await waitFor(() => expect(engineSelect().disabled).toBe(false), {
+    timeout: 5000,
+  });
   return view;
 }
 
-async function openWithEngines() {
-  await openWithEnginesView();
-}
-
-function saveButton(): HTMLButtonElement {
-  return screen.getByRole("button", { name: "保存" }) as HTMLButtonElement;
+async function saved(): Promise<Partial<EnginePreset>> {
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(updatePreset).toHaveBeenCalled());
+  return updatePreset.mock.calls[0][1];
 }
 
 beforeEach(() => {
   probes.length = 0;
   presets.current = PRESET;
   updatePreset.mockReset().mockResolvedValue(true);
+  dialogOpen.mockReset();
 });
 
 afterEach(cleanup);
 
-describe("プリセット編集でのオプションの取得", () => {
-  test("エンジンを選ぶと申告を取り、保存に定義が載る。取得中は保存できない", async () => {
-    await openWithEngines();
+describe("読み込み", () => {
+  test("エンジンを選ぶと読み込み、うまくいけば何も言わない。名乗りで出し、保存に定義が載る（画面の名前は除く）", async () => {
+    await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-
     expect(probes.map((p) => p.args.enginePath)).toEqual([ENGINE_A]);
-    await waitFor(() => expect(saveButton().disabled).toBe(true));
+    expect(screen.getByText("エンジンを読み込んでいます…")).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
 
     probes[0].resolve(outcome(probes[0], "Engine A"));
-    await screen.findByText(/オプション 1 件を取得済み（Engine A）/);
-    expect(saveButton().disabled).toBe(false);
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    expect(screen.queryByText(/読み込んでいます|取得|未取得/)).toBeNull();
+    expect(engineSelect().selectedOptions[0].textContent).toBe("Engine A");
 
-    fireEvent.click(saveButton());
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    const patch = updatePreset.mock.calls[0][1];
+    const patch = await saved();
     expect(patch.definitionsFor).toBe(ENGINE_A);
-    expect(patch.engineName).toBe("Engine A");
-    expect(patch.definitions).toHaveLength(1);
-    // 画面の名前は保存しない
     expect(patch.definitions?.[0]).not.toHaveProperty("label");
-    expect(patch.reservedNames).toEqual([]);
   }, 20000);
 
-  test("選び直した後に前の取得が返っても、選び直したエンジンの定義を使う", async () => {
-    await openWithEngines();
-    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
+  /** 開いたときに1回読み込む（画面の名前はいつも今の辞書から。保存しない） */
+  test("エンジンを持つプリセットを開くと、すぐ読み込む", async () => {
+    presets.current = { ...PRESET, enginePath: ENGINE_A };
+    await open();
+    expect(probes.map((p) => p.args.enginePath)).toEqual([ENGINE_A]);
+  }, 20000);
+
+  /** 名乗りは読み込めたエンジンのもの。別のエンジンを前の名乗りで出すと、どれを選んだか分からなくなる */
+  test("選び直したエンジンを読み込めなかったら、前のエンジンの名乗りで出さず、名乗りを保存しない", async () => {
+    presets.current = { ...PRESET, enginePath: ENGINE_A };
+    await open();
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await waitFor(() => expect(engineSelect().selectedOptions[0].textContent).toBe("Engine A"));
+
     fireEvent.change(engineSelect(), { target: { value: ENGINE_B } });
-    const [first, second] = probes;
-
-    second.resolve(outcome(second, "Engine B"));
-    await screen.findByText(/（Engine B）/);
-    first.resolve(outcome(first, "Engine A"));
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(screen.queryByText(/（Engine A）/)).toBeNull();
-    expect(screen.getByText(/（Engine B）/)).toBeTruthy();
+    probes[1].reject({ kind: "notUsi", message: "no usiok" });
+    await screen.findByRole("alert");
+    expect(engineSelect().value).toBe(ENGINE_B);
+    expect([...engineSelect().options].map((o) => o.textContent)).not.toContain("Engine A");
+    expect((await saved()).engineName).toBeNull();
   }, 20000);
 
-  /**
-   * 同じエンジンに戻ったとき、パスでは古い取得と新しい取得を見分けられない。古い結果で
-   * 「取得済み」にすると、新しい取得が返る前に保存でき、返ってきた定義が保存物に載らない
-   */
-  test("同じエンジンに戻ったら、古い取得の結果では取得を終えない", async () => {
-    await openWithEngines();
+  /** 保存した名乗りは、保存したときのエンジンのもの。いま読み込めていなければ、それを名乗りとして出さない */
+  test("いまのエンジンを読み込めていなければ、保存してある名乗りで出さない", async () => {
+    presets.current = { ...PRESET, enginePath: ENGINE_A, engineName: "Old Build" };
+    await open();
+    probes[0].reject({ kind: "notUsi", message: "no usiok" });
+    await screen.findByRole("alert");
+    expect([...engineSelect().options].map((o) => o.textContent)).not.toContain("Old Build");
+  }, 20000);
+
+  test("選び直した後に前の読み込みが返っても、選び直したエンジンを使う（A→B→A も）", async () => {
+    await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     fireEvent.change(engineSelect(), { target: { value: ENGINE_B } });
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     const [first, , third] = probes;
 
     first.resolve(outcome(first, "Engine A (old)"));
-    await new Promise((r) => setTimeout(r, 0));
+    await tick();
     expect(saveButton().disabled).toBe(true);
-    expect(screen.queryByText(/（Engine A \(old\)）/)).toBeNull();
 
     third.resolve(outcome(third, "Engine A"));
-    await screen.findByText(/（Engine A）/);
+    await waitFor(() => expect(engineSelect().selectedOptions[0].textContent).toBe("Engine A"));
     expect(saveButton().disabled).toBe(false);
   }, 20000);
 
-  test("取得に失敗したら理由と次にすることを出す。前のエンジンの失敗は出さない", async () => {
-    await openWithEngines();
+  test("読めなかったら理由と「もう一度読み込む」を出し、押すと読み込み直す", async () => {
+    await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     probes[0].reject({ kind: "notUsi", message: "no usiok" });
 
-    const failure = await screen.findByRole("alert");
-    expect(failure.textContent).toContain("USI エンジンとして応答しませんでした");
-    expect(failure.textContent).toContain("詳細: no usiok");
-    expect(saveButton().disabled).toBe(false);
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("USI エンジンとして応答しませんでした");
+    expect(alert.textContent).toContain("詳細: no usiok");
 
-    fireEvent.change(engineSelect(), { target: { value: ENGINE_B } });
-    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    probes[1].reject({ kind: "spawnFailed", message: "" });
-    await new Promise((r) => setTimeout(r, 0));
-    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "もう一度読み込む" }));
+    expect(probes.map((p) => p.args.enginePath)).toEqual([ENGINE_A, ENGINE_A]);
   }, 20000);
 
-  /** 返らない取得（応答しないドライブ）で保存が塞がったままにならない */
-  test("読み込みをやめると保存でき、後から返った結果は使わない", async () => {
-    await openWithEngines();
+  /** 返らない読み込み（応答しないドライブ）で保存が塞がったままにならない */
+  test("「やめる」で保存でき、後から返った結果は使わない", async () => {
+    await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    await waitFor(() => expect(saveButton().disabled).toBe(true));
-
-    fireEvent.click(screen.getByRole("button", { name: "読み込みをやめる" }));
+    fireEvent.click(screen.getByRole("button", { name: "やめる" }));
     expect(saveButton().disabled).toBe(false);
 
     probes[0].resolve(outcome(probes[0], "Engine A"));
-    await new Promise((r) => setTimeout(r, 0));
-    expect(screen.queryByText(/取得済み/)).toBeNull();
+    await tick();
+    expect(engineSelect().selectedOptions[0].textContent).not.toBe("Engine A");
+
+    // 同じエンジンは選び直しても読まれないので、読み込み直す口が残っていないと行き止まりになる
+    expect(screen.getByText(/エンジンをまだ読み込んでいません/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "もう一度読み込む" }));
+    expect(probes.map((p) => p.args.enginePath)).toEqual([ENGINE_A, ENGINE_A]);
   }, 20000);
 
-  /** 手動のパス欄は取得を撃たない。待っていた取得の結果を、打ち換えたパスに付けない */
-  test("取得を待つ間に手でパスを打ち換えたら、前のエンジンの定義を付けず、値にも当てない", async () => {
-    presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
-    await openWithEngines();
+  test("読み込み中にプリセットが読み直されても、保存は塞がったまま", async () => {
+    const view = await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    fireEvent.change(screen.getByPlaceholderText("/path/to/engine"), {
-      target: { value: "/elsewhere/engine" },
-    });
-
-    probes[0].resolve(outcome(probes[0], "Engine A"));
-    await screen.findByText("オプションは未取得です", { exact: false });
-    fireEvent.click(saveButton());
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].definitionsFor).toBeNull();
-    // 前のエンジンの定義（NetworkDelay を持たない）で値を外していない
-    expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
-  }, 20000);
-
-  /** 読み直しで同じプリセットの別オブジェクトが来ても、取得中なら保存を開けない */
-  test("取得中にプリセットが読み直されても、保存は塞がったまま", async () => {
-    const view = await openWithEnginesView();
-    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    await waitFor(() => expect(saveButton().disabled).toBe(true));
-
     presets.current = { ...PRESET };
     view.rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
-    await new Promise((r) => setTimeout(r, 0));
-
+    await tick();
     expect(saveButton().disabled).toBe(true);
   }, 20000);
+});
 
-  /**
-   * 取得が返ったら、**その時点の下書き**に定義を当てる（取得を待つ間の編集を失わない）。
-   * 外した値・丸めた値は保存の前に見せ、保存に載るのは当てた後の値
-   */
-  test("取得が返ったら値を定義に当て、変えた値を見せる。待つ間の編集は残る", async () => {
-    presets.current = { ...PRESET, options: { NetworkDelay: "120", Threads: "999" } };
-    await openWithEngines();
+describe("値を定義に当てる", () => {
+  /** 当てる元は保存済みの値＋この画面での編集。読み込みを待つ間の編集も残る */
+  test("読み込んだら値を当て、変えた値を1行にまとめて見せる。待つ間の編集は残る", async () => {
+    presets.current = {
+      ...PRESET,
+      options: { NetworkDelay: "120", Threads: "999" },
+    };
+    await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     fireEvent.click(screen.getByRole("button", { name: "3" }));
-
-    probes[0].resolve({
-      ...outcome(probes[0], "Engine A"),
-      definitions: [
-        { name: "Threads", type: "spin", default: 4, min: 1, max: 512 },
-        { name: "MultiPV", type: "spin", default: 1, min: 1, max: 500 },
-      ],
-    });
-
-    await screen.findByText("NetworkDelay = 120 を外しました（このエンジンに無い）");
-    expect(
-      screen.getByText("Threads を 999 から 512 に丸めました（このエンジンの範囲は 1〜512）"),
-    ).toBeTruthy();
-
-    fireEvent.click(saveButton());
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].options).toEqual({ Threads: "512", MultiPV: "3" });
-  }, 20000);
-
-  /** 値が無いことが「エンジン既定」。既定値を敷いて保存しない */
-  test("エンジン既定を選ぶと、その値を持たずに保存する", async () => {
-    presets.current = {
-      ...PRESET,
-      enginePath: ENGINE_A,
-      options: { MultiPV: "5", Threads: "8", USI_Hash: "2048", NetworkDelay: "120" },
-    };
-    await openWithEngines();
-
-    fireEvent.click(screen.getByRole("button", { name: "エンジン既定" }));
-    for (const radio of screen.getAllByRole("radio", { name: /エンジン既定/ })) {
-      fireEvent.click(radio);
-    }
-    fireEvent.click(saveButton());
-
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    // 欄の無い値（NetworkDelay）は触らない
-    expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
-  }, 20000);
-
-  /** 取り直すたびに当て直しても、一覧はいつも「保存済みの値から何を変えるか」を言う */
-  test("同じエンジンで取り直しても、外した値の一覧は消えない", async () => {
-    presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
-    await openWithEngines();
-    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     probes[0].resolve(outcome(probes[0], "Engine A"));
-    await screen.findByText(/NetworkDelay = 120 を外しました/);
 
-    fireEvent.click(screen.getByRole("button", { name: "オプションを読み込む" }));
-    probes[1].resolve(outcome(probes[1], "Engine A"));
-    await screen.findByText(/取得済み/);
+    const summary = await screen.findByText(/このエンジンに合わせて 2 件の値を変えました/);
+    fireEvent.click(summary);
+    expect(screen.getByText("NetworkDelay = 120 を外しました（このエンジンに無い）")).toBeTruthy();
 
-    expect(screen.getByText(/NetworkDelay = 120 を外しました/)).toBeTruthy();
+    expect((await saved()).options).toEqual({ Threads: "512", MultiPV: "3" });
   }, 20000);
 
-  /** A で外した値を、それを受ける B に選び直したら戻す（黙って消さない） */
   test("A で外した値は、それを受ける B に選び直すと戻る", async () => {
     presets.current = { ...PRESET, options: { NetworkDelay: "120" } };
-    await openWithEngines();
+    await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     probes[0].resolve(outcome(probes[0], "Engine A"));
-    await screen.findByText(/NetworkDelay = 120 を外しました/);
+    await screen.findByText(/このエンジンに合わせて/);
 
     fireEvent.change(engineSelect(), { target: { value: ENGINE_B } });
-    probes[1].resolve({
-      ...outcome(probes[1], "Engine B"),
-      definitions: [{ name: "NetworkDelay", type: "spin", default: 0, min: 0, max: 10000 }],
+    probes[1].resolve(
+      outcome(probes[1], "Engine B", [
+        { name: "NetworkDelay", type: "spin", default: 0, min: 0, max: 10000 },
+      ]),
+    );
+    await waitFor(() => expect(engineSelect().selectedOptions[0].textContent).toBe("Engine B"));
+    expect((await saved()).options).toEqual({ NetworkDelay: "120" });
+  }, 20000);
+});
+
+describe("使うもの", () => {
+  test("評価関数は「フォルダ / ファイル」で選び、選んだフォルダが AI の名前になる。定跡は「使わない」を選べる", async () => {
+    presets.current = {
+      ...PRESET,
+      bookEnabled: true,
+      bookFilePath: `${AI_ROOT}/li/book/user_book1.db`,
+    };
+    await open();
+
+    const evalSelect = screen.getByLabelText("評価関数", {
+      selector: "select",
     });
-    await screen.findByText(/（Engine B）/);
-
-    fireEvent.click(saveButton());
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].options).toEqual({ NetworkDelay: "120" });
-  }, 20000);
-
-  /** 読み直しで下書きが保存済みの値に戻ったら、戻る前の一覧を出さない */
-  test("プリセットが読み直されたら、外した値の一覧を消す", async () => {
-    // 読み直しの前後で同じエンジン（一覧がエンジンの違いで隠れない形）
-    presets.current = { ...PRESET, enginePath: ENGINE_A, options: { NetworkDelay: "120" } };
-    const view = await openWithEnginesView();
-    fireEvent.click(screen.getByRole("button", { name: "オプションを読み込む" }));
-    probes[0].resolve(outcome(probes[0], "Engine A"));
-    await screen.findByText(/NetworkDelay = 120 を外しました/);
-
-    presets.current = { ...presets.current };
-    view.rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(screen.queryByText(/NetworkDelay = 120 を外しました/)).toBeNull();
-  }, 20000);
-
-  test("MultiPV の入力欄を空にしたら、1 でなくエンジン既定にする", async () => {
-    presets.current = { ...PRESET, enginePath: ENGINE_A, options: { MultiPV: "6" } };
-    await openWithEngines();
-
-    fireEvent.change(screen.getByPlaceholderText("既定"), { target: { value: "" } });
-    fireEvent.click(saveButton());
-
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].options).toEqual({});
-  }, 20000);
-
-  /** 取得で丸められてボタンに無い値になっても、値が画面から消えない */
-  test("丸められて選択肢に無い値になったら、MultiPV の入力欄を開いて値を出す", async () => {
-    presets.current = { ...PRESET, options: { MultiPV: "5" } };
-    await openWithEngines();
+    fireEvent.change(evalSelect, {
+      target: { value: `${AI_ROOT}/li/eval/nn.bin` },
+    });
+    fireEvent.change(screen.getByLabelText("定跡", { selector: "select" }), {
+      target: { value: "" },
+    });
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    probes[0].resolve({
-      ...outcome(probes[0], "Engine A"),
-      definitions: [{ name: "MultiPV", type: "spin", default: 1, min: 1, max: 4 }],
-    });
-    await screen.findByText(/取得済み/);
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
 
-    expect((screen.getByPlaceholderText("既定") as HTMLInputElement).value).toBe("4");
-    // 既定値が分かれば添え、既定が 1 なら候補が1本になることを言う
-    fireEvent.click(screen.getByRole("button", { name: "エンジン既定（1）" }));
-    expect(screen.getByText(/解析の候補は1本だけになります/)).toBeTruthy();
+    const patch = await saved();
+    expect(patch.evalFilePath).toBe(`${AI_ROOT}/li/eval/nn.bin`);
+    expect(patch.aiName).toBe("li");
+    expect([patch.bookEnabled, patch.bookFilePath]).toEqual([false, null]);
   }, 20000);
 
-  /** 欄の無い保存済みの値も、見えないまま送り続けないように外せる */
-  test("その他の保存済みの値を外せる", async () => {
+  /** 評価関数の空は「指定しない」という選択でもある。補完が埋め直すと、選べない選択肢になる */
+  test("評価関数の「指定しない」は埋め直されず、そのフォルダの AI の名前も外れる", async () => {
     presets.current = {
       ...PRESET,
       enginePath: ENGINE_A,
-      options: { NetworkDelay: "120", SlowMover: "100" },
+      aiName: "hao",
+      evalFilePath: `${AI_ROOT}/hao/eval/nn.bin`,
     };
-    await openWithEngines();
+    await open();
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
 
-    fireEvent.click(screen.getByRole("button", { name: "NetworkDelay を外す" }));
-    fireEvent.click(saveButton());
+    const evalSelect = screen.getByLabelText("評価関数", {
+      selector: "select",
+    }) as HTMLSelectElement;
+    fireEvent.change(evalSelect, { target: { value: "" } });
+    await tick();
+    expect(evalSelect.value).toBe("");
 
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].options).toEqual({ SlowMover: "100" });
+    const patch = await saved();
+    expect([patch.evalFilePath, patch.aiName]).toEqual(["", ""]);
   }, 20000);
 
-  const FULL_DEFS = [
-    { name: "SlowMover", type: "spin" as const, default: 100, min: 1, max: 512 },
-    { name: "USI_Ponder", type: "check" as const, default: false },
-    { name: "Style", type: "combo" as const, default: "a", vars: ["a", "b"] },
-    { name: "Model", type: "filename" as const, default: "nn.bin" },
-    { name: "EvalDir", type: "string" as const, default: "eval" },
-    { name: "Clear_Hash", type: "button" as const },
-    // 重要オプションの名前。全部の欄には出ない
-    { name: "MultiPV", type: "spin" as const, default: 1, min: 1, max: 500 },
-  ];
+  test("空欄の補完は作ったばかりのプリセットにだけ。エンジンのあるプリセットの評価関数の空は埋めない", async () => {
+    await open();
+    const evalSelect = () =>
+      screen.getByLabelText("評価関数", {
+        selector: "select",
+      }) as HTMLSelectElement;
+    await waitFor(() => expect(evalSelect().value).toBe(`${AI_ROOT}/hao/eval/nn.bin`));
+    // 補完は開いた後の1回だけ。選んだ「指定しない」を埋め直さない
+    fireEvent.change(evalSelect(), { target: { value: "" } });
+    await tick();
+    expect(evalSelect().value).toBe("");
+    cleanup();
 
-  /** 定義を取得したエンジンの全部の欄を開いた状態にする */
-  async function openFullList() {
-    await openWithEngines();
-    fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    probes[0].resolve({
-      ...outcome(probes[0], "Engine A"),
-      definitions: FULL_DEFS,
-      reserved: ["EvalDir"],
-    });
-    const summary = await screen.findByText(/5 件（既定と違う値/);
-    fireEvent.click(summary);
+    presets.current = { ...PRESET, enginePath: ENGINE_A };
+    await open();
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    expect(evalSelect().value).toBe("");
+  }, 20000);
+
+  /** 前の版は「解析で使わない」定跡のパスを残して保存している。欄は「使わない」と出すので、ファイルも揃える */
+  test("使わない定跡のパスは、保存で落とす", async () => {
+    presets.current = {
+      ...PRESET,
+      enginePath: ENGINE_A,
+      bookEnabled: false,
+      bookFilePath: `${AI_ROOT}/li/book/user_book1.db`,
+    };
+    await open();
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    expect(
+      (
+        screen.getByLabelText("定跡", {
+          selector: "select",
+        }) as HTMLSelectElement
+      ).value,
+    ).toBe("");
+
+    const patch = await saved();
+    expect([patch.bookEnabled, patch.bookFilePath]).toEqual([false, null]);
+  }, 20000);
+});
+
+describe("解析", () => {
+  test("候補手の数は、押したボタンをもう一度押すと初期値（値を持たない）に戻る", async () => {
+    presets.current = {
+      ...PRESET,
+      enginePath: ENGINE_A,
+      options: { MultiPV: "5" },
+    };
+    await open();
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+
+    fireEvent.click(screen.getByRole("button", { name: "5" }));
+    expect((await saved()).options).toEqual({});
+  }, 20000);
+
+  /** 丸められてボタンに無い値になっても、値が画面から消えない */
+  test("ボタンに無い値になったら、数の欄を開いて値を出す。空にしたら初期値", async () => {
+    presets.current = {
+      ...PRESET,
+      enginePath: ENGINE_A,
+      options: { MultiPV: "5" },
+    };
+    await open();
+    probes[0].resolve(
+      outcome(probes[0], "Engine A", [
+        { name: "MultiPV", type: "spin", default: 1, min: 1, max: 4 },
+      ]),
+    );
+    const input = (await screen.findByLabelText("候補手の数（数で入れる）")) as HTMLInputElement;
+    expect(input.value).toBe("4");
+    // 閉じると値が画面から消えるので、ボタンに無い値の間は閉じられない
+    expect((screen.getByRole("button", { name: "ほかの数…" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    fireEvent.change(input, { target: { value: "" } });
+    expect((await saved()).options).toEqual({});
+  }, 20000);
+});
+
+describe("エンジンの設定", () => {
+  async function loaded(options: Record<string, string> = {}, extra: Partial<EnginePreset> = {}) {
+    presets.current = { ...PRESET, enginePath: ENGINE_A, options, ...extra };
+    await open();
+    probes[0].resolve(outcome(probes[0], "Engine A"));
+    await screen.findByLabelText("エンジンの設定を探す");
   }
 
-  test("全部の欄で型ごとに値を変え、保存に載る。button は欄を作らない", async () => {
-    await openFullList();
+  test("日本語の名前で並べ、綴りを添える。辞書に無い名前は綴りのまま。アプリが決める項目と button は出さない", async () => {
+    await loaded();
+    expect(screen.getByText("スレッド数")).toBeTruthy();
+    expect(screen.getByText("Threads")).toBeTruthy();
+    expect(screen.getByText("Style")).toBeTruthy();
+    expect(screen.queryByText("相手の手番でも考える")).toBeNull();
+    expect(screen.queryByText("Clear_Hash")).toBeNull();
+  }, 20000);
 
-    fireEvent.change(screen.getByDisplayValue("エンジン既定（OFF）"), {
-      target: { value: "true" },
+  test("定跡を使わないときは定跡の設定を出さない", async () => {
+    await loaded();
+    expect(screen.queryByText("定跡を使う手数")).toBeNull();
+  }, 20000);
+
+  test("型ごとの欄で値を変え、保存に載る（数は欄を離れたときに範囲へ丸める）", async () => {
+    await loaded();
+    fireEvent.change(screen.getByDisplayValue("初期値（a）"), {
+      target: { value: "b" },
     });
-    fireEvent.change(screen.getByDisplayValue("エンジン既定（a）"), { target: { value: "b" } });
-    const threads = screen.getByPlaceholderText(/範囲 1〜512/);
+    const threads = screen.getByPlaceholderText(/初期値（4）/);
     fireEvent.change(threads, { target: { value: "999" } });
     fireEvent.blur(threads);
-    fireEvent.change(screen.getByPlaceholderText("エンジン既定（nn.bin）"), {
+    fireEvent.change(screen.getByPlaceholderText("初期値（nn.bin）"), {
       target: { value: "/e/model.bin" },
     });
-    expect(screen.queryByText("Clear_Hash")).toBeNull();
-
-    fireEvent.click(saveButton());
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].options).toEqual({
-      USI_Ponder: "true",
+    expect((await saved()).options).toEqual({
       Style: "b",
-      SlowMover: "512",
+      Threads: "512",
       Model: "/e/model.bin",
     });
   }, 20000);
 
-  test("アプリが決める名前は読み取り専用。絞り込むと、表示中の行だけを既定に戻す", async () => {
-    presets.current = { ...PRESET, options: { Style: "b", SlowMover: "8", MultiPV: "5" } };
-    await openFullList();
-
-    expect(screen.getByText(/アプリが決めます/)).toBeTruthy();
-    // 読み取り専用の行は値も既定値も出さない（送るのは欄や方針の値）
-    expect(screen.queryByPlaceholderText("エンジン既定（eval）")).toBeNull();
-    expect(screen.queryByText(/エンジン既定（eval）/)).toBeNull();
-
-    fireEvent.change(screen.getByLabelText("オプションを名前で絞り込む"), {
-      target: { value: "sty" },
+  test("日本語で探せる。絞り込み中は表示中の行だけを初期値に戻す", async () => {
+    await loaded({ Style: "b", Threads: "8", MultiPV: "5" });
+    fireEvent.change(screen.getByLabelText("エンジンの設定を探す"), {
+      target: { value: "スレッド" },
     });
-    expect(screen.queryByPlaceholderText(/範囲 1〜512/)).toBeNull();
-    expect(screen.getByDisplayValue("b")).toBeTruthy();
+    expect(screen.queryByText("Style")).toBeNull();
 
-    // 絞り込みで見えない行（SlowMover）と、別の節の値（MultiPV）は残す
-    fireEvent.click(screen.getByRole("button", { name: "表示中の 1 件をエンジン既定に戻す" }));
-    fireEvent.click(saveButton());
-    await waitFor(() => expect(updatePreset).toHaveBeenCalled());
-    expect(updatePreset.mock.calls[0][1].options).toEqual({ SlowMover: "8", MultiPV: "5" });
+    fireEvent.click(screen.getByRole("button", { name: "表示中の 1 件を初期値に戻す" }));
+    // 見えない行（Style）と、解析の節の値（MultiPV）は残す
+    expect((await saved()).options).toEqual({ Style: "b", MultiPV: "5" });
   }, 20000);
 
   /** 選ぶ画面を開けなければ、そう言って文字の欄へ誘う（黙って何も起きない、にしない） */
   test("ファイルを選ぶ画面を開けなければ、理由と代わりの手を出す", async () => {
     dialogOpen.mockRejectedValueOnce(new Error("dialog.open not allowed"));
-    await openFullList();
-
+    await loaded();
     fireEvent.click(screen.getByRole("button", { name: "選択…" }));
-
-    const alert = await screen.findByText(/ファイルを選ぶ画面を開けませんでした/);
-    expect(alert.textContent).toContain("欄にパスを直接入力してください");
+    const message = await screen.findByText(/ファイルを選ぶ画面を開けませんでした/);
+    expect(message.textContent).toContain("欄にパスを直接入力してください");
   }, 20000);
 });

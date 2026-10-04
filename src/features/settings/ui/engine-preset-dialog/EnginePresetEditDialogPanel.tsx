@@ -13,14 +13,13 @@ import {
   deepClone,
   parseIntSafe,
 } from "@/features/settings/lib/presetDialog";
-import BasicSection from "./sections/BasicSection";
-import EngineFilesSection from "./sections/EngineFilesSection";
-import ImportantOptionsSection from "./sections/ImportantOptionsSection";
-import UsiOptionsSection from "./sections/UsiOptionsSection";
-import AnalysisDefaultsSection from "./sections/AnalysisDefaultsSection";
 import PresetDialogFooter from "./PresetDialogFooter";
+import UsedFilesSection from "./sections/UsedFilesSection";
+import AnalysisSection from "./sections/AnalysisSection";
+import EngineSettingsSection from "./sections/EngineSettingsSection";
+import { SField, SInput, SSection } from "@/features/settings/ui/kit";
 import { useAppConfig } from "@/entities/app-config";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import { bookInUse, type EnginePreset, type PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { multiPvMax } from "@/features/settings/lib/quickOptions";
 import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
@@ -49,7 +48,7 @@ export default function EnginePresetEditDialogPanel(props: Props) {
 /** ここから Hook を使う本体 */
 function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const { state, updatePreset } = useEnginePresets();
-  const { config, chooseAiRoot } = useAppConfig();
+  const { config } = useAppConfig();
 
   const preset = useMemo(
     () => state.presets.find((p) => p.id === presetId) ?? null,
@@ -107,7 +106,9 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
         if (cancelled) return;
         setLoaded(null);
         setIndexStatus("error");
-        setIndexError(`AI_ROOT のスキャンに失敗しました: ${String(e)}`);
+        setIndexError(
+          `AI のフォルダを読めませんでした。フォルダがあるか（外付けなら繋がっているか）を確かめて「探し直す」を押してください（${String(e)}）`,
+        );
       }
     })();
 
@@ -131,6 +132,13 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const profiles = useMemo(() => index?.profiles ?? [], [index?.profiles]);
 
   // ---- draft と取得（`presetDialogReducer`） ----
+  /** 開いてから一度でも読み込んだか（開いたときの読み込みを1回にする） */
+  const openedProbeRef = useRef(false);
+  /**
+   * 開いてから空欄の補完を済ませたか。**補完は開いた後の1回だけ**——評価関数の空は「指定しない」という
+   * 選択でもあるので、下書きが変わるたびに補完すると、選んだ「指定しない」を既定の評価関数で埋め直す
+   */
+  const autofilledRef = useRef(false);
   const [dialog, dispatch] = useReducer(presetDialogReducer, initialPresetDialogState);
   const { draft, probeFailure, fitNote } = dialog;
   const probing = dialog.probe !== null;
@@ -149,6 +157,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const runProbe = useCallback((rawPath: string) => {
     const enginePath = probePathOf(rawPath);
     if (!enginePath) return;
+    openedProbeRef.current = true;
     const { token, outcome } = probeEngine(enginePath);
     dispatch({ type: "probeStarted", token, enginePath });
     outcome.then(
@@ -174,17 +183,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   /** 待ちをやめ、保存できるようにする。待っていた取得の結果は来ても捨てる */
   const stopProbe = useCallback(() => dispatch({ type: "probeAbandoned" }), []);
 
-  // ---- CPU recommended ----
-  const cores = useMemo(() => {
-    const c =
-      typeof navigator !== "undefined" && navigator.hardwareConcurrency
-        ? navigator.hardwareConcurrency
-        : 4;
-    return clampInt(c, 1, 128);
-  }, []);
-
-  const recommendedThreads = useMemo(() => clampInt(Math.min(cores, 8), 1, cores), [cores]);
-
   // preset → draft 初期化
   useEffect(() => {
     if (!open) return;
@@ -193,21 +191,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     dispatch({ type: "opened", preset: deepClone(preset) });
     setErrors({});
   }, [open, preset]);
-
-  const currentProfile = useMemo(() => {
-    const name = cleanText(draft?.aiName ?? "");
-    if (!name) return null;
-    return profiles.find((p) => p.name === name) ?? null;
-  }, [profiles, draft?.aiName]);
-
-  const evalFiles = useMemo(() => {
-    const xs = currentProfile?.eval_files ?? [];
-    const nn = xs.filter((f) => f.entry === "nn.bin");
-    const rest = xs.filter((f) => f.entry !== "nn.bin");
-    return [...nn, ...rest];
-  }, [currentProfile]);
-
-  const bookDbs = useMemo(() => currentProfile?.book_db_files ?? [], [currentProfile]);
 
   const engineOptions = useMemo(() => {
     const opts = presetEngineOptions(engines);
@@ -227,41 +210,17 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     return opts;
   }, [engines, draft?.enginePath]);
 
-  const evalOptions = useMemo(
-    () =>
-      evalFiles.map((f) => ({
-        value: f.path,
-        label: f.entry,
-        disabled: !(f.kind === "file" || f.kind === "symlink"),
-      })),
-    [evalFiles],
-  );
-
-  const bookOptions = useMemo(
-    () =>
-      bookDbs.map((f) => ({
-        value: f.path,
-        label: f.entry,
-        disabled: !(f.kind === "file" || f.kind === "symlink"),
-      })),
-    [bookDbs],
-  );
-
-  const threadChoices = useMemo(() => {
-    const base = [1, 2, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64, 96, 128];
-    const xs = base.filter((n) => n <= cores);
-    if (!xs.includes(cores)) xs.push(cores);
-    xs.sort((a, b) => a - b);
-    return xs;
-  }, [cores]);
-
   const scanReady = indexStatus === "ok" && index != null;
 
-  // ---- index available → “空欄だけ” 最小オートフィル ----
+  // 候補が揃った時点で1回だけ、**エンジンがまだ無い（作ったばかりの）プリセット**の空欄を埋める。
+  // エンジンのあるプリセットの評価関数の空は、利用者が選んだ「指定しない」なので埋めない
   useEffect(() => {
     if (!open) return;
     if (!draft) return;
     if (!index) return;
+    if (autofilledRef.current) return;
+    autofilledRef.current = true;
+    if (cleanText(draft.enginePath)) return;
 
     setDraft((cur) =>
       cur
@@ -273,7 +232,18 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     );
   }, [open, draft, index, profiles, engines, setDraft]);
 
-  /** `null` で値を消す（エンジン既定。送らない） */
+  /**
+   * 開いたときに1回、エンジンを読み込む（定義と画面の名前はいつも今のエンジン・今の辞書から。画面の名前は
+   * 保存しない）。空欄の自動補完でエンジンが埋まった回も、ここで読み込む。利用者が先にエンジンを選んで
+   * 読み込んでいれば、もう読まない（`runProbe` が `openedProbeRef` を立てる）
+   */
+  useEffect(() => {
+    if (openedProbeRef.current || !draft?.enginePath) return;
+    openedProbeRef.current = true;
+    runProbe(draft.enginePath);
+  }, [draft?.enginePath, runProbe]);
+
+  /** `null` で値を消す（初期値。送らない） */
   const setOpt = useCallback(
     (name: string, value: string | null) => dispatch({ type: "optionSet", name, value }),
     [],
@@ -316,15 +286,15 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const enginePath = cleanText(draft.enginePath);
     const evalFilePath = cleanText(draft.evalFilePath);
 
-    if (!label) nextErrors.label = "名前は必須です";
-    if (!aiName) nextErrors.aiName = "AI名（プロファイル）を選択してください";
-    if (!enginePath) nextErrors.enginePath = "エンジンを選択してください";
-    // 評価関数は必須にしない（指定できないエンジンがある。流し先は起動のたびに Rust が決める）
+    // 要るのは名前とエンジンだけ。評価関数は必須にしない（指定できないエンジンがある。流し先は
+    // 起動のたびに Rust が決める）
+    if (!label) nextErrors.label = "名前を入れてください";
+    if (!enginePath) nextErrors.enginePath = "エンジンを選んでください";
 
-    const bookEnabled = Boolean(draft.bookEnabled);
-    // 解析で使わなくても定跡のパスは残す（定跡ビューが出す）
-    const bookFilePath = cleanText(draft.bookFilePath ?? "") || null;
-    if (bookEnabled && !bookFilePath) nextErrors.bookFilePath = "定跡ファイルを選択してください";
+    // 「使わない」定跡はパスごと落とす。前の版は使わない定跡のパスを残して保存しているので、
+    // 開いて保存し直せば、欄の「使わない」とファイルが揃う
+    const bookEnabled = bookInUse(draft);
+    const bookFilePath = bookEnabled ? cleanText(draft.bookFilePath ?? "") : null;
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -402,47 +372,26 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
         <PresetDialogHeader title={title} />
 
         <div className="presetDialog__body">
-          <BasicSection
-            draft={draft}
-            setDraft={setDraft}
-            errors={errors}
-            setErrors={setErrors}
-            aiRoot={aiRoot}
-            chooseAiRoot={() => {
-              // **同じルートを選び直した回は自分で走査する。** `chooseAiRoot` は設定を
-              // 書き換えてから返るが、同じ値なら `aiRoot` が動かないので effect は再走しない
-              // ——効かなくなった外付けを繋ぎ直した人が、唯一押せる口を押しても
-              // 画面が1ピクセルも変わらないことになる。判定の材料は `await` の前に取る
-              // （`currentRootRef` は effect も書くので、返った後に読むと競る）
-              const before = currentRootRef.current;
+          <SSection title="名前">
+            <SField error={errors.label}>
+              <SInput
+                value={draft.label}
+                aria-label="プリセットの名前"
+                placeholder="例: 研究用 / 速い解析 / 定跡整備"
+                onChange={(e) => {
+                  setDraft({ ...draft, label: e.target.value });
+                  setErrors((es) => ({ ...es, label: "" }));
+                }}
+                invalid={!!errors.label}
+              />
+            </SField>
+          </SSection>
 
-              void chooseAiRoot({ force: true }).then((picked) => {
-                // 失敗を捨てると、押しても何も起きない画面になる
-                if (!picked.success) {
-                  setErrors((prev) => ({ ...prev, aiName: picked.error }));
-                  return;
-                }
-                if (picked.data !== null && picked.data === before) rescan();
-              });
-            }}
-            rescan={rescan}
-            indexStatus={indexStatus}
-            indexError={indexError}
-            scanReady={scanReady}
-            profiles={profiles}
-            currentProfile={currentProfile}
-          />
+          {indexError && <div className="presetDialog__hintWarn">{indexError}</div>}
 
-          <EngineFilesSection
-            probing={probing}
-            probeFailure={probeFailure}
-            onProbe={runProbe}
-            onStopProbe={stopProbe}
-            fitNote={fitNote}
+          <UsedFilesSection
             draft={draft}
-            setDraft={setDraft}
-            errors={errors}
-            setErrors={setErrors}
+            enginePathError={errors.enginePath}
             aiRootReady={Boolean(aiRoot)}
             scanReady={scanReady}
             indexStatus={indexStatus}
@@ -451,26 +400,44 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             onCreateEnginesDir={onCreateEnginesDir}
             rescan={rescan}
             engineOptions={engineOptions}
-            currentProfile={currentProfile}
-            evalOptions={evalOptions}
-            bookOptions={bookOptions}
-            evalFilesCount={evalFiles.length}
-            bookDbsCount={bookDbs.length}
             profiles={profiles}
+            onEngineChosen={(path) => {
+              // 名乗りは読み込めたエンジンのもの。残すと、読み込めなかった別のエンジンを前の名乗りで出す
+              setDraft({ ...draft, enginePath: path, engineName: null, engineAuthor: null });
+              setErrors((es) => ({ ...es, enginePath: "" }));
+              runProbe(path);
+            }}
+            onEvalChosen={(path, folder) =>
+              setDraft({
+                ...draft,
+                evalFilePath: path,
+                // ライブラリから選べばそのフォルダ。「指定しない」なら空（`EnginePreset.aiName`）
+                aiName: path === "" ? "" : (folder ?? draft.aiName),
+              })
+            }
+            onBookChosen={(path) =>
+              setDraft({ ...draft, bookEnabled: path != null, bookFilePath: path })
+            }
+            onRetry={() => runProbe(draft.enginePath)}
+            onStop={stopProbe}
+            probing={probing}
+            probeFailure={probeFailure}
           />
 
-          <ImportantOptionsSection
+          <AnalysisSection
             draft={draft}
+            setDraft={setDraft}
             setOpt={setOpt}
-            cores={cores}
-            recommendedThreads={recommendedThreads}
-            threadChoices={threadChoices}
             multiPvMax={multiPvMax(draft)}
           />
 
-          <UsiOptionsSection draft={draft} setOpt={setOpt} clearOptions={clearOptions} />
-
-          <AnalysisDefaultsSection draft={draft} setDraft={setDraft} />
+          <EngineSettingsSection
+            draft={draft}
+            setOpt={setOpt}
+            clearOptions={clearOptions}
+            probing={probing}
+            fitNote={fitNote}
+          />
         </div>
 
         <PresetDialogFooter onClose={onClose} onSave={onSave} saveDisabled={probing} />

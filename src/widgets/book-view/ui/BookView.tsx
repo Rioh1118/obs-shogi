@@ -9,6 +9,7 @@ import {
   type BookViewState,
 } from "@/entities/book";
 import { useAppConfig } from "@/entities/app-config";
+import { bookInUse } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { useGame } from "@/entities/game";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
@@ -41,9 +42,8 @@ function BookView() {
 
   const preset = presetsState.presets.find((p) => p.id === presetsState.selectedPresetId) ?? null;
   const targets = bookOpenTargets({
-    // **解析で使うかに依らず出す。** 解析で使わない定跡でも、ここで開いて眺める対象になる
-    // （`bookEnabled` は「解析で使うか」）
-    presetBookPath: preset?.bookFilePath ?? null,
+    // 解析で使う定跡と同じ答え（`bookInUse`）。「使わない」と言った定跡をここにだけ残さない
+    presetBookPath: preset && bookInUse(preset) ? preset.bookFilePath : null,
     presetName: preset?.label ?? null,
     recents: config?.book_recent_paths,
     openPath: info?.path ?? null,
