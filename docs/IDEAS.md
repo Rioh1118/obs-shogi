@@ -277,7 +277,7 @@ r11 で `types.ts` をこのディレクトリに新設したので、次の書�
 
 `.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（comment reviewer）。
 `canCreateEnginesDir` の doc と、`AiLibraryTab` の `ENGINES_DIR_WARNING` の行内コメントと、
-`EngineFilesSection` の JSX コメント。条件を変えた日（`other` でも作成を出す判断に倒す等）に、
+`UsedFilesSection` の JSX コメント。条件を変えた日（`other` でも作成を出す判断に倒す等）に、
 述語の doc だけ直して2つが古い理由を主張する。理由は述語の doc に1つだけ置き、
 呼び出し側は参照1行にする。
 
@@ -534,5 +534,17 @@ IPC 型を編集することになり、その同期漏れを捕まえるため�
   利用者が選んだ方は読まれない。`EvalFile` 相当の名前を併せて申告するエンジンがあるかを実機で確かめてから決める
 - **`DNN_Model` と `EvalDir` を両方申告するエンジン**（ふかうら王と見ている。実機の申告は取っていない）では、
   E1 が当たってファイルを `DNN_Model` に送り、`EvalDir` は送らない。それで読めるかは確かめていない
-- **欄の名前が意味と合っていない**: プリセットの `bookEnabled` は「解析で定跡を使うか」、
+- **欄の名前が意味と合っていない**: プリセットの `bookEnabled` は「定跡を使うか」（解析と定跡ビューの両方。`bookInUse`）、
   `evalFilePath` はフォルダも入る。版を上げる変更と一緒に改名する（G の画面の作り直しで版を上げるなら、そこで）
+
+## プリセット編集の置き場と分け方（U2 のレビューで出たもの。2026-10-04）
+
+`.claude/reviews/2026-10-04-preset-dialog-b.md`（architecture）。
+
+- **`fileLabel` が AI ライブラリの配置（`<名前>/eval|book/<file>`）を知っている**のに `features/settings/lib` にある。
+  配置を変えると、表示だけが黙ってファイル名に落ちる。`entities/engine` に下げ、分解は `shared/lib/path.ts` に寄せる（#216）
+- **`UsedFilesSection` に engines/ の帯・エンジンの欄と読み込み・評価関数と定跡の3つが同居**（props 18個）。
+  帯とエンジンの欄を別の部品に分ける。下書きの setter は既に節から外した
+- **`quickOptions.ts` の名前が中身と合わない**（重要オプションの節は消え、残るのは値の読み書きの道具）
+- **「やめる」は Rust の取得を止めない**（上限まで動く。`probeEngine` の doc）。開くたびに読み込むので、
+  応答しないドライブでは開いて閉じるたびに1本ずつ残りうる

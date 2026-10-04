@@ -8,7 +8,7 @@ import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/typ
 /**
  * 帯（`engines` の状態）が、**いつの索引を映すか**。
  *
- * このダイアログは AI ルートを選び直せるので、走査の最中に画面が指すルートと
+ * AI ルートは開いている間にも設定（「AI ライブラリ」）から変わりうるので、走査の最中に画面が指すルートと
  * 索引のルートがずれる窓がある。ずれたまま帯を出すと、旧ルートの絶対パスを名指ししながら
  * 隣のボタンは新しいルートに対して働く——本文と動作の宛先が食い違う。
  */
@@ -16,7 +16,6 @@ import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/typ
 const AI_ROOT = "/Users/me/ai";
 
 const scanAiRoot = vi.fn<(root: string) => Promise<AiRootIndex>>();
-const chooseAiRoot = vi.fn<() => Promise<{ success: true; data: string | null }>>();
 const ensureEnginesDir = vi.fn<(root: string) => Promise<string>>();
 const aiRootValue = { current: AI_ROOT };
 
@@ -33,7 +32,7 @@ const PRESET: EnginePreset = {
 
 // 差し替えるのは実体の側。barrel を差し替えると再 export の全部が消える
 vi.mock("@/entities/app-config", () => ({
-  useAppConfig: () => ({ config: { ai_root: aiRootValue.current }, chooseAiRoot }),
+  useAppConfig: () => ({ config: { ai_root: aiRootValue.current } }),
 }));
 
 vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
@@ -63,7 +62,7 @@ function indexWithoutEngines(root: string): AiRootIndex {
   };
 }
 
-/** `engines` の帯だけを引く。同じ class の帯は MultiPV の注意書きにもある */
+/** `engines` の帯だけを引く。同じ class の帯は、AI のフォルダが未設定のときと読み込みの失敗にもある */
 function band(): HTMLElement | undefined {
   return [...document.querySelectorAll<HTMLElement>(".presetDialog__hintWarn")].find((el) =>
     el.textContent?.includes("engines"),
@@ -72,7 +71,6 @@ function band(): HTMLElement | undefined {
 
 beforeEach(() => {
   scanAiRoot.mockReset();
-  chooseAiRoot.mockReset();
   ensureEnginesDir.mockReset().mockResolvedValue("");
   aiRootValue.current = AI_ROOT;
 });
@@ -89,10 +87,10 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     expect(screen.getByRole("button", { name: "engines/ を作成" })).toBeTruthy();
   }, 20000);
 
-  /** 押せる「再スキャン」の数。帯は `engines` が無い／フォルダでない回にしか出ない */
+  /** 押せる「探し直す」の数。帯は `engines` が無い／フォルダでない回にしか出ない */
   function enabledRescans() {
     return screen
-      .queryAllByRole("button", { name: "再スキャン" })
+      .queryAllByRole("button", { name: "探し直す" })
       .filter((b) => !(b as HTMLButtonElement).disabled).length;
   }
 
@@ -101,7 +99,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
    *
    * 塞ぐと、閉じて開き直す以外に手が無く、編集中の下書きが消える
    */
-  test("初回の走査が返らない間も、押せる再スキャンが残る", async () => {
+  test("初回の走査が返らない間も、押せる探し直すが残る", async () => {
     scanAiRoot.mockReturnValue(new Promise(() => {}));
     render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
 
@@ -110,7 +108,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
   }, 20000);
 
   // 帯が出ない構成（`engines/` が普通に在る）でも同じ
-  test("engines/ が在るルートの読み直しが返らない間も、押せる再スキャンが残る", async () => {
+  test("engines/ が在るルートの読み直しが返らない間も、押せる探し直すが残る", async () => {
     scanAiRoot.mockResolvedValue({
       ...indexWithoutEngines(AI_ROOT),
       engines_dir: { path: `${AI_ROOT}/engines`, exists: true, kind: "dir" },
@@ -119,29 +117,11 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     await waitFor(() => expect(enabledRescans()).toBeGreaterThan(0), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));
-    fireEvent.click(screen.getAllByRole("button", { name: "再スキャン" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "探し直す" })[0]);
 
     await waitFor(() => expect(scanAiRoot).toHaveBeenCalledTimes(2), { timeout: 5000 });
     expect(band()).toBeUndefined();
     expect(enabledRescans()).toBeGreaterThan(0);
-  }, 20000);
-
-  /**
-   * 同じフォルダを選び直した回。**この画面が自分で読み直す。**
-   *
-   * `ai_root` が変わらないので走査の effect は再走しない——繋ぎ直した人が
-   * 唯一押せる口を押しても画面が変わらないことになる
-   */
-  test("同じフォルダを選び直したら、読み直す", async () => {
-    scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
-    await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
-    expect(scanAiRoot).toHaveBeenCalledTimes(1);
-
-    chooseAiRoot.mockResolvedValue({ success: true, data: AI_ROOT });
-    fireEvent.click(screen.getByRole("button", { name: /選択/ }));
-
-    await waitFor(() => expect(scanAiRoot).toHaveBeenCalledTimes(2), { timeout: 5000 });
   }, 20000);
 
   /**
@@ -159,15 +139,8 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
     // 新しいルートの走査は返さない。切り替えた直後の窓をそのまま観測する
     scanAiRoot.mockReturnValue(new Promise(() => {}));
-    chooseAiRoot.mockImplementation(async () => {
-      aiRootValue.current = "/Users/me/ai2";
-      return { success: true, data: "/Users/me/ai2" } as const;
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /選択/ }));
-    await waitFor(() => expect(chooseAiRoot).toHaveBeenCalled());
-
-    // 本番では設定の provider が再描画する。ここは差し替えているので手で促す。
+    aiRootValue.current = "/Users/me/ai2";
+    // ルートは設定（AI ライブラリ）で変わる。本番では設定の provider が再描画する。ここは手で促す。
     // **帯が消えるのはこの描画の中**（索引を突き合わせた結果なので、走査を待たない）
     rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
 
@@ -192,12 +165,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     fireEvent.click(screen.getByRole("button", { name: "engines/ を作成" }));
 
     scanAiRoot.mockResolvedValue(indexWithoutEngines("/Users/me/ai2"));
-    chooseAiRoot.mockImplementation(async () => {
-      aiRootValue.current = "/Users/me/ai2";
-      return { success: true, data: "/Users/me/ai2" } as const;
-    });
-    fireEvent.click(screen.getByRole("button", { name: /選択/ }));
-    await waitFor(() => expect(chooseAiRoot).toHaveBeenCalled());
+    aiRootValue.current = "/Users/me/ai2";
     rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
     await waitFor(() => expect(scanAiRoot).toHaveBeenCalledWith("/Users/me/ai2"), {
       timeout: 5000,
@@ -212,7 +180,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
   /**
    * 読み直している間の帯は前の索引のままなので、作成は押せると「効かなかった」と読まれる。
-   * **「再スキャン」は塞がない**——画面の再試行の口が2つとも同じ条件で死ぬと、
+   * **「探し直す」は塞がない**——画面の再試行の口が2つとも同じ条件で死ぬと、
    * 走査が返らない環境で出口が無くなる
    */
   test("同じルートを読み直している間は、帯の作成だけ押せない", async () => {
@@ -221,8 +189,8 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));
-    // 帯の中の「再スキャン」。同じ名前のボタンは基本の節にもある
-    fireEvent.click(within(band() as HTMLElement).getByRole("button", { name: "再スキャン" }));
+    // 帯の中の「探し直す」。同じ名前のボタンはエンジンの欄にもある
+    fireEvent.click(within(band() as HTMLElement).getByRole("button", { name: "探し直す" }));
 
     await waitFor(
       () =>
@@ -235,7 +203,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     expect(
       (
         within(band() as HTMLElement).getByRole("button", {
-          name: "再スキャン",
+          name: "探し直す",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false);

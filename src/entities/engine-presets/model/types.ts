@@ -15,17 +15,22 @@ export type EnginePreset = {
   id: PresetId;
   label: string;
 
+  /**
+   * AI ライブラリのフォルダの名前。プリセット編集で評価関数をライブラリから選ぶとそのフォルダになり、
+   * 「指定しない」で空になる。読むのは新しいプリセットの空欄を埋める `autofillPreset`（既定の評価関数と
+   * 定跡をどのフォルダから選ぶか）だけ。起動には使わない。保存ファイルの鍵なので名前を変えていない
+   */
   aiName: string;
   enginePath: string;
   /** 評価関数（絶対パス。ファイルでもフォルダでもよい）。空なら選んでいない（必須でない） */
   evalFilePath: string;
 
   /**
-   * **解析で定跡を使うか。** 定跡を選んであるか・定跡ビューに出すかとは別（パスは切っても残る）。
+   * **定跡を使うか。** 使うかどうかは `bookInUse` で読む（パスも要る）。
    * 保存ファイルの鍵なので名前を変えていない
    */
   bookEnabled: boolean;
-  /** 定跡ファイル（絶対パス）。解析で使わなくても残す（定跡ビューが出す） */
+  /** 定跡ファイル（絶対パス）。プリセット編集は「使わない」で `null` にして保存する */
   bookFilePath: string | null;
 
   options: UsiOptionMap;
@@ -59,11 +64,20 @@ export type SaveFailure = {
 };
 
 /**
- * 起動できるだけ揃っているか。**評価関数は要らない**——指定できないエンジンがある
- * （流し先は起動のたびの申告から Rust が決める。受ける名前が無ければ警告になる）
+ * 起動できるだけ揃っているか。**エンジンだけが要る**——評価関数を指定できないエンジンがあり
+ * （流し先は起動のたびの申告から Rust が決める。受ける名前が無ければ警告になる）、`aiName` は起動に使わない
  */
 export function isPresetConfigured(p: EnginePreset): boolean {
-  return Boolean(p.aiName && p.enginePath);
+  return Boolean(p.enginePath);
+}
+
+/**
+ * 定跡を使うか。**解析にも定跡ビューにも、この1つの答えで出す**——プリセット編集の定跡の欄は
+ * 「使わない」を含む1つの選択で、使わないと言った定跡が定跡ビューにだけ残ると、欄の表示と食い違う。
+ * `bookEnabled` だけを見ない: 使うと言ってパスが空なら、使える定跡は無い
+ */
+export function bookInUse(p: Pick<EnginePreset, "bookEnabled" | "bookFilePath">): boolean {
+  return p.bookEnabled && (p.bookFilePath ?? "").trim() !== "";
 }
 
 export type AsyncStatus = "idle" | "loading" | "ok" | "error";
