@@ -39,8 +39,9 @@ vi.mock("@/entities/game", () => ({
 vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({ config: { book_recent_paths: [] }, setDisplayConfig: vi.fn() }),
 }));
+const presetsState = { presets: [] as unknown[], selectedPresetId: null as string | null };
 vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
-  useEnginePresets: () => ({ state: { presets: [], selectedPresetId: null } }),
+  useEnginePresets: () => ({ state: presetsState }),
 }));
 
 const { default: BookView } = await import("../BookView");
@@ -61,6 +62,22 @@ afterEach(() => cleanup());
 describe("定跡ビューの状態と文言", () => {
   test("定跡を開いていないときは、開く導線を出す", () => {
     expect(show({ kind: "closed" })).toContain("別の定跡を開く");
+  });
+
+  /** プリセット編集の定跡の欄と同じ答え（`bookInUse`）。「使わない」の定跡をここにだけ残さない */
+  test("選んでいるプリセットの定跡は、使うときだけ勧める", () => {
+    const preset = { id: "p1", label: "研究", bookFilePath: "/ai/hao/book/user_book1.db" };
+    presetsState.selectedPresetId = "p1";
+    try {
+      presetsState.presets = [{ ...preset, bookEnabled: true }];
+      expect(show({ kind: "closed" })).toContain("研究 の定跡");
+      cleanup();
+      presetsState.presets = [{ ...preset, bookEnabled: false }];
+      expect(show({ kind: "closed" })).not.toContain("研究 の定跡");
+    } finally {
+      presetsState.presets = [];
+      presetsState.selectedPresetId = null;
+    }
   });
 
   /** GB 級は数分返らない。無効になったボタンだけだと押し損ねたと読まれる */

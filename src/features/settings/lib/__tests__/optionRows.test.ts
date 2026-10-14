@@ -1,58 +1,75 @@
 import { describe, expect, test } from "vitest";
 
 import type { UsiOptionDef } from "@/entities/engine";
-import { optionRows, valuesWithoutField } from "../optionRows";
+import { optionRows } from "../optionRows";
 
 const DEFS: UsiOptionDef[] = [
-  { name: "SlowMover", type: "spin", default: 100, min: 1, max: 1000 },
-  { name: "Threads", type: "spin", default: 4, min: 1, max: 512 },
+  { name: "NumaPolicy", type: "string", default: "auto", label: "CPU のスレッド割り当て" },
+  { name: "USI_Hash", type: "spin", default: 1024, min: 1, max: 65536, label: "ハッシュ（MB）" },
+  { name: "MultiPV", type: "spin", default: 1, min: 1, max: 600, label: "候補手の数" },
   { name: "Clear_Hash", type: "button" },
-  { name: "EvalDir", type: "string", default: "eval" },
-  { name: "USI_Ponder", type: "check", default: false },
+  { name: "EvalDir", type: "string", default: "eval", label: "評価関数のフォルダ" },
+  {
+    name: "BookMoves",
+    type: "spin",
+    default: 16,
+    min: 0,
+    max: 10000,
+    label: "定跡を使う手数",
+    group: "book",
+  },
+  { name: "EvalShareMode", type: "check", default: false },
+  { name: "Threads", type: "spin", default: 4, min: 1, max: 512, label: "スレッド数" },
 ];
 const DRAFT = {
   enginePath: "/e/a",
   definitions: DEFS,
   definitionsFor: "/e/a",
   reservedNames: ["EvalDir"],
-  options: { SlowMover: "8", Threads: "8", USI_Ponder: "false", NetworkDelay: "120" },
+  options: { Threads: "8", NumaPolicy: "auto" },
 };
+const names = (rows: { def: { name: string } }[]) => rows.map((r) => r.def.name);
 
 describe("optionRows", () => {
-  test("申告の順で、button と重要オプションの名前を除き、既定と違う値と読み取り専用の名前を印す", () => {
-    expect(optionRows(DRAFT).map((r) => [r.def.name, r.value, r.changed, r.reserved])).toEqual([
-      ["SlowMover", "8", true, false],
-      ["EvalDir", null, false, true],
-      ["USI_Ponder", "false", false, false],
+  test("スレッド数とハッシュを先頭に、続けて申告の順。button・アプリが決める名前・候補手の数は出さない", () => {
+    expect(names(optionRows(DRAFT, { bookUsed: true }))).toEqual([
+      "Threads",
+      "USI_Hash",
+      "NumaPolicy",
+      "BookMoves",
+      "EvalShareMode",
     ]);
   });
 
-  test("名前の部分一致で絞る（大小を無視）", () => {
-    expect(optionRows(DRAFT, "slow").map((r) => r.def.name)).toEqual(["SlowMover"]);
+  test("定跡を使わないときは定跡の設定を出さない", () => {
+    expect(names(optionRows(DRAFT, { bookUsed: false }))).not.toContain("BookMoves");
   });
 
-  test("別のエンジンの定義・アプリが決める名前の無い定義なら欄を作らない", () => {
-    expect(optionRows({ ...DRAFT, enginePath: "/e/b" })).toEqual([]);
-    expect(optionRows({ ...DRAFT, reservedNames: undefined })).toEqual([]);
+  test("画面の名前を持ち、辞書に無ければ null", () => {
+    const rows = optionRows(DRAFT, { bookUsed: true });
+    expect(rows.find((r) => r.def.name === "Threads")?.label).toBe("スレッド数");
+    expect(rows.find((r) => r.def.name === "EvalShareMode")?.label).toBeNull();
   });
 
-  /** 同じ名前を2回申告するエンジンでも欄は1つ（最初の申告） */
+  test("日本語の名前でもエンジンの綴りでも探せる", () => {
+    expect(names(optionRows(DRAFT, { bookUsed: true, query: "ハッシュ" }))).toEqual(["USI_Hash"]);
+    expect(names(optionRows(DRAFT, { bookUsed: true, query: "numa" }))).toEqual(["NumaPolicy"]);
+  });
+
+  test("初期値と違う値だけに絞れる（初期値と同じ値は数えない）", () => {
+    expect(names(optionRows(DRAFT, { bookUsed: true, changedOnly: true }))).toEqual(["Threads"]);
+  });
+
+  test("別のエンジンの定義・アプリが決める名前の無い定義なら行を作らない", () => {
+    expect(optionRows({ ...DRAFT, enginePath: "/e/b" }, { bookUsed: true })).toEqual([]);
+    expect(optionRows({ ...DRAFT, reservedNames: undefined }, { bookUsed: true })).toEqual([]);
+  });
+
+  /** 同じ名前を2回申告するエンジンでも行は1つ（最初の申告） */
   test("同じ名前の申告は1行にする", () => {
-    const twice = { ...DRAFT, definitions: [...DEFS, { ...DEFS[0], max: 5 }] };
-    expect(optionRows(twice).filter((r) => r.def.name === "SlowMover")).toHaveLength(1);
-  });
-});
-
-describe("valuesWithoutField", () => {
-  test("定義があれば、定義に無い名前だけ", () => {
-    expect(valuesWithoutField(DRAFT, new Set(["MultiPV"]))).toEqual([["NetworkDelay", "120"]]);
-  });
-
-  test("定義が無ければ、別の欄を持つ名前以外の全部", () => {
-    expect(valuesWithoutField({ ...DRAFT, definitions: null }, new Set(["Threads"]))).toEqual([
-      ["SlowMover", "8"],
-      ["USI_Ponder", "false"],
-      ["NetworkDelay", "120"],
-    ]);
+    const twice = { ...DRAFT, definitions: [...DEFS, { ...DEFS[0] }] };
+    expect(
+      names(optionRows(twice, { bookUsed: true })).filter((n) => n === "NumaPolicy"),
+    ).toHaveLength(1);
   });
 });

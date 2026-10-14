@@ -64,8 +64,8 @@ describe("engineDefaultOf", () => {
     expect(engineDefaultOf({ ...current, enginePath: "/e/b" }, "MultiPV")).toBeNull();
   });
 
-  test("既定値が分かれば「エンジン既定」に添える", () => {
-    expect(engineDefaultLabel("1024", "MB")).toBe("エンジン既定（1024MB）");
-    expect(engineDefaultLabel(null)).toBe("エンジン既定");
+  test("初期値が分かれば添える", () => {
+    expect(engineDefaultLabel("1024", "MB")).toBe("初期値（1024MB）");
+    expect(engineDefaultLabel(null)).toBe("初期値");
   });
 });

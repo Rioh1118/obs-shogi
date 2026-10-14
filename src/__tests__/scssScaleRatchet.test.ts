@@ -13,11 +13,11 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  * 2行を同じコミットで動かすことになる。
  */
 const BASELINE: Record<Bucket, number> = {
-  "font-size": 193,
-  "border-radius": 137,
-  spacing: 414,
+  "font-size": 186,
+  "border-radius": 134,
+  spacing: 393,
   elevation: 47,
-  motion: 66,
+  motion: 65,
   family: 9,
   indirect: 44,
   exempt: 10,

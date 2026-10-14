@@ -97,16 +97,6 @@
     gap: 14px;
   }
 
-  .presetDialog__grid2 {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-
-    @media (max-width: 820px) {
-      grid-template-columns: 1fr;
-    }
-  }
-
   .presetDialog__grid3 {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -115,13 +105,6 @@
     @media (max-width: 920px) {
       grid-template-columns: 1fr;
     }
-  }
-
-  .presetDialog__row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 8px;
   }
 
   .presetDialog__check {
@@ -148,104 +131,10 @@
     }
   }
 
-  /* ========== block (important options) ========== */
-  .presetDialog__block {
-    border: 1px solid rgba(index.$color-white, 0.07);
-    background: rgba(index.$color-primary-black, 0.22);
-    border-radius: 16px;
-    padding: 14px 14px;
-  }
-
-  .presetDialog__blockHead {
-    margin-bottom: 10px;
-  }
-
-  .presetDialog__blockTitle {
-    color: index.$color-text-light-1;
-    font-size: 1.45rem;
-    font-weight: 800;
-  }
-
-  .presetDialog__blockSub {
-    margin-top: 4px;
-    color: rgba(index.$color-text-light-1, 0.7);
-    font-size: 1.2rem;
-    line-height: 1.4;
-  }
-
-  /* ========== MultiPV segmented ========== */
-  .presetDialog__segRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 10px;
-  }
-
-  .presetDialog__seg {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    flex: 1;
-  }
-
-  .presetDialog__segBtn {
-    border-radius: 12px;
-    border: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.25);
-    color: rgba(index.$color-text-light-1, 0.92);
-
-    padding: 10px 10px;
-    cursor: pointer;
-
-    font-weight: 800;
-    font-size: 1.35rem;
-
-    transition:
-      transform 120ms ease,
-      background-color 120ms ease,
-      border-color 120ms ease;
-
-    &:hover {
-      transform: translateY(-1px);
-      border-color: rgba(index.$color-secondary-dark, 0.45);
-      background: rgba(index.$color-primary-black, 0.35);
-    }
-
-    &:active {
-      transform: translateY(0px) scale(0.99);
-    }
-
-    &.is-active {
-      border-color: rgba(index.$color-secondary-dark, 0.7);
-      background: rgba(index.$color-secondary-dark, 0.18);
-    }
-  }
-
-  .presetDialog__segRight {
-    white-space: nowrap;
-  }
-
-  .presetDialog__stepper {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 10px;
-  }
-
-  .presetDialog__stepperInput {
-    width: 90px;
-    text-align: center;
-    font-weight: 800;
-  }
-
-  .presetDialog__stepperHint {
-    color: rgba(index.$color-text-light-1, 0.65);
-    font-size: 1.15rem;
-  }
-
   .presetDialog__hintWarn {
     margin-top: 10px;
+    /* 空白を含まない長いパスや OS の出力が来る。節は overflow: hidden なので、折り返さないと読めない */
+    overflow-wrap: anywhere;
     padding: 10px 12px;
     border-radius: 12px;
 
@@ -255,10 +144,6 @@
 
     font-size: 1.2rem;
     line-height: 1.45;
-  }
-
-  .presetDialog__inline {
-    margin-top: 12px;
   }
 
   /* 入力と、それに対するボタンを横に並べる（入力が縮み、ボタンは折り返さない） */
@@ -277,8 +162,42 @@
     }
   }
 
-  .presetDialog__searchRow {
-    margin-bottom: index.$space-6;
+  /* エンジンの設定: 1行1項目（名前 ｜ 入力）。名前の下にエンジンの綴りを小さく */
+  .presetDialog__optionList {
+    display: grid;
+    gap: index.$space-3;
+  }
+
+  .presetDialog__optionRow {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: index.$space-5;
+    align-items: center;
+  }
+
+  .presetDialog__optionName {
+    display: grid;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .presetDialog__optionId {
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    overflow-wrap: anywhere;
+  }
+
+  /* 選んだエンジンのパス。名乗りだけでは同じ名前の別のビルドを見分けられない */
+  .presetDialog__enginePath {
+    margin-top: index.$space-3;
+    font-family: index.$font-mono;
+    font-size: index.$font-aux;
+    overflow-wrap: anywhere;
+  }
+
+  /* 帯の中のボタン行 */
+  .presetDialog__bandActions {
+    margin-top: index.$space-5;
   }
 
   /* ========== details (match options) ========== */
@@ -310,19 +229,15 @@
   }
 
   .presetDialog__detailsBody {
+    margin: 0;
     padding: 14px 14px 12px 14px;
   }
 
   .presetDialog__hintMuted {
     margin-top: 10px;
+    overflow-wrap: anywhere;
     color: rgba(index.$color-text-light-1, 0.65);
     font-size: 1.2rem;
     line-height: 1.45;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .presetDialog__segBtn {
-      transition: none;
-    }
   }
 }

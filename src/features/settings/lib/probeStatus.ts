@@ -10,7 +10,7 @@ export type ProbeFailure = {
   enginePath: string;
 };
 
-const RETRY = "「オプションを読み込む」を押してください";
+const RETRY = "「もう一度読み込む」を押してください";
 
 /**
  * 取得に失敗した理由と、次にすること。起動の失敗と同じ種類で届く（Rust の `EngineProber::probe`）。
@@ -26,45 +26,38 @@ const PROBE_FAILURE_TEXT: Record<EngineStartFailureKind, string> = {
   notUsi: `USI エンジンとして応答しませんでした。選んだファイルがエンジン本体かを確かめてから${RETRY}`,
   exitedEarly: `応答の途中で終了しました。エンジンが要るファイル（評価関数・ライブラリ）が隣にあるかを確かめてから${RETRY}`,
   timedOut: `エンジンのファイルを時間内に開けませんでした。置いたドライブ（外付け・ネットワーク上）が応答しているかを確かめてから${RETRY}`,
-  invalidValue: `エンジンのパスを確かめてから${RETRY}`,
+  invalidValue: `エンジンを選び直すか、${RETRY}`,
   // 画面が撃ち直していないのに取り消された（最後に撃った取得だけがここへ来る）
-  cancelled: `取得が取り消されました。${RETRY}`,
-  other: `取得できませんでした。${RETRY}。続くときはアプリを再起動してください`,
-  unknown: `取得できませんでした。${RETRY}。続くときはアプリを再起動してください`,
+  cancelled: `読み込みが取り消されました。${RETRY}`,
+  other: `${RETRY}。続くときはアプリを再起動してください`,
+  unknown: `${RETRY}。続くときはアプリを再起動してください`,
 };
 
 type ProbeStatus = { tone: "muted" | "warn"; text: string; detail: string | null };
 
 /**
- * エンジンの欄の下に出す、オプションの定義の状態。定義が「取得済み」かは `hasCurrentDefinitions` が決める。
+ * エンジンの欄の下に出す、読み込みの状態。**うまくいっているときは何も出さない**（`null`）——読み込みは
+ * エンジンを選べば裏で進むもので、利用者が意識するものではない。出すのは読み込み中と、読めなかったときと、
+ * いまのエンジンの定義が無いまま止まっているとき（「やめる」の後・プリセットが読み直された後）。最後の形を
+ * 黙らせると、同じエンジンは選び直しても読み込まれないので、読み込み直す口が画面から消える。
  * 失敗は、失敗したパスがいまのパスと同じときだけ出す
  */
 export function probeStatusText(
-  draft: Pick<
-    EnginePreset,
-    "enginePath" | "definitions" | "definitionsFor" | "reservedNames" | "engineName" | "probedAt"
-  >,
+  draft: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor" | "reservedNames">,
   probing: boolean,
   failure: ProbeFailure | null,
 ): ProbeStatus | null {
   if (!draft.enginePath) return null;
-  if (probing) return { tone: "muted", text: "オプションを取得中…", detail: null };
+  if (probing) return { tone: "muted", text: "エンジンを読み込んでいます…", detail: null };
   if (failure && failure.enginePath === probePathOf(draft.enginePath)) {
     return {
       tone: "warn",
-      text: `オプションを取得できませんでした。${PROBE_FAILURE_TEXT[failure.kind]}`,
+      text: `エンジンを読み込めませんでした。${PROBE_FAILURE_TEXT[failure.kind]}`,
       detail: failure.message || null,
     };
   }
-  if (hasCurrentDefinitions(draft)) {
-    const name = draft.engineName ? `（${draft.engineName}）` : "";
-    // 同じパスのエンジンを差し替えても定義は古いまま。いつ取ったかを見せて、取り直すかを決められるように
-    const when = draft.probedAt ? `。${draft.probedAt.slice(0, 10)} に取得` : "";
-    return {
-      tone: "muted",
-      text: `オプション ${draft.definitions?.length ?? 0} 件を取得済み${name}${when}`,
-      detail: null,
-    };
+  if (!hasCurrentDefinitions(draft)) {
+    return { tone: "muted", text: "エンジンをまだ読み込んでいません。", detail: null };
   }
-  return { tone: "muted", text: "オプションは未取得です", detail: null };
+  return null;
 }

@@ -61,7 +61,8 @@ export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
   p.enginePath = (p.enginePath ?? "").trim();
   p.evalFilePath = (p.evalFilePath ?? "").trim();
 
-  // book: **解析で使わなくてもパスは残す**（定跡ビューが出す。切ったことは起動のたびに Rust が送る）
+  // book: 読み込みでは**パスを落とさない**（前の版は `bookEnabled: false` とパスを両方持って保存している）。
+  // 使うかどうかは `bookInUse` で読む
   p.bookEnabled = Boolean(p.bookEnabled);
   const bp = (p.bookFilePath ?? "").trim();
   p.bookFilePath = bp.length > 0 ? bp : null;

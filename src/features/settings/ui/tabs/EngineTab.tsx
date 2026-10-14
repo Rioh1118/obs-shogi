@@ -8,7 +8,13 @@ import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import { isPresetConfigured, type PresetId } from "@/entities/engine-presets/model/types";
+import {
+  bookInUse,
+  isPresetConfigured,
+  type PresetId,
+} from "@/entities/engine-presets/model/types";
+import { MULTIPV_OPTION } from "@/entities/engine-presets/model/multiPv";
+import { fileLabel } from "@/features/settings/lib/fileChoices";
 import {
   engineDefaultLabel,
   engineDefaultOf,
@@ -103,7 +109,7 @@ export default function EngineTab() {
               const configured = isPresetConfigured(p);
               const isSelected = p.id === selectedId;
 
-              const multiPv = savedInt(p.options, "MultiPV");
+              const multiPv = savedInt(p.options, MULTIPV_OPTION);
               const threads = savedInt(p.options, "Threads");
               const hash = savedInt(p.options, "USI_Hash");
 
@@ -185,13 +191,6 @@ export default function EngineTab() {
 
                   <div className="engineTab__cardBody">
                     <div className="engineTab__row">
-                      <div className="engineTab__k">AI名</div>
-                      <div className="engineTab__v">
-                        {p.aiName?.trim() || <span className="engineTab__muted">未設定</span>}
-                      </div>
-                    </div>
-
-                    <div className="engineTab__row">
                       <div className="engineTab__k">エンジン</div>
                       <div className="engineTab__v" title={p.enginePath || ""}>
                         {p.enginePath ? (
@@ -206,9 +205,9 @@ export default function EngineTab() {
                       <div className="engineTab__k">評価関数</div>
                       <div className="engineTab__v" title={p.evalFilePath || ""}>
                         {p.evalFilePath ? (
-                          basename(p.evalFilePath)
+                          fileLabel(p.evalFilePath)
                         ) : (
-                          <span className="engineTab__muted">未設定</span>
+                          <span className="engineTab__muted">指定しない</span>
                         )}
                       </div>
                     </div>
@@ -219,7 +218,7 @@ export default function EngineTab() {
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">MultiPV</div>
                         <div className={cx("engineTab__miniV", multiPvWarn && "is-warn")}>
-                          {multiPv ?? engineDefaultLabel(engineDefaultOf(p, "MultiPV"))}
+                          {multiPv ?? engineDefaultLabel(engineDefaultOf(p, MULTIPV_OPTION))}
                         </div>
                       </div>
                       <div className="engineTab__mini">
@@ -238,7 +237,7 @@ export default function EngineTab() {
                       </div>
                       <div className="engineTab__mini">
                         <div className="engineTab__miniK">Book</div>
-                        <div className="engineTab__miniV">{p.bookEnabled ? "ON" : "OFF"}</div>
+                        <div className="engineTab__miniV">{bookInUse(p) ? "ON" : "OFF"}</div>
                       </div>
                     </div>
 

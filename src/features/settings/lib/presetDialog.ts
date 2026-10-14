@@ -33,15 +33,13 @@ export function basename(p: string) {
   return last || (p ?? "");
 }
 
-export const HASH_CHOICES = [256, 512, 1024, 2048, 4096, 8192, 16384] as const;
-
-export function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {
+function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {
   const xs = profile?.eval_files ?? [];
   if (xs.length === 0) return null;
   return xs.find((f) => f.entry === "nn.bin") ?? xs[0];
 }
 
-export function pickDefaultBookDb(profile: ProfileCandidate | null): FileCandidate | null {
+function pickDefaultBookDb(profile: ProfileCandidate | null): FileCandidate | null {
   const xs = profile?.book_db_files ?? [];
   if (xs.length === 0) return null;
   return xs[0];
@@ -55,8 +53,8 @@ export function pickDefaultBookDb(profile: ProfileCandidate | null): FileCandida
  * commit → effect → `setDraft` → commit … が閉じて、ダイアログを開いている間ずっと回る
  * （欄が全部埋まっている回でも、候補が0件の回でも止まらない）。
  *
- * すでに入っている値は上書きしない。定跡は「解析で使う」ときだけ、空なら埋める
- * （使わないときもパスは残す。定跡ビューが出す）。
+ * すでに入っている値は上書きしない。定跡は「使う」ときだけ、空なら埋める
+ * （使わないときのパスには触らない。落とすのはプリセット編集の保存）。
  *
  * **エンジンは選べる候補がちょうど1つのときだけ埋める。** 候補は名前で絞っていないので
  * （`presetEngineOptions`）、2つ以上あるときの先頭は並びの都合でしかなく、
