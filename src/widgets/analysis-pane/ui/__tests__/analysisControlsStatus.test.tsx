@@ -20,6 +20,15 @@ describe("操作列の語", () => {
     expect(statusText(container)).toBe("待機中");
   });
 
+  test.each([
+    ["starting", "起動中…"],
+    ["failed", "起動失敗"],
+    ["cancelled", "起動を中止しました"],
+  ] as const)("%s は語だけで、経過時間が残らない", (status, word) => {
+    const { container } = render(<EngineStatusLabel status={status} currentSfen="P1" />);
+    expect(statusText(container)).toBe(word);
+  });
+
   test("応答なしは語だけで、経過時間が残らない", () => {
     const { container } = render(<EngineStatusLabel status="unresponsive" currentSfen="P1" />);
     expect(statusText(container)).toBe("応答なし");
