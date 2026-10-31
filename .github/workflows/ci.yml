@@ -100,6 +100,27 @@ jobs:
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
+  # **`quality` の `cargo test` は Ubuntu でしか走らない。** `\\?\` の綴りのように
+  # Windows でしか起きない振る舞いは、ビルドが通っても見えない。
+  # 全件ではなく、Windows の綴りを固定するテストだけを名指しする。
+  windows-tests:
+    name: Tests on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 実際に使われるツールチェーンは rust-toolchain.toml が決める。
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache (src-tauri)
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Rust tests (Windows path spelling)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib plain_spelling
+
   build-desktop:
     name: Build (Windows/macOS)
     strategy:
