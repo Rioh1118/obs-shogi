@@ -26,6 +26,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Skill, Agent
 数えた結果は**数字で残す**。「多い」「ほとんど」ではなく件数で書く。
 
 **書く前に設計を決める。** 中・重の変更（手順4）は `/design-before-implement` を通す。
+書くときの基準は `/readable-code`、名前は `/naming`、既存コードの整理は `/tidy-code`。
 
 ## 手順3: 刻んでコミットする
 
@@ -123,6 +124,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Skill, Agent
 - 決定を伴ったなら ADR（`docs/decisions/`）へのリンクを張る
 - 台帳があるなら `文書の状態` の行き先を片付ける。決まった Q を消し、覆った ADR と前提に印を付け、
   残すものは行き先の番号を書く
+- `/decide` で決めた確認事項があれば PR コメントに残す（`/decide` 手順4）
 - push の後は `gh pr checks` で CI の緑を見てから完了と言う
 - `gh pr edit --body` は Projects classic の deprecation で**黙って失敗する**。
   `gh api -X PATCH repos/OWNER/REPO/pulls/N -F body=@file` を使う

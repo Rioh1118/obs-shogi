@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { commentBlocks, type CommentBlock } from "./commentBlocks";
@@ -16,6 +16,9 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
  *
  * 1 だけは違反0なので `-D` で張る。2〜5 は入れた時点で既存があるので件数ラチェット。
  * **基準を動かしてよい向きは下げる方だけ。** 片付けたら `BASELINE` を下げる。
+ *
+ * 環境変数 `COMMENT_REPORT` にパスを渡すと、該当の全行を JSON で書き出す。
+ * 緑のときは一覧が出ないので、`/tidy-code` の棚卸しはこの出力から範囲の行を拾う。
  */
 
 const BASELINE = {
@@ -184,6 +187,12 @@ describe("走査の部品", () => {
 describe("コメントを第三者が読める", () => {
   const terms = retiredTermsIn(readFileSync(join(REPO_ROOT, "CONTEXT.md"), "utf8"));
   const { found, files, blocks, docBlocks } = scan(terms);
+
+  it("求められたら該当の全行を書き出す", () => {
+    const destination = process.env.COMMENT_REPORT;
+    if (destination) writeFileSync(destination, JSON.stringify(found, null, 2));
+    expect(Object.keys(found)).toContain("manyEmphases");
+  });
 
   it("走査が空振りしていない", () => {
     expect(files).toBeGreaterThan(MIN_FILES);
