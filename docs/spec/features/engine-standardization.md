@@ -260,7 +260,7 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 | L11 L17     | AC-50 AC-51 AC-52           | —                                    | `option_labels.rs` の役割 ＋ `binding.rs`、zermelo の fixture |
 | L6 L7       | AC-54 AC-55 AC-56           | —                                    | `presets.rs` の読み書き、`scan_ai_root` の既存テスト          |
 | L15         | AC-53                       | —                                    | 同上                                                         |
-| L16         | AC-1〜AC-24 の文言、AC-65 AC-66 | —                                    | 画面の文字列の走査（`usiNamesStayInRust.test.ts` と同じ形で実装時に足す） |
+| L16         | AC-1〜AC-24 の文言、AC-65 AC-66 | —                                    | `screenVocabulary.test.ts`（`usiNamesStayInRust.test.ts` と同じ形） |
 | L1 L4 L5    | （判定表そのもの）          | —                                    | 別の目の検査（`.claude/plans/engine-standardization/survey.md`） |
 | L10         | （非ゴール）                | —                                    | 対局の既存テストが動かないこと                               |
 
