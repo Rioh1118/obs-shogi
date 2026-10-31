@@ -61,7 +61,7 @@ node .claude/skills/cross-cutting-audit/scripts/inventory.mjs .claude/plans/audi
 - `CONTEXT.md` に足す語の案も `plan.md` に書く
 - 大きさは PR の本数で書く
 
-人には件数の要約と `plan.md` の上位を見せる。実行するかは人が選ぶ。実行は `/implement` に渡し、
+`plan.md` の上位の実行は `/implement` に渡し、1範囲ずつ直すなら `/tidy-code` を使う。
 Issue にするなら `/write-issue` を使う。
 
 完了:

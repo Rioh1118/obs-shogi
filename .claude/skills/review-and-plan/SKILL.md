@@ -35,7 +35,7 @@ git ls-tree -r --name-only HEAD -- .claude/agents .claude/skills |
 
 `$ARGUMENTS` 未指定なら `git diff main...HEAD --stat` と `git status --porcelain`。
 
-**メインが見る。** 差分が大きいときだけ範囲で割る。
+**メインが見る。** 差分が大きいときだけ範囲で割る。読みやすさの判定は `/readable-code` の「確かめるとき」の順で行う。
 
 | 範囲                     | reviewer               |
 | ------------------------ | ---------------------- |

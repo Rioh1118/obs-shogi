@@ -64,8 +64,12 @@ function scanRust(path, line, text, previous) {
 
 for (const path of files) {
   const lines = readFileSync(path, "utf8").split("\n");
-  // `#[cfg(test)]` より後はテストのモジュールなので Rust では読まない。
-  const testStart = lines.findIndex((text) => text.trim() === "#[cfg(test)]");
+  // テストの `mod … {` より後は Rust では読まない。`#[cfg(test)] mod x;` の宣言は
+  // 別ファイルを指すだけなので、そこで止めると後ろの本番の宣言を落とす。
+  const testStart = lines.findIndex(
+    (text, index) =>
+      text.trim() === "#[cfg(test)]" && /^\s*(pub\s+)?mod\s+\w+\s*\{/.test(lines[index + 1] ?? ""),
+  );
   const end = path.endsWith(".rs") && testStart >= 0 ? testStart : lines.length;
   for (let index = 0; index < end; index += 1) {
     const text = lines[index];
