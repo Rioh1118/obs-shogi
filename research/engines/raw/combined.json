@@ -1,0 +1,83 @@
+{
+ "yaneuraou-v830": {
+  "go movetime 2000 depth 5": {
+   "ms": 1.3,
+   "line": "bestmove 5a6b ponder 4g4f",
+   "last": "info depth 5 seldepth 3 score cp -73 nodes 246 nps 82000"
+  },
+  "go depth 40 movetime 500": {
+   "ms": 499.9,
+   "line": "bestmove 3c3d ponder 2g2f",
+   "last": "info depth 17 seldepth 28 score cp -130 nodes 361332 nps 721221"
+  },
+  "go nodes 20000 movetime 2000": {
+   "ms": 36.5,
+   "line": "bestmove 8c8d ponder 6i7h",
+   "last": "info depth 12 seldepth 15 score cp -136 nodes 20028 nps 527052"
+  },
+  "go nodes 20000 depth 40 movetime 2000": {
+   "ms": 32.5,
+   "line": "bestmove 8c8d ponder 6i7h",
+   "last": "info depth 12 seldepth 15 score cp -136 nodes 20028 nps 606909"
+  },
+  "go infinite depth 5": {
+   "ms": null,
+   "line": null,
+   "last": "info depth 5 seldepth 3 score cp -73 nodes 246 nps 82000"
+  }
+ },
+ "yaneuraou-v900": {
+  "go movetime 2000 depth 5": {
+   "ms": 2.4,
+   "line": "bestmove 3c3d ponder 2g2f",
+   "last": "info depth 5 seldepth 8 multipv 1 score cp -87 nodes 2126"
+  },
+  "go depth 40 movetime 500": {
+   "ms": 499.9,
+   "line": "bestmove 4a3b ponder 2g2f",
+   "last": "info depth 16 seldepth 30 multipv 1 score cp -97 nodes 284713"
+  },
+  "go nodes 20000 movetime 2000": {
+   "ms": 24.1,
+   "line": "bestmove 4a3b ponder 2g2f",
+   "last": "info depth 9 seldepth 16 multipv 1 score cp -102 upperbound nodes"
+  },
+  "go nodes 20000 depth 40 movetime 2000": {
+   "ms": 24.3,
+   "line": "bestmove 4a3b ponder 2g2f",
+   "last": "info depth 9 seldepth 16 multipv 1 score cp -102 upperbound nodes"
+  },
+  "go infinite depth 5": {
+   "ms": null,
+   "line": null,
+   "last": "info depth 5 seldepth 8 multipv 1 score cp -87 nodes 2126"
+  }
+ },
+ "zermelo": {
+  "go movetime 2000 depth 5": {
+   "ms": 2.8,
+   "line": "bestmove 4a3b",
+   "last": "info depth 5 time 2 nodes 1176 nps 588000 score cp -226"
+  },
+  "go depth 40 movetime 500": {
+   "ms": 471.6,
+   "line": "bestmove 8c8d",
+   "last": "info depth 13 time 226 nodes 204886 nps 906575 score cp -220"
+  },
+  "go nodes 20000 movetime 2000": {
+   "ms": 21.6,
+   "line": "bestmove 4a3b",
+   "last": "info depth 9 time 18 nodes 17858 nps 992111 score cp -81"
+  },
+  "go nodes 20000 depth 40 movetime 2000": {
+   "ms": 22.2,
+   "line": "bestmove 4a3b",
+   "last": "info depth 9 time 19 nodes 17858 nps 939894 score cp -81"
+  },
+  "go infinite depth 5": {
+   "ms": null,
+   "line": null,
+   "last": "info depth 5 time 1 nodes 1176 nps 1176000 score cp -226"
+  }
+ }
+}

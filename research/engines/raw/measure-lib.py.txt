@@ -1,0 +1,208 @@
+#!/usr/bin/env python3
+"""USI エンジンの実測。応答の遅れ、stop、走行中の setoption、go の形を測って JSON と生ログに残す。"""
+import json
+import queue
+import subprocess
+import sys
+import threading
+import time
+
+ROOT = "<ai_root>"
+ENGINES = {
+    "yaneuraou-v830": (f"{ROOT}/engines/YaneuraOu_NNUE_halfKP1024X2_8_32-V830Git_APPLEM1", f"{ROOT}/li/eval", "EvalDir"),
+    "yaneuraou-v900": (f"{ROOT}/engines/YaneuraOu_NNUE_halfkp_256x2_32_32-V900Git_APPLEM1", f"{ROOT}/hao/eval", "EvalDir"),
+    "zermelo": (f"{ROOT}/engines/zermelo-f558898", f"{ROOT}/zermelo-c8e7/eval/nn.bin", "EvalFile"),
+}
+
+
+class Engine:
+    def __init__(self, path, log):
+        self.p = subprocess.Popen([path], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd="/tmp")
+        self.q = queue.Queue()
+        self.log = log
+        self.t0 = time.monotonic()
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        for line in self.p.stdout:
+            line = line.rstrip("\n")
+            self.log.append(f"{time.monotonic() - self.t0:9.3f} < {line}")
+            self.q.put(line)
+        self.q.put(None)
+
+    def send(self, s):
+        self.log.append(f"{time.monotonic() - self.t0:9.3f} > {s}")
+        self.p.stdin.write(s + "\n")
+        self.p.stdin.flush()
+
+    def wait(self, pred, timeout):
+        """pred を満たす行が来るまで待つ。(経過秒, 行) か (None, None)。読んだ行も返す"""
+        start = time.monotonic()
+        seen = []
+        while True:
+            left = timeout - (time.monotonic() - start)
+            if left <= 0:
+                return None, None, seen
+            try:
+                line = self.q.get(timeout=left)
+            except queue.Empty:
+                return None, None, seen
+            if line is None:
+                return None, "EOF", seen
+            seen.append(line)
+            if pred(line):
+                return time.monotonic() - start, line, seen
+
+    def drain(self, secs):
+        end = time.monotonic() + secs
+        seen = []
+        while time.monotonic() < end:
+            try:
+                line = self.q.get(timeout=max(0.01, end - time.monotonic()))
+            except queue.Empty:
+                break
+            if line is None:
+                break
+            seen.append(line)
+        return seen
+
+
+def ms(x):
+    return None if x is None else round(x * 1000, 1)
+
+
+def boot(path, evalv, evaln, log, threads="1"):
+    e = Engine(path, log)
+    r = {}
+    e.send("usi")
+    t, l, seen = e.wait(lambda s: s == "usiok", 30)
+    r["usi_to_usiok_ms"] = ms(t)
+    r["option_lines"] = sum(1 for s in seen if s.startswith("option "))
+    r["non_protocol_lines_before_usiok"] = [s for s in seen if not s.startswith(("option ", "id ", "usiok"))][:5]
+    names = [s.split()[2] for s in seen if s.startswith("option ")]
+    if "Threads" in names:
+        e.send(f"setoption name Threads value {threads}")
+    e.send("setoption name USI_Hash value 64")
+    e.send(f"setoption name {evaln} value {evalv}")
+    if "USI_OwnBook" in names:
+        e.send("setoption name USI_OwnBook value false")
+    e.send("isready")
+    t, l, seen = e.wait(lambda s: s == "readyok", 120)
+    r["isready_to_readyok_ms"] = ms(t)
+    r["ready_extra_lines"] = [s for s in seen if s != "readyok"][:8]
+    e.send("usinewgame")
+    return e, r, names
+
+
+def go_case(e, cmd, wait_s=8):
+    e.send("position startpos moves 7g7f")
+    e.send(cmd)
+    t, l, seen = e.wait(lambda s: s.startswith("bestmove"), wait_s)
+    infos = [s for s in seen if s.startswith("info")]
+    last = next((s for s in reversed(infos) if " pv " in s), None)
+    res = {"cmd": cmd, "bestmove_after_ms": ms(t), "bestmove": l, "infos": len(infos), "last_info": last}
+    if t is None and l != "EOF":
+        e.send("stop")
+        t2, l2, _ = e.wait(lambda s: s.startswith("bestmove"), 5)
+        res["stop_rescue_ms"] = ms(t2)
+    return res
+
+
+def main(name):
+    path, evalv, evaln = ENGINES[name]
+    log = []
+    out = {"engine": name}
+    e, r, names = boot(path, evalv, evaln, log)
+    out["boot"] = r
+    # stop の遅れ（3回）
+    stops = []
+    for _ in range(3):
+        e.send("position startpos")
+        e.send("go infinite")
+        e.drain(1.0)
+        s = time.monotonic()
+        e.send("stop")
+        t, l, _ = e.wait(lambda x: x.startswith("bestmove"), 15)
+        stops.append(ms(t))
+    out["stop_to_bestmove_ms"] = stops
+    # 探索していないときの stop
+    e.send("stop")
+    t, l, _ = e.wait(lambda x: x.startswith("bestmove"), 1.5)
+    out["stop_while_idle"] = {"bestmove_within_1500ms": l}
+    # 走行中に position / go を送る（stop を挟まない）
+    e.send("position startpos")
+    e.send("go infinite")
+    e.drain(0.5)
+    e.send("position startpos moves 7g7f")
+    e.send("go infinite")
+    seen = e.drain(1.0)
+    out["go_without_stop"] = {"bestmove_lines": [s for s in seen if s.startswith("bestmove")], "alive": e.p.poll() is None}
+    if e.p.poll() is not None:
+        out["go_without_stop"]["exit"] = e.p.returncode
+        e, r, names = boot(path, evalv, evaln, log)
+    else:
+        e.send("stop")
+        e.wait(lambda x: x.startswith("bestmove"), 10)
+        e.drain(0.3)
+        e.send("stop")
+        e.drain(0.5)
+    # 走行中の setoption MultiPV
+    if "MultiPV" in names:
+        e.send("position startpos")
+        e.send("go infinite")
+        e.drain(0.8)
+        e.send("setoption name MultiPV value 3")
+        seen = e.drain(1.5)
+        mp = sorted({s.split(" multipv ")[1].split()[0] for s in seen if " multipv " in s})
+        out["setoption_multipv_while_searching"] = {"multipv_values_seen_after": mp, "alive": e.p.poll() is None}
+        e.send("stop")
+        e.wait(lambda x: x.startswith("bestmove"), 10)
+        e.send("setoption name MultiPV value 1")
+    # go の形
+    cases = []
+    for cmd in ("go movetime 1000", "go depth 5", "go nodes 20000", "go byoyomi 1000", "go btime 0 wtime 0 byoyomi 1000", "go mate 2000"):
+        if e.p.poll() is not None:
+            cases.append({"cmd": cmd, "skipped": f"exited {e.p.returncode}"})
+            e, r, names = boot(path, evalv, evaln, log)
+        if cmd == "go mate 2000":
+            e.send("position sfen 7nl/7k1/6Spp/9/9/9/9/9/9 b GR2b3g3s3n3l15p 1")
+            e.send(cmd)
+            t, l, seen = e.wait(lambda s: s.startswith("checkmate") or s.startswith("bestmove"), 6)
+            cases.append({"cmd": cmd, "after_ms": ms(t), "line": l})
+            if t is None:
+                e.send("stop")
+                e.drain(1)
+            continue
+        cases.append(go_case(e, cmd))
+        e.drain(0.2)
+    out["go_forms"] = cases
+    # 未知のオプションと範囲外
+    e.send("setoption name NoSuchOption value 1")
+    out["unknown_option_reply"] = e.drain(0.5)
+    if "Threads" in names:
+        e.send("setoption name Threads value 999999")
+        out["threads_out_of_range_reply"] = e.drain(0.5)
+        e.send("setoption name Threads value 1")
+        e.drain(0.2)
+    alive = e.p.poll() is None
+    out["alive_before_quit"] = alive
+    if alive:
+        # 探索中の quit
+        e.send("position startpos")
+        e.send("go infinite")
+        e.drain(0.5)
+        s = time.monotonic()
+        e.send("quit")
+        try:
+            e.p.wait(timeout=10)
+            out["quit_while_searching_ms"] = ms(time.monotonic() - s)
+        except subprocess.TimeoutExpired:
+            out["quit_while_searching_ms"] = None
+            e.p.kill()
+        out["exit_code"] = e.p.returncode
+    print(json.dumps(out, ensure_ascii=False, indent=1))
+    with open(sys.argv[2], "w") as f:
+        f.write("\n".join(log) + "\n")
+
+
+main(sys.argv[1])

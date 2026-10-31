@@ -18,8 +18,11 @@ $color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
 
 $color-text-primary: #dcd7c9;
-// TODO(#184): rgba($color-text-primary, N) の N がばらけていて段が無い。
-// 次に書く人は隣のファイルから写すしかない。薄さの上限は載る面で変わる
+// 文字の濃さの段。**不透明に混ぜる。** 半透明にすると載る面ごとに比が変わる。
+// 混ぜる相手は読む面（$color-primary-dark）で、比は本文の基準 4.5:1 を見て決めた。
+// faint は $surface-raised の上で 4.03:1 に落ちるので、そこには載せない
+$color-text-muted: color-mix(in srgb, $color-text-primary 80%, $color-primary-dark); // 読む面で 6.16:1
+$color-text-faint: color-mix(in srgb, $color-text-primary 65%, $color-primary-dark); // 読む面で 4.64:1
 
 $color-text-dark-1: #0e1110;
 $color-text-dark-2: #3a3a3a;
@@ -81,6 +84,10 @@ $surface-fatal: color-mix(in srgb, $color-primary-black 94%, $color-fatal);
 // どれが一段上なのかコードから読めなくなる
 $surface-raised: color-mix(in srgb, $color-primary-black 86%, $color-white);
 
+// 打つ欄の面。数・文字・選択が同じ値を見る。**半透明なのは載る面の明るさを保つため**で、
+// 読む面（$color-primary-dark）と暗いカードのどちらの上でも欄として沈んで見える
+$surface-field: rgba(0, 0, 0, 0.18);
+
 // 器の上に浮かせる面（ツールチップ）。**半透明**なので、載る場所ごとに実効値が
 // 変わる。文字との比はコントラストの走査では測れない → #185
 $surface-overlay: color-mix(in srgb, $color-primary-black 88%, transparent);
@@ -97,6 +104,12 @@ $font-section: 1.6rem; // 小見出し、カードの題
 $font-title: 1.8rem; // ダイアログ・ペインの題
 $font-display: 2.4rem; // 画面の主題
 $font-hero: 4rem; // ガイド画面の導入
+
+// 太さの段。**中間を作らない**（`docs/spec/design-language.md` の「文字の太さは4段」）
+$weight-regular: 400; // 本文
+$weight-medium: 500; // 欄の名前、タブ
+$weight-strong: 600; // 小見出し、ボタン、選ばれた行
+$weight-title: 700; // ダイアログとペインの題
 
 $font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
 
@@ -176,6 +189,11 @@ $app-header-height: 5.6rem;
 $control-hit: 3.6rem;
 // 指で押す入力機器（`pointer: coarse`）のとき。当たりだけを広げ、記号は変えない
 $control-hit-coarse: 4.4rem;
+// エンジンの状態の語に添える印の大きさ。操作列と設定のカードが同じ状態を別々に描くので、
+// 片方だけ動くと同じ状態に見えなくなる
+$status-mark-size: 0.8rem;
+// オプションの1行の値の列。種類ごとの部品が同じ幅を名乗るので、行を跨いで値の左端が揃う
+$option-control-width: 26rem;
 // 帯に並ぶ丸ボタンの大きさ。**帯と同じ理由でここに置く** —— `.titlebar` と
 // `.root-error-fallback__chrome` が同じボタンを別々に描くので、片方だけ動くと
 // 落ちたときにだけ大きさが変わる

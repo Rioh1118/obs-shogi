@@ -1,0 +1,43 @@
+{
+ "yaneuraou-v830": {
+  "usi_to_usiok_ms": 34.9,
+  "option_lines": 38,
+  "non_protocol_lines_before_usiok": [],
+  "isready_to_readyok_ms": 1364.5,
+  "ready_extra_lines": [
+   "info string EvalDirectory = <ai_root>/li/eval",
+   "info string loading eval file : <ai_root>/li/eval/nn.bin",
+   "info string read book file : book/standard_book.db",
+   "info string Error! : can't read file : book/standard_book.db",
+   "info string USI_Hash : Start clearing with 1 threads , Hash size =  64[MB]",
+   "info string USI_Hash : Finish clearing."
+  ]
+ },
+ "yaneuraou-v900": {
+  "usi_to_usiok_ms": 3.2,
+  "option_lines": 39,
+  "non_protocol_lines_before_usiok": [],
+  "isready_to_readyok_ms": 430.5,
+  "ready_extra_lines": [
+   "info string Using 1 thread",
+   "info string EvalDirectory = <ai_root>/hao/eval",
+   "info string loading eval file : <ai_root>/hao/eval/nn.bin",
+   "info string USI_Hash : Start clearing with 1 threads , size =  64[MB]",
+   "info string USI_Hash : Finish clearing.",
+   "info string read book file : book/standard_book.db",
+   "info string Error! : can't read file : book/standard_book.db"
+  ]
+ },
+ "zermelo": {
+  "usi_to_usiok_ms": 201.3,
+  "option_lines": 15,
+  "non_protocol_lines_before_usiok": [],
+  "isready_to_readyok_ms": 312.0,
+  "ready_extra_lines": [
+   "info string affine neon+dotprod",
+   "info string eval nnue Features=HalfKP(Friend)[125388->256x2],Network=AffineTransform[1<-32](ClippedReLU[32](AffineTransform[32<-32](ClippedReLU[32](AffineTransformSparseInput[32<-512](InputSlice[512(0:512)]))))) fv_scale 16 weight_native_pawn 90",
+   "info string ft_weights 32099328 min -504 max 491 saturated 0 (limit 32767)",
+   "info string ft_peak_float 3.968504 saturated_ratio 0.000000"
+  ]
+ }
+}

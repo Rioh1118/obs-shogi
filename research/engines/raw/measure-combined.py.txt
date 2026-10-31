@@ -1,0 +1,16 @@
+import json
+src = open('measure_engine.py').read().rsplit('main(sys.argv[1])', 1)[0]
+exec(src)
+out={}
+for name in ENGINES:
+    path,evalv,evaln=ENGINES[name]; r={}
+    for cmd in ("go movetime 2000 depth 5","go depth 40 movetime 500","go nodes 20000 movetime 2000","go nodes 20000 depth 40 movetime 2000", "go infinite depth 5"):
+        log=[]; e,_,names=boot(path,evalv,evaln,log)
+        e.send("position startpos moves 7g7f"); e.send(cmd)
+        t,l,seen=e.wait(lambda s:s.startswith("bestmove"),4)
+        last=next((s for s in reversed(seen) if s.startswith("info") and " pv " in s),"")
+        r[cmd]={"ms":ms(t),"line":l,"last":" ".join(last.split()[:12])}
+        e.p.kill(); e.p.wait()
+    out[name]=r
+print(json.dumps(out,ensure_ascii=False,indent=0))
+json.dump(out,open("measure4.json","w"),ensure_ascii=False,indent=1)

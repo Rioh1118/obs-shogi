@@ -57,6 +57,9 @@
 | ------------ | --------------------------------------------------------------- |
 | `shogihome/` | ShogiHome（`sunfish-shogi/shogihome`）の実装。**いま一番厚い**  |
 | `findings/`  | 2026-07 の調査ループで出した、一次情報つきの findings。下記参照 |
+| `usi-spec/`  | USI の原案と将棋所版。**2つは食い違う**                         |
+| `other-guis/` | En Croissant・Nibbler・cutechess・将棋所・ShogiGUI のエンジン周り |
+| `engines/`   | 手元の実エンジンへ行を送った実測                                |
 
 ### `findings/` について
 
@@ -109,8 +112,8 @@ gh api "repos/sunfish-shogi/shogihome/contents/<path>?ref=$REF" --jq '.content' 
 
 | 相手                                      | 状態                                                                                                      |
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| **将棋所（Shogidokoro）**                 | **未調査。** クローズドソース・Windows 専用。USI の事実上の標準はここが作った。挙動は外形からしか測れない |
-| **ShogiGUI**                              | **未調査。** クローズドソース・Windows 専用                                                               |
+| **将棋所（Shogidokoro）**                 | **公式の文面だけ調べた**（`other-guis/shogidokoro.md`）。実機は未調査。クローズドソース。USI の事実上の標準はここが作った |
+| **ShogiGUI**                              | **公式の本文だけ調べた**（`other-guis/shogigui.md`）。画面写真の大半と実機は未調査                        |
 | **Kifu for Windows/Mac**                  | **未調査。** 棋譜再生側の作法（柿木形式の原典）                                                           |
 | **piyoshogi / ぴよ将棋**                  | **未調査。** モバイルの対局 UX。時計と結果表示は参考になる可能性                                          |
-| **チェス側（Lichess / Nibbler / Arena）** | **未調査。** 解析 UI と対局 UI の分離、評価値の見せ方は先行している                                       |
+| **チェス側（Lichess / Arena）**           | **未調査。** Nibbler・En Croissant・cutechess のエンジン周りは `other-guis/` にある。評価値の見せ方は未調査 |

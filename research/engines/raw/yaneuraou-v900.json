@@ -1,0 +1,94 @@
+{
+ "engine": "yaneuraou-v900",
+ "stop_latency": [
+  0.1,
+  0.1,
+  0.1
+ ],
+ "go_movetime": {
+  "cmd": "go movetime 1000",
+  "bestmove_after_ms": 999.5,
+  "bestmove": "bestmove 4a3b ponder 2g2f",
+  "infos": 2,
+  "last_info": "info depth 19 seldepth 31 multipv 1 score cp -95 nodes 691125 nps 873735 hashfull 92 time 791 pv 4a3b 2g2f 8c8d 8h7g 8d8e 7i8h 3c3d 3i4h 7a7b 2f2e 2b7g+ 8h7g 3a2b 3g3f 2b3c"
+ },
+ "go_depth": {
+  "cmd": "go depth 5",
+  "bestmove_after_ms": 2.9,
+  "bestmove": "bestmove 3c3d ponder 2g2f",
+  "infos": 1,
+  "last_info": "info depth 5 seldepth 8 multipv 1 score cp -87 nodes 2126 nps 708666 hashfull 0 time 3 pv 3c3d 2g2f 5a5b 5i6h"
+ },
+ "go_nodes": {
+  "cmd": "go nodes 20000",
+  "bestmove_after_ms": 27.0,
+  "bestmove": "bestmove 4a3b ponder 2g2f",
+  "infos": 1,
+  "last_info": "info depth 9 seldepth 16 multipv 1 score cp -102 upperbound nodes 20010 nps 769615 hashfull 2 time 26 pv 4a3b 2g2f"
+ },
+ "go_byoyomi": {
+  "cmd": "go byoyomi 1000",
+  "bestmove_after_ms": 101.6,
+  "bestmove": "bestmove 4a3b ponder 2g2f",
+  "infos": 1,
+  "last_info": "info depth 13 seldepth 23 multipv 1 score cp -86 upperbound nodes 94881 nps 930205 hashfull 12 time 102 pv 4a3b 2g2f"
+ },
+ "go_btime0_byoyomi": {
+  "cmd": "go btime 0 wtime 0 byoyomi 1000",
+  "bestmove_after_ms": 101.7,
+  "bestmove": "bestmove 4a3b ponder 2g2f",
+  "infos": 1,
+  "last_info": "info depth 13 seldepth 23 multipv 1 score cp -86 upperbound nodes 94881 nps 930205 hashfull 12 time 102 pv 4a3b 2g2f"
+ },
+ "go_mate": {
+  "cmd": "go mate 2000",
+  "after_ms": null,
+  "line": "EOF"
+ },
+ "go_while_searching": {
+  "bestmove_during_overlap": [],
+  "stop_then_bestmove_ms": null,
+  "line": null,
+  "second_stop": null,
+  "alive": true
+ },
+ "quit_while_searching": {
+  "quit_ms": 4.6,
+  "code": 0
+ },
+ "multipv_live": {
+  "during_same_search": [
+   "1"
+  ],
+  "next_go": [
+   "1"
+  ]
+ },
+ "bad_values": {
+  "unknown": [
+   "No such option: NoSuchOption"
+  ],
+  "hash_out_of_range": [],
+  "isready_after": {
+   "ms": 116.7,
+   "extra": [
+    "info string USI_Hash : Start clearing with 1 threads , size =  64[MB]",
+    "info string USI_Hash : Finish clearing.",
+    "info string read book file : book/standard_book.db",
+    "info string Error! : can't read file : book/standard_book.db"
+   ]
+  },
+  "alive": true
+ },
+ "bad_eval": {
+  "readyok_ms": null,
+  "line": "EOF",
+  "lines": [
+   "info string EvalDirectory = /nonexistent/path",
+   "info string loading eval file : /nonexistent/path/nn.bin",
+   "Error! : failed to read nn.bin : FileNotFound"
+  ],
+  "alive": false,
+  "code": 1
+ }
+}

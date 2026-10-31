@@ -74,6 +74,10 @@ const NOT_RUST: &[(&str, &str)] = &[
     ),
     ("engine-preset-dialog.md", "プリセット編集の下書きと取得。TS 側（`presetDialogReducer`）"),
     (
+        "engine-standardization.md",
+        "これから満たす画面の語の表。実装が無く、Rust の定数を突き合わせる先がまだ無い",
+    ),
+    (
         "analysis.md",
         "解析の席。Rust を跨ぐが、名指す定数は TS 側だけ",
     ),

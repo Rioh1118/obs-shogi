@@ -128,6 +128,20 @@ ShogiGUI（後手だけ独立設定のチェックボックス）も将棋所（
 **期限**: 無し。ADR-0011 着手順6（開始の面の作り替え）を塞がない
 ——分ける口は後から微調整の側に足せる。
 
+## Q-009 🟢 詰み探索をプリセットの解析に持たせるか
+
+プリセットの `analysis.mateSearch` は保存されるが解析は読まない。
+エンジン標準化の仕様で欄を画面から外し、**保存された値は持ち回る**（`docs/spec/features/engine-standardization.md`）。
+
+`go mate` の引数は USI の原案が手数、将棋所版がミリ秒で**意味が違う**（`research/usi-spec/01-usi-original.md` §2）。
+手元のやねうら王 NNUE は `go mate` に `checkmate` でなく `bestmove` を返し、zermelo は `checkmate notimplemented`
+を返す（`research/engines/usi-measurements.md`）。
+
+**決めるのに要るもの**: 詰将棋エンジンのビルドを1本測る。詰み探索を解析の1モードにするか、別の操作にするかは
+AI 開発者の作業で要るかを数える（Q-003 の1と同じ調べ物）。
+
+**期限**: 無し。
+
 ---
 
 ## 決着した問い
