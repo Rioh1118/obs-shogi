@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use ::fs::error::FsError;
-use ::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under};
+use ::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under, plain_spelling};
 
 use super::types::FileTreeNode;
 
@@ -201,12 +201,15 @@ pub fn walk_from(root_path: &Path) -> Result<FileTreeNode, FsError> {
         depth: 0,
         budget: MAX_NODES,
     };
-    build_file_tree_recursive(&canonical_path, &mut walk)
+    // 歩くのは `plain_spelling` の綴りから。ノードの `path` は webview へ渡る。
+    // `canonical_root` と `followed` は `fs::canonicalize` の結果と比べるので解決後のまま
+    build_file_tree_recursive(plain_spelling(&canonical_path), &mut walk)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::read::fs_scan::{scan_kifu_files, ScanOptions};
 
     fn temp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("obs-shogi-{tag}-{}", std::process::id()));
@@ -437,6 +440,35 @@ mod tests {
         assert_eq!(
             names(5),
             vec!["000.kif", "001.kif", "002.kif", "003.kif", "004.kif"]
+        );
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// ツリーと局面検索は、同じ棋譜を同じ綴りで名乗り、その綴りは `\\?\` で始まらない。
+    ///
+    /// 検索のヒットはパスの文字列でツリーのノードを引き、開いている棋譜が root の内側かは
+    /// `isSameOrDescendantPath` が文字列で見る。Windows で `\\?\` が残ると、
+    /// `C:\kifu` の中の棋譜が「外にある」と判定され、開いた直後に閉じられる。
+    ///
+    /// **`\\?\` が付くのは Windows だけなので、他の OS では意味を持たない。**
+    /// CI の `Tests on Windows` がこのテストを名指しで走らせる
+    #[test]
+    fn plain_spelling_is_shared_by_the_tree_and_the_search() {
+        let base = temp_dir("plain-spelling");
+        fs::create_dir_all(&base).expect("作れない");
+        fs::write(base.join("a.kif"), "").expect("書けない");
+
+        let tree = walk_from(&base).expect("走査できない");
+        let scanned = scan_kifu_files(&base, &ScanOptions::default()).expect("走査できない");
+
+        let in_tree = tree.children.as_deref().expect("子が無い")[0].path.clone();
+        let in_search = scanned.files[0].path.to_string_lossy().to_string();
+
+        assert_eq!(in_tree, in_search, "ツリーと検索の綴りが違う");
+        assert!(
+            !in_tree.starts_with(r"\\?\"),
+            r"`\\?\` の綴りが画面まで届いている: {in_tree}"
         );
 
         let _ = fs::remove_dir_all(&base);

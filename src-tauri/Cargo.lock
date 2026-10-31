@@ -1288,6 +1288,7 @@ dependencies = [
 name = "fs"
 version = "0.1.0"
 dependencies = [
+ "dunce",
  "serde",
  "uuid",
 ]
