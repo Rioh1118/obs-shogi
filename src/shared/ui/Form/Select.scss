@@ -14,9 +14,8 @@
   padding-right: 3rem;
   font-size: 1.5rem;
   background-color: index.$surface-field;
-  border: none;
-  border-bottom: 0.2rem solid transparent;
-  border-radius: 0.4rem;
+  border: 1px solid index.$stroke;
+  border-radius: index.$radius-3;
   color: index.$color-text-light-1;
   display: flex;
   justify-content: space-between;

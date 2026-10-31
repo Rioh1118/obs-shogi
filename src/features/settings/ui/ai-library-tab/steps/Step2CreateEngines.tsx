@@ -22,7 +22,7 @@ export function Step2CreateEngines({ state, isScanning, onCreateEnginesDir }: Pr
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">
-        <Button size="sm" onClick={onCreateEnginesDir} disabled={isScanning}>
+        <Button tone="accent" size="sm" onClick={onCreateEnginesDir} disabled={isScanning}>
           <Sparkles size={14} style={{ marginRight: 6 }} />
           engines/ を作成
         </Button>

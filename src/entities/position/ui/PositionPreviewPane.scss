@@ -43,7 +43,7 @@
     border-top-left-radius: var(--board-radius);
     border-bottom-right-radius: index.$radius-4;
 
-    // 盤の木目の上に乗る位置なので、面は不透明に近づける（枠の面は透ける値）
+    // 盤の木目の上に乗る位置なので、面は不透明に近づける
     background: rgba(index.$color-primary-black, 0.92);
     color: rgba(index.$color-text-primary, 0.82);
 
@@ -68,8 +68,7 @@
     background: var(--board-surface);
     border: 1px solid var(--board-border);
     box-shadow:
-      0 10px 24px rgba(0, 0, 0, 0.22),
-      inset 0 0 0 1px transparent;
+      0 10px 24px rgba(0, 0, 0, 0.22);
   }
 
   &__hands {

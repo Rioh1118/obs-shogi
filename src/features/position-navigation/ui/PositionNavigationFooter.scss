@@ -2,7 +2,7 @@
 
 .position-navigation-modal {
   &__footer {
-    padding: 1.6rem 2.4rem;
+    padding: 1.6rem var(--pad-x);
     border-top: 1px solid index.$stroke-weak;
   }
 

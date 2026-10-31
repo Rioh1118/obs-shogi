@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { SRC, scssFiles } from "./walk";
-import { collectVariables, scanContrast } from "./contrast";
+import { collectVariables, resolveColor, scanContrast } from "./contrast";
 
 /**
  * 基準を割っている文字と面の対。**増やさない。**
@@ -40,7 +40,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに面の側を直すこと。
  */
-const MEASURED_COUNT = 133;
+const MEASURED_COUNT = 157;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
@@ -60,7 +60,19 @@ const MEASURED_COUNT = 133;
  * それ以外で増やさない。面が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 391;
+const UNMEASURED_COUNT = 361;
+
+/**
+ * 透明の面で銅の枠と文字を持つ部品。**自分では面を持たないので、載る先を渡さないと測れない。**
+ * どれも暗いカード（`$color-primary-black`）の上に置く
+ */
+const TRANSPARENT_ON_CARD = [
+  "shared/ui/Button/Button.scss",
+  "shared/ui/Form/TagsInput.scss",
+  "shared/ui/error-fallback/ErrorFallbackBody.scss",
+  "features/position-navigation/ui/BranchCard.scss",
+  "features/create-file/ui/CreateFileModal.scss",
+];
 
 const rows: Row[] = [];
 let measured = 0;
@@ -73,7 +85,10 @@ beforeAll(() => {
     const name = relative(SRC, file).split("\\").join("/");
     let scan;
     try {
-      scan = scanContrast(readFileSync(file, "utf8"), { vars, from: file });
+      const surface = TRANSPARENT_ON_CARD.includes(name)
+        ? (resolveColor("#1c2325", vars) ?? undefined)
+        : undefined;
+      scan = scanContrast(readFileSync(file, "utf8"), { vars, from: file, surface });
     } catch (error) {
       throw new Error(`${name} を解析できない: ${String(error)}`);
     }

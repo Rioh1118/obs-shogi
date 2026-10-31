@@ -17,7 +17,7 @@
   }
 
   &__header {
-    padding: 2rem 2.4rem 1.2rem;
+    padding: 2rem var(--pad-x) 1.2rem;
     border-bottom: 1px solid index.$stroke;
 
     display: flex;

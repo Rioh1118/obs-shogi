@@ -21,7 +21,7 @@
 }
 
 .tags-input__label-icon {
-  color: index.$color-secondary-dark-2;
+  color: index.$color-accent-text;
   transition: color 0.2s ease;
 }
 
@@ -210,7 +210,7 @@
   color: index.$color-accent-text;
 
   &:hover:not(:disabled) {
-    background: rgba(index.$color-secondary-dark, 0.14);
+    border-color: index.$color-accent-text;
   }
 
   &:active:not(:disabled) {

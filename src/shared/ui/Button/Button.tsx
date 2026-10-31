@@ -5,7 +5,7 @@ import "./Button.scss";
  * 面の色と文字色を決める。それ以外の軸とは独立している。
  *
  * `primary` は確定（画面を閉じて結果を残す）で1画面に1つ。`accent` はその場の次の一手。
- * `neutral` は戻す・やり直す操作。
+ * `neutral` は戻す・閉じる操作。
  */
 export type ButtonTone = "primary" | "accent" | "neutral" | "danger";
 /** 高さ・左右の余白・文字サイズをまとめて決める。 */

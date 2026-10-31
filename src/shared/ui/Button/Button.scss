@@ -84,8 +84,10 @@
     border-color: index.$color-secondary-dark;
     color: index.$color-accent-text;
 
+    // 面を敷くと文字の比が下がる。動かすのは枠だけ
     &:hover:not(:disabled) {
-      background: rgba(index.$color-secondary-dark, 0.14);
+      background: transparent;
+      border-color: index.$color-accent-text;
     }
   }
 

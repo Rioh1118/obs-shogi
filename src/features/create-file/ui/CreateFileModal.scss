@@ -15,8 +15,7 @@
     display: inline-flex;
     align-self: flex-start;
 
-    // 帯に面を敷かない。敷くと選択中の面との差が 1.4:1 まで潰れ、
-    // どちらが選ばれているか見た目で読めなくなる
+    // 帯に面を敷かない。選択は `$shadow-selected` のバーが示すので、帯の面は要らない
     border: 1px solid index.$stroke;
     border-radius: index.$radius-6;
     padding: index.$space-2;

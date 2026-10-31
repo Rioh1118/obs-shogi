@@ -51,7 +51,7 @@ export default function FileTreeErrorNotice({
               閉じる
             </Button>
           )}
-          {/* 両方出るときは、直る見込みのある読み直しを主にする */}
+          {/* 両方出るときは、直る見込みのある読み直しを `accent` にする */}
           {fallback && (
             <Button tone={canRetry ? "neutral" : "accent"} onClick={fallback.run}>
               {fallback.label}

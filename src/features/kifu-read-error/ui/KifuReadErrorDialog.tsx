@@ -72,7 +72,7 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
               <Button onClick={() => void handleCopy()}>
                 {copied ? "コピーしました" : "エラーをコピー"}
               </Button>
-              <Button tone="accent" onClick={onDismiss}>
+              <Button tone="neutral" onClick={onDismiss}>
                 閉じる
               </Button>
             </>

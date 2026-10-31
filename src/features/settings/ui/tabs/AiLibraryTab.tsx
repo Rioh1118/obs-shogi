@@ -496,6 +496,7 @@ export default function AiLibraryTab() {
               {/* 出すのは「無い」と読めている回だけ。分類の理由は `EnginesDir` の doc */}
               {canCreateEnginesDir(enginesDir) && (
                 <Button
+                  tone="accent"
                   size="sm"
                   onClick={onEnsureEngines}
                   disabled={!canOperate || scan.status === "loading"}

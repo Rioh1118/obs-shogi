@@ -56,11 +56,4 @@ $accent: index.$color-secondary-dark;
     color: index.$color-text-primary;
   }
 
-  // light theme で使うなら（必要になったら）
-  .modal--light & .sbadge {
-    background: rgba(index.$color-white, 0.55);
-    color: index.$color-text-dark-1;
-    border-color: rgba(index.$color-primary-light, 0.18);
-    box-shadow: none;
-  }
 }
