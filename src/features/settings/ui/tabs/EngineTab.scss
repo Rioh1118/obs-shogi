@@ -42,7 +42,7 @@ $warn: #f0b429;
   }
 
   .engineTab__loading {
-    color: rgba(index.$color-text-light-1, 0.85);
+    color: index.$color-text-muted;
     padding: 10px 2px;
   }
 
@@ -133,7 +133,7 @@ $warn: #f0b429;
   .engineTab__cardTitle {
     font-size: 1.6rem;
     color: index.$color-text-light-1;
-    font-weight: 800;
+    font-weight: index.$weight-title;
     letter-spacing: 0.15px;
 
     white-space: nowrap;
@@ -158,7 +158,7 @@ $warn: #f0b429;
     border-radius: 999px;
 
     border: 1px solid $border-strong;
-    color: rgba(index.$color-text-light-1, 0.92);
+    color: index.$color-text-primary;
     background: $surface-chip;
 
     box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
@@ -253,15 +253,15 @@ $warn: #f0b429;
   }
 
   .engineTab__miniK {
-    color: rgba(index.$color-text-light-1, 0.65);
+    color: index.$color-text-faint;
     font-size: 1.15rem;
     margin-bottom: 4px;
   }
 
   .engineTab__miniV {
-    color: rgba(index.$color-text-light-1, 0.95);
+    color: index.$color-text-primary;
     font-size: 1.45rem;
-    font-weight: 800;
+    font-weight: index.$weight-title;
     letter-spacing: 0.1px;
 
     &.is-warn {
@@ -271,7 +271,7 @@ $warn: #f0b429;
 
   .engineTab__note {
     margin-top: 10px;
-    color: rgba(index.$color-text-light-1, 0.72);
+    color: index.$color-text-muted;
     font-size: 1.2rem;
     line-height: 1.45;
   }

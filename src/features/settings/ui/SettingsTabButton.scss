@@ -88,7 +88,7 @@ $focus: index.$focus-ring;
   }
 
   .stab__label {
-    font-weight: 800;
+    font-weight: index.$weight-title;
     letter-spacing: 0.2px;
     font-size: 1.3rem;
     color: $text-strong;

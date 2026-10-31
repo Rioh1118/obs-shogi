@@ -73,7 +73,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
 
   &__titleMain {
     font-size: 1.5rem;
-    font-weight: 800;
+    font-weight: index.$weight-title;
     letter-spacing: 0.25px;
     color: $text-strong;
     line-height: 1.2;

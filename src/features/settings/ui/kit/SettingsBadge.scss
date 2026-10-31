@@ -41,19 +41,19 @@ $accent: index.$color-secondary-dark;
   .sbadge--danger {
     border-color: rgba($danger, 0.55);
     background: rgba($danger, 0.16);
-    color: rgba(index.$color-text-light-1, 0.92);
+    color: index.$color-text-primary;
   }
 
   .sbadge--warn {
     border-color: rgba($warn, 0.55);
     background: rgba($warn, 0.14);
-    color: rgba(index.$color-text-light-1, 0.92);
+    color: index.$color-text-primary;
   }
 
   .sbadge--accent {
     border-color: rgba($accent, 0.6);
     background: rgba($accent, 0.18);
-    color: rgba(index.$color-text-light-1, 0.92);
+    color: index.$color-text-primary;
   }
 
   // light theme で使うなら（必要になったら）

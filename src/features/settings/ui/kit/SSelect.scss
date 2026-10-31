@@ -12,7 +12,7 @@
 
   appearance: none;
 
-  border-radius: var(--ctl-radius, 10px);
+  border-radius: var(--ctl-radius, #{index.$radius-3});
   border: 1px solid var(--ctl-border, rgba(255, 255, 255, 0.12));
   background: var(--s-surface-2, #{index.$surface-field});
   color: inherit;
