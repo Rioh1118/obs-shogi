@@ -15,7 +15,7 @@
     background: transparent;
     color: rgba(index.$color-text-light-1, 0.6);
     font-size: 1.25rem;
-    font-weight: 500;
+    font-weight: index.$weight-medium;
     font-family: inherit;
     cursor: pointer;
     user-select: none;
@@ -33,7 +33,7 @@
       background: rgba(index.$color-secondary-dark, 0.2);
       border-color: rgba(index.$color-secondary-dark, 0.35);
       color: index.$color-text-light-1;
-      font-weight: 600;
+      font-weight: index.$weight-strong;
     }
 
     &:focus-visible {
@@ -44,7 +44,7 @@
 
   &__count {
     font-size: 1.1rem;
-    font-weight: 400;
+    font-weight: index.$weight-regular;
     opacity: 0.55;
     font-variant-numeric: tabular-nums;
   }

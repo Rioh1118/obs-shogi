@@ -32,7 +32,7 @@
 
   &__title {
     font-size: 2.4rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: index.$color-white;
     margin-bottom: 1rem;
     letter-spacing: 0.05em;
@@ -63,7 +63,7 @@
     border-radius: 0.6rem;
     color: index.$color-text-light-1;
     font-size: 1.4rem;
-    font-weight: 500;
+    font-weight: index.$weight-medium;
     transition: all 0.2s ease;
 
     &:hover {

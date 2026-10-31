@@ -63,7 +63,7 @@
   }
 
   &.is-selected {
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     background-color: rgba(index.$color-secondary-dark, 0.2);
   }
 }

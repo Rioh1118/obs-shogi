@@ -19,6 +19,7 @@ const BASELINE: Record<Bucket, number> = {
   elevation: 47,
   motion: 65,
   family: 9,
+  "font-weight": 33,
   indirect: 44,
   exempt: 10,
 };

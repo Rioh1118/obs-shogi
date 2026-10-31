@@ -32,6 +32,6 @@
   &__value {
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
   }
 }

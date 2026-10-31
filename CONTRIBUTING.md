@@ -232,7 +232,7 @@ gap: 0.75rem;
 
 `src/__tests__/scssScaleRatchet.test.ts` が `src/**/*.scss` を走査し、
 **スケールに載るプロパティ**の直値を数えます（`font-size` / `border-radius` /
-余白 / 影 / モーション / フォント。枠の全体は [ADR-0003](docs/decisions/0003-scss-scale-tokens.md) を参照）。
+余白 / 影 / モーション / フォント / 文字の太さ。枠の全体は [ADR-0003](docs/decisions/0003-scss-scale-tokens.md) を参照）。
 **件数が基準値と一致しないと `npm run test` が落ちます。** 増えたときも減ったときも落ちます。
 
 **枠の外のプロパティは数えません。** `min-height` / `width` / `top` などの直値は

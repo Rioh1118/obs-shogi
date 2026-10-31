@@ -241,8 +241,11 @@ function toRem(value: string, vars: Map<string, string>): number | null {
   return m[2] === "rem" ? Number(m[1]) : Number(m[1]) / 10;
 }
 
-function isBoldValue(value: string): boolean {
-  const v = value.trim();
+function isBoldValue(value: string, vars: Map<string, string>): boolean {
+  // `index.$weight-title` のようなトークンは値へ解いてから見る。解かないと、太い文字を
+  // 細い文字の基準で測り、実物より厳しい比を報告する
+  const token = value.trim().match(/^(?:[\w-]+\.)?(\$[\w-]+)$/);
+  const v = (token ? (vars.get(token[1]) ?? value) : value).trim();
   if (v === "bold" || v === "bolder") return true;
   const n = Number(v);
   return !Number.isNaN(n) && n >= 700;
@@ -319,7 +322,7 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
     }
 
     if (prop === "font-size") next.fontSize = toRem(child.value, vars);
-    if (prop === "font-weight") next.bold = isBoldValue(child.value);
+    if (prop === "font-weight") next.bold = isBoldValue(child.value, vars);
 
     // 要素ごと薄くすると、文字も面も同じだけ**親の面**へ寄る。
     // 見ないと、静止 0.9 / ホバー 1.0 のボタンを実物より良い比で報告する。

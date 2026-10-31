@@ -33,7 +33,7 @@
     gap: 0.4rem;
     font-size: 2rem; // 7remは強すぎるので抑える
     letter-spacing: 0.12em;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     opacity: 0.92;
   }
 

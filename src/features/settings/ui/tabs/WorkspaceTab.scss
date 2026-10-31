@@ -194,7 +194,7 @@
 .wsTab__pathValue {
   margin-top: 4px;
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: index.$weight-title;
   color: rgba(index.$color-text-light-1, 0.92);
   white-space: nowrap;
   overflow: hidden;
@@ -273,7 +273,7 @@
 // **`wsTab__miniV` の太さと字送りのままだと入りきらない**ので、その枠だけ本文に戻す
 .wsTab__miniV--plain {
   font-size: index.$font-aux;
-  font-weight: 600;
+  font-weight: index.$weight-strong;
   letter-spacing: normal;
 }
 

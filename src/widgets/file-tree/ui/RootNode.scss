@@ -1,4 +1,6 @@
+@use "@/index.scss" as index;
+
 .file-tree__rootdir--name {
-  font-weight: 400;
+  font-weight: index.$weight-regular;
   text-transform: uppercase;
 }
