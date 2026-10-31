@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import type { CursorPath } from "@/entities/kifu/model/cursor";
-import { getCommentsByCursor, setCommentsByCursorInJkf } from "../comment";
+import { getCommentsByCursor, setCommentsByCursorInKifu } from "../comment";
 
 const mv = (tag: string, forks?: JKFMove[][]): JKFMove =>
   forks ? { comments: [tag], forks } : { comments: [tag] };
@@ -70,10 +70,10 @@ describe("getCommentsByCursor", () => {
   });
 });
 
-describe("setCommentsByCursorInJkf", () => {
+describe("setCommentsByCursorInKifu", () => {
   test("変化の中の手に書く", () => {
     const jkf = kifu();
-    const res = setCommentsByCursorInJkf(jkf, at(3, [{ te: 2, forkIndex: 0 }]), ["書いた"]);
+    const res = setCommentsByCursorInKifu(jkf, at(3, [{ te: 2, forkIndex: 0 }]), ["書いた"]);
 
     expect(res).toEqual({ ok: true, changed: true });
     expect(jkf.moves[2].forks![0][1].comments).toEqual(["書いた"]);
@@ -87,7 +87,7 @@ describe("setCommentsByCursorInJkf", () => {
       { te: 2, forkIndex: 0 },
       { te: 3, forkIndex: 0 },
     ]);
-    const res = setCommentsByCursorInJkf(jkf, cursor, ["書いた"]);
+    const res = setCommentsByCursorInKifu(jkf, cursor, ["書いた"]);
 
     expect(res).toEqual({ ok: true, changed: true });
     expect(jkf.moves[2].forks![0][1].forks![0][0].comments).toEqual(["書いた"]);
@@ -95,7 +95,7 @@ describe("setCommentsByCursorInJkf", () => {
 
   test("解決できないカーソルには書かない", () => {
     const jkf = kifu();
-    const res = setCommentsByCursorInJkf(jkf, at(2, [{ te: 2, forkIndex: 9 }]), ["書いた"]);
+    const res = setCommentsByCursorInKifu(jkf, at(2, [{ te: 2, forkIndex: 9 }]), ["書いた"]);
 
     expect(res).toEqual({ ok: false, changed: false });
     expect(jkf).toEqual(kifu());
@@ -103,18 +103,18 @@ describe("setCommentsByCursorInJkf", () => {
 
   test("同じ本文なら changed は false", () => {
     const jkf = kifu();
-    expect(setCommentsByCursorInJkf(jkf, at(2), ["t2"])).toEqual({ ok: true, changed: false });
+    expect(setCommentsByCursorInKifu(jkf, at(2), ["t2"])).toEqual({ ok: true, changed: false });
   });
 
   test("空にすると comments ごと消す", () => {
     const jkf = kifu();
-    expect(setCommentsByCursorInJkf(jkf, at(2), [])).toEqual({ ok: true, changed: true });
+    expect(setCommentsByCursorInKifu(jkf, at(2), [])).toEqual({ ok: true, changed: true });
     expect(jkf.moves[2].comments).toBeUndefined();
   });
 
   test("1要素に混ざった改行は行に分ける", () => {
     const jkf = kifu();
-    setCommentsByCursorInJkf(jkf, at(2), ["1行目\n2行目"]);
+    setCommentsByCursorInKifu(jkf, at(2), ["1行目\n2行目"]);
     expect(jkf.moves[2].comments).toEqual(["1行目", "2行目"]);
   });
 });

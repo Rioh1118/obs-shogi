@@ -204,7 +204,7 @@ function deleteCandidate(c: Candidates, target: BranchIndex): Candidates {
  *
  * `chosen === target`（消える候補の中にいる）ケースは退避で処理するので、ここには来ない。
  */
-function patchForkPointersForDeleteNonReloc(
+function reindexForkPointersAfterDelete(
   fps: ForkPointer[],
   te: number,
   target: BranchIndex,
@@ -395,7 +395,7 @@ export function deleteBranchInKifu(
   }
 
   // それ以外は pointer の詰めだけ
-  const fps = patchForkPointersForDeleteNonReloc(cursor.forkPointers, q.te, q.target);
+  const fps = reindexForkPointersAfterDelete(cursor.forkPointers, q.te, q.target);
   const next: CursorPath = {
     tesuu: cursor.tesuu,
     forkPointers: normalizeForkPointers(fps),

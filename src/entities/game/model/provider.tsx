@@ -44,7 +44,7 @@ import { buildPlayer, gotoPath } from "@/entities/kifu/lib/buildPlayer";
 import { cloneJkf } from "@/entities/kifu/lib/cloneJkf";
 import { cursorFromPlayer, observedPointerOf } from "@/entities/kifu/lib/playerCursor";
 import {
-  setCommentsByCursorInJkf,
+  setCommentsByCursorInKifu,
   getCommentsByCursor as getCommentsByCursorFromJkf,
 } from "@/entities/kifu/lib/comment";
 
@@ -576,7 +576,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
 
       return await edit(
         (_player, nextJkf) => {
-          const result = setCommentsByCursorInJkf(nextJkf, cursor, comments);
+          const result = setCommentsByCursorInKifu(nextJkf, cursor, comments);
 
           if (!result.ok) {
             // **利用者の言葉で書く。** この文字列はノートの赤い箱にそのまま出る。
