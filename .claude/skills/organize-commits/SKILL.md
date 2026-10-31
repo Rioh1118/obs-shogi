@@ -105,6 +105,8 @@ git rebase -x "npm run verify" <base>
 
 ## 手順5: 人が1回確認する
 
+push は共有システムの変更なので止まる（`docs/rules/decisions.md` R-DEC-9）。組み直しの判断は `/decide` が決める。
+
 `git log --reverse --format='%h %s' <base>..HEAD` の一覧、畳まずに残したものとその理由、手順4の結果を出す。
 `AskUserQuestion` で1問だけ聞く。「push する（推奨）」と「push しない」の2択。
 

@@ -7,7 +7,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent, AskUserQuestion
 ---
 
 **規則の正本は `docs/issue-guidelines.md`。先に読む。ここに写さない。**
-人の判断は**手順4の1回だけ**。**承認の前に `gh issue` の書き込みをしない**
+`gh` の書き込みは外部への変更なので止まる（`docs/rules/decisions.md` R-DEC-9）。人の判断は**手順4の1回だけ**で、他の判断は `/decide` が決める。**承認の前に `gh issue` の書き込みをしない**
 （作成、編集、クローズ、コメント、ラベルの全部）。使ってよいのは読み取りだけ。
 
 ## 手順1: 全件を読む

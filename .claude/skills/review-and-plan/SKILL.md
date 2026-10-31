@@ -1,8 +1,8 @@
 ---
 name: review-and-plan
-description: 変更をレビューし、ルール ID と確信度つきの指摘に修正計画を添え、1回の承認で直す。実装の後、PR の前、単独のレビューを頼まれたときに使う。
+description: 変更をレビューし、ルール ID と確信度つきの指摘に修正計画を添えて直す。実装の後、PR の前、単独のレビューを頼まれたときに使う。
 argument-hint: "[範囲: パス / --diff / --all]"
-allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent, AskUserQuestion
+allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent, Skill
 ---
 
 レビューは**2周で打ち切る**。ルールは `docs/rules/`。エージェントの使い方は `.claude/rules/agents.md`。
@@ -72,11 +72,10 @@ git ls-tree -r --name-only HEAD -- .claude/agents .claude/skills |
 - 同じ機構に3件以上集まるなら、個別に直す前に機構を落とす案を1行書く
 - 当たるルールが無い本物の指摘は `R-新規` と書き、ルール案を添える
 
-## 手順3: 1回だけ承認を取る
+## 手順3: 計画を確定する
 
-計画の表を出し、`AskUserQuestion` で1問だけ聞く。「全部進める（推奨）」と「進めない」の2択。
-番号を外す指示は Other で受ける。**指示どおりに計画を確定し、聞き直さない。**
-指摘が0件なら聞かずに終える。
+直し方が分かれる指摘は `/decide` で決める。**人に聞かず、そのまま手順4へ進む。**
+計画は報告書に残す。人は報告書と判断ログを見る。
 
 ## 手順4: 直す
 
@@ -99,7 +98,7 @@ git ls-tree -r --name-only HEAD -- .claude/agents .claude/skills |
 
 - 入れた検査を、直す前の状態に戻して落ちることを確かめる
 - 計画の「壊しうるもの」が壊れていないか
-- 差分が新しく作った確信度80以上の問題だけを直す。承認は取り直さない
+- 差分が新しく作った確信度80以上の問題だけを直す
 
 ここで終わり。差分の外の新しい指摘は次の PR の入力で、周回を延ばす理由にしない。
 

@@ -71,7 +71,7 @@ agent に割るなら対象ごとに。本数は `.claude/rules/agents.md` に�
 ## 手順6: 台帳へ戻す
 
 - 各行の状態を更新する。新しい論点が出たら `/intake` の手順4へ戻る
-- 判定は人が承認する。**調査は材料で、決めるのは人**
+- 判定の分かれる論点は `/decide` で決め、判断ログを `survey.md` の末尾に残す
 - 残すべき仮定は `docs/PREMISES.md`、未決は `docs/OPEN-QUESTIONS.md` へ
 
 完了:

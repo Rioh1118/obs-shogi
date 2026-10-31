@@ -1,13 +1,13 @@
 ---
 name: spec-to-issues
-description: 承認済みの仕様に残る作業を Issue に起票し、番号を仕様へ書き戻す。`/spec-draft` の後に作業へ割るとき、仕様に未起票の作業があるときに使う。
+description: 仕様に残る作業を Issue に起票し、番号を仕様へ書き戻す。`/spec-draft` の後に作業へ割るとき、仕様に未起票の作業があるときに使う。
 argument-hint: "[仕様ファイルのパス]"
 disable-model-invocation: true
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write, AskUserQuestion
 ---
 
 **規則の正本は `docs/issue-guidelines.md`。先に読む。ここに写さない。**
-人の判断は**手順4の1回だけ**。それより前に `gh` の書き込みをしない。
+`gh` の書き込みは外部への変更なので止まる（`docs/rules/decisions.md` R-DEC-9）。人の判断は**手順4の1回だけ**で、他の判断は `/decide` が決める。
 
 ## 手順1: 材料を揃える
 
