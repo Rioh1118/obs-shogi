@@ -146,7 +146,7 @@ impl QueryService {
                         // 「そのファイルの0手目」として利用者の一覧に並ぶ** ——
                         // 検索の当たりに見えて、押しても違う局面が出る。
                         // 壊れた blob をここへ届かせないのは
-                        // `cache/format.rs` の `decode_all` の門番。
+                        // `cache/format.rs` の `decode_all` の検査。
                         let cursor = nts
                             .get(occ.file_id)
                             .and_then(|nt| nt.cursor_lite(occ.node_id))
@@ -197,7 +197,7 @@ impl QueryService {
                         request_id,
                         // **綴りが読めなかった失敗はこの腕を通る。**
                         // `SfenParseError` は組む側でバリアントごとに有界にしてあるが、
-                        // それは型の doc が守っている約束であって、この口の約束ではない。
+                        // それは型の doc が守っている約束であって、この腕の約束ではない。
                         // 素通しにすると、バリアントが1つ増えた日に破れる
                         message: for_screen(&e),
                     },

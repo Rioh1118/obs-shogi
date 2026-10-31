@@ -13,7 +13,7 @@ use std::{
 use super::dir::{kind_of, FsKind};
 use crate::engine::launchable::{self, Inspection, Launchability};
 
-/// エンジンの置き場。**AI のプロファイル名として使えない。**
+/// エンジンの置き場。**AI フォルダの名前として使えない。**
 ///
 /// `profile::read_all` がこの名前を一覧から除くので、作れても出てこない。
 /// 除く側と弾く側で綴りが分かれると、作成は通るのに一覧に出ないフォルダができる

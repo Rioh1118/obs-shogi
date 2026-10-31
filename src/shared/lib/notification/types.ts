@@ -168,7 +168,7 @@ export type Notification = {
 };
 
 /**
- * 出す口。**mount 後に一度も変わらない**ので、これだけを購読する部品は
+ * 出す関数。**mount 後に一度も変わらない**ので、これだけを購読する部品は
  * 通知が出入りしても再描画しない
  */
 export type NotificationActions = {
@@ -192,7 +192,7 @@ export type NotificationActions = {
   dismissByKey: (key: string) => void;
 };
 
-/** 出す口と、出ているもの。**両方が要るのは通知を描く層だけ** */
+/** 出す関数と、出ているもの。**両方が要るのは通知を描く層だけ** */
 export type NotificationContextType = NotificationActions & {
   /** 出た順。同じ見せ方の中ではこの順に積む */
   notifications: Notification[];

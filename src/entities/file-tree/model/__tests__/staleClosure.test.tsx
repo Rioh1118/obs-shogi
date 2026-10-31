@@ -96,7 +96,7 @@ function findNode(path: string) {
   return walk(TREE)!;
 }
 
-/** 削除の途中で別の棋譜を開けるように、操作の口を画面へ出す */
+/** 削除の途中で別の棋譜を開けるように、操作の関数を画面へ出す */
 function Probe() {
   const { activeKifuPath, deleteNode, openKifuNode } = useFileTree();
   return (
@@ -203,7 +203,7 @@ describe("IPC を跨いだあとの読み出し", () => {
    * 見つからないと `GameStartModal` は送信を打ち切る。**棋譜だけが1枚できて、
    * モーダルは開いたまま、対局は始まらない。**
    */
-  it("作った棋譜を、作る前に握った口から選べる", async () => {
+  it("作った棋譜を、作る前に握った関数から選べる", async () => {
     createKifu.mockResolvedValue({ success: true, data: NEW_KIFU });
     // 作った後の読み直しでだけ生える
     fetchTree.mockResolvedValueOnce({ success: true, data: TREE }).mockResolvedValue({

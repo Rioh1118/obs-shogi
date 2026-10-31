@@ -8,7 +8,7 @@ import type { FileTreeNode } from "@/entities/file-tree";
  *
  * ツリーの `activeKifuPath` は構文として読めた時点で進むので、そこから盤に
  * 載るまでの一段（`loadGame` の `buildPlayer`）で落ちた棋譜も「開いている」に
- * なる。その関門で2度目のクリックを捨てると、**復帰が別の棋譜を選ぶことだけに
+ * なる。その判定で2度目のクリックを捨てると、**復帰が別の棋譜を選ぶことだけに
  * なる**（#434 / `failure-surfacing.md` の F-31）。
  */
 
@@ -83,7 +83,7 @@ describe("棋譜のノードを押したとき", () => {
 
   /**
    * E16 のあとの状態。ツリーは開いたと言っているが、盤には載っていない。
-   * 関門を `activeKifuPath` だけに戻すと、ここで押しても何も起きなくなる。
+   * `canSkipReopen` を `activeKifuPath` だけに戻すと、ここで押しても何も起きなくなる。
    */
   test("ツリーが開いたと言っていても、盤に載っていなければ開きに行く", () => {
     tree.activeKifuPath = "/ws/a.kif";
@@ -98,9 +98,9 @@ describe("棋譜のノードを押したとき", () => {
    * **E16 のあとに前の棋譜へ戻る経路。** 盤には載っているが、ツリーは別のファイルを
    * 掴んだままになっている。
    *
-   * 関門を `loadedAbsPath` だけにすると、ここで押しても何も起きない。盤は既にこの棋譜を
+   * `canSkipReopen` を `loadedAbsPath` だけにすると、ここで押しても何も起きない。盤は既にこの棋譜を
    * 出しているので利用者は戻れたと読むが、`activeKifuPath` は壊れた棋譜を指したままなので
-   * `persistIfPossible` の門番（`entities/game` の `provider.tsx`）が以降の書き込みを全部
+   * `persistIfPossible` の検査（`entities/game` の `provider.tsx`）が以降の書き込みを全部
    * 止める——**指した手が一瞬出てから黙って戻る**状態になり、抜けるには第3のファイルを
    * 押すしかなくなる。
    */

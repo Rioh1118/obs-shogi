@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 /**
- * **選択を動かす口は1つ。**
+ * **選択を動かす関数は1つ。**
  *
  * 「盤に載せるべき棋譜」は `requestedKifuPathRef` が唯一の出典で、飛行中の読み出しは
  * 返った時点でそこと違うパスなら捨てられる。その ref を動かすのは `selectNode` だけなので、
@@ -13,7 +13,7 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  * それが #223 で、症状は「ツリーは A を選んでいるのに盤には B が載る」。画面には何も出ない
  * （ヘッダも行の強調も選択を見ているので、両方とも A と名乗る）まま、保存だけが B へ行く。
  *
- * 過去に漏れた2箇所はどちらも「口を通らない呼び出し元」だった——`deleteNode` の
+ * 過去に漏れた2箇所はどちらも「`selectNode` を通らない呼び出し元」だった——`deleteNode` の
  * 選択解除と、`selectNodeByAbsPath` の選択。どちらも `dispatch` を直に書いていた。
  *
  * **振る舞いはこの検査では見ない。** 捨てる判断そのものは
@@ -27,7 +27,7 @@ const SELECT_ACTION = 'type: "node_selected"';
 const OWNER = "src/entities/file-tree/model/provider.tsx";
 
 /**
- * action の型宣言と reducer の受け口。**綴りは出るが「撃って」いない。**
+ * action の型宣言と reducer の `case`。**綴りは出るが「撃って」いない。**
  *
  * 除外を名前で持つのは、増えたときに差分へ出すため
  */
@@ -39,7 +39,7 @@ const DECLARATIONS = [
 /** 走査器自身。探している字面をそのまま持っているので、自分を数えると必ず赤になる */
 const SELF = "src/__tests__/kifuOpenTarget.test.ts";
 
-describe("選択を動かす口", () => {
+describe("選択を動かす関数", () => {
   it("`node_selected` を撃つのは provider の selectNode だけ", () => {
     const files = tsFiles(SRC);
     // 「見つけた件数が0」と「見たセルが0」を分ける。走査の起点が壊れればここで落ちる

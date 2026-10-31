@@ -82,9 +82,9 @@ pub struct DepthOutcome {
 
 /// 無限解析のストリームが流すもの。
 ///
-/// **結果と終わり方を1本の列で運ぶ。** 終わり方を別の口で知らせると、最後の結果との
+/// **結果と終わり方を1本の列で運ぶ。** 終わり方を別の経路で知らせると、最後の結果との
 /// 順序を2本で揃えることになる。列が `Finished` を流さずに閉じたら、止められたか
-/// プロセスが終わったか（どちらも別の口が知っている）
+/// プロセスが終わったか（どちらも別の経路が知っている）
 #[derive(Debug)]
 pub enum AnalysisStreamItem {
     /// 途中経過
@@ -201,12 +201,12 @@ pub struct EngineAnalyzer {
     /// 「解析中か」の判定にこれを使わないこと。
     ///
     /// 要るのは、`bestmove` が来ない経路があるため。積み置きの `go` は
-    /// 複数の口から落ちる（`stop` の取り消し、`isready` のやり直し、破棄、
+    /// 複数の経路で落ちる（`stop` の取り消し、`isready` のやり直し、破棄、
     /// flush の失敗、`readyok` が来なかった場合）ので、
     /// `process_analysis_stream` が自分では抜けられないことがある
     infinite_listener: Arc<Mutex<Option<String>>>,
 
-    /// 探索が畳まれたかを見る口（`true` で畳まれた）。
+    /// 探索が畳まれたかを見る `watch` の受信側（`true` で畳まれた）。
     ///
     /// **`stop` を書けただけでは畳まれていない。** エンジンは `stop` を受け取ってから
     /// `bestmove` を書くまでの間、`info` を吐き続ける。次の `go` をその前に出すと、
@@ -222,14 +222,14 @@ pub struct EngineAnalyzer {
     /// 下ろすのは遅れて来た `bestmove`（ストリームの終わり）と、プロセスを落としたとき。
     /// `Sender` なのは、`watch_answered` が答えを待つため。
     /// `analyze_with_time` / `analyze_with_depth` の締切切れはここを立てない
-    /// （フロントに呼び手が無く、`stop` の答えを待つ口も持たない）
+    /// （フロントに呼び手が無く、`stop` の答えを待つ経路も持たない）
     unanswered: Arc<watch::Sender<bool>>,
 
-    /// 進行中の起動（`start_engine`）の世代と取り消し口。
+    /// 進行中の起動（`start_engine`）の世代と取り消しの欄。
     ///
     /// **世代を Rust の側に持つ。** 起動中のプロセスは `usiok` と `readyok` を待つ間
     /// `engine_id` に居ないので、止める・切り替える呼び出しは ID では届かない。
-    /// ここの取り消し口を立てれば、起動中のプロセスも落ちる。起動が `engine_id` へ書くのは
+    /// ここの取り消しの欄を立てれば、起動中のプロセスも落ちる。起動が `engine_id` へ書くのは
     /// `publish` を通して、世代が最新のときだけ（同じロックの下で確かめる）
     startup: Arc<Mutex<Startup>>,
 }
@@ -276,7 +276,7 @@ impl EngineAnalyzer {
     /// 前の起動が進行中なら取り消し、起動済みのエンジンは落としてから始める。
     /// 待っている間に `shutdown` か次の `start_engine` が来たら、起動中の
     /// プロセスも落として `Cancelled` で返る。`readyok` を待つ上限は置かない（DNN 系の初回の
-    /// 読み込みに上限を置けない）——止める口はこの取り消しで担保する。
+    /// 読み込みに上限を置けない）——止める経路はこの取り消しで担保する。
     ///
     /// 値だけで断れる設定（`setup::validate_options`）は、プロセスを起こす前に断る。
     /// **前の起動と起動済みのエンジンは、断る回も落とす**——起動の要求は「いまの設定で
@@ -349,8 +349,8 @@ impl EngineAnalyzer {
 
     /// 起こし、**その回の申告から**送る設定を決め（`binding::bind`）、送って `usinewgame` まで通す。
     /// 失敗したら起こしたプロセスを落とす。cwd は実行ファイルのフォルダ（`spawn_cancellable` の
-    /// 作業フォルダに `None` を渡す）——相対パスを cwd 基準で解くエンジンがあり、プロファイルを cwd に
-    /// すると同じ設定がプロファイルごとに違うファイルを指す
+    /// 作業フォルダに `None` を渡す）——相対パスを cwd 基準で解くエンジンがあり、AI フォルダを cwd に
+    /// すると同じ設定が AI フォルダごとに違うファイルを指す
     async fn start_engine_steps(
         &self,
         engine_path: &str,
@@ -467,7 +467,7 @@ impl EngineAnalyzer {
         Ok((process, warnings))
     }
 
-    /// 起動を終えたプロセスを解析の口に載せる。世代が古ければ落として `Cancelled`。
+    /// 起動を終えたプロセスを `engine_id` に載せる。世代が古ければ落として `Cancelled`。
     ///
     /// **世代の確認と `engine_id` への書き込みを同じロックの下で。** 離すと、確かめてから
     /// 書くまでの間に次の起動が前の `engine_id` を落とし終え、ここが古いプロセスを書き戻す
@@ -579,7 +579,7 @@ impl EngineAnalyzer {
         Ok(())
     }
 
-    /// `go` の前に通す。**`position` と `go` を送る口は全部ここを通す。**
+    /// `go` の前に通す。**`position` と `go` を送る経路は全部ここを通す。**
     /// 答えていないエンジンには何も書かない
     async fn write_position(&self, protocol: &UsiProtocol) -> Result<(), EngineError> {
         self.refuse_if_unanswered()?;
@@ -836,7 +836,7 @@ impl EngineAnalyzer {
         // `Refuse` と書き込みの詰まりの経路でリスナーが残る。
         // `fail_writes` が `Closed` を立てるので、`Refuse` は例外的な経路ではない。
         //
-        // 「`bestmove` が来たら畳む」を条件にしないのは、来ない口が複数あるため
+        // 「`bestmove` が来たら畳む」を条件にしないのは、来ない経路が複数あるため
         // （`stop` の取り消し、`isready` のやり直し、破棄、flush の失敗、
         // `readyok` が来なかった場合）。数え上げると必ず1つ漏れる。
         //
@@ -873,8 +873,8 @@ impl EngineAnalyzer {
     /// 上限を超えたら `unanswered` を立てて `false`。ここで返らないと `stop_analysis` が返らず、
     /// 停止ボタンも棋譜を閉じる操作も固まる。
     ///
-    /// **畳まれたと分かった回は口を空ける**（自分が待った1本に限る。待っている間に
-    /// 次の解析が別の口を立てている）。したがって1本の探索に対して待つのは1回きりで、
+    /// **畳まれたと分かった回は受信側を空ける**（自分が待った1本に限る。待っている間に
+    /// 次の解析が別の受信側を立てている）。したがって1本の探索に対して待つのは1回きりで、
     /// 2回目は即座に返る。**上限に当たった回は残す**——まだ畳まれていない。
     async fn wait_until_settled(&self, id: &Option<EngineId>) -> bool {
         let Some(mut settled) = self.infinite_settled.lock().await.clone() else {
@@ -1174,7 +1174,7 @@ fn cancelled_start() -> EngineError {
 mod tests {
     use super::*;
 
-    /// 諦めた回は口を残すこと。
+    /// 諦めた回は受信側を残すこと。
     ///
     /// **上限に当たったのは「まだ畳まれていない」の意味。** そこで空けると、
     /// 遅れて来た答えを見る相手を失う。
@@ -1196,7 +1196,7 @@ mod tests {
         );
         assert!(
             analyzer.infinite_settled.lock().await.is_some(),
-            "諦めた（＝まだ畳まれていない）のに口を捨てている"
+            "諦めた（＝まだ畳まれていない）のに受信側を捨てている"
         );
     }
 
@@ -1231,9 +1231,9 @@ mod tests {
         assert!(!*analyzer.unanswered.borrow());
     }
 
-    /// 待っている間に次の解析が立てた口を、前の停止が空けないこと。
+    /// 待っている間に次の解析が立てた受信側を、前の停止が空けないこと。
     ///
-    /// 開始の途中に割り込んだ停止が、**まだ始まっていない解析の口を持ち去る**のを止める。
+    /// 開始の途中に割り込んだ停止が、**まだ始まっていない解析の受信側を持ち去る**のを止める。
     /// **入れ替えは待ちに入った後でなければならない。** 呼ぶ前に差し替えると
     /// 最初から2本目を読み、諦めの枝を通る——この関数が見たい枝を1行も通らない。
     #[tokio::test]
@@ -1250,7 +1250,7 @@ mod tests {
         // 1本目を読み終えて待ちに入るまで進める
         tokio::task::yield_now().await;
 
-        // 待っている間に、次の解析が別の口を立てる。
+        // 待っている間に、次の解析が別の受信側を立てる。
         let (_second, second_rx) = watch::channel(false);
         *analyzer.infinite_settled.lock().await = Some(second_rx.clone());
 
@@ -1264,7 +1264,7 @@ mod tests {
         );
     }
 
-    /// 畳んだ後の停止が、変わる当てのない口を待たないこと。
+    /// 畳んだ後の停止が、変わる当てのない受信側を待たないこと。
     ///
     /// **エンジンのプロセスは要らない。** 見たいのは欄の出し入れだけ。
     /// 空けないと、1本目の無限解析を畳んだ後の停止が全部
@@ -1444,7 +1444,7 @@ done"#;
             path.to_str().expect("パス")
         }
 
-        /// 設定を送り `readyok` まで通したら、エンジンの情報を返し解析の口に載せる
+        /// 設定を送り `readyok` まで通したら、エンジンの情報を返し `engine_id` に載せる
         #[tokio::test]
         async fn a_start_returns_the_info_and_keeps_the_engine() {
             let dir = test_support::dir::temp_dir("analyzer-start-ok");
@@ -1457,7 +1457,10 @@ done"#;
                 .await
                 .expect("起動できる");
             assert_eq!(info.info.name, "Ready");
-            assert!(analyzer.protocol().await.is_ok(), "解析の口に載っていない");
+            assert!(
+                analyzer.protocol().await.is_ok(),
+                "`engine_id` に載っていない"
+            );
 
             analyzer.shutdown(8).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());
@@ -1499,7 +1502,7 @@ done"#;
             );
             assert!(
                 analyzer.protocol().await.is_err(),
-                "止めたのに解析の口に載っている"
+                "止めたのに `engine_id` に載っている"
             );
             let _ = std::fs::remove_dir_all(&dir);
         }
@@ -1681,7 +1684,10 @@ done"#;
                 before,
                 "古い停止が動いているエンジンを落とした"
             );
-            assert!(analyzer.protocol().await.is_ok(), "解析の口から外れている");
+            assert!(
+                analyzer.protocol().await.is_ok(),
+                "`engine_id` から外れている"
+            );
 
             analyzer.shutdown(6).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());

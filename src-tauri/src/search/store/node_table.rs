@@ -170,7 +170,7 @@ mod tests {
     ///
     /// `cache/format.rs` の `encode_all` は
     /// `fork_off + fork_len > forks.len()` ならチェックポイント全体を書かない。
-    /// 本番で `NodeCursor` を作る口はここと `decode_all`（あちらは自分で検査する）
+    /// 本番で `NodeCursor` を作る関数はここと `decode_all`（あちらは自分で検査する）
     /// だけなので、**この不変条件を守っているのは `push_node` 一箇所。**
     ///
     /// 長さの違う `fork_path` を混ぜるのは、`fork_off` が前のノードの

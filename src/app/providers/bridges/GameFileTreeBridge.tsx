@@ -69,7 +69,7 @@ export function GameFileTreeBridge() {
         // 選ぶと、2件目の呼び手が別の段にしても誰も気づかない
         tier: kifuLoadFailureTier(res.error),
         presentation: "modal",
-        // **同じ棋譜で畳む。** 載せられなかった棋譜のノードは `FileNode` の関門
+        // **同じ棋譜で畳む。** 載せられなかった棋譜のノードは `FileNode` の判定
         // （`canSkipReopen`）を通るので、押すたびに `openKifuNode` が新しい `jkfData` を
         // 作り、この effect が撃ち直される。鍵が無いと、押した回数だけ積み上がる。
         dedupeKey: `kifu-unloadable:${activeKifuPath}`,
@@ -78,7 +78,7 @@ export function GameFileTreeBridge() {
         // 段が `danger` で動作を持たない以上、次の一手を書けるのはここだけ。
         //
         // **「開き直しても結果は変わらない」と言い切らない。** 落ちるのはその時点の
-        // 中身のせいで、外で直せば載る（関門が2条件なので押し直しは実際に届く）。
+        // 中身のせいで、外で直せば載る（判定が2条件なので押し直しは実際に届く）。
         // 言い切ると、直せるファイルまで利用者が諦める——台帳の復帰欄も
         // 「ファイルを直すか、別の棋譜を選ぶ」と書いている。
         //
@@ -88,10 +88,10 @@ export function GameFileTreeBridge() {
         // 当てはまる書き方にして、場合分けそのものを持たない。
         //
         // 残った盤が読むだけになるのは、ツリーが掴んでいるパスだけが進むため。
-        // 保存先が食い違っている間、書き込みは `persistIfPossible` の門番が全部止める。
+        // 保存先が食い違っている間、書き込みは `persistIfPossible` の検査が全部止める。
         //
         // **解き方まで書く。** 前の棋譜をツリーで選び直すと `activeKifuPath` が戻り、
-        // 門番の条件が解ける。関門（`FileNode` の `canSkipReopen`）がツリーと盤の両方を
+        // その検査の条件が解ける。判定（`FileNode` の `canSkipReopen`）がツリーと盤の両方を
         // 見ているので、その押し直しは実際に届く。
         body:
           // 「何が起きたか」は `code` から。復帰の手順だけがこの画面の話

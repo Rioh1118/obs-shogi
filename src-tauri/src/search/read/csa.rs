@@ -26,7 +26,7 @@ use crate::search::read::outcome::{Jkf, KifuReadError};
 /// `shogi-kifu-converter` の `deny(clippy::unwrap_used)` の外側にある。
 /// 同じ壊れ方が出たら上の表に行を足すこと。
 ///
-/// 呼び口は `spawn_blocking` の中なのでプロセスは落ちないが、捕まえずに落ちると
+/// 呼び出し箇所は `spawn_blocking` の中なのでプロセスは落ちないが、捕まえずに落ちると
 /// 利用者に届くのは join error の定型文だけになり、**この行のどこが悪いのかが消える**
 /// （ファイル名は `IndexWarnPayload` が別の欄で持つので残る）。
 ///
@@ -215,7 +215,7 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 /// **後ろの指し手が消えたまま `Ok`** になる。対局者名が無ければ
 /// [`says_nothing`] も真になるが、**この文言は
 /// `ReadOutcome::NothingToIndex` の `warns` に載せて呼び手へ渡す**
-/// （`read_path_inner` がこの検査を門より前に置いているのはそのため）。
+/// （`read_path_inner` がこの検査を`says_nothing` の判定より前に置いているのはそのため）。
 ///
 /// **これが出たとき、画面で開けるかどうかは行の形で分かれる。**
 ///

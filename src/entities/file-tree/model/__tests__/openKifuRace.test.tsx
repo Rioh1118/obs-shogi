@@ -73,9 +73,9 @@ const TREE = {
 };
 
 /**
- * `FileNode.handleClick` を写す。**開き直しを省く関門も含めて写すこと。**
+ * `FileNode.handleClick` を写す。**開き直しを省く判定も含めて写すこと。**
  *
- * 現物は「もう開いている」と見た棋譜では `openKifuNode` を呼ばない。関門を落とすと、
+ * 現物は「もう開いている」と見た棋譜では `openKifuNode` を呼ばない。判定を落とすと、
  * 「読み込み中に元の棋譜へ戻る」経路（下の検査）がこの Probe では再現しなくなる。
  *
  * **写しているのはツリー側の条件だけ。** 現物の `canSkipReopen` は盤の
@@ -199,7 +199,7 @@ describe("続けて棋譜を開いたとき", () => {
   });
 
   it("先にクリックした棋譜のパース失敗も、後から返ったなら断りに出さない", async () => {
-    // 読み取りの失敗と別の枝（catch）を通る。関門が try の前にあることを固定する
+    // 読み取りの失敗と別の枝（catch）を通る。読み出しを捨てる判定が try の前にあることを固定する
     const resolveRead = deferReadKifu();
     parseKifu.mockImplementation((content: string) => {
       if (content === "a") throw new Error("壊れている");

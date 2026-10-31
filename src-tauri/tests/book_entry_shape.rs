@@ -21,7 +21,7 @@ use scanning::{blank_out_comments, matching};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// 利用者の入力を、素のまま持ち回してよい関門。
+/// 利用者の入力を、素のまま持ち回してよい関数。
 ///
 /// **どれも長さを抑える。** `validate_book_path` は形を検査してから返し、
 /// `truncate_path` はログ用に打ち切り、`join_error` は `with_path` を通し、

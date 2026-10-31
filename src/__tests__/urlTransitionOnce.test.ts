@@ -7,7 +7,7 @@ import { codeOf } from "./sourceText";
 /**
  * URL を動かす呼び出しが、同じ流れの中で2回並んでいないか。
  *
- * **2本目は1本目を見ていない。** `useURLParams` の口はどれも、その描画で捕まえた
+ * **2本目は1本目を見ていない。** `useURLParams` の関数はどれも、その描画で捕まえた
  * `searchParams` から組み直す（`navigate` は同じ tick では反映されない）。
  * 続けて呼ぶと、2本目が**1本目より前の状態**から組んで上書きする ——
  * `closeModal()` の直後に `updateParams({ dock })` を呼ぶと `modal=` が書き戻り、
@@ -18,7 +18,7 @@ import { codeOf } from "./sourceText";
  * **直し方は1回にまとめること。** 消したい欄は `undefined` を渡せば同じ呼び出しで落ちる。
  */
 
-/** URL を動かす口。**増えたらここへ足す**（`useURLParams` の戻り） */
+/** URL を動かす関数。**増えたらここへ足す**（`useURLParams` の戻り） */
 const MOVERS = ["updateParams", "openModal", "closeModal", "navigateToPosition"] as const;
 
 /** 走査が壊れて0件になったことを「違反が無い」と読ませないための下限 */
@@ -34,7 +34,7 @@ const SELF = "src/__tests__/urlTransitionOnce.test.ts";
  */
 const CALL = new RegExp(String.raw`^[ \t]*(?:await |void )?(${MOVERS.join("|")})\s*\(`, "gm");
 
-/** 口を定義している側。**呼び出しではない** */
+/** 関数を定義している側。**呼び出しではない** */
 const DEFINITION = "src/shared/lib/router/useURLParams.ts";
 
 /**

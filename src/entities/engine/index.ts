@@ -4,7 +4,7 @@ export { asStartFailure } from "./lib/engineFailure";
 export { ENGINE_START_FAILURE_NOTICES, engineFailureNoticeOf } from "./lib/engineNotices";
 export type { EngineFailureNotice } from "./lib/engineNotices";
 
-// **`valuesOf` は載せていない。** 利用者の値を送る形にするだけで、外から使う口が無い。
+// **`valuesOf` は載せていない。** 利用者の値を送る形にするだけで、外から使う呼び手が無い。
 // 評価関数・定跡をどの USI の名前で送るかは Rust が決める（`binding.rs`）
 
 export type {

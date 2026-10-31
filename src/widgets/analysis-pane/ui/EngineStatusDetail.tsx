@@ -14,7 +14,7 @@ type Props = {
 };
 
 /**
- * 操作列の語を押すと出る小さな面。**帯を閉じた後に理由へ戻る口はここだけ**で、普段は画面を使わない
+ * 操作列の語を押すと出る小さな面。**帯を閉じた後に理由へ戻る経路はここだけ**で、普段は画面を使わない
  * （`docs/spec/features/engine-standardization.md` の「エンジンの状態」）。
  */
 export function EngineStatusDetail({ notice, lastOutput, anchor, onOpenSettings, onClose }: Props) {

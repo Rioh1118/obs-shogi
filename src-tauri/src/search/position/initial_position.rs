@@ -38,7 +38,7 @@ pub type Jkf = JsonKifuFormat;
 /// 黙って受けるので、**歩30枚の JKF はそのまま索引に入る**。
 ///
 /// ここで失敗した棋譜の局面は検索に出てこない。**索引の項目自体はどちらの
-/// 呼び口でも登録される** — 全件構築（`build.rs`）も差分更新（`project_manager.rs`）も、
+/// 呼び出し箇所でも登録される** — 全件構築（`build.rs`）も差分更新（`project_manager.rs`）も、
 /// 局面を1つも持たない項目として積む。なぜ登録が要るかは
 /// `index/file_build.rs` の `FileBuild` を見ること。
 pub fn initial_partial_position(jkf: &Jkf) -> Result<PartialPosition, ConvertError> {

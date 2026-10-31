@@ -58,7 +58,7 @@ pub struct EngineProcess {
 }
 
 impl EngineProcess {
-    /// このプロセスへ送る口。**`Arc` を複製して返す**——`EngineProcess` を
+    /// このプロセスへ送る `UsiProtocol`。**`Arc` を複製して返す**——`EngineProcess` を
     /// 握ったままにすると台帳から外せなくなる。
     pub fn protocol(&self) -> Arc<UsiProtocol> {
         Arc::clone(&self.protocol)
@@ -139,7 +139,7 @@ impl EngineRegistry {
     /// 起こしたプロセスを落として `Cancelled` で返る。
     ///
     /// 起動中（`usiok` を待っている間）のプロセスは本台帳に居ないので、呼び手は ID で
-    /// 落とせない。取り消しの口をここに持たないと、止めたはずの起動が後から台帳に載る。
+    /// 落とせない。取り消しの引数をここに持たないと、止めたはずの起動が後から台帳に載る。
     ///
     /// **`usiok` を受け取った後に立った取り消しは見ない。** 返った `EngineProcess` は
     /// 本台帳に居るので、呼び手が ID で落とす。起こす段（専用スレッドの fork/exec）の
@@ -152,7 +152,7 @@ impl EngineRegistry {
         info_timeout: Duration,
         cancel: &CancellationToken,
     ) -> Result<Arc<EngineProcess>, EngineError> {
-        // **同期の口をまとめて専用スレッドへ出す。** `canonicalize` も
+        // **同期の呼び出しをまとめて専用スレッドへ出す。** `canonicalize` も
         // `is_file` も `child::spawn`（中の fork/exec）も同期の
         // システムコールで、`.await` を1つも挟まない。async のタスクの中で
         // 直に呼ぶと `poll` が返らず、同じスレッドに載っている他の対局の
@@ -440,7 +440,7 @@ impl EngineRegistry {
     ///
     /// **`starting`（`usiok` を待っている最中）は含めない。** `GameManager::ids` は
     /// 同じ「途中の集合を含めるか」を逆に決めているので、揃っていると読まないこと——
-    /// あちらは「閉じ忘れを拾う」ための口で、こちらは「いま握手が済んでいるプロセス」。
+    /// あちらは「閉じ忘れを拾う」ための関数で、こちらは「いま握手が済んでいるプロセス」。
     ///
     /// 起動の途中で終了フックが走ったときにどう拾うかは `starting` の doc。
     pub async fn ids(&self) -> Vec<EngineId> {
@@ -469,7 +469,7 @@ impl EngineRegistry {
     }
 }
 
-/// パスを渡して起こす口（`EngineRegistry::spawn` など）を通すテストの台本。
+/// パスを渡して起こす関数（`EngineRegistry::spawn` など）を通すテストの台本。
 ///
 /// 上の段のテストはここを通す（`child` を直に使うと、`tests/layering.rs` の辺を本番にも開く）
 #[cfg(all(test, unix))]
@@ -570,7 +570,7 @@ mod tests {
     /// 「IO error occurred when communicating with the engine」だけになる。
     ///
     /// 実行権限の無いファイルは、zip から展開したエンジンで最も起きる形。
-    /// `canonicalize` も `is_file` も通るので入口の関門は素通りし、
+    /// `canonicalize` も `is_file` も通るので入口の検査は素通りし、
     /// **何を直せばいいかが断り文句から導けない**まま
     /// 「エンジンのパスが違う」の一覧（F-27）に落ちる。
     #[cfg(unix)]
@@ -600,7 +600,7 @@ mod tests {
 
     /// 起動できて `usi` に答えない実行ファイルが、**時間切れを名乗らないこと。**
     ///
-    /// `/bin/cat` は入口の関門を全部通る（`canonicalize` も `is_file` も
+    /// `/bin/cat` は入口の検査を全部通る（`canonicalize` も `is_file` も
     /// `Command::spawn` も成功する）が、`usi` を送っても `usiok` は来ない。
     /// zip から取り違えた実行ファイル、ラッパースクリプトで起きる形。
     ///
@@ -643,7 +643,7 @@ mod tests {
 
     /// `engine_path` が**実在するファイル**であることを要求すること。
     ///
-    /// **`start_game` を root の関門から免除する理由がこの関門。**
+    /// **`start_game` を root 配下の検査から免除する理由がこの検査。**
     /// `root_guard.rs` の `EXEMPT` は「起こしてよいかは `EngineRegistry::spawn` の
     /// canonicalize + is_file が見る」と書いているので、ここが抜けると
     /// **免除の根拠ごと消える**——`engine_path` はフロントから来る任意の文字列で、

@@ -258,7 +258,7 @@ export function reducer(state: SearchState, action: Action): SearchState {
       // **無いセッションは作らない。** Rust は取り下げた検索でも終わりを emit するので
       // （`search/query_service.rs` は `break` した後で必ず `EVT_SEARCH_END` を出す）、
       // ここで作ると `clear_search` で捨てたセッションが**空のまま戻る**。
-      // 戻った側を消す口はもう無い——画面はその rid を忘れている
+      // 戻った側を消す経路はもう無い——画面はその rid を忘れている
       const s = state.sessions[p.requestId];
       if (!s) return state;
 

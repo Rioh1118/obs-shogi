@@ -10,7 +10,7 @@ import type { AnalysisCandidate } from "@/entities/engine";
  * 候補手の表示モード（`docs/state-transitions/dock-tabs.md` の D3）。
  *
  * 見るのは**設定の綴りから出る形が決まること**と、**どちらの見せ方でも最善手が
- * 別の箱に出ないこと**。選ばせる口は設定「表示」にあり、そちらは
+ * 別の箱に出ないこと**。選ばせる場所は設定「表示」にあり、そちらは
  * `features/settings/ui/tabs/__tests__/displayTab.test.tsx` が見る。
  *
  * 解析の実行状態を動かさないこと（不変条件1）は `analysisControlsLifetime.test.tsx` が見る。

@@ -7,7 +7,7 @@
 //! | [`snapshot`](super::snapshot) | 索引の値と、次の値を作る純関数 | 索引に何が入るか |
 //! | [`snapshot_cell`](super::snapshot_cell) | 差し替えの器。中身を知らない | 並行性の都合 |
 //!
-//! **`IndexStore` は器の `replace` を出さない。** 段を捨てる口は
+//! **`IndexStore` は器の `replace` を出さない。** 段を捨てる関数は
 //! [`IndexStore::restart`] だけで、そこは [`Restart`] の2つに絞ってある。
 //!
 //! **絞りきってはいない。** `IndexSnapshot` の欄は4つとも `pub` なので、
@@ -15,7 +15,7 @@
 //! **空なのに `Ready` を名乗る索引** —— が構造体リテラルから書ける
 //! （`query_service` の `stale` が偽になり、空の結果が新鮮として並ぶ）。
 //!
-//! **欄を非公開にするには、組む口と読む口の両方が要る。**
+//! **欄を非公開にするには、組む関数と読む関数の両方が要る。**
 //! 組む側は `benches/search_bench.rs` が構造体リテラルで書いており、
 //! 読む側は `query_service.rs` / `project_manager.rs` / `commands.rs` /
 //! `build.rs` / `cache/format.rs` が4欄を直に読んでいる。

@@ -135,9 +135,9 @@ pub struct IndexStatePayload {
 impl IndexStatePayload {
     /// 状態を出す。**旗はすべて伏せた形から始める。**
     ///
-    /// **組み立てる口をここ1つに閉じてある。** 呼び手が構造体リテラルを手で
+    /// **組み立てる関数をここ1つに閉じてある。** 呼び手が構造体リテラルを手で
     /// 書く形にすると、欄を足したときに全員が `false` を書き足すことになり、
-    /// **本当に渡す口がその中に埋もれる**。
+    /// **本当に渡す箇所がその中に埋もれる**。
     pub fn of(state: IndexState, total_files: u32) -> Self {
         Self {
             state,
@@ -274,7 +274,7 @@ pub struct Occurrence {
 /// いるファイルの上で同じ局面に着ける保証が無い。局面の同一性が要る側は、
 /// 辿り着いた player から作り直すこと。
 ///
-/// **これを画面の `CursorPath` に直す口は `cursorFromLite`
+/// **これを画面の `CursorPath` に直す関数は `cursorFromLite`
 /// （`entities/search/lib/cursorAdapter.ts`）だけ。** 並びと `te <= tesuu` の
 /// 前提をそこで揃えている。自分で組み直さないこと。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -355,7 +355,7 @@ pub struct SearchEndPayload {
 /// 検索が失敗した。`EVT_SEARCH_ERROR` に載る。
 ///
 /// **emit 専用。** `Deserialize` を持たないのは、`message` の欄の型が
-/// 刈る口を通った値しか受けないため（綴りから直に作れると門を回避できる）。
+/// 刈る関数を通った値しか受けないため（綴りから直に作れると `for_screen` を回避できる）。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchErrorPayload {
@@ -416,7 +416,7 @@ pub enum IndexWarnKind {
 ///
 /// **「索引に入らなかった」とは限らない。** 読めなかったファイル（局面が1件も
 /// 入らない）と、読めたが一部を採れなかった棋譜（**途中までは入っている**）が
-/// 同じ口に載る。どちらなのかは文言が言う。
+/// 同じイベントに載る。どちらなのかは文言が言う。
 ///
 /// **emit 専用**（`SearchErrorPayload` と同じ理由で `Deserialize` を持たない）。
 #[derive(Debug, Clone, Serialize)]
@@ -429,7 +429,7 @@ pub struct IndexWarnPayload {
     /// **1行に収まらなければ末尾が省略される**（`text-overflow: ellipsis`）。
     /// 全文はホバー（`title`）でしか読めないので、深いパスは途中までしか見えない。
     ///
-    /// **この欄は刈る口を通らない。** `message` と違って型が `String` なので、
+    /// **この欄は刈る関数を通らない。** `message` と違って型が `String` なので、
     /// ファイル名に制御文字が入っていればそのまま線に出る（#459）。
     /// 産地はファイルシステムで、`::place` / `::file` の呼び手が
     /// `to_string_lossy` した値をそのまま渡す。

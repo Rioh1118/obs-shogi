@@ -142,7 +142,7 @@ pub struct BookHandleInput {
 pub struct WalkBookLinesInput {
     /// 辿り始める定跡と局面。
     ///
-    /// **`handle` と `sfen` を自前で並べず、引く側と同じ型を持つ。** 正規化の関門
+    /// **`handle` と `sfen` を自前で並べず、引く側と同じ型を持つ。** 正規化の関数
     /// （`resolve_lookup`）がこの型しか受けないので、鍵を作らずに辿り始める書き方が
     /// 書きにくくなる。
     ///

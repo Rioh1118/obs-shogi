@@ -172,7 +172,7 @@ export function BookProvider({ children, currentSfen }: Props) {
 
   const openBook = useCallback(
     // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
-    // 名前を拾うため。外すと、この口を投げっぱなしで呼んだ画面が機械の目から消える
+    // 名前を拾うため。外すと、この関数を投げっぱなしで呼んだ画面が機械の目から消える
     async (path: string): AsyncResult<BookInfo, BookError> => {
       const seq = ++openSeqRef.current;
       setOpening(path);

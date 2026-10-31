@@ -7,7 +7,7 @@ import type { GameSessionView } from "@/entities/game-session";
 import { Err, Ok } from "@/shared/lib/result";
 
 /**
- * 対局中の盤の着手を通す門。
+ * 対局中の盤の着手を通す `MoveGate`。
  *
  * **守るのは1つ** —— 対局中は、Rust が採った手しか棋譜へ積まない。
  * 積んでしまうと、Rust の写しと食い違った指し手列で裁定を返すことになり、
@@ -15,8 +15,8 @@ import { Err, Ok } from "@/shared/lib/result";
  */
 
 /**
- * 対局への口。**`satisfies typeof import(...)` が落ちるので、
- * 実物に口が増えたらここも増やすことになる**（門が見るのは `view` と `submitMove` だけ）。
+ * `useGameSession` の戻り値。**`satisfies typeof import(...)` が落ちるので、
+ * 実物に欄が増えたらここも増やすことになる**（`useGameMoveGate` が見るのは `view` と `submitMove` だけ）。
  */
 const session = vi.hoisted(() => ({
   view: { kind: "idle", eventsUnavailable: null } as GameSessionView,
@@ -224,7 +224,7 @@ describe("対局中の着手", () => {
  * **終局した対局の盤は、普段の盤に戻る。**
  *
  * 結末が決まった時点でエンジンは落ちている（進行の側が落とす）ので、
- * 門が止めても守るものが無い。止めた版は、盤に断りの出し先が無い（#277）せいで
+ * `useGameMoveGate` が止めても守るものが無い。止めた版は、盤に断りの出し先が無い（#277）せいで
  * **押しても何も起きない盤**になった —— 利用者からは故障と見分けが付かない。
  */
 describe("終局した対局の盤", () => {

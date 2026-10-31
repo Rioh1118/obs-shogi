@@ -76,7 +76,7 @@ const TEST_ONLY_EDGES: &[(&str, &str, &str)] = &[
     (
         "binding",
         "option_line",
-        "申告の行を解いてテストの入力にする（`EngineOption` を組める口は `option_line` だけ）",
+        "申告の行を解いてテストの入力にする（`EngineOption` を組める関数は `option_line` だけ）",
     ),
     (
         "option_labels",
@@ -112,7 +112,7 @@ const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "option_line",
-        decides: "USI の `option` 行を定義に写す（定義を作る口はここ1つ）",
+        decides: "USI の `option` 行を定義に写す（定義を作るのはここだけ）",
         may_use: &["types"],
         forbids: &[],
     },
@@ -848,7 +848,7 @@ fn the_engine_option_scanner_tells_a_literal_from_a_type_or_a_pattern() {
 
 /// エンジンのオプションの定義（`EngineOption`）を組み立てるのは `engine/option_line.rs` だけ。
 ///
-/// 組み立てる口が2つあると、同じ `option` 行が経路によって違う定義になる
+/// 組み立てる経路が2つあると、同じ `option` 行が経路によって違う定義になる
 /// （`usi` crate の解析は `combo` の選択肢に `var` の語を混ぜ、既定値を1語目で切る）。
 #[test]
 fn only_the_option_line_parser_builds_engine_options() {
@@ -974,9 +974,9 @@ fn spawning_spellings(code: &str) -> Vec<&'static str> {
 
 /// 子プロセスを作れるのは `engine/child.rs` だけ。
 ///
-/// `child` は stdin・stdout・プロセスを別々の持ち主にし、書く口と読む口を1回きりにし、
+/// `child` は stdin・stdout・プロセスを別々の持ち主にし、書き手と読み手を1回きりにし、
 /// 捨てればプロセスグループごと落とす。外で子プロセスを作ると、その約束を通らない
-/// 2本目の書き手や、落とす口の無い子プロセスが作れる。**`forbids` はクレート単位なので
+/// 2本目の書き手や、落とす経路の無い子プロセスが作れる。**`forbids` はクレート単位なので
 /// `tokio` や `std` の一部だけは止められない。** 綴りで止める（`SPAWNING`）。
 ///
 /// テストも見る。子プロセスを起こすテストの台本は `child::script` が持つ。

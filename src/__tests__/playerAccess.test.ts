@@ -17,7 +17,7 @@ import { codeOf } from "./sourceText";
  */
 const GUARDED = /new JKFPlayer\(|\.goto\(|\.getTesuuPointer\(|\.getForkPointers\(/;
 
-/** 口を持つ側。ここは呼んでよい */
+/** `JKFPlayer` に触る関数を持つ側。ここは呼んでよい */
 const OWNER = "src/entities/kifu/lib/";
 
 /** 既知の違反。増やさないための基準線であって、正しさの宣言ではない */
@@ -38,7 +38,7 @@ describe("JKFPlayer に触る場所", () => {
     .sort();
 
   // 0件を見て緑になる形を止める（正規表現が実装に追随できなくなったら落ちる）
-  test("口を持つ側では実際に呼んでいる", () => {
+  test("持ち主の側では実際に呼んでいる", () => {
     const owners = tsFiles(SRC, { includeTests: false })
       .filter((path) => relative(REPO_ROOT, path).startsWith(OWNER))
       .filter((path) => GUARDED.test(codeOf(readFileSync(path, "utf8"))));

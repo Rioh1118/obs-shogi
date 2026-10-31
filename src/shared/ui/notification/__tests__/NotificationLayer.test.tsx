@@ -33,7 +33,7 @@ function setup() {
   return { notify: (request: NotifyRequest) => act(() => notify(request)) };
 }
 
-/** 見せ方を変える口は別に持つ。spread で差し替えると union の枝が決まらない */
+/** 見せ方を変える関数は別に持つ。spread で差し替えると union の枝が決まらない */
 const request = (
   over: { tier?: VisibleTier; title?: string; actions?: NotifyAction[]; dedupeKey?: string } = {},
 ): NotifyRequest => ({

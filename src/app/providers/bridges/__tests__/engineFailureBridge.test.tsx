@@ -267,7 +267,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
    * 古いほうを掴むと、押した時点の URL ではなく帯を出した時点の URL に対して
    * `navigate` することになる。
    */
-  test("押したときに走るのは、いまの画面の口", async () => {
+  test("押したときに走るのは、いまの画面の処理", async () => {
     const move = await mountWith("error", failure("unknown"));
     const stale = openModal;
 
@@ -309,7 +309,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   /**
    * **行き止まりの帯を作らない。** 「もう一度起動」を出さない種類は、設定を直すしか道が無く、
    * 直せば自動で起動し直す種類でなければならない（本文がそれを言う）。原因が設定の外にも
-   * ありうる種類で出さないと、ファイルや権限を直し終えた利用者に押す口が残らない
+   * ありうる種類で出さないと、ファイルや権限を直し終えた利用者に押すボタンが残らない
    */
   test("「もう一度起動」を出さない種類は、設定を直せば自動で起動し直すと言う", () => {
     const withoutRetry = Object.entries(ENGINE_START_FAILURE_NOTICES).filter(
@@ -361,9 +361,9 @@ describe("起動に時間が掛かっていることを届ける", () => {
 
   /**
    * **`readyok` の待ちに上限は無い。** 帯が無いと、答えないエンジンを選んだ回に起動中のまま
-   * 何も出ず、止める口もどこにも無い
+   * 何も出ず、止めるボタンもどこにも無い
    */
-  test("起動中が長引いたら、止める口を持つ帯を出す", async () => {
+  test("起動中が長引いたら、止めるボタンを持つ帯を出す", async () => {
     engine.slowStart = true;
     await mountWith("initializing");
     engine.slowStart = false;
@@ -389,7 +389,7 @@ describe("起動に時間が掛かっていることを届ける", () => {
 });
 
 describe("エンジンが終了したことを届ける橋", () => {
-  test("文と再起動の口を出し、段を抜けたら引っ込める", async () => {
+  test("文と再起動のボタンを出し、段を抜けたら引っ込める", async () => {
     const next = await mountWith("exited");
 
     expect(shown().title).toBe("エンジンが終了しました");
@@ -412,7 +412,7 @@ describe("エンジンが応答しないことを届ける橋", () => {
   test.each([
     ["noAnswer", "エンジンが中断の指示に応答しません"],
     ["unwritable", "エンジンに指示を送信できません"],
-  ] as const)("%s の文と再起動の口を出し、段を抜けたら引っ込める", async (reason, title) => {
+  ] as const)("%s の文と再起動のボタンを出し、段を抜けたら引っ込める", async (reason, title) => {
     const next = await mountWith("unresponsive", null, reason);
 
     expect(shown().title).toBe(title);

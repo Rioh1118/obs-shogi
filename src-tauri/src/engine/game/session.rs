@@ -62,7 +62,7 @@ const TICK: Duration = Duration::from_millis(100);
 /// 段ごとの上限（`SPAWN_TIMEOUT` / `USI_OK_TIMEOUT` / `READY_TIMEOUT`）を
 /// 素直に足すとここを大きく超える（関係は `the_steps_alone_would_overrun_the_start_budget`）。
 /// その間 `start_game` は返らず、
-/// **フロントには進捗も残り時間も無く、取り消す口も無い**。
+/// **フロントには進捗も残り時間も無く、取り消す経路も無い**。
 /// `EvalDir` を1文字間違えて `readyok` を返さなくなったエンジン——F-27 が
 /// 「最も起きやすい」と書いている形——がそこに落ちる。
 ///
@@ -254,7 +254,7 @@ fn stalled_turn(
 /// 先後。
 ///
 /// **数を式に直書きしない。** 「`gameover` を最大2回通す」のような
-/// 見積もりを散文だけに置くと、番人の上限を式で書くときに数え直す口が無い。
+/// 見積もりを散文だけに置くと、番人の上限を式で書くときに数え直せない。
 const SIDES: [Side; 2] = [Side::Black, Side::White];
 
 /// 手番が進まない理由。**エンジンの状態が違うので潰さない。**
@@ -331,7 +331,7 @@ pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(8);
 
 /// 畳まれたかを聞き直す間隔。
 ///
-/// **聞きに行くのは、畳まれたことを知らせる口が無いため。** `Activity` が
+/// **聞きに行くのは、畳まれたことを知らせる経路が無いため。** `Activity` が
 /// `Idle` に戻るのは `run_loop` の中で、そこから外へ通知する経路を持っていない。
 ///
 /// 50ms は `TICK`（100ms）より細かく、`close_game` の応答に足す遅れが
@@ -341,7 +341,7 @@ pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(8);
 /// 予算を動かしたときに、離れたところが嘘になる）。
 const CLOSE_POLL: Duration = Duration::from_millis(50);
 
-// ===== 外から呼ぶ口 =====
+// ===== 外から呼ぶ関数 =====
 
 /// 起動中の対局1つ。
 pub struct GameSession {
@@ -371,7 +371,7 @@ impl GameSession {
     /// ここで ID を先に返す形にすると、台帳へ載る前の対局に操作が届く。
     ///
     /// **待たせる長さは `START_TIMEOUT` で決まる。** 2体ぶんの段ごとの上限を
-    /// 足した値ではない。取り消す口は無いので、ここが唯一の歯止め。
+    /// 足した値ではない。取り消す経路は無いので、ここが唯一の歯止め。
     /// 段に入る前に残りを見る作りなので、跨いだ段のぶんは少し超える。
     pub async fn start(
         registry: &EngineRegistry,
@@ -425,7 +425,7 @@ impl GameSession {
     /// 人間の着手。エンジンの手は `bestmove` から入るのでここは通らない。
     ///
     /// 受け付けた後は `MoveDecided` が出て `AwaitingRuling` で止まる。
-    /// **エンジンの手と同じ関門を通す。** 分けると、詰みの判定が
+    /// **エンジンの手と同じ裁定を通す。** 分けると、詰みの判定が
     /// 「人が指したとき」と「エンジンが指したとき」で別経路になる。
     pub async fn submit_move(&self, side: Side, usi_move: String) -> Result<(), String> {
         self.request(|reply| Command::SubmitMove {
@@ -794,7 +794,7 @@ struct Runner {
     /// 条件が満たされている間ずっと出続ける。
     clock_warn: Mutex<LogThrottle>,
 
-    /// 探索タスクへ渡す、自分あての口。
+    /// 探索タスクへ渡す、自分あてのチャンネルの送信側。
     ///
     /// **weak であることが要る。** strong を持つと `run_loop` が所有する
     /// `Runner` が自分のチャンネルを生かし続け、`rx.recv()` が永久に
@@ -1854,7 +1854,7 @@ async fn spawn_players(
 /// `readyok` は評価関数の重いエンジンで合法に数十秒を使う。その後ろに立つ
 /// 2体目の取り分は 0 と `USI_OK_TIMEOUT` の間の任意の値になる。
 ///
-/// **`for_usiok.is_zero()` の関門だけでは足りない。** 0 は断るが、1ミリ秒は通る。
+/// **`for_usiok.is_zero()` の判定だけでは足りない。** 0 は断るが、1ミリ秒は通る。
 /// 分けないと、締切の食い潰しが「設定の誤り」として届き、受け手は正常なエンジンの
 /// パスを疑う——押し直せば通ったはずの起動をそこで捨てる（F-27）。
 fn usiok_refusal(error: EngineError, for_usiok: Duration) -> String {
@@ -2147,7 +2147,7 @@ const MAX_USI_MOVE_BYTES: usize = 8;
 
 /// 終局済みの対局への操作を断る文言。
 ///
-/// **5つの口（着手・裁定「続く」・裁定「終局」・投了・中断）で同じにする。**
+/// **5つの操作（着手・裁定「続く」・裁定「終局」・投了・中断）で同じにする。**
 /// 綴りが割れると、呼び出し側は操作ごとに別の分類を書くことになる。
 const ALREADY_OVER: &str = "game is already over";
 
@@ -2465,7 +2465,7 @@ mod tests {
     /// 締切で削った取り分で `usiok` を待ち損ねたとき、**エンジンのせいにしないこと。**
     ///
     /// `a_thin_budget_never_starts_an_engine_it_cannot_wait_for` が守るのは
-    /// **厳密に 0 のときだけ**。1ミリ秒は関門を通り、そこで答えが来なければ
+    /// **厳密に 0 のときだけ**。1ミリ秒は `is_zero()` の判定を通り、そこで答えが来なければ
     /// `get_engine_info` は「そのファイルは USI エンジンではない」と断る。
     ///
     /// **その断り方は満額を渡したときにしか正しくない。** 締切の食い潰しが
@@ -2609,7 +2609,7 @@ mod tests {
     /// 対局の起動が、締切を過ぎたら**プロセスを起こす前に**断ること。
     ///
     /// 段ごとの上限しか無いと、それを足したぶんのあいだ `start_game` が返らない。
-    /// フロントには進捗も残り時間も無く、取り消す口も無い。
+    /// フロントには進捗も残り時間も無く、取り消す経路も無い。
     ///
     /// **`timeout` で包まないので、後始末が普通に走る。** 包むと、上限に当たった
     /// ときに中の future ごと落ちて、台帳に載ったプロセスの ID を誰も知らないまま消える。
@@ -3922,10 +3922,10 @@ mod tests {
         );
     }
 
-    /// **どの終わり方から入っても**説明が切られ、**3つの吸い口すべて**に
+    /// **どの終わり方から入っても**説明が切られ、**3つの出力先すべて**に
     /// 切った後の値が届くこと。
     ///
-    /// 上のテストは裁定の口だけを、しかも `snapshot`（＝`phase`）だけを見る。
+    /// 上のテストは裁定の入口だけを、しかも `snapshot`（＝`phase`）だけを見る。
     /// 切る場所を入口ごとに置くと**通し忘れた入口ができる**——エンジンの故障
     /// （`SearchOutcome::Failed`）は `EngineError` の文言を運ぶので、通し忘れれば
     /// ログ・`Over` イベント・`snapshot` の3つへそのまま流れる。
@@ -4398,13 +4398,13 @@ mod tests {
 
     /// 裁定を通した直後は時計が動いていないこと（表の「時計」節の 3、および ※2）。
     ///
-    /// **`turn_clock = Settling` を書く本番の唯一の口が `accept_continue`。**
+    /// **`turn_clock = Settling` を書く本番の唯一の関数が `accept_continue`。**
     /// 消えると `turn_clock` は前の手番の `Running(t0)` のまま残り、
     /// `running_clock()` は**前の手番の開始からの経過**を新しい手番側の消費として返す。
     /// 先読みが外れた局面で手番を受け取ったエンジンが、1ノードも読まないうちに
     /// 相手の長考ぶんを丸ごと請求される。
     ///
-    /// 既存の2本はどちらも手で `Settling` を代入しているので、この口は踏んでいない。
+    /// 既存の2本はどちらも手で `Settling` を代入しているので、この関数は踏んでいない。
     #[tokio::test]
     async fn taking_a_ruling_stops_the_clock_until_the_search_starts() {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -4547,7 +4547,7 @@ mod tests {
 
     #[test]
     fn settings_accept_every_pair_of_time_limits_we_want_to_support() {
-        // 弾く方向の門番なので、通したいものを先に並べる（/implement 手順5）
+        // 弾く方向の検査なので、通したいものを先に並べる（/implement 手順5）
         let allowed: [(&str, TimeLimit, TimeLimit); 5] = [
             ("先後とも切れ負け", minutes(10), minutes(10)),
             ("先後で持ち時間が違う（ハンデ）", minutes(10), minutes(5)),

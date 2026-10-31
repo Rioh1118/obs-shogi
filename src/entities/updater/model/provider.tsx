@@ -36,7 +36,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
   /**
    * いま告知している版の実体。**状態に入れない。**
    *
-   * 取得を始める関門（`inFlightRef`）を状態で作れないのと同じ理由で、
+   * 取得を始める判定（`inFlightRef`）を状態で作れないのと同じ理由で、
    * ここも描画をまたいで1つに定まっていなければならない。
    */
   const updateRef = useRef<Update | null>(null);
@@ -45,12 +45,12 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
    * 取得が走っているか。**`status` で判定しない。**
    *
    * 押した時点の `status` は最初のチャンクが届くまで `available` のまま動かない。
-   * そこを関門にすると、同じ描画のクロージャを2回踏んだだけで取得と入替が
+   * そこを判定にすると、同じ描画のクロージャを2回踏んだだけで取得と入替が
    * 2本走る（配布先への往復1回ぶんの窓が常に開いている）。
    */
   const inFlightRef = useRef(false);
 
-  /** 確認が走っているか。`isChecking` は描画用で、関門はこちらが持つ */
+  /** 確認が走っているか。`isChecking` は描画用で、判定はこちらが持つ */
   const checkingRef = useRef(false);
 
   /** 起動時の確認を一度だけにする */
@@ -196,7 +196,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     inFlightRef.current = true;
 
     // **`await` より前に段を進める。** 最初のチャンクを待ってから進めると、
-    // その間ボタンが描かれたまま残る。関門は `inFlightRef` が持っているので
+    // その間ボタンが描かれたまま残る。判定は `inFlightRef` が持っているので
     // 2本目は走らないが、押しても何も起きないボタンを見せることになる
     setStatus({ phase: "downloading", progress: 0 });
 

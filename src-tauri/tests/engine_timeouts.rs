@@ -83,7 +83,7 @@ fn the_sweep_can_finish_at_least_one_kill() {
 /// 段ごとの上限（`SPAWN_TIMEOUT` + `USI_OK_TIMEOUT` + `READY_TIMEOUT`）を素直に
 /// 足すと全体の締切を大きく超える（関係は `the_steps_alone_would_overrun_the_start_budget`）。
 /// その間 `start_game` は返らず、
-/// フロントには進捗も残り時間も無く、取り消す口も無い。
+/// フロントには進捗も残り時間も無く、取り消す経路も無い。
 ///
 /// **`READY_TIMEOUT` 単体より短いことを見る。** ここがいちばん長い段で、
 /// 逆転していると全体の締切が意味を持たない。

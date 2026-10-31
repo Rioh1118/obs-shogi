@@ -16,8 +16,8 @@ use ::fs::path::{canonicalize_for_compare, is_under};
 ///
 /// 写すと、あちらの変更がこちらに当たらない。`serde` は欠けたフィールドを黙って
 /// `None` にし、`exists()` は見つからないファイルに偽を返すので、どちらの場合も
-/// 「root_dir は未設定」に落ちる。関門は未設定のとき無条件で開くので、
-/// **全パスで開いたままコンパイルも `cargo test` も通る**。
+/// 「root_dir は未設定」に落ちる。この検査は未設定のとき無条件で通すので、
+/// **全パスを通したままコンパイルも `cargo test` も通る**。
 /// 借りていれば、あちらの変更は型検査か定数の不在に当たる
 fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsError> {
     let cfg_path = app
@@ -53,11 +53,11 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
 /// 返る code から読める。ここは webview を信用しない前提の防壁ではないので、
 /// それは範囲外とする（下記）。
 ///
-/// **`root_dir` が未設定なら、この関門は無条件で開く。**
+/// **`root_dir` が未設定なら、この検査は無条件で通す。**
 /// ワークスペースを選ぶ前に起きるので UI からは踏めないが、
 /// webview 側から `invoke` を直に呼べばどのパスでも通る。
 /// `save_config` も `root_dir` を無検証で受けるので、2回の `invoke` で
-/// この関門は開けられる。ここが止めているのは UI 側の取り違えと壊れたパスであって、
+/// この検査は無効にできる。ここが止めているのは UI 側の取り違えと壊れたパスであって、
 /// webview を信用しない前提の防壁ではない → issue #215
 pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<(), FsError> {
     let Some(root) = load_root_dir(app)? else {

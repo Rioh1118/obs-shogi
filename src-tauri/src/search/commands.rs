@@ -167,7 +167,7 @@ pub async fn open_project(
                     log::warn!("[open_project] 索引が別の代に差し替わったので Ready にしない");
                     return;
                 }
-                // **状態を出す口は1つ。** 旗を知っているのは結末だけなので、
+                // **状態を出す関数は1つ。** 旗を知っているのは結末だけなので、
                 // 自分で組むと知らない側が伏せた旗で塗り潰す
                 announce_state(
                     &app2,
@@ -201,7 +201,7 @@ pub async fn open_project(
         {
             Ok(v) => v,
             Err(e) => {
-                // 逃がした先が落ちた場合も、走査できなかったこととして同じ口から出す
+                // 逃がした先が落ちた場合も、走査できなかったこととして同じ経路から出す
                 log::warn!("[open_project] 走査を起こせなかった: {e}");
                 Err(ScanError::Io(std::io::Error::other("join failed")))
             }

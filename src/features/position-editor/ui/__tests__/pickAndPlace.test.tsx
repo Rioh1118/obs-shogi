@@ -14,7 +14,7 @@ import { EditorHarness, renderSeeded } from "./harness";
  * この合計は動かない。
  */
 
-// 組む面はファイルを作る口（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),
@@ -78,7 +78,7 @@ describe("盤の駒を掴んで置く", () => {
   });
 
   test("掴んだ駒は盤から消えない", () => {
-    // 消すと、どこから持ったのかを見失う。戻す口が無いので致命的
+    // 消すと、どこから持ったのかを見失う。戻す操作が無いので致命的
     render(<EditorHarness />);
     fireEvent.click(square(7, 7));
     expect(hasPiece(7, 7)).toBe(true);

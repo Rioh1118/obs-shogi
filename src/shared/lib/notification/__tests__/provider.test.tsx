@@ -48,7 +48,7 @@ const toast = (
   ...over,
 });
 
-/** 自動で消えるトースト。**型として動作を持てない**ので、別の口にしてある */
+/** 自動で消えるトースト。**型として動作を持てない**ので、別の関数にしてある */
 const timedToast = (over: { title?: string; dedupeKey?: string } = {}): NotifyRequest => ({
   tier: "info",
   presentation: "toast",
@@ -64,7 +64,7 @@ describe("通知の provider", () => {
     vi.useRealTimers();
   });
 
-  // **囲い忘れが黙って no-op にならない**ことだけを見る。両方の口で確かめるのは、
+  // **囲い忘れが黙って no-op にならない**ことだけを見る。両方のフックで確かめるのは、
   // 片方だけ throw する形にすると、出す側が囲われていないことに気づけないため
   it.each([
     ["useNotifications", () => render(<Probe onReady={() => {}} />)],

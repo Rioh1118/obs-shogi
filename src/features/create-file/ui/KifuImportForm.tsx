@@ -41,8 +41,8 @@ function KifuImportForm({
   /**
    * 利用者が「キャンセル」を押した
    *
-   * **器の閉じる門を通す。** 直に閉じると、隣のタブで組みかけの局面を持っていても
-   * 確認を1つも通らずに消える（閉じる口は Esc・覆い・両方の面の取り消しで4つある）。
+   * **器の `requestClose` を通す。** 直に閉じると、隣のタブで組みかけの局面を持っていても
+   * 確認を1つも通らずに消える（閉じる経路は Esc・覆い・両方の面の取り消しで4つある）。
    */
   onCancel: () => void;
   /** 器が別のタブを出しているあいだ。**外さずに隠す**ので、貼りかけの棋譜は残る */
@@ -52,7 +52,7 @@ function KifuImportForm({
   /**
    * 取り込み中かどうかを器へ知らせる
    *
-   * 器はこのあいだタブを沈め、閉じる口も止める。知らせないと、送信の途中で
+   * 器はこのあいだタブを沈め、閉じる経路も止める。知らせないと、送信の途中で
    * この面が外れて**失敗を出す場所ごと消える**。
    */
   onSubmittingChange?: (submitting: boolean) => void;
@@ -121,7 +121,7 @@ function KifuImportForm({
 
   // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
   // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
-  // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす口が他に無い
+  // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす経路が他に無い
   const rawRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (hidden) return;
@@ -136,7 +136,7 @@ function KifuImportForm({
 
   // 開発者向けの手掛かりはコンソールへ。**配布ビルドには残らない** ——
   // 棋譜のパースは webview の中だけで走り、`tauri-plugin-log` は Rust のログしか受けない。
-  // 開発中に追うためのもので、利用者から原因を受け取る口ではない（→ #157）
+  // 開発中に追うためのもので、利用者から原因を受け取る経路ではない（→ #157）
   useEffect(() => {
     if (read && !read.readable && read.cause) {
       console.error("[create-file] 貼られた棋譜を読めなかった", read.cause);
@@ -269,7 +269,7 @@ function KifuImportForm({
           >
             {isSaving ? "作成中…" : "作成"}
           </Button>
-          {/* 盤の面と同じ語。**同じ門を通る同じ操作**なので、
+          {/* 盤の面と同じ語。**同じ `requestClose` を通る同じ操作**なので、
               面ごとに別の語を当てると、戻り先が違うように読める */}
           <Button type="button" size="lg" onClick={onCancel} disabled={isSaving}>
             キャンセル

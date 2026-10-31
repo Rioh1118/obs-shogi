@@ -10,7 +10,7 @@ import { EditorHarness } from "./harness";
  * **確定ボタンは無い。行を押した瞬間に載って盤の面へ戻る。**
  */
 
-// 組む面はファイルを作る口（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),
@@ -171,8 +171,8 @@ describe("選ぶ", () => {
 
   test("面に入った時点で ↑↓ が効く", () => {
     // 焦点を移さないと、押した「課題局面から」が消えたあと `Modal` が焦点を
-    // タブへ引き戻し、一覧の受け口が合成イベントの経路から外れる。
-    // **焦点のある場所から撃つ** —— 受け口へ直に撃つと、この形は見えない
+    // タブへ引き戻し、一覧のハンドラが合成イベントの経路から外れる。
+    // **焦点のある場所から撃つ** —— ハンドラへ直に撃つと、この形は見えない
     openPicker([position(), position({ id: "sp2", label: "四間飛車" })]);
     fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
     expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
@@ -198,7 +198,7 @@ describe("選ぶ", () => {
   });
 
   test("↑↓ で選んで Enter で載る", () => {
-    // **鍵盤で始めたら鍵盤で終われること。** 下見だけできて決める口が無いと、
+    // **鍵盤で始めたら鍵盤で終われること。** 下見だけできて決める操作が無いと、
     // 鍵盤だけの利用者は種を1つも選べない
     openPicker([position({ sfen: HIRATE }), position({ id: "sp2", sfen: TSUME })]);
     const face = document.activeElement!;

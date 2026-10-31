@@ -10,9 +10,9 @@ import type { MoveGate } from "@/entities/game";
 /**
  * 盤の保存先を渡す器。
  *
- * **対局中の着手を通す門は受け取るだけ。** ここで組むと、この gate が
+ * **対局中の着手を通す `MoveGate` は受け取るだけ。** ここで組むと、この gate が
  * `GameSessionProvider` の内側にしか置けなくなり、**盤だけを試す場所から
- * 対局ごと持ち込むことになる**（門を渡さなければ盤は素通しで指せる）。
+ * 対局ごと持ち込むことになる**（`moveGate` を渡さなければ盤は素通しで指せる）。
  */
 export function GamePersistenceGate({
   children,

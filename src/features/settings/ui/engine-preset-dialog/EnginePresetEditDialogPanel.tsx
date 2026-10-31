@@ -74,10 +74,10 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const rescan = useCallback(() => setScanNonce((n) => n + 1), []);
 
   /**
-   * いま指しているルート。**`await` を跨いだ後の書き込みを関門するために要る。**
+   * いま指しているルート。**`await` を跨いだ後の書き込みを通すかの判定に要る。**
    *
    * 書くのはルートが変わる場所＝この effect（`aiRoot` は設定からしか変わらない）。
-   * 読むのは `await` の後だけ——それが関門の定義。
+   * 読むのは `await` の後だけ——それが判定の定義。
    * 同じ役の ref を `AiLibraryTab` が `currentRootRef` として持っている
    */
   const currentRootRef = useRef(aiRoot);
@@ -144,7 +144,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const probing = dialog.probe !== null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  /** 各節が下書きを直す口（値以外の欄）。reducer の `edited` に渡す */
+  /** 各節が下書きを直す関数（値以外の欄）。reducer の `edited` に渡す */
   const setDraft = useCallback(
     (update: SetStateAction<EnginePreset | null>) => dispatch({ type: "edited", update }),
     [],

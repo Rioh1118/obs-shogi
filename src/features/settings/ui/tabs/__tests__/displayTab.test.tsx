@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 
 /**
- * 設定「表示」タブ。**候補手の見せ方を選ばせる唯一の口。**
+ * 設定「表示」タブ。**候補手の見せ方を選ばせる唯一の場所。**
  *
  * ドックの操作列には置かない —— 局面ごとに変える値ではなく好みなので
  * （ADR-0010 決定4 の改訂）。見せ方が実際に効くことは

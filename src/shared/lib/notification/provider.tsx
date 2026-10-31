@@ -41,7 +41,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useAutoDismiss(state.notifications, dismiss);
 
   // **依存が空。** 3つとも `useCallback` で不変なので、この値は mount 後に
-  // 一度も変わらない。出す口だけを購読する部品は通知が出入りしても再描画しない
+  // 一度も変わらない。出す関数だけを購読する部品は通知が出入りしても再描画しない
   const actions = useMemo<NotificationActions>(
     () => ({ notify, dismiss, dismissByKey }),
     [notify, dismiss, dismissByKey],

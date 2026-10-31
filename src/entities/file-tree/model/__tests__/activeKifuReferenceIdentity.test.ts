@@ -13,7 +13,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
  * 片方は盤の棋譜が別のファイルへ書かれる。**
  *
  * - 参照が変わる → 改名で盤が載せ直され、開いた時点まで巻き戻る
- * - 別のファイルを指しながら参照が残る → 保存先の門番が通り、前の棋譜が新しいパスへ入る
+ * - 別のファイルを指しながら参照が残る → `persistIfPossible` を通り、前の棋譜が新しいパスへ入る
  *
  * 橋のテスト（`gameFileTreeBridgeRename.test.tsx`）は `@/entities/file-tree` を
  * まるごとモックして「参照を持ち越す」を手で真似ているので、**実物がこの性質を

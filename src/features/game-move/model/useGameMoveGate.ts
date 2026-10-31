@@ -3,7 +3,7 @@ import { colorToSide, isPrefixOf, toUsiMove, type MoveGate } from "@/entities/ga
 import { useGameSession } from "@/entities/game-session";
 
 /**
- * 対局中の盤の着手を受ける門。
+ * 対局中の盤の着手を受ける `MoveGate` を返す。
  *
  * **対局中は、Rust が採るまで棋譜へ積まない。** 盤はそのままだと手番の所有者を
  * 見ずに積んで自動保存まで走るので、相手の手番で指せてしまうと
@@ -21,7 +21,7 @@ import { useGameSession } from "@/entities/game-session";
  * 止めても守るものが無い。止めた版は、盤に断りの出し先が無い（#277）せいで
  * **押しても何も起きない盤**になった。
  *
- * どの層がこの門を持つかは `docs/spec/features/game-play.md` が決めている
+ * どの層がこの判定を持つかは `docs/spec/features/game-play.md` が決めている
  * ——`entities/game`（盤）と `entities/game-session`（対局）の2つを束ねるので、
  * 置ける最下層がここ。
  */

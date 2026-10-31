@@ -30,7 +30,7 @@ pub enum KifuReadError {
 /// 読めた記録と、読めたけれど伝えたいこと。
 ///
 /// **`warns` は失敗ではない。** 呼び手は `build_index_for_jkf` の `warns` と
-/// 同じ口（`EVT_INDEX_WARN`）へ流すこと。
+/// 同じイベント（`EVT_INDEX_WARN`）へ流すこと。
 ///
 /// # 「入れる局面が無い」を `Err` に置かない
 ///
@@ -72,7 +72,7 @@ pub enum ReadOutcome {
         /// 失われたものは何も無い——これを失敗に数えると、棋譜を1つ作るたびに
         /// ワークスペースが黄色くなる。
         ///
-        /// **`warns` の有無で代えられない。** 警告を出す口があるのは CSA だけ
+        /// **`warns` の有無で代えられない。** 警告を出す検査があるのは CSA だけ
         /// （`warn_if_moves_were_dropped`）なので、KIF / KI2 / JKF は
         /// **中身が無くても警告が空**になる。そちらは「正しい姿」ではない。
         looks_intentional: bool,

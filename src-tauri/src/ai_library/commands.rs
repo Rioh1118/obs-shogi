@@ -1,6 +1,6 @@
 //! AI の置き場を読む・作るコマンドの入口。
 //!
-//! **root の関門は掛からない。** `ai_root` はワークスペースの外にあるので、
+//! **root 配下の検査は掛からない。** `ai_root` はワークスペースの外にあるので、
 //! ここで作るものの名前は `fs::path::validate_basename` で自分で弾く。
 
 use std::path::PathBuf;
@@ -30,11 +30,11 @@ pub async fn scan_ai_root(ai_root: String) -> Result<AiRootIndex, String> {
     .map_err(|e| format!("failed to run the scan task: {e}"))?
 }
 
-/// AI プロファイル（`<ai_root>/<name>/{eval,book}`）を作る。
+/// AI フォルダ（`<ai_root>/<name>/{eval,book}`）を作る。
 ///
-/// **`create_directory` は使えない。** あちらはワークスペース配下かの関門を通るが、
+/// **`create_directory` は使えない。** あちらはワークスペース配下かの検査を通るが、
 /// `ai_root` は利用者が別に選ぶ場所で、ワークスペースの外にある。
-/// 関門つきのコマンドで作ろうとすると、ワークスペースを設定済みの利用者は
+/// 検査つきのコマンドで作ろうとすると、ワークスペースを設定済みの利用者は
 /// 必ず `invalid_path`（「その場所は扱えません」）で弾かれる
 #[command]
 pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, FsError> {
@@ -191,7 +191,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
-    /// `eval` だけを持つプロファイルは YaneuraOu の普通の形で、一覧にも出ている。
+    /// `eval` だけを持つ AI フォルダは YaneuraOu の普通の形で、一覧にも出ている。
     /// 「両方あるときだけ拒否」にすると、そこへ同じ名前で `book` を足して
     /// **既存の AI へ黙って合流する**
     #[test]

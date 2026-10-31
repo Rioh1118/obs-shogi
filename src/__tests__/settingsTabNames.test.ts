@@ -15,9 +15,9 @@ import { codeOf } from "./sourceText";
  * 解析の断りは復帰操作として**エンジン管理タブ**での操作を案内するので、歯車が
  * 別のタブを開くと案内が空振りする。
  *
- * **本番の口は `useOpenSettings` 1本に寄せてあり、そこは `TabKey` で受ける**ので、
+ * **本番の呼び出しは `useOpenSettings` 1本に寄せてあり、そこは `TabKey` で受ける**ので、
  * 通る限り tsc が止める。この検査が残っているのは2つのため——
- * (a) その口を迂回して `openModal("settings", { tab: "…" })` を直に書いた回、
+ * (a) `useOpenSettings` を迂回して `openModal("settings", { tab: "…" })` を直に書いた回、
  * (b) `docs/spec/**` が書くタブ名（doc は型を持たない）。
  *
  * **`URLParams["tab"]` を `TabKey` にする道は無い。** `tab` は設定専用の欄ではなく、
@@ -77,7 +77,7 @@ describe("設定モーダルのタブ名", () => {
 
   // **迂回が0件でも緑になる形を止める。** 本番の呼びが1本も無いと、この検査は
   // 候補0件で無条件に通る——「綴りで止めている」という doc の保証が消える。
-  test("設定を開く口が1つに寄っている", () => {
+  test("設定を開く関数が1つに寄っている", () => {
     const body = readFileSync(join(SRC, "features/settings/model/useOpenSettings.ts"), "utf8");
 
     expect(body).toContain('openModal("settings"');

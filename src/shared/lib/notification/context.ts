@@ -2,7 +2,7 @@ import { createContext } from "react";
 import type { Notification, NotificationActions } from "./types";
 
 /**
- * **出す口と、出ているものを別の context に置く。**
+ * **出す関数と、出ているものを別の context に置く。**
  *
  * 1つにすると、`notify` しか使わない部品まで通知が出入りするたびに再描画する。
  * 出す側はアプリ中に散る（ADR-0004 の割り当ては19件ある）のに、

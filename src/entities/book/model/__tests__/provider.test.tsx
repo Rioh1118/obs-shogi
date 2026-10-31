@@ -7,7 +7,7 @@ import type { BookContextType, BookViewState } from "../context";
 import { BookProvider } from "../provider";
 import { useBook } from "../useBook";
 
-/** 返すのを止めておける約束。**返る順を作る口** */
+/** 返すのを止めておける約束。**返る順を作る関数** */
 function deferred<T>() {
   let settle!: (value: T) => void;
   const promise = new Promise<T>((resolve) => {

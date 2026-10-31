@@ -45,7 +45,7 @@ vi.mock("@/entities/engine", () => ({
   }),
 }));
 
-/** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
+/** 最後に登録されたリスナ。Rust からの通知を差し込む関数。 */
 type Listeners = {
   onUpdate: (sessionId: string, result: AnalysisResult) => void;
   onComplete: (sessionId: string, result: AnalysisResult) => void;
@@ -342,7 +342,7 @@ describe("AnalysisProvider の停止", () => {
       expect(view.current.state.error).toBe(POSITION_SYNC_TIMEOUT_MESSAGE);
 
       // 止まっていた再開が動き出す。`clear_results` は `error` も消すので、
-      // 門より前に置くと、利用者に出したばかりの断りが黙って消える。
+      // `supersededSince` より前に置くと、利用者に出したばかりの断りが黙って消える。
       await act(async () => {
         pendingStops[0]();
       });
@@ -399,7 +399,7 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(50);
     listenerSetupFails = false;
 
-    // 張り直す口が無いので、断らないと「解析中・候補手0」で永久に固まる。
+    // 張り直す経路が無いので、断らないと「解析中・候補手0」で永久に固まる。
     expect(view.current.state.error).toBe(LISTENERS_FAILED_MESSAGE);
 
     // **▶ を押しても `go` を出さない。** 出すと `clear_results` が断りを消し、
@@ -660,7 +660,7 @@ describe("AnalysisProvider の結果の照合", () => {
       });
       await advance(50);
 
-      // **止めない。** 止めると `isAnalyzing` が倒れ、戻っても門で降りる
+      // **止めない。** 止めると `isAnalyzing` が倒れ、戻ってもその判定で降りる
       // ——盤を動かしても解析が返らない。
       expect(view.current.state.isAnalyzing).toBe(true);
       expect(view.current.state.error).toBeNull();
@@ -794,7 +794,7 @@ describe("AnalysisProvider の結果の照合", () => {
       });
       await advance(300);
 
-      // 読ませたい局面を門の後ろに書くと、盤は P1・エンジンは P2 のまま止まり、
+      // 読ませたい局面を判定の後ろに書くと、盤は P1・エンジンは P2 のまま止まり、
       // **P2 基準の読み筋と評価値が P1 の盤の下に出続ける**（表示は「解析中」、断りも無い）。
       expect(view.current.state.analyzedSfen).toBe("P1");
       expect(view.current.state.isAnalyzing).toBe(true);
@@ -824,7 +824,7 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(150);
 
     // もう1手進む。**エンジンはまだ追いついていない**ので、次の再開は同期待ちで止まり、
-    // 画面の候補手を捨てる口を通らない。
+    // 画面の候補手を捨てる `discardShown` を通らない。
     await view.setSync(adapter("P3", "P2"));
     await advance(150);
 
@@ -1018,7 +1018,7 @@ describe("AnalysisProvider の結果の照合", () => {
     startCore.mockResolvedValueOnce("s1");
 
     // 捨てる停止**だけ**を落とす。再開のための返却は通す——通さないと `isAnalyzing` が
-    // 倒れ、`commitLatest` の `analyzing` の門が先に止めてしまい、席の門を見られない。
+    // 倒れ、`commitLatest` の `analyzing` の判定が先に止めてしまい、席の判定を見られない。
     stopCore.mockImplementation((_sessionId, by) =>
       by === "late-restart" ? Promise.reject(new Error("ipc lost")) : Promise.resolve(),
     );
@@ -1049,7 +1049,7 @@ describe("AnalysisProvider の結果の照合", () => {
     });
     await advance(150);
 
-    // 書き戻しで席の門は開くが、反映待ちはその手前で落ちている。
+    // 書き戻しで席の判定は通るが、反映待ちはその手前で落ちている。
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
@@ -1434,7 +1434,8 @@ describe("AnalysisProvider の開始", () => {
     "再開の開始が飛んでいる間にもう1手進んでも、2本目を重ねない",
     async () => {
       // 上と同じ相互排除。**違うのは2手目を ▶ ではなく盤で進めること**
-      // ——猶予のタイマーは飛んでいる再開を1つも見ないので、門が無ければ2本目が並ぶ。
+      // ——猶予のタイマーは飛んでいる再開を1つも見ないので、
+      // `bookIfRestarting` が無ければ2本目が並ぶ。
       let taken = false;
       let releaseRestart: (sessionId: string) => void = () => {};
       let nth = 0;
@@ -1663,7 +1664,7 @@ describe("AnalysisProvider の開始", () => {
     stopCore.mockClear();
     stopCore.mockResolvedValue("stopped");
 
-    // 棋譜を閉じる。`isAnalyzing` で門を作ると、ここで席が置き去りになる。
+    // 棋譜を閉じる。`isAnalyzing` で判定すると、ここで席が置き去りになる。
     await view.setSync(adapter(null, null));
     await advance(50);
 
@@ -2001,7 +2002,7 @@ describe("AnalysisProvider のアンマウント", () => {
       await advance(150);
 
       // 指さない停止は Rust の席を**全部**空けるので、生きている画面へ撃つと
-      // 別の口が取った席まで巻き添えにする。
+      // 別の経路が取った席まで巻き添えにする。
       expect(stopCore.mock.calls).not.toContainEqual([undefined, "unmount"]);
     },
     SLOW,
@@ -2136,7 +2137,7 @@ describe("AnalysisProvider のアンマウント", () => {
     await advance(50);
 
     // 畳んだ時点ではまだ席を握っていない（開始の応答が返っていない）。
-    // 後始末は門で止まる。
+    // 後始末は席の判定で止まる。
     view.unmount();
     stopCore.mockClear();
 
@@ -2177,7 +2178,7 @@ describe("AnalysisProvider のアンマウント", () => {
     await advance(50);
 
     // 畳んだ時点で握っている席は無い——古い方は再開が先に返している。
-    // 後始末は門で止まるので、この席を返せるのはここだけ。
+    // 後始末は席の判定で止まるので、この席を返せるのはここだけ。
     expect(stopCore).toHaveBeenCalledWith("session-2", "late-restart");
   });
 

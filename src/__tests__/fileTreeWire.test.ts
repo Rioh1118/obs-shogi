@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { rustFile, SRC } from "./walk";
 
 /**
- * Rust の `FileTreeNode` の欄が、TS の受け口と写し先の両方に届いていることを見る。
+ * Rust の `FileTreeNode` の欄が、TS の `RustFileTreeNode`と写し先の両方に届いていることを見る。
  *
  * この境界には**どちらのコンパイラも立っていない**。Rust は serde で外へ出すだけ、
  * TS は `RustFileTreeNode` を手で書いた型として信じるだけなので、Rust に欄を足して
@@ -70,7 +70,7 @@ function wireFields(): string[] {
 }
 
 describe("FileTreeNode の受け渡し", () => {
-  it("Rust の欄が TS の受け口に全部ある", () => {
+  it("Rust の欄が TS の型に全部ある", () => {
     const wire = new Set(wireFields());
     const missing = rustFields().filter((field) => !wire.has(field));
 
@@ -84,7 +84,7 @@ describe("FileTreeNode の受け渡し", () => {
     ).toEqual([]);
   });
 
-  it("受け口の欄は adapter が写している", () => {
+  it("型の欄は adapter が写している", () => {
     const adapter = readFileSync(TS_ADAPTER, "utf8");
     const unread = wireFields().filter(
       (field) => !DROPPED[field] && !adapter.includes(`r.${field}`),
@@ -93,7 +93,7 @@ describe("FileTreeNode の受け渡し", () => {
     expect(
       unread,
       [
-        "受け口にあるのに adapter が読んでいない欄。IPC の境界で捨てている。",
+        "型にあるのに adapter が読んでいない欄。IPC の境界で捨てている。",
         "写すか、捨てる理由を fileTreeWire.test.ts の DROPPED に書くこと。",
         ...unread,
       ].join("\n"),

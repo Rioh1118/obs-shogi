@@ -69,7 +69,7 @@ fn count_tests(dir: &Path) -> usize {
 /// そこを丸ごと消しても本数が変わらず、緑で通る（`roots` の doc）。
 ///
 /// **`tests/` を外してはいけない。** `root_guard.rs` は、パスを受け取る Tauri
-/// コマンドが root 配下を確かめていることを見る関門で、消えて一番困るテストが
+/// コマンドが root 配下を確かめていることを見る検査で、消えて一番困るテストが
 /// そこにある。
 fn count_all_tests() -> usize {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));

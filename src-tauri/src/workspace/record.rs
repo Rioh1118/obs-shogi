@@ -146,7 +146,7 @@ mod tests {
 
     /// 拡張子が指す形式で書く。
     ///
-    /// `create_kifu_file` / `import_kifu_file` は webview から直に呼べる口で、
+    /// `create_kifu_file` / `import_kifu_file` は webview から直に呼べる Tauri コマンドで、
     /// ここが唯一の「どの形式で綴るか」の判断。**取り違えると `a.kif` に
     /// CSA が入る** — 索引は KIF として読んで失敗し、画面でも開けない。
     /// 型検査は落ちない（どの綴り手も `Result<String, ConvertError>` を返す）。

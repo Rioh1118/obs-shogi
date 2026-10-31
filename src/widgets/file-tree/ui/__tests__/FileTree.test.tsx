@@ -24,7 +24,7 @@ const clearError = vi.fn();
 
 // 再読み込みの結果。テストごとに差し替える
 let nextError: FsError | null = null;
-// 状態を動かしたあと画面を描き直すための口。`mount()` が差し込む
+// 状態を動かしたあと画面を描き直すための関数。`mount()` が差し込む
 let repaint: (() => void) | null = null;
 // 読み込みの完了タイミングを握る。読み込み中の画面を観測するために要る
 let release: (() => void) | null = null;

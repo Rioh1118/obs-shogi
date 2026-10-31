@@ -5,7 +5,7 @@ import { codeOf } from "./sourceText";
 import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 /**
- * **書き込むファイル名を組む口は1つ。**
+ * **書き込むファイル名を組む関数は1つ。**
  *
  * 棋譜を作る面は3つある（盤で組む・棋譜を貼る・課題局面から）。どれも
  * 「打った名前＋選んだ形式」でファイル名を作るが、**規則は写された瞬間に割れる。**
@@ -25,7 +25,7 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
 const HAND_BUILT = /`\$\{[^`]*\}\.\$\{[^`]*\}`/g;
 
 /**
- * 棋譜ファイルを作る口。**この2つを呼ぶファイルだけを見る。**
+ * 棋譜ファイルを作る関数。**この2つを呼ぶファイルだけを見る。**
  *
  * `${a}.${b}` の形そのものは無関係な場所にも出る（走査器が識別子を
  * `${owner}.${member}` で組んでいる）ので、形だけで禁じると誤検知になる。
@@ -38,7 +38,7 @@ const OWNER = "src/entities/kifu/model/kifu.ts";
 /** 走査器自身。探している字面をそのまま持っているので、自分を数えると必ず赤になる */
 const SELF = "src/__tests__/kifuFileNaming.test.ts";
 
-describe("書き込むファイル名を組む口", () => {
+describe("書き込むファイル名を組む関数", () => {
   it("`<名前>.<形式>` を組むのは kifuFileName だけ", () => {
     const files = tsFiles(SRC);
     // 「見つけた件数が0」と「見たセルが0」を分ける。走査の起点が壊れればここで落ちる
@@ -65,7 +65,7 @@ describe("書き込むファイル名を組む口", () => {
       if (hits.length > 0) handBuilt.push(`${name}（${hits.join(" / ")}）`);
     }
 
-    // 作る口を呼ぶファイルを1つも見ていないなら、この検査は何も守っていない
+    // 作る関数を呼ぶファイルを1つも見ていないなら、この検査は何も守っていない
     expect(creators, "棋譜ファイルを作る呼び出しを1つも見つけていない").toBeGreaterThan(2);
     expect(
       ownerCount,

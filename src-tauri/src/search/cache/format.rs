@@ -2,12 +2,12 @@
 //!
 //! | ファイル | 何を持つか |
 //! | --- | --- |
-//! | ここ | 欄の並びと**門番**、`Codec` の実装、置く・読む手順 |
+//! | ここ | 欄の並びと**検査**、`Codec` の実装、置く・読む手順 |
 //! | `paths.rs` | プロジェクト → 名前 |
 //! | `wire.rs` | バイトの原始 |
 //! | `storage/` | どこへ置くか・圧縮するか |
 //!
-//! **門番は読み書き対称に置く。** 片側だけだと、壊れたものを書いて次の起動で
+//! **検査は読み書き対称に置く。** 片側だけだと、壊れたものを書いて次の起動で
 //! 読めずに作り直し、作り直してまた同じものを書く輪から抜けられない。
 
 use std::{collections::HashMap, path::Path, path::PathBuf, sync::Arc};
@@ -78,14 +78,14 @@ const MAGIC: [u8; 8] = *b"OBSIXv01";
 /// （`storage/disk.rs`）。版を上げても鍵は同じなので、**次に構築が成功して
 /// 書き戻したとき**に上書きされる。
 ///
-/// **消す口は無い。** 読めない版は使わずに全件構築へ落ちるだけで
+/// **消す経路は無い。** 読めない版は使わずに全件構築へ落ちるだけで
 /// （`try_restore` の `Err` → `commands.rs` の fallback）、blob を消す呼び手は
 /// `src/search/` に1つも無い。走査が失敗して構築が書き戻しまで届かない回は、
 /// **読めない旧版がディスクに残り続ける**。読み戻されることはこの定数が防ぐ。
 ///
 /// **上げるのは「索引に入る値が変わったとき」** — どの棋譜が入るか、
 /// 入った棋譜からどの `PositionKey` が出るか、のどちらかが変われば上げる。
-/// 棋譜を読むクレートを上げた、読み口の判定を変えた、初期局面の組み立てを変えた、
+/// 棋譜を読むクレートを上げた、読む側の判定を変えた、初期局面の組み立てを変えた、
 /// 指し手の適用を変えた、はいずれも該当する。
 ///
 /// **保存される棋譜のパスの綴りが変わったときも上げる。** 復元した鍵は走査の鍵と
@@ -154,7 +154,7 @@ pub struct Checkpoint<'a> {
 /// **置き場も圧縮も知らない。** 置くのは `storage` の `BlobStore`、
 /// 圧縮は `storage` の `Zstd` が包む。
 ///
-/// **門番はここに載る。** 読み書き対称に置く —— 片側だけだと、壊れたものを
+/// **検査はここに載る。** 読み書き対称に置く —— 片側だけだと、壊れたものを
 /// 書いて次の起動で読めずに作り直し、作り直してまた同じものを書く輪から
 /// 抜けられない。
 ///
@@ -645,7 +645,7 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<Restored, String> {
     })
 }
 
-/// 門番のテストは、**どちらの側を見ているかを名前で名乗る。**
+/// 検査のテストは、**どちらの側を見ているかを名前で名乗る。**
 ///
 /// | 綴り | 見ているもの |
 /// | --- | --- |
@@ -667,10 +667,10 @@ fn decode_all(bytes: &[u8], root_dir: &Path) -> Result<Restored, String> {
 /// **ヘッダの検査は対象外。** 版 / magic / root hash / 長さ / `file_id` を見る
 /// テストは、何を守っているかを名前に持つ（`..._cannot_be_read` など）。
 ///
-/// **書き側の門番の文言は `refusing to write: ` で始める。**
+/// **書き側の検査の文言は `refusing to write: ` で始める。**
 /// 違うと `Err` を作る数と文言の数が合わなくなり、あのラチェットが落ちる。
 ///
-/// `is_err()` で終わらせないこと。**別の門番を踏んでも緑になる。**
+/// `is_err()` で終わらせないこと。**別の検査を踏んでも緑になる。**
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1085,9 +1085,9 @@ mod tests {
                 mtime_ms: 1_700_000_000_000,
             });
 
-            // **本番の口を通す。** 手で `NodeCursor` を組むと
+            // **本番の関数を通す。** 手で `NodeCursor` を組むと
             // `push_node` が保つ `fork_off + fork_len <= forks.len()` を
-            // 迂回してしまい、書き側の門番が本番の形で試されない
+            // 迂回してしまい、書き側の検査が本番の形で試されない
             let mut b = NodeTableBuilder::new();
             for n in 0..NODES_PER_FILE {
                 let path: Vec<ForkPointer> = (0..(n % 3))
@@ -1372,7 +1372,7 @@ mod tests {
             indexed: true,
             r#gen: 1,
         });
-        // **出現を持つ `file_id` は節表も持つ**（本番の口が対でしか入れない）。
+        // **出現を持つ `file_id` は節表も持つ**（本番の経路が対でしか入れない）。
         // 題材もそれに揃える
         let mut nt = NodeTable::empty();
         nt.nodes.push(crate::search::store::node_table::NodeCursor {
@@ -1441,7 +1441,7 @@ mod tests {
             Ok(()) => panic!("別の桶に置かれた鍵を書いてしまった"),
             Err(e) => assert!(
                 e.contains("key belongs to bucket"),
-                "別の門番で落ちている: {e}"
+                "別の検査で落ちている: {e}"
             ),
         }
 
@@ -1467,7 +1467,7 @@ mod tests {
             Ok(_) => panic!("桶からはみ出た鍵を読んでしまった"),
             Err(e) => assert!(
                 e.contains("key belongs to bucket"),
-                "別の門番で落ちている: {e}"
+                "別の検査で落ちている: {e}"
             ),
         }
 
@@ -1476,7 +1476,7 @@ mod tests {
         unsorted[z0_at] = 0x00;
         match decode_all(&unsorted, root) {
             Ok(_) => panic!("並びが崩れた桶を読んでしまった"),
-            Err(e) => assert!(e.contains("is not sorted"), "別の門番で落ちている: {e}"),
+            Err(e) => assert!(e.contains("is not sorted"), "別の検査で落ちている: {e}"),
         }
     }
 
@@ -1598,7 +1598,7 @@ mod tests {
         match decode_all(&orphan, root) {
             Err(e) => assert!(
                 e.contains("no node table"),
-                "断った理由が違う（別の門番を踏んでいる）: {e}"
+                "断った理由が違う（別の検査を踏んでいる）: {e}"
             ),
             Ok(_) => panic!("節表を失った file_id の出現を読んでしまった"),
         }
@@ -1920,7 +1920,7 @@ mod tests {
             Ok(_) => panic!("分岐の表の外を指す範囲を読んでしまった"),
             Err(e) => assert!(
                 e.contains("out of the fork table"),
-                "別の門番で落ちている: {e}"
+                "別の検査で落ちている: {e}"
             ),
         }
     }
@@ -2028,7 +2028,7 @@ mod tests {
         broken[at + 8] = 9;
         match decode_all(&broken, root) {
             Ok(_) => panic!("節表の外を指す node_id を読んでしまった"),
-            Err(e) => assert!(e.contains("is out of range"), "別の門番で落ちている: {e}"),
+            Err(e) => assert!(e.contains("is out of range"), "別の検査で落ちている: {e}"),
         }
     }
 
@@ -2106,7 +2106,7 @@ mod tests {
         );
 
         // 出現は file 1 に1件だけ。**節表の段は桶の段より先に読み切る**ので、
-        // 出現の有無はこの門番に届かない。file 3 に置かないのは題材を小さく保つため
+        // 出現の有無はこの検査に届かない。file 3 に置かないのは題材を小さく保つため
         let key = PositionKey {
             z0: 0x7700_0000_0000_0001,
             z1: 0,
@@ -2136,7 +2136,7 @@ mod tests {
         // **3つ目の節表**の頭（`file_id=3` / `nodes=4` / `forks=4`）を狙う。
         //
         // 直前（file 2）ではなく**その前**（file 1）と重なる形にする。
-        // 2つしか無い題材だと `prev == file_id` の腕しか通らず、門番を
+        // 2つしか無い題材だと `prev == file_id` の腕しか通らず、検査を
         // `file_id == p` に緩める変異が生き残る。そのとき素通りするのは
         // 上のコメントと `search.md` が挙げている題材そのもの（`7 → 5`）
         let head: Vec<u8> = 3u32
@@ -2169,7 +2169,7 @@ mod tests {
             broken[at] = to;
             match decode_all(&broken, root) {
                 Ok(_) => panic!("{what}を読んでしまった"),
-                Err(e) => assert!(e.contains("is not after"), "別の門番で落ちている: {e}"),
+                Err(e) => assert!(e.contains("is not after"), "別の検査で落ちている: {e}"),
             }
         }
     }

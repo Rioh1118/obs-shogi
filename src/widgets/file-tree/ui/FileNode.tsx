@@ -36,7 +36,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
    * - **ツリーだけ**を見ると、載せられなかった棋譜が「開いている」ことになって押し直せない
    * - **盤だけ**を見ると、その前に開いていた棋譜へ戻れない。盤は既にそれを出しているので
    *   戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指したままなので、
-   *   `persistIfPossible` の門番が以降の書き込みを全部止める
+   *   `persistIfPossible` の検査が以降の書き込みを全部止める
    */
   const canSkipReopen = activeKifuPath === node.path && loadedAbsPath === node.path;
   const isRenaming = renamingNodeId === node.id;

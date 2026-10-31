@@ -21,7 +21,7 @@ use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 ///
 /// `settings` は**実行ファイルのパスを運ぶ**（`PlayerSpec::Engine` の
 /// `engine_path` / `work_dir`）。エンジンはワークスペースの外にあるので
-/// root 配下の関門は掛からない（→ `tests/root_guard.rs` の `EXEMPT`）。
+/// root 配下の検査は掛からない（→ `tests/root_guard.rs` の `EXEMPT`）。
 /// 起こしてよいかを見ているのは `EngineRegistry::spawn` の `canonicalize` と
 /// `is_file` / `is_dir` だけ。
 ///
@@ -31,7 +31,7 @@ use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 /// この関数が返る前に走るので、`Ok` を待ってから張ると必ず取りこぼす。
 /// 評価関数の読み込みが重いエンジンではここで数十秒かかる。
 /// **待たせる長さは `START_TIMEOUT` で決まる**（跨いだ段のぶんは少し超える）。
-/// 取り消す口は無いので、それまでは返らない。
+/// 取り消す経路は無いので、それまでは返らない。
 #[tauri::command]
 pub async fn start_game(
     state: tauri::State<'_, AppState>,
@@ -65,7 +65,7 @@ const GAME_EVENT: &str = "game-event";
 /// `game-event` へ流す宛先。**実装はここ（上の段）に置く。**
 ///
 /// `game` 側に置くと、対局の状態機械が `tauri` を知ることになる。
-/// 口（`GameEventSink`）は下が決め、それに合わせるのは上、という向き。
+/// トレイト（`GameEventSink`）は下が決め、それに合わせるのは上、という向き。
 struct TauriEvents {
     app: tauri::AppHandle,
     /// 送信失敗を記録する枠。**1つで足りる。**
@@ -149,7 +149,7 @@ const MAX_TRACKED_GAMES: usize = 24;
 /// **長い ID は最初から操作ごとの枠へ。** 鍵に入れると、その文字列は
 /// プロセスが終わるまで解放されない（`GameId::is_safe_to_retain`）。
 ///
-/// **満杯になったら、空いた枠から落とす。** 落とす口が無いと、知らない ID を
+/// **満杯になったら、空いた枠から落とす。** 落とす経路が無いと、知らない ID を
 /// `MAX_TRACKED_GAMES` 回撃つだけで——対局を1つも開かずに数十ミリ秒で済む——
 /// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの枠に落ちる。
 /// 空いた枠（`LogThrottle::is_open`）は何も覚えていないので、落としても
@@ -358,7 +358,7 @@ pub async fn close_game(state: tauri::State<'_, AppState>, game_id: GameId) -> R
 /// 写しで、**権威はフロントの棋譜**（食い違いの検出に使う）。
 /// `clocks.running` が `null` になる理由は `ClocksView::running` に挙げてある。
 ///
-/// **断りもログへ残す。** ここは `over` を取りこぼした後の**唯一の立て直しの口**で、
+/// **断りもログへ残す。** ここは `over` を取りこぼした後の**唯一の立て直しのコマンド**で、
 /// 閉じている最中なら断られる。残さないと、立て直しに失敗したことが
 /// どこにも残らない——受けた側が捨てれば、痕跡は1つも無い。
 #[tauri::command]
@@ -434,7 +434,7 @@ mod tests {
 
     /// `log_rejection` に渡している `op` を、**このファイルから拾う**。
     ///
-    /// 手で書くと、口を1つ足したときに数え直されない。`per_op` の枠は
+    /// 手で書くと、呼び出しを1つ足したときに数え直されない。`per_op` の枠は
     /// この数だけ上乗せされるので、上限の式に直に効く。
     ///
     /// **綴りも返す。** 1行の長さは `op` の長さで変わるので、
@@ -448,10 +448,10 @@ mod tests {
 
         for (at, _) in source.match_indices(CALL) {
             // **改行を跨ぐ呼び出しがある。** `(` の直後だけを見ると、
-            // 引数を折り返した口が数から落ちる
+            // 引数を折り返した呼び出しが数から落ちる
             let rest = source[at + CALL.len()..].trim_start();
             // **黙って落とさない。** 綴りの形で絞ると、絞りに合わない `op` を
-            // 書いた口が数から消えて上限の式が緩む——手で数えるのをやめた
+            // 書いた呼び出しが数から消えて上限の式が緩む——手で数えるのをやめた
             // 理由がそのまま戻る
             let op = rest
                 .strip_prefix('"')
@@ -486,19 +486,21 @@ mod tests {
         let ops = rejection_ops();
         assert!(
             ops.len() >= 5,
-            "`log_rejection` の口を数えられていない: {ops:?}"
+            "`log_rejection` のコマンドを数えられていない: {ops:?}"
         );
-        // **テストが使う綴りも実在する口であること。** 揃っていないと、
+        // **テストが使う綴りも実在するコマンドであること。** 揃っていないと、
         // 台帳が約束した「コマンド名で grep できる」を確かめた気になれる
         for used in ["submit_game_move", "close_game"] {
-            assert!(ops.contains(used), "{used} という口は無い: {ops:?}");
+            assert!(ops.contains(used), "{used} というコマンドは無い: {ops:?}");
         }
 
         // 台帳に無い ID は文言にもう一度載るので、1行に2回出る。
         // **`op` はいちばん長い綴りで組む**——長さがそのまま1行に効く
         let game_id = worst_game_id();
         let worst = rejection_line(
-            ops.iter().max_by_key(|op| op.len()).expect("口がある"),
+            ops.iter()
+                .max_by_key(|op| op.len())
+                .expect("コマンドがある"),
             &game_id,
             &format!("unknown game: {game_id}"),
         );
@@ -562,7 +564,7 @@ mod tests {
 
     /// 知らない ID の連打で枠が満杯になっても、**枠が空けば取り戻せる**こと。
     ///
-    /// 落とす口が無いと、対局を1つも開かずに数十ミリ秒で満杯にでき、
+    /// 落とす経路が無いと、対局を1つも開かずに数十ミリ秒で満杯にでき、
     /// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの枠へ
     /// 落ちる。A局が毎秒断られている裏で B局が1回断られても、その行はどこにも
     /// 残らない——`RULING_TIMEOUT` で `rulingTimeout` になった B局を、ログから追えない。

@@ -127,7 +127,7 @@ export default function UsedFilesSection(props: {
           error={enginePathError}
           right={
             // **いつも押せる。** 探すのが返らない（応答しないドライブ）ときと、開いたままエンジンを
-            // 置いたときに、閉じずに探し直す口が要る
+            // 置いたときに、閉じずに探し直すボタンが要る
             aiRootReady && (
               <Button
                 size="sm"

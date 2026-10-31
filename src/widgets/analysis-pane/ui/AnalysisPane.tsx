@@ -77,7 +77,7 @@ function AnalysisPane() {
     //
     // **`analyzedSfen` が無い回も閉じる。** いま `candidates` が空でない回は必ず
     // `start_analysis` を通っているので null にはならないが、`stop_analysis` で
-    // null へ戻す整理を入れると、短絡で門が開いて古い候補手が別の鍵へ焼き付く。
+    // null へ戻す整理を入れると、短絡で判定が通って古い候補手が別の鍵へ焼き付く。
     //
     // **突き合わせるのは局面だけ。** 鍵が指す棋譜とエンジンの側は誰も見ていない → #568
     if (state.analyzedSfen !== currentSfen) return;

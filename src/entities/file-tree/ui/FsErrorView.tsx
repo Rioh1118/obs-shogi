@@ -19,8 +19,8 @@ interface Props {
  *
  * TODO(#277): 段と動作は `shared/ui/notification` の `Notice` と同じものを描いている。
  * **そのままでは寄せられない**——ここは `FsError` 固有の詳細（`code` / `message` /
- * `cause`）を `details` で出すが、`Notice` には本文以外の差し込み口が無い。
- * 口を足してから寄せること。
+ * `cause`）を `details` で出すが、`Notice` には本文以外の差し込み欄が無い。
+ * 欄を足してから寄せること。
  */
 export default function FsErrorView({ error, actions }: Props) {
   const tier = fsErrorTier(error.code);

@@ -7,7 +7,7 @@ import type { EngineStartFailure, EngineStartFailureKind } from "./engineFailure
  *
  * **`readyok` の待ちに上限は無い**（DNN 系の初回の読み込みに上限を置けない。`startAnalysisEngine`）。
  * 帯が無いと、`readyok` を返さないエンジンを選んだ回に起動中のまま何も出ず、
- * 止める口もどこにも無い。30秒は、NNUE 系の評価関数の読み込み（数秒〜十数秒）を越え、
+ * 止める経路もどこにも無い。30秒は、NNUE 系の評価関数の読み込み（数秒〜十数秒）を越え、
  * 人が「反応が無い」と判断する前に出る長さ
  */
 export const SLOW_START_MS = 30_000;
@@ -66,7 +66,7 @@ const TWO_WAYS =
  *   必要があれば `danger`（`quarantined` は macOS の許可が要るので `danger`）
  * - 「もう一度起動」: **押す意味が残る種類に出す。** 原因が設定の外にもありうる種類
  *   （実行権限・置いたファイル・ドライブ・macOS の許可）は、そこを直しても設定が変わらず
- *   自動では起動しないので、押す口が要る。出さないのは、**値そのものが原因で設定を直す以外に
+ *   自動では起動しないので、押すボタンが要る。出さないのは、**値そのものが原因で設定を直す以外に
  *   道が無い** `invalidValue` だけ（押しても必ず同じ結果になる。ADR-0004 の F-9）
  */
 export const ENGINE_START_FAILURE_NOTICES: Record<

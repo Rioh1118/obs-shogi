@@ -98,7 +98,7 @@ impl GameManager {
     /// これが返る**前に**走る。`GameId` はまだ手に入らないので、購読側は
     /// **全部の対局を受けてから選り分ける**形になる（→ `GameSession::start`）。
     ///
-    /// 返るまで最大 `START_TIMEOUT`。取り消す口は無い。
+    /// 返るまで最大 `START_TIMEOUT`。取り消す経路は無い。
     ///
     /// # エラー
     ///
@@ -281,7 +281,7 @@ impl GameManager {
     /// 開いている対局の ID。**閉じている最中のものも含める。**
     ///
     /// 含めないと、`close` が台帳から外している数秒のあいだ、
-    /// 「閉じ忘れを拾う」ためのこの口から、まさに閉じ損ねようとしている対局が消える。
+    /// 「閉じ忘れを拾う」ためのこの関数から、まさに閉じ損ねようとしている対局が消える。
     pub async fn ids(&self) -> Vec<GameId> {
         let mut ids: BTreeSet<GameId> = self.sessions.read().await.keys().cloned().collect();
         ids.extend(self.closing.lock().await.iter().cloned());
@@ -308,7 +308,7 @@ impl GameManager {
 ///
 /// **戻り値に頼らない。** `insert` と `remove` の間で future が drop されるか
 /// panic すると ID が残り続け、以後その対局は `the game is being closed` を
-/// 返し続ける——`close_all` も `close` を通るので拾えず、落とす口が
+/// 返し続ける——`close_all` も `close` を通るので拾えず、落とす経路が
 /// 終了時の `shutdown_all` だけになる。**その経路は既にある**——`lib.rs` の
 /// 終了フックが `close_all` を `CLOSE_TIMEOUT` で包んでいて、`close_all` は
 /// `close` を順に呼ぶので、締切が切れた瞬間にどれかの future が途中で落ちる。
@@ -321,9 +321,9 @@ impl Drop for ClosingGuard<'_> {
     fn drop(&mut self) {
         // `Drop` は async になれないので `try_lock` しかできない。
         //
-        // **失敗したら黙って諦めない。** 外せなかった ID を消す口はどこにも無く、
+        // **失敗したら黙って諦めない。** 外せなかった ID を消す経路はどこにも無く、
         // その対局は以後ずっと `the game is being closed` を返し続ける——
-        // `close_all` も `close` を通るので拾えず、落とす口が終了時の掃除だけになる。
+        // `close_all` も `close` を通るので拾えず、落とす経路が終了時の掃除だけになる。
         // せめて追える形で残す
         if let Ok(mut closing) = self.closing.try_lock() {
             closing.remove(&self.game_id);
@@ -370,7 +370,7 @@ mod tests {
     ///
     /// **`close` は台帳から外してから待つ。** その窓で `unknown game` を返すと、
     /// 生きている対局への `get_game_state`（取りこぼし後の突き合わせ）が
-    /// 「無い対局」として断られ、`list_games`（閉じ忘れを拾う口）からも消える。
+    /// 「無い対局」として断られ、`list_games`（閉じ忘れを拾うコマンド）からも消える。
     #[tokio::test]
     async fn a_game_being_closed_is_not_reported_as_unknown() {
         let registry = Arc::new(EngineRegistry::new());
@@ -399,7 +399,7 @@ mod tests {
         );
         assert!(
             games.ids().await.contains(&id),
-            "閉じ忘れを拾う口から、閉じ損ねている対局が消えている"
+            "閉じ忘れを拾うコマンドから、閉じ損ねている対局が消えている"
         );
 
         // **`close` 側の事前チェックも見る。** `snapshot` だけだと、2本目の
@@ -463,7 +463,7 @@ mod tests {
     /// 閉じている印が、番人を落とせば必ず外れること。
     ///
     /// 外れないと、その対局は以後ずっと `the game is being closed` を返し続ける
-    /// ——`close_all` も `close` を通るので拾えず、落とす口が終了時の掃除だけになる。
+    /// ——`close_all` も `close` を通るので拾えず、落とす経路が終了時の掃除だけになる。
     #[tokio::test]
     async fn dropping_the_guard_clears_the_closing_mark() {
         let games = GameManager::new(Arc::new(EngineRegistry::new()));

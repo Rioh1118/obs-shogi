@@ -39,7 +39,7 @@ type StartAnalysisEngineArgs = {
  * cwd は実行ファイルのフォルダ。
  *
  * 断るときは `StartFailure`（`asStartFailure` で読む）。**`readyok` の待ちに上限は無い**
- * ——止める口は、より新しい番号の `shutdownEngine` と `startAnalysisEngine`
+ * ——止める関数は、より新しい番号の `shutdownEngine` と `startAnalysisEngine`
  * （Rust が起動中のプロセスを落とし、この呼び出しは `cancelled` で断られる）。
  */
 export async function startAnalysisEngine(args: StartAnalysisEngineArgs): Promise<StartOutcome> {
@@ -92,7 +92,7 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
  * （`stopAnalysis(sessionId, ...)`）。返さないと以後の開始が全部
  * 「Analysis already running」で断られ、エンジンを畳み直すまで解析が始まらない（#441）。
  *
- * 席を取る口はこれだけではない（`analyze_with_time` / `analyze_with_depth` も同じ席を取る）。
+ * 席を取るコマンドはこれだけではない（`analyze_with_time` / `analyze_with_depth` も同じ席を取る）。
  */
 export async function startInfiniteAnalysis(): Promise<AnalysisSessionId> {
   // reject の値は Rust の `StartRefusal`（`startFailedUnreachable` で見分ける）
@@ -130,18 +130,18 @@ declare const analysisSessionIdBrand: unique symbol;
 export type AnalysisSessionId = string & { readonly [analysisSessionIdBrand]: true };
 
 /**
- * 停止をどの口から撃ったか。**Rust のログにそのまま出る**
+ * 停止をどの経路から撃ったか。**Rust のログにそのまま出る**
  * （何のために要るかは `bridge.rs` の `stop_all_sessions` に置いてある）。
  *
  * 値の集合が閉じていることがこの引数の価値なので、境界を跨いでも `string` に
  * 落とさず、省略もできない（Rust 側は名乗らない呼び手のために `unnamed` を
  * 持つが、TS からはそこへ落ちない）。
  *
- * **口ごとの部分集合は受け取る側が持つ**（`useEngineSeat`）。分け方は席を返す口の
+ * **経路ごとの部分集合は受け取る側が持つ**（`useEngineSeat`）。分け方は席を返す経路の
  * 性質（応答を待てるか・捨てる側か）で、Rust が受け取る値の集合とは別の関心。
  *
- * 値を増やすときは、その口が落ちたときの結末（返し直せるのか、誰も返せないのか）を
- * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その口は要らない。
+ * 値を増やすときは、その経路が落ちたときの結末（返し直せるのか、誰も返せないのか）を
+ * **その値を撃つ関数の doc** に書き足すこと。書けないなら、その経路は要らない。
  */
 export type SeatReleasePoint =
   | "stop"
@@ -177,7 +177,7 @@ export type StopOutcome = "stopped" | "unanswered";
  * ——止まらないまま解決しないので、指すなら自分が握っている ID を渡すこと。
  * 指した相手が既に居ない場合だけは `Ok`（要求は「止まっていること」なので満たせている）。
  *
- * `by` の意味と、口ごとの部分集合は `SeatReleasePoint` に置いてある。
+ * `by` の意味と、経路ごとの部分集合は `SeatReleasePoint` に置いてある。
  */
 export async function stopAnalysis(
   sessionId: AnalysisSessionId | undefined,

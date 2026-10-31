@@ -107,8 +107,8 @@ async fn walk_inner(
     state: &BookState,
     input: WalkBookLinesInput,
 ) -> Result<Vec<BookLine>, BookError> {
-    // **引くのと同じ関門を通す。** ハンドルとキーの順序も、生の綴りを正規化するのも
-    // ここが唯一の口（`resolve_lookup` の doc）
+    // **引くのと同じ `resolve_lookup` を通す。** ハンドルとキーの順序も、生の綴りを正規化するのも
+    // ここだけが担う（`resolve_lookup` の doc）
     let (book, key) = resolve_lookup(state, &input.position)?;
     let handle = input.position.handle;
     let path = book.info.path.clone();

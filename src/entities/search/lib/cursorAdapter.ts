@@ -7,7 +7,7 @@ import type { CursorLite } from "../api/ids";
  * 索引はいま te 昇順・te 一意で組む（`src-tauri/src/search/index/index_builder.rs` の
  * `push_or_replace_fork` が push のたびに `sort_by_key` する）ので、この正規化は
  * 現物に対しては no-op。それでも通すのは、ワイヤ越しに来る `CursorLite` を
- * `CursorPath` の前提（整列済み・`te <= tesuu`）へ合わせる関門を1つに保つため。
+ * `CursorPath` の前提（整列済み・`te <= tesuu`）へ合わせる関数を1つに保つため。
  *
  * **索引のカーソルは「辿った経路」であって分岐計画ではない。** Rust 側は分岐点
  * （`te == tesuu`）でしか `fork_path` を伸ばさないので `te > tesuu` を含まず、

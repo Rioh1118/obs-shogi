@@ -4,7 +4,7 @@
 //! `encode_all` / `decode_all`。ここは「`u32` を little endian で4バイト」だけ。
 //!
 //! 読む側は [`Reader`] が持つ。**残りバイト数を超える長さを断る**のがここの役目で、
-//! 化けた長さで巨大な確保をしないための唯一の門番
+//! 化けた長さで巨大な確保をしないための唯一の検査
 //! （`docs/state-transitions/search.md` のビット化けの表）。
 
 use crate::search::read::fs_scan::KifuKind;

@@ -30,7 +30,7 @@ describe("probeStatusText", () => {
     expect(probeStatusText({ enginePath: "" }, false, null)).toBeNull();
   });
 
-  /** 「中止」の後など。黙ると、同じエンジンは選び直しても読まれないので、読み込み直す口が消える */
+  /** 「中止」の後など。黙ると、同じエンジンは選び直しても読まれないので、読み込み直すボタンが消える */
   test("いまのエンジンの定義が無いまま止まっていたら、まだ読み込んでいないと言う", () => {
     const unloaded = probeStatusText({ enginePath: "/e/a" }, false, null);
     expect(unloaded).toEqual({

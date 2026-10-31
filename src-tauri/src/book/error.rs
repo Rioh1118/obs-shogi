@@ -18,7 +18,7 @@ macro_rules! book_error_codes {
         }
 
         impl BookErrorCode {
-            /// 宣言から導いた全件。**手で並べる口が無い。**
+            /// 宣言から導いた全件。**手で並べる箇所が無い。**
             #[cfg(test)]
             pub(crate) const ALL: &'static [BookErrorCode] = &[
                 $( BookErrorCode::$name ),+
@@ -61,7 +61,7 @@ book_error_codes! {
 
 /// 定跡まわりの失敗。Tauri コマンドの `Err` としてそのままフロントへ渡る。
 ///
-/// フィールドは private。`path` の打ち切りは `with_path`（crate 内）が唯一の関門で、
+/// フィールドは private。`path` の打ち切りは `with_path`（crate 内）だけが行い、
 /// 構造体リテラルで組み立てられると迂回できてしまう。
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -395,7 +395,7 @@ mod tests {
                 );
                 err_of(state.get(1))
             }
-            // 実物を作る口がここに無いもの。理由を1つずつ書く
+            // 実物を作る経路がここに無いもの。理由を1つずつ書く
             BookErrorCode::PermissionDenied => {
                 // 権限を落としたファイルを作ると root で走らせたときに通ってしまう。
                 // `from_io` の枝は `an_io_error_ends_with_something_the_user_can_do` が見る

@@ -1,4 +1,4 @@
-//! AI プロファイル（`<ai_root>/<name>/{eval,book}`）。
+//! AI フォルダ（`<ai_root>/<name>/{eval,book}`）。
 
 use serde::Serialize;
 use std::{fs, path::Path};
@@ -8,7 +8,7 @@ use ::fs::error::{FsError, FsErrorCode};
 use super::dir::{kind_of, FsKind};
 use super::engines::ENGINES_DIR;
 
-/// AI プロファイルが持つ下位フォルダ
+/// AI フォルダが持つ下位フォルダ
 const PROFILE_SUBS: [&str; 2] = ["eval", "book"];
 
 /// eval/ や book/ のファイル候補
@@ -35,10 +35,10 @@ pub struct ProfileCandidate {
     pub book_db_files: Vec<FileCandidate>,
 }
 
-/// 一覧に出るプロファイルか。
+/// 一覧に出る AI フォルダか。
 ///
 /// **一覧に出す側と作成を拒否する側で、同じ述語を使う。** 別々に書くと片方が
-/// `any`、片方が `all` になり、`eval` だけを持つプロファイル（YaneuraOu の
+/// `any`、片方が `all` になり、`eval` だけを持つ AI フォルダ（YaneuraOu の
 /// 普通の形）に同じ名前で「作成」を押すと、既存の中へ黙って `book` が足される
 fn is_listed(dir: &Path) -> bool {
     PROFILE_SUBS.iter().any(|sub| dir.join(sub).is_dir())
@@ -56,9 +56,9 @@ fn has_any_content(dir: &Path) -> bool {
 /// もう作られているか。**作りかけの補完だけを通すための判定。**
 ///
 /// どちらか一方でも欠くと穴が開く。
-/// - 揃っているかだけを見る（`all`）→ `eval` だけを持つ既存のプロファイル
+/// - 揃っているかだけを見る（`all`）→ `eval` だけを持つ既存の AI フォルダ
 ///   （YaneuraOu の普通の形。一覧にも出ている）へ黙って `book` を足して合流する
-/// - 中身だけを見る → アプリで作った直後の空のプロファイルに同じ名前を打つと
+/// - 中身だけを見る → アプリで作った直後の空の AI フォルダに同じ名前を打つと
 ///   何も起きずに成功が返り、「作成は通ったのに一覧が変わらない」になる
 pub fn already_made(profile: &Path) -> bool {
     let complete = PROFILE_SUBS.iter().all(|sub| profile.join(sub).is_dir());
@@ -95,7 +95,7 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
         // **ここは綴りで比べない。** 除く側は破壊的なので、作成を断る側
         // （`eq_ignore_ascii_case`）と対称にしてはいけない。case-sensitive な
         // ファイルシステム（Linux、case-sensitive APFS）では `engines` と
-        // `Engines` は別の実体として共存でき、後者は正当なプロファイル。
+        // `Engines` は別の実体として共存でき、後者は正当な AI フォルダ。
         // 綴りで除くと、どちらの一覧にも出ないフォルダができる
         if name.is_empty() || name == ENGINES_DIR {
             continue;

@@ -110,7 +110,7 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
     expect(`${req.title}${req.body}`).not.toContain("/cfg/");
   });
 
-  /** 書けない状態で開いた種類は、読み直す口を持つ帯 */
+  /** 書けない状態で開いた種類は、読み直すボタンを持つ帯 */
   test.each<PresetsLoadNotice>([
     { kind: "backupFailed", reason: "EACCES" },
     { kind: "migrationFailed", reason: "EACCES" },
@@ -185,7 +185,7 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
   });
 
   /** 読み込みの呼び出しそのものが落ちたら、設定を開いていなくても届ける */
-  test("読み込めなかったら読み直す口を持つ帯を出す", async () => {
+  test("読み込めなかったら読み直すボタンを持つ帯を出す", async () => {
     await mountWith({ status: "error", error: "ipc closed" });
     const req = banner();
     expect(req.tier).toBe("danger");

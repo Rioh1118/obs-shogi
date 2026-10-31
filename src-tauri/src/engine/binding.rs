@@ -139,7 +139,7 @@ fn own_book_option(declared: &[EngineOption]) -> Option<&str> {
         .find(|name| declared.iter().any(|o| o.name == *name))
 }
 
-/// 定跡を切る（「使わない」と、送れなかった定跡）。切る口が無ければ警告
+/// 定跡を切る（「使わない」と、送れなかった定跡）。切るオプションが無ければ警告
 fn switch_book_off(
     declared: &[EngineOption],
     book_file: Option<&EngineOption>,
@@ -160,7 +160,7 @@ fn switch_book_off(
             }
         }
     }
-    // 定跡を受ける名前はあるのに切る口が無い: エンジンは自分の既定の定跡で指しうる
+    // 定跡を受ける名前はあるのに切るオプションが無い: エンジンは自分の既定の定跡で指しうる
     if !switched && book_file.is_some() {
         warnings.push(StartWarning::BookCannotBeDisabled);
     }
@@ -268,7 +268,7 @@ pub fn book_load_warning(lines: &[String], sent: &SentBookPath) -> Option<StartW
 /// **評価関数・定跡・固定値が持つ名前**（申告にあるものだけ、申告の順）。利用者の値としては送らない。
 ///
 /// 評価関数を受ける名前（E1〜E4 で当たった1つ）と定跡を受ける名前（`BookFile` / `Book_File` /
-/// `BookDir` / 切る口）は、**その回に送るかに依らず**持つ——評価関数・定跡を選んでいない回に
+/// `BookDir` / 切るオプション）は、**その回に送るかに依らず**持つ——評価関数・定跡を選んでいない回に
 /// 利用者の値が通ると、欄で選んでいない評価関数・定跡でエンジンが動く。一覧は取得の結果
 /// （`ProbeOutcome::reserved`）で画面にも渡る
 pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Vec<String> {
@@ -356,7 +356,7 @@ fn user_value(
                 None
             }
         }
-        // 押すだけの口で、値を持たない
+        // 押すだけのオプションで、値を持たない
         EngineOptionType::Button { .. } => None,
         EngineOptionType::String { .. } | EngineOptionType::Filename { .. } => {
             Some(value.to_string())
@@ -435,7 +435,7 @@ mod tests {
     const V900: &str = include_str!("../../tests/fixtures/usi/yaneuraou-v900.usi.txt");
     const ZERMELO: &str = include_str!("../../tests/fixtures/usi/zermelo.usi.txt");
 
-    /// 申告を行から解く（`EngineOption` を組める口は `option_line` だけ。`tests/layering.rs`）
+    /// 申告を行から解く（`EngineOption` を組めるのは `option_line` だけ。`tests/layering.rs`）
     fn declared(text: &str) -> Vec<EngineOption> {
         text.lines()
             .filter_map(|line| parse_option_line(line).ok())
@@ -634,7 +634,7 @@ mod tests {
     }
 
     /// B2: パスを受けるエンジンにはそのまま（`Book_File` / `filename` 型も）。B3: 受ける名前が
-    /// 無ければ警告し、切る口があれば切る
+    /// 無ければ警告し、切るオプションがあれば切る
     #[test]
     fn a_book_path_goes_to_a_path_option_or_is_switched_off() {
         for line in [
@@ -663,7 +663,7 @@ mod tests {
         assert_eq!(lookup(&bound, "OwnBook"), Some("false"));
     }
 
-    /// 定跡を解析で使わない: 切る口（`USI_OwnBook`）を切り、`no_book` があればそれを送る
+    /// 定跡を解析で使わない: 切るオプション（`USI_OwnBook`）を切り、`no_book` があればそれを送る
     #[test]
     fn a_book_not_used_in_analysis_is_switched_off() {
         for choice in [book("/ai/b/standard_book.db", false), None] {
@@ -678,7 +678,7 @@ mod tests {
         }
     }
 
-    /// 切るときも申告どおりの綴りで送る。切る口が無ければ警告
+    /// 切るときも申告どおりの綴りで送る。切るオプションが無ければ警告
     #[test]
     fn switching_off_uses_the_declared_name_or_warns() {
         let decl = vec![one(
@@ -806,7 +806,7 @@ mod tests {
         }
     }
 
-    /// 押すだけの口（`button`）は利用者の値があっても送らない
+    /// 押すだけのオプション（`button`）は利用者の値があっても送らない
     #[test]
     fn a_button_is_never_sent() {
         let decl = vec![one("option name Clear Hash type button")];

@@ -84,7 +84,7 @@ describe("検討の断りの帯", () => {
   });
 
   test.each([START_REFUSED_MESSAGE, RESTART_FAILED_MESSAGE])(
-    "%s は再起動の口を添える",
+    "%s は再起動のボタンを添える",
     async (message) => {
       error = message;
       render(<AnalysisRefusalBridge />);

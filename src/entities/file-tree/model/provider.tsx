@@ -45,7 +45,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // - 削除: 消したフォルダの中に**無い**棋譜を「中にある」と判定して閉じる
   //
   // **節を引く2つ（`findNodeByPath` / `revealNodeInCurrentTree`）も同じ理由でここから読む。**
-  // 呼び手が握るのは押した時点の口なので、`createNewFile` を待ってから引くと、
+  // 呼び手が握るのは押した時点の関数なので、`createNewFile` を待ってから引くと、
   // 待っている間に届いたツリーが見えない —— **作ったばかりの棋譜が「無い」と返る。**
   const activeKifuPathRef = useRef(state.activeKifuPath);
   activeKifuPathRef.current = state.activeKifuPath;
@@ -256,8 +256,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
    * （`useHeaderCenterInfo`）ので、ずれると**ツリーが指す行とヘッダが名乗る名前が
    * 別々のファイルになる**。保存は `activeKifuPath` へ行く（`GamePersistenceGate`）
    *
-   * **`node_selected` を撃つ口はここだけ。** 飛行中の読み出しを捨てる判断は
-   * `requestedKifuPathRef` だけを見るので、この口を通らずに選択を動かすと
+   * **`node_selected` を撃つ関数はここだけ。** 飛行中の読み出しを捨てる判断は
+   * `requestedKifuPathRef` だけを見るので、この関数を通らずに選択を動かすと
    * 「選び直したのに古い読み出しが載る」が戻る。`src/__tests__/kifuOpenTarget.test.ts` が見る。
    *
    * フォルダは宛先を動かさない。開閉の操作であって、棋譜の要求ではない

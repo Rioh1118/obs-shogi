@@ -48,7 +48,7 @@ function EditorStand({ state, color, held, hovered, onPressStand }: EditorStandP
     <div
       className={classes.join(" ")}
       data-color={color}
-      // 掴んでいないときの駒台は「掴む場所」であって置き場ではない。受け口を
+      // 掴んでいないときの駒台は「掴む場所」であって置き場ではない。ハンドラを
       // 張ると、余白を押しても何も起きない場所ができる
       onClick={held === null ? undefined : () => onPressStand(color, null)}
     >
@@ -65,7 +65,7 @@ function EditorStand({ state, color, held, hovered, onPressStand }: EditorStandP
               data-kind={kind}
               style={{ "--stack-count": count } as CSSProperties}
               onClick={(e) => {
-                // 駒台そのものの受け口へ二重に届かせない。掴んでいない間の意味
+                // 駒台そのもののハンドラへ二重に届かせない。掴んでいない間の意味
                 // （この駒を掴む）と、掴んでいる間の意味（この駒台へ置く）は別
                 e.stopPropagation();
                 onPressStand(color, kind);

@@ -3,7 +3,7 @@ import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { isUsableFork, isValidJKFSpecial } from "../jkf";
 
 describe("isUsableFork", () => {
-  // 変化の門。ここを通った fork は「先頭の手がある」ことを前提に扱われる
+  // 変化の検査。ここを通った fork は「先頭の手がある」ことを前提に扱われる
   // （branchEdit の privatizeHead が `{ ...fork[0] }` を作る）。
   test("先頭に手があれば使える", () => {
     expect(isUsableFork([{ comments: ["f"] }] as IMoveFormat[])).toBe(true);

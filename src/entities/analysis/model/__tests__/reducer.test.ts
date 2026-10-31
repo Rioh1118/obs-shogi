@@ -7,8 +7,8 @@ import type { AnalysisState } from "../types";
  * 停止が**何を残すか**を固定する。
  *
  * 候補手の控え（`lib/candidateCache.ts`）は「`analyzedSfen` と `candidates` が
- * 同じ解析の組である」ことを前提に、`AnalysisPane` の門で局面を突き合わせてから控える。
- * 停止でどちらか片方だけが落ちると、その組が崩れたまま門を通る回が生まれる。
+ * 同じ解析の組である」ことを前提に、`AnalysisPane` の判定で局面を突き合わせてから控える。
+ * 停止でどちらか片方だけが落ちると、その組が崩れたまま判定を通る回が生まれる。
  *
  * **書き手の場所は `stateFieldWriters` が見るが、残ることは誰も見ていない。**
  */

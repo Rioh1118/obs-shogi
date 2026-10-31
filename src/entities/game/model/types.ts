@@ -135,7 +135,7 @@ export interface GameView {
    * 盤に載せられる棋譜があるか。**画面を丸ごと切り替える側の綴りはこれ**
    * （`AppLayout` の `WelcomeScreen` との分岐、ヘッダの中央）。
    *
-   * `player` があれば `shogi` も必ずある——`loadGame` が `buildPlayer` で門番していて、
+   * `player` があれば `shogi` も必ずある——`loadGame` が `buildPlayer` で検査していて、
    * `cursorView` が `player` に入れるのは `null` か `buildPlayer` の返り値だけ。
    * `?.shogi` を残してあるのは `cursorView` の catch を将来ゆるめたときの保険で、
    * **いま `player !== null` と同値**。
@@ -403,9 +403,9 @@ export interface GameContextType {
 }
 
 /**
- * 盤で決まった手を、棋譜へ積む前に通す門。
+ * 盤で決まった手を、棋譜へ積む前に通すかを決める判定。
  *
- * **対局中に、Rust が採るまで積まないための口。** 盤は手番の所有者を見ないので、
+ * **対局中に、Rust が採るまで積まないために要る。** 盤は手番の所有者を見ないので、
  * これが無いと相手の手番でも積んで自動保存まで走る。
  *
  * **注入で受ける。** 対局（`entities/game-session`）を知っているのは上の層で、
@@ -417,10 +417,10 @@ export interface MoveGate {
 }
 
 /**
- * 盤がいま辿っている線。**門はこれだけで「対局の先端か」を判じる。**
+ * 盤がいま辿っている線。**`MoveGate` はこれだけで「対局の先端か」を判じる。**
  *
  * **手数を渡さない。** 同じ深さの別の線と見分けが付かないので、
- * 渡すと門が「対局の次の1手」と「分岐で指した手」を取り違える。
+ * 渡すと `MoveGate` が「対局の次の1手」と「分岐で指した手」を取り違える。
  */
 export interface BoardLine {
   /**

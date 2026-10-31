@@ -147,7 +147,7 @@ function normalizeNewMove(
  * 今いる線（本譜か、降りている変化）の末尾に1手足し、`player` から見えるようにする
  *
  * `player.currentStream` は線を繋いだ**写し**で、棋譜の配列を足しても伸びない。
- * `JKFPlayer` が写しを作り直す口（`updateForksAndCurrentStream`）は非公開なので、
+ * `JKFPlayer` が写しを作り直す関数（`updateForksAndCurrentStream`）は非公開なので、
  * 写しの側にも同じ手を足す。写しは棋譜を足す前に取る —— 未構築のまま足すと、
  * 棋譜から組まれた写しに同じ手がもう1つ乗る。
  */

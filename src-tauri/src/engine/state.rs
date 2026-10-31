@@ -22,7 +22,7 @@ pub struct AppState {
     pub bridge: Arc<EngineBridge>,
     pub registry: Arc<EngineRegistry>,
     pub games: Arc<GameManager>,
-    /// プリセット編集が申告を取る口
+    /// プリセット編集が申告を取る経路
     pub prober: Arc<EngineProber>,
 }
 

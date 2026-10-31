@@ -23,11 +23,11 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  *
  * **本体の切り出しは TypeScript の parser に任せる。** 自前で字句を数えると、
  * 文字列・テンプレート・正規表現・JSX の `</` を1つずつ手当てすることになり、
- * 落とした1つが「その範囲の受け口が黙って走査から外れる」形で効く。
+ * 落とした1つが「その範囲のハンドラが黙って走査から外れる」形で効く。
  * 偽陰性は件数が増えないだけなので、下限のガードでも拾えない。
  */
 
-/** モーダルの外にいて、上位の受け口を持たないもの */
+/** モーダルの外にいて、上位のハンドラを持たないもの */
 const ALLOWED = new Map([
   [
     "src/widgets/file-tree/ui/InlineNameEditor.tsx",
@@ -55,7 +55,7 @@ function escapeLiterals(root: ts.SourceFile): ts.Node[] {
 /**
  * `node` を含む、最も内側の関数の本体。
  *
- * 関数の外（モジュールの直下の表など）に書かれた `"Escape"` は受け口ではないので
+ * 関数の外（モジュールの直下の表など）に書かれた `"Escape"` はハンドラではないので
  * `null` を返す。`const KEYS = { close: "Escape" }` がそれに当たる
  */
 function enclosingFunctionBody(node: ts.Node): ts.Node | null {
@@ -97,7 +97,7 @@ function callsStopPropagation(body: ts.Node): boolean {
   return found;
 }
 
-describe("Escape の受け口", () => {
+describe("Escape のハンドラ", () => {
   it("stopPropagation で握り潰していない", () => {
     const files = tsFiles(SRC, { includeTests: false });
     expect(files.length, "走査できていない").toBeGreaterThan(100);
@@ -121,8 +121,8 @@ describe("Escape の受け口", () => {
     }
 
     // 切り出しが壊れると0件で緑になる。**下限は壊れ検出**なので現在値と
-    // 一致させない。一致させると、受け口を正当に減らしたときにここが落ちる
-    expect(receivers, `Escape の受け口を ${receivers} 件しか拾えていない`).toBeGreaterThanOrEqual(
+    // 一致させない。一致させると、ハンドラを正当に減らしたときにここが落ちる
+    expect(receivers, `Escape のハンドラを ${receivers} 件しか拾えていない`).toBeGreaterThanOrEqual(
       5,
     );
 
@@ -182,8 +182,8 @@ describe("Escape の受け口", () => {
     expect(callsStopPropagation(body!)).toBe(false);
   });
 
-  /** 関数の外にある表の値は受け口ではない。数えると下限が意味を失う */
-  it("関数の外の Escape は受け口と数えない", () => {
+  /** 関数の外にある表の値はハンドラではない。数えると下限が意味を失う */
+  it("関数の外の Escape はハンドラと数えない", () => {
     const root = parse("sample.ts", 'const KEYS = { close: "Escape" };');
     const literals = escapeLiterals(root);
 

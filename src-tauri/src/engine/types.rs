@@ -110,7 +110,7 @@ pub enum StartWarning {
     BookNotSupported,
     /// 定跡のファイル名がエンジンの選択肢に無い（名前しか受けないエンジン）。送らずに定跡を切った
     BookNameNotInVars { file: String },
-    /// 定跡を受ける名前はあるが、切る口（`USI_OwnBook` / `no_book`）が無い。エンジンは自分の
+    /// 定跡を受ける名前はあるが、切るオプション（`USI_OwnBook` / `no_book`）が無い。エンジンは自分の
     /// 既定の定跡で指しうる
     BookCannotBeDisabled,
     /// 定跡のファイル名が選択肢に無く、パスを受けるかを確かめたがエンジンが上限までに答えなかった。
@@ -182,7 +182,7 @@ pub enum UsiOptionKind {
     Filename {
         default: Option<String>,
     },
-    /// 押すだけの口。値を持たない（利用者の値の欄を作らない）。定義としては保存する
+    /// 押すだけのオプション。値を持たない（利用者の値の欄を作らない）。定義としては保存する
     Button,
 }
 
