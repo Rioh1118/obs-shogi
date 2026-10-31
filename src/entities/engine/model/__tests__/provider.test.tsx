@@ -341,6 +341,30 @@ describe("EngineProvider の要求の順序", () => {
  * **番号の照合が要。** 起動し直しの窓に古いプロセスの終わりが届くので、照合しないと
  * 動いている新しいエンジンを「終了」と言う。
  */
+describe("同じプリセットを選び直す回", () => {
+  test("起動済みで同じ値の設定が来ても、起動し直さない", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    initialize.mockClear();
+
+    await app.setRuntime(sameValues());
+
+    expect(initialize).not.toHaveBeenCalled();
+    expect(shutdown).not.toHaveBeenCalled();
+    expect(app.engine.isReady).toBe(true);
+  });
+
+  test("起動を待っている間は使えない理由が starting のまま", async () => {
+    initialize.mockImplementation(() => new Promise(() => {}));
+    const app = mountWith(RUNTIME);
+    await settle();
+
+    expect(app.phase).toBe("initializing");
+    expect(app.engine.notReadyReason).toBe("starting");
+  });
+});
+
 describe("エンジンが自分で終わった回", () => {
   const lastRequest = () => initialize.mock.calls[initialize.mock.calls.length - 1][1];
   const tell = (request: number) =>

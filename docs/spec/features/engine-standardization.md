@@ -238,7 +238,7 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 
 | 与件        | AC                          | 状態のセル                           | テスト                                                       |
 | ----------- | --------------------------- | ------------------------------------ | ------------------------------------------------------------ |
-| L2 L3 L9    | AC-1 AC-2 AC-61 AC-64       | V0、(V0,E1)                          | `engineStatus.test.ts`、`analysisControlsStatus.test.tsx`。`AnalysisProvider` は `RuntimeProviders` 側に居るので AC-61 はタブに依らない |
+| L2 L3 L9    | AC-1 AC-2 AC-61 AC-64       | V0、(V0,E1)                          | `engineStatus.test.ts`、`analysisControlsStatus.test.tsx`、`entities/engine` の「同じプリセットを選び直す回」。`AnalysisProvider` は `RuntimeProviders` 側に居るので AC-61 はタブに依らない |
 | L2 L3 L9    | AC-3 AC-58 AC-59            | (V1,E3) (V1,E5) (V8,E13) (V1,E7)     | AC-3 AC-58: `entities/analysis` の「検討の意思」。AC-59: `analysisControlsStatus.test.tsx`、`useSlowStart.test.tsx` |
 | L2 L3 L9    | AC-4 AC-5 AC-6              | (V1,E6) (V8,E2)                      | `engineFailureBridge.test.tsx`、`engineStatus.test.ts`        |
 | L2 L3 L9    | AC-7 AC-8                   | (V2,E3) (V3,E4) (V4,E10)             | AC-8: `entities/analysis` の「中断と棋譜を閉じる回」、`analysisControlsStatus.test.tsx`。AC-7 は #491 |
