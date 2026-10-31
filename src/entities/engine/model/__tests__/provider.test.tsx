@@ -545,3 +545,36 @@ describe("エンジンが答えなくなった回", () => {
     expect(app.state.lastOutput).toBe("last line");
   });
 });
+
+describe("最後の出力の持ち方", () => {
+  const started = async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    return app;
+  };
+
+  test("呼び手が先に応答なしにしても、遅れて届く知らせの出力を受ける", async () => {
+    const app = await started();
+    await act(async () => {
+      app.engine.reportUnreachable();
+    });
+
+    await act(async () => {
+      listeners?.onUnresponsive(initialize.mock.calls[0][1], "unwritable", "stderr: stuck");
+    });
+
+    expect(app.state.lastOutput).toBe("stderr: stuck");
+  });
+
+  test("止めたら前のエンジンの出力を残さない", async () => {
+    const app = await started();
+    await act(async () => {
+      listeners?.onExited(initialize.mock.calls[0][1], "stderr: died");
+    });
+
+    await app.setRuntime(null);
+
+    expect(app.state.lastOutput).toBeNull();
+  });
+});

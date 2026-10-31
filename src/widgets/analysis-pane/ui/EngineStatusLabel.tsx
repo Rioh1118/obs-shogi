@@ -48,6 +48,12 @@ export function EngineStatusLabel({
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const closeDetail = useCallback(() => setAnchor(null), []);
 
+  // 文が無くなったら閉じる。残すと、次の失敗で押していないのに古い位置で開く
+  const hasNotice = notice !== null;
+  useEffect(() => {
+    if (!hasNotice) setAnchor(null);
+  }, [hasNotice]);
+
   useEffect(() => {
     if (!searching) {
       startedAtRef.current = null;

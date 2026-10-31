@@ -118,7 +118,7 @@ export type StartFailureKind =
 /** `start_analysis_engine` が断ったときの値（Rust の `StartFailure`）。`message` はエンジンの出力を含みうる */
 export interface StartFailure {
   kind: StartFailureKind;
-  /** エンジンが最後に出した行。受けたままの形。無ければ `null` */
+  /** エンジンが最後に出した行の要約（stderr を先に最大3行）。無ければ `null` */
   lastOutput: string | null;
   message: string;
 }

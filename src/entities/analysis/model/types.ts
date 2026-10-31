@@ -31,6 +31,7 @@ export type AnalysisAction =
   | { type: "begin_start" }
   | { type: "end_start" }
   | { type: "begin_stop" }
+  | { type: "engine_restored" }
   | { type: "stop_analysis" }
   | { type: "finish_analysis"; payload: AnalysisResult }
   | { type: "update_result"; payload: AnalysisResult }

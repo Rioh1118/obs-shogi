@@ -9,7 +9,7 @@ import { shortenWaits, waits } from "../waits";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
 import type { AnalysisResult } from "@/entities/engine";
 import {
-  ENGINE_FAILED_MESSAGE,
+  ENGINE_CANCELLED_MESSAGE,
   NO_ENGINE_SELECTED_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
@@ -1504,7 +1504,7 @@ describe("AnalysisProvider の開始", () => {
   });
 
   it.each([
-    ["failed", ENGINE_FAILED_MESSAGE],
+    ["cancelled", ENGINE_CANCELLED_MESSAGE],
     ["no-engine", NO_ENGINE_SELECTED_MESSAGE],
   ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (reason, message) => {
     engine = { isReady: false, notReadyReason: reason };
@@ -1580,9 +1580,10 @@ describe("AnalysisProvider の開始", () => {
       await view.current.startInfiniteAnalysis().catch(() => {});
     });
 
-    // 押し直しても同じところで落ちるので、断りの文ではなく語が言う。
+    // 押し直しても同じところで落ちるので、断りの文ではなく語が言う。意思は残る
     expect(reportUnreachable).toHaveBeenCalledTimes(1);
-    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(view.current.state.error).toBeNull();
+    expect(view.current.state.isAnalyzing).toBe(true);
     expect(startCore).not.toHaveBeenCalled();
   });
 
@@ -2875,5 +2876,96 @@ describe("▶ を押した時点", () => {
 
     expect(view.current.state.starting).toBe(false);
     expect(view.current.state.isAnalyzing).toBe(false);
+  });
+});
+
+/** レビューの指摘の回 */
+describe("▶ と語の食い違い", () => {
+  it("席が返る前の ■ で開始を打ち切る", async () => {
+    let answer: (id: string) => void = () => {};
+    startCore.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      void view.current.startInfiniteAnalysis();
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    await act(async () => {
+      answer("session-1");
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(view.current.state.starting).toBe(false);
+    expect(stopCore).toHaveBeenCalledWith("session-1", "late-start");
+  });
+
+  it("同じ文で断られても、押すたびに断りが立て直される", async () => {
+    startCore.mockRejectedValue(new Error("Analysis already running"));
+    const view = mountAnalysis(adapter("P1", "P1"));
+    for (let i = 0; i < 2; i++) {
+      await act(async () => {
+        await view.current.startInfiniteAnalysis().catch(() => {});
+      });
+    }
+
+    expect(view.current.state.error).toBe(START_REFUSED_MESSAGE);
+  });
+
+  it("エンジンが戻ったら断りが消える", async () => {
+    startCore.mockRejectedValueOnce(new Error("Analysis already running"));
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+    expect(view.current.state.error).toBe(START_REFUSED_MESSAGE);
+
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P1", "P1"));
+    engine = { isReady: true, notReadyReason: null };
+    await view.setSync(adapter("P1", "P1"));
+
+    expect(view.current.state.error).toBeNull();
+  });
+
+  it("▶ の往復中にエンジンが終わっても断らず、意思を残す", async () => {
+    let answer: (id: string) => void = () => {};
+    startCore.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      void view.current.startInfiniteAnalysis();
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    engine = { isReady: false, notReadyReason: "failed" };
+    await view.setSync(adapter("P1", "P1"));
+    await act(async () => {
+      answer("dead");
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(view.current.state.error).toBeNull();
+    expect(view.current.state.isAnalyzing).toBe(true);
+  });
+
+  it("▶ の先頭の返却が届かなくても意思を残す", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {});
+    });
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+
+    expect(view.current.state.isAnalyzing).toBe(true);
   });
 });

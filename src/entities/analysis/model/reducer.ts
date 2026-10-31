@@ -12,7 +12,8 @@ export const initialState: AnalysisState = {
 };
 
 /**
- * **`error` を消すのは `start_analysis` と `clear_results` だけ。**
+ * **`error` を消すのは、開始の action（`start_analysis` / `hold_intent` / `begin_start`）と
+ * `clear_results` と `engine_restored` だけ。**
  * 「消すだけ」の action は置かない——消える条件が action の名前から読めなくなる。
  */
 export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
@@ -33,13 +34,18 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return { ...state, isAnalyzing: true, analyzedSfen: null, finished: false, error: null };
 
     case "begin_start":
-      return { ...state, starting: true };
+      // 断りを空ける。**同じ文で断られても帯が出直す**ため
+      return { ...state, starting: true, error: null };
 
     case "end_start":
       return { ...state, starting: false };
 
     case "begin_stop":
-      return state.isAnalyzing ? { ...state, stopping: true } : state;
+      return state.isAnalyzing || state.starting ? { ...state, stopping: true } : state;
+
+    // エンジンが戻ったら、エンジンの不調についての断りはもう当たらない
+    case "engine_restored":
+      return { ...state, error: null };
 
     case "stop_analysis":
       return {

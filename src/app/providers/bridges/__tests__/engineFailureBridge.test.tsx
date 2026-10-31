@@ -8,7 +8,7 @@ import type {
   EnginePhase,
   UnresponsiveReason,
 } from "@/entities/engine";
-import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "@/entities/engine";
+import { ENGINE_START_FAILURE_NOTICES } from "@/entities/engine";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
 import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
 
@@ -29,6 +29,7 @@ const engine = {
     unresponsiveReason: null as UnresponsiveReason | null,
   },
   presetIncomplete: false,
+  slowStart: false,
   initialize: () => initialize(),
   cancelStart: () => cancelStart(),
 };
@@ -363,12 +364,9 @@ describe("起動に時間が掛かっていることを届ける", () => {
    * 何も出ず、止める口もどこにも無い
    */
   test("起動中が長引いたら、止める口を持つ帯を出す", async () => {
+    engine.slowStart = true;
     await mountWith("initializing");
-    expect(notify).not.toHaveBeenCalled();
-
-    await act(async () => {
-      vi.advanceTimersByTime(SLOW_START_MS);
-    });
+    engine.slowStart = false;
 
     expect(notify).toHaveBeenCalledTimes(1);
     expect(shown().tier).toBe("warning");
@@ -378,23 +376,14 @@ describe("起動に時間が掛かっていることを届ける", () => {
     expect(cancelStart).toHaveBeenCalledTimes(1);
   });
 
-  test("上限の前に起動できたら出さず、出した帯は段を抜けたら引っ込める", async () => {
+  test("段を抜けたら引っ込める", async () => {
+    engine.slowStart = true;
     const move = await mountWith("initializing");
-    await act(async () => {
-      vi.advanceTimersByTime(SLOW_START_MS - 1);
-    });
-    await move("ready");
-    await act(async () => {
-      vi.advanceTimersByTime(SLOW_START_MS);
-    });
-    expect(notify).not.toHaveBeenCalled();
-
-    const again = await mountWith("initializing");
-    await act(async () => {
-      vi.advanceTimersByTime(SLOW_START_MS);
-    });
     const key = shown().dismissKey;
-    await again("ready");
+
+    engine.slowStart = false;
+    await move("ready");
+
     expect(dismissByKey).toHaveBeenCalledWith(key);
   });
 });

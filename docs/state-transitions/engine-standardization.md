@@ -107,7 +107,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | `START_REFUSED_MESSAGE`         | E16。帯に文と「再起動する」（`AnalysisRefusalBridge`） |
 | `RESTART_FAILED_MESSAGE`        | E16。帯に文と「再起動する」（V3 の自動の読み直し） |
 | 局面の送信・▶ の先頭の返却・■ の失敗 | E15 → V6。**断りの文を持たず V6 の語にする**（`reportUnreachable`。「まず ▶」は V6 で押せない） |
-| `ENGINE_FAILED_MESSAGE`         | V8 に畳む                                          |
+| エンジンが失敗している回        | V8 に畳む。断らず検討の意思を残す                  |
 | `NO_ENGINE_SELECTED_MESSAGE`    | V0 に畳む                                          |
 | `LISTENERS_FAILED_MESSAGE`      | 帯（アプリの再起動）。今の ▶ の断りの枝のまま  |
 

@@ -269,7 +269,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | `POSITION_SYNC_TIMEOUT_MESSAGE` | 上限まで待っても同期が追いつかない（E5）                                                                               | **▶ の押し直し**で直りうる                                     |
 | `START_REFUSED_MESSAGE`         | Rust が開始を断った（→ ※11）                                                                                           | 起こし直す                                                     |
 | `RESTART_FAILED_MESSAGE`        | 自動再開が落ちた（→ `(S4/S5, E10/E11)`。`(S3, E5/E11)` の打ち切りは上限切れの枝）。**起こし直しの窓は含まない** → ※13  | まず ▶。それでも駄目なら起こし直す                             |
-| `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）。**同期待ちの最中／席を取る往復の最中に、起こし直しが失敗した回もここ**（→ ※13） | 起こし直す                                                     |
+| `ENGINE_CANCELLED_MESSAGE`      | 起動を中止した後に ▶ が呼ばれた（▶ は無効なので画面からは来ない） | もう一度起動 |
 | `NO_ENGINE_SELECTED_MESSAGE`    | エンジンを選んでいない。**待っている間に選択が外れた回もここ**（→ ※13）                                                | 設定でエンジンを選ぶ                                           |
 | `LISTENERS_FAILED_MESSAGE`      | 結果の購読に失敗した（E12 → F-4）／**以後の ▶ すべて**                                                                 | アプリを起動し直す（張り直す口が無い）                         |
 

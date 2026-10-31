@@ -19,8 +19,8 @@ export const POSITION_SYNC_TIMEOUT_MESSAGE =
   "局面の準備に時間が掛かっています。もう一度 ▶ を押してください。";
 /** Rust が開始を断った（席が残っている。→ `docs/state-transitions/analysis.md` の ※11 / #172）。 */
 export const START_REFUSED_MESSAGE = "検討を開始できませんでした。再起動してください。";
-/** エンジンの初期化が落ちている（→ F-9 / #171）。 */
-export const ENGINE_FAILED_MESSAGE = "エンジンを起動できていません。再起動してください。";
+/** 利用者が起動を中止した。 */
+export const ENGINE_CANCELLED_MESSAGE = "エンジンの起動を中止しました。もう一度起動してください。";
 /** エンジンをまだ選んでいない。 */
 export const NO_ENGINE_SELECTED_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選択してください。";
@@ -35,18 +35,20 @@ export const LISTENERS_FAILED_MESSAGE = "検討の結果を受け取れません
 
 /**
  * `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。**
- * `starting` が無いのは断らないため（検討の意思を立てて、戻ったら読み始める）。
+ * `starting` と `failed` が無いのは断らないため（検討の意思を残し、語が言う）。
  */
-export const NOT_READY_REFUSALS: Record<Exclude<EngineNotReadyReason, "starting">, string> = {
+export const NOT_READY_REFUSALS: Record<
+  Exclude<EngineNotReadyReason, "starting" | "failed">,
+  string
+> = {
   "no-engine": NO_ENGINE_SELECTED_MESSAGE,
-  failed: ENGINE_FAILED_MESSAGE,
-  cancelled: ENGINE_FAILED_MESSAGE,
+  cancelled: ENGINE_CANCELLED_MESSAGE,
 };
 
 /** 帯に「再起動する」を添える断り。**エンジンを起動し直せば直る見込みのある回だけ** */
 const RESTART_REFUSALS: ReadonlySet<string> = new Set([
   START_REFUSED_MESSAGE,
-  ENGINE_FAILED_MESSAGE,
+  ENGINE_CANCELLED_MESSAGE,
   RESTART_FAILED_MESSAGE,
 ]);
 
