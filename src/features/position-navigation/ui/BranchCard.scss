@@ -4,11 +4,10 @@
   &__label {
     font-size: 13px;
     font-weight: 650;
-    color: rgba(index.$color-text-dark-1, 0.78);
+    color: index.$color-text-muted;
     padding: 4px 10px;
-    border-radius: 999px;
-    border: 1px solid rgba(index.$color-primary-light, 0.22);
-    background: rgba(index.$color-primary-light, 0.06);
+    border-radius: index.$radius-2;
+    border: 1px solid index.$stroke;
   }
 
   &__move-pill {
@@ -16,7 +15,7 @@
     font-weight: 750;
     color: index.$color-secondary-dark;
     padding: 6px 12px;
-    border-radius: 8px;
+    border-radius: index.$radius-3;
 
     background: linear-gradient(
       135deg,
@@ -30,9 +29,9 @@
   }
 
   &__card {
-    background: index.$color-white;
-    border: 2px solid rgba(index.$color-primary-light, 0.2);
-    border-radius: 8px;
+    background: rgba(index.$color-primary-black, 0.45);
+    border: 1px solid transparent;
+    border-radius: index.$radius-3;
     padding: 16px 20px;
     cursor: pointer;
 
@@ -55,20 +54,20 @@
     }
 
     &--selected {
-      background: index.$color-secondary-dark;
+      background: rgba(index.$color-primary-light, 0.45);
+      box-shadow: inset 3px 0 0 index.$color-secondary-dark;
       color: index.$color-text-light-1;
 
       .branch-selector__label {
-        color: rgba(index.$color-text-light-1, 0.92);
-        border-color: rgba(index.$color-white, 0.26);
-        background: rgba(index.$color-white, 0.1);
+        color: index.$color-text-primary;
+        border-color: index.$stroke;
       }
 
       .branch-selector__move-pill {
         color: index.$color-text-light-1;
-        border-color: rgba(index.$color-white, 0.28);
-        background: rgba(index.$color-white, 0.14);
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+        border-color: rgba(index.$color-secondary-dark, 0.45);
+        background: rgba(index.$color-secondary-dark, 0.14);
+        box-shadow: none;
       }
     }
   }
@@ -106,7 +105,7 @@
   }
 
   &__sequence-text {
-    color: rgba(index.$color-text-dark-1, 0.75);
+    color: index.$color-text-muted;
     font-family: index.$font-sans;
   }
 }

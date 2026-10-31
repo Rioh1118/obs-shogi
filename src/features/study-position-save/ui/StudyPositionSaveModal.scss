@@ -13,7 +13,6 @@
   &__header {
     flex-shrink: 0;
     padding: 2rem 2.4rem 1.2rem;
-    background: rgba(index.$color-white, 0.03);
     border-bottom: 1px solid index.$stroke;
   }
 
@@ -63,8 +62,8 @@
   &__contextItem {
     max-width: 100%;
     padding: 0.5rem 0.9rem;
-    border-radius: 999px;
-    background: rgba(index.$color-white, 0.05);
+    border-radius: index.$radius-2;
+    background: rgba(index.$color-primary-black, 0.45);
     border: 1px solid index.$stroke;
     white-space: nowrap;
 

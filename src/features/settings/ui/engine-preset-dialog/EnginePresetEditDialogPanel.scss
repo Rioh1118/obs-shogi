@@ -62,11 +62,11 @@
     }
     &::-webkit-scrollbar-thumb {
       background: rgba(index.$color-secondary-dark, 0.6);
-      border-radius: 8px;
+      border-radius: index.$radius-3;
     }
     &::-webkit-scrollbar-track {
       background: rgba(index.$color-primary-light, 0.2);
-      border-radius: 8px;
+      border-radius: index.$radius-3;
     }
   }
 
@@ -114,7 +114,7 @@
     cursor: pointer;
 
     padding: 10px 12px;
-    border-radius: 12px;
+    border-radius: index.$radius-4;
     border: 1px solid rgba(index.$color-white, 0.08);
     background: rgba(index.$color-primary-black, 0.25);
 
@@ -136,7 +136,7 @@
     /* 空白を含まない長いパスや OS の出力が来る。節は overflow: hidden なので、折り返さないと読めない */
     overflow-wrap: anywhere;
     padding: 10px 12px;
-    border-radius: 12px;
+    border-radius: index.$radius-4;
 
     border: 1px solid rgba(index.$color-secondary-dark, 0.5);
     background: rgba(index.$color-secondary-dark, 0.14);
@@ -207,7 +207,7 @@
   /* ========== details (match options) ========== */
   .presetDialog__details {
     margin-top: 14px;
-    border-radius: 14px;
+    border-radius: index.$radius-4;
     border: 1px solid rgba(index.$color-white, 0.08);
     background: rgba(index.$color-primary-black, 0.18);
     overflow: hidden;

@@ -155,7 +155,7 @@ $warn: #f0b429;
 
     font-size: 1.15rem;
     padding: 4px 10px;
-    border-radius: 999px;
+    border-radius: index.$radius-2;
 
     border: 1px solid $border-strong;
     color: index.$color-text-primary;

@@ -11,7 +11,7 @@ $accent: index.$color-secondary-dark;
   .sbadge {
     font-size: 1.05rem;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: index.$radius-2;
 
     border: 1px solid $border;
     background: rgba(index.$color-primary-black, 0.28);

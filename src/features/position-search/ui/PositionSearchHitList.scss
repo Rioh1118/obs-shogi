@@ -10,8 +10,7 @@
 
 .pos-search__empty {
   padding: index.$space-8 index.$space-6;
-  border: 1px dashed index.$stroke;
-  border-radius: index.$radius-5;
+  border-radius: index.$radius-4;
   // 不透明にするのは、載る面（半透明のペイン）が確定しないと文字との比を
   // 測れないため。ここは理由を伝える箱なので、読めることが一番要る
   background: index.$surface-raised;
