@@ -1854,7 +1854,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledTimes(2);
 
     // 2本目が飛んでいる最中に畳まれる。指さない停止は席を全部空けるので、
-    // 重ねると開始と競って「席は空・エンジンは探索中」を作る（#463）。
+    // 重ねると、開始の応答を待っている席まで止める。
     view.unmount();
     await advance(50);
     expect(stopCore.mock.calls).not.toContainEqual([undefined, "unmount"]);
@@ -2637,5 +2637,79 @@ describe("中断が届かなかった回", () => {
     await advance(waits().restartDebounceMs * 2);
 
     expect(startCore).not.toHaveBeenCalled();
+  });
+});
+
+/** (V3, E4) (V4, E10) AC-8、(V3, E14) AC-21 */
+describe("中断と棋譜を閉じる回", () => {
+  it("■ の後、止まるまで検討中のまま押せず、止まったら待機中", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    let answer: () => void = () => {};
+    stopCore.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = () => resolve("stopped"))),
+    );
+
+    await act(async () => {
+      void view.current.stopAnalysis();
+    });
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.stopping).toBe(true);
+
+    await act(async () => {
+      answer();
+    });
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(view.current.state.stopping).toBe(false);
+  });
+
+  it("検討中に棋譜を閉じて開き直すと、待機中で読み始めない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    startCore.mockClear();
+
+    await view.setSync(adapter(null, null));
+    await view.setSync(adapter("P1", "P1"));
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(startCore).not.toHaveBeenCalled();
+    expect(stopCore).toHaveBeenCalledWith("session-1", "no-position");
+  });
+
+  it("検討完了で棋譜を閉じて開き直しても、読み始めない", async () => {
+    tauri = true;
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    await act(async () => {
+      listeners?.onComplete("session-1", oneCandidate);
+    });
+    startCore.mockClear();
+
+    await view.setSync(adapter(null, null));
+    await view.setSync(adapter("P1", "P1"));
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(startCore).not.toHaveBeenCalled();
+  });
+
+  it("エンジンが居ない間に棋譜を閉じても、検討は入っていない状態に戻る", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    engine = { isReady: false, notReadyReason: "failed" };
+    await view.setSync(adapter("P1", "P1"));
+
+    await view.setSync(adapter(null, null));
+
+    expect(view.current.state.isAnalyzing).toBe(false);
   });
 });

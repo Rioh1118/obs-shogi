@@ -5,6 +5,7 @@ export const initialState: AnalysisState = {
   isAnalyzing: false,
   analyzedSfen: null,
   finished: false,
+  stopping: false,
   candidates: [],
   error: null,
 };
@@ -21,14 +22,19 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
         isAnalyzing: true,
         analyzedSfen: action.payload.sfen,
         finished: false,
+        stopping: false,
         error: null,
       };
+
+    case "begin_stop":
+      return state.isAnalyzing ? { ...state, stopping: true } : state;
 
     case "stop_analysis":
       return {
         ...state,
         isAnalyzing: false,
         finished: false,
+        stopping: false,
       };
 
     // **最後の結果をここで一緒に書く。** 門を `state` の1か所にするため。結果だけを
@@ -53,7 +59,13 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
     }
 
     case "set_error":
-      return { ...state, error: action.payload, isAnalyzing: false, finished: false };
+      return {
+        ...state,
+        error: action.payload,
+        isAnalyzing: false,
+        finished: false,
+        stopping: false,
+      };
 
     case "clear_results":
       return {

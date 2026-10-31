@@ -74,6 +74,7 @@ function AnalysisControls() {
           <EngineAction
             status={status}
             isAnalyzing={state.isAnalyzing}
+            stopping={state.stopping}
             canStart={!!currentSfen}
             onToggle={handleToggleAnalysis}
             onRestart={() => void initialize()}
