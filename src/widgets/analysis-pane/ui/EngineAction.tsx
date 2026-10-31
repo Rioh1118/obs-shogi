@@ -16,7 +16,7 @@ type Props = {
  * （`docs/spec/features/engine-standardization.md` の「エンジンの状態」）。
  */
 export function EngineAction({ status, isAnalyzing, canStart, onToggle, onRestart }: Props) {
-  if (status === "exited") {
+  if (status === "exited" || status === "unresponsive") {
     return (
       <Button size="sm" motion={false} onClick={onRestart}>
         再起動する

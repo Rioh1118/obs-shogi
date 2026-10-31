@@ -2,7 +2,12 @@ import { useEffect, useRef } from "react";
 import { useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "./engineStartFailureNotice";
+import {
+  ENGINE_EXITED_NOTICE,
+  ENGINE_START_FAILURE_NOTICES,
+  ENGINE_UNRESPONSIVE_NOTICES,
+  SLOW_START_MS,
+} from "./engineStartFailureNotice";
 
 /**
  * 引っ込めるための取っ手。**帯は条件（`phase === "error"`）と結び付いている**ので、
@@ -13,8 +18,8 @@ import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "./engineStartFailur
  */
 const ENGINE_START_FAILURE = "engine-start-failure";
 
-/** エンジンが終了した帯の取っ手。`exited` の段を抜けたら引っ込める */
-const ENGINE_EXITED = "engine-exited";
+/** エンジンが動かなくなった帯の取っ手。`exited` と `unresponsive` の段を抜けたら引っ込める */
+const ENGINE_STOPPED = "engine-stopped";
 
 /** 起動に時間が掛かっている帯の取っ手。起動中の段を抜けたら引っ込める */
 const ENGINE_SLOW_START = "engine-slow-start";
@@ -57,7 +62,7 @@ export function EngineFailureBridge() {
     stopStarting.current = cancelStart;
   }, [cancelStart]);
 
-  const { phase, error } = state;
+  const { phase, error, unresponsiveReason } = state;
 
   // 起動中が長引いたら、止める口を出す。段を抜けたら（起動できた・失敗した・止めた）引っ込める
   useEffect(() => {
@@ -88,14 +93,19 @@ export function EngineFailureBridge() {
     };
   }, [phase, notify, dismissByKey]);
 
+  // 起動した後で動かなくなった回。**文は違うが、手は同じ**（再起動する・設定を開く）
+  const stoppedNotice =
+    phase === "exited"
+      ? ENGINE_EXITED_NOTICE
+      : phase === "unresponsive"
+        ? ENGINE_UNRESPONSIVE_NOTICES[unresponsiveReason ?? "noAnswer"]
+        : null;
   useEffect(() => {
-    if (phase !== "exited") return;
+    if (!stoppedNotice) return;
     notify({
-      tier: "danger",
+      ...stoppedNotice,
       presentation: "banner",
-      dismissKey: ENGINE_EXITED,
-      title: "エンジンが終了しました",
-      body: "再起動してください。続けて起きるときは設定でエンジンと評価関数を確認してください。",
+      dismissKey: ENGINE_STOPPED,
       actions: [
         {
           label: "再起動する",
@@ -111,8 +121,8 @@ export function EngineFailureBridge() {
         },
       ],
     });
-    return () => dismissByKey(ENGINE_EXITED);
-  }, [phase, notify, dismissByKey]);
+    return () => dismissByKey(ENGINE_STOPPED);
+  }, [stoppedNotice, notify, dismissByKey]);
 
   useEffect(() => {
     if (phase !== "error") return;

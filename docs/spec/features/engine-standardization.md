@@ -30,7 +30,7 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 | 起動の失敗を帯で伝える。種類ごとの文と「もう一度起動」           | 帯を閉じると理由がどこにも残らない（#523）                                                   |
 | 起動が30秒を越えたら帯で「起動を中止する」                         | 起動中に ▶ を押すと断られるが、断りの読み手が居ない（#277）                                  |
 | 局面が動けば検討が追従する                                       | エンジンが落ちても `検討中` のまま（#502 #356）。戻っても黙って止まることがある（#442）      |
-| `stop` の答えを3秒待つ                                           | **超えると次の `go` へ進む**（`analyzer.rs` の `wait_until_settled`）。やねうら王はこれで固まる |
+| `stop` の答えを3秒待つ。超えたら `応答なし` になり、次の局面を送らない | |
 | プリセットに終了条件を保存する                                 | 検討は読まない（#107 #110）。`byoyomi` の代用は同じ 1000 が約 100ms になる                   |
 | オプションを型ごとの欄で編集する。日本語名、絞り込み、まとめて戻す | `USI_MultiPV` `NumberOfThreads` を知らない。`MultiPV` を申告しないエンジンに候補手の数が出る  |
 
@@ -242,12 +242,12 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 | L2 L3 L9    | AC-3 AC-58 AC-59            | (V1,E3) (V1,E5) (V8,E13) (V1,E7)     | `entities/analysis` の provider                              |
 | L2 L3 L9    | AC-4 AC-5 AC-6              | (V1,E6) (V8,E2)                      | `engineFailureBridge.test.tsx` ＋ 描画                        |
 | L2 L3 L9    | AC-7 AC-8                   | (V2,E3) (V3,E4) (V4,E10)             | `entities/analysis` の provider                              |
-| L2 L3 L9    | AC-9 AC-10 AC-11 AC-24      | (V3,E11) (V4,E11) (V6,E13) (V6,E10)  | `analyzer.rs` の台本（`stop` に答えない）＋ provider          |
+| L2 L3 L9    | AC-9 AC-10 AC-11 AC-24      | (V3,E11) (V4,E11) (V6,E13) (V6,E10)  | AC-9 AC-10 AC-11: `bridge.rs` の `endings`、`entities/engine` の provider、`entities/analysis` の「中断に答えない回の自動再開」。AC-24 は #172 |
 | L2 L3 L9    | AC-12 AC-13 AC-14 AC-15     | (V3,E12) (V2,E12) (V7,E13)           | AC-12 AC-13 AC-15: `bridge.rs` の `endings`、`entities/engine` の provider、`analysisControlsStatus.test.tsx`。AC-14 は #442 #535 |
 | L2 L3 L9    | AC-16 AC-22                 | (V7,E8) (V6,E8)、不変条件4           | `AnalysisPane` の描画                                        |
 | L2 L3 L9    | AC-17                       | V6 V7 V8                             | 描画。出力は既存の `summarize_recent`                         |
 | L2 L3 L9    | AC-18 AC-19                 | (V3,E8) (V3,E10)、不変条件2          | `analyzer.rs` の台本。実機は手で1回                           |
-| L2 L3 L9    | AC-20 AC-21 AC-60           | (V3,E1) (V3,E14) (V4,E1)             | `entities/analysis` の provider                              |
+| L2 L3 L9    | AC-20 AC-21 AC-60           | (V3,E1) (V3,E14) (V4,E1)             | AC-60: `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine`。AC-20 AC-21 は `entities/analysis` の provider |
 | L2 L3 L9    | AC-23                       | (V2,E16) (V3,E16)、※6                | `analysisRefusals.test.ts` ＋ 描画                            |
 | L9          | AC-25 AC-26 AC-27 AC-30     | (V3,E9)                              | AC-26 の「自分で探索を終える」: `bridge.rs` の `endings`、`entities/analysis` の provider。残りは `protocol.rs` の `go` の行、台本。実機は `research/engines/` の手順 |
 | L9          | AC-28 AC-29 AC-62           | (V5,E8) (V5,E4)                      | `entities/analysis` の provider                              |

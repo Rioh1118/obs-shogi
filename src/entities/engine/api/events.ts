@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { AnalysisSessionId } from "./tauri";
-import type { AnalysisResult } from "@/entities/engine/api/rust-types";
+import type { AnalysisResult, UnresponsiveReason } from "@/entities/engine/api/rust-types";
 import { EVENT_NAMES } from "./eventNames";
 
 type AnalysisUpdate = { sessionId: AnalysisSessionId; result: AnalysisResult };
@@ -39,15 +39,13 @@ export async function listenToAnalysisComplete(
 }
 
 /**
- * エンジンが自分で終わった通知。`request` はそのプロセスを起動した要求の番号で、
- * **最後に撃った番号と照合すること**——起動し直している最中に古いプロセスの終わりが届く。
+ * プロセスの通知の購読先。`request` はそのプロセスを起動した要求の番号で、
+ * **最後に撃った番号と照合すること**——起動し直している最中に古いプロセスの通知が届く。
  */
-export async function listenToEngineExited(
-  callback: (request: number) => void,
-): Promise<UnlistenFn> {
-  return await listen<{ request: number }>(EVENT_NAMES.ENGINE_EXITED, (event) => {
-    callback(event.payload.request);
-  });
+export interface EngineEventListeners {
+  onExited: (request: number) => void;
+  onUnresponsive: (request: number, reason: UnresponsiveReason) => void;
+  onAnswered: (request: number) => void;
 }
 
 // ===== 統合リスナー =====
@@ -57,15 +55,13 @@ export interface AnalysisEventListeners {
 }
 
 /**
- * 解析の通知を購読する。**途中で落ちたら、そこまでに登録した分を解除してから投げ直す。**
+ * 順に購読する。**途中で落ちたら、そこまでに登録した分を解除してから投げ直す。**
  *
  * 解除する者が居ないまま登録が残ると、畳まれた画面のハンドラが呼ばれ続ける
  * ——受け取る側は畳まれた後にタイマーを張るので、`window` が消えた環境では
  * そのタイマー自身が投げる。
  */
-export async function setupAnalysisEventListeners(
-  listeners: AnalysisEventListeners,
-): Promise<() => void> {
+async function subscribeAll(subscribes: (() => Promise<UnlistenFn>)[]): Promise<() => void> {
   const unlisteners: UnlistenFn[] = [];
 
   /** 解除は1本ずつ包む。**1本目が投げても残りを解除する。** */
@@ -74,19 +70,15 @@ export async function setupAnalysisEventListeners(
       try {
         unlisten();
       } catch (e) {
-        console.debug("[ANALYSIS] unlisten failed (ignored)", e);
+        console.debug("[ENGINE] unlisten failed (ignored)", e);
       }
     }
     unlisteners.length = 0;
   };
 
   try {
-    if (listeners.onUpdate) {
-      unlisteners.push(await listenToAnalysisUpdates(listeners.onUpdate));
-    }
-
-    if (listeners.onComplete) {
-      unlisteners.push(await listenToAnalysisComplete(listeners.onComplete));
+    for (const subscribe of subscribes) {
+      unlisteners.push(await subscribe());
     }
   } catch (e) {
     unlistenAll();
@@ -94,4 +86,38 @@ export async function setupAnalysisEventListeners(
   }
 
   return unlistenAll;
+}
+
+/** 解析の通知を購読する */
+export async function setupAnalysisEventListeners(
+  listeners: AnalysisEventListeners,
+): Promise<() => void> {
+  const { onUpdate, onComplete } = listeners;
+  return subscribeAll([
+    ...(onUpdate ? [() => listenToAnalysisUpdates(onUpdate)] : []),
+    ...(onComplete ? [() => listenToAnalysisComplete(onComplete)] : []),
+  ]);
+}
+
+/** プロセスの通知を購読する */
+export async function setupEngineEventListeners(
+  listeners: EngineEventListeners,
+): Promise<() => void> {
+  return subscribeAll([
+    () =>
+      listen<{ request: number }>(EVENT_NAMES.ENGINE_EXITED, (event) => {
+        listeners.onExited(event.payload.request);
+      }),
+    () =>
+      listen<{ request: number; reason: UnresponsiveReason }>(
+        EVENT_NAMES.ENGINE_UNRESPONSIVE,
+        (event) => {
+          listeners.onUnresponsive(event.payload.request, event.payload.reason);
+        },
+      ),
+    () =>
+      listen<{ request: number }>(EVENT_NAMES.ENGINE_ANSWERED, (event) => {
+        listeners.onAnswered(event.payload.request);
+      }),
+  ]);
 }

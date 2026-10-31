@@ -65,8 +65,6 @@ const WINDOW: usize = 6;
 const EXEMPT: &[&str] = &[
     // `EngineRegistry::shutdown_all` は戻り値を持たない
     "registry.shutdown_all()",
-    // `Notify::notified` は `()` を返す。畳まれたか超えたかの2値しかない
-    "settled.notified()",
 ];
 
 /// `timeout(` が現れる位置を、`src` からの相対パスと行番号で並べる

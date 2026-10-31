@@ -38,6 +38,10 @@ impl AnalysisEventSink for TauriAnalysisEvents {
             AnalysisEvent::Update(update) => self.app.emit("analysis-update", update),
             AnalysisEvent::Complete(update) => self.app.emit("analysis-complete", update),
             AnalysisEvent::EngineExited(exited) => self.app.emit("engine-exited", exited),
+            AnalysisEvent::EngineUnresponsive(unresponsive) => {
+                self.app.emit("engine-unresponsive", unresponsive)
+            }
+            AnalysisEvent::EngineAnswered(answered) => self.app.emit("engine-answered", answered),
         };
         if let Err(e) = emitted {
             if self.emit_warn.lock().is_ok_and(|mut w| w.allow()) {
@@ -115,7 +119,7 @@ pub async fn stop_analysis(
     state: tauri::State<'_, AppState>,
     session_id: Option<String>,
     by: Option<String>,
-) -> Result<(), String> {
+) -> Result<StopOutcome, String> {
     state.bridge.stop_analysis_impl(session_id, by).await
 }
 

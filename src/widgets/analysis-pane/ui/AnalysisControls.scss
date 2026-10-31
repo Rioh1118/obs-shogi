@@ -45,6 +45,10 @@
       background-color: index.$color-danger;
     }
 
+    &--warning {
+      background-color: index.$color-warning;
+    }
+
     &--idle {
       background-color: transparent;
       border: 1.5px solid rgba(index.$color-text-primary, 0.55);

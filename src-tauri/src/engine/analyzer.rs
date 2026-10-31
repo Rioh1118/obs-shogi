@@ -11,7 +11,7 @@ use super::setup;
 use super::types::*;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{mpsc, watch, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use usi::{EngineCommand, GuiCommand, ThinkParams};
 
@@ -26,8 +26,9 @@ const BESTMOVE_GRACE: Duration = Duration::from_secs(3);
 
 /// `stop` を撃ってから `bestmove` を待つ上限。
 ///
-/// これを過ぎたら `Timeout` を返して席を返す。エンジンはまだ探索中かもしれないが、
-/// 待ち続けても席が空かないので、利用者にエンジンの再起動を選ばせるほうが早い。
+/// 超えたら席は返すが、**答えが来るまで次の `position` と `go` を通さない**
+/// （`EngineAnalyzer::unanswered`）。探索中のエンジンへ重ねると、やねうら王は `stop` にも
+/// `quit` にも答えなくなる（`research/engines/usi-measurements.md`）。
 ///
 /// **対局側の `game::search::SEARCH_STOP_GRACE` とは別物。** 値も違う（あちらは5秒）。
 /// 同じ綴りにすると `grep` で2つ当たり、doc がどちらを指すのか読み手に分からない。
@@ -205,16 +206,24 @@ pub struct EngineAnalyzer {
     /// `process_analysis_stream` が自分では抜けられないことがある
     infinite_listener: Arc<Mutex<Option<String>>>,
 
-    /// 探索が畳まれたことを知らせる口。
+    /// 探索が畳まれたかを見る口（`true` で畳まれた）。
     ///
     /// **`stop` を書けただけでは畳まれていない。** エンジンは `stop` を受け取ってから
     /// `bestmove` を書くまでの間、`info` を吐き続ける。次の `go` をその前に出すと、
     /// 古い `info` が新しいセッションのリスナーへ配られる
     /// （`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
     ///
-    /// `Notify` なのは、待つ側より先に畳まれても取りこぼさないため
-    /// （`notify_one` は permit を1つ残す）。
-    infinite_settled: Arc<Mutex<Option<Arc<tokio::sync::Notify>>>>,
+    /// **`watch` にして状態で持つ。** 待ち手が何本いても全員に見え、畳まれた後に待ち始めても
+    /// 取りこぼさない。
+    infinite_settled: Arc<Mutex<Option<watch::Receiver<bool>>>>,
+
+    /// `stop` の答えが上限までに来なかった。**立っている間は `position` と `go` を通さない。**
+    ///
+    /// 下ろすのは遅れて来た `bestmove`（ストリームの終わり）と、プロセスを落としたとき。
+    /// `Sender` なのは、`watch_answered` が答えを待つため。
+    /// `analyze_with_time` / `analyze_with_depth` の締切切れはここを立てない
+    /// （フロントに呼び手が無く、`stop` の答えを待つ口も持たない）
+    unanswered: Arc<watch::Sender<bool>>,
 
     /// 進行中の起動（`start_engine`）の世代と取り消し口。
     ///
@@ -257,6 +266,7 @@ impl EngineAnalyzer {
             state: Arc::new(RwLock::new(AnalyzerState::default())),
             infinite_listener: Arc::new(Mutex::new(None)),
             infinite_settled: Arc::new(Mutex::new(None)),
+            unanswered: Arc::new(watch::channel(false).0),
             startup: Arc::new(Mutex::new(Startup::default())),
         }
     }
@@ -329,7 +339,7 @@ impl EngineAnalyzer {
             )
         };
         if let Some(previous) = previous {
-            self.registry.shutdown(&previous).await;
+            self.drop_engine(&previous).await;
         }
         Some((generation, cancel))
     }
@@ -510,9 +520,36 @@ impl EngineAnalyzer {
             self.engine_id.write().await.take()
         };
         if let Some(id) = id {
-            self.registry.shutdown(&id).await;
+            self.drop_engine(&id).await;
         }
         Ok(())
+    }
+
+    /// エンジンを落とす。`stop` に答えていないなら `quit` を待たない
+    async fn drop_engine(&self, id: &str) {
+        if self.unanswered.send_replace(false) {
+            self.registry.kill(id).await;
+        } else {
+            self.registry.shutdown(id).await;
+        }
+    }
+
+    /// 指示を通せないなら断る。**`position` と `go` を送る口は全部ここを通す**
+    fn refuse_if_unanswered(&self) -> Result<(), EngineError> {
+        if *self.unanswered.borrow() {
+            return Err(EngineError::InvalidState(
+                "the engine has not answered stop yet".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// `stop` に答えが来るのを待つ。**プロセスを落としても返る**（呼び手は番号で捨てられる）
+    pub fn watch_answered(&self) -> impl std::future::Future<Output = ()> + Send + 'static {
+        let mut unanswered = self.unanswered.subscribe();
+        async move {
+            let _ = unanswered.wait_for(|waiting| !*waiting).await;
+        }
     }
 
     /// `request` が既に受けた要求より古いか（読むだけ。確定は `start_engine` / `shutdown` が
@@ -530,6 +567,7 @@ impl EngineAnalyzer {
             ));
         }
 
+        self.refuse_if_unanswered()?;
         let protocol = self.protocol().await?;
 
         let position_command = GuiCommand::Position(position.to_string());
@@ -551,12 +589,13 @@ impl EngineAnalyzer {
         &self,
     ) -> Result<mpsc::UnboundedReceiver<AnalysisStreamItem>, EngineError> {
         log::debug!(target: LOGT, "analysis.infinite.start: requested");
+        self.refuse_if_unanswered()?;
 
         let protocol = self.protocol().await?;
 
         // channel
         let (result_tx, result_rx) = mpsc::unbounded_channel();
-        let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
+        let (raw_tx, raw_rx) = mpsc::unbounded_channel();
 
         // 壁時計に依存しない。一意でありさえすればよい
         let listener_id = format!("infinite_analysis_{}", uuid::Uuid::new_v4());
@@ -594,13 +633,8 @@ impl EngineAnalyzer {
             return Err(e);
         }
 
-        // **書き終えてから捨てる。** 前の探索が畳まりきる前に始まった場合、
-        // その `info` と `bestmove` がこのリスナーに積まれている
-        let stale = drain_stale(&mut raw_rx);
-        if stale > 0 {
-            log::debug!(target: LOGT, "analysis.infinite: dropped {stale} stale line(s)");
-        }
-
+        // **積まれた行を捨てない。** 前の無限解析が畳まれるまで `go` は出ないので、ここに積まれて
+        // いるのはこの `go` への応答だけ。捨てると、即答した `bestmove` を失って検討中のまま残る
         // 結果処理タスク開始前にログ
         log::info!(
             target: LOGT,
@@ -614,13 +648,14 @@ impl EngineAnalyzer {
         // `ANALYSIS_STOP_GRACE` を待ち切って事実でない warn を出し、
         // しかも `wait_until_settled` は諦めた回に空けないので**停止では二度と外せない**。
         // `send_command` は線が健全なままでも落ちうる（積み置きが満杯の回）。
-        let settled = Arc::new(tokio::sync::Notify::new());
-        *self.infinite_settled.lock().await = Some(Arc::clone(&settled));
+        let (settled, settled_rx) = watch::channel(false);
+        *self.infinite_settled.lock().await = Some(settled_rx);
 
         // 結果処理タスク
         let state_clone = Arc::clone(&self.state);
         let protocol_for_task = protocol.clone();
         let listener_id_for_task = listener_id.clone();
+        let unanswered = Arc::clone(&self.unanswered);
 
         tokio::spawn(async move {
             log::debug!(
@@ -638,7 +673,11 @@ impl EngineAnalyzer {
             // 次の `go` を出してよいと判断する。抜ける理由は `bestmove` を受けたか、
             // チャンネルが閉じたか、外からリスナーを外されたか——どれでも
             // 「このリスナーにはもう配られない」なので、待ち手にとっては同じ
-            settled.notify_one();
+            //
+            // **畳まれたことを先に書いてから下ろす。** 上限切れと重なった回は、`mark_unanswered`
+            // が印を立てた後に畳まれていないかを見直す。逆順だと、見直しに掛からないまま印が残る
+            settled.send_replace(true);
+            unanswered.send_replace(false);
             log::debug!(
                 target: LOGT,
                 "analysis.infinite.stream: end listener_id={}",
@@ -654,6 +693,7 @@ impl EngineAnalyzer {
         &self,
         time_limit: Duration,
     ) -> Result<AnalysisResult, EngineError> {
+        self.refuse_if_unanswered()?;
         let protocol = self.protocol().await?;
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
@@ -699,6 +739,7 @@ impl EngineAnalyzer {
     /// 届かない理由は `DEPTH_ANALYSIS_BUDGET` に当たったときで、
     /// 深度22の結果を深度40の解析として読ませないためにこの欄がある。
     pub async fn analyze_with_depth(&self, depth_limit: u32) -> Result<DepthOutcome, EngineError> {
+        self.refuse_if_unanswered()?;
         let protocol = self.protocol().await?;
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
@@ -753,16 +794,25 @@ impl EngineAnalyzer {
     /// **エンジンが既に居なくても成功にする。** 要求は「止まっていること」で、
     /// 落ちているならその要求は満たせている。`Err` を返すと、後片付けの途中に
     /// 置かれた呼び出し（`stop_all_sessions`）が `?` で折れて、
-    /// その先の台帳の掃除まで走らなくなる
-    pub async fn stop_analysis(&self) -> Result<(), EngineError> {
+    /// その先の台帳の掃除まで走らなくなる。
+    ///
+    /// 上限までに答えが来なければ `Unanswered`。**ストリームは外さない**——外すと遅れて来た
+    /// `bestmove` を見る者が居なくなり、`unanswered` が下りない
+    pub async fn stop_analysis(&self) -> Result<StopOutcome, EngineError> {
+        let id = self.engine_id.read().await.clone();
         let protocol = match self.protocol().await {
             Ok(protocol) => protocol,
             Err(EngineError::NotInitialized(reason)) => {
                 log::debug!(target: LOGT, "stop_analysis: nothing to stop ({reason})");
-                return Ok(());
+                return Ok(StopOutcome::Stopped);
             }
             Err(e) => return Err(e),
         };
+
+        // 既に待ち切った探索へ撃ち直しても、同じ上限を待つだけ
+        if *self.unanswered.borrow() {
+            return Ok(StopOutcome::Unanswered);
+        }
 
         // **`stop` の結果を待たずに外す。** `?` を先に置くと、
         // `Refuse` と書き込みの詰まりの経路でリスナーが残る。
@@ -787,8 +837,8 @@ impl EngineAnalyzer {
         //
         // 待つのは書けたときだけ。積み置きを落としたのなら探索は始まっていないし、
         // 送れなかったのなら待っても畳まれない（→ `verdict_of_stop`）。
-        if should_wait_for_bestmove(&stopped) {
-            self.wait_until_settled().await;
+        if should_wait_for_bestmove(&stopped) && !self.wait_until_settled(&id).await {
+            return Ok(StopOutcome::Unanswered);
         }
 
         if let Some(id) = self.infinite_listener.lock().await.take() {
@@ -797,42 +847,63 @@ impl EngineAnalyzer {
         }
 
         stopped?;
-        Ok(())
+        Ok(StopOutcome::Stopped)
     }
 
-    /// 探索が畳まれるのを待つ。**上限つき。**
+    /// 探索が畳まれるのを待つ。**上限つき。** 畳まれたら `true`。`id` は待ち始めたプロセス。
     ///
-    /// 超えても進む。ここで返らないと `stop_analysis` が返らず、
-    /// 停止ボタンも棋譜を閉じる操作も固まる。畳めていないまま次の `go` を
-    /// 出すことになるが、待ち続けて操作を失うよりましだという判断。
+    /// 上限を超えたら `unanswered` を立てて `false`。ここで返らないと `stop_analysis` が返らず、
+    /// 停止ボタンも棋譜を閉じる操作も固まる。
     ///
-    /// **待つだけではない——畳まれたと分かった回は合図を消費する**
-    /// （自分が待った1本に限る。待っている間に次の解析が別の合図を立てている）。
-    /// したがって1本の探索に対して待つのは1回きりで、2回目は即座に返る。
-    /// **上限に当たった回は残す**——まだ畳まれていないので、次の停止が待ち直せる。
-    async fn wait_until_settled(&self) {
-        let Some(settled) = self.infinite_settled.lock().await.clone() else {
-            return;
+    /// **畳まれたと分かった回は口を空ける**（自分が待った1本に限る。待っている間に
+    /// 次の解析が別の口を立てている）。したがって1本の探索に対して待つのは1回きりで、
+    /// 2回目は即座に返る。**上限に当たった回は残す**——まだ畳まれていない。
+    async fn wait_until_settled(&self, id: &Option<EngineId>) -> bool {
+        let Some(mut settled) = self.infinite_settled.lock().await.clone() else {
+            return true;
         };
 
-        if tokio::time::timeout(ANALYSIS_STOP_GRACE, settled.notified())
-            .await
-            .is_err()
-        {
-            log::warn!(
-                target: LOGT,
-                "stop_analysis: no bestmove within {ANALYSIS_STOP_GRACE:?}; the engine may still be searching"
-            );
-
-            return;
+        let gave_up =
+            match tokio::time::timeout(ANALYSIS_STOP_GRACE, settled.wait_for(|done| *done)).await {
+                Ok(Ok(_)) => false,
+                // 書き手が消えた。ストリームのタスクが抜けた後で、畳まれたのと同じ
+                Ok(Err(_)) => false,
+                Err(_) => true,
+            };
+        if gave_up {
+            // **待っている間に落とされたプロセスの印を、次のプロセスへ立てない**
+            if *self.engine_id.read().await != *id {
+                return true;
+            }
+            if self.mark_unanswered(&settled) {
+                log::warn!(
+                    target: LOGT,
+                    "stop_analysis: no bestmove within {ANALYSIS_STOP_GRACE:?}; refusing the next position and go"
+                );
+                return false;
+            }
         }
 
         // 空けないと、畳まれた後の停止まで上限いっぱい待つ——起こし直し
         // （設定でオプションを変えて保存）は必ずこの経路を通るので毎回そのぶん固まる。
         let mut current = self.infinite_settled.lock().await;
-        if current.as_ref().is_some_and(|c| Arc::ptr_eq(c, &settled)) {
+        if current.as_ref().is_some_and(|c| c.same_channel(&settled)) {
             *current = None;
         }
+        true
+    }
+
+    /// 答えを待ち切った印を立てる。立ったままなら `true`。
+    ///
+    /// **立てた後で見直す。** 上限切れと答えが重なると、答えを見る者はもう印を下ろした後で、
+    /// 見直さないと生きているエンジンが `応答なし` のまま戻らない
+    fn mark_unanswered(&self, settled: &watch::Receiver<bool>) -> bool {
+        self.unanswered.send_replace(true);
+        if *settled.borrow() {
+            self.unanswered.send_replace(false);
+            return false;
+        }
+        true
     }
 
     /// 最後の分析結果取得
@@ -1009,6 +1080,7 @@ impl Clone for EngineAnalyzer {
             state: Arc::clone(&self.state),
             infinite_listener: Arc::clone(&self.infinite_listener),
             infinite_settled: Arc::clone(&self.infinite_settled),
+            unanswered: Arc::clone(&self.unanswered),
             startup: Arc::clone(&self.startup),
         }
     }
@@ -1084,86 +1156,112 @@ fn cancelled_start() -> EngineError {
 mod tests {
     use super::*;
 
-    /// 諦めた回は合図を残すこと。
+    /// 諦めた回は口を残すこと。
     ///
-    /// **上限に当たったのは「まだ畳まれていない」の意味**（warn 自身がそう言う）。
-    /// そこで空けると、次の停止が待ち直す相手を失う。
+    /// **上限に当たったのは「まだ畳まれていない」の意味。** そこで空けると、
+    /// 遅れて来た答えを見る相手を失う。
     ///
     /// **時計を止めて走らせる。** `ANALYSIS_STOP_GRACE` を実時間で待つと、
     /// 上限を伸ばすたびにこのテストだけが比例して遅くなる。
-    /// 止めた時計は待ち相手が居なくなった時点で自動で進むので、上限の値には依らない。
     #[tokio::test(start_paused = true)]
     async fn giving_up_keeps_the_handle_for_the_next_stop() {
         let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
 
-        let settled = Arc::new(tokio::sync::Notify::new());
-        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&settled));
+        let (_settled, rx) = watch::channel(false);
+        *analyzer.infinite_settled.lock().await = Some(rx);
 
-        // 誰も鳴らさないので上限まで待って諦める。
-        analyzer.wait_until_settled().await;
-
+        // 誰も書かないので上限まで待って諦める。
+        assert!(!analyzer.wait_until_settled(&None).await);
+        assert!(
+            *analyzer.unanswered.borrow(),
+            "諦めたのに次の `position` と `go` を止めていない"
+        );
         assert!(
             analyzer.infinite_settled.lock().await.is_some(),
-            "諦めた（＝まだ畳まれていない）のに合図を捨てている"
+            "諦めた（＝まだ畳まれていない）のに口を捨てている"
         );
     }
 
-    /// 待っている間に次の解析が立てた合図を、前の停止が空けないこと。
+    /// 待っている間にプロセスが替わったら、次のプロセスに印を立てない。
     ///
-    /// 開始の途中に割り込んだ停止（`take_session` の相互排除を素通りする口）が、
-    /// **まだ始まっていない解析の合図を持ち去る**のを止める。
+    /// 立てると、動いている新しいエンジンへ局面が届かないまま `応答なし` になる
+    #[tokio::test(start_paused = true)]
+    async fn giving_up_on_a_replaced_process_marks_nothing() {
+        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
+
+        let (_settled, rx) = watch::channel(false);
+        *analyzer.infinite_settled.lock().await = Some(rx);
+
+        assert!(analyzer.wait_until_settled(&Some("old".to_string())).await);
+        assert!(!*analyzer.unanswered.borrow());
+    }
+
+    /// 上限切れと答えが重なった回は、印を残さない
+    #[tokio::test]
+    async fn an_answer_that_lands_at_the_deadline_leaves_no_mark() {
+        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
+
+        let (settled, rx) = watch::channel(false);
+        assert!(
+            analyzer.mark_unanswered(&rx),
+            "畳まれていないのに印が残らない"
+        );
+
+        settled.send_replace(true);
+        analyzer.unanswered.send_replace(false);
+        assert!(!analyzer.mark_unanswered(&rx), "畳まれた後に印が残っている");
+        assert!(!*analyzer.unanswered.borrow());
+    }
+
+    /// 待っている間に次の解析が立てた口を、前の停止が空けないこと。
+    ///
+    /// 開始の途中に割り込んだ停止が、**まだ始まっていない解析の口を持ち去る**のを止める。
     /// **入れ替えは待ちに入った後でなければならない。** 呼ぶ前に差し替えると
-    /// `wait_until_settled` は最初から2本目を読み、誰も鳴らさないまま上限まで
-    /// 待って諦める——**通るのは諦めの枝**で、この関数が見たい枝を1行も通らない。
+    /// 最初から2本目を読み、諦めの枝を通る——この関数が見たい枝を1行も通らない。
     #[tokio::test]
     async fn settling_only_clears_the_handle_it_waited_on() {
         let analyzer = Arc::new(EngineAnalyzer::new(Arc::new(EngineRegistry::new())));
 
-        let first = Arc::new(tokio::sync::Notify::new());
-        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&first));
+        let (first, first_rx) = watch::channel(false);
+        *analyzer.infinite_settled.lock().await = Some(first_rx);
 
         let waiting = {
             let analyzer = Arc::clone(&analyzer);
-            tokio::spawn(async move { analyzer.wait_until_settled().await })
+            tokio::spawn(async move { analyzer.wait_until_settled(&None).await })
         };
         // 1本目を読み終えて待ちに入るまで進める
         tokio::task::yield_now().await;
 
-        // 待っている間に、次の解析が別の合図を立てる。
-        let second = Arc::new(tokio::sync::Notify::new());
-        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&second));
+        // 待っている間に、次の解析が別の口を立てる。
+        let (_second, second_rx) = watch::channel(false);
+        *analyzer.infinite_settled.lock().await = Some(second_rx.clone());
 
-        first.notify_one();
-        waiting.await.expect("待ちが落ちた");
+        first.send_replace(true);
+        assert!(waiting.await.expect("待ちが落ちた"));
 
         let current = analyzer.infinite_settled.lock().await;
         assert!(
-            current.as_ref().is_some_and(|c| Arc::ptr_eq(c, &second)),
+            current.as_ref().is_some_and(|c| c.same_channel(&second_rx)),
             "前の停止が、次の解析の待ち相手を消している"
         );
     }
 
-    /// 畳んだ後の停止が、鳴る当てのない合図を待たないこと。
+    /// 畳んだ後の停止が、変わる当てのない口を待たないこと。
     ///
     /// **エンジンのプロセスは要らない。** 見たいのは欄の出し入れだけ。
-    /// 読むだけ（`clone`）にすると、1本目の無限解析を畳んだ後の停止が全部
+    /// 空けないと、1本目の無限解析を畳んだ後の停止が全部
     /// `ANALYSIS_STOP_GRACE` を待ち切る——起こし直し（設定でオプションを変えて
     /// 保存）は必ずこの経路を通るので、**毎回そのぶん固まる**。
     #[tokio::test]
     async fn waiting_for_the_search_to_settle_happens_once_per_analysis() {
         let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
 
-        let settled = Arc::new(tokio::sync::Notify::new());
-        *analyzer.infinite_settled.lock().await = Some(Arc::clone(&settled));
+        let (settled, rx) = watch::channel(false);
+        *analyzer.infinite_settled.lock().await = Some(rx);
 
-        // 1本目。探索の終わりが鳴るので、待ちは即座に抜ける。
-        settled.notify_one();
-        analyzer.wait_until_settled().await;
-
-        // 2本目。**もう待つ相手が居ない。** 上限を待つなら、この await は返らない。
-        tokio::time::timeout(Duration::from_millis(200), analyzer.wait_until_settled())
-            .await
-            .expect("畳んだ後の停止が、鳴る当てのない合図を待ち切っている");
+        settled.send_replace(true);
+        assert!(analyzer.wait_until_settled(&None).await);
+        assert!(analyzer.infinite_settled.lock().await.is_none());
     }
 
     fn result_with_depth(depth: u32) -> AnalysisResult {

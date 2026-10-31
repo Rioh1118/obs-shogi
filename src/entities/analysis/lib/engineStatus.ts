@@ -12,6 +12,8 @@ export type EngineStatus =
   | "analyzing"
   /** V5 `検討完了` */
   | "finished"
+  /** V6 `応答なし` */
+  | "unresponsive"
   /** V7 `エンジン終了` */
   | "exited";
 
@@ -31,6 +33,7 @@ type Inputs = {
  */
 export function engineStatusOf({ phase, analysis, currentSfen }: Inputs): EngineStatus {
   if (phase === "exited") return "exited";
+  if (phase === "unresponsive") return "unresponsive";
   if (!analysis.isAnalyzing) return "standing-by";
   if (analysis.finished && analysis.analyzedSfen === currentSfen) return "finished";
   return "analyzing";

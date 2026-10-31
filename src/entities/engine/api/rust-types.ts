@@ -192,3 +192,6 @@ export interface BatchAnalysisResult {
   name?: string;
   result: AnalysisResult;
 }
+
+/** エンジンに指示が通らなくなった理由（Rust の `UnresponsiveReason`） */
+export type UnresponsiveReason = "noAnswer" | "unwritable";

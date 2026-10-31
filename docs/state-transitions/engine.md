@@ -16,6 +16,7 @@
 | **S2** | 起動済み | `phase === "ready"`、`engineInfo !== null`                      |
 | **S3** | 失敗     | `phase === "error"`、`error !== null`、`activeRuntime === null` |
 | **S4** | 終了     | `phase === "exited"`、`activeRuntime === null`                  |
+| **S5** | 応答なし | `phase === "unresponsive"`、`activeRuntime` は残る              |
 
 `isReady` は S2 と同義ではない。`desiredRuntime` と `activeRuntime` の一致まで見る
 （`provider.tsx`）。**設定を変えた直後は S2 のまま `isReady === false`。**
@@ -54,6 +55,8 @@
 | **E9**  | 「もう一度起動」を押す                          | 帯（`EngineFailureBridge`）。**一部の種類にだけ出る**※7  |
 | **E10** | 「起動をやめる」を押す                          | 起動中が `SLOW_START_MS` を越えると出る帯※8              |
 | **E11** | プロセスが自分で終わる                          | Rust の `engine-exited`。番号が最後の起動のときだけ採る※9 |
+| **E12** | 指示が通らなくなる                              | Rust の `engine-unresponsive`。番号は E11 と同じ※10       |
+| **E13** | `stop` に遅れて答えが来る                       | Rust の `engine-answered`。番号は E11 と同じ※10           |
 
 ## 表
 
@@ -125,6 +128,11 @@ effect が同じ設定で起動し直す。起動し直すのは E3（設定を�
 応答を書いた直後に S4 へ入る（`provider.tsx` の `exitedRequestRef`）。
 
 S4 の抜け方は S3 と同じ。**同じ設定のまま自動では起動しない**。E3 と E9 で S1 へ、E2 で S0 へ。
+
+※10 **S2 からだけ S5 へ入り、E13 で S2 へ戻る。** S5 の間 `isReady` は false なので、局面の同期も
+検討も止まる。Rust も `EngineAnalyzer::unanswered` が立っている間は `position` と `go` を断る。
+S5 から落とすときは `quit` を待たない（`EngineRegistry::kill`）。抜け方は E3（別の設定）、E9、E2。
+書けない回（理由 `unwritable`）は E13 が来ない。
 
 ## この表が満たすべき不変条件
 

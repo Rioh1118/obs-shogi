@@ -6,6 +6,7 @@ const STATUS_VIEW: Record<EngineStatus, { word: string; mark: string; timer: boo
   "standing-by": { word: "待機中", mark: "idle", timer: false },
   analyzing: { word: "検討中", mark: "analyzing", timer: true },
   finished: { word: "検討完了", mark: "idle", timer: true },
+  unresponsive: { word: "応答なし", mark: "warning", timer: false },
   exited: { word: "エンジン終了", mark: "danger", timer: false },
 };
 

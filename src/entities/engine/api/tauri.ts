@@ -153,6 +153,12 @@ export type SeatReleasePoint =
   | "late-restart";
 
 /**
+ * 停止の結末。`unanswered` は席は空いたがエンジンが答えていない回で、失敗ではない。
+ * **Rust は答えが来るまで次の局面を断る**ので、続けて開始を頼まないこと。
+ */
+export type StopOutcome = "stopped" | "unanswered";
+
+/**
  * 解析を止める。
  *
  * **`sessionId` を省くと走っている解析を全部止める。** 自分の1本ではない
@@ -167,8 +173,8 @@ export type SeatReleasePoint =
 export async function stopAnalysis(
   sessionId: AnalysisSessionId | undefined,
   by: SeatReleasePoint,
-): Promise<void> {
-  return await invoke("stop_analysis", { sessionId, by });
+): Promise<StopOutcome> {
+  return await invoke<StopOutcome>("stop_analysis", { sessionId, by });
 }
 
 // ===== 結果取得 =====

@@ -9,7 +9,7 @@ import type {
 } from "./types";
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
-import { listenToEngineExited } from "../api/events";
+import { setupEngineEventListeners } from "../api/events";
 import { asStartFailure } from "../lib/engineFailure";
 import { nextRequestNumber } from "../api/requestNumber";
 import { EngineContext } from "./context";
@@ -57,7 +57,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // **もう選んでいないプリセット**のオプションを変えろ、という実行できない案内になる。
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
     ? "no-engine"
-    : state.phase === "error" || state.phase === "exited"
+    : state.phase === "error" || state.phase === "exited" || state.phase === "unresponsive"
       ? "failed"
       : "starting";
 
@@ -146,24 +146,33 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     dispatch({ type: "clear_error" });
   }, []);
 
-  // **番号が最後に撃った起動のものだけ採る。** 起動し直しの窓には古いプロセスの終わりが届く。
+  // **番号が最後に撃った起動のものだけ採る。** 起動し直しの窓には古いプロセスの通知が届く。
   // 読み手は `dispatch` と ref だけなので、購読はマウントの1回でよい
   useEffect(() => {
     if (!isTauri()) return;
 
     let alive = true;
     let unlisten: (() => void) | null = null;
-    listenToEngineExited((request) => {
-      if (request !== seqRef.current) return;
-      exitedRequestRef.current = request;
-      dispatch({ type: "engine_exited" });
+    const current = (request: number) => request === seqRef.current;
+    setupEngineEventListeners({
+      onExited: (request) => {
+        if (!current(request)) return;
+        exitedRequestRef.current = request;
+        dispatch({ type: "engine_exited" });
+      },
+      onUnresponsive: (request, reason) => {
+        if (current(request)) dispatch({ type: "engine_unresponsive", payload: reason });
+      },
+      onAnswered: (request) => {
+        if (current(request)) dispatch({ type: "engine_answered" });
+      },
     })
       .then((stop) => {
         if (alive) unlisten = stop;
         else stop();
       })
       .catch((e: unknown) => {
-        console.error("[engine] 終了の通知を購読できなかった", e);
+        console.error("[engine] プロセスの通知を購読できなかった", e);
       });
 
     return () => {
@@ -203,8 +212,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       return;
     }
 
-    // ready で設定が変わった → 再起動
-    if (state.phase === "ready" && state.activeRuntime) {
+    // 起動済みで設定が変わった → 再起動。指示が通らないエンジンは Rust が `quit` を待たずに落とす
+    if ((state.phase === "ready" || state.phase === "unresponsive") && state.activeRuntime) {
       const runtimeChanged = !equalRuntime(desiredRuntime, state.activeRuntime);
 
       if (runtimeChanged) {

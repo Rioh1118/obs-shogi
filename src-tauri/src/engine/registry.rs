@@ -396,6 +396,15 @@ impl EngineRegistry {
         Self::terminate(&process).await;
     }
 
+    /// 台帳から外して、**`quit` を送らずに**落とす。`stop` に答えないエンジンは `quit` にも
+    /// 答えない（`research/engines/usi-measurements.md`）ので、待つ `QUIT_GRACE` が無駄になる
+    pub async fn kill(&self, id: &str) {
+        let process = self.processes.write().await.remove(id);
+        if let Some(process) = process {
+            process.protocol().kill_engine().await;
+        }
+    }
+
     /// 台帳と**起動中の置き場**の両方を落とす。
     ///
     /// 起動中のぶんを忘れると、`usiok` を待っている最中に終了されたプロセスが

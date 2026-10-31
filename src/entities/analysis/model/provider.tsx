@@ -4,6 +4,7 @@ import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
+  type StopOutcome,
 } from "@/entities/engine/api/tauri";
 import { useEngineSeat, type DiscardReleasePoint, type SeatTakeResult } from "./useEngineSeat";
 import { useResultFlush } from "./useResultFlush";
@@ -484,7 +485,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const swapSeatAndGo = useCallback(
     async (seq: number, want: string) => {
       try {
-        await seat.releaseHeld("restart");
+        // 答えが無い回は読み直さない。答えが来ればエンジンが戻り、同期の追従が張り直す
+        // **読み直しの印を捨て、遅らせて張り直す。** 上限の直後に答えが来ると、知らせが1回の
+        // 描画に畳まれて `isReady` が動かず、エンジンが戻った回の入口が開かない。
+        // 遅らせるのは知らせを描画に通すため。まだ答えていなければ `isReady` の門で降りる
+        if ((await seat.releaseHeld("restart")) === "unanswered") {
+          sentSfenRef.current = null;
+          scheduleRestart(restartSeqRef.current, waits().restartDebounceMs);
+          return;
+        }
 
         // 停止の応答を待っている間に、畳まれたり止められたりしている。
         // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
@@ -794,13 +803,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const releaseHeldBeforeStart = useCallback(
     async (seq: number) => {
+      let released: StopOutcome = "stopped";
       try {
-        await seat.releaseHeld("start");
+        released = await seat.releaseHeld("start");
       } catch (e) {
         if (supersededSince(seq)) return false;
         failStart(RELEASE_FAILED_MESSAGE, e);
       }
-      return !supersededSince(seq);
+      // 答えが無い回は語が `応答なし` に変わる。開始を頼むと断りの文が立つ
+      return released !== "unanswered" && !supersededSince(seq);
     },
     [seat, supersededSince, failStart],
   );
@@ -908,7 +919,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // どちらかが立っていれば後始末ごと走らせたい「読む局面が無くなった」回と、
     // `useResultFlush` に席の門を渡す口。
     try {
-      await seat.releaseHeld("stop");
+      await seat.releaseHeld("stop"); // async-result-ignored: `応答なし` は Rust の通知が語を変える
     } catch (e) {
       // **停止が落ちても表示は停止中になり、タイマーも 0 に戻る**ので、成功と1ドットも
       // 見分けが付かない。断らないと、エンジンが閉じた探索を回し続けていることに

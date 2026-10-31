@@ -20,6 +20,11 @@ describe("操作列の語", () => {
     expect(statusText(container)).toBe("待機中");
   });
 
+  test("応答なしは語だけで、経過時間が残らない", () => {
+    const { container } = render(<EngineStatusLabel status="unresponsive" currentSfen="P1" />);
+    expect(statusText(container)).toBe("応答なし");
+  });
+
   test("エンジン終了は語だけで、経過時間が残らない", () => {
     const { container } = render(<EngineStatusLabel status="exited" currentSfen="P1" />);
     expect(statusText(container)).toBe("エンジン終了");
@@ -78,9 +83,9 @@ describe("▶ の位置のボタン", () => {
     expect(on.onToggle).toHaveBeenCalledTimes(1);
   });
 
-  test("エンジン終了は再起動になり、■ が残らない", () => {
+  test.each(["exited", "unresponsive"] as const)("%s は再起動になり、■ が残らない", (status) => {
     const on = handlers();
-    render(<EngineAction status="exited" isAnalyzing canStart {...on} />);
+    render(<EngineAction status={status} isAnalyzing canStart {...on} />);
 
     expect(screen.queryByTitle("検討を中断")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "再起動する" }));

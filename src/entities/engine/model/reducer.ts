@@ -4,6 +4,7 @@ export const initialState: EngineState = {
   phase: "idle",
   engineInfo: null,
   error: null,
+  unresponsiveReason: null,
 
   activeRuntime: null,
   startWarnings: [],
@@ -12,7 +13,7 @@ export const initialState: EngineState = {
 export function reducer(state: EngineState, action: EngineAction): EngineState {
   switch (action.type) {
     case "initialize_start":
-      return { ...state, phase: "initializing", error: null };
+      return { ...state, phase: "initializing", error: null, unresponsiveReason: null };
     case "initialize_success": {
       return {
         ...state,
@@ -32,18 +33,28 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         activeRuntime: null,
         startWarnings: [],
         error: action.payload,
+        unresponsiveReason: null,
       };
 
-    // `ready` のときだけ効く。それ以外の段に居るなら、そのプロセスはもう見ていない
+    // 起動済みの段だけで効く。他の段に居るなら、そのプロセスはもう見ていない
     case "engine_exited":
-      if (state.phase !== "ready") return state;
+      if (state.phase !== "ready" && state.phase !== "unresponsive") return state;
       return {
         ...state,
         phase: "exited",
         engineInfo: null,
         activeRuntime: null,
         startWarnings: [],
+        unresponsiveReason: null,
       };
+
+    case "engine_unresponsive":
+      if (state.phase !== "ready") return state;
+      return { ...state, phase: "unresponsive", unresponsiveReason: action.payload };
+
+    case "engine_answered":
+      if (state.phase !== "unresponsive") return state;
+      return { ...state, phase: "ready", unresponsiveReason: null };
 
     case "shutdown": {
       return {
@@ -53,6 +64,7 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         activeRuntime: null,
         startWarnings: [],
         error: null,
+        unresponsiveReason: null,
       };
     }
 
