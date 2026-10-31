@@ -1,7 +1,0 @@
-@use "@/index.scss" as index;
-
-// 起動前の画面は押すものがこれ1つなので、中央に置く
-.choose-workspace {
-  display: flex;
-  margin: index.$space-12 auto;
-}
