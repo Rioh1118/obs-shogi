@@ -49,8 +49,8 @@ function StatsSection({ searchStats }: StatsSectionProps) {
   const nps = nodes !== null && timeMs !== null && timeMs > 0 ? (nodes / timeMs) * 1000 : null;
 
   const items: { label: string; value: string }[] = [
-    { label: "深度", value: depth !== null ? String(depth) : UNKNOWN },
-    { label: "探索局面", value: nodes !== null ? formatCount(nodes) : UNKNOWN },
+    { label: "深さ", value: depth !== null ? String(depth) : UNKNOWN },
+    { label: "ノード数", value: nodes !== null ? formatCount(nodes) : UNKNOWN },
     { label: "NPS", value: nps !== null ? formatCount(Math.round(nps)) : UNKNOWN },
     { label: "時間", value: timeMs !== null ? formatSearchTime(timeMs) : UNKNOWN },
   ];

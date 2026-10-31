@@ -55,11 +55,11 @@ export function FolderConcept() {
       <div className="folderConcept__exampleWrap">
         <span className="folderConcept__exampleTag">完成形の例</span>
         <div className="folderConcept__example">
-          <ExampleLine text="📂 my_shogi/" note="← ai_root（名前は自由）" />
+          <ExampleLine text="📂 my_shogi/" note="← AI ライブラリ（名前は自由）" />
           <ExampleLine text="├─ 📂 engines/" indent={1} />
           <ExampleLine text="│  ├─ 🔧 YaneuraOu-by-Yaneuura" note="← エンジン本体" indent={1} />
           <ExampleLine text="│  └─ 🔧 Suisho5-master" indent={1} dim />
-          <ExampleLine text="└─ 📂 Suisho5/" note="← AI名（複数作れる）" indent={1} />
+          <ExampleLine text="└─ 📂 Suisho5/" note="← AI名（複数作成できる）" indent={1} />
           <ExampleLine text="├─ 📂 eval/" indent={2} />
           <ExampleLine text="│  └─ 📄 nn.bin" note="← 評価関数" indent={2} />
           <ExampleLine text="└─ 📂 book/" indent={2} />

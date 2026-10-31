@@ -98,7 +98,7 @@ describe("ペインごとの境界", () => {
     const { container } = mount();
 
     expect(container.querySelector(".workspace"), "作業面まで畳んでいる").not.toBeNull();
-    expect(screen.getByText("解析を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByText("検討を表示できませんでした。")).toBeTruthy();
     expect(container.querySelector('[data-testid="board"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="analysis"]')).toBeNull();

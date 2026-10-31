@@ -137,7 +137,7 @@ describe("KifuImportForm", () => {
       // 段は danger（同じテキストを貼り直しても直らない）。畳んだ中ではなく、
       // 見える位置に理由が出ていること
       expect(notice?.className).toContain("notice--danger");
-      expect(notice?.textContent).toContain("解析に失敗");
+      expect(notice?.textContent).toContain("読み込めませんでした");
       expect(document.querySelector("details")).toBeNull();
     });
 

@@ -69,7 +69,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       dispatch({
         type: "error",
-        payload: `ルートディレクトリの初期化に失敗しました: ${String(err)}`,
+        payload: `ワークスペースの初期化に失敗しました: ${String(err)}`,
       });
       return null;
     }
@@ -89,7 +89,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
       // AI フォルダを選び損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）
       dispatch({ type: "settled" });
-      return Err(`AI_ROOTの選択に失敗しました: ${String(err)}`);
+      return Err(`AI ライブラリの選択に失敗しました: ${String(err)}`);
     }
   }
 
@@ -108,7 +108,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       // ただし `loading` は降ろす。降ろさないと `isLoading` が `true` で固定され、
       // 呼び出し元が案内する先（設定 → ワークスペース）のボタンが押せなくなる
       dispatch({ type: "settled" });
-      return Err(`ルートディレクトリの更新に失敗しました: ${String(err)}`);
+      return Err(`ワークスペースの更新に失敗しました: ${String(err)}`);
     }
   }
 

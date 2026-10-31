@@ -76,7 +76,7 @@ describe("ErrorFallbackBody が出す原因", () => {
     // 同じ文言だと、内側の1枚を外しても外側が同じ画面で受けて退行が見えない
     render(<ErrorFallbackBody label={BOUNDARY_LABELS.analysis} error={null} reset={noop} />);
 
-    expect(screen.getByText("解析を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByText("検討を表示できませんでした。")).toBeTruthy();
   });
 });
 

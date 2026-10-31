@@ -11,7 +11,7 @@ const NOTE: FitNote = {
 describe("fitNoteLines", () => {
   test("外した値と丸めた値を1件1行で言う", () => {
     expect(fitNoteLines(NOTE, "/e/a")).toEqual([
-      "NetworkDelay = 120 を外しました（このエンジンに無い）",
+      "NetworkDelay = 120 を削除しました（このエンジンに無い）",
       "Threads を 999 から 512 に丸めました（このエンジンの範囲は 1〜512）",
     ]);
   });

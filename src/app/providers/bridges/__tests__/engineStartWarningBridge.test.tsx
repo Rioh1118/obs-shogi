@@ -87,7 +87,7 @@ describe("起動で送らなかった設定を伝える", () => {
     expect(req.body).toContain("Threads");
     expect(req.body).toContain("my_book.db");
     // 送らなかった定跡は切っている（別の定跡で動いていない）ことを言う
-    expect(req.body).toContain("定跡なしで解析");
+    expect(req.body).toContain("定跡なしで検討");
   });
 
   test("「設定を開く」でエンジン管理を開く", async () => {

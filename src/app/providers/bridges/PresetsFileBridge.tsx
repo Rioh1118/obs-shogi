@@ -104,7 +104,7 @@ export function PresetsFileBridge() {
               label: "設定を開く",
               run: () => openSettings.current("settings", { tab: "engine" }),
               failureBody:
-                "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
+                "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
             },
       ],
     };

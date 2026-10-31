@@ -126,7 +126,7 @@ action が reducer に1つも無い**（`jkf` を書くのは `jkf_replaced` と
 
 踏んでいるセルの出どころは3つ。器は
 `src/widgets/dock/ui/__tests__/dockTabs.test.tsx`、
-「畳まれても解析を止めない」は
+「畳まれても検討を止めない」は
 `src/widgets/analysis-pane/ui/__tests__/analysisControlsLifetime.test.tsx`、
 表示モードは `src/widgets/analysis-pane/ui/__tests__/analysisDisplayMode.test.tsx`。
 一覧の組み方そのものは `src/entities/dock/lib/__tests__/tabs.test.ts`。

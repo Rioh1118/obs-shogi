@@ -238,7 +238,7 @@ function EditorCreateForm({
           {isSubmitting ? "作成中..." : "作成"}
         </Button>
         <Button type="button" size="lg" onClick={onCancel} disabled={isSubmitting}>
-          やめる
+          キャンセル
         </Button>
       </ButtonGroup>
     </Form>

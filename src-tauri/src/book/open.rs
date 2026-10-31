@@ -142,7 +142,7 @@ mod validated {
     ///
     /// 「絶対パスで渡すこと」のような理由は呼び出し側（フロント）に向けた言葉で、
     /// 画面の前に居る人には何をすればよいか分からない。操作に翻訳して添える。
-    pub(super) const PATH_RECOVERY: &str = "定跡ファイルを選び直すこと";
+    pub(super) const PATH_RECOVERY: &str = "定跡ファイルを選択し直すこと";
 
     /// 形の検査を通ったパス。[`validate_book_path`] 以外から作れない。
     ///
@@ -527,7 +527,7 @@ mod tests {
             // 定数と突き合わせない。`contains(PATH_RECOVERY)` は案内を空にすると
             // 常に真になり、案内が消えたことをこのテストが見逃す。
             assert!(
-                err.message().contains("選び直すこと"),
+                err.message().contains("選択し直すこと"),
                 "raw={raw:?} message={}",
                 err.message()
             );

@@ -127,7 +127,7 @@ describe("Esc の段", () => {
   });
 
   test("段4 の確認は、器を閉じる前に出る", () => {
-    // **Esc・覆いの押下・「やめる」のどれも同じ門を通る。**
+    // **Esc・覆いの押下・「キャンセル」のどれも同じ門を通る。**
     // 面の受け口だけで段4 を持つと、焦点が面の外にある経路と覆いの押下が素通りする
     onClose.mockClear();
     render(<EditorHarness onClose={onClose} />);
@@ -147,11 +147,11 @@ describe("Esc の段", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  test("「やめる」を押しても確認を通る", () => {
+  test("「キャンセル」を押しても確認を通る", () => {
     onClose.mockClear();
     render(<EditorHarness onClose={onClose} />);
     makeDirty();
-    fireEvent.click(screen.getByRole("button", { name: "やめる" }));
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
 
     expect(confirm()).not.toBeNull();
     expect(onClose).not.toHaveBeenCalled();
@@ -277,7 +277,7 @@ describe("捨てる確認", () => {
 
     expect(screen.getByRole("button", { name: "捨てる" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "削除する" })).toBeNull();
-    // 戻る側は、器ごと閉じるフォームの「やめる」と別の語にする。
+    // 戻る側は、器ごと閉じるフォームの「キャンセル」と別の語にする。
     // 「組み続ける」にもしない —— 貼りかけだけを捨てるとき、利用者は組んでいない
     expect(screen.getByRole("button", { name: "閉じない" })).toBeTruthy();
   });

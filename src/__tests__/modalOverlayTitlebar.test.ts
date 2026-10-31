@@ -293,7 +293,7 @@ describe("モーダルの overlay とタイトルバー", () => {
         "overlay はタイトルバーの帯を空けて描く。ここがずれると、",
         "小さければ帯を覆ってウィンドウが動かせなくなり、",
         "大きければ帯の下に何も描かれない隙間ができる。",
-        "両方が同じトークン（$titlebar-height）を見ているか確かめること。",
+        "両方が同じトークン（$titlebar-height）を見ているか確認すること。",
         `帯の高さ: ${titlebarHeights[0]}`,
       ].join("\n"),
     ).toEqual(tops.map(({ selector }) => `${selector} { top: ${titlebarHeights[0]} }`));

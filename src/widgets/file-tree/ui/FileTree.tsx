@@ -74,7 +74,7 @@ function FileTree() {
   // 読み直しても同じ場所を見にいくだけなので、選び直せる場所へ送る
   const chooseWorkspace = useMemo(
     () => ({
-      label: "ワークスペースを選び直す",
+      label: "ワークスペースを選択し直す",
       run: () => openSettings("workspace"),
     }),
     [openSettings],

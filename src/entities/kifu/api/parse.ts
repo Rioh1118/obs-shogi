@@ -115,7 +115,7 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
           : importJKFString(text);
 
   if (rec instanceof Error) {
-    throw new KifuParseError(`棋譜(${format})の解析に失敗しました。`, rec);
+    throw new KifuParseError(`棋譜(${format})を読み込めませんでした。`, rec);
   }
   return normalizeAndSanitize(exportJKF(rec) as JKFData);
 }
@@ -135,7 +135,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
 
   if (text.startsWith("{") || text.startsWith("[")) {
     const rec = importJKFString(text);
-    if (rec instanceof Error) throw new KifuParseError("JKF(JSON)の解析に失敗しました。", rec);
+    if (rec instanceof Error) throw new KifuParseError("JKF(JSON)を読み込めませんでした。", rec);
     return { detectedFormat: "jkf", jkf: normalizeAndSanitize(exportJKF(rec) as JKFData) };
   }
 
@@ -158,7 +158,7 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
           ? importKIF(text)
           : importJKFString(text);
 
-  if (rec instanceof Error) throw new KifuParseError("棋譜の解析に失敗しました。", rec);
+  if (rec instanceof Error) throw new KifuParseError("棋譜を読み込めませんでした。", rec);
 
   const detectedFormat: KifuFormat =
     fmt === RecordFormatType.CSA

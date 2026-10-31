@@ -13,7 +13,7 @@ function dirname(path: string): string {
 function getActionLabel(conflict: FileConflictState): string {
   switch (conflict.request.kind) {
     case "create_file":
-      return "新規作成";
+      return "作成";
     case "import_file":
       return "インポート";
     case "create_directory":

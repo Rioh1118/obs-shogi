@@ -28,7 +28,7 @@ export type DockViewMeta = {
  */
 const SPECS = {
   analysis: {
-    label: "解析",
+    label: "検討",
     // **外せない。** 全部外せると「空のドック」という状態が生まれ、
     // そこに出す案内を設計することになる（ADR-0010 決定1）
     removable: false,

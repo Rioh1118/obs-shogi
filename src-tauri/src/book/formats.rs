@@ -65,7 +65,7 @@ fn check_file_size(size: u64, limit: Option<u64>, path: &str) -> Result<(), Book
         format!(
             "このファイルはこのアプリで開ける大きさを超えている（{} / 上限 {}）。\
              定跡ファイルでないかもしれない。\
-             別のファイルを選び直すか、より小さい定跡を開くこと",
+             別のファイルを選択し直すか、より小さい定跡を開くこと",
             format_size(size),
             format_size(limit)
         ),
@@ -105,7 +105,7 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
         return Err(BookError::new(
             BookErrorCode::InvalidType,
             "フォルダなど、定跡ファイルでないものが指定されている。\
-             中の定跡ファイルを選び直すこと",
+             中の定跡ファイルを選択し直すこと",
         )
         .with_path(path.to_string_lossy()));
     }
@@ -116,7 +116,7 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
         return Err(BookError::new(
             BookErrorCode::UnsupportedFormat,
             format!(
-                "{}はまだ開けない。やねうら王テキスト定跡 (.db) を選び直すこと",
+                "{}はまだ開けない。やねうら王テキスト定跡 (.db) を選択し直すこと",
                 format.display_name()
             ),
         )

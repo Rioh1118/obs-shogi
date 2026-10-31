@@ -32,7 +32,7 @@ function indexNote(health: IndexHealth): string | null {
     case "partiallyUnreadableAndIndexed":
       return "読めない場所と、入れられなかった棋譜があります";
     case "buildFailed":
-      return "索引を作れませんでした";
+      return "索引を作成できませんでした";
     case "partiallyUnreadable":
       return "読めなかった場所があります";
     case "notStarted":

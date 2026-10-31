@@ -81,7 +81,7 @@ pub(super) fn read_line<R: BufRead>(
     if read > MAX_LINE_BYTES && !raw.ends_with(b"\n") {
         // **注記だけは捨てて読み進む。** 本家は注記の中身を見ないので、長い注記を
         // 1行持つだけの定跡を普通に読む。拒否すると、正しい定跡に対して
-        // 「別のファイルを選び直すこと」という効かない復帰操作を出すことになる。
+        // 「別のファイルを選択し直すこと」という効かない復帰操作を出すことになる。
         // 自由に伸びうるのは注記だけなので、ここを通せば残りは短い。
         if is_note(raw) {
             discard_rest_of_line(reader, path)?;
@@ -94,7 +94,7 @@ pub(super) fn read_line<R: BufRead>(
         return Err(invalid_content(
             &format!(
                 "{line_number}行目が長すぎる（{} を超えている）。定跡ファイルでは\
-                 ないかもしれない。別のファイルを選び直すこと",
+                 ないかもしれない。別のファイルを選択し直すこと",
                 format_size(MAX_LINE_BYTES as u64)
             ),
             path,
@@ -191,7 +191,7 @@ mod tests {
     ///
     /// `take(MAX_LINE_BYTES + 1)` で読むので `read` が上限を1つ超えるのは
     /// 「内容ちょうど上限 + 改行」のときだけ。`!raw.ends_with(b"\n")` を落とすと、
-    /// 正しい定跡に「4.1KB を超えている。別のファイルを選び直すこと」を返す
+    /// 正しい定跡に「4.1KB を超えている。別のファイルを選択し直すこと」を返す
     /// （利用者に実行できる操作が対応しない）。
     #[test]
     fn a_line_of_exactly_the_limit_with_a_newline_is_accepted() {

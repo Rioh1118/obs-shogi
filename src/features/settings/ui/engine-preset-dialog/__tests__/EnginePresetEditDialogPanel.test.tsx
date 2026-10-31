@@ -87,10 +87,10 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     expect(screen.getByRole("button", { name: "engines/ を作成" })).toBeTruthy();
   }, 20000);
 
-  /** 押せる「探し直す」の数。帯は `engines` が無い／フォルダでない回にしか出ない */
+  /** 押せる「もう一度読み込む」の数。帯は `engines` が無い／フォルダでない回にしか出ない */
   function enabledRescans() {
     return screen
-      .queryAllByRole("button", { name: "探し直す" })
+      .queryAllByRole("button", { name: "AI ライブラリをもう一度読み込む" })
       .filter((b) => !(b as HTMLButtonElement).disabled).length;
   }
 
@@ -117,7 +117,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     await waitFor(() => expect(enabledRescans()).toBeGreaterThan(0), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));
-    fireEvent.click(screen.getAllByRole("button", { name: "探し直す" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "AI ライブラリをもう一度読み込む" })[0]);
 
     await waitFor(() => expect(scanAiRoot).toHaveBeenCalledTimes(2), { timeout: 5000 });
     expect(band()).toBeUndefined();
@@ -180,7 +180,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
   /**
    * 読み直している間の帯は前の索引のままなので、作成は押せると「効かなかった」と読まれる。
-   * **「探し直す」は塞がない**——画面の再試行の口が2つとも同じ条件で死ぬと、
+   * **「もう一度読み込む」は塞がない**——画面の再試行の口が2つとも同じ条件で死ぬと、
    * 走査が返らない環境で出口が無くなる
    */
   test("同じルートを読み直している間は、帯の作成だけ押せない", async () => {
@@ -189,8 +189,8 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));
-    // 帯の中の「探し直す」。同じ名前のボタンはエンジンの欄にもある
-    fireEvent.click(within(band() as HTMLElement).getByRole("button", { name: "探し直す" }));
+    // 帯の中の「もう一度読み込む」。同じ名前のボタンはエンジンの欄にもある
+    fireEvent.click(within(band() as HTMLElement).getByRole("button", { name: "AI ライブラリをもう一度読み込む" }));
 
     await waitFor(
       () =>
@@ -203,7 +203,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     expect(
       (
         within(band() as HTMLElement).getByRole("button", {
-          name: "探し直す",
+          name: "AI ライブラリをもう一度読み込む",
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false);

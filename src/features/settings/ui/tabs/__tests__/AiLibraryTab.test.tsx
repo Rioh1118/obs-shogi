@@ -96,11 +96,11 @@ function indexWithEngine(root = AI_ROOT): AiRootIndex {
 }
 
 /**
- * 手順書の「スキャン」。**どれでも同じ**——hero の副動作も Step 3 も Step 4 も
+ * 手順書の「もう一度読み込む」。**どれでも同じ**——hero の副動作も Step 3 も Step 4 も
  * `onRescan` を呼ぶので、先頭を採る
  */
 function scanButton() {
-  return screen.getAllByRole("button", { name: "スキャン" })[0];
+  return screen.getAllByRole("button", { name: "もう一度読み込む" })[0];
 }
 
 /**
@@ -117,7 +117,7 @@ async function renderScanned(enginesDirExists: boolean, kind: FsKind = "dir") {
   // まだ `loading` で塞がっているボタンを押して何も起きない回が混じる
   await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-  return within(screen.getByRole("region", { name: "AIライブラリ" })).getByRole("button", {
+  return within(screen.getByRole("region", { name: "AI ライブラリ" })).getByRole("button", {
     name: "engines/ を開く",
   }) as HTMLButtonElement;
 }
@@ -154,7 +154,7 @@ describe("AI ライブラリタブの「開く」", () => {
     await waitFor(() => expect(screen.queryByText("未設定")).toBeNull());
     expect(
       (
-        within(screen.getByRole("region", { name: "AIライブラリ" })).getByRole("button", {
+        within(screen.getByRole("region", { name: "AI ライブラリ" })).getByRole("button", {
           name: "engines/ を開く",
         }) as HTMLButtonElement
       ).disabled,
@@ -239,7 +239,7 @@ describe("AI ライブラリタブの「開く」", () => {
     await renderScanned(true);
 
     fireEvent.click(
-      within(screen.getByRole("region", { name: "AIライブラリ" })).getByRole("button", {
+      within(screen.getByRole("region", { name: "AI ライブラリ" })).getByRole("button", {
         name: "開く",
       }),
     );
@@ -552,7 +552,7 @@ describe("AI ライブラリタブの「開く」", () => {
         presentation: "toast",
         autoDismiss: true,
         title: "前のフォルダに「Suisho」を作成しました",
-        body: "切り替える前の AI ルートでの結果です",
+        body: "切り替える前の AI ライブラリでの結果です",
         // 連打しても1枚に畳む。鍵にルートと名前が入っていないと別のフォルダの回まで畳む
         dedupeKey: `create-profile:${AI_ROOT}/Suisho`,
       }),
@@ -589,7 +589,7 @@ describe("AI ライブラリタブの「開く」", () => {
       expect.objectContaining({
         tier: "warning",
         title: "前のフォルダに「Suisho」を作成できませんでした",
-        body: "同じ名前で作り直せます",
+        body: "同じ名前で作成し直せます",
       }),
     );
   });
@@ -623,7 +623,7 @@ describe("AI ライブラリタブの「開く」", () => {
     expect(notify).toHaveBeenCalledWith(
       expect.objectContaining({
         tier: "warning",
-        body: "名前を直してから作り直してください",
+        body: "名前を直してから作成し直してください",
       }),
     );
   });

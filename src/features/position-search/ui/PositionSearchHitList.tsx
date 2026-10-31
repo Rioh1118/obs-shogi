@@ -40,7 +40,7 @@ function emptyReason(health: IndexHealth, sessionStale: boolean): string {
     case "notRefreshed":
       return "一致する棋譜がありません（索引を更新できていないので、最近の追加は反映されていません）";
     case "buildFailed":
-      return "索引を作れなかったので検索できません（ワークスペースを読めるか確かめてください）";
+      return "索引を作成できなかったので検索できません（ワークスペースを読めるか確認してください）";
     case "partiallyIndexed":
       return "一致する棋譜がありません（索引に入れられなかった棋譜があるので、そこには当たりません）";
     case "notRefreshedAndPartiallyIndexed":
@@ -52,7 +52,7 @@ function emptyReason(health: IndexHealth, sessionStale: boolean): string {
     case "building":
       return "一致する棋譜がありません（索引の更新中なので、増える場合があります）";
     case "notStarted":
-      return "一致する棋譜がありません（索引がまだ作られていません）";
+      return "一致する棋譜がありません（索引がまだ作成されていません）";
     case "ok":
       return sessionStale
         ? "一致する棋譜がありません（検索中に索引が動いたので、取り直すと変わる場合があります）"

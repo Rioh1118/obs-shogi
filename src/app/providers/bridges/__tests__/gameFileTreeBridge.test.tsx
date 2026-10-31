@@ -114,7 +114,7 @@ describe("ツリーが開いた棋譜を盤に載せる橋", () => {
 
     expect(notify.mock.calls[0][0]).toHaveProperty(
       "body",
-      expect.stringContaining("別の棋譜を選んで"),
+      expect.stringContaining("別の棋譜を選択して"),
     );
   });
 
@@ -141,7 +141,7 @@ describe("ツリーが開いた棋譜を盤に載せる橋", () => {
 
     expect(notify.mock.calls[0][0]).toHaveProperty(
       "body",
-      expect.stringContaining("ツリーでもう一度選んで"),
+      expect.stringContaining("ツリーでもう一度選択して"),
     );
   });
 

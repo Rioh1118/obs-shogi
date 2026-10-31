@@ -52,10 +52,10 @@ export async function chooseRootDir(opts: ChooseOpts = {}): Promise<string | nul
 
   if (!force && config.root_dir) return config.root_dir;
 
-  const picked = await pickDirectory("ルートディレクトリを選択してください");
+  const picked = await pickDirectory("ワークスペースを選択してください");
   if (!picked) return null;
 
-  const rootDir = ensureNonEmpty("ルートディレクトリ", picked);
+  const rootDir = ensureNonEmpty("ワークスペース", picked);
   await saveOver({ ...config, root_dir: rootDir }, loaded);
   return rootDir;
 }
@@ -66,16 +66,16 @@ export async function chooseAiRoot(opts: ChooseOpts = {}): Promise<string | null
 
   if (!force && config.ai_root) return config.ai_root;
 
-  const picked = await pickDirectory("AIのルートディレクトリを選択してください");
+  const picked = await pickDirectory("AI ライブラリを選択してください");
   if (!picked) return null;
 
-  const aiRoot = ensureNonEmpty("AI_ROOT", picked);
+  const aiRoot = ensureNonEmpty("AI ライブラリ", picked);
   await saveOver({ ...config, ai_root: aiRoot }, loaded);
   return aiRoot;
 }
 
 export async function setRootDir(root_dir: string): Promise<void> {
   const { config, loaded } = await currentConfig();
-  const next = ensureNonEmpty("ルートディレクトリ", root_dir);
+  const next = ensureNonEmpty("ワークスペース", root_dir);
   await saveOver({ ...config, root_dir: next }, loaded);
 }

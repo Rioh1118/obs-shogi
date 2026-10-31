@@ -22,7 +22,7 @@ function failureText(failure: UpdaterFailure): {
   if (failure.stage === "download") {
     return {
       heading: "更新を取得できませんでした",
-      hint: "通信を確かめて、もう一度お試しください。アプリはそのまま使えます。",
+      hint: "通信を確認して、もう一度お試しください。アプリはそのまま使えます。",
     };
   }
   return {

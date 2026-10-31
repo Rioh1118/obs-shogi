@@ -85,7 +85,7 @@ describe("タブの切り替え（X9）", () => {
     makeDirty();
 
     fireEvent.click(tab("インポート"));
-    fireEvent.click(tab("新規作成"));
+    fireEvent.click(tab("作成"));
 
     expect(hasPiece(7, 6)).toBe(true);
     expect(hasPiece(7, 7)).toBe(false);
@@ -97,7 +97,7 @@ describe("タブの切り替え（X9）", () => {
     expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(true);
 
     fireEvent.click(tab("インポート"));
-    fireEvent.click(tab("新規作成"));
+    fireEvent.click(tab("作成"));
 
     expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(false);
   });
@@ -111,7 +111,7 @@ describe("タブの切り替え（X9）", () => {
     expect(screen.getByRole("button", { name: "戻る" })).toBeTruthy();
 
     fireEvent.click(tab("インポート"));
-    fireEvent.click(tab("新規作成"));
+    fireEvent.click(tab("作成"));
 
     expect(screen.queryByRole("button", { name: "戻る" })).toBeNull();
     expect(hasPiece(7, 7)).toBe(true);
@@ -127,7 +127,7 @@ describe("タブの切り替え（X9）", () => {
     params.modal = "create-file";
     rerender(<CreateFileModal />);
 
-    expect(tab("新規作成").getAttribute("aria-selected")).toBe("true");
+    expect(tab("作成").getAttribute("aria-selected")).toBe("true");
   });
 });
 
@@ -148,12 +148,12 @@ const importForm = (): HTMLFormElement => {
 };
 
 describe("インポートの面から閉じる", () => {
-  test("組みかけを持ったまま「やめる」を押すと確認が出る", () => {
+  test("組みかけを持ったまま「キャンセル」を押すと確認が出る", () => {
     render(<CreateFileModal />);
     makeDirty();
     fireEvent.click(tab("インポート"));
 
-    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+    fireEvent.click(importFace().getByRole("button", { name: "キャンセル" }));
 
     expect(screen.getByText("組んだ局面は保存されません。")).toBeTruthy();
     expect(closeModal).not.toHaveBeenCalled();
@@ -163,7 +163,7 @@ describe("インポートの面から閉じる", () => {
     render(<CreateFileModal />);
     fireEvent.click(tab("インポート"));
 
-    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+    fireEvent.click(importFace().getByRole("button", { name: "キャンセル" }));
 
     expect(closeModal).toHaveBeenCalledTimes(1);
   });
@@ -177,7 +177,7 @@ describe("インポートの面から閉じる", () => {
     fireEvent.click(tab("インポート"));
     fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
 
-    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+    fireEvent.click(importFace().getByRole("button", { name: "キャンセル" }));
 
     expect(screen.getByText("貼った棋譜は保存されません。")).toBeTruthy();
     expect(closeModal).not.toHaveBeenCalled();
@@ -187,7 +187,7 @@ describe("インポートの面から閉じる", () => {
     render(<CreateFileModal />);
     fireEvent.click(tab("インポート"));
     fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
-    fireEvent.click(tab("新規作成"));
+    fireEvent.click(tab("作成"));
 
     fireEvent.keyDown(document, { key: "Escape" });
 
@@ -202,7 +202,7 @@ describe("インポートの面から閉じる", () => {
     fireEvent.click(tab("インポート"));
     fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
 
-    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+    fireEvent.click(importFace().getByRole("button", { name: "キャンセル" }));
 
     expect(screen.getByText("組んだ局面と貼った棋譜は保存されません。")).toBeTruthy();
   });
@@ -211,7 +211,7 @@ describe("インポートの面から閉じる", () => {
     render(<CreateFileModal />);
     fireEvent.click(tab("インポート"));
     fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
-    fireEvent.click(importFace().getByRole("button", { name: "やめる" }));
+    fireEvent.click(importFace().getByRole("button", { name: "キャンセル" }));
 
     fireEvent.click(screen.getByRole("button", { name: "閉じない" }));
 
@@ -282,7 +282,7 @@ describe("作成中（W）", () => {
       fireEvent.submit(importForm());
     });
 
-    expect((tab("新規作成") as HTMLButtonElement).disabled).toBe(true);
+    expect((tab("作成") as HTMLButtonElement).disabled).toBe(true);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(closeModal).not.toHaveBeenCalled();
 

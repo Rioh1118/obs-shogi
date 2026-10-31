@@ -54,7 +54,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   /**
    * 閉じる口を1つにする門
    *
-   * **閉じる口は4つある**（Esc・覆いの押下・両方の面の「やめる」）。
+   * **閉じる口は4つある**（Esc・覆いの押下・両方の面の「キャンセル」）。
    * `Modal` は Esc と覆いの両方で `onClose` を呼ぶので、そこへ寄せれば口が1つになる。
    * 段を面の中だけで持つと、焦点が面の外にある Esc と覆いの押下が素通りして、
    * **捨てるものが確認なしに消える**。
@@ -76,7 +76,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       onClose={requestClose}
       // 面が変わっても器の名前は動かさない。支援技術には「何が開いているか」を
       // 一貫して読ませる
-      label="棋譜を作る"
+      label="棋譜を作成する"
       variant="workspace"
       size="xl"
       // **カードごと巻く。** どちらの面も器の高さを配って組むので、器が縦に縮められた
@@ -84,7 +84,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       scroll="card"
     >
       <div className="create-file-modal">
-        <div className="create-file-modal__tabs" role="tablist" aria-label="棋譜を作る">
+        <div className="create-file-modal__tabs" role="tablist" aria-label="棋譜を作成する">
           {/* **作成中はタブを沈める。** 送信の途中で面が外れると、失敗を出す場所ごと消える */}
           <button
             type="button"
@@ -95,7 +95,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             title={isSubmitting ? "作成中は切り替えられません" : undefined}
             onClick={() => setFace("board")}
           >
-            新規作成
+            作成
           </button>
           <button
             type="button"
@@ -139,7 +139,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             initialDir={params.dir || undefined}
             onCreated={() => closeModal()}
             onDirtyChange={setEditorDirty}
-            // 面の中の「やめる」も同じ門を通す
+            // 面の中の「キャンセル」も同じ門を通す
             onClose={requestClose}
             onSubmittingChange={setEditorBusy}
           />
@@ -153,9 +153,9 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
         {confirmingClose && (
           <ConfirmDialog
             title={`${discardedName(editorDirty, importDirty)}は保存されません。`}
-            subtitle="閉じると消えます。"
+            subtitle="閉じると削除されます。"
             confirmLabel="捨てる"
-            // 「やめる」（器ごと閉じる）と同じ語にしない。**戻り先が違う** ——
+            // 「キャンセル」（器ごと閉じる）と同じ語にしない。**戻り先が違う** ——
             // こちらは組みかけ・貼りかけを持ったままの面へ帰るだけ。
             // 「組み続ける」にもしない —— 貼りかけだけを捨てるときに組んでいない
             cancelLabel="閉じない"

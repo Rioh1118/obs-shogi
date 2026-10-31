@@ -107,7 +107,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
         setLoaded(null);
         setIndexStatus("error");
         setIndexError(
-          `AI のフォルダを読めませんでした。フォルダがあるか（外付けなら繋がっているか）を確かめて「探し直す」を押してください（${String(e)}）`,
+          `AI ライブラリを読めませんでした。フォルダがあるか（外付けなら繋がっているか）を確認して「もう一度読み込む」を押してください（${String(e)}）`,
         );
       }
     })();
@@ -288,8 +288,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
     // 要るのは名前とエンジンだけ。評価関数は必須にしない（指定できないエンジンがある。流し先は
     // 起動のたびに Rust が決める）
-    if (!label) nextErrors.label = "名前を入れてください";
-    if (!enginePath) nextErrors.enginePath = "エンジンを選んでください";
+    if (!label) nextErrors.label = "名前を入力してください";
+    if (!enginePath) nextErrors.enginePath = "エンジンを選択してください";
 
     // 「使わない」定跡はパスごと落とす。前の版は使わない定跡のパスを残して保存しているので、
     // 開いて保存し直せば、欄の「使わない」とファイルが揃う
@@ -377,7 +377,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
               <SInput
                 value={draft.label}
                 aria-label="プリセットの名前"
-                placeholder="例: 研究用 / 速い解析 / 定跡整備"
+                placeholder="例: 研究用 / 速い検討 / 定跡整備"
                 onChange={(e) => {
                   setDraft({ ...draft, label: e.target.value });
                   setErrors((es) => ({ ...es, label: "" }));

@@ -14,7 +14,7 @@
 │                                              └ root_dir 無し  → FolderSelect
 │
 └ /app          RuntimeShell（RequireRootDir → RuntimeProviders → TitleBar）
-   └ AppLayout  ヘッダ ＋ サイドバー ＋ 本体（盤・棋譜・解析）
+   └ AppLayout  ヘッダ ＋ サイドバー ＋ 本体（盤・棋譜・検討）
       └ /app/panel/filetree   サイドバーの中身（`index` はここへ replace）
 ```
 
@@ -25,7 +25,7 @@
 
 ### ルートが2本しか無いことの帰結
 
-盤・棋譜・解析ペインは**ルートを持たない**。どれも `AppLayout` が常に描く。
+盤・棋譜・検討ペインは**ルートを持たない**。どれも `AppLayout` が常に描く。
 「どの棋譜を開いているか」も「何手目か」もルートには乗らず、
 前者は `file-tree` の state、後者は `?tesuu=` が持つ。
 
@@ -125,7 +125,7 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | A0     | `BootSplash`                             | 設定の読み込み完了・失敗                        |
 | A1     | `FolderSelect`（または起動エラー）       | ワークスペースを選ぶ → A2                       |
 | A2     | シェル ＋ ツリー ＋ `WelcomeScreen`      | 棋譜を選ぶ → A3                                 |
-| A3〜A5 | シェル ＋ ツリー ＋ 盤・棋譜・解析ペイン | 棋譜を閉じる → A2 / ワークスペース変更 → 再読込 |
+| A3〜A5 | シェル ＋ ツリー ＋ 盤・棋譜・検討ペイン | 棋譜を閉じる → A2 / ワークスペース変更 → 再読込 |
 
 **A2 と A3 の切り替えは `gameView.hasKifu` 1つで決まる。**
 棋譜を開く経路は2つあり、どちらも同じ state を通る。
@@ -147,12 +147,12 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 
 | モーダル              | 入口                                                                                                                                             |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `settings`            | ヘッダの歯車（`tab=workspace`）／解析ペインの歯車（`tab=engine`）／ツリーの失敗通知（`tab=workspace`）／エンジンの起動の失敗の帯（`tab=engine`） |
+| `settings`            | ヘッダの歯車（`tab=workspace`）／検討ペインの歯車（`tab=engine`）／ツリーの失敗通知（`tab=workspace`）／エンジンの起動の失敗の帯（`tab=engine`） |
 | `study-positions`     | ヘッダの本アイコン                                                                                                                               |
-| `study-position-save` | 解析ペインのしおりアイコン／課題局面一覧の「編集」と `e` キー                                                                                    |
-| `position-search`     | 解析ペインの虫眼鏡／課題局面一覧の「検索」と `s` キー                                                                                            |
-| `navigation`          | 解析ペインのコンパス                                                                                                                             |
-| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」と、ようこそ画面の「棋譜を作る」（そちらは `dir=` を付けない）                                             |
+| `study-position-save` | 検討ペインのしおりアイコン／課題局面一覧の「編集」と `e` キー                                                                                    |
+| `position-search`     | 検討ペインの虫眼鏡／課題局面一覧の「検索」と `s` キー                                                                                            |
+| `navigation`          | 検討ペインのコンパス                                                                                                                             |
+| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」と、ようこそ画面の「棋譜を作成する」（そちらは `dir=` を付けない）                                             |
 | `sfen-kifu-create`    | 課題局面の詳細の「棋譜を作成」                                                                                                                   |
 
 ※ `tab` に書ける綴りは `TabType`（`shared/lib/router/useURLParams.ts`）が持ち、

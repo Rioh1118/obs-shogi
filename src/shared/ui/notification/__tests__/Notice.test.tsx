@@ -151,7 +151,7 @@ describe("通知の中身", () => {
           {
             label: "エンジンを再起動",
             run: () => Promise.reject(new Error("engine binary not found")),
-            failureBody: "設定タブでエンジンのパスを確かめてください。",
+            failureBody: "設定タブでエンジンのパスを確認してください。",
           },
         ],
       });
@@ -160,7 +160,7 @@ describe("通知の中身", () => {
 
       const text = (await screen.findByRole("alert")).textContent ?? "";
       expect(text).toContain("「エンジンを再起動」を実行できませんでした。");
-      expect(text).toContain("設定タブでエンジンのパスを確かめてください。");
+      expect(text).toContain("設定タブでエンジンのパスを確認してください。");
     });
 
     // 画面には利用者の言葉、原因はログ。例外を捨てると後から誰も辿れない

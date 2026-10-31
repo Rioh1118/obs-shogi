@@ -23,7 +23,7 @@ export type PresetsFileNoticeView =
 /** 書けない状態で開いた種類の結び */
 const OPENED_READ_ONLY = "変更できない状態で開いています。";
 /** 直すのがアプリの外（フォルダの権限）の種類の結び */
-const CHECK_FOLDER = "設定のフォルダに書き込めるかを確かめて、「読み直す」を押してください。";
+const CHECK_FOLDER = "設定のフォルダに書き込めるかを確認して、「読み直す」を押してください。";
 
 type LoadNoticeBuilders = {
   [K in PresetsLoadNotice["kind"]]: (
@@ -69,7 +69,7 @@ const LOAD_NOTICE_BUILDERS: LoadNoticeBuilders = {
     title: "プリセットのファイルを読めませんでした",
     body:
       `読めなかったファイルは ${getBaseName(destination)} として同じフォルダに残し、` +
-      "既定のプリセットから始めています。",
+      "初期値のプリセットから始めています。",
     action: "settings",
   }),
   notRecovered: () => ({
@@ -93,7 +93,7 @@ const LOAD_NOTICE_BUILDERS: LoadNoticeBuilders = {
     body:
       "ファイルを開けなかったため、" +
       OPENED_READ_ONLY +
-      "ファイルの権限を確かめて、「読み直す」を押してください。",
+      "ファイルの権限を確認して、「読み直す」を押してください。",
     action: "reload",
   }),
 };
@@ -103,7 +103,7 @@ const UNKNOWN_LOAD_NOTICE: PresetsFileNoticeView = {
   presentation: "banner",
   tier: "warning",
   title: "プリセットのファイルで問題が起きました",
-  body: "「読み直す」を押して、状態を確かめてください。",
+  body: "「読み直す」を押して、状態を確認してください。",
   action: "reload",
 };
 
@@ -131,14 +131,14 @@ export const PRESETS_SAVE_NOTICES: Record<SaveFailure["kind"], PresetsFileNotice
     presentation: "banner",
     tier: "danger",
     title: "プリセットを保存できません",
-    body: "変更は保存していません。プリセットのファイルを変更できない状態です。「読み直す」で状態を確かめてください。",
+    body: "変更は保存していません。プリセットのファイルを変更できない状態です。「読み直す」で状態を確認してください。",
     action: "reload",
   },
   io: {
     presentation: "banner",
     tier: "warning",
     title: "プリセットを保存できませんでした",
-    body: "変更は保存していません。設定のフォルダに書き込めるかを確かめて、もう一度保存してください。",
+    body: "変更は保存していません。設定のフォルダに書き込めるかを確認して、もう一度保存してください。",
     action: "settings",
   },
   invalid: {
@@ -162,6 +162,6 @@ export const PRESETS_LOAD_FAILED: PresetsFileNoticeView = {
   presentation: "banner",
   tier: "danger",
   title: "プリセットを読み込めませんでした",
-  body: "解析に使うプリセットが読めていません。「読み直す」を押してください。",
+  body: "検討に使うプリセットが読めていません。「読み直す」を押してください。",
   action: "reload",
 };

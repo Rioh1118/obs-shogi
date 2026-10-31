@@ -331,7 +331,7 @@ pub(crate) fn describe(
     if let (Some(enc), true) = (evidence.declared, evidence.declared_but_garbled) {
         return format!(
             "{} として読めましたが、途中に読めないバイトがあります。\
-             ファイルが途中で切れていないか確かめてください",
+             ファイルが途中で切れていないか確認してください",
             enc.name()
         );
     }
@@ -347,7 +347,7 @@ pub(crate) fn describe(
         // 付けないと、文字コードによって案内が出たり出なかったりする
         return format!(
             "{name} としては読めましたが、棋譜として読めない行があります。\
-             その行を直すか、拡張子が中身と合っているか確かめてください:\n{}",
+             その行を直すか、拡張子が中身と合っているか確認してください:\n{}",
             for_screen(error)
         );
     }
@@ -367,7 +367,7 @@ pub(crate) fn describe(
             Some(Unparsable { error, .. }) => {
                 format!(
                     "文字コードは特定できませんが、棋譜として読めない行があります。\
-                     その行を直すか、拡張子が中身と合っているか確かめてください:\n{}",
+                     その行を直すか、拡張子が中身と合っているか確認してください:\n{}",
                     for_screen(&error)
                 )
             }
@@ -379,7 +379,7 @@ pub(crate) fn describe(
                     .collect();
                 format!(
                     "{} のどれでも文字として読めませんでした。棋譜ではないファイルに\
-                         棋譜の拡張子が付いていないか確かめてください（{}）",
+                         棋譜の拡張子が付いていないか確認してください（{}）",
                     tried.join(" / "),
                     for_screen(&other)
                 )

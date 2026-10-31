@@ -32,7 +32,7 @@ reducer は見ない——見るのは表示の側（`optionRows`・`probeStatus
 | R2   | `probeSucceeded`（それ以外の `token`）     | やめた・撃ち直した後に返った結果                                 |
 | F1   | `probeFailed`（いま待っている `token`）    | Rust の `probe_engine` の断り（`asStartFailure`）                |
 | F2   | `probeFailed`（それ以外の `token`）        | やめた・撃ち直した後に返った失敗                                 |
-| A    | `probeAbandoned`                           | 「やめる」                                                       |
+| A    | `probeAbandoned`                           | 「中止する」                                                       |
 
 ## 表
 
@@ -47,7 +47,7 @@ reducer は見ない——見るのは表示の側（`optionRows`・`probeStatus
 
 1. 下書きへ定義を入れるのは、いま待っている取得の結果で、下書きのエンジンがその取得のエンジンのときだけ
 2. 定義に当てるのは当てる元の値（開いたときの値＋このダイアログでの編集）。当てた後の下書きから当て直さない
-3. 取得中は保存できない（`probe !== null`。呼び手が保存を塞ぐ）。取得中の印を下ろせるのは結果・失敗・「やめる」だけ
+3. 取得中は保存できない（`probe !== null`。呼び手が保存を塞ぐ）。取得中の印を下ろせるのは結果・失敗・「中止する」だけ
 
 ## 埋まっていないセル
 

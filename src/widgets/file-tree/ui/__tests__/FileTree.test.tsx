@@ -95,7 +95,7 @@ const ROOT_GONE: FsError = { code: "not_found", message: "root is missing", path
 /** ディスク上の改名は通り、`app.json` の書き戻しだけが落ちた */
 const CONFIG_FAILED: FsError = {
   code: "config_write_failed",
-  message: "ルートディレクトリの更新に失敗しました: disk full",
+  message: "ワークスペースの更新に失敗しました: disk full",
   path: "/root2",
 };
 const BAD_NAME: FsError = {
@@ -297,7 +297,7 @@ describe("段による出し分け", () => {
     // ここで導線が無いとサイドバーの中で行き止まりになる
     expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
     await act(async () => {
-      screen.getByRole("button", { name: "ワークスペースを選び直す" }).click();
+      screen.getByRole("button", { name: "ワークスペースを選択し直す" }).click();
     });
 
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
@@ -316,7 +316,7 @@ describe("段による出し分け", () => {
 
     expect(screen.getByRole("button", { name: "再読み込み" })).toBeTruthy();
     await act(async () => {
-      screen.getByRole("button", { name: "ワークスペースを選び直す" }).click();
+      screen.getByRole("button", { name: "ワークスペースを選択し直す" }).click();
     });
 
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });
@@ -335,7 +335,7 @@ describe("段による出し分け", () => {
 
     expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
     await act(async () => {
-      screen.getByRole("button", { name: "ワークスペースを選び直す" }).click();
+      screen.getByRole("button", { name: "ワークスペースを選択し直す" }).click();
     });
 
     expect(openModal).toHaveBeenCalledWith("settings", { tab: "workspace" });

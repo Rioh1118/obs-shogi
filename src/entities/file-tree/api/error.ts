@@ -275,7 +275,7 @@ export function describeFsError(code: FsErrorCode): string {
     case "kifu_format_unknown":
       return "対応していない棋譜の形式です";
     case "kifu_parse_failed":
-      return "棋譜を解析できませんでした";
+      return "棋譜を読み込めませんでした";
     case "config_write_failed":
       return "ディスク上の変更は済みましたが、アプリの設定に保存できませんでした";
     case "unknown":
