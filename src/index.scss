@@ -13,6 +13,11 @@ $color-secondary-dark-2: #a57d5c;
 // 押そうとしている瞬間にいちばん読みにくくなる
 $color-secondary-solid: #8f6b4e; // 白文字 4.79:1
 $color-secondary-solid-hover: #866549; // 白文字 5.29:1
+// 確定のボタンの面。砂色の文字と同じ素材にして、暗い文字を載せる（$color-primary-black で 11.1:1）
+$color-commit-solid: $color-secondary-light;
+$color-commit-solid-hover: #e8e4d9;
+// 進めるボタンの銅の文字。$color-secondary-dark は暗い面で 4.2:1 なので一段上げる（6.22:1）
+$color-accent-text: #c29a78;
 
 $color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
@@ -249,6 +254,8 @@ $shadow-overlay:
   0 2px 10px rgba(0, 0, 0, 0.35);
 $shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
 // 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
+// 選択を示す左の銅のバー
+$shadow-selected: inset 3px 0 0 $color-secondary-dark;
 $shadow-control: 0 $space-2 $space-4 rgba(0, 0, 0, 0.22);
 $shadow-control-press: 0 $space-1 $space-2 rgba(0, 0, 0, 0.16);
 

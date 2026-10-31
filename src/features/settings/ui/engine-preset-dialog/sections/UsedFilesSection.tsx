@@ -101,7 +101,7 @@ export default function UsedFilesSection(props: {
             {/* 読み直している間は押せなくする（帯の文言は前の索引のままなので、押せると効かなかったと読まれる） */}
             {canCreateEnginesDir(enginesDir) && (
               <Button
-                tone="primary"
+                tone="accent"
                 size="sm"
                 onClick={onCreateEnginesDir}
                 disabled={indexStatus === "loading"}

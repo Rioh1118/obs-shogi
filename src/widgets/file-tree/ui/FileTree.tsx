@@ -227,7 +227,7 @@ function FileTree() {
               <p>ファイルツリーがありません</p>
               {/* 隣に出る `FileTreeErrorNotice` の fallback と同じ軸で書く。
                   同じスロットに排他で出るので、押すたびに大きさが変わると読み違える */}
-              <Button tone="primary" onClick={chooseWorkspace.run}>
+              <Button tone="accent" onClick={chooseWorkspace.run}>
                 {chooseWorkspace.label}
               </Button>
             </div>

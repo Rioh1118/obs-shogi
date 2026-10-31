@@ -113,7 +113,7 @@ export default function Notice({
                 size="sm"
                 // 先頭だけを主にする。段では決めない（ADR-0004 決定3）。
                 // 2つとも主にすると「エンジンを再起動」が「再試行」と同じ重さに見える
-                tone={at === 0 ? "primary" : "neutral"}
+                tone={at === 0 ? "accent" : "neutral"}
                 // 待っていることは伝えるが押せなくはしない（`invoke` が弾く）
                 busy={running === action}
                 onClick={() => invoke(action)}

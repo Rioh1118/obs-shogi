@@ -84,7 +84,7 @@ export default function EngineTab() {
               もう一度読み込む
             </Button>
             <Button
-              tone="primary"
+              tone="accent"
               size="sm"
               onClick={onAdd}
               disabled={state.status === "loading" || readOnly}

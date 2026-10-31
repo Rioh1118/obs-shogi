@@ -98,7 +98,7 @@ export default function PositionDetail({
         <div className="sp-detail__actionsRight">
           <Button onClick={() => onEdit(position.sfen)}>{"編集"}</Button>
           <Button onClick={() => onCreateKifu(position.sfen)}>{"棋譜を作成"}</Button>
-          <Button tone="primary" onClick={() => onSearch(position.sfen)}>
+          <Button tone="accent" onClick={() => onSearch(position.sfen)}>
             {"局面検索"}
           </Button>
         </div>

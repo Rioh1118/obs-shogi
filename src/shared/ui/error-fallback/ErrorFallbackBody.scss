@@ -53,15 +53,15 @@
   &__action {
     padding: index.$space-3 index.$space-7;
     // 枠は透明で持つ。`--secondary` が枠を使うので、無いと2つのボタンの高さがずれる
-    border: 1px solid transparent;
-    border-radius: index.$radius-4;
-    background-color: index.$color-secondary-solid;
-    color: index.$color-white;
+    border: 1px solid index.$color-secondary-dark;
+    border-radius: index.$radius-3;
+    background-color: transparent;
+    color: index.$color-accent-text;
     font-size: index.$font-aux;
     cursor: pointer;
 
     &:hover {
-      background-color: index.$color-secondary-solid-hover;
+      background-color: rgba(index.$color-secondary-dark, 0.14);
     }
 
     // 「再表示」で戻らなかったときの出口。同じ強さで並べると、

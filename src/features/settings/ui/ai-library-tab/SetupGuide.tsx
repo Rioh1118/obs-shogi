@@ -395,7 +395,7 @@ export default function SetupGuide({
         <div className="setupGuide__heroActions">
           {nextAction.primaryLabel && (
             <Button
-              tone="primary"
+              tone="accent"
               size="sm"
               onClick={nextAction.onPrimary}
               disabled={!nextAction.onPrimary}

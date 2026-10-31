@@ -66,16 +66,26 @@
   }
 
   // ── 面の色 ──
-  // primary の面は $color-secondary-solid。$color-secondary-dark だと
-  // 白文字が 3.80:1 になり本文の基準を割る
+  // 確定。暗い文字を載せる面なのでホバーは明るくする（ADR-0005 決定2）
   &--primary {
-    background: index.$color-secondary-solid;
-    border-color: index.$color-secondary-solid;
-    color: index.$color-white;
+    background: index.$color-commit-solid;
+    border-color: index.$color-commit-solid;
+    color: index.$color-primary-black;
 
     &:hover:not(:disabled) {
-      background: index.$color-secondary-solid-hover;
-      border-color: index.$color-secondary-solid-hover;
+      background: index.$color-commit-solid-hover;
+      border-color: index.$color-commit-solid-hover;
+    }
+  }
+
+  // 次の一手。銅は印の色なので、面に敷かず枠と文字で持つ
+  &--accent {
+    background: transparent;
+    border-color: index.$color-secondary-dark;
+    color: index.$color-accent-text;
+
+    &:hover:not(:disabled) {
+      background: rgba(index.$color-secondary-dark, 0.14);
     }
   }
 

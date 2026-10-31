@@ -45,18 +45,12 @@
       color: index.$color-text-primary;
     }
 
-    // 選択中はホバーで見た目を変えない。面はもう主ボタンの色で、
-    // 詳細度が同じなので記述順だけで勝敗が決まる形にしない
+    // 選択は左の銅のバーで見せる。ホバーで見た目を変えないよう、同じ宣言を両方へ掛ける
+    &.is-active,
     &.is-active:hover {
-      background: index.$color-secondary-solid;
-      color: index.$color-white;
-    }
-
-    // 選択中は主ボタンと同じ面に置く。カードに対して 3.33:1 の段差があるので
-    // 面そのものが手掛かりになる（白文字は 4.79:1）
-    &.is-active {
-      background: index.$color-secondary-solid;
-      color: index.$color-white;
+      background: rgba(index.$color-primary-light, 0.45);
+      box-shadow: index.$shadow-selected;
+      color: index.$color-text-primary;
     }
 
     &:focus-visible {
