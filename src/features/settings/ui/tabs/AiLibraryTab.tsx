@@ -199,7 +199,7 @@ export default function AiLibraryTab() {
       if (seq !== scanSeqRef.current) return;
 
       // **ルートを読めなかったのだから、その索引はもう根拠が無い。**
-      // 残すと「engines フォルダ: あり」のまま作り直す口が出ず、
+      // 残すと「engines フォルダ: あり」のまま作り直すボタンが出ず、
       // 開くボタンも押せたままで、同じ失敗を繰り返すだけになる
       setScan({ status: "error", error: e instanceof Error ? e.message : String(e), last: null });
     }
@@ -347,7 +347,7 @@ export default function AiLibraryTab() {
       console.error("[AiLibraryTab] フォルダを開けなかった", path, revealed.error);
 
       // **2つの原因のうち「そこに無い」側だけが索引で直せる。** 読み直さないと、
-      // 画面は「あり」のまま、消えたフォルダを作り直す口（「engines/ を作成」）が
+      // 画面は「あり」のまま、消えたフォルダを作り直すボタン（「engines/ を作成」）が
       // どこにも出ない。呼べないだけの環境では空振りするが、無い方を放置するより軽い。
       //
       // 読み直すのは**いま指しているルート**。押した後に選び直されていると、

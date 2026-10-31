@@ -15,9 +15,9 @@ import { codeOf } from "./sourceText";
  * 解析の断りは復帰操作として**エンジン管理タブ**での操作を案内するので、歯車が
  * 別のタブを開くと案内が空振りする。
  *
- * **本番の口は `useOpenSettings` 1本に寄せてあり、そこは `TabKey` で受ける**ので、
+ * **本番の呼び出しは `useOpenSettings` 1本に寄せてあり、そこは `TabKey` で受ける**ので、
  * 通る限り tsc が止める。この検査が残っているのは2つのため——
- * (a) その口を迂回して `openModal("settings", { tab: "…" })` を直に書いた回、
+ * (a) `useOpenSettings` を迂回して `openModal("settings", { tab: "…" })` を直に書いた回、
  * (b) `docs/spec/**` が書くタブ名（doc は型を持たない）。
  *
  * **`URLParams["tab"]` を `TabKey` にする道は無い。** `tab` は設定専用の欄ではなく、

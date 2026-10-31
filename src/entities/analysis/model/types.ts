@@ -65,7 +65,7 @@ export type PositionSyncAdapter = {
  *
  * **`state` の外に出た結果を、この provider は無効化できない。** `clear_results` が
  * 届くのは `state` の中だけで、`candidateCache` には届かない。停止中に何を出すかは
- * 画面が決めるが、**控えを捨てる口は控えの側**（`scopeTo`）にある。
+ * 画面が決めるが、**控えを捨てる関数は控えの側**（`scopeTo`）にある。
  */
 export interface AnalysisContextType {
   state: AnalysisState;

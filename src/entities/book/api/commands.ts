@@ -4,7 +4,7 @@ import { asBookError } from "./error";
 import type { BookError, BookInfo, BookLine, BookMove } from "../model/types";
 
 /**
- * 定跡を開いてハンドルを受け取る。**画面が呼ぶ口ではない。**
+ * 定跡を開いてハンドルを受け取る。**画面が呼ぶ関数ではない。**
  *
  * 画面から開くのは `useBook().openBook` —— こちらはハンドルを返すだけで、
  * 前の定跡を閉じることも、開いている最中を画面に出すこともしない。
@@ -46,7 +46,7 @@ export function closeBook(handle: number): AsyncResult<void, BookError> {
 /**
  * 開いている定跡を全部返す。
  *
- * **孤児を拾うための口。** ハンドルはフロントの変数にしか無いので、webview が
+ * **孤児を拾うための関数。** ハンドルはフロントの変数にしか無いので、webview が
  * 作り直されると閉じる術が無くなり、定跡ぶんのメモリがプロセス終了まで残る。
  */
 export function listBooks(): Promise<BookInfo[]> {

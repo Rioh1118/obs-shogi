@@ -29,7 +29,7 @@ import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/St
  * 同じ URL へ開き直した操作もまとめて拾える。
  *
  * **URL を持たない2枚**（`FileConflictDialog` / `KifuReadErrorDialog`）だけは別に並べる。
- * この2枚が落ちると、原因を消す口（`clearKifuError` / `closeConflict`）も畳まれた側に居るので、
+ * この2枚が落ちると、原因を消す関数（`clearKifuError` / `closeConflict`）も畳まれた側に居るので、
  * 鍵が動かなければ**そのセッションではどのモーダルも二度と出ない。**
  *
  * **URL を持たない入力をここに足すときは、鍵にも足すこと。**
@@ -46,7 +46,7 @@ function useModalLayerResetKeys(): readonly unknown[] {
  * 流れの中の箱で置き換えると `.app-layout` の grid の1段目を取り、本体が
  * 暗黙の3段目へ押し出されて `overflow: hidden` に切られる（`ModalLayerContent` の doc）。
  *
- * **立っている知らせを捨てる出口を持つのはここ。** 消す口（`clearKifuError` /
+ * **立っている知らせを捨てる出口を持つのはここ。** 消す関数（`clearKifuError` /
  * `closeConflict`）は畳まれた側にしか無いので、境界の外に居るこの部品が呼ぶ。
  * 出口を押した結果を出す `dropped` も、押されるまで存在しない state なので**ここが持つ。**
  */

@@ -18,7 +18,7 @@ import { MemoryRouter, useLocation } from "react-router";
  * 開いた時点で一度リセットが走る。`?pov=gote` で始める形はアプリに無い。
  *
  * **盤の中身が入れ替わった回数（`boardSeq`）も組にして動かす。** パスだけを動かすと改名になり、
- * 載せ直しの場合が1つも踏めなくなる。動かす口は `loadKifu` / `renameTo` / `closeKifu` の
+ * 載せ直しの場合が1つも踏めなくなる。動かす関数は `loadKifu` / `renameTo` / `closeKifu` の
  * 3つだけで、`game.state` を直に書かない。
  */
 
@@ -55,7 +55,7 @@ let isGotePov = false;
 const seenKeys: string[] = [];
 
 /**
- * 向きを付ける口は解析ペインのヘッダ1つだけ。**そこが呼ぶのと同じ `toggle`** を
+ * 向きを付ける操作は解析ペインのヘッダ1つだけ。**そこが呼ぶのと同じ `toggle`** を
  * ボタンに繋ぐ。書き手を試験の側で組み直すと、符号化がずれても緑のままになる。
  *
  * 読む側と落とす側を同じ所で呼んでいるが、現物は別々に載っている——落とす側は

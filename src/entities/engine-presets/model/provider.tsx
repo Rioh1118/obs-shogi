@@ -56,7 +56,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   // 読んだ（か直前に書いた）ファイルの印。保存に渡し、別の書き手の変更を Rust が見分ける
   const revisionRef = useRef<string | null>(null);
   // 書けるか。**決めるのは読み込みだけ**なので `adopt` でだけ書き換える
-  // （`state.writable` と同じ値。書く口を state に依存させないために ref で持つ）
+  // （`state.writable` と同じ値。書く関数を state に依存させないために ref で持つ）
   const writableRef = useRef(false);
   // 最後に読んだか書けた一覧。**次の一覧はここから組む**——`state.presets` を掴んでから
   // `await` を挟むと、先に書けた変更を知らない一覧で上書きする（先の変更が黙って消える）
@@ -114,7 +114,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [enqueue, write],
   );
 
-  /** 読み込みの結果を取り込む。**読み込みの口はここ1つ**（初回と読み直しの両方） */
+  /** 読み込みの結果を取り込む。**読み込みの経路はここ1つ**（初回と読み直しの両方） */
   const adopt = useCallback(
     (
       loaded: LoadedPresets,

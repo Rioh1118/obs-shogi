@@ -94,7 +94,7 @@ vi.mock(
 );
 
 // 向きを読む側はこの部分木に居ないので、落とす側だけを差し替える。
-// 使わない口を形だけ書くと、実物が変わっても気付けない
+// 使わない exportを形だけ書くと、実物が変わっても気付けない
 vi.mock("@/features/board-orientation", () => ({
   useResetOrientationOnKifuChange: () => resetOrientation(),
 }));

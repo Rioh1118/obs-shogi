@@ -235,7 +235,7 @@ $picker-list-w: 32rem; // scale-exempt
   }
 
   // 掴んでいる駒の元の升。**残像を残す。** 盤から消すと、どこから持ったのかを
-  // 見失って、置き先を決める前に元へ戻せなくなる（戻す口が無い）
+  // 見失って、置き先を決める前に元へ戻せなくなる（戻す操作が無い）
   &--from {
     background-color: rgba(index.$color-secondary-dark, 0.22);
 
@@ -401,7 +401,7 @@ $picker-list-w: 32rem; // scale-exempt
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.55));
   transform: translate(-50%, -50%);
 
-  // 掴んだ時点のポインタ位置を知る口が無いので、最初の `mousemove` まで出さない。
+  // 掴んだ時点のポインタ位置を知る手段が無いので、最初の `mousemove` まで出さない。
   // 出すと画面の隅に駒が1つ光る
   visibility: hidden;
 

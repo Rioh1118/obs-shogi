@@ -6,13 +6,13 @@
 //! 載せたかを**確かめる手段が無い**——`game-session.md` の `G2` 行のセルは、
 //! そこを観測できないと埋められない。
 //!
-//! 向きは、上（`commands`）が下（`game`）の決めた口に合わせる。
+//! 向きは、上（`commands`）が下（`game`）の決めたトレイトに合わせる。
 
 use super::types::GameEvent;
 
 /// 対局の出来事の宛先。
 ///
-/// **`game` が持つ口で、`tauri` を知らない。** 実装（`TauriEvents`）は
+/// **`game` が持つトレイトで、`tauri` を知らない。** 実装（`TauriEvents`）は
 /// 上の段（`commands::game`）に置く——下が上を知らない、を保つため。
 pub trait GameEventSink: Send + Sync + 'static {
     /// 1件流す。**失敗しても対局を止めない。**

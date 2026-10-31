@@ -55,7 +55,7 @@ declare const kifuCursorBrand: unique symbol;
  * 局面を指す文字列に整える。**このファイルの中だけで使う。**
  *
  * 正規化を掛けないので、外から呼ぶと並びの違いがそのまま別の鍵になる。
- * 外向きの口は `cursorKey`（正規化を通す）。
+ * 外向きの関数は `cursorKey`（正規化を通す）。
  *
  * 返すのは**素の `string`**。ここで `TesuuPointer` を返すと、再生器を通していない値を
  * `tesuuPointer` の欄に入れる経路がこのファイルの中に開く（欄に書ける owner は
@@ -272,7 +272,7 @@ export function truncateFrom(fps: ForkPointer[], te: number): ForkPointer[] {
 
 /**
  * te の選択を差し替える。`null` は「本譜を選ぶ」＝その te の選択を消す。
- * **計画に選択を書く口はこれ1つ。**
+ * **計画に選択を書く関数はこれ1つ。**
  *
  * 本譜を `forkIndex` の無い状態で表すのは `ForkPointer` の作りに従ったもの。
  * `0` は「変化の0番目」であって本譜ではない。
@@ -301,7 +301,7 @@ export function forkIndexAt(fps: ForkPointer[], te: number): number | null {
  *
  * `tesuuPointer` は再生器が返した文字列をそのまま brand 付きにするので、
  * 渡す3つは**同じ局面を辿り終えた1つの再生器から**取ること。別々に組むと、
- * 局面を一意に指すはずの値が中身と食い違う。実際の口は `cursorFromPlayer`。
+ * 局面を一意に指すはずの値が中身と食い違う。実際の呼び手は `cursorFromPlayer`。
  *
  * `forkPointers` は `te <= tesuu` に正規化する。だから
  * **`state.cursor.forkPointers` はカーソルより先の選択を持たない**

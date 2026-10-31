@@ -18,7 +18,7 @@ beforeEach(() => {
 describe("revealInFileManager", () => {
   /**
    * `open_path` は capability が許していない（許すなら、既定のアプリで何を起動して
-   * よいかを scope で決めることになる）。どちらの口を叩いているかが、
+   * よいかを scope で決めることになる）。どちらのコマンドを叩いているかが、
    * 効くボタンと効かないボタンを分ける
    */
   it("`reveal_item_in_dir` の口を叩く", async () => {

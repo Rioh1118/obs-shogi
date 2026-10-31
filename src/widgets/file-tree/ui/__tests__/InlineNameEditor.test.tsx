@@ -164,7 +164,7 @@ describe("InlineNameEditor", () => {
    * 確定は click より前のマイクロタスクで返るので、ここで `focus()` を呼ぶと
    * 利用者が移った先から焦点を奪い返す。押した行は開くのにキーボードは
    * 改名欄に残り、しかも入力欄は `onKeyDown` で全て `stopPropagation()` するので
-   * Escape が他の受け口へ届かなくなる。
+   * Escape が他のハンドラへ届かなくなる。
    *
    * **焦点を実際に動かして測る。** `fireEvent.blur` は happy-dom の
    * `document.activeElement` を動かさないので、それだけでは

@@ -1,7 +1,7 @@
 import { describeOwnedSpellings } from "./ownedSpelling";
 
 /**
- * 解析の待ちの寸法を縮める口を、テストの中に閉じる。
+ * 解析の待ちの寸法を縮める関数を、テストの中に閉じる。
  *
  * `shortenWaits`（`src/entities/analysis/model/waits.ts`）は本番モジュールに置いた
  * 公開関数で、呼ぶと `positionSyncTimeoutMs` が `TEST_SCALE` 分の1に落ちる

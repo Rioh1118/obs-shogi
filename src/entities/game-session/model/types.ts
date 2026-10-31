@@ -26,7 +26,7 @@ export interface GameProgressView {
 }
 
 /**
- * 裁定を返す口。**注入で受ける。**
+ * 裁定を返す実装。**注入で受ける。**
  *
  * 判定そのものは `entities/game`（`judgeGameOutcome`）が持っているが、
  * **このスライスから直に読めない** —— あちらが `Side` をここから取っているので、
@@ -58,7 +58,7 @@ export type GameSessionView =
   /**
    * `startGame` がまだ解決していない。
    *
-   * **数十秒続きうる**（評価関数の重いエンジン）。取り消す口は無いので、
+   * **数十秒続きうる**（評価関数の重いエンジン）。取り消す経路は無いので、
    * 押した側はここで待つことになる（`api/tauri.ts` の `startGame`）。
    */
   | { kind: "starting"; kifuPath: string | null }
@@ -73,7 +73,7 @@ export type GameSessionView =
        * 人が座っている席。**投了できるのはここだけ。**
        *
        * `resignGame` はエンジンの席を指すと Rust が断るので、
-       * エンジン同士の対局には投了の口が無い（中断しかできない）。
+       * エンジン同士の対局には投了の経路が無い（中断しかできない）。
        */
       humanSides: readonly Side[];
       /** いま着手を待っている側 */

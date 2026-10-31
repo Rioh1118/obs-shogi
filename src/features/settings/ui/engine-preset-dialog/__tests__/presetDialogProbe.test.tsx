@@ -69,7 +69,7 @@ const probes: Pending[] = [];
 const presets = { current: PRESET };
 const updatePreset = vi.fn<(id: PresetId, patch: Partial<EnginePreset>) => Promise<boolean>>();
 
-// Tauri の口だけを差し替え、番号の払い出し（`probeEngine` の `nextRequestNumber`）は本物を通す。
+// Tauri の呼び出しだけを差し替え、番号の払い出し（`probeEngine` の `nextRequestNumber`）は本物を通す。
 // 捨てる判定は `presetDialogReducer`
 vi.mock(
   "@tauri-apps/api/core",
@@ -313,7 +313,7 @@ describe("読み込み", () => {
     await tick();
     expect(engineSelect().selectedOptions[0].textContent).not.toBe("Engine A");
 
-    // 同じエンジンは選び直しても読まれないので、読み込み直す口が残っていないと行き止まりになる
+    // 同じエンジンは選び直しても読まれないので、読み込み直すボタンが残っていないと行き止まりになる
     expect(screen.getByText(/エンジンをまだ読み込んでいません/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "もう一度読み込む" }));
     expect(probes.map((p) => p.args.enginePath)).toEqual([ENGINE_A, ENGINE_A]);

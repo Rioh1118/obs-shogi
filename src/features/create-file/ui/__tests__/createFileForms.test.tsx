@@ -29,7 +29,7 @@ const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTre
 
 /**
  * ツリーは操作のたびに丸ごと読み直される（`loadFileTree`）ので、差し替えられる形で持つ。
- * **ファイルを見張る仕組みは無い** —— 入れ替わる口は、ツリーを触る操作と、
+ * **ファイルを見張る仕組みは無い** —— 入れ替わる経路は、ツリーを触る操作と、
  * 開いたときの `dir=` が現在のツリーに無い場合。
  */
 let fileTree: FileTreeNode = dir("root", "/root");

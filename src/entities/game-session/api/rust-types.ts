@@ -26,7 +26,7 @@ declare const gameIdBrand: unique symbol;
  * 引数を並べ替えても tsc が通る。通ると Rust は `unknown game: 7g7f` を返し、
  * 盤は裁定待ちのまま `RULING_TIMEOUT` 後に「アプリが裁定を返さなかった」で畳まれる。
  *
- * 手に入る口は `startGame` の戻り値・`listGames`・`getGameState` の `gameId`・
+ * 手に入る経路は `startGame` の戻り値・`listGames`・`getGameState` の `gameId`・
  * `game-event` の `gameId`。**手で `as GameId` すると brand の意味が消える**
  * （brand が止めるのは暗黙の代入だけ。`entities/kifu` の `TesuuPointer` と同じ流儀）。
  * Rust 側も `GameId` は newtype で、線に出る形は文字列のまま。

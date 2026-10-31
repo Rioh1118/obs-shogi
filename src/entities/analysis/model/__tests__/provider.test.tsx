@@ -45,7 +45,7 @@ vi.mock("@/entities/engine", () => ({
   }),
 }));
 
-/** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
+/** 最後に登録されたリスナ。Rust からの通知を差し込む関数。 */
 type Listeners = {
   onUpdate: (sessionId: string, result: AnalysisResult) => void;
   onComplete: (sessionId: string, result: AnalysisResult) => void;
@@ -399,7 +399,7 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(50);
     listenerSetupFails = false;
 
-    // 張り直す口が無いので、断らないと「解析中・候補手0」で永久に固まる。
+    // 張り直す経路が無いので、断らないと「解析中・候補手0」で永久に固まる。
     expect(view.current.state.error).toBe(LISTENERS_FAILED_MESSAGE);
 
     // **▶ を押しても `go` を出さない。** 出すと `clear_results` が断りを消し、
@@ -824,7 +824,7 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(150);
 
     // もう1手進む。**エンジンはまだ追いついていない**ので、次の再開は同期待ちで止まり、
-    // 画面の候補手を捨てる口を通らない。
+    // 画面の候補手を捨てる `discardShown` を通らない。
     await view.setSync(adapter("P3", "P2"));
     await advance(150);
 
@@ -2002,7 +2002,7 @@ describe("AnalysisProvider のアンマウント", () => {
       await advance(150);
 
       // 指さない停止は Rust の席を**全部**空けるので、生きている画面へ撃つと
-      // 別の口が取った席まで巻き添えにする。
+      // 別の経路が取った席まで巻き添えにする。
       expect(stopCore.mock.calls).not.toContainEqual([undefined, "unmount"]);
     },
     SLOW,

@@ -44,7 +44,7 @@ async function loadKifu(absPath: string): Promise<LoadedKifu> {
   // 同じ「続きが無い」に見える。理由を持ったまま上へ返す
   if (!res.success) throw new Error(describeFsError(res.error.code));
 
-  // **型の口を広げない。** `readText` は `string` を返すと言い切っているので、
+  // **受ける型を広げない。** `readText` は `string` を返すと言い切っているので、
   // ここで `unknown` を受けて変換すると、その約束が変わったときに tsc が
   // 落ちなくなる（代わりに `"[object Object]"` が解析へ流れ、原因と無関係な
   // 文言の断りになる）

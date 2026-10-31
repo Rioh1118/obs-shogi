@@ -5,7 +5,7 @@
 //! kill が返らない。ここでは kill はチャンネルで待ち手のタスクへ頼むだけで、
 //! stdin のロックを**待たない**。
 //!
-//! 書く口（`ChildWriter`）と読む口（`read_stdout`）は**1回きり**しか渡さない。
+//! 書き手（`ChildWriter`）と読み手（`read_stdout`）は**1回きり**しか渡さない。
 //! 2本目の書き手ができると、書き込みの列（`protocol::run_writer`）が守っている
 //! 「投入順＝ワイヤ上の順」を迂回できる。
 //!
@@ -98,7 +98,7 @@ pub enum KillOutcome {
 
 /// 子プロセス1本。
 ///
-/// **Drop するとプロセスも落ちる**（待ち手が kill の頼みの口が閉じたことで気付き、
+/// **Drop するとプロセスも落ちる**（待ち手が kill の頼みのチャンネルが閉じたことで気付き、
 /// プロセスグループごと落とす）。落とし損ねてもパニックはしない。
 pub struct EngineChild {
     stdin: Arc<Mutex<Option<ChildStdin>>>,
@@ -108,7 +108,7 @@ pub struct EngineChild {
     diagnostics: ChildDiagnostics,
 }
 
-/// 子プロセスの様子を見るだけの取っ手。**落とす口を持たない。**
+/// 子プロセスの様子を見るだけの取っ手。**落とす関数を持たない。**
 ///
 /// 読み取りの後始末など、プロセスより長く生きうるタスクにはこちらを渡す。
 /// `EngineChild` そのものを渡すと、そのタスクが生きている間 Drop が起きず、
@@ -120,7 +120,7 @@ pub struct ChildDiagnostics {
     recent: Arc<StdMutex<VecDeque<(Source, String)>>>,
 }
 
-/// stdin に書く口。**`EngineChild::take_writer` から1回だけ取れる。**
+/// stdin の書き手。**`EngineChild::take_writer` から1回だけ取れる。**
 pub struct ChildWriter {
     stdin: Arc<Mutex<Option<ChildStdin>>>,
 }
@@ -164,7 +164,7 @@ pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
     let (kill_tx, kill_rx) = oneshot::channel::<()>();
     let (exit_tx, exit_rx) = watch::channel(None);
     tokio::spawn(async move {
-        // 頼みが来たか、頼みの口が落ちた（`EngineChild` の Drop）ら落とす
+        // 頼みが来たか、頼みのチャンネルが落ちた（`EngineChild` の Drop）ら落とす
         let waited = tokio::select! {
             waited = child.wait() => waited,
             _ = kill_rx => {
@@ -219,7 +219,7 @@ fn signal_group(pid: Option<u32>) {
 fn signal_group(_pid: Option<u32>) {}
 
 impl EngineChild {
-    /// stdin に書く口を取る。**1回きり**（2回目は `None`）
+    /// stdin の書き手を取る。**1回きり**（2回目は `None`）
     pub fn take_writer(&self) -> Option<ChildWriter> {
         lock(&self.writer).take()
     }
@@ -283,7 +283,7 @@ impl EngineChild {
         });
     }
 
-    /// 様子を見るだけの取っ手（落とす口を持たない）
+    /// 様子を見るだけの取っ手（落とす関数を持たない）
     pub fn diagnostics(&self) -> ChildDiagnostics {
         self.diagnostics.clone()
     }
@@ -342,7 +342,7 @@ impl ChildDiagnostics {
 impl ChildWriter {
     /// 1行を書く。改行はこちらで足す。
     ///
-    /// 落とした後（stdin を閉じた後）は `NotConnected` を返す。相手が読み口を閉じた
+    /// 落とした後（stdin を閉じた後）は `NotConnected` を返す。相手が読む側を閉じた
     /// `BrokenPipe` とは原因が違うので分ける
     pub async fn write_line(&self, line: &str) -> std::io::Result<()> {
         let mut guard = self.stdin.lock().await;
@@ -467,12 +467,12 @@ where
 /// 行の読み方を、プロセスを起こさずにバイト列で確かめる。**unix に限らない**
 /// （実プロセスのテストは `#!/bin/sh` の台本を使うので、unix でしか走らない）。
 ///
-/// 読み口の容量を小さく取り、1行が `fill_buf` の何回かに分かれて届く形にする。
+/// `BufReader` の容量を小さく取り、1行が `fill_buf` の何回かに分かれて届く形にする。
 #[cfg(test)]
 mod reading_tests {
     use super::*;
 
-    /// `bytes` を、1回の `fill_buf` で `capacity` バイトずつ届く読み口にする
+    /// `bytes` を、1回の `fill_buf` で `capacity` バイトずつ届く `BufReader` にする
     fn reader(bytes: &'static [u8], capacity: usize) -> BufReader<&'static [u8]> {
         BufReader::with_capacity(capacity, bytes)
     }
@@ -569,7 +569,7 @@ mod reading_tests {
     }
 }
 
-/// 実プロセスのテストが台本を置いて起こす口。`child` と `protocol` のテストが共有する。
+/// 実プロセスのテストが台本を置いて起こす関数。`child` と `protocol` のテストが共有する。
 #[cfg(all(test, unix))]
 pub(crate) mod script {
     use super::{spawn, EngineChild};
@@ -594,7 +594,7 @@ pub(crate) mod script {
     }
 
     /// `#!/bin/sh` の台本を `dir/name` に置き、**起こせるようになってから**パスを返す。
-    /// パスを渡して起こす口（`EngineRegistry::spawn` など）を通すテスト用。
+    /// パスを渡して起こす関数（`EngineRegistry::spawn` など）を通すテスト用。
     ///
     /// 一度起こして通ったら、書き込み用の fd を継いだ他人の子はもう exec を済ませている
     /// （閉じた後の fork はこの fd を継がない）。確かめた子はすぐ落とす
@@ -787,7 +787,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 書いた行が届き、落とすと終わりを見届け、2度目は頼み直さない。書く口は1回きり
+    /// 書いた行が届き、落とすと終わりを見届け、2度目は頼み直さない。書き手は1回きり
     #[tokio::test]
     async fn a_written_line_arrives_and_kill_ends_the_process() {
         let dir = temp_dir("child-echo");

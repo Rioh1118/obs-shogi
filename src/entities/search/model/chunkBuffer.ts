@@ -59,7 +59,7 @@ export type ChunkBufferApi = {
    *
    * ここを通すのは `search_chunks` と `search_begin` の2つだけ。
    * `search_end` / `search_error` は**通さない**——通すのが既定である以上、
-   * セッションを作りうる口をここでは守れないので、reducer 側で
+   * セッションを作りうる経路をここでは守れないので、reducer 側で
    * 「在るセッションにしか効かない」で守る。
    * `search_requested` はフロントが自分で出す action で、rid が返るまで溜め場から
    * 見えないためこの判定では守れない（`generation` のほうで見張る）。
@@ -84,7 +84,7 @@ export type ChunkBufferApi = {
 export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
   const pending = new Map<RequestId, PendingChunks>();
   /**
-   * 名指しで捨てた rid。入れる口は2つ——`clear_search` と、番号が返る前に線が
+   * 名指しで捨てた rid。入れる経路は2つ——`clear_search` と、番号が返る前に線が
    * 引かれた起動（`model/provider.tsx` の `searchPosition`）。
    * 線より後のものだけがここに要る
    */

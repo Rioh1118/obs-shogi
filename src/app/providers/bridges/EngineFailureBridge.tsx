@@ -54,7 +54,7 @@ export function EngineFailureBridge() {
     stopStarting.current = cancelStart;
   }, [cancelStart]);
 
-  // 起動中が長引いたら、止める口を出す。段を抜けたら（起動できた・失敗した・止めた）引っ込める
+  // 起動中が長引いたら、止めるボタンを出す。段を抜けたら（起動できた・失敗した・止めた）引っ込める
   useEffect(() => {
     if (!slowStart) return;
     notify({

@@ -11,7 +11,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
  * 要求した `tesuu` ちょうどで**別の線に着く**（`entities/kifu/lib/buildPlayer.ts`）。
  * 索引を作った後に棋譜が編集された場合、ここは別の線の続きを何の印も無く返す。
  *
- * 突き合わせる口は `reachedCursor`（`entities/kifu/lib/playerCursor.ts`）に在るが、
+ * 突き合わせる関数は `reachedCursor`（`entities/kifu/lib/playerCursor.ts`）に在るが、
  * **通していない**。通したときに何を出すかは #443（`reachedCursor` の本番の呼び手が
  * 0件）と同じ判断で、そちらが持つ。
  */

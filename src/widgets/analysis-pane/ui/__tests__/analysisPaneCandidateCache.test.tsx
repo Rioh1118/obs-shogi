@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { Color } from "shogi.js";
 
-// **barrel を通さない。** 控えを作る口には**スライスの外から**の本番の呼び手が
+// **barrel を通さない。** 控えを作る関数には**スライスの外から**の本番の呼び手が
 // 居ない（呼ぶのは `entities/analysis` の provider だけ）ので、載せると
 // `scripts/knip-ratchet.sh` の到達しない export が1つ増える。載せていない実体への
 // 深い import は `src/__tests__/sliceBarrels.test.ts` が許している。
@@ -180,7 +180,7 @@ describe("解析ペインの候補手の控え", () => {
   });
 
   /**
-   * `scopeTo` の呼び口が消えても気づけるようにする。**鍵に棋譜が入っているので、
+   * `scopeTo` の呼び出し箇所が消えても気づけるようにする。**鍵に棋譜が入っているので、
    * 別の棋譜へ移るだけでは分からない** —— 戻ってきて、前の控えが引けないことを見る。
    * `fileKey` はツリーの走査ごとに振り直される（#568）ので、同じ棋譜でも宣言し直しは起きる。
    */

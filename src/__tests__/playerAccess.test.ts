@@ -17,7 +17,7 @@ import { codeOf } from "./sourceText";
  */
 const GUARDED = /new JKFPlayer\(|\.goto\(|\.getTesuuPointer\(|\.getForkPointers\(/;
 
-/** 口を持つ側。ここは呼んでよい */
+/** `JKFPlayer` に触る関数を持つ側。ここは呼んでよい */
 const OWNER = "src/entities/kifu/lib/";
 
 /** 既知の違反。増やさないための基準線であって、正しさの宣言ではない */

@@ -108,7 +108,7 @@ export function GameSessionProvider({
    */
   const pendingRef = useRef<GameEvent[]>([]);
 
-  /** 裁定を返す口。**effect の中から読むので ref に映す**（毎回張り直さないため） */
+  /** 裁定を返す実装。**effect の中から読むので ref に映す**（毎回張り直さないため） */
   const rulingRef = useRef(ruling);
   rulingRef.current = ruling;
 
@@ -200,7 +200,7 @@ export function GameSessionProvider({
    * 終局したエンジンを落とす。**利用者に押させない。**
    *
    * 終局は探索を畳まないので、`close_game` を通すまで1局あたり最大2本が起きたまま。
-   * 押す口を置いていた間は、押し忘れがそのままプロセスの残りになった。
+   * 押すボタンを置いていた間は、押し忘れがそのままプロセスの残りになった。
    *
    * **進行は畳まない。** `sessionRef` を消すと結果を出す先が無くなり、
    * 最後の1手を棋譜へ積む途中の橋（`GameMoveBridge`）も止まる。
@@ -283,7 +283,7 @@ export function GameSessionProvider({
     [answerRuling, publish, retireEngines],
   );
 
-  /** 購読の中から読む口。**effect の依存を空に保つため**（→ 購読の doc） */
+  /** 購読の中から読む関数。**effect の依存を空に保つため**（→ 購読の doc） */
   const applyRef = useRef(apply);
   applyRef.current = apply;
 
@@ -526,7 +526,7 @@ async function attempt(run: () => Promise<void>): AsyncResult<void> {
  *
  * **落とし終えた対局も数えない。** 断る理由は「エンジンが起きたままだから」なので、
  * 落ちた後まで断ると、**結末を読んでいる間ずっと次の対局を始められない**
- * ——しかも畳む口はもうどこにも無い（終局したエンジンは自分で落ちる）。
+ * ——しかも畳む経路はもうどこにも無い（終局したエンジンは自分で落ちる）。
  */
 function heldSessionOf(session: Session | null): Session | null {
   if (session === null) return null;
@@ -544,7 +544,7 @@ function isFailed(session: Session): boolean {
  * 進行から画面の姿へ。
  *
  * **`failure` を `gameId === null` より先に見る。** 始め損ねた対局は両方が真になるので、
- * 逆にすると「エンジンを起こしています…」から抜けられなくなる（取り消す口は無い）。
+ * 逆にすると「エンジンを起こしています…」から抜けられなくなる（取り消す経路は無い）。
  */
 function toView(session: Session | null, eventsUnavailable: string | null): GameSessionView {
   if (session === null) {

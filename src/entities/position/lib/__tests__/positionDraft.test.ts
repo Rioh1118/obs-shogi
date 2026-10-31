@@ -498,7 +498,7 @@ describe("cycleOnBoard", () => {
   });
 
   test("盤の枚数も駒台も変わらない", () => {
-    // 駒の顔ぶれを変える口ではない。姿だけが変わる
+    // 駒の顔ぶれを変える関数ではない。姿だけが変わる
     const state = emptyBoardState();
     state.board[4][4] = { kind: "GI", color: Color.White };
     state.hands[Color.Black].FU = 2;

@@ -38,7 +38,7 @@ const SPECS = {
     label: "定跡",
     removable: true,
     // **定跡を開いていなくても出す。** 出さないと、定跡を開く導線が
-    // どこにも無い状態から始まる（開く口はこのビューの中にしか無い）
+    // どこにも無い状態から始まる（開く経路はこのビューの中にしか無い）
     defaultVisible: true,
   },
 } as const satisfies Record<DockViewType, Omit<DockViewMeta, "key">>;

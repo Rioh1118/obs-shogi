@@ -6,7 +6,7 @@ import { EditorHarness, renderSeeded } from "./harness";
 
 /** 手番（状態遷移表の X4）。盤の外の値なので、駒の位置は動かさない */
 
-// 組む面はファイルを作る口（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),

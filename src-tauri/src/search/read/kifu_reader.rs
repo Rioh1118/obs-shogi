@@ -271,7 +271,7 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
 
     if says_nothing(&jkf) {
         // **空なのが正しい姿か**を、ここで決めて運ぶ。呼び手が `warns` の
-        // 有無から導くと、警告を出す口が無い形式で必ず「正しい姿」になる
+        // 有無から導くと、警告を出す検査が無い形式で必ず「正しい姿」になる
         //
         // **中身を読んで決める。** ここへ来るのは記録が空に見えた回だけなので、
         // 読み直しの費用は掛かっても構わない（`SIZE_LIMIT` で上限は付いている）。

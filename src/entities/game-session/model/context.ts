@@ -4,7 +4,7 @@ import type { Side } from "../api/rust-types";
 import type { GameSessionView, GameStartRequest, StartRefusal } from "./types";
 
 /**
- * 対局への口。
+ * 対局の姿と操作。
  *
  * **`start` 以外は `AsyncResult` を返す。** 断りは Rust の文言でしか理由が分からず、
  * 捨てると「押したのに何も起きない」だけが残る。投げずに値で返すことで、
@@ -14,7 +14,7 @@ export interface GameSessionContextValue {
   view: GameSessionView;
   /**
    * 対局を始める。**解決まで数十秒かかりうる**（評価関数の重いエンジン）。
-   * 取り消す口は無い。
+   * 取り消す関数は無い。
    *
    * **断りは `view` に載る**ので戻り値を持たない —— 始められなかったことは
    * `failed` として、始めなかったことは `view` が `idle` 以外のままであることで分かる。
@@ -50,7 +50,7 @@ export interface GameSessionContextValue {
   submitMove: (side: Side, usiMove: string) => AsyncResult<void>;
   /**
    * 投了。**人が座っている席しか投げられない**——エンジンの席を指すと Rust が断るので、
-   * エンジン同士の対局に投了の口は無い。
+   * エンジン同士の対局に投了の経路は無い。
    */
   resign: (side: Side) => AsyncResult<void>;
   /** 中断。勝敗が付かずに終わる */

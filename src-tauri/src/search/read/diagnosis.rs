@@ -83,9 +83,9 @@ pub(crate) fn unreadable_record(e: ParseError) -> String {
 
 /// 読めなかった理由を、利用者に出せる形にして包む。
 ///
-/// **[`KifuReadError::ParseFailed`] を作る口はここだけ。** 長さと制御文字を落とすのを
+/// **[`KifuReadError::ParseFailed`] を作る関数はここだけ。** 長さと制御文字を落とすのを
 /// 各所でやると必ず漏れる。`ReadOutcome::NothingToIndex` の `warns` は失敗ではないので
-/// ここを通らないが、刈る口は同じ——`read_path_inner` が組んだところで [`for_screen`] に通す。
+/// ここを通らないが、刈る関数は同じ——`read_path_inner` が組んだところで [`for_screen`] に通す。
 /// **クレート由来の文言を混ぜるなら、どちらかを通すこと。**
 ///
 /// **ここへは組み上がった `String` を渡してよい。** クレートの文言を文中に埋める側
@@ -101,7 +101,7 @@ pub(crate) fn unreadable_record(e: ParseError) -> String {
 /// 丸ごと検索から消えていることに気付かない（そのあと検索して出てこなければ
 /// 「その局面は指されていない」と読む）。
 ///
-/// **基準は `IndexWarnPayload::message` の doc が持つ。** この口もそれに従う。
+/// **基準は `IndexWarnPayload::message` の doc が持つ。** この関数もそれに従う。
 /// 同じイベントに載る文言は他にもあり、揃っていないと画面の中で基準が2つになる。
 ///
 /// **この一文は上限の外で足す。** 中に入れるとクレートの文言が長いときに

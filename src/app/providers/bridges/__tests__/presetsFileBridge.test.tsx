@@ -110,7 +110,7 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
     expect(`${req.title}${req.body}`).not.toContain("/cfg/");
   });
 
-  /** 書けない状態で開いた種類は、読み直す口を持つ帯 */
+  /** 書けない状態で開いた種類は、読み直すボタンを持つ帯 */
   test.each<PresetsLoadNotice>([
     { kind: "backupFailed", reason: "EACCES" },
     { kind: "migrationFailed", reason: "EACCES" },

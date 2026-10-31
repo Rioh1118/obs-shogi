@@ -11,7 +11,7 @@ import type { AsyncResult } from "@/shared/lib/result";
  * **`openPath` を選ばない。** `open_path` を許すと「既定のアプリでどのパスを
  * 起動してよいか」を scope で決めることになり、場所を見せるだけの用途に要らない
  * 権限が付く。いま何が許されているかは `src-tauri/capabilities/` が持ち、
- * 口と許可の対応は `src/__tests__/openerCapability.test.ts` が見ている。
+ * コマンドと許可の対応は `src/__tests__/openerCapability.test.ts` が見ている。
  * `reveal_item_in_dir` は scope を持たない。**ただし通るのは実在するパスだけ**——
  * 入口で正規化（Windows は存在の確認）を通すので、無いパスは弾かれる。
  * ファイルとディレクトリの別は問わない。

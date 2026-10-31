@@ -279,7 +279,7 @@ pub async fn build_full_index_task(
         },
     );
 
-    // **状態を出す口は1つ。** 自分で組むと、旗が増えたときにここが伏せて出す
+    // **状態を出す関数は1つ。** 自分で組むと、旗が増えたときにここが伏せて出す
     announce_state(
         &app,
         &store,

@@ -63,7 +63,7 @@ export const EXEMPT = new Set([
   "count_yaneuraou_db_positions",
   // ShogiHome の設定名。対局の表が「あちらの既定」の出典に引く
   "enableEngineTimeout",
-  // `@tauri-apps/plugin-opener` のコマンドと口。あちらの綴りであって、こちらの識別子ではない
+  // `@tauri-apps/plugin-opener` のコマンドと関数。あちらの綴りであって、こちらの識別子ではない
   "reveal_item_in_dir",
   "open_path",
   "openPath",
@@ -82,8 +82,8 @@ export const EXEMPT = new Set([
   "fromPreset",
   "getIllegalUnpromotedRow",
   "colorToString",
-  // `json-kifu-format`（別リポジトリ）の `JKFPlayer` の口。棋譜を書き換える側が
-  // 「あちらのこの口を通さない理由」と「非公開なので呼べない口」の出典に引く
+  // `json-kifu-format`（別リポジトリ）の `JKFPlayer` のメソッド。棋譜を書き換える側が
+  // 「あちらのこのメソッドを通さない理由」と「非公開なので呼べないメソッド」の出典に引く
   "inputMove",
   "updateForksAndCurrentStream",
   // DOM と CSS の綴り。使わない理由を書くために引くので、こちらの識別子ではない

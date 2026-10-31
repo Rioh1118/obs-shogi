@@ -29,7 +29,7 @@ export type {
   SearchErrorPayload,
 } from "./api/events";
 
-// **検索を起こす口も、イベント名も、ここからは出さない。**
+// **検索を起こす関数も、イベント名も、ここからは出さない。**
 //
 // 検索の生死（rid の発行・取り下げ・結果の破棄）は `PositionSearchProvider` が
 // 1人で持つ。生の `searchPosition` を出すと provider を通らずに検索を起こす形が、

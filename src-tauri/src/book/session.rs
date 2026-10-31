@@ -38,7 +38,7 @@ pub struct BookState {
 impl BookState {
     pub(crate) fn new() -> Self {
         // `Default` は derive しない。`BookState` は crate 外へ再公開しているので、
-        // derive すると `BookState::default()` が公開の生成口として残り、
+        // derive すると `BookState::default()` が公開の生成関数として残り、
         // 「操作は全て `pub(crate)`」という `mod.rs` の `pub mod session;` に
         // 添えた宣言が成り立たなくなる。
         Self {

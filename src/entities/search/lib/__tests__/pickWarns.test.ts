@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { pickWarns } from "../pickWarns";
 
 // 2階層以上遡る相対 import は禁止で、自スライスの barrel も中からは読めない。
-// 型は口の署名から取る
+// 型は関数の署名から取る
 type Warn = Parameters<typeof pickWarns>[0][number];
 
 function place(n: number): Warn {

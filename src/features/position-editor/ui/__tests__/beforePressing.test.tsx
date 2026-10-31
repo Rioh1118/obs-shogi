@@ -14,7 +14,7 @@ import { EditorHarness, renderSeeded } from "./harness";
  * 「押しても何も起きない」がそのまま残る。
  */
 
-// 組む面はファイルを作る口（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),
@@ -161,7 +161,7 @@ describe("ゴースト", () => {
   });
 
   test("最初の mousemove まで出さない", () => {
-    // 掴んだ時点のポインタ位置を知る口が無い。原点に描くと画面の隅で駒が光る
+    // 掴んだ時点のポインタ位置を知る手段が無い。原点に描くと画面の隅で駒が光る
     render(<EditorHarness />);
     fireEvent.click(square(7, 7));
     expect(ghost()!.classList.contains("pos-editor__ghost--placed")).toBe(false);

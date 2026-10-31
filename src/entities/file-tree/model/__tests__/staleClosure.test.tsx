@@ -96,7 +96,7 @@ function findNode(path: string) {
   return walk(TREE)!;
 }
 
-/** 削除の途中で別の棋譜を開けるように、操作の口を画面へ出す */
+/** 削除の途中で別の棋譜を開けるように、操作の関数を画面へ出す */
 function Probe() {
   const { activeKifuPath, deleteNode, openKifuNode } = useFileTree();
   return (

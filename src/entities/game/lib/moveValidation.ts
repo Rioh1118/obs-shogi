@@ -92,7 +92,7 @@ export function canDropKy(_x: number, y: number, color: Color): boolean {
 /**
  * 駒種別の駒打ちチェック。
  *
- * **公開しない。** 駒打ちの合否を組み立てる口は `filterLegalDrops` の1つだけで、
+ * **公開しない。** 駒打ちの合否を組み立てる関数は `filterLegalDrops` の1つだけで、
  * ここを外から呼べると、王手放置より先に打ち歩詰めを見る形が別の場所で復活する
  */
 function canDropPieceAt(shogi: Shogi, kind: Kind, x: number, y: number, color: Color): boolean {

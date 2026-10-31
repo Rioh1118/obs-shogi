@@ -142,7 +142,7 @@ function PositionNavigationModal() {
 
     // **扱った鍵だけ止める。** 無条件に止めると Tab の既定動作まで消え、
     // `Modal` の閉じ込めが「端での折り返し」しか効かないダイアログになる。
-    // Escape は `Modal` が扱うので、ここでは拾わない（受け口を2つ持たない）
+    // Escape は `Modal` が扱うので、ここでは拾わない（ハンドラを2つ持たない）
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case "l":

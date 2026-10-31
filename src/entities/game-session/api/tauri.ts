@@ -19,7 +19,7 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * **待たせる長さは Rust の `START_TIMEOUT` で決まる。** 超えると reject するが、
  * 締切は段に入る前に見るので、跨いだ段のぶん（書き込み1件と、失敗したときの
  * 後始末）は少し超える。**厳密な上限として待ち UI を組まないこと。**
- * 取り消す口は無いので、それまでは待つことになる。
+ * 取り消すコマンドは無いので、それまでは待つことになる。
  *
  * **最初の `go` は待たない。** `Ok` は「エンジンが `usinewgame` まで応じた」で
  * あって「考え始めた」ではない。最初の `position` / `go` は別タスクで走り、
@@ -38,7 +38,7 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * `setoption` が拒まれた、`startSfen` の書式）だが、
  * 内部の取り落とし（ブロッキングタスクが落ちた、通知の経路が閉じた）も
  * 同じ形で届く。**「エンジンのパスを直せ」と断言しないこと**——文言をそのまま
- * 見せて、再試行の口も残すのが安全側。**型で割れば断言できる**が、
+ * 見せて、再試行の経路も残すのが安全側。**型で割れば断言できる**が、
  * Rust 側の `start_game` はどちらも `Err(String)` で返すのでいまは割れない。
  *
  * **`startGame` を呼ぶ前に `listenToGameEvents` を張ること。**
@@ -62,7 +62,7 @@ export async function startGame(settings: GameSettings): Promise<GameId> {
 /**
  * Rust が「もう終わっている」を返すときの綴り。**完全一致で見ること。**
  *
- * `src-tauri` 側は5つの口でこの1つの定数を返すので、部分一致で見る必要が無い。
+ * `src-tauri` 側は5箇所でこの1つの定数を返すので、部分一致で見る必要が無い。
  * 部分一致にすると、別の原因の文言にこの語が混ざった回まで「正常」に畳む。
  *
  * **これは故障ではない。** 中断や時間切れが往復の途中に入っただけで、

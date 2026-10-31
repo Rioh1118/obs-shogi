@@ -6,7 +6,7 @@ export * from "./model/types";
 //
 // **載せるのは、スライスの外に呼び手が居るものだけ。**
 // `judgeGameOutcome`（根から組み直す形）は載せない —— 毎手呼ぶ側がそれを使うと
-// 合計が手数の2乗で効くので、外へ出す口は持ち回る側だけにする。
+// 合計が手数の2乗で効くので、外へ出す関数は持ち回る側だけにする。
 // `GameOutcomeKind` / `JishogiRule` と `judgeDeclaration` も、呼ぶ側が現れるまで載せない
 export { createOutcomeJudge } from "./lib/gameOutcome";
 export type { GameOutcome, GameOutcomeFailure } from "./lib/gameOutcome";

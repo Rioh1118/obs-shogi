@@ -45,7 +45,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
 
   // 面に入ったら焦点を移す。**移さないと ↑↓ が効かない** ——
   // 「課題局面から」のボタンは面へ入った時点で消えるので、`Modal` が焦点を
-  // タブへ引き戻し、この受け口は合成イベントの経路から外れる
+  // タブへ引き戻し、このハンドラは合成イベントの経路から外れる
   useEffect(() => {
     faceRef.current?.focus();
   }, []);
@@ -102,7 +102,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
           return;
         }
 
-        // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で選ぶだけできて決める口が無いと、
+        // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で選ぶだけできて決める操作が無いと、
         // 鍵盤だけの利用者は種を1つも選べない。沈めた行は押下と同じで受け付けない
         if (e.key === "Enter" && looking && !unusable.has(looking.id)) {
           e.preventDefault();

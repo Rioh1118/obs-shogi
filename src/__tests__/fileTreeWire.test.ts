@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { rustFile, SRC } from "./walk";
 
 /**
- * Rust の `FileTreeNode` の欄が、TS の受け口と写し先の両方に届いていることを見る。
+ * Rust の `FileTreeNode` の欄が、TS の `RustFileTreeNode`と写し先の両方に届いていることを見る。
  *
  * この境界には**どちらのコンパイラも立っていない**。Rust は serde で外へ出すだけ、
  * TS は `RustFileTreeNode` を手で書いた型として信じるだけなので、Rust に欄を足して

@@ -18,7 +18,7 @@ macro_rules! book_error_codes {
         }
 
         impl BookErrorCode {
-            /// 宣言から導いた全件。**手で並べる口が無い。**
+            /// 宣言から導いた全件。**手で並べる箇所が無い。**
             #[cfg(test)]
             pub(crate) const ALL: &'static [BookErrorCode] = &[
                 $( BookErrorCode::$name ),+
@@ -395,7 +395,7 @@ mod tests {
                 );
                 err_of(state.get(1))
             }
-            // 実物を作る口がここに無いもの。理由を1つずつ書く
+            // 実物を作る経路がここに無いもの。理由を1つずつ書く
             BookErrorCode::PermissionDenied => {
                 // 権限を落としたファイルを作ると root で走らせたときに通ってしまう。
                 // `from_io` の枝は `an_io_error_ends_with_something_the_user_can_do` が見る

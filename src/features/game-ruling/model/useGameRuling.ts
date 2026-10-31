@@ -8,7 +8,7 @@ import { createRulingAdapter } from "../lib/rulingAdapter";
  *
  * **ルール（持将棋の規則・最大手数）を持つのもここ。** `GameRules` は
  * `entities/game` の型なので、対局の進行に持たせると互いを読み合う組ができる。
- * 利用者が選べるようにする口はまだ無いので、いまは既定値を使う
+ * 利用者が選べるようにする画面はまだ無いので、いまは既定値を使う
  * （→ `docs/spec/features/game-play.md` の「いま埋まっていない穴」）。
  *
  * **`GameSessionProvider` と同じ寿命で1つだけ作ること。** 作り直すと、

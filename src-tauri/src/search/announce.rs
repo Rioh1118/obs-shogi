@@ -60,7 +60,7 @@ pub enum RescanOutcome {
     /// 自分の代のまま完走し、帳簿を進めた。差分があれば索引にも書いた。
     ///
     /// **読めなかった場所があったかを一緒に運ぶ。** 結末と別に持つと、
-    /// 結末を出す口が旗を知らないまま `false` を書いて塗り潰す
+    /// 結末を出す経路が旗を知らないまま `false` を書いて塗り潰す
     Committed {
         /// 読めなかった場所があった。**索引に入っていない棋譜がある**の印
         partially_unreadable: bool,
@@ -216,7 +216,7 @@ pub enum IndexAnnouncement {
 impl IndexAnnouncement {
     /// 段と旗を組む。**`AppHandle` も索引も要らない形**なのでテストから直に呼べる。
     ///
-    /// `None` は「出してはいけない」。**結末を出す口の外で `Superseded` を
+    /// `None` は「出してはいけない」。**結末を出す経路の外で `Superseded` を
     /// 判定させないため**——呼び手が `outcome` を見て分岐する形にすると、
     /// 経路ごとに判定が割れる。
     fn into_payload(self, live: u32, indexed: u32) -> Option<IndexStatePayload> {

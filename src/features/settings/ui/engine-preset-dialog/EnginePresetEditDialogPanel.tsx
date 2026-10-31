@@ -144,7 +144,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const probing = dialog.probe !== null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  /** 各節が下書きを直す口（値以外の欄）。reducer の `edited` に渡す */
+  /** 各節が下書きを直す関数（値以外の欄）。reducer の `edited` に渡す */
   const setDraft = useCallback(
     (update: SetStateAction<EnginePreset | null>) => dispatch({ type: "edited", update }),
     [],

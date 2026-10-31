@@ -13,7 +13,7 @@ import { EditorHarness, renderSeeded } from "./harness";
  * **断りが遷移を変えないこと** —— 出ていても盤は触れるし、升の枠も付く。
  */
 
-// 組む面はファイルを作る口（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),

@@ -50,7 +50,7 @@ fn no_running_task_writes_without_checking_the_epoch() {
     );
 }
 
-/// **代を配る口が、代を返していること。**
+/// **代を配る関数が、代を返していること。**
 ///
 /// 返さずに `snapshot().epoch` で拾わせると、`restart` から拾うまでの間に
 /// 別の `open` が入ったとき**他人の代を掴む**。

@@ -116,7 +116,7 @@ pub enum SearchMessage {
 ///
 /// **`Idle` の側にだけ呼ぶこと。** 同じ側の探索が走っている状態で重ねると、
 /// 先に走っているほうの `bestmove` が新しい `req` の結果として読まれる。
-/// 呼ぶ口を `GameSession::spawn_search` の1本に絞ってあるのはそのため。
+/// 呼ぶ箇所を `GameSession::spawn_search` の1本に絞ってあるのはそのため。
 ///
 /// 取り消しは `request.cancel`。**落とすのではなく `stop` を送る**ので、
 /// エンジンが `bestmove` を返すまでこの関数は返らない。
@@ -267,7 +267,7 @@ fn outcome_of_stop(stopped: &Result<StopEffect, EngineError>) -> Option<SearchOu
         Ok(StopEffect::CancelledQueued) => Some(SearchOutcome::StoppedCleanly),
         // 上限まで返らなかった。エンジンは探索中とみなす
         Err(EngineError::Timeout(_)) => Some(SearchOutcome::StopTimedOut),
-        // 送る口が無い。探索中とは限らない
+        // 送る先が無い。探索中とは限らない
         Err(e) => Some(SearchOutcome::Failed(format!("could not send stop: {e}"))),
     }
 }
@@ -345,7 +345,7 @@ mod tests {
             Some(SearchOutcome::StoppedCleanly)
         ));
 
-        // 送る口が無い。**探索中とは限らないので `StopTimedOut` にしない**
+        // 送る先が無い。**探索中とは限らないので `StopTimedOut` にしない**
         let refused = Err(EngineError::CommunicationFailed("closed".to_string()));
         assert!(matches!(
             outcome_of_stop(&refused),

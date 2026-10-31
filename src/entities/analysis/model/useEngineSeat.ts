@@ -7,22 +7,22 @@ import {
 } from "@/entities/engine/api/tauri";
 
 /**
- * 口ごとの部分集合。**分け方は席を返す口の性質**（応答を待てるか・捨てる側か）で、
+ * 経路ごとの部分集合。**分け方は席を返す経路の性質**（応答を待てるか・捨てる側か）で、
  * Rust が受け取る値の集合（`SeatReleasePoint`）とは別の関心なので、こちら側で持つ。
  *
  * 値を取り違えても Rust は止まるので壊れるのはログだけ——#441 の再発を追う人が読む
  * 唯一の手掛かりが嘘になる。型で割っておけば `releaseHeldQuietly("unmount")` は tsc が止める。
  */
 export type BlockingReleasePoint = Extract<SeatReleasePoint, "stop" | "start" | "restart">;
-/** 応答を待てない口。落ちても画面に出せない（結末は `shootQuietly` の頭） */
+/** 応答を待てない経路。落ちても画面に出せない（結末は `shootQuietly` の頭） */
 export type QuietReleasePoint = Extract<SeatReleasePoint, "sync-timeout" | "no-position">;
-/** 要らなくなった開始が持ってきた席を捨てる口 */
+/** 要らなくなった開始が持ってきた席を捨てる経路 */
 export type DiscardReleasePoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
 
 /**
- * どの口の引数にもならない値。**部分集合に入れない**のは、引数にできると
+ * どの関数の引数にもならない値。**部分集合に入れない**のは、引数にできると
  * 呼び手が席を指さない停止を撃てるようになるため——それは Rust の席を**全部**
- * 空けるので、別の口が取った席まで巻き添えにする。撃つのはフックの中だけ。
+ * 空けるので、別の経路が取った席まで巻き添えにする。撃つのはフックの中だけ。
  */
 type InlineOnlyReleasePoint = "unmount";
 
@@ -44,8 +44,8 @@ void _everyPointIsAssigned;
  * 返ってきた席をどう扱ったか。
  *
  * **読まずに捨てるなら理由を書く**（`src/__tests__/asyncResultUse.test.ts` が
- * `Promise<SeatTakeResult>` を返す口の式文を止める。`landed` の戻り値は人が見る）。
- * ▶ の口は書き分け、自動再開の口はどれでも黙って降りる。
+ * `Promise<SeatTakeResult>` を返す関数の式文を止める。`landed` の戻り値は人が見る）。
+ * ▶ の経路は書き分け、自動再開の経路はどれでも黙って降りる。
  *
  * `finished` は、開始の応答より先に探索の完了が届いていた席。**もう Rust に無い**ので握らない。
  */
@@ -131,7 +131,7 @@ export interface EngineSeat {
    * 握ると、もう無い席を `検討中` のまま握り続ける。`landed` がこの記録を見て握らない。
    *
    * **書き戻し（`shoot` の catch）はこの記録を見ない。** いま握り直しが起きないのは、
-   * 締めた席へ撃つ口が1つも無いから——覚えた席へ撃つ口を足すときは、その口が
+   * 締めた席へ撃つ経路が1つも無いから——覚えた席へ撃つ経路を足すときは、その経路が
    * 握り直しても良いかを別に確かめること。
    */
   closeFinished: (sessionId: AnalysisSessionId) => void;
@@ -181,7 +181,7 @@ export interface EngineSeat {
    */
   armForMount: () => void;
   /**
-   * 畳まれたときの後始末。**席を指さずに撃つ**ので、他の口とは別の関数にしてある。
+   * 畳まれたときの後始末。**席を指さずに撃つ**ので、他の経路とは別の関数にしてある。
    * **これが落ちた回は誰も返せない**——指さない停止は席の識別子を持たないので、
    * `keepOrForget` の書き戻しにも乗らない（撃ち直しが効くのは席を指した停止だけ）。
    *
@@ -237,7 +237,7 @@ export function useEngineSeat(): EngineSeat {
 
   // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
   // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
-  // 2本目は無駄で、順序も結末も保証できない。口ごとに振る舞いが違う。
+  // 2本目は無駄で、順序も結末も保証できない。経路ごとに振る舞いが違う。
   //
   // - **待てる側**（`releaseHeld`）——枠が自分のものになるまで待ってから、席を見直す
   // - **待てない側**（`releaseHeldQuietly` / `sweepOnUnmount`）——後ろに並び、
@@ -258,7 +258,7 @@ export function useEngineSeat(): EngineSeat {
    * **setup で戻すこと**（`armForMount`）。cleanup で立てるだけだと、同じインスタンスに
    * setup → cleanup → setup が走ったとき（StrictMode）に立ったまま残り、**画面が
    * 生きているのに**席を指さない停止が飛ぶ——Rust は席を全部空けるので、
-   * 別の口が取った席まで巻き添えにする。
+   * 別の経路が取った席まで巻き添えにする。
    */
   const sweptRef = useRef(false);
 
@@ -267,7 +267,7 @@ export function useEngineSeat(): EngineSeat {
   // ——畳まれてもいないのに後始末が撃たれる。
   const apiRef = useRef<EngineSeat | null>(null);
 
-  // **ここから下は初回の描画でしか走らない。** 返す口は初回のクロージャで凍るので、
+  // **ここから下は初回の描画でしか走らない。** 返す値は初回のクロージャで凍るので、
   // 下で読んだ値は**その1回の値のまま**——描画ごとに変わる値（props や別のフックの
   // 戻り値）をここで読むと、以後ずっと初回の値を見る。tsc も lint も止めない。
   // **上に置いてよいものは `src/entities/analysis/model/__tests__/seatSlotShape.ratchet.test.ts` が持つ**
@@ -294,7 +294,7 @@ export function useEngineSeat(): EngineSeat {
    * **欄が埋まっているなら握らない**——そこに居るのは別の席で、巻き添えにできない。
    * その回、いま撃った席は誰も知らないまま Rust に残りうる
    * （→ `docs/state-transitions/analysis.md` の ※12 / F-7）。いまその回が作れないのは、
-   * 開始する口が必ず枠を待ち切るからで、`discard` の呼び手を増やすときは見直すこと。
+   * 開始する経路が必ず枠を待ち切るからで、`discard` の呼び手を増やすときは見直すこと。
    *
    * **往復の間にエンジンが消えていたら書き戻さない。** その席はもう Rust に無く
    * （畳む側が `stop_all_sessions` で空ける）、欄へ戻すと以後の停止が**次のエンジン**へ
@@ -372,7 +372,7 @@ export function useEngineSeat(): EngineSeat {
    * 枠を1本の Promise で占める。**撃つのは呼び手**（`discard` は枠に載せる前に撃つ）。
    * **`releasingRef` に書く綴りはここだけ。**
    *
-   * 口ごとに手で書くと、口を1つ足したときの写し忘れを止める機械が無くなる。
+   * 経路ごとに手で書くと、経路を1つ足したときの写し忘れを止める機械が無くなる。
    *
    * **空けるのは自分がまだ枠に居るときだけ。** 後ろに並んだ返却が居るのに
    * 空けると、その返却が飛んでいる間に3本目が並列で出る。
@@ -386,7 +386,7 @@ export function useEngineSeat(): EngineSeat {
   };
 
   /**
-   * 飛んでいる返却があれば、その後ろに並んでから撃つ。**応答を待てない口が通る。**
+   * 飛んでいる返却があれば、その後ろに並んでから撃つ。**応答を待てない経路が通る。**
    *
    * 降りてしまうと、先の返却が落ちたとき（席は握ったまま残る）に撃ち直す者が居ない
    * ——棋譜を閉じた回・畳まれた回はもう画面が無いので、依存が動いて effect が
@@ -400,7 +400,7 @@ export function useEngineSeat(): EngineSeat {
     void holdSlot(releasing ? () => releasing.catch(() => {}).then(run) : run);
   };
 
-  // 撃って、落ちたらログだけ残す。**応答を待てない口はここを通る。**
+  // 撃って、落ちたらログだけ残す。**応答を待てない経路はここを通る。**
   //
   // **落ちても利用者には出せない。** 画面が既に無い（`unmount`）、棋譜を閉じた後で
   // 出す場所が無い（`no-position`）、直後に `set_error` が立つ（`sync-timeout`。
@@ -412,7 +412,7 @@ export function useEngineSeat(): EngineSeat {
   // 「▶ を押しても何も起きない」という形でしか現れない
   // （`docs/state-transitions/analysis.md` ※4）ので、ログが無いと手掛かりが1つも無い。
   //
-  // **どの口から撃ったかを書く。** 落ちた後の結末が違う。
+  // **どの経路から撃ったかを書く。** 落ちた後の結末が違う。
   // `unmount` は席を指さないので書き戻しに乗らず、エンジンを畳み直すしかない。
   // 畳まれた後に返ってきた `late-*` は `keepOrForget` が1回だけ撃ち直す
   // （それも落ちたら同じ）。`no-position` は棋譜を開き直してから ▶。

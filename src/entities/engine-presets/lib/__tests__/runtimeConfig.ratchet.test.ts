@@ -27,7 +27,7 @@ import { codeOf } from "@/__tests__/sourceText";
  * プリセットのどの欄がどこへ行くかを決めていないので、割れようが無い。
  */
 
-/** 組み立て口の持ち主。**ここだけが並べてよい** */
+/** 組み立て関数の持ち主。**ここだけが並べてよい** */
 const OWNER = "src/entities/engine-presets/lib/derivePath.ts";
 
 /**

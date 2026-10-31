@@ -198,7 +198,7 @@ export default function WorkspaceTab() {
       .then((v) => {
         if (alive) setAppVersion(v);
       })
-      // 版が取れないのは webview の口が塞がっているときだけで、利用者にできることが
+      // 版が取れないのは webview から `getVersion` を呼べないときだけで、利用者にできることが
       // 無い。出さずに「—」のままにする
       .catch(() => {});
     return () => {

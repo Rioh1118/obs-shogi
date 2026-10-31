@@ -21,7 +21,7 @@
  * **公開面へ載せるのは、最初の呼び出し元と一緒のときだけ。**
  * それまで深い import を増やさないこと。
  *
- * **生の Tauri コマンドは載せない。** このスライスの対外的な口は
+ * **生の Tauri コマンドは載せない。** このスライスが外へ出すのは
  * `GameSessionProvider` と `useGameSession` で、進行の権威は provider の中の
  * `sessionRef` に在る。並べて出すと `useGameSession` を通さずに
  * `closeGame(gameId)` を直に呼ぶのが自然に見える —— 呼ばれると Rust の台帳からは
@@ -29,7 +29,7 @@
  * 「すでに対局があります」から抜けられなくなる。
  */
 
-// 進行を持つ層。**裁定を返す口は注入で受ける**（`RulingAdapter`）——
+// 進行を持つ層。**裁定を返す実装は注入で受ける**（`RulingAdapter`）——
 // 判定は `entities/game` に在るが、あちらが `Side` をここから取っているので、
 // 読み返すと互いを読み合う組ができる
 export { GameSessionProvider } from "./model/provider";

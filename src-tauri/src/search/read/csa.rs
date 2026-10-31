@@ -26,7 +26,7 @@ use crate::search::read::outcome::{Jkf, KifuReadError};
 /// `shogi-kifu-converter` の `deny(clippy::unwrap_used)` の外側にある。
 /// 同じ壊れ方が出たら上の表に行を足すこと。
 ///
-/// 呼び口は `spawn_blocking` の中なのでプロセスは落ちないが、捕まえずに落ちると
+/// 呼び出し箇所は `spawn_blocking` の中なのでプロセスは落ちないが、捕まえずに落ちると
 /// 利用者に届くのは join error の定型文だけになり、**この行のどこが悪いのかが消える**
 /// （ファイル名は `IndexWarnPayload` が別の欄で持つので残る）。
 ///

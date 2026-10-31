@@ -6,7 +6,7 @@
  * ——満たしたまま指し続けて詰みを狙う選択が残る。自動で終局するのは
  * トライルールだけで、そちらは `judgeGameOutcome` が見る。
  *
- * 呼ぶ口は2つになる。利用者が押す「宣言」と、エンジンの `bestmove win` の検算。
+ * 呼ぶ経路は2つになる。利用者が押す「宣言」と、エンジンの `bestmove win` の検算。
  * **後者はいま繋がっていない**——Rust は `bestmove win` を受けた時点で
  * `GameOverReason::DeclareWin` として終局させ、こちら側に裁定を求めない
  * （`src-tauri/src/engine/game/session.rs` の `SearchOutcome::DeclareWin`）。

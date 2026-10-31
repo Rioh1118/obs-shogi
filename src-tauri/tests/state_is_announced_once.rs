@@ -6,7 +6,7 @@
 //! 次の再走査に入った瞬間に消える（reducer は payload の欄を丸ごと写す）。
 //!
 //! 段が増えるより先に旗が増えるので、**壊れ方は「新しい旗が黙って伏せられる」**。
-//! 出す口が1つなら `IndexAnnouncement` / `IndexProgress` に腕を足すときに
+//! 出す関数が1つなら `IndexAnnouncement` / `IndexProgress` に腕を足すときに
 //! 全経路が同時に直る。
 //!
 //! ここが見るのは**どこで出しているか**だけ。段と旗の対応が正しいかは
@@ -104,7 +104,7 @@ fn read_raw(rel: &str) -> String {
     fs::read_to_string(&p).unwrap_or_else(|e| panic!("{} を読めない: {e}", p.display()))
 }
 
-/// **段を出す口が `announce` の外に無いこと。**
+/// **段を出す呼び出しが `announce` の外に無いこと。**
 #[test]
 fn no_caller_emits_the_index_state_itself() {
     let offenders: Vec<String> = callers()
@@ -125,7 +125,7 @@ fn no_caller_emits_the_index_state_itself() {
     );
 }
 
-/// **その1つの口が実在すること。**
+/// **その1つの関数が実在すること。**
 ///
 /// 上の検査は「無いこと」しか見ないので、`announce.rs` から emit が消えても緑になる。
 #[test]
@@ -145,7 +145,7 @@ fn the_announcer_still_emits_from_both_paths() {
     );
 }
 
-/// **旗を組み立てる口も `announce` に閉じていること。**
+/// **旗を組み立てる呼び出しも `announce` に閉じていること。**
 ///
 /// `IndexStatePayload::of` を呼べる場所が散ると、上の検査を通したまま
 /// payload だけ別の場所で組んで `announce` に渡す形になり、旗の伏せ方が戻る。
@@ -199,7 +199,7 @@ fn no_caller_builds_a_place_warning_itself() {
 /// 止めているのはこの走査（`place` / `file` の doc もそう名指ししている）。
 ///
 /// 欄を非公開にすれば型で閉じられるが、`announce` の `mod tests` が20箇所ほど
-/// 読んでいるので取り出しの口をその数だけ足すことになる。**取り違えたときに
+/// 読んでいるので取り出す関数をその数だけ足すことになる。**取り違えたときに
 /// 起きること**（`kind` を誤ると `pickWarns` の場所優先の枠から外れ、
 /// 「ワークスペースを読めません」がファイル単位の警告に押し出されて画面から消える）
 /// を止められれば足りるので、字面で見る。

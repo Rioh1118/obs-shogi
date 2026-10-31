@@ -27,7 +27,7 @@ vi.mock("@/entities/engine/api/initializer", () => ({
   },
 }));
 
-/** Rust の通知を差し込む口 */
+/** Rust の通知を差し込む関数 */
 let listeners: EngineEventListeners | null = null;
 // `isTauri()` はこの印を読む（`@tauri-apps/api/core`）
 vi.stubGlobal("isTauri", true);

@@ -52,7 +52,7 @@ type HitsCacheEntry = {
 };
 
 /**
- * 局面検索の state と索引の口。
+ * 局面検索の state と索引の操作。
  *
  * **根は prop で受け取る。** 自分で `useAppConfig` を読むと、このスライスが
  * 起動シーケンスを持つことになり、`AppConfigProvider` の下に置く制約が

@@ -67,7 +67,7 @@ const STALLED: &str = "the engine stopped reading stdin; the process cannot be r
 /// 抜けないままプロセスが残る）。共有は `Arc<UsiProtocol>` で、プロセスより長く生きうる
 /// タスクへは子プロセスを持たない `Link` か `ChildDiagnostics` を渡す。
 pub struct UsiProtocol {
-    /// 子プロセスと標準入出力。**書き込み・読み取り・落とす口がそれぞれ別の持ち主**
+    /// 子プロセスと標準入出力。**書き込み・読み取り・落とす経路がそれぞれ別の持ち主**
     /// なので、書き込みが詰まっても落とせる（`engine/child.rs`）。
     child: EngineChild,
     link: Link,
@@ -202,7 +202,7 @@ const PENDING_LIMIT: usize = 32;
 /// 通るので、1行の大きさがそのまま予算に効く。書式が2つあると、テストは片方しか
 /// 測らないまま「式で縛った」と読める——**長いほうが予算を超えても緑で通る**。
 ///
-/// **捨てる口は全部ここを通す**（`begin_generation` / `discard_pending` も）。
+/// **捨てる経路は全部ここを通す**（`begin_generation` / `discard_pending` も）。
 /// どれも `std::mem::take` で最大 `PENDING_LIMIT` 件をまとめて出す、
 /// 測る側とまったく同じ形の突発。
 ///
@@ -305,7 +305,7 @@ impl DropReason {
 /// `ready` の次の値を決める。**`Closed` は吸収状態。**
 ///
 /// 書き込み側（`dispatch_for` の `Refuse`）と `register_listener` の拒否は、
-/// どちらも `Closed` を見て断っている。戻す口があると、`isready` を1本送るだけで
+/// どちらも `Closed` を見て断っている。戻す経路があると、`isready` を1本送るだけで
 /// 両方が同時に無効になり、`position` も `go` も `Queue` に落ちて `Ok` が返る。
 /// 待っている側は永久に返らない。
 fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
@@ -349,7 +349,7 @@ fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
 ///
 /// **1件の書き込みに掛かる。** `send_command` が返るまでの実時間ではない
 /// （列に先客が居ればその処理時間が足される）。呼び出し側に上限を書かせると
-/// 包み忘れた口が上限なしで残るので、置き場はここ1つ。
+/// 包み忘れた呼び出しが上限なしで残るので、置き場はここ1つ。
 ///
 /// 待っている側ではなく `run_writer` の中で包むのは、待つ側だと
 /// 前のジョブの処理時間が入るため。1回に書くのは
@@ -519,7 +519,7 @@ enum Dispatch {
 
 /// `send_command` の入口で、送る／積む／断るを決める。
 ///
-/// **入口の判断はこれで全部。** ただし断る口はここだけではない。
+/// **入口の判断はこれで全部。** ただし断る箇所はここだけではない。
 /// 書き込みの列が詰まった後は `run_writer` が `STALLED` で断り、
 /// 列そのものが閉じていれば `write` が `NotInitialized` を返す。
 ///
@@ -606,7 +606,7 @@ impl Link {
     ///
     /// **待つだけ。** 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
     /// 超えたときに返るのは `Timeout` で、
-    /// 「送る口が無い」（`NotInitialized` / `CommunicationFailed`）とは別物。
+    /// 「送る先が無い」（`NotInitialized` / `CommunicationFailed`）とは別物。
     /// 前者はエンジンが stdin を読んでいない、後者は届く先が無い。
     /// 次に何ができるかが違うので潰さない。
     async fn write(&self, command: GuiCommand) -> Result<(), EngineError> {
@@ -627,7 +627,7 @@ impl Link {
     ) -> Result<oneshot::Receiver<Result<(), EngineError>>, EngineError> {
         // **最後の砦。** 呼び出し側でも弾いているが、そちらは入口ごとに書く
         // 検証なので、5箇所目を足した人が素通りするのを止めるものが無い。
-        // ここは書き込みの列へ入る唯一の口。
+        // ここは書き込みの列へ入る唯一の経路。
         //
         // **組み立てた1行を見る。** 列が線に出すのは `Display` の
         // 結果そのもの（`command.to_string()` に改行を足したもの）なので、バリアントや
@@ -671,7 +671,7 @@ impl Link {
 
     /// 書き込みが詰まった後の後始末。
     ///
-    /// 断る口は2つに分かれる。**既に列にあるジョブ**は `run_writer` の `stalled` が、
+    /// 断る箇所は2つに分かれる。**既に列にあるジョブ**は `run_writer` の `stalled` が、
     /// **これから `send_command` に入る呼び出し**はここで立てる `Closed` が断る。
     ///
     /// やることは、詰まった印を立てる・`Closed` を立てる・積み置きを捨てるの3つ。
@@ -852,7 +852,7 @@ impl UsiProtocol {
 
         let listeners = Arc::clone(&self.link.listeners);
         let ready = Arc::clone(&self.link.ready);
-        // 落とす口を持たない取っ手を渡す。`EngineChild` を渡すと、このタスクが生きている
+        // 落とす関数を持たない取っ手を渡す。`EngineChild` を渡すと、このタスクが生きている
         // 間（stdout が開いている間ずっと）Drop が起きず、捨てたプロセスが落ちない
         let diagnostics = self.child.diagnostics();
         let killed = Arc::clone(&self.killed);
@@ -936,7 +936,7 @@ impl UsiProtocol {
     /// 呼び出し側の次の手が違うので、`EngineError` のどれが返るかを挙げる。
     /// **数は書かない**（`isready` の経路が増えるたびにずれる）。
     ///
-    /// - `CommunicationFailed`: **2つの意味がある。** 届く口が無い（出力が終わったか、
+    /// - `CommunicationFailed`: **2つの意味がある。** 届く先が無い（出力が終わったか、
     ///   書き込みが詰まった。文言で分かれる → `cannot_reach`）ならプロセスを
     ///   起動し直すしかない。積み置きが上限（`PENDING_LIMIT`）に達したのなら
     ///   プロセスは生きていて `readyok` を待っているだけで、**やり直せる**。
@@ -1272,7 +1272,7 @@ impl UsiProtocol {
     /// `isready` が要る（やねうら王はそこで読む）。準備済みを理由に飛ばすと、送った設定が効かない。
     ///
     /// 待たずに `position` / `go` を送っても `send_command` が ready まで積むが、
-    /// **積まれたまま返ってこないことを呼び出し側が知れない。** だから待つ口を持つ。
+    /// **積まれたまま返ってこないことを呼び出し側が知れない。** だから待つ関数を持つ。
     ///
     /// **`limit` は待ちだけでなく `isready` の書き込みも含む。** 待ちにしか掛けないと、
     /// 締切から時間を借りて呼ぶ側（対局の `START_TIMEOUT`）で書き込みぶんが締切の外に出る。
@@ -1629,7 +1629,7 @@ fn lock_declared(
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// 実プロセスで確かめるテストの台本（`child::script`）を、プロトコル層に包んで起こす口。
+/// 実プロセスで確かめるテストの台本（`child::script`）を、プロトコル層に包んで起こす関数。
 ///
 /// 上の段のテストはここを通す。`child` を直に使うと、テストのためだけに
 /// `tests/layering.rs` の辺（`may_use` の `child`）を本番にも開くことになる
@@ -1865,7 +1865,7 @@ mod tests {
         assert_eq!(before, unique.len(), "届かない理由の文言が重なっている");
     }
 
-    /// `Closed` から戻す口を作らないこと。
+    /// `Closed` から戻す経路を作らないこと。
     ///
     /// 戻せると `dispatch_for` の `Refuse` も `register_listener` の拒否も、
     /// `isready` 1本で同時に無効になる。

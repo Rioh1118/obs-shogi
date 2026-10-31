@@ -1,7 +1,7 @@
 //! 局面を綴った文字列を読んで [`PartialPosition`] にする。
 //!
 //! **`shogi_core` に読む側は無い。** 局面を綴りに直す側は持っているが、
-//! 綴りから局面に戻す口が無いので、解く経路は手で書くしかない。
+//! 綴りから局面に戻す関数が無いので、解く経路は手で書くしかない。
 //!
 //! **受理するのは SFEN より広い。** 先頭の `position` / `startpos` / `sfen` を
 //! 剥がすので、エンジンへ送る USI の行がそのまま通る。
@@ -130,7 +130,7 @@ pub fn partial_position_from_sfen(input: &str) -> Result<PartialPosition, SfenPa
     let ply = tokens[3];
 
     // 升も持駒も空の盤から始めて、綴りに書いてある駒だけを置いていく。
-    // `PartialPosition` に一括で流し込む口が無いので、組み立ては `&mut` で回す
+    // `PartialPosition` に一括で流し込む関数が無いので、組み立ては `&mut` で回す
     let mut pos = PartialPosition::empty();
 
     let stm = match side {

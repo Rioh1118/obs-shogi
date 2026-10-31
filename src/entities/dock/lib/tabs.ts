@@ -33,8 +33,8 @@ function isDockViewType(value: unknown): value is DockViewType {
  * 「選ぶ機会が無かった」ものなので、`defaultVisible` なら足す。
  *
  * これが無いと、**設定「表示」を一度でも触った利用者には新しいビューが永久に出ない。**
- * 出す口がそのビューの中にしか無ければ、機能ごと到達できなくなる
- * （定跡を開く口は定跡ビューの中にしか無い）。
+ * 出す経路がそのビューの中にしか無ければ、機能ごと到達できなくなる
+ * （定跡を開く経路は定跡ビューの中にしか無い）。
  */
 export function resolveDockTabs(
   saved: readonly string[] | null | undefined,

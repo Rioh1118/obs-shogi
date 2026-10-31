@@ -44,7 +44,7 @@ struct AnalysisSession {
 /// 走っている解析の種類。**`session_id` の接頭辞になる。**
 ///
 /// `#[allow(dead_code)]` を付けないこと。付けると「この種類でセッションを
-/// 開く口が1つも無い」——どこかの入口がセッションを登録せずに解析を
+/// 開く経路が1つも無い」——どこかの入口がセッションを登録せずに解析を
 /// 始めている——が黙って通る。
 #[derive(Debug, Clone)]
 enum SessionType {
@@ -107,7 +107,7 @@ impl EngineBridge {
 
     /// 解析の席（`active_sessions`）を全部空ける。エンジンを起こし直す前に、起動を試みる前に通す。
     ///
-    /// フロントの後始末を当てにできない口が在るため——ワークスペースの切り替えは
+    /// フロントの後始末を当てにできない経路が在るため——ワークスペースの切り替えは
     /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
     /// （クラッシュでも同じ）。残すと以後の `take_session` が全部断り、
     /// 利用者には「▶ を押しても何も起きない」としか見えない。
@@ -241,7 +241,7 @@ impl EngineBridge {
     /// （USI は探索中の `position` / `go` を認めない）。
     /// 対局側が `Activity` と `Handover` で守っているのと同じ不変条件。
     ///
-    /// 解析を始める口は全部ここを通ること。通らない口があると、
+    /// 解析を始める経路は全部ここを通ること。通らない経路があると、
     /// その解析が走っている間ずっと「走っていない」に見える。
     async fn take_session(&self, session_type: SessionType) -> Result<String, String> {
         let mut sessions = self.active_sessions.write().await;
@@ -254,7 +254,7 @@ impl EngineBridge {
         Ok(session_id)
     }
 
-    /// セッションを閉じる。**失敗した口も必ず通ること。**
+    /// セッションを閉じる。**失敗した経路も必ず通ること。**
     /// 通らないと席が残り、以後の解析が全部「既に走っている」で断られる
     async fn release_session(&self, session_id: &str) {
         self.active_sessions.write().await.remove(session_id);
@@ -398,7 +398,7 @@ impl EngineBridge {
                 // **席を消してから知らせる。** 知らせてから消すと、受け取ったフロントの次の
                 // 開始が `take_session` に断られる窓ができる。
                 //
-                // 席が無いなら `stop` の答え（止める口は席を消してから `stop` を送る）
+                // 席が無いなら `stop` の答え（止める経路は席を消してから `stop` を送る）
                 AnalysisStreamItem::Finished(result) => {
                     if sessions.write().await.remove(&session_id).is_some() {
                         let update = AnalysisUpdate {
@@ -519,7 +519,7 @@ impl EngineBridge {
     /// **`session_id` を省くと席を全部空ける。** 呼び手が席の ID を持てない場面
     /// （画面が畳まれた後の後始末）は指せないので、この形が要る。
     ///
-    /// `by` は**どの口から撃ったか**。ログにだけ出る（意味と値は `stop_all_sessions`）。
+    /// `by` は**どの経路から撃ったか**。ログにだけ出る（意味と値は `stop_all_sessions`）。
     ///
     /// **どちらの枝でも、席は止めるより先に消える。** 指した側の `Err` は2種類——
     /// 照合に落ちた回（席に居るのが別のセッションなので**席は残る**）と、
@@ -637,7 +637,7 @@ impl EngineBridge {
 
     /// 席を全部空ける。
     ///
-    /// `by` は**どの口から撃ったか**。フロントの `stop_analysis` が名乗った値、
+    /// `by` は**どの経路から撃ったか**。フロントの `stop_analysis` が名乗った値、
     /// `shutdown_engine` からの `"shutdown"`、名乗らなかった回の `"unnamed"`
     /// （`stop_analysis_impl`）の3通り。畳まれた画面から来た停止は、失敗しても
     /// 利用者にも開発者にも出せない（出す先の画面がもう無い）ので、
@@ -688,7 +688,7 @@ mod tests {
     ///
     /// 起動しないと `analyzer` の側は動かないが、`take_session` /
     /// `release_session` は `active_sessions` しか触らないので、
-    /// ここだけを回せる。回さないと、セッションを閉じ忘れる口が素通りする。
+    /// ここだけを回せる。回さないと、セッションを閉じ忘れる経路が素通りする。
     ///
     /// **停止まで通す検査も回せる。** `analyzer.stop_analysis()` は
     /// エンジンが居なければ `Ok` に落ちる（`analyzer.rs`）ので、席の出入りだけが残る。
@@ -715,7 +715,7 @@ mod tests {
         assert!(second.is_err(), "既に走っているのに2本目を登録できている");
     }
 
-    /// 返せば次が取れること。**返す口が抜けると解析が二度と始まらない**
+    /// 返せば次が取れること。**返す呼び出しが抜けると解析が二度と始まらない**
     #[tokio::test]
     async fn releasing_the_seat_lets_the_next_analysis_in() {
         let bridge = bridge();
@@ -774,7 +774,7 @@ mod tests {
 
     /// 起こし直しが、残っている席を捨てること。
     ///
-    /// **フロントの後始末を当てにできない口が在る**——ワークスペースの切り替えは
+    /// **フロントの後始末を当てにできない経路が在る**——ワークスペースの切り替えは
     /// webview をリロードするので、React の cleanup が1つも走らないまま席が残る
     /// （クラッシュでも同じ）。残ると以後の `take_session` が全部断り、
     /// 利用者には「▶ を押しても何も起きない」としか見えない。
@@ -888,7 +888,7 @@ mod tests {
         );
     }
 
-    /// 指した停止が、公開している口でも他人の席を触らないこと。
+    /// 指した停止が、公開している関数でも他人の席を触らないこと。
     ///
     /// 照合しているのは `stop_session` だが、**外から通るのは
     /// `stop_analysis_impl`**。ここを通さずに検査していると、
@@ -1219,7 +1219,7 @@ done"#;
 
         /// (V3, E11) AC-9: 答えないと知らせ、**次の局面も `go` も線に出さない**（不変条件2）。
         ///
-        /// 出すと、やねうら王はプロセスを殺す以外に抜ける口が無くなる
+        /// 出すと、やねうら王はプロセスを殺す以外に抜ける経路が無くなる
         #[tokio::test]
         async fn an_engine_that_does_not_answer_stop_gets_no_next_position() {
             let body = script_with(":", ":", SILENT.0, SILENT.1);

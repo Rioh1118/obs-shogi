@@ -14,7 +14,7 @@ import { EditorHarness, renderSeeded } from "./harness";
  * 引き継ぎを間違えると「押しても何も変わらない」か「持ち主が飛ぶ」になる。
  */
 
-// 組む面はファイルを作る口（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),

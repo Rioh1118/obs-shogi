@@ -73,7 +73,7 @@ impl BlobStore for DiskStore {
     /// **見るのは「読めたか」だけ。** 中身が壊れていても読めれば本体を返すので、
     /// 復号に失敗する形（書き込み途中で電源が落ちて半端なバイトが残った）では
     /// 退避へ落ちない。**そこは呼び手が決めること** ——
-    /// バイト列を返す口に復号の成否は分からない。
+    /// バイト列を返す関数に復号の成否は分からない。
     fn load(&self, key: &str) -> Result<Vec<u8>, StoreError> {
         let (final_path, bak, _) = self.paths(key);
         match read(&final_path) {

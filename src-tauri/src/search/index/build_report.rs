@@ -14,8 +14,8 @@ use crate::search::types::CursorLite;
 
 /// 索引を組む途中で打ち切った手順。
 ///
-/// **これを画面に出す口は `BuildWarn` の `Display` だけ。**
-/// ただし警告の口そのものは1つではない — [`BuildError`] が返ったときは
+/// **これを画面に出す経路は `BuildWarn` の `Display` だけ。**
+/// ただし警告の経路そのものは1つではない — [`BuildError`] が返ったときは
 /// その `Display` が呼び手の `map_err` を通って同じ `EVT_INDEX_WARN` に出る。
 #[derive(Debug, Clone)]
 pub struct BuildWarn {
@@ -37,7 +37,7 @@ pub struct BuildWarn {
 
 /// 利用者に出す文言。**`EVT_INDEX_WARN` に載るのはこれ。**
 ///
-/// [`BuildError`] も `Display` が画面の文言なので、警告の口に載る2つが
+/// [`BuildError`] も `Display` が画面の文言なので、警告の経路に載る2つが
 /// 同じ描き方で揃う。**`message`（英語の内部の理由）はここに出ない。**
 ///
 /// `cursor` の `Debug` と `message`（`ApplyError` の英語）をそのまま並べると、

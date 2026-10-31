@@ -34,7 +34,7 @@ import PositionSearchContinuation from "./PositionSearchContinuation";
  * `warning` は1つ——ツリーをまだ読めていない。読めれば**同じ操作で開ける**。
  *
  * **`describeFsError` / `fsErrorTier` を通さない。** あちらは fs を叩いた結果の
- * `FsError` を訳す口だが、この断りは fs を1回も叩いていない——見ているのは
+ * `FsError` を訳す関数だが、この断りは fs を1回も叩いていない——見ているのは
  * 索引とツリーの食い違いだけで、`not_found` の `warning`（ツリーから開いたときは
  * 読み直せば直る）とは復帰の仕方が違う。段はこの画面から直せるかで決める。
  */
@@ -165,7 +165,7 @@ export default function PositionSearchModal() {
    *
    * **取り下げるだけでは足りない。** 届いたヒットの実体はセッションに残り、
    * 開き直すたびに1検索ぶん積み上がる（10万件なら 17.6MB。
-   * `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` D-1）。捨てる口を呼ぶのは
+   * `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` D-1）。捨てる関数を呼ぶのは
    * ここだけなので、呼ばないと**誰も呼ばない**。
    *
    * **rid が分かる前に呼ばれる**（開いた直後に Esc）。そのときは世代を進めるだけで、
@@ -332,7 +332,7 @@ export default function PositionSearchModal() {
 
   // 焦点は選択している行が持つ（`PositionHitItem`）ので、キーはそこから
   // ここまで上がってくる。この節自体は焦点を取らない。
-  // Escape は `Modal` が扱う。ここで拾うと受け口が2つになる
+  // Escape は `Modal` が扱う。ここで拾うとハンドラが2つになる
   const onKeyDown = (e: React.KeyboardEvent) => {
     // 検索中でも開ける。結果はチャンクで届くので `isSearching` は一覧が育っている間
     // ずっと真であり、ここで弾くと事実上「全件届くまで何も押せない」になる。

@@ -41,7 +41,7 @@ pub type BucketSegments = [Vec<crate::search::store::segment::SegmentArc>; BUCKE
 /// （`Gen` が上がらないと前の世代のセグメントが残る）。
 pub type FileBucketEntries = (FileEntry, NodeTableArc, BucketEntries);
 
-/// 空の桶を作る。**桶を作る口はこの2つだけ。**
+/// 空の桶を作る。**桶を作る関数はこの2つだけ。**
 ///
 /// `std::array::from_fn(|_| Vec::new())` を各所で書くと、桶の数を変えたときに
 /// 追随しない箇所が残る。

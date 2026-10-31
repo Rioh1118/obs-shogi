@@ -107,7 +107,7 @@ function BookView() {
     <section className="book-view">
       {/*
         **本体を消さずに添える。** 先を辿るのに失敗しても候補手は引けているので、
-        表ごと消すと読める行まで見えなくなる。閉じる口は持たない（`InlineNotice` の doc）
+        表ごと消すと読める行まで見えなくなる。閉じるボタンは持たない（`InlineNotice` の doc）
       */}
       {failure && (
         <div className="book-view__notice">

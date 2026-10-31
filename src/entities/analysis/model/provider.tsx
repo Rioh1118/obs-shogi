@@ -69,7 +69,7 @@ const holdsIntentWhile = (reason: EngineNotReadyReason) =>
  * - **棋譜の有無で畳まれない位置に置くこと**（`RuntimeProviders`）。棋譜を閉じるたびに
  *   畳まれる位置に置くと、「読む局面が無くなったら止める」effect（→ ※14）は死に、
  *   席を指して返す機会が消える。代わりに飛ぶのは `sweepOnUnmount` の**席を指さない停止**で、
- *   そちらは Rust の席を**全部**空けるので、別の口が取った席まで巻き添えにする
+ *   そちらは Rust の席を**全部**空けるので、別の経路が取った席まで巻き添えにする
  * - `positionSync` は**アプリ全体で1箇所だけがマウントした** `useEnginePositionSync`
  *   を渡すこと（同期の状態が二重になると、待つ相手が食い違う）
  *
@@ -90,11 +90,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   /**
    * 最後に届いた完了の結果。**開始の応答より先に完了が届いた回に、応答の側が読む**。
-   * ▶ の口ではその時点で `isAnalyzing` が立っていないので、完了を reducer が捨てる。
+   * ▶ の経路ではその時点で `isAnalyzing` が立っていないので、完了を reducer が捨てる。
    */
   const finishedResultRef = useRef<AnalysisResult | null>(null);
 
-  /** 結果の購読に失敗した。**張り直す口はマウント時の1回だけ**なので、以後 ▶ は断りを立て直して降りる */
+  /** 結果の購読に失敗した。**張り直す経路はマウント時の1回だけ**なので、以後 ▶ は断りを立て直して降りる */
   const listenersFailedRef = useRef(false);
 
   /**
@@ -107,7 +107,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const readinessRef = useRef<EngineReadiness>(readiness);
 
   // **`useMemo` ではなく `useRef`。** React の仕様では `useMemo` は覚えた値を
-  // 捨てうる（性能のための口で、同一性の保証ではない）。捨てられると控えが空に戻り、
+  // 捨てうる（性能のための関数で、同一性の保証ではない）。捨てられると控えが空に戻り、
   // 読み手より長生きするという置き場の目的（`lib/candidateCache.ts`）が崩れる。
   const candidateCacheRef = useRef<CandidateCache | null>(null);
   candidateCacheRef.current ??= createCandidateCache();
@@ -224,7 +224,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 無くなった回が通る。散らすと、引き金を1つ足すたびにどれを写し忘れたかを
   // 人が数えることになる。
   //
-  // **世代だけを上げる口はもう1つある**——局面が変わった回（下の effect）は
+  // **世代だけを上げる経路はもう1つある**——局面が変わった回（下の effect）は
   // 次の要求を同時に立てるので、望みの局面を残したままここを通らない。
   // 畳まれた回は `unmountedRef` が同じ役をする。
   const supersedeRequests = useCallback(() => {
@@ -251,7 +251,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
    * 反映待ちを残す**——その後は `commitLatest` の席の判定も通るので、捨てた席の読み筋が
    * そこから出る。書き戻しは `await stopAnalysisCore` の向こうなので必ずここより後だが、
-   * 席を返さずに呼ぶ口を足せば順序は変わる。
+   * 席を返さずに呼ぶ経路を足せば順序は変わる。
    * 守っているのは `provider.test.tsx` の
    * 「捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない」。
    *
@@ -262,14 +262,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [results]);
 
   /**
-   * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
+   * 席を取って `go` を出し、握るまで。**開始する2つの経路（▶ と自動再開）が同じものを通る。**
    *
    * 書き下ろしを2つ持つと、判定を1つ足したときに片方だけに入る。
    * 開始の失敗は**呼び手へ投げる**（断りの文言は
-   * 口ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）。
+   * 経路ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）。
    *
-   * **▶ の口は3値を書き分ける**——エンジンが消えた回と、利用者が降りた回では出す物が
-   * 違う。**自動再開の口はどちらでも黙って降りる**（押した人が居ない）。捨てる側は
+   * **▶ の経路は3値を書き分ける**——エンジンが消えた回と、利用者が降りた回では出す物が
+   * 違う。**自動再開の経路はどちらでも黙って降りる**（押した人が居ない）。捨てる側は
    * その理由を `async-result-ignored:` で書くこと
    * （`src/__tests__/asyncResultUse.test.ts` が要求する）。
    *
@@ -404,7 +404,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // `state.error` を汚さない。
         if (!alive) return;
 
-        // **張り直す口が無い。** この effect の依存は全部固定なのでマウント1回きりで、
+        // **張り直す経路が無い。** この effect の依存は全部固定なのでマウント1回きりで、
         // 落ちると結果が二度と届かない——`isAnalyzing` は true のまま候補手が0で固まる。
         //
         // **印を残す。** 断りだけでは足りない——▶ を1回押すと `clear_results` が
@@ -435,7 +435,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
 
-  // 再開のタイマーを張る口をここ1つにする。畳まれた後に張ると、それを止める
+  // 再開のタイマーを張る関数をここ1つにする。畳まれた後に張ると、それを止める
   // cleanup はもう走らない。非同期の再開が返ってきた後の張り直しは、まさにそこを通る。
   const scheduleRestart = useCallback(
     (seq: number, delayMs: number) => {
@@ -782,7 +782,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
 
     // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisControls` が
-    // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ口が
+    // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ経路が
     // 増えたときのために `throw` だけ残す。
     if (!currentSfen) throw new Error("No position available for analysis");
     return true;
@@ -802,7 +802,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     async (seq: number) => {
       const generation = seat.engineGeneration();
       // 局面を Rust に覚えさせられなかった回はエンジンが居ない。`syncPosition` は
-      // `set_position` の失敗を呼び手へ投げる（自動追従の口は飲むので、投げ先はここだけ）。
+      // `set_position` の失敗を呼び手へ投げる（自動追従の経路は飲むので、投げ先はここだけ）。
       try {
         await syncPosition();
       } catch (e) {
