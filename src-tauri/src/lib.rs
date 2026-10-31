@@ -126,7 +126,11 @@ pub fn run() {
             let bridge = Arc::clone(&state.bridge);
 
             tauri::async_runtime::spawn(async move {
-                bridge.set_app_handle(app_handle).await;
+                bridge
+                    .set_events(Arc::new(
+                        crate::engine::commands::analysis::TauriAnalysisEvents::new(app_handle),
+                    ))
+                    .await;
             });
 
             let handle = app.handle().clone();

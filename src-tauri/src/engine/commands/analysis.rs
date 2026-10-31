@@ -10,6 +10,42 @@
 use crate::engine::analyzer::{DepthOutcome, Request, StartInput};
 use crate::engine::state::AppState;
 use crate::engine::types::*;
+use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
+use std::sync::Mutex;
+use tauri::Emitter;
+
+const LOGT: &str = "obs_shogi::engine::commands::analysis";
+
+/// 解析の出来事を webview へ流す宛先
+pub struct TauriAnalysisEvents {
+    app: tauri::AppHandle,
+    /// `analysis-update` は毎秒何十本も流れるので、失敗の記録を絞る
+    emit_warn: Mutex<LogThrottle>,
+}
+
+impl TauriAnalysisEvents {
+    pub fn new(app: tauri::AppHandle) -> Self {
+        Self {
+            app,
+            emit_warn: Mutex::new(LogThrottle::new(EMIT_WARN_INTERVAL)),
+        }
+    }
+}
+
+impl AnalysisEventSink for TauriAnalysisEvents {
+    fn emit(&self, event: AnalysisEvent) {
+        let emitted = match event {
+            AnalysisEvent::Update(update) => self.app.emit("analysis-update", update),
+            AnalysisEvent::Complete(update) => self.app.emit("analysis-complete", update),
+            AnalysisEvent::EngineExited(exited) => self.app.emit("engine-exited", exited),
+        };
+        if let Err(e) = emitted {
+            if self.emit_warn.lock().is_ok_and(|mut w| w.allow()) {
+                log::warn!(target: LOGT, "emit failed: {e}");
+            }
+        }
+    }
+}
 
 // === Tauriコマンド定義 ===
 
