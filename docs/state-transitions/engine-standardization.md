@@ -141,6 +141,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | 不変条件2（開始と停止が重なる順序） | `bridge.rs` の `a_start_and_a_stop_at_once_leave_no_search_without_a_seat` |
 | 不変条件1（V1 V6 V7 V8） 不変条件4 | `engineStatus.test.ts`、`visibleCandidates.test.ts`。実プロセスは #502 の PR |
 | (V1, E3) (V1, E4) (V1, E5) (V1, E7) (V1, E2) (V3, E1) (V7, E13) (V8, E13) 不変条件5 | `entities/analysis` の「検討の意思」 |
+| (V0) (V8, E2) | `engineStatus.test.ts` の「選択が外れたら、前の失敗が畳まれる前でもエンジンなし」、`engineFailureBridge.test.tsx` |
 | (V3, E8) (V3, E10) 不変条件2（線の順） | `bridge.rs` の `a_position_during_a_search_goes_out_only_after_the_stop`、`entities/analysis` の「検討中に局面を続けて動かす回」 |
 | (V3, E1) の上限切れ（※7） | `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine` |
 | 不変条件1（V7 について） | `engineStatus.test.ts` の「エンジンが終了したら、検討の意思があっても検討中と言わない」 |

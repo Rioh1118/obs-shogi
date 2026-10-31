@@ -21,6 +21,7 @@ describe("操作列の語", () => {
   });
 
   test.each([
+    ["no-engine", "エンジンなし"],
     ["starting", "起動中…"],
     ["failed", "起動失敗"],
     ["cancelled", "起動を中止しました"],
@@ -76,6 +77,19 @@ describe("操作列の時計の持ち越し", () => {
 
 describe("▶ の位置のボタン", () => {
   const handlers = () => ({ onToggle: vi.fn(), onRestart: vi.fn() });
+
+  test("エンジンが無ければ ▶ を押せない", () => {
+    render(
+      <EngineAction
+        status="no-engine"
+        isAnalyzing={false}
+        stopping={false}
+        canStart
+        {...handlers()}
+      />,
+    );
+    expect((screen.getByTitle("検討を開始") as HTMLButtonElement).disabled).toBe(true);
+  });
 
   test("検討していなければ ▶、局面が無ければ押せない", () => {
     render(

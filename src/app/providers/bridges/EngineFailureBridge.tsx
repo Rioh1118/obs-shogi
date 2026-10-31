@@ -170,10 +170,6 @@ export function EngineFailureBridge() {
     //
     // **二重に積まない**のは `dedupeKey` の畳みが担う（`reducer.ts`）。
     // ここが担うのは、条件が消えた側で帯を残さないこと。
-    //
-    // TODO(#533): `idle` へ落ちた回（設定を外した／プリセットを消した）は、
-    // エンジンが止まったまま画面から断りが消える。差し替える断りを決めるまで、
-    // 引っ込め方は変えない
     return () => dismissByKey(ENGINE_START_FAILURE);
   }, [phase, error, notify, dismissByKey]);
 
