@@ -25,7 +25,7 @@ function AppLoading() {
       <div className="container">
         <Title />
         <p className="guide--text" role="alert">
-          起動エラー: {error}
+          {error}
         </p>
         <ChooseWorkspaceButton onChosen={() => navigate("/app", { replace: true })} />
       </div>

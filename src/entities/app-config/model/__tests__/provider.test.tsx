@@ -138,14 +138,14 @@ describe("AppConfigProvider", () => {
       </AppConfigProvider>,
     );
     await waitFor(() =>
-      expect(screen.getByTestId("error").textContent).toContain("設定の読み込みに失敗しました"),
+      expect(screen.getByTestId("error").textContent).toContain("設定を読み込めませんでした"),
     );
 
     fireEvent.click(screen.getByTestId("choose"));
     await waitFor(() => expect(loadingText()).toBe("false"));
 
-    expect(screen.getByTestId("error").textContent).toContain("設定の読み込みに失敗しました");
-    expect(screen.getByTestId("error").textContent).not.toContain("初期化に失敗");
+    expect(screen.getByTestId("error").textContent).toContain("設定を読み込めませんでした");
+    expect(screen.getByTestId("error").textContent).not.toContain("ワークスペースを開けませんでした");
   });
 
   /**

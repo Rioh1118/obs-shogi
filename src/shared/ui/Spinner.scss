@@ -1,3 +1,5 @@
+@use "@/index.scss" as index;
+
 .spinnerContainer {
   height: 100%;
   display: flex;
@@ -6,11 +8,12 @@
 }
 
 .spinner {
-  width: 6rem;
-  height: 6rem;
+  width: 3.2rem;
+  height: 3.2rem;
   border-radius: 50%;
-  background: conic-gradient(#000 10%, #ececec);
-  -webkit-mask: radial-gradient(farthest-side, #000 calc(100% - 8px), #000 0);
+  background: conic-gradient(transparent 10%, index.$color-secondary-dark);
+  // 真ん中を抜いて輪にする
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
   animation: rotate 1.5s infinite linear;
 }
 

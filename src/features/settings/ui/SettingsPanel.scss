@@ -79,16 +79,6 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
     line-height: 1.2;
   }
 
-  &__titleSub {
-    font-size: 1.15rem;
-    color: $text-muted;
-    line-height: 1.25;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 60ch;
-  }
-
   &__headerRight {
     display: flex;
     align-items: center;

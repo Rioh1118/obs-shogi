@@ -10,12 +10,11 @@ type TabBadge = {
 type Props = {
   active: boolean;
   label: string;
-  desc?: string;
   onClick: () => void;
   badges?: TabBadge[];
 };
 
-function SettingsTabButton({ active, label, desc, onClick, badges = [] }: Props) {
+function SettingsTabButton({ active, label, onClick, badges = [] }: Props) {
   const cls = ["stab", active ? "stab--active" : ""].filter(Boolean).join(" ");
 
   return (
@@ -35,8 +34,6 @@ function SettingsTabButton({ active, label, desc, onClick, badges = [] }: Props)
           ))}
         </span>
       </div>
-
-      {desc && <div className="stab__desc">{desc}</div>}
     </button>
   );
 }

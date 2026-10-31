@@ -98,17 +98,6 @@ $focus: index.$focus-ring;
     text-overflow: ellipsis;
   }
 
-  .stab__desc {
-    font-size: 1.1rem;
-    color: $text-muted;
-    line-height: 1.35;
-
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
   .stab__right {
     display: flex;
     gap: 6px;

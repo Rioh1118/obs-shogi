@@ -82,11 +82,9 @@
 
   &__pill {
     flex: none;
-    padding: 0 index.$space-3;
-    border-radius: index.$radius-pill;
-    border: 1px solid index.$stroke;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.75);
+    font-family: index.$font-mono;
+    font-size: index.$font-aux;
+    color: index.$color-text-primary;
   }
 
   // ── 新しい名前の入力 ──

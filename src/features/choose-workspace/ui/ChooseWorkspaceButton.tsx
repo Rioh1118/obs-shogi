@@ -1,4 +1,6 @@
+import { FolderOpen } from "lucide-react";
 import { useAppConfig } from "@/entities/app-config";
+import Button from "@/shared/ui/Button/Button";
 
 import "./ChooseWorkspaceButton.scss";
 
@@ -13,7 +15,9 @@ function ChooseWorkspaceButton({ onChosen }: { onChosen: (rootDir: string) => vo
   const { chooseRootDir } = useAppConfig();
 
   return (
-    <button
+    <Button
+      tone="primary"
+      size="lg"
       className="choose-workspace"
       onClick={() => {
         void chooseRootDir({ force: true }).then((rootDir) => {
@@ -21,8 +25,9 @@ function ChooseWorkspaceButton({ onChosen }: { onChosen: (rootDir: string) => vo
         });
       }}
     >
-      <span className="choose-workspace__icon">📁</span>フォルダを選択
-    </button>
+      <FolderOpen size={18} />
+      フォルダを選択
+    </Button>
   );
 }
 
