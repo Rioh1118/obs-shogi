@@ -21,7 +21,6 @@ import {
   POSITION_SYNC_TIMEOUT_MESSAGE,
   RESTART_FAILED_MESSAGE,
   START_REFUSED_MESSAGE,
-  ENGINE_RESTARTED_MESSAGE,
 } from "./refusals";
 
 // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
@@ -659,6 +658,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     isRestartScheduled,
   ]);
 
+  // **選択が外れた、起動を中止した回は検討の意思を下ろす。** どちらも利用者がエンジンから
+  // 離れたので、次に動いたエンジンが勝手に読み始めない。
+  useEffect(() => {
+    if (notReadyReason !== "no-engine" && notReadyReason !== "cancelled") return;
+    if (!state.isAnalyzing) return;
+
+    supersedeRequests();
+    dispatch({ type: "stop_analysis" });
+  }, [notReadyReason, state.isAnalyzing, supersedeRequests]);
+
   // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
   // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、
   // `AnalysisPane` は消える（`AppLayout` の `hasKifu` の内側）ので ▶ も ■ も無くなる。
@@ -715,7 +724,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * ▶ が `go` を出せる状態か。**出せないなら断りを立てて投げる。**
+   * ▶ がいま `go` を出せるか。**エンジンの起動を待っている回は `false`**（断らない）。
+   * **出せない回は断りを立てて投げる。**
    *
    * 断るのは、押しても結果が届かない／エンジンに届かないと分かっている回だけ。
    * どの門も**席に触る前**に通るので、断った回に Rust の状態は1ビットも動かない。
@@ -727,10 +737,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       failStart(LISTENERS_FAILED_MESSAGE, new Error("Analysis event listeners are not registered"));
     }
 
-    // ▶ は ready でなくても押せる（`AnalysisControls` は局面の有無しか見ない）ので、
-    // ここは**いちばん踏まれる枝**。理由は engine 側が決める（`desiredRuntime` を
-    // 見られるのはあちらだけ）。`isReady` が false なら理由は必ず在る（`EngineReadiness`）。
+    // 理由は engine 側が決める（`desiredRuntime` を見られるのはあちらだけ）。
+    // `isReady` が false なら理由は必ず在る（`EngineReadiness`）。
     if (!isReady) {
+      if (notReadyReason === "starting") return false;
       failStart(NOT_READY_REFUSALS[notReadyReason], new Error("Engine not ready"));
     }
 
@@ -738,6 +748,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ口が
     // 増えたときのために `throw` だけ残す。
     if (!currentSfen) throw new Error("No position available for analysis");
+    return true;
   }, [isReady, notReadyReason, currentSfen, failStart]);
 
   /**
@@ -773,11 +784,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       if (!synced) {
         if (supersededSince(seq)) return false;
 
-        // **エンジンが消えた回は、その理由で断る。** 待ち続けても追いつかないうえ、
-        // 「同期が遅い」の案内（押し直し）はここでは効かない——押し直すと今度は
-        // 起動待ちの断りが出る。上限まで待たせてから違う理由を告げないこと。
+        // **エンジンが消えた回は上限まで待たない。** 起動を待っているなら検討の意思を残し、
+        // 戻らないならその理由で断る。
         const engine = readinessRef.current;
         if (!engine.isReady) {
+          if (engine.notReadyReason === "starting") {
+            dispatch({ type: "hold_intent" });
+            return false;
+          }
           failStart(
             NOT_READY_REFUSALS[engine.notReadyReason],
             new Error("engine went away while syncing"),
@@ -853,7 +867,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const startInfiniteAnalysis = useCallback(async () => {
     if (state.isAnalyzing) return;
-    refuseIfCannotStart();
+    if (!refuseIfCannotStart()) {
+      dispatch({ type: "hold_intent" });
+      return;
+    }
 
     // この窓でボタンから動く口は無い（席が返るまでヘッダは ▶ のまま）。
     // 動くのは畳まれた回と、読む局面が無くなった回。
@@ -879,21 +896,19 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       if (supersededSince(seq)) return;
       failStart(START_REFUSED_MESSAGE, e);
     }
-    // **エンジンが消えた回は断る。** 押した人がまだ画面の前に居るので、黙ると
-    // `AnalysisControls` の catch にも入らず `console.error` すら出ない
-    // ——停止中はペインが控えを出すので**押す前と1ドットも変わらない画面**が残る。
+    // **エンジンが消えた回は検討の意思を残す。** 戻れば読み始める。戻らないならその理由で断る。
     // ただし**要求がまだ生きている回だけ**——棋譜を閉じた回・畳まれた回も
     // `landed` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
-    //
-    // **まだ戻っていない回は、その理由で断る**（`sendAndAwaitSync` と同じ判断）。
-    // 「もう一度 ▶」と案内した先で起動待ちの断りが出ると、案内が1回空振りする。
     if (landed === "engine-gone" && !supersededSince(seq)) {
       const engine = readinessRef.current;
-      const refusal = engine.isReady
-        ? ENGINE_RESTARTED_MESSAGE
-        : NOT_READY_REFUSALS[engine.notReadyReason];
-
-      failStart(refusal, new Error("engine was restarted while taking a seat"));
+      if (engine.isReady || engine.notReadyReason === "starting") {
+        dispatch({ type: "hold_intent" });
+        return;
+      }
+      failStart(
+        NOT_READY_REFUSALS[engine.notReadyReason],
+        new Error("engine was restarted while taking a seat"),
+      );
     }
     if (landed !== "held" && landed !== "finished") return;
 

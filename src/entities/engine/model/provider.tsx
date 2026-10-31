@@ -57,9 +57,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // **もう選んでいないプリセット**のオプションを変えろ、という実行できない案内になる。
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
     ? "no-engine"
-    : state.phase === "error" || state.phase === "exited" || state.phase === "unresponsive"
-      ? "failed"
-      : "starting";
+    : state.phase === "error" && state.error?.kind === "cancelled"
+      ? "cancelled"
+      : state.phase === "error" || state.phase === "exited" || state.phase === "unresponsive"
+        ? "failed"
+        : "starting";
 
   // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
   // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。

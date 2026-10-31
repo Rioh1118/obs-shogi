@@ -85,7 +85,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 ### 注
 
 ※1 ▶ を起動中に押したら断らずに受け、ボタンは ■ に変わる（押すと意思が下りる）。
-`ENGINE_STARTING_MESSAGE` を出して押し直させるのをやめる。**表を埋めて出てきた論点。** 断る形だと、起動を待つ利用者が2回押すことになる。
+押し直させない。**表を埋めて出てきた論点。** 断る形だと、起動を待つ利用者が2回押すことになる。
 
 ※2 利用者には切り替わりを見せない。局面が続けて動けば最新の局面だけを読む（[engine-position-sync.md](engine-position-sync.md)）。
 `stop` の答えを待たずに `go` を出す経路は持たない。上限を超えたら `EngineAnalyzer::unanswered` が立ち、
@@ -107,8 +107,6 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | `START_REFUSED_MESSAGE`         | E16。帯に文と「再起動する」                        |
 | `RESTART_FAILED_MESSAGE`        | E16。帯に文と「再起動する」（V3 の自動の読み直し） |
 | 局面の送信・▶ の先頭の返却・■ の失敗 | E15 → V6。**断りの文を持たず V6 の語にする**（`reportUnreachable`。「まず ▶」は V6 で押せない） |
-| `ENGINE_STARTING_MESSAGE`       | **消える**（※1）                                   |
-| `ENGINE_RESTARTED_MESSAGE`      | **消える**（意思で読み直す）                       |
 | `ENGINE_FAILED_MESSAGE`         | V8 に畳む                                          |
 | `NO_ENGINE_SELECTED_MESSAGE`    | V0 に畳む                                          |
 | `LISTENERS_FAILED_MESSAGE`      | 帯（アプリの再起動）。今の ▶ の断りの枝のまま  |
@@ -142,6 +140,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | (V3, E4) (V4, E10) (V3, E14) (V5, E14) (V7, E14) | `entities/analysis` の「中断と棋譜を閉じる回」 |
 | 不変条件2（開始と停止が重なる順序） | `bridge.rs` の `a_start_and_a_stop_at_once_leave_no_search_without_a_seat` |
 | 不変条件1（V1 V6 V7 V8） 不変条件4 | `engineStatus.test.ts`、`visibleCandidates.test.ts`。実プロセスは #502 の PR |
+| (V1, E3) (V1, E4) (V1, E5) (V1, E7) (V1, E2) (V3, E1) (V7, E13) (V8, E13) 不変条件5 | `entities/analysis` の「検討の意思」 |
 | (V3, E8) (V3, E10) 不変条件2（線の順） | `bridge.rs` の `a_position_during_a_search_goes_out_only_after_the_stop`、`entities/analysis` の「検討中に局面を続けて動かす回」 |
 | (V3, E1) の上限切れ（※7） | `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine` |
 | 不変条件1（V7 について） | `engineStatus.test.ts` の「エンジンが終了したら、検討の意思があっても検討中と言わない」 |

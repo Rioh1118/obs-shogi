@@ -40,6 +40,14 @@ describe("解析の停止が残すもの", () => {
     expect(analysisReducer(finished, { type: "set_error", payload: "x" }).finished).toBe(false);
   });
 
+  it("検討の意思を立てると、読む局面を空ける", () => {
+    const stopped = analysisReducer(analyzing(), { type: "stop_analysis" });
+    const held = analysisReducer(stopped, { type: "hold_intent" });
+
+    expect(held.isAnalyzing).toBe(true);
+    expect(held.analyzedSfen).toBeNull();
+  });
+
   it("検討していないときの完了は何も変えない", () => {
     const last = { candidates: [{ rank: 1, pv_line: [] }] };
     expect(analysisReducer(initialState, { type: "finish_analysis", payload: last })).toBe(
