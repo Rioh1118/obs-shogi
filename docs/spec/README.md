@@ -32,7 +32,7 @@ issue は「直すこと」の集合であって、直っている部分を書�
 | ファイルツリー           | [screens/file-tree.md](screens/file-tree.md)         | `widgets/file-tree/`                                            |
 | 盤・駒台・操作列         | [screens/board.md](screens/board.md)                 | `widgets/game-board/`                                           |
 | 棋譜ストリーム           | [screens/kifu-stream.md](screens/kifu-stream.md)     | `widgets/kifu-stream/`                                          |
-| 解析ペイン               | [screens/analysis-pane.md](screens/analysis-pane.md) | `widgets/analysis-pane/`                                        |
+| 検討ペイン               | [screens/analysis-pane.md](screens/analysis-pane.md) | `widgets/analysis-pane/`                                        |
 | 定跡ビュー               | [screens/book-view.md](screens/book-view.md)         | `widgets/book-view/` `entities/book/`                           |
 
 ### モーダル
@@ -56,7 +56,7 @@ issue は「直すこと」の集合であって、直っている部分を書�
 | 特殊な手の挿入             | [features/special-moves.md](features/special-moves.md)   | #115 #289     | 読むだけ。書けない                      |
 | 定跡（book）               | [features/book.md](features/book.md)                     | #283 ほか     | 読むところと見る画面がある              |
 | 対局                       | [features/game-play.md](features/game-play.md)           | #374 ほか     | 1局を通して指せる。棋譜に結果が残らない |
-| USI オプション・解析モード | [features/engine-options.md](features/engine-options.md) | #107 #110     | オプションの編集はある。**新しい要件は下の行へ移した** |
+| USI オプション・検討モード | [features/engine-options.md](features/engine-options.md) | #107 #110     | オプションの編集はある。**新しい要件は下の行へ移した** |
 | エンジン設定と挙動の標準化 | [features/engine-standardization.md](features/engine-standardization.md) | #502 #356 ほか | 一部。画面の語と止める条件が無い |
 
 ## 書き方

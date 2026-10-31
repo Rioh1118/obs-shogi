@@ -75,8 +75,8 @@ export default function EngineTab() {
   return (
     <div className="engineTab">
       <SSection
-        title="解析プリセット"
-        description="エンジンの起動設定・解析の基本設定をプリセットとして管理します。保存時に必要なら自動でエンジンが再起動されます。"
+        title="検討プリセット"
+        description="エンジンの起動設定・検討の基本設定をプリセットとして管理します。保存時に必要なら自動でエンジンが再起動されます。"
         actions={
           <div className="engineTab__actions">
             <Button size="sm" onClick={() => reload()} isLoading={state.status === "loading"}>
@@ -216,7 +216,7 @@ export default function EngineTab() {
 
                     <div className="engineTab__miniGrid">
                       <div className="engineTab__mini">
-                        <div className="engineTab__miniK">MultiPV</div>
+                        <div className="engineTab__miniK">候補手の数</div>
                         <div className={cx("engineTab__miniV", multiPvWarn && "is-warn")}>
                           {multiPv ?? engineDefaultLabel(engineDefaultOf(p, MULTIPV_OPTION))}
                         </div>
@@ -243,7 +243,7 @@ export default function EngineTab() {
 
                     {multiPvWarn && (
                       <div className="engineTab__note">
-                        MultiPV を増やすと 1手あたりの読みが浅くなります（研究向けの “幅 vs 深さ”
+                        候補手の数を増やすと 1手あたりの読みが浅くなります（研究向けの “幅 vs 深さ”
                         トレードオフ）。
                       </div>
                     )}

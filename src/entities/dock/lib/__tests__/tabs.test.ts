@@ -11,7 +11,7 @@ import type { DockViewType } from "@/shared/lib/router/useURLParams";
  * 「外せるビューを外す」「既定では出さないビューを出す」がどちらも踏めない。
  */
 const FAKE = vi.hoisted(() => [
-  { key: "analysis", label: "解析", removable: false, defaultVisible: true },
+  { key: "analysis", label: "検討", removable: false, defaultVisible: true },
   { key: "book", label: "定跡", removable: true, defaultVisible: true },
   { key: "engineLog", label: "エンジンログ", removable: true, defaultVisible: false },
 ]);

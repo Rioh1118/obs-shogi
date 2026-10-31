@@ -54,7 +54,7 @@ pub(crate) fn unreadable_record(e: ParseError) -> String {
         ParseError::Io(io) => cannot_open_reason(&io),
         ParseError::Csa(_) | ParseError::CsaConvert(_) => format!(
             "CSA として読めません。V2.2 のヘッダと手番行（+ か -）があるか\
-             確かめてください（{by_crate}）"
+             確認してください（{by_crate}）"
         ),
         ParseError::Serde(_) => format!(
             "JKF（JSON）として壊れています。元のアプリで書き出し直してください\
@@ -62,20 +62,20 @@ pub(crate) fn unreadable_record(e: ParseError) -> String {
         ),
         ParseError::Kif(_) | ParseError::Ki2(_) => format!(
             "棋譜として読めない行があります。その行を直すか、\
-             拡張子が中身と合っているか確かめてください:\n{by_crate}"
+             拡張子が中身と合っているか確認してください:\n{by_crate}"
         ),
         // 文字コードの話。総当たりを掛ける3形式（KIF / KI2 / CSA）は
         // [`describe`] が先に扱うので、ここに来るのは JKF だけ
         ParseError::Decode | ParseError::FileExtension => format!(
             "文字として読めませんでした。棋譜ではないファイルに棋譜の拡張子が\
-             付いていないか確かめてください（{by_crate}）"
+             付いていないか確認してください（{by_crate}）"
         ),
         // 局面に合わない手。手合割の名前がクレートの表に無い、書き写しを誤った、
         // 駒がいない升から動かした、など。文字コードとは関係が無い。
         // **クレートの本文は何手目・どの升を名指しするので捨てない**
         ParseError::Normalize(_) => format!(
             "書かれている手が局面に合いません。手合割の名前がこのアプリの知っている\
-             ものか、その手数のところで指し手が書き写せているか確かめてください\
+             ものか、その手数のところで指し手が書き写せているか確認してください\
              （{by_crate}）"
         ),
     }
@@ -126,13 +126,13 @@ pub(crate) fn cannot_open(e: std::io::Error) -> KifuReadError {
 pub(crate) fn cannot_open_reason(e: &std::io::Error) -> String {
     match e.kind() {
         std::io::ErrorKind::PermissionDenied => {
-            "ファイルを開く権限がありません。権限を確かめるか、この場所を索引から外してください"
+            "ファイルを開く権限がありません。権限を確認するか、この場所を索引から除外してください"
                 .to_owned()
         }
-        std::io::ErrorKind::NotFound => "索引を作っている間にファイルが無くなりました".to_owned(),
+        std::io::ErrorKind::NotFound => "索引を作成している間にファイルが無くなりました".to_owned(),
         // `ErrorKind` の Debug は内部の識別子なので出さない
         _ => {
-            "ファイルを読めませんでした。ディスクやネットワークの接続を確かめてください".to_owned()
+            "ファイルを読めませんでした。ディスクやネットワークの接続を確認してください".to_owned()
         }
     }
 }

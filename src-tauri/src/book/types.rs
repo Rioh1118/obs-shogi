@@ -50,7 +50,7 @@ impl BookFormat {
                 BookErrorCode::UnknownExtension,
                 "拡張子から定跡の形式を判別できない。\
                  いま開けるのはやねうら王テキスト定跡 (.db) だけなので、\
-                 .db のファイルを選び直すこと",
+                 .db のファイルを選択し直すこと",
             )
             .with_path(path.to_string_lossy())),
         }

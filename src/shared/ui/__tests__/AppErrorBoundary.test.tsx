@@ -123,7 +123,7 @@ describe("AppErrorBoundary が残す記録", () => {
     // 境界は入れ子なので、名乗りが無いとログからも受け側を特定できない。
     // **潰すだけのテストだと、この行を消しても変異が生き残る**
     const calls = vi.mocked(console.error).mock.calls;
-    expect(calls.some((args) => String(args[0]).includes("[AppErrorBoundary:解析]"))).toBe(true);
+    expect(calls.some((args) => String(args[0]).includes("[AppErrorBoundary:検討]"))).toBe(true);
   });
 });
 

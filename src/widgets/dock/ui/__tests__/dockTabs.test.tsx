@@ -17,7 +17,7 @@ import type { DockViewBindings } from "@/widgets/dock/model/bindings";
  * タブ切替そのものが踏めない。
  */
 const FAKE = vi.hoisted(() => [
-  { key: "analysis", label: "解析", removable: false, defaultVisible: true },
+  { key: "analysis", label: "検討", removable: false, defaultVisible: true },
   { key: "book", label: "定跡", removable: true, defaultVisible: true },
 ]);
 
@@ -46,7 +46,7 @@ const VIEWS = {
     Body: () => <div data-testid="analysis-body" />,
     Controls: () => <div data-testid="analysis-controls" />,
     boundary: BOUNDARY_LABELS.analysis,
-    fallbackHint: "解析の案内",
+    fallbackHint: "検討の案内",
   },
   book: {
     Body: () => {
@@ -89,7 +89,7 @@ describe("ドックのタブ", () => {
     config.current = { dock_tabs: ["book", "analysis"] };
     mount();
 
-    expect(screen.getAllByRole("tab").map((el) => el.textContent)).toEqual(["定跡", "解析"]);
+    expect(screen.getAllByRole("tab").map((el) => el.textContent)).toEqual(["定跡", "検討"]);
   });
 
   // (Ta, D1) —— 前のビューは畳まれ、新しいビューが出る
@@ -183,7 +183,7 @@ describe("ドックのタブ", () => {
 
     expect(tab("定跡").getAttribute("aria-selected")).toBe("true");
     expect(tab("定跡").getAttribute("tabindex")).toBe("0");
-    expect(tab("解析").getAttribute("tabindex")).toBe("-1");
+    expect(tab("検討").getAttribute("tabindex")).toBe("-1");
   });
 
   test("端で押すと反対の端へ回る", () => {
@@ -202,7 +202,7 @@ describe("ドックのタブ", () => {
 
     expect(screen.getByText("棋譜一覧を表示できませんでした。")).toBeTruthy();
 
-    fireEvent.click(tab("解析"));
+    fireEvent.click(tab("検討"));
 
     expect(screen.getByTestId("analysis-body")).toBeTruthy();
   });

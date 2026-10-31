@@ -139,7 +139,7 @@ function manualCheckText(result: ManualCheckResult): string {
     case "foundButSkipped":
       return `新しいバージョン v${result.version} がありますが、この版は飛ばす設定になっています。`;
     case "failed":
-      return "更新を確認できませんでした。通信を確かめて、もう一度お試しください。";
+      return "更新を確認できませんでした。通信を確認して、もう一度お試しください。";
   }
 }
 

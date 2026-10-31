@@ -288,7 +288,7 @@ pub fn warn_build_not_started(app: &AppHandle, root: &std::path::Path) {
 /// 上の文言。**`AppHandle` を要らない形**なので内部語彙の検査に載せられる。
 pub(crate) fn warn_build_not_started_message() -> ScreenMessage {
     for_screen(
-        &"索引を作り始められませんでした。いま検索しても0件になります。\
+        &"索引の作成を始められませんでした。いま検索しても0件になります。\
           ワークスペースを開き直してください",
     )
 }
@@ -381,16 +381,16 @@ pub(crate) fn scan_failure(reason: &ScanError, survival: IndexSurvival) -> Scree
     };
     let how = match reason {
         ScanError::RootNotFound(_) => {
-            "つないでいるディスクや共有フォルダを確かめるか、設定からワークスペースを選び直してください"
+            "つないでいるディスクや共有フォルダを確認するか、設定からワークスペースを選択し直してください"
         }
         ScanError::RootUnreadable(_) => {
-            "フォルダの権限を確かめるか、設定からワークスペースを選び直してください"
+            "フォルダの権限を確認するか、設定からワークスペースを選択し直してください"
         }
-        ScanError::Io(_) => "ディスクやネットワークの接続を確かめてください",
+        ScanError::Io(_) => "ディスクやネットワークの接続を確認してください",
     };
     let lost = match survival {
         IndexSurvival::Kept => "索引は最後に読めたときのままで、新しくなっていません",
-        IndexSurvival::Gone => "索引を作れていないので、いま検索しても0件になります",
+        IndexSurvival::Gone => "索引を作成できていないので、いま検索しても0件になります",
     };
     for_screen(&format_args!("{what}。{lost}。{how}"))
 }
@@ -418,7 +418,7 @@ pub(crate) fn unreadable_places(count: usize, carried_over: bool) -> ScreenMessa
         "中の棋譜は索引に入っていないので、検索に出ません"
     };
     for_screen(&format_args!(
-        "この場所を読めません{more}。{lost}。権限を確かめてください"
+        "この場所を読めません{more}。{lost}。権限を確認してください"
     ))
 }
 
@@ -438,7 +438,7 @@ pub(crate) fn unreadable_gaps(survival: IndexSurvival) -> ScreenMessage {
     };
     for_screen(&format_args!(
         "ワークスペースの一部を読み取れませんでした。{lost}。\
-         ディスクやネットワークの接続を確かめてください（次に変更があれば取り直します）"
+         ディスクやネットワークの接続を確認してください（次に変更があれば取り直します）"
     ))
 }
 
@@ -449,7 +449,7 @@ pub(crate) fn unreadable_gaps(survival: IndexSurvival) -> ScreenMessage {
 pub(crate) fn build_failure() -> ScreenMessage {
     for_screen(
         &"この棋譜を索引に入れられませんでした。検索には出ません。\
-          開き直しても直らないときは、ファイルが壊れていないか確かめてください",
+          開き直しても直らないときは、ファイルが壊れていないか確認してください",
     )
 }
 

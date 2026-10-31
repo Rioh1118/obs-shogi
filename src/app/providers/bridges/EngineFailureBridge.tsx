@@ -64,14 +64,14 @@ export function EngineFailureBridge() {
       title: "エンジンの準備に時間が掛かっています",
       body:
         "評価関数の読み込みに時間が掛かるエンジンでは、このまま待てば使えるようになります。" +
-        "止めるときは「起動を中止する」を押してください。",
+        "中止するときは「起動を中止する」を押してください。",
       actions: [
         { label: "起動を中止する", run: () => stopStarting.current() },
         {
           label: "設定を開く",
           run: () => openSettings.current("settings", { tab: "engine" }),
           failureBody:
-            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
+            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
         },
       ],
     });
@@ -97,7 +97,7 @@ export function EngineFailureBridge() {
       // 帯はヘッダを覆っているので、閉じるまで歯車には届かない。
       // **タブまで書く**——歯車が開くのはワークスペースタブ
       failureBody:
-        "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
+        "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
     };
     const startAgainAction = {
       label: startFailure ? "もう一度起動" : "再起動する",

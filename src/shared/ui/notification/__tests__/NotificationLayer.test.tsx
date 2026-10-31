@@ -39,7 +39,7 @@ const request = (
 ): NotifyRequest => ({
   tier: "warning",
   presentation: "toast",
-  title: "解析を停止できませんでした",
+  title: "検討を中断できませんでした",
   ...over,
 });
 
@@ -52,14 +52,14 @@ const shownAs = (presentation: "banner" | "modal", over: { title?: string } = {}
     ? {
         tier: "warning",
         presentation,
-        title: "解析を停止できませんでした",
+        title: "検討を中断できませんでした",
         actions: [{ label: "エンジンを再起動", run: () => {} }],
         ...over,
       }
     : {
         tier: "warning",
         presentation,
-        title: "解析を停止できませんでした",
+        title: "検討を中断できませんでした",
         ...over,
       };
 
@@ -80,7 +80,7 @@ describe("通知の層", () => {
 
     const toast = boxOf(".notice-layer__toasts")?.querySelector(".notice--toast");
     expect(toast).toBeTruthy();
-    expect(toast!.textContent).toContain("解析を停止できませんでした");
+    expect(toast!.textContent).toContain("検討を中断できませんでした");
   });
 
   it("バナーは帯の入れ物に出る", () => {
@@ -232,7 +232,7 @@ describe("通知の層", () => {
 
     await act(async () => screen.getByRole("button", { name: "閉じる" }).click());
 
-    expect(screen.queryByText("解析を停止できませんでした")).toBeNull();
+    expect(screen.queryByText("検討を中断できませんでした")).toBeNull();
   });
 
   describe("件数", () => {
@@ -287,7 +287,7 @@ describe("通知の層", () => {
     const app = setup();
     app.notify({ tier: "silent", reason: "cancelSearch は no-op として通るのが仕様" });
 
-    expect(screen.queryByText("解析を停止できませんでした")).toBeNull();
+    expect(screen.queryByText("検討を中断できませんでした")).toBeNull();
   });
 
   it("動作を押すと走る", async () => {

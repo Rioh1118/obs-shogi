@@ -25,7 +25,7 @@ export const BOUNDARY_LABELS = {
   /** `KifuStreamList` を包む */
   kifuStream: "棋譜一覧",
   /** 解析ペインを包む */
-  analysis: "解析",
+  analysis: "検討",
   /** 定跡ビューを包む */
   book: "定跡",
 } as const;

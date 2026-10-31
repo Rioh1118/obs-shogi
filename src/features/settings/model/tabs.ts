@@ -8,11 +8,11 @@ export const TABS = [
   },
   {
     key: "aiLibrary",
-    label: "AIライブラリ",
-    desc: "engines/evel/bookの置き場所とルール",
+    label: "AI ライブラリ",
+    desc: "engines/eval/book の置き場所とルール",
   },
-  { key: "engine", label: "エンジン管理", desc: "解析プリセットを編集" },
-  { key: "display", label: "表示", desc: "ドックのタブと表示の既定" },
+  { key: "engine", label: "エンジン管理", desc: "検討プリセットを編集" },
+  { key: "display", label: "表示", desc: "ドックのタブと表示の初期値" },
   // **綴りは URL の語彙**（`TabType`）に合わせる。合わせないと、ここを増やしても
   // 開く側が渡せる綴りが増えず、渡した先で既定のタブに落ちる
 ] as const satisfies readonly { key: TabType; label: string; desc: string }[];

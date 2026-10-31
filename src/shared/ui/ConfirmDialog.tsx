@@ -60,8 +60,8 @@ export default function ConfirmDialog({
               <span className="confirm-dialog__errorHead">実行できませんでした。</span>
               <span className="confirm-dialog__errorCause">{error}</span>
               <span className="confirm-dialog__errorHint">
-                この確認を閉じて、もう一度選び直してください。
-                ファイルが書き込めるかも確かめてください。
+                この確認を閉じて、もう一度選択し直してください。
+                ファイルが書き込めるかも確認してください。
               </span>
             </>
           )}

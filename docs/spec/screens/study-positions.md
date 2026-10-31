@@ -39,7 +39,7 @@
                  ├[編集]  or e ──→ study-position-save?sfen=…&returnTo=study-positions
                  └[棋譜作成] ───→ sfen-kifu-create?sfen=…&returnTo=study-positions
 
-解析ペインの🔖 ──→ study-position-save（現在局面。returnTo なし）
+検討ペインの🔖 ──→ study-position-save（現在局面。returnTo なし）
 ```
 
 しおりアイコンは、現在局面が登録済みなら**塗りつぶして**「編集」になる。

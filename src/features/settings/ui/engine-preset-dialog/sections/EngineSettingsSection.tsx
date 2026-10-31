@@ -121,7 +121,7 @@ function FilenameInput(props: { row: OptionRow; set: (value: string | null) => v
               },
               (e: unknown) =>
                 setPickError(
-                  `ファイルを選ぶ画面を開けませんでした（${String(e)}）。欄にパスを直接入力してください`,
+                  `ファイルを選択する画面を開けませんでした（${String(e)}）。欄にパスを直接入力してください`,
                 ),
             );
           }}
@@ -165,20 +165,20 @@ export default function EngineSettingsSection(props: {
 
   if (!hasCurrentDefinitions(draft)) {
     return (
-      <SSection title="エンジンの設定">
+      <SSection title="エンジン設定">
         <div className="presetDialog__hintMuted">
           {probing
             ? "読み込みが終わると、ここに設定が並びます"
             : draft.enginePath
               ? "エンジンを読み込めると、ここに設定が並びます"
-              : "エンジンを選ぶと、ここに設定が並びます"}
+              : "エンジンを選択すると、ここに設定が並びます"}
         </div>
       </SSection>
     );
   }
 
   return (
-    <SSection title="エンジンの設定" description="空欄は初期値のままで、エンジンへは送りません。">
+    <SSection title="エンジン設定" description="空欄は初期値のままで、エンジンへは送りません。">
       <div className="presetDialog__stack">
         {fitLines.length > 0 && (
           <details className="presetDialog__details">
@@ -196,8 +196,8 @@ export default function EngineSettingsSection(props: {
         <div className="presetDialog__inputRow">
           <SInput
             value={query}
-            placeholder={`項目を探す（全 ${total} 件）`}
-            aria-label="エンジンの設定を探す"
+            placeholder={`項目を検索（全 ${total} 件）`}
+            aria-label="エンジン設定を検索"
             onChange={(e) => setQuery(e.target.value)}
           />
           <Button size="sm" aria-pressed={changedOnly} onClick={() => setChangedOnly(!changedOnly)}>

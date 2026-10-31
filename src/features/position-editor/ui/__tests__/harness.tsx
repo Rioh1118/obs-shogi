@@ -10,7 +10,7 @@ import PositionEditor, { type EditorFace } from "../PositionEditor";
 /**
  * 組む面を、本物と同じ形の器に載せる入れ物。
  *
- * **`Modal` ごと描く。** 閉じる口は4つあり（Esc・覆いの押下・両方の面の「やめる」）、
+ * **`Modal` ごと描く。** 閉じる口は4つあり（Esc・覆いの押下・両方の面の「キャンセル」）、
  * そのうち2つは器の `onClose` を通る。器を省いて面だけを描くと、
  * **面を通らない閉じ方がテストから消える** —— 覆いも `Modal` の Escape も
  * 面の受け口には現れないので、組みかけが確認なしに消えても緑で通る。
@@ -44,7 +44,7 @@ export function EditorHarness({
   }, [isDirty, isSubmitting, onClose]);
 
   return (
-    <Modal onClose={requestClose} label="棋譜を作る" variant="workspace" size="xl">
+    <Modal onClose={requestClose} label="棋譜を作成する" variant="workspace" size="xl">
       <PositionEditor
         face={face}
         onFaceChange={setFace}
@@ -56,7 +56,7 @@ export function EditorHarness({
       {confirmingClose && (
         <ConfirmDialog
           title="組んだ局面は保存されません。"
-          subtitle="閉じると消えます。"
+          subtitle="閉じると削除されます。"
           confirmLabel="捨てる"
           cancelLabel="閉じない"
           onConfirm={() => {

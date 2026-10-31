@@ -16,8 +16,14 @@ const ENGINES_DIR_HINT: Record<EnginesDir, ((path: string) => string) | null> = 
   unknown: null,
   dir: null,
   missing: (path) => `engines/ フォルダがありません（${path}）。`,
-  other: (path) => `engines がフォルダではありません（${path}）。同じ名前のものを外してください。`,
+  other: (path) => `engines がフォルダではありません（${path}）。同じ名前のものを削除してください。`,
 };
+
+/**
+ * AI ライブラリを読み直すボタンの読み上げ名。**エンジンの読み込みの「もう一度読み込む」が同じ欄に
+ * 並ぶ**ので、見える語は同じでも読み上げでは何を読み直すかを名指す
+ */
+const RESCAN_NAME = "AI ライブラリをもう一度読み込む";
 
 /**
  * 何を使うか: エンジン・評価関数・定跡。評価関数と定跡は、AI ライブラリの全部のフォルダから
@@ -84,7 +90,7 @@ export default function UsedFilesSection(props: {
     <SSection title="使うもの">
       {!aiRootReady && (
         <div className="presetDialog__hintWarn">
-          AI のフォルダが決まっていません。設定の「AI
+          AI ライブラリが決まっていません。設定の「AI
           ライブラリ」で選ぶと、ここにエンジンと評価関数が並びます。
         </div>
       )}
@@ -103,8 +109,13 @@ export default function UsedFilesSection(props: {
                 engines/ を作成
               </Button>
             )}
-            <Button size="sm" onClick={rescan} busy={indexStatus === "loading"}>
-              探し直す
+            <Button
+              size="sm"
+              onClick={rescan}
+              busy={indexStatus === "loading"}
+              aria-label={RESCAN_NAME}
+            >
+              もう一度読み込む
             </Button>
           </div>
         </div>
@@ -118,8 +129,13 @@ export default function UsedFilesSection(props: {
             // **いつも押せる。** 探すのが返らない（応答しないドライブ）ときと、開いたままエンジンを
             // 置いたときに、閉じずに探し直す口が要る
             aiRootReady && (
-              <Button size="sm" onClick={rescan} busy={indexStatus === "loading"}>
-                探し直す
+              <Button
+                size="sm"
+                onClick={rescan}
+                busy={indexStatus === "loading"}
+                aria-label={RESCAN_NAME}
+              >
+                もう一度読み込む
               </Button>
             )
           }
@@ -136,13 +152,13 @@ export default function UsedFilesSection(props: {
             )}
             placeholder={
               !aiRootReady
-                ? "AI のフォルダが未設定"
+                ? "AI ライブラリが未設定"
                 : !scanReady
                   ? indexStatus === "loading"
-                    ? "探しています…"
-                    : "エンジンを探せませんでした"
+                    ? "読み込んでいます…"
+                    : "エンジンを読み込めませんでした"
                   : engineOptions.length > 0
-                    ? "エンジンを選ぶ"
+                    ? "エンジンを選択"
                     : "engines/ にエンジンがありません"
             }
             disabled={!aiRootReady || !scanReady || engineOptions.length === 0}
@@ -159,7 +175,7 @@ export default function UsedFilesSection(props: {
               {status.text}{" "}
               {probing ? (
                 <Button size="sm" onClick={onStop}>
-                  やめる
+                  中止する
                 </Button>
               ) : (
                 <Button size="sm" onClick={onRetry}>
@@ -187,7 +203,7 @@ export default function UsedFilesSection(props: {
           />
         </SField>
 
-        <SField label="定跡" description="選んだ定跡を解析で使い、定跡ビューにも出します。">
+        <SField label="定跡" description="選んだ定跡を検討で使い、定跡ビューにも出します。">
           <SSelect
             value={bookUsed ? (draft.bookFilePath ?? "") : ""}
             aria-label="定跡"

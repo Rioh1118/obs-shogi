@@ -14,7 +14,7 @@ export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: P
   return (
     <StepShell state={state} title="評価関数・定跡を配置" summary={`${profilesCount} 個のAI検出`}>
       <div className="aiLibraryTab__stepDesc">
-        AI名のフォルダを作り、その中に <code>eval/</code> と <code>book/</code>{" "}
+        AI名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code>{" "}
         を置きます。フォルダ名がそのままプリセット名になります。
       </div>
 
@@ -30,7 +30,7 @@ export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: P
       <div className="aiLibraryTab__stepAction">
         <Button size="sm" onClick={onScan} disabled={isScanning}>
           <RefreshCw size={14} style={{ marginRight: 6 }} />
-          スキャン
+          もう一度読み込む
         </Button>
       </div>
     </StepShell>

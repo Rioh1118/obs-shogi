@@ -10,7 +10,7 @@ export type FitNote = Pick<FittedValues, "clamped" | "dropped"> & { enginePath: 
 
 const DROP_REASON: Record<DroppedValue["reason"], string> = {
   notDeclared: "このエンジンに無い",
-  overriddenByBinding: "アプリが決める値。評価関数・定跡の欄か、解析の方針で決まる",
+  overriddenByBinding: "アプリが決める値。評価関数・定跡の欄か、検討の方針で決まる",
   notInVars: "選択肢に無い",
   invalidType: "型が合わない",
   button: "値を持たない",
@@ -27,7 +27,7 @@ function rangeOf(c: ClampedValue): string {
 export function fitNoteLines(note: FitNote | null, enginePath: string): string[] {
   if (!note || note.enginePath !== probePathOf(enginePath)) return [];
   return [
-    ...note.dropped.map((d) => `${d.name} = ${d.value} を外しました（${DROP_REASON[d.reason]}）`),
+    ...note.dropped.map((d) => `${d.name} = ${d.value} を削除しました（${DROP_REASON[d.reason]}）`),
     ...note.clamped.map(
       (c) =>
         `${c.name} を ${c.from} から ${c.value} に丸めました（このエンジンの範囲は ${rangeOf(c)}）`,

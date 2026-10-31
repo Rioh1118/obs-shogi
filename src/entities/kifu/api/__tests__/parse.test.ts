@@ -105,7 +105,7 @@ describe("readKifuText", () => {
     if (read.readable) throw new Error("読めないはずのテキストが読めた");
 
     // 見せる側は日本語の一文だけ。tsshogi が返した英文は cause に置く
-    expect(read.message).toBe("JKF(JSON)の解析に失敗しました。");
+    expect(read.message).toBe("JKF(JSON)を読み込めませんでした。");
     expect(read.message).not.toContain("Error");
     expect(read.cause).toBeTruthy();
   });

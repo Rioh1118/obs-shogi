@@ -47,7 +47,7 @@ export type PresetDialogAction =
   | { type: "optionSet"; name: string; value: string | null }
   /**
    * 挙げた名前のオプションの値を消す（エンジン既定に戻す）。エンジンの設定のうち画面に出ている行だけを
-   * 渡す——絞り込みで見えていない行や、「解析」の節が持つ候補手の数（`AnalysisSection`）まで消さない
+   * 渡す——絞り込みで見えていない行や、「検討」の節が持つ候補手の数（`AnalysisSection`）まで消さない
    */
   | { type: "optionsCleared"; names: string[] }
   | { type: "probeStarted"; token: number; enginePath: string }

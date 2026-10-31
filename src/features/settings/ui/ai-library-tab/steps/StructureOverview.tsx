@@ -76,7 +76,7 @@ export function StructureOverview({
       {/* ai_root */}
       <TreeNode
         label={`📂 ${rootLabel}/`}
-        note={aiRootPath ? undefined : "← まず選ぶ"}
+        note={aiRootPath ? undefined : "← まず選択"}
         state={aiRootPath ? "ok" : "placeholder"}
         indent={0}
       />

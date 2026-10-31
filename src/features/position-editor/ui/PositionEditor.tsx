@@ -51,11 +51,11 @@ interface PositionEditorProps {
    * 組みかけかどうかを器へ知らせる
    *
    * **閉じるときの確認は器が出す。** 閉じる口は4つ（Esc・覆いの押下・両方の面の
-   * 「やめる」）あり、そのうち2つは面の外にある。加えて捨てるものは組みかけだけでなく
+   * 「キャンセル」）あり、そのうち2つは面の外にある。加えて捨てるものは組みかけだけでなく
    * **隣のタブの貼りかけもある**ので、数えられるのは両方を見ている器だけ。
    */
   onDirtyChange?: (dirty: boolean) => void;
-  /** 「やめる」。**器の閉じる門を通す**（直に閉じない） */
+  /** 「キャンセル」。**器の閉じる門を通す**（直に閉じない） */
   onClose?: () => void;
   /** 種にできる課題局面。provider はこの面から読まない */
   studyPositions?: StudyPosition[];
@@ -148,7 +148,7 @@ function PositionEditor({
 
   const pickHandicap = useCallback(
     (preset: HandicapPreset) => {
-      confirmIfDirty("別の手合割を載せると、いま組んでいる局面は消えます。", () => {
+      confirmIfDirty("別の手合割を載せると、いま組んでいる局面は削除されます。", () => {
         loadSeed(stateFromPreset(preset));
         setHandicap(preset);
       });
@@ -176,7 +176,7 @@ function PositionEditor({
       // 別の局面が載ったように見える。面に留めれば、その行が選べないことが画面から読める
       if (!seed) return;
 
-      confirmIfDirty("この課題局面を載せると、いま組んでいる局面は消えます。", () => {
+      confirmIfDirty("この課題局面を載せると、いま組んでいる局面は削除されます。", () => {
         loadSeed(seed);
         setHandicap(null);
         onFaceChange("board");
@@ -249,7 +249,7 @@ function PositionEditor({
         return;
       }
       // 段4・段5 はここでは見ない。**器の `Modal` の `onClose` が受け持つ** ——
-      // 閉じる口は Esc だけでなく覆いの押下と「やめる」もあり、そのうち2つは
+      // 閉じる口は Esc だけでなく覆いの押下と「キャンセル」もあり、そのうち2つは
       // この受け口を通らない。段を3箇所に写すと、写し忘れた口から組みかけが消える
     },
     [isSubmitting, pending, held, face, release, onFaceChange],
@@ -260,7 +260,7 @@ function PositionEditor({
       title="組んだ局面は保存されません。"
       subtitle={pending.subtitle}
       confirmLabel="捨てる"
-      // フォームの「やめる」（器ごと閉じる）と同じ語にしない。**戻り先が違う** ——
+      // フォームの「キャンセル」（器ごと閉じる）と同じ語にしない。**戻り先が違う** ——
       // こちらは組みかけの盤へ帰るだけ。同じ語だと、どちらを押しても
       // 同じところへ戻ると読める
       cancelLabel="組み続ける"

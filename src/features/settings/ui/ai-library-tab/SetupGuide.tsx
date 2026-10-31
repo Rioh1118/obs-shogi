@@ -118,10 +118,10 @@ function ProfileItem({ profile }: { profile: SetupGuideProfile }) {
         <span className="setupGuide__profileName">{profile.name}</span>
         <div className="setupGuide__profileBadges">
           <SettingsBadge tone={evalOk ? "accent" : "warn"} shape="pill">
-            eval {evalOk ? "あり" : "不足"}
+            評価関数 {evalOk ? "あり" : "不足"}
           </SettingsBadge>
           <SettingsBadge tone={bookOk ? "accent" : "muted"} shape="pill">
-            book {bookOk ? "あり" : "未設定"}
+            定跡 {bookOk ? "あり" : "未設定"}
           </SettingsBadge>
         </div>
       </div>
@@ -255,8 +255,8 @@ export default function SetupGuide({
       return {
         tone: "todo",
         icon: <FolderOpen size={18} />,
-        title: "AIの置き場フォルダを選んでください",
-        desc: "エンジン・評価関数・定跡をまとめる専用フォルダを1つ選ぶところから始まります。",
+        title: "AI ライブラリのフォルダを選択してください",
+        desc: "エンジン・評価関数・定跡をまとめる専用フォルダを1つ選択するところから始まります。",
         primaryLabel: "フォルダを選択…",
         onPrimary: onSelectRoot,
       };
@@ -275,8 +275,8 @@ export default function SetupGuide({
         tone: "warn",
         icon: <AlertTriangle size={18} />,
         title: "フォルダを確認できませんでした",
-        desc: scanError ?? "再スキャンして状態を読み直してください。",
-        primaryLabel: "再スキャン",
+        desc: scanError ?? "もう一度読み込んでください。",
+        primaryLabel: "もう一度読み込む",
         onPrimary: onRescan,
         // **ここで「開く」を勧めない。** この段には4つの失敗が来る（選択・作成・
         // スキャン・プロファイル作成）ので、開く先が読めているとは限らない。
@@ -295,10 +295,10 @@ export default function SetupGuide({
           tone: "warn",
           icon: <Wrench size={18} />,
           title: "engines がフォルダではありません",
-          desc: "同じ名前のファイル（またはリンク）があります。外すか、フォルダに置き換えてください。",
+          desc: "同じ名前のファイル（またはリンク）があります。削除するか、フォルダに置き換えてください。",
           primaryLabel: "engines/ を開く",
           onPrimary: onOpenEnginesDir,
-          secondaryLabel: "スキャン",
+          secondaryLabel: "もう一度読み込む",
           onSecondary: onRescan,
         };
       }
@@ -306,11 +306,11 @@ export default function SetupGuide({
         return {
           tone: "warn",
           icon: <Wrench size={18} />,
-          title: "engines/ フォルダを作りましょう",
+          title: "engines/ フォルダを作成してください",
           desc: "エンジン実行ファイルをまとめる engines/ フォルダをボタンひとつで作成できます。",
           primaryLabel: "engines/ を作成",
           onPrimary: onCreateEnginesDir,
-          secondaryLabel: "AI ルートを開く",
+          secondaryLabel: "AI ライブラリを開く",
           onSecondary: onOpenAiRoot,
         };
       }
@@ -318,8 +318,8 @@ export default function SetupGuide({
         tone: "todo",
         icon: <RefreshCw size={18} />,
         title: "フォルダの状態を読めていません",
-        desc: "スキャンし直すと、いま何が在るかを読み直します。",
-        primaryLabel: "再スキャン",
+        desc: "もう一度読み込むと、いま何が在るかを読み直します。",
+        primaryLabel: "もう一度読み込む",
         onPrimary: onRescan,
         secondaryLabel: "選択…",
         onSecondary: onSelectRoot,
@@ -330,10 +330,10 @@ export default function SetupGuide({
         tone: "warn",
         icon: <Bot size={18} />,
         title: "エンジン実行ファイルを置いてください",
-        desc: "engines/ の場所を表示します。その中に YaneuraOu などの実行ファイルを置いてからスキャンしてください。",
+        desc: "engines/ の場所を表示します。その中に YaneuraOu などの実行ファイルを置いてから、もう一度読み込んでください。",
         primaryLabel: "engines/ を開く",
         onPrimary: onOpenEnginesDir,
-        secondaryLabel: "スキャン",
+        secondaryLabel: "もう一度読み込む",
         onSecondary: onRescan,
       };
     }
@@ -341,8 +341,8 @@ export default function SetupGuide({
       return {
         tone: "todo",
         icon: <Sparkles size={18} />,
-        title: "AI フォルダを作りましょう",
-        desc: "AI名のフォルダを作ると、eval/ と book/ が自動で用意されます。",
+        title: "AI フォルダを作成してください",
+        desc: "AI名のフォルダを作成すると、eval/ と book/ が自動で用意されます。",
         primaryLabel: "AI名の入力へ",
         onPrimary: () => aiNameRef.current?.focus(),
       };
@@ -353,10 +353,10 @@ export default function SetupGuide({
         tone: "warn",
         icon: <Database size={18} />,
         title: `「${missingEval.name}」に評価関数を置いてください`,
-        desc: `AI ルートの場所を表示します。その中の ${missingEval.name}/eval/ に nn.bin などを置いてからスキャンしてください。`,
-        primaryLabel: "AI ルートを開く",
+        desc: `AI ライブラリの場所を表示します。その中の ${missingEval.name}/eval/ に nn.bin などを置いてから、もう一度読み込んでください。`,
+        primaryLabel: "AI ライブラリを開く",
         onPrimary: onOpenAiRoot,
-        secondaryLabel: "スキャン",
+        secondaryLabel: "もう一度読み込む",
         onSecondary: onRescan,
       };
     }
@@ -365,7 +365,7 @@ export default function SetupGuide({
       icon: <CheckCircle2 size={18} />,
       title: "セットアップの土台は完成しています",
       desc: "エンジンと評価関数が見つかっています。プリセット作成に進めます。",
-      primaryLabel: "再スキャン",
+      primaryLabel: "もう一度読み込む",
       onPrimary: onRescan,
     };
   }, [
@@ -415,7 +415,7 @@ export default function SetupGuide({
       {/* Status grid */}
       <div className="setupGuide__statusGrid">
         <StatusCard
-          label="置き場フォルダ"
+          label="AI ライブラリ"
           value={aiRootPath ? "設定済み" : "未設定"}
           hint={shortRoot || undefined}
           icon={<FolderOpen size={13} />}
@@ -442,7 +442,7 @@ export default function SetupGuide({
             !indexed
               ? undefined
               : profiles.length > 0
-                ? `eval あり ${profiles.filter((p) => p.hasEvalDir && p.evalCount > 0).length} 件`
+                ? `評価関数あり ${profiles.filter((p) => p.hasEvalDir && p.evalCount > 0).length} 件`
                 : canCreateProfile
                   ? "下のフォームから作成できます"
                   : "エンジンを置いた後に作成できます"
@@ -458,7 +458,7 @@ export default function SetupGuide({
       </SSection>
 
       {/* Current state — dynamic scan result */}
-      <SSection title="現在の状態" description="スキャン結果をリアルタイムで反映しています。">
+      <SSection title="現在の状態" description="読み込んだ結果をリアルタイムで反映しています。">
         <StructureOverview
           aiRootPath={aiRootPath}
           enginesDir={enginesDir}
@@ -498,7 +498,7 @@ export default function SetupGuide({
       {canCreateProfile && (
         <SSection
           title="AIフォルダを追加"
-          description="AI名を入れると eval/ と book/ をまとめて作成します。"
+          description="AI名を入力すると eval/ と book/ をまとめて作成します。"
         >
           <SField label="AI名" description="例: Suisho / 研究用A">
             <div className="setupGuide__createRow">
@@ -538,7 +538,7 @@ export default function SetupGuide({
 
       {/* Detected AI profiles */}
       {scanReady && profiles.length > 0 && (
-        <SSection title="検出されたAI" description="スキャン結果です。">
+        <SSection title="検出されたAI" description="読み込んだ結果です。">
           <div className="setupGuide__profileList">
             {profiles.map((p) => (
               <ProfileItem key={p.path} profile={p} />

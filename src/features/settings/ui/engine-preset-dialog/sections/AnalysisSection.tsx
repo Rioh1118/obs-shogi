@@ -48,7 +48,7 @@ export default function AnalysisSection(props: {
   const numberOrUndefined = (v: string) => (v === "" ? undefined : parseIntSafe(v, 0));
 
   return (
-    <SSection title="解析">
+    <SSection title="検討">
       <div className="presetDialog__stack">
         <SField
           label="候補手の数"
@@ -86,7 +86,7 @@ export default function AnalysisSection(props: {
               max={multiPvMax}
               value={multiPv ?? ""}
               placeholder={multiPvDefault ?? ""}
-              aria-label="候補手の数（数で入れる）"
+              aria-label="候補手の数（数値で入力）"
               // 空にしたら初期値（1 を入れない）
               onChange={(e) =>
                 e.target.value.trim() === ""
@@ -98,8 +98,8 @@ export default function AnalysisSection(props: {
         </SField>
 
         <SField
-          label="止める条件"
-          description="保存はしますが、解析はまだこの条件で止まりません（いまは止めるまで読み続けます）"
+          label="終了条件"
+          description="保存はしますが、検討はまだこの条件で終了しません（いまは中断するまで読み続けます）"
         >
           <div className="presetDialog__grid3">
             <SInput

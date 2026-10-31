@@ -230,7 +230,7 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
             // 切り上げるのは、上限直上のファイルが「上限ちょうど」に見えないため
             return Err(parse_failed(format!(
                 "棋譜として読むには大きすぎます（{} MiB。上限は {} MiB）。\
-                 棋譜ではないファイルに棋譜の拡張子が付いていないか確かめてください",
+                 棋譜ではないファイルに棋譜の拡張子が付いていないか確認してください",
                 meta.len().div_ceil(1024 * 1024),
                 SIZE_LIMIT / (1024 * 1024),
             )));

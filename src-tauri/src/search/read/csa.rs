@@ -60,7 +60,7 @@ pub(crate) fn parse_csa_portable(bytes: &[u8]) -> Result<Jkf, KifuReadError> {
                 .unwrap_or("理由不明");
             Err(parse_failed(format!(
                 "CSA の値が規格外です。$START_TIME の日付と T 行の消費時間を\
-                     確かめてください（内部の理由: {what}）"
+                     確認してください（内部の理由: {what}）"
             )))
         }
     }
@@ -292,7 +292,7 @@ pub(crate) fn warn_if_moves_were_dropped(bytes: &[u8], jkf: &Jkf) -> Option<Stri
                 "CSA を {read} 手までしか読めませんでした。\
                  ファイルの {} 行目（{moves_seen} 手目）から先の指し手は検索に出ません。\
                  その行と手前の行に、CSA の形をしていない行が\
-                 混ざっていないか確かめてください",
+                 混ざっていないか確認してください",
                 line_no + 1
             ));
         }

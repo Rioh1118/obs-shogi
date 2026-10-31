@@ -227,7 +227,7 @@ impl From<io::Error> for BookError {
             io::ErrorKind::NotFound => (
                 BookErrorCode::NotFound,
                 "定跡ファイルが見つからない",
-                "外付けなら接続を確かめ、移動したなら選び直すこと",
+                "外付けなら接続を確認し、移動したなら選択し直すこと",
             ),
             io::ErrorKind::PermissionDenied => (
                 BookErrorCode::PermissionDenied,

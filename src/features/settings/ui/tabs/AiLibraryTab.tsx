@@ -114,10 +114,10 @@ function revealFailureNotice(label: string, path: string): NotifyRequest {
 type StaleCreateOutcome = "created" | "name-error" | "failed";
 
 const STALE_CREATE_BODY: Record<StaleCreateOutcome, string> = {
-  created: "切り替える前の AI ルートでの結果です",
+  created: "切り替える前の AI ライブラリでの結果です",
   // 名前で落ちた回に「同じ名前で作り直せます」と言うと、欄に残っている赤字と正面から食い違う
-  "name-error": "名前を直してから作り直してください",
-  failed: "同じ名前で作り直せます",
+  "name-error": "名前を直してから作成し直してください",
+  failed: "同じ名前で作成し直せます",
 };
 
 function staleCreateNotice(root: string, name: string, outcome: StaleCreateOutcome): NotifyRequest {
@@ -143,7 +143,7 @@ const ENGINES_DIR_WARNING: Record<EnginesDir, string | null> = {
   dir: null,
   missing: "engines/ が見つかりません。『engines/ を作成』で生成できます。",
   // 在るものを「見つかりません」と言うと、作成を押させて英文の失敗に突き当たる
-  other: "engines がフォルダではありません。同じ名前のものを外してください。",
+  other: "engines がフォルダではありません。同じ名前のものを削除してください。",
 };
 
 export default function AiLibraryTab() {
@@ -247,8 +247,8 @@ export default function AiLibraryTab() {
     }
     for (const p of data.profiles ?? []) {
       const { okEval, okBook } = profileHealth(p);
-      if (!okEval) ws.push(`「${p.name}」: eval が未検出です（<AI名>/eval に nn.bin 等）。`);
-      if (!okBook) ws.push(`「${p.name}」: book が未検出です（<AI名>/book に .db）。`);
+      if (!okEval) ws.push(`「${p.name}」: 評価関数が未検出です（<AI名>/eval に nn.bin 等）。`);
+      if (!okBook) ws.push(`「${p.name}」: 定跡が未検出です（<AI名>/book に .db）。`);
     }
     return ws;
   }, [data]);
@@ -360,7 +360,7 @@ export default function AiLibraryTab() {
   );
 
   const onOpenAiRoot = useCallback(() => {
-    if (localAiRoot.trim()) void revealOrNotify("AI ルート", localAiRoot);
+    if (localAiRoot.trim()) void revealOrNotify("AI ライブラリ", localAiRoot);
   }, [localAiRoot, revealOrNotify]);
 
   // **索引に載っているパスだけを開きに行く。** 押せる条件は `enginesDirRevealable` が持つので、
@@ -449,8 +449,8 @@ export default function AiLibraryTab() {
       <div className="aiLibraryTab__grid">
         <div className="aiLibraryTab__mainCol">
           <SSection
-            title="AIライブラリ"
-            description="エンジン本体・評価関数・定跡DBをまとめて管理する場所です（推奨：専用フォルダを1つ作って固定）。"
+            title="AI ライブラリ"
+            description="エンジン本体・評価関数・定跡DBをまとめて管理する場所です（推奨：専用フォルダを1つ作成して固定）。"
             actions={
               <div className="aiLibraryTab__badge" data-tone={badge.tone}>
                 {badge.text}
@@ -458,7 +458,7 @@ export default function AiLibraryTab() {
             }
           >
             <SField
-              label="AIルート（ai_root）"
+              label="AI ライブラリ"
               description="決めたルールのフォルダ構成でファイルを置くと自動検出します。"
               right={
                 <div className="aiLibraryTab__fieldActions">
@@ -487,7 +487,7 @@ export default function AiLibraryTab() {
             >
               <SInput
                 value={localAiRoot}
-                placeholder="未設定（選択… からフォルダを選んでください）"
+                placeholder="未設定（選択… からフォルダを選択してください）"
                 readOnly
               />
             </SField>

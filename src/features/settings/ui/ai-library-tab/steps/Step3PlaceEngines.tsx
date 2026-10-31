@@ -22,8 +22,8 @@ export function Step3PlaceEngines({
 }: Props) {
   const desc =
     scanReady && enginesCount === 0
-      ? "エンジンが見つかりませんでした。engines/ の場所を表示するので、その中に実行ファイルを置いてからスキャンしてください。"
-      : "YaneuraOu などのエンジン実行ファイルを engines/ に配置してください。配置後にスキャンします。";
+      ? "エンジンが見つかりませんでした。engines/ の場所を表示するので、その中に実行ファイルを置いてから、もう一度読み込んでください。"
+      : "YaneuraOu などのエンジン実行ファイルを engines/ に配置してください。配置後にもう一度読み込みます。";
 
   return (
     <StepShell state={state} title="エンジン実行ファイルを配置" summary={`${enginesCount} 個検出`}>
@@ -43,7 +43,7 @@ export function Step3PlaceEngines({
         </Button>
         <Button size="sm" onClick={onScan} disabled={isScanning}>
           <RefreshCw size={14} style={{ marginRight: 6 }} />
-          スキャン
+          もう一度読み込む
         </Button>
       </div>
     </StepShell>

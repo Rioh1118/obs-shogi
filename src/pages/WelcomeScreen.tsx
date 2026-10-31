@@ -25,9 +25,9 @@ function WelcomeScreen() {
           <div className="welcome-screen__icon">
             <FolderOpen size={48} />
           </div>
-          <h2 className="welcome-screen__title">棋譜を選ぶか、作ってください</h2>
+          <h2 className="welcome-screen__title">棋譜を選択するか、作成してください</h2>
           <p className="welcome-screen__description">
-            左のファイルツリーから棋譜を選ぶと、
+            左のファイルツリーから棋譜を選択すると、
             <br /> こちらに盤が出ます
           </p>
 
@@ -35,7 +35,7 @@ function WelcomeScreen() {
             {/* **保存先を渡さない。** ここからは `dir=` が決まらないので、
                 組む面の保存先の欄が受け持つ */}
             <Button tone="primary" onClick={() => openModal("create-file")}>
-              棋譜を作る
+              棋譜を作成する
             </Button>
           </div>
 

@@ -83,7 +83,7 @@ type OpenCommentNote = {
 function describeDelete(pending: PendingDelete): string {
   const what = pending.firstMove ? `${pending.firstMove} から先` : pending.label;
   const size = pending.moveCount === null ? "手数は数えられませんでした" : `${pending.moveCount}手`;
-  return `${what}（${size}）が消えます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
+  return `${what}（${size}）が削除されます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
 }
 
 export default function KifuStreamList() {

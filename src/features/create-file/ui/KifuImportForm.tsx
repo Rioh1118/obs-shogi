@@ -39,7 +39,7 @@ function KifuImportForm({
   /** 取り込めたので器を閉じる。**確認は通さない**（捨てるものが無い） */
   onCreated: () => void;
   /**
-   * 利用者が「やめる」を押した
+   * 利用者が「キャンセル」を押した
    *
    * **器の閉じる門を通す。** 直に閉じると、隣のタブで組みかけの局面を持っていても
    * 確認を1つも通らずに消える（閉じる口は Esc・覆い・両方の面の取り消しで4つある）。
@@ -272,7 +272,7 @@ function KifuImportForm({
           {/* 盤の面と同じ語。**同じ門を通る同じ操作**なので、
               面ごとに別の語を当てると、戻り先が違うように読める */}
           <Button type="button" size="lg" onClick={onCancel} disabled={isSaving}>
-            やめる
+            キャンセル
           </Button>
         </ButtonGroup>
       </Form>

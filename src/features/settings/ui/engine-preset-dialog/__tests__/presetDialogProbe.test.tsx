@@ -303,10 +303,10 @@ describe("読み込み", () => {
   }, 20000);
 
   /** 返らない読み込み（応答しないドライブ）で保存が塞がったままにならない */
-  test("「やめる」で保存でき、後から返った結果は使わない", async () => {
+  test("「中止する」で保存でき、後から返った結果は使わない", async () => {
     await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    fireEvent.click(screen.getByRole("button", { name: "やめる" }));
+    fireEvent.click(screen.getByRole("button", { name: "中止する" }));
     expect(saveButton().disabled).toBe(false);
 
     probes[0].resolve(outcome(probes[0], "Engine A"));
@@ -343,7 +343,7 @@ describe("値を定義に当てる", () => {
 
     const summary = await screen.findByText(/このエンジンに合わせて 2 件の値を変えました/);
     fireEvent.click(summary);
-    expect(screen.getByText("NetworkDelay = 120 を外しました（このエンジンに無い）")).toBeTruthy();
+    expect(screen.getByText("NetworkDelay = 120 を削除しました（このエンジンに無い）")).toBeTruthy();
 
     expect((await saved()).options).toEqual({ Threads: "512", MultiPV: "3" });
   }, 20000);
@@ -489,7 +489,7 @@ describe("解析", () => {
         { name: "MultiPV", type: "spin", default: 1, min: 1, max: 4 },
       ]),
     );
-    const input = (await screen.findByLabelText("候補手の数（数で入れる）")) as HTMLInputElement;
+    const input = (await screen.findByLabelText("候補手の数（数値で入力）")) as HTMLInputElement;
     expect(input.value).toBe("4");
     // 閉じると値が画面から消えるので、ボタンに無い値の間は閉じられない
     expect((screen.getByRole("button", { name: "ほかの数…" }) as HTMLButtonElement).disabled).toBe(
@@ -506,7 +506,7 @@ describe("エンジンの設定", () => {
     presets.current = { ...PRESET, enginePath: ENGINE_A, options, ...extra };
     await open();
     probes[0].resolve(outcome(probes[0], "Engine A"));
-    await screen.findByLabelText("エンジンの設定を探す");
+    await screen.findByLabelText("エンジン設定を検索");
   }
 
   test("日本語の名前で並べ、綴りを添える。辞書に無い名前は綴りのまま。アプリが決める項目と button は出さない", async () => {
@@ -543,7 +543,7 @@ describe("エンジンの設定", () => {
 
   test("日本語で探せる。絞り込み中は表示中の行だけを初期値に戻す", async () => {
     await loaded({ Style: "b", Threads: "8", MultiPV: "5" });
-    fireEvent.change(screen.getByLabelText("エンジンの設定を探す"), {
+    fireEvent.change(screen.getByLabelText("エンジン設定を検索"), {
       target: { value: "スレッド" },
     });
     expect(screen.queryByText("Style")).toBeNull();
@@ -558,7 +558,7 @@ describe("エンジンの設定", () => {
     dialogOpen.mockRejectedValueOnce(new Error("dialog.open not allowed"));
     await loaded();
     fireEvent.click(screen.getByRole("button", { name: "選択…" }));
-    const message = await screen.findByText(/ファイルを選ぶ画面を開けませんでした/);
+    const message = await screen.findByText(/ファイルを選択する画面を開けませんでした/);
     expect(message.textContent).toContain("欄にパスを直接入力してください");
   }, 20000);
 });
