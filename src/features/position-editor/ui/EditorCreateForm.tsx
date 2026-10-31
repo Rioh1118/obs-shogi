@@ -213,7 +213,7 @@ function EditorCreateForm({
         <Textarea
           label="メモ"
           id="pos-editor-note"
-          placeholder="この局面から何を調べるか..."
+          placeholder="この局面から何を調べるか…"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
@@ -235,7 +235,7 @@ function EditorCreateForm({
           isLoading={isSubmitting}
           disabled={!fullFileName || !selectedDir}
         >
-          {isSubmitting ? "作成中..." : "作成"}
+          {isSubmitting ? "作成中…" : "作成"}
         </Button>
         <Button type="button" size="lg" onClick={onCancel} disabled={isSubmitting}>
           キャンセル

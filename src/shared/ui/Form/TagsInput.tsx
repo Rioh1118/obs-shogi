@@ -18,7 +18,7 @@ export function TagsInput({
   id,
   tags,
   onChange,
-  placeholder = "戦法や戦型を入力...",
+  placeholder = "戦法や戦型を入力…",
   maxTags = 10,
   disabled = false,
   variant = "default",

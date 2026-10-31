@@ -47,8 +47,8 @@ export function FolderConcept() {
       {/* 役割カード */}
       <div className="folderConcept__roles">
         <RoleCard label="engines/" role="エンジン実行ファイル" example="YaneuraOu-xxx" />
-        <RoleCard label="＜AI名＞/eval/" role="評価関数" example="nn.bin" />
-        <RoleCard label="＜AI名＞/book/" role="定跡ファイル" example="standard.db" optional />
+        <RoleCard label="＜AI 名＞/eval/" role="評価関数" example="nn.bin" />
+        <RoleCard label="＜AI 名＞/book/" role="定跡ファイル" example="standard.db" optional />
       </div>
 
       {/* 完成形の例 */}
@@ -59,7 +59,7 @@ export function FolderConcept() {
           <ExampleLine text="├─ 📂 engines/" indent={1} />
           <ExampleLine text="│  ├─ 🔧 YaneuraOu-by-Yaneuura" note="← エンジン本体" indent={1} />
           <ExampleLine text="│  └─ 🔧 Suisho5-master" indent={1} dim />
-          <ExampleLine text="└─ 📂 Suisho5/" note="← AI名（複数作成できる）" indent={1} />
+          <ExampleLine text="└─ 📂 Suisho5/" note="← AI 名（複数作成できる）" indent={1} />
           <ExampleLine text="├─ 📂 eval/" indent={2} />
           <ExampleLine text="│  └─ 📄 nn.bin" note="← 評価関数" indent={2} />
           <ExampleLine text="└─ 📂 book/" indent={2} />

@@ -81,7 +81,7 @@ export default function EngineTab() {
           <div className="engineTab__actions">
             <Button size="sm" onClick={() => reload()} isLoading={state.status === "loading"}>
               <RefreshCcw size={16} style={{ marginRight: 6 }} />
-              再読み込み
+              もう一度読み込む
             </Button>
             <Button
               tone="primary"

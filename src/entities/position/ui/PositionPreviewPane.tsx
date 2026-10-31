@@ -39,7 +39,7 @@ function PreviewPane({ previewData }: Props) {
       <div className="position-navigation-modal__preview-container">
         <div className="position-navigation-modal__board-preview">
           <div className="board-preview-placeholder">
-            <p>局面を読み込み中...</p>
+            <p>局面を読み込み中…</p>
           </div>
         </div>
       </div>

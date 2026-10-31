@@ -149,7 +149,7 @@ export default function UpdaterScreen() {
           {status.phase === "ready" && (
             <Button size="sm" radius="pill" tone="primary" onClick={() => void restart()}>
               <RefreshCw size={13} strokeWidth={2.2} />
-              いま再起動する
+              いま再起動
             </Button>
           )}
           {status.phase === "error" && (

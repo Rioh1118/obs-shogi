@@ -95,7 +95,7 @@ describe("書き込むファイル名を組む口", () => {
 
     expect(
       callers.map((file) => relative(REPO_ROOT, file)).sort(),
-      "棋譜を作成する面が kifuFileName を通っていない",
+      "棋譜を作成面が kifuFileName を通っていない",
     ).toEqual([
       "src/entities/kifu/model/__tests__/kifu.test.ts",
       "src/features/create-file/model/useKifuImportDraft.ts",

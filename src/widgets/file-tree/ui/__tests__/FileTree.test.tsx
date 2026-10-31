@@ -140,7 +140,7 @@ function noticeBody() {
 /** 再読み込みを押す。読み込み中のまま返るので、途中の画面を検査できる。 */
 async function startRetry() {
   await act(async () => {
-    screen.getByRole("button", { name: "再読み込み" }).click();
+    screen.getByRole("button", { name: "もう一度読み込む" }).click();
   });
 }
 
@@ -240,7 +240,7 @@ describe("FileTree の失敗表示", () => {
     render(<FileTree />);
 
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
-    expect(screen.getByRole("button", { name: "再読み込み" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "もう一度読み込む" })).toBeTruthy();
   });
 
   test("失敗が無ければ何も出さない", () => {
@@ -275,7 +275,7 @@ describe("段による出し分け", () => {
 
     mount();
 
-    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "もう一度読み込む" })).toBeNull();
   });
 
   test("一時的かもしれない失敗では、再読み込みを出す", () => {
@@ -284,7 +284,7 @@ describe("段による出し分け", () => {
 
     mount();
 
-    expect(screen.getByRole("button", { name: "再読み込み" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "もう一度読み込む" })).toBeTruthy();
   });
 
   test("ツリーが読めないまま直らない失敗なら、ワークスペースを選び直せる", async () => {
@@ -295,7 +295,7 @@ describe("段による出し分け", () => {
 
     // 読み直しても直らないので再読み込みは出ない。閉じる先のツリーも無い。
     // ここで導線が無いとサイドバーの中で行き止まりになる
-    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "もう一度読み込む" })).toBeNull();
     await act(async () => {
       screen.getByRole("button", { name: "ワークスペースを選択し直す" }).click();
     });
@@ -314,7 +314,7 @@ describe("段による出し分け", () => {
 
     mount();
 
-    expect(screen.getByRole("button", { name: "再読み込み" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "もう一度読み込む" })).toBeTruthy();
     await act(async () => {
       screen.getByRole("button", { name: "ワークスペースを選択し直す" }).click();
     });
@@ -333,7 +333,7 @@ describe("段による出し分け", () => {
 
     mount();
 
-    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "もう一度読み込む" })).toBeNull();
     await act(async () => {
       screen.getByRole("button", { name: "ワークスペースを選択し直す" }).click();
     });
@@ -394,7 +394,7 @@ describe("再読み込みの最中", () => {
     mount();
 
     await act(async () => {
-      screen.getByRole("button", { name: "再読み込み" }).click();
+      screen.getByRole("button", { name: "もう一度読み込む" }).click();
     });
     await act(async () => {
       release?.();
@@ -431,7 +431,7 @@ describe("再読み込みの最中", () => {
     mount();
     await startRetry();
 
-    const btn = screen.getByRole("button", { name: "読み込み中..." });
+    const btn = screen.getByRole("button", { name: "読み込み中…" });
     expect((btn as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -457,7 +457,7 @@ describe("再読み込みの最中", () => {
     await startRetry();
     await finishRetry();
 
-    const btn = screen.getByRole("button", { name: "再読み込み" });
+    const btn = screen.getByRole("button", { name: "もう一度読み込む" });
     expect((btn as HTMLButtonElement).disabled).toBe(false);
 
     await startRetry();
@@ -470,7 +470,7 @@ describe("再読み込みの最中", () => {
 
     mount();
 
-    expect(screen.queryByRole("button", { name: "再読み込み" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "もう一度読み込む" })).toBeNull();
   });
 
   test("ツリーがまだ無いときは、読み込み中に Spinner を出す", async () => {

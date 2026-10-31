@@ -84,7 +84,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
     expect(band()?.textContent).toContain(`${AI_ROOT}/engines`);
-    expect(screen.getByRole("button", { name: "フォルダを作成する" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "フォルダを作成" })).toBeTruthy();
   }, 20000);
 
   /** 押せる「もう一度読み込む」の数。帯は `engines` が無い／フォルダでない回にしか出ない */
@@ -127,7 +127,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
   /**
    * 切り替えた直後の走査中。**前のルートの索引で描かない。**
    *
-   * 描くと、帯は旧ルートの絶対パスを名指しするのに、その隣の「フォルダを作成する」は
+   * 描くと、帯は旧ルートの絶対パスを名指しするのに、その隣の「フォルダを作成」は
    * 新しいルートに対して働く
    */
   test("ルートを選び直したら、走査が返るまで帯を出さない", async () => {
@@ -162,7 +162,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
     let failEnsure!: (reason: string) => void;
     ensureEnginesDir.mockReturnValue(new Promise((_, reject) => (failEnsure = reject)));
-    fireEvent.click(screen.getByRole("button", { name: "フォルダを作成する" }));
+    fireEvent.click(screen.getByRole("button", { name: "フォルダを作成" }));
 
     scanAiRoot.mockResolvedValue(indexWithoutEngines("/Users/me/ai2"));
     aiRootValue.current = "/Users/me/ai2";
@@ -195,7 +195,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     await waitFor(
       () =>
         expect(
-          (screen.getByRole("button", { name: "フォルダを作成する" }) as HTMLButtonElement).disabled,
+          (screen.getByRole("button", { name: "フォルダを作成" }) as HTMLButtonElement).disabled,
         ).toBe(true),
       { timeout: 5000 },
     );

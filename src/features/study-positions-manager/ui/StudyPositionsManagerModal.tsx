@@ -438,8 +438,8 @@ export default function StudyPositionsManagerModal() {
             >
               {isEmpty && (
                 <div className="sp-manager__empty">
-                  <p>{"課題局面がまだ登録されていません"}</p>
-                  <p className="sp-manager__emptyHint">{"★ ボタンで登録できます"}</p>
+                  <p>{"課題局面がまだ保存されていません"}</p>
+                  <p className="sp-manager__emptyHint">{"★ ボタンで保存できます"}</p>
                 </div>
               )}
               {isFilterEmpty && (

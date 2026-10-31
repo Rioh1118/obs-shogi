@@ -14,13 +14,13 @@ export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: P
   return (
     <StepShell state={state} title="評価関数・定跡を配置" summary={`${profilesCount} 個のAI検出`}>
       <div className="aiLibraryTab__stepDesc">
-        AI名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code>{" "}
+        AI 名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code>{" "}
         を置きます。フォルダ名がそのままプリセット名になります。
       </div>
 
       <StepTree>
         <TreeLine label="📂 ai_root/" dim />
-        <TreeLine indent={1} label="📂 &lt;AI名&gt;/" highlight note="← 任意の名前" />
+        <TreeLine indent={1} label="📂 &lt;AI 名&gt;/" highlight note="← 任意の名前" />
         <TreeLine indent={2} label="📂 eval/" highlight />
         <TreeLine indent={3} label="📄 nn.bin" note="← 評価関数" highlight />
         <TreeLine indent={2} label="📂 book/" highlight />

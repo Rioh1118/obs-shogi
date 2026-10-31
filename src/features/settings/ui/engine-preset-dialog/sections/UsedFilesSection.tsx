@@ -106,7 +106,7 @@ export default function UsedFilesSection(props: {
                 onClick={onCreateEnginesDir}
                 disabled={indexStatus === "loading"}
               >
-                フォルダを作成する
+                フォルダを作成
               </Button>
             )}
             <Button
@@ -175,7 +175,7 @@ export default function UsedFilesSection(props: {
               {status.text}{" "}
               {probing ? (
                 <Button size="sm" onClick={onStop}>
-                  中止する
+                  中止
                 </Button>
               ) : (
                 <Button size="sm" onClick={onRetry}>

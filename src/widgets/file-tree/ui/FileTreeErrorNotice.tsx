@@ -59,7 +59,7 @@ export default function FileTreeErrorNotice({
           )}
           {canRetry && (
             <Button tone="primary" onClick={onRetry} isLoading={isRetrying}>
-              {isRetrying ? "読み込み中..." : "再読み込み"}
+              {isRetrying ? "読み込み中…" : "もう一度読み込む"}
             </Button>
           )}
         </>

@@ -127,7 +127,7 @@ describe("行を押す", () => {
 
   test("読めない行を選んでも、盤の絵を待たせ続けない", () => {
     openPicker([position({ sfen: "これは SFEN ではない" })]);
-    expect(screen.queryByText("局面を読み込み中...")).toBeNull();
+    expect(screen.queryByText("局面を読み込み中…")).toBeNull();
     expect(
       screen.getByText(
         "この課題局面は盤に載せられません。保存されている局面の綴りが壊れています。",

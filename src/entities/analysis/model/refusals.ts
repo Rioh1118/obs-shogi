@@ -45,7 +45,7 @@ export const NOT_READY_REFUSALS: Record<
   cancelled: ENGINE_CANCELLED_MESSAGE,
 };
 
-/** 帯に「再起動する」を添える断り。**エンジンを起動し直せば直る見込みのある回だけ** */
+/** 帯に「再起動」を添える断り。**エンジンを起動し直せば直る見込みのある回だけ** */
 const RESTART_REFUSALS: ReadonlySet<string> = new Set([
   START_REFUSED_MESSAGE,
   ENGINE_CANCELLED_MESSAGE,

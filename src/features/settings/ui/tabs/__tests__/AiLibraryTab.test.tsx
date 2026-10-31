@@ -340,7 +340,7 @@ describe("AI ライブラリタブの「開く」", () => {
     expect(screen.queryByText("0 件")).toBeNull();
     // 木も同じ。読めていないのに「作成しろ」と指示すると、
     // その回は入力欄も段も描かれていないので、探しても作成口が無い
-    expect(screen.queryByText("← AIフォルダを作成")).toBeNull();
+    expect(screen.queryByText("← AI フォルダを作成")).toBeNull();
   });
 
   // `await` を跨ぐ口は他にもある。前のルートの失敗を新しいルートの画面に書かない
@@ -409,7 +409,7 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    fireEvent.change(screen.getByPlaceholderText("AI名を入力"), { target: { value: "Suisho" } });
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho" } });
 
     let finishCreate!: (created: CreateResult) => void;
     createAiProfileDirs.mockReturnValue(new Promise((r) => (finishCreate = r)));
@@ -424,7 +424,7 @@ describe("AI ライブラリタブの「開く」", () => {
       finishCreate({ success: true, data: `${AI_ROOT}/Suisho` });
     });
 
-    expect((screen.getByPlaceholderText("AI名を入力") as HTMLInputElement).value).toBe("Suisho");
+    expect((screen.getByPlaceholderText("AI 名を入力") as HTMLInputElement).value).toBe("Suisho");
     // 名前は悪くないので、欄も赤くしない。**空であることまで見る**——
     // `"stale"` を名前の失敗に畳むと、ここに `describeFsError` の文言が入る
     expect(screen.getByRole("alert").textContent).toBe("");
@@ -439,8 +439,8 @@ describe("AI ライブラリタブの「開く」", () => {
   test("エンジンが0件なら、木は「AIフォルダを作成」と言わない", async () => {
     await renderScanned(true);
 
-    expect(screen.queryByText("← AIフォルダを作成")).toBeNull();
-    expect(screen.queryByPlaceholderText("AI名を入力")).toBeNull();
+    expect(screen.queryByText("← AI フォルダを作成")).toBeNull();
+    expect(screen.queryByPlaceholderText("AI 名を入力")).toBeNull();
     expect(screen.getByText("エンジンを置いた後に作成できます")).toBeTruthy();
   });
 
@@ -450,7 +450,7 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    fireEvent.change(screen.getByPlaceholderText("AI名を入力"), { target: { value: "Suisho/A" } });
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho/A" } });
     createAiProfileDirs.mockResolvedValue({
       success: false,
       error: { code: "invalid_name_separator" },
@@ -462,7 +462,7 @@ describe("AI ライブラリタブの「開く」", () => {
         "名前に / や \\ は使えません",
       ),
     );
-    expect((screen.getByPlaceholderText("AI名を入力") as HTMLInputElement).value).toBe("Suisho/A");
+    expect((screen.getByPlaceholderText("AI 名を入力") as HTMLInputElement).value).toBe("Suisho/A");
     // 読み取りは成功しているので、スキャンの診断へは回さない
     expect(document.querySelector(".aiLibraryTab__error")).toBeNull();
   });
@@ -472,11 +472,11 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    fireEvent.change(screen.getByPlaceholderText("AI名を入力"), { target: { value: "Suisho" } });
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho" } });
     fireEvent.click(screen.getByRole("button", { name: "作成" }));
 
     await waitFor(() =>
-      expect((screen.getByPlaceholderText("AI名を入力") as HTMLInputElement).value).toBe(""),
+      expect((screen.getByPlaceholderText("AI 名を入力") as HTMLInputElement).value).toBe(""),
     );
   });
 
@@ -491,7 +491,7 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    const input = screen.getByPlaceholderText("AI名を入力");
+    const input = screen.getByPlaceholderText("AI 名を入力");
     fireEvent.change(input, { target: { value: "Suisho/A" } });
     createAiProfileDirs.mockResolvedValue({
       success: false,
@@ -531,7 +531,7 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    fireEvent.change(screen.getByPlaceholderText("AI名を入力"), { target: { value: "Suisho" } });
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho" } });
 
     let finishCreate!: (created: CreateResult) => void;
     createAiProfileDirs.mockReturnValue(new Promise((r) => (finishCreate = r)));
@@ -570,7 +570,7 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    fireEvent.change(screen.getByPlaceholderText("AI名を入力"), { target: { value: "Suisho" } });
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho" } });
 
     let finishCreate!: (created: CreateResult) => void;
     createAiProfileDirs.mockReturnValue(new Promise((r) => (finishCreate = r)));
@@ -605,7 +605,7 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    fireEvent.change(screen.getByPlaceholderText("AI名を入力"), { target: { value: "Suisho/A" } });
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho/A" } });
 
     let finishCreate!: (created: CreateResult) => void;
     createAiProfileDirs.mockReturnValue(new Promise((r) => (finishCreate = r)));

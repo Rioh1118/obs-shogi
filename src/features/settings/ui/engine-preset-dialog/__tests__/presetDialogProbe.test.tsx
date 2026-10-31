@@ -303,10 +303,10 @@ describe("読み込み", () => {
   }, 20000);
 
   /** 返らない読み込み（応答しないドライブ）で保存が塞がったままにならない */
-  test("「中止する」で保存でき、後から返った結果は使わない", async () => {
+  test("「中止」で保存でき、後から返った結果は使わない", async () => {
     await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
-    fireEvent.click(screen.getByRole("button", { name: "中止する" }));
+    fireEvent.click(screen.getByRole("button", { name: "中止" }));
     expect(saveButton().disabled).toBe(false);
 
     probes[0].resolve(outcome(probes[0], "Engine A"));

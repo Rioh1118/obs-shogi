@@ -371,7 +371,7 @@ describe("起動に時間が掛かっていることを届ける", () => {
     expect(notify).toHaveBeenCalledTimes(1);
     expect(shown().tier).toBe("warning");
     await act(async () => {
-      await action("起動を中止する").run();
+      await action("起動を中止").run();
     });
     expect(cancelStart).toHaveBeenCalledTimes(1);
   });
@@ -393,7 +393,7 @@ describe("エンジンが終了したことを届ける橋", () => {
     const next = await mountWith("exited");
 
     expect(shown().title).toBe("エンジンが終了しました");
-    await action("再起動する").run();
+    await action("再起動").run();
     expect(initialize).toHaveBeenCalledTimes(1);
 
     await next("initializing");
@@ -416,7 +416,7 @@ describe("エンジンが応答しないことを届ける橋", () => {
     const next = await mountWith("unresponsive", null, reason);
 
     expect(shown().title).toBe(title);
-    await action("再起動する").run();
+    await action("再起動").run();
     expect(initialize).toHaveBeenCalledTimes(1);
 
     await next("ready");
