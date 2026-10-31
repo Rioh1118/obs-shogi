@@ -99,7 +99,8 @@ function AnalysisPane() {
     [candidateCache, status, state, currentSfen, cacheKey],
   );
 
-  const pvBaseSfen = state.isAnalyzing ? state.analyzedSfen : currentSfen;
+  // 表に出る候補手はどれも盤の局面のもの（`visibleCandidatesOf`）なので、起点も盤の局面
+  const pvBaseSfen = currentSfen;
 
   const rows = useMemo(() => {
     const shown = visibleCandidates.slice(0, MAX_VISIBLE_CANDIDATES);

@@ -32,6 +32,8 @@ const INITIAL_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL 
 /** `INITIAL_SFEN` から ▲７六歩 を指した局面。手番は後手。 */
 const AFTER_7G7F_SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/2P6/PP1PPPPPP/1B5R1/LNSGKGSNL w - 2";
 
+const statusOverride = { value: null as "starting" | null };
+
 const analysis = {
   state: {
     isAnalyzing: false,
@@ -58,7 +60,8 @@ vi.mock(
   "@/widgets/analysis-pane/lib/useEngineStatus",
   () =>
     ({
-      useEngineStatus: () => (analysis.state.isAnalyzing ? "analyzing" : "standing-by"),
+      useEngineStatus: () =>
+        statusOverride.value ?? (analysis.state.isAnalyzing ? "analyzing" : "standing-by"),
     }) satisfies typeof import("@/widgets/analysis-pane/lib/useEngineStatus"),
 );
 vi.mock("@/entities/game", () => ({ useGame: () => game }));
@@ -107,6 +110,7 @@ const candidatesAfter7g7f: AnalysisCandidate[] = [
 const twoCandidates = candidatesAtInitial;
 
 beforeEach(() => {
+  statusOverride.value = null;
   analysis.state.isAnalyzing = false;
   analysis.state.analyzedSfen = null;
   analysis.state.candidates = [];
@@ -189,6 +193,18 @@ describe("解析ペインの候補手の控え", () => {
     view.rerender(<AnalysisPane />);
 
     expect(shownCandidates(view.container)).toBe(0);
+  });
+
+  test("起動を待っている間に検討の意思を立てても、控えの読み筋が読める", () => {
+    analyzeThenStop();
+    cleanup();
+    statusOverride.value = "starting";
+    analysis.state.isAnalyzing = true;
+    analysis.state.analyzedSfen = null;
+
+    const { container } = render(<AnalysisPane />);
+
+    expect(container.textContent).toContain("７六歩");
   });
 
   test("解析を止めても、直前に届いていた候補手が残る", () => {
