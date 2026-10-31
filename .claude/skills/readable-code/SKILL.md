@@ -64,7 +64,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 ### 5. 同じものか、違うものか
 
-- **同名異処理**: 名前が同じで意味が違うなら改名する。`reducer` のように役割が同じなら残す（R-NAM-3）
+- **同名異処理**: 契約（戻り値、副作用、失敗の形）が違うなら改名する（R-NAM-3）。`reducer` のように役割と契約が同じなら残す。受け手の型が違うメソッドは、受け手の語の中で判定する
 - **異名同処理**: 本体を読み比べる。`deepClone`（`features/settings/lib/presetDialog.ts`）と `clonePreset`（`entities/engine-presets/lib/normalize.ts`）は同じ本体の写し
 - **まとめる**: 「片方の仕様が変わったら、もう片方も必ず変わるか」が「はい」のとき（R-DUP-1）。判定、形式、上限の写しは数によらず1つにする（R-DUP-3）
 - **まとめない**: 形が同じだけのもの。`cloneJkf` は `undefined` のキーを保つ理由があり、`JSON` の退路を持つ上の2つに寄せてはいけない。`docs/rules/common.md` の R-DUP-2、R-DUP-4 で判定する
@@ -91,6 +91,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 出力は `.claude/skills/review-protocol/SKILL.md` の形式。確信度80未満と好みは出さない。
 機械が見ているもの（`docs/rules/` の `機械` の列、`CONTRIBUTING.md`「機械で止めているもの」）は指摘しない。
+既存コードの整理では機械の一覧も片付ける（`/tidy-code`）。
 **指摘の前に、機械にできないかを問う。** できるなら検査にするか `.claude/knowledge/mechanization-backlog.md` に回数を足す。
 
 完了: 差分の全ての宣言に推測を当てた。所見にルール ID か「R-新規」が付いている。

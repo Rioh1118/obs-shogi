@@ -13,8 +13,8 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Skill
 
 ## 手順1: 範囲を切る
 
-- 1回の範囲は**1ディレクトリか1スライス**。テストを除いて2000行を超えるなら更に割る
-- 範囲は依存の下から選ぶ。`shared` → `entities` → `features` の順に。上を先に直すと下の改名で触り直す
+- 1回の範囲は**1ディレクトリか1スライス**。テストのファイルを除いて2000行を超えるなら更に割る
+- 範囲は依存の下から選ぶ。TS は `shared` → `entities` → `features`、Rust は `src-tauri/tests/layering.rs` の `LAYERS` の下の段から。上を先に直すと下の改名で触り直す
 - `shared/` と `entities/` の公開の名前を変えるなら、呼び手の数を先に数え、範囲に含める
 - 次の範囲には手を付けない。見つけたものは手順3の「送る」
 
@@ -26,30 +26,35 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Skill
 
 ```bash
 D=.claude/plans/tidy-<日付>-<範囲>
+mkdir -p "$D"
 node .claude/skills/cross-cutting-audit/scripts/inventory.mjs "$D/inventory" <範囲>
 COMMENT_REPORT="$D/comments.json" ./node_modules/.bin/vp test run src/__tests__/commentReadability.test.ts
 node .claude/skills/naming/scripts/word-usage.mjs verbs <範囲>
 ```
 
-範囲を絞ると `api.tsv` と `collisions.tsv` は0件になりうる。**範囲の外との衝突は棚卸しに映らない**ので、
-気になる語は `word-usage.mjs word <語>` で全体から引く。
+範囲を絞ると棚卸しの一部は0件になり、`inventory.mjs` は終了コード1で返る。**ここでは失敗ではない**ので、`&&` で繋がない。
 
-1. 公開の宣言を全部、`/readable-code` の「確かめるとき」の順で読む
+棚卸しに映らないものがある。
+
+- 範囲の外との衝突: `word-usage.mjs word <語>` で全体から引く
+- `functions.tsv` は `pub` の付いた宣言の1行目だけ。trait のメソッド、非公開、複数行の署名は本体を開いて読む
+
+1. 範囲の公開の宣言を全部、`/readable-code` の「確かめるとき」の手順2〜4で読む。差分の代わりに範囲を見る
 2. コメントは全部読み、`.claude/skills/readable-code/references/comments.md` の順で判定する
 3. 同じ名前と似た動詞を `functions.tsv` で寄せ、本体を読み比べる
-4. `comments.json` の中から範囲の行を拾う
-5. 公開の宣言の呼び手を数える。**本番の呼び手が0でテストだけが使う export は knip に映らない**
+4. `comments.json` から範囲の行を拾う（`grep <範囲> "$D/comments.json"`）。**ここでは機械が見ている形も所見に数える。** 片付けるのが整理の仕事
+5. 公開の宣言の呼び手を `git grep -w` で数える。**本番の呼び手が0でテストだけが使うものは knip に映らない**。knip は Rust も見ない
 
-完了: 見た宣言の数、見たコメントの数、所見の数を書いた。
+完了: 見た宣言の数と所見の数を書いた。
 
 ## 手順3: 振り分ける
 
 | 行き先 | 条件                                       | やること                                           |
 | ------ | ------------------------------------------ | -------------------------------------------------- |
-| 機械   | 同じ形が字面で判定でき、2件目以上          | 検査にする。`mechanization-backlog.md` を先に読む  |
+| 機械   | 字面で判定でき、範囲か backlog で2件目以上 | 検査にする。`.claude/knowledge/mechanization-backlog.md` を先に読む |
 | 直す   | 範囲の中で閉じ、動作を変えない             | 手順4                                              |
-| 送る   | 動作が変わる、範囲の外へ広がる、設計の判断 | `/implement` 手順7 の分類                          |
-| 残す   | 測ると理由がある                           | 理由を計画に書く。次の棚卸しで挙げ直さない         |
+| 送る   | 動作が変わる、範囲の外へ広がる、設計の判断 | テストか実行で再現してから `/implement` 手順7 へ。再現できないものは「未再現」と書いて PR の確認事項へ |
+| 残す   | 測ると理由がある                           | 理由を PR の判断ログに書く。`.claude/plans/` は git に載らない |
 
 **コードと食い違うコメントを見つけたら、関数を全行読み、どちらが正しいかをテストと呼び手で確かめる。**
 コードが誤りなら動作の修正なので「送る」。
@@ -65,15 +70,17 @@ node .claude/skills/naming/scripts/word-usage.mjs verbs <範囲>
 | 2  | 改名       | 名前は `/naming` で決める。テストは綴りの置換だけ。`npm run verify`。**線の名前**（Tauri コマンド、serde の欄、イベント名）は変えない      |
 | 3  | 移動、分割 | 本体を変えずに移す。テストの本文を変えない。`git diff --color-moved` で動いただけと見る |
 | 4  | 共通化     | 呼び手ごとの振る舞いを固定するテストを確かめ、変異を当てて落ちることを見る              |
+| 5  | 型の補い   | `Debug` の derive、`Error` の実装など、振る舞いを足さないもの。`npm run verify:rust`    |
 
 - **テストの期待値を変えたくなったら止める。** 動作が変わっている
 - 検査の基準（`BASELINE`）が下がったら、同じコミットで下げる
+- 強調を外した跡に `。 ` の空白を残さない
 
 完了: 種類ごとに検証が通っている。Rust を触ったなら `npm run verify:rust` も通っている。
 
 ## 手順5: 報告する
 
-書くのは4つ。
+書くのは5つ。
 
 - 見た数（宣言、コメント）と所見の数、行き先ごとの内訳
 - 下がった検査の基準

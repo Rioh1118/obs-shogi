@@ -45,11 +45,11 @@ function wordsOf(name) {
     .map((word) => word.toLowerCase());
 }
 
-/** Rust のテストの `mod` より前の行を返す。`#[cfg(test)]` が付いた1項目では止まらない */
+/** Rust のテストの `mod … {` より前の行を返す。`#[cfg(test)] mod x;` の宣言では止まらない */
 function codeLines(source) {
   const lines = source.split("\n");
   const testModule = lines.findIndex(
-    (line, index) => line.trim() === "#[cfg(test)]" && /^\s*(pub\s+)?mod\s/.test(lines[index + 1]),
+    (line, index) => line.trim() === "#[cfg(test)]" && /^\s*(pub\s+)?mod\s+\w+\s*\{/.test(lines[index + 1] ?? ""),
   );
   return testModule < 0 ? lines : lines.slice(0, testModule);
 }
