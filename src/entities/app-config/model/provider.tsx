@@ -28,7 +28,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           dispatch({
             type: "error",
-            payload: `設定の読み込みに失敗しました: ${String(err)}`,
+            payload: `設定を読み込めませんでした。ワークスペースを選択し直してください（${String(err)}）`,
           });
         }
       }
@@ -47,7 +47,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       dispatch({
         type: "error",
-        payload: `設定の保存に失敗しました: ${String(err)}`,
+        payload: `設定を保存できませんでした。もう一度お試しください（${String(err)}）`,
       });
     }
   }
@@ -69,7 +69,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       dispatch({
         type: "error",
-        payload: `ワークスペースの初期化に失敗しました: ${String(err)}`,
+        payload: `ワークスペースを開けませんでした。ワークスペースを選択し直してください（${String(err)}）`,
       });
       return null;
     }
@@ -89,7 +89,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
       // AI フォルダを選び損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）
       dispatch({ type: "settled" });
-      return Err(`AI ライブラリの選択に失敗しました: ${String(err)}`);
+      return Err(`AI ライブラリを選択できませんでした（${String(err)}）`);
     }
   }
 
@@ -108,7 +108,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       // ただし `loading` は降ろす。降ろさないと `isLoading` が `true` で固定され、
       // 呼び出し元が案内する先（設定 → ワークスペース）のボタンが押せなくなる
       dispatch({ type: "settled" });
-      return Err(`ワークスペースの更新に失敗しました: ${String(err)}`);
+      return Err(`ワークスペースを更新できませんでした（${String(err)}）`);
     }
   }
 
@@ -127,7 +127,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       dispatch({
         type: "error",
-        payload: `last_preset_id の保存に失敗しました: ${String(err)}`,
+        payload: `使うプリセットを保存できませんでした。ワークスペースを選択し直してください（${String(err)}）`,
       });
     }
   }

@@ -1,6 +1,6 @@
+import { FolderOpen } from "lucide-react";
 import { useAppConfig } from "@/entities/app-config";
-
-import "./ChooseWorkspaceButton.scss";
+import Button from "@/shared/ui/Button/Button";
 
 /**
  * ワークスペースを選ばせるボタン。**自分では画面を移動しない。**
@@ -13,16 +13,18 @@ function ChooseWorkspaceButton({ onChosen }: { onChosen: (rootDir: string) => vo
   const { chooseRootDir } = useAppConfig();
 
   return (
-    <button
-      className="choose-workspace"
+    <Button
+      tone="primary"
+      size="lg"
       onClick={() => {
         void chooseRootDir({ force: true }).then((rootDir) => {
           if (rootDir) onChosen(rootDir);
         });
       }}
     >
-      <span className="choose-workspace__icon">📁</span>フォルダを選択
-    </button>
+      <FolderOpen size={18} />
+      フォルダを選択
+    </Button>
   );
 }
 

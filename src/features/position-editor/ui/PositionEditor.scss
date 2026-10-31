@@ -83,15 +83,14 @@ $picker-list-w: 32rem; // scale-exempt
     font-family: inherit;
     font-size: index.$font-aux;
     color: index.$color-text-light-1;
-    background: index.$surface-raised;
+    background: transparent;
     border: 1px solid index.$stroke;
     border-radius: index.$radius-3;
     padding: index.$space-6 index.$space-8;
     cursor: pointer;
 
-    // 白い文字を載せる面はホバーで暗くする（ADR-0005 決定2）
     &:hover:not(:disabled) {
-      background: index.$color-primary-black;
+      background: rgba(index.$color-white, 0.06);
     }
 
     &:disabled {
@@ -178,16 +177,14 @@ $picker-list-w: 32rem; // scale-exempt
     font-family: inherit;
     font-size: index.$font-aux;
     color: index.$color-text-light-1;
-    background: index.$surface-raised;
+    background: transparent;
     border: 1px solid index.$stroke;
     border-radius: index.$radius-3;
     padding: index.$space-1 index.$space-3;
     cursor: pointer;
 
-    // 白い文字を載せる面はホバーで暗くする（ADR-0005 決定2）。
-    // 明るくすると比が下がり、押す瞬間に最も読みにくくなる
     &:hover {
-      background: index.$color-primary-black;
+      background: rgba(index.$color-white, 0.06);
     }
   }
 }

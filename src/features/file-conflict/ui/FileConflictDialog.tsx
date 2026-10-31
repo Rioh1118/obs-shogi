@@ -89,7 +89,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
       >
         <header className="file-conflict__header">
           <div className="file-conflict__iconWrap" aria-hidden="true">
-            <AlertTriangle size={18} />
+            <AlertTriangle size={14} />
           </div>
 
           <div className="file-conflict__headingBlock">

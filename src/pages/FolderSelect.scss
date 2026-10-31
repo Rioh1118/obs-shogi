@@ -1,10 +1,25 @@
 @use "../index.scss" as index;
 
+// 中身の高さで下の余白を埋めず、塊ごと窓の中央に置く。
+// 窓の大きさは利用者が変えるので、部品の大きさで釣り合わせても保てない
 .container {
   height: 100vh;
   width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: index.$space-12 * 1.5;
   background-color: index.$color-primary-dark;
   color: index.$color-text-light-1;
+
+  // `Title` の既定の上余白と行の高さが残ると、中央に置いても文字の塊だけ下へずれる。
+  // 見た目の上端を文字の上端に合わせ、間隔は `gap` だけで作る
+  --title-pad: 0;
+
+  .title {
+    line-height: 1;
+  }
 }
 
 .guide--text {

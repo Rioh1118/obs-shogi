@@ -22,14 +22,12 @@ function SettingsPanel() {
 
   const goTab = (t: TabKey) => updateParams({ tab: t }, { replace: true });
 
-  const activeTabInfo = TABS.find((t) => t.key === tab) ?? TABS[0];
 
   return (
     <div className="settings">
       <header className="settings__header">
         <div className="settings__title">
           <div className="settings__titleMain">設定</div>
-          <div className="settings__titleSub">{activeTabInfo.desc}</div>
         </div>
       </header>
 
@@ -56,7 +54,6 @@ function SettingsPanel() {
                   key={t.key}
                   active={isActive}
                   label={t.label}
-                  desc={t.desc}
                   onClick={() => goTab(t.key)}
                   badges={badges}
                 />
