@@ -12,12 +12,12 @@
     border-radius: 12px;
     border: 1px solid rgba(index.$color-white, 0.08);
     background: rgba(index.$color-primary-black, 0.25);
-    color: rgba(index.$color-text-light-1, 0.92);
+    color: index.$color-text-primary;
 
     padding: 10px 10px;
     cursor: pointer;
 
-    font-weight: 800;
+    font-weight: index.$weight-title;
     font-size: 1.35rem;
 
     transition:
@@ -44,7 +44,7 @@
   .presetDialog__stepperInput {
     width: 90px;
     text-align: center;
-    font-weight: 800;
+    font-weight: index.$weight-title;
   }
 
   @media (prefers-reduced-motion: reduce) {

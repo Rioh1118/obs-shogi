@@ -14,7 +14,7 @@
   .presetDialog__title {
     color: index.$color-text-light-1;
     font-size: 1.8rem;
-    font-weight: 800;
+    font-weight: index.$weight-title;
     letter-spacing: 0.02em;
     white-space: nowrap;
     overflow: hidden;
@@ -23,7 +23,7 @@
 
   .presetDialog__subtitle {
     margin-top: 6px;
-    color: rgba(index.$color-text-light-1, 0.7);
+    color: index.$color-text-faint;
     font-size: 1.25rem;
     line-height: 1.4;
   }

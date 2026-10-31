@@ -25,7 +25,7 @@
   border-radius: 12px;
   border: 1px solid rgba(#ff5a5a, 0.34);
   background: rgba(#ff5a5a, 0.12);
-  color: rgba(index.$color-text-light-1, 0.92);
+  color: index.$color-text-primary;
 }
 
 .wsTab__statusTop {
@@ -56,13 +56,13 @@
 
 .wsTab__miniK {
   font-size: 1.1rem;
-  color: rgba(index.$color-text-light-1, 0.68);
+  color: index.$color-text-faint;
 }
 
 .wsTab__miniV {
   margin-top: 2px;
   font-size: 1.4rem;
-  font-weight: 900;
+  font-weight: index.$weight-title;
   letter-spacing: 0.2px;
 
   &.is-warn {
@@ -99,7 +99,7 @@
 
 .wsTab__progressLeft {
   font-size: 1.15rem;
-  color: rgba(index.$color-text-light-1, 0.78);
+  color: index.$color-text-muted;
   display: inline-flex;
   gap: 8px;
   align-items: center;
@@ -110,13 +110,13 @@
   border-radius: 999px;
   border: 1px solid rgba(index.$color-white, 0.08);
   background: rgba(index.$color-primary-black, 0.2);
-  color: rgba(index.$color-text-light-1, 0.86);
+  color: index.$color-text-muted;
   font-size: 1.05rem;
 }
 
 .wsTab__progressPath {
   font-size: 1.1rem;
-  color: rgba(index.$color-text-light-1, 0.7);
+  color: index.$color-text-faint;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -142,8 +142,8 @@
   gap: 8px;
   align-items: center;
   font-size: 1.25rem;
-  font-weight: 900;
-  color: rgba(index.$color-text-light-1, 0.92);
+  font-weight: index.$weight-title;
+  color: index.$color-text-primary;
 }
 
 .wsTab__warnList {
@@ -161,13 +161,13 @@
 
 .wsTab__warnMsg {
   font-size: 1.15rem;
-  color: rgba(index.$color-text-light-1, 0.9);
+  color: index.$color-text-primary;
 }
 
 .wsTab__warnPath {
   margin-top: 2px;
   font-size: 1.05rem;
-  color: rgba(index.$color-text-light-1, 0.65);
+  color: index.$color-text-faint;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -176,7 +176,7 @@
 .wsTab__warnMore {
   margin-top: 8px;
   font-size: 1.1rem;
-  color: rgba(index.$color-text-light-1, 0.7);
+  color: index.$color-text-faint;
 }
 
 .wsTab__pathBox {
@@ -188,14 +188,14 @@
 
 .wsTab__pathLabel {
   font-size: 1.05rem;
-  color: rgba(index.$color-text-light-1, 0.68);
+  color: index.$color-text-faint;
 }
 
 .wsTab__pathValue {
   margin-top: 4px;
   font-size: 1.25rem;
   font-weight: index.$weight-title;
-  color: rgba(index.$color-text-light-1, 0.92);
+  color: index.$color-text-primary;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -206,7 +206,7 @@
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  color: rgba(index.$color-text-light-1, 0.78);
+  color: index.$color-text-muted;
 }
 
 .wsTab__dangerText {
@@ -228,14 +228,14 @@
 
 .wsTab__confirmTitle {
   font-size: 1.25rem;
-  font-weight: 900;
+  font-weight: index.$weight-title;
 }
 
 .wsTab__confirmDesc {
   margin-top: 6px;
   font-size: 1.15rem;
   line-height: 1.45;
-  color: rgba(index.$color-text-light-1, 0.8);
+  color: index.$color-text-muted;
 }
 
 .wsTab__confirmInput {
@@ -245,7 +245,7 @@
   border-radius: 12px;
   border: 1px solid rgba(index.$color-white, 0.1);
   background: rgba(index.$color-primary-black, 0.24);
-  color: rgba(index.$color-text-light-1, 0.92);
+  color: index.$color-text-primary;
   padding: 0 12px;
   font: inherit;
 
@@ -266,7 +266,7 @@
 .wsTab__backupHint {
   font-size: 1.15rem;
   line-height: 1.55;
-  color: rgba(index.$color-text-light-1, 0.78);
+  color: index.$color-text-muted;
 }
 
 // 「最後に確認できた」は数値ではなく文になることがある（「まだ確認できていません」）。
