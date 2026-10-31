@@ -4,6 +4,7 @@ import type { AnalysisAction, AnalysisState } from "./types";
 export const initialState: AnalysisState = {
   isAnalyzing: false,
   analyzedSfen: null,
+  finished: false,
   candidates: [],
   error: null,
 };
@@ -19,6 +20,7 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
         ...state,
         isAnalyzing: true,
         analyzedSfen: action.payload.sfen,
+        finished: false,
         error: null,
       };
 
@@ -26,6 +28,18 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return {
         ...state,
         isAnalyzing: false,
+        finished: false,
+      };
+
+    // **最後の結果をここで一緒に書く。** 門を `state` の1か所にするため。結果だけを
+    // `update_result` で先に出す形だと、開始の直後は `analyzingRef` がまだ倒れたままで
+    // 結果が捨てられ、`検討完了` なのに候補手が空になる
+    case "finish_analysis":
+      if (!state.isAnalyzing) return state;
+      return {
+        ...state,
+        finished: true,
+        candidates: sortByRank(action.payload.candidates ?? []),
       };
 
     case "update_result": {
@@ -39,7 +53,7 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
     }
 
     case "set_error":
-      return { ...state, error: action.payload, isAnalyzing: false };
+      return { ...state, error: action.payload, isAnalyzing: false, finished: false };
 
     case "clear_results":
       return {

@@ -26,6 +26,24 @@ vi.mock("@/entities/engine/api/initializer", () => ({
   },
 }));
 
+/** Rust の通知を差し込む口 */
+let exited: ((request: number) => void) | null = null;
+// `isTauri()` はこの印を読む（`@tauri-apps/api/core`）
+vi.stubGlobal("isTauri", true);
+vi.mock(
+  "@/entities/engine/api/events",
+  async (actual) =>
+    ({
+      ...(await actual<typeof import("@/entities/engine/api/events")>()),
+      listenToEngineExited: async (callback: (request: number) => void) => {
+        exited = callback;
+        return () => {
+          exited = null;
+        };
+      },
+    }) satisfies typeof import("@/entities/engine/api/events"),
+);
+
 const { EngineProvider } = await import("../provider");
 const { useEngine } = await import("../useEngine");
 
@@ -309,5 +327,110 @@ describe("EngineProvider の要求の順序", () => {
     await settle();
     expect(app.phase).toBe("error");
     expect(initialize).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * `engine-standardization.md` の (V3, E12) (V2, E12) (V7, E1) と不変条件1。
+ *
+ * **番号の照合が要。** 起動し直しの窓に古いプロセスの終わりが届くので、照合しないと
+ * 動いている新しいエンジンを「終了」と言う。
+ */
+describe("エンジンが自分で終わった回", () => {
+  const lastRequest = () => initialize.mock.calls[initialize.mock.calls.length - 1][1];
+  const tell = (request: number) =>
+    act(async () => {
+      exited?.(request);
+    });
+
+  test("最後の起動のプロセスが終わったら exited になり、使えなくなる", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    expect(app.engine.isReady).toBe(true);
+
+    await tell(lastRequest());
+
+    expect(app.phase).toBe("exited");
+    expect(app.engine.isReady).toBe(false);
+    expect(app.engine.notReadyReason).toBe("failed");
+  });
+
+  test("古い起動のプロセスの終わりは捨てる", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+
+    await tell(lastRequest() - 1);
+
+    expect(app.phase).toBe("ready");
+  });
+
+  test("起動の応答より先に終わりが届いても、起動済みと言わない", async () => {
+    let answer: (info: EngineInfo) => void = () => {};
+    initialize.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    const app = mountWith(RUNTIME);
+    await settle();
+
+    await tell(lastRequest());
+    expect(app.phase).toBe("initializing");
+
+    await act(async () => {
+      answer(INFO);
+    });
+
+    expect(app.phase).toBe("exited");
+  });
+
+  test("同じ設定のままでは自分で起動し直さない", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    await tell(lastRequest());
+    initialize.mockClear();
+
+    await app.setRuntime(sameValues());
+
+    expect(initialize).not.toHaveBeenCalled();
+    expect(app.phase).toBe("exited");
+  });
+
+  test("別の設定になれば起動し直す", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    await tell(lastRequest());
+    initialize.mockClear();
+
+    await app.setRuntime({ ...RUNTIME, values: { MultiPV: "3" } });
+
+    expect(initialize).toHaveBeenCalledTimes(1);
+    expect(app.phase).toBe("ready");
+  });
+
+  test("再起動する（initialize）で起動し直せる", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    await tell(lastRequest());
+
+    await act(async () => {
+      await app.engine.initialize();
+    });
+
+    expect(app.phase).toBe("ready");
+    expect(app.engine.isReady).toBe(true);
+  });
+
+  test("選択が外れたら止めて idle へ戻す", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    await tell(lastRequest());
+
+    await app.setRuntime(null);
+
+    expect(shutdown).toHaveBeenCalledTimes(1);
+    expect(app.phase).toBe("idle");
   });
 });

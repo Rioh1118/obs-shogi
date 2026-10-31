@@ -1,7 +1,11 @@
 import type { BookChoice, EngineInfo, StartWarning } from "../api/rust-types";
 import type { EngineStartFailure } from "../lib/engineFailure";
 
-export type EnginePhase = "idle" | "initializing" | "ready" | "error";
+/**
+ * `exited` は起動済みのプロセスが自分で終わった状態。**アプリは自分では起動し直さない**
+ * （`docs/state-transitions/engine-standardization.md` の V7）。
+ */
+export type EnginePhase = "idle" | "initializing" | "ready" | "error" | "exited";
 
 /**
  * エンジンを起こすときの設定。**USI の名前を持たない**——評価関数と定跡はパスで持ち、
@@ -39,6 +43,7 @@ export type EngineAction =
       };
     }
   | { type: "initialize_error"; payload: EngineStartFailure }
+  | { type: "engine_exited" }
   | { type: "shutdown" }
   | { type: "clear_error" };
 
@@ -56,7 +61,7 @@ export type EngineNotReadyReason =
   | "no-engine"
   /** 起動中。**起こし直している最中もここ**（`ready → idle → initializing` の全部） */
   | "starting"
-  /** 初期化が落ちている */
+  /** 初期化が落ちている。**起動した後でプロセスが終わった回もここ** */
   | "failed";
 
 /**

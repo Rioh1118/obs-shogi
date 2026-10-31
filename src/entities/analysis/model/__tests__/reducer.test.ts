@@ -27,6 +27,26 @@ describe("解析の停止が残すもの", () => {
     expect(stopped.candidates).toHaveLength(1);
   });
 
+  it("探索の完了は検討を切らず、次の開始と中断で外れる", () => {
+    const last = { candidates: [{ rank: 1, pv_line: ["2g2f"] }] };
+    const finished = analysisReducer(analyzing(), { type: "finish_analysis", payload: last });
+    expect(finished.finished).toBe(true);
+    expect(finished.isAnalyzing).toBe(true);
+    expect(finished.candidates).toEqual(last.candidates);
+
+    const next = analysisReducer(finished, { type: "start_analysis", payload: { sfen: "SFEN-B" } });
+    expect(next.finished).toBe(false);
+    expect(analysisReducer(finished, { type: "stop_analysis" }).finished).toBe(false);
+    expect(analysisReducer(finished, { type: "set_error", payload: "x" }).finished).toBe(false);
+  });
+
+  it("検討していないときの完了は何も変えない", () => {
+    const last = { candidates: [{ rank: 1, pv_line: [] }] };
+    expect(analysisReducer(initialState, { type: "finish_analysis", payload: last })).toBe(
+      initialState,
+    );
+  });
+
   it("結果を捨てる指示では候補手が消え、解析した局面は残る", () => {
     const cleared = analysisReducer(analyzing(), { type: "clear_results" });
 

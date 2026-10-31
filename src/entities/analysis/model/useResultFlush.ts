@@ -18,13 +18,6 @@ export interface ResultFlush {
   /** 届いた結果を反映待ちに置き、間引きのタイマーを張る */
   receive: (result: AnalysisResult) => void;
   /**
-   * 反映待ちを**今すぐ**commit して、タイマーを畳む。
-   *
-   * 探索が終わった通知の口。この後に `stop_analysis` を dispatch するので、
-   * 間引きを待つと `analyzingRef` が倒れて最後の1本が黙って捨てられる。
-   */
-  flushNow: (result: AnalysisResult) => void;
-  /**
    * 反映待ちの1本と、それが張った間引きのタイマーを**両方**落とす。
    * **画面に出ている候補手には触らない**（それは `discardShown`）。
    *
@@ -130,14 +123,6 @@ export function useResultFlush(
     receive: (result) => {
       latestRef.current = result;
       schedule();
-    },
-    flushNow: (result) => {
-      latestRef.current = result;
-      clearTimer();
-      // **席の門を通さない。** 呼び手（`onComplete`）は席を締めてからここへ来るので、
-      // 掛けると探索が終わった最後の1本が消える。
-      if (!analyzing.current) return;
-      dispatch({ type: "update_result", payload: result });
     },
     dropPending,
     discardShown: () => {

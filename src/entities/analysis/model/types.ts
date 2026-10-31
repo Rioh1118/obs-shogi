@@ -5,6 +5,11 @@ export interface AnalysisState {
   isAnalyzing: boolean;
   /** いま解析している局面。**席を握った時点の盤**で、盤の現在位置とは限らない。 */
   analyzedSfen: string | null;
+  /**
+   * `analyzedSfen` の探索をエンジンが自分で終えた。**`isAnalyzing` は倒さない**——
+   * 局面が動けば読み始める（`docs/state-transitions/engine-standardization.md` の V5）。
+   */
+  finished: boolean;
   candidates: AnalysisCandidate[];
   error: string | null;
 }
@@ -12,6 +17,7 @@ export interface AnalysisState {
 export type AnalysisAction =
   | { type: "start_analysis"; payload: { sfen: string } }
   | { type: "stop_analysis" }
+  | { type: "finish_analysis"; payload: AnalysisResult }
   | { type: "update_result"; payload: AnalysisResult }
   | { type: "set_error"; payload: string }
   | { type: "clear_results" };

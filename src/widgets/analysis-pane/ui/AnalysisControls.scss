@@ -41,6 +41,10 @@
       animation: analysis-pulse 2s infinite;
     }
 
+    &--danger {
+      background-color: index.$color-danger;
+    }
+
     &--idle {
       background-color: transparent;
       border: 1.5px solid rgba(index.$color-text-primary, 0.55);

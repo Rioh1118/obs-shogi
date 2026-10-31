@@ -13,6 +13,9 @@ import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "./engineStartFailur
  */
 const ENGINE_START_FAILURE = "engine-start-failure";
 
+/** エンジンが終了した帯の取っ手。`exited` の段を抜けたら引っ込める */
+const ENGINE_EXITED = "engine-exited";
+
 /** 起動に時間が掛かっている帯の取っ手。起動中の段を抜けたら引っ込める */
 const ENGINE_SLOW_START = "engine-slow-start";
 
@@ -20,9 +23,8 @@ const ENGINE_SLOW_START = "engine-slow-start";
  * エンジンを起動できなかったこと、起動に時間が掛かっていることを利用者へ届ける
  * （`failure-surfacing.md` の F-9。帯の段は種類ごと。`ENGINE_START_FAILURE_NOTICES`）。
  *
- * **エンジンの失敗を描く UI はここだけ。** ここが黙ると、失敗しても画面は
- * 「解析を始められない」だけになり、理由も次の一手もどこにも出ない
- * （`useEngine` の他の読み手は `isReady` しか見ない）。
+ * **エンジンの失敗の文を出すのはここだけ。** 操作列（`AnalysisControls`）は語とボタンだけを持ち、
+ * 理由を言わない。ここが黙ると、理由も次の一手もどこにも出ない。
  * 帯にするのは、エンジンが要る画面（解析ペイン）と直せる画面（設定）が
  * 別なので、**どちらを開いていても届く必要がある**ため。
  *
@@ -84,6 +86,32 @@ export function EngineFailureBridge() {
       clearTimeout(timer);
       dismissByKey(ENGINE_SLOW_START);
     };
+  }, [phase, notify, dismissByKey]);
+
+  useEffect(() => {
+    if (phase !== "exited") return;
+    notify({
+      tier: "danger",
+      presentation: "banner",
+      dismissKey: ENGINE_EXITED,
+      title: "エンジンが終了しました",
+      body: "再起動してください。続けて起きるときは設定でエンジンと評価関数を確認してください。",
+      actions: [
+        {
+          label: "再起動する",
+          run: async () => {
+            await startAgain.current();
+          },
+        },
+        {
+          label: "設定を開く",
+          run: () => openSettings.current("settings", { tab: "engine" }),
+          failureBody:
+            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
+        },
+      ],
+    });
+    return () => dismissByKey(ENGINE_EXITED);
   }, [phase, notify, dismissByKey]);
 
   useEffect(() => {

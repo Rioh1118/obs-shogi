@@ -15,6 +15,7 @@
 | **S1** | 起動中   | `phase === "initializing"`                                      |
 | **S2** | 起動済み | `phase === "ready"`、`engineInfo !== null`                      |
 | **S3** | 失敗     | `phase === "error"`、`error !== null`、`activeRuntime === null` |
+| **S4** | 終了     | `phase === "exited"`、`activeRuntime === null`                  |
 
 `isReady` は S2 と同義ではない。`desiredRuntime` と `activeRuntime` の一致まで見る
 （`provider.tsx`）。**設定を変えた直後は S2 のまま `isReady === false`。**
@@ -52,6 +53,7 @@
 | **E8**  | 停止が**失敗する**                              | 同 reject                                                |
 | **E9**  | 「もう一度起動」を押す                          | 帯（`EngineFailureBridge`）。**一部の種類にだけ出る**※7  |
 | **E10** | 「起動をやめる」を押す                          | 起動中が `SLOW_START_MS` を越えると出る帯※8              |
+| **E11** | プロセスが自分で終わる                          | Rust の `engine-exited`。番号が最後の起動のときだけ採る※9 |
 
 ## 表
 
@@ -118,6 +120,12 @@ issue #120 と同型の行き止まり
 持たせる。やめると失敗（`cancelled`）として止まる——`idle` に戻すと、設定が選ばれたままなので
 effect が同じ設定で起動し直す。起動し直すのは E3（設定を変える）か E9
 
+※9 **S2 からだけ S4 へ入る。** こちらが落とした回（`quit` を送った後）は通知が出ない。
+番号（`request`）が最後の起動のものでなければ捨てる。起動の応答より先に通知が着いたら、
+応答を書いた直後に S4 へ入る（`provider.tsx` の `exitedRequestRef`）。
+
+S4 の抜け方は S3 と同じ。**同じ設定のまま自動では起動しない**。E3 と E9 で S1 へ、E2 で S0 へ。
+
 ## この表が満たすべき不変条件
 
 1. **S2（起動済み）なら `activeRuntime` は実際に起動したプロセスの設定と一致する。**
@@ -134,7 +142,7 @@ effect が同じ設定で起動し直す。起動し直すのは E3（設定を�
 - `(S2, E2)` 起動済みからの停止の、フロントの側。Rust の側は `analyzer.rs` の `tests::starting` が踏む
 
 **`entities/engine` のテスト**は `model/__tests__/provider.test.tsx`（`(S3, E4)` / `(S3, E3)` /
-`(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 撃つたびに上がる番号）、
+`(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 撃つたびに上がる番号 / E11 と S4 の抜け方）、
 `model/__tests__/notReadyReason.test.tsx`（`notReadyReason` の割り当て）と
 `lib/__tests__/`（`asStartFailure`、`valuesOf` と `equalRuntime`）。
 `(S3, E9)` と E10 の帯は `app/providers/bridges/__tests__/engineFailureBridge.test.tsx`。

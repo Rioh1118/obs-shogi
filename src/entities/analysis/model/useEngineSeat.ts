@@ -44,9 +44,11 @@ void _everyPointIsAssigned;
  *
  * **読まずに捨てるなら理由を書く**（`src/__tests__/asyncResultUse.test.ts` が
  * `Promise<SeatTakeResult>` を返す口の式文を止める。`landed` の戻り値は人が見る）。
- * ▶ の口は3つを書き分け、自動再開の口はどれでも黙って降りる。
+ * ▶ の口は書き分け、自動再開の口はどれでも黙って降りる。
+ *
+ * `finished` は、開始の応答より先に探索の完了が届いていた席。**もう Rust に無い**ので握らない。
  */
-export type SeatTakeResult = "held" | "engine-gone" | "superseded";
+export type SeatTakeResult = "held" | "finished" | "engine-gone" | "superseded";
 
 /**
  * 席を取る往復の、行きと帰りを結ぶ札。**`beginTake` でしか作れない。**
@@ -116,9 +118,11 @@ export interface EngineSeat {
   /**
    * Rust が自分で片付けた席を締める。
    *
-   * **握っている席と一致するときだけ効く**——一致しなければ何もしない
-   * （走っている別の席を巻き添えにしないため）。効いた回は手放した席として覚えるので、
-   * 以後その席の通知は `accepts` が落とす。
+   * **別の席を握っているときは何もしない**（走っている席を巻き添えにしないため）。
+   * 効いた回は手放した席として覚えるので、以後その席の通知は `accepts` が落とす。
+   *
+   * **何も握っていなくても覚える。** 開始の応答より先に完了が届く回があり、応答が返ってから
+   * 握ると、もう無い席を `検討中` のまま握り続ける。`landed` がこの記録を見て握らない。
    *
    * **書き戻し（`shoot` の catch）はこの記録を見ない。** いま握り直しが起きないのは、
    * 締めた席へ撃つ口が1つも無いから——覚えた席へ撃つ口を足すときは、その口が
@@ -461,13 +465,16 @@ export function useEngineSeat(): EngineSeat {
             return "engine-gone";
           }
 
+          // 渡る識別子は新品（Rust の `new_session_id` が UUID を振る）なので、ここに
+          // 居るのは開始の応答より先に完了が届いた席だけ。**もう Rust に無いので、
+          // 要らなくなっていても撃たない。**
+          if (pastRef.current.has(sessionId)) return isSuperseded() ? "superseded" : "finished";
+
           if (isSuperseded()) {
             discard(discardBy, sessionId);
             return "superseded";
           }
 
-          // 手放した席の集合には触らない。渡る識別子は必ず新品なので（Rust の
-          // `new_session_id` が UUID を振る）、そこに居ることが無い。
           seatRef.current = sessionId;
           return "held";
         },
@@ -482,7 +489,7 @@ export function useEngineSeat(): EngineSeat {
       remember(held);
     },
     closeFinished: (sessionId) => {
-      if (seatRef.current !== sessionId) return;
+      if (seatRef.current !== null && seatRef.current !== sessionId) return;
       seatRef.current = null;
       remember(sessionId);
     },

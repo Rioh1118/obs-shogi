@@ -15,12 +15,26 @@ import { MemoryRouter } from "react-router";
  * タブを移っても畳まれない）の仕事。
  */
 const analysis = {
-  state: { isAnalyzing: true },
+  state: { isAnalyzing: true, finished: false, analyzedSfen: "sfen" },
   startInfiniteAnalysis: vi.fn(),
   stopAnalysis: vi.fn(),
 };
 
-vi.mock("@/entities/analysis", () => ({ useAnalysis: () => analysis }));
+vi.mock("@/entities/analysis", async (actual) => ({
+  ...(await actual<typeof import("@/entities/analysis")>()),
+  useAnalysis: () => analysis,
+}));
+vi.mock(
+  "@/entities/engine",
+  async (actual) =>
+    ({
+      ...(await actual<typeof import("@/entities/engine")>()),
+      useEngine: (() => ({
+        state: { phase: "ready" },
+        initialize: vi.fn(),
+      })) as unknown as typeof import("@/entities/engine").useEngine,
+    }) satisfies typeof import("@/entities/engine"),
+);
 vi.mock("@/entities/game", () => ({
   useGame: () => ({ view: { currentSfen: "sfen" } }),
 }));
