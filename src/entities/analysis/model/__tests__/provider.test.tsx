@@ -9,7 +9,6 @@ import { shortenWaits, waits } from "../waits";
 import type { AnalysisContextType, PositionSyncAdapter } from "../types";
 import type { AnalysisResult } from "@/entities/engine";
 import {
-  ENGINE_ERROR_MESSAGE,
   ENGINE_FAILED_MESSAGE,
   NO_ENGINE_SELECTED_MESSAGE,
   ENGINE_STARTING_MESSAGE,
@@ -47,7 +46,7 @@ vi.mock("@/entities/engine", () => ({
 /** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
 type Listeners = {
   onUpdate: (sessionId: string, result: AnalysisResult) => void;
-  onError: (error: string) => void;
+  onComplete: (sessionId: string, result: AnalysisResult) => void;
 };
 let listeners: Listeners | null = null;
 /** 購読の登録を落としたい回だけ立てる */
@@ -2111,56 +2110,6 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledTimes(1);
   });
 
-  it("エラーで席を握ったまま止まっていても、▶ で返してから始める", async () => {
-    tauri = true;
-    const view = mountAnalysis(adapter("P1", "P1"));
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
-
-    // Rust からのエラー通知で S6（`isAnalyzing` は落ちるが席は握ったまま）。
-    // **この通知は現物では飛ばない**（`provider.tsx` の注記）。ここでは S6 を作る道具。
-    await act(async () => {
-      listeners?.onError("engine died");
-    });
-    // 上流の英文は `state.error` には出さない（`console.error` にだけ残す）。
-    expect(view.current.state.error).toBe(ENGINE_ERROR_MESSAGE);
-    expect(view.current.state.isAnalyzing).toBe(false);
-
-    stopCore.mockClear();
-    startCore.mockClear();
-    startCore.mockResolvedValue("session-2");
-
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
-
-    // 席を返さずに頼むと `take_session` が断り、S6 から抜けられない（#120 の形）。
-    expect(stopCore).toHaveBeenCalledWith("session-1", "start");
-    expect(view.current.state.isAnalyzing).toBe(true);
-  });
-
-  it("エラーで止まって見えていても、畳まれたら席を返す", async () => {
-    tauri = true;
-    const view = mountAnalysis(adapter("P1", "P1"));
-
-    await act(async () => {
-      await view.current.startInfiniteAnalysis();
-    });
-
-    // Rust からのエラー通知。`isAnalyzing` は落ちるが、席は握ったまま
-    // （`set_error` は席の欄に触らない）。
-    await act(async () => {
-      listeners?.onError("engine died");
-    });
-    expect(view.current.state.isAnalyzing).toBe(false);
-
-    stopCore.mockClear();
-    view.unmount();
-
-    expect(stopCore).toHaveBeenCalledTimes(1);
-  });
-
   it("解析していないまま畳まれたら、停止を撃たない", async () => {
     // StrictMode は mount 直後に setup → cleanup → setup を走らせる。
     // ここで撃つと、席を持っていないのに停止が飛ぶ。
@@ -2389,5 +2338,152 @@ describe("AnalysisProvider が渡す候補手の控え", () => {
 
     expect(seen).toHaveLength(2);
     expect(seen[1].lookup("k")).toEqual([{ rank: 1, pv_line: [] }]);
+  });
+});
+
+/**
+ * (V3, E9) エンジンが自分で探索を終えた回。
+ *
+ * **検討の意思は残る**ので `isAnalyzing` は倒れない。倒すと、局面を動かしても読み始めない。
+ */
+describe("エンジンが自分で探索を終えた回", () => {
+  const finalResult: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["2g2f"] }] };
+
+  it("完了になり、候補手が残り、席を握らない", async () => {
+    tauri = true;
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    await act(async () => {
+      listeners?.onComplete("session-1", finalResult);
+    });
+
+    expect(view.current.state.finished).toBe(true);
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.candidates).toEqual(finalResult.candidates);
+
+    // 席はもう Rust に無い。■ で撃つと、次のエンジンへ裸の `stop` が書かれる
+    stopCore.mockClear();
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    expect(stopCore).not.toHaveBeenCalled();
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(view.current.state.finished).toBe(false);
+  });
+
+  it("局面を動かすと、押さずに読み始める", async () => {
+    tauri = true;
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    await act(async () => {
+      listeners?.onComplete("session-1", finalResult);
+    });
+    startCore.mockClear();
+    startCore.mockResolvedValue("session-2");
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(startCore).toHaveBeenCalledTimes(1);
+    expect(view.current.state.finished).toBe(false);
+    expect(view.current.state.analyzedSfen).toBe("P2");
+  });
+
+  it("別の席の完了では終わらない", async () => {
+    tauri = true;
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    await act(async () => {
+      listeners?.onComplete("session-0", finalResult);
+    });
+
+    expect(view.current.state.finished).toBe(false);
+  });
+
+  it("開始の応答と同じ描画の中で完了が届いても、候補手が残る", async () => {
+    tauri = true;
+    let answer: (id: string) => void = () => {};
+    startCore.mockImplementation(() => new Promise<string>((resolve) => (answer = resolve)));
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      void view.current.startInfiniteAnalysis();
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    await act(async () => {
+      answer("session-1");
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      listeners?.onComplete("session-1", finalResult);
+    });
+
+    expect(view.current.state.finished).toBe(true);
+    expect(view.current.state.candidates).toEqual(finalResult.candidates);
+  });
+
+  it("完了が先に届いた席は、要らなくなっても停止を撃たない", async () => {
+    tauri = true;
+    let answer: (id: string) => void = () => {};
+    startCore.mockImplementation(() => new Promise<string>((resolve) => (answer = resolve)));
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      void view.current.startInfiniteAnalysis();
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    await act(async () => {
+      listeners?.onComplete("session-1", finalResult);
+    });
+
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    stopCore.mockClear();
+    await act(async () => {
+      answer("session-1");
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(stopCore).not.toHaveBeenCalled();
+    expect(view.current.state.isAnalyzing).toBe(false);
+  });
+
+  it("開始の応答より先に完了が届いても、完了のまま残り、席を握らない", async () => {
+    tauri = true;
+    let answer: (id: string) => void = () => {};
+    startCore.mockImplementation(() => new Promise<string>((resolve) => (answer = resolve)));
+
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      void view.current.startInfiniteAnalysis();
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(startCore).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      listeners?.onComplete("session-1", finalResult);
+    });
+    await act(async () => {
+      answer("session-1");
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.finished).toBe(true);
+    expect(view.current.state.candidates).toEqual(finalResult.candidates);
+
+    stopCore.mockClear();
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    expect(stopCore).not.toHaveBeenCalled();
   });
 });

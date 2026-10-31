@@ -2,7 +2,8 @@
 
 **これから満たす表。** 仕様は [`engine-standardization.md`](../spec/features/engine-standardization.md)。
 いまの実装の表は [engine.md](engine.md)（プロセスの生死）と [analysis.md](analysis.md)（検討の席）で、
-ここはその2つを**利用者が見る1つの語**へ畳んだもの。**実装はまだ無い。** 下の「検討の意思」と V4〜V7 は main に欄が無い。
+ここはその2つを**利用者が見る1つの語**へ畳んだもの。**実装の途中。** どのセルが入ったかは末尾の「検証済みのセル」。
+語の判定は `entities/analysis/lib/engineStatus.ts`。
 
 対局（`start_game`）はこの表の外。
 
@@ -110,7 +111,6 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | `ENGINE_RESTARTED_MESSAGE`      | **消える**（意思で読み直す）                       |
 | `ENGINE_FAILED_MESSAGE`         | V8 に畳む                                          |
 | `NO_ENGINE_SELECTED_MESSAGE`    | V0 に畳む                                          |
-| `ENGINE_ERROR_MESSAGE`          | **消える**。E9 の通知は E12 に置き換わる           |
 | `LISTENERS_FAILED_MESSAGE`      | 帯（アプリの再起動）。今の ▶ の断りの枝のまま  |
 
 ※7 設定の変更と選択の解除は、そのエンジンを捨てる操作なので V6 に入らない。**答えを `ANALYSIS_STOP_GRACE` まで待ち、
@@ -124,9 +124,21 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 4. **表にある候補手は、盤の局面のもの。** エンジンが止まる前のものは薄く出す（#502）
 5. **検討の意思があってエンジンが戻ったら、利用者が押さなくても読み始める。** 戻らなければ V6 / V7 / V8 の語が残る（#442）
 
+## 検証済みのセル
+
+| セル | 踏んでいるテスト |
+| ---- | ---------------- |
+| (V3, E9) | `bridge.rs` の `a_search_the_engine_ended_itself_is_reported_and_frees_the_seat`、`provider.test.tsx` の「エンジンが自分で探索を終えた回」 |
+| (V3, E12) (V2, E12) | `bridge.rs` の `an_engine_that_exits_during_a_search_is_reported_with_its_start` / `an_engine_that_exits_while_idle_is_reported`、`entities/engine` の「エンジンが自分で終わった回」 |
+| (V5, E8) (V5, E4) | `provider.test.tsx` の「局面を動かすと、押さずに読み始める」「完了になり、候補手が残り、席を握らない」 |
+| (V7, E1) (V7, E2) | `entities/engine` の「別の設定になれば起動し直す」「選択が外れたら止めて idle へ戻す」 |
+| 不変条件1（V7 について） | `engineStatus.test.ts` の「エンジンが終了したら、検討の意思があっても検討中と言わない」 |
+
+実プロセスでの確認は各 PR に書く。
+
 ## 埋まっていないセル
 
-**全セルが未検証。** 実装もテストも無い。実装の順と掛ける継ぎ目は仕様の追跡表。
+**上の表に無いセルは全部未検証。** 実装の順と掛ける継ぎ目は仕様の追跡表。
 
 既存の継ぎ目で踏めるのは次の見込み。
 

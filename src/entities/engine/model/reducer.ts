@@ -34,6 +34,17 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         error: action.payload,
       };
 
+    // `ready` のときだけ効く。それ以外の段に居るなら、そのプロセスはもう見ていない
+    case "engine_exited":
+      if (state.phase !== "ready") return state;
+      return {
+        ...state,
+        phase: "exited",
+        engineInfo: null,
+        activeRuntime: null,
+        startWarnings: [],
+      };
+
     case "shutdown": {
       return {
         ...state,

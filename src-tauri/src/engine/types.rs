@@ -451,3 +451,63 @@ pub struct AnalysisCandidate {
     /// time は info time を受けるたび更新される
     pub time_ms: Option<u64>,
 }
+
+/// 解析の結果の通知。**`session_id` を載せるのは、受け手が自分のものか照合するため。**
+///
+/// 前の探索が畳まりきる前に次の `go` が出ると、古い `info` が新しい
+/// リスナーへ配られる（`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
+/// 照合しないと、前の局面の読み筋が現在の盤面の解析結果として画面に出る。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisUpdate {
+    pub session_id: String,
+    pub result: AnalysisResult,
+}
+
+/// エンジンが自分で終わったことの通知。
+///
+/// `request` はそのプロセスを起動した要求の番号（`analyzer::Request`）。受け手は最後に撃った
+/// 番号と照合する。起動し直している最中に届く古いプロセスの終わりで、
+/// 新しい起動を「終わった」と読まないため
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineExited {
+    pub request: u64,
+}
+
+/// 解析の側からフロントへ流す出来事
+#[derive(Debug, Clone)]
+pub enum AnalysisEvent {
+    /// 途中経過
+    Update(AnalysisUpdate),
+    /// 頼んでいないのにエンジンが探索を終えた。`stop` の答えはここに来ない
+    Complete(AnalysisUpdate),
+    /// こちらが落としていないのにプロセスが終わった
+    EngineExited(EngineExited),
+}
+
+/// 解析の出来事の宛先。**実装は上の段（`commands::analysis`）に置く**——
+/// 下が `tauri` を知らない、を保つため（`GameEventSink` と同じ形）
+pub trait AnalysisEventSink: Send + Sync + 'static {
+    /// 1件流す。**失敗しても解析を止めない。** 扱いは実装側が決める
+    fn emit(&self, event: AnalysisEvent);
+}
+
+/// どこへも流さない宛先。`EngineBridge` の既定（`Option` にすると、宛先が無いことを
+/// 進行のコードが知ることになる）
+pub struct DiscardAnalysisEvents;
+
+impl AnalysisEventSink for DiscardAnalysisEvents {
+    fn emit(&self, _event: AnalysisEvent) {}
+}
+
+/// プロセスとの繋がりがどう終わったか
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EngineEnd {
+    /// こちらが落とした（`quit` か `kill_engine`）
+    Requested,
+    /// こちらが落としていないのに出力が終わった
+    Exited,
+    /// stdin を読まなくなった。**プロセスは残っている**
+    Stalled,
+}

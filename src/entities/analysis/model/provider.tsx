@@ -15,7 +15,6 @@ import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { createCandidateCache, type CandidateCache } from "../lib/candidateCache";
 import { AnalysisContext } from "./context";
 import {
-  ENGINE_ERROR_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   NOT_READY_REFUSALS,
   POSITION_SYNC_FAILED_MESSAGE,
@@ -78,6 +77,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
 
   const unlistenRef = useRef<UnlistenFn | null>(null);
+
+  /**
+   * 最後に届いた完了の結果。**開始の応答より先に完了が届いた回に、応答の側が読む**。
+   * ▶ の口ではその時点で `isAnalyzing` が立っていないので、完了を reducer が捨てる。
+   */
+  const finishedResultRef = useRef<AnalysisResult | null>(null);
 
   /** 結果の購読に失敗した。**張り直す口はマウント時の1回だけ**なので、以後 ▶ は断りを立て直して降りる */
   const listenersFailedRef = useRef(false);
@@ -293,19 +298,25 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         landed = "engine-gone";
       }
 
-      if (landed !== "held") {
+      if (landed !== "held" && landed !== "finished") {
         dropPendingForLostSeat();
         return landed;
       }
 
       dispatch({ type: "start_analysis", payload: { sfen: want } });
+      sentSfenRef.current = want;
+
+      if (landed === "finished") {
+        results.dropPending();
+        const finished = finishedResultRef.current;
+        if (finished) dispatch({ type: "finish_analysis", payload: finished });
+        return landed;
+      }
 
       // **開始の応答より早く届いた `info` を、ここで出し直す**（理由は
       // `ResultFlush.schedule` の doc）。
       results.schedule();
-
-      sentSfenRef.current = want;
-      return "held";
+      return landed;
     },
     [results, dropPendingForLostSeat, seat, supersededSince],
   );
@@ -348,28 +359,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             if (!seat.accepts(sessionId)) return;
             results.receive(result);
           },
-          // **この通知は現物では届かない。** `analysis-complete` を emit する行が
-          // Rust に無い（`docs/state-transitions/analysis.md` の E8 / ※6）。
-          // 口が入ったときの取り決めとして置いてある。
           onComplete: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
             // **自分の席のものだけ採る**（`onUpdate` と同じ門）。通さないと、古い席の
-            // 完了通知1本で走っている解析の表示が停止中に落ち、前の局面の評価値が出る。
+            // 完了通知1本で走っている検討が終わったことになる。
             if (!seat.accepts(sessionId)) return;
 
-            // 終わった探索の席は Rust が自分で片付ける（`bridge.rs` の
-            // `forward_results_to_ui`）。**握っている席と一致するときだけ手放す。**
-            // 一致しないまま手放すと、走っている別の席を知る者が居なくなる。
-            // 一致しない側に倒したときの損は、畳んだときに席を指さない停止が1本出るだけ。
+            // 終わった探索の席は Rust が消し終えている（`forward_results_to_ui`）。
             seat.closeFinished(sessionId);
 
-            results.flushNow(result);
-            dispatch({ type: "stop_analysis" });
-          },
-          // **この通知も届かない**（`engine-error` を emit する行が無い。`docs/state-transitions/analysis.md` の E9 / ※6）。
-          onError: (error: string) => {
-            // 上流の文をそのまま `state.error` に載せない（`swapSeatAndGo` の catch と同じ）。
-            console.error("[ANALYSIS] engine reported an error", error);
-            dispatch({ type: "set_error", payload: ENGINE_ERROR_MESSAGE });
+            finishedResultRef.current = result;
+            results.dropPending();
+            dispatch({ type: "finish_analysis", payload: result });
           },
         });
 
@@ -864,7 +864,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       failStart(refusal, new Error("engine was restarted while taking a seat"));
     }
-    if (landed !== "held") return;
+    if (landed !== "held" && landed !== "finished") return;
 
     desiredSfenRef.current = want;
   }, [

@@ -66,7 +66,7 @@
 候補手のキャッシュは `AnalysisProvider` が持つので
 （`entities/analysis/lib/candidateCache.ts`）、解析ビューが unmount されても残り、
 戻ってきたときに離れる前の候補手が出る。
-**残っているのは経過時間。** `AnalysisControls` の `startTimeRef` は
+**残っているのは経過時間。** `EngineStatusLabel` の `startedAtRef` は
 ビューごとの `useRef` なので、作り直されると `isAnalyzing` が立ったままでも
 `Date.now()` で引き直され、**走り続けている解析の経過が 0s に戻る。**
 不変条件2（表示の切替でデータを失わない）を破る。→ **#566**

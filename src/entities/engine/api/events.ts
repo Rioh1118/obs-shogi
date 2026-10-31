@@ -23,9 +23,9 @@ export async function listenToAnalysisUpdates(
 }
 
 /**
- * 探索の完了通知。**`sessionId` を照合すること**——一致しない完了通知を採ると、
- * 走っている別の席の表示が停止中に落ち、前の局面の評価値が残る。
- * `analysis-update` より結末が重い。
+ * エンジンが自分で探索を終えた通知。`stop` の答えはここに来ない。
+ * **`sessionId` を照合すること**——一致しない完了通知を採ると、走っている別の席が
+ * 終わったことになる。
  */
 export async function listenToAnalysisComplete(
   callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
@@ -39,12 +39,14 @@ export async function listenToAnalysisComplete(
 }
 
 /**
- * エンジンのエラー通知。**上流の英文をそのまま画面へ出さないこと**——
- * `state.error` は利用者に見せる欄で、Rust の内部メッセージはログにだけ残す。
+ * エンジンが自分で終わった通知。`request` はそのプロセスを起動した要求の番号で、
+ * **最後に撃った番号と照合すること**——起動し直している最中に古いプロセスの終わりが届く。
  */
-export async function listenToEngineErrors(callback: (error: string) => void): Promise<UnlistenFn> {
-  return await listen<string>(EVENT_NAMES.ENGINE_ERROR, (event) => {
-    callback(event.payload);
+export async function listenToEngineExited(
+  callback: (request: number) => void,
+): Promise<UnlistenFn> {
+  return await listen<{ request: number }>(EVENT_NAMES.ENGINE_EXITED, (event) => {
+    callback(event.payload.request);
   });
 }
 
@@ -52,11 +54,10 @@ export async function listenToEngineErrors(callback: (error: string) => void): P
 export interface AnalysisEventListeners {
   onUpdate?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
   onComplete?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
-  onError?: (error: string) => void;
 }
 
 /**
- * 3つの通知を購読する。**途中で落ちたら、そこまでに登録した分を解除してから投げ直す。**
+ * 解析の通知を購読する。**途中で落ちたら、そこまでに登録した分を解除してから投げ直す。**
  *
  * 解除する者が居ないまま登録が残ると、畳まれた画面のハンドラが呼ばれ続ける
  * ——受け取る側は畳まれた後にタイマーを張るので、`window` が消えた環境では
@@ -86,10 +87,6 @@ export async function setupAnalysisEventListeners(
 
     if (listeners.onComplete) {
       unlisteners.push(await listenToAnalysisComplete(listeners.onComplete));
-    }
-
-    if (listeners.onError) {
-      unlisteners.push(await listenToEngineErrors(listeners.onError));
     }
   } catch (e) {
     unlistenAll();

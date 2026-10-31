@@ -1,3 +1,4 @@
+import { isTauri } from "@tauri-apps/api/core";
 import { reducer, initialState } from "./reducer";
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type {
@@ -8,6 +9,7 @@ import type {
 } from "./types";
 import { equalRuntime } from "../lib/equalRuntime";
 import { engineInitializer } from "../api/initializer";
+import { listenToEngineExited } from "../api/events";
 import { asStartFailure } from "../lib/engineFailure";
 import { nextRequestNumber } from "../api/requestNumber";
 import { EngineContext } from "./context";
@@ -23,6 +25,12 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // 最後に撃った起動・停止の番号。番号は `nextRequestNumber`（webview を読み直しても下がらない）
   const seqRef = useRef(0);
   const lastTriedRef = useRef<EngineRuntimeConfig | null>(null);
+  /**
+   * 終わったと知らされた起動の番号。**起動の応答より先に通知が着く回のために持つ**
+   * （`readyok` の直後に終わったプロセス）。その回は `engine_exited` が `initializing` に
+   * 当たって捨てられるので、応答を書いた直後に読み直す。
+   */
+  const exitedRequestRef = useRef<number | null>(null);
 
   const isReady =
     state.phase === "ready" &&
@@ -39,8 +47,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // **必ず commit される**。`phase` を並べると `idle` の枝を書き落とし、
   // 「設定でエンジンを選んでください」——この型が避けるために在る文言——が出る。
   //
-  // **選んでいるかどうかで割る。** `desiredRuntime` が在る限り、**初期化が落ちている段を
-  // 除いて**どの段でも、利用者から見れば「起動を待っている」。
+  // **選んでいるかどうかで割る。** `desiredRuntime` が在る限り、**初期化が落ちている段と
+  // 起動した後でプロセスが終わった段を除いて**どの段でも、利用者から見れば「起動を待っている」。
   // `"no-engine"` の doc（「まだ選んでいない」）とも一致する。
   //
   // **選んでいるかを先に見る。** `error` を先に見ると、壊れたプリセットの選択を外した
@@ -49,7 +57,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // **もう選んでいないプリセット**のオプションを変えろ、という実行できない案内になる。
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
     ? "no-engine"
-    : state.phase === "error"
+    : state.phase === "error" || state.phase === "exited"
       ? "failed"
       : "starting";
 
@@ -91,6 +99,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
           warnings: outcome.warnings,
         },
       });
+      if (exitedRequestRef.current === mySeq) {
+        dispatch({ type: "engine_exited" });
+        return false;
+      }
 
       return true;
     } catch (e) {
@@ -134,17 +146,43 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     dispatch({ type: "clear_error" });
   }, []);
 
+  // **番号が最後に撃った起動のものだけ採る。** 起動し直しの窓には古いプロセスの終わりが届く。
+  // 読み手は `dispatch` と ref だけなので、購読はマウントの1回でよい
   useEffect(() => {
-    // 設定が無い → 起動中なら止める
+    if (!isTauri()) return;
+
+    let alive = true;
+    let unlisten: (() => void) | null = null;
+    listenToEngineExited((request) => {
+      if (request !== seqRef.current) return;
+      exitedRequestRef.current = request;
+      dispatch({ type: "engine_exited" });
+    })
+      .then((stop) => {
+        if (alive) unlisten = stop;
+        else stop();
+      })
+      .catch((e: unknown) => {
+        console.error("[engine] 終了の通知を購読できなかった", e);
+      });
+
+    return () => {
+      alive = false;
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    // 設定が無い → 止める
     if (!desiredRuntime) {
-      if (state.phase === "ready" || state.phase === "initializing" || state.phase === "error") {
+      if (state.phase !== "idle") {
         shutdown().catch(() => {});
       }
       return;
     }
 
-    // error でも「別設定なら」再トライする（同一設定なら止める）
-    if (state.phase === "error") {
+    // 失敗と終了は「別設定なら」起動し直す。同じ設定のまま自動では起動しない
+    if (state.phase === "error" || state.phase === "exited") {
       const last = lastTriedRef.current;
       const sameRuntime = last ? equalRuntime(desiredRuntime, last) : false;
       if (!sameRuntime) initialize().catch(() => {});

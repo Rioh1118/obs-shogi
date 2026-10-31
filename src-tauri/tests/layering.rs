@@ -169,7 +169,7 @@ const LAYERS: &[Layer] = &[
         name: "bridge",
         decides: "解析のファサード",
         may_use: &["types", "utils", "registry", "analyzer", "start_failure"],
-        forbids: &[],
+        forbids: &["tauri"],
     },
     Layer {
         name: "probe",

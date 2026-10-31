@@ -383,3 +383,23 @@ describe("起動に時間が掛かっていることを届ける", () => {
     expect(dismissByKey).toHaveBeenCalledWith(key);
   });
 });
+
+describe("エンジンが終了したことを届ける橋", () => {
+  test("文と再起動の口を出し、段を抜けたら引っ込める", async () => {
+    const next = await mountWith("exited");
+
+    expect(shown().title).toBe("エンジンが終了しました");
+    await action("再起動する").run();
+    expect(initialize).toHaveBeenCalledTimes(1);
+
+    await next("initializing");
+    expect(dismissByKey).toHaveBeenCalledWith("engine-exited");
+  });
+
+  test("起動の失敗の文は出さない", async () => {
+    await mountWith("exited");
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(shown().title).not.toBe("エンジンを起動できませんでした");
+  });
+});

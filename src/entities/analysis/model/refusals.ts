@@ -66,8 +66,6 @@ export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません
 /** エンジンをまだ選んでいない。 */
 export const NO_ENGINE_SELECTED_MESSAGE =
   "エンジンが起動していません。設定でエンジンを選んでください。";
-/** Rust がエラー通知を送ってきた（→ E9。いま `emit` する口は無い）。 */
-export const ENGINE_ERROR_MESSAGE = `エンジンがエラーを返しました。${RESTART_ENGINE_HINT}`;
 /** 盤を動かした後の自動再開が落ちた。**▶ で始め直せる**ことがある。 */
 export const RESTART_FAILED_MESSAGE = `解析を再開できませんでした。▶ を押しても始まらないときは、${RESTART_ENGINE_HINT}`;
 

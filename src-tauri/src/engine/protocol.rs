@@ -85,7 +85,7 @@ pub struct UsiProtocol {
     /// 取り合って片方の定義が空になる
     info_gate: Arc<Mutex<()>>,
 
-    /// こちらが落としたか。
+    /// こちらが落としたか。**`quit` を送った時点で立つ。**
     ///
     /// `kill_engine` も `Closed` を立てるので、印が無いと
     /// **こちらが落としたのに「エンジンの出力が終わった」と説明する**。
@@ -94,6 +94,35 @@ pub struct UsiProtocol {
     runtime_handle: tokio::runtime::Handle,
     init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     init_cancel: Arc<Mutex<Option<CancellationToken>>>,
+}
+
+/// プロセスの終わりを待つ取っ手。**子プロセスを持たない**ので、
+/// 待っている間もプロセスの寿命を延ばさない（`UsiProtocol` の doc）
+pub struct EngineEndWatch {
+    ready: watch::Receiver<ReadyState>,
+    killed: Arc<std::sync::atomic::AtomicBool>,
+    stalled: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl EngineEndWatch {
+    /// `Closed` が立つまで待ち、理由を返す。**既に立っていればすぐ返る**（`watch` は今の値から見る）
+    pub async fn wait(mut self) -> EngineEnd {
+        use std::sync::atomic::Ordering::Relaxed;
+
+        let closed = self
+            .ready
+            .wait_for(|state| *state == ReadyState::Closed)
+            .await
+            .is_ok();
+        // `Err` は送り手が消えた後で、`UsiProtocol` ごと捨てられたとき。こちらが手放している
+        if !closed || self.killed.load(Relaxed) {
+            return EngineEnd::Requested;
+        }
+        if self.stalled.load(Relaxed) {
+            return EngineEnd::Stalled;
+        }
+        EngineEnd::Exited
+    }
 }
 
 /// エンジンとの繋がりのうち、**子プロセスを持たない側**。書き込みの列と、送れるかを決める状態。
@@ -1332,12 +1361,26 @@ impl UsiProtocol {
         gen
     }
 
+    /// このプロセスの終わりを見る取っ手
+    pub fn end_watch(&self) -> EngineEndWatch {
+        EngineEndWatch {
+            ready: self.link.ready.subscribe(),
+            killed: Arc::clone(&self.killed),
+            stalled: Arc::clone(&self.link.stalled),
+        }
+    }
+
     /// `quit` を送る。**送れたとは限らない。**
     ///
     /// 戻り値を持たないのは、これが礼儀であって保証ではないため。
     /// 落とすことの保証は `kill_engine` の側にある。
+    ///
+    /// **送る前に `killed` を立てる。** `quit` に答えて終わるエンジンは `kill_engine` より先に
+    /// 出力を閉じるので、立てないと「自分で終わった」に見える（`EngineEndWatch`）
     pub async fn quit(&self) {
         log::debug!(target: LOGT, "quit: sending");
+        self.killed
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let _ = self.send_command(&GuiCommand::Quit).await;
     }
 

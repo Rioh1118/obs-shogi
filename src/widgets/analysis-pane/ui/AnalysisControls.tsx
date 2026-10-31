@@ -1,18 +1,20 @@
-import { useEffect, useState, useRef } from "react";
-import { Settings, Play, Square, Navigation, Search, RotateCw, Bookmark } from "lucide-react";
+import { Settings, Navigation, Search, RotateCw, Bookmark } from "lucide-react";
 import "./AnalysisControls.scss";
+import { EngineAction } from "./EngineAction";
+import { EngineStatusLabel } from "./EngineStatusLabel";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
-import { useAnalysis } from "@/entities/analysis";
+import { engineStatusOf, useAnalysis } from "@/entities/analysis";
+import { useEngine } from "@/entities/engine";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 
 /**
- * 解析ビューの操作列。**ドックのタブ列の下の段に出る。**
+ * 検討ビューの操作列。**ドックのタブ列の下の段に出る。**
  *
- * 左が状態（`解析中` / `停止中` と経過秒）、右が操作。並びは
- * 盤と解析（向き・開始／停止）→ 局面の道具（ナビ・検索・課題局面）→ 設定。
+ * 左が状態（語と経過秒）、右が操作。並びは
+ * 盤と検討（向き・開始／中断）→ 局面の道具（ナビ・検索・課題局面）→ 設定。
  *
  * **候補手の見せ方はここに置かない。** 局面ごとに変える値ではなく好みなので、
  * 置き場は設定「表示」（ADR-0010 決定4 の改訂）。
@@ -22,72 +24,17 @@ import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
  */
 function AnalysisControls() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
+  const { state: engineState, initialize } = useEngine();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
+  const status = engineStatusOf({ phase: engineState.phase, analysis: state, currentSfen });
   const { openModal } = useURLParams();
   const openSettings = useOpenSettings();
   const { findBySfen } = useStudyPositions();
   const isBookmarked = !!findBySfen(currentSfen);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-  const lastSfenRef = useRef<string | null>(null);
   const { isGotePov, toggle: handleTogglePov } = useBoardOrientation();
 
-  // タイマー管理
-  useEffect(() => {
-    if (state.isAnalyzing) {
-      if (!startTimeRef.current) {
-        startTimeRef.current = Date.now();
-        setElapsedTime(0);
-      }
-
-      intervalRef.current = setInterval(() => {
-        if (startTimeRef.current) {
-          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-          setElapsedTime(elapsed);
-        }
-      }, 1000);
-    } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      startTimeRef.current = null;
-    }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [state.isAnalyzing]);
-
-  const formatElapsed = (seconds: number): string => {
-    if (seconds < 60) {
-      return `${seconds}s`;
-    } else {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes}m ${remainingSeconds}s`;
-    }
-  };
-
-  // 盤面変更時の処理
-  useEffect(() => {
-    if (currentSfen !== lastSfenRef.current) {
-      lastSfenRef.current = currentSfen;
-
-      if (state.isAnalyzing) {
-        startTimeRef.current = Date.now();
-        setElapsedTime(0);
-      } else {
-        setElapsedTime(0);
-      }
-    }
-  }, [currentSfen, state.isAnalyzing]);
-
-  // 解析開始/停止ハンドラー
+  // 検討の開始／中断
   const handleToggleAnalysis = async () => {
     try {
       if (state.isAnalyzing) {
@@ -108,22 +55,14 @@ function AnalysisControls() {
 
   return (
     <div className="analysis-controls">
-      <div className="analysis-controls__status">
-        <span
-          className={`analysis-controls__dot ${state.isAnalyzing ? "analysis-controls__dot--analyzing" : "analysis-controls__dot--idle"}`}
-        ></span>
-        <span className="analysis-controls__status-text">
-          {state.isAnalyzing ? "解析中" : "停止中"}
-        </span>
-        <span className="analysis-controls__timer">{formatElapsed(elapsedTime)}</span>
-      </div>
+      <EngineStatusLabel status={status} currentSfen={currentSfen} />
 
       <div className="analysis-controls__actions">
         {/*
           `role="toolbar"` を名乗らない。名乗ると矢印キーでの移動が期待されるが、
           この帯はそれを持たない。`group` なら並びの名前だけを伝える
         */}
-        <div className="analysis-controls__group" role="group" aria-label="盤と解析">
+        <div className="analysis-controls__group" role="group" aria-label="盤と検討">
           <button
             className="analysis-controls__iconBtn"
             onClick={handleTogglePov}
@@ -132,18 +71,13 @@ function AnalysisControls() {
           >
             <RotateCw className="analysis-controls__icon" />
           </button>
-          <button
-            className="analysis-controls__iconBtn"
-            onClick={handleToggleAnalysis}
-            disabled={!state.isAnalyzing && !currentSfen}
-            title={state.isAnalyzing ? "解析停止" : "解析開始"}
-          >
-            {state.isAnalyzing ? (
-              <Square className="analysis-controls__icon" />
-            ) : (
-              <Play className="analysis-controls__icon" />
-            )}
-          </button>
+          <EngineAction
+            status={status}
+            isAnalyzing={state.isAnalyzing}
+            canStart={!!currentSfen}
+            onToggle={handleToggleAnalysis}
+            onRestart={() => void initialize()}
+          />
         </div>
 
         <div className="analysis-controls__group" role="group" aria-label="局面の道具">

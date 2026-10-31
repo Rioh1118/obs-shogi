@@ -1,15 +1,14 @@
-use crate::engine::utils::{apply_info_params, get_depth_of_rank, LogThrottle};
+use crate::engine::utils::{apply_info_params, get_depth_of_rank};
 
 use serde::Serialize;
 
 use super::binding::{self, BindingInput, EvalTarget};
 use super::protocol::USI_OK_TIMEOUT;
-use super::protocol::{contains_usi_breaking_char, StopEffect, UsiProtocol};
+use super::protocol::{contains_usi_breaking_char, EngineEndWatch, StopEffect, UsiProtocol};
 use super::registry::SPAWN_TIMEOUT;
 use super::registry::{EngineId, EngineProcess, EngineRegistry};
 use super::setup;
 use super::types::*;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -78,6 +77,20 @@ pub struct DepthOutcome {
     pub deepest: Option<u32>,
     /// `requested` に届いたか
     pub reached: bool,
+}
+
+/// 無限解析のストリームが流すもの。
+///
+/// **結果と終わり方を1本の列で運ぶ。** 終わり方を別の口で知らせると、最後の結果との
+/// 順序を2本で揃えることになる。列が `Finished` を流さずに閉じたら、止められたか
+/// プロセスが終わったか（どちらも別の口が知っている）
+#[derive(Debug)]
+pub enum AnalysisStreamItem {
+    /// 途中経過
+    Update(AnalysisResult),
+    /// `bestmove` が来た。**`stop` の答えか、エンジンが自分で終えたかは席で分かれる**
+    /// （`stop` は席を消してから送る。`bridge::forward_results_to_ui`）
+    Finished(AnalysisResult),
 }
 
 /// `stop` を撃った後、`bestmove` を待ってよいか。
@@ -180,7 +193,6 @@ pub struct EngineAnalyzer {
     registry: Arc<EngineRegistry>,
     engine_id: Arc<RwLock<Option<EngineId>>>,
     state: Arc<RwLock<AnalyzerState>>,
-    infinite_stop_requested: Arc<Mutex<Option<Arc<AtomicBool>>>>,
     /// 無限解析のストリームを外から畳むための名前。
     ///
     /// **`Some` は「走っている」を意味しない。** ストリームが自分で終わったときも
@@ -237,26 +249,12 @@ struct AnalyzerState {
     analysis_count: u64,
 }
 
-/// ストリームの畳み方。
-///
-/// `Finite` は**まだ誰も構築しない**。有限の解析（時間／深度）は
-/// `collect_until_bestmove` が自前で待つので、このストリームを通らない。
-/// 落とさずに残してあるのは、`process_analysis_stream` の分岐が
-/// 「無限だからこう畳む」を明示するため——腕が1つだと、その条件が
-/// 無限解析に固有であることがコードから読めない。
-enum StreamMode {
-    Infinite(Arc<AtomicBool>),
-    #[allow(dead_code)]
-    Finite,
-}
-
 impl EngineAnalyzer {
     pub fn new(registry: Arc<EngineRegistry>) -> Self {
         Self {
             registry,
             engine_id: Arc::new(RwLock::new(None)),
             state: Arc::new(RwLock::new(AnalyzerState::default())),
-            infinite_stop_requested: Arc::new(Mutex::new(None)),
             infinite_listener: Arc::new(Mutex::new(None)),
             infinite_settled: Arc::new(Mutex::new(None)),
             startup: Arc::new(Mutex::new(Startup::default())),
@@ -543,14 +541,16 @@ impl EngineAnalyzer {
         Ok(())
     }
 
+    /// 解析用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
+    pub async fn end_watch(&self) -> Option<EngineEndWatch> {
+        Some(self.protocol().await.ok()?.end_watch())
+    }
+
     /// 無限解析開始
     pub async fn start_infinite_analysis(
         &self,
-    ) -> Result<mpsc::UnboundedReceiver<AnalysisResult>, EngineError> {
+    ) -> Result<mpsc::UnboundedReceiver<AnalysisStreamItem>, EngineError> {
         log::debug!(target: LOGT, "analysis.infinite.start: requested");
-
-        let stop_flag = Arc::new(AtomicBool::new(false));
-        *self.infinite_stop_requested.lock().await = Some(stop_flag.clone());
 
         let protocol = self.protocol().await?;
 
@@ -628,13 +628,7 @@ impl EngineAnalyzer {
                 "analysis.infinite.stream: start listener_id={}",
                 listener_id_for_task
             );
-            Self::process_analysis_stream(
-                raw_rx,
-                result_tx,
-                state_clone,
-                StreamMode::Infinite(stop_flag),
-            )
-            .await;
+            Self::process_analysis_stream(raw_rx, result_tx, state_clone).await;
 
             protocol_for_task
                 .remove_listener(&listener_id_for_task)
@@ -770,10 +764,6 @@ impl EngineAnalyzer {
             Err(e) => return Err(e),
         };
 
-        if let Some(flag) = self.infinite_stop_requested.lock().await.as_ref() {
-            flag.store(true, Ordering::SeqCst);
-        }
-
         // **`stop` の結果を待たずに外す。** `?` を先に置くと、
         // `Refuse` と書き込みの詰まりの経路でリスナーが残る。
         // `fail_writes` が `Closed` を立てるので、`Refuse` は例外的な経路ではない。
@@ -860,16 +850,13 @@ impl EngineAnalyzer {
     /// 分析ストリーム処理（無限解析用）
     async fn process_analysis_stream(
         mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
-        result_tx: mpsc::UnboundedSender<AnalysisResult>,
+        result_tx: mpsc::UnboundedSender<AnalysisStreamItem>,
         state: Arc<RwLock<AnalyzerState>>,
-        mode: StreamMode,
     ) {
         log::debug!(target: LOGT, "stream: start");
 
         let mut current_result = AnalysisResult::default();
         let mut processed: u64 = 0;
-
-        let mut stale_bestmove_warn = LogThrottle::new(Duration::from_secs(5));
 
         while let Some(cmd) = raw_rx.recv().await {
             processed += 1;
@@ -878,7 +865,10 @@ impl EngineAnalyzer {
                 EngineCommand::Info(info_params) => {
                     apply_info_params(&info_params, &mut current_result);
                     // 更新された結果を送信
-                    if result_tx.send(current_result.clone()).is_err() {
+                    if result_tx
+                        .send(AnalysisStreamItem::Update(current_result.clone()))
+                        .is_err()
+                    {
                         log::debug!(target: LOGT, "stream: result channel closed");
                         break;
                     }
@@ -887,30 +877,12 @@ impl EngineAnalyzer {
                     Self::process_checkmate(&checkmate_params, &mut current_result);
 
                     log::info!(target: LOGT, "stream: checkmate received");
-                    let _ = result_tx.send(current_result.clone());
+                    let _ = result_tx.send(AnalysisStreamItem::Update(current_result.clone()));
                 }
 
                 EngineCommand::BestMove(_) => {
-                    match &mode {
-                        StreamMode::Finite => {
-                            let _ = result_tx.send(current_result.clone());
-                            break;
-                        }
-                        StreamMode::Infinite(stop_flag) => {
-                            // stop してないのに bestmove が来たらstaleの可能性
-                            if !stop_flag.load(Ordering::SeqCst) {
-                                if stale_bestmove_warn.allow() {
-                                    log::warn!(
-                                        target: LOGT,
-                                        "stream: bestmove received without stop request; ignoring (stale?)"
-                                    );
-                                }
-                                continue;
-                            }
-                            let _ = result_tx.send(current_result.clone());
-                            break;
-                        }
-                    }
+                    let _ = result_tx.send(AnalysisStreamItem::Finished(current_result.clone()));
+                    break;
                 }
                 _ => {}
             }
@@ -997,7 +969,7 @@ impl EngineAnalyzer {
     /// 集めている途中で探索を止める。
     ///
     /// **`stop_analysis` を通さない。** あちらは無限解析の後始末
-    /// （`infinite_stop_requested` を立てる・`infinite_listener` を外す）も持つ。
+    /// （`infinite_listener` を外す）も持つ。
     /// 収集ループが呼ぶと、**別に走っている無限解析のストリームを畳む**。
     /// フロントには `analysis-update` が止まるだけで、エラーも完了も飛ばない。
     ///
@@ -1035,7 +1007,6 @@ impl Clone for EngineAnalyzer {
             registry: Arc::clone(&self.registry),
             engine_id: Arc::clone(&self.engine_id),
             state: Arc::clone(&self.state),
-            infinite_stop_requested: Arc::clone(&self.infinite_stop_requested),
             infinite_listener: Arc::clone(&self.infinite_listener),
             infinite_settled: Arc::clone(&self.infinite_settled),
             startup: Arc::clone(&self.startup),

@@ -1,16 +1,15 @@
-use crate::engine::utils::{shown, LogThrottle, EMIT_WARN_INTERVAL, MAX_SUMMARY_LEN};
+use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
 
-use super::analyzer::{DepthOutcome, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME};
+use super::analyzer::{
+    AnalysisStreamItem, DepthOutcome, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME,
+};
 use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
-
-use tauri::Emitter;
 
 const LOGT: &str = "obs_shogi::engine::bridge";
 
@@ -18,7 +17,7 @@ const LOGT: &str = "obs_shogi::engine::bridge";
 pub struct EngineBridge {
     analyzer: EngineAnalyzer,
     active_sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
-    app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
+    events: Arc<RwLock<Arc<dyn AnalysisEventSink>>>,
 }
 
 /// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
@@ -34,19 +33,6 @@ pub struct EngineBridge {
 #[derive(Debug)]
 struct AnalysisSession {
     last_result: Option<AnalysisResult>,
-}
-
-/// `analysis-update` の payload。
-///
-/// **`session_id` を載せるのは、受け手が自分のものか照合するため。**
-/// 前の探索が畳まりきる前に次の `go` が出ると、古い `info` が新しい
-/// リスナーへ配られる（`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
-/// 照合しないと、前の局面の読み筋が現在の盤面の解析結果として画面に出る。
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AnalysisUpdate {
-    session_id: String,
-    result: AnalysisResult,
 }
 
 /// 走っている解析の種類。**`session_id` の接頭辞になる。**
@@ -102,13 +88,13 @@ impl EngineBridge {
         Self {
             analyzer: EngineAnalyzer::new(registry),
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
-            app_handle: Arc::new(RwLock::new(None)),
+            events: Arc::new(RwLock::new(Arc::new(DiscardAnalysisEvents))),
         }
     }
 
-    // AppHandleを設定するメソッド
-    pub async fn set_app_handle(&self, handle: tauri::AppHandle) {
-        *self.app_handle.write().await = Some(handle);
+    /// 出来事の宛先を差し替える。アプリの起動時に1回（`lib.rs`）
+    pub async fn set_events(&self, events: Arc<dyn AnalysisEventSink>) {
+        *self.events.write().await = events;
     }
 
     /// 解析の席（`active_sessions`）を全部空ける。エンジンを起こし直す前に、起動を試みる前に通す。
@@ -177,6 +163,7 @@ impl EngineBridge {
                     "start_analysis_engine: ok ({} warning(s))",
                     outcome.warnings.len()
                 );
+                self.watch_engine_end(request).await;
                 Ok(outcome)
             }
             Err(e) => {
@@ -194,6 +181,38 @@ impl EngineBridge {
                 Err(failure)
             }
         }
+    }
+
+    /// 起動を終えたプロセスの終わりを見張り、自分で終わったらフロントへ知らせる。
+    ///
+    /// **`readyok` の直後に終わったプロセスも取りこぼさない。** 見張りは今の状態から見るので、
+    /// ここへ来る前に閉じていればその場で知らせる。そのとき通知は起動の応答より先に着くので、
+    /// 受け手が順序を吸収する（`entities/engine` の provider）。
+    ///
+    /// 起動の直後に次の起動が割り込むと、新しいプロセスを古い番号で見張ることがある。
+    /// 古い番号の通知はフロントが捨てるので、取り違えにはならない
+    async fn watch_engine_end(&self, request: Request) {
+        let Some(watch) = self.analyzer.end_watch().await else {
+            return;
+        };
+        let events = Arc::clone(&self.events);
+        tokio::spawn(async move {
+            match watch.wait().await {
+                EngineEnd::Exited => {
+                    log::warn!(target: LOGT, "engine exited on its own request={request}");
+                    Self::emit_to(
+                        &events,
+                        AnalysisEvent::EngineExited(EngineExited { request }),
+                    )
+                    .await;
+                }
+                // TODO(#252): 書けないエンジンはプロセスが残っている。`応答なし` へ繋ぐ
+                EngineEnd::Stalled => {
+                    log::warn!(target: LOGT, "engine stopped reading stdin request={request}");
+                }
+                EngineEnd::Requested => {}
+            }
+        });
     }
 
     /// 解析のセッションを1本登録し、その `session_id` を返す。
@@ -307,88 +326,65 @@ impl EngineBridge {
     async fn start_result_forwarding(
         &self,
         session_id: &str,
-        receiver: mpsc::UnboundedReceiver<AnalysisResult>,
+        receiver: mpsc::UnboundedReceiver<AnalysisStreamItem>,
     ) {
         let sessions_clone = Arc::clone(&self.active_sessions);
-        let app_handle_clone = Arc::clone(&self.app_handle);
+        let events_clone = Arc::clone(&self.events);
         let session_id_clone = session_id.to_string();
 
         tokio::spawn(async move {
-            Self::forward_results_to_ui(
-                app_handle_clone,
-                sessions_clone,
-                session_id_clone,
-                receiver,
-            )
-            .await;
+            Self::forward_results_to_ui(events_clone, sessions_clone, session_id_clone, receiver)
+                .await;
         });
     }
 
-    /// UI向け結果転送処理
+    /// 解析の結果をフロントへ流す。
+    ///
+    /// **席が消えたら流さない。** 消えた席の結果は誰の席でもない。受け取りは続ける——
+    /// `receiver` を落としても `process_analysis_stream` が配り先を失うだけで、得るものが無い
     async fn forward_results_to_ui(
-        app_handle: Arc<RwLock<Option<tauri::AppHandle>>>,
+        events: Arc<RwLock<Arc<dyn AnalysisEventSink>>>,
         sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
         session_id: String,
-        mut receiver: mpsc::UnboundedReceiver<AnalysisResult>,
+        mut receiver: mpsc::UnboundedReceiver<AnalysisStreamItem>,
     ) {
-        // session が消えたら emit/保存をやめるためのフラグ
-        let mut session_exists = true;
-
-        // emit の失敗は洪水になるので絞る。間隔は対局側と1つ（`EMIT_WARN_INTERVAL`）
-        let mut emit_warn = LogThrottle::new(EMIT_WARN_INTERVAL);
-        // session消失も1回だけdebug
-        let mut session_missing_logged = false;
-
-        while let Some(result) = receiver.recv().await {
-            // session がまだあるなら last_result を保存 & active なら emit
-            let mut emit = false;
-
-            if session_exists {
-                let mut sessions_guard = sessions.write().await;
-                if let Some(session) = sessions_guard.get_mut(&session_id) {
-                    session.last_result = Some(result.clone());
-                    emit = true;
-                } else {
-                    session_exists = false;
-                    if !session_missing_logged {
-                        log::debug!(
-                            target: LOGT,
-                            "forward_results: session disappeared; draining only session_id={}",
-                            session_id
-                        );
-                        session_missing_logged = true;
+        while let Some(item) = receiver.recv().await {
+            match item {
+                AnalysisStreamItem::Update(result) => {
+                    {
+                        let mut sessions = sessions.write().await;
+                        let Some(session) = sessions.get_mut(&session_id) else {
+                            continue;
+                        };
+                        session.last_result = Some(result.clone());
                     }
-                }
-            }
-
-            // emit は session が存在して active の時だけ
-            if emit {
-                if let Some(handle) = app_handle.read().await.clone() {
-                    let payload = AnalysisUpdate {
+                    let update = AnalysisUpdate {
                         session_id: session_id.clone(),
                         result,
                     };
-                    if let Err(e) = handle.emit("analysis-update", payload) {
-                        if emit_warn.allow() {
-                            log::warn!(
-                                target: LOGT,
-                                "forward_results: emit failed session_id={} err={}",
-                                session_id,
-                                e
-                            );
-                        }
+                    Self::emit_to(&events, AnalysisEvent::Update(update)).await;
+                }
+                // **席を消してから知らせる。** 知らせてから消すと、受け取ったフロントの次の
+                // 開始が `take_session` に断られる窓ができる。
+                //
+                // 席が無いなら `stop` の答え（止める口は席を消してから `stop` を送る）
+                AnalysisStreamItem::Finished(result) => {
+                    if sessions.write().await.remove(&session_id).is_some() {
+                        let update = AnalysisUpdate {
+                            session_id: session_id.clone(),
+                            result,
+                        };
+                        Self::emit_to(&events, AnalysisEvent::Complete(update)).await;
                     }
                 }
             }
-            // session が消えた後は、receiver を drop せずに drain 継続する
         }
 
         // **席ごと消す。** 残すと `AnalysisSession.last_result` が候補手と PV を
         // 丸ごと持ったまま溜まる（上限は無い）。居ること自体が「走っている」なので、
         // 終わった席を残すと `take_session` が以後ずっと断ることにもなる。
         //
-        // ここを通っても**フロントには何も飛ばない**。`sessionId` を握ったままの
-        // 画面から「停止」が来るので、`stop_session` はそれを失敗にしない。
+        // プロセスが終わった回もここを通る。フロントへの知らせは `watch_engine_end` が持つ。
         // 最後の結果は `EngineAnalyzer::get_last_result` が1本だけ持つ
         sessions.write().await.remove(&session_id);
         log::debug!(
@@ -396,6 +392,12 @@ impl EngineBridge {
             "forward_results: ended session_id={}",
             session_id
         );
+    }
+
+    /// 今の宛先へ1件流す。**宛先のロックを握ったまま流さない**
+    async fn emit_to(events: &RwLock<Arc<dyn AnalysisEventSink>>, event: AnalysisEvent) {
+        let sink = Arc::clone(&*events.read().await);
+        sink.emit(event);
     }
 
     /// 時間指定の解析。
@@ -526,7 +528,7 @@ impl EngineBridge {
         // **いま走っている別の解析が止まって `Ok` が返る**。
         //
         // **「もう無い」は失敗にしない。** エンジンが落ちると
-        // `forward_results_to_ui` が席を消すが、フロントへは何も飛ばないので
+        // `forward_results_to_ui` が席を消す。その知らせと「停止」は行き違うので、
         // `sessionId` を握ったまま「停止」が来る。ここで `Err` にすると
         // 呼び出し側の再開が `catch` に落ち、**解析が始まり直さない**。
         // 要求は「止まっていること」で、席が無いならその要求は満たせている
@@ -759,8 +761,8 @@ mod tests {
 
     /// セッションがもう無いときの「停止」を失敗にしないこと。
     ///
-    /// エンジンが落ちると `forward_results_to_ui` が席を消すが、フロントへは
-    /// 何も飛ばないので `sessionId` を握ったまま「停止」が来る。ここで `Err` に
+    /// エンジンが落ちると `forward_results_to_ui` が席を消す。その知らせと「停止」は
+    /// 行き違うので、`sessionId` を握ったまま「停止」が来る。ここで `Err` に
     /// すると、呼び出し側の再開が `catch` に落ちて**解析が始まり直さない**。
     /// 利用者から見ると「解析中」の表示が無言で「停止中」に変わる。
     ///
@@ -843,5 +845,253 @@ mod tests {
             "知らない ID で走っているセッションが消えてしまった"
         );
         bridge.release_session(&mine).await;
+    }
+
+    /// 探索とプロセスの終わりが、フロントへ届くこと。
+    ///
+    /// **見ているのは台本（実プロセス）を通した宛先の記録。** `stop` を送った回と
+    /// 送っていない回で知らせが分かれることが要で、席の一覧だけを見ても区別できない。
+    #[cfg(unix)]
+    mod endings {
+        use super::*;
+        use crate::engine::registry::script::place_script;
+        use std::sync::Mutex;
+
+        #[derive(Default)]
+        struct Recorded(Mutex<Vec<AnalysisEvent>>);
+
+        impl AnalysisEventSink for Recorded {
+            fn emit(&self, event: AnalysisEvent) {
+                self.0.lock().expect("記録").push(event);
+            }
+        }
+
+        impl Recorded {
+            fn completes(&self) -> usize {
+                let events = self.0.lock().expect("記録");
+                events
+                    .iter()
+                    .filter(|e| matches!(e, AnalysisEvent::Complete(_)))
+                    .count()
+            }
+
+            fn exits(&self) -> Vec<EngineExited> {
+                let events = self.0.lock().expect("記録");
+                events
+                    .iter()
+                    .filter_map(|e| match e {
+                        AnalysisEvent::EngineExited(exited) => Some(exited.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            }
+
+            fn updates(&self) -> usize {
+                let events = self.0.lock().expect("記録");
+                events
+                    .iter()
+                    .filter(|e| matches!(e, AnalysisEvent::Update(_)))
+                    .count()
+            }
+        }
+
+        /// `go` の答えだけを差し替える台本。`stop` には `bestmove` で、`quit` には終了で答える
+        fn script(on_go: &str, on_position: &str) -> String {
+            format!(
+                r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Script\nusiok\n' ;;
+    isready) echo readyok ;;
+    position*) {on_position} ;;
+    go*) echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'; {on_go} ;;
+    stop) echo 'bestmove 7g7f' ;;
+    quit) exit 0 ;;
+  esac
+done"#
+            )
+        }
+
+        async fn started(
+            name: &str,
+            on_go: &str,
+            on_position: &str,
+            request: Request,
+        ) -> (EngineBridge, Arc<Recorded>, std::path::PathBuf) {
+            let dir = test_support::dir::temp_dir(name);
+            let path = place_script(&dir, "engine.sh", &script(on_go, on_position)).await;
+            let bridge = bridge();
+            let recorded = Arc::new(Recorded::default());
+            bridge.set_events(Arc::clone(&recorded) as _).await;
+            bridge
+                .start_analysis_engine_impl(
+                    path.to_str().expect("パス").to_string(),
+                    StartInput::default(),
+                    request,
+                )
+                .await
+                .expect("起動できる");
+            (bridge, recorded, dir)
+        }
+
+        async fn wait_until(what: &str, condition: impl Fn() -> bool) {
+            for _ in 0..500 {
+                if condition() {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            panic!("上限内に起きない: {what}");
+        }
+
+        /// 少し待っても起きないことを見るときの幅。起きるなら `wait_until` の1周で着く長さ
+        const QUIET: Duration = Duration::from_millis(300);
+
+        /// (V3, E9): 頼んでいない `bestmove` は完了で、席が空く。
+        ///
+        /// **席が空かないと、次の局面の開始が `take_session` に断られる。**
+        #[tokio::test]
+        async fn a_search_the_engine_ended_itself_is_reported_and_frees_the_seat() {
+            let (bridge, recorded, dir) =
+                started("bridge-self-finish", "echo 'bestmove 7g7f'", ":", 1).await;
+
+            let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
+            wait_until("完了の知らせ", || recorded.completes() == 1).await;
+
+            let events = recorded.0.lock().expect("記録").clone();
+            let complete = events.iter().find_map(|e| match e {
+                AnalysisEvent::Complete(update) => Some(update.clone()),
+                _ => None,
+            });
+            let complete = complete.expect("完了が記録されている");
+            assert_eq!(complete.session_id, id, "どの席の完了かが読めない");
+            assert_eq!(
+                complete.result.candidates.len(),
+                1,
+                "最後の結果が載っていない"
+            );
+            assert!(
+                bridge.take_session(SessionType::Infinite).await.is_ok(),
+                "完了したのに席が残っている"
+            );
+
+            bridge.shutdown_engine_impl(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 席を見る宛先。**知らせが出た時点で席が空いていること**を見る
+        struct SeatAtComplete {
+            sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
+            empty: Mutex<Option<bool>>,
+        }
+
+        impl AnalysisEventSink for SeatAtComplete {
+            fn emit(&self, event: AnalysisEvent) {
+                if matches!(event, AnalysisEvent::Complete(_)) {
+                    let sessions = self
+                        .sessions
+                        .try_read()
+                        .expect("席のロックを握ったまま流した");
+                    *self.empty.lock().expect("記録") = Some(sessions.is_empty());
+                }
+            }
+        }
+
+        /// 完了を受けたフロントは次の開始を撃つ。**席が先に空いていないと、それが断られる**
+        #[tokio::test]
+        async fn the_seat_is_free_by_the_time_the_completion_is_told() {
+            let (bridge, _, dir) =
+                started("bridge-complete-order", "echo 'bestmove 7g7f'", ":", 1).await;
+            let sink = Arc::new(SeatAtComplete {
+                sessions: Arc::clone(&bridge.active_sessions),
+                empty: Mutex::new(None),
+            });
+            bridge.set_events(Arc::clone(&sink) as _).await;
+
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+            wait_until("完了の知らせ", || {
+                sink.empty.lock().expect("記録").is_some()
+            })
+            .await;
+
+            assert_eq!(*sink.empty.lock().expect("記録"), Some(true));
+            bridge.shutdown_engine_impl(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (V4, E10): `stop` の答えは完了ではない。**完了にすると ■ の後に `検討完了` が出る**
+        #[tokio::test]
+        async fn the_answer_to_a_stop_is_not_a_completion() {
+            let (bridge, recorded, dir) = started("bridge-stop-answer", ":", ":", 1).await;
+
+            let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
+            wait_until("途中経過", || recorded.updates() >= 1).await;
+            bridge
+                .stop_analysis_impl(Some(id), None)
+                .await
+                .expect("止まる");
+
+            tokio::time::sleep(QUIET).await;
+            assert_eq!(recorded.completes(), 0, "`stop` の答えを完了と読んでいる");
+
+            bridge.shutdown_engine_impl(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (V3, E12): 探索中に終わったら、起動の番号つきで知らせ、完了とは言わず、席を空ける
+        #[tokio::test]
+        async fn an_engine_that_exits_during_a_search_is_reported_with_its_start() {
+            let (bridge, recorded, dir) = started("bridge-exit-search", "exit 1", ":", 7).await;
+
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+            wait_until("終了の知らせ", || !recorded.exits().is_empty()).await;
+
+            assert_eq!(recorded.exits(), vec![EngineExited { request: 7 }]);
+            assert_eq!(recorded.completes(), 0, "終了を完了と読んでいる");
+            for _ in 0..500 {
+                if bridge.active_sessions.read().await.is_empty() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert!(
+                bridge.active_sessions.read().await.is_empty(),
+                "終わったエンジンの席が残っている"
+            );
+
+            bridge.shutdown_engine_impl(8).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (V2, E12): 探索していない間に終わっても知らせる
+        #[tokio::test]
+        async fn an_engine_that_exits_while_idle_is_reported() {
+            let (bridge, recorded, dir) = started("bridge-exit-idle", ":", "exit 1", 3).await;
+
+            bridge
+                .set_position_impl("startpos".to_string())
+                .await
+                .expect("送れる");
+            wait_until("終了の知らせ", || !recorded.exits().is_empty()).await;
+            assert_eq!(recorded.exits(), vec![EngineExited { request: 3 }]);
+
+            bridge.shutdown_engine_impl(4).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// こちらが落とした回は知らせない。**`quit` に答えて `kill` より先に終わるエンジンが要。**
+        /// 印が `kill_engine` まで立たないと、再起動のたびに `エンジン終了` が出る
+        #[tokio::test]
+        async fn an_engine_we_shut_down_is_not_reported() {
+            let (bridge, recorded, dir) = started("bridge-shutdown", ":", ":", 1).await;
+
+            bridge.shutdown_engine_impl(2).await.expect("落とせる");
+            tokio::time::sleep(QUIET).await;
+
+            assert!(
+                recorded.exits().is_empty(),
+                "こちらが落としたのに終了を知らせている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }
