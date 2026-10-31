@@ -38,7 +38,7 @@ function normalizeRef<T extends BranchPointRef>(ref: T): T {
  * `sameForkPointers` は**並び順つきの列比較**なので、比べる前に両側を
  * 整列・重複除去しておく必要がある。`normalizeBefore` がそれを `te` の絞りと同時にやる。
  *
- * **`truncateFrom` に置き換えないこと。** あちらは絞るだけで整列しないので、
+ * `truncateFrom` に置き換えないこと。あちらは絞るだけで整列しないので、
  * `[{te:4},{te:2}]` と `[{te:2},{te:4}]` が別物になる。`cursor` は
  * 任意の呼び出し側から `CursorPath` として渡るので、正規化済みとは限らない。
  */
@@ -301,7 +301,7 @@ export function swapBranchesInKifu(
  * 線とその中にぶら下がる変化を、全部まとめて数える
  *
  * **`line.length` では足りない。** `readCandidates` が兄弟へ持ち上げるのは
- * 各候補の**先頭の手**の `forks` だけで、2手目以降にぶら下がる変化は候補の中に残る。
+ * 各候補の先頭の手の `forks` だけで、2手目以降にぶら下がる変化は候補の中に残る。
  * 候補ごと消えるので、数に入れないと「3手」と言って7手消すことになる。
  */
 function countMovesDeep(line: IMoveFormat[]): number {
@@ -315,7 +315,7 @@ function countMovesDeep(line: IMoveFormat[]): number {
 /**
  * 削除で消える手数。**中にぶら下がる変化も含む。**
  *
- * **`deleteBranchInKifu` と同じ経路で解決する。** 別々に解決すると、確認に出した対象と
+ * `deleteBranchInKifu` と同じ経路で解決する。別々に解決すると、確認に出した対象と
  * 実際に消える対象が食い違う。数えるだけで `kifu` は書き換えない。
  *
  * 「取り消せない操作の前に、何がどれだけ消えるかを見せる」ためのものなので、

@@ -65,7 +65,7 @@ export function getCommentsByCursor(jkf: JKFData, cursor: CursorPath | null): st
  * 1要素 = 1行なので、分解しないと壊れた JKF をファイルに書き戻すことになる。
  *
  * 返りの2つは別のことを言う。
- * - `ok: false` … カーソルを解決できず**1文字も書いていない**。呼び出し側は
+ * - `ok: false` … カーソルを解決できず1文字も書いていない。呼び出し側は
  *   利用者の入力を捨ててはいけない
  * - `changed: false` … 解決はできたが中身が同じだった。保存する必要が無い
  */

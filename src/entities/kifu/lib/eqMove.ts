@@ -1,7 +1,9 @@
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 
 /**
- * Minimalな一致
+ * 同じ局面で同じ手を指しているか。分岐の合流の判定に使う
+ *
+ * 正規化が埋める欄（`relative` など）の有無に左右されないよう、手を決める欄だけを比べる。
  *
  * - to(x,y) は一致必須
  * - 両方が指し手(fromあり)ならfrom(x,y)とpromote一致
@@ -32,7 +34,7 @@ export function eqMoveMinimal(a?: Partial<IMoveMoveFormat>, b?: Partial<IMoveMov
 }
 
 /**
- * 厳密一致
+ * 手の全ての欄が同じか。`relative` など正規化が埋める欄の差も別の手と読む
  */
 export function eqMoveFull(a?: IMoveMoveFormat, b?: IMoveMoveFormat): boolean {
   if (!a || !b) return false;
@@ -54,6 +56,6 @@ export function eqMoveFull(a?: IMoveMoveFormat, b?: IMoveMoveFormat): boolean {
 }
 
 /**
- * （applyMoveWithBranchが合流判定に使うのは Minimal が安全）
+ * 分岐の合流を判定するときの比較。`applyMoveWithBranch` が使う
  */
 export const eqMove = eqMoveMinimal;
