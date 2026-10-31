@@ -20,7 +20,7 @@ export type ApplyMoveResult = {
 /**
  * 現在の局面に move を適用する。
  * 1. 同じ手が本譜にあれば forward()
- * 2. 同じ手が forks[1..] にあれば forkAndForward()
+ * 2. 同じ手が forks にあれば forkAndForward()
  * 3. 無ければ新規分岐（次手が無ければ線の末尾）として追加
  *
  * 渡した `move` は棋譜が所有する。コピーせずそのまま収まり、正規化が
@@ -35,11 +35,11 @@ export type ApplyMoveResult = {
 export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): ApplyMoveResult {
   const curTesuu = player.tesuu;
 
-  // 1) 本線合流
+  // 1) 本譜の次の手へ合流
   const nextFormat = getNextMoveFormat(player, curTesuu);
   if (nextFormat?.move && eqMove(nextFormat.move, move)) {
     player.forward();
-    return buildResult(player, true, false);
+    return buildResult(player, "existing");
   }
 
   // 2) 既存変化合流
@@ -49,7 +49,7 @@ export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): A
       const forkFirst = forkLine?.[0];
       if (forkFirst?.move && eqMove(forkFirst.move, move)) {
         player.forkAndForward(i);
-        return buildResult(player, true, false);
+        return buildResult(player, "existing");
       }
     }
   }
@@ -60,7 +60,7 @@ export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): A
   // どちらも足した後に**棋譜全体**を正規化し、どこか1手でも盤上で指せない手があると
   // そこで throw する。1箇所の壊れた変化のせいで、無関係な局面にも1手も足せなくなる。
   // `inputMove` はさらに `JKFPlayer.sameMoveMinimal` で合流を判定し、「3九金(49)」と
-  // 「3九金打」を同一視する（issue #74）。合流の判定は上の 1)/2) の `eqMove` で済んでいる。
+  // 「3九金打」を同一視する。合流の判定は上の 1)/2) の `eqMove` で済んでいる。
   const current = player.currentStream[curTesuu];
   if (current?.special) {
     throw new Error("終局した局面の後には指せません");
@@ -74,13 +74,13 @@ export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): A
     const newForkIndex = nextFormat.forks.length;
     nextFormat.forks.push([{ move }]);
     player.forkAndForward(newForkIndex);
-    return buildResult(player, false, true);
+    return buildResult(player, "created");
   }
 
   // 末端（次手が存在しない）: 今いる線の末尾に足す
   appendToCurrentLine(player, { move });
   player.forward();
-  return buildResult(player, false, true);
+  return buildResult(player, "created");
 }
 
 /**
@@ -158,23 +158,16 @@ function appendToCurrentLine(player: JKFPlayer, entry: IMoveFormat): void {
   stream.push(entry);
 }
 
-function buildResult(
-  player: JKFPlayer,
-  usedExisting: boolean,
-  createdNew: boolean,
-): ApplyMoveResult {
+function buildResult(player: JKFPlayer, outcome: "existing" | "created"): ApplyMoveResult {
   const fps = (player.getForkPointers?.() ?? []) as ForkPointer[];
   return {
-    usedExisting,
-    createdNew,
+    usedExisting: outcome === "existing",
+    createdNew: outcome === "created",
     tesuu: player.tesuu,
     forkPointers: fps,
   };
 }
 
-/**
- * 現在の手順での次の手 (moveFormat) を取得
- */
 function getNextMoveFormat(player: JKFPlayer, tesuu: number): IMoveFormat | undefined {
   const currentStream = player.currentStream;
 

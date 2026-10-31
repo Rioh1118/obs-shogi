@@ -38,6 +38,14 @@ describe("kifuOverview", () => {
     expect(facts.filter((f) => f.label === "先手")).toHaveLength(1);
   });
 
+  test("必ず出す欄は、ヘッダに書いてあっても後ろに重ねない", () => {
+    const facts = kifuOverview({
+      header: { 先手: "甲", 後手: "乙", 棋戦: "竜王戦", 開始日時: "2026/01/01", 手合割: "平手" },
+      moves: [{}],
+    });
+    expect(facts.map((f) => f.label)).toEqual(["先手", "後手", "棋戦", "開始日時", "手合割"]);
+  });
+
   test("アプリが書いた持ち物は出さない", () => {
     // `note` と `tags` は `createInitialJKFData` が書く欄で、棋譜の素性ではない
     const facts = kifuOverview(jkf({ note: "自分用メモ", tags: "角換わり,研究" }));

@@ -21,7 +21,7 @@ export type PlanByTe = ReadonlyMap<number, number>;
  * - player が `cursor.tesuu` にいる走査（`computeLeafTesuu` / `nextMove` / `goToEnd`）は
  *   引く te が `tesuu + 1` 以降なので**1度も当たらず、黙って線を進む**
  * - tesuu 0 から歩き直す走査（`buildStreamRowsFromCursor`）は `te <= tesuu` だけが当たり、
- *   **カーソルより先の行が本譜に化ける**
+ *   カーソルより先の行が本譜に化ける
  *
  * どちらも失敗が画面に出ないので型で止める。計画を持たないことを言いたい側は
  * `advanceCurrentLine` を使う。
@@ -63,7 +63,7 @@ const NOT_MOVED: AdvanceResult = { moved: false, forkIndex: null };
  * `false` を返すだけだが、負や非整数は `forks[-1]` を掴んで `JKFPlayer` の内部で
  * `TypeError` になるので、渡す前に捨てる。
  *
- * **計画が壊れていても投げない**のはここまで。盤の再生そのものは別で、
+ * 計画が壊れていても投げないのはここまで。盤の再生そのものは別で、
  * 再生できない手に当たれば `forward` が投げる。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`JKFPlayer.forward` が投げる）。
@@ -99,22 +99,13 @@ export function advanceCurrentLine(player: JKFPlayer): AdvanceResult {
 }
 
 /**
- * 際限なく歩き続けないための上限。`JKFPlayer.goto` が内部で使う数と同じ値。
+ * 計画に沿って歩く手数の上限。歩き続けて戻らない形を止める
  *
- * **`goto` と足並みが揃うとは考えないこと。** `goto` の番人は
- * `var c = 1e4; for (; tesuu !== e && forward() && c-- > 0;); if (0 === c) throw`
- * で、`c` がちょうど0で終わったときだけ投げる。つまり**ぴったり 10000 手動かす
- * `goto` だけが投げ、10001 手の `goto` は素通りする**（実測。
- * `__tests__/advanceWithPlan.test.ts` が固定している）。上限ではなく等値判定なので、
- * 「どちらが先に打ち切るか」を揃えようとしても揃わない。
+ * `JKFPlayer.goto` の番人と同じ値だが、足並みは揃わない。あちらは残りがちょうど0のときだけ
+ * 投げる等値判定で、`forkPointers` を渡すと区間ごとに数え直す。
+ * `__tests__/advanceWithPlan.test.ts` が実測を固定している。
  *
- * この定数を読むのは `advanceToLeafWithPlan` だけで、その呼び出し側は
- * `goToEnd` と `computeLeafTesuu` の2つ（`nextMove` は `advanceWithPlan` を呼ぶので
- * ここを通らない）。
- *
- * **どちらが先に打ち切るかを表す1つの数は無い。** `forkPointers` を渡された `goto` は
- * `goto(te - 1)` の連鎖へ分解され、`c = 1e4` は**区間ごとに作り直される**。
- * この定数と `goto` の番人を比べようとしないこと。
+ * 読むのは `advanceToLeafWithPlan` だけで、呼び手は `goToEnd` と `computeLeafTesuu`。
  */
 export const PLAN_WALK_LIMIT = 10000;
 

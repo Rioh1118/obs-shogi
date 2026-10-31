@@ -1,6 +1,6 @@
 import { HANDICAP_PRESETS } from "../model/handicap";
 import type { JKFData } from "../model/jkf";
-import { playerNames } from "./playerNames";
+import { headerValue, playerNames } from "./playerNames";
 
 export type KifuFact = {
   label: string;
@@ -8,17 +8,12 @@ export type KifuFact = {
 };
 
 /**
- * 棋譜に**必ず出す**欄と、その並び
+ * 棋譜に必ず出す欄。`kifuOverview` が決まった順で先頭に並べ、残りのヘッダから外す
  *
- * 無くても行を残すのは、**欠けていること自体が手掛かり**だから ——
+ * 無くても行を残すのは、欠けていること自体が手掛かりだから。
  * 対局者の入っていない棋譜を貼ったことは、行が消えるより「—」のほうが読める。
  */
-const ALWAYS: readonly { label: string; key: string }[] = [
-  { label: "先手", key: "先手" },
-  { label: "後手", key: "後手" },
-  { label: "棋戦", key: "棋戦" },
-  { label: "開始日時", key: "開始日時" },
-];
+const ALWAYS = new Set(["先手", "後手", "棋戦", "開始日時", "手合割"]);
 
 /**
  * 画面に出さないヘッダの欄
@@ -39,7 +34,7 @@ const ABSENT = "—";
  * 違う答えが出る（対局者名で実際に起きた —— 空白だけの欄を、片方は「無い」、
  * 片方は「空文字」として扱っていた）。
  *
- * **決め打ちの欄で終わらない。** 棋譜が持っている欄はそのまま後ろに続ける ——
+ * 決め打ちの欄で終わらない。棋譜が持っている欄はそのまま後ろに続ける ——
  * 「持ち時間」も「戦型」も棋譜によって在ったり無かったりするので、
  * 一覧を決め打つと、貼った棋譜に書いてあることが画面から消える。
  */
@@ -47,22 +42,16 @@ export function kifuOverview(jkf: JKFData): KifuFact[] {
   const header = jkf.header ?? {};
   const names = playerNames(jkf);
 
-  const pick = (key: string): string | null => {
-    const value = (header[key] ?? "").trim();
-    return value.length > 0 ? value : null;
-  };
-
   const facts: KifuFact[] = [
     { label: "先手", value: names.sente ?? ABSENT },
     { label: "後手", value: names.gote ?? ABSENT },
-    { label: "棋戦", value: pick("棋戦") ?? ABSENT },
-    { label: "開始日時", value: pick("開始日時") ?? ABSENT },
+    { label: "棋戦", value: headerValue(header, "棋戦") ?? ABSENT },
+    { label: "開始日時", value: headerValue(header, "開始日時") ?? ABSENT },
     { label: "手合割", value: handicapLabel(jkf) },
   ];
 
-  const shown = new Set([...ALWAYS.map((f) => f.key), "手合割"]);
   for (const [key, raw] of Object.entries(header)) {
-    if (shown.has(key) || INTERNAL.has(key)) continue;
+    if (ALWAYS.has(key) || INTERNAL.has(key)) continue;
     const value = raw.trim();
     if (value.length > 0) facts.push({ label: key, value });
   }

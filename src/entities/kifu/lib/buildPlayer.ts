@@ -3,6 +3,8 @@ import type { JKFData } from "../model/jkf";
 import { normalizeForkPointers, type CursorPath } from "../model/cursor";
 
 /**
+ * `player` を `path` の局面まで動かす
+ *
  * `goto` は届かないときに throw せず、進めるところで黙って止まる。
  * `forkAndForward` の返り値も見ないので、実在しない変化は黙って捨て、そこまでに降りた線を進む。
  *
@@ -27,14 +29,14 @@ function applyCursorToPlayer(player: JKFPlayer, cursor: CursorPath | null) {
  * **棋譜を書き換える操作を通すなら複製を渡すこと。** `inputMove` だけでなく、
  * `applyMoveWithBranch` のように `player.kifu` を直に編集するものも含む。
  *
- * **要求した局面に着くとは限らない。** ずれ方は2つある。
+ * 要求した局面に着くとは限らない。ずれ方は2つある。
  *
  * - `goto` は届かなければ進めるところで黙って止まる（`tesuu` がずれる）
  * - `goto` は `forkAndForward` の返り値を見ないので、実在しない変化は黙って捨てられ、
- *   **要求した `tesuu` ちょうどで別の線に着く**（`tesuu` は一致する）
+ *   要求した `tesuu` ちょうどで別の線に着く（`tesuu` は一致する）
  *
  * したがって `tesuu` の比較では後者を検出できない。一致を要求する側は
- * `reachedCursor(player, cursor)`（`playerCursor.ts`）を通す。最初の客は #296。
+ * `reachedCursor(player, cursor)`（`playerCursor.ts`）を通す。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき、`forkPointers` が手の無い te を
  *   指しているとき。レンダ中に呼ぶなら呼び出し側で捕まえること（捕まえないと画面が落ちる）

@@ -2,7 +2,7 @@ import type { JKFData, JKFMove } from "@/entities/kifu/model/jkf";
 import type { CursorPath } from "@/entities/kifu/model/cursor";
 import { resolveLine } from "./resolveLine";
 
-function shallowEqualStringArray(a: string[], b: string[]) {
+function sameCommentLines(a: string[], b: string[]) {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i += 1) {
     if (a[i] !== b[i]) return false;
@@ -65,11 +65,11 @@ export function getCommentsByCursor(jkf: JKFData, cursor: CursorPath | null): st
  * 1要素 = 1行なので、分解しないと壊れた JKF をファイルに書き戻すことになる。
  *
  * 返りの2つは別のことを言う。
- * - `ok: false` … カーソルを解決できず**1文字も書いていない**。呼び出し側は
+ * - `ok: false` … カーソルを解決できず1文字も書いていない。呼び出し側は
  *   利用者の入力を捨ててはいけない
  * - `changed: false` … 解決はできたが中身が同じだった。保存する必要が無い
  */
-export function setCommentsByCursorInJkf(
+export function setCommentsByCursorInKifu(
   jkf: JKFData,
   cursor: CursorPath,
   comments: string[],
@@ -80,7 +80,7 @@ export function setCommentsByCursorInJkf(
   const nextComments = normalizeCommentLines(comments);
   const prevComments = normalizeCommentLines(move.comments ?? []);
 
-  if (shallowEqualStringArray(prevComments, nextComments)) {
+  if (sameCommentLines(prevComments, nextComments)) {
     return { ok: true, changed: false };
   }
 
