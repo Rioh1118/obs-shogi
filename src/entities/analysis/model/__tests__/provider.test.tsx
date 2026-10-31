@@ -31,6 +31,7 @@ vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri }));
 vi.mock("@/entities/engine/api/tauri", () => ({
   startInfiniteAnalysis: () => startCore(),
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
+  startFailedUnreachable: (e: unknown) => (e as { unreachable?: boolean }).unreachable === true,
 }));
 // エンジンの状態。**理由を決めるのは engine 側**（`EngineNotReadyReason`）なので、
 // 断りを枝ごとに見るテストはその理由を動かす。
@@ -2685,6 +2686,38 @@ describe("中断と棋譜を閉じる回", () => {
     await view.setSync(adapter(null, null));
 
     expect(view.current.state.isAnalyzing).toBe(false);
+  });
+});
+
+/** (V3, E15): `go` の直前の書き込みが落ちた回 */
+describe("開始がエンジンへ届かなかった回", () => {
+  const unreachable = { unreachable: true, message: "stalled" };
+
+  it("自動再開なら応答なしにし、検討を切らず、断りも立てない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    startCore.mockRejectedValueOnce(unreachable);
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(reportUnreachable).toHaveBeenCalledTimes(1);
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.error).toBeNull();
+  });
+
+  it("▶ でも断りを立てない", async () => {
+    startCore.mockRejectedValueOnce(unreachable);
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    expect(reportUnreachable).toHaveBeenCalledTimes(1);
+    expect(view.current.state.error).toBeNull();
   });
 });
 

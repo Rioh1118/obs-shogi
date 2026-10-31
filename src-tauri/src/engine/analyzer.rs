@@ -332,6 +332,9 @@ impl EngineAnalyzer {
             }
             let cancel = CancellationToken::new();
             startup.cancel = Some(cancel.clone());
+            // **前のプロセスの局面を次へ持ち越さない。** ロックの外で消すと、前のプロセスを
+            // 落とす間に追い越した起動が覚えた局面を消す
+            self.state.write().await.current_position = None;
             (
                 startup.generation,
                 cancel,
@@ -341,8 +344,6 @@ impl EngineAnalyzer {
         if let Some(previous) = previous {
             self.drop_engine(&previous).await;
         }
-        // 前のプロセスに覚えさせた局面を、次のプロセスへ持ち越さない
-        self.state.write().await.current_position = None;
         Some((generation, cancel))
     }
 
@@ -582,13 +583,13 @@ impl EngineAnalyzer {
     /// 答えていないエンジンには何も書かない
     async fn write_position(&self, protocol: &UsiProtocol) -> Result<(), EngineError> {
         self.refuse_if_unanswered()?;
+        // **局面が無いなら `go` も出さない。** エンジンの中の前の局面か初期局面を読んで、
+        // 盤と違う候補手が黙って出る
         let position = self.state.read().await.current_position.clone();
-        if let Some(position) = position {
-            protocol
-                .send_command(&GuiCommand::Position(position))
-                .await?;
-        }
-        Ok(())
+        let position = position.ok_or_else(|| {
+            EngineError::InvalidState("no position has been set for this engine".to_string())
+        })?;
+        protocol.send_command(&GuiCommand::Position(position)).await
     }
 
     /// 解析用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）

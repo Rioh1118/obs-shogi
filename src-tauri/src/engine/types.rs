@@ -508,6 +508,17 @@ pub enum StopOutcome {
     Unanswered,
 }
 
+/// 無限解析を始められなかった理由。**`unreachable` で次の手が分かれる。**
+///
+/// エンジンへ書けなかった回は `応答なし` へ入り、検討の意思が残る。席が埋まっている、局面が無い、
+/// といった断りは、やり直しても同じなので断りの文を出す
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartRefusal {
+    pub unreachable: bool,
+    pub message: String,
+}
+
 /// 解析の側からフロントへ流す出来事
 #[derive(Debug, Clone)]
 pub enum AnalysisEvent {

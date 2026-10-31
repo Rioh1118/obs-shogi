@@ -6,7 +6,7 @@ import { setPositionFromSfen } from "@/entities/engine/api/tauri";
 import type { PositionSyncAdapter } from "@/entities/analysis";
 
 /**
- * 盤の現在局面をエンジンに送り続ける。
+ * 盤の現在局面を Rust に覚えさせ続ける。**線に書くのは `go` の直前だけ**（`analyzer.rs`）。
  *
  * entities/game・entities/engine・entities/engine-presets の3スライスを束ねるので、
  * FSD 上これを置ける最下層は features になる。
@@ -128,7 +128,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
         markSynced(target, engineKeyRef.current);
       }
 
-      // 呼び出し元へ投げる。握り潰すと、エンジンに別の局面が入ったまま
+      // 呼び出し元へ投げる。握り潰すと、Rust に別の局面が残ったまま
       // 解析が始まり、盤面と一致しない候補手が黙って表示される。
       if (failure) throw failure;
     })().finally(() => {

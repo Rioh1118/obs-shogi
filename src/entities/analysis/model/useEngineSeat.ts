@@ -412,7 +412,7 @@ export function useEngineSeat(): EngineSeat {
   // 畳まれた後に返ってきた `late-*` は `keepOrForget` が1回だけ撃ち直す
   // （それも落ちたら同じ）。`no-position` は棋譜を開き直してから ▶。
   // 画面が生きている回は ▶ が返し直す（▶ は握っている席を返してから頼む）。
-  // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ `docs/state-transitions/analysis.md` の ※1 / F-7）。
+  // その返却も落ちた回は語が `応答なし` になる（→ `docs/state-transitions/analysis.md` の ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
   const shootQuietly = (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) =>
     shoot(by, sessionId).then(
