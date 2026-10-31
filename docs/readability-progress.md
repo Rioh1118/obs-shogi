@@ -32,10 +32,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 | 順 | 範囲                                                     | 行数 | 状態   |
 | -- | -------------------------------------------------------- | ---- | ------ |
-| 1  | `src/shared/lib`、`src/shared/api`                       |      | 未着手 |
-| 2  | `src/shared/ui`                                          |      | 未着手 |
-| 3  | `src/entities/kifu/lib`                                  |      | 済     |
-| 4  | `src/entities/kifu` の残り                               |      | 未着手 |
+| 1  | `src/shared/lib`、`src/shared/api`                       | 1102 | 未着手 |
+| 2  | `src/shared/ui`                                          | 2023 | 未着手 |
+| 3  | `src/entities/kifu/lib`                                  | 1287 | 済     |
+| 4  | `src/entities/kifu` の残り                               | 1023 | 未着手 |
 | 5  | `src/entities/position`                                  | 1894 | 未着手 |
 | 6  | `src/entities/game`                                      | 2734 | 未着手 |
 | 7  | `src/entities/engine`、`src/entities/engine-presets`     | 2542 | 未着手 |
@@ -68,6 +68,17 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 8  | `src-tauri/src/engine` の `analyzer` から `commands` まで |    | 未着手   |
 | 9  | `src-tauri/src/book`                                   | 7044  | 未着手   |
 | 10 | `src-tauri/src/search`                                 | 14346 | 未着手   |
+
+## 整理のときに直す所見
+
+語の置き換えで見つけた、コメントとコードの食い違い。範囲を取ったときに直す。
+
+| 場所 | 食い違い |
+| ---- | -------- |
+| `src-tauri/tests/root_guard.rs` の冒頭の doc | `validate_under_root` の場所を `utils.rs` と書くが、実体は `src-tauri/src/workspace/guard.rs` |
+| `src/features/board-orientation/model/useBoardOrientation.ts` の冒頭の doc | URL の文字列を絞る検査は `PovType` にあると書くが、実体は `useURLParams.ts` の `povRaw === "gote"` で `PovType` は型だけ |
+| `src/features/position-search/ui/PositionSearchModal.tsx` の `discardSearch` の説明 | `clearSearch` を呼ぶのは「ここだけ」と書くが、同じファイルの別の箇所でも呼ぶ |
+| `src/features/game-move/ui/__tests__/gameMoveBridge.test.tsx` の `vi.mock` の doc | export が増えれば落ちると書くが、`importActual` を展開しているので落ちない疑いがある。未再現 |
 
 ## 次に取る範囲
 
