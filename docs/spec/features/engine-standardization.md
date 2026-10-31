@@ -238,9 +238,9 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 
 | 与件        | AC                          | 状態のセル                           | テスト                                                       |
 | ----------- | --------------------------- | ------------------------------------ | ------------------------------------------------------------ |
-| L2 L3 L9    | AC-1 AC-2 AC-61 AC-64       | V0、(V0,E1)                          | `entities/engine` の provider ＋ `AnalysisControls` の描画    |
+| L2 L3 L9    | AC-1 AC-2 AC-61 AC-64       | V0、(V0,E1)                          | `engineStatus.test.ts`、`analysisControlsStatus.test.tsx`。`AnalysisProvider` は `RuntimeProviders` 側に居るので AC-61 はタブに依らない |
 | L2 L3 L9    | AC-3 AC-58 AC-59            | (V1,E3) (V1,E5) (V8,E13) (V1,E7)     | AC-3 AC-58: `entities/analysis` の「検討の意思」。AC-59 は `engineFailureBridge.test.tsx` |
-| L2 L3 L9    | AC-4 AC-5 AC-6              | (V1,E6) (V8,E2)                      | `engineFailureBridge.test.tsx` ＋ 描画                        |
+| L2 L3 L9    | AC-4 AC-5 AC-6              | (V1,E6) (V8,E2)                      | `engineFailureBridge.test.tsx`、`engineStatus.test.ts`        |
 | L2 L3 L9    | AC-7 AC-8                   | (V2,E3) (V3,E4) (V4,E10)             | AC-8: `entities/analysis` の「中断と棋譜を閉じる回」、`analysisControlsStatus.test.tsx`。AC-7 は #491 |
 | L2 L3 L9    | AC-9 AC-10 AC-11 AC-24      | (V3,E11) (V4,E11) (V6,E13) (V6,E10)  | AC-9 AC-10 AC-11: `bridge.rs` の `endings`、`entities/engine` の provider、`entities/analysis` の「中断に答えない回の自動再開」。AC-24: `entities/analysis` の「中断が届かなかった回」 |
 | L2 L3 L9    | AC-12 AC-13 AC-14 AC-15     | (V3,E12) (V2,E12) (V7,E13)           | AC-12 AC-13 AC-15: `bridge.rs` の `endings`、`entities/engine` の provider、`analysisControlsStatus.test.tsx`。AC-14: `entities/analysis` の「検討の意思」 |

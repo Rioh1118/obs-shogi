@@ -3,6 +3,7 @@ import type { EngineStatus } from "@/entities/analysis";
 
 /** 状態ごとの語と印。**経過時間を添えるのは読んでいる間と読み終えた後だけ** */
 const STATUS_VIEW: Record<EngineStatus, { word: string; mark: string; timer: boolean }> = {
+  "no-engine": { word: "エンジンなし", mark: "idle", timer: false },
   starting: { word: "起動中…", mark: "idle", timer: false },
   "standing-by": { word: "待機中", mark: "idle", timer: false },
   analyzing: { word: "検討中", mark: "analyzing", timer: true },

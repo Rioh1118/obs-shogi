@@ -13,6 +13,10 @@ type Props = {
   onRestart: () => void;
 };
 
+/** ▶ を押して意味がある状態か */
+const startable = (status: EngineStatus) =>
+  status !== "no-engine" && status !== "failed" && status !== "cancelled";
+
 /**
  * ▶ の位置に出る1つのボタン。**いまの状態の次の一手を出す**
  * （`docs/spec/features/engine-standardization.md` の「エンジンの状態」）。
@@ -37,9 +41,7 @@ export function EngineAction({
     <button
       className="analysis-controls__iconBtn"
       onClick={onToggle}
-      disabled={
-        stopping || status === "failed" || status === "cancelled" || (!isAnalyzing && !canStart)
-      }
+      disabled={stopping || !startable(status) || (!isAnalyzing && !canStart)}
       title={isAnalyzing ? "検討を中断" : "検討を開始"}
     >
       {isAnalyzing ? (

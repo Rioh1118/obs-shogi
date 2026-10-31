@@ -6,6 +6,8 @@ import type { AnalysisState } from "../model/types";
  * `docs/state-transitions/engine-standardization.md`**（記号 V0〜V8 はそちら）。
  */
 export type EngineStatus =
+  /** V0 `エンジンなし` */
+  | "no-engine"
   /** V1 `起動中…` */
   | "starting"
   /** V2 `待機中` */
@@ -48,6 +50,8 @@ export function engineStatusOf({
   analysis,
   currentSfen,
 }: Inputs): EngineStatus {
+  // 選択が外れたら、前のエンジンの段が畳まれる前でも `エンジンなし`
+  if (notReadyReason === "no-engine") return "no-engine";
   if (phase === "exited") return "exited";
   if (phase === "unresponsive") return "unresponsive";
   if (phase === "error") return failureKind === "cancelled" ? "cancelled" : "failed";

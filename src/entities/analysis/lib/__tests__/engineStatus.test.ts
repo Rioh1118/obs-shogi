@@ -99,4 +99,18 @@ describe("操作列が言う語", () => {
       }),
     ).toBe("cancelled");
   });
+
+  it("選択が外れたら、前の失敗が畳まれる前でもエンジンなし", () => {
+    for (const phase of ["idle", "error"] as const) {
+      expect(
+        engineStatusOf({
+          phase,
+          notReadyReason: "no-engine",
+          failureKind: phase === "error" ? "spawnFailed" : null,
+          analysis: analysis(false),
+          currentSfen: "P1",
+        }),
+      ).toBe("no-engine");
+    }
+  });
 });

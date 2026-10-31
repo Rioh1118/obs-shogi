@@ -35,7 +35,14 @@ describe("候補手の見え方", () => {
   });
 
   it("エンジンが動いていない間だけ薄く出す", () => {
-    const stale: EngineStatus[] = ["starting", "unresponsive", "exited", "failed", "cancelled"];
+    const stale: EngineStatus[] = [
+      "no-engine",
+      "starting",
+      "unresponsive",
+      "exited",
+      "failed",
+      "cancelled",
+    ];
     const fresh: EngineStatus[] = ["standing-by", "analyzing", "finished"];
     expect(stale.every(candidatesAreStale)).toBe(true);
     expect(fresh.some(candidatesAreStale)).toBe(false);
