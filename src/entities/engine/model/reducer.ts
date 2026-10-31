@@ -57,6 +57,10 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
       };
 
     case "engine_unresponsive":
+      // 呼び手が先に `応答なし` にした回も、Rust の知らせは最後の出力を持っている
+      if (state.phase === "unresponsive") {
+        return { ...state, lastOutput: state.lastOutput ?? action.payload.lastOutput };
+      }
       if (state.phase !== "ready") return state;
       return {
         ...state,
@@ -78,6 +82,7 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         startWarnings: [],
         error: null,
         unresponsiveReason: null,
+        lastOutput: null,
       };
     }
 

@@ -5,7 +5,7 @@ import "./EngineStatusDetail.scss";
 
 type Props = {
   notice: EngineFailureNotice;
-  /** エンジンが最後に出した行。受けたままの形。無ければ欄を出さない */
+  /** エンジンが最後に出した行の要約。無ければ欄を出さない */
   lastOutput: string | null;
   /** 語の位置。ドックは `overflow: hidden` なので、画面に対して置く */
   anchor: DOMRect;
@@ -21,8 +21,9 @@ export function EngineStatusDetail({ notice, lastOutput, anchor, onOpenSettings,
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // 語はこの面の親に居る。**語の押下は語の側が開閉する**ので、ここで閉じると開き直す
     const closeOutside = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) onClose();
+      if (!ref.current?.parentElement?.contains(event.target as Node)) onClose();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();

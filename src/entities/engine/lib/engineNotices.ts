@@ -160,7 +160,7 @@ const PRESET_INCOMPLETE_NOTICE: EngineStoppedNotice = {
 export type EngineFailureNotice = EngineStoppedNotice & {
   /** 「もう一度起動」を出すか */
   retry: boolean;
-  /** 起動の失敗か（帯の取っ手と、再起動の語が分かれる） */
+  /** 起動の失敗か（ボタンの語が `もう一度起動` になる） */
   startFailure: boolean;
 };
 

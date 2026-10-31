@@ -11,7 +11,12 @@ import { useEngineSeat, type DiscardReleasePoint, type SeatTakeResult } from "./
 import { useResultFlush } from "./useResultFlush";
 import { waits } from "./waits";
 import { analysisReducer, initialState } from "./reducer";
-import { useEngine, type AnalysisResult, type EngineReadiness } from "@/entities/engine";
+import {
+  useEngine,
+  type AnalysisResult,
+  type EngineNotReadyReason,
+  type EngineReadiness,
+} from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
 import { createCandidateCache, type CandidateCache } from "../lib/candidateCache";
@@ -48,6 +53,13 @@ interface Props {
   children: ReactNode;
   positionSync: PositionSyncAdapter;
 }
+
+/**
+ * 検討の意思を残して、エンジンが戻るのを待つ理由か。**語が言うので断らない**
+ * （起動の失敗でもエンジン終了でも意思は下りない）。
+ */
+const holdsIntentWhile = (reason: EngineNotReadyReason) =>
+  reason === "starting" || reason === "failed";
 
 /**
  * 解析の状態と、Rust の席の生死を持つ。
@@ -524,7 +536,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         //
         // **画面に触るのは門の後ろ。** `clear_results` は `error` も消すので
         // （`reducer.ts`）、要らなくなった要求がここを通ると、直前に立った
-        // 打ち切りの `error` が黙って消える（その `error` の読み手はまだ0 → #277）。
+        // 打ち切りの `error` が黙って消える。
         if (supersededSince(seq)) return;
 
         // 自動再開はどの失敗でも黙って降りる。押した人が居ないうえ、エンジンが
@@ -538,8 +550,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         if (supersededSince(seq)) return;
 
         // **上流の文をそのまま載せない。** ここに入る `e` は Rust の英文
-        // （`take_session` の断りなど）で、`state.error` は画面へ出す欄
-        // （読み手はまだ0 → #277）。中身は `console.error` にだけ残す。
+        // （`take_session` の断りなど）で、`state.error` は画面へ出す欄。
+        // 中身は `console.error` にだけ残す。
         console.error("[ANALYSIS] restart failed", e);
         dispatch({ type: "set_error", payload: RESTART_FAILED_MESSAGE });
         dispatch({ type: "stop_analysis" });
@@ -630,8 +642,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 断りが案内している操作**）。Rust は畳む前に席を全部空けるので、こちらの欄に残るのは
   // もう無い席。捨てないと、戻ってきたときに下の effect が「その局面は投げ済み」と読んで
   // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られ、断りも出ない）。
+  const engineWasGoneRef = useRef(false);
   useEffect(() => {
-    if (isReady) return;
+    if (isReady) {
+      if (engineWasGoneRef.current) dispatch({ type: "engine_restored" });
+      engineWasGoneRef.current = false;
+      return;
+    }
+    engineWasGoneRef.current = true;
 
     // **エンジンの世代も進む**（`onEngineGone` の中）。立ち下がりを1回見るだけでは
     // 足りない——飛んでいる開始がこの後に着地して、捨てたばかりの印を書き戻す
@@ -734,6 +752,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const failUnreachable = useCallback(
     (e: unknown, generation: number): never => {
+      // 押した意思は残す。どの段で書けなかったかで、再起動の後に読むかが割れないように
+      dispatch({ type: "hold_intent" });
       reportUnreachableSince(generation);
       throw e;
     },
@@ -757,7 +777,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 理由は engine 側が決める（`desiredRuntime` を見られるのはあちらだけ）。
     // `isReady` が false なら理由は必ず在る（`EngineReadiness`）。
     if (!isReady) {
-      if (notReadyReason === "starting") return false;
+      if (holdsIntentWhile(notReadyReason)) return false;
       failStart(NOT_READY_REFUSALS[notReadyReason], new Error("Engine not ready"));
     }
 
@@ -805,7 +825,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 戻らないならその理由で断る。
         const engine = readinessRef.current;
         if (!engine.isReady) {
-          if (engine.notReadyReason === "starting") {
+          if (holdsIntentWhile(engine.notReadyReason)) {
             dispatch({ type: "hold_intent" });
             return false;
           }
@@ -863,7 +883,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         failUnreachable(e, generation);
       }
       // 答えが無い回は語が `応答なし` に変わる。開始を頼むと断りの文が立つ
-      return released !== "unanswered" && !supersededSince(seq);
+      if (released === "unanswered") {
+        dispatch({ type: "hold_intent" });
+        return false;
+      }
+      return !supersededSince(seq);
     },
     [seat, supersededSince, failUnreachable],
   );
@@ -890,8 +914,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       return;
     }
 
-    // この窓でボタンから動く口は無い（席が返るまでヘッダは ▶ のまま）。
-    // 動くのは畳まれた回と、読む局面が無くなった回。
+    // この窓で動くのは ■ と、畳まれた回と、読む局面が無くなった回。
     const seq = restartSeqRef.current;
 
     if (!(await awaitInFlightRestart(seq))) return;
@@ -919,7 +942,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // `landed` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
     if (landed === "engine-gone" && !supersededSince(seq)) {
       const engine = readinessRef.current;
-      if (engine.isReady || engine.notReadyReason === "starting") {
+      if (engine.isReady || holdsIntentWhile(engine.notReadyReason)) {
         dispatch({ type: "hold_intent" });
         return;
       }
@@ -942,11 +965,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     takeSeatAndGo,
   ]);
 
-  // **押している間に押し直されても1本にする。** `isAnalyzing` が立つのは
-  // 局面を送って席が返った後（上限は `positionSyncTimeoutMs`）で、その間ボタンは
-  // ▶ のまま押せる。
-  // 2本目は Rust の `take_session` に断られ、その断りは `console.error` で終わる
-  // ——利用者には何も出ない。
+  // **飛んでいる間に呼ばれても1本にする。** `isAnalyzing` が立つのは局面を送って席が返った後で、
+  // 2本目は Rust の `take_session` に断られる。
   //
   // **`finally` で必ず外す。** 外し忘れると、以降 ▶ が「走っている」と
   // 見なされて二度と始まらない。

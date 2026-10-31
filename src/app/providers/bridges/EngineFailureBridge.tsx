@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { engineFailureNoticeOf, SLOW_START_MS, useEngine } from "@/entities/engine";
+import { engineFailureNoticeOf, useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
@@ -31,7 +31,7 @@ const ENGINE_SLOW_START = "engine-slow-start";
  * 帯を閉じてもエンジンが起動していないことは変わらない。
  */
 export function EngineFailureBridge() {
-  const { state, initialize, cancelStart, presetIncomplete } = useEngine();
+  const { state, initialize, cancelStart, presetIncomplete, slowStart } = useEngine();
   const { notify, dismissByKey } = useNotify();
   const { openModal } = useURLParams();
 
@@ -56,32 +56,27 @@ export function EngineFailureBridge() {
 
   // 起動中が長引いたら、止める口を出す。段を抜けたら（起動できた・失敗した・止めた）引っ込める
   useEffect(() => {
-    if (phase !== "initializing") return;
-    const timer = setTimeout(() => {
-      notify({
-        tier: "warning",
-        presentation: "banner",
-        dismissKey: ENGINE_SLOW_START,
-        title: "エンジンの準備に時間が掛かっています",
-        body:
-          "評価関数の読み込みに時間が掛かるエンジンでは、このまま待てば使えるようになります。" +
-          "止めるときは「起動を中止する」を押してください。",
-        actions: [
-          { label: "起動を中止する", run: () => stopStarting.current() },
-          {
-            label: "設定を開く",
-            run: () => openSettings.current("settings", { tab: "engine" }),
-            failureBody:
-              "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
-          },
-        ],
-      });
-    }, SLOW_START_MS);
-    return () => {
-      clearTimeout(timer);
-      dismissByKey(ENGINE_SLOW_START);
-    };
-  }, [phase, notify, dismissByKey]);
+    if (!slowStart) return;
+    notify({
+      tier: "warning",
+      presentation: "banner",
+      dismissKey: ENGINE_SLOW_START,
+      title: "エンジンの準備に時間が掛かっています",
+      body:
+        "評価関数の読み込みに時間が掛かるエンジンでは、このまま待てば使えるようになります。" +
+        "止めるときは「起動を中止する」を押してください。",
+      actions: [
+        { label: "起動を中止する", run: () => stopStarting.current() },
+        {
+          label: "設定を開く",
+          run: () => openSettings.current("settings", { tab: "engine" }),
+          failureBody:
+            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
+        },
+      ],
+    });
+    return () => dismissByKey(ENGINE_SLOW_START);
+  }, [slowStart, notify, dismissByKey]);
 
   const notice = engineFailureNoticeOf({ phase, error, unresponsiveReason, presetIncomplete });
 
@@ -94,7 +89,7 @@ export function EngineFailureBridge() {
   const startFailure = notice?.startFailure;
   useEffect(() => {
     if (!tier || !title || !body) return;
-    if (startFailure) console.error("[engine] 起動に失敗した", error?.kind, error?.message);
+    if (error) console.error("[engine] 起動に失敗した", error.kind, error.message);
 
     const openSettingsAction = {
       label: "設定を開く",

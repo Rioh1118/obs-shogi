@@ -34,6 +34,8 @@ const NAMES = /export const ([A-Za-z_$][\w$]*)\b/g;
 const PARTS = new Set([
   /** 断りそのものではなく、`EngineNotReadyReason` から断りへの対応表 */
   "NOT_READY_REFUSALS",
+  /** 断りではなく、断りから帯の動作を選ぶ述語 */
+  "refusalNeedsRestart",
 ]);
 
 /**

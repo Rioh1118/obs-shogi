@@ -475,7 +475,7 @@ pub struct AnalysisUpdate {
 #[serde(rename_all = "camelCase")]
 pub struct EngineExited {
     pub request: u64,
-    /// エンジンが最後に出した行（`protocol::summarize_recent`）。受けたままの形
+    /// エンジンが最後に出した行の要約（`protocol::summarize_recent`。stderr を先に最大3行）
     pub last_output: Option<String>,
 }
 

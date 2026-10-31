@@ -96,6 +96,8 @@ export type EngineContextType = EngineReadiness & {
    */
   cancelStart: () => void;
   clearError: () => void;
+  /** `起動中…` が `SLOW_START_MS` を越えた。**帯とボタンが同じ値を読む** */
+  slowStart: boolean;
   /** プリセットは選んだが、エンジンが未設定で起動を試みられない */
   presetIncomplete: boolean;
   /**

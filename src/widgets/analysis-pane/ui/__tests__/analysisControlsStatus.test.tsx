@@ -92,6 +92,27 @@ describe("語を押して出す文", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  test("開いた語をもう一度押すと閉じる", () => {
+    render(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
+    const word = screen.getByRole("button", { name: "エンジン終了" });
+
+    fireEvent.click(word);
+    fireEvent.mouseDown(word);
+    fireEvent.click(word);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("文が消えたら閉じ、次の失敗で勝手に開かない", () => {
+    const view = render(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
+    fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
+
+    view.rerender(<EngineStatusLabel status="analyzing" currentSfen="P1" notice={null} />);
+    view.rerender(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   test("出力が無ければ出力の欄を出さない", () => {
     const { container } = render(
       <EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />,

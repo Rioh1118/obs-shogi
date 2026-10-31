@@ -7,7 +7,6 @@ import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
 import { engineFailureNoticeOf, useEngine } from "@/entities/engine";
 import { useEngineStatus } from "@/widgets/analysis-pane/lib/useEngineStatus";
-import { useSlowStart } from "@/widgets/analysis-pane/lib/useSlowStart";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
@@ -26,12 +25,11 @@ import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
  */
 function AnalysisControls() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
-  const { state: engine, initialize, cancelStart, presetIncomplete } = useEngine();
+  const { state: engine, initialize, cancelStart, presetIncomplete, slowStart } = useEngine();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const status = useEngineStatus(currentSfen);
   const notice = engineFailureNoticeOf({ ...engine, presetIncomplete });
-  const slowStart = useSlowStart(status === "starting");
   const { openModal } = useURLParams();
   const openSettings = useOpenSettings();
   const { findBySfen } = useStudyPositions();
@@ -41,7 +39,7 @@ function AnalysisControls() {
   // 検討の開始／中断
   const handleToggleAnalysis = async () => {
     try {
-      if (state.isAnalyzing) {
+      if (state.isAnalyzing || state.starting) {
         await stopAnalysis();
       } else {
         await startInfiniteAnalysis();

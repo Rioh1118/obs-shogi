@@ -64,9 +64,12 @@ pub fn classify(error: &EngineError, quarantined: bool) -> StartFailure {
     let message = error.to_string();
     StartFailure {
         kind,
-        last_output: message
-            .rsplit_once(LAST_OUTPUT_PREFIX)
-            .map(|(_, output)| shown(output.trim_end_matches(')'), MAX_FAILURE_MESSAGE)),
+        last_output: message.rsplit_once(LAST_OUTPUT_PREFIX).map(|(_, output)| {
+            shown(
+                output.strip_suffix(')').unwrap_or(output),
+                MAX_FAILURE_MESSAGE,
+            )
+        }),
         message: shown(&message, MAX_FAILURE_MESSAGE),
     }
 }
@@ -235,5 +238,19 @@ mod tests {
         )
         .await;
         assert_eq!(failure.kind, StartFailureKind::ExitedEarly);
+    }
+
+    /// 添えた閉じ括弧だけを外す。**エンジンの行の `)` まで削らない**
+    #[test]
+    fn the_engine_output_keeps_its_own_closing_parenthesis() {
+        let error = EngineError::CommunicationFailed(format!(
+            "gone{}failed to load nn.bin (code 2))",
+            crate::engine::protocol::LAST_OUTPUT_PREFIX
+        ));
+
+        assert_eq!(
+            classify(&error, false).last_output.as_deref(),
+            Some("failed to load nn.bin (code 2)")
+        );
     }
 }

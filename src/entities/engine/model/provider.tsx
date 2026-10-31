@@ -13,6 +13,7 @@ import { setupEngineEventListeners } from "../api/events";
 import { asStartFailure } from "../lib/engineFailure";
 import { nextRequestNumber } from "../api/requestNumber";
 import { EngineContext } from "./context";
+import { useSlowStart } from "./useSlowStart";
 
 type Props = {
   children: React.ReactNode;
@@ -23,6 +24,8 @@ type Props = {
 
 export function EngineProvider({ children, desiredRuntime, presetIncomplete = false }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
+
+  const slowStart = useSlowStart(state.phase === "initializing");
 
   // 最後に撃った起動・停止の番号。番号は `nextRequestNumber`（webview を読み直しても下がらない）
   const seqRef = useRef(0);
@@ -249,6 +252,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
       shutdown,
       cancelStart,
       clearError,
+      slowStart,
       presetIncomplete,
       reportUnreachable,
     }),
@@ -259,6 +263,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
       shutdown,
       cancelStart,
       clearError,
+      slowStart,
       presetIncomplete,
       reportUnreachable,
     ],

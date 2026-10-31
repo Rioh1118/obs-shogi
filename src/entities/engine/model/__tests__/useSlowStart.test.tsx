@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, renderHook } from "@testing-library/react";
 
-import { SLOW_START_MS } from "@/entities/engine";
+import { SLOW_START_MS } from "@/entities/engine/lib/engineNotices";
 import { useSlowStart } from "../useSlowStart";
 
 afterEach(() => {

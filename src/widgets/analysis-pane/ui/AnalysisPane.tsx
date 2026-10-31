@@ -142,19 +142,18 @@ function AnalysisPane() {
   // 特定の行にぶら下げる置き場が無い。出すかどうかは設定（既定は出さない。ADR-0010 決定4）
   const bestEvaluation = rows.find((r) => r.isBest)?.evaluation ?? null;
 
+  // 候補手から導く値（評価値バー）も同じ扱い。今のもののように見せない
+  const staleClass = candidatesAreStale(status) ? " analysis-pane--stale" : "";
+
   return (
     <section className="analysis-pane">
       {config?.show_evaluation_bar === true && (
-        <div className="analysis-pane__gauge">
+        <div className={`analysis-pane__gauge${staleClass}`}>
           <EvaluationBar percentage={evaluationToPercentage(bestEvaluation)} />
         </div>
       )}
 
-      <main
-        className={`analysis-pane__body${candidatesAreStale(status) ? " analysis-pane__body--stale" : ""}`}
-      >
-        {BODY[mode]({ rows })}
-      </main>
+      <main className={`analysis-pane__body${staleClass}`}>{BODY[mode]({ rows })}</main>
 
       <footer className="analysis-pane__footer">
         <StatsSection searchStats={searchStats} />

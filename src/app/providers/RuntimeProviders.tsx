@@ -8,6 +8,7 @@ import { EngineStartWarningBridge } from "./bridges/EngineStartWarningBridge";
 import { PresetsFileBridge } from "./bridges/PresetsFileBridge";
 import { SearchRootGate } from "./gates/SearchRootGate";
 import { AnalysisBridge } from "./bridges/AnalysisBridge";
+import { AnalysisRefusalBridge } from "./bridges/AnalysisRefusalBridge";
 import { GameSessionBridge } from "./bridges/GameSessionBridge";
 import { BoardOrientationBridge } from "./bridges/BoardOrientationBridge";
 import { StudyPositionsProvider } from "@/entities/study-positions/model/provider";
@@ -45,6 +46,7 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
                 <EngineStartWarningBridge />
                 <SearchRootGate>
                   <AnalysisBridge>
+                    <AnalysisRefusalBridge />
                     <BoardOrientationBridge />
                     {/* 置き場の理由は `BookPositionGate` の doc */}
                     <BookPositionGate>{children}</BookPositionGate>

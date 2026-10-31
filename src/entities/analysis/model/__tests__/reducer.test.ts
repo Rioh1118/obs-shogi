@@ -48,6 +48,27 @@ describe("解析の停止が残すもの", () => {
     expect(held.analyzedSfen).toBeNull();
   });
 
+  it("▶ を押すと断りを空ける。**同じ文で断られても帯が出直す**", () => {
+    const refused = analysisReducer(initialState, { type: "set_error", payload: "断り" });
+
+    const pressed = analysisReducer(refused, { type: "begin_start" });
+
+    expect(pressed.starting).toBe(true);
+    expect(pressed.error).toBeNull();
+  });
+
+  it("席が返る前の ■ も止め待ちに入る", () => {
+    const pressed = analysisReducer(initialState, { type: "begin_start" });
+
+    expect(analysisReducer(pressed, { type: "begin_stop" }).stopping).toBe(true);
+  });
+
+  it("エンジンが戻ると断りが消える", () => {
+    const refused = analysisReducer(initialState, { type: "set_error", payload: "断り" });
+
+    expect(analysisReducer(refused, { type: "engine_restored" }).error).toBeNull();
+  });
+
   it("検討していないときの完了は何も変えない", () => {
     const last = { candidates: [{ rank: 1, pv_line: [] }] };
     expect(analysisReducer(initialState, { type: "finish_analysis", payload: last })).toBe(

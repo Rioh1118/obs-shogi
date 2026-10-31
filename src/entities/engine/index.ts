@@ -1,11 +1,7 @@
 export { EngineProvider } from "./model/provider";
 export { useEngine } from "./model/useEngine";
 export { asStartFailure } from "./lib/engineFailure";
-export {
-  ENGINE_START_FAILURE_NOTICES,
-  SLOW_START_MS,
-  engineFailureNoticeOf,
-} from "./lib/engineNotices";
+export { ENGINE_START_FAILURE_NOTICES, engineFailureNoticeOf } from "./lib/engineNotices";
 export type { EngineFailureNotice } from "./lib/engineNotices";
 
 // **`valuesOf` は載せていない。** 利用者の値を送る形にするだけで、外から使う口が無い。
