@@ -1,0 +1,44 @@
+name: 作業
+description: やると決まった作業（メンテナ向け）。相談や未決の話は Discussions へ
+body:
+  - type: markdown
+    attributes:
+      value: |
+        詳細は仕様に置き、ここはそれを指すだけにします。`ファイル:行`、コード片、実測の表は書きません。
+        決まりは [docs/issue-guidelines.md](../blob/main/docs/issue-guidelines.md) にあります。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 何をやるか
+      description: 1〜3行。利用者から見た変化を書いてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: 完了条件
+      description: 観測できる結果を書いてください
+      placeholder: |
+        - [ ] AC-1: 〈状況〉で〈操作〉すると〈結果〉になる
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: 正本
+      description: 仕様の節、AC の ID、またはレビュー報告
+      placeholder: docs/spec/features/<slug>.md の AC-1
+    validations:
+      required: true
+
+  - type: input
+    id: blocked
+    attributes:
+      label: ブロック
+      description: 先に終わる必要がある Issue
+      placeholder: "Blocked by #123"
+    validations:
+      required: false

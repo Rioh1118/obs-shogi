@@ -1,0 +1,37 @@
+name: 親 Issue
+description: 依存のある作業の順番と進み具合を見せる（メンテナ向け）
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **ここは議論の場ではありません。** 論点は子の Issue か `docs/OPEN-QUESTIONS.md` へ。
+        子の詳細を写さず、チェックリストだけを持ちます。
+
+  - type: input
+    id: source
+    attributes:
+      label: 正本
+      description: この作業全体の仕様
+      placeholder: docs/spec/features/<slug>.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 何が終われば閉じるか
+      description: 1〜2行で書いてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 順番
+      description: 着手する順に子の Issue を並べてください。閉じると自動でチェックが付きます
+      placeholder: |
+        - [ ] #123
+        - [ ] #124
+    validations:
+      required: true
