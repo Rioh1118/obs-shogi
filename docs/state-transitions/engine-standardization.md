@@ -141,6 +141,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | (V3, E15) (V4, E15) | `entities/analysis` の「中断が届かなかった回」 |
 | (V3, E4) (V4, E10) (V3, E14) (V5, E14) (V7, E14) | `entities/analysis` の「中断と棋譜を閉じる回」 |
 | 不変条件2（開始と停止が重なる順序） | `bridge.rs` の `a_start_and_a_stop_at_once_leave_no_search_without_a_seat` |
+| (V3, E8) (V3, E10) 不変条件2（線の順） | `bridge.rs` の `a_position_during_a_search_goes_out_only_after_the_stop`、`entities/analysis` の「検討中に局面を続けて動かす回」 |
 | (V3, E1) の上限切れ（※7） | `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine` |
 | 不変条件1（V7 について） | `engineStatus.test.ts` の「エンジンが終了したら、検討の意思があっても検討中と言わない」 |
 

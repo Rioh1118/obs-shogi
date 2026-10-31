@@ -332,6 +332,9 @@ impl EngineAnalyzer {
             }
             let cancel = CancellationToken::new();
             startup.cancel = Some(cancel.clone());
+            // **前のプロセスの局面を次へ持ち越さない。** ロックの外で消すと、前のプロセスを
+            // 落とす間に追い越した起動が覚えた局面を消す
+            self.state.write().await.current_position = None;
             (
                 startup.generation,
                 cancel,
@@ -534,7 +537,7 @@ impl EngineAnalyzer {
         }
     }
 
-    /// 指示を通せないなら断る。**`position` と `go` を送る口は全部ここを通す**
+    /// `stop` に答えていないなら断る
     fn refuse_if_unanswered(&self) -> Result<(), EngineError> {
         if *self.unanswered.borrow() {
             return Err(EngineError::InvalidState(
@@ -558,7 +561,11 @@ impl EngineAnalyzer {
         request < self.startup.lock().await.latest_request
     }
 
-    /// 局面を設定
+    /// 読む局面を覚える。**線には書かない。**
+    ///
+    /// `position` を書くのは `go` の直前だけ（`write_position`）。盤が動くたびに書くと、
+    /// 探索中のエンジンへ `position` が届く（USI は認めない）。順序をここ1か所で持つので、
+    /// 呼び手が `stop` を待つ必要は無い
     pub async fn set_position(&self, position: &str) -> Result<(), EngineError> {
         // USI プロトコルは行指向なので、position 文字列への改行注入を拒否する
         if contains_usi_breaking_char(position) {
@@ -567,16 +574,22 @@ impl EngineAnalyzer {
             ));
         }
 
-        self.refuse_if_unanswered()?;
-        let protocol = self.protocol().await?;
-
-        let position_command = GuiCommand::Position(position.to_string());
-        protocol.send_command(&position_command).await?;
-
-        // 状態更新
+        self.protocol().await?;
         self.state.write().await.current_position = Some(position.to_string());
-
         Ok(())
+    }
+
+    /// `go` の前に通す。**`position` と `go` を送る口は全部ここを通す。**
+    /// 答えていないエンジンには何も書かない
+    async fn write_position(&self, protocol: &UsiProtocol) -> Result<(), EngineError> {
+        self.refuse_if_unanswered()?;
+        // **局面が無いなら `go` も出さない。** エンジンの中の前の局面か初期局面を読んで、
+        // 盤と違う候補手が黙って出る
+        let position = self.state.read().await.current_position.clone();
+        let position = position.ok_or_else(|| {
+            EngineError::InvalidState("no position has been set for this engine".to_string())
+        })?;
+        protocol.send_command(&GuiCommand::Position(position)).await
     }
 
     /// 解析用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
@@ -589,9 +602,9 @@ impl EngineAnalyzer {
         &self,
     ) -> Result<mpsc::UnboundedReceiver<AnalysisStreamItem>, EngineError> {
         log::debug!(target: LOGT, "analysis.infinite.start: requested");
-        self.refuse_if_unanswered()?;
 
         let protocol = self.protocol().await?;
+        self.write_position(&protocol).await?;
 
         // channel
         let (result_tx, result_rx) = mpsc::unbounded_channel();
@@ -693,8 +706,8 @@ impl EngineAnalyzer {
         &self,
         time_limit: Duration,
     ) -> Result<AnalysisResult, EngineError> {
-        self.refuse_if_unanswered()?;
         let protocol = self.protocol().await?;
+        self.write_position(&protocol).await?;
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
 
@@ -739,8 +752,8 @@ impl EngineAnalyzer {
     /// 届かない理由は `DEPTH_ANALYSIS_BUDGET` に当たったときで、
     /// 深度22の結果を深度40の解析として読ませないためにこの欄がある。
     pub async fn analyze_with_depth(&self, depth_limit: u32) -> Result<DepthOutcome, EngineError> {
-        self.refuse_if_unanswered()?;
         let protocol = self.protocol().await?;
+        self.write_position(&protocol).await?;
 
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
 
