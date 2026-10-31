@@ -10,6 +10,11 @@ import {
   MAX_VISIBLE_CANDIDATES,
   type CandidateRow,
 } from "@/widgets/analysis-pane/lib/candidateRows";
+import {
+  candidatesAreStale,
+  visibleCandidatesOf,
+} from "@/widgets/analysis-pane/lib/visibleCandidates";
+import { useEngineStatus } from "@/widgets/analysis-pane/lib/useEngineStatus";
 import "./AnalysisPane.scss";
 import StatsSection from "./StatsSection";
 import { useAppConfig } from "@/entities/app-config";
@@ -46,6 +51,7 @@ function AnalysisPane() {
   const currentSfen = gameView.currentSfen;
   const { selectedNode } = useFileTree();
   const { state: presetsState } = useEnginePresets();
+  const status = useEngineStatus(currentSfen);
 
   const engineKey = presetsState.selectedPresetId ?? "no-engine";
   const fileKey = selectedNode?.id ?? null;
@@ -82,10 +88,16 @@ function AnalysisPane() {
   // 停止中に出すのは控え。**控えを書くのはコミット後の effect なので、読むこのレンダは
   // 書かれる前の控えを見る。** 控えの先は ref で、書いても再レンダは起きないので、
   // ある鍵に初めて控えた回はその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
-  const visibleCandidates: readonly AnalysisCandidate[] = useMemo(() => {
-    if (state.isAnalyzing) return state.candidates;
-    return candidateCache.lookup(cacheKey);
-  }, [candidateCache, state.isAnalyzing, state.candidates, cacheKey]);
+  const visibleCandidates: readonly AnalysisCandidate[] = useMemo(
+    () =>
+      visibleCandidatesOf({
+        status,
+        analysis: state,
+        currentSfen,
+        lookupCached: () => candidateCache.lookup(cacheKey),
+      }),
+    [candidateCache, status, state, currentSfen, cacheKey],
+  );
 
   const pvBaseSfen = state.isAnalyzing ? state.analyzedSfen : currentSfen;
 
@@ -137,7 +149,11 @@ function AnalysisPane() {
         </div>
       )}
 
-      <main className="analysis-pane__body">{BODY[mode]({ rows })}</main>
+      <main
+        className={`analysis-pane__body${candidatesAreStale(status) ? " analysis-pane__body--stale" : ""}`}
+      >
+        {BODY[mode]({ rows })}
+      </main>
 
       <footer className="analysis-pane__footer">
         <StatsSection searchStats={searchStats} />

@@ -4,8 +4,9 @@ import { EngineAction } from "./EngineAction";
 import { EngineStatusLabel } from "./EngineStatusLabel";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
-import { engineStatusOf, useAnalysis } from "@/entities/analysis";
+import { useAnalysis } from "@/entities/analysis";
 import { useEngine } from "@/entities/engine";
+import { useEngineStatus } from "@/widgets/analysis-pane/lib/useEngineStatus";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
@@ -24,10 +25,10 @@ import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
  */
 function AnalysisControls() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
-  const { state: engineState, initialize } = useEngine();
+  const { initialize } = useEngine();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
-  const status = engineStatusOf({ phase: engineState.phase, analysis: state, currentSfen });
+  const status = useEngineStatus(currentSfen);
   const { openModal } = useURLParams();
   const openSettings = useOpenSettings();
   const { findBySfen } = useStudyPositions();

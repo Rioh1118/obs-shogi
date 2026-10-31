@@ -3,11 +3,14 @@ import type { EngineStatus } from "@/entities/analysis";
 
 /** 状態ごとの語と印。**経過時間を添えるのは読んでいる間と読み終えた後だけ** */
 const STATUS_VIEW: Record<EngineStatus, { word: string; mark: string; timer: boolean }> = {
+  starting: { word: "起動中…", mark: "idle", timer: false },
   "standing-by": { word: "待機中", mark: "idle", timer: false },
   analyzing: { word: "検討中", mark: "analyzing", timer: true },
   finished: { word: "検討完了", mark: "idle", timer: true },
   unresponsive: { word: "応答なし", mark: "warning", timer: false },
   exited: { word: "エンジン終了", mark: "danger", timer: false },
+  failed: { word: "起動失敗", mark: "danger", timer: false },
+  cancelled: { word: "起動を中止しました", mark: "danger", timer: false },
 };
 
 const formatElapsed = (seconds: number): string => {

@@ -37,7 +37,9 @@ export function EngineAction({
     <button
       className="analysis-controls__iconBtn"
       onClick={onToggle}
-      disabled={stopping || (!isAnalyzing && !canStart)}
+      disabled={
+        stopping || status === "failed" || status === "cancelled" || (!isAnalyzing && !canStart)
+      }
       title={isAnalyzing ? "検討を中断" : "検討を開始"}
     >
       {isAnalyzing ? (

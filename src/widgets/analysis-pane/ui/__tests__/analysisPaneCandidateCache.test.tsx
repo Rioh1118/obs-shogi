@@ -54,6 +54,13 @@ vi.mock("@/entities/analysis", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/entities/analysis")>()),
   useAnalysis: () => analysis,
 }));
+vi.mock(
+  "@/widgets/analysis-pane/lib/useEngineStatus",
+  () =>
+    ({
+      useEngineStatus: () => (analysis.state.isAnalyzing ? "analyzing" : "standing-by"),
+    }) satisfies typeof import("@/widgets/analysis-pane/lib/useEngineStatus"),
+);
 vi.mock("@/entities/game", () => ({ useGame: () => game }));
 vi.mock("@/entities/file-tree", () => ({ useFileTree: () => fileTree }));
 vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({

@@ -123,6 +123,8 @@ NPS は `nodes` と `time_ms` から導く。**エンジンの申告は使えな
 | N1   | 停止中・結果あり | キャッシュに当たりがある          | 直前の候補（**古い可能性がある**） |
 | N2   | 解析中           | `state.isAnalyzing`               | 届いた候補を順次更新               |
 
+エンジンが動いていない間の見え方は [`engine-standardization.md`](../features/engine-standardization.md) の「候補手の見え方」が決める（`lib/visibleCandidates.ts`）。
+
 ### 結果のキャッシュ
 
 **持ち主は `entities/analysis`**（`entities/analysis/lib/candidateCache.ts`）。
