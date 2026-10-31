@@ -27,24 +27,6 @@ export const POSITION_SYNC_TIMEOUT_MESSAGE =
   "局面の準備に時間が掛かっています。もう一度 ▶ を押してください。";
 /** Rust が開始を断った（席が残っている。→ `docs/state-transitions/analysis.md` の ※11 / #172）。 */
 export const START_REFUSED_MESSAGE = `解析を開始できませんでした。${RESTART_ENGINE_HINT}`;
-/**
- * 席を取りに行っている間にエンジンが起こし直された（→ `docs/state-transitions/analysis.md` の ※13 /
- * `docs/state-transitions/failure-surfacing.md` の F-6）。
- *
- * **起こし直しを頼んだのは利用者自身**（オプションを変えて保存した）なので、
- * 起こし直し方は案内しない。着地した時点でエンジンは戻っていることがあり、
- * その回は押し直すだけで始まる。
- */
-export const ENGINE_RESTARTED_MESSAGE =
-  "エンジンを起こし直したので、解析を始められませんでした。もう一度 ▶ を押してください。";
-/**
- * エンジンがまだ起動していない（→ F-9）。**▶ は押せてしまう**（`AnalysisControls` は
- * エンジンの状態を1つも読まない）ので、起動を待っている間に押した人が必ずここへ来る。
- * **理由ごとに割る**——「選んでください」を起動中の人に言わないため。
- * 理由を決めるのは `entities/engine`（`EngineNotReadyReason`）。
- */
-export const ENGINE_STARTING_MESSAGE =
-  "エンジンの起動を待っています。少し待ってからもう一度 ▶ を押してください。";
 /** エンジンの初期化が落ちている（→ F-9 / #171）。 */
 export const ENGINE_FAILED_MESSAGE = `エンジンを起動できていません。${RESTART_ENGINE_HINT}`;
 /** エンジンをまだ選んでいない。 */
@@ -59,9 +41,12 @@ export const RESTART_FAILED_MESSAGE = `解析を再開できませんでした�
  */
 export const LISTENERS_FAILED_MESSAGE = "解析結果を受け取れません。アプリを起動し直してください。";
 
-/** `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。** */
-export const NOT_READY_REFUSALS: Record<EngineNotReadyReason, string> = {
+/**
+ * `EngineNotReadyReason` から断りへの対応。**割り当て漏れは tsc が落とす。**
+ * `starting` が無いのは断らないため（検討の意思を立てて、戻ったら読み始める）。
+ */
+export const NOT_READY_REFUSALS: Record<Exclude<EngineNotReadyReason, "starting">, string> = {
   "no-engine": NO_ENGINE_SELECTED_MESSAGE,
-  starting: ENGINE_STARTING_MESSAGE,
   failed: ENGINE_FAILED_MESSAGE,
+  cancelled: ENGINE_FAILED_MESSAGE,
 };

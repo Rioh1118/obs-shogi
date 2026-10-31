@@ -83,8 +83,9 @@ describe("解析の席を返す枠", () => {
       (line) => !/\buse(?:Ref|Callback)\s*[<(]/.test(line),
     );
 
-    expect(offenders, `${path}: 早期 return より上に useRef / useCallback 以外の宣言がある`).toEqual(
-      [],
-    );
+    expect(
+      offenders,
+      `${path}: 早期 return より上に useRef / useCallback 以外の宣言がある`,
+    ).toEqual([]);
   });
 });

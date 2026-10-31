@@ -2,6 +2,10 @@ import type { AnalysisCandidate, AnalysisResult } from "@/entities/engine";
 import type { CandidateCache } from "../lib/candidateCache";
 
 export interface AnalysisState {
+  /**
+   * 検討の意思。▶ で立ち、■ と `docs/state-transitions/engine-standardization.md` の5つの条件で
+   * 下りる。**エンジンが動いているかではない**——再起動を跨いで残り、戻ったら読み直す。
+   */
   isAnalyzing: boolean;
   /** いま解析している局面。**席を握った時点の盤**で、盤の現在位置とは限らない。 */
   analyzedSfen: string | null;
@@ -18,6 +22,7 @@ export interface AnalysisState {
 
 export type AnalysisAction =
   | { type: "start_analysis"; payload: { sfen: string } }
+  | { type: "hold_intent" }
   | { type: "begin_stop" }
   | { type: "stop_analysis" }
   | { type: "finish_analysis"; payload: AnalysisResult }
@@ -67,7 +72,10 @@ export interface AnalysisContextType {
   candidateCache: CandidateCache;
 
   /**
-   * ▶。**断りを立てた回は `state.error` に載せてから reject する**（枝と文言は
+   * ▶。**エンジンの起動を待っている回は断らない。** 検討の意思を立てて resolve し、
+   * エンジンが戻ったら読み始める。
+   *
+   * **断りを立てた回は `state.error` に載せてから reject する**（枝と文言は
    * `docs/state-transitions/analysis.md` の ※15。ここでは数え上げない）。
    * **読む局面が無い回だけは断りを立てずに reject する**——その状態では ▶ が
    * `disabled` なので、画面に出す先が無い。

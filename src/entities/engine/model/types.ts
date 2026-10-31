@@ -67,7 +67,9 @@ export type EngineNotReadyReason =
   /** 起動中。**起こし直している最中もここ**（`ready → idle → initializing` の全部） */
   | "starting"
   /** 初期化が落ちている。**起動した後でプロセスが終わった回、指示が通らない回もここ** */
-  | "failed";
+  | "failed"
+  /** 利用者が起動を中止した */
+  | "cancelled";
 
 /**
  * **「使えないなら理由が在る」を型で持つ。** 2つの欄を独立に持つと、呼び手は

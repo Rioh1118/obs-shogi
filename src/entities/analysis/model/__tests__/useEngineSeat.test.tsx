@@ -14,7 +14,8 @@ const id = (value: string) => value as AnalysisSessionId;
  */
 const ready = () => true;
 
-const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<"stopped" | "unanswered" | void>>();
+const stopCore =
+  vi.fn<(sessionId?: string, by?: string) => Promise<"stopped" | "unanswered" | void>>();
 vi.mock("@/entities/engine/api/tauri", () => ({
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
 }));

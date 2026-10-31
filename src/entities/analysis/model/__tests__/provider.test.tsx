@@ -11,8 +11,6 @@ import type { AnalysisResult } from "@/entities/engine";
 import {
   ENGINE_FAILED_MESSAGE,
   NO_ENGINE_SELECTED_MESSAGE,
-  ENGINE_STARTING_MESSAGE,
-  ENGINE_RESTARTED_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
   RESTART_FAILED_MESSAGE,
@@ -37,7 +35,7 @@ vi.mock("@/entities/engine/api/tauri", () => ({
 // 断りを枝ごとに見るテストはその理由を動かす。
 let engine = {
   isReady: true,
-  notReadyReason: null as "no-engine" | "starting" | "failed" | null,
+  notReadyReason: null as "no-engine" | "starting" | "failed" | "cancelled" | null,
 };
 vi.mock("@/entities/engine", () => ({
   useEngine: () => ({
@@ -511,29 +509,25 @@ describe("AnalysisProvider の結果の照合", () => {
       await pressed;
       await advance(50);
 
-      // 握ると「解析中の表示のまま数字が動かない」に落ちる。**撃たずに捨てる**
-      // ——席が空の回の停止は、起こし直したエンジンへ裸の `stop` を書く。
-      expect(view.current.state.isAnalyzing).toBe(false);
+      // **撃たずに捨てる**——席が空の回の停止は、起こし直したエンジンへ裸の `stop` を書く。
       expect(stopCore).not.toHaveBeenCalled();
 
-      // **黙らない。** 押した人はまだ画面の前に居る。断りが無いと、停止中の
-      // ペインが控えを出すので**押す前と1ドットも変わらない**。
-      // まだ戻っていないので、案内は起動待ちのほう（押し直しても効かない）。
-      expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
-
-      // 戻ってきたら ▶ で始められる。
-      engine = { isReady: true, notReadyReason: null };
-      await view.setSync(adapter("P1", "P1"));
-      startCore.mockResolvedValue("s2");
-      await act(async () => {
-        await view.current.startInfiniteAnalysis();
-      });
+      // 検討の意思は残る。断りは立てない
       expect(view.current.state.isAnalyzing).toBe(true);
+      expect(view.current.state.error).toBeNull();
+
+      // 戻ってきたら押し直さずに読み始める。
+      engine = { isReady: true, notReadyReason: null };
+      startCore.mockClear();
+      startCore.mockResolvedValue("s2");
+      await view.setSync(adapter("P1", "P1"));
+      await advance(waits().restartDebounceMs * 2);
+      expect(startCore).toHaveBeenCalledTimes(1);
     },
     SLOW,
   );
 
-  it("同期待ちの最中にエンジンが落ちたら、その理由で断る", async () => {
+  it("同期待ちの最中にエンジンが起動し直しに入ったら、上限を待たずに意思を残す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 
     // 送信は通るが、エンジンは追いつかない（起こし直しの最中）。
@@ -550,7 +544,8 @@ describe("AnalysisProvider の結果の照合", () => {
     // **上限まで待たせない。** 待っても追いつかないし、待った末に告げる理由
     // （同期が遅い＝押し直し）はここでは効かない。
     expect(elapsed).toBeLessThan(limitMs() / 2);
-    expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
+    expect(view.current.state.error).toBeNull();
+    expect(view.current.state.isAnalyzing).toBe(true);
     expect(startCore).not.toHaveBeenCalled();
   });
 
@@ -680,7 +675,7 @@ describe("AnalysisProvider の結果の照合", () => {
     SLOW,
   );
 
-  it("起こし直しの最中に ▶ が断られたら、起こし直しの断りを出す", async () => {
+  it("起こし直しの最中に ▶ が断られても、断りを出さず意思を残す", async () => {
     let rejectStart: (e: unknown) => void = () => {};
     startCore.mockImplementationOnce(
       () =>
@@ -703,13 +698,11 @@ describe("AnalysisProvider の結果の照合", () => {
     await pressed;
     await advance(50);
 
-    // **「起こし直してください」と言わない**——利用者がいま済ませた操作。
-    // まだ戻っていないので起動待ちの案内になる。
-    expect(view.current.state.error).toBe(ENGINE_STARTING_MESSAGE);
-    expect(view.current.state.error).not.toBe(START_REFUSED_MESSAGE);
+    expect(view.current.state.error).toBeNull();
+    expect(view.current.state.isAnalyzing).toBe(true);
   });
 
-  it("席が着く前にエンジンが戻っていたら、押し直しを案内する", async () => {
+  it("席が着く前にエンジンが戻っていたら、押し直さずに読み直す", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockImplementationOnce(
       () =>
@@ -736,8 +729,12 @@ describe("AnalysisProvider の結果の照合", () => {
     await pressed;
     await advance(50);
 
-    // **この回だけ「もう一度 ▶」が実際に効く。**
-    expect(view.current.state.error).toBe(ENGINE_RESTARTED_MESSAGE);
+    await view.setSync(adapter("P1", "P1"));
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(view.current.state.error).toBeNull();
+    expect(startCore).toHaveBeenCalledTimes(2);
+    expect(view.current.state.analyzedSfen).toBe("P1");
   });
 
   it("棋譜を閉じた後に席が着地したら、断りを立てない", async () => {
@@ -971,9 +968,9 @@ describe("AnalysisProvider の結果の照合", () => {
       await advance(150);
       await pressed;
 
-      // **席を取りに行くと、死んだエンジンの席を握ったまま「解析中」で固まる。**
+      // **席を取りに行くと、死んだエンジンの席を握ったまま固まる。** 意思だけを残す
       expect(startCore).not.toHaveBeenCalled();
-      expect(view.current.state.isAnalyzing).toBe(false);
+      expect(view.current.state.isAnalyzing).toBe(true);
     },
     SLOW,
   );
@@ -1507,12 +1504,9 @@ describe("AnalysisProvider の開始", () => {
   });
 
   it.each([
-    ["starting", ENGINE_STARTING_MESSAGE],
     ["failed", ENGINE_FAILED_MESSAGE],
     ["no-engine", NO_ENGINE_SELECTED_MESSAGE],
   ] as const)("エンジンが %s のまま押したら、その理由の断りを立てる", async (reason, message) => {
-    // ▶ は `disabled` にならない（ヘッダはエンジンの状態を1つも読まない）ので、
-    // **起動を待っている人が必ずここへ来る**。「選んでください」と言ってはいけない。
     engine = { isReady: false, notReadyReason: reason };
 
     const view = mountAnalysis(adapter("P1", "P1"));
@@ -2734,7 +2728,7 @@ describe("開始がエンジンへ届かなかった回", () => {
     expect(view.current.state.error).toBeNull();
   });
 
-  it("▶ でも断りを立てない", async () => {
+  it("▶ でも断りを立てず、検討の意思を残す", async () => {
     startCore.mockRejectedValueOnce(unreachable);
     const view = mountAnalysis(adapter("P1", "P1"));
 
@@ -2744,6 +2738,7 @@ describe("開始がエンジンへ届かなかった回", () => {
 
     expect(reportUnreachable).toHaveBeenCalledTimes(1);
     expect(view.current.state.error).toBeNull();
+    expect(view.current.state.isAnalyzing).toBe(true);
   });
 });
 
@@ -2766,5 +2761,82 @@ describe("検討中に局面を続けて動かす回", () => {
     expect(startCore).toHaveBeenCalledTimes(1);
     expect(view.current.state.analyzedSfen).toBe("P4");
     expect(view.current.state.isAnalyzing).toBe(true);
+  });
+});
+
+/** 検討の意思。`engine-standardization.md` の (V1, E3) (V1, E5) (V1, E7) (V1, E2) (V7, E13) (V8, E13) (V3, E1) */
+describe("検討の意思", () => {
+  const backToReady = async (view: ReturnType<typeof mountAnalysis>) => {
+    engine = { isReady: true, notReadyReason: null };
+    await view.setSync(adapter("P1", "P1"));
+    await advance(waits().restartDebounceMs * 2);
+  };
+
+  it("起動中に ▶ を押すと断らず、起動が終わると押し直さずに読み始める", async () => {
+    engine = { isReady: false, notReadyReason: "starting" };
+    const view = mountAnalysis(adapter("P1", null));
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.error).toBeNull();
+    expect(startCore).not.toHaveBeenCalled();
+
+    await backToReady(view);
+
+    expect(startCore).toHaveBeenCalledTimes(1);
+    expect(view.current.state.analyzedSfen).toBe("P1");
+  });
+
+  it("起動中に ■ を押すと意思が下り、起動しても読まない", async () => {
+    engine = { isReady: false, notReadyReason: "starting" };
+    const view = mountAnalysis(adapter("P1", null));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    await backToReady(view);
+
+    expect(startCore).not.toHaveBeenCalled();
+    expect(view.current.state.isAnalyzing).toBe(false);
+  });
+
+  it.each(["failed", "starting"] as const)(
+    "%s を経て戻ると、同じ局面を押し直さずに読み直す",
+    async (reason) => {
+      const view = mountAnalysis(adapter("P1", "P1"));
+      await act(async () => {
+        await view.current.startInfiniteAnalysis();
+      });
+      startCore.mockClear();
+      startCore.mockResolvedValue("session-2");
+
+      engine = { isReady: false, notReadyReason: reason };
+      await view.setSync(adapter("P1", "P1"));
+      expect(view.current.state.isAnalyzing).toBe(true);
+
+      await backToReady(view);
+
+      expect(startCore).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["no-engine", "cancelled"] as const)("%s になったら意思が下りる", async (reason) => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    startCore.mockClear();
+
+    engine = { isReady: false, notReadyReason: reason };
+    await view.setSync(adapter("P1", "P1"));
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    await backToReady(view);
+    expect(startCore).not.toHaveBeenCalled();
   });
 });
