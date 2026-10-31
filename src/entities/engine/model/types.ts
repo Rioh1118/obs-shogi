@@ -90,4 +90,10 @@ export type EngineContextType = EngineReadiness & {
   cancelStart: () => void;
   restart: () => Promise<boolean>;
   clearError: () => void;
+  /**
+   * エンジンへ指示が届かなかったことを、呼び手が知った。`応答なし` にする。
+   *
+   * **Rust の通知を待たない。** invoke そのものが落ちた回は Rust が何も知らない
+   */
+  reportUnreachable: () => void;
 };

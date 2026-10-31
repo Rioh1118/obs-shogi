@@ -157,8 +157,8 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 `landed` が `"finished"` を返す
 
 ※7 `stopAnalysis` は `finally` で必ず `stop_analysis` を dispatch する（`provider.tsx`）。
-`stopAnalysisCore` が reject しても `isAnalyzing` は落ちるが、**`STOP_FAILED_MESSAGE` が
-立つので行き先は S6**（→ ※15）。席は握ったまま残る。**issue #120 の再発経路**
+`stopAnalysisCore` が reject しても `isAnalyzing` は落ち、エンジンは `応答なし` になる
+（`reportUnreachable`。断りの文は立てない。復帰は再起動）。**issue #120 の再発経路**
 → [failure-surfacing.md](failure-surfacing.md) F-7
 
 ※8 `syncWaitRef` は `{seq, want, startedAt}` を持つ。
@@ -262,14 +262,14 @@ readiness で割る**——戻っていれば `ENGINE_RESTARTED_MESSAGE`、ま�
 違うものを同じ1文に潰すと、読み手——まだ0、→ #277——がどちらを案内するか選べない）。
 **枝を足したらここにも足すこと**（`src/__tests__/analysisRefusals.test.ts` が定数名で突き合わせる）。
 
+局面の送信の失敗、▶ の先頭の返却の失敗、■ の失敗は断りを持たない。エンジンへ届かなかった回なので
+`応答なし` の語が言う（`reportUnreachable`）。
+
 | 定数                            | いつ                                                                                                                   | 次の一手                                                       |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
 | `POSITION_SYNC_TIMEOUT_MESSAGE` | 上限まで待っても同期が追いつかない（E5）                                                                               | **▶ の押し直し**で直りうる                                     |
-| `POSITION_SYNC_FAILED_MESSAGE`  | 局面の送信そのものが落ちた（E5）                                                                                       | 押し直しても同じ。起こし直す（→ [engine.md](engine.md) の ※5） |
-| `RELEASE_FAILED_MESSAGE`        | ▶ の先頭の返却が落ちた（→ ※2 / F-7）                                                                                   | まず ▶。それでも駄目なら起こし直す                             |
 | `START_REFUSED_MESSAGE`         | Rust が開始を断った（→ ※11）                                                                                           | 起こし直す                                                     |
 | `ENGINE_RESTARTED_MESSAGE`      | 席を取りに行っている間に起こし直され、**着地した時点では戻っている**（→ ※13 / F-6）                                    | **▶ の押し直し**（この回だけ実際に効く）                       |
-| `STOP_FAILED_MESSAGE`           | ■ が届かなかった（→ ※7 / F-7）                                                                                         | まず ▶（同じ席を止め直してから始める）                         |
 | `RESTART_FAILED_MESSAGE`        | 自動再開が落ちた（→ `(S4/S5, E10/E11)`。`(S3, E5/E11)` の打ち切りは上限切れの枝）。**起こし直しの窓は含まない** → ※13  | まず ▶。それでも駄目なら起こし直す                             |
 | `ENGINE_STARTING_MESSAGE`       | エンジンの起動待ちに ▶ を押した／**同期待ちの最中**・席を取る往復の最中に起こし直され、**まだ戻っていない**（→ ※13）   | 待ってからもう一度 ▶                                           |
 | `ENGINE_FAILED_MESSAGE`         | エンジンの初期化が落ちている（→ F-9）。**同期待ちの最中／席を取る往復の最中に、起こし直しが失敗した回もここ**（→ ※13） | 起こし直す                                                     |
@@ -327,7 +327,6 @@ readiness で割る**——戻っていれば `ENGINE_RESTARTED_MESSAGE`、ま�
   Rust に席を残したままフロントに席を持たせない再現手段がテストに無い
   （席を握ったまま S6 になる回は `provider.test.tsx` が踏んでいる）
 - `(S6/P0, E5)` S6 から ▶ を押して同期が失敗した回。断りが差し替わるだけ
-- `(S4/S5, E11)` 再開の途中で停止が落ちた回。席を握ったまま S6 へ落ちる
 - `(S5, E2)` 次の再開を予約した状態での停止。`(S4, E2)` は踏めている
 
 いずれも実装上は経路があるが、**テストは無い**。

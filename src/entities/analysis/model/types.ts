@@ -75,9 +75,9 @@ export interface AnalysisContextType {
    */
   startInfiniteAnalysis: () => Promise<void>;
   /**
-   * ■。**表示は必ず停止中になる**（`finally` で state を落とす）。
-   * **ただし停止が Rust に届かなかった回は、断りを立てて reject する**
-   * （`STOP_FAILED_MESSAGE`）——席が残ることがある（→ `docs/state-transitions/analysis.md` の ※7 / F-7）。その回の復帰は ▶。
+   * ■。**検討は必ず切れる**（`finally` で state を落とす）。
+   * **停止が Rust に届かなかった回は、エンジンを `応答なし` にして reject する**
+   * （→ `docs/state-transitions/analysis.md` の ※7 / F-7）。その回の復帰は再起動。
    */
   stopAnalysis: () => Promise<void>;
 }

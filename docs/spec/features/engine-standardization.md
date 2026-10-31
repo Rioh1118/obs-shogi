@@ -242,7 +242,7 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 | L2 L3 L9    | AC-3 AC-58 AC-59            | (V1,E3) (V1,E5) (V8,E13) (V1,E7)     | `entities/analysis` の provider                              |
 | L2 L3 L9    | AC-4 AC-5 AC-6              | (V1,E6) (V8,E2)                      | `engineFailureBridge.test.tsx` ＋ 描画                        |
 | L2 L3 L9    | AC-7 AC-8                   | (V2,E3) (V3,E4) (V4,E10)             | `entities/analysis` の provider                              |
-| L2 L3 L9    | AC-9 AC-10 AC-11 AC-24      | (V3,E11) (V4,E11) (V6,E13) (V6,E10)  | AC-9 AC-10 AC-11: `bridge.rs` の `endings`、`entities/engine` の provider、`entities/analysis` の「中断に答えない回の自動再開」。AC-24 は #172 |
+| L2 L3 L9    | AC-9 AC-10 AC-11 AC-24      | (V3,E11) (V4,E11) (V6,E13) (V6,E10)  | AC-9 AC-10 AC-11: `bridge.rs` の `endings`、`entities/engine` の provider、`entities/analysis` の「中断に答えない回の自動再開」。AC-24: `entities/analysis` の「中断が届かなかった回」 |
 | L2 L3 L9    | AC-12 AC-13 AC-14 AC-15     | (V3,E12) (V2,E12) (V7,E13)           | AC-12 AC-13 AC-15: `bridge.rs` の `endings`、`entities/engine` の provider、`analysisControlsStatus.test.tsx`。AC-14 は #442 #535 |
 | L2 L3 L9    | AC-16 AC-22                 | (V7,E8) (V6,E8)、不変条件4           | `AnalysisPane` の描画                                        |
 | L2 L3 L9    | AC-17                       | V6 V7 V8                             | 描画。出力は既存の `summarize_recent`                         |

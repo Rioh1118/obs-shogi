@@ -146,6 +146,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     dispatch({ type: "clear_error" });
   }, []);
 
+  const reportUnreachable = useCallback(() => {
+    dispatch({ type: "engine_unresponsive", payload: "unwritable" });
+  }, []);
+
   // **番号が最後に撃った起動のものだけ採る。** 起動し直しの窓には古いプロセスの通知が届く。
   // 読み手は `dispatch` と ref だけなので、購読はマウントの1回でよい
   useEffect(() => {
@@ -231,8 +235,9 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       cancelStart,
       restart,
       clearError,
+      reportUnreachable,
     }),
-    [state, readiness, initialize, shutdown, cancelStart, restart, clearError],
+    [state, readiness, initialize, shutdown, cancelStart, restart, clearError, reportUnreachable],
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
