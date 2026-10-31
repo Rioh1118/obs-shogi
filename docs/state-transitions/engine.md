@@ -114,7 +114,7 @@ issue #120 と同型の行き止まり
 
 ※6 `shutdown_engine_impl` は `stop_all_sessions()` を先に呼ぶ（`bridge.rs`）
 
-※7 「もう一度起動」を出す種類は `app/providers/bridges/engineStartFailureNotice.ts` の
+※7 「もう一度起動」を出す種類は `entities/engine/lib/engineNotices.ts` の
 `ENGINE_START_FAILURE_NOTICES` だけが持つ（決め方もその doc。ここに種類を写さない）。押すと
 `useEngine().initialize()` を撃つ
 

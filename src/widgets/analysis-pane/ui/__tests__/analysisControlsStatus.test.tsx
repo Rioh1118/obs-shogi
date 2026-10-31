@@ -62,6 +62,51 @@ describe("操作列の語", () => {
   });
 });
 
+describe("語を押して出す文", () => {
+  const notice = {
+    tier: "danger" as const,
+    title: "エンジンが終了しました",
+    body: "再起動してください。",
+    retry: true,
+    startFailure: false,
+  };
+
+  test("押すと文と設定の口と最後の出力が出て、外を押すと閉じる", () => {
+    const onOpenSettings = vi.fn();
+    render(
+      <EngineStatusLabel
+        status="exited"
+        currentSfen="P1"
+        notice={notice}
+        lastOutput="stderr: failed to read nn.bin"
+        onOpenSettings={onOpenSettings}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
+    expect(screen.getByText("再起動してください。")).toBeTruthy();
+    expect(screen.getByText("stderr: failed to read nn.bin")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "設定を開く" }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("出力が無ければ出力の欄を出さない", () => {
+    const { container } = render(
+      <EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
+    expect(container.querySelector(".engine-status-detail__output")).toBeNull();
+  });
+
+  test("文が無い状態の語は押せない", () => {
+    render(<EngineStatusLabel status="analyzing" currentSfen="P1" />);
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
 describe("操作列の時計の持ち越し", () => {
   test("待機中を挟んだら、すぐ終わった回に前回の値を出さない", () => {
     vi.useFakeTimers();

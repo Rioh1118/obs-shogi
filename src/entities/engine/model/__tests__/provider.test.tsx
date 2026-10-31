@@ -225,7 +225,11 @@ describe("EngineProvider の起動中の切り替え", () => {
     await settle();
 
     expect(app.phase).toBe("error");
-    expect(app.state.error).toEqual({ kind: "exitedEarly", message: "engine exited" });
+    expect(app.state.error).toEqual({
+      kind: "exitedEarly",
+      message: "engine exited",
+      lastOutput: null,
+    });
   });
 });
 
@@ -341,7 +345,7 @@ describe("エンジンが自分で終わった回", () => {
   const lastRequest = () => initialize.mock.calls[initialize.mock.calls.length - 1][1];
   const tell = (request: number) =>
     act(async () => {
-      listeners?.onExited(request);
+      listeners?.onExited(request, null);
     });
 
   test("最後の起動のプロセスが終わったら exited になり、使えなくなる", async () => {
@@ -447,7 +451,7 @@ describe("エンジンが答えなくなった回", () => {
     await settle();
     running = lastRequest();
     await act(async () => {
-      listeners?.onUnresponsive(running, "noAnswer");
+      listeners?.onUnresponsive(running, "noAnswer", "last line");
     });
     return app;
   };
@@ -457,6 +461,7 @@ describe("エンジンが答えなくなった回", () => {
 
     expect(app.phase).toBe("unresponsive");
     expect(app.state.unresponsiveReason).toBe("noAnswer");
+    expect(app.state.lastOutput).toBe("last line");
     expect(app.engine.isReady).toBe(false);
   });
 
@@ -479,7 +484,7 @@ describe("エンジンが答えなくなった回", () => {
     await settle();
 
     await act(async () => {
-      listeners?.onUnresponsive(lastRequest() - 1, "noAnswer");
+      listeners?.onUnresponsive(lastRequest() - 1, "noAnswer", null);
     });
 
     expect(app.phase).toBe("ready");
@@ -509,9 +514,10 @@ describe("エンジンが答えなくなった回", () => {
     const app = await mounted();
 
     await act(async () => {
-      listeners?.onExited(running);
+      listeners?.onExited(running, "last line");
     });
 
     expect(app.phase).toBe("exited");
+    expect(app.state.lastOutput).toBe("last line");
   });
 });

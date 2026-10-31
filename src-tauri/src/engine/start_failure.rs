@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::engine::launchable::{self, Inspection, Launchability};
+use crate::engine::protocol::LAST_OUTPUT_PREFIX;
 use crate::engine::protocol::{NO_ID_NAME, NO_USIOK};
 use crate::engine::types::{EngineError, StartFailure, StartFailureKind};
 use crate::engine::utils::shown;
@@ -60,9 +61,13 @@ pub fn classify(error: &EngineError, quarantined: bool) -> StartFailure {
         | EngineError::AnalysisFailed(_)
         | EngineError::AlreadyListening(_) => StartFailureKind::Other,
     };
+    let message = error.to_string();
     StartFailure {
         kind,
-        message: shown(&error.to_string(), MAX_FAILURE_MESSAGE),
+        last_output: message
+            .rsplit_once(LAST_OUTPUT_PREFIX)
+            .map(|(_, output)| shown(output.trim_end_matches(')'), MAX_FAILURE_MESSAGE)),
+        message: shown(&message, MAX_FAILURE_MESSAGE),
     }
 }
 

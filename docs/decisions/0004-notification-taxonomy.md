@@ -91,7 +91,7 @@ PR #73 が3段だけを残して close された経路がこれだった。
 > （実行権限・置いたファイル・ドライブ・macOS の許可）には「もう一度起動」を並べる——そこを直しても
 > 設定は変わらず自動では起動しないので、押す口が無いと行き止まりになる。**値そのものが原因の種類**は、
 > この表どおり「設定を開く」だけ。種類ごとの段・本文・動作は
-> `src/app/providers/bridges/engineStartFailureNotice.ts` の `ENGINE_START_FAILURE_NOTICES` が持つ
+> `src/entities/engine/lib/engineNotices.ts` の `ENGINE_START_FAILURE_NOTICES` が持つ
 
 固定の「再試行」ボタンでは足りない。**通知は動作を値として受け取る。**
 

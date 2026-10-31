@@ -17,9 +17,11 @@ import { EngineContext } from "./context";
 type Props = {
   children: React.ReactNode;
   desiredRuntime: EngineRuntimeConfig | null;
+  /** プリセットは選んだが `desiredRuntime` を組めない。**選んでいない回と言い分けるために要る** */
+  presetIncomplete?: boolean;
 };
 
-export function EngineProvider({ children, desiredRuntime }: Props) {
+export function EngineProvider({ children, desiredRuntime, presetIncomplete = false }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   // 最後に撃った起動・停止の番号。番号は `nextRequestNumber`（webview を読み直しても下がらない）
@@ -30,7 +32,7 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
    * （`readyok` の直後に終わったプロセス）。その回は `engine_exited` が `initializing` に
    * 当たって捨てられるので、応答を書いた直後に読み直す。
    */
-  const exitedRequestRef = useRef<number | null>(null);
+  const exitedRequestRef = useRef<{ request: number; lastOutput: string | null } | null>(null);
 
   const isReady =
     state.phase === "ready" &&
@@ -56,7 +58,9 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   // 本物の IPC 往復——に「設定でエンジンのオプションを変えて保存」と案内する。
   // **もう選んでいないプリセット**のオプションを変えろ、という実行できない案内になる。
   const notReadyReason: EngineNotReadyReason = !desiredRuntime
-    ? "no-engine"
+    ? presetIncomplete
+      ? "failed"
+      : "no-engine"
     : state.phase === "error" && state.error?.kind === "cancelled"
       ? "cancelled"
       : state.phase === "error" || state.phase === "exited" || state.phase === "unresponsive"
@@ -101,8 +105,8 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
           warnings: outcome.warnings,
         },
       });
-      if (exitedRequestRef.current === mySeq) {
-        dispatch({ type: "engine_exited" });
+      if (exitedRequestRef.current?.request === mySeq) {
+        dispatch({ type: "engine_exited", payload: exitedRequestRef.current.lastOutput });
         return false;
       }
 
@@ -132,7 +136,11 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     // 失敗として止める。`idle` に戻すと、設定が選ばれたままなので effect が起動し直す
     dispatch({
       type: "initialize_error",
-      payload: { kind: "cancelled", message: "the user stopped the engine start" },
+      payload: {
+        kind: "cancelled",
+        message: "the user stopped the engine start",
+        lastOutput: null,
+      },
     });
     engineInitializer.shutdown(mySeq).catch((e: unknown) => {
       console.error("[engine] 起動をやめる停止に失敗した", e);
@@ -149,7 +157,10 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
   }, []);
 
   const reportUnreachable = useCallback(() => {
-    dispatch({ type: "engine_unresponsive", payload: "unwritable" });
+    dispatch({
+      type: "engine_unresponsive",
+      payload: { reason: "unwritable", lastOutput: null },
+    });
   }, []);
 
   // **番号が最後に撃った起動のものだけ採る。** 起動し直しの窓には古いプロセスの通知が届く。
@@ -161,13 +172,15 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
     let unlisten: (() => void) | null = null;
     const current = (request: number) => request === seqRef.current;
     setupEngineEventListeners({
-      onExited: (request) => {
+      onExited: (request, lastOutput) => {
         if (!current(request)) return;
-        exitedRequestRef.current = request;
-        dispatch({ type: "engine_exited" });
+        exitedRequestRef.current = { request, lastOutput };
+        dispatch({ type: "engine_exited", payload: lastOutput });
       },
-      onUnresponsive: (request, reason) => {
-        if (current(request)) dispatch({ type: "engine_unresponsive", payload: reason });
+      onUnresponsive: (request, reason, lastOutput) => {
+        if (current(request)) {
+          dispatch({ type: "engine_unresponsive", payload: { reason, lastOutput } });
+        }
       },
       onAnswered: (request) => {
         if (current(request)) dispatch({ type: "engine_answered" });
@@ -237,9 +250,20 @@ export function EngineProvider({ children, desiredRuntime }: Props) {
       cancelStart,
       restart,
       clearError,
+      presetIncomplete,
       reportUnreachable,
     }),
-    [state, readiness, initialize, shutdown, cancelStart, restart, clearError, reportUnreachable],
+    [
+      state,
+      readiness,
+      initialize,
+      shutdown,
+      cancelStart,
+      restart,
+      clearError,
+      presetIncomplete,
+      reportUnreachable,
+    ],
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;

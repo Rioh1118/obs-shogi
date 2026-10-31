@@ -129,6 +129,21 @@ describe("エンジンが使えない理由", () => {
     expect(view.current.notReadyReason).toBe("no-engine");
   });
 
+  it("プリセットを選んだがエンジンが未設定なら failed", async () => {
+    let reason: string | null = null;
+    function Probe() {
+      reason = useEngine().notReadyReason;
+      return null;
+    }
+    render(
+      <EngineProvider desiredRuntime={null} presetIncomplete>
+        <Probe />
+      </EngineProvider>,
+    );
+
+    expect(reason).toBe("failed");
+  });
+
   it("初期化が落ちたら failed", async () => {
     initialize.mockRejectedValue(new Error("boom"));
 

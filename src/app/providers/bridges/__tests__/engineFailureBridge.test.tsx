@@ -8,7 +8,7 @@ import type {
   EnginePhase,
   UnresponsiveReason,
 } from "@/entities/engine";
-import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "../engineStartFailureNotice";
+import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "@/entities/engine";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
 import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
 
@@ -28,6 +28,7 @@ const engine = {
     error: null as EngineStartFailure | null,
     unresponsiveReason: null as UnresponsiveReason | null,
   },
+  presetIncomplete: false,
   initialize: () => initialize(),
   cancelStart: () => cancelStart(),
 };
@@ -36,6 +37,7 @@ const engine = {
 const failure = (kind: EngineStartFailureKind, message = "boom"): EngineStartFailure => ({
   kind,
   message,
+  lastOutput: null,
 });
 
 const notify = vi.fn<(request: NotifyRequest) => void>();
@@ -49,7 +51,10 @@ const dismissByKey = vi.fn<(key: string) => void>();
 type OpenModal = (modal: ModalType, extra?: Partial<URLParams>) => void;
 let openModal = vi.fn<OpenModal>();
 
-vi.mock("@/entities/engine", () => ({ useEngine: () => engine }));
+vi.mock("@/entities/engine", async (actual) => ({
+  ...(await actual<typeof import("@/entities/engine")>()),
+  useEngine: () => engine,
+}));
 vi.mock("@/shared/lib/notification/useNotifications", () => ({
   useNotify: () => ({ notify, dismiss: vi.fn(), dismissByKey }),
 }));
@@ -403,7 +408,7 @@ describe("エンジンが終了したことを届ける橋", () => {
     expect(initialize).toHaveBeenCalledTimes(1);
 
     await next("initializing");
-    expect(dismissByKey).toHaveBeenCalledWith("engine-stopped");
+    expect(dismissByKey).toHaveBeenCalledWith("engine-failure");
   });
 
   test("起動の失敗の文は出さない", async () => {
@@ -426,6 +431,19 @@ describe("エンジンが応答しないことを届ける橋", () => {
     expect(initialize).toHaveBeenCalledTimes(1);
 
     await next("ready");
-    expect(dismissByKey).toHaveBeenCalledWith("engine-stopped");
+    expect(dismissByKey).toHaveBeenCalledWith("engine-failure");
+  });
+});
+
+describe("プリセットのエンジンが未設定の回", () => {
+  test("設定へ送る帯を出し、もう一度起動は出さない", async () => {
+    engine.presetIncomplete = true;
+    await mountWith("idle");
+    engine.presetIncomplete = false;
+
+    expect(shown().title).toBe("エンジンを起動できませんでした");
+    expect(() => action("もう一度起動")).toThrow();
+    action("設定を開く").run();
+    expect(openModal).toHaveBeenCalledWith("settings", { tab: "engine" });
   });
 });

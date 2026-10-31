@@ -200,7 +200,7 @@ impl EngineBridge {
     /// 起動の直後に次の起動が割り込むと、新しいプロセスを古い番号で見張ることがある。
     /// 古い番号の通知はフロントが捨てるので、取り違えにはならない
     async fn watch_engine_end(&self, request: Request) {
-        let Some(watch) = self.analyzer.end_watch().await else {
+        let Some(mut watch) = self.analyzer.end_watch().await else {
             return;
         };
         let events = Arc::clone(&self.events);
@@ -210,7 +210,10 @@ impl EngineBridge {
                     log::warn!(target: LOGT, "engine exited on its own request={request}");
                     Self::emit_to(
                         &events,
-                        AnalysisEvent::EngineExited(EngineExited { request }),
+                        AnalysisEvent::EngineExited(EngineExited {
+                            request,
+                            last_output: watch.last_output().await,
+                        }),
                     )
                     .await;
                 }
@@ -219,6 +222,7 @@ impl EngineBridge {
                     let unresponsive = EngineUnresponsive {
                         request,
                         reason: UnresponsiveReason::Unwritable,
+                        last_output: watch.last_output().await,
                     };
                     Self::emit_to(&events, AnalysisEvent::EngineUnresponsive(unresponsive)).await;
                 }
@@ -434,6 +438,7 @@ impl EngineBridge {
         let unresponsive = EngineUnresponsive {
             request,
             reason: UnresponsiveReason::NoAnswer,
+            last_output: self.analyzer.last_output().await,
         };
         Self::emit_to(
             &self.events,
@@ -1145,7 +1150,16 @@ done"#
             bridge.start_infinite_analysis_impl().await.expect("始まる");
             wait_until("終了の知らせ", || !recorded.exits().is_empty()).await;
 
-            assert_eq!(recorded.exits(), vec![EngineExited { request: 7 }]);
+            let exits = recorded.exits();
+            assert_eq!(exits.len(), 1);
+            assert_eq!(exits[0].request, 7);
+            assert!(
+                exits[0]
+                    .last_output
+                    .as_deref()
+                    .is_some_and(|o| o.contains("info depth 1")),
+                "最後の出力が載っていない: {exits:?}"
+            );
             assert_eq!(recorded.completes(), 0, "終了を完了と読んでいる");
             for _ in 0..500 {
                 if bridge.active_sessions.read().await.is_empty() {
@@ -1174,7 +1188,7 @@ done"#;
             let (bridge, recorded, dir) = started_as("bridge-exit-idle", body, 3).await;
 
             wait_until("終了の知らせ", || !recorded.exits().is_empty()).await;
-            assert_eq!(recorded.exits(), vec![EngineExited { request: 3 }]);
+            assert_eq!(recorded.exits()[0].request, 3);
 
             bridge.shutdown_engine_impl(4).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
@@ -1214,12 +1228,16 @@ done"#;
             let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
             let outcome = bridge.stop_analysis_impl(Some(id), None).await;
             assert_eq!(outcome, Ok(StopOutcome::Unanswered));
-            assert_eq!(
-                recorded.unresponsive(),
-                vec![EngineUnresponsive {
-                    request: 5,
-                    reason: UnresponsiveReason::NoAnswer
-                }]
+            let unresponsive = recorded.unresponsive();
+            assert_eq!(unresponsive.len(), 1);
+            assert_eq!(unresponsive[0].request, 5);
+            assert_eq!(unresponsive[0].reason, UnresponsiveReason::NoAnswer);
+            assert!(
+                unresponsive[0]
+                    .last_output
+                    .as_deref()
+                    .is_some_and(|o| o.contains("info depth 1")),
+                "最後の出力が載っていない: {unresponsive:?}"
             );
 
             // 門が下りないこと。ストリームを外していると、この間に下りる
@@ -1417,13 +1435,9 @@ done"#;
                 !recorded.unresponsive().is_empty()
             })
             .await;
-            assert_eq!(
-                recorded.unresponsive(),
-                vec![EngineUnresponsive {
-                    request: 5,
-                    reason: UnresponsiveReason::Unwritable
-                }]
-            );
+            let unresponsive = recorded.unresponsive();
+            assert_eq!(unresponsive.len(), 1);
+            assert_eq!(unresponsive[0].reason, UnresponsiveReason::Unwritable);
 
             bridge.shutdown_engine_impl(6).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);

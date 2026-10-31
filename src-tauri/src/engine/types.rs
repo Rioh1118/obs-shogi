@@ -285,6 +285,8 @@ pub enum StartFailureKind {
 pub struct StartFailure {
     pub kind: StartFailureKind,
     pub message: String,
+    /// エンジンが最後に出した行。無ければ `None`
+    pub last_output: Option<String>,
 }
 
 /// `EngineError` を、フロントへ返す1本の文字列にする。
@@ -473,6 +475,8 @@ pub struct AnalysisUpdate {
 #[serde(rename_all = "camelCase")]
 pub struct EngineExited {
     pub request: u64,
+    /// エンジンが最後に出した行（`protocol::summarize_recent`）。受けたままの形
+    pub last_output: Option<String>,
 }
 
 /// エンジンに指示が通らなくなった理由
@@ -491,6 +495,8 @@ pub enum UnresponsiveReason {
 pub struct EngineUnresponsive {
     pub request: u64,
     pub reason: UnresponsiveReason,
+    /// エンジンが最後に出した行
+    pub last_output: Option<String>,
 }
 
 /// `stop` に遅れて答えがあった通知。`request` は `EngineExited` と同じ

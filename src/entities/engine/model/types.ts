@@ -29,6 +29,8 @@ export type EngineState = {
   error: EngineStartFailure | null;
   /** 指示が通らない理由。`phase === "unresponsive"` のときだけ非 null */
   unresponsiveReason: UnresponsiveReason | null;
+  /** エンジンが最後に出した行。`exited` と `unresponsive` のときだけ。起動の失敗は `error` が持つ */
+  lastOutput: string | null;
 
   activeRuntime: EngineRuntimeConfig | null;
   /** 直近の起動で送らなかった・変えて送った設定。起動はできている */
@@ -46,8 +48,11 @@ export type EngineAction =
       };
     }
   | { type: "initialize_error"; payload: EngineStartFailure }
-  | { type: "engine_exited" }
-  | { type: "engine_unresponsive"; payload: UnresponsiveReason }
+  | { type: "engine_exited"; payload: string | null }
+  | {
+      type: "engine_unresponsive";
+      payload: { reason: UnresponsiveReason; lastOutput: string | null };
+    }
   | { type: "engine_answered" }
   | { type: "shutdown" }
   | { type: "clear_error" };
@@ -92,6 +97,8 @@ export type EngineContextType = EngineReadiness & {
   cancelStart: () => void;
   restart: () => Promise<boolean>;
   clearError: () => void;
+  /** プリセットは選んだが、エンジンが未設定で起動を試みられない */
+  presetIncomplete: boolean;
   /**
    * エンジンへ指示が届かなかったことを、呼び手が知った。`応答なし` にする。
    *
