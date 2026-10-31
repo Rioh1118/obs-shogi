@@ -2687,3 +2687,25 @@ describe("中断と棋譜を閉じる回", () => {
     expect(view.current.state.isAnalyzing).toBe(false);
   });
 });
+
+/** (V3, E8) AC-18 */
+describe("検討中に局面を続けて動かす回", () => {
+  it("検討中のまま、最後の局面だけを読む", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    startCore.mockClear();
+    startCore.mockResolvedValue("session-2");
+
+    await view.setSync(adapter("P2", "P2"));
+    await view.setSync(adapter("P3", "P3"));
+    await view.setSync(adapter("P4", "P4"));
+    expect(view.current.state.isAnalyzing).toBe(true);
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(startCore).toHaveBeenCalledTimes(1);
+    expect(view.current.state.analyzedSfen).toBe("P4");
+    expect(view.current.state.isAnalyzing).toBe(true);
+  });
+});

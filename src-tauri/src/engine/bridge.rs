@@ -1150,12 +1150,14 @@ done"#
         /// (V2, E12): 探索していない間に終わっても知らせる
         #[tokio::test]
         async fn an_engine_that_exits_while_idle_is_reported() {
-            let (bridge, recorded, dir) = started("bridge-exit-idle", ":", "exit 1", 3).await;
+            let body = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Script\nusiok\n' ;;
+    isready) echo readyok; (sleep 1; kill -9 $$) & ;;
+  esac
+done"#;
+            let (bridge, recorded, dir) = started_as("bridge-exit-idle", body, 3).await;
 
-            bridge
-                .set_position_impl("startpos".to_string())
-                .await
-                .expect("送れる");
             wait_until("終了の知らせ", || !recorded.exits().is_empty()).await;
             assert_eq!(recorded.exits(), vec![EngineExited { request: 3 }]);
 
@@ -1207,13 +1209,10 @@ done"#
 
             // 門が下りないこと。ストリームを外していると、この間に下りる
             tokio::time::sleep(QUIET).await;
-            assert!(
-                bridge
-                    .set_position_impl("startpos".to_string())
-                    .await
-                    .is_err(),
-                "答えていないエンジンへ局面を通している"
-            );
+            bridge
+                .set_position_impl("startpos".to_string())
+                .await
+                .expect("覚えるだけなので断らない");
             assert!(
                 bridge.start_infinite_analysis_impl().await.is_err(),
                 "答えていないエンジンへ `go` を通している"
@@ -1258,11 +1257,8 @@ done"#
             assert_eq!(recorded.answered(), vec![EngineAnswered { request: 5 }]);
             assert_eq!(recorded.completes(), 0, "`stop` の答えを完了と読んでいる");
             assert!(
-                bridge
-                    .set_position_impl("startpos".to_string())
-                    .await
-                    .is_ok(),
-                "答えがあったのに局面を通さない"
+                bridge.start_infinite_analysis_impl().await.is_ok(),
+                "答えがあったのに次を読ませない"
             );
 
             bridge.shutdown_engine_impl(6).await.expect("落とせる");
@@ -1293,10 +1289,7 @@ done"#
                 "答えないエンジンへ `quit` を送っている"
             );
             assert!(
-                bridge
-                    .set_position_impl("startpos".to_string())
-                    .await
-                    .is_ok(),
+                bridge.start_infinite_analysis_impl().await.is_ok(),
                 "新しいプロセスに前の印が残っている"
             );
 
@@ -1334,32 +1327,6 @@ done"#
                 bridge.shutdown_engine_impl(2).await.expect("落とせる");
                 let _ = std::fs::remove_dir_all(&dir);
             }
-        }
-
-        /// (V2, E15): stdin を読まなくなったら書けないことを知らせる
-        #[tokio::test]
-        async fn an_engine_that_stops_reading_is_reported_as_unwritable() {
-            let (bridge, recorded, dir) = started("bridge-unwritable", ":", "sleep 30", 5).await;
-
-            // 1本目で読むのをやめる。2本目はパイプを埋める大きさ
-            let _ = bridge.set_position_impl("startpos".to_string()).await;
-            let big = format!("startpos moves {}", "7g7f ".repeat(400_000));
-            let _ = bridge.set_position_impl(big).await;
-
-            wait_until("書けない知らせ", || {
-                !recorded.unresponsive().is_empty()
-            })
-            .await;
-            assert_eq!(
-                recorded.unresponsive(),
-                vec![EngineUnresponsive {
-                    request: 5,
-                    reason: UnresponsiveReason::Unwritable
-                }]
-            );
-
-            bridge.shutdown_engine_impl(6).await.expect("落とせる");
-            let _ = std::fs::remove_dir_all(&dir);
         }
 
         /// (AC-19 の土台) **開始と停止がどの順に重なっても「席が無いのに読み続ける」にならない。**
@@ -1404,6 +1371,115 @@ done"#
                 bridge.shutdown_engine_impl(2).await.expect("落とせる");
                 let _ = std::fs::remove_dir_all(&dir);
             }
+        }
+
+        /// (V2, E15): stdin を読まなくなったら書けないことを知らせる
+        #[tokio::test]
+        async fn an_engine_that_stops_reading_is_reported_as_unwritable() {
+            let body = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Script\nusiok\n' ;;
+    isready) echo readyok ;;
+    usinewgame) sleep 30 ;;
+  esac
+done"#;
+            let (bridge, recorded, dir) = started_as("bridge-unwritable", body, 5).await;
+
+            // パイプを埋める大きさ。書き込みの上限まで待つ
+            let big = format!("startpos moves {}", "7g7f ".repeat(400_000));
+            bridge.set_position_impl(big).await.expect("覚える");
+            assert!(bridge.start_infinite_analysis_impl().await.is_err());
+
+            wait_until("書けない知らせ", || {
+                !recorded.unresponsive().is_empty()
+            })
+            .await;
+            assert_eq!(
+                recorded.unresponsive(),
+                vec![EngineUnresponsive {
+                    request: 5,
+                    reason: UnresponsiveReason::Unwritable
+                }]
+            );
+
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (V3, E8) AC-19: 探索中に局面が動いても線に出ない。**順は `stop` → 答え → `position` → `go`**
+        /// （不変条件2。やねうら王はこれを破ると固まる）
+        #[tokio::test]
+        async fn a_position_during_a_search_goes_out_only_after_the_stop() {
+            let (bridge, _, dir) = started("bridge-position-order", ":", ":", 1).await;
+
+            bridge
+                .set_position_impl("first".to_string())
+                .await
+                .expect("覚える");
+            let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
+            bridge
+                .set_position_impl("second".to_string())
+                .await
+                .expect("覚える");
+            bridge
+                .set_position_impl("third".to_string())
+                .await
+                .expect("覚える");
+            assert!(
+                !seen(&dir).contains("third"),
+                "探索中のエンジンへ局面が届いた"
+            );
+
+            bridge
+                .stop_analysis_impl(Some(id), None)
+                .await
+                .expect("止まる");
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+            bridge.shutdown_engine_impl(2).await.expect("落とせる");
+
+            let lines = seen(&dir);
+            let wire: Vec<&str> = lines
+                .lines()
+                .filter(|l| l.starts_with("position") || l.starts_with("go") || *l == "stop")
+                .collect();
+            assert_eq!(
+                wire,
+                [
+                    "position sfen first",
+                    "go infinite",
+                    "stop",
+                    "position sfen third",
+                    "go infinite",
+                    "stop"
+                ],
+                "線の順が違う"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 別のプロセスへ前の局面を持ち越さない
+        #[tokio::test]
+        async fn a_new_process_does_not_inherit_the_position() {
+            let (bridge, _, dir) = started("bridge-position-reset", ":", ":", 1).await;
+            bridge
+                .set_position_impl("sfen old".to_string())
+                .await
+                .expect("覚える");
+
+            bridge
+                .start_analysis_engine_impl(
+                    dir.join("engine.sh").to_str().expect("パス").to_string(),
+                    StartInput::default(),
+                    2,
+                )
+                .await
+                .expect("起動し直せる");
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+            bridge.shutdown_engine_impl(3).await.expect("落とせる");
+
+            let lines = seen(&dir);
+            assert!(!lines.contains("sfen old"), "持ち越した: {lines}");
+            let _ = std::fs::remove_dir_all(&dir);
         }
     }
 }
