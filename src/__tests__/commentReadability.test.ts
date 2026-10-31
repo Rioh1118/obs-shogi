@@ -6,15 +6,16 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 
 /**
  * コメントを第三者が読めること（`CONTRIBUTING.md` の「コメントの書き方」）のうち、
- * 字面で判定できる5つを見る。意味の判定は `/readable-code` の手順が本文を読んで行う。
+ * 字面で判定できる6つを見る。意味の判定は `/readable-code` の手順が本文を読んで行う。
  *
  * 1. `TODO` と `FIXME` は `TODO(#123)` の形で issue 番号を持つ
  * 2. 説明は要約で始める。強調で始まる塊は要約を持たない
  * 3. 強調は1つの塊に1か所まで。全部を強調すると何も強調されない
  * 4. issue 番号で理由を指さない。読み手は番号から本文を辿れるとは限らない
  * 5. `CONTEXT.md` の「使わない語」を書かない
+ * 6. 比喩の語を書かない（`METAPHOR`）
  *
- * 1 だけは違反0なので `-D` で張る。2〜5 は入れた時点で既存があるので件数ラチェット。
+ * 1 と 6 は違反0なので `-D` で張る。2〜5 は入れた時点で既存があるので件数ラチェット。
  * **基準を動かしてよい向きは下げる方だけ。** 片付けたら `BASELINE` を下げる。
  *
  * 環境変数 `COMMENT_REPORT` にパスを渡すと、該当の全行を JSON で書き出す。
@@ -43,6 +44,12 @@ const UNNUMBERED_TODO = /(?<!`)\b(?:TODO|FIXME)\b(?!\(#(?:\d+|N)\))/;
 const NUMBERED_TODO = /\bTODO\(#\d+\)/g;
 const ISSUE_NUMBER = /(?<![\w/#&])#\d{2,4}\b/;
 const EMPHASIS = /\*\*[^*]+?\*\*/g;
+
+/**
+ * 関数、経路、判定の代わりに使われていた比喩の1文字の語。指すものが塊ごとに違うので読めない。
+ * 同じ字を含む一般の語を巻き込まないよう、前の1字で除く
+ */
+const METAPHOR = /(?<![入窓出人閉手利糸河火]|切り)口|(?<![専部名入])門/;
 
 /** 表の見出しの綴り。この列が無い表は語の表ではない */
 const RETIRED_COLUMN = "使わない語";
@@ -96,6 +103,7 @@ function scan(terms: string[]) {
     manyEmphases: [] as string[],
     issueReference: [] as string[],
     retiredTerm: [] as string[],
+    metaphor: [] as string[],
   };
   let files = 0;
   let blocks = 0;
@@ -120,6 +128,7 @@ function scan(terms: string[]) {
         if (terms.some((term) => block.text.includes(term))) {
           found.retiredTerm.push(report(name, block));
         }
+        if (METAPHOR.test(block.text)) found.metaphor.push(report(name, block));
       }
     }
   }
@@ -168,6 +177,15 @@ describe("走査の部品", () => {
     expect(emphasisCount("**甲\n乙**")).toBe(1);
   });
 
+  it("比喩の語だけを拾い、同じ字を含む一般の語を巻き込まない", () => {
+    for (const text of ["席を取る口", "開き口", "関門", "門番", "着手の門"]) {
+      expect(METAPHOR.test(text), text).toBe(true);
+    }
+    for (const text of ["コマンドの入口", "窓口", "出口", "切り口", "専門", "部門"]) {
+      expect(METAPHOR.test(text), text).toBe(false);
+    }
+  });
+
   it("使わない語を表の列から読み、画面だけの語を外す", () => {
     const table = [
       "| UI の表記 | 使わない語 |",
@@ -203,6 +221,10 @@ describe("コメントを第三者が読める", () => {
 
   it("TODO と FIXME が issue 番号を持つ", () => {
     expect(found.unnumberedTodo).toEqual([]);
+  });
+
+  it("比喩の語を書かない", () => {
+    expect(found.metaphor, "関数、経路、検査、判定のうち指している実物の語で書く").toEqual([]);
   });
 
   it.each([
