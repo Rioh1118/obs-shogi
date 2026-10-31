@@ -118,8 +118,16 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      # Tauri は comctl32 v6 の関数を読み込むが、アプリのマニフェストは `tauri-build` が
+      # bin にしか付けないので、テストの exe は起動時に STATUS_ENTRYPOINT_NOT_FOUND で落ちる。
+      # 製品のビルドを変えないよう、マニフェストはこのステップの環境変数でだけ足す。
+      # 値に空白があるので `RUSTFLAGS` では渡せない（`\x1f` 区切りの ENCODED を使う）。
       - name: Rust tests (Windows path spelling)
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib plain_spelling
+        shell: bash
+        run: |
+          CC6="type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
+          export CARGO_ENCODED_RUSTFLAGS="$(printf '%s\x1f%s' '-Clink-arg=/MANIFEST:EMBED' "-Clink-arg=/MANIFESTDEPENDENCY:$CC6")"
+          cargo test --manifest-path src-tauri/Cargo.toml --locked --lib plain_spelling
 
   build-desktop:
     name: Build (Windows/macOS)
