@@ -77,7 +77,7 @@ describe("設定モーダルのタブ名", () => {
 
   // **迂回が0件でも緑になる形を止める。** 本番の呼びが1本も無いと、この検査は
   // 候補0件で無条件に通る——「綴りで止めている」という doc の保証が消える。
-  test("設定を開く口が1つに寄っている", () => {
+  test("設定を開く関数が1つに寄っている", () => {
     const body = readFileSync(join(SRC, "features/settings/model/useOpenSettings.ts"), "utf8");
 
     expect(body).toContain('openModal("settings"');

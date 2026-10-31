@@ -70,7 +70,7 @@ function wireFields(): string[] {
 }
 
 describe("FileTreeNode の受け渡し", () => {
-  it("Rust の欄が TS の受け口に全部ある", () => {
+  it("Rust の欄が TS の型に全部ある", () => {
     const wire = new Set(wireFields());
     const missing = rustFields().filter((field) => !wire.has(field));
 
@@ -84,7 +84,7 @@ describe("FileTreeNode の受け渡し", () => {
     ).toEqual([]);
   });
 
-  it("受け口の欄は adapter が写している", () => {
+  it("型の欄は adapter が写している", () => {
     const adapter = readFileSync(TS_ADAPTER, "utf8");
     const unread = wireFields().filter(
       (field) => !DROPPED[field] && !adapter.includes(`r.${field}`),
@@ -93,7 +93,7 @@ describe("FileTreeNode の受け渡し", () => {
     expect(
       unread,
       [
-        "受け口にあるのに adapter が読んでいない欄。IPC の境界で捨てている。",
+        "型にあるのに adapter が読んでいない欄。IPC の境界で捨てている。",
         "写すか、捨てる理由を fileTreeWire.test.ts の DROPPED に書くこと。",
         ...unread,
       ].join("\n"),

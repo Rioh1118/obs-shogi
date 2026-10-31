@@ -39,7 +39,7 @@ const DECLARATIONS = [
 /** 走査器自身。探している字面をそのまま持っているので、自分を数えると必ず赤になる */
 const SELF = "src/__tests__/kifuOpenTarget.test.ts";
 
-describe("選択を動かす口", () => {
+describe("選択を動かす関数", () => {
   it("`node_selected` を撃つのは provider の selectNode だけ", () => {
     const files = tsFiles(SRC);
     // 「見つけた件数が0」と「見たセルが0」を分ける。走査の起点が壊れればここで落ちる

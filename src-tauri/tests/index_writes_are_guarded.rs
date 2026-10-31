@@ -64,7 +64,7 @@ fn the_store_hands_back_the_epoch_it_installed() {
     ] {
         assert!(
             code.contains(sig),
-            "代を配る口が代を返していない（`{sig}` が無い）"
+            "代を配る関数が代を返していない（`{sig}` が無い）"
         );
     }
 }

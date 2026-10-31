@@ -113,7 +113,7 @@ describe("索引を開く合図", () => {
    *
    * ここでは1回目を失敗、2回目を保留にして、**畳まれた回の決着では開かない**ことを見る。
    */
-  test("畳まれた回の購読が決着しても、生きている回の門は開かない", async () => {
+  test("畳まれた回の購読が決着しても、生きている回の判定は立たない", async () => {
     let letSecondListenFinish!: (unlisten: () => void) => void;
     let attempt = 0;
     listenImpl = () => {

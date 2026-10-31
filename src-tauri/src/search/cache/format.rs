@@ -1441,7 +1441,7 @@ mod tests {
             Ok(()) => panic!("別の桶に置かれた鍵を書いてしまった"),
             Err(e) => assert!(
                 e.contains("key belongs to bucket"),
-                "別の門番で落ちている: {e}"
+                "別の検査で落ちている: {e}"
             ),
         }
 
@@ -1467,7 +1467,7 @@ mod tests {
             Ok(_) => panic!("桶からはみ出た鍵を読んでしまった"),
             Err(e) => assert!(
                 e.contains("key belongs to bucket"),
-                "別の門番で落ちている: {e}"
+                "別の検査で落ちている: {e}"
             ),
         }
 
@@ -1476,7 +1476,7 @@ mod tests {
         unsorted[z0_at] = 0x00;
         match decode_all(&unsorted, root) {
             Ok(_) => panic!("並びが崩れた桶を読んでしまった"),
-            Err(e) => assert!(e.contains("is not sorted"), "別の門番で落ちている: {e}"),
+            Err(e) => assert!(e.contains("is not sorted"), "別の検査で落ちている: {e}"),
         }
     }
 
@@ -1598,7 +1598,7 @@ mod tests {
         match decode_all(&orphan, root) {
             Err(e) => assert!(
                 e.contains("no node table"),
-                "断った理由が違う（別の門番を踏んでいる）: {e}"
+                "断った理由が違う（別の検査を踏んでいる）: {e}"
             ),
             Ok(_) => panic!("節表を失った file_id の出現を読んでしまった"),
         }
@@ -1920,7 +1920,7 @@ mod tests {
             Ok(_) => panic!("分岐の表の外を指す範囲を読んでしまった"),
             Err(e) => assert!(
                 e.contains("out of the fork table"),
-                "別の門番で落ちている: {e}"
+                "別の検査で落ちている: {e}"
             ),
         }
     }
@@ -2028,7 +2028,7 @@ mod tests {
         broken[at + 8] = 9;
         match decode_all(&broken, root) {
             Ok(_) => panic!("節表の外を指す node_id を読んでしまった"),
-            Err(e) => assert!(e.contains("is out of range"), "別の門番で落ちている: {e}"),
+            Err(e) => assert!(e.contains("is out of range"), "別の検査で落ちている: {e}"),
         }
     }
 
@@ -2169,7 +2169,7 @@ mod tests {
             broken[at] = to;
             match decode_all(&broken, root) {
                 Ok(_) => panic!("{what}を読んでしまった"),
-                Err(e) => assert!(e.contains("is not after"), "別の門番で落ちている: {e}"),
+                Err(e) => assert!(e.contains("is not after"), "別の検査で落ちている: {e}"),
             }
         }
     }

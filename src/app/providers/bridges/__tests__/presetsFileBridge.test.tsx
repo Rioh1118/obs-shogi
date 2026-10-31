@@ -185,7 +185,7 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
   });
 
   /** 読み込みの呼び出しそのものが落ちたら、設定を開いていなくても届ける */
-  test("読み込めなかったら読み直す口を持つ帯を出す", async () => {
+  test("読み込めなかったら読み直すボタンを持つ帯を出す", async () => {
     await mountWith({ status: "error", error: "ipc closed" });
     const req = banner();
     expect(req.tier).toBe("danger");

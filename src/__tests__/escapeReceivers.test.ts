@@ -97,7 +97,7 @@ function callsStopPropagation(body: ts.Node): boolean {
   return found;
 }
 
-describe("Escape の受け口", () => {
+describe("Escape のハンドラ", () => {
   it("stopPropagation で握り潰していない", () => {
     const files = tsFiles(SRC, { includeTests: false });
     expect(files.length, "走査できていない").toBeGreaterThan(100);
@@ -122,7 +122,7 @@ describe("Escape の受け口", () => {
 
     // 切り出しが壊れると0件で緑になる。**下限は壊れ検出**なので現在値と
     // 一致させない。一致させると、ハンドラを正当に減らしたときにここが落ちる
-    expect(receivers, `Escape の受け口を ${receivers} 件しか拾えていない`).toBeGreaterThanOrEqual(
+    expect(receivers, `Escape のハンドラを ${receivers} 件しか拾えていない`).toBeGreaterThanOrEqual(
       5,
     );
 
@@ -183,7 +183,7 @@ describe("Escape の受け口", () => {
   });
 
   /** 関数の外にある表の値はハンドラではない。数えると下限が意味を失う */
-  it("関数の外の Escape は受け口と数えない", () => {
+  it("関数の外の Escape はハンドラと数えない", () => {
     const root = parse("sample.ts", 'const KEYS = { close: "Escape" };');
     const literals = escapeLiterals(root);
 

@@ -364,7 +364,7 @@ fn every_call_written_by_the_doc_exists() {
     assert!(
         missing.is_empty(),
         "`search.md` が書く呼び出しが `src/search/**` に無い。\
-         口を変えたら doc も直すこと:\n{}",
+         呼び出しを変えたら doc も直すこと:\n{}",
         missing.join("\n")
     );
 }

@@ -53,7 +53,7 @@ describe("「`X` の `y`」で指した綴り", () => {
 /** 走査器そのものを固定する。合成した入力を食わせて、判定だけを見る */
 describe("ownedRefsIn", () => {
   test("「の」で繋がった対を拾う", () => {
-    expect(ownedRefsIn("関門（`FileNode` の `isActive`）を通る")).toEqual([
+    expect(ownedRefsIn("判定（`FileNode` の `isActive`）を通る")).toEqual([
       { owner: "FileNode", member: "isActive" },
     ]);
   });

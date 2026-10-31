@@ -71,7 +71,7 @@ describe("語を押して出す文", () => {
     startFailure: false,
   };
 
-  test("押すと文と設定の口と最後の出力が出て、外を押すと閉じる", () => {
+  test("押すと文と設定のボタンと最後の出力が出て、外を押すと閉じる", () => {
     const onOpenSettings = vi.fn();
     render(
       <EngineStatusLabel

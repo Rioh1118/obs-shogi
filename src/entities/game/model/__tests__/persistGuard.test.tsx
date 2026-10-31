@@ -61,7 +61,7 @@ const JKF_FORKED: JKFData = {
 
 afterEach(cleanup);
 
-describe("保存先の門番", () => {
+describe("保存先の検査", () => {
   it("宛先と読み込んでいる棋譜が同じなら書く", async () => {
     const written: { path: string; jkf: JKFData }[] = [];
     let game!: ReturnType<typeof useGame>;

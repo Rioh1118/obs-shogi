@@ -38,7 +38,7 @@ const OWNER = "src/entities/kifu/model/kifu.ts";
 /** 走査器自身。探している字面をそのまま持っているので、自分を数えると必ず赤になる */
 const SELF = "src/__tests__/kifuFileNaming.test.ts";
 
-describe("書き込むファイル名を組む口", () => {
+describe("書き込むファイル名を組む関数", () => {
   it("`<名前>.<形式>` を組むのは kifuFileName だけ", () => {
     const files = tsFiles(SRC);
     // 「見つけた件数が0」と「見たセルが0」を分ける。走査の起点が壊れればここで落ちる

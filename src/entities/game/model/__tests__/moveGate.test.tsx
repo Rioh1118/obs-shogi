@@ -61,8 +61,8 @@ async function playPawn(game: { current: GameContextType | null }) {
   });
 }
 
-describe("盤の着手と門", () => {
-  test("門が通せば、いつもどおり積む", async () => {
+describe("盤の着手と `moveGate`", () => {
+  test("`moveGate` が通せば、いつもどおり積む", async () => {
     const accept = vi.fn(async () => true);
     const game = mountGame({ accept });
 
@@ -76,7 +76,7 @@ describe("盤の着手と門", () => {
   });
 
   /** **積まないことが `moveGate` の仕事。** 通してしまうと対局が壊れる */
-  test("門が断れば、棋譜は動かない", async () => {
+  test("`moveGate` が断れば、棋譜は動かない", async () => {
     const accept = vi.fn(async () => false);
     const game = mountGame({ accept });
 
@@ -91,7 +91,7 @@ describe("盤の着手と門", () => {
     expect(game.current!.state.selectedPosition).toBeNull();
   });
 
-  test("門に、いま盤が辿っている線を渡す", async () => {
+  test("`moveGate` に、いま盤が辿っている線を渡す", async () => {
     const accept = vi.fn(async () => true);
     const game = mountGame({ accept });
 
@@ -113,7 +113,7 @@ describe("盤の着手と門", () => {
    * 最初の描画の `moveGate` を永久に呼ぶ —— そのときの対局は `idle` なので常に素通しになり、
    * **`moveGate` が存在する理由そのものが黙って無効になる。**
    */
-  test("門が差し替わったら、新しいほうを呼ぶ", async () => {
+  test("`moveGate` が差し替わったら、新しいほうを呼ぶ", async () => {
     const first = vi.fn(async () => true);
     const second = vi.fn(async () => false);
 
@@ -188,7 +188,7 @@ describe("盤の着手と門", () => {
   });
 
   /** **`moveGate` を渡さない呼び手は素通し。** 盤だけを立てる場所に対局を持ち込まない */
-  test("門が無ければ、そのまま積む", async () => {
+  test("`moveGate` が無ければ、そのまま積む", async () => {
     const game = mountGame();
 
     await act(async () => {

@@ -1196,7 +1196,7 @@ mod tests {
         );
         assert!(
             analyzer.infinite_settled.lock().await.is_some(),
-            "諦めた（＝まだ畳まれていない）のに口を捨てている"
+            "諦めた（＝まだ畳まれていない）のに受信側を捨てている"
         );
     }
 
@@ -1457,7 +1457,10 @@ done"#;
                 .await
                 .expect("起動できる");
             assert_eq!(info.info.name, "Ready");
-            assert!(analyzer.protocol().await.is_ok(), "解析の口に載っていない");
+            assert!(
+                analyzer.protocol().await.is_ok(),
+                "`engine_id` に載っていない"
+            );
 
             analyzer.shutdown(8).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());
@@ -1499,7 +1502,7 @@ done"#;
             );
             assert!(
                 analyzer.protocol().await.is_err(),
-                "止めたのに解析の口に載っている"
+                "止めたのに `engine_id` に載っている"
             );
             let _ = std::fs::remove_dir_all(&dir);
         }
@@ -1681,7 +1684,10 @@ done"#;
                 before,
                 "古い停止が動いているエンジンを落とした"
             );
-            assert!(analyzer.protocol().await.is_ok(), "解析の口から外れている");
+            assert!(
+                analyzer.protocol().await.is_ok(),
+                "`engine_id` から外れている"
+            );
 
             analyzer.shutdown(6).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());

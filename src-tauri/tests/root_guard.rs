@@ -88,7 +88,7 @@ const EXEMPT: [(&str, &str); 10] = [
     ),
     (
         "create_ai_profile_dirs",
-        "(1) 同上。ai_root の下にプロファイルを作る",
+        "(1) 同上。ai_root の下に AI フォルダを作る",
     ),
     (
         "start_analysis_engine",
@@ -99,7 +99,7 @@ const EXEMPT: [(&str, &str); 10] = [
     (
         "probe_engine",
         "(1) engine_path は思考エンジンの実行ファイルで、ワークスペースの外にある \
-         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る。`start_analysis_engine` と同じ口）",
+         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る。`start_analysis_engine` と同じ経路）",
     ),
     (
         "save_presets",
@@ -118,7 +118,7 @@ const EXEMPT: [(&str, &str); 10] = [
     ),
     (
         "save_config",
-        "(2) root_dir を決める側。関門を掛けると root を設定できなくなる → TODO(#215)",
+        "(2) root_dir を決める側。検査を掛けると root を設定できなくなる → TODO(#215)",
     ),
 ];
 
@@ -513,7 +513,7 @@ fn every_path_taking_command_checks_the_root() {
                     if let Some(at) = code.find(&call) {
                         if at < guard_at {
                             wrong_order.push(format!(
-                                "{file}: {name} が {call} を {variable} の関門より前に呼んでいる"
+                                "{file}: {name} が {call} を {variable} の検査より前に呼んでいる"
                             ));
                         }
                     }
@@ -522,7 +522,7 @@ fn every_path_taking_command_checks_the_root() {
                 if let Some(at) = code.find(&ensure) {
                     if at < guard_at {
                         wrong_order.push(format!(
-                            "{file}: {name} が {ensure} を {variable} の関門より前に呼んでいる"
+                            "{file}: {name} が {ensure} を {variable} の検査より前に呼んでいる"
                         ));
                     }
                 }
@@ -531,7 +531,7 @@ fn every_path_taking_command_checks_the_root() {
     }
     assert!(
         wrong_order.is_empty(),
-        "関門より前に存在や種類を見ている:\n{}",
+        "検査より前に存在や種類を見ている:\n{}",
         wrong_order.join("\n")
     );
 
@@ -548,7 +548,7 @@ fn every_path_taking_command_checks_the_root() {
     }
     assert!(
         missing_extra.is_empty(),
-        "そのコマンドだけが呼ぶべき関門を呼んでいない:\n{}",
+        "そのコマンドだけが呼ぶべき検査を呼んでいない:\n{}",
         missing_extra.join("\n")
     );
 
@@ -604,7 +604,7 @@ pub fn open_thing(app: AppHandle, file_path: String) -> Result<(), String> {
     assert_eq!(command.name, "open_thing");
     assert!(
         !command.calls(GUARD),
-        "文字列の中の綴りを「関門を呼んだ」と数えている"
+        "文字列の中の綴りを「検査を呼んだ」と数えている"
     );
     assert!(
         source.contains(GUARD),

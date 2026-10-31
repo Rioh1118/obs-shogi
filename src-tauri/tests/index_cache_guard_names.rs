@@ -256,13 +256,13 @@ fn every_refusal_to_write_is_named_by_a_test() {
     let phrases = refusal_phrases(&body_of(&src, "encode_all"));
     assert!(
         !phrases.is_empty(),
-        "`encode_all` に `refusing to write:` が1つも無い。門番が消えたか、綴りが変わった"
+        "`encode_all` に `refusing to write:` が1つも無い。検査が消えたか、綴りが変わった"
     );
 
     let short: Vec<&String> = phrases.iter().filter(|p| p.len() < MIN_PHRASE).collect();
     assert!(
         short.is_empty(),
-        "門番の文言の固定部分が短すぎる。`contains` が題材に当たって検査が恒真になる。\
+        "検査の文言の固定部分が短すぎる。`contains` が題材に当たって検査が恒真になる。\
          書式指定の間に句を1つ入れること:\n{}",
         short
             .iter()
@@ -317,7 +317,7 @@ fn no_header_check_is_named_like_a_structural_guard() {
 
     assert!(
         offenders.is_empty(),
-        "ヘッダの検査が構造の門番の綴りを名乗っている。何を守っているかを\
+        "ヘッダの検査が構造の検査の綴りを名乗っている。何を守っているかを\
          名前に持たせること（`..._cannot_be_read` など）:\n{}",
         offenders.join("\n")
     );

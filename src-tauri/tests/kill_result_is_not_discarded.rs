@@ -143,7 +143,7 @@ fn the_scanner_still_sees_the_kill_call_sites() {
 
     assert!(
         calls.len() >= 2,
-        "`kill_and_wait` の呼び口を {} 件しか見つけられていない。\
+        "`kill_and_wait` の呼び出し箇所を {} 件しか見つけられていない。\
          綴りが変わったなら `KILL_CALL` を直すこと",
         calls.len()
     );

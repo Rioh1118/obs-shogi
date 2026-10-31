@@ -76,7 +76,7 @@ const TEST_ONLY_EDGES: &[(&str, &str, &str)] = &[
     (
         "binding",
         "option_line",
-        "申告の行を解いてテストの入力にする（`EngineOption` を組める口は `option_line` だけ）",
+        "申告の行を解いてテストの入力にする（`EngineOption` を組める関数は `option_line` だけ）",
     ),
     (
         "option_labels",
@@ -112,7 +112,7 @@ const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "option_line",
-        decides: "USI の `option` 行を定義に写す（定義を作る口はここ1つ）",
+        decides: "USI の `option` 行を定義に写す（定義を作るのはここだけ）",
         may_use: &["types"],
         forbids: &[],
     },

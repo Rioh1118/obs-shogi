@@ -795,8 +795,8 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
         assert!(child.read_stdout(move |event| tx.send(event).is_ok()));
         assert!(!child.read_stdout(|_| true), "2度読み始めている");
-        let writer = child.take_writer().expect("書く口が取れる");
-        assert!(child.take_writer().is_none(), "書く口を2本渡している");
+        let writer = child.take_writer().expect("書き手が取れる");
+        assert!(child.take_writer().is_none(), "書き手を2本渡している");
 
         writer.write_line("usiok").await.expect("書ける");
         let echoed = tokio::time::timeout(Duration::from_secs(10), rx.recv())
@@ -833,7 +833,7 @@ mod tests {
         // stdin を一切読まない
         let child = spawn_script(&dir, "exec sleep 30").await;
 
-        let writer = child.take_writer().expect("書く口が取れる");
+        let writer = child.take_writer().expect("書き手が取れる");
         let big = "x".repeat(4 * 1024 * 1024);
         let stuck = tokio::spawn(async move { writer.write_line(&big).await });
         tokio::time::sleep(Duration::from_millis(100)).await;

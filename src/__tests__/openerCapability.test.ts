@@ -142,9 +142,9 @@ function importedApis(): Map<string, string[]> {
   return found;
 }
 
-describe("opener の口と capability", () => {
+describe("opener の関数と capability", () => {
   // 0件を見て緑になる形を止める
-  test("本番のソースから口を読めている", () => {
+  test("本番のソースから関数を読めている", () => {
     expect(importedApis().size).toBeGreaterThan(0);
   });
 
@@ -171,10 +171,10 @@ describe("opener の口と capability", () => {
       .map(([file, identifier]) => `${file}: ${identifier}`)
       .sort();
 
-    expect(unknown, "この検査の GRANTS に、その許可が解禁する口を足すこと").toEqual([]);
+    expect(unknown, "この検査の GRANTS に、その許可が解禁する関数を足すこと").toEqual([]);
   });
 
-  test("呼んでいる口には許可がある", () => {
+  test("呼んでいる関数には許可がある", () => {
     const granted = new Set(
       grantedIdentifiers().flatMap(([, identifier]) => GRANTS[identifier] ?? []),
     );
@@ -185,7 +185,7 @@ describe("opener の口と capability", () => {
 
     expect(
       missing,
-      "capability が許していない口を呼んでいる。**型もビルドも通り、実機でだけ落ちる。**",
+      "capability が許していない関数を呼んでいる。**型もビルドも通り、実機でだけ落ちる。**",
     ).toEqual([]);
   });
 
@@ -196,7 +196,7 @@ describe("opener の口と capability", () => {
    * 集合の許可（`opener:default`）は、解禁する関数のどれか1つが呼ばれていれば残る。
    * 関数を1つも解禁しない許可は判定できないので対象外。
    */
-  test("誰も呼んでいない口の許可を残さない", () => {
+  test("誰も呼んでいない関数の許可を残さない", () => {
     const imported = importedApis();
     const unused = grantedIdentifiers()
       .filter(([, identifier]) => (GRANTS[identifier] ?? []).length > 0)

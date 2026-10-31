@@ -38,7 +38,7 @@ describe("JKFPlayer に触る場所", () => {
     .sort();
 
   // 0件を見て緑になる形を止める（正規表現が実装に追随できなくなったら落ちる）
-  test("口を持つ側では実際に呼んでいる", () => {
+  test("持ち主の側では実際に呼んでいる", () => {
     const owners = tsFiles(SRC, { includeTests: false })
       .filter((path) => relative(REPO_ROOT, path).startsWith(OWNER))
       .filter((path) => GUARDED.test(codeOf(readFileSync(path, "utf8"))));

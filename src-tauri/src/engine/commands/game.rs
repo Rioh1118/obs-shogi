@@ -486,19 +486,21 @@ mod tests {
         let ops = rejection_ops();
         assert!(
             ops.len() >= 5,
-            "`log_rejection` の口を数えられていない: {ops:?}"
+            "`log_rejection` のコマンドを数えられていない: {ops:?}"
         );
         // **テストが使う綴りも実在するコマンドであること。** 揃っていないと、
         // 台帳が約束した「コマンド名で grep できる」を確かめた気になれる
         for used in ["submit_game_move", "close_game"] {
-            assert!(ops.contains(used), "{used} という口は無い: {ops:?}");
+            assert!(ops.contains(used), "{used} というコマンドは無い: {ops:?}");
         }
 
         // 台帳に無い ID は文言にもう一度載るので、1行に2回出る。
         // **`op` はいちばん長い綴りで組む**——長さがそのまま1行に効く
         let game_id = worst_game_id();
         let worst = rejection_line(
-            ops.iter().max_by_key(|op| op.len()).expect("口がある"),
+            ops.iter()
+                .max_by_key(|op| op.len())
+                .expect("コマンドがある"),
             &game_id,
             &format!("unknown game: {game_id}"),
         );

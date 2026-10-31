@@ -119,7 +119,7 @@ fn no_caller_emits_the_index_state_itself() {
 
     assert!(
         offenders.is_empty(),
-        "段を出す口が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
+        "段を出す箇所が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
          `announce_state`（終端）か `announce_progress`（進行中）を通すこと。\
          生で組むと、旗を知らない側が伏せたまま出す",
     );
@@ -164,7 +164,7 @@ fn no_caller_builds_the_payload_itself() {
 
     assert!(
         offenders.is_empty(),
-        "旗を組む口が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
+        "旗を組む箇所が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
          段と旗の対応は `IndexAnnouncement` / `IndexProgress` の写像1箇所で決めること",
     );
 }
@@ -188,7 +188,7 @@ fn no_caller_builds_a_place_warning_itself() {
 
     assert!(
         offenders.is_empty(),
-        "場所の警告を組む口が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
+        "場所の警告を組む箇所が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
          `announce` の関数を通すこと。裸のリテラルで組むと、そこだけ言い分けが掛からない",
     );
 }

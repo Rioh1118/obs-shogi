@@ -21,7 +21,7 @@ describe("revealInFileManager", () => {
    * よいかを scope で決めることになる）。どちらのコマンドを叩いているかが、
    * 効くボタンと効かないボタンを分ける
    */
-  it("`reveal_item_in_dir` の口を叩く", async () => {
+  it("`reveal_item_in_dir` を呼ぶ", async () => {
     const revealed = await revealInFileManager("/Users/me/ai");
 
     expect(revealItemInDir).toHaveBeenCalledWith("/Users/me/ai");
