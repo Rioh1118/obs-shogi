@@ -5,6 +5,8 @@ import Button from "@/shared/ui/Button/Button";
 type Props = {
   status: EngineStatus;
   isAnalyzing: boolean;
+  /** 中断を頼んだ後、エンジンが止まるまで */
+  stopping: boolean;
   /** 読む局面があるか */
   canStart: boolean;
   onToggle: () => void;
@@ -15,7 +17,14 @@ type Props = {
  * ▶ の位置に出る1つのボタン。**いまの状態の次の一手を出す**
  * （`docs/spec/features/engine-standardization.md` の「エンジンの状態」）。
  */
-export function EngineAction({ status, isAnalyzing, canStart, onToggle, onRestart }: Props) {
+export function EngineAction({
+  status,
+  isAnalyzing,
+  stopping,
+  canStart,
+  onToggle,
+  onRestart,
+}: Props) {
   if (status === "exited" || status === "unresponsive") {
     return (
       <Button size="sm" motion={false} onClick={onRestart}>
@@ -28,7 +37,7 @@ export function EngineAction({ status, isAnalyzing, canStart, onToggle, onRestar
     <button
       className="analysis-controls__iconBtn"
       onClick={onToggle}
-      disabled={!isAnalyzing && !canStart}
+      disabled={stopping || (!isAnalyzing && !canStart)}
       title={isAnalyzing ? "検討を中断" : "検討を開始"}
     >
       {isAnalyzing ? (

@@ -70,14 +70,25 @@ describe("▶ の位置のボタン", () => {
 
   test("検討していなければ ▶、局面が無ければ押せない", () => {
     render(
-      <EngineAction status="standing-by" isAnalyzing={false} canStart={false} {...handlers()} />,
+      <EngineAction
+        status="standing-by"
+        isAnalyzing={false}
+        stopping={false}
+        canStart={false}
+        {...handlers()}
+      />,
     );
     expect((screen.getByTitle("検討を開始") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  test("中断を頼んだ後は、語が検討中のまま ■ を押せない", () => {
+    render(<EngineAction status="analyzing" isAnalyzing stopping canStart {...handlers()} />);
+    expect((screen.getByTitle("検討を中断") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   test("検討完了は ■ で、押すと中断する", () => {
     const on = handlers();
-    render(<EngineAction status="finished" isAnalyzing canStart {...on} />);
+    render(<EngineAction status="finished" isAnalyzing stopping={false} canStart {...on} />);
 
     fireEvent.click(screen.getByTitle("検討を中断"));
     expect(on.onToggle).toHaveBeenCalledTimes(1);
@@ -85,7 +96,7 @@ describe("▶ の位置のボタン", () => {
 
   test.each(["exited", "unresponsive"] as const)("%s は再起動になり、■ が残らない", (status) => {
     const on = handlers();
-    render(<EngineAction status={status} isAnalyzing canStart {...on} />);
+    render(<EngineAction status={status} isAnalyzing stopping={false} canStart {...on} />);
 
     expect(screen.queryByTitle("検討を中断")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "再起動する" }));

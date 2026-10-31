@@ -933,6 +933,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // 古い世代のまま握り、止めたのに Rust で走り続ける（理由の本文は
     // 「読む局面が無くなったら止める」effect の同じ行）。
     supersedeRequests();
+    dispatch({ type: "begin_stop" });
 
     // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、
     // **フックに撃たせるかどうかとは別の判断**をするときだけ——席と `isAnalyzing` の

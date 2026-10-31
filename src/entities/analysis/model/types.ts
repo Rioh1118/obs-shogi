@@ -10,12 +10,15 @@ export interface AnalysisState {
    * 局面が動けば読み始める（`docs/state-transitions/engine-standardization.md` の V5）。
    */
   finished: boolean;
+  /** ■ を押してから、エンジンが止まるまで。この間 ■ は押せない（V4） */
+  stopping: boolean;
   candidates: AnalysisCandidate[];
   error: string | null;
 }
 
 export type AnalysisAction =
   | { type: "start_analysis"; payload: { sfen: string } }
+  | { type: "begin_stop" }
   | { type: "stop_analysis" }
   | { type: "finish_analysis"; payload: AnalysisResult }
   | { type: "update_result"; payload: AnalysisResult }

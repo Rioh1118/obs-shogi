@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, Mutex, RwLock};
 
 const LOGT: &str = "obs_shogi::engine::bridge";
 
@@ -21,6 +21,9 @@ pub struct EngineBridge {
     events: Arc<RwLock<Arc<dyn AnalysisEventSink>>>,
     /// いま動いているプロセスを起動した要求の番号。`stop` の通知に載せる
     started_by: AtomicU64,
+    /// 開始と停止を1本ずつ通す。**開始の途中（席を取ってから `go` が線に出るまで）に停止が
+    /// 割り込むと、席だけ消えてエンジンが読み続ける。** 順序をフロントの握手に頼らない
+    search_turn: Mutex<()>,
 }
 
 /// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
@@ -93,6 +96,7 @@ impl EngineBridge {
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
             events: Arc::new(RwLock::new(Arc::new(DiscardAnalysisEvents))),
             started_by: AtomicU64::new(0),
+            search_turn: Mutex::new(()),
         }
     }
 
@@ -112,10 +116,9 @@ impl EngineBridge {
     /// 断られる——落ちた回こそ空けておく必要がある。
     async fn release_sessions(&self, what: &str) {
         // 席を捨ててから、呼び手の起動（`EngineAnalyzer::start_engine`）が古いプロセスを畳む。
-        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる**
-        // ——`stop_analysis_impl` の doc が挙げている #463 と同じ形の窓。
-        // 畳むほうが直後に殺すので短いが、**順序を「畳んでから捨てる」に
-        // 変えないこと**——落ちた回に席が残り、そのまま次の解析が断られる。
+        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる。** 畳むほうが直後に
+        // 殺すので短いが、**順序を「畳んでから捨てる」に変えないこと**——落ちた回に
+        // 席が残り、そのまま次の解析が断られる。
         let stale: Vec<String> = self
             .active_sessions
             .write()
@@ -262,6 +265,8 @@ impl EngineBridge {
             return Ok(());
         }
 
+        let _turn = self.search_turn.lock().await;
+
         // **止められなくても席の掃除まで進む。** `?` で折れると
         // `engine_id` が `Some` のまま残り、以降どのコマンドも
         // 「Engine is no longer running」を返すだけになる（終了ボタンが直せない）
@@ -297,6 +302,8 @@ impl EngineBridge {
     }
 
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
+        let _turn = self.search_turn.lock().await;
+
         // **セッションを先に登録する。** 後にすると、走らせている間だけ
         // 「走っていない」に見える
         let session_id = self
@@ -503,11 +510,6 @@ impl EngineBridge {
     /// 席を消した後にエンジンの停止が落ちた回（**席は空**）。省いた側の `Err` は後者だけ。
     /// **フロントからこの2つは区別できない**
     /// （→ `docs/state-transitions/analysis.md` ※12）。
-    ///
-    /// **省いた側は `take_session` の相互排除を素通りする。** 開始の途中
-    /// （席を取ってから `go` が線に出るまで）に割り込むと、席だけ消えて
-    /// エンジンが読み続ける。いまそれが収束しているのは、開始の応答を受け取った
-    /// フロントが**その席をもう一度返す**からで、Rust 側の仕組みではない → #463
     pub async fn stop_analysis_impl(
         &self,
         session_id: Option<String>,
@@ -516,6 +518,7 @@ impl EngineBridge {
         // 呼び手が名乗らなかったときの既定。**名乗った回と区別できるようにしておく。**
         //
         let by = by.as_deref().unwrap_or("unnamed");
+        let _turn = self.search_turn.lock().await;
 
         if let Some(id) = session_id {
             self.stop_session(&id, by).await
@@ -1357,6 +1360,50 @@ done"#
 
             bridge.shutdown_engine_impl(6).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (AC-19 の土台) **開始と停止がどの順に重なっても「席が無いのに読み続ける」にならない。**
+        ///
+        /// 席が空なら、線の最後の `go` の後に `stop` がある
+        #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+        async fn a_start_and_a_stop_at_once_leave_no_search_without_a_seat() {
+            for attempt in 0..12 {
+                let name = format!("bridge-overlap-{attempt}");
+                // 実物と同じく、探索していない `stop` には答えない
+                let body = script_with(
+                    "searching=1",
+                    ":",
+                    "[ -n \"$searching\" ] && echo 'bestmove 7g7f'; searching=",
+                    "exit 0",
+                );
+                let (bridge, _, dir) = started_as(&name, &body, 1).await;
+                let bridge = Arc::new(bridge);
+
+                let start = {
+                    let bridge = Arc::clone(&bridge);
+                    tokio::spawn(async move { bridge.start_infinite_analysis_impl().await })
+                };
+                let stop = {
+                    let bridge = Arc::clone(&bridge);
+                    tokio::spawn(async move { bridge.stop_analysis_impl(None, None).await })
+                };
+                let _ = start.await.expect("開始のタスク");
+                let _ = stop.await.expect("停止のタスク");
+                tokio::time::sleep(Duration::from_millis(30)).await;
+
+                let lines = seen(&dir);
+                let last_go = lines.rfind("go");
+                let last_stop = lines.rfind("stop");
+                if bridge.active_sessions.read().await.is_empty() {
+                    assert!(
+                        last_go.is_none() || last_stop > last_go,
+                        "席が無いのにエンジンが読み続ける: {lines}"
+                    );
+                }
+
+                bridge.shutdown_engine_impl(2).await.expect("落とせる");
+                let _ = std::fs::remove_dir_all(&dir);
+            }
         }
     }
 }
