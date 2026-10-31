@@ -9,13 +9,15 @@ type Props = {
   stopping: boolean;
   /** 読む局面があるか */
   canStart: boolean;
+  /** 同じ設定のまま起動し直して直る見込みがあるか（`engineFailureNoticeOf` の `retry`） */
+  retry: boolean;
+  /** 起動が長引いている（`SLOW_START_MS`） */
+  slowStart: boolean;
   onToggle: () => void;
   onRestart: () => void;
+  onOpenSettings: () => void;
+  onCancelStart: () => void;
 };
-
-/** ▶ を押して意味がある状態か */
-const startable = (status: EngineStatus) =>
-  status !== "no-engine" && status !== "failed" && status !== "cancelled";
 
 /**
  * ▶ の位置に出る1つのボタン。**いまの状態の次の一手を出す**
@@ -26,22 +28,32 @@ export function EngineAction({
   isAnalyzing,
   stopping,
   canStart,
+  retry,
+  slowStart,
   onToggle,
   onRestart,
+  onOpenSettings,
+  onCancelStart,
 }: Props) {
   if (status === "exited" || status === "unresponsive") {
-    return (
-      <Button size="sm" motion={false} onClick={onRestart}>
-        再起動する
-      </Button>
+    return <TextAction label="再起動する" onClick={onRestart} />;
+  }
+  if (status === "failed" || status === "cancelled") {
+    return retry ? (
+      <TextAction label="もう一度起動" onClick={onRestart} />
+    ) : (
+      <TextAction label="設定を開く" onClick={onOpenSettings} />
     );
+  }
+  if (status === "starting" && slowStart) {
+    return <TextAction label="起動を中止する" onClick={onCancelStart} />;
   }
 
   return (
     <button
       className="analysis-controls__iconBtn"
       onClick={onToggle}
-      disabled={stopping || !startable(status) || (!isAnalyzing && !canStart)}
+      disabled={stopping || status === "no-engine" || (!isAnalyzing && !canStart)}
       title={isAnalyzing ? "検討を中断" : "検討を開始"}
     >
       {isAnalyzing ? (
@@ -50,5 +62,13 @@ export function EngineAction({
         <Play className="analysis-controls__icon" />
       )}
     </button>
+  );
+}
+
+function TextAction({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Button size="sm" motion={false} onClick={onClick}>
+      {label}
+    </Button>
   );
 }

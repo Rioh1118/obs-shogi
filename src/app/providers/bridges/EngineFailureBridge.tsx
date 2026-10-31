@@ -65,9 +65,9 @@ export function EngineFailureBridge() {
         title: "エンジンの準備に時間が掛かっています",
         body:
           "評価関数の読み込みに時間が掛かるエンジンでは、このまま待てば使えるようになります。" +
-          "止めるときは「起動をやめる」を押してください。",
+          "止めるときは「起動を中止する」を押してください。",
         actions: [
-          { label: "起動をやめる", run: () => stopStarting.current() },
+          { label: "起動を中止する", run: () => stopStarting.current() },
           {
             label: "設定を開く",
             run: () => openSettings.current("settings", { tab: "engine" }),

@@ -143,7 +143,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
       },
     });
     engineInitializer.shutdown(mySeq).catch((e: unknown) => {
-      console.error("[engine] 起動をやめる停止に失敗した", e);
+      console.error("[engine] 起動を中止する停止に失敗した", e);
     });
   }, []);
 
@@ -248,7 +248,6 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
       initialize,
       shutdown,
       cancelStart,
-      restart,
       clearError,
       presetIncomplete,
       reportUnreachable,
@@ -259,7 +258,6 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
       initialize,
       shutdown,
       cancelStart,
-      restart,
       clearError,
       presetIncomplete,
       reportUnreachable,

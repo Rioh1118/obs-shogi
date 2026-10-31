@@ -7,6 +7,7 @@ import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
 import { engineFailureNoticeOf, useEngine } from "@/entities/engine";
 import { useEngineStatus } from "@/widgets/analysis-pane/lib/useEngineStatus";
+import { useSlowStart } from "@/widgets/analysis-pane/lib/useSlowStart";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
@@ -25,10 +26,12 @@ import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
  */
 function AnalysisControls() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
-  const { state: engine, initialize, presetIncomplete } = useEngine();
+  const { state: engine, initialize, cancelStart, presetIncomplete } = useEngine();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const status = useEngineStatus(currentSfen);
+  const notice = engineFailureNoticeOf({ ...engine, presetIncomplete });
+  const slowStart = useSlowStart(status === "starting");
   const { openModal } = useURLParams();
   const openSettings = useOpenSettings();
   const { findBySfen } = useStudyPositions();
@@ -59,7 +62,7 @@ function AnalysisControls() {
       <EngineStatusLabel
         status={status}
         currentSfen={currentSfen}
-        notice={engineFailureNoticeOf({ ...engine, presetIncomplete })}
+        notice={notice}
         lastOutput={engine.error?.lastOutput ?? engine.lastOutput}
         onOpenSettings={handleOpenSettings}
       />
@@ -83,8 +86,12 @@ function AnalysisControls() {
             isAnalyzing={state.isAnalyzing}
             stopping={state.stopping}
             canStart={!!currentSfen}
+            retry={notice?.retry ?? false}
+            slowStart={slowStart}
             onToggle={handleToggleAnalysis}
             onRestart={() => void initialize()}
+            onOpenSettings={handleOpenSettings}
+            onCancelStart={cancelStart}
           />
         </div>
 

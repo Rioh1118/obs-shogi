@@ -91,11 +91,10 @@ export type EngineContextType = EngineReadiness & {
   initialize: () => Promise<boolean>;
   shutdown: () => Promise<void>;
   /**
-   * 進行中の起動をやめる。エンジンを落とし、失敗（種類 `cancelled`）として止まる——
+   * 進行中の起動を中止する。エンジンを落とし、失敗（種類 `cancelled`）として止まる——
    * `idle` に戻すと、設定が選ばれたままなので同じ設定で起動し直してしまう
    */
   cancelStart: () => void;
-  restart: () => Promise<boolean>;
   clearError: () => void;
   /** プリセットは選んだが、エンジンが未設定で起動を試みられない */
   presetIncomplete: boolean;
