@@ -39,7 +39,7 @@ export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): A
   const nextFormat = getNextMoveFormat(player, curTesuu);
   if (nextFormat?.move && eqMove(nextFormat.move, move)) {
     player.forward();
-    return buildResult(player, true, false);
+    return buildResult(player, "existing");
   }
 
   // 2) 既存変化合流
@@ -49,7 +49,7 @@ export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): A
       const forkFirst = forkLine?.[0];
       if (forkFirst?.move && eqMove(forkFirst.move, move)) {
         player.forkAndForward(i);
-        return buildResult(player, true, false);
+        return buildResult(player, "existing");
       }
     }
   }
@@ -74,13 +74,13 @@ export function applyMoveWithBranch(player: JKFPlayer, move: IMoveMoveFormat): A
     const newForkIndex = nextFormat.forks.length;
     nextFormat.forks.push([{ move }]);
     player.forkAndForward(newForkIndex);
-    return buildResult(player, false, true);
+    return buildResult(player, "created");
   }
 
   // 末端（次手が存在しない）: 今いる線の末尾に足す
   appendToCurrentLine(player, { move });
   player.forward();
-  return buildResult(player, false, true);
+  return buildResult(player, "created");
 }
 
 /**
@@ -158,15 +158,11 @@ function appendToCurrentLine(player: JKFPlayer, entry: IMoveFormat): void {
   stream.push(entry);
 }
 
-function buildResult(
-  player: JKFPlayer,
-  usedExisting: boolean,
-  createdNew: boolean,
-): ApplyMoveResult {
+function buildResult(player: JKFPlayer, outcome: "existing" | "created"): ApplyMoveResult {
   const fps = (player.getForkPointers?.() ?? []) as ForkPointer[];
   return {
-    usedExisting,
-    createdNew,
+    usedExisting: outcome === "existing",
+    createdNew: outcome === "created",
     tesuu: player.tesuu,
     forkPointers: fps,
   };

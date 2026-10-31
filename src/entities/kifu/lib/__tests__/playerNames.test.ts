@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { playerNames } from "../playerNames";
+import { headerValue, playerNames } from "../playerNames";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 
 /**
@@ -34,5 +34,16 @@ describe("playerNames", () => {
 
   test("棋譜が無ければ null", () => {
     expect(playerNames(null)).toEqual({ sente: null, gote: null });
+  });
+});
+
+describe("headerValue", () => {
+  test("前後の空白を落として返す", () => {
+    expect(headerValue({ 棋戦: "  竜王戦 " }, "棋戦")).toBe("竜王戦");
+  });
+
+  test("欄が無いときと空白だけのときは null", () => {
+    expect(headerValue({}, "棋戦")).toBeNull();
+    expect(headerValue({ 棋戦: "   " }, "棋戦")).toBeNull();
   });
 });
