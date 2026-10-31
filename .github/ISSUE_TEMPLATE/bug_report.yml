@@ -9,21 +9,6 @@ body:
         セキュリティ上の問題の場合は、ここではなく [SECURITY.md](../blob/main/SECURITY.md) の手順で非公開に報告してください。
 
   - type: textarea
-    id: what-happened
-    attributes:
-      label: 何が起きましたか
-      description: 実際に起きたことを書いてください
-    validations:
-      required: true
-
-  - type: textarea
-    id: expected
-    attributes:
-      label: 本来どうなってほしかったですか
-    validations:
-      required: true
-
-  - type: textarea
     id: steps
     attributes:
       label: 再現手順
@@ -34,6 +19,33 @@ body:
         3. ...
     validations:
       required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した結果
+      description: 本来どうなってほしかったかを書いてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 実際の結果
+      description: 実際に起きたことを書いてください。原因の見当があれば「推測」と添えてください
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 再現の頻度
+      options:
+        - 毎回
+        - 時々
+        - 1回だけ
+    validations:
+      required: true
 
   - type: dropdown
     id: os
