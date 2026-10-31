@@ -42,7 +42,7 @@
 .tags-input {
   min-height: 5.2rem;
   padding: 1rem 1.2rem;
-  background-color: rgba(index.$color-white, 0.06);
+  background-color: index.$surface-field;
   border: 0.2rem solid index.$stroke;
   border-radius: 0.8rem;
   transition: all 0.3s ease;
@@ -51,13 +51,13 @@
   backdrop-filter: blur(10px);
 
   &:hover:not(.tags-input--disabled) {
-    background-color: rgba(index.$color-white, 0.1);
+    background-color: index.$surface-field;
     border-color: index.$stroke-strong;
     box-shadow: index.$shadow-control;
   }
 
   &--focused {
-    background-color: rgba(index.$color-white, 0.1);
+    background-color: index.$surface-field;
     border-color: index.$color-secondary-dark;
     box-shadow: index.$shadow-control;
 

@@ -1,7 +1,7 @@
 @use "@/index.scss" as index;
 
 // ---- local tokens (no CSS vars) ----
-$radius: 14px;
+$radius: index.$radius-4;
 
 $border: rgba(index.$color-white, 0.08);
 $border-weak: rgba(index.$color-white, 0.06);

@@ -1,6 +1,6 @@
 @use "@/index.scss" as index;
 
-$radius: 14px;
+$radius: index.$radius-5;
 
 $border: rgba(index.$color-white, 0.08);
 $border-strong: rgba(index.$color-white, 0.12);
@@ -24,7 +24,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
   color: inherit;
 
   // modal padding="none" でも “中のワークスペース” っぽい面を作る
-  border-radius: 1rem;
+  border-radius: index.$radius-4;
   overflow: hidden;
 
   background:
@@ -101,7 +101,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
     display: grid;
 
     // 左タブを “ほどよく太く”、かつ可変に
-    grid-template-columns: minmax(240px, 28%) 1fr;
+    grid-template-columns: minmax(240px, 28%) minmax(0, 1fr);
   }
 
   &__nav {
@@ -164,7 +164,7 @@ $accent-soft: rgba(index.$color-secondary-dark, 0.35);
   // ---- responsive: 狭い時は縦積み（モーダルがfull相当になるケース） ----
   @media (max-width: 760px) {
     &__body {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto 1fr;
     }
 

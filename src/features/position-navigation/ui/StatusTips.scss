@@ -3,17 +3,17 @@
 .position-navigation-modal {
   &__chip {
     font-size: 1.2rem;
-    color: rgba(index.$color-text-light-1, 0.88);
+    color: index.$color-text-muted;
 
     padding: 6px 10px;
-    border-radius: 999px;
+    border-radius: index.$radius-2;
 
-    background: rgba(index.$color-primary-light, 0.25);
-    border: 1px solid rgba(index.$color-primary-light, 0.35);
+    background: rgba(index.$color-primary-light, 0.35);
+    border: 1px solid transparent;
     white-space: nowrap;
 
     &--accent {
-      background: rgba(index.$color-secondary-dark, 0.22);
+      color: index.$color-text-primary;
       border-color: rgba(index.$color-secondary-dark, 0.45);
     }
   }

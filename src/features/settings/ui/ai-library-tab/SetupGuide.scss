@@ -9,11 +9,11 @@
 
   &__hero {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 14px;
     align-items: center;
     padding: 14px 16px;
-    border-radius: 16px;
+    border-radius: index.$radius-4;
     border: 1px solid rgba(index.$color-white, 0.08);
     background: rgba(index.$color-primary-black, 0.22);
     transition:
@@ -34,7 +34,7 @@
     }
 
     @media (max-width: 820px) {
-      grid-template-columns: auto 1fr;
+      grid-template-columns: auto minmax(0, 1fr);
       .setupGuide__heroActions {
         grid-column: 1 / -1;
       }
@@ -44,7 +44,7 @@
   &__heroIcon {
     width: 38px;
     height: 38px;
-    border-radius: 10px;
+    border-radius: index.$radius-3;
     display: grid;
     place-items: center;
     background: rgba(index.$color-primary-black, 0.3);
@@ -60,7 +60,7 @@
     display: inline-block;
     font-size: 1.1rem;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: index.$radius-2;
     background: rgba(index.$color-primary-light, 0.18);
     color: rgba(index.$color-text-light-1, 0.7);
     margin-bottom: 5px;
@@ -93,13 +93,13 @@
 
   &__statusGrid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
   &__statusCard {
     padding: 12px 12px;
-    border-radius: 12px;
+    border-radius: index.$radius-4;
     border: 1px solid rgba(index.$color-white, 0.07);
     background: rgba(index.$color-primary-black, 0.16);
 
@@ -153,18 +153,18 @@
 
   &__roles {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
 
     @media (max-width: 700px) {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
   &__roleCard {
     position: relative;
     padding: 10px 12px;
-    border-radius: 10px;
+    border-radius: index.$radius-3;
     border: 1px solid rgba(index.$color-white, 0.07);
     background: rgba(index.$color-primary-black, 0.22);
     display: flex;
@@ -178,7 +178,7 @@
     right: 8px;
     font-size: 1rem;
     padding: 1px 6px;
-    border-radius: 999px;
+    border-radius: index.$radius-2;
     background: rgba(index.$color-white, 0.07);
     color: rgba(index.$color-text-light-1, 0.45);
   }
@@ -210,7 +210,7 @@
     display: inline-block;
     font-size: 1.05rem;
     padding: 2px 8px;
-    border-radius: 999px;
+    border-radius: index.$radius-2;
     background: rgba(index.$color-primary-dark, 0.5);
     border: 1px solid rgba(index.$color-white, 0.07);
     color: rgba(index.$color-text-light-1, 0.45);
@@ -219,7 +219,7 @@
 
   &__example {
     padding: 10px 12px;
-    border-radius: 10px;
+    border-radius: index.$radius-3;
     border: 1px solid rgba(index.$color-white, 0.06);
     background: rgba(index.$color-primary-black, 0.28);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
@@ -259,7 +259,7 @@
   flex-direction: column;
   gap: 1px;
   padding: 10px 10px;
-  border-radius: 10px;
+  border-radius: index.$radius-3;
   border: 1px solid rgba(index.$color-white, 0.06);
   background: rgba(index.$color-primary-black, 0.28);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
@@ -316,7 +316,7 @@
 
   &__profileItem {
     padding: 10px 12px;
-    border-radius: 12px;
+    border-radius: index.$radius-4;
     border: 1px solid rgba(index.$color-white, 0.07);
     background: rgba(index.$color-primary-black, 0.16);
   }
@@ -351,7 +351,7 @@
 
   &__emptyProfiles {
     padding: 12px;
-    border-radius: 12px;
+    border-radius: index.$radius-4;
     border: 1px dashed rgba(index.$color-white, 0.1);
     color: rgba(index.$color-text-light-1, 0.55);
     font-size: 1.2rem;
@@ -390,7 +390,7 @@
 
   &__warnings {
     padding: 10px 12px;
-    border-radius: 12px;
+    border-radius: index.$radius-4;
     border: 1px solid rgba(255, 180, 80, 0.25);
     background: rgba(255, 180, 80, 0.06);
   }

@@ -61,7 +61,8 @@ import は下向きだけ。**lint が強制する**（`CLAUDE.md`「依存の�
 | 押す・打つもの（ボタン、入力、選択）     | `$radius-3`      | 0.6rem |
 | 面（ドック、カード、ポップオーバー、メニュー） | `$radius-4`  | 0.8rem |
 | モーダル                                 | `$radius-5`      | 1rem   |
-| 札（バッジ、チップ、丸ボタン列）         | `$radius-pill`   | —      |
+| 札（バッジ、チップ）                     | `$radius-2`      | 0.4rem |
+| 進捗の棒、丸ボタン列                     | `$radius-pill`   | —      |
 | 印（状態の点、丸い記号）                 | `$radius-circle` | —      |
 
 ### 文字の太さは4段
@@ -171,6 +172,9 @@ import は下向きだけ。**lint が強制する**（`CLAUDE.md`「依存の�
 | つまみ | 軌道 `$space-2`、満たした側は `$color-secondary-dark`、持ち手は `$color-text-primary`。ブラウザ既定のまま出さない |
 | 幅     | 押すものは文字の幅。**行の余りを押すもので埋めない。** 余りは入力欄が受け持つ（利用者の判定、2026-10-31） |
 | 記号   | 増減も `lucide-react`（`Minus` / `Plus`）。文字で代用しない                              |
+
+**選択は左の銅のバーで見せる。** `inset 3px 0 0 $color-secondary-dark` に、面は `$color-primary-light` の濃淡。
+白透明の面を選択に使わない（利用者の判定「白透明はダサい」、2026-10-31）。盤の下の面は `$color-primary-black`。
 
 文字の濃さは3段。`$color-text-primary`（本文）/ `$color-text-muted`（名前の添え書き・説明）/
 `$color-text-faint`（無効・範囲の注記）。**`rgba(…, N)` で薄くしない。**

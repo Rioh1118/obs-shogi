@@ -2,23 +2,23 @@
 
 .position-navigation-modal {
   &__title {
-    font-size: 1.8rem;
-    font-weight: 650;
+    font-size: 1.9rem;
+    font-weight: index.$weight-title;
     color: index.$color-text-light-1;
     margin: 0;
     letter-spacing: 0.025em;
   }
 
   &__subtitle {
-    font-size: 1.4rem;
-    color: rgba(index.$color-text-light-1, 0.7);
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
     margin: 0;
     font-weight: index.$weight-regular;
   }
 
   &__header {
-    padding: 18px 22px 14px;
-    border-bottom: 2px solid rgba(index.$color-primary-light, 0.3);
+    padding: 2rem 2.4rem 1.2rem;
+    border-bottom: 1px solid index.$stroke;
 
     display: flex;
     align-items: flex-start;

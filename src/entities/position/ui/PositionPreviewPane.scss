@@ -8,9 +8,9 @@
     // **文字列のまま**出力され、`var()` の値としては常に無効になる
     // （面も枠も落ちる。走査は「トークンが実在するか」しか見ないので緑のまま）
     --board-pad: clamp(8px, 0.6cqw, 12px);
-    --board-radius: 12px;
-    --board-surface: #{rgba(index.$color-secondary-light, 0.1)};
-    --board-border: #{rgba(index.$color-primary-light, 0.45)};
+    --board-radius: #{index.$radius-4};
+    --board-surface: #{index.$color-primary-black};
+    --board-border: #{index.$stroke};
 
     height: 100%;
     min-height: 0;
@@ -69,7 +69,7 @@
     border: 1px solid var(--board-border);
     box-shadow:
       0 10px 24px rgba(0, 0, 0, 0.22),
-      inset 0 0 0 1px rgba(index.$color-white, 0.06);
+      inset 0 0 0 1px transparent;
   }
 
   &__hands {
@@ -80,9 +80,9 @@
     gap: 10px;
     padding: 12px;
 
-    background: rgba(index.$color-secondary-light, 0.06);
-    border: 1px solid rgba(index.$color-primary-light, 0.28);
-    border-radius: 8px;
+    background: rgba(index.$color-primary-black, 0.45);
+    border: 0;
+    border-radius: index.$radius-3;
     min-width: 0;
   }
 }

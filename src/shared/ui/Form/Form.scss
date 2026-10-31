@@ -51,7 +51,7 @@
     font-family: inherit;
     color: index.$color-text-light-1;
     padding: 1.2rem 1.6rem;
-    background-color: rgba(index.$color-white, 0.08);
+    background-color: index.$surface-field;
     border: none;
     border-bottom: 0.2rem solid transparent;
     border-radius: 0.4rem;
@@ -59,7 +59,7 @@
 
     &:focus {
       outline: none;
-      background-color: rgba(index.$color-white, 0.12);
+      background-color: index.$surface-field;
       border-color: index.$color-secondary-dark;
       box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
     }

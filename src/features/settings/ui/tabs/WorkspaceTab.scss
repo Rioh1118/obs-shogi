@@ -22,7 +22,7 @@
 
 .wsTab__error {
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: index.$radius-4;
   border: 1px solid rgba(#ff5a5a, 0.34);
   background: rgba(#ff5a5a, 0.12);
   color: index.$color-text-primary;
@@ -42,14 +42,14 @@
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 
   @media (max-width: 860px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 .wsTab__mini {
   border: 1px solid rgba(index.$color-white, 0.07);
   background: rgba(index.$color-primary-black, 0.18);
-  border-radius: 12px;
+  border-radius: index.$radius-4;
   padding: 10px 12px;
   box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
 }
@@ -74,7 +74,7 @@
   display: grid;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: index.$radius-4;
   border: 1px solid rgba(index.$color-white, 0.07);
   background: rgba(index.$color-primary-black, 0.14);
 }
@@ -125,7 +125,7 @@
 .wsTab__warnBox {
   border: 1px solid rgba(#f0b429, 0.28);
   background: rgba(#f0b429, 0.08);
-  border-radius: 14px;
+  border-radius: index.$radius-4;
   padding: 10px 12px;
 }
 
@@ -155,7 +155,7 @@
 .wsTab__warnItem {
   border: 1px solid rgba(index.$color-white, 0.06);
   background: rgba(index.$color-primary-black, 0.18);
-  border-radius: 12px;
+  border-radius: index.$radius-4;
   padding: 8px 10px;
 }
 
@@ -182,7 +182,7 @@
 .wsTab__pathBox {
   border: 1px solid rgba(index.$color-white, 0.07);
   background: rgba(index.$color-primary-black, 0.16);
-  border-radius: 14px;
+  border-radius: index.$radius-4;
   padding: 10px 12px;
 }
 
@@ -196,9 +196,7 @@
   font-size: 1.25rem;
   font-weight: index.$weight-title;
   color: index.$color-text-primary;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .wsTab__danger {
@@ -220,7 +218,7 @@
 
 .wsTab__confirm {
   margin-top: 12px;
-  border-radius: 14px;
+  border-radius: index.$radius-4;
   border: 1px solid rgba(#ff5a5a, 0.28);
   background: rgba(#ff5a5a, 0.08);
   padding: 10px 12px;
@@ -242,7 +240,7 @@
   margin-top: 10px;
   width: 100%;
   height: 38px;
-  border-radius: 12px;
+  border-radius: index.$radius-4;
   border: 1px solid rgba(index.$color-white, 0.1);
   background: rgba(index.$color-primary-black, 0.24);
   color: index.$color-text-primary;
