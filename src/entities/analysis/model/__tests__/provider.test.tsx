@@ -2702,7 +2702,7 @@ describe("開始がエンジンへ届かなかった回", () => {
     expect(view.current.state.error).toBeNull();
   });
 
-  it("▶ でも断りを立てない", async () => {
+  it("▶ でも断りを立てず、検討の意思を残す", async () => {
     startCore.mockRejectedValueOnce(unreachable);
     const view = mountAnalysis(adapter("P1", "P1"));
 
@@ -2712,6 +2712,7 @@ describe("開始がエンジンへ届かなかった回", () => {
 
     expect(reportUnreachable).toHaveBeenCalledTimes(1);
     expect(view.current.state.error).toBeNull();
+    expect(view.current.state.isAnalyzing).toBe(true);
   });
 });
 

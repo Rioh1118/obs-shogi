@@ -298,7 +298,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         if (startFailedUnreachable(e)) {
           reportUnreachable();
           dropPendingForLostSeat();
-          return "superseded";
+          return "engine-gone";
         }
         landed = "engine-gone";
       }
