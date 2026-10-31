@@ -1,0 +1,60 @@
+{
+ "yaneuraou-v830": {
+  "go_mate": {
+   "ms": 5.3,
+   "line": "bestmove G*1b"
+  },
+  "overlap_stop": {
+   "ms": null,
+   "line": null
+  },
+  "overlap_isready": {
+   "ms": null,
+   "line": null
+  },
+  "overlap_quit_ms": null,
+  "multipv_before_go": [
+   "1",
+   "2",
+   "3"
+  ],
+  "stdin_eof_exit_ms": 10.6
+ },
+ "yaneuraou-v900": {
+  "go_mate": {
+   "ms": 3.2,
+   "line": "bestmove G*1b"
+  },
+  "overlap_stop": {
+   "ms": null,
+   "line": null
+  },
+  "overlap_isready": {
+   "ms": null,
+   "line": null
+  },
+  "overlap_quit_ms": null,
+  "multipv_before_go": [
+   "1",
+   "2",
+   "3"
+  ],
+  "stdin_eof_exit_ms": 4.6
+ },
+ "zermelo": {
+  "go_mate": {
+   "ms": 1.0,
+   "line": "checkmate notimplemented"
+  },
+  "overlap_stop": {
+   "ms": 1.2,
+   "line": "bestmove 3c3d"
+  },
+  "overlap_isready": {
+   "ms": 0.0,
+   "line": "readyok"
+  },
+  "overlap_quit_ms": 4.6,
+  "stdin_eof_exit_ms": 4.5
+ }
+}

@@ -36,6 +36,7 @@ obs-shogi 自身も MIT（`LICENSE.md`）。
 | [05-usi-engine.md](05-usi-engine.md)             | `USIEngine` 型と USI オプションの持ち方。obs-shogi の `EnginePreset` と比較   |
 | [06-tabs-and-layout.md](06-tabs-and-layout.md)   | タブペインとカスタムレイアウト（絶対座標＋ドラッグ編集）                      |
 | [07-project-ops.md](07-project-ops.md)           | CONTRIBUTING / issue テンプレ / `specs/` の使い方                             |
+| [08-engine-behaviour.md](08-engine-behaviour.md) | エンジンの見せ方・起動終了・検討の振る舞い。**版は `6304cdaf`。05 の訂正を含む** |
 
 ## 全体の骨格
 

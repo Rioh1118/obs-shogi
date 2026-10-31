@@ -1,0 +1,41 @@
+import json, sys, time, re
+src = open('measure_engine.py').read().rsplit('main(sys.argv[1])', 1)[0]
+exec(src)
+out={}
+for name in ENGINES:
+    path, evalv, evaln = ENGINES[name]
+    r={}
+    # 詰み探索
+    log=[]; e,_,names=boot(path,evalv,evaln,log)
+    e.send("position sfen 8k/9/8P/9/9/9/9/9/K8 b G2r2b3g4s4n4l17p 1"); e.send("go mate 2000")
+    t,l,seen=e.wait(lambda s:s.startswith(("checkmate","bestmove")),5); r["go_mate"]={"ms":ms(t),"line":l}
+    e.p.kill(); e.p.wait()
+    # 重ねた go の後: stop が効くか、quit で終わるか、何秒で kill が要るか
+    log=[]; e,_,names=boot(path,evalv,evaln,log)
+    e.send("position startpos"); e.send("go infinite"); e.drain(.5)
+    e.send("position startpos moves 7g7f"); e.send("go infinite"); e.drain(.5)
+    e.send("stop"); t,l,_=e.wait(lambda s:s.startswith("bestmove"),5); r["overlap_stop"]={"ms":ms(t),"line":l}
+    e.send("isready"); t,l,_=e.wait(lambda s:s=="readyok",3); r["overlap_isready"]={"ms":ms(t),"line":l}
+    s=time.monotonic(); e.send("quit")
+    try:
+        e.p.wait(timeout=5); r["overlap_quit_ms"]=ms(time.monotonic()-s)
+    except Exception:
+        r["overlap_quit_ms"]=None; e.p.kill(); e.p.wait()
+    # 走行中の MultiPV を isready で確定させる
+    if "MultiPV" in names:
+        log=[]; e,_,names=boot(path,evalv,evaln,log)
+        e.send("setoption name MultiPV value 3"); e.send("isready"); e.wait(lambda s:s=="readyok",10)
+        e.send("position startpos"); e.send("go movetime 1500")
+        t,l,seen=e.wait(lambda s:s.startswith("bestmove"),5)
+        r["multipv_before_go"]=sorted({s.split(" multipv ")[1].split()[0] for s in seen if " multipv " in s})
+        e.p.kill(); e.p.wait()
+    # 探索していない間に stdin を閉じたら終わるか
+    log=[]; e,_,names=boot(path,evalv,evaln,log)
+    s=time.monotonic(); e.p.stdin.close()
+    try:
+        e.p.wait(timeout=3); r["stdin_eof_exit_ms"]=ms(time.monotonic()-s)
+    except Exception:
+        r["stdin_eof_exit_ms"]=None; e.p.kill(); e.p.wait()
+    out[name]=r
+print(json.dumps(out,ensure_ascii=False,indent=0))
+json.dump(out,open("measure3.json","w"),ensure_ascii=False,indent=1)

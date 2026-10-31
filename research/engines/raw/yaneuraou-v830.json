@@ -1,0 +1,98 @@
+{
+ "engine": "yaneuraou-v830",
+ "stop_latency": [
+  0.1,
+  0.1,
+  0.1
+ ],
+ "go_movetime": {
+  "cmd": "go movetime 1000",
+  "bestmove_after_ms": 999.7,
+  "bestmove": "bestmove 3c3d ponder 2g2f",
+  "infos": 24,
+  "last_info": "info depth 22 seldepth 29 score cp -108 nodes 706752 nps 706045 hashfull 104 time 1001 pv 3c3d 2g2f 8c8d 2f2e 8d8e 6i7h 8e8f 8g8f 8b8f 2e2d 2c2d 2h2d 4a3b 2d3d 2b3c 5i5h 8f7f 3d8d P*8b 4i3h 5a5b 7h7g 7f7d 8d8e 7d2d 3i2h 7c7d"
+ },
+ "go_depth": {
+  "cmd": "go depth 5",
+  "bestmove_after_ms": 0.7,
+  "bestmove": "bestmove 5a6b ponder 4g4f",
+  "infos": 6,
+  "last_info": "info depth 5 seldepth 3 score cp -73 nodes 246 nps 123000 hashfull 0 time 2 pv 5a6b 4g4f"
+ },
+ "go_nodes": {
+  "cmd": "go nodes 20000",
+  "bestmove_after_ms": 34.7,
+  "bestmove": "bestmove 8c8d ponder 6i7h",
+  "infos": 14,
+  "last_info": "info depth 12 seldepth 15 score cp -136 nodes 20028 nps 572228 hashfull 8 time 35 pv 8c8d 6i7h 8d8e 8h7g 4a3b 2g2f 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i4h 7a7b 3g3f"
+ },
+ "go_byoyomi": {
+  "cmd": "go byoyomi 1000",
+  "bestmove_after_ms": 101.5,
+  "bestmove": "bestmove 8c8d ponder 6i7h",
+  "infos": 17,
+  "last_info": "info depth 15 seldepth 17 score cp -101 nodes 70144 nps 681009 hashfull 16 time 103 pv 8c8d 6i7h 8d8e 8h7g 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i3h 7a6b 9g9f 1c1d 1g1f 2b3c 4g4f"
+ },
+ "go_btime0_byoyomi": {
+  "cmd": "go btime 0 wtime 0 byoyomi 1000",
+  "bestmove_after_ms": 101.5,
+  "bestmove": "bestmove 8c8d ponder 6i7h",
+  "infos": 17,
+  "last_info": "info depth 15 seldepth 17 score cp -101 nodes 68001 nps 660203 hashfull 15 time 103 pv 8c8d 6i7h 8d8e 8h7g 3c3d 7i6h 2b7g+ 6h7g 3a2b 3i3h 7a6b 9g9f 1c1d 1g1f 2b3c 4g4f"
+ },
+ "go_mate": {
+  "cmd": "go mate 2000",
+  "after_ms": null,
+  "line": "EOF"
+ },
+ "go_while_searching": {
+  "bestmove_during_overlap": [],
+  "stop_then_bestmove_ms": null,
+  "line": null,
+  "second_stop": null,
+  "alive": true
+ },
+ "quit_while_searching": {
+  "quit_ms": 10.6,
+  "code": 0
+ },
+ "multipv_live": {
+  "during_same_search": [
+   "1",
+   "2",
+   "3"
+  ],
+  "next_go": [
+   "1",
+   "2",
+   "3"
+  ]
+ },
+ "bad_values": {
+  "unknown": [
+   "info string Error! : No such option: NoSuchOption"
+  ],
+  "hash_out_of_range": [],
+  "isready_after": {
+   "ms": 220.5,
+   "extra": [
+    "info string read book file : book/standard_book.db",
+    "info string Error! : can't read file : book/standard_book.db",
+    "info string USI_Hash : Start clearing with 1 threads , Hash size =  64[MB]",
+    "info string USI_Hash : Finish clearing."
+   ]
+  },
+  "alive": true
+ },
+ "bad_eval": {
+  "readyok_ms": null,
+  "line": "EOF",
+  "lines": [
+   "info string EvalDirectory = /nonexistent/path",
+   "info string loading eval file : /nonexistent/path/nn.bin",
+   "Error! : failed to read nn.bin"
+  ],
+  "alive": false,
+  "code": 1
+ }
+}

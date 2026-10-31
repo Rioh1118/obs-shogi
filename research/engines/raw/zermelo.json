@@ -1,0 +1,89 @@
+{
+ "engine": "zermelo",
+ "stop_latency": [
+  1.0,
+  1.1,
+  1.1
+ ],
+ "go_movetime": {
+  "cmd": "go movetime 1000",
+  "bestmove_after_ms": 971.4,
+  "bestmove": "bestmove 3c3d",
+  "infos": 15,
+  "last_info": "info depth 15 time 961 nodes 892120 nps 928324 score cp -86 hashfull 28 pv 3c3d 6g6f 8c8d 7i6h 8d8e 8h7g 3a4b 6i7h 5c5d 2g2f 4b3c 3i4h 2b3a 6h6g 8e8f"
+ },
+ "go_depth": {
+  "cmd": "go depth 5",
+  "bestmove_after_ms": 2.3,
+  "bestmove": "bestmove 4a3b",
+  "infos": 5,
+  "last_info": "info depth 5 time 1 nodes 1176 nps 1176000 score cp -226 hashfull 0 pv 4a3b 2g2f 3c3d 2f2e 2b8h+"
+ },
+ "go_nodes": {
+  "cmd": "go nodes 20000",
+  "bestmove_after_ms": 21.9,
+  "bestmove": "bestmove 4a3b",
+  "infos": 9,
+  "last_info": "info depth 9 time 18 nodes 17858 nps 992111 score cp -81 hashfull 0 pv 4a3b 2g2f 8c8d 2f2e 8d8e 6i7h 3c3d 2e2d 2c2d"
+ },
+ "go_byoyomi": {
+  "cmd": "go byoyomi 1000",
+  "bestmove_after_ms": 971.3,
+  "bestmove": "bestmove 3c3d",
+  "infos": 15,
+  "last_info": "info depth 15 time 948 nodes 892120 nps 941054 score cp -86 hashfull 28 pv 3c3d 6g6f 8c8d 7i6h 8d8e 8h7g 3a4b 6i7h 5c5d 2g2f 4b3c 3i4h 2b3a 6h6g 8e8f"
+ },
+ "go_btime0_byoyomi": {
+  "cmd": "go btime 0 wtime 0 byoyomi 1000",
+  "bestmove_after_ms": 970.9,
+  "bestmove": "bestmove 3c3d",
+  "infos": 15,
+  "last_info": "info depth 15 time 955 nodes 892120 nps 934157 score cp -86 hashfull 28 pv 3c3d 6g6f 8c8d 7i6h 8d8e 8h7g 3a4b 6i7h 5c5d 2g2f 4b3c 3i4h 2b3a 6h6g 8e8f"
+ },
+ "go_mate": {
+  "cmd": "go mate 2000",
+  "after_ms": 0.8,
+  "line": "checkmate notimplemented"
+ },
+ "go_while_searching": {
+  "bestmove_during_overlap": [
+   "bestmove 2g2f"
+  ],
+  "stop_then_bestmove_ms": 0.8,
+  "line": "bestmove 8c8d",
+  "second_stop": null,
+  "alive": true
+ },
+ "quit_while_searching": {
+  "quit_ms": 4.6,
+  "code": 0
+ },
+ "multipv_live": "not declared",
+ "bad_values": {
+  "unknown": [
+   "info string setoption: 受理できない (未知の名前・範囲外・書式違い): name NoSuchOption value 1"
+  ],
+  "hash_out_of_range": [
+   "info string setoption: 受理できない (未知の名前・範囲外・書式違い): name USI_Hash value 99999999999"
+  ],
+  "isready_after": {
+   "ms": 0.2,
+   "extra": [
+    "info string affine neon+dotprod",
+    "info string eval nnue Features=HalfKP(Friend)[125388->256x2],Network=AffineTransform[1<-32](ClippedReLU[32](AffineTransform[32<-32](ClippedReLU[32](AffineTransformSparseInput[32<-512](InputSlice[512(0:512)]))))) (読み込み済み) fv_scale 16 weight_native_pawn 90"
+   ]
+  },
+  "alive": true
+ },
+ "bad_eval": {
+  "readyok_ms": null,
+  "line": "EOF",
+  "lines": [
+   "info string eval load failed: 重みファイルを開けない: /nonexistent/path",
+   "info string EvalFile /nonexistent/path",
+   "info string 評価関数を読めないので起動を中止する"
+  ],
+  "alive": false,
+  "code": 0
+ }
+}
