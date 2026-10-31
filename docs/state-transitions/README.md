@@ -32,6 +32,7 @@ L2    position-editor.md       初期局面を組む面。L1 の file-tree の�
 L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「どのタブを見ているか」を重ねる
 L2    book-view.md             定跡ビュー。引くのが非同期で盤が待たないことが軸
 L2    engine-preset-dialog.md  プリセット編集の下書きと取得。当てる元の値と、いま待っている取得が軸
+L1    engine-standardization.md  エンジンの状態（画面の語）。これから満たす表で、engine と analysis を1語へ畳む
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
@@ -68,6 +69,7 @@ L2    engine-preset-dialog.md  プリセット編集の下書きと取得。当�
 | [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                                                                                              |
 | [presets-file.md](presets-file.md)                 | ✅        | 判定表。プリセットのファイルの版・壊れ方 × 書けるか。**書き込みを失敗させるセルは未検証**                                               |
 | [engine-preset-dialog.md](engine-preset-dialog.md) | ✅        | プリセット編集の下書きと取得（`presetDialogReducer`）。セルごとに reducer のテスト                                                      |
+| [engine-standardization.md](engine-standardization.md) | 未実装    | エンジンの状態（画面の語）。**これから満たす表**で、全セルが未検証                                                                     |
 | [option-binding.md](option-binding.md)             | ✅        | 判定表。評価関数・定跡の流し先をエンジンの申告から決める。実機の申告が無い行は1行の申告で踏む（表の末尾）                               |
 | [game.md](game.md)                                 | ✅        | `cursor.forkPointers` と `branchPlan` の食い違いが軸                                                                                    |
 | [game-session.md](game-session.md)                 | ✅        | Rust 側。人間だけの経路は固定済み。**エンジンの実プロセスを要するセルは未検証**                                                         |
