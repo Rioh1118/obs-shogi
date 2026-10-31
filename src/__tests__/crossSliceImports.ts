@@ -122,7 +122,7 @@ export function crossSliceEdgesIn(source: string, self: string): string[] {
  * **lint は SCSS を1本も見ない。** `vite.config.ts` の `no-restricted-imports` は
  * `.ts` / `.tsx` に限られているので、`entities/` の SCSS が上の層を `@use` しても
  * 緑のまま通る。レイヤを跨ぐ SCSS の `@use` は現に在る（盤の幾何）ので、
- * 向きだけを見る門がここに要る。
+ * 向きだけを見る検査がここに要る。
  *
  * 返すのは `読み手のファイル -> 読まれた層/スライス` の並び。空であること。
  */

@@ -66,7 +66,7 @@ export async function ensureEnginesDir(aiRoot: string): Promise<string> {
 /**
  * AI プロファイル（`<ai_root>/<name>/{eval,book}`）のフォルダを作る。
  *
- * **ワークスペース配下かの関門を通るコマンドでは作れない**
+ * **ワークスペース配下かの検査を通るコマンドでは作れない**
  * （理由は Rust の `create_ai_profile_dirs` の doc）。
  *
  * **失敗は `FsError` で返す。** 呼び出し元は code を見て、名前の欄のそばに出すか

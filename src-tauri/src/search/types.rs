@@ -355,7 +355,7 @@ pub struct SearchEndPayload {
 /// 検索が失敗した。`EVT_SEARCH_ERROR` に載る。
 ///
 /// **emit 専用。** `Deserialize` を持たないのは、`message` の欄の型が
-/// 刈る口を通った値しか受けないため（綴りから直に作れると門を回避できる）。
+/// 刈る関数を通った値しか受けないため（綴りから直に作れると `for_screen` を回避できる）。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchErrorPayload {

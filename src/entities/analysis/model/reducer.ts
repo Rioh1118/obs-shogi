@@ -55,7 +55,7 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
         stopping: false,
       };
 
-    // **最後の結果をここで一緒に書く。** 門を `state` の1か所にするため。結果だけを
+    // **最後の結果をここで一緒に書く。** 判定を `state` の1か所にするため。結果だけを
     // `update_result` で先に出す形だと、開始の直後は `analyzingRef` がまだ倒れたままで
     // 結果が捨てられ、`検討完了` なのに候補手が空になる
     case "finish_analysis":

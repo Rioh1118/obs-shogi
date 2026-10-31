@@ -6,7 +6,7 @@
 //! [`crate::book::formats::open_reader`] にある（`metadata` を1度しか取らないため）。
 //! **未対応が大きさより前にある理由**は、そちらの `support` の分岐に書いてある。
 //!
-//! 最初の「パスの形」だけは [`validate_book_path`] という別の関門で、
+//! 最初の「パスの形」だけは [`validate_book_path`] という別の検査で、
 //! 呼び手が先に通す。通した証拠が [`ValidatedBookPath`] で、[`open_at`] は
 //! それしか受け取らないので、飛ばすとコンパイルが通らない。
 //!
@@ -111,7 +111,7 @@ fn requested_error(err: BookError, requested: &Path, canonical: &Path) -> BookEr
 ///
 /// **パスは必ずここで [`truncate_path`] を通す。** 呼び手が `format!` で組むと、
 /// リンク先や実体に含まれる制御文字が素通りして、1回の `log!` が2行になる ——
-/// [`BookError::with_path`] が `path` に対して掛けている関門が、`message` 側だけ
+/// [`BookError::with_path`] が `path` に対して掛けている打ち切りが、`message` 側だけ
 /// 抜けている状態になる。第2引数を `&Path` に限っているのは、`&str` を取ると
 /// 呼び手が組み立てた文字列を渡せてしまい、次に注記が増えたときに取り残すため。
 fn annotate(err: BookError, label: &str, path: &Path) -> BookError {
@@ -287,7 +287,7 @@ mod tests {
         assert_eq!(moves[0].ponder.as_deref(), Some("3c3d"));
     }
 
-    /// テストからも本番と同じ関門を通す。`open_at` は形を検査したパスしか
+    /// テストからも本番と同じ検査を通す。`open_at` は形を検査したパスしか
     /// 受け取らないので、ここを迂回する道はテストにも無い。
     fn validated(path: &Path) -> ValidatedBookPath {
         validate_book_path(&path.to_string_lossy()).expect("テスト用のパスは絶対パス")
@@ -489,7 +489,7 @@ mod tests {
     }
 
     /// 上のテストは呼び出し側が渡した綴りしか見ない。**リンク先と実体のパスは
-    /// 利用者が打っていない**ので同じ関門を通る保証が別に要る —— 通らないと、
+    /// 利用者が打っていない**ので同じ [`truncate_path`] を通る保証が別に要る —— 通らないと、
     /// 攻撃者がファイル名を作れる場所（共有ディレクトリ、展開したアーカイブ）に
     /// 改行入りの symlink を置くだけでログを1行足せる。
     #[test]

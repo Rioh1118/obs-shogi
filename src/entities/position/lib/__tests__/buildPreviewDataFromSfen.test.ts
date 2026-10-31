@@ -18,7 +18,7 @@ describe("buildPreviewDataFromSfen", () => {
   });
 
   test("枚数の桁が大きい綴りで待たされない", () => {
-    // 7桁で 604ms、1桁増えるごとに10倍。門が無いと、この1件が
+    // 7桁で 604ms、1桁増えるごとに10倍。検査が無いと、この1件が
     // 課題局面の一覧に混ざっているだけで面を開いた瞬間に固まる
     const started = performance.now();
     expect(buildPreviewDataFromSfen("9/9/9/9/9/9/9/9/9 b 4000000P 1")).toBeNull();

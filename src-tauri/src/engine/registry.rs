@@ -570,7 +570,7 @@ mod tests {
     /// 「IO error occurred when communicating with the engine」だけになる。
     ///
     /// 実行権限の無いファイルは、zip から展開したエンジンで最も起きる形。
-    /// `canonicalize` も `is_file` も通るので入口の関門は素通りし、
+    /// `canonicalize` も `is_file` も通るので入口の検査は素通りし、
     /// **何を直せばいいかが断り文句から導けない**まま
     /// 「エンジンのパスが違う」の一覧（F-27）に落ちる。
     #[cfg(unix)]
@@ -600,7 +600,7 @@ mod tests {
 
     /// 起動できて `usi` に答えない実行ファイルが、**時間切れを名乗らないこと。**
     ///
-    /// `/bin/cat` は入口の関門を全部通る（`canonicalize` も `is_file` も
+    /// `/bin/cat` は入口の検査を全部通る（`canonicalize` も `is_file` も
     /// `Command::spawn` も成功する）が、`usi` を送っても `usiok` は来ない。
     /// zip から取り違えた実行ファイル、ラッパースクリプトで起きる形。
     ///
@@ -643,7 +643,7 @@ mod tests {
 
     /// `engine_path` が**実在するファイル**であることを要求すること。
     ///
-    /// **`start_game` を root の関門から免除する理由がこの関門。**
+    /// **`start_game` を root 配下の検査から免除する理由がこの検査。**
     /// `root_guard.rs` の `EXEMPT` は「起こしてよいかは `EngineRegistry::spawn` の
     /// canonicalize + is_file が見る」と書いているので、ここが抜けると
     /// **免除の根拠ごと消える**——`engine_path` はフロントから来る任意の文字列で、

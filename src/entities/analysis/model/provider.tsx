@@ -190,15 +190,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 再開のタイマーが張られているか。**欄を読む綴りをここ1つにする。**
    *
    * 発火した時点で `scheduleRestart` が欄を空けるので、ここが true を返すのは
-   * まだ起きていないタイマーが在るときだけ。空け忘れると、この門は**もう発火した id**
+   * まだ起きていないタイマーが在るときだけ。空け忘れると、この判定は**もう発火した id**
    * を見て降りる——盤が追いついても再開が張られない。
    */
   const isRestartScheduled = useCallback(() => debounceTimerRef.current !== null, []);
 
   /**
-   * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための門。**
+   * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための判定。**
    *
-   * 予約は `swapSeatAndGo` の `finally` が拾う。**門を2箇所に書き下ろさない**
+   * 予約は `swapSeatAndGo` の `finally` が拾う。**判定を2箇所に書き下ろさない**
    * ——拾い忘れると、エンジンが2回続けて落ちた回に再開の引き金が消える。
    */
   const bookIfRestarting = useCallback(() => {
@@ -235,11 +235,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [clearDebounceTimer]);
 
   /**
-   * 握れなかった席の**反映待ち**を捨てる。**席の門と2枚で守る。**
+   * 握れなかった席の**反映待ち**を捨てる。**席の判定と2段で守る。**
    *
-   * 主の保証は `commitLatest` の席の門（`useResultFlush`）——枠を落とすだけだと、
+   * 主の保証は `commitLatest` の席の判定（`useResultFlush`）——枠を落とすだけだと、
    * 落とす前にタイマーが起きた回を守れない。ここが落とすのは、次に席を握るまで
-   * 枠に残る**古い1本**と、下の窓（席の門が開いてしまう回）。
+   * 枠に残る**古い1本**と、下の窓（席の判定が通ってしまう回）。
    *
    * **無条件に落とす。** 呼び手は握れなかった回だけで、そこへ来る道はどれも
    * 先に席を返し終えている（返せなければ `takeSeatAndGo` へ入らない）。
@@ -249,7 +249,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    *
    * **席を見て降りる形にしない。** 捨てる停止が落ちると `shoot` の catch
    * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
-   * 反映待ちを残す**——その後は `commitLatest` の席の門も開くので、捨てた席の読み筋が
+   * 反映待ちを残す**——その後は `commitLatest` の席の判定も通るので、捨てた席の読み筋が
    * そこから出る。書き戻しは `await stopAnalysisCore` の向こうなので必ずここより後だが、
    * 席を返さずに呼ぶ口を足せば順序は変わる。
    * 守っているのは `provider.test.tsx` の
@@ -264,7 +264,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   /**
    * 席を取って `go` を出し、握るまで。**開始する2つの口（▶ と自動再開）が同じものを通る。**
    *
-   * 書き下ろしを2つ持つと、門を1枚足したときに片方だけに入る。
+   * 書き下ろしを2つ持つと、判定を1つ足したときに片方だけに入る。
    * 開始の失敗は**呼び手へ投げる**（断りの文言は
    * 口ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）。
    *
@@ -273,7 +273,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * その理由を `async-result-ignored:` で書くこと
    * （`src/__tests__/asyncResultUse.test.ts` が要求する）。
    *
-   * **呼ぶ前に要求の世代の門（`supersededSince`）を通すこと。** 本体の先頭で
+   * **呼ぶ前に要求の世代の判定（`supersededSince`）を通すこと。** 本体の先頭で
    * `clear_results` が飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった
    * 要求がここへ入ると直前に立った断りが黙って消える。
    */
@@ -377,7 +377,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
             results.receive(result);
           },
           onComplete: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
-            // **自分の席のものだけ採る**（`onUpdate` と同じ門）。通さないと、古い席の
+            // **自分の席のものだけ採る**（`onUpdate` と同じ判定）。通さないと、古い席の
             // 完了通知1本で走っている検討が終わったことになる。
             if (!seat.accepts(sessionId)) return;
 
@@ -443,12 +443,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
       // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
-      // 0ms の分は最新の `seq` なので世代の門で落ちず、同じ局面へ2本並んで
+      // 0ms の分は最新の `seq` なので世代の判定で落ちず、同じ局面へ2本並んで
       // `take_session` に断られる（利用者はボタンを1つも押していない）。
       clearDebounceTimer();
 
       debounceTimerRef.current = window.setTimeout(() => {
-        // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る門
+        // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る判定
         // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
         // 間引きのタイマーが同じ形をしている。
         debounceTimerRef.current = null;
@@ -524,7 +524,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         }
         // **読み直しの印を捨て、遅らせて張り直す。** 上限の直後に答えが来ると、知らせが1回の
         // 描画に畳まれて `isReady` が動かず、エンジンが戻った回の入口が開かない。
-        // 遅らせるのは知らせを描画に通すため。まだ答えていなければ `isReady` の門で降りる
+        // 遅らせるのは知らせを描画に通すため。まだ答えていなければ `isReady` の判定で降りる
         if (released === "unanswered") {
           sentSfenRef.current = null;
           scheduleRestart(restartSeqRef.current, waits().restartDebounceMs);
@@ -534,7 +534,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // 停止の応答を待っている間に、畳まれたり止められたりしている。
         // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
         //
-        // **画面に触るのは門の後ろ。** `clear_results` は `error` も消すので
+        // **画面に触るのは `supersededSince` の後ろ。** `clear_results` は `error` も消すので
         // （`reducer.ts`）、要らなくなった要求がここを通ると、直前に立った
         // 打ち切りの `error` が黙って消える。
         if (supersededSince(seq)) return;
@@ -576,7 +576,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // 依存を書いた時点で本体が**その描画の値で凍り**、盤が追いついても再開が動かない。
   // effect の中へ移すと commit 後の1描画ぶん遅れる。
   //
-  // 門を並べて、追いつくのを待つか（`keepWaitingForSync`）、席を取り直すか
+  // 判定を並べて、追いつくのを待つか（`keepWaitingForSync`）、席を取り直すか
   // （`swapSeatAndGo`）を選ぶだけ。
   //
   // `seq` は要求の世代。**タイマーが起きた時点で見る**（await の向こうは各段が見る）。
@@ -608,14 +608,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!isReady) return;
     if (!currentSfen) return;
 
-    // **読ませたい局面は門より前に書く。** これは盤の現在位置そのもので、
-    // 再開が要るかどうかとは別の事実。門の後ろに置くと、盤を1手進めてすぐ戻した回
+    // **読ませたい局面は下の判定より前に書く。** これは盤の現在位置そのもので、
+    // 再開が要るかどうかとは別の事実。判定の後ろに置くと、盤を1手進めてすぐ戻した回
     // （再開が飛んでいる最中）に**前の局面が「読ませたい」欄に取り残される**
     // ——飛んでいた再開が着いた先で `syncedSfen` が動き、盤と違う局面へ `go` を撃つか、
     // 追いつかない局面を上限まで待って嘘の断りを立てる。
     desiredSfenRef.current = currentSfen;
 
-    // **門は `state` で書く。** ref で書くと、その ref が動いた回に effect が
+    // **判定は `state` で書く。** ref で書くと、その ref が動いた回に effect が
     // 再実行されない——盤が戻ってきた局面を既に解析済みだと読んだまま、
     // **盤と読んでいる局面が食い違ったことに誰も気づかない**。
     if (state.analyzedSfen === currentSfen) return;
@@ -663,9 +663,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   //
   // 局面が変わった側の effect は `syncedSfen` を依存に持たないので、送信が遅れて
   // 追いついた回を拾えない（盤が動いていない回は `state.analyzedSfen === currentSfen` の
-  // 門でも降りる）。エンジンが戻った回は、上の effect が投げ済みの印を捨てているのでここを通る。
+  // 判定でも降りる）。エンジンが戻った回は、上の effect が投げ済みの印を捨てているのでここを通る。
   //
-  // 最後の門は、**既に張られているタイマーと飛んでいる再開に2本目を重ねない**ため。
+  // 最後の判定は、**既に張られているタイマーと飛んでいる再開に2本目を重ねない**ため。
   useEffect(() => {
     if (!state.isAnalyzing) return;
     if (!isReady) return;
@@ -712,7 +712,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (currentSfen) return;
 
     // **世代は先に上げる。** 飛んでいる開始（席が返るまで `isAnalyzing` は false）を
-    // 打ち切るのはこの1行で、下の門より後ろに置くと、閉じた棋譜のために
+    // 打ち切るのはこの1行で、下の判定より後ろに置くと、閉じた棋譜のために
     // 同期待ちが上限まで回り、閉じた局面で「解析中」が1回 commit される。
     supersedeRequests();
 
@@ -730,7 +730,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     //
     // **停止が届かないまま「停止中」になっていた回は1回で終わる**（→ `docs/state-transitions/analysis.md` の ※7）。
     // `isAnalyzing` は既に false なので、この `dispatch` では値が動かない。
-    // その回に席を返すのは、上の門を `seat.isHeld()` で開けた1本目。
+    // その回に席を返すのは、上の判定を `seat.isHeld()` で通した1本目。
   }, [currentSfen, state.isAnalyzing, seat, supersedeRequests]);
 
   const startInFlightRef = useRef<Promise<void> | null>(null);
@@ -765,7 +765,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * **出せない回は断りを立てて投げる。**
    *
    * 断るのは、押しても結果が届かない／エンジンに届かないと分かっている回だけ。
-   * どの門も**席に触る前**に通るので、断った回に Rust の状態は1ビットも動かない。
+   * どの判定も**席に触る前**に通るので、断った回に Rust の状態は1ビットも動かない。
    */
   const refuseIfCannotStart = useCallback(() => {
     // **結果を受け取れない回は `go` を出さない。** 出しても候補手は永久に届かず、
@@ -905,7 +905,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    *
    * `seq` は押した時点の世代。**返却より前に読む**——`releaseHeld` は本物の往復を
    * 挟むので、その間に世代が上がる（棋譜を閉じた回）と、後で読むと上がった後の値を
-   * 持ってしまい、以降の門が1枚も効かない。
+   * 持ってしまい、以降の判定が1つも効かない。
    */
   const startInfiniteAnalysis = useCallback(async () => {
     if (state.isAnalyzing) return;
@@ -995,7 +995,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、
     // **フックに撃たせるかどうかとは別の判断**をするときだけ——席と `isAnalyzing` の
     // どちらかが立っていれば後始末ごと走らせたい「読む局面が無くなった」回と、
-    // `useResultFlush` に席の門を渡す口。
+    // `useResultFlush` に席の判定を渡す呼び出し。
     const generation = seat.engineGeneration();
     try {
       await seat.releaseHeld("stop"); // async-result-ignored: `応答なし` は Rust の通知が語を変える

@@ -1,6 +1,6 @@
 //! パスを受け取る Tauri コマンドが、必ず root 配下かを確かめていることを見る。
 //!
-//! 関門を「各コマンドが自分で呼ぶ」形にしてあるので、**呼び忘れが静的には見えない**。
+//! 検査を「各コマンドが自分で呼ぶ」形にしてあるので、**呼び忘れが静的には見えない**。
 //! 呼び忘れたコマンドは、webview 側から任意のパスを渡せる状態でコンパイルも通る。
 //!
 //! `src/` を**再帰で実行時に列挙する**。ファイルもディレクトリも手書きにすると、
@@ -10,9 +10,9 @@
 //! 見るテストは `src` 側の `#[cfg(test)]` に置く（`CONTRIBUTING.md` の
 //! 「機械で止めているもの」を参照）。
 //!
-//! 見ているのは3つ。関門を呼んでいるか、その**順序**（存在確認より前か）、
-//! コマンド固有の追加の関門（`EXTRA_GUARDS`）。
-//! 関門そのものは `root_dir` が未設定のときに無条件で開く
+//! 見ているのは3つ。検査を呼んでいるか、その**順序**（存在確認より前か）、
+//! コマンド固有の追加の検査（`EXTRA_GUARDS`）。
+//! 検査そのものは `root_dir` が未設定のときに無条件で通す
 //! （`utils.rs` の `validate_under_root`）。
 
 mod roots;
@@ -30,10 +30,10 @@ use std::path::Path;
 /// 完全一致にすると、その形で足されたコマンドが走査から丸ごと消える
 const ATTRIBUTES: [&str; 2] = ["#[command", "#[tauri::command"];
 
-/// root 配下かを確かめる関門
+/// root 配下かを確かめる検査
 const GUARD: &str = "validate_under_root";
 
-/// 関門だけでは足りず、そのコマンドだけが呼ばなければならないもの。
+/// 検査だけでは足りず、そのコマンドだけが呼ばなければならないもの。
 ///
 /// - `delete_directory`: `validate_under_root` は `root == target` を「配下」として
 ///   通すので、ワークスペース自身の削除が素通りする（`is_project_root`）
@@ -53,7 +53,7 @@ const EXTRA_GUARDS: [(&str, &str); 3] = [
 ///
 /// **載せ忘れは静かに効く。** 載っていないコマンドは
 /// `every_path_taking_command_checks_the_root` の対象に一度も入らないので、
-/// 関門を呼んでいなくても、免除の理由が無くても緑で通る。
+/// 検査を呼んでいなくても、免除の理由が無くても緑で通る。
 /// `no_path_carrying_command_is_missing_from_the_list` が載せ忘れを拾う。
 const STRUCT_CARRIED_PATH: [&str; 6] = [
     "write_kifu_to_file",
@@ -64,12 +64,12 @@ const STRUCT_CARRIED_PATH: [&str; 6] = [
     "open_book",
 ];
 
-/// 関門を通さないコマンドと、その理由。
+/// 検査を通さないコマンドと、その理由。
 ///
 /// **理由なしで足さない。** 並んでよいのは次の2種類だけ。
 ///
 /// 1. ワークスペースとは別の場所を意図して触るもの
-/// 2. root を決める側。関門より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
+/// 2. root を決める側。検査より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
 ///
 /// 「まだ直していない」は理由にならない
 const EXEMPT: [(&str, &str); 10] = [
@@ -125,9 +125,9 @@ const EXEMPT: [(&str, &str); 10] = [
 /// 切り出した1コマンド。
 ///
 /// **写しは1つだけ持つ。** 文字列を残した写しも持たせると、
-/// `log::debug!("... validate_under_root ...")` の1行を「関門を呼んだ」と
+/// `log::debug!("... validate_under_root ...")` の1行を「検査を呼んだ」と
 /// 数える書き方が**書けてしまう**。そう書かれると、ワークスペースを丸ごと
-/// 消させない関門が消えても緑で通る。
+/// 消させない検査が消えても緑で通る。
 ///
 /// 残さなくても困らない。読みたいのは署名と呼び出しだけで、
 /// **Rust の署名に文字列リテラルは現れない。**
@@ -147,12 +147,12 @@ impl Command {
 /// 属性から**その関数の閉じ括弧まで**を1つのコマンドとして切り出す。
 ///
 /// 次の属性までにすると、あいだに挟まった別の関数の中身が本体に混ざる。
-/// 関門をその別の関数が呼んでいるだけで、コマンド側は呼び忘れたまま緑になる。
+/// 検査をその別の関数が呼んでいるだけで、コマンド側は呼び忘れたまま緑になる。
 /// rustfmt が最上位の `}` を列0に置くので、それを終端に使う（構文解析はしない）。
 fn commands(source: &str) -> Vec<Command> {
     // **属性も終端も、文字列を潰した写しの上で探す。** 素のソースで探すと、
     // 文字列の中の `#[tauri::command` が幻のコマンドを作り、
-    // 文字列の中の `\n}` が本体を途中で切る（切った先の関門が見えなくなる）
+    // 文字列の中の `\n}` が本体を途中で切る（切った先の検査が見えなくなる）
     let code_only = blank_out_noncode(source);
     let mut marks: Vec<usize> = Vec::new();
     for attribute in ATTRIBUTES {
@@ -250,15 +250,15 @@ fn takes_a_path(chunk: &str) -> bool {
 /// `validate_under_root(&app, &x)` の `(位置, x)` を全部集める。
 ///
 /// 位置だけで比べると、パスを2本受けるコマンドの正しい並びを違反として拾ってしまう。
-/// 守りたいのは「**その変数**を関門へ通す前に、その変数の存在や種類を見ない」
+/// 守りたいのは「**その変数**を検査へ通す前に、その変数の存在や種類を見ない」
 ///
 /// **`Command::code` を渡すこと。** 文字列を残した写しを渡すと、
 /// `log::debug!("... validate_under_root(&app, &path) ...")` のような1行が
-/// 2つ目の関門として数えられ、**順序が正しいコマンドが違反として出る**
+/// 2つ目の検査として数えられ、**順序が正しいコマンドが違反として出る**
 /// （綴りが `(&app, &変数)` まで一致したときだけ。実測で確認した）。
 ///
-/// 見逃す側には倒れない。囮を足しても本物の関門の位置は一覧に残るので、
-/// 存在確認がそれより前にあれば拾える。関門が1つも無い場合は `calls` が拾う。
+/// 見逃す側には倒れない。囮を足しても本物の検査の位置は一覧に残るので、
+/// 存在確認がそれより前にあれば拾える。検査が1つも無い場合は `calls` が拾う。
 fn guarded_variables(code: &str) -> Vec<(usize, String)> {
     let mut found = Vec::new();
     for (at, _) in code.match_indices(GUARD) {
@@ -422,7 +422,7 @@ fn parameter_types(chunk: &str) -> BTreeSet<String> {
 ///
 /// 手で並べる一覧は、足す人が忘れた時点で静かに緩む。忘れられたコマンドは
 /// `every_path_taking_command_checks_the_root` の対象にすら入らないので、
-/// 関門も免除の理由も無いまま緑で通る。
+/// 検査も免除の理由も無いまま緑で通る。
 ///
 /// 引数の型を辿り、`*_path` / `*_dir` / `PathBuf` の欄に届くものを拾って
 /// 一覧と突き合わせる。**含む型も運ぶ**ものとして数える
@@ -494,15 +494,15 @@ fn every_path_taking_command_checks_the_root() {
         }
     }
 
-    // 関門は**存在確認より前**に置く。後ろに置くと、root 外のパスについて
+    // 検査は**存在確認より前**に置く。後ろに置くと、root 外のパスについて
     // 在るかどうかや種類の判定結果まで返してしまう。
     // 規則がコメントにしか無いと、10個目のコマンドを足す人が順序を逆にしても緑になる。
     //
     // **変数ごとに見る。** 位置だけで比べると、パスを2本受けるコマンドで
-    // 「1本目の関門 → 1本目の存在確認 → 2本目の関門」という正しい並びを
-    // 違反として拾うか、2本目の関門を後ろへ動かしても見逃すかのどちらかになる。
+    // 「1本目の検査 → 1本目の存在確認 → 2本目の検査」という正しい並びを
+    // 違反として拾うか、2本目の検査を後ろへ動かしても見逃すかのどちらかになる。
     // `validate_under_root(&app, &x)` の `x` を取り、その `x` に対する
-    // 存在確認・種類の判定が関門より前に無いかを見る
+    // 存在確認・種類の判定が検査より前に無いかを見る
     let mut wrong_order: Vec<String> = Vec::new();
     for (file, source) in &files {
         for command in commands(source) {
@@ -592,7 +592,7 @@ pub async fn b(app: AppHandle, dir_path: String) -> () {
 #[test]
 fn a_string_mentioning_the_guard_does_not_count_as_calling_it() {
     // **文字列は残す走査で本体を読むので、綴りだけで「呼んだ」と数えうる。**
-    // 「なぜ関門を掛けないか」をログに書く習慣はこの repo にあるので、踏み方も現実的
+    // 「なぜ検査を掛けないか」をログに書く習慣はこの repo にあるので、踏み方も現実的
     let source = r#"
 #[tauri::command]
 pub fn open_thing(app: AppHandle, file_path: String) -> Result<(), String> {
@@ -750,7 +750,7 @@ fn every_listed_name_is_a_real_command() {
         );
     }
     // コマンド名の側を綴り間違えると `name == command` が永久に偽になり、
-    // 対応表の1行が黙って無効になる（関門名の側は `missing_extra` が拾う）
+    // 対応表の1行が黙って無効になる（検査名の側は `missing_extra` が拾う）
     for (listed, _) in EXTRA_GUARDS {
         assert!(
             names.iter().any(|n| n == listed),
@@ -759,7 +759,7 @@ fn every_listed_name_is_a_real_command() {
     }
 }
 
-/// `EXTRA_GUARDS` が要求する関門が、実在する `pub fn` か
+/// `EXTRA_GUARDS` が要求する検査が、実在する `pub fn` か
 #[test]
 fn every_extra_guard_is_a_real_function() {
     let sources: String = production_sources()

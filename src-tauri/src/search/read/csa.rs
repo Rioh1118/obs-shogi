@@ -215,7 +215,7 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 /// **後ろの指し手が消えたまま `Ok`** になる。対局者名が無ければ
 /// [`says_nothing`] も真になるが、**この文言は
 /// `ReadOutcome::NothingToIndex` の `warns` に載せて呼び手へ渡す**
-/// （`read_path_inner` がこの検査を門より前に置いているのはそのため）。
+/// （`read_path_inner` がこの検査を`says_nothing` の判定より前に置いているのはそのため）。
 ///
 /// **これが出たとき、画面で開けるかどうかは行の形で分かれる。**
 ///

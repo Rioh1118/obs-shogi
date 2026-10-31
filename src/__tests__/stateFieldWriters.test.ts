@@ -15,7 +15,7 @@ import { TABLES_DIR, tables } from "./stateTransitionIndex";
  * 実際に起きた壊れ方:
  *
  * - `loadedAbsPath` に3つ目の書き手（`path_renamed`）が増えたのに、
- *   `persistIfPossible` の門番の理由は「`game_loaded` でしか動かない」のまま残った。
+ *   `persistIfPossible` の検査の理由は「`game_loaded` でしか動かない」のまま残った。
  *   その断定は「載せられなかったあと保存が全部止まる」の**根拠**だったので、
  *   読み手は保証そのものを疑うことになる
  * - `LoadedKifuPathContext` の doc は発火点を2つと言い続けた。あれは
@@ -46,7 +46,7 @@ const REDUCER = "src/entities/game/model/reducer.ts";
  * - `src/entities/game/model/types.ts` の欄の doc
  * - `src/entities/game/model/reducer.ts` の `reset_state` の「持ち越す欄」
  * - `src/entities/game/model/context.ts`（`loadedAbsPath` を配る context）
- * - `src/entities/game/model/provider.tsx` の `persistIfPossible` の門番
+ * - `src/entities/game/model/provider.tsx` の `persistIfPossible` の検査
  * - `docs/state-transitions/game.md` と `board-orientation.md`
  */
 const WRITERS: Record<string, string[]> = {

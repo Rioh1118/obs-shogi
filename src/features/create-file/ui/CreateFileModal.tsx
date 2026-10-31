@@ -52,7 +52,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   const [confirmingClose, setConfirmingClose] = useState(false);
 
   /**
-   * 閉じる口を1つにする門
+   * 閉じる経路を1つにする判定
    *
    * **閉じる口は4つある**（Esc・覆いの押下・両方の面の「キャンセル」）。
    * `Modal` は Esc と覆いの両方で `onClose` を呼ぶので、そこへ寄せれば口が1つになる。
@@ -139,7 +139,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             initialDir={params.dir || undefined}
             onCreated={() => closeModal()}
             onDirtyChange={setEditorDirty}
-            // 面の中の「キャンセル」も同じ門を通す
+            // 面の中の「キャンセル」も同じ `requestClose` を通す
             onClose={requestClose}
             onSubmittingChange={setEditorBusy}
           />

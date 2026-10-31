@@ -99,7 +99,7 @@ function revealFailureNotice(label: string, path: string): NotifyRequest {
 /**
  * AI フォルダを作っている最中に AI ルートが変わった回の通知。
  *
- * **黙らない。** 関門を通る時点で「旧ルートに作れたか」は分かっているのに、
+ * **黙らない。** `currentRootRef` と突き合わせる時点で「旧ルートに作れたか」は分かっているのに、
  * 画面はもう別のルートを指しているので一覧にも出ない。黙ると、押した人には
  * 「失敗した」ようにしか見えず、もう一度押して**新しいルートにもう1つ**作ることになる。
  *
@@ -165,9 +165,9 @@ export default function AiLibraryTab() {
   const scanSeqRef = useRef(0);
 
   /**
-   * いま画面が指しているルート。**`await` を跨いだ後の書き込みを関門するために要る。**
+   * いま画面が指しているルート。**`await` を跨いだ後の書き込みを通すかの判定に要る。**
    *
-   * `scanNow` 以外で `await` を跨ぐ口のうち、**ここで関門するのは3つ**。扱いは2通り。
+   * `scanNow` 以外で `await` を跨ぐ呼び出しのうち、**ここで判定するのは3つ**。扱いは2通り。
    *
    * - 作成の2つ（`ensureEnginesDir` / `createAiProfileDirs`）は**呼ぶ前のルートを閉包に持つ**ので、
    *   書く前にここと突き合わせて、変わっていたら書かない。前のルートの結果を新しいルートの
@@ -175,12 +175,12 @@ export default function AiLibraryTab() {
    * - 開けなかったときの読み直しは逆で、**押した時点のルートを使わず、ここの現在値で走らせる**。
    *   押した後に選び直されていたら、新しいルートを読み直すのが正しい
    *
-   * ルート自体を決める `onPick` も `await` を跨ぐが、関門はしない（新しいルートは
+   * ルート自体を決める `onPick` も `await` を跨ぐが、判定はしない（新しいルートは
    * その関数が持っている）。**`onPick` が読むのは `await` の前だけ**——
    * そちらは分岐の材料に使うので、後で読むと effect の書き込みと競って判定が反転する。
-   * 上の3つは逆で、**`await` の後に読むのが関門の定義**そのもの。
+   * 上の3つは逆で、**`await` の後に読むのが判定の定義**そのもの。
    * **書くのはルートが変わる場所**——レンダで書くと、選び直した直後に返る継続が
-   * 再レンダより先に走る窓で、関門が前のルートを見て素通りする。
+   * 再レンダより先に走る窓で、判定が前のルートを見て素通りする。
    */
   const currentRootRef = useRef(localAiRoot.trim());
 
@@ -297,7 +297,7 @@ export default function AiLibraryTab() {
     if (picked.data === null) return; // 取り消し
 
     // **レンダを待たずに書く。** 選び直した直後に返る `await` の継続は、
-    // 再レンダより先に走る——レンダで更新する形だと、その窓で関門が素通りする
+    // 再レンダより先に走る——レンダで更新する形だと、その窓で判定が素通りする
     const sameRoot = picked.data.trim() === before;
     currentRootRef.current = picked.data.trim();
     setLocalAiRoot(picked.data);

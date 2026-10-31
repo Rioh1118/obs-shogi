@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import ConfirmDialog from "../ConfirmDialog";
 
 /**
- * 取り消せない操作の最後の関門（ADR-0004 決定8）。
+ * 取り消せない操作の最後の確認（ADR-0004 決定8）。
  *
  * ここが嘘をつくと、利用者は「止めた」「やめた」と信じたまま、
  * 棋譜ファイルが書き換わったことに気づかない。

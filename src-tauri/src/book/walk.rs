@@ -87,7 +87,7 @@ pub(crate) fn walk_lines(
 /// 辿り始める局面。
 ///
 /// **受けるのは生の SFEN ではなく [`BookKey`]。** 綴りを正規化するのは
-/// コマンド境界（`resolve_lookup`）の仕事で、`lookup_book_moves` と同じ関門を
+/// コマンド境界（`resolve_lookup`）の仕事で、`lookup_book_moves` と同じ検査を
 /// 通った後のものだけがここへ来る。生の綴りを直に受けると、`startpos` や
 /// `position sfen` の前置きを受ける／受けないが引く側と食い違い、
 /// **同じ局面で引けるのに辿れない**という形になる。

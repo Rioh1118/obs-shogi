@@ -55,7 +55,7 @@ interface PositionEditorProps {
    * **隣のタブの貼りかけもある**ので、数えられるのは両方を見ている器だけ。
    */
   onDirtyChange?: (dirty: boolean) => void;
-  /** 「キャンセル」。**器の閉じる門を通す**（直に閉じない） */
+  /** 「キャンセル」。**器の `requestClose` を通す**（直に閉じない） */
   onClose?: () => void;
   /** 種にできる課題局面。provider はこの面から読まない */
   studyPositions?: StudyPosition[];

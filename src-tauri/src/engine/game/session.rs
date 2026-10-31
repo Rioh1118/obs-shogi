@@ -425,7 +425,7 @@ impl GameSession {
     /// 人間の着手。エンジンの手は `bestmove` から入るのでここは通らない。
     ///
     /// 受け付けた後は `MoveDecided` が出て `AwaitingRuling` で止まる。
-    /// **エンジンの手と同じ関門を通す。** 分けると、詰みの判定が
+    /// **エンジンの手と同じ裁定を通す。** 分けると、詰みの判定が
     /// 「人が指したとき」と「エンジンが指したとき」で別経路になる。
     pub async fn submit_move(&self, side: Side, usi_move: String) -> Result<(), String> {
         self.request(|reply| Command::SubmitMove {
@@ -1854,7 +1854,7 @@ async fn spawn_players(
 /// `readyok` は評価関数の重いエンジンで合法に数十秒を使う。その後ろに立つ
 /// 2体目の取り分は 0 と `USI_OK_TIMEOUT` の間の任意の値になる。
 ///
-/// **`for_usiok.is_zero()` の関門だけでは足りない。** 0 は断るが、1ミリ秒は通る。
+/// **`for_usiok.is_zero()` の判定だけでは足りない。** 0 は断るが、1ミリ秒は通る。
 /// 分けないと、締切の食い潰しが「設定の誤り」として届き、受け手は正常なエンジンの
 /// パスを疑う——押し直せば通ったはずの起動をそこで捨てる（F-27）。
 fn usiok_refusal(error: EngineError, for_usiok: Duration) -> String {
@@ -2465,7 +2465,7 @@ mod tests {
     /// 締切で削った取り分で `usiok` を待ち損ねたとき、**エンジンのせいにしないこと。**
     ///
     /// `a_thin_budget_never_starts_an_engine_it_cannot_wait_for` が守るのは
-    /// **厳密に 0 のときだけ**。1ミリ秒は関門を通り、そこで答えが来なければ
+    /// **厳密に 0 のときだけ**。1ミリ秒は `is_zero()` の判定を通り、そこで答えが来なければ
     /// `get_engine_info` は「そのファイルは USI エンジンではない」と断る。
     ///
     /// **その断り方は満額を渡したときにしか正しくない。** 締切の食い潰しが
@@ -4547,7 +4547,7 @@ mod tests {
 
     #[test]
     fn settings_accept_every_pair_of_time_limits_we_want_to_support() {
-        // 弾く方向の門番なので、通したいものを先に並べる（/implement 手順5）
+        // 弾く方向の検査なので、通したいものを先に並べる（/implement 手順5）
         let allowed: [(&str, TimeLimit, TimeLimit); 5] = [
             ("先後とも切れ負け", minutes(10), minutes(10)),
             ("先後で持ち時間が違う（ハンデ）", minutes(10), minutes(5)),

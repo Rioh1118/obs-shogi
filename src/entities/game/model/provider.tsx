@@ -53,7 +53,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
 
   /**
-   * 盤の着手を通す門。**`ref` に映す。**
+   * 盤の着手を通す判定。**`ref` に映す。**
    *
    * `selectSquare` の依存に入れると、対局の状態が動くたびに（手番・時計）
    * 盤の着手の関数が作り直され、盤ぜんぶが描き直される。
@@ -61,7 +61,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   const moveGateRef = useRef(moveGate);
   moveGateRef.current = moveGate;
 
-  /** いま盤に載っている棋譜。**門へ渡すためだけに映す** */
+  /** いま盤に載っている棋譜。**`moveGate` へ渡すためだけに映す** */
   const loadedPathRef = useRef(state.loadedAbsPath);
   loadedPathRef.current = state.loadedAbsPath;
 
@@ -75,7 +75,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   loadedJkfRef.current = state.jkf;
 
   /**
-   * 盤で決まった手を積んでよいか。**門が無ければ素通し。**
+   * 盤で決まった手を積んでよいか。**`moveGate` が無ければ素通し。**
    *
    * 対局中は Rust が採るまで積まない —— 積んでしまうと、Rust の写しと
    * 食い違った指し手列で裁定を返すことになり、断られたまま対局が畳まれる。
@@ -93,7 +93,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       };
 
       // **待つ前に、いま積もうとしている相手を控える。**
-      // 門は対局中 `submit_game_move` の往復ぶん待つので、その間にツリーが
+      // `moveGate` は対局中 `submit_game_move` の往復ぶん待つので、その間にツリーが
       // 別の棋譜を盤へ載せうる。気づかずに進むと、**`selectSquare` が握っている
       // 1つ前の棋譜の中身**を、新しく載った棋譜の宛先へ保存することになる
       const before = loadedJkfRef.current;
@@ -123,7 +123,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
       // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
       // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
-      // ここは5つの書き込み経路が必ず通るので、門番はここ1つで足りる。
+      // ここは5つの書き込み経路が必ず通るので、検査はここ1つで足りる。
       //
       // **追いつかない場合がある。** 盤に載せられなかった回（`game.md` の E16）は
       // `activeKifuPath` だけが進み、`loadedAbsPath` は据え置かれるので、

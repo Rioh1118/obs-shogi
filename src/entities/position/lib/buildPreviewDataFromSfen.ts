@@ -10,7 +10,7 @@ import { stateFromSfen } from "./positionDraft";
  * `4000000P`（7桁）で 604ms、1桁増えるごとに10倍かかる。桁数を制限する綴りが
  * ライブラリ側に無いので、投げるまで待つと**画面がその間止まる**。
  * SFEN の出どころ（`study_positions.json`・URL の `sfen=`）はどちらも
- * 検査を通っていないので、ここに門が要る。
+ * 検査を通っていないので、ここに検査が要る。
  */
 export function buildPreviewDataFromSfen(sfen: string): PreviewData | null {
   if (!stateFromSfen(sfen)) return null;

@@ -7,7 +7,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
  * **読む側と書く側をここに揃えてある。** 既定を値の欠落で表しているので、別々に綴ると
  * 片方だけ直したときに「ボタンは回るがリセットが効かない」形で静かに壊れる。
  *
- * ただし**URL の文字列から型への関門は `shared/lib/router` の `PovType` にある**。
+ * ただし**URL の文字列を型へ絞る検査は `shared/lib/router` の `PovType` にある**。
  * 表現を増やすならそちらも直すこと——`povRaw === "gote"` は union が広がっても
  * 代入可能なままで、tsc は落ちない。
  *

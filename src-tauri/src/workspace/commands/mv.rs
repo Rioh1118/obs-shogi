@@ -11,7 +11,7 @@ use ::fs::path::{ensure_not_exists, is_kifu_file, is_move_into_itself, validate_
 // 区切り文字を弾くので、src が root の**配下**（root 自身を除く）なら行き先も root 配下。
 // root 自身の改名だけは行き先が root の兄弟になるので、`is_project_root` で分岐する。
 //
-// **関門はどれも存在確認より先に置く。** 理由は `validate_under_root` の doc に1回だけ書く
+// **検査はどれも存在確認より先に置く。** 理由は `validate_under_root` の doc に1回だけ書く
 
 #[command]
 pub fn rename_kifu_file<R: Runtime>(
@@ -148,7 +148,8 @@ pub fn rename_directory<R: Runtime>(
     let dest = parent.join(&new_dir_name);
 
     // ワークスペースそのものの改名だけは、行き先が root の**兄弟**になるので
-    // 関門に必ず落ちる。外して通す。`validate_basename` が区切り文字を弾いており、
+    // `validate_under_root` に必ず落ちる。外して通す。
+    // `validate_basename` が区切り文字を弾いており、
     // 行き先は `parent.join(name)` なので、root の親の直下から出ることはない
     if !is_project_root(&app, &src)? {
         validate_under_root(&app, &dest)?;

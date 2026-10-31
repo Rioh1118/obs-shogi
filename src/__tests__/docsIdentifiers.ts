@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { codeOf } from "./sourceText";
 import { REPO_ROOT, rustRoots, SRC, sourceFiles, TAURI_CONF } from "./walk";
 
-/** 門番とその検査。シェルだが、表が関数名を仕様として引く */
+/** `verify-gate.sh` などのフックとその検査。シェルだが、表が関数名を仕様として引く */
 const HOOKS = join(REPO_ROOT, ".claude/hooks");
 
 /**
@@ -107,9 +107,9 @@ export const EXEMPT = new Set([
 let corpus: string | null = null;
 
 /**
- * 門番のシェルもソースに数える。
+ * フックのシェルもソースに数える。
  *
- * `verify-gate-decision.md` は門番の関数名（`gate_kinds_for_path` ほか）を仕様として引く。
+ * `verify-gate-decision.md` はフックの関数名（`gate_kinds_for_path` ほか）を仕様として引く。
  * `.claude/hooks/` を外すと、表が実在する関数を指しているのに「無い」と言われ、直しようが無い。
  *
  * **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の定義で、

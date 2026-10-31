@@ -114,7 +114,7 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
 
             // **root の外へ出る symlink は落とす。** `Path::is_dir` は symlink を辿るので、
             // 素通しにすると一覧がホーム以下まで広がる。しかも辿った先は `read_file` の
-            // 関門が canonicalize して弾くので、**見えるのに開けない行**になる。
+            // 検査が canonicalize して弾くので、**見えるのに開けない行**になる。
             //
             // root の中で閉じている symlink（`ws/current -> ws/2026/08`）は普通の使い方で、
             // 中身も開けるので残す。無条件に落とすと、何も伝えないまま一覧から消える。
@@ -187,7 +187,7 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
 
 /// 渡されたディレクトリを根としてツリーを組む。
 ///
-/// **root の外へ出ないことはここが受け持つ。** 呼び出し側の関門は引数1点しか
+/// **root の外へ出ないことはここが受け持つ。** 呼び出し側の検査は引数1点しか
 /// 見ないので、走査の途中で symlink が外へ出るかどうかは見られない。
 pub fn walk_from(root_path: &Path) -> Result<FileTreeNode, FsError> {
     // symlink まで解決しておく。解決前のパスを `canonical_root` にすると、

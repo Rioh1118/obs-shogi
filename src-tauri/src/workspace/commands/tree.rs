@@ -14,7 +14,7 @@ use ::fs::error::{FsError, FsErrorCode};
 /// ホーム以下の全ディレクトリ名・棋譜のフルパス・サイズ・更新時刻が返る。
 /// 中身は `read_file` が `validate_under_root` で守っているが、一覧は素通りになる。
 /// 走査の側で root の外へ出ないことは [`walk_from`] が受け持つ
-/// （関門は引数1点しか見ない）。
+/// （`validate_under_root` は引数1点しか見ない）。
 #[command]
 pub fn get_file_tree<R: Runtime>(
     app: AppHandle<R>,

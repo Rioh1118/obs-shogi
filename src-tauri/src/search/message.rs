@@ -82,7 +82,7 @@ pub(crate) fn for_screen(e: &dyn std::fmt::Display) -> ScreenMessage {
 /// crate の外から名前で辿れず、欄は非公開、作る口の `for_screen` も `pub(crate)`。
 ///
 /// **`Serialize` だけを derive する。** `Deserialize` を持つと、綴りから直に作る道が
-/// 開いて門を回避できる。この2つの payload は emit 専用で、読み戻す呼び手はいない。
+/// 開いて `for_screen` を回避できる。この2つの payload は emit 専用で、読み戻す呼び手はいない。
 ///
 /// 足したいことがあるなら `followed_by` を通す。
 #[derive(Debug, Clone, Serialize)]

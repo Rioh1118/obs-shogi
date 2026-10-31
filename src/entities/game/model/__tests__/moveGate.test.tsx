@@ -10,10 +10,10 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import { Ok } from "@/shared/lib/result";
 
 /**
- * 盤の着手が、積む前に門を通ること。
+ * 盤の着手が、積む前に `moveGate` を通ること。
  *
- * **門の中身はここで見ない**（それは `features/game-move` の仕事）。
- * ここが守るのは「**盤が門を通る**」の1点で、これが外れると対局中でも
+ * **`moveGate` の中身はここで見ない**（それは `features/game-move` の仕事）。
+ * ここが守るのは「**盤が `moveGate` を通る**」の1点で、これが外れると対局中でも
  * 相手の手番で積めてしまい、Rust の写しと食い違った指し手列で裁定を返すことになる。
  */
 
@@ -75,7 +75,7 @@ describe("盤の着手と門", () => {
     expect(game.current!.state.cursor?.tesuu).toBe(1);
   });
 
-  /** **積まないことがこの門の仕事。** 通してしまうと対局が壊れる */
+  /** **積まないことが `moveGate` の仕事。** 通してしまうと対局が壊れる */
   test("門が断れば、棋譜は動かない", async () => {
     const accept = vi.fn(async () => false);
     const game = mountGame({ accept });
@@ -101,7 +101,7 @@ describe("盤の着手と門", () => {
     await playPawn(game);
 
     // **手数ではなく綴りの列を渡すこと。** 手数では同じ深さの別の線と
-    // 見分けが付かず、門が「対局の次の1手」と「分岐で指した手」を取り違える
+    // 見分けが付かず、`moveGate` が「対局の次の1手」と「分岐で指した手」を取り違える
     expect(accept).toHaveBeenCalledWith(expect.objectContaining({ to: { x: 7, y: 6 } }), {
       kifuPath: "/w/a.kif",
       usiMoves: [],
@@ -109,9 +109,9 @@ describe("盤の着手と門", () => {
   });
 
   /**
-   * **門は毎描画で新しくなる**（対局の状態が動くたび）。ref の写しが止まると、
-   * 最初の描画の門を永久に呼ぶ —— そのときの対局は `idle` なので常に素通しになり、
-   * **この門が存在する理由そのものが黙って無効になる。**
+   * **`moveGate` は毎描画で新しくなる**（対局の状態が動くたび）。ref の写しが止まると、
+   * 最初の描画の `moveGate` を永久に呼ぶ —— そのときの対局は `idle` なので常に素通しになり、
+   * **`moveGate` が存在する理由そのものが黙って無効になる。**
    */
   test("門が差し替わったら、新しいほうを呼ぶ", async () => {
     const first = vi.fn(async () => true);
@@ -146,7 +146,7 @@ describe("盤の着手と門", () => {
   });
 
   /**
-   * **門を待っている間に別の棋譜が載ることがある。**
+   * **`moveGate` を待っている間に別の棋譜が載ることがある。**
    * 気づかずに進むと、`selectSquare` が握っている1つ前の棋譜の中身を、
    * 新しく載った棋譜の宛先へ保存することになる。
    */
@@ -164,7 +164,7 @@ describe("盤の着手と門", () => {
       await game.current!.loadGame(EMPTY, "/w/a.kif");
     });
 
-    // 門を握ったまま、別の棋譜を載せる
+    // `moveGate` を待たせたまま、別の棋譜を載せる
     await act(async () => {
       await game.current!.selectSquare(7, 7);
     });
@@ -187,7 +187,7 @@ describe("盤の着手と門", () => {
     expect(game.current!.state.loadedAbsPath).toBe("/w/b.kif");
   });
 
-  /** **門を渡さない呼び手は素通し。** 盤だけを立てる場所に対局を持ち込まない */
+  /** **`moveGate` を渡さない呼び手は素通し。** 盤だけを立てる場所に対局を持ち込まない */
   test("門が無ければ、そのまま積む", async () => {
     const game = mountGame();
 

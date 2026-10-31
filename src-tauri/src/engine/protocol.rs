@@ -1651,9 +1651,9 @@ mod tests {
 
     use crate::engine::utils::{LOG_FILE_BUDGET, MAX_SUMMARY_LEN};
 
-    /// 線に出る直前の門番が、`contains_usi_breaking_char` とずれないこと。
+    /// 線に出る直前の検査が、`contains_usi_breaking_char` とずれないこと。
     ///
-    /// **文字を列挙しない。** 列挙すると、禁止集合を厚くしたときに門番だけが
+    /// **文字を列挙しない。** 列挙すると、禁止集合を厚くしたときに検査だけが
     /// 薄いまま残る（この repo で2回起きた形）。ASCII を端から流して、
     /// 断る／通すの答えが判断そのものと一致することを見る。
     ///

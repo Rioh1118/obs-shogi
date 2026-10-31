@@ -56,7 +56,7 @@ function Dock({ views }: { views: DockViewBindings }) {
 
   const selectTab = (key: DockViewType) => {
     // 同じタブを押しただけなら設定へ書きに行かない。書くと `config` が別物になり、
-    // `useAppConfig` を購読している側（ツリーの根に居る門を含む）が押すたびに描き直される
+    // `useAppConfig` を購読している側（ツリーの根に居る `FileTreeRootGate`を含む）が押すたびに描き直される
     if (key === active) return;
 
     // タブの移動は履歴に積まない。積むと、戻るボタンが局面やモーダルの移動ではなく

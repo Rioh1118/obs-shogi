@@ -1240,7 +1240,7 @@ done"#;
                 "最後の出力が載っていない: {unresponsive:?}"
             );
 
-            // 門が下りないこと。ストリームを外していると、この間に下りる
+            // `unanswered` が下りないこと。ストリームを外していると、この間に下りる
             tokio::time::sleep(QUIET).await;
             bridge
                 .set_position_impl("startpos".to_string())

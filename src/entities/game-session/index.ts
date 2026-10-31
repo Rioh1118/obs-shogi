@@ -36,7 +36,7 @@ export { GameSessionProvider } from "./model/provider";
 export { useGameSession } from "./model/useGameSession";
 // **対局の画面を外したので、公開面はそこまで縮んでいる**
 // （`docs/spec/features/game-play.md`）。いま残っているのは、進行の外側
-// （橋・ゲート・盤の門）が実際に読んでいるものだけ。
+// （橋・ゲート・盤の `moveGate`）が実際に読んでいるものだけ。
 // **面を戻すときに、要るものだけを呼び出し元と一緒に載せ直すこと** ——
 // 先に並べておくと、何が使われているかが公開面から読めなくなる
 // （`GameStartRequest` を載せていないのも同じ理由）。

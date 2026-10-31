@@ -17,7 +17,7 @@ pub fn load_config(app_handle: AppHandle) -> Result<AppConfig, String> {
 
 #[tauri::command]
 // TODO(#215): `config.root_dir` を無検証で受ける。ここが root を決める側なので
-// `validate_under_root` を掛けられない。webview から直に呼べば関門を全開にできる。
+// `validate_under_root` を掛けられない。webview から直に呼べばこの検査を無効にできる。
 // 免除は `tests/root_guard.rs` の EXEMPT に理由つきで並べてある
 pub fn save_config(app_handle: AppHandle, config: AppConfig) -> Result<(), String> {
     app::write(&app_handle, &config)

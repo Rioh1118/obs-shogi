@@ -10,7 +10,7 @@ pub const CONFIG_FILE: &str = "app.json";
 
 /// **`#[serde(default)]` を外さない。** 外すと、フィールドを1つ足した時点で
 /// 既存利用者の `app.json` が parse に失敗し、パスを受ける全コマンドが落ちる
-/// （関門が `app.json` を読むため）。
+/// （`validate_under_root` が `app.json` を読むため）。
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AppConfig {
@@ -118,7 +118,7 @@ mod tests {
     ///
     /// 落ちるのは、`Option` でない欄を `#[serde(default)]` 無しで足したとき。
     /// そのとき既存利用者の設定は parse に失敗し、パスを受ける全コマンドが
-    /// 落ちる（関門が `app.json` を読むため）。
+    /// 落ちる（`validate_under_root` が `app.json` を読むため）。
     ///
     /// **`Option` の欄だけを足しても落ちない。** serde は `Option` を
     /// 「欠けていれば `None`」として読むので、いまの欄を消してもこの検査は緑になる。

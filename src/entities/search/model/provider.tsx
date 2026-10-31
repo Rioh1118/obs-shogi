@@ -168,7 +168,7 @@ export function PositionSearchProvider({
             // 引く。チャンクが1つも来なかった検索も数に入れる
             chunkBuffer.noteRequest(p.requestId);
 
-            // **始まりも門を通す。** ここを通さないと、捨てた検索の begin が
+            // **始まりも `isAccepting` を通す。** ここを通さないと、捨てた検索の begin が
             // `ensureSession` でセッションを作り直す
             if (!chunkBuffer.isAccepting(p.requestId)) return;
             dispatch({ type: "search_begin", payload: p });

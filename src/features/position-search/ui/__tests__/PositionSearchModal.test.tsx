@@ -309,7 +309,7 @@ describe("PositionSearchModal のヒットを開く", () => {
   /**
    * 捨てた起動の後始末が、現に走っている起動の画面へ書き戻らないこと。
    *
-   * `.then` だけに門を置くと `.finally` が素通りし、後から撃った検索の rid が
+   * `.then` だけに世代の判定を置くと `.finally` が素通りし、後から撃った検索の rid が
    * まだ返っていない一瞬に `isLaunching` が落ちる。画面は「待機中 / 一致する棋譜が
    * ありません」——**0件が完了として出る**（`search.md` が核心の欠陥と呼ぶ形）。
    */
@@ -350,7 +350,7 @@ describe("PositionSearchModal のヒットを開く", () => {
     });
 
     // **到達しない文言を見ない。** 「検索に失敗しました」は一覧の空表示のもので、
-    // 起動Bが飛行中のこの場面では出ない。門を外したときに実際に出るのは
+    // 起動Bが飛行中のこの場面では出ない。世代の判定を外したときに実際に出るのは
     // 状況バーが素で描く理由の文字列
     expect(screen.getByLabelText("局面検索").textContent).not.toContain(
       "search app handle not ready",

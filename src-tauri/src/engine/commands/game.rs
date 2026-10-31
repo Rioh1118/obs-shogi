@@ -21,7 +21,7 @@ use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 ///
 /// `settings` は**実行ファイルのパスを運ぶ**（`PlayerSpec::Engine` の
 /// `engine_path` / `work_dir`）。エンジンはワークスペースの外にあるので
-/// root 配下の関門は掛からない（→ `tests/root_guard.rs` の `EXEMPT`）。
+/// root 配下の検査は掛からない（→ `tests/root_guard.rs` の `EXEMPT`）。
 /// 起こしてよいかを見ているのは `EngineRegistry::spawn` の `canonicalize` と
 /// `is_file` / `is_dir` だけ。
 ///

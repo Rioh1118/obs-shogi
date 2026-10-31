@@ -1,9 +1,9 @@
-//! 索引キャッシュの書き側の門番と、**それを名乗るテスト**を突き合わせる。
+//! 索引キャッシュの書き側の検査と、**それを名乗るテスト**を突き合わせる。
 //!
 //! `search/cache/format.rs` の `mod tests` の直上に綴りの規約がある——
 //! 書く側だけを見るなら `_not_written`、読む側だけなら `_refused`、
-//! 両方なら `_neither_written_nor_read`。次に門番を足す人はその綴りで
-//! 「どの門番に留めがあるか」を数える。
+//! 両方なら `_neither_written_nor_read`。次に検査を足す人はその綴りで
+//! 「どの検査に留めがあるか」を数える。
 //!
 //! **綴りは主語で `is` / `are` が入れ替わり、同義語も増える。**
 //! 本数を doc に書くと、引き方の違いだけで合わなくなる。だからここが数える。
@@ -14,15 +14,15 @@
 //! 2. `encode_all` が `Err` を作る数と、`refusing to write: ` で始まる文言の数が合うか
 //! 3. その文言の**固定部分**が、`contains` で当てても恒真にならない長さか
 //! 4. 文言それぞれに、書く側を名乗るテストが**その最長の固定部分**を見ているか
-//! 5. ヘッダの検査が、構造の門番の綴りを名乗っていないか
+//! 5. ヘッダの検査が、構造の検査の綴りを名乗っていないか
 //!
 //! ## ここが見ないもの
 //!
-//! **`decode_all` の側は数えない。** あちらの `return Err` は構造の門番だけでなく
+//! **`decode_all` の側は数えない。** あちらの `return Err` は構造の検査だけでなく
 //! ヘッダの検査（版 / magic / root hash / 長さ / `file_id`）も含み、
-//! 文言と門番が1対1にならない。
+//! 文言と検査が1対1にならない。
 //!
-//! **同じ文言を読み書き両側で使う門番は、片側の assert を消しても落ちない。**
+//! **同じ文言を読み書き両側で使う検査は、片側の assert を消しても落ちない。**
 //! `_neither_written_nor_read` のテストは本体に読む側の assert も持ち、
 //! そこに同じ句があると照合が当たってしまう。**それは人が見ること。**
 //!
@@ -30,14 +30,14 @@
 //! ヘッダの検査は `MAGIC` / `header_for` などの綴り、規約の外の綴りは既知の3語。
 //! **綴りを変える正当な変更（`?` 形への書き換え、ヘルパへの切り出し）が入ると、
 //! そのたびに同じ形の穴が開く。** ここが見ているのは
-//! **`ERR_FORMS` のどれかで返す書き側の門番**であって、書き側の門番すべてではない。
+//! **`ERR_FORMS` のどれかで返す書き側の検査**であって、書き側の検査すべてではない。
 //!
 //! **規約の外の綴りは既知の3語でしか見ない。** `_rejected` / `_denied` / `_not_read` 以外の
 //! 同義語（`_is_declined` など）は素通りする。見つけたら `OUTSIDE` に足すこと。
 //!
 //! **文言の固定部分が短いと恒真になる。** `bucket {b} ...` の `bucket` は
 //! テストの題材にも出るので、`contains` が当たっても assert を見た証拠にならない。
-//! だから [`MIN_PHRASE`] より短い固定部分しか持たない門番は**素通りさせずに落とす。**
+//! だから [`MIN_PHRASE`] より短い固定部分しか持たない検査は**素通りさせずに落とす。**
 
 use std::fs;
 use std::path::PathBuf;
@@ -48,7 +48,7 @@ use scanning::{
     blank_out_comments, blank_out_noncode, find_in_code, item_end, skip_literal_or_comment,
 };
 
-/// 門番の文言に要る固定部分の最小の長さ（バイト）。
+/// 検査の文言に要る固定部分の最小の長さ（バイト）。
 ///
 /// **短いと `contains` が題材に当たって恒真になる。** `bucket` や `file` は
 /// 書き側テストの題材そのもの（`buckets[..]` / `file_id: 1`）なので、
@@ -152,7 +152,7 @@ const QUOTE: char = '\u{3}';
 /// 番兵を**ソースの綴りへ**戻す。**割り終わってから**呼ぶ。
 ///
 /// 波括弧は `{` へ、引用符は `\"` へ。**向きが違う。**
-/// 門番の `{{` は実行時に `{` になり、テストの assert もソースに `{` と書く。
+/// 検査の `{{` は実行時に `{` になり、テストの assert もソースに `{` と書く。
 /// 引用符は逆で、実行時の `"` をテストのソースは `\"` と書く。
 /// 照合先は生のソースなので、綴りの側へ戻す。
 fn unfold_escapes(s: &str) -> String {
@@ -184,8 +184,8 @@ fn join_line_continuations(s: &str) -> String {
 fn refusal_phrases(encode_all_body: &str) -> Vec<String> {
     let mut found = Vec::new();
     let mut rest = encode_all_body;
-    // **接頭辞を踏まない門番は1文字も見えない。** `Err` を作る構文の数と
-    // 目印の数が合わなければ、綴りの違う門番が増えている
+    // **接頭辞を踏まない検査は1文字も見えない。** `Err` を作る構文の数と
+    // 目印の数が合わなければ、綴りの違う検査が増えている
     let exits: usize = ERR_FORMS
         .iter()
         .map(|f| count_in_code(encode_all_body, f))
@@ -195,7 +195,7 @@ fn refusal_phrases(encode_all_body: &str) -> Vec<String> {
         let len = skip_literal_or_comment(from_quote)
             .unwrap_or_else(|| panic!("文字列リテラルとして読めない: {from_quote:.40}"));
         let literal = &from_quote[1..len - 1];
-        // `refusing to write: ` は全部の門番に共通なので固定部分に数えない
+        // `refusing to write: ` は全部の検査に共通なので固定部分に数えない
         let body = literal
             .strip_prefix("refusing to write: ")
             .unwrap_or(literal);
@@ -248,7 +248,7 @@ fn no_guard_test_uses_a_spelling_outside_the_convention() {
 
 /// **`encode_all` が断る文言それぞれに、書く側を名乗るテストがあること。**
 ///
-/// 門番を足したのにテストを足さない形と、テストが `is_err()` だけで
+/// 検査を足したのにテストを足さない形と、テストが `is_err()` だけで
 /// 文言を見ない形の両方をここで止める。
 #[test]
 fn every_refusal_to_write_is_named_by_a_test() {
@@ -293,11 +293,11 @@ fn every_refusal_to_write_is_named_by_a_test() {
     );
 }
 
-/// **ヘッダの検査は構造の門番の綴りを名乗らないこと。**
+/// **ヘッダの検査は構造の検査の綴りを名乗らないこと。**
 ///
 /// 版 / magic / root hash を見るテストは「blob を読めるか」の族で、
-/// `encode_all` / `decode_all` の本体の構造の門番とは別。同じ綴りを持つと、
-/// 綴りで数えたときに構造の門番の本数が合わなくなる。
+/// `encode_all` / `decode_all` の本体の構造の検査とは別。同じ綴りを持つと、
+/// 綴りで数えたときに構造の検査の本数が合わなくなる。
 #[test]
 fn no_header_check_is_named_like_a_structural_guard() {
     const CONVENTION: [&str; 3] = ["_not_written", "_refused", "_neither_written_nor_read"];
