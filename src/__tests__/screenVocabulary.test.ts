@@ -30,6 +30,7 @@ const SPELLINGS: Record<string, RegExp> = {
   // 「選んでいるプリセット」は状態で、表が止めるのは文の依頼だけ
   選ぶ: /選(んでください|び直してください|ぶこと|び直すこと)/,
   確かめる: /確かめ/,
+  登録: /登録/,
   クリックする: /クリック/,
   起動し直す: /起動し直/,
   起こし直す: /起こし直/,
@@ -175,6 +176,32 @@ function tsScreenStrings(file: string): string[] {
   return found;
 }
 
+/** ボタンの語。`<Button>` と `<button>` の文字、`*Label` の属性、語を持つ `Label` の欄 */
+function tsButtonLabels(file: string): string[] {
+  const body = readFileSync(file, "utf8");
+  const kind = file.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const source = ts.createSourceFile(file, body, ts.ScriptTarget.Latest, true, kind);
+  const found: string[] = [];
+  const texts = (node: ts.Node): void => {
+    if (ts.isStringLiteralLike(node) || ts.isJsxText(node)) found.push(node.text.trim());
+    ts.forEachChild(node, texts);
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isJsxElement(node) && /^(Button|button)$/.test(node.openingElement.tagName.getText(source))) {
+      node.children.forEach(texts);
+    }
+    if (ts.isJsxAttribute(node) && node.initializer && /(^l|L)abel$/.test(node.name.getText(source))) {
+      texts(node.initializer);
+    }
+    if (ts.isPropertyAssignment(node) && /(^l|L)abel$/.test(node.name.getText(source))) {
+      texts(node.initializer);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
 /** Rust の字句を、コメントと文字列の順に読むだけの1本の式。文字列の中の `//` を切らないため */
 const RUST_TOKEN = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|'"'|r#*"[\s\S]*?"#*|"(?:[^"\\]|\\[\s\S])*"/g;
 
@@ -228,6 +255,26 @@ describe("画面の文字列に使わない語を書かない", () => {
       ),
     ];
     expect(found, "`docs/spec/design-language.md` の用語表の左の語へ揃えること").toEqual([]);
+  });
+
+  it("ボタンの語に「〜する」を付けない", () => {
+    const files = tsFiles(SRC, { includeTests: false }).filter((f) => !/\.test\.tsx?$/.test(f));
+    const found = files.flatMap((f) =>
+      tsButtonLabels(f)
+        .filter((text) => text.endsWith("する"))
+        .map((text) => `${relative(REPO_ROOT, f)}: ${text}`),
+    );
+    expect(found, "漢語のボタンは体言止めにすること（`design-language.md`「文の型」）").toEqual([]);
+  });
+
+  it("省略記号は `…` 1文字にする", () => {
+    const files = tsFiles(SRC, { includeTests: false }).filter((f) => !/\.test\.tsx?$/.test(f));
+    const found = files.flatMap((f) =>
+      tsScreenStrings(f)
+        .filter((text) => /[ぁ-んァ-ヶ一-龠]\.\.\./.test(text))
+        .map((text) => `${relative(REPO_ROOT, f)}: ${text}`),
+    );
+    expect(found).toEqual([]);
   });
 
   it("例外はどれも現物に残っている", () => {

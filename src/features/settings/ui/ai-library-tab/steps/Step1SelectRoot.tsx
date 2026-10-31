@@ -22,7 +22,7 @@ export function Step1SelectRoot({ state, aiRoot, onSelect }: Props) {
       <StepTree>
         <TreeLine label="📂 ai_root/" note="← ここを選択" highlight />
         <TreeLine indent={1} label="├─ engines/" dim />
-        <TreeLine indent={1} label="└─ &lt;AI名&gt;/" dim />
+        <TreeLine indent={1} label="└─ &lt;AI 名&gt;/" dim />
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">

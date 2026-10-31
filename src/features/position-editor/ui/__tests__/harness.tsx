@@ -44,7 +44,7 @@ export function EditorHarness({
   }, [isDirty, isSubmitting, onClose]);
 
   return (
-    <Modal onClose={requestClose} label="棋譜を作成する" variant="workspace" size="xl">
+    <Modal onClose={requestClose} label="棋譜を作成" variant="workspace" size="xl">
       <PositionEditor
         face={face}
         onFaceChange={setFace}

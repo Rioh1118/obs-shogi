@@ -73,7 +73,7 @@ export default function ConfirmDialog({
               **別のものを指す**（分岐の削除では隣の変化が消える）。
               確認を閉じて選び直せば、そのときの棋譜に対して指定が組み直される。 */}
           <Button tone="danger" onClick={onConfirm} isLoading={isLoading} disabled={!!error}>
-            {isLoading ? "削除中..." : confirmLabel}
+            {isLoading ? "削除中…" : confirmLabel}
           </Button>
         </div>
       </div>

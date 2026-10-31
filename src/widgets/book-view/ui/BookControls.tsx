@@ -74,7 +74,7 @@ function BookControls() {
           className="book-controls__iconBtn"
           onClick={close}
           disabled={info === null && !isOpening}
-          title={isOpening ? "開くのを中止する" : "定跡を閉じる"}
+          title={isOpening ? "開くのを中止" : "定跡を閉じる"}
         >
           <X className="book-controls__icon" />
         </button>

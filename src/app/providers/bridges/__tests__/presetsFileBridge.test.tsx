@@ -116,19 +116,19 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
     { kind: "migrationFailed", reason: "EACCES" },
     { kind: "notRecovered", reason: "EACCES" },
     { kind: "unreadable", reason: "EIO" },
-  ])("$kind は danger の帯で「読み直す」を持つ", async (notice) => {
+  ])("$kind は danger の帯で「もう一度読み込む」を持つ", async (notice) => {
     await mountWith({ loadNotice: notice });
 
     const req = banner();
     expect(req.tier).toBe("danger");
     const labels = req.actions.map((a) => a.label);
-    expect(labels).toEqual(["読み直す"]);
+    expect(labels).toEqual(["もう一度読み込む"]);
     expect(`${req.title}${req.body}`).not.toContain(
       notice.kind === "unreadable" ? "EIO" : "EACCES",
     );
   });
 
-  test("別の場所で変更されたら、帯の「読み直す」で読み直す", async () => {
+  test("別の場所で変更されたら、帯の「もう一度読み込む」で読み直す", async () => {
     const failure: SaveFailure = { kind: "conflict", message: "changed" };
     await mountWith({ saveFailure: failure });
 
@@ -181,7 +181,7 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
   /** Rust にだけ足された種類でも落ちず、汎用の帯を出す */
   test("知らない種類でも落ちずに帯を出す", async () => {
     await mountWith({ loadNotice: { kind: "somethingNew" } as unknown as PresetsLoadNotice });
-    expect(banner().actions.map((a) => a.label)).toEqual(["読み直す"]);
+    expect(banner().actions.map((a) => a.label)).toEqual(["もう一度読み込む"]);
   });
 
   /** 読み込みの呼び出しそのものが落ちたら、設定を開いていなくても届ける */

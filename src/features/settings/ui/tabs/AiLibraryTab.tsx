@@ -247,8 +247,8 @@ export default function AiLibraryTab() {
     }
     for (const p of data.profiles ?? []) {
       const { okEval, okBook } = profileHealth(p);
-      if (!okEval) ws.push(`「${p.name}」: 評価関数が未検出です（<AI名>/eval に nn.bin 等）。`);
-      if (!okBook) ws.push(`「${p.name}」: 定跡が未検出です（<AI名>/book に .db）。`);
+      if (!okEval) ws.push(`「${p.name}」: 評価関数が未検出です（<AI 名>/eval に nn.bin 等）。`);
+      if (!okBook) ws.push(`「${p.name}」: 定跡が未検出です（<AI 名>/book に .db）。`);
     }
     return ws;
   }, [data]);

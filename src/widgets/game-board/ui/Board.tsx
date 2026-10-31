@@ -47,7 +47,7 @@ function Board() {
   }, [promotionState, selectedPosition]);
 
   if (!shogi) {
-    return <div className="board-loading">盤面を読み込み中...</div>;
+    return <div className="board-loading">盤面を読み込み中…</div>;
   }
 
   const isSquareHighlighted = (x: number, y: number) => {

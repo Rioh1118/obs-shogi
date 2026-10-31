@@ -267,7 +267,7 @@ function KifuImportForm({
             isLoading={isSaving}
             disabled={!fullFileName || !read?.readable || !selectedDir}
           >
-            {isSaving ? "作成中..." : "作成"}
+            {isSaving ? "作成中…" : "作成"}
           </Button>
           {/* 盤の面と同じ語。**同じ門を通る同じ操作**なので、
               面ごとに別の語を当てると、戻り先が違うように読める */}

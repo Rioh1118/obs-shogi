@@ -115,7 +115,7 @@ function AnalysisControls() {
             onClick={() => openModal("study-position-save")}
             disabled={!currentSfen}
             aria-pressed={isBookmarked}
-            title={isBookmarked ? "課題局面を編集" : "課題局面に登録"}
+            title={isBookmarked ? "課題局面を編集" : "局面を保存"}
           >
             <Bookmark
               className="analysis-controls__icon"

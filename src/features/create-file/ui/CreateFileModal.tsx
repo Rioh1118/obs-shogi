@@ -76,7 +76,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       onClose={requestClose}
       // 面が変わっても器の名前は動かさない。支援技術には「何が開いているか」を
       // 一貫して読ませる
-      label="棋譜を作成する"
+      label="棋譜を作成"
       variant="workspace"
       size="xl"
       // **カードごと巻く。** どちらの面も器の高さを配って組むので、器が縦に縮められた
@@ -84,7 +84,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       scroll="card"
     >
       <div className="create-file-modal">
-        <div className="create-file-modal__tabs" role="tablist" aria-label="棋譜を作成する">
+        <div className="create-file-modal__tabs" role="tablist" aria-label="棋譜を作成">
           {/* **作成中はタブを沈める。** 送信の途中で面が外れると、失敗を出す場所ごと消える */}
           <button
             type="button"

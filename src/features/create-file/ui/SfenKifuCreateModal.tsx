@@ -214,7 +214,7 @@ export default function SfenKifuCreateModal() {
               isLoading={isLoading}
               disabled={!fullFileName || !selectedDir}
             >
-              {isLoading ? "作成中..." : "作成"}
+              {isLoading ? "作成中…" : "作成"}
             </Button>
             <Button type="button" onClick={() => closeModal()} disabled={isLoading}>
               キャンセル

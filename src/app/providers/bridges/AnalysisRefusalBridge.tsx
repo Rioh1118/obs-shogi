@@ -35,7 +35,7 @@ export function AnalysisRefusalBridge() {
 
     const action = refusalNeedsRestart(error)
       ? {
-          label: "再起動する",
+          label: "再起動",
           run: async () => {
             await startAgain.current();
           },

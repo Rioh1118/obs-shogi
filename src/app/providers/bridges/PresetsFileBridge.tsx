@@ -99,7 +99,7 @@ export function PresetsFileBridge() {
       body: view.body,
       actions: [
         view.action === "reload"
-          ? { label: "読み直す", run: () => readAgain.current() }
+          ? { label: "もう一度読み込む", run: () => readAgain.current() }
           : {
               label: "設定を開く",
               run: () => openSettings.current("settings", { tab: "engine" }),

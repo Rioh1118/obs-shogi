@@ -152,7 +152,7 @@ study-positions ──[検索]──→ position-search?sfen=…&returnTo=study-
 | `study-position-save` | 検討ペインのしおりアイコン／課題局面一覧の「編集」と `e` キー                                                                                    |
 | `position-search`     | 検討ペインの虫眼鏡／課題局面一覧の「検索」と `s` キー                                                                                            |
 | `navigation`          | 検討ペインのコンパス                                                                                                                             |
-| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」と、ようこそ画面の「棋譜を作成する」（そちらは `dir=` を付けない）                                             |
+| `create-file`         | ツリーのフォルダ行のホバーで出る「＋」と、ようこそ画面の「棋譜を作成」（そちらは `dir=` を付けない）                                             |
 | `sfen-kifu-create`    | 課題局面の詳細の「棋譜を作成」                                                                                                                   |
 
 ※ `tab` に書ける綴りは `TabType`（`shared/lib/router/useURLParams.ts`）が持ち、

@@ -89,7 +89,7 @@ describe("検討の断りの帯", () => {
       error = message;
       render(<AnalysisRefusalBridge />);
 
-      expect(firstAction().label).toBe("再起動する");
+      expect(firstAction().label).toBe("再起動");
       await act(async () => {
         await firstAction().run();
       });

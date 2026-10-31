@@ -203,7 +203,7 @@ describe("▶ の位置のボタン", () => {
     const on = { ...handlers(), slowStart: true };
     render(<EngineAction status="starting" isAnalyzing stopping={false} canStart {...on} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "起動を中止する" }));
+    fireEvent.click(screen.getByRole("button", { name: "起動を中止" }));
     expect(on.onCancelStart).toHaveBeenCalledTimes(1);
   });
 
@@ -230,7 +230,7 @@ describe("▶ の位置のボタン", () => {
     render(<EngineAction status={status} isAnalyzing stopping={false} canStart {...on} />);
 
     expect(screen.queryByTitle("検討を中断")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "再起動する" }));
+    fireEvent.click(screen.getByRole("button", { name: "再起動" }));
     expect(on.onRestart).toHaveBeenCalledTimes(1);
   });
 });

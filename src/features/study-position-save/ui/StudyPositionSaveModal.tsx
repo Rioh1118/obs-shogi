@@ -146,12 +146,12 @@ export default function StudyPositionSaveModal() {
 
   if (!isOpen) return null;
 
-  const saveLabel = isSaving ? "保存中..." : isEdit ? "保存する" : "登録する";
+  const saveLabel = isSaving ? "保存中…" : isEdit ? "保存する" : "保存";
 
   return (
     <Modal
       onClose={closeModal}
-      label={isEdit ? "課題局面を編集" : "課題局面に登録"}
+      label={isEdit ? "課題局面を編集" : "局面を保存"}
       theme="dark"
       variant="workspace"
       size="xl"
@@ -163,8 +163,8 @@ export default function StudyPositionSaveModal() {
     >
       <div className="sp-save" onKeyDown={handleKeyDown}>
         <header className="sp-save__header">
-          <h2 className="sp-save__title">{isEdit ? "課題局面を編集" : "課題局面に登録"}</h2>
-          {isEdit && <p className="sp-save__subtitle">{"この局面はすでに登録されています"}</p>}
+          <h2 className="sp-save__title">{isEdit ? "課題局面を編集" : "局面を保存"}</h2>
+          {isEdit && <p className="sp-save__subtitle">{"この局面はすでに保存されています"}</p>}
         </header>
 
         <div className="sp-save__body">
@@ -207,7 +207,7 @@ export default function StudyPositionSaveModal() {
                 id="sp-save-tags"
                 tags={tags}
                 onChange={setTags}
-                placeholder="戦法や戦型を入力..."
+                placeholder="戦法や戦型を入力…"
                 disabled={isSaving}
                 variant="compact"
               />
@@ -219,7 +219,7 @@ export default function StudyPositionSaveModal() {
                 id="sp-save-description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="この局面についてのメモ..."
+                placeholder="この局面についてのメモ…"
                 rows={3}
                 disabled={isSaving}
               />

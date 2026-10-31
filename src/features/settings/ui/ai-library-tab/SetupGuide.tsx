@@ -342,8 +342,8 @@ export default function SetupGuide({
         tone: "todo",
         icon: <Sparkles size={18} />,
         title: "AI フォルダを作成してください",
-        desc: "AI名のフォルダを作成すると、eval/ と book/ が自動で用意されます。",
-        primaryLabel: "AI名の入力へ",
+        desc: "AI 名のフォルダを作成と、eval/ と book/ が自動で用意されます。",
+        primaryLabel: "AI 名の入力へ",
         onPrimary: () => aiNameRef.current?.focus(),
       };
     }
@@ -497,10 +497,10 @@ export default function SetupGuide({
       {/* AI folder creation */}
       {canCreateProfile && (
         <SSection
-          title="AIフォルダを追加"
-          description="AI名を入力すると eval/ と book/ をまとめて作成します。"
+          title="AI フォルダを追加"
+          description="AI 名を入力すると eval/ と book/ をまとめて作成します。"
         >
-          <SField label="AI名" description="例: Suisho / 研究用A">
+          <SField label="AI 名" description="例: Suisho / 研究用A">
             <div className="setupGuide__createRow">
               <div className="setupGuide__createInputWrap">
                 <SInput
@@ -511,7 +511,7 @@ export default function SetupGuide({
                     setAiNameDraft(e.target.value);
                     setCreateError(null);
                   }}
-                  placeholder="AI名を入力"
+                  placeholder="AI 名を入力"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void handleCreateFolder();
                   }}

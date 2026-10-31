@@ -139,8 +139,8 @@ export function StructureOverview({
           })
         : aiRootPath && (
             <TreeNode
-              label="📂 ＜AI名＞/"
-              note={canCreateProfile ? "← AIフォルダを作成" : undefined}
+              label="📂 ＜AI 名＞/"
+              note={canCreateProfile ? "← AI フォルダを作成" : undefined}
               state="placeholder"
               indent={1}
               isLast

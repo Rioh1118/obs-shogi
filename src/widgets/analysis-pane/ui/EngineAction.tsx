@@ -36,7 +36,7 @@ export function EngineAction({
   onCancelStart,
 }: Props) {
   if (status === "exited" || status === "unresponsive") {
-    return <TextAction label="再起動する" onClick={onRestart} />;
+    return <TextAction label="再起動" onClick={onRestart} />;
   }
   if (status === "failed" || status === "cancelled") {
     return retry ? (
@@ -46,7 +46,7 @@ export function EngineAction({
     );
   }
   if (status === "starting" && slowStart) {
-    return <TextAction label="起動を中止する" onClick={onCancelStart} />;
+    return <TextAction label="起動を中止" onClick={onCancelStart} />;
   }
 
   return (
