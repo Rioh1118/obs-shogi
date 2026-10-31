@@ -16,6 +16,7 @@ argument-hint: "[要望の本文 / メモのパス / 戻ってきた論点]"
 | 与件整理     | `/intake`                 | `.claude/plans/<slug>/ledger.md`               | 与件と非ゴール           |
 | 調査と裏取り | `/survey`                 | `research/` の事実と `<slug>/survey.md`        | 標準に寄せる／独自を保つ |
 | トンマナ     | `/tone-manner`            | `docs/spec/design-language.md` と `index.scss` | 方向（3案から）          |
+| 画面の作り直し | `/design-rework`        | `design-<画面>/feedback.md` と見本             | 人が判定する見た目       |
 | 叩き台と仕様 | `/spec-draft`             | `docs/spec/` の仕様と見本                      | 見本と受入条件           |
 | 状態遷移     | `/state-transition-table` | `docs/state-transitions/<slug>.md`             | 表が出した新しい論点     |
 | 起票         | `/spec-to-issues`         | Issue と仕様への番号の書き戻し                 | 起票の一覧               |
