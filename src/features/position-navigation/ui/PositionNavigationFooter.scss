@@ -2,22 +2,21 @@
 
 .position-navigation-modal {
   &__footer {
-    padding: 16px 32px 24px;
-    border-top: 1px solid rgba(index.$color-primary-light, 0.2);
+    padding: 1.6rem 2.4rem;
+    border-top: 1px solid index.$stroke-weak;
   }
 
   &__shortcuts {
     display: flex;
-    gap: 24px;
-    font-size: 14px;
-    color: rgba(index.$color-text-light-1, 0.8);
-    font-family: index.$font-mono;
+    flex-wrap: wrap;
+    gap: 1rem;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
 
     span {
-      padding: 4px 8px;
-      background: rgba(index.$color-primary-light, 0.3);
-      border-radius: 4px;
-      border: 1px solid rgba(index.$color-primary-light, 0.5);
+      padding: 0.4rem 1rem;
+      background: rgba(index.$color-primary-light, 0.35);
+      border-radius: index.$radius-2;
     }
   }
 }

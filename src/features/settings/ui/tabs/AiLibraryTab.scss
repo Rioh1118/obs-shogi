@@ -8,7 +8,7 @@
   &__grid {
     display: grid;
     gap: 14px;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
   }
 
@@ -96,7 +96,7 @@
 
   &__resultRow {
     display: grid;
-    grid-template-columns: 90px 1fr;
+    grid-template-columns: 90px minmax(0, 1fr);
     gap: 10px;
     align-items: baseline;
     min-width: 0;

@@ -22,11 +22,9 @@
 
     border-radius: index.$radius-3;
 
-    background: rgba(index.$color-secondary-dark, 0.1);
+    background: transparent;
     border: 1px solid rgba(index.$color-secondary-dark, 0.45);
-    box-shadow:
-      0 10px 22px rgba(0, 0, 0, 0.18),
-      inset 0 0 0 1px rgba(index.$color-white, 0.06);
+    box-shadow: none;
 
     pointer-events: none;
 
