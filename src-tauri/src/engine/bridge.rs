@@ -301,7 +301,7 @@ impl EngineBridge {
         Ok(())
     }
 
-    pub async fn start_infinite_analysis_impl(&self) -> Result<String, String> {
+    pub async fn start_infinite_analysis_impl(&self) -> Result<String, StartRefusal> {
         let _turn = self.search_turn.lock().await;
 
         // **セッションを先に登録する。** 後にすると、走らせている間だけ
@@ -309,9 +309,12 @@ impl EngineBridge {
         let session_id = self
             .take_session(SessionType::Infinite)
             .await
-            .map_err(|e| {
-                log::warn!(target: LOGT, "start_infinite_analysis: rejected: {}", e);
-                e
+            .map_err(|message| {
+                log::warn!(target: LOGT, "start_infinite_analysis: rejected: {message}");
+                StartRefusal {
+                    unreachable: false,
+                    message,
+                }
             })?;
 
         log::debug!(target: LOGT, "start_infinite_analysis: requested");
@@ -325,7 +328,15 @@ impl EngineBridge {
                     e
                 );
                 self.release_session(&session_id).await;
-                return Err(format!("Failed to start infinite analysis: {e}"));
+                return Err(StartRefusal {
+                    // 線に届かなかった回。積み置きが満杯の回も `CommunicationFailed` で来るが、
+                    // エンジンが答えていないことに変わりはない
+                    unreachable: matches!(
+                        e,
+                        EngineError::CommunicationFailed(_) | EngineError::Timeout(_)
+                    ),
+                    message: format!("Failed to start infinite analysis: {e}"),
+                });
             }
         };
 
@@ -1015,6 +1026,10 @@ done"#
                 )
                 .await
                 .expect("起動できる");
+            bridge
+                .set_position_impl("startpos".to_string())
+                .await
+                .expect("局面を覚える");
             (bridge, recorded, dir)
         }
 
@@ -1227,7 +1242,11 @@ done"#;
             );
             let lines = seen(&dir);
             assert_eq!(lines.matches("go").count(), 1, "`go` が重なった: {lines}");
-            assert!(!lines.contains("position"), "局面が線に出た: {lines}");
+            assert_eq!(
+                lines.matches("position").count(),
+                1,
+                "次の局面が線に出た: {lines}"
+            );
 
             // 待ち切った後の停止は書き直さず、すぐ返る。**`応答なし` からの操作が3秒ずつ固まらない**
             let again = tokio::time::timeout(QUIET, bridge.stop_analysis_impl(None, None)).await;
@@ -1283,6 +1302,10 @@ done"#;
                 )
                 .await
                 .expect("起動し直せる");
+            bridge
+                .set_position_impl("startpos".to_string())
+                .await
+                .expect("局面を覚える");
 
             assert!(
                 !seen(&dir).contains("quit"),
@@ -1457,12 +1480,12 @@ done"#;
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// 別のプロセスへ前の局面を持ち越さない
+        /// 別のプロセスへ前の局面を持ち越さない。**局面が無ければ `go` も出さない**
         #[tokio::test]
         async fn a_new_process_does_not_inherit_the_position() {
             let (bridge, _, dir) = started("bridge-position-reset", ":", ":", 1).await;
             bridge
-                .set_position_impl("sfen old".to_string())
+                .set_position_impl("old".to_string())
                 .await
                 .expect("覚える");
 
@@ -1474,11 +1497,76 @@ done"#;
                 )
                 .await
                 .expect("起動し直せる");
-            bridge.start_infinite_analysis_impl().await.expect("始まる");
-            bridge.shutdown_engine_impl(3).await.expect("落とせる");
+            let refused = bridge.start_infinite_analysis_impl().await;
 
+            assert!(
+                refused.is_err_and(|e| !e.unreachable),
+                "局面が無いのに `go` を出した"
+            );
             let lines = seen(&dir);
-            assert!(!lines.contains("sfen old"), "持ち越した: {lines}");
+            assert_eq!(lines.matches("sfen old").count(), 0, "持ち越した: {lines}");
+            assert_eq!(lines.matches("go").count(), 0, "`go` が出た: {lines}");
+
+            bridge.shutdown_engine_impl(3).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 起動が重なっても、後の起動に覚えた局面を前の起動が消さない。
+        /// 前の起動は古いプロセスを落とす間（`quit` の猶予）止まっている
+        #[tokio::test]
+        async fn an_overtaken_start_does_not_erase_the_new_position() {
+            let (bridge, _, dir) = started("bridge-start-overlap", ":", ":", 1).await;
+            let bridge = Arc::new(bridge);
+            let path = dir.join("engine.sh").to_str().expect("パス").to_string();
+
+            let first = {
+                let bridge = Arc::clone(&bridge);
+                let path = path.clone();
+                tokio::spawn(async move {
+                    bridge
+                        .start_analysis_engine_impl(path, StartInput::default(), 2)
+                        .await
+                })
+            };
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            bridge
+                .start_analysis_engine_impl(path, StartInput::default(), 3)
+                .await
+                .expect("後の起動は通る");
+            bridge
+                .set_position_impl("new".to_string())
+                .await
+                .expect("覚える");
+            let _ = first.await.expect("前の起動のタスク");
+
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+            wait_until("局面が線に出る", || {
+                seen(&dir).contains("position sfen new")
+            })
+            .await;
+
+            bridge.shutdown_engine_impl(4).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 線に届かなかった開始は、断りと区別できる
+        #[tokio::test]
+        async fn a_start_that_could_not_be_written_says_so() {
+            let body = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Script\nusiok\n' ;;
+    isready) echo readyok ;;
+    usinewgame) sleep 30 ;;
+  esac
+done"#;
+            let (bridge, _, dir) = started_as("bridge-start-unreachable", body, 5).await;
+            let big = format!("startpos moves {}", "7g7f ".repeat(400_000));
+            bridge.set_position_impl(big).await.expect("覚える");
+
+            let refused = bridge.start_infinite_analysis_impl().await;
+
+            assert!(refused.is_err_and(|e| e.unreachable));
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
         }
     }

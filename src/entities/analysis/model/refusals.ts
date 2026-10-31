@@ -24,7 +24,7 @@ import type { EngineNotReadyReason } from "@/entities/engine";
 const RESTART_ENGINE_HINT = "設定でエンジンのオプションを変えて保存すると起こし直せます。";
 /** 上限まで待っても同期が追いつかない。**押し直しで直りうる。** */
 export const POSITION_SYNC_TIMEOUT_MESSAGE =
-  "エンジンが局面を受け取るのに時間が掛かっています。もう一度 ▶ を押してください。";
+  "局面の準備に時間が掛かっています。もう一度 ▶ を押してください。";
 /** Rust が開始を断った（席が残っている。→ `docs/state-transitions/analysis.md` の ※11 / #172）。 */
 export const START_REFUSED_MESSAGE = `解析を開始できませんでした。${RESTART_ENGINE_HINT}`;
 /** エンジンの初期化が落ちている（→ F-9 / #171）。 */
