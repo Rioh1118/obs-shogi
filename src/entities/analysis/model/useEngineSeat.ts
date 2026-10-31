@@ -94,6 +94,11 @@ export interface EngineSeat {
   /** 席を握っているか */
   isHeld: () => boolean;
   /**
+   * エンジンの世代。**往復の前に読み、失敗を報告する前に見直す。** 起動し直すと進むので、
+   * 前のエンジンへの失敗で新しいエンジンを `応答なし` にしない
+   */
+  engineGeneration: () => number;
+  /**
    * 届いた通知を採ってよいか。
    *
    * **まず、手放した席を落とす**（握り直していても落とす。停止が落ちた回は
@@ -454,6 +459,7 @@ export function useEngineSeat(): EngineSeat {
 
   apiRef.current = {
     isHeld: () => seatRef.current !== null,
+    engineGeneration: () => engineGenRef.current,
     accepts: (sessionId) => {
       // 順序の理由は `EngineSeat.accepts` の doc に1つ置いてある。
       if (pastRef.current.has(sessionId)) return false;
