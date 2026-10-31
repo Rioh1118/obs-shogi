@@ -121,7 +121,14 @@ describe("操作列の時計の持ち越し", () => {
 });
 
 describe("▶ の位置のボタン", () => {
-  const handlers = () => ({ onToggle: vi.fn(), onRestart: vi.fn() });
+  const handlers = () => ({
+    retry: true,
+    slowStart: false,
+    onToggle: vi.fn(),
+    onRestart: vi.fn(),
+    onOpenSettings: vi.fn(),
+    onCancelStart: vi.fn(),
+  });
 
   test("エンジンが無ければ ▶ を押せない", () => {
     render(
@@ -152,6 +159,41 @@ describe("▶ の位置のボタン", () => {
   test("中断を頼んだ後は、語が検討中のまま ■ を押せない", () => {
     render(<EngineAction status="analyzing" isAnalyzing stopping canStart {...handlers()} />);
     expect((screen.getByTitle("検討を中断") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  test.each(["failed", "cancelled"] as const)("%s はもう一度起動になる", (status) => {
+    const on = handlers();
+    render(<EngineAction status={status} isAnalyzing stopping={false} canStart {...on} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "もう一度起動" }));
+    expect(on.onRestart).toHaveBeenCalledTimes(1);
+  });
+
+  test("押しても直らない種類は設定を開くになる", () => {
+    const on = { ...handlers(), retry: false };
+    render(<EngineAction status="failed" isAnalyzing={false} stopping={false} canStart {...on} />);
+
+    expect(screen.queryByRole("button", { name: "もう一度起動" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "設定を開く" }));
+    expect(on.onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+
+  test("起動が長引いたら起動を中止するになる", () => {
+    const on = { ...handlers(), slowStart: true };
+    render(<EngineAction status="starting" isAnalyzing stopping={false} canStart {...on} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "起動を中止する" }));
+    expect(on.onCancelStart).toHaveBeenCalledTimes(1);
+  });
+
+  test("起動中は ▶ のままで、押すと ■ の意思が立つ", () => {
+    const on = handlers();
+    render(
+      <EngineAction status="starting" isAnalyzing={false} stopping={false} canStart {...on} />,
+    );
+
+    fireEvent.click(screen.getByTitle("検討を開始"));
+    expect(on.onToggle).toHaveBeenCalledTimes(1);
   });
 
   test("検討完了は ■ で、押すと中断する", () => {

@@ -373,7 +373,7 @@ describe("起動に時間が掛かっていることを届ける", () => {
     expect(notify).toHaveBeenCalledTimes(1);
     expect(shown().tier).toBe("warning");
     await act(async () => {
-      await action("起動をやめる").run();
+      await action("起動を中止する").run();
     });
     expect(cancelStart).toHaveBeenCalledTimes(1);
   });

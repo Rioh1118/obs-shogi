@@ -119,7 +119,7 @@ export const ENGINE_START_FAILURE_NOTICES: Record<
       FIX_SETTINGS,
     retry: false,
   },
-  // 利用者が「起動をやめる」を押した回（`cancelStart`）。フロントが別の設定へ移って止めた回は
+  // 利用者が「起動を中止する」を押した回（`cancelStart`）。フロントが別の設定へ移って止めた回は
   // 世代が古いので帯まで届かない（`provider.tsx` の `seqRef`）
   cancelled: {
     tier: "warning",
