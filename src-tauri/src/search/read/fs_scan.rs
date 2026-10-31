@@ -15,6 +15,7 @@ use std::{
     time::SystemTime,
 };
 
+use ::fs::path::plain_spelling;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use walkdir::{DirEntry, WalkDir};
@@ -176,9 +177,13 @@ pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Scanned, S
     // 揃えられなければ返す。素のパスへ落とすと、揃っているという前提だけが
     // 消えて走査は続く。root を辿れないなら `WalkDir` も depth 0 で落ちるので、
     // ここで返しても届く結末は変わらない
-    let root_dir = &root_dir
+    //
+    // **`plain_spelling` を通す。** ヒットのパスはツリーのノードと文字列で突き合わされる。
+    // ツリーの綴りは `walk_from` が決めているので、ここで違えると検索から棋譜へ移動できない
+    let canonical_root = root_dir
         .canonicalize()
         .map_err(|_| ScanError::RootUnreadable(root_dir.display().to_string()))?;
+    let root_dir = plain_spelling(&canonical_root);
 
     let walker = WalkDir::new(root_dir)
         .follow_links(opts.follow_links)

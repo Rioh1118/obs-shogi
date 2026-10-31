@@ -111,6 +111,23 @@ pub fn canonicalize_for_compare(target: &Path) -> Result<PathBuf, FsError> {
     Ok(fs::canonicalize(parent).map_err(attach)?.join(name))
 }
 
+/// 解決済みのパスを、webview へ渡す綴りにする。
+///
+/// Windows の `fs::canonicalize` は `\\?\C:\kifu` を返すが、ダイアログで選んだ root は
+/// `C:\kifu` のまま。webview は開いている棋譜が root の内側かを文字列で見るので
+/// （`isSameOrDescendantPath`）、`\\?\` を残すと root の中の棋譜が外にあると判定され、
+/// 開いた直後に閉じられる。
+///
+/// **比べる側には使わない。** `fs::canonicalize` の結果どうしは `\\?\` を持ったまま
+/// 比べる。片方だけこれを通すと `Path::starts_with` が接頭辞の違いで偽になる。
+///
+/// `dunce` が安全に外せない綴りは残る（`\\?\UNC\...` のネットワーク共有、260文字を
+/// 超えるパス）。解決で root が別の場所へ移るもの（symlink、割り当てたドライブ）も
+/// 綴りの差は埋まらない。
+pub fn plain_spelling(canonical: &Path) -> &Path {
+    dunce::simplified(canonical)
+}
+
 /// `dest` が `src` 自身か、その配下か。
 ///
 /// ディレクトリを自分の中へ動かすのは `fs::rename` が `EINVAL` で落とす。

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use ::fs::error::FsError;
-use ::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under};
+use ::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under, plain_spelling};
 
 use super::types::FileTreeNode;
 
@@ -201,7 +201,9 @@ pub fn walk_from(root_path: &Path) -> Result<FileTreeNode, FsError> {
         depth: 0,
         budget: MAX_NODES,
     };
-    build_file_tree_recursive(&canonical_path, &mut walk)
+    // 歩くのは `plain_spelling` の綴りから。ノードの `path` は webview へ渡る。
+    // `canonical_root` と `followed` は `fs::canonicalize` の結果と比べるので解決後のまま
+    build_file_tree_recursive(plain_spelling(&canonical_path), &mut walk)
 }
 
 #[cfg(test)]
