@@ -236,7 +236,7 @@ export default function EngineTab() {
                         </div>
                       </div>
                       <div className="engineTab__mini">
-                        <div className="engineTab__miniK">Book</div>
+                        <div className="engineTab__miniK">定跡</div>
                         <div className="engineTab__miniV">{bookInUse(p) ? "ON" : "OFF"}</div>
                       </div>
                     </div>

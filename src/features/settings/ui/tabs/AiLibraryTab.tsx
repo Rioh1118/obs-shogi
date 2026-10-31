@@ -458,7 +458,7 @@ export default function AiLibraryTab() {
             }
           >
             <SField
-              label="AI ライブラリ"
+              label="フォルダ"
               description="決めたルールのフォルダ構成でファイルを置くと自動検出します。"
               right={
                 <div className="aiLibraryTab__fieldActions">

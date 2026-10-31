@@ -85,7 +85,8 @@ const SPELLINGS: Record<string, RegExp> = {
   詳細設定: /詳細設定/,
   // `eval/` `<AI名>/eval` はフォルダの綴りで、画面に出す名前ではない
   eval: /(?<![/\w])eval\b(?!\/)/,
-  ブック: /ブック/,
+  // 英語の綴りも同じ語。`BookFile` のような名前は語の境界で外れる
+  ブック: /ブック|\bBook\b/,
   初期局面: /初期局面/,
   黒: /黒(番|の手番)/,
   白: /白(番|の手番)/,
@@ -254,6 +255,8 @@ describe("画面の文字列に使わない語を書かない", () => {
     expect(hits("解析")).toEqual(["解析"]);
     expect(hits("権限を確かめてください")).toEqual(["確かめる"]);
     expect(hits("eval が未検出です")).toEqual(["eval"]);
+    expect(hits("Book")).toEqual(["ブック"]);
+    expect(hits("BookFile")).toEqual([]);
   });
 
   it("Rust の文字列の拾い方そのもの", () => {
