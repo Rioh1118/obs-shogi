@@ -16,6 +16,11 @@ export interface AnalysisState {
   finished: boolean;
   /** ■ を押してから、エンジンが止まるまで。この間 ■ は押せない（V4） */
   stopping: boolean;
+  /**
+   * ▶ を押してから席が返るまで。**語はこの間も `検討中`**（V3）。
+   * `isAnalyzing` とは別に持つ。あちらを立てると自動再開の effect が動き、▶ と席を取り合う
+   */
+  starting: boolean;
   candidates: AnalysisCandidate[];
   error: string | null;
 }
@@ -23,6 +28,8 @@ export interface AnalysisState {
 export type AnalysisAction =
   | { type: "start_analysis"; payload: { sfen: string } }
   | { type: "hold_intent" }
+  | { type: "begin_start" }
+  | { type: "end_start" }
   | { type: "begin_stop" }
   | { type: "stop_analysis" }
   | { type: "finish_analysis"; payload: AnalysisResult }

@@ -83,7 +83,7 @@ function AnalysisControls() {
           </button>
           <EngineAction
             status={status}
-            isAnalyzing={state.isAnalyzing}
+            isAnalyzing={state.isAnalyzing || state.starting}
             stopping={state.stopping}
             canStart={!!currentSfen}
             retry={notice?.retry ?? false}

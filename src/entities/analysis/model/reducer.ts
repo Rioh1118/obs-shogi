@@ -6,6 +6,7 @@ export const initialState: AnalysisState = {
   analyzedSfen: null,
   finished: false,
   stopping: false,
+  starting: false,
   candidates: [],
   error: null,
 };
@@ -23,12 +24,19 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
         analyzedSfen: action.payload.sfen,
         finished: false,
         stopping: false,
+        starting: false,
         error: null,
       };
 
     // 読む局面を空ける。残すと、同じ局面で押し直した回に「読み終えた局面」と読んで始まらない
     case "hold_intent":
       return { ...state, isAnalyzing: true, analyzedSfen: null, finished: false, error: null };
+
+    case "begin_start":
+      return { ...state, starting: true };
+
+    case "end_start":
+      return { ...state, starting: false };
 
     case "begin_stop":
       return state.isAnalyzing ? { ...state, stopping: true } : state;
