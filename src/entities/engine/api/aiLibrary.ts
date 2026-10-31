@@ -64,7 +64,7 @@ export async function ensureEnginesDir(aiRoot: string): Promise<string> {
 }
 
 /**
- * AI プロファイル（`<ai_root>/<name>/{eval,book}`）のフォルダを作る。
+ * AI フォルダ（`<ai_root>/<name>/{eval,book}`）を作る。
  *
  * **ワークスペース配下かの検査を通るコマンドでは作れない**
  * （理由は Rust の `create_ai_profile_dirs` の doc）。

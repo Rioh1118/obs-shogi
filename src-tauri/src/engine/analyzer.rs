@@ -349,8 +349,8 @@ impl EngineAnalyzer {
 
     /// 起こし、**その回の申告から**送る設定を決め（`binding::bind`）、送って `usinewgame` まで通す。
     /// 失敗したら起こしたプロセスを落とす。cwd は実行ファイルのフォルダ（`spawn_cancellable` の
-    /// 作業フォルダに `None` を渡す）——相対パスを cwd 基準で解くエンジンがあり、プロファイルを cwd に
-    /// すると同じ設定がプロファイルごとに違うファイルを指す
+    /// 作業フォルダに `None` を渡す）——相対パスを cwd 基準で解くエンジンがあり、AI フォルダを cwd に
+    /// すると同じ設定が AI フォルダごとに違うファイルを指す
     async fn start_engine_steps(
         &self,
         engine_path: &str,

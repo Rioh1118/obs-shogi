@@ -25,7 +25,7 @@ const BASELINE = {
   docStartsWithEmphasis: 433,
   manyEmphases: 1423,
   issueReference: 154,
-  retiredTerm: 11,
+  retiredTerm: 0,
 };
 
 /**

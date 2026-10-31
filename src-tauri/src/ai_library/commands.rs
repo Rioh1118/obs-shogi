@@ -30,7 +30,7 @@ pub async fn scan_ai_root(ai_root: String) -> Result<AiRootIndex, String> {
     .map_err(|e| format!("failed to run the scan task: {e}"))?
 }
 
-/// AI プロファイル（`<ai_root>/<name>/{eval,book}`）を作る。
+/// AI フォルダ（`<ai_root>/<name>/{eval,book}`）を作る。
 ///
 /// **`create_directory` は使えない。** あちらはワークスペース配下かの検査を通るが、
 /// `ai_root` は利用者が別に選ぶ場所で、ワークスペースの外にある。
@@ -191,7 +191,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
-    /// `eval` だけを持つプロファイルは YaneuraOu の普通の形で、一覧にも出ている。
+    /// `eval` だけを持つ AI フォルダは YaneuraOu の普通の形で、一覧にも出ている。
     /// 「両方あるときだけ拒否」にすると、そこへ同じ名前で `book` を足して
     /// **既存の AI へ黙って合流する**
     #[test]

@@ -279,7 +279,7 @@ export default function SetupGuide({
         primaryLabel: "もう一度読み込む",
         onPrimary: onRescan,
         // **ここで「開く」を勧めない。** この段には4つの失敗が来る（選択・作成・
-        // スキャン・プロファイル作成）ので、開く先が読めているとは限らない。
+        // スキャン・AI フォルダの作成）ので、開く先が読めているとは限らない。
         // 読み直し（主）と選び直し（副）だけを出す
         secondaryLabel: "選択…",
         onSecondary: onSelectRoot,
