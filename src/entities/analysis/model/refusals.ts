@@ -25,16 +25,6 @@ const RESTART_ENGINE_HINT = "設定でエンジンのオプションを変えて
 /** 上限まで待っても同期が追いつかない。**押し直しで直りうる。** */
 export const POSITION_SYNC_TIMEOUT_MESSAGE =
   "エンジンが局面を受け取るのに時間が掛かっています。もう一度 ▶ を押してください。";
-/** 局面の送信そのものが落ちた。**押し直しても同じところで落ちる。** */
-export const POSITION_SYNC_FAILED_MESSAGE = `エンジンに局面を送れませんでした。${RESTART_ENGINE_HINT}`;
-/**
- * ▶ の先頭で、握っている席を返せなかった（→ `docs/state-transitions/analysis.md` の ※2 /
- * `docs/state-transitions/failure-surfacing.md` の F-7）。
- *
- * **まず押し直し。** 停止の invoke が一時的に落ちただけの回は、もう一度 ▶ を押すと
- * 同じ席へ撃ち直して戻る（`provider.test.tsx` が固定している）。
- */
-export const RELEASE_FAILED_MESSAGE = `前の解析を止められませんでした。もう一度 ▶ を押してください。それでも始まらないときは、${RESTART_ENGINE_HINT}`;
 /** Rust が開始を断った（席が残っている。→ `docs/state-transitions/analysis.md` の ※11 / #172）。 */
 export const START_REFUSED_MESSAGE = `解析を開始できませんでした。${RESTART_ENGINE_HINT}`;
 /**
@@ -47,12 +37,6 @@ export const START_REFUSED_MESSAGE = `解析を開始できませんでした。
  */
 export const ENGINE_RESTARTED_MESSAGE =
   "エンジンを起こし直したので、解析を始められませんでした。もう一度 ▶ を押してください。";
-/**
- * ■ が届かなかった（→ `docs/state-transitions/analysis.md` の ※7 / F-7）。**表示は停止中になるので、成功と見分けが付かない。**
- * エンジンは閉じた探索を回し続けるので、断りが無いと利用者は気づけない。
- */
-export const STOP_FAILED_MESSAGE =
-  "解析を止められませんでした。エンジンはまだ読み続けているかもしれません。もう一度 ▶ を押すと、同じ席を止め直してから始めます。";
 /**
  * エンジンがまだ起動していない（→ F-9）。**▶ は押せてしまう**（`AnalysisControls` は
  * エンジンの状態を1つも読まない）ので、起動を待っている間に押した人が必ずここへ来る。

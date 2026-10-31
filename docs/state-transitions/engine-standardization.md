@@ -106,7 +106,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | `POSITION_SYNC_TIMEOUT_MESSAGE` | E16。文を出す（▶ の押し直し）                      |
 | `START_REFUSED_MESSAGE`         | E16。帯に文と「再起動する」                        |
 | `RESTART_FAILED_MESSAGE`        | E16。帯に文と「再起動する」（V3 の自動の読み直し） |
-| `POSITION_SYNC_FAILED_MESSAGE` `RELEASE_FAILED_MESSAGE` `STOP_FAILED_MESSAGE` | E15 → V6。**断りの文は出さず V6 の語にする**（「まず ▶」は V6 で押せない） |
+| 局面の送信・▶ の先頭の返却・■ の失敗 | E15 → V6。**断りの文を持たず V6 の語にする**（`reportUnreachable`。「まず ▶」は V6 で押せない） |
 | `ENGINE_STARTING_MESSAGE`       | **消える**（※1）                                   |
 | `ENGINE_RESTARTED_MESSAGE`      | **消える**（意思で読み直す）                       |
 | `ENGINE_FAILED_MESSAGE`         | V8 に畳む                                          |
@@ -138,6 +138,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | (V6, E13) | `bridge.rs` の `restarting_an_unresponsive_engine_kills_it_without_quit` |
 | (V6, E1) | `entities/engine` の「別の設定になれば落として起動し直す」 |
 | (V6, E12) | `entities/engine` の「終了が届いたら exited へ移る」 |
+| (V3, E15) (V4, E15) | `entities/analysis` の「中断が届かなかった回」 |
 | (V3, E1) の上限切れ（※7） | `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine` |
 | 不変条件1（V7 について） | `engineStatus.test.ts` の「エンジンが終了したら、検討の意思があっても検討中と言わない」 |
 

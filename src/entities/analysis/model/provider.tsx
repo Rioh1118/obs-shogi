@@ -18,13 +18,10 @@ import { AnalysisContext } from "./context";
 import {
   LISTENERS_FAILED_MESSAGE,
   NOT_READY_REFUSALS,
-  POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
-  RELEASE_FAILED_MESSAGE,
   RESTART_FAILED_MESSAGE,
   START_REFUSED_MESSAGE,
   ENGINE_RESTARTED_MESSAGE,
-  STOP_FAILED_MESSAGE,
 } from "./refusals";
 
 // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
@@ -73,7 +70,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const seat = useEngineSeat();
 
   const readiness = useEngine();
-  const { isReady, notReadyReason } = readiness;
+  const { isReady, notReadyReason, reportUnreachable } = readiness;
 
   const { currentSfen, syncedSfen, syncPosition } = positionSync;
 
@@ -485,11 +482,22 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const swapSeatAndGo = useCallback(
     async (seq: number, want: string) => {
       try {
-        // 答えが無い回は読み直さない。答えが来ればエンジンが戻り、同期の追従が張り直す
+        // 答えが無い回は読み直さない。答えが来ればエンジンが戻り、同期の追従が張り直す。
+        // **届かなかった回も検討は切らない。** `応答なし` から再起動すれば同じ局面を読む
+        let released: StopOutcome;
+        try {
+          released = await seat.releaseHeld("restart");
+        } catch (e) {
+          if (supersededSince(seq)) return;
+          console.error("[ANALYSIS] could not stop the search before moving on", e);
+          reportUnreachable();
+          sentSfenRef.current = null;
+          return;
+        }
         // **読み直しの印を捨て、遅らせて張り直す。** 上限の直後に答えが来ると、知らせが1回の
         // 描画に畳まれて `isReady` が動かず、エンジンが戻った回の入口が開かない。
         // 遅らせるのは知らせを描画に通すため。まだ答えていなければ `isReady` の門で降りる
-        if ((await seat.releaseHeld("restart")) === "unanswered") {
+        if (released === "unanswered") {
           sentSfenRef.current = null;
           scheduleRestart(restartSeqRef.current, waits().restartDebounceMs);
           return;
@@ -530,7 +538,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         }
       }
     },
-    [scheduleRestart, seat, supersededSince, takeSeatAndGo],
+    [reportUnreachable, scheduleRestart, seat, supersededSince, takeSeatAndGo],
   );
 
   // 自動再開の本体。**`scheduleRestart` が張ったタイマーからだけ呼ばれる。**
@@ -695,6 +703,18 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, []);
 
   /**
+   * エンジンへ届かなかった。**断りを立てずに語を `応答なし` にして投げる**（▶ の押し直しは
+   * `応答なし` では効かないので、案内する文が無い）。
+   */
+  const failUnreachable = useCallback(
+    (e: unknown): never => {
+      reportUnreachable();
+      throw e;
+    },
+    [reportUnreachable],
+  );
+
+  /**
    * ▶ が `go` を出せる状態か。**出せないなら断りを立てて投げる。**
    *
    * 断るのは、押しても結果が届かない／エンジンに届かないと分かっている回だけ。
@@ -739,7 +759,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         await syncPosition();
       } catch (e) {
         if (supersededSince(seq)) return false;
-        failStart(POSITION_SYNC_FAILED_MESSAGE, e);
+        failUnreachable(e);
       }
 
       // 送れていないまま始めると、エンジンには別の局面が入ったまま候補手が返り、盤面と
@@ -771,7 +791,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // 返ってきた席を返す——誰も見ていない探索が1往復ぶん走る。
       return !supersededSince(seq);
     },
-    [syncPosition, supersededSince, failStart],
+    [syncPosition, supersededSince, failStart, failUnreachable],
   );
 
   /**
@@ -795,7 +815,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * 握っている席を、開始を頼む前に返す。**返せなければ断りを立てて投げる。**
+   * 握っている席を、開始を頼む前に返す。**返せなければ `応答なし` にして投げる。**
    *
    * 停止が届かなかった回はこの形になり、`isAnalyzing` が false なので ■ は出ていない。
    * 返さずに開始を頼むと Rust に断られ続ける（→ #172）。握っていなければ
@@ -808,12 +828,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         released = await seat.releaseHeld("start");
       } catch (e) {
         if (supersededSince(seq)) return false;
-        failStart(RELEASE_FAILED_MESSAGE, e);
+        failUnreachable(e);
       }
       // 答えが無い回は語が `応答なし` に変わる。開始を頼むと断りの文が立つ
       return released !== "unanswered" && !supersededSince(seq);
     },
-    [seat, supersededSince, failStart],
+    [seat, supersededSince, failUnreachable],
   );
 
   /**
@@ -921,16 +941,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     try {
       await seat.releaseHeld("stop"); // async-result-ignored: `応答なし` は Rust の通知が語を変える
     } catch (e) {
-      // **停止が落ちても表示は停止中になり、タイマーも 0 に戻る**ので、成功と1ドットも
-      // 見分けが付かない。断らないと、エンジンが閉じた探索を回し続けていることに
-      // 利用者は気づけない。
-      dispatch({ type: "set_error", payload: STOP_FAILED_MESSAGE });
+      // **`待機中` にしない。** エンジンは閉じた探索を回し続けているかもしれない
+      reportUnreachable();
       throw e;
     } finally {
       dispatch({ type: "stop_analysis" });
       results.dropPending();
     }
-  }, [results, seat, supersedeRequests]);
+  }, [reportUnreachable, results, seat, supersedeRequests]);
 
   const value = useMemo<AnalysisContextType>(
     () => ({

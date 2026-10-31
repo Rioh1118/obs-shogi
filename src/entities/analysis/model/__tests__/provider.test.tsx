@@ -14,16 +14,15 @@ import {
   ENGINE_STARTING_MESSAGE,
   ENGINE_RESTARTED_MESSAGE,
   LISTENERS_FAILED_MESSAGE,
-  POSITION_SYNC_FAILED_MESSAGE,
   POSITION_SYNC_TIMEOUT_MESSAGE,
-  RELEASE_FAILED_MESSAGE,
   RESTART_FAILED_MESSAGE,
   START_REFUSED_MESSAGE,
-  STOP_FAILED_MESSAGE,
 } from "../refusals";
 
 const startCore = vi.fn<() => Promise<string>>();
-const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<"stopped" | "unanswered" | void>>();
+const reportUnreachable = vi.fn<() => void>();
+const stopCore =
+  vi.fn<(sessionId?: string, by?: string) => Promise<"stopped" | "unanswered" | void>>();
 
 // リスナを実際に登録させたい回だけ true にする。既定を true にすると、
 // 全部の回で登録と解除が挟まって、見たい経路が長くなる。
@@ -40,7 +39,11 @@ let engine = {
   notReadyReason: null as "no-engine" | "starting" | "failed" | null,
 };
 vi.mock("@/entities/engine", () => ({
-  useEngine: () => ({ isReady: engine.isReady, notReadyReason: engine.notReadyReason }),
+  useEngine: () => ({
+    isReady: engine.isReady,
+    notReadyReason: engine.notReadyReason,
+    reportUnreachable,
+  }),
 }));
 
 /** 最後に登録されたリスナ。Rust からの通知を差し込む口。 */
@@ -149,6 +152,7 @@ beforeEach(() => {
   listeners = null;
   startCore.mockReset();
   stopCore.mockReset();
+  reportUnreachable.mockReset();
   syncPosition.mockReset();
   startCore.mockResolvedValue("session-1");
   stopCore.mockResolvedValue("stopped");
@@ -1251,8 +1255,9 @@ describe("AnalysisProvider の開始", () => {
       await advance(limitMs() * 1.4);
 
       expect(startCore).not.toHaveBeenCalled();
-      // 立っているのは届かなかった ■ の断りだけ。閉じた棋譜のぶんは積まれない。
-      expect(view.current.state.error).toBe(STOP_FAILED_MESSAGE);
+      // ■ が届かなかったことだけが残る。閉じた棋譜のぶんの断りは積まれない。
+      expect(reportUnreachable).toHaveBeenCalledTimes(1);
+      expect(view.current.state.error).toBeNull();
     },
     SLOW,
   );
@@ -1534,7 +1539,7 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.isAnalyzing).toBe(false);
   });
 
-  it("席を返せなかったら、断りを立てる", async () => {
+  it("席を返せなかったら、応答なしにする", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
       await view.current.startInfiniteAnalysis();
@@ -1546,15 +1551,15 @@ describe("AnalysisProvider の開始", () => {
       await view.current.stopAnalysis().catch(() => {});
     });
 
-    // その席を返せないまま ▶ を押す。断りを立てないと、`console.error` で終わり、
-    // #277 が出口を作っても永久に出ない。
+    // その席を返せないまま ▶ を押す。
     stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
     startCore.mockClear();
     await act(async () => {
       await view.current.startInfiniteAnalysis().catch(() => {});
     });
 
-    expect(view.current.state.error).toBe(RELEASE_FAILED_MESSAGE);
+    expect(reportUnreachable).toHaveBeenCalledTimes(2);
+    expect(view.current.state.error).toBeNull();
     expect(startCore).not.toHaveBeenCalled();
   });
 
@@ -1572,7 +1577,7 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.isAnalyzing).toBe(false);
   });
 
-  it("局面の送信そのものが落ちたら、断りを立てる", async () => {
+  it("局面の送信そのものが落ちたら、応答なしにする", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     syncPosition.mockRejectedValueOnce(new Error("engine is gone"));
 
@@ -1580,9 +1585,8 @@ describe("AnalysisProvider の開始", () => {
       await view.current.startInfiniteAnalysis().catch(() => {});
     });
 
-    // 立てないと `error` が null のまま `console.error` で終わり、画面は
-    // 停止中のまま何も変わらない。押し直しても同じところで落ちる。
-    expect(view.current.state.error).toBe(POSITION_SYNC_FAILED_MESSAGE);
+    // 押し直しても同じところで落ちるので、断りの文ではなく語が言う。
+    expect(reportUnreachable).toHaveBeenCalledTimes(1);
     expect(view.current.state.isAnalyzing).toBe(false);
     expect(startCore).not.toHaveBeenCalled();
   });
@@ -2549,5 +2553,63 @@ describe("中断に答えない回の自動再開", () => {
     expect(startCore).not.toHaveBeenCalled();
     expect(view.current.state.isAnalyzing).toBe(true);
     expect(view.current.state.error).toBeNull();
+  });
+});
+
+/** (V3, E15) `analysis.md` の `(S4/S5, E11)`。#172 の残りの2本 */
+describe("中断が届かなかった回", () => {
+  it("■ が届かなければ応答なしにする", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {});
+    });
+
+    expect(reportUnreachable).toHaveBeenCalledTimes(1);
+    expect(view.current.state.error).toBeNull();
+  });
+
+  it("再開の途中で届かなければ応答なしにし、検討を切らず、読み始めない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    startCore.mockClear();
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(reportUnreachable).toHaveBeenCalledTimes(1);
+    expect(startCore).not.toHaveBeenCalled();
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.error).toBeNull();
+  });
+
+  it("次の局面が保留されていても、届かなかった回に読み始めない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    let refuse: (e: Error) => void = () => {};
+    stopCore.mockImplementationOnce(() => new Promise((_, reject) => (refuse = reject)));
+    startCore.mockClear();
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 2);
+    await view.setSync(adapter("P3", "P3"));
+    await advance(waits().restartDebounceMs * 2);
+    engine = { isReady: false, notReadyReason: "failed" };
+    await act(async () => {
+      refuse(new Error("ipc is gone"));
+    });
+    await view.setSync(adapter("P3", "P3"));
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(startCore).not.toHaveBeenCalled();
   });
 });
