@@ -15,9 +15,9 @@
     display: inline-flex;
     align-self: flex-start;
 
-    // 帯に面を敷かない。選択は `$shadow-selected` のバーが示すので、帯の面は要らない
+    // 帯に面を敷かない。選択は銅の縦棒が示すので、帯の面は要らない
     border: 1px solid index.$stroke;
-    border-radius: index.$radius-6;
+    border-radius: index.$radius-4;
     padding: index.$space-2;
   }
 
@@ -26,8 +26,9 @@
     border: none;
     background: transparent;
 
+    position: relative;
     padding: index.$space-4 index.$space-6;
-    border-radius: index.$radius-5;
+    border-radius: index.$radius-3;
 
     font-size: index.$font-body;
     font-weight: index.$weight-strong;
@@ -48,8 +49,11 @@
     &.is-active,
     &.is-active:hover {
       background: rgba(index.$color-primary-light, 0.45);
-      box-shadow: index.$shadow-selected;
       color: index.$color-text-primary;
+    }
+
+    &.is-active {
+      @include index.selected-bar;
     }
 
     &:focus-visible {

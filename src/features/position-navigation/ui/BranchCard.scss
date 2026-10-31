@@ -30,6 +30,7 @@
   &__card {
     background: transparent;
     border: 1px solid index.$stroke;
+    position: relative;
     border-radius: index.$radius-4;
     padding: 16px 20px;
     cursor: pointer;
@@ -54,8 +55,9 @@
 
     &--selected {
       background: rgba(index.$color-primary-light, 0.45);
-      box-shadow: index.$shadow-selected;
       color: index.$color-text-light-1;
+
+      @include index.selected-bar;
 
       .branch-selector__label {
         color: index.$color-text-primary;

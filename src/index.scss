@@ -253,8 +253,6 @@ $shadow-overlay:
   0 10px 30px rgba(0, 0, 0, 0.45),
   0 2px 10px rgba(0, 0, 0, 0.35);
 $shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
-// 選択を示す左の銅のバー
-$shadow-selected: inset 3px 0 0 $color-secondary-dark;
 // 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
 $shadow-control: 0 $space-2 $space-4 rgba(0, 0, 0, 0.22);
 $shadow-control-press: 0 $space-1 $space-2 rgba(0, 0, 0, 0.16);
@@ -273,3 +271,18 @@ $stroke-strong: rgba($color-white, 0.16);
 $focus-ring: rgba($color-secondary-dark, 0.85);
 
 // このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される
+
+// 選択を示す左の銅の縦棒。影で引くと角丸に沿って曲がるので、独立した要素で描く。
+// 呼び手は `position: relative` を持つこと
+@mixin selected-bar {
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0.4rem;
+    top: 0.8rem;
+    bottom: 0.8rem;
+    width: 0.3rem;
+    border-radius: $radius-pill;
+    background: $color-secondary-dark;
+  }
+}

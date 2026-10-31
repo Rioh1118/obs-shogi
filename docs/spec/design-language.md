@@ -182,7 +182,7 @@ import は下向きだけ。**lint が強制する**（`CLAUDE.md`「依存の�
 | 幅     | 押すものは文字の幅。**行の余りを押すもので埋めない。** 余りは入力欄が受け持つ（利用者の判定、2026-10-31） |
 | 記号   | 増減も `lucide-react`（`Minus` / `Plus`）。文字で代用しない                              |
 
-**選択は左の銅のバーで見せる。** `inset 3px 0 0 $color-secondary-dark` に、面は `$color-primary-light` の濃淡。
+**選択は左の銅のバーで見せる。** `index.selected-bar` で独立した棒を描き（影で引くと角丸に沿って曲がる）、面は `$color-primary-light` の濃淡。
 白透明の面を選択に使わない（利用者の判定「白透明はダサい」、2026-10-31）。盤の下の面は `$color-primary-black`。
 
 文字の濃さは3段。`$color-text-primary`（本文）/ `$color-text-muted`（名前の添え書き・説明）/
