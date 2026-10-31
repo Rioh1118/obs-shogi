@@ -7,6 +7,7 @@ use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, RwLock};
@@ -18,6 +19,8 @@ pub struct EngineBridge {
     analyzer: EngineAnalyzer,
     active_sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
     events: Arc<RwLock<Arc<dyn AnalysisEventSink>>>,
+    /// いま動いているプロセスを起動した要求の番号。`stop` の通知に載せる
+    started_by: AtomicU64,
 }
 
 /// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
@@ -89,6 +92,7 @@ impl EngineBridge {
             analyzer: EngineAnalyzer::new(registry),
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
             events: Arc::new(RwLock::new(Arc::new(DiscardAnalysisEvents))),
+            started_by: AtomicU64::new(0),
         }
     }
 
@@ -163,6 +167,7 @@ impl EngineBridge {
                     "start_analysis_engine: ok ({} warning(s))",
                     outcome.warnings.len()
                 );
+                self.started_by.store(request, Ordering::Relaxed);
                 self.watch_engine_end(request).await;
                 Ok(outcome)
             }
@@ -206,9 +211,13 @@ impl EngineBridge {
                     )
                     .await;
                 }
-                // TODO(#252): 書けないエンジンはプロセスが残っている。`応答なし` へ繋ぐ
                 EngineEnd::Stalled => {
                     log::warn!(target: LOGT, "engine stopped reading stdin request={request}");
+                    let unresponsive = EngineUnresponsive {
+                        request,
+                        reason: UnresponsiveReason::Unwritable,
+                    };
+                    Self::emit_to(&events, AnalysisEvent::EngineUnresponsive(unresponsive)).await;
                 }
                 EngineEnd::Requested => {}
             }
@@ -394,6 +403,39 @@ impl EngineBridge {
         );
     }
 
+    /// 停止の結末を知らせる。**答えが無ければ、遅れて来た答えも見張る。**
+    ///
+    /// 通知を応答より先に出す。フロントは応答を受けた時点で語を `応答なし` にできる
+    ///
+    /// `request` は停止を始めた時点の番号。**通知の時点で読まない**——待っている間に
+    /// 起動し直すと、古いプロセスの待ちが新しいプロセスを名乗る
+    async fn report_stop(&self, outcome: StopOutcome, request: Request) {
+        if outcome != StopOutcome::Unanswered {
+            return;
+        }
+        let unresponsive = EngineUnresponsive {
+            request,
+            reason: UnresponsiveReason::NoAnswer,
+        };
+        Self::emit_to(
+            &self.events,
+            AnalysisEvent::EngineUnresponsive(unresponsive),
+        )
+        .await;
+
+        let answered = self.analyzer.watch_answered();
+        let events = Arc::clone(&self.events);
+        tokio::spawn(async move {
+            answered.await;
+            log::info!(target: LOGT, "engine answered stop late request={request}");
+            Self::emit_to(
+                &events,
+                AnalysisEvent::EngineAnswered(EngineAnswered { request }),
+            )
+            .await;
+        });
+    }
+
     /// 今の宛先へ1件流す。**宛先のロックを握ったまま流さない**
     async fn emit_to(events: &RwLock<Arc<dyn AnalysisEventSink>>, event: AnalysisEvent) {
         let sink = Arc::clone(&*events.read().await);
@@ -470,7 +512,7 @@ impl EngineBridge {
         &self,
         session_id: Option<String>,
         by: Option<String>,
-    ) -> Result<(), String> {
+    ) -> Result<StopOutcome, String> {
         // 呼び手が名乗らなかったときの既定。**名乗った回と区別できるようにしておく。**
         //
         let by = by.as_deref().unwrap_or("unnamed");
@@ -518,7 +560,7 @@ impl EngineBridge {
 
     // ===  session === //
 
-    async fn stop_session(&self, session_id: &str, by: &str) -> Result<(), String> {
+    async fn stop_session(&self, session_id: &str, by: &str) -> Result<StopOutcome, String> {
         log::info!(target: LOGT, "{}", stop_start_line(session_id, by));
 
         // **他人のセッションは止めない。** `session_id` はフロントから来る任意の文字列で、
@@ -559,17 +601,19 @@ impl EngineBridge {
             }
         }
 
-        self.analyzer.stop_analysis().await.map_err(|e| {
+        let request = self.started_by.load(Ordering::Relaxed);
+        let outcome = self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(target: LOGT, "stop_session: analyzer stop failed: {e}");
             format!("Failed to stop analysis: {e}")
         })?;
+        self.report_stop(outcome, request).await;
 
         log::info!(
             target: LOGT,
-            "stop_session: ok session_id='{}'",
+            "stop_session: {outcome:?} session_id='{}'",
             shown(session_id, MAX_SUMMARY_LEN)
         );
-        Ok(())
+        Ok(outcome)
     }
 
     /// 席を全部空ける。
@@ -581,7 +625,7 @@ impl EngineBridge {
     /// **席が在ったのかどうかを後から言えるのはこのログだけ**。
     /// エンジンの入れ替えで空いた回や利用者が押した停止と字面が同じだと、
     /// #441 の再発を追う人が取り違える。
-    async fn stop_all_sessions(&self, by: &str) -> Result<(), String> {
+    async fn stop_all_sessions(&self, by: &str) -> Result<StopOutcome, String> {
         log::info!(target: LOGT, "stop_all_sessions: start by={by}");
 
         let cleared: Vec<String> = self
@@ -599,7 +643,8 @@ impl EngineBridge {
             cleared
         );
 
-        self.analyzer.stop_analysis().await.map_err(|e| {
+        let request = self.started_by.load(Ordering::Relaxed);
+        let outcome = self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(
                 target: LOGT,
                 "stop_all_sessions: by={} analyzer stop failed: {:?}",
@@ -608,9 +653,10 @@ impl EngineBridge {
             );
             format!("Failed to stop all analysis: {e}")
         })?;
+        self.report_stop(outcome, request).await;
 
-        log::info!(target: LOGT, "stop_all_sessions: ok by={by}");
-        Ok(())
+        log::info!(target: LOGT, "stop_all_sessions: {outcome:?} by={by}");
+        Ok(outcome)
     }
 }
 
@@ -886,6 +932,28 @@ mod tests {
                     .collect()
             }
 
+            fn unresponsive(&self) -> Vec<EngineUnresponsive> {
+                let events = self.0.lock().expect("記録");
+                events
+                    .iter()
+                    .filter_map(|e| match e {
+                        AnalysisEvent::EngineUnresponsive(u) => Some(u.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            }
+
+            fn answered(&self) -> Vec<EngineAnswered> {
+                let events = self.0.lock().expect("記録");
+                events
+                    .iter()
+                    .filter_map(|e| match e {
+                        AnalysisEvent::EngineAnswered(a) => Some(a.clone()),
+                        _ => None,
+                    })
+                    .collect()
+            }
+
             fn updates(&self) -> usize {
                 let events = self.0.lock().expect("記録");
                 events
@@ -897,15 +965,21 @@ mod tests {
 
         /// `go` の答えだけを差し替える台本。`stop` には `bestmove` で、`quit` には終了で答える
         fn script(on_go: &str, on_position: &str) -> String {
+            script_with(on_go, on_position, "echo 'bestmove 7g7f'", "exit 0")
+        }
+
+        /// 受けた行を `seen.log` に残す台本（cwd は実行ファイルのフォルダ）
+        fn script_with(on_go: &str, on_position: &str, on_stop: &str, on_quit: &str) -> String {
             format!(
                 r#"while read line; do
+  echo "$line" >> seen.log
   case "$line" in
     usi) printf 'id name Script\nusiok\n' ;;
     isready) echo readyok ;;
     position*) {on_position} ;;
     go*) echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'; {on_go} ;;
-    stop) echo 'bestmove 7g7f' ;;
-    quit) exit 0 ;;
+    stop) {on_stop} ;;
+    quit) {on_quit} ;;
   esac
 done"#
             )
@@ -917,8 +991,16 @@ done"#
             on_position: &str,
             request: Request,
         ) -> (EngineBridge, Arc<Recorded>, std::path::PathBuf) {
+            started_as(name, &script(on_go, on_position), request).await
+        }
+
+        async fn started_as(
+            name: &str,
+            body: &str,
+            request: Request,
+        ) -> (EngineBridge, Arc<Recorded>, std::path::PathBuf) {
             let dir = test_support::dir::temp_dir(name);
-            let path = place_script(&dir, "engine.sh", &script(on_go, on_position)).await;
+            let path = place_script(&dir, "engine.sh", body).await;
             let bridge = bridge();
             let recorded = Arc::new(Recorded::default());
             bridge.set_events(Arc::clone(&recorded) as _).await;
@@ -1091,6 +1173,189 @@ done"#
                 recorded.exits().is_empty(),
                 "こちらが落としたのに終了を知らせている"
             );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `stop` にも `quit` にも答えない（`research/engines/usi-measurements.md` の固まった形）
+        const SILENT: (&str, &str) = (":", ":");
+
+        fn seen(dir: &std::path::Path) -> String {
+            std::fs::read_to_string(dir.join("seen.log")).expect("台本の記録")
+        }
+
+        /// (V3, E11) AC-9: 答えないと知らせ、**次の局面も `go` も線に出さない**（不変条件2）。
+        ///
+        /// 出すと、やねうら王はプロセスを殺す以外に抜ける口が無くなる
+        #[tokio::test]
+        async fn an_engine_that_does_not_answer_stop_gets_no_next_position() {
+            let body = script_with(":", ":", SILENT.0, SILENT.1);
+            let (bridge, recorded, dir) = started_as("bridge-no-answer", &body, 5).await;
+
+            let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
+            let outcome = bridge.stop_analysis_impl(Some(id), None).await;
+            assert_eq!(outcome, Ok(StopOutcome::Unanswered));
+            assert_eq!(
+                recorded.unresponsive(),
+                vec![EngineUnresponsive {
+                    request: 5,
+                    reason: UnresponsiveReason::NoAnswer
+                }]
+            );
+
+            // 門が下りないこと。ストリームを外していると、この間に下りる
+            tokio::time::sleep(QUIET).await;
+            assert!(
+                bridge
+                    .set_position_impl("startpos".to_string())
+                    .await
+                    .is_err(),
+                "答えていないエンジンへ局面を通している"
+            );
+            assert!(
+                bridge.start_infinite_analysis_impl().await.is_err(),
+                "答えていないエンジンへ `go` を通している"
+            );
+            assert!(
+                bridge.analyze_with_time_impl(1).await.is_err(),
+                "答えていないエンジンへ時間の `go` を通している"
+            );
+            assert!(
+                bridge.analyze_with_depth_impl(1).await.is_err(),
+                "答えていないエンジンへ深さの `go` を通している"
+            );
+            let lines = seen(&dir);
+            assert_eq!(lines.matches("go").count(), 1, "`go` が重なった: {lines}");
+            assert!(!lines.contains("position"), "局面が線に出た: {lines}");
+
+            // 待ち切った後の停止は書き直さず、すぐ返る。**`応答なし` からの操作が3秒ずつ固まらない**
+            let again = tokio::time::timeout(QUIET, bridge.stop_analysis_impl(None, None)).await;
+            assert_eq!(again.expect("待ち直している"), Ok(StopOutcome::Unanswered));
+            assert_eq!(seen(&dir).matches("stop").count(), 1);
+
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (V6, E10) AC-11: 遅れて答えが来たら知らせ、次の局面を通す
+        #[tokio::test]
+        async fn a_late_answer_lets_the_next_position_through() {
+            let body = script_with(":", ":", "(sleep 4; echo 'bestmove 7g7f') &", "exit 0");
+            let (bridge, recorded, dir) = started_as("bridge-late-answer", &body, 5).await;
+
+            let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
+            assert_eq!(
+                bridge.stop_analysis_impl(Some(id), None).await,
+                Ok(StopOutcome::Unanswered)
+            );
+            wait_until("遅れた答えの知らせ", || {
+                !recorded.answered().is_empty()
+            })
+            .await;
+
+            assert_eq!(recorded.answered(), vec![EngineAnswered { request: 5 }]);
+            assert_eq!(recorded.completes(), 0, "`stop` の答えを完了と読んでいる");
+            assert!(
+                bridge
+                    .set_position_impl("startpos".to_string())
+                    .await
+                    .is_ok(),
+                "答えがあったのに局面を通さない"
+            );
+
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (V6, E13) AC-10: 起動し直すと、`quit` を送らずに落として新しいプロセスへ移る。
+        /// 新しいプロセスには前の印が残らない
+        #[tokio::test]
+        async fn restarting_an_unresponsive_engine_kills_it_without_quit() {
+            let body = script_with(":", ":", SILENT.0, SILENT.1);
+            let (bridge, _, dir) = started_as("bridge-restart-silent", &body, 5).await;
+            let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
+            let path = dir.join("engine.sh");
+            let _ = bridge.stop_analysis_impl(Some(id), None).await;
+
+            bridge
+                .start_analysis_engine_impl(
+                    path.to_str().expect("パス").to_string(),
+                    StartInput::default(),
+                    6,
+                )
+                .await
+                .expect("起動し直せる");
+
+            assert!(
+                !seen(&dir).contains("quit"),
+                "答えないエンジンへ `quit` を送っている"
+            );
+            assert!(
+                bridge
+                    .set_position_impl("startpos".to_string())
+                    .await
+                    .is_ok(),
+                "新しいプロセスに前の印が残っている"
+            );
+
+            bridge.shutdown_engine_impl(7).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (V4, E1) AC-60: 落とす要求は、上限まで待ってから `quit` を待たずに落とす
+        #[tokio::test]
+        async fn shutting_down_during_a_silent_search_ends_the_engine() {
+            let body = script_with(":", ":", SILENT.0, SILENT.1);
+            let (bridge, _, dir) = started_as("bridge-shutdown-silent", &body, 5).await;
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+
+            let lines = seen(&dir);
+            assert!(lines.contains("stop"), "止めずに落としている: {lines}");
+            assert!(!lines.contains("quit"), "`quit` を送っている: {lines}");
+            assert!(
+                bridge.analyzer.end_watch().await.is_none(),
+                "プロセスが残っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 即答の `bestmove` を失わない。**`go` の後で積まれた行を捨てると検討中のまま残る**
+        #[tokio::test]
+        async fn an_instant_bestmove_is_not_lost() {
+            for attempt in 0..20 {
+                let name = format!("bridge-instant-{attempt}");
+                let (bridge, recorded, dir) = started(&name, "echo 'bestmove 7g7f'", ":", 1).await;
+                bridge.start_infinite_analysis_impl().await.expect("始まる");
+                wait_until("完了の知らせ", || recorded.completes() == 1).await;
+                bridge.shutdown_engine_impl(2).await.expect("落とせる");
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        }
+
+        /// (V2, E15): stdin を読まなくなったら書けないことを知らせる
+        #[tokio::test]
+        async fn an_engine_that_stops_reading_is_reported_as_unwritable() {
+            let (bridge, recorded, dir) = started("bridge-unwritable", ":", "sleep 30", 5).await;
+
+            // 1本目で読むのをやめる。2本目はパイプを埋める大きさ
+            let _ = bridge.set_position_impl("startpos".to_string()).await;
+            let big = format!("startpos moves {}", "7g7f ".repeat(400_000));
+            let _ = bridge.set_position_impl(big).await;
+
+            wait_until("書けない知らせ", || {
+                !recorded.unresponsive().is_empty()
+            })
+            .await;
+            assert_eq!(
+                recorded.unresponsive(),
+                vec![EngineUnresponsive {
+                    request: 5,
+                    reason: UnresponsiveReason::Unwritable
+                }]
+            );
+
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
         }
     }

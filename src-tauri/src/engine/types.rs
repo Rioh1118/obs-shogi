@@ -475,6 +475,39 @@ pub struct EngineExited {
     pub request: u64,
 }
 
+/// エンジンに指示が通らなくなった理由
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UnresponsiveReason {
+    /// `stop` に `ANALYSIS_STOP_GRACE` を超えて答えない
+    NoAnswer,
+    /// stdin を読まなくなった
+    Unwritable,
+}
+
+/// エンジンに指示が通らなくなったことの通知。`request` は `EngineExited` と同じ
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineUnresponsive {
+    pub request: u64,
+    pub reason: UnresponsiveReason,
+}
+
+/// `stop` に遅れて答えがあった通知。`request` は `EngineExited` と同じ
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineAnswered {
+    pub request: u64,
+}
+
+/// 停止の結末。**`Unanswered` は失敗ではない。** 席は空いていて、探索がまだ終わっていない
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StopOutcome {
+    Stopped,
+    Unanswered,
+}
+
 /// 解析の側からフロントへ流す出来事
 #[derive(Debug, Clone)]
 pub enum AnalysisEvent {
@@ -484,6 +517,10 @@ pub enum AnalysisEvent {
     Complete(AnalysisUpdate),
     /// こちらが落としていないのにプロセスが終わった
     EngineExited(EngineExited),
+    /// 指示が通らなくなった
+    EngineUnresponsive(EngineUnresponsive),
+    /// `stop` に遅れて答えがあった
+    EngineAnswered(EngineAnswered),
 }
 
 /// 解析の出来事の宛先。**実装は上の段（`commands::analysis`）に置く**——

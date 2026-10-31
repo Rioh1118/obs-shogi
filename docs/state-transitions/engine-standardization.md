@@ -88,8 +88,8 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 `ENGINE_STARTING_MESSAGE` を出して押し直させるのをやめる。**表を埋めて出てきた論点。** 断る形だと、起動を待つ利用者が2回押すことになる。
 
 ※2 利用者には切り替わりを見せない。局面が続けて動けば最新の局面だけを読む（[engine-position-sync.md](engine-position-sync.md)）。
-`stop` の答えを待たずに `go` を出す経路は持たない。`analyzer.rs` の `wait_until_settled` は上限を超えると
-進むので、ここで **E11 → V6 へ変える**。
+`stop` の答えを待たずに `go` を出す経路は持たない。上限を超えたら `EngineAnalyzer::unanswered` が立ち、
+下りるまで `set_position` と `start_infinite_analysis` は断る。
 
 ※3 遅れて答えが来たらエンジンは生きていたので、V6 を抜ける。意思があれば V3 へ、無ければ V2 へ。
 
@@ -132,6 +132,13 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | (V3, E12) (V2, E12) | `bridge.rs` の `an_engine_that_exits_during_a_search_is_reported_with_its_start` / `an_engine_that_exits_while_idle_is_reported`、`entities/engine` の「エンジンが自分で終わった回」 |
 | (V5, E8) (V5, E4) | `provider.test.tsx` の「局面を動かすと、押さずに読み始める」「完了になり、候補手が残り、席を握らない」 |
 | (V7, E1) (V7, E2) | `entities/engine` の「別の設定になれば起動し直す」「選択が外れたら止めて idle へ戻す」 |
+| (V3, E11) (V4, E11) 不変条件2（上限切れの後） | `bridge.rs` の `an_engine_that_does_not_answer_stop_gets_no_next_position`、`entities/analysis` の「中断に答えない回の自動再開」 |
+| (V2, E15) | `bridge.rs` の `an_engine_that_stops_reading_is_reported_as_unwritable` |
+| (V6, E9) (V6, E10) | `bridge.rs` の `a_late_answer_lets_the_next_position_through`、`entities/engine` の「遅れて答えが来たら起動済みへ戻り、起動し直さない」 |
+| (V6, E13) | `bridge.rs` の `restarting_an_unresponsive_engine_kills_it_without_quit` |
+| (V6, E1) | `entities/engine` の「別の設定になれば落として起動し直す」 |
+| (V6, E12) | `entities/engine` の「終了が届いたら exited へ移る」 |
+| (V3, E1) の上限切れ（※7） | `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine` |
 | 不変条件1（V7 について） | `engineStatus.test.ts` の「エンジンが終了したら、検討の意思があっても検討中と言わない」 |
 
 実プロセスでの確認は各 PR に書く。

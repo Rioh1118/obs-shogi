@@ -3,6 +3,7 @@ import {
   stopAnalysis as stopAnalysisCore,
   type AnalysisSessionId,
   type SeatReleasePoint,
+  type StopOutcome,
 } from "@/entities/engine/api/tauri";
 
 /**
@@ -153,8 +154,11 @@ export interface EngineSeat {
    *
    * **返せたときだけ手放す。** 停止が失敗したら握ったままにして、次に返せる機会へ持ち越す。
    * 失敗は呼び手へ投げる（出し方は呼び手が決める）。
+   *
+   * **`unanswered` なら次の開始を頼まないこと。** 席は空いたが、エンジンがまだ探索を
+   * 終えていない。Rust は断るが、頼むと断りの文が立つ。
    */
-  releaseHeld: (by: BlockingReleasePoint) => Promise<void>;
+  releaseHeld: (by: BlockingReleasePoint) => Promise<StopOutcome>;
   /**
    * 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。
    *
@@ -334,8 +338,9 @@ export function useEngineSeat(): EngineSeat {
     const held = seatRef.current;
     const generation = engineGenRef.current;
 
+    let outcome: StopOutcome;
     try {
-      await stopAnalysisCore(sessionId, by);
+      outcome = await stopAnalysisCore(sessionId, by);
     } catch (e) {
       keepOrForget(sessionId, generation);
       throw e;
@@ -349,12 +354,13 @@ export function useEngineSeat(): EngineSeat {
         remember(held);
       }
       seatRef.current = null;
-      return;
+      return outcome;
     }
 
     remember(sessionId);
     // **自分が握っている席と違うなら手放さない。** 新しい席を巻き添えにする。
     if (seatRef.current === sessionId) seatRef.current = null;
+    return outcome;
   };
 
   /**
@@ -409,9 +415,12 @@ export function useEngineSeat(): EngineSeat {
   // その返却も落ちた回は、表示が停止中のまま `console.error` だけが残る（→ `docs/state-transitions/analysis.md` の ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
   const shootQuietly = (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) =>
-    shoot(by, sessionId).catch((e) => {
-      console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
-    });
+    shoot(by, sessionId).then(
+      () => {},
+      (e: unknown) => {
+        console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
+      },
+    );
 
   /**
    * 飛んでいる停止を、**前の返却ごと**枠に載せる。
@@ -508,9 +517,13 @@ export function useEngineSeat(): EngineSeat {
       }
 
       const held = seatRef.current;
-      if (held === null) return;
+      if (held === null) return "stopped";
 
-      return holdSlot(() => shoot(by, held));
+      let outcome: StopOutcome = "stopped";
+      await holdSlot(async () => {
+        outcome = await shoot(by, held);
+      });
+      return outcome;
     },
 
     releaseHeldQuietly: (by) => {

@@ -2,7 +2,12 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 
-import type { EngineStartFailure, EngineStartFailureKind, EnginePhase } from "@/entities/engine";
+import type {
+  EngineStartFailure,
+  EngineStartFailureKind,
+  EnginePhase,
+  UnresponsiveReason,
+} from "@/entities/engine";
 import { ENGINE_START_FAILURE_NOTICES, SLOW_START_MS } from "../engineStartFailureNotice";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
 import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
@@ -21,6 +26,7 @@ const engine = {
   state: {
     phase: "idle" as EnginePhase,
     error: null as EngineStartFailure | null,
+    unresponsiveReason: null as UnresponsiveReason | null,
   },
   initialize: () => initialize(),
   cancelStart: () => cancelStart(),
@@ -72,8 +78,12 @@ function action(label: string, at = 0) {
   return found;
 }
 
-async function mountWith(phase: EnginePhase, error: EngineStartFailure | null = null) {
-  engine.state = { phase, error };
+async function mountWith(
+  phase: EnginePhase,
+  error: EngineStartFailure | null = null,
+  unresponsiveReason: UnresponsiveReason | null = null,
+) {
+  engine.state = { phase, error, unresponsiveReason };
 
   let view!: ReturnType<typeof render>;
   await act(async () => {
@@ -89,7 +99,7 @@ async function mountWith(phase: EnginePhase, error: EngineStartFailure | null = 
   return Object.assign(
     /** エンジンの段が動いた、を実物と同じ順序で起こす */
     async (next: EnginePhase, nextError: EngineStartFailure | null = null) => {
-      engine.state = { phase: next, error: nextError };
+      engine.state = { phase: next, error: nextError, unresponsiveReason: null };
       await draw();
     },
     {
@@ -393,7 +403,7 @@ describe("エンジンが終了したことを届ける橋", () => {
     expect(initialize).toHaveBeenCalledTimes(1);
 
     await next("initializing");
-    expect(dismissByKey).toHaveBeenCalledWith("engine-exited");
+    expect(dismissByKey).toHaveBeenCalledWith("engine-stopped");
   });
 
   test("起動の失敗の文は出さない", async () => {
@@ -401,5 +411,21 @@ describe("エンジンが終了したことを届ける橋", () => {
 
     expect(notify).toHaveBeenCalledTimes(1);
     expect(shown().title).not.toBe("エンジンを起動できませんでした");
+  });
+});
+
+describe("エンジンが応答しないことを届ける橋", () => {
+  test.each([
+    ["noAnswer", "エンジンが中断の指示に応答しません"],
+    ["unwritable", "エンジンに指示を送信できません"],
+  ] as const)("%s の文と再起動の口を出し、段を抜けたら引っ込める", async (reason, title) => {
+    const next = await mountWith("unresponsive", null, reason);
+
+    expect(shown().title).toBe(title);
+    await action("再起動する").run();
+    expect(initialize).toHaveBeenCalledTimes(1);
+
+    await next("ready");
+    expect(dismissByKey).toHaveBeenCalledWith("engine-stopped");
   });
 });

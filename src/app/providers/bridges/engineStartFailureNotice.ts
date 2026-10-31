@@ -1,4 +1,4 @@
-import type { EngineStartFailureKind } from "@/entities/engine";
+import type { EngineStartFailureKind, UnresponsiveReason } from "@/entities/engine";
 
 /**
  * 起動中のまま、この時間が過ぎたら「時間が掛かっている」帯を出す（`EngineFailureBridge`）。
@@ -9,6 +9,30 @@ import type { EngineStartFailureKind } from "@/entities/engine";
  * 人が「反応が無い」と判断する前に出る長さ
  */
 export const SLOW_START_MS = 30_000;
+
+/** 起動した後で動かなくなった帯の段と文 */
+type EngineStoppedNotice = { tier: "warning" | "danger"; title: string; body: string };
+
+/** プロセスが自分で終わった（`docs/spec/features/engine-standardization.md` の V7） */
+export const ENGINE_EXITED_NOTICE: EngineStoppedNotice = {
+  tier: "danger",
+  title: "エンジンが終了しました",
+  body: "再起動してください。続けて起きるときは設定でエンジンと評価関数を確認してください。",
+};
+
+/** 指示が通らない（同じ仕様の V6）。**理由ごとに文が違う** */
+export const ENGINE_UNRESPONSIVE_NOTICES: Record<UnresponsiveReason, EngineStoppedNotice> = {
+  noAnswer: {
+    tier: "warning",
+    title: "エンジンが中断の指示に応答しません",
+    body: "再起動してください。",
+  },
+  unwritable: {
+    tier: "warning",
+    title: "エンジンに指示を送信できません",
+    body: "再起動してください。",
+  },
+};
 
 /** 帯1枚ぶんの段・本文・「もう一度起動」を出すか */
 export type EngineStartFailureNotice = {

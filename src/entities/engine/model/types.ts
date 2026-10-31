@@ -1,11 +1,12 @@
-import type { BookChoice, EngineInfo, StartWarning } from "../api/rust-types";
+import type { BookChoice, EngineInfo, StartWarning, UnresponsiveReason } from "../api/rust-types";
 import type { EngineStartFailure } from "../lib/engineFailure";
 
 /**
- * `exited` は起動済みのプロセスが自分で終わった状態。**アプリは自分では起動し直さない**
- * （`docs/state-transitions/engine-standardization.md` の V7）。
+ * `exited` は起動済みのプロセスが自分で終わった状態、`unresponsive` は指示が通らなくなった状態。
+ * **どちらもアプリは自分では起動し直さない**
+ * （`docs/state-transitions/engine-standardization.md` の V6 V7）。
  */
-export type EnginePhase = "idle" | "initializing" | "ready" | "error" | "exited";
+export type EnginePhase = "idle" | "initializing" | "ready" | "error" | "exited" | "unresponsive";
 
 /**
  * エンジンを起こすときの設定。**USI の名前を持たない**——評価関数と定跡はパスで持ち、
@@ -26,6 +27,8 @@ export type EngineState = {
   engineInfo: EngineInfo | null;
   /** 起動の失敗。`phase === "error"` のときだけ非 null。画面の文言は `kind` から組む */
   error: EngineStartFailure | null;
+  /** 指示が通らない理由。`phase === "unresponsive"` のときだけ非 null */
+  unresponsiveReason: UnresponsiveReason | null;
 
   activeRuntime: EngineRuntimeConfig | null;
   /** 直近の起動で送らなかった・変えて送った設定。起動はできている */
@@ -44,6 +47,8 @@ export type EngineAction =
     }
   | { type: "initialize_error"; payload: EngineStartFailure }
   | { type: "engine_exited" }
+  | { type: "engine_unresponsive"; payload: UnresponsiveReason }
+  | { type: "engine_answered" }
   | { type: "shutdown" }
   | { type: "clear_error" };
 
@@ -61,7 +66,7 @@ export type EngineNotReadyReason =
   | "no-engine"
   /** 起動中。**起こし直している最中もここ**（`ready → idle → initializing` の全部） */
   | "starting"
-  /** 初期化が落ちている。**起動した後でプロセスが終わった回もここ** */
+  /** 初期化が落ちている。**起動した後でプロセスが終わった回、指示が通らない回もここ** */
   | "failed";
 
 /**

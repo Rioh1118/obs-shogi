@@ -34,6 +34,14 @@ describe("操作列が言う語", () => {
     ).toBe("analyzing");
   });
 
+  it("応答なしの間は、検討の意思があっても検討中と言わない", () => {
+    for (const a of [analysis(true), analysis(true, true), analysis(false)]) {
+      expect(engineStatusOf({ phase: "unresponsive", analysis: a, currentSfen: "P1" })).toBe(
+        "unresponsive",
+      );
+    }
+  });
+
   it("エンジンが終了したら、検討の意思があっても検討中と言わない", () => {
     for (const a of [analysis(true), analysis(true, true), analysis(false)]) {
       expect(engineStatusOf({ phase: "exited", analysis: a, currentSfen: "P1" })).toBe("exited");

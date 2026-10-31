@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 
 import type { EngineInfo } from "@/entities/engine/api/rust-types";
+import type { EngineEventListeners } from "@/entities/engine/api/events";
 import type { EngineContextType, EngineRuntimeConfig } from "../types";
 
 /**
@@ -27,7 +28,7 @@ vi.mock("@/entities/engine/api/initializer", () => ({
 }));
 
 /** Rust の通知を差し込む口 */
-let exited: ((request: number) => void) | null = null;
+let listeners: EngineEventListeners | null = null;
 // `isTauri()` はこの印を読む（`@tauri-apps/api/core`）
 vi.stubGlobal("isTauri", true);
 vi.mock(
@@ -35,10 +36,10 @@ vi.mock(
   async (actual) =>
     ({
       ...(await actual<typeof import("@/entities/engine/api/events")>()),
-      listenToEngineExited: async (callback: (request: number) => void) => {
-        exited = callback;
+      setupEngineEventListeners: async (next: EngineEventListeners) => {
+        listeners = next;
         return () => {
-          exited = null;
+          listeners = null;
         };
       },
     }) satisfies typeof import("@/entities/engine/api/events"),
@@ -340,7 +341,7 @@ describe("エンジンが自分で終わった回", () => {
   const lastRequest = () => initialize.mock.calls[initialize.mock.calls.length - 1][1];
   const tell = (request: number) =>
     act(async () => {
-      exited?.(request);
+      listeners?.onExited(request);
     });
 
   test("最後の起動のプロセスが終わったら exited になり、使えなくなる", async () => {
@@ -432,5 +433,85 @@ describe("エンジンが自分で終わった回", () => {
 
     expect(shutdown).toHaveBeenCalledTimes(1);
     expect(app.phase).toBe("idle");
+  });
+});
+
+/** `engine-standardization.md` の (V3, E11) (V6, E10) (V6, E13) (V6, E1) (V6, E12) */
+describe("エンジンが答えなくなった回", () => {
+  const lastRequest = () => initialize.mock.calls[initialize.mock.calls.length - 1][1];
+  /** 動いているプロセスを起動した要求の番号 */
+  let running = 0;
+  const mounted = async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+    running = lastRequest();
+    await act(async () => {
+      listeners?.onUnresponsive(running, "noAnswer");
+    });
+    return app;
+  };
+
+  test("unresponsive になり、使えなくなり、理由が残る", async () => {
+    const app = await mounted();
+
+    expect(app.phase).toBe("unresponsive");
+    expect(app.state.unresponsiveReason).toBe("noAnswer");
+    expect(app.engine.isReady).toBe(false);
+  });
+
+  test("遅れて答えが来たら起動済みへ戻り、起動し直さない", async () => {
+    const app = await mounted();
+    initialize.mockClear();
+
+    await act(async () => {
+      listeners?.onAnswered(running);
+    });
+
+    expect(app.phase).toBe("ready");
+    expect(app.engine.isReady).toBe(true);
+    expect(initialize).not.toHaveBeenCalled();
+  });
+
+  test("古い起動の知らせは捨てる", async () => {
+    initialize.mockResolvedValue(INFO);
+    const app = mountWith(RUNTIME);
+    await settle();
+
+    await act(async () => {
+      listeners?.onUnresponsive(lastRequest() - 1, "noAnswer");
+    });
+
+    expect(app.phase).toBe("ready");
+  });
+
+  test("同じ設定のままでは自分で起動し直さない", async () => {
+    const app = await mounted();
+    initialize.mockClear();
+
+    await app.setRuntime(sameValues());
+
+    expect(initialize).not.toHaveBeenCalled();
+  });
+
+  test("別の設定になれば落として起動し直す", async () => {
+    const app = await mounted();
+    initialize.mockClear();
+
+    await app.setRuntime({ ...RUNTIME, values: { MultiPV: "3" } });
+
+    expect(shutdown).toHaveBeenCalled();
+    expect(initialize).toHaveBeenCalledTimes(1);
+    expect(app.phase).toBe("ready");
+  });
+
+  test("終了が届いたら exited へ移る", async () => {
+    const app = await mounted();
+
+    await act(async () => {
+      listeners?.onExited(running);
+    });
+
+    expect(app.phase).toBe("exited");
   });
 });

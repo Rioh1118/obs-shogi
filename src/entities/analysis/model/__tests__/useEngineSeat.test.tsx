@@ -14,7 +14,7 @@ const id = (value: string) => value as AnalysisSessionId;
  */
 const ready = () => true;
 
-const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<void>>();
+const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<"stopped" | "unanswered" | void>>();
 vi.mock("@/entities/engine/api/tauri", () => ({
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
 }));
@@ -111,7 +111,7 @@ describe("EngineSeat とエンジンの世代", () => {
     expect(seat.isHeld()).toBe(false);
 
     stopCore.mockReset();
-    stopCore.mockResolvedValue(undefined);
+    stopCore.mockResolvedValue("stopped");
     await seat.releaseHeld("start");
     expect(stopCore).not.toHaveBeenCalled();
   });

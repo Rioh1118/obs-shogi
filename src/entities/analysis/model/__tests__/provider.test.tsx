@@ -23,7 +23,7 @@ import {
 } from "../refusals";
 
 const startCore = vi.fn<() => Promise<string>>();
-const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<void>>();
+const stopCore = vi.fn<(sessionId?: string, by?: string) => Promise<"stopped" | "unanswered" | void>>();
 
 // リスナを実際に登録させたい回だけ true にする。既定を true にすると、
 // 全部の回で登録と解除が挟まって、見たい経路が長くなる。
@@ -151,7 +151,7 @@ beforeEach(() => {
   stopCore.mockReset();
   syncPosition.mockReset();
   startCore.mockResolvedValue("session-1");
-  stopCore.mockResolvedValue(undefined);
+  stopCore.mockResolvedValue("stopped");
   syncPosition.mockResolvedValue(undefined);
   engine = { isReady: true, notReadyReason: null };
   listenerSetupFails = false;
@@ -1636,7 +1636,7 @@ describe("AnalysisProvider の開始", () => {
     // この状態で ▶。返さずに頼むと Rust に断られ続け、画面から復帰できない。
     stopCore.mockClear();
     startCore.mockClear();
-    stopCore.mockResolvedValue(undefined);
+    stopCore.mockResolvedValue("stopped");
     startCore.mockResolvedValue("session-2");
     await act(async () => {
       await view.current.startInfiniteAnalysis();
@@ -1661,7 +1661,7 @@ describe("AnalysisProvider の開始", () => {
     expect(view.current.state.isAnalyzing).toBe(false);
 
     stopCore.mockClear();
-    stopCore.mockResolvedValue(undefined);
+    stopCore.mockResolvedValue("stopped");
 
     // 棋譜を閉じる。`isAnalyzing` で門を作ると、ここで席が置き去りになる。
     await view.setSync(adapter(null, null));
@@ -2103,7 +2103,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledWith("session-late", "late-start");
 
     stopCore.mockClear();
-    stopCore.mockResolvedValue(undefined);
+    stopCore.mockResolvedValue("stopped");
     view.unmount();
 
     // 握り直していないと、席の存在を知る者が居ないまま画面が消える。
@@ -2485,5 +2485,69 @@ describe("エンジンが自分で探索を終えた回", () => {
       await view.current.stopAnalysis();
     });
     expect(stopCore).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * (V3, E11) AC-9: 局面を動かした自動再開の中断に、エンジンが答えない回。
+ *
+ * **検討の意思は残す。** `応答なし` から戻ったら読み直すため。断りも立てない（語が言う）。
+ */
+describe("中断に答えない回の自動再開", () => {
+  it("上限の直後に答えが来て語が動かなくても、読み直す", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    stopCore.mockResolvedValueOnce("unanswered");
+    startCore.mockClear();
+    startCore.mockResolvedValue("session-2");
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 4);
+
+    expect(startCore).toHaveBeenCalledTimes(1);
+    expect(view.current.state.analyzedSfen).toBe("P2");
+  });
+
+  it("▶ の先頭の返却に答えが無ければ、開始を頼まない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {});
+    });
+    stopCore.mockResolvedValueOnce("unanswered");
+    startCore.mockClear();
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+
+    expect(startCore).not.toHaveBeenCalled();
+  });
+
+  it("エンジンが使えなくなったら、次を読み始めず、検討を切らず、断りも立てない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    stopCore.mockImplementationOnce(async () => {
+      engine = { isReady: false, notReadyReason: "failed" };
+      return "unanswered";
+    });
+    startCore.mockClear();
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 1.2);
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 4);
+
+    expect(stopCore).toHaveBeenCalledWith("session-1", "restart");
+    expect(startCore).not.toHaveBeenCalled();
+    expect(view.current.state.isAnalyzing).toBe(true);
+    expect(view.current.state.error).toBeNull();
   });
 });
