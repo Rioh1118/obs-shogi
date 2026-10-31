@@ -2591,6 +2591,32 @@ describe("中断が届かなかった回", () => {
     expect(view.current.state.error).toBeNull();
   });
 
+  it("往復の間にエンジンが替わっていたら、新しいエンジンを応答なしにしない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    let refuse: (e: Error) => void = () => {};
+    stopCore.mockImplementationOnce(() => new Promise((_, reject) => (refuse = reject)));
+    let pressed: Promise<void> = Promise.resolve();
+    await act(async () => {
+      pressed = view.current.stopAnalysis().catch(() => {});
+    });
+
+    // 落ちて戻る。前のエンジンへの停止は飛んだまま
+    engine = { isReady: false, notReadyReason: "starting" };
+    await view.setSync(adapter("P1", "P1"));
+    engine = { isReady: true, notReadyReason: null };
+    await view.setSync(adapter("P1", "P1"));
+
+    await act(async () => {
+      refuse(new Error("ipc is gone"));
+      await pressed;
+    });
+
+    expect(reportUnreachable).not.toHaveBeenCalled();
+  });
+
   it("次の局面が保留されていても、届かなかった回に読み始めない", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
