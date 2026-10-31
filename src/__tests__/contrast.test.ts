@@ -74,6 +74,17 @@ describe("比の計算", () => {
 });
 
 describe("走査", () => {
+  it("太さのトークンを値へ解いて大きい文字の基準を選ぶ", () => {
+    const vars = collectVariables("$weight-title: 700;\n$weight-regular: 400;");
+    const threshold = (weight: string) =>
+      scanContrast(
+        `.a { background: #1c2325; color: #dcd7c9; font-size: 2rem; font-weight: ${weight}; }`,
+        { vars },
+      ).pairs[0].threshold;
+    expect(threshold("index.$weight-title")).toBe(3);
+    expect(threshold("index.$weight-regular")).toBe(4.5);
+  });
+
   it("同じ規則の中の文字と面の対を測る", () => {
     const findings = scan(`
       .a {

@@ -10,14 +10,14 @@
     display: inline-block;
     margin-right: var(--title-gap, 8rem);
     font-family: "Orbitron", index.$font-sans;
-    font-weight: 700;
+    font-weight: index.$weight-title;
     text-transform: uppercase;
   }
 
   &__shogi {
     display: inline-block;
     font-family: "Zen Kaku Gothic Antique", index.$font-sans;
-    font-weight: 700;
+    font-weight: index.$weight-title;
     text-transform: uppercase;
   }
 

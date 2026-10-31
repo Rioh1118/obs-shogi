@@ -71,7 +71,7 @@
   &__badge {
     flex-shrink: 0;
     font-size: index.$font-hint;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     white-space: nowrap;
 
     &.is-switch {

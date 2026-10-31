@@ -28,7 +28,7 @@
     padding: index.$space-2 var(--pane-px, #{index.$space-4});
     text-align: left;
     font-family: index.$font-mono;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     font-size: index.$font-hint;
     letter-spacing: 0.09em;
     color: rgba(index.$color-text-primary, 0.72);
@@ -65,7 +65,7 @@
   // 最善手。**色だけで示さない** —— 左の帯と太さを併せる
   &__row--best td {
     background: rgba(index.$color-secondary-dark, 0.13);
-    font-weight: 600;
+    font-weight: index.$weight-strong;
   }
 
   &__row--best td:first-child {

@@ -31,7 +31,7 @@
     border-radius: index.$radius-5;
 
     font-size: index.$font-body;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: rgba(index.$color-text-primary, 0.72);
 
     cursor: pointer;

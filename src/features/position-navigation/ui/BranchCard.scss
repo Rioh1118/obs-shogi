@@ -101,7 +101,7 @@
 
   &__sequence-icon {
     color: rgba(index.$color-secondary-dark, 0.6);
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     font-size: 14px;
   }
 

@@ -60,6 +60,7 @@ export const BUCKETS = [
   "elevation",
   "motion",
   "family",
+  "font-weight",
   "indirect",
   "exempt",
 ] as const;
@@ -82,6 +83,9 @@ const RAW_LENGTH = /(?<![\w$.])-?\d*\.?\d+(rem|px|em)\b/;
 /** 角丸は `999px`（pill）と `50%`（円）にも $radius-pill / $radius-circle という寄せ先がある */
 const RAW_RADIUS = /(?<![\w$.])-?\d*\.?\d+(rem|px|em|%)/;
 
+/** 太さの直値。段は `$weight-*` の4つ */
+const RAW_WEIGHT = /(?<![\w$.])\d{3}\b/;
+
 /** モーションの直値。時間は長さと単位が違うので別に見る */
 const RAW_DURATION = /(?<![\w$.])-?\d*\.?\d+m?s\b/;
 
@@ -99,7 +103,7 @@ export function stripTokenReferences(value: string): string {
 
 export function bucketOf(property: string): Bucket | null {
   const name = property.toLowerCase();
-  if (name === "font-size" || name === "border-radius") return name;
+  if (name === "font-size" || name === "border-radius" || name === "font-weight") return name;
   if (SPACING_PROPERTIES.has(name)) return "spacing";
   if (ELEVATION_PROPERTIES.has(name)) return "elevation";
   if (MOTION_PROPERTIES.has(name)) return "motion";
@@ -127,6 +131,8 @@ export function hasRawLiteral(bucket: Bucket, property: string, value: string): 
   // フォントは長さを持たない。寄せ先が要るのは、総称名まで並べたスタックを
   // 直書きしている場合だけ。`inherit` や単一の総称名はトークンにする意味が無い
   if (bucket === "family") return rest.includes(",");
+  // 太さは単位を持たない。`inherit` や `normal` は段の話ではないので数えない
+  if (bucket === "font-weight") return RAW_WEIGHT.test(rest);
   return RAW_LENGTH.test(rest);
 }
 

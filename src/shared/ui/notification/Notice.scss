@@ -31,7 +31,7 @@
   &__title {
     margin: 0;
     font-size: index.$font-body;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     word-break: break-word;
   }
 
@@ -42,7 +42,7 @@
     padding: 0 index.$space-2;
     border-radius: index.$radius-pill;
     font-size: index.$font-hint;
-    font-weight: 700;
+    font-weight: index.$weight-title;
     text-align: center;
   }
 

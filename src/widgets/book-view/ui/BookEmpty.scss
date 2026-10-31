@@ -22,7 +22,7 @@
   &__label {
     margin: 0 0 index.$space-2;
     font-family: index.$font-mono;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     font-size: index.$font-hint;
     letter-spacing: 0.09em;
     color: rgba(index.$color-text-primary, 0.72);
@@ -78,7 +78,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
   }
 
   // 置き場。**縮まない側。** 同じ名前のファイルを見分ける手掛かりがここなので、

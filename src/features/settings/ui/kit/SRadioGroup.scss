@@ -1,3 +1,5 @@
+@use "@/index.scss" as index;
+
 .sui-radio {
   display: grid;
   gap: 8px;
@@ -59,7 +61,7 @@
 
 .sui-radio__label {
   font-size: 1.3rem;
-  font-weight: 700;
+  font-weight: index.$weight-title;
   letter-spacing: 0.1px;
 }
 

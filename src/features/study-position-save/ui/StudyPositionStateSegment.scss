@@ -16,7 +16,7 @@
     flex: 1;
     padding: 0.7rem 0;
     font-size: 1.3rem;
-    font-weight: 500;
+    font-weight: index.$weight-medium;
     font-family: inherit;
     color: rgba(index.$color-text-light-1, 0.7);
     background: transparent;
@@ -38,7 +38,7 @@
     &--active {
       background: rgba(index.$color-secondary-dark, 0.35);
       color: index.$color-text-light-1;
-      font-weight: 600;
+      font-weight: index.$weight-strong;
     }
 
     &:disabled {

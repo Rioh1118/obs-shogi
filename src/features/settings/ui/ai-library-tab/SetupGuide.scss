@@ -69,7 +69,7 @@
 
   &__heroTitle {
     font-size: 1.45rem;
-    font-weight: 700;
+    font-weight: index.$weight-title;
     color: index.$color-text-light-1;
     line-height: 1.35;
   }
@@ -127,7 +127,7 @@
   &__statusCardValue {
     margin-top: 6px;
     font-size: 1.55rem;
-    font-weight: 700;
+    font-weight: index.$weight-title;
     color: index.$color-text-light-1;
     line-height: 1.2;
   }
@@ -185,7 +185,7 @@
 
   &__roleLabel {
     font-size: 1.2rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: rgba(index.$color-secondary-light, 0.8);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
   }
@@ -330,7 +330,7 @@
 
   &__profileName {
     font-size: 1.3rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: index.$color-text-light-1;
   }
 
@@ -400,7 +400,7 @@
     align-items: center;
     gap: 6px;
     font-size: 1.25rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: rgba(255, 190, 110, 0.9);
     margin-bottom: 6px;
   }

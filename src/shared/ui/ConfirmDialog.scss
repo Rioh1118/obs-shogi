@@ -9,7 +9,7 @@
   &__title {
     margin: 0;
     font-size: index.$font-body;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: index.$color-text-light-1;
     word-break: break-word;
   }
@@ -38,7 +38,7 @@
   }
 
   &__errorHead {
-    font-weight: 600;
+    font-weight: index.$weight-strong;
   }
 
   &__errorCause {

@@ -16,7 +16,7 @@
 
   &__title {
     font-size: 1.8rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     letter-spacing: 0.02em;
   }
 
@@ -147,7 +147,7 @@
     background: index.$color-secondary-dark;
     color: index.$color-white;
     font-size: 0.95rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     display: grid;
     place-items: center;
     line-height: 1;
@@ -217,7 +217,7 @@
 
     &--active {
       color: index.$color-text-light-1;
-      font-weight: 600;
+      font-weight: index.$weight-strong;
     }
   }
 

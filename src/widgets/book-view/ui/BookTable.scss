@@ -34,7 +34,7 @@
   th,
   &__sort {
     font-family: index.$font-mono;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     font-size: index.$font-hint;
     letter-spacing: 0.09em;
     color: rgba(index.$color-text-primary, 0.72);

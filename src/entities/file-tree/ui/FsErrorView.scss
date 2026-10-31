@@ -36,7 +36,7 @@
   &__lead {
     margin: 0;
     font-size: index.$font-body;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
   }
 
   // パスは折り返させる。省略すると、どれが失敗したのか分からなくなる

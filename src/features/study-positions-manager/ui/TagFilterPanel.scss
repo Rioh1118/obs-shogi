@@ -19,7 +19,7 @@
 
   &__title {
     font-size: 1.2rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: rgba(index.$color-text-light-1, 0.8);
   }
 
@@ -79,7 +79,7 @@
   &__sectionLabel {
     font-size: 1.05rem;
     color: rgba(index.$color-text-light-1, 0.4);
-    font-weight: 500;
+    font-weight: index.$weight-medium;
   }
 
   &__chips {

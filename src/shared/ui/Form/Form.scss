@@ -47,7 +47,7 @@
   &__textarea,
   &__select {
     font-size: 1.5rem;
-    font-weight: 400;
+    font-weight: index.$weight-regular;
     font-family: inherit;
     color: index.$color-text-light-1;
     padding: 1.2rem 1.6rem;
@@ -86,7 +86,7 @@
 
   &__label {
     font-size: 1.4rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: rgba(index.$color-text-light-1, 0.7);
     margin-left: 0;
     margin-top: 0;
@@ -97,7 +97,7 @@
 
   &__subheading {
     font-size: 1.6rem;
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     color: index.$color-text-light-1;
     margin-bottom: 1rem;
   }
@@ -123,7 +123,7 @@
     align-items: center;
     gap: 1rem;
     font-size: 1.4rem;
-    font-weight: 500;
+    font-weight: index.$weight-medium;
     font-family: inherit;
     color: rgba(index.$color-text-light-1, 0.85);
     cursor: pointer;
@@ -170,7 +170,7 @@
 
   &__heading-secondary {
     font-size: 2.2rem;
-    font-weight: 500;
+    font-weight: index.$weight-medium;
     color: index.$color-text-light-1;
     line-height: 1.4;
     letter-spacing: 0.05rem;

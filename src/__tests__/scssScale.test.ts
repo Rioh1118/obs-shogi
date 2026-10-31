@@ -217,6 +217,17 @@ describe("角丸", () => {
   });
 });
 
+describe("文字の太さ", () => {
+  it("数の直書きを数える", () => {
+    expect(count(".a { font-weight: 650; }", "font-weight")).toBe(1);
+  });
+
+  it("トークンと語は数えない", () => {
+    expect(count(".a { font-weight: index.$weight-strong; }", "font-weight")).toBe(0);
+    expect(count(".a { font-weight: inherit; }", "font-weight")).toBe(0);
+  });
+});
+
 describe("等幅フォント", () => {
   it("フォントスタックの直書きを数える", () => {
     const source = '.a { font-family: ui-monospace, Menlo, "Courier New", monospace; }';

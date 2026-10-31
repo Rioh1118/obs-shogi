@@ -1,10 +1,12 @@
+@use "@/index.scss" as index;
+
 .sui-input {
   width: 100%;
   min-width: 0;
 
   border-radius: var(--ctl-radius, 10px);
   border: 1px solid var(--ctl-border, rgba(255, 255, 255, 0.12));
-  background: var(--s-surface-2, rgba(0, 0, 0, 0.18));
+  background: var(--s-surface-2, #{index.$surface-field});
   color: inherit;
 
   font: inherit;

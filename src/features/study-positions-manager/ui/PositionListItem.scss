@@ -25,7 +25,7 @@
 
   &__label {
     font-size: 1.35rem;
-    font-weight: 500;
+    font-weight: index.$weight-medium;
     color: index.$color-text-light-1;
     white-space: nowrap;
     overflow: hidden;
@@ -52,7 +52,7 @@
   }
 
   &__state {
-    font-weight: 600;
+    font-weight: index.$weight-strong;
     white-space: nowrap;
 
     &--inbox {
