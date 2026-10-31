@@ -2,6 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
+  startFailedUnreachable,
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
   type StopOutcome,
@@ -288,11 +289,18 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // **判定は札の `engineChanged`**（世代とエンジンが使えるかの両方）。ここで足すと、
         // 成功して返る側（`landed`）と条件が割れる——割れた側は、死んだエンジンの席を
         // 握ったまま「解析中」で固まる。
-        if (!take.engineChanged()) throw e;
+        if (!startFailedUnreachable(e) && !take.engineChanged()) throw e;
 
         // **Rust の言い分を残す。** ここで倒すと例外にならないので、呼び手の
         // `console.error` には届かない。断りの文言は合成した `Error` になる。
         console.warn("[ANALYSIS] start refused while the engine was away", e);
+
+        // **エンジンへ書けなかった回は語が言う。** 断りを立てず、検討の意思も切らない。
+        if (startFailedUnreachable(e)) {
+          reportUnreachable();
+          dropPendingForLostSeat();
+          return "superseded";
+        }
         landed = "engine-gone";
       }
 
@@ -316,7 +324,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       results.schedule();
       return landed;
     },
-    [results, dropPendingForLostSeat, seat, supersededSince],
+    [results, dropPendingForLostSeat, reportUnreachable, seat, supersededSince],
   );
 
   // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
@@ -752,9 +760,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const sendAndAwaitSync = useCallback(
     async (seq: number) => {
-      // 送信そのものが落ちた回も断る。`syncPosition` は `set_position` の失敗を呼び手へ
-      // 投げる（自動追従の口は飲むので、投げ先はここだけ）。捕まえずに抜けると
-      // `error` が null のまま終わり、押し直しても同じところで落ちる。
+      // 局面を Rust に覚えさせられなかった回はエンジンが居ない。`syncPosition` は
+      // `set_position` の失敗を呼び手へ投げる（自動追従の口は飲むので、投げ先はここだけ）。
       try {
         await syncPosition();
       } catch (e) {
@@ -762,7 +769,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         failUnreachable(e);
       }
 
-      // 送れていないまま始めると、エンジンには別の局面が入ったまま候補手が返り、盤面と
+      // 覚えさせていないまま始めると、前の局面のまま候補手が返り、盤面と
       // 一致しないものが表示される。**要らなくなったら待つのをやめる**——待ち続けても
       // `syncedSfen` はもう動かないので、上限いっぱい回るだけになる。
       const synced = await waitUntil(

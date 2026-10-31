@@ -94,7 +94,9 @@ pub async fn set_position(
 }
 
 #[tauri::command]
-pub async fn start_infinite_analysis(state: tauri::State<'_, AppState>) -> Result<String, String> {
+pub async fn start_infinite_analysis(
+    state: tauri::State<'_, AppState>,
+) -> Result<String, StartRefusal> {
     state.bridge.start_infinite_analysis_impl().await
 }
 
