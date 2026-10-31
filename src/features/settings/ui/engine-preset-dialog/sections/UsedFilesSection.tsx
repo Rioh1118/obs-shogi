@@ -97,7 +97,7 @@ export default function UsedFilesSection(props: {
       {band && (
         <div className="presetDialog__hintWarn">
           {band(enginesDirPath)}
-          <div className="presetDialog__inputRow presetDialog__bandActions">
+          <div className="presetDialog__bandActions">
             {/* 読み直している間は押せなくする（帯の文言は前の索引のままなので、押せると効かなかったと読まれる） */}
             {canCreateEnginesDir(enginesDir) && (
               <Button
@@ -106,7 +106,7 @@ export default function UsedFilesSection(props: {
                 onClick={onCreateEnginesDir}
                 disabled={indexStatus === "loading"}
               >
-                engines/ を作成
+                フォルダを作成する
               </Button>
             )}
             <Button

@@ -195,8 +195,12 @@
     overflow-wrap: anywhere;
   }
 
-  /* 帯の中のボタン行 */
+  /* 帯の中のボタン行。ボタンは文字の幅のまま右へ寄せる。`.presetDialog__inputRow` は先頭の子を
+     行いっぱいに伸ばす入力欄の形なので、ボタンだけの行には使わない */
   .presetDialog__bandActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: index.$space-5;
     margin-top: index.$space-5;
   }
 

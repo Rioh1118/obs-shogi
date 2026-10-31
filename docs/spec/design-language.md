@@ -169,6 +169,7 @@ import は下向きだけ。**lint が強制する**（`CLAUDE.md`「依存の�
 | フォーカス | `$focus-ring` の2px。枠の中で切れる部品は外側の器に出す（`:focus-within`）            |
 | 不正   | 枠は `$color-danger`、文字は `$color-danger-text`                                        |
 | つまみ | 軌道 `$space-2`、満たした側は `$color-secondary-dark`、持ち手は `$color-text-primary`。ブラウザ既定のまま出さない |
+| 幅     | 押すものは文字の幅。**行の余りを押すもので埋めない。** 余りは入力欄が受け持つ（利用者の判定、2026-10-31） |
 | 記号   | 増減も `lucide-react`（`Minus` / `Plus`）。文字で代用しない                              |
 
 文字の濃さは3段。`$color-text-primary`（本文）/ `$color-text-muted`（名前の添え書き・説明）/
