@@ -64,6 +64,21 @@
     opacity: 0.82;
   }
 
+  // 押せる語。**読む面の隣なので色で目立たせず、下線だけで押せることを言う**
+  &__status-text--button {
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-underline-offset: 0.3em;
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+    }
+  }
+
   &__timer {
     font-size: index.$font-body;
     letter-spacing: 0.02em;

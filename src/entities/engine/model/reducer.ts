@@ -5,6 +5,7 @@ export const initialState: EngineState = {
   engineInfo: null,
   error: null,
   unresponsiveReason: null,
+  lastOutput: null,
 
   activeRuntime: null,
   startWarnings: [],
@@ -13,7 +14,13 @@ export const initialState: EngineState = {
 export function reducer(state: EngineState, action: EngineAction): EngineState {
   switch (action.type) {
     case "initialize_start":
-      return { ...state, phase: "initializing", error: null, unresponsiveReason: null };
+      return {
+        ...state,
+        phase: "initializing",
+        error: null,
+        unresponsiveReason: null,
+        lastOutput: null,
+      };
     case "initialize_success": {
       return {
         ...state,
@@ -46,15 +53,21 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         activeRuntime: null,
         startWarnings: [],
         unresponsiveReason: null,
+        lastOutput: action.payload,
       };
 
     case "engine_unresponsive":
       if (state.phase !== "ready") return state;
-      return { ...state, phase: "unresponsive", unresponsiveReason: action.payload };
+      return {
+        ...state,
+        phase: "unresponsive",
+        unresponsiveReason: action.payload.reason,
+        lastOutput: action.payload.lastOutput,
+      };
 
     case "engine_answered":
       if (state.phase !== "unresponsive") return state;
-      return { ...state, phase: "ready", unresponsiveReason: null };
+      return { ...state, phase: "ready", unresponsiveReason: null, lastOutput: null };
 
     case "shutdown": {
       return {

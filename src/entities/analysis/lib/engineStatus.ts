@@ -56,6 +56,8 @@ export function engineStatusOf({
   if (phase === "unresponsive") return "unresponsive";
   if (phase === "error") return failureKind === "cancelled" ? "cancelled" : "failed";
   if (notReadyReason === "starting") return "starting";
+  // 選んだプリセットが未設定（起動を試みていないので `phase` は動かない）
+  if (notReadyReason === "failed") return "failed";
   if (!analysis.isAnalyzing) return "standing-by";
   if (analysis.finished && analysis.analyzedSfen === currentSfen) return "finished";
   return "analyzing";

@@ -99,6 +99,7 @@ pub struct UsiProtocol {
 /// プロセスの終わりを待つ取っ手。**子プロセスを持たない**ので、
 /// 待っている間もプロセスの寿命を延ばさない（`UsiProtocol` の doc）
 pub struct EngineEndWatch {
+    diagnostics: ChildDiagnostics,
     ready: watch::Receiver<ReadyState>,
     killed: Arc<std::sync::atomic::AtomicBool>,
     stalled: Arc<std::sync::atomic::AtomicBool>,
@@ -106,7 +107,7 @@ pub struct EngineEndWatch {
 
 impl EngineEndWatch {
     /// `Closed` が立つまで待ち、理由を返す。**既に立っていればすぐ返る**（`watch` は今の値から見る）
-    pub async fn wait(mut self) -> EngineEnd {
+    pub async fn wait(&mut self) -> EngineEnd {
         use std::sync::atomic::Ordering::Relaxed;
 
         let closed = self
@@ -122,6 +123,12 @@ impl EngineEndWatch {
             return EngineEnd::Stalled;
         }
         EngineEnd::Exited
+    }
+
+    /// エンジンが最後に出した行。stderr の読み切りを `SETTLE_OUTPUT` まで待つ
+    pub async fn last_output(&self) -> Option<String> {
+        self.diagnostics.settle_output(SETTLE_OUTPUT).await;
+        summarize_recent(&self.diagnostics.recent_lines())
     }
 }
 
@@ -1361,9 +1368,15 @@ impl UsiProtocol {
         gen
     }
 
+    /// エンジンが最後に出した行
+    pub fn last_output(&self) -> Option<String> {
+        summarize_recent(&self.child.diagnostics().recent_lines())
+    }
+
     /// このプロセスの終わりを見る取っ手
     pub fn end_watch(&self) -> EngineEndWatch {
         EngineEndWatch {
+            diagnostics: self.child.diagnostics(),
             ready: self.link.ready.subscribe(),
             killed: Arc::clone(&self.killed),
             stalled: Arc::clone(&self.link.stalled),
@@ -1451,10 +1464,10 @@ impl UsiProtocol {
         };
         match error {
             EngineError::StartupFailed(why) => {
-                EngineError::StartupFailed(format!("{why} (last output: {output})"))
+                EngineError::StartupFailed(format!("{why}{LAST_OUTPUT_PREFIX}{output})"))
             }
             EngineError::CommunicationFailed(why) => {
-                EngineError::CommunicationFailed(format!("{why} (last output: {output})"))
+                EngineError::CommunicationFailed(format!("{why}{LAST_OUTPUT_PREFIX}{output})"))
             }
             other => other,
         }
@@ -1477,6 +1490,9 @@ async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> S
         summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
     )
 }
+
+/// 失敗の文へ直近の出力を添える綴り。起動の失敗を分類する側がここで切り出す
+pub const LAST_OUTPUT_PREFIX: &str = " (last output: ";
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
 ///

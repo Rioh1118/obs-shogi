@@ -5,7 +5,7 @@ import { EngineStatusLabel } from "./EngineStatusLabel";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
-import { useEngine } from "@/entities/engine";
+import { engineFailureNoticeOf, useEngine } from "@/entities/engine";
 import { useEngineStatus } from "@/widgets/analysis-pane/lib/useEngineStatus";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
@@ -25,7 +25,7 @@ import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
  */
 function AnalysisControls() {
   const { state, startInfiniteAnalysis, stopAnalysis } = useAnalysis();
-  const { initialize } = useEngine();
+  const { state: engine, initialize, presetIncomplete } = useEngine();
   const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const status = useEngineStatus(currentSfen);
@@ -56,7 +56,13 @@ function AnalysisControls() {
 
   return (
     <div className="analysis-controls">
-      <EngineStatusLabel status={status} currentSfen={currentSfen} />
+      <EngineStatusLabel
+        status={status}
+        currentSfen={currentSfen}
+        notice={engineFailureNoticeOf({ ...engine, presetIncomplete })}
+        lastOutput={engine.error?.lastOutput ?? engine.lastOutput}
+        onOpenSettings={handleOpenSettings}
+      />
 
       <div className="analysis-controls__actions">
         {/*

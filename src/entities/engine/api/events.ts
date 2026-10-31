@@ -43,8 +43,8 @@ export async function listenToAnalysisComplete(
  * **最後に撃った番号と照合すること**——起動し直している最中に古いプロセスの通知が届く。
  */
 export interface EngineEventListeners {
-  onExited: (request: number) => void;
-  onUnresponsive: (request: number, reason: UnresponsiveReason) => void;
+  onExited: (request: number, lastOutput: string | null) => void;
+  onUnresponsive: (request: number, reason: UnresponsiveReason, lastOutput: string | null) => void;
   onAnswered: (request: number) => void;
 }
 
@@ -105,14 +105,15 @@ export async function setupEngineEventListeners(
 ): Promise<() => void> {
   return subscribeAll([
     () =>
-      listen<{ request: number }>(EVENT_NAMES.ENGINE_EXITED, (event) => {
-        listeners.onExited(event.payload.request);
+      listen<{ request: number; lastOutput: string | null }>(EVENT_NAMES.ENGINE_EXITED, (event) => {
+        listeners.onExited(event.payload.request, event.payload.lastOutput);
       }),
     () =>
-      listen<{ request: number; reason: UnresponsiveReason }>(
+      listen<{ request: number; reason: UnresponsiveReason; lastOutput: string | null }>(
         EVENT_NAMES.ENGINE_UNRESPONSIVE,
         (event) => {
-          listeners.onUnresponsive(event.payload.request, event.payload.reason);
+          const { request, reason, lastOutput } = event.payload;
+          listeners.onUnresponsive(request, reason, lastOutput);
         },
       ),
     () =>

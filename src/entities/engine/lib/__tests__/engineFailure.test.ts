@@ -11,7 +11,17 @@ describe("asStartFailure", () => {
     expect(asStartFailure({ kind: "notUsi", message: "no usiok" })).toEqual({
       kind: "notUsi",
       message: "no usiok",
+      lastOutput: null,
     });
+  });
+
+  test("エンジンの最後の出力を読む", () => {
+    const failure = asStartFailure({
+      kind: "exitedEarly",
+      message: "x",
+      lastOutput: "stderr: boom",
+    });
+    expect(failure.lastOutput).toBe("stderr: boom");
   });
 
   test("知らない種類は unknown に落とす", () => {
@@ -23,10 +33,12 @@ describe("asStartFailure", () => {
     expect(asStartFailure("Command start_analysis_engine not found")).toEqual({
       kind: "unknown",
       message: "Command start_analysis_engine not found",
+      lastOutput: null,
     });
     expect(asStartFailure(new Error("ipc closed"))).toEqual({
       kind: "unknown",
       message: "ipc closed",
+      lastOutput: null,
     });
     expect(asStartFailure(null).kind).toBe("unknown");
   });

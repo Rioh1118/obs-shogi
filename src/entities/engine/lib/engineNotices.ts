@@ -1,4 +1,6 @@
-import type { EngineStartFailureKind, UnresponsiveReason } from "@/entities/engine";
+import type { UnresponsiveReason } from "../api/rust-types";
+import type { EnginePhase } from "../model/types";
+import type { EngineStartFailure, EngineStartFailureKind } from "./engineFailure";
 
 /**
  * 起動中のまま、この時間が過ぎたら「時間が掛かっている」帯を出す（`EngineFailureBridge`）。
@@ -14,14 +16,14 @@ export const SLOW_START_MS = 30_000;
 type EngineStoppedNotice = { tier: "warning" | "danger"; title: string; body: string };
 
 /** プロセスが自分で終わった（`docs/spec/features/engine-standardization.md` の V7） */
-export const ENGINE_EXITED_NOTICE: EngineStoppedNotice = {
+const ENGINE_EXITED_NOTICE: EngineStoppedNotice = {
   tier: "danger",
   title: "エンジンが終了しました",
   body: "再起動してください。続けて起きるときは設定でエンジンと評価関数を確認してください。",
 };
 
 /** 指示が通らない（同じ仕様の V6）。**理由ごとに文が違う** */
-export const ENGINE_UNRESPONSIVE_NOTICES: Record<UnresponsiveReason, EngineStoppedNotice> = {
+const ENGINE_UNRESPONSIVE_NOTICES: Record<UnresponsiveReason, EngineStoppedNotice> = {
   noAnswer: {
     tier: "warning",
     title: "エンジンが中断の指示に応答しません",
@@ -143,3 +145,48 @@ export const ENGINE_START_FAILURE_NOTICES: Record<
     retry: true,
   },
 };
+
+/** 帯の見出し。起動の失敗はどの種類も同じ */
+const START_FAILURE_TITLE = "エンジンを起動できませんでした";
+
+/** 選んだプリセットのエンジンが未設定 */
+const PRESET_INCOMPLETE_NOTICE: EngineStoppedNotice = {
+  tier: "warning",
+  title: START_FAILURE_TITLE,
+  body: "選んでいるプリセットのエンジンが設定されていません。設定の「エンジン管理」で確認してください。",
+};
+
+/** いまのエンジンの状態が出す文。**帯と操作列のポップオーバーが同じ文を出す**（案Dの判断） */
+export type EngineFailureNotice = EngineStoppedNotice & {
+  /** 「もう一度起動」を出すか */
+  retry: boolean;
+  /** 起動の失敗か（帯の取っ手と、再起動の語が分かれる） */
+  startFailure: boolean;
+};
+
+type NoticeInputs = {
+  phase: EnginePhase;
+  error: EngineStartFailure | null;
+  unresponsiveReason: UnresponsiveReason | null;
+  presetIncomplete: boolean;
+};
+
+/** 文を出す状態でなければ `null` */
+export function engineFailureNoticeOf({
+  phase,
+  error,
+  unresponsiveReason,
+  presetIncomplete,
+}: NoticeInputs): EngineFailureNotice | null {
+  if (phase === "exited") return { ...ENGINE_EXITED_NOTICE, retry: true, startFailure: false };
+  if (phase === "unresponsive") {
+    const notice = ENGINE_UNRESPONSIVE_NOTICES[unresponsiveReason ?? "noAnswer"];
+    return { ...notice, retry: true, startFailure: false };
+  }
+  if (phase === "error") {
+    const { tier, body, retry } = ENGINE_START_FAILURE_NOTICES[error?.kind ?? "unknown"];
+    return { tier, title: START_FAILURE_TITLE, body, retry, startFailure: true };
+  }
+  if (presetIncomplete) return { ...PRESET_INCOMPLETE_NOTICE, retry: false, startFailure: true };
+  return null;
+}

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EngineStatus } from "@/entities/analysis";
+import type { EngineFailureNotice } from "@/entities/engine";
+import { EngineStatusDetail } from "./EngineStatusDetail";
 
 /** 状態ごとの語と印。**経過時間を添えるのは読んでいる間と読み終えた後だけ** */
 const STATUS_VIEW: Record<EngineStatus, { word: string; mark: string; timer: boolean }> = {
@@ -26,9 +28,16 @@ const formatElapsed = (seconds: number): string => {
 export function EngineStatusLabel({
   status,
   currentSfen,
+  notice = null,
+  lastOutput = null,
+  onOpenSettings = () => {},
 }: {
   status: EngineStatus;
   currentSfen: string | null;
+  /** 語を押して出す文。**あるときだけ語が押せる**（V6 V7 V8） */
+  notice?: EngineFailureNotice | null;
+  lastOutput?: string | null;
+  onOpenSettings?: () => void;
 }) {
   const view = STATUS_VIEW[status];
   const searching = status === "analyzing";
@@ -36,6 +45,8 @@ export function EngineStatusLabel({
   const [elapsed, setElapsed] = useState(0);
   const startedAtRef = useRef<number | null>(null);
   const lastSfenRef = useRef<string | null>(null);
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const closeDetail = useCallback(() => setAnchor(null), []);
 
   useEffect(() => {
     if (!searching) {
@@ -67,7 +78,32 @@ export function EngineStatusLabel({
   return (
     <div className="analysis-controls__status">
       <span className={`analysis-controls__dot analysis-controls__dot--${view.mark}`}></span>
-      <span className="analysis-controls__status-text">{view.word}</span>
+      {notice ? (
+        <button
+          className="analysis-controls__status-text analysis-controls__status-text--button"
+          aria-expanded={anchor !== null}
+          onClick={(event) => {
+            const { currentTarget } = event;
+            setAnchor((open) => (open ? null : currentTarget.getBoundingClientRect()));
+          }}
+        >
+          {view.word}
+        </button>
+      ) : (
+        <span className="analysis-controls__status-text">{view.word}</span>
+      )}
+      {notice && anchor && (
+        <EngineStatusDetail
+          notice={notice}
+          lastOutput={lastOutput}
+          anchor={anchor}
+          onOpenSettings={() => {
+            closeDetail();
+            onOpenSettings();
+          }}
+          onClose={closeDetail}
+        />
+      )}
       {view.timer && <span className="analysis-controls__timer">{formatElapsed(elapsed)}</span>}
     </div>
   );

@@ -1,25 +1,16 @@
 import { useEffect, useRef } from "react";
-import { useEngine } from "@/entities/engine";
+import { engineFailureNoticeOf, SLOW_START_MS, useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
-import {
-  ENGINE_EXITED_NOTICE,
-  ENGINE_START_FAILURE_NOTICES,
-  ENGINE_UNRESPONSIVE_NOTICES,
-  SLOW_START_MS,
-} from "./engineStartFailureNotice";
 
 /**
- * 引っ込めるための取っ手。**帯は条件（`phase === "error"`）と結び付いている**ので、
+ * 引っ込めるための取っ手。**帯は条件（`engineFailureNoticeOf` が文を返す間）と結び付いている**ので、
  * 抜けたときに指せる名前が要る（`NotificationActions`）。
  *
  * **畳む鍵（`dedupeKey`）ではない。** この帯は条件から出ていて2枚目が積まれようが
  * ないので、畳む鍵にすると「1件」が出たまま動かない（`Notification.count`）。
  */
-const ENGINE_START_FAILURE = "engine-start-failure";
-
-/** エンジンが動かなくなった帯の取っ手。`exited` と `unresponsive` の段を抜けたら引っ込める */
-const ENGINE_STOPPED = "engine-stopped";
+const ENGINE_FAILURE = "engine-failure";
 
 /** 起動に時間が掛かっている帯の取っ手。起動中の段を抜けたら引っ込める */
 const ENGINE_SLOW_START = "engine-slow-start";
@@ -40,7 +31,7 @@ const ENGINE_SLOW_START = "engine-slow-start";
  * 帯を閉じてもエンジンが起動していないことは変わらない。
  */
 export function EngineFailureBridge() {
-  const { state, initialize, cancelStart } = useEngine();
+  const { state, initialize, cancelStart, presetIncomplete } = useEngine();
   const { notify, dismissByKey } = useNotify();
   const { openModal } = useURLParams();
 
@@ -57,12 +48,11 @@ export function EngineFailureBridge() {
   useEffect(() => {
     startAgain.current = initialize;
   }, [initialize]);
+  const { phase, error, unresponsiveReason } = state;
   const stopStarting = useRef(cancelStart);
   useEffect(() => {
     stopStarting.current = cancelStart;
   }, [cancelStart]);
-
-  const { phase, error, unresponsiveReason } = state;
 
   // 起動中が長引いたら、止める口を出す。段を抜けたら（起動できた・失敗した・止めた）引っ込める
   useEffect(() => {
@@ -93,46 +83,18 @@ export function EngineFailureBridge() {
     };
   }, [phase, notify, dismissByKey]);
 
-  // 起動した後で動かなくなった回。**文は違うが、手は同じ**（再起動する・設定を開く）
-  const stoppedNotice =
-    phase === "exited"
-      ? ENGINE_EXITED_NOTICE
-      : phase === "unresponsive"
-        ? ENGINE_UNRESPONSIVE_NOTICES[unresponsiveReason ?? "noAnswer"]
-        : null;
-  useEffect(() => {
-    if (!stoppedNotice) return;
-    notify({
-      ...stoppedNotice,
-      presentation: "banner",
-      dismissKey: ENGINE_STOPPED,
-      actions: [
-        {
-          label: "再起動する",
-          run: async () => {
-            await startAgain.current();
-          },
-        },
-        {
-          label: "設定を開く",
-          run: () => openSettings.current("settings", { tab: "engine" }),
-          failureBody:
-            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
-        },
-      ],
-    });
-    return () => dismissByKey(ENGINE_STOPPED);
-  }, [stoppedNotice, notify, dismissByKey]);
+  const notice = engineFailureNoticeOf({ phase, error, unresponsiveReason, presetIncomplete });
 
+  // 文は `engineFailureNoticeOf` が操作列のポップオーバーと共有する。**動作はここで組む。**
+  // 段を抜けたら引っ込める——動いているエンジンの上に古い帯を残さない（帯はヘッダを覆う）
+  const tier = notice?.tier;
+  const title = notice?.title;
+  const body = notice?.body;
+  const retry = notice?.retry;
+  const startFailure = notice?.startFailure;
   useEffect(() => {
-    if (phase !== "error") return;
-    const kind = error?.kind ?? "unknown";
-    const notice = ENGINE_START_FAILURE_NOTICES[kind];
-
-    // **画面には利用者の言葉、原因はログ**（`Notice` の `invoke` と同じ分け方）。
-    // 配布ビルドの記録は Rust 側が持つ（`bridge.rs` が `tauri-plugin-log` へ書く）ので、
-    // ここは開発中に webview のコンソールで追うためのもの
-    console.error("[engine] 起動に失敗した", kind, error?.message);
+    if (!tier || !title || !body) return;
+    if (startFailure) console.error("[engine] 起動に失敗した", error?.kind, error?.message);
 
     const openSettingsAction = {
       label: "設定を開く",
@@ -142,36 +104,25 @@ export function EngineFailureBridge() {
       failureBody:
         "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選んでください。",
     };
+    const startAgainAction = {
+      label: startFailure ? "もう一度起動" : "再起動する",
+      run: async () => {
+        await startAgain.current();
+      },
+    };
 
     notify({
-      tier: notice.tier,
+      tier,
+      title,
+      body,
       // **帯はヘッダを覆う**ので、閉じる以外にやることが無い帯は出せない
-      //（`NotificationLayer.scss`）。「設定を開く」は全種類に付ける
+      //（`NotificationLayer.scss`）。「設定を開く」は全部に付ける
       presentation: "banner",
-      dismissKey: ENGINE_START_FAILURE,
-      title: "エンジンを起動できませんでした",
-      body: notice.body,
-      actions: notice.retry
-        ? [
-            {
-              label: "もう一度起動",
-              run: async () => {
-                await startAgain.current();
-              },
-            },
-            openSettingsAction,
-          ]
-        : [openSettingsAction],
+      dismissKey: ENGINE_FAILURE,
+      actions: retry ? [startAgainAction, openSettingsAction] : [openSettingsAction],
     });
-
-    // **失敗の段を抜けたら引っ込める。** 起動し直せた回だけでなく、設定が外れて
-    // 止まった回（`idle`）でも走る。出しっぱなしにすると、動いているエンジンの上に
-    // 「起動できませんでした」が残り、しかもヘッダを覆い続ける。
-    //
-    // **二重に積まない**のは `dedupeKey` の畳みが担う（`reducer.ts`）。
-    // ここが担うのは、条件が消えた側で帯を残さないこと。
-    return () => dismissByKey(ENGINE_START_FAILURE);
-  }, [phase, error, notify, dismissByKey]);
+    return () => dismissByKey(ENGINE_FAILURE);
+  }, [tier, title, body, retry, startFailure, error, notify, dismissByKey]);
 
   return null;
 }

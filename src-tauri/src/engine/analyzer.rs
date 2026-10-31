@@ -592,6 +592,11 @@ impl EngineAnalyzer {
         protocol.send_command(&GuiCommand::Position(position)).await
     }
 
+    /// 解析用エンジンが最後に出した行
+    pub async fn last_output(&self) -> Option<String> {
+        self.protocol().await.ok()?.last_output()
+    }
+
     /// 解析用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
     pub async fn end_watch(&self) -> Option<EngineEndWatch> {
         Some(self.protocol().await.ok()?.end_watch())

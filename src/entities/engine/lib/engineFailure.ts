@@ -31,5 +31,10 @@ const START_FAILURE_KINDS = {
 
 /** `invoke` が投げた値を読む（`readKindedFailure`） */
 export function asStartFailure(error: unknown): EngineStartFailure {
-  return readKindedFailure(error, START_FAILURE_KINDS);
+  const lastOutput =
+    typeof error === "object" && error !== null && "lastOutput" in error ? error.lastOutput : null;
+  return {
+    ...readKindedFailure(error, START_FAILURE_KINDS),
+    lastOutput: typeof lastOutput === "string" ? lastOutput : null,
+  };
 }

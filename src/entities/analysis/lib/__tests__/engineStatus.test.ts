@@ -113,4 +113,16 @@ describe("操作列が言う語", () => {
       ).toBe("no-engine");
     }
   });
+
+  it("選んだプリセットが未設定なら起動失敗", () => {
+    expect(
+      engineStatusOf({
+        phase: "idle",
+        notReadyReason: "failed",
+        failureKind: null,
+        analysis: analysis(false),
+        currentSfen: "P1",
+      }),
+    ).toBe("failed");
+  });
 });
