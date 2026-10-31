@@ -170,7 +170,7 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 **席の判定はフックの中にある**（`releaseHeldQuietly` は `sessionId` を取らず、
 握っていなければ何も撃たない）。呼び手が門を書く場所ではない。
 返せなかったときに残るのは `console.warn` **だけ**。直後に飛ぶ `set_error` は
-同期の失敗を指すもので、席を返せなかったこととは別だし、その `error` の読み手も0（→ ※4 / F-2）。
+同期の失敗を指すもので、席を返せなかったこととは別だし、文は帯が出す（→ F-2）。
 返せなかった後に席がどうなるかは枝で違う → ※12
 
 ※10 `stopAnalysis` は `restartSeqRef` を上げる。in-flight の再開は、開始の応答が

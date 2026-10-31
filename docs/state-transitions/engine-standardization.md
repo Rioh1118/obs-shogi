@@ -104,7 +104,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | 定数                            | 行き先                                             |
 | ------------------------------- | -------------------------------------------------- |
 | `POSITION_SYNC_TIMEOUT_MESSAGE` | E16。文を出す（▶ の押し直し）                      |
-| `START_REFUSED_MESSAGE`         | E16。帯に文と「再起動する」                        |
+| `START_REFUSED_MESSAGE`         | E16。帯に文と「再起動する」（`AnalysisRefusalBridge`） |
 | `RESTART_FAILED_MESSAGE`        | E16。帯に文と「再起動する」（V3 の自動の読み直し） |
 | 局面の送信・▶ の先頭の返却・■ の失敗 | E15 → V6。**断りの文を持たず V6 の語にする**（`reportUnreachable`。「まず ▶」は V6 で押せない） |
 | `ENGINE_FAILED_MESSAGE`         | V8 に畳む                                          |
@@ -144,6 +144,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 | (V0) (V8, E2) | `engineStatus.test.ts` の「選択が外れたら、前の失敗が畳まれる前でもエンジンなし」、`engineFailureBridge.test.tsx` |
 | V6 V7 V8 の語を押す、(V8, 帯を閉じる) | `analysisControlsStatus.test.tsx` の「語を押して出す文」 |
 | (V2, E3) | `engineStatus.test.ts`、`entities/analysis` の「▶ を押した時点」 |
+| (V2, E16) (V3, E16) | `analysisRefusalBridge.test.tsx` |
 | (V3, E8) (V3, E10) 不変条件2（線の順） | `bridge.rs` の `a_position_during_a_search_goes_out_only_after_the_stop`、`entities/analysis` の「検討中に局面を続けて動かす回」 |
 | (V3, E1) の上限切れ（※7） | `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine` |
 | 不変条件1（V7 について） | `engineStatus.test.ts` の「エンジンが終了したら、検討の意思があっても検討中と言わない」 |
@@ -152,7 +153,7 @@ P5 は実測で作れる（[測定](../../research/engines/usi-measurements.md)�
 
 ## 埋まっていないセル
 
-**上の表に無いセルは全部未検証。** 実装の順と掛ける継ぎ目は仕様の追跡表。
+**上の表に無いセルは未検証。** 第2範囲（終了条件）の V5 の入り方と E9 の条件は #107 #110 で埋める。
 
 既存の継ぎ目で踏めるのは次の見込み。
 

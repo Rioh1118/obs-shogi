@@ -86,7 +86,7 @@ export interface AnalysisContextType {
    * `docs/state-transitions/analysis.md` の ※15。ここでは数え上げない）。
    * **読む局面が無い回だけは断りを立てずに reject する**——その状態では ▶ が
    * `disabled` なので、画面に出す先が無い。
-   * **その断りの読み手はまだ0**（→ #277）ので、いまは呼び手の `console.error` で終わる。
+   * 断りは帯が出す（`AnalysisRefusalBridge`）。
    *
    * **要らなくなった要求は静かに resolve する**——畳まれた・止められた・読む局面が
    * 無くなった回。その失敗を出しても、出す先の画面がもう無いか、利用者が既に降りている。

@@ -1,5 +1,6 @@
 export { AnalysisProvider } from "./model/provider";
 export { useAnalysis } from "./model/useAnalysis";
+export { refusalNeedsRestart } from "./model/refusals";
 
 export type { AnalysisState, PositionSyncAdapter } from "./model/types";
 

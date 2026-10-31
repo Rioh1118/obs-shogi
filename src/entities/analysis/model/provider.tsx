@@ -515,7 +515,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         //
         // **画面に触るのは門の後ろ。** `clear_results` は `error` も消すので
         // （`reducer.ts`）、要らなくなった要求がここを通ると、直前に立った
-        // 打ち切りの `error` が黙って消える（その `error` の読み手はまだ0 → #277）。
+        // 打ち切りの `error` が黙って消える 。
         if (supersededSince(seq)) return;
 
         // 自動再開はどの失敗でも黙って降りる。押した人が居ないうえ、エンジンが
@@ -530,7 +530,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         // **上流の文をそのまま載せない。** ここに入る `e` は Rust の英文
         // （`take_session` の断りなど）で、`state.error` は画面へ出す欄
-        // （読み手はまだ0 → #277）。中身は `console.error` にだけ残す。
+        // 。中身は `console.error` にだけ残す。
         console.error("[ANALYSIS] restart failed", e);
         dispatch({ type: "set_error", payload: RESTART_FAILED_MESSAGE });
         dispatch({ type: "stop_analysis" });

@@ -90,7 +90,7 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 - 「設定を開く」の行き先は設定のエンジン管理タブ（`useOpenSettings`）
 - V0 はプリセットが選ばれていない回だけ。選んだプリセットのエンジンが無い回は V8 に入る
 - 脚注は既存の規則のまま、どの状態でも4つの欄を出す。値が無ければ `—`
-- 文言は `docs/spec/design-language.md` の「言葉」に揃える。`refusals.ts` の「起こし直す」は「再起動する」へ替える
+- 文言は `docs/spec/design-language.md` の「言葉」に揃える
 
 ### 候補手の見え方
 
@@ -248,7 +248,7 @@ main にあるか: **一部。** オプションの編集はある（[プリセ�
 | L2 L3 L9    | AC-17                       | V6 V7 V8                             | `analysisControlsStatus.test.tsx`、`bridge.rs` の `endings`（出力は `summarize_recent`） |
 | L2 L3 L9    | AC-18 AC-19                 | (V3,E8) (V3,E10)、不変条件2          | `bridge.rs` の `a_position_during_a_search_goes_out_only_after_the_stop`、`entities/analysis` の「検討中に局面を続けて動かす回」。実機は PR に記録 |
 | L2 L3 L9    | AC-20 AC-21 AC-60           | (V3,E1) (V3,E14) (V4,E1)             | AC-60: `bridge.rs` の `shutting_down_during_a_silent_search_ends_the_engine`。AC-21: `entities/analysis` の「中断と棋譜を閉じる回」。AC-20: `entities/analysis` の「検討の意思」 |
-| L2 L3 L9    | AC-23                       | (V2,E16) (V3,E16)、※6                | `analysisRefusals.test.ts` ＋ 描画                            |
+| L2 L3 L9    | AC-23                       | (V2,E16) (V3,E16)、※6                | `analysisRefusals.test.ts`、`analysisRefusalBridge.test.tsx`  |
 | L9          | AC-25 AC-26 AC-27 AC-30     | (V3,E9)                              | AC-26 の「自分で探索を終える」: `bridge.rs` の `endings`、`entities/analysis` の provider。残りは `protocol.rs` の `go` の行、台本。実機は `research/engines/` の手順 |
 | L9          | AC-28 AC-29 AC-62           | (V5,E8) (V5,E4)                      | `entities/analysis` の provider                              |
 | L9          | AC-31 AC-32                 | —                                    | `presets.rs` の持ち回り（既存の `analysis` の知らない欄）＋ 描画 |
