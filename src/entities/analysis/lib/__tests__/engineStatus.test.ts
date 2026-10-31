@@ -4,6 +4,7 @@ import { engineStatusOf } from "../engineStatus";
 
 const analysis = (isAnalyzing: boolean, finished = false, analyzedSfen: string | null = "P1") => ({
   isAnalyzing,
+  starting: false,
   finished,
   analyzedSfen,
 });
@@ -124,5 +125,12 @@ describe("操作列が言う語", () => {
         currentSfen: "P1",
       }),
     ).toBe("failed");
+  });
+
+  it("▶ を押した時点で検討中", () => {
+    const pressed = { ...analysis(false), starting: true };
+    expect(engineStatusOf({ ...base, phase: "ready", analysis: pressed, currentSfen: "P1" })).toBe(
+      "analyzing",
+    );
   });
 });

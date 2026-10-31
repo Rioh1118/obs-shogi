@@ -943,8 +943,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     const running = startInFlightRef.current;
     if (running) return running;
 
+    // **語は押した時点で変える。** 席を返す往復と局面の同期の間、画面が動かないと
+    // 成功しているのか死んでいるのかが分からない
+    dispatch({ type: "begin_start" });
     const started = startInfiniteAnalysis().finally(() => {
       startInFlightRef.current = null;
+      dispatch({ type: "end_start" });
     });
     startInFlightRef.current = started;
     return started;

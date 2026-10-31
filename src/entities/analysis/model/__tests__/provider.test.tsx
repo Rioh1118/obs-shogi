@@ -2814,3 +2814,40 @@ describe("検討の意思", () => {
     expect(startCore).not.toHaveBeenCalled();
   });
 });
+
+/** (V2, E3) AC-7 */
+describe("▶ を押した時点", () => {
+  it("席が返る前に語が変わり、席が返っても自動再開と重ならず、断られたら戻る", async () => {
+    let answer: (id: string) => void = () => {};
+    startCore.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    await act(async () => {
+      void view.current.startInfiniteAnalysis();
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(view.current.state.starting).toBe(true);
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    await act(async () => {
+      answer("session-1");
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(view.current.state.starting).toBe(false);
+    expect(view.current.state.isAnalyzing).toBe(true);
+    await advance(waits().restartDebounceMs * 2);
+    expect(startCore).toHaveBeenCalledTimes(1);
+  });
+
+  it("断られたら語が戻る", async () => {
+    startCore.mockRejectedValueOnce(new Error("Analysis already running"));
+    const view = mountAnalysis(adapter("P1", "P1"));
+
+    await act(async () => {
+      await view.current.startInfiniteAnalysis().catch(() => {});
+    });
+
+    expect(view.current.state.starting).toBe(false);
+    expect(view.current.state.isAnalyzing).toBe(false);
+  });
+});

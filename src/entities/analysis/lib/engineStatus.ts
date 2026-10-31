@@ -31,7 +31,7 @@ type Inputs = {
   notReadyReason: EngineNotReadyReason | null;
   /** 起動の失敗の種類。`phase === "error"` のときだけ非 null */
   failureKind: EngineStartFailureKind | null;
-  analysis: Pick<AnalysisState, "isAnalyzing" | "finished" | "analyzedSfen">;
+  analysis: Pick<AnalysisState, "isAnalyzing" | "starting" | "finished" | "analyzedSfen">;
   /** 盤の局面 */
   currentSfen: string | null;
 };
@@ -58,7 +58,7 @@ export function engineStatusOf({
   if (notReadyReason === "starting") return "starting";
   // 選んだプリセットが未設定（起動を試みていないので `phase` は動かない）
   if (notReadyReason === "failed") return "failed";
-  if (!analysis.isAnalyzing) return "standing-by";
+  if (!analysis.isAnalyzing && !analysis.starting) return "standing-by";
   if (analysis.finished && analysis.analyzedSfen === currentSfen) return "finished";
   return "analyzing";
 }

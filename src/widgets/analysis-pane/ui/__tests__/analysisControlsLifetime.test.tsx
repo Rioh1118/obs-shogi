@@ -15,7 +15,7 @@ import { MemoryRouter } from "react-router";
  * タブを移っても畳まれない）の仕事。
  */
 const analysis = {
-  state: { isAnalyzing: true, finished: false, analyzedSfen: "sfen" },
+  state: { isAnalyzing: true, starting: false, finished: false, analyzedSfen: "sfen" },
   startInfiniteAnalysis: vi.fn(),
   stopAnalysis: vi.fn(),
 };
