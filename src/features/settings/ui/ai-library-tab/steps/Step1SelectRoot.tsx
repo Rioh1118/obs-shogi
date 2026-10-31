@@ -26,7 +26,7 @@ export function Step1SelectRoot({ state, aiRoot, onSelect }: Props) {
       </StepTree>
 
       <div className="aiLibraryTab__stepAction">
-        <Button tone="primary" size="sm" onClick={onSelect}>
+        <Button tone="accent" size="sm" onClick={onSelect}>
           <FolderOpen size={14} style={{ marginRight: 6 }} />
           フォルダを選択…
         </Button>

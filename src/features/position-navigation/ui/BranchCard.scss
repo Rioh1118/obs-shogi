@@ -13,9 +13,9 @@
   &__move-pill {
     font-size: 15px;
     font-weight: index.$weight-strong;
-    color: index.$color-secondary-dark;
+    color: index.$color-accent-text;
     padding: 6px 12px;
-    border-radius: index.$radius-3;
+    border-radius: index.$radius-2;
 
     background: linear-gradient(
       135deg,
@@ -30,7 +30,8 @@
   &__card {
     background: transparent;
     border: 1px solid index.$stroke;
-    border-radius: index.$radius-3;
+    position: relative;
+    border-radius: index.$radius-4;
     padding: 16px 20px;
     cursor: pointer;
 
@@ -46,7 +47,7 @@
       border-color 0.15s ease,
       background-color 0.15s ease;
 
-    &:hover {
+    &:hover:not(.branch-selector__card--selected) {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       border-color: rgba(index.$color-secondary-dark, 0.3);
@@ -54,8 +55,9 @@
 
     &--selected {
       background: rgba(index.$color-primary-light, 0.45);
-      box-shadow: inset 3px 0 0 index.$color-secondary-dark;
       color: index.$color-text-light-1;
+
+      @include index.selected-bar;
 
       .branch-selector__label {
         color: index.$color-text-primary;
@@ -98,7 +100,7 @@
   }
 
   &__sequence-icon {
-    color: rgba(index.$color-secondary-dark, 0.6);
+    color: index.$color-accent-text;
     font-weight: index.$weight-strong;
     font-size: 14px;
   }

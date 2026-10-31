@@ -138,7 +138,7 @@ export default function UpdaterScreen() {
               <Button
                 size="sm"
                 radius="pill"
-                tone="primary"
+                tone="accent"
                 onClick={() => void downloadAndInstall()}
               >
                 <Download size={13} strokeWidth={2.2} />
@@ -147,7 +147,7 @@ export default function UpdaterScreen() {
             </>
           )}
           {status.phase === "ready" && (
-            <Button size="sm" radius="pill" tone="primary" onClick={() => void restart()}>
+            <Button size="sm" radius="pill" tone="accent" onClick={() => void restart()}>
               <RefreshCw size={13} strokeWidth={2.2} />
               いま再起動
             </Button>

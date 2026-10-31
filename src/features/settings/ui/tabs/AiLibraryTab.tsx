@@ -462,7 +462,7 @@ export default function AiLibraryTab() {
               description="決めたルールのフォルダ構成でファイルを置くと自動検出します。"
               right={
                 <div className="aiLibraryTab__fieldActions">
-                  <Button tone="primary" size="sm" onClick={onPick}>
+                  <Button tone="accent" size="sm" onClick={onPick}>
                     <FolderOpen size={16} style={{ marginRight: 6 }} />
                     選択…
                   </Button>
@@ -496,6 +496,7 @@ export default function AiLibraryTab() {
               {/* 出すのは「無い」と読めている回だけ。分類の理由は `EnginesDir` の doc */}
               {canCreateEnginesDir(enginesDir) && (
                 <Button
+                  tone="accent"
                   size="sm"
                   onClick={onEnsureEngines}
                   disabled={!canOperate || scan.status === "loading"}

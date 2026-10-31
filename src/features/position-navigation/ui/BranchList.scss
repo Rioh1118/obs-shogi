@@ -20,7 +20,7 @@
     transform: translateY(var(--cursor-y, 0px));
     opacity: var(--cursor-o, 0);
 
-    border-radius: index.$radius-3;
+    border-radius: index.$radius-4;
 
     background: transparent;
     border: 1px solid rgba(index.$color-secondary-dark, 0.45);
@@ -33,16 +33,6 @@
       height 160ms ease,
       opacity 120ms ease;
 
-    &::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 10px;
-      bottom: 10px;
-      width: 4px;
-      border-radius: 999px;
-      background: rgba(index.$color-secondary-dark, 0.95);
-    }
   }
 
   &__card[data-in-view="false"]:not(.branch-selector__card--selected) {

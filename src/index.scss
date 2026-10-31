@@ -13,6 +13,11 @@ $color-secondary-dark-2: #a57d5c;
 // 押そうとしている瞬間にいちばん読みにくくなる
 $color-secondary-solid: #8f6b4e; // 白文字 4.79:1
 $color-secondary-solid-hover: #866549; // 白文字 5.29:1
+// 確定のボタンの面。砂色の文字と同じ素材にして、暗い文字を載せる（$color-primary-black で 11.1:1）
+$color-commit-solid: $color-secondary-light;
+$color-commit-solid-hover: #e8e4d9;
+// 進めるボタンの銅の文字。$color-secondary-dark は暗い面で 4.2:1 なので一段上げる（6.22:1）
+$color-accent-text: #c29a78;
 
 $color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
@@ -266,3 +271,18 @@ $stroke-strong: rgba($color-white, 0.16);
 $focus-ring: rgba($color-secondary-dark, 0.85);
 
 // このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される
+
+// 選択を示す左の銅の縦棒。影で引くと角丸に沿って曲がるので、独立した要素で描く。
+// 呼び手は `position: relative` を持つこと
+@mixin selected-bar {
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0.4rem;
+    top: 0.8rem;
+    bottom: 0.8rem;
+    width: 0.3rem;
+    border-radius: $radius-pill;
+    background: $color-secondary-dark;
+  }
+}

@@ -15,10 +15,9 @@
     display: inline-flex;
     align-self: flex-start;
 
-    // 帯に面を敷かない。敷くと選択中の面との差が 1.4:1 まで潰れ、
-    // どちらが選ばれているか見た目で読めなくなる
+    // 帯に面を敷かない。選択は銅の縦棒が示すので、帯の面は要らない
     border: 1px solid index.$stroke;
-    border-radius: index.$radius-6;
+    border-radius: index.$radius-4;
     padding: index.$space-2;
   }
 
@@ -27,8 +26,9 @@
     border: none;
     background: transparent;
 
+    position: relative;
     padding: index.$space-4 index.$space-6;
-    border-radius: index.$radius-5;
+    border-radius: index.$radius-3;
 
     font-size: index.$font-body;
     font-weight: index.$weight-strong;
@@ -45,18 +45,15 @@
       color: index.$color-text-primary;
     }
 
-    // 選択中はホバーで見た目を変えない。面はもう主ボタンの色で、
-    // 詳細度が同じなので記述順だけで勝敗が決まる形にしない
+    // 選択は左の銅のバーで見せる。ホバーで見た目を変えないよう、同じ宣言を両方へ掛ける
+    &.is-active,
     &.is-active:hover {
-      background: index.$color-secondary-solid;
-      color: index.$color-white;
+      background: rgba(index.$color-primary-light, 0.45);
+      color: index.$color-text-primary;
     }
 
-    // 選択中は主ボタンと同じ面に置く。カードに対して 3.33:1 の段差があるので
-    // 面そのものが手掛かりになる（白文字は 4.79:1）
     &.is-active {
-      background: index.$color-secondary-solid;
-      color: index.$color-white;
+      @include index.selected-bar;
     }
 
     &:focus-visible {

@@ -21,7 +21,7 @@
 }
 
 .tags-input__label-icon {
-  color: index.$color-secondary-dark-2;
+  color: index.$color-accent-text;
   transition: color 0.2s ease;
 }
 
@@ -205,17 +205,12 @@
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: none;
-  background: index.$color-secondary-solid;
-  color: index.$color-white;
-  box-shadow: index.$shadow-control-press;
+  border: 1px solid index.$color-secondary-dark;
+  background: transparent;
+  color: index.$color-accent-text;
 
-  // 静止とホバーは面の色で分ける。opacity で薄くすると文字も一緒に薄まり、
-  // 4.79:1 のはずの白文字が実測 4.23:1 まで落ちる
   &:hover:not(:disabled) {
-    background: index.$color-secondary-solid-hover;
-    transform: translateY(-0.1rem) scale(1.05);
-    box-shadow: index.$shadow-control;
+    border-color: index.$color-accent-text;
   }
 
   &:active:not(:disabled) {

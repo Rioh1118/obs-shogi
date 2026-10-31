@@ -34,7 +34,7 @@ function WelcomeScreen() {
           <div className="welcome-screen__actions">
             {/* **保存先を渡さない。** ここからは `dir=` が決まらないので、
                 組む面の保存先の欄が受け持つ */}
-            <Button tone="primary" onClick={() => openModal("create-file")}>
+            <Button tone="accent" onClick={() => openModal("create-file")}>
               棋譜を作成
             </Button>
           </div>

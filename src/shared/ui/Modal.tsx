@@ -8,10 +8,10 @@ import { createPortal } from "react-dom";
 const FOCUSABLE =
   'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
-type ModalTheme = "light" | "dark";
+type ModalTheme = "dark";
 type ModalVariant = "dialog" | "workspace";
 type ModalSize = "sm" | "md" | "lg" | "xl";
-type ModalChrome = "card" | "none";
+type ModalChrome = "card";
 type ModalScroll = "card" | "content" | "none";
 
 interface ModalProps {

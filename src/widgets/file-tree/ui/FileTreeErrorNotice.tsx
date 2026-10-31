@@ -51,14 +51,14 @@ export default function FileTreeErrorNotice({
               閉じる
             </Button>
           )}
-          {/* 両方出るときは、直る見込みのある読み直しを主にする */}
+          {/* 両方出るときは、直る見込みのある読み直しを `accent` にする */}
           {fallback && (
-            <Button tone={canRetry ? "neutral" : "primary"} onClick={fallback.run}>
+            <Button tone={canRetry ? "neutral" : "accent"} onClick={fallback.run}>
               {fallback.label}
             </Button>
           )}
           {canRetry && (
-            <Button tone="primary" onClick={onRetry} isLoading={isRetrying}>
+            <Button tone="accent" onClick={onRetry} isLoading={isRetrying}>
               {isRetrying ? "読み込み中…" : "もう一度読み込む"}
             </Button>
           )}
