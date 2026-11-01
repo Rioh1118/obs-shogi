@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import type { GameEvent, GameId, GameSettings } from "../api/rust-types";
-import type { AsyncResult } from "@/shared/lib/result";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
+import type { GameSessionContextValue } from "../model/context";
 import type { GameRuling, RulingAdapter } from "../model/types";
 
 /**
@@ -38,6 +39,7 @@ const events = vi.hoisted(() => ({
   emit: null as ((event: GameEvent) => void) | null,
   unlisten: vi.fn(),
   fail: null as string | null,
+  gate: null as Promise<void> | null,
 }));
 
 vi.mock(
@@ -46,6 +48,7 @@ vi.mock(
     ({
       GAME_EVENT: "game-event",
       listenToGameEvents: async (callback: (event: GameEvent) => void) => {
+        await events.gate;
         if (events.fail !== null) throw new Error(events.fail);
         events.emit = callback;
         return events.unlisten;
@@ -101,12 +104,28 @@ function Body() {
 
 let starter: (() => Promise<void>) | null = null;
 let closer: (() => AsyncResult<void>) | null = null;
+let latest: GameSessionContextValue | null = null;
 
 function Starter() {
-  const { start, closeSession } = useGameSession();
+  const context = useGameSession();
+  const { start, closeSession } = context;
   starter = () => start({ settings: SETTINGS, kifuPath: "/w/a.kif" });
   closer = closeSession;
+  latest = context;
   return null;
+}
+
+/** いま provider が配っている値。`Starter` が描かれなかったら投げる */
+function session(): GameSessionContextValue {
+  if (latest === null) throw new Error("Starter が描かれていない");
+  return latest;
+}
+
+/** `JSON.stringify` が投げる値 */
+function cyclic(): unknown {
+  const value: { self?: unknown } = {};
+  value.self = value;
+  return value;
 }
 
 /**
@@ -152,8 +171,10 @@ async function emit(event: GameEvent) {
 beforeEach(() => {
   events.emit = null;
   events.fail = null;
+  events.gate = null;
   starter = null;
   closer = null;
+  latest = null;
   tauri.startGame.mockResolvedValue(GAME_ID);
   vi.clearAllMocks();
   tauri.startGame.mockResolvedValue(GAME_ID);
@@ -570,5 +591,472 @@ describe("対局の進行", () => {
     });
 
     expect(kindText()).toBe("live");
+  });
+});
+
+describe("画面へ渡す姿", () => {
+  const RUNNING_CLOCKS = {
+    ...CLOCKS,
+    running: { side: "white" as const, mainZeroAt: 1, byoyomiZeroAt: 2 },
+  };
+
+  test("対局中は、席と手番と時計と指し手を渡す", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await session().start({
+        settings: {
+          ...SETTINGS,
+          white: { kind: "engine", name: "水匠", enginePath: "/e/suisho" },
+          initialMoves: ["2g2f"],
+        },
+        kifuPath: "/w/a.kif",
+      });
+    });
+
+    await emit({ type: "turnChanged", gameId: GAME_ID, side: "white", clocks: RUNNING_CLOCKS });
+
+    expect(session().view).toEqual({
+      kind: "live",
+      gameId: GAME_ID,
+      kifuPath: "/w/a.kif",
+      blackName: "先手",
+      whiteName: "水匠",
+      humanSides: ["black"],
+      toMove: "white",
+      clocks: RUNNING_CLOCKS,
+      usiMoves: ["2g2f"],
+      awaitingRuling: false,
+      rulingFailure: null,
+      boardFailure: null,
+    });
+  });
+
+  test("最初の出来事が届くまで、時計は `null` のまま", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    const { view } = session();
+    expect(view.kind === "live" ? view.clocks : "live でない").toBeNull();
+  });
+
+  test("手が決まってから手番が移るまでが裁定待ち", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    await emit({
+      type: "moveDecided",
+      gameId: GAME_ID,
+      side: "black",
+      usiMove: "7g7f",
+      elapsedMs: 1000,
+      clocks: CLOCKS,
+    });
+    expect(session().view).toMatchObject({ awaitingRuling: true, usiMoves: ["7g7f"] });
+
+    await emit({ type: "turnChanged", gameId: GAME_ID, side: "white", clocks: CLOCKS });
+    expect(session().view).toMatchObject({ awaitingRuling: false, toMove: "white" });
+  });
+
+  test("終局は、結末と終局時の時計を渡す", async () => {
+    const result = { winner: "black", reason: "resign", detail: null } as const;
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    await emit({ type: "over", gameId: GAME_ID, result, clocks: RUNNING_CLOCKS });
+
+    expect(session().view).toEqual({
+      kind: "over",
+      gameId: GAME_ID,
+      kifuPath: "/w/a.kif",
+      blackName: "先手",
+      whiteName: "後手",
+      result,
+      clocks: RUNNING_CLOCKS,
+      usiMoves: [],
+      rulingFailure: null,
+      boardFailure: null,
+      engineClosed: true,
+      closeFailure: null,
+    });
+  });
+
+  test("`clockUpdated` は時計だけを動かし、指し手列の同一性を変えない", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    const { view: before } = session();
+
+    await emit({ type: "clockUpdated", gameId: GAME_ID, clocks: RUNNING_CLOCKS });
+
+    const { view: after } = session();
+    if (before.kind !== "live" || after.kind !== "live") throw new Error("live でない");
+    expect(after.clocks).toEqual(RUNNING_CLOCKS);
+    expect(after.usiMoves).toBe(before.usiMoves);
+  });
+
+  test("読み筋の出来事は姿を変えない", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    const { view: before } = session();
+
+    await emit({
+      type: "searchInfo",
+      gameId: GAME_ID,
+      side: "black",
+      result: {} as Extract<GameEvent, { type: "searchInfo" }>["result"],
+    });
+
+    expect(session().view).toBe(before);
+  });
+
+  test("始められなかったら、棋譜の場所と断りの文言を渡す", async () => {
+    tauri.startGame.mockRejectedValueOnce("engine did not answer usiok");
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    expect(session().view).toEqual({
+      kind: "failed",
+      kifuPath: "/w/a.kif",
+      message: "engine did not answer usiok",
+    });
+  });
+
+  test("購読が張れなければ、`idle` にその文言を載せる", async () => {
+    events.fail = "listen failed";
+    mount(alwaysContinue);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(session().view).toEqual({ kind: "idle", eventsUnavailable: "listen failed" });
+  });
+
+  test("棋譜へ積めなかったことを載せ、`null` で取り消す", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    await act(async () => session().reportBoardFailure("保存できません"));
+    expect(session().view).toMatchObject({ boardFailure: "保存できません" });
+
+    await act(async () => session().reportBoardFailure(null));
+    expect(session().view).toMatchObject({ boardFailure: null });
+  });
+
+  test("対局が無いときの棋譜の失敗は捨てる", async () => {
+    mount(alwaysContinue);
+
+    await act(async () => session().reportBoardFailure("保存できません"));
+
+    expect(session().view).toEqual({ kind: "idle", eventsUnavailable: null });
+  });
+});
+
+describe("始められるかの判定", () => {
+  test("対局が無ければ `null` を返す", async () => {
+    mount(alwaysContinue);
+
+    expect(await session().startRefusal()).toBeNull();
+  });
+
+  test("走っている対局があれば `held` を返す", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    expect(await session().startRefusal()).toBe("held");
+  });
+
+  test("エンジンを落とせなかった終局は `held` のまま", async () => {
+    tauri.closeGame.mockRejectedValueOnce(new Error("the game is busy"));
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    await emit({
+      type: "over",
+      gameId: GAME_ID,
+      result: { winner: "black", reason: "resign", detail: null },
+      clocks: CLOCKS,
+    });
+
+    expect(await session().startRefusal()).toBe("held");
+  });
+
+  test("落とし終えた終局と始め損ねた対局は `null` を返す", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    await emit({
+      type: "over",
+      gameId: GAME_ID,
+      result: { winner: "black", reason: "resign", detail: null },
+      clocks: CLOCKS,
+    });
+    expect(await session().startRefusal()).toBeNull();
+
+    tauri.startGame.mockRejectedValueOnce(new Error("engine did not answer usiok"));
+    await act(async () => {
+      await startOnce();
+    });
+    expect(await session().startRefusal()).toBeNull();
+  });
+
+  test("購読が張れていなければ `events-unavailable` を返す", async () => {
+    events.fail = "listen failed";
+    mount(alwaysContinue);
+
+    expect(await session().startRefusal()).toBe("events-unavailable");
+  });
+
+  test("購読の結果が出るまで待ってから答える", async () => {
+    let settle: () => void = () => {};
+    events.gate = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    events.fail = "listen failed";
+    mount(alwaysContinue);
+
+    let answer: string | null | undefined;
+    await act(async () => {
+      void session()
+        .startRefusal()
+        .then((refusal) => {
+          answer = refusal;
+        });
+      await Promise.resolve();
+    });
+    expect(answer).toBeUndefined();
+
+    await act(async () => {
+      settle();
+      await events.gate;
+    });
+    expect(answer).toBe("events-unavailable");
+  });
+});
+
+describe("`startGame` の待ちの間", () => {
+  /** 解決を手で進める `startGame` を置く */
+  function holdStart() {
+    let resolve: (id: GameId) => void = () => {};
+    let reject: (reason: unknown) => void = () => {};
+    tauri.startGame.mockReturnValueOnce(
+      new Promise<GameId>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      }),
+    );
+    return {
+      resolve: (id: GameId) => resolve(id),
+      reject: (reason: unknown) => reject(reason),
+    };
+  }
+
+  test("溜めた出来事を届いた順に流し直す", async () => {
+    const held = holdStart();
+    mount(alwaysContinue);
+    let pending: Promise<void> | undefined;
+    await act(async () => {
+      pending = startOnce();
+    });
+
+    await act(async () => {
+      for (const usiMove of ["7g7f", "3c3d"]) {
+        events.emit?.({
+          type: "moveDecided",
+          gameId: GAME_ID,
+          side: "black",
+          usiMove,
+          elapsedMs: 1,
+          clocks: CLOCKS,
+        });
+      }
+      held.resolve(GAME_ID);
+      await pending;
+    });
+
+    expect(session().view).toMatchObject({ usiMoves: ["7g7f", "3c3d"] });
+    expect(tauri.continueGame).toHaveBeenLastCalledWith(GAME_ID, ["7g7f", "3c3d"]);
+  });
+
+  test("溜めた中の別の対局の出来事は流し直しで捨てる", async () => {
+    const held = holdStart();
+    mount(alwaysContinue);
+    let pending: Promise<void> | undefined;
+    await act(async () => {
+      pending = startOnce();
+    });
+
+    await act(async () => {
+      events.emit?.({
+        type: "over",
+        gameId: "other" as GameId,
+        result: { winner: "black", reason: "resign", detail: null },
+        clocks: CLOCKS,
+      });
+      held.resolve(GAME_ID);
+      await pending;
+    });
+
+    expect(kindText()).toBe("live");
+    expect(tauri.closeGame).not.toHaveBeenCalled();
+  });
+
+  test("起動が失敗したら、溜めた出来事を次の対局へ持ち越さない", async () => {
+    const held = holdStart();
+    mount(alwaysContinue);
+    let pending: Promise<void> | undefined;
+    await act(async () => {
+      pending = startOnce();
+    });
+    await act(async () => {
+      events.emit?.({
+        type: "over",
+        gameId: GAME_ID,
+        result: { winner: "white", reason: "engineFailure", detail: null },
+        clocks: CLOCKS,
+      });
+      held.reject(new Error("engine did not answer usiok"));
+      await pending;
+    });
+    expect(kindText()).toBe("failed");
+
+    await act(async () => {
+      await startOnce();
+    });
+
+    expect(kindText()).toBe("live");
+  });
+
+  test("待っている間に手放した対局は、解決したら閉じる", async () => {
+    const held = holdStart();
+    mount(alwaysContinue);
+    let pending: Promise<void> | undefined;
+    await act(async () => {
+      pending = startOnce();
+    });
+    await act(async () => {
+      await session().closeSession();
+    });
+    expect(kindText()).toBe("idle");
+    expect(tauri.closeGame).not.toHaveBeenCalled();
+
+    await act(async () => {
+      held.resolve(GAME_ID);
+      await pending;
+    });
+
+    expect(tauri.closeGame).toHaveBeenCalledWith(GAME_ID);
+    expect(kindText()).toBe("idle");
+  });
+
+  test("待っている間に手放した対局の断りは、次の対局へ書かない", async () => {
+    const held = holdStart();
+    mount(alwaysContinue);
+    let pending: Promise<void> | undefined;
+    await act(async () => {
+      pending = startOnce();
+    });
+    await act(async () => {
+      await session().closeSession();
+      await startOnce();
+    });
+
+    await act(async () => {
+      held.reject(new Error("engine did not answer usiok"));
+      await pending;
+    });
+
+    expect(kindText()).toBe("live");
+  });
+});
+
+describe("操作の断り", () => {
+  test("対局が無ければ呼ばずに断る", async () => {
+    mount(alwaysContinue);
+
+    await expect(session().submitMove("black", "7g7f")).resolves.toEqual(
+      Err("対局が走っていません"),
+    );
+    await expect(session().resign("black")).resolves.toEqual(Err("対局が走っていません"));
+    await expect(session().abort()).resolves.toEqual(Err("対局が走っていません"));
+    expect(tauri.submitGameMove).not.toHaveBeenCalled();
+    expect(tauri.resignGame).not.toHaveBeenCalled();
+    expect(tauri.abortGame).not.toHaveBeenCalled();
+  });
+
+  test("通した操作は対局の識別子を付けて呼び、`Ok` を返す", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    await expect(session().submitMove("black", "7g7f")).resolves.toEqual(Ok(undefined));
+    await expect(session().resign("white")).resolves.toEqual(Ok(undefined));
+    await expect(session().abort()).resolves.toEqual(Ok(undefined));
+
+    expect(tauri.submitGameMove).toHaveBeenCalledWith(GAME_ID, "black", "7g7f");
+    expect(tauri.resignGame).toHaveBeenCalledWith(GAME_ID, "white");
+    expect(tauri.abortGame).toHaveBeenCalledWith(GAME_ID);
+  });
+
+  test.each([
+    ["文字列", "game is already over", "game is already over"],
+    ["Error", new Error("the game is busy"), "the game is busy"],
+    ["オブジェクト", { code: 1 }, '{"code":1}'],
+    ["空のオブジェクト", {}, "原因を取得できませんでした"],
+    ["undefined", undefined, "原因を取得できませんでした"],
+    ["循環参照", cyclic(), "原因を取得できませんでした"],
+  ])("断りの文言: %s", async (_name, rejection, message) => {
+    tauri.submitGameMove.mockRejectedValueOnce(rejection);
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+
+    await expect(session().submitMove("black", "7g7f")).resolves.toEqual(Err(message));
+  });
+
+  test("閉じられなかった対局は手放さず、呼び直せる", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    tauri.closeGame.mockRejectedValueOnce(new Error("the game is busy"));
+
+    let closed: Awaited<ReturnType<NonNullable<typeof closer>>> | undefined;
+    await act(async () => {
+      closed = await closer?.();
+    });
+    expect(closed).toEqual(Err("the game is busy"));
+    expect(kindText()).toBe("live");
+
+    await act(async () => {
+      closed = await closer?.();
+    });
+    expect(closed).toEqual(Ok(undefined));
+    expect(kindText()).toBe("idle");
+  });
+
+  test("対局が無ければ閉じても何も起きない", async () => {
+    mount(alwaysContinue);
+
+    await expect(session().closeSession()).resolves.toEqual(Ok(undefined));
+    expect(tauri.closeGame).not.toHaveBeenCalled();
   });
 });
