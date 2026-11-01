@@ -2,18 +2,14 @@ import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "reac
 
 import type { FileConflictRequest, FileTreeNode, SelectNodeOptions } from "./types";
 import { FileTreeContext } from "./context";
-import { reducer } from "./reducer";
-import { initialState } from "./types";
+import { initialState, reducer } from "./reducer";
 
 import * as api from "../api/service";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 import { type KifuCreationOptions } from "@/entities/kifu/model/kifu";
-import {
-  findNodeChain,
-  isSameOrDescendantPath,
-  remapSubtreePath,
-  scrollNodeIntoView,
-} from "../lib/path";
+import { findNodeChain } from "../lib/findNodeChain";
+import { isSameOrDescendantPath, remapSubtreePath } from "../lib/path";
+import { scrollNodeIntoView } from "../lib/scrollNodeIntoView";
 import {
   isNameInputError,
   isResolvedByConflictDialog,

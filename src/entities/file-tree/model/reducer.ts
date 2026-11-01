@@ -1,5 +1,21 @@
 import type { FileTreeAction, FileTreeState } from "./types";
 
+export const initialState: FileTreeState = {
+  fileTree: null,
+  selectedNode: null,
+  activeKifuPath: null,
+  jkfData: null,
+  kifuFormat: null,
+  expandedNodes: new Set<string>(),
+  isLoading: false,
+  menu: null,
+  renamingNodeId: null,
+  creatingDirParentPath: null,
+  error: null,
+  kifuError: null,
+  conflict: null,
+};
+
 export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeState {
   switch (action.type) {
     case "loading":

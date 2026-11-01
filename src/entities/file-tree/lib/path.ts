@@ -1,35 +1,3 @@
-import type { FileTreeNode } from "../model/types";
-
-export function findNodeChain(
-  node: FileTreeNode,
-  targetPath: string,
-  chain: FileTreeNode[] = [],
-): FileTreeNode[] | null {
-  const nextChain = [...chain, node];
-
-  if (node.path === targetPath) return nextChain;
-
-  for (const child of node.children ?? []) {
-    const found = findNodeChain(child, targetPath, nextChain);
-    if (found) return found;
-  }
-
-  return null;
-}
-
-export function scrollNodeIntoView(path: string) {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const escaped =
-        window.CSS?.escape?.(path) ?? path.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-
-      const el = document.querySelector<HTMLElement>(`[data-node-path="${escaped}"]`);
-
-      el?.scrollIntoView({ block: "nearest" });
-    });
-  });
-}
-
 function trimTrailingSeparators(path: string): string {
   return path.replace(/[\\/]+$/, "");
 }

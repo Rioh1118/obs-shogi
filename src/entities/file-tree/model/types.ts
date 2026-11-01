@@ -174,22 +174,6 @@ export type FileTreeAction =
   | { type: "conflict_opened"; payload: FileConflictState }
   | { type: "conflict_closed" };
 
-export const initialState: FileTreeState = {
-  fileTree: null,
-  selectedNode: null,
-  activeKifuPath: null,
-  jkfData: null,
-  kifuFormat: null,
-  expandedNodes: new Set<string>(),
-  isLoading: false,
-  menu: null,
-  renamingNodeId: null,
-  creatingDirParentPath: null,
-  error: null,
-  kifuError: null,
-  conflict: null,
-};
-
 export type SelectNodeOptions = {
   /**
    * ツリー側が「もう開いている」と判断しても、開き直させる。
