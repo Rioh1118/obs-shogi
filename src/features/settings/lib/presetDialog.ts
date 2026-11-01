@@ -8,11 +8,6 @@ import { isSelectableEngine } from "@/features/settings/lib/presetEngineOptions"
 
 export const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
-export function deepClone<T>(v: T): T {
-  if (typeof structuredClone === "function") return structuredClone(v);
-  return JSON.parse(JSON.stringify(v));
-}
-
 export function clampInt(n: number, min: number, max: number) {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Math.trunc(n)));

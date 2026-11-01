@@ -43,7 +43,9 @@ export function parseSpinValue(value: string): bigint | null {
   return n < I64_MIN || n > I64_MAX ? null : n;
 }
 
-type Fit = { value: string } | { clampedTo: string } | { dropped: DroppedValue["reason"] };
+type SpinFit = { value: string } | { clampedTo: string };
+
+type Fit = SpinFit | { dropped: DroppedValue["reason"] };
 
 type SpinDef = Extract<UsiOptionDef, { type: "spin" }>;
 
@@ -52,10 +54,7 @@ type SpinDef = Extract<UsiOptionDef, { type: "spin" }>;
  * （送る側 `binding::user_value` と同じ）。画面の欄が確定する値もこれを通す——別に書くと、欄が確定した値を
  * 送る側が別の値として扱う
  */
-export function fitSpin(
-  def: SpinDef,
-  value: string,
-): { value: string } | { clampedTo: string } | null {
+export function fitSpin(def: SpinDef, value: string): SpinFit | null {
   const n = parseSpinValue(value);
   if (n == null) return null;
   const lo = def.min == null ? I64_MIN : BigInt(def.min);
@@ -103,7 +102,7 @@ export function fitValues(
   const defs = new Map(definitions.map((d) => [d.name, d]));
   const owned = new Set(reserved);
   const next: UsiOptionMap = {};
-  const clamped: FittedValues["clamped"] = [];
+  const clamped: ClampedValue[] = [];
   const dropped: DroppedValue[] = [];
 
   for (const [name, value] of Object.entries(options)) {

@@ -4,11 +4,6 @@ export function genPresetId(): PresetId {
   return crypto.randomUUID();
 }
 
-export function clonePreset<T>(v: T): T {
-  if (typeof structuredClone === "function") return structuredClone(v);
-  return JSON.parse(JSON.stringify(v));
-}
-
 /**
  * 新しく作るプリセットだけが持つ値。**他の名前はエンジン既定**（値を持たず、送らない）。
  *
@@ -56,7 +51,7 @@ function withDefaults(partial: Partial<EnginePreset>, options: UsiOptionMap): En
 export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
   const p = withDefaults(raw, {});
 
-  p.label = (p.label ?? "").trim() || "";
+  p.label = (p.label ?? "").trim();
   p.aiName = (p.aiName ?? "").trim();
   p.enginePath = (p.enginePath ?? "").trim();
   p.evalFilePath = (p.evalFilePath ?? "").trim();

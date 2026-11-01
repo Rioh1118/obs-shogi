@@ -3,6 +3,16 @@ import { describe, expect, test } from "vitest";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { createDefaultPreset, normalizeOnePreset } from "../normalize";
 
+describe("プリセットの文字の欄", () => {
+  test("前後の空白を落とし、空白だけの名前は空にする", () => {
+    const blank = normalizeOnePreset({ id: "p1", label: "  " } as Partial<EnginePreset>);
+    const named = normalizeOnePreset({ id: "p2", label: " 水匠 " } as Partial<EnginePreset>);
+
+    expect(blank.label).toBe("");
+    expect(named.label).toBe("水匠");
+  });
+});
+
 /**
  * 値の無い名前は**エンジン既定**（送らない）。読み込んだプリセットに値を足すと、利用者が選んでいない
  * 値をエンジンに送る

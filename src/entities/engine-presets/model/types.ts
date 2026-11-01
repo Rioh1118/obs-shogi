@@ -80,7 +80,7 @@ export function bookInUse(p: Pick<EnginePreset, "bookEnabled" | "bookFilePath">)
   return p.bookEnabled && (p.bookFilePath ?? "").trim() !== "";
 }
 
-export type AsyncStatus = "idle" | "loading" | "ok" | "error";
+type AsyncStatus = "idle" | "loading" | "ok" | "error";
 
 export type EnginePresetsState = {
   status: AsyncStatus;
@@ -116,7 +116,6 @@ export type EnginePresetsContextType = {
 
   selectedPreset: EnginePreset | null;
   runtimeConfig: EngineRuntimeConfig | null;
-  analysisDefaults: AnalysisDefaults | null;
   selectedPresetVersion: number;
 
   reload: () => Promise<void>;
@@ -129,18 +128,5 @@ export type EnginePresetsContextType = {
   createPreset: (partial?: Partial<EnginePreset>) => Promise<EnginePreset | null>;
   duplicatePreset: (id: PresetId) => Promise<EnginePreset | null>;
   updatePreset: (id: PresetId, patch: Partial<EnginePreset>) => Promise<boolean>;
-  mergeOptions: (id: PresetId, partial: UsiOptionMap) => Promise<boolean>;
   deletePreset: (id: PresetId) => Promise<boolean>;
-};
-
-export type EnginePresetsProviderProps = {
-  children: React.ReactNode;
-
-  /** AppConfig から注入（entity間依存を消す） */
-  aiRoot: string | null;
-  initialSelectedPresetId: PresetId | null;
-  onSelectedPresetIdChange?: (id: PresetId | null) => Promise<void> | void;
-
-  /** AppConfig のロード待ち等で Provider の初期化を遅らせたい時 */
-  enabled?: boolean;
 };

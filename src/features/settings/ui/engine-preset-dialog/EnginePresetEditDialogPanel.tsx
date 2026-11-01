@@ -10,7 +10,6 @@ import {
   basename,
   clampInt,
   cleanText,
-  deepClone,
   parseIntSafe,
 } from "@/features/settings/lib/presetDialog";
 import PresetDialogFooter from "./PresetDialogFooter";
@@ -188,7 +187,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     if (!open) return;
     if (!preset) return;
 
-    dispatch({ type: "opened", preset: deepClone(preset) });
+    dispatch({ type: "opened", preset: structuredClone(preset) });
     setErrors({});
   }, [open, preset]);
 

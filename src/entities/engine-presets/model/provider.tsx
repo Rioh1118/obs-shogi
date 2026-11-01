@@ -2,19 +2,16 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } f
 import { reducer } from "./reducer";
 import {
   initialState,
-  type AnalysisDefaults,
   type EnginePreset,
   type EnginePresetsContextType,
   type PresetId,
   type SaveFailure,
-  type UsiOptionMap,
 } from "./types";
 import { useAppConfig } from "@/entities/app-config";
 import { loadPresets, savePresets } from "../api/presets";
 import type { LoadedPresets } from "../api/rust-types";
 import { asSaveFailure } from "../lib/saveFailure";
 import {
-  clonePreset,
   createDefaultPreset,
   genPresetId,
   normalizeLoadedPresets,
@@ -145,19 +142,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [selectedPreset],
   );
 
-  const analysisDefaults = useMemo<AnalysisDefaults | null>(() => {
-    if (!selectedPreset) return null;
-
-    const a = selectedPreset.analysis;
-
-    return {
-      timeSeconds: a?.timeSeconds,
-      depth: a?.depth,
-      nodes: a?.nodes,
-      mateSearch: a?.mateSearch ?? false,
-    };
-  }, [selectedPreset]);
-
   const chooseInitialSelectedId = useCallback(
     (presets: EnginePreset[]): PresetId | null => {
       const preferred = config?.last_preset_id ?? null;
@@ -265,7 +249,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         const src = current.find((p) => p.id === id);
         if (!src) return null;
         made = normalizeOnePreset({
-          ...clonePreset(src),
+          ...structuredClone(src),
           id: genPresetId(),
           label: `${src.label} (copy)`,
         });
@@ -291,16 +275,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [mutate, touchPreset],
   );
 
-  const mergeOptions = useCallback(
-    async (id: PresetId, partial: UsiOptionMap) => {
-      const next = await mutate((current) =>
-        current.map((p) => (p.id === id ? { ...p, options: { ...p.options, ...partial } } : p)),
-      );
-      return next !== null;
-    },
-    [mutate],
-  );
-
   const deletePreset = useCallback(
     async (id: PresetId) => {
       const next = await mutate((current) => current.filter((p) => p.id !== id));
@@ -320,19 +294,16 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       state,
       selectedPreset,
       runtimeConfig,
-      analysisDefaults,
       selectedPresetVersion,
       reload,
       selectPreset,
       createPreset,
       duplicatePreset,
       updatePreset,
-      mergeOptions,
       deletePreset,
     }),
     [
       runtimeConfig,
-      analysisDefaults,
       state,
       selectedPreset,
       reload,
@@ -340,7 +311,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       createPreset,
       duplicatePreset,
       updatePreset,
-      mergeOptions,
       deletePreset,
       selectedPresetVersion,
     ],
