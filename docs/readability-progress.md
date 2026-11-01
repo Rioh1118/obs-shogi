@@ -53,7 +53,7 @@ ours 戦略のマージは使わない。
 | 17 | `refactor/tidy-file-tree-provider` | `src/entities/file-tree/model/provider.tsx`、改名の不具合と #507 | #682 | マージ済み |
 | 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | マージ済み |
 | 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | マージ済み |
-| 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | レビュー待ち |
+| 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | マージ済み |
 
 ## 語
 
@@ -90,7 +90,9 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 11 | `src/entities/search`                                    | 1587 | 済     | 済     |
 | 11b | `src/entities/book`                                     |  867 | 済     | 済     |
 | 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 済     | 済     |
-| 13 | `src/features/settings`                                  | 4778 | 未着手 | 未着手 |
+| 13 | `src/features/settings` の `ui/tabs`（`AiLibraryTab.tsx` 以外）、`ui/kit`、`ui/workspace-tab`、`ui/engine-tab`、`SettingsPanel` まわり、`model/tabs.ts` | 1389 | 済 | 済 |
+| 13b | `src/features/settings` の `ui/tabs/AiLibraryTab.tsx`、`ui/ai-library-tab` | 1599 | 未着手 | 未着手 |
+| 13c | `src/features/settings` の `ui/engine-preset-dialog`、`lib`、`model/presetDialogReducer.ts` | 1706 | 未着手 | 未着手 |
 | 14 | `src/features/position-search`、`src/features/position-editor` | 3186 | 未着手 | 未着手 |
 | 15 | `src/features` の残り                                    | 4409 | 未着手 | 未着手 |
 | 16 | `src/widgets`                                            | 5661 | 未着手 | 未着手 |
@@ -129,7 +131,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
 | `src/entities/analysis/model/provider.tsx` の hook の順 | ref の宣言が effect の後ろに散り、R-TSW-4 の順と違う。自動再開の状態機械を割る Issue #489 で動くので、そこで揃える |
 | `docs/state-transitions/analysis.md` の E11 の列、※1、不変条件1、3 の「席は握ったまま」 | ■ の停止が届かないと `reportUnreachable` で `isReady` が落ち、`onEngineGone` が欄を空ける。表の「握ったまま」は `isReady` を動かさない `provider.test.tsx` の mock でしか起きない。表とテストの mock を合わせて直す |
-| `src/features/settings/ui/tabs/WorkspaceTab.tsx` の `copyText` | `shared/api/clipboard` と同じ名前で別の本体を持つ。寄せられるかを本体で判定する |
 | `src/widgets/game-board/ui/PromotionDialog.tsx` の `promotionMap` | `positionDraft.ts` の `promotedKind` の写し。`src/widgets` の範囲で寄せると `PieceImage` の `kind` を `Kind` で受けられる |
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。`promotionMap` の行と合わせて寄せる |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
@@ -148,17 +149,18 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/file-tree/lib/dnd.ts` の `ALLOWED`、`getExt`、`findDropDirAt` | `knip` が未使用と数えている。`src/widgets` の範囲で見る |
 | `src/entities/kifu/api/parse.ts` の `parseKifuContentToJKF` | 形式を拡張子だけで決めるので、Finder で変えたファイルは本文と形式がずれたまま0手で載り、次の保存で本文を失う筋がある。未再現。指し手が0で本文が空でないときに開くのを断るかを、#210 と合わせて決める |
 | `src/features/position-search/ui/PositionSearchModal.tsx` の `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` | git に載っていない。`src/features/position-search` の範囲で実測の値だけを残す |
-| `src/entities/search/model/reducer.ts` の `open_start` | 根を変えても `warns` を残すので、前の根の絶対パスが設定の画面に残る。`src-tauri/src/search/announce.rs` の `warn_scan_failed` の doc は「開き直しても消えない」を前提にしている。`src/features/settings` の範囲で、根を変えたら消すかを決める |
 | `src/widgets/book-view/ui/BookView.tsx` の `body` の `switch` | 戻り値が `ReactNode` で `default` も無いので、`BookViewState` に `kind` を足しても tsc が落ちず、本体が空になる。`src/widgets` の範囲で `never` の網羅を足す |
 | `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。中止で前の定跡へ戻すかを `src/widgets` の範囲で決める |
 | `src/entities/book/model/provider.tsx` の辿る失敗の枝 | `invalid_handle` を引く枝でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
 | `src-tauri/src/book/commands.rs` の `open_book` と `list_books` | 開いている間に webview が作り直されると、登録が新しい `list_books` より後になり、ハンドルが次の読み直しまで残る筋がある。未再現 |
-| `src/features/settings/ui/tabs/WorkspaceTab.tsx` の「更新を確認」 | `downloading`、`installing`、`ready` の間は `runCheck` が走らないが、ボタンの無効化は `isChecking` だけを見るので押せて、何も返らず前の答えが残る。`src/features/settings` の範囲で無効にするか理由を出す |
 | `src/features/study-position-save/ui/StudyPositionSaveModal.tsx` の `existing` | `findBySfen` の同一性が動かないので、開いた後に一覧が届いても `existing` が再計算されない。一覧に追わせると `isOpen, existing` の effect がフォームを初期化し、保存の失敗の巻き戻しで入力が消える。effect の条件を分けてから直す |
 | `src/entities/updater/model/provider.tsx` の `persist` | 記憶を読み終える前に `checkNow` が通ると、`skippedVersion: null` で `updater.json` を書く。provider の単体では再現した。読み込みの応答より前に設定を開く必要があり、失うものは告知1回。手順では未再現 |
 | `src/entities/app-config/api/directories.ts` の `chooseDirectory` | ピッカーの前に読んだ設定を閉じた後に書くので、開いている間に列の書き込みが入るとその欄が消える。ピッカーが画面を止めるなら踏めない。未再現 |
+| `src/features/settings/ui/engine-tab/PresetCard.tsx` の `article` | `role="button"` の中にボタンがある。読み上げと操作の入れ子を解くかは、カードの適用の押し方と合わせて決める |
+| `src/features/settings/ui/workspace-tab/AppUpdateSection.tsx` の確認の結果 | 取得を始めた後も「この画面を閉じると案内が出ます」が残る。押せなくした後に残る前の答えで、段が動いたら消すかを決める |
+| `src-tauri/src/search/build.rs` と `project_manager.rs` の棋譜の警告 | `warn_scan_failed` と違って代を見ずに出すので、根が変わった直後に届くと前の根のパスが残る筋がある。未再現 |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/features/settings`。4778行あるので、取るときに割る。
+`src/features/settings` の `ui/tabs/AiLibraryTab.tsx`、`ui/ai-library-tab`（13b）。
