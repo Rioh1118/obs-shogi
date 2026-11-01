@@ -3,7 +3,7 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { cleanup, renderHook } from "@testing-library/react";
 
 import { useEngineSeat } from "../useEngineSeat";
-import type { AnalysisSessionId } from "@/entities/engine/api/tauri";
+import type { AnalysisSessionId } from "@/entities/analysis/api/tauri";
 
 /** Rust が鋳造する識別子を、テストの中で作る。 */
 const id = (value: string) => value as AnalysisSessionId;
@@ -16,7 +16,7 @@ const ready = () => true;
 
 const stopCore =
   vi.fn<(sessionId?: string, by?: string) => Promise<"stopped" | "unanswered" | void>>();
-vi.mock("@/entities/engine/api/tauri", () => ({
+vi.mock("@/entities/analysis/api/tauri", () => ({
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
 }));
 

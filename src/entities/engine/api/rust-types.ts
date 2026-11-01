@@ -140,22 +140,5 @@ export type AnalysisResult = {
   mate_sequence?: string[] | null;
 };
 
-/**
- * 深度指定の解析が返すもの。**`result` は `reached` を見てから使う。**
- *
- * `usi` crate に深度を載せる手段が無く `go depth` は送れないので、Rust 側は `info depth` を見て
- * `stop` を送る。時間の打ち切りが先に来れば、目標に届かないまま結果が返る。
- * `result` だけを読むと、深度22の結果を深度40の解析として画面に出すことになる
- */
-export type DepthOutcome = {
-  result: AnalysisResult;
-  /** 要求した深度 */
-  requested: number;
-  /** 実際に届いた深度。`info` が1行も来なければ `null` */
-  deepest?: number | null;
-  /** `requested` に届いたか */
-  reached: boolean;
-};
-
 /** エンジンに指示が通らなくなった理由（Rust の `UnresponsiveReason`） */
 export type UnresponsiveReason = "noAnswer" | "unwritable";

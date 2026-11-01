@@ -227,7 +227,7 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 
 `entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
 **barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で本物の import が10本。内訳は `aiLibrary` 6 / `tauri` 3 / `events` 1。ほかに `vi.mock` の行が4つ——`entities/analysis` のテスト2ファイルと `features/engine-position-sync` のテスト1ファイル）。
+で本物の import が8本。内訳は `aiLibrary` 6 / `tauri` 2。ほかに `vi.mock` の行が1つ——`features/engine-position-sync` のテスト）。
 `sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
 **公開しない限り深く読める**。
 
@@ -237,9 +237,9 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 
 - **(a) `api/` を境界として認めて barrel に載せる。** 載せたモジュールの deep import が
   その瞬間に `sliceBarrels` の違反になる（`vi.mock` を含むファイルは免除）。
-  `api/tauri` だけなら3ファイル（うち範囲外は `features/engine-position-sync` の1つ）、
+  `api/tauri` だけなら2ファイル（`features/engine-position-sync` と `features/settings`）、
   `api/aiLibrary` まで広げると `features/settings` の6ファイル
-- **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙（`SeatReleasePoint` など）は
+- **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
 
 ## `SetupGuide` が親の状態をフラットに受けている
@@ -379,20 +379,6 @@ lint もテストもラチェットも赤くならない。
 「理由は ※12 に1つだけ置いてある」と名乗っているので、方針と現物がずれている。
 コメントとコードの比が 1.8:1 なのはその結果。**密度そのものは指標にしない**
 （削るべき行を名指しできないので）。出典を ※12 に寄せる作業として拾う。
-
-## 解析セッションの IPC が `entities/engine` に在るが、語彙は `entities/analysis` のもの
-
-`.claude/reviews/2026-09-07-441-unmount-session-r30.md`（architecture reviewer）。
-`SeatReleasePoint` の値（`unmount` / `no-position` / `late-start` / `late-restart` /
-`sync-timeout`）は全部**解析ペインのライフサイクルと局面同期**の語なのに、型は
-`entities/engine/api/tauri.ts` に在る。解析側が席を返す口を1本足すたびに別スライスの
-IPC 型を編集することになり、その同期漏れを捕まえるためだけに `_EveryPointIsAssigned`
-という型の仕掛けが要っている。**仕掛けの存在自体が置き場のずれの症状。**
-
-解析の IPC（`startInfiniteAnalysis` / `stopAnalysis` / `AnalysisSessionId` /
-`SeatReleasePoint` / `setupAnalysisEventListeners`）を `entities/analysis/api/` へ
-移せば、同スライスに閉じて仕掛けを落とせる。呼び手は `entities/analysis` の2ファイルだけ。
-**#524（席を取る口が3つ）と同じ回に決めるのが安い。**
 
 ## 畳まれたかの合図を `Notify` から `CancellationToken` に替える
 

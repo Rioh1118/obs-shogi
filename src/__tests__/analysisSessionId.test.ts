@@ -24,14 +24,14 @@ const RULES = [
      */
     name: "AnalysisSessionId への as キャスト",
     pattern: /as (?:unknown as )?AnalysisSessionId\b/,
-    owners: ["src/entities/engine/api/tauri.ts"],
+    owners: ["src/entities/analysis/api/tauri.ts"],
   },
   {
     name: "AnalysisSessionId の綴り",
     pattern: /\bAnalysisSessionId\b/,
     owners: [
-      "src/entities/engine/api/tauri.ts",
-      "src/entities/engine/api/events.ts",
+      "src/entities/analysis/api/tauri.ts",
+      "src/entities/analysis/api/events.ts",
       "src/entities/analysis/model/useEngineSeat.ts",
       "src/entities/analysis/model/provider.tsx",
     ],

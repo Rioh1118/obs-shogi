@@ -4,7 +4,7 @@ import {
   type AnalysisSessionId,
   type SeatReleasePoint,
   type StopOutcome,
-} from "@/entities/engine/api/tauri";
+} from "../api/tauri";
 
 /**
  * 経路ごとの部分集合。**分け方は席を返す経路の性質**（応答を待てるか・捨てる側か）で、

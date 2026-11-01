@@ -18,7 +18,7 @@ main にあるか: **オプションの編集はある。解析モードは無�
 保存できるが、**解析の実行はこれを読まない。** 常に `start_infinite_analysis` に落ちる。
 
 `analyze_with_time` / `analyze_with_depth` は Tauri コマンドとしても
-`entities/engine/api/tauri.ts` の関数としても存在するが、
+`entities/analysis/api/tauri.ts` の関数としても存在するが、
 **それを呼ぶ画面が1つも無い**（`src/` を grep して 0 件）。
 この2本には古い探索の応答を採る経路が5つある → #371
 

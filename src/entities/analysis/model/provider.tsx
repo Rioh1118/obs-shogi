@@ -6,7 +6,7 @@ import {
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
   type StopOutcome,
-} from "@/entities/engine/api/tauri";
+} from "../api/tauri";
 import { useEngineSeat, type DiscardReleasePoint, type SeatTakeResult } from "./useEngineSeat";
 import { useResultFlush } from "./useResultFlush";
 import { waits } from "./waits";
@@ -18,7 +18,7 @@ import {
   type EngineReadiness,
 } from "@/entities/engine";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { setupAnalysisEventListeners } from "@/entities/engine/api/events";
+import { setupAnalysisEventListeners } from "../api/events";
 import { createCandidateCache, type CandidateCache } from "../lib/candidateCache";
 import { AnalysisContext } from "./context";
 import {

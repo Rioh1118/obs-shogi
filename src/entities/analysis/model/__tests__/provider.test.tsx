@@ -26,7 +26,7 @@ const stopCore =
 // 全部の回で登録と解除が挟まって、見たい経路が長くなる。
 let tauri = false;
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri }));
-vi.mock("@/entities/engine/api/tauri", () => ({
+vi.mock("@/entities/analysis/api/tauri", () => ({
   startInfiniteAnalysis: () => startCore(),
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
   isAnalysisStartUnreachable: (e: unknown) => (e as { unreachable?: boolean }).unreachable === true,
@@ -53,7 +53,7 @@ type Listeners = {
 let listeners: Listeners | null = null;
 /** 購読の登録を落としたい回だけ立てる */
 let listenerSetupFails = false;
-vi.mock("@/entities/engine/api/events", () => ({
+vi.mock("@/entities/analysis/api/events", () => ({
   setupAnalysisEventListeners: async (handlers: Listeners) => {
     if (listenerSetupFails) throw new Error("listen failed");
     listeners = handlers;

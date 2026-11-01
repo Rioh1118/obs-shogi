@@ -11,7 +11,7 @@ vi.mock(
     }) satisfies typeof import("@tauri-apps/api/core"),
 );
 
-const { setPositionFromSfen, isAnalysisStartUnreachable } = await import("../tauri");
+const { setPositionFromSfen } = await import("../tauri");
 
 beforeEach(() => {
   invoke.mockReset();
@@ -25,20 +25,5 @@ describe("setPositionFromSfen", () => {
     await setPositionFromSfen(sfen);
 
     expect(invoke).toHaveBeenCalledExactlyOnceWith("set_position", { position: sfen });
-  });
-});
-
-describe("isAnalysisStartUnreachable", () => {
-  test("エンジンへ書けなかった断りだけを真にする", () => {
-    expect(isAnalysisStartUnreachable({ unreachable: true })).toBe(true);
-    expect(isAnalysisStartUnreachable({ unreachable: false })).toBe(false);
-    expect(isAnalysisStartUnreachable({ unreachable: "true" })).toBe(false);
-    expect(isAnalysisStartUnreachable({})).toBe(false);
-  });
-
-  test("オブジェクトでない値は投げずに偽にする", () => {
-    expect(isAnalysisStartUnreachable(null)).toBe(false);
-    expect(isAnalysisStartUnreachable(undefined)).toBe(false);
-    expect(isAnalysisStartUnreachable("unreachable")).toBe(false);
   });
 });
