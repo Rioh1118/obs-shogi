@@ -9,30 +9,18 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
+import {
+  computeAnchoredPos,
+  moveGeometry,
+  resizeGeometry,
+  type AnchoredPos,
+  type Geometry,
+  type ResizeEdge,
+} from "./floatingGeometry";
 import "./FloatingNote.scss";
 
-type Placement = "top" | "bottom";
-
-type AnchoredPos = {
-  left: number;
-  top?: number;
-  bottom?: number;
-  maxHeight: number;
-  placement: Placement;
-};
-
-type Geometry = { top: number; left: number; width: number; height: number };
-
-type InteractionType =
-  | "drag"
-  | "resize-n"
-  | "resize-s"
-  | "resize-e"
-  | "resize-w"
-  | "resize-ne"
-  | "resize-nw"
-  | "resize-se"
-  | "resize-sw";
+/** 押している間の操作。掴んだ位置の移動か、把手の辺のリサイズ */
+type Interaction = "drag" | ResizeEdge;
 
 export type FloatingNoteProps = {
   open: boolean;
@@ -45,39 +33,24 @@ export type FloatingNoteProps = {
   children: ReactNode;
 };
 
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
-}
+type ResizeHandleProps = {
+  edge: ResizeEdge;
+  onStart: (e: ReactPointerEvent, interaction: Interaction) => void;
+};
 
-function computeAnchoredPos(anchorEl: HTMLElement, width: number): AnchoredPos {
-  const rect = anchorEl.getBoundingClientRect();
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const margin = 8;
-  const gap = 8;
-
-  const w = Math.min(width, vw - margin * 2);
-  const left = clamp(rect.left, margin, Math.max(margin, vw - w - margin));
-
-  const spaceBelow = vh - rect.bottom - gap - margin;
-  const spaceAbove = rect.top - gap - margin;
-  const placeBelow = spaceBelow >= 180 || spaceBelow >= spaceAbove;
-
-  if (placeBelow) {
-    return {
-      left,
-      top: rect.bottom + gap,
-      maxHeight: Math.max(140, spaceBelow),
-      placement: "bottom",
-    };
-  }
-
-  return {
-    left,
-    bottom: vh - rect.top + gap,
-    maxHeight: Math.max(140, spaceAbove),
-    placement: "top",
+/** リサイズの把手。押下を親へ流さない。流すと React の親の `onPointerDown` が反応する */
+function ResizeHandle({ edge, onStart }: ResizeHandleProps) {
+  const handlePointerDown = (e: ReactPointerEvent) => {
+    e.stopPropagation();
+    onStart(e, edge);
   };
+
+  return (
+    <div
+      className={`floating-note__resize floating-note__resize--${edge}`}
+      onPointerDown={handlePointerDown}
+    />
+  );
 }
 
 export default function FloatingNote({
@@ -96,8 +69,8 @@ export default function FloatingNote({
   const [geometry, setGeometry] = useState<Geometry | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const activeRef = useRef<InteractionType | null>(null);
-  const startRef = useRef({ mx: 0, my: 0, pt: 0, pl: 0, pw: 0, ph: 0 });
+  const activeRef = useRef<Interaction | null>(null);
+  const startRef = useRef({ x: 0, y: 0, rect: { top: 0, left: 0, width: 0, height: 0 } });
 
   useLayoutEffect(() => {
     if (!open || !anchorEl) return;
@@ -138,54 +111,14 @@ export default function FloatingNote({
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      const type = activeRef.current;
-      if (!type) return;
+      const active = activeRef.current;
+      if (!active) return;
 
-      const { mx, my, pt, pl, pw, ph } = startRef.current;
-      const dx = e.clientX - mx;
-      const dy = e.clientY - my;
-      const m = 4;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const minW = 280;
-      const minH = 180;
-
-      if (type === "drag") {
-        setGeometry((g) => ({
-          top: clamp(pt + dy, m, vh - ph - m),
-          left: clamp(pl + dx, m, vw - pw - m),
-          width: g?.width ?? pw,
-          height: g?.height ?? ph,
-        }));
-        return;
-      }
-
-      let newTop = pt;
-      let newLeft = pl;
-      let newWidth = pw;
-      let newHeight = ph;
-
-      if (type.includes("e")) {
-        newWidth = clamp(pw + dx, minW, vw - pl - m);
-      }
-      if (type.includes("w")) {
-        newLeft = clamp(pl + dx, m, pl + pw - minW);
-        newWidth = pl + pw - newLeft;
-      }
-      if (type.includes("s")) {
-        newHeight = clamp(ph + dy, minH, vh - pt - m);
-      }
-      if (type.includes("n")) {
-        newTop = clamp(pt + dy, m, pt + ph - minH);
-        newHeight = pt + ph - newTop;
-      }
-
-      setGeometry({
-        top: newTop,
-        left: newLeft,
-        width: newWidth,
-        height: newHeight,
-      });
+      const { x, y, rect } = startRef.current;
+      const offset = { dx: e.clientX - x, dy: e.clientY - y };
+      setGeometry(
+        active === "drag" ? moveGeometry(rect, offset) : resizeGeometry(rect, active, offset),
+      );
     };
 
     const onUp = () => {
@@ -202,24 +135,17 @@ export default function FloatingNote({
     };
   }, []);
 
-  const startInteraction = (e: ReactPointerEvent, type: InteractionType) => {
+  const startInteraction = (e: ReactPointerEvent, interaction: Interaction) => {
     if (e.button !== 0) return;
 
     const panel = panelRef.current;
     if (!panel) return;
 
-    const rect = panel.getBoundingClientRect();
-    activeRef.current = type;
-    startRef.current = {
-      mx: e.clientX,
-      my: e.clientY,
-      pt: rect.top,
-      pl: rect.left,
-      pw: rect.width,
-      ph: rect.height,
-    };
+    const { top, left, width, height } = panel.getBoundingClientRect();
+    activeRef.current = interaction;
+    startRef.current = { x: e.clientX, y: e.clientY, rect: { top, left, width, height } };
 
-    if (type === "drag") setIsDragging(true);
+    if (interaction === "drag") setIsDragging(true);
     e.preventDefault();
   };
 
@@ -265,27 +191,9 @@ export default function FloatingNote({
   return createPortal(
     <div ref={panelRef} className={panelClassName} style={style} role="dialog" aria-modal="false">
       <div className="floating-note__top-band" aria-hidden="true">
-        <div
-          className="floating-note__resize floating-note__resize--nw"
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            startInteraction(e, "resize-nw");
-          }}
-        />
-        <div
-          className="floating-note__resize floating-note__resize--n"
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            startInteraction(e, "resize-n");
-          }}
-        />
-        <div
-          className="floating-note__resize floating-note__resize--ne"
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            startInteraction(e, "resize-ne");
-          }}
-        />
+        <ResizeHandle edge="nw" onStart={startInteraction} />
+        <ResizeHandle edge="n" onStart={startInteraction} />
+        <ResizeHandle edge="ne" onStart={startInteraction} />
       </div>
 
       <div className="floating-note__header">
@@ -315,41 +223,11 @@ export default function FloatingNote({
 
       <div className="floating-note__body">{children}</div>
 
-      <div
-        className="floating-note__resize floating-note__resize--e"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          startInteraction(e, "resize-e");
-        }}
-      />
-      <div
-        className="floating-note__resize floating-note__resize--w"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          startInteraction(e, "resize-w");
-        }}
-      />
-      <div
-        className="floating-note__resize floating-note__resize--s"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          startInteraction(e, "resize-s");
-        }}
-      />
-      <div
-        className="floating-note__resize floating-note__resize--se"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          startInteraction(e, "resize-se");
-        }}
-      />
-      <div
-        className="floating-note__resize floating-note__resize--sw"
-        onPointerDown={(e) => {
-          e.stopPropagation();
-          startInteraction(e, "resize-sw");
-        }}
-      />
+      <ResizeHandle edge="e" onStart={startInteraction} />
+      <ResizeHandle edge="w" onStart={startInteraction} />
+      <ResizeHandle edge="s" onStart={startInteraction} />
+      <ResizeHandle edge="se" onStart={startInteraction} />
+      <ResizeHandle edge="sw" onStart={startInteraction} />
     </div>,
     document.body,
   );

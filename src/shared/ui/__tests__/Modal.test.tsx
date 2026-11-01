@@ -62,6 +62,24 @@ describe("Modal のフォーカス", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "先頭" }));
   });
 
+  test("閉じたら開く前の要素へ焦点を返す", () => {
+    const opener = document.createElement("button");
+    document.body.append(opener);
+    opener.focus();
+
+    const { unmount } = render(
+      <Modal onClose={vi.fn()} label="対話">
+        <Button>閉じる</Button>
+      </Modal>,
+    );
+    expect(document.activeElement).not.toBe(opener);
+
+    unmount();
+
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+
   test("開いたら中の押せるものへ移す", () => {
     render(
       <Modal onClose={vi.fn()} label="対話">
