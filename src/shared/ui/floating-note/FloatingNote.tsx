@@ -165,17 +165,20 @@ export default function FloatingNote({
       let newWidth = pw;
       let newHeight = ph;
 
-      if (type.includes("e")) {
+      // `resize-` の綴りに e と s が含まれるので、方角だけを見る
+      const edges = type.slice("resize-".length);
+
+      if (edges.includes("e")) {
         newWidth = clamp(pw + dx, minW, vw - pl - m);
       }
-      if (type.includes("w")) {
+      if (edges.includes("w")) {
         newLeft = clamp(pl + dx, m, pl + pw - minW);
         newWidth = pl + pw - newLeft;
       }
-      if (type.includes("s")) {
+      if (edges.includes("s")) {
         newHeight = clamp(ph + dy, minH, vh - pt - m);
       }
-      if (type.includes("n")) {
+      if (edges.includes("n")) {
         newTop = clamp(pt + dy, m, pt + ph - minH);
         newHeight = pt + ph - newTop;
       }

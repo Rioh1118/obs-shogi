@@ -172,6 +172,23 @@ describe("FloatingNote のリサイズ", () => {
     expect(panel.style.height).toBe(`${expected.height}px`);
   });
 
+  it.each([
+    ["e", { left: 200, top: 100, width: 450, height: 300 }],
+    ["w", { left: 250, top: 100, width: 350, height: 300 }],
+    ["n", { left: 200, top: 130, width: 400, height: 270 }],
+    ["s", { left: 200, top: 100, width: 400, height: 330 }],
+  ])("%s の把手は斜めに動かしても自分の辺だけを動かす", (edge, expected) => {
+    const panel = renderNote();
+
+    fireEvent.pointerDown(handle(panel, edge), { button: 0, clientX: 300, clientY: 150 });
+    movePointer(350, 180);
+
+    expect(panel.style.left).toBe(`${expected.left}px`);
+    expect(panel.style.top).toBe(`${expected.top}px`);
+    expect(panel.style.width).toBe(`${expected.width}px`);
+    expect(panel.style.height).toBe(`${expected.height}px`);
+  });
+
   it("下限より小さくしない", () => {
     const panel = renderNote();
 
