@@ -1,24 +1,14 @@
-import type { JKFData } from "@/entities/kifu/model/jkf";
-import type { RustFileTreeNode } from "./rust-types";
-import { RustFileTreeAdapter } from "./adapter";
-import type { FileTreeNode } from "../model/types";
-
 import { invoke } from "@tauri-apps/api/core";
-import type { FsError } from "./error";
-
-async function invokeFs<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-  try {
-    return await invoke<T>(command, args);
-  } catch (error) {
-    throw error as FsError;
-  }
-}
+import type { JKFData } from "@/entities/kifu/model/jkf";
+import type { FileTreeNode } from "../model/types";
+import { toFileTreeNode } from "./adapter";
+import type { RustFileTreeNode } from "./rust-types";
 
 export async function getFileTree(rootDir: string): Promise<FileTreeNode> {
-  const rustNode = await invokeFs<RustFileTreeNode>("get_file_tree", {
+  const rustNode = await invoke<RustFileTreeNode>("get_file_tree", {
     rootDir,
   });
-  return RustFileTreeAdapter.fromRust(rustNode);
+  return toFileTreeNode(rustNode);
 }
 
 export async function createKifuFile(
@@ -26,7 +16,7 @@ export async function createKifuFile(
   fileName: string,
   jkfData: JKFData,
 ): Promise<string> {
-  return await invokeFs<string>("create_kifu_file", {
+  return await invoke<string>("create_kifu_file", {
     parentDir,
     fileName,
     jkfData,
@@ -38,7 +28,7 @@ export async function importKifuFile(
   fileName: string,
   jkfData: JKFData,
 ): Promise<string> {
-  return await invokeFs<string>("import_kifu_file", {
+  return await invoke<string>("import_kifu_file", {
     parentDir,
     fileName,
     jkfData,
@@ -46,37 +36,23 @@ export async function importKifuFile(
 }
 
 export async function createDirectory(parentDir: string, dirName: string): Promise<string> {
-  return await invokeFs<string>("create_directory", { parentDir, dirName });
+  return await invoke<string>("create_directory", { parentDir, dirName });
 }
 
 export async function deleteFile(filePath: string): Promise<void> {
-  return await invokeFs<void>("delete_file", { filePath });
+  return await invoke<void>("delete_file", { filePath });
 }
 
 export async function deleteDirectory(dirPath: string): Promise<void> {
-  return await invokeFs<void>("delete_directory", { dirPath });
+  return await invoke<void>("delete_directory", { dirPath });
 }
 
 export async function readFile(filePath: string): Promise<string> {
-  return await invokeFs<string>("read_file", { filePath });
+  return await invoke<string>("read_file", { filePath });
 }
-
-export async function saveKifuFile(
-  parentDir: string,
-  fileName: string,
-  content: string,
-): Promise<string> {
-  return await invokeFs<string>("save_kifu_file", {
-    parentDir,
-    fileName,
-    content,
-  });
-}
-
-// mv / rename
 
 export async function renameKifuFile(filePath: string, newFileName: string): Promise<string> {
-  return await invokeFs<string>("rename_kifu_file", { filePath, newFileName });
+  return await invoke<string>("rename_kifu_file", { filePath, newFileName });
 }
 
 export async function mvKifuFile(
@@ -84,7 +60,7 @@ export async function mvKifuFile(
   destDir: string,
   newFileName?: string,
 ): Promise<string> {
-  return await invokeFs<string>("mv_kifu_file", {
+  return await invoke<string>("mv_kifu_file", {
     filePath,
     destDir,
     newFileName,
@@ -92,14 +68,15 @@ export async function mvKifuFile(
 }
 
 export async function renameDirectory(dirPath: string, newDirName: string): Promise<string> {
-  return await invokeFs<string>("rename_directory", { dirPath, newDirName });
+  return await invoke<string>("rename_directory", { dirPath, newDirName });
 }
+
 export async function mvDirectory(
   dirPath: string,
   destParentDir: string,
   newDirName?: string,
 ): Promise<string> {
-  return await invokeFs<string>("mv_directory", {
+  return await invoke<string>("mv_directory", {
     dirPath,
     destParentDir,
     newDirName,

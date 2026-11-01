@@ -3,16 +3,16 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * **`forceReopen` を受け手が守ること。**
+ * `forceReopen` を受け手が守ること。
  *
  * ツリーが握っている3つ（`activeKifuPath` / `jkfData` / `kifuFormat`）は「構文として
- * 読めた」までしか言わない。盤に載ったかは呼び出し側にしか分からないので、
- * 覆せるようにしてある。**受け手が覆されなければ**、盤に載せられなかった棋譜への
+ * 読めた」までしか言わない。盤に載ったかは呼び手にしか分からないので、
+ * 覆せるようにしてある。受け手が覆されなければ、盤に載せられなかった棋譜への
  * 2度目の要求が `openKifuNode` ごと飛ばされ、モーダルだけが閉じて何も起きない
  * （`failure-surfacing.md` の F-31 / 検索ヒットの経路）。
  *
  * 呼び手が `forceReopen` を渡すことは `usePositionHitNavigation.test.tsx` が見ている。
- * **ここは受け手側**——2段のうち後段。
+ * ここは受け手の側を見る。
  */
 
 const fetchTree = vi.fn();
@@ -141,15 +141,15 @@ describe("selectNodeByAbsPath の開き直し", () => {
   });
 
   /**
-   * **形式のずれで開き直さない。**
+   * 形式のずれでは開き直さない。
    *
    * 改名で拡張子が変わると `active_kifu_reconciled` が形式を運ばないので、
-   * ツリーが握る形式と節の形式がずれる。そこで開き直すと**中身と違う形式でパースされ**、
+   * ツリーが握る形式と節の形式がずれる。そこで開き直すと中身と違う形式でパースされ、
    * パーサは投げずに0手の棋譜を返す（`entities/kifu/api/parse.ts`）。
    * `loadGame` は成功するので断りも出ず、盤が空になったまま載り、次の1手で
    * **空の棋譜がディスクへ書かれる**。
    *
-   * ずれ自体は発生源で直すもの（#507）。開き直すかの判定は、形式のずれを引き金にしない。
+   * TODO(#507): ずれは発生源で直す。開き直すかの判定は、形式のずれを引き金にしない。
    */
   it("ツリーが握る形式が節と違っても、それだけでは読み直さない", async () => {
     await openOnce();

@@ -94,7 +94,7 @@ async function openKifu(path: string, jkf: JKFData) {
 
 /**
  * 改名・移動を実物と同じ形で起こす。**`jkfData` は持ち越す**——
- * `active_kifu_reconciled` が `?? state.jkfData` で据え置くため。
+ * `active_kifu_reconciled` が `state.jkfData` を据え置くため。
  */
 async function renameTo(view: ReturnType<typeof render>, nextPath: string) {
   tree.activeKifuPath = nextPath;

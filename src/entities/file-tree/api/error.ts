@@ -28,7 +28,7 @@ export type FsErrorCode =
   | "config_write_failed"
   | "unknown";
 
-// TODO(#202): この語彙はファイルツリーの失敗より広い（棋譜の読み込みと書き出しを含む）。
+// TODO(#280): この語彙はファイルツリーの失敗より広い（棋譜の読み込みと書き出しを含む）。
 // 名前と置き場を中身に合わせるかどうかは、依存が生まれる前に決める
 export type FsError = {
   code: FsErrorCode;
@@ -38,8 +38,9 @@ export type FsError = {
    * 文章化されることになる。
    */
   message: string;
-  path?: string;
-  existingPath?: string;
+  /** Rust の `None` は `null` で届く。`existingPath` も同じ */
+  path?: string | null;
+  existingPath?: string | null;
   cause?: string;
 };
 
@@ -70,15 +71,14 @@ export const FS_ERROR_CODES = {
 } satisfies Record<FsErrorCode, true>;
 
 function isFsErrorCode(code: unknown): code is FsErrorCode {
-  return typeof code === "string" && code in FS_ERROR_CODES;
+  return typeof code === "string" && Object.prototype.hasOwnProperty.call(FS_ERROR_CODES, code);
 }
 
 /**
  * 外から来た値を `FsError` にする。
  *
- * `api/service.ts` は `catch (e) { ... }` の形で、Rust 由来でない例外も
- * ここへ流す（棋譜のパース失敗など）。素通しすると `code` がどの分岐にも当たらず、
- * 表示側で見出しの無い箱になる。
+ * `api/service.ts` の `attempt` は、Rust 由来でない例外（棋譜のパース失敗など）も
+ * ここへ流す。素通しすると `code` がどの分岐にも当たらず、表示側で見出しの無い箱になる。
  */
 export function asFsError(error: unknown): FsError {
   const e = error as Partial<FsError> | null | undefined;

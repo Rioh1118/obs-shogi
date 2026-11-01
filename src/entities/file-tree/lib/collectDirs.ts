@@ -1,12 +1,12 @@
 import type { FileTreeNode } from "../model/types";
 
-interface DirOption {
+type DirOption = {
   value: string;
   label: string;
-}
+};
 
 /**
- * ツリーのフォルダを平らな一覧にする（保存先を選ぶ欄のため）
+ * ツリーのフォルダを平らな一覧にする（保存先を選ぶ欄のため）。
  *
  * **root だけは `/` と綴る。** 絶対パスをそのまま出すと、どの行も同じ長い接頭辞で
  * 始まって、末尾の差だけで読み分けることになる。root からの相対で書けば、

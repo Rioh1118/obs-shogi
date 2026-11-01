@@ -2,14 +2,14 @@ import type { ReactNode } from "react";
 import { describeFsError, fsErrorTier, type FsError } from "@/entities/file-tree/api/error";
 import "./FsErrorView.scss";
 
-interface Props {
+type Props = {
   error: FsError;
   /**
    * 何を出すかは失敗ごとに違うので、呼び出し側が決める（ADR-0004）。
-   * 読み直しても直らない失敗に「再試行」を出すと、押しても何も起きない。
+   * 読み直しても直らない失敗に「もう一度読み込む」を出すと、押しても何も起きない。
    */
   actions?: ReactNode;
-}
+};
 
 /**
  * `FsError` を利用者に見せる。ファイル操作の失敗も棋譜の読み込み失敗も同じ形で出す。

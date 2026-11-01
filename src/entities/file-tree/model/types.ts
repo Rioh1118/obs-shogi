@@ -3,14 +3,14 @@ import type { KifuCreationOptions, KifuFormat } from "@/entities/kifu/model/kifu
 import type { AsyncResult } from "@/shared/lib/result";
 import type { FsError } from "../api/error";
 
-export interface FileSystemNode {
+export type FileTreeNode = {
   id: string;
   name: string;
   path: string;
   isDirectory: boolean;
   children?: FileTreeNode[];
   /**
-   * 走査を途中で打ち切った。**`children` の少なさを鵜呑みにできない印。**
+   * 走査を途中で打ち切った印。`children` の少なさを鵜呑みにしないために見る。
    *
    * これを見ないと、上限に当たったフォルダが「空のフォルダ」と同じに描かれる。
    * 中身は Finder では見えるのに、何度読み直しても一覧には出ない
@@ -18,31 +18,11 @@ export interface FileSystemNode {
   truncated?: boolean;
   lastModified?: Date;
   size?: number;
-}
-
-export interface FileTreeDisplayInfo {
-  iconType: "folder" | "kif-file";
-  isExpanded?: boolean;
-  isSelected?: boolean;
-}
-
-export interface KifuFileInfo {
-  format: KifuFormat;
-  moveCount?: number;
-  hasBranches?: boolean;
-  gameInfo?: {
-    black?: string;
-    white?: string;
-    date?: string;
-  };
-}
-
-export type FileTreeNode = FileSystemNode & {
-  displayInfo: FileTreeDisplayInfo;
-  kifuInfo?: KifuFileInfo;
+  displayInfo: { iconType: "folder" | "kif-file" };
+  kifuInfo?: { format: KifuFormat };
 };
 
-export type MenuState = { node: FileTreeNode; x: number; y: number } | null;
+type MenuState = { node: FileTreeNode; x: number; y: number } | null;
 
 export type FileConflictRequest =
   | {
@@ -91,23 +71,22 @@ export type FileConflictState = {
 
 export type FileTreeState = {
   fileTree: FileTreeNode | null;
-  // ツリー上の選択
   selectedNode: FileTreeNode | null;
   /**
-   * **ツリーが開いた棋譜。** `openKifuNode` が構文として読めた時点で進む。
+   * ツリーが開いた棋譜のパス。`openKifuNode` が構文として読めた時点で進む。
    *
-   * **盤に載ったことは意味しない。** 載るかは `entities/game` の `loadGame` まで
-   * 来ないと分からないので、載せられなかった回はこちらだけが進む。
+   * 盤に載ったことは意味しない。載るかは `entities/game` の `loadGame` まで
+   * 来ないと分からないので、載せられなかったときはこちらだけが進む。
    * 画面に出ている棋譜を問うなら `entities/game` の `loadedAbsPath`。
    */
   activeKifuPath: string | null;
   /**
-   * 開いた時点で読んだ棋譜。**開いた瞬間の内容のまま古くなる。**
-   * 書き込むのは `kifu_opened` だけで、盤の保存（`saveKifuToFile`）はディスクにしか
-   * 書かない → #204。編集後の中身が要るなら `entities/game` の `jkf` を見ること。
+   * 開いた時点で読んだ棋譜。開いたときの内容のまま古くなる。
+   * 棋譜を入れるのは `kifu_opened` だけで、盤の保存（`saveKifuToFile`）はディスクにしか
+   * 書かない。編集後の中身が要るなら `entities/game` の `jkf` を見る。
    *
-   * **この参照が改名・移動を跨いで変わらないことが、盤の保存先を張り替えてよい
-   * 唯一の根拠**（`GameFileTreeBridge` が前に載せた `jkfData` と突き合わせている）。
+   * この参照が改名と移動を跨いで変わらないことが、盤の保存先を張り替えてよい唯一の根拠に
+   * なる（`GameFileTreeBridge` が前に載せた `jkfData` と突き合わせている）。
    * 参照を作り直すと改名で盤が載せ直され、開いた時点まで巻き戻る。
    * 逆に、**別のファイルを指しながら参照を持ち越すと、盤の棋譜が別のファイルへ書かれる。**
    * `activeKifuReferenceIdentity.test.ts` が両方向を固定している。
@@ -121,11 +100,11 @@ export type FileTreeState = {
   renamingNodeId: string | null;
   creatingDirParentPath: string | null;
   /**
-   * ツリーまわりの失敗。**出どころを持つ。**
+   * ツリーまわりの失敗。出どころを `from` に持つ。
    *
-   * `operation` は利用者が起こした操作そのものの失敗。`reload` は操作は通ったが
-   * そのあとの読み直しが落ちた場合で、画面に「失敗しました」とだけ出すと
-   * 「操作が失敗した」と読めてしまう（実際は済んでいて、一覧だけが古い）
+   * `operation` は利用者が起こした操作そのものの失敗。`reload` はツリーの取得の失敗で、
+   * 操作のあとの読み直しなら操作は済んでいて、一覧だけが古い。画面に「失敗しました」と
+   * だけ出すと操作が失敗したと読めるので、見出しを分ける（`failureHeading`）
    */
   error: FileTreeFailure | null;
   kifuError: FsError | null;
@@ -151,7 +130,6 @@ export type FileTreeAction =
       };
     }
   | { type: "kifu_closed" }
-  | { type: "tree_updated"; payload: FileTreeNode }
   | { type: "node_expanded"; payload: string }
   | { type: "node_collapsed"; payload: string }
   | { type: "menu_opened"; payload: MenuState }
@@ -163,16 +141,16 @@ export type FileTreeAction =
   | { type: "nodes_expanded"; payload: string[] }
   | { type: "selected_node_reconciled"; payload: FileTreeNode | null }
   /**
-   * 改名・移動でパスが張り替わった。**`jkfData` を省くと据え置かれる**（`?? state.jkfData`）。
+   * 改名か移動でパスが張り替わった。`jkfData` は据え置く。
    *
-   * 据え置くのは、同じ棋譜の名前が変わっただけだから。**省いたときに参照が
-   * そのまま残ることが、盤が載せ直しを避けられる根拠**（`jkfData` の doc）。
+   * 同じ棋譜の名前が変わっただけなので、参照が残ることが盤の載せ直しを避ける根拠になる
+   * （`jkfData` の doc）。`path` が `null` なら棋譜を閉じる。
+   * `format` は省くと据え置く。いま送る経路は無い（TODO(#507)）
    */
   | {
       type: "active_kifu_reconciled";
       payload: {
         path: string | null;
-        jkfData?: JKFData | null;
         format?: KifuFormat | null;
       };
     }
@@ -185,31 +163,15 @@ export type FileTreeAction =
   | { type: "conflict_opened"; payload: FileConflictState }
   | { type: "conflict_closed" };
 
-export const initialState: FileTreeState = {
-  fileTree: null,
-  selectedNode: null,
-  activeKifuPath: null,
-  jkfData: null,
-  kifuFormat: null,
-  expandedNodes: new Set<string>(),
-  isLoading: false,
-  menu: null,
-  renamingNodeId: null,
-  creatingDirParentPath: null,
-  error: null,
-  kifuError: null,
-  conflict: null,
-};
-
 export type SelectNodeOptions = {
   /**
-   * ツリー側が「もう開いている」と判断しても、開き直させる。
+   * ツリーが「もう開いている」と見ても開き直させる。
    *
    * 判断材料は盤の側（`entities/game` の `loadedAbsPath`）にしか無く、ここからは見えない。
    *
-   * **省略できないのは、省いた側が黙るから。** 既定値を置くと「盤に載っていない棋譜への
+   * 省略できないのは、省いた側が黙るから。既定値を置くと「盤に載っていない棋譜への
    * 2度目の要求が、何も起こさずに成功を返す」に倒れる。正しい既定値を決めようが無いので、
-   * 呼び出し側に必ず書かせる。
+   * 呼び手に必ず書かせる。
    */
   forceReopen: boolean;
 };
@@ -218,19 +180,20 @@ export type FileTreeContextType = FileTreeState & {
   loadFileTree: () => AsyncResult<void, FsError>;
 
   /**
-   * 選択を動かす。**ツリーが開くべき棋譜も一緒に動く**（フォルダは動かさない）。
+   * 選択を動かす。ツリーが開くべき棋譜も一緒に動く（フォルダは動かさない）。
    *
    * 飛行中の読み出しは、返った時点で宛先と違うパスなら捨てられる。棋譜を選んでから
-   * `openKifuNode` を呼ぶ順にすること。逆にすると、選び直しが読み出しを追い越す
+   * `openKifuNode` を呼ぶ順にする。読み出しを待ってから選ぶと、開けなかったときに
+   * 選択が戻らず、開いていない棋譜が選ばれたまま残る
    */
   selectNode: (node: FileTreeNode | null) => void;
 
   /**
    * 棋譜を読んで `activeKifuPath` を進める。
    *
-   * **`Ok` は「開いた」を意味しない。** 読んでいるあいだに利用者が別の棋譜を選んだ
-   * 要求は、何も起こさずに `Ok` で抜ける（結果を捨てないと、ツリーが選んでいるのとは
-   * 別の棋譜が開いたことになる → #223）。フォルダを渡したときも `Ok`。
+   * `Ok` は「開いた」を意味しない。読んでいるあいだに利用者が別の棋譜を選んだ要求は、
+   * 何も起こさずに `Ok` で抜ける（結果を捨てないと、ツリーが選んでいるのとは別の棋譜が
+   * 開いたことになる）。フォルダを渡したときも `Ok`。
    *
    * 開けたかは `activeKifuPath`、盤に載ったかは `entities/game` の `loadedAbsPath`
    */
@@ -238,11 +201,10 @@ export type FileTreeContextType = FileTreeState & {
   closeActiveKifu: () => void;
 
   /**
-   * 棋譜を1枚作る。**返るのは作られた絶対パス。**
+   * 棋譜を1枚作り、作られた絶対パスを返す。
    *
-   * ツリーはこの後で選択をそこへ動かすが、**呼んだ側がそれを待つ手立ては無い**
-   * （読み直しと選択は別の効果）。作ったファイルを指したい呼び手
-   * （対局を始める側）は、返ったパスを使うこと。
+   * ツリーの読み直しを待ってから返る。行は見える位置まで開くが、**選択は動かさない**。
+   * 作ったファイルを開きたい呼び手は、返ったパスを `selectNodeByAbsPath` へ渡す。
    */
   createNewFile: (parentPath: string, options: KifuCreationOptions) => AsyncResult<string, FsError>;
 
@@ -285,7 +247,7 @@ export type FileTreeContextType = FileTreeState & {
   /**
    * ツリーの選択をそのパスへ移し、必要なら棋譜を開く。
    *
-   * **返るのは「ツリーにその節が在ったか」だけ。** 開けたかも、盤に載ったかも意味しない。
+   * 返るのは、ツリーにその節が在ったかだけ。開けたかも、盤に載ったかも意味しない。
    */
   selectNodeByAbsPath: (absPath: string, options: SelectNodeOptions) => boolean;
 };

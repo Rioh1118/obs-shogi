@@ -13,7 +13,7 @@ pub struct FileTreeNode {
     ///
     /// これを返さないと、上限に当たったフォルダが**空のフォルダと同じ形**で届く。
     /// 棋譜が入っているのに空に見え、何度読み直しても同じ表示になる。
-    /// 受け取り側は `RustFileTreeNode` → `RustFileTreeAdapter` →
+    /// 受け取り側は `RustFileTreeNode` → `toFileTreeNode` →
     /// `TruncatedNotice`（`src/__tests__/fileTreeWire.test.ts` が写し忘れを止める）
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,

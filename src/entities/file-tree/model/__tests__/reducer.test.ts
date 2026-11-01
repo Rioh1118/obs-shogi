@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { reducer } from "../reducer";
-import { initialState, type FileTreeNode, type FileTreeState } from "../types";
+import { initialState, reducer } from "../reducer";
+import type { FileTreeNode, FileTreeState } from "../types";
 import { makeFsError } from "@/entities/file-tree/api/error";
 
 /**

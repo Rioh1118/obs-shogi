@@ -63,7 +63,7 @@ function rustFields(): string[] {
 function wireFields(): string[] {
   const source = readFileSync(TS_WIRE, "utf8");
   return [
-    ...block(source, /export interface RustFileTreeNode \{/, "rust-types.ts").matchAll(
+    ...block(source, /export type RustFileTreeNode = \{/, "rust-types.ts").matchAll(
       /^ {2}(\w+)\??:/gm,
     ),
   ].map((m) => m[1]);

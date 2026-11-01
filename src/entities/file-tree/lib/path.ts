@@ -1,48 +1,11 @@
-import type { FileTreeNode } from "../model/types";
-
-export function joinPath(parentPath: string, name: string): string {
-  const trimmed = parentPath.replace(/[\\/]+$/, "");
-  if (!trimmed) return name;
-
-  const sep: "/" | "\\" = trimmed.includes("\\") && !trimmed.includes("/") ? "\\" : "/";
-
-  return `${trimmed}${sep}${name}`;
-}
-
-export function findNodeChain(
-  node: FileTreeNode,
-  targetPath: string,
-  chain: FileTreeNode[] = [],
-): FileTreeNode[] | null {
-  const nextChain = [...chain, node];
-
-  if (node.path === targetPath) return nextChain;
-
-  for (const child of node.children ?? []) {
-    const found = findNodeChain(child, targetPath, nextChain);
-    if (found) return found;
-  }
-
-  return null;
-}
-
-export function scrollNodeIntoView(path: string) {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const escaped =
-        window.CSS?.escape?.(path) ?? path.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-
-      const el = document.querySelector<HTMLElement>(`[data-node-path="${escaped}"]`);
-
-      el?.scrollIntoView({ block: "nearest" });
-    });
-  });
-}
-
 function trimTrailingSeparators(path: string): string {
   return path.replace(/[\\/]+$/, "");
 }
 
+/**
+ * `targetPath` が `basePath` と同じか、その配下にあるか。
+ * 末尾の区切りは無視し、区切りは `/` と `\` の両方を見る。
+ */
 export function isSameOrDescendantPath(
   targetPath: string | null | undefined,
   basePath: string,
@@ -55,6 +18,10 @@ export function isSameOrDescendantPath(
   return target === base || target.startsWith(`${base}/`) || target.startsWith(`${base}\\`);
 }
 
+/**
+ * `oldBasePath` の下にある `targetPath` を、`newBasePath` の下のパスへ付け替える。
+ * `targetPath` が配下でないか空なら `null` を返す。
+ */
 export function remapSubtreePath(
   targetPath: string | null | undefined,
   oldBasePath: string,
@@ -73,15 +40,4 @@ export function remapSubtreePath(
   }
 
   return null;
-}
-
-export function replaceBasename(path: string, nextName: string): string {
-  const p = trimTrailingSeparators(path);
-  const lastSlash = p.lastIndexOf("/");
-  const lastBack = p.lastIndexOf("\\");
-  const idx = Math.max(lastSlash, lastBack);
-
-  if (idx < 0) return nextName;
-
-  return `${p.slice(0, idx + 1)}${nextName}`;
 }
