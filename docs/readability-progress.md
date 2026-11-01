@@ -43,7 +43,7 @@ ours 戦略のマージは使わない。
 | 7 | `refactor/position-public-names` | `src/entities/position` の公開の名前と呼び手 | #669 | マージ済み |
 | 8 | `refactor/tidy-entities-position` | `src/entities/position` の残り | #670 | マージ済み |
 | 9 | `refactor/tidy-entities-game-lib` | `src/entities/game` の `lib` | #672 | マージ済み |
-| 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | レビュー待ち |
+| 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | マージ済み |
 
 ## 語
 
@@ -70,7 +70,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 5  | `src/entities/position`                                  | 1169 | 済     | 済     |
 | 6  | `src/entities/game` の `lib`                             | 1141 | 済     | —      |
 | 6b | `src/entities/game` の `model`                           | 1574 | 済     | 済     |
-| 7  | `src/entities/engine`、`src/entities/engine-presets`     | 2542 | 未着手 | 未着手 |
+| 7  | `src/entities/engine`                                    | 1570 | 未着手 | 未着手 |
+| 7b | `src/entities/engine-presets`                            |  972 | 未着手 | 未着手 |
 | 8  | `src/entities/analysis`                                  | 2298 | 未着手 | 未着手 |
 | 9  | `src/entities/game-session`                              | 1488 | 未着手 | 未着手 |
 | 10 | `src/entities/file-tree`                                 | 2168 | 未着手 | 未着手 |
@@ -127,4 +128,4 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-`src/entities/engine` と `src/entities/engine-presets`。2542行あるので、取るときに割る。
+`src/entities/engine`。その次に `src/entities/engine-presets`（`engine` に依存するので後に取る）。
