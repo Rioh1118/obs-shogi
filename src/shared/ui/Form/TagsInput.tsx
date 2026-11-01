@@ -171,11 +171,6 @@ export function TagsInput({
             )}
           </div>
         </div>
-
-        {/* Suggestions (future enhancement) */}
-        <div className="tags-input__suggestions" style={{ display: "none" }}>
-          {/* タグ候補表示エリア（将来の拡張用） */}
-        </div>
       </div>
 
       <div className="tags-input__help">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type RefObject } from "react";
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import "./Modal.scss";
 import { X } from "lucide-react";
@@ -30,29 +30,13 @@ type ModalProps = {
   showCloseButton?: boolean;
 };
 
-function Modal({
-  children,
-  onClose,
-  label,
-
-  variant = "dialog",
-  size = "md",
-  scroll = "none",
-
-  closeOnEsc = true,
-  closeOnOverlay = true,
-  showCloseButton = false,
-}: ModalProps) {
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  // 開いている間だけマウントされる
-  const isTop = useOverlayLayer(true);
-
-  // 開いたときに中へフォーカスを移し、開いている間は中に閉じ込める。
-  //
-  // 閉じ込めが要るのは、**開いたままフォーカスを失う経路がある**ため。
-  // フォーカスを持つ要素が `disabled` になるとブラウザは blur し、行き先は `<body>`
-  // になる。`#modal-root` は `#root` の後ろにあるので、そこからの Tab は
-  // オーバーレイの裏のアプリ本体へ入っていく。閉じたら元の場所へ返す（残っていれば）
+/**
+ * 開いたときに中へ焦点を移し、開いている間は中に閉じ込める。閉じたら元の場所へ返す。
+ *
+ * 開いたまま焦点を失う経路があるので閉じ込める。焦点を持つ要素が `disabled` になるとブラウザは blur し、
+ * 行き先は `<body>` になる。`#modal-root` は `#root` の後ろにあるので、そこからの Tab はアプリ本体へ入る。
+ */
+function useFocusTrap(cardRef: RefObject<HTMLDivElement | null>, isTop: () => boolean) {
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
     const card = cardRef.current;
@@ -122,7 +106,27 @@ function Modal({
         restoreTo.focus();
       }
     };
-  }, [isTop]);
+  }, [cardRef, isTop]);
+}
+
+function Modal({
+  children,
+  onClose,
+  label,
+
+  variant = "dialog",
+  size = "md",
+  scroll = "none",
+
+  closeOnEsc = true,
+  closeOnOverlay = true,
+  showCloseButton = false,
+}: ModalProps) {
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  // 開いている間だけマウントされる
+  const isTop = useOverlayLayer(true);
+
+  useFocusTrap(cardRef, isTop);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
