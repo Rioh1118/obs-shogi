@@ -1,7 +1,8 @@
 import type { Piece } from "shogi.js";
 
 export interface PreviewData {
-  board: Piece[][];
+  /** 空の升は `null`。`shogi.js` の型は `Piece[][]` だが実物は空升を含む */
+  board: (Piece | null)[][];
   hands: {
     0: string[];
     1: string[];

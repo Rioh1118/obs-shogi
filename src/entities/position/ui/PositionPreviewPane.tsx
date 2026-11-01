@@ -34,11 +34,6 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
     return () => ro.disconnect();
   }, []);
 
-  const hands = (previewData.hands ?? []) as {
-    [Color.Black]: string[];
-    [Color.White]: string[];
-  };
-
   return (
     <div className="position-navigation-modal__preview-container">
       <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
@@ -53,20 +48,12 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
         */}
         <div className="position-navigation-modal__turn-tab">{turnBadgeText(previewData.turn)}</div>
 
-        <BoardPreview
-          pieces={previewData.board}
-          hands={hands}
-          size={boardSize}
-          showCoordinates={false}
-          showLastMove={false}
-          showHands={false}
-          interactive={false}
-        />
+        <BoardPreview pieces={previewData.board} size={boardSize} />
       </div>
 
       <div className="position-navigation-modal__hands">
-        <HandRow label={SENTE_LABEL} kinds={hands[Color.Black] || []} />
-        <HandRow label={GOTE_LABEL} kinds={hands[Color.White] || []} />
+        <HandRow label={SENTE_LABEL} kinds={previewData.hands[Color.Black]} />
+        <HandRow label={GOTE_LABEL} kinds={previewData.hands[Color.White]} />
       </div>
     </div>
   );

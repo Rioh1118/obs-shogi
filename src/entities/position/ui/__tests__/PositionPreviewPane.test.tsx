@@ -97,9 +97,19 @@ describe("局面のプレビュー", () => {
     expect(document.querySelector(".board-preview")).toBeNull();
   });
 
-  test("測る前は 320px で描く", () => {
+  test("測る前は 320px で描き、升と駒の寸法を一辺から導く", () => {
     render(<PositionPreviewPane previewData={preview(HIRATE)} />);
     expect(boardSize()).toBe("320px");
+    const board = document.querySelector<HTMLElement>(".board-preview");
+    expect(board?.style.getPropertyValue("--square-size")).toBe(`${320 / 9}px`);
+    expect(board?.style.getPropertyValue("--piece-size")).toBe(`${(320 / 9) * 0.8}px`);
+  });
+
+  test("プレビューは押しても何も起きない形で描く", () => {
+    render(<PositionPreviewPane previewData={preview(HIRATE)} />);
+    expect(document.querySelector(".board-preview__square")?.className).toBe(
+      "board-preview__square",
+    );
   });
 
   test("枠を測ると盤の一辺が追う", () => {
