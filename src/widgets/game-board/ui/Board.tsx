@@ -3,7 +3,7 @@ import { indexToCoords } from "@/entities/position/lib/boardUtils";
 import { BOARD_SIZE } from "@/entities/position/model/shogi";
 import "./Board.scss";
 import PieceFactory from "@/entities/position/ui/PieceFactory";
-import { Color, Piece } from "shogi.js";
+import { Color } from "shogi.js";
 import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
 import { useGame, type ShogiMove } from "@/entities/game";
@@ -144,7 +144,6 @@ function Board() {
           <PieceFactory
             jkfKind={piece.kind}
             color={piece.color}
-            isPromoted={Piece.isPromoted(piece.kind)}
             onClick={() => console.log(`Piece clicked: ${piece.kind} at ${x}${y}`)}
           />
         )}

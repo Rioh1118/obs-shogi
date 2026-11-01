@@ -60,7 +60,6 @@
 - **`entities/` の公開境界が10スライス中2つ欠落** — 揃えるには3段階の順序が要る
 - **`ModalType` union が上位層のスライス名簿を持っている** — 下位層が上位層の一覧を知っている
 - **`app-config` ⇄ `engine-presets` の双方向依存** — `PresetId` を branded type にすると切れる
-- **`convertJkfPiece` の到達不能コードと死んだ `isPromoted`**
 - **Rust `open_project` にコマンド層・ドメイン・IO が同居**（144行）
 
 **状態遷移表を他のモジュールに広げるかは未決。** いまは非同期・並行・外部プロセスが絡む箇所に

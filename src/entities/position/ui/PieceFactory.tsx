@@ -19,11 +19,10 @@ import {
 
 interface PieceFactoryProps extends PieceProps {
   jkfKind: string;
-  isPromoted?: boolean;
 }
 
-function PieceFactory({ jkfKind, color, isPromoted = false, onClick }: PieceFactoryProps) {
-  const pieceType = convertJkfPiece(jkfKind, isPromoted);
+function PieceFactory({ jkfKind, color, onClick }: PieceFactoryProps) {
+  const pieceType = convertJkfPiece(jkfKind);
 
   const commonProps: PieceProps = { color, onClick };
 

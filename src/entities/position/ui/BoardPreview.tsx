@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Piece, Color } from "shogi.js";
+import { Color, type Piece } from "shogi.js";
 import { GOTE_LABEL, SENTE_LABEL } from "@/shared/lib/turn";
 import { indexToCoords } from "@/entities/position/lib/boardUtils";
 import { BOARD_SIZE } from "@/entities/position/model/shogi";
@@ -162,11 +162,7 @@ function BoardPreview({
               <div key={index} className={squareClasses} onClick={() => handleSquareClick(index)}>
                 {piece && (
                   <div className="board-preview__piece">
-                    <PieceFactory
-                      jkfKind={piece.kind}
-                      color={piece.color}
-                      isPromoted={Piece.isPromoted(piece.kind)}
-                    />
+                    <PieceFactory jkfKind={piece.kind} color={piece.color} />
                   </div>
                 )}
 

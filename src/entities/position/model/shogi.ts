@@ -29,23 +29,12 @@ export const JKF_TO_PIECE_TYPE = {
   KA: PIECE_TYPES.BISHOP,
   HI: PIECE_TYPES.ROOK,
   OU: PIECE_TYPES.KING,
-  // 成駒を直接マッピング
   TO: PIECE_TYPES.PROM_PAWN,
   NY: PIECE_TYPES.PROM_LANCE,
   NK: PIECE_TYPES.PROM_KNIGHT,
   NG: PIECE_TYPES.PROM_SILVER,
   UM: PIECE_TYPES.HORSE,
   RY: PIECE_TYPES.DRAGON,
-} as const;
-
-// 成り駒の対応（型安全に）
-export const PROMOTED_PIECES: Record<string, PieceType> = {
-  [PIECE_TYPES.PAWN]: PIECE_TYPES.PROM_PAWN,
-  [PIECE_TYPES.LANCE]: PIECE_TYPES.PROM_LANCE,
-  [PIECE_TYPES.KNIGHT]: PIECE_TYPES.PROM_KNIGHT,
-  [PIECE_TYPES.SILVER]: PIECE_TYPES.PROM_SILVER,
-  [PIECE_TYPES.BISHOP]: PIECE_TYPES.HORSE,
-  [PIECE_TYPES.ROOK]: PIECE_TYPES.DRAGON,
 } as const;
 
 // 先手/後手
@@ -61,21 +50,7 @@ export const BOARD_SIZE = {
   TOTAL_SQUARES: 81,
 } as const;
 
-// JKF形式から内部形式への変換（型安全に）
-export function convertJkfPiece(jkfKind: string, isPromoted: boolean = false): PieceType | string {
-  // まず直接マッピングを試す（成り駒のkindが直接来る場合）
-  const directType = JKF_TO_PIECE_TYPE[jkfKind as keyof typeof JKF_TO_PIECE_TYPE];
-  if (directType) {
-    return directType;
-  }
-
-  // 直接マッピングがない場合、isPromotedフラグを使用
-  const baseType = JKF_TO_PIECE_TYPE[jkfKind as keyof typeof JKF_TO_PIECE_TYPE];
-  if (!baseType) return jkfKind;
-
-  if (isPromoted && baseType in PROMOTED_PIECES) {
-    return PROMOTED_PIECES[baseType];
-  }
-
-  return baseType;
+/** `jkfKind` が JKF の駒でなければ、そのまま返す */
+export function convertJkfPiece(jkfKind: string): PieceType | string {
+  return JKF_TO_PIECE_TYPE[jkfKind as keyof typeof JKF_TO_PIECE_TYPE] ?? jkfKind;
 }
