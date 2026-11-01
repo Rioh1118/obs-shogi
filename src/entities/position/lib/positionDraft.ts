@@ -68,10 +68,10 @@ export const HAND_KINDS = [
 export type HandKind = RawKind;
 
 /** 盤の升。`x` は筋（1〜9）、`y` は段（1〜9）で、どちらも1始まり */
-export interface Square {
+export type Square = {
   x: number;
   y: number;
-}
+};
 
 /**
  * 升を `Set` / `Map` の鍵にする綴り
@@ -275,11 +275,11 @@ export function moveBetweenHands(
  * **駒の姿と対で持つ。** `cyc` だけを覚えると、その升の駒が入れ替わったときに
  * 前の駒の巡目が残る（下の `cycleFrom` を見ること）。
  */
-export interface CycleStep {
+export type CycleStep = {
   kind: Kind;
   color: Color;
   cyc: number;
-}
+};
 
 /**
  * 盤の駒を裏返した次の姿

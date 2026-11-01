@@ -36,19 +36,19 @@ export const POSITION_ISSUE = {
 
 export type PositionIssueKind = (typeof POSITION_ISSUE)[keyof typeof POSITION_ISSUE];
 
-export interface PositionIssue {
+export type PositionIssue = {
   kind: PositionIssueKind;
   /** 断りの箇条書きに出す1行。それだけ読んで意味が通ること */
   message: string;
   /** 枠を付ける升。1つの断りが複数の升にかかることがある（二歩） */
   squares: Square[];
-}
+};
 
-export interface PositionInspection {
+export type PositionInspection = {
   issues: PositionIssue[];
   /** `squareKey` の集合。升ごとに「枠を付けるか」を引くために持つ */
   illegalSquares: ReadonlySet<string>;
-}
+};
 
 /**
  * その駒が動けなくなる段の深さ
