@@ -1,4 +1,4 @@
-import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
+import { openSinglePath } from "./openSinglePath";
 
 /**
  * 定跡ファイルを選ばせる。取り消したら `null`。
@@ -9,14 +9,9 @@ import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
  * 出どころは `docs/PREMISES.md` P-006。`.db.bin` という形式は存在しない。
  */
 export async function pickBookFile(): Promise<string | null> {
-  const selected = await dialogOpen({
+  return openSinglePath({
     directory: false,
-    multiple: false,
     title: "定跡ファイルを選択してください",
     filters: [{ name: "定跡", extensions: ["db", "bin", "sbk", "ybb"] }],
   });
-
-  if (!selected) return null;
-
-  return Array.isArray(selected) ? (selected[0] ?? null) : selected;
 }
