@@ -34,28 +34,6 @@ export function eqMoveMinimal(a?: Partial<IMoveMoveFormat>, b?: Partial<IMoveMov
 }
 
 /**
- * 手の全ての欄が同じか。`relative` など正規化が埋める欄の差も別の手と読む
- */
-export function eqMoveFull(a?: IMoveMoveFormat, b?: IMoveMoveFormat): boolean {
-  if (!a || !b) return false;
-
-  const sameSquare = (p?: { x: number; y: number }, q?: { x: number; y: number }) =>
-    (!p && !q) || (p && q && p.x === q.x && p.y === q.y);
-
-  if (a.color !== b.color) return false;
-  if (a.piece !== b.piece) return false;
-  if (!sameSquare(a.from, b.from)) return false;
-  if (!sameSquare(a.to, b.to)) return false;
-
-  if (!!a.promote !== !!b.promote) return false;
-  if (a.capture !== b.capture) return false;
-  if (a.same !== b.same) return false;
-  if (a.relative !== b.relative) return false;
-
-  return true;
-}
-
-/**
  * 分岐の合流を判定するときの比較。`applyMoveWithBranch` が使う
  */
 export const eqMove = eqMoveMinimal;

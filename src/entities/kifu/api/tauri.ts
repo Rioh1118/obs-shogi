@@ -15,18 +15,6 @@ type WriteKifuResponse = {
   error?: string;
 };
 
-type ConvertKifuRequest = {
-  jkf: JKFData;
-  format: string;
-};
-
-type ConvertKifuResponse = {
-  success: boolean;
-  content?: string;
-  normalized_jkf?: JKFData;
-  error?: string;
-};
-
 /**
  * JKFデータを指定された形式でファイルに書き込む
  */
@@ -42,26 +30,4 @@ export async function writeKifuToFile(
   };
 
   return await invoke("write_kifu_to_file", { request });
-}
-
-/**
- * JKFデータを指定された形式の文字列に変換
- */
-export async function convertJkfToFormat(
-  jkf: JKFData,
-  format: KifuFormat,
-): Promise<ConvertKifuResponse> {
-  const request: ConvertKifuRequest = {
-    jkf,
-    format,
-  };
-
-  return await invoke("convert_jkf_to_format", { request });
-}
-
-/**
- * JKFデータを正規化する
- */
-export async function normalizeJkf(jkf: JKFData): Promise<ConvertKifuResponse> {
-  return await invoke("normalize_jkf", { jkf });
 }

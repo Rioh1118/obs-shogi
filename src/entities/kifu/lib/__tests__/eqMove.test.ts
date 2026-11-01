@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color } from "shogi.js";
-import { eqMove, eqMoveFull, eqMoveMinimal } from "../eqMove";
+import { eqMove, eqMoveMinimal } from "../eqMove";
 
 const KI_FROM_49_TO_39: IMoveMoveFormat = {
   from: { x: 4, y: 9 },
@@ -114,42 +114,6 @@ describe("eqMoveMinimal", () => {
     test("両方 undefined でも false", () => {
       expect(eqMoveMinimal(undefined, undefined)).toBe(false);
     });
-  });
-});
-
-describe("eqMoveFull", () => {
-  test("color が違えば false", () => {
-    const white: IMoveMoveFormat = { ...KI_FROM_49_TO_39, color: Color.White };
-    expect(eqMoveFull(KI_FROM_49_TO_39, white)).toBe(false);
-  });
-
-  test("piece が違えば false (move 同士でも厳密)", () => {
-    const asGI: IMoveMoveFormat = { ...KI_FROM_49_TO_39, piece: "GI" };
-    expect(eqMoveFull(KI_FROM_49_TO_39, asGI)).toBe(false);
-  });
-
-  test("capture / same / relative が異なれば false", () => {
-    const withCapture: IMoveMoveFormat = { ...KI_FROM_49_TO_39, capture: "FU" };
-    expect(eqMoveFull(KI_FROM_49_TO_39, withCapture)).toBe(false);
-
-    const withSame: IMoveMoveFormat = { ...KI_FROM_49_TO_39, same: true };
-    expect(eqMoveFull(KI_FROM_49_TO_39, withSame)).toBe(false);
-
-    const withRelative: IMoveMoveFormat = { ...KI_FROM_49_TO_39, relative: "L" };
-    expect(eqMoveFull(KI_FROM_49_TO_39, withRelative)).toBe(false);
-  });
-
-  test("全フィールド一致なら true", () => {
-    const a: IMoveMoveFormat = {
-      from: { x: 2, y: 7 },
-      to: { x: 2, y: 6 },
-      piece: "FU",
-      color: Color.Black,
-      capture: "FU",
-      same: true,
-      relative: "L",
-    };
-    expect(eqMoveFull(a, { ...a })).toBe(true);
   });
 });
 
