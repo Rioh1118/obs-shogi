@@ -2,15 +2,16 @@ import type { ClocksView, GameId, GameResult, Side } from "../api/rust-types";
 import type { GameSessionView, GameStartRequest } from "./types";
 
 /**
- * 進行中の対局1局ぶん。**画面ではなくここが持つ。**
+ * 進行中の対局1局ぶんの記録。`GameSessionProvider` が1つだけ持ち、書き換えるのもそこだけ。
  *
- * `usiMoves` は `continueGame` に渡す列そのもので、`startGame` に渡した
- * `initialMoves` から始まる（`api/tauri.ts`）。
+ * 書き換えながら持つので、画面へ渡すときは `toView` を通す。
  */
 export type Session = {
+  /** `startGame` が解決するまで `null`。始められなかった対局は `null` のまま残る */
   gameId: GameId | null;
   kifuPath: string | null;
   startSfen: string;
+  /** `continueGame` に渡す列そのもの。`startGame` に渡した `initialMoves` から始まる */
   usiMoves: string[];
   blackName: string;
   whiteName: string;
@@ -20,29 +21,28 @@ export type Session = {
   awaitingRuling: boolean;
   rulingFailure: string | null;
   /**
-   * 対局の手を棋譜へ積めなかった理由。**`null` でなければ、棋譜が対局から遅れている。**
+   * 対局の手を棋譜へ積めなかった理由。`null` でなければ棋譜が対局から遅れている。
    *
    * 対局そのものは Rust の写しで進むので止まらない。止まるのは棋譜だけで、
-   * 黙っていると**終局後に開き直したとき初めて**後半が無いことに気づく。
+   * 黙っていると、終局後に開き直したとき初めて後半が無いことに気づく。
    */
   boardFailure: string | null;
   /** 終局の結末と、その時の時計。`over` イベントが必ず両方を運ぶ */
   over: { result: GameResult; clocks: ClocksView } | null;
   startFailure: string | null;
   /**
-   * エンジンを落とし終えたか。**終局したら進行の側が自分で落とす。**
+   * `closeGame` が通ったか。
    *
-   * 押させる形にしていた間は、押し忘れたぶんだけプロセスが残った ——
-   * 終局は探索を畳まないので、`close_game` を通すまで最大2本が起きたままになる。
+   * 終局はエンジンを落とさないので、通るまで1局あたり最大2本が起きたままになる。
    */
   engineClosed: boolean;
-  /** エンジンを落とせなかった理由。**押し直す人が居ないので、黙ると気づけない** */
+  /** `closeGame` が断られた理由。押し直す人が居ないので、黙ると気づけない */
   closeFailure: string | null;
 };
 
 export const IDLE: GameSessionView = { kind: "idle", eventsUnavailable: null };
 
-/** 始めたばかりの対局 */
+/** 始めたばかりの対局を作る */
 export function createSession(request: GameStartRequest): Session {
   return {
     gameId: null,
@@ -54,8 +54,7 @@ export function createSession(request: GameStartRequest): Session {
     humanSides: (["black", "white"] as const).filter(
       (side) => request.settings[side].kind === "human",
     ),
-    // 最初の `turnChanged` が来るまでの仮。**手番の印に使わせない**
-    // ——描く側は `clocks` が `null` の間を「まだ届いていない」として扱う
+    // 最初の `turnChanged` が来るまでの仮の値。Rust は `start_game` が返る前にそれを出す
     toMove: "black",
     clocks: null,
     awaitingRuling: false,
@@ -68,7 +67,7 @@ export function createSession(request: GameStartRequest): Session {
   };
 }
 
-/** いま対局を指している識別子。**無ければ投げる**（`attempt` が値に畳む） */
+/** いま操作を送れる対局の識別子を返す。無ければ投げ、呼び手の `attempt` が断りの値にする */
 export function requireGameId(session: Session | null): GameId {
   const gameId = session?.gameId;
   if (gameId == null) throw new Error("対局が走っていません");
@@ -76,14 +75,16 @@ export function requireGameId(session: Session | null): GameId {
 }
 
 /**
- * 閉じる対象として残っている対局か。
+ * エンジンが残っている対局か。真なら次の対局を始めない。
  *
- * 始め損ねた対局は数えない —— Rust は起動に失敗した対局を台帳に載せないので、
- * 閉じる相手が居ない。数えると、設定を直してもやり直せなくなる。
+ * 始められなかった対局は数えない。Rust は起動に失敗した対局を台帳に載せないので、
+ * 数えると設定を直してもやり直せなくなる。
  *
- * **落とし終えた対局も数えない。** 断る理由は「エンジンが起きたままだから」なので、
- * 落ちた後まで断ると、**結末を読んでいる間ずっと次の対局を始められない**
- * ——しかも畳む経路はもうどこにも無い（終局したエンジンは自分で落ちる）。
+ * `closeGame` が通った終局も数えない。断る理由はエンジンが起きたままなことなので、
+ * 通った後まで断ると、結末が残っている間ずっと次の対局を始められない。
+ *
+ * `closeGame` が断られた終局は数える。`start` が畳み直す処理はまだ無く、
+ * 復帰は `closeSession` かアプリの再起動になる（ADR-0011 決定1）。
  */
 export function isHeld(session: Session | null): boolean {
   if (session === null) return false;
@@ -92,10 +93,10 @@ export function isHeld(session: Session | null): boolean {
 }
 
 /**
- * 進行から画面の姿へ。
+ * 対局の記録を画面の姿へ写す。
  *
- * **`startFailure` を `gameId === null` より先に見る。** 始め損ねた対局は両方が真になるので、
- * 逆にすると「エンジンを起こしています…」から抜けられなくなる（取り消す経路は無い）。
+ * `startFailure` を `gameId === null` より先に見る。始められなかった対局は両方が真で、
+ * 逆の順では `failed` にならず `starting` のまま残る。
  */
 export function toView(session: Session | null, eventsUnavailable: string | null): GameSessionView {
   if (session === null) {
@@ -133,9 +134,8 @@ export function toView(session: Session | null, eventsUnavailable: string | null
     humanSides: session.humanSides,
     toMove: session.toMove,
     clocks: session.clocks,
-    // **写さない。** `clockUpdated` は 500ms ごとに来るので、写すと手が増えていない
-    // tick でも同一性だけが変わり、指し手列を購読する側が毎秒2回起こされる。
-    // 中身を書き替えないことは `moveDecided` の側（積むときに作り直す）が守る
+    // 写しを作らない。`clockUpdated` のたびに同一性が変わると、手が増えていないのに
+    // 指し手列を読む側が起こされる。列は `moveDecided` が作り直すので中身は変わらない
     usiMoves: session.usiMoves,
     awaitingRuling: session.awaitingRuling,
     rulingFailure: session.rulingFailure,
