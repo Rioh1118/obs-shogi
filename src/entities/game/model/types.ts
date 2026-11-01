@@ -374,21 +374,15 @@ export interface GameContextType {
 
   getCommentsByCursor: (cursor: CursorPath | null) => string[];
   setCommentsByCursor: (cursor: CursorPath, comments: string[]) => AsyncResult<void, string>;
-  setCurrentComments: (comments: string[]) => AsyncResult<void, string>;
 
   clearError: () => void;
 
-  isAtStart: () => boolean;
-  isAtEnd: () => boolean;
   canGoForward: () => boolean;
   canGoBackward: () => boolean;
 
   getCurrentTurn: () => Color;
   getCurrentMoveIndex: () => number;
   getTotalMoves: () => number;
-
-  getCurrentMove: () => IMoveMoveFormat | undefined;
-  getCurrentComments: () => string[];
 
   /**
    * 指定の位置へ盤を移す。

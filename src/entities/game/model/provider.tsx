@@ -601,14 +601,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     [state.jkf, edit],
   );
 
-  const setCurrentComments = useCallback(
-    async (comments: string[]): AsyncResult<void, string> => {
-      if (!state.cursor) return Ok(undefined);
-      return await setCommentsByCursor(state.cursor, comments);
-    },
-    [state.cursor, setCommentsByCursor],
-  );
-
   const selectSquare = useCallback(
     async (x: number, y: number, promote?: boolean) => {
       const player = view.player;
@@ -728,14 +720,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     dispatch({ type: "clear_error" });
   }, []);
 
-  const isAtStart = useCallback(() => {
-    return (state.cursor?.tesuu ?? 0) === 0;
-  }, [state.cursor]);
-
-  const isAtEnd = useCallback(() => {
-    return (state.cursor?.tesuu ?? 0) >= view.totalMoves;
-  }, [state.cursor, view.totalMoves]);
-
   const canGoForward = useCallback(() => {
     return (state.cursor?.tesuu ?? 0) < view.totalMoves;
   }, [state.cursor, view.totalMoves]);
@@ -751,14 +735,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   }, [state.cursor]);
 
   const getTotalMoves = useCallback(() => view.totalMoves, [view.totalMoves]);
-
-  const getCurrentMove = useCallback(() => {
-    return view.currentMove;
-  }, [view.currentMove]);
-
-  const getCurrentComments = useCallback(() => {
-    return view.currentComments;
-  }, [view.currentComments]);
 
   const applyCursor = useCallback(
     (cursor: CursorPath) => {
@@ -834,17 +810,12 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       deleteBranch,
       getCommentsByCursor,
       setCommentsByCursor,
-      setCurrentComments,
       clearError,
-      isAtStart,
-      isAtEnd,
       canGoForward,
       canGoBackward,
       getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
-      getCurrentMove,
-      getCurrentComments,
       applyCursor,
     }),
     [
@@ -867,17 +838,12 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       deleteBranch,
       getCommentsByCursor,
       setCommentsByCursor,
-      setCurrentComments,
       clearError,
-      isAtStart,
-      isAtEnd,
       canGoForward,
       canGoBackward,
       getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
-      getCurrentMove,
-      getCurrentComments,
       applyCursor,
     ],
   );

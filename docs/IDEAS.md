@@ -142,11 +142,9 @@
 規約として書いているが、機械が見ていないので守られているのは一部だけ。
 
 - **barrel と context に、呼び手のいない口が残る。** `entities/search/index.ts` は
-  型を中心に約30名を公開していて、スライス外の消費は7名。`entities/game` の context も
-  5件が呼び手0。`sliceBarrels.test.ts` は「barrel が在ること」しか見ておらず、
+  型を中心に約30名を公開していて、スライス外の消費は7名。
+  `sliceBarrels.test.ts` は「barrel が在ること」しか見ておらず、
   **未使用の export を数える走査は無い**。足せば落ちる
-- **`entities/game` の context に呼び出し元0の口が5つ**（`setCurrentComments` / `isAtStart` /
-  `isAtEnd` / `getCurrentMove` / `getCurrentComments`）
 - **閉じるなら走査ごと入れる。** `src/__tests__/sliceBarrels.test.ts` の `publicModules()` に
   「公開する名前ごとにスライス外の出現があること」を足せば barrel 側は落ちる。
   `model/types.ts` の context インターフェースまで広げれば context 側も同じ形で落ちる
