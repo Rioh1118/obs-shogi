@@ -49,7 +49,7 @@ ours 戦略のマージは使わない。
 | 13 | `refactor/tidy-entities-analysis-seat` | `src/entities/analysis` の `provider.tsx` 以外 | #677 | マージ済み |
 | 14 | `refactor/tidy-entities-analysis-provider` | `src/entities/analysis/model/provider.tsx` | #678 | マージ済み |
 | 15 | `refactor/tidy-entities-game-session` | `src/entities/game-session` | #680 | マージ済み |
-| 16 | `refactor/tidy-entities-file-tree` | `src/entities/file-tree` の `provider.tsx` 以外 | PR を作ったら書く | レビュー待ち |
+| 16 | `refactor/tidy-entities-file-tree` | `src/entities/file-tree` の `provider.tsx` 以外 | #681 | レビュー待ち |
 
 ## 語
 
