@@ -33,6 +33,11 @@ export function wouldBeInCheckAfterMove(shogi: Shogi, move: ShogiMove): boolean 
   }
 }
 
+/** (`x`, `y`) の駒の合法な移動を返す。手番でない側の駒は空になる */
+export function getLegalMovesFrom(shogi: Shogi, x: number, y: number): ShogiMove[] {
+  return shogi.getMovesFrom(x, y).filter((move) => !wouldBeInCheckAfterMove(shogi, move));
+}
+
 /** 移動元か移動先が敵陣なら成れる。指せる手かどうかは見ない */
 export function canPromote(shogi: Shogi, move: ShogiMove): boolean {
   if (!move.from) return false;

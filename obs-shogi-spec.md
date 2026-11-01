@@ -87,7 +87,7 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
   - pointer / クリックによる着手、駒台（`Hand` / `HandHeader` / `useHandLayout`）
   - 成・不成ダイアログ（`PromotionDialog`）
   - 駒コンポーネント一式（成駒含む 14 種、`PieceFactory`）
-  - 合法手判定（`entities/game`：`moveValidator` / `shogiMoveValidator` / `moveValidation`）
+  - 合法手判定（`entities/game`：`moveValidation`）
   - 盤操作ボタン（`GameControls`）
   - 盤面反転（`pov=gote` で回転、`AppLayout`、URL パラメータ `pov`）
   - 直前手ハイライト（`Board.isLastMove` → `Square.isLastMove`）

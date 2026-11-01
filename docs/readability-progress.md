@@ -42,7 +42,8 @@ ours 戦略のマージは使わない。
 | 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #668 | マージ済み |
 | 7 | `refactor/position-public-names` | `src/entities/position` の公開の名前と呼び手 | #669 | マージ済み |
 | 8 | `refactor/tidy-entities-position` | `src/entities/position` の残り | #670 | マージ済み |
-| 9 | `refactor/tidy-entities-game-lib` | `src/entities/game` の `lib` | #672 | レビュー待ち |
+| 9 | `refactor/tidy-entities-game-lib` | `src/entities/game` の `lib` | #672 | マージ済み |
+| 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | レビュー待ち |
 
 ## 語
 
@@ -68,7 +69,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 4  | `src/entities/kifu` の残り                               | 1023 | 済     | —      |
 | 5  | `src/entities/position`                                  | 1169 | 済     | 済     |
 | 6  | `src/entities/game` の `lib`                             | 1141 | 済     | —      |
-| 6b | `src/entities/game` の `model`                           | 1574 | 未着手 | 未着手 |
+| 6b | `src/entities/game` の `model`                           | 1574 | 済     | 済     |
 | 7  | `src/entities/engine`、`src/entities/engine-presets`     | 2542 | 未着手 | 未着手 |
 | 8  | `src/entities/analysis`                                  | 2298 | 未着手 | 未着手 |
 | 9  | `src/entities/game-session`                              | 1488 | 未着手 | 未着手 |
@@ -115,15 +116,15 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/entities/analysis/model/__tests__/provider.test.tsx` の「次の局面が保留されていても、届かなかった回に読み始めない」 | 2回に1回の頻度でゲートを止めた。`entities/analysis` の範囲で原因を調べる |
 | `src/features/settings/ui/tabs/WorkspaceTab.tsx` の `copyText` | `shared/api/clipboard` と同じ名前で別の本体を持つ。寄せられるかを本体で判定する |
 | `src/widgets/game-board/ui/PromotionDialog.tsx` の `promotionMap` | `positionDraft.ts` の `promotedKind` の写し。`src/widgets` の範囲で寄せると `PieceImage` の `kind` を `Kind` で受けられる |
-| `src/entities/game/lib/shogiMoveValidator.ts` と `src/entities/game/model/moveValidator.ts` | 実装が1つのクラスと `interface` で、中身は `moveValidation.ts` の関数への転送。`getLegalDropsByKind` と `getLegalDrops` で名前も割れている。`entities/game` の `model` の範囲で関数の呼び出しへ替える |
-| `src/entities/game/model/provider.tsx` の `helpers.isLegalMove` | 読み手が0。`entities/game` の `model` の範囲で消すかを決める |
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。`promotionMap` の行と合わせて寄せる |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
 | `src/features/game-ruling/lib/rulingAdapter.ts` の `toRuling` の doc | 主語が `judgeGameOutcome` だが、この関数が呼ぶのは `createOutcomeJudge`。`features/game-ruling` の範囲で直す |
 | `src-tauri/src/storage/disk.rs` の読み手 | 2つの rename の間で値があるのに `NotFound` を受ける筋がある。未再現 |
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
 | `.claude/skills/tidy-code/scripts/emit-unchanged.mjs` | 基点に無い新規ファイルで落ちる |
+| `src/entities/game/model/provider.tsx` の `getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。読み手は `src/widgets` と `src/features` なので、その範囲で直接読む形へ寄せる |
+| `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/entities/game` の `model`。`lib` と合わせて2000行を超えるので割った。
+`src/entities/engine` と `src/entities/engine-presets`。2542行あるので、取るときに割る。

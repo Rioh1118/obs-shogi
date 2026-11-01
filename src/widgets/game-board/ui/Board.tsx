@@ -6,10 +6,10 @@ import PieceImage from "@/entities/position/ui/PieceImage";
 import { Color } from "shogi.js";
 import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
-import { useGame, type ShogiMove } from "@/entities/game";
+import { canPromote, mustPromote, useGame, type ShogiMove } from "@/entities/game";
 
 function Board() {
-  const { state, view, helpers, selectSquare, clearSelection } = useGame();
+  const { state, view, selectSquare, clearSelection } = useGame();
 
   const shogi = view.player?.shogi;
   const selectedPosition = state.selectedPosition;
@@ -93,16 +93,12 @@ function Board() {
           color: fromPiece.color,
         };
 
-        // 成り判定
-        const canPromote = helpers.canPromoteMove(view.player, shogiMove);
-        const mustPromote = helpers.mustPromoteMove(view.player, shogiMove);
-
         let promote: boolean | undefined = undefined;
 
-        if (mustPromote) {
+        if (mustPromote(shogi, shogiMove)) {
           // 強制成り
           promote = true;
-        } else if (canPromote) {
+        } else if (canPromote(shogi, shogiMove)) {
           promote = await new Promise((resolve) => {
             setPromotionState({
               x,

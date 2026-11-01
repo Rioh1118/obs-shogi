@@ -9,7 +9,7 @@ import type { GameContextType } from "../types";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 
 /**
- * **細い context を分けている意味を固定する。**
+ * 細い context を分けている意味を固定する。
  *
  * `useGame()` の value は `state` と `view` から作られるので、カーソルが1手動くたびに
  * 同一性が変わり、購読している部品が全員描き直される。ツリーの行のように数が多くて
@@ -66,7 +66,7 @@ describe("盤に載っている棋譜のパスだけを配る context", () => {
       seen.game!.nextMove();
     });
 
-    // 広いほうは動く。**動かないなら、この test は別の理由で通っている**
+    // 広いほうは動く。動かないなら、この test は別の理由で通っている
     expect(seen.wide).toBeGreaterThan(wideAfterLoad);
     expect(seen.narrow).toBe(narrowAfterLoad);
   });

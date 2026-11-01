@@ -232,7 +232,7 @@ ADR-0004 が使う `F-12a` / `F-12b` は、**採番元がここ**。段が分か
 （F-33〜F-36）が範囲から漏れる。実際に一度漏れている。
 
 ※5 F-12a のうち出口があるのは**2つ**。`entities/game` の書き換え操作
-（`makeMove` / `swapBranches` / `deleteBranch` / `setCommentsByCursor` / `setCurrentComments`）が
+（`makeMove` / `swapBranches` / `deleteBranch` / `setCommentsByCursor`）が
 `AsyncResult` を返すようになり、それを読んでいる2箇所が出す。
 
 - **コメントの保存** — `KifuCommentNote` がノートの中に出す。書けていないので
