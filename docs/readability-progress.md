@@ -42,6 +42,7 @@ ours 戦略のマージは使わない。
 | 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #668 | マージ済み |
 | 7 | `refactor/position-public-names` | `src/entities/position` の公開の名前と呼び手 | #669 | マージ済み |
 | 8 | `refactor/tidy-entities-position` | `src/entities/position` の残り | #670 | マージ済み |
+| 9 | `refactor/tidy-entities-game-lib` | `src/entities/game` の `lib` | #672 | レビュー待ち |
 
 ## 語
 
