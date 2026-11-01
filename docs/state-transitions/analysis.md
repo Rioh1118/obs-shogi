@@ -154,7 +154,7 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 **`isAnalyzing` は倒さない**ので、局面が動けば読み始める。`stop` の答えはこの通知にならない
 ——止める口は席を消してから `stop` を送り、`forward_results_to_ui` は席が無ければ知らせない。
 **開始の応答より先に届く回がある**（席の欄が空のとき）。`closeFinished` が覚え、応答の側で
-`landed` が `"finished"` を返す
+`receiveSeat` が `"finished"` を返す
 
 ※7 `stopAnalysis` は `finally` で必ず `stop_analysis` を dispatch する（`provider.tsx`）。
 `stopAnalysisCore` が reject しても `isAnalyzing` は落ち、エンジンは `応答なし` になる
@@ -215,7 +215,7 @@ false へ変わると前の回の cleanup（`clearDebounceTimer`）が走る。
 `analyzer.stop_analysis()` まで進み、そこが `protocol.stop()` を呼ぶ（`analyzer.rs`）
 ——**いま線に居るエンジンへ裸の `stop` が書かれる**。起こし直した後なら、書かれる先は
 新しいエンジン。だから「もう無い席」へは撃たずに捨てる（`onEngineGone` と
-`landed` の `"engine-gone"`）。巻き添えではない——席の主の照合は Rust が塞いでいる。
+`receiveSeat` の `"engine-gone"`）。巻き添えではない——席の主の照合は Rust が塞いでいる。
 **畳まれた後に落ちた回は、握り直しても読む者が居ない**（→ 不変条件5）。
 StrictMode の setup → cleanup → setup では握っていないので撃たない。
 
@@ -229,7 +229,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 **席が返る回と、開始が `Err` で返る回の両方がこの窓に居る。** 畳んでいる最中のエンジンへの
 開始は Rust が `Err` を返すので（`bridge.rs`）、**現物では後者のほうが起きやすい**。
 判定はどちらも `useEngineSeat` の中で、`beginTake` が焼き付けた同じ世代を見る
-——着地した回は `landed`、返ってこなかった回は `engineChanged()`。
+——着地した回は `receiveSeat`、返ってこなかった回は `hasEngineChanged()`。
 ▶ から入った回は検討の意思を残す（`hold_intent`）。エンジンが戻れば読み始める。**着地した時点で
 戻る見込みが無ければ**理由ごとの断り（`NOT_READY_REFUSALS`。→ ※15）。自動再開から入った回は
 断りを立てず、エンジンが戻れば同期の追従が張り直す。

@@ -45,13 +45,13 @@ describe("EngineSeat の枠", () => {
     const { result } = renderHook(() => useEngineSeat());
     const seat = result.current;
 
-    seat.beginTake("late-start", ready).landed(id("S1"), () => false);
+    seat.beginTake("late-start", ready).receiveSeat(id("S1"), () => false);
 
     // 握っている席を返す。応答は返らない。
     seat.releaseHeldQuietly("no-position");
 
     // 要らなくなった開始が持ってきた別の席を捨てる。**枠はこちらに移る。**
-    seat.beginTake("late-restart", ready).landed(id("S2"), () => true);
+    seat.beginTake("late-restart", ready).receiveSeat(id("S2"), () => true);
 
     // その後ろに並ぶ返却。並ぶ相手を取り違えると、S1 の1本目がまだ飛んでいるのに撃つ。
     seat.releaseHeldQuietly("no-position");
@@ -79,7 +79,7 @@ describe("EngineSeat とエンジンの世代", () => {
 
     seat.onEngineGone();
 
-    expect(take.landed(id("S1"), () => false)).toBe("engine-gone");
+    expect(take.receiveSeat(id("S1"), () => false)).toBe("engine-gone");
     // 握ると「解析中の表示のまま数字が動かない」に落ちる。
     expect(seat.isHeld()).toBe(false);
     // **撃たない。** 席が空の回の停止は、起こし直したエンジンへ裸の `stop` を書く。
@@ -100,7 +100,7 @@ describe("EngineSeat とエンジンの世代", () => {
     const { result } = renderHook(() => useEngineSeat());
     const seat = result.current;
 
-    seat.beginTake("late-start", ready).landed(id("S1"), () => false);
+    seat.beginTake("late-start", ready).receiveSeat(id("S1"), () => false);
 
     // 返却が飛んでいる間にエンジンが消える。
     const releasing = seat.releaseHeld("restart").catch(() => {});
@@ -135,7 +135,7 @@ describe("EngineSeat とエンジンの世代", () => {
     // 往復の最中に起こし直される。**世代は動かない**（札より前に進んだ扱い）。
     usable = false;
 
-    expect(take.landed(id("S1"), () => false)).toBe("engine-gone");
+    expect(take.receiveSeat(id("S1"), () => false)).toBe("engine-gone");
     expect(seat.isHeld(), "死んだエンジンの席を握っている").toBe(false);
   });
 
@@ -169,12 +169,12 @@ describe("EngineSeat とエンジンの世代", () => {
     const settle = () => new Promise((r) => setTimeout(r, 0));
 
     // 1本目が着地して捨てられ、その停止が落ちる → 書き戻し → 撃ち直す。
-    first.landed(id("S1"), () => true);
+    first.receiveSeat(id("S1"), () => true);
     rejects.shift()?.(new Error("ipc gone"));
     await settle();
 
     // 2本目も同じ。**ここを落とすと席が残る。**
-    second.landed(id("S2"), () => true);
+    second.receiveSeat(id("S2"), () => true);
     rejects.shift()?.(new Error("ipc gone"));
     await settle();
 

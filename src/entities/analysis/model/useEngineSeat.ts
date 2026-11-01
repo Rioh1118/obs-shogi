@@ -14,7 +14,7 @@ import {
  * 唯一の手掛かりが嘘になる。型で割っておけば `releaseHeldQuietly("unmount")` は tsc が止める。
  */
 export type BlockingReleasePoint = Extract<SeatReleasePoint, "stop" | "start" | "restart">;
-/** 応答を待てない経路。落ちても画面に出せない（結末は `shootQuietly` の頭） */
+/** 応答を待てない経路。落ちても画面に出せない（結末は `sendStopQuietly` の頭） */
 export type QuietReleasePoint = Extract<SeatReleasePoint, "sync-timeout" | "no-position">;
 /** 要らなくなった開始が持ってきた席を捨てる経路 */
 export type DiscardReleasePoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
@@ -44,7 +44,7 @@ void _everyPointIsAssigned;
  * 返ってきた席をどう扱ったか。
  *
  * **読まずに捨てるなら理由を書く**（`src/__tests__/asyncResultUse.test.ts` が
- * `Promise<SeatTakeResult>` を返す関数の式文を止める。`landed` の戻り値は人が見る）。
+ * `Promise<SeatTakeResult>` を返す関数の式文を止める。`receiveSeat` の戻り値は人が見る）。
  * ▶ の経路は書き分け、自動再開の経路はどれでも黙って降りる。
  *
  * `finished` は、開始の応答より先に探索の完了が届いていた席。**もう Rust に無い**ので握らない。
@@ -66,7 +66,7 @@ export interface SeatTake {
    * 裸の `stop` が書かれる。→ `docs/state-transitions/analysis.md` の ※12）。
    * 要らなくなっていた回は撃って捨てる（`discard`）。
    */
-  landed: (sessionId: AnalysisSessionId, isSuperseded: () => boolean) => SeatTakeResult;
+  receiveSeat: (sessionId: AnalysisSessionId, isSuperseded: () => boolean) => SeatTakeResult;
   /**
    * **席が返ってこなかった回に呼ぶ。** 往復の間にエンジンが消えていたか。
    *
@@ -75,7 +75,7 @@ export interface SeatTake {
    * 断りが違う**——席が返れば起こし直しの案内、断られれば「起こし直してください」
    * ——という食い違いを、この述語で1つに寄せる。
    */
-  engineChanged: () => boolean;
+  hasEngineChanged: () => boolean;
 }
 
 /**
@@ -128,9 +128,9 @@ export interface EngineSeat {
    * 効いた回は手放した席として覚えるので、以後その席の通知は `accepts` が落とす。
    *
    * **何も握っていなくても覚える。** 開始の応答より先に完了が届く回があり、応答が返ってから
-   * 握ると、もう無い席を `検討中` のまま握り続ける。`landed` がこの記録を見て握らない。
+   * 握ると、もう無い席を `検討中` のまま握り続ける。`receiveSeat` がこの記録を見て握らない。
    *
-   * **書き戻し（`shoot` の catch）はこの記録を見ない。** いま握り直しが起きないのは、
+   * **書き戻し（`sendStop` の catch）はこの記録を見ない。** いま握り直しが起きないのは、
    * 締めた席へ撃つ経路が1つも無いから——覚えた席へ撃つ経路を足すときは、その経路が
    * 握り直しても良いかを別に確かめること。
    */
@@ -146,7 +146,7 @@ export interface EngineSeat {
    * 手放した席として覚えるので、遅れて届く `info` は落ちる。
    *
    * **エンジンの世代も1つ進む。** 進めるのはここだけで、飛んでいる往復
-   * （`beginTake` の札と、`shoot` の応答待ち）はこれを見て「もう無いエンジンの席」を
+   * （`beginTake` の札と、`sendStop` の応答待ち）はこれを見て「もう無いエンジンの席」を
    * 握らずに捨てる。立ち下がりを1回見るだけでは、往復の後に着地する席を止められない。
    */
   onEngineGone: () => void;
@@ -154,7 +154,7 @@ export interface EngineSeat {
    * 握っている席を返す。
    *
    * **飛んでいる返却があれば、握っていなくても枠が空くまで待つ。** この待ちを外すと、
-   * `shoot` の catch が「誰も知らない席は作れない」と言える根拠が消える。
+   * `sendStop` の catch が「誰も知らない席は作れない」と言える根拠が消える。
    * 待ち切った時点で席を握っていなければ撃たない。
    *
    * **返せたときだけ手放す。** 停止が失敗したら握ったままにして、次に返せる機会へ持ち越す。
@@ -167,7 +167,7 @@ export interface EngineSeat {
   /**
    * 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。
    *
-   * **落ちたときの結末は `shootQuietly` の頭に1つ置いてある。**
+   * **落ちたときの結末は `sendStopQuietly` の頭に1つ置いてある。**
    */
   releaseHeldQuietly: (by: QuietReleasePoint) => void;
   /**
@@ -179,7 +179,7 @@ export interface EngineSeat {
    * **停止は1本も撃たない。** 名前が `sweepOnUnmount` と対に見えるが、
    * こちらは印を戻すだけ。
    */
-  armForMount: () => void;
+  markMounted: () => void;
   /**
    * 畳まれたときの後始末。**席を指さずに撃つ**ので、他の経路とは別の関数にしてある。
    * **これが落ちた回は誰も返せない**——指さない停止は席の識別子を持たないので、
@@ -197,7 +197,7 @@ export interface EngineSeat {
  * 手放してから停止が Rust に届くまでで、その間に重なる席はたかだか数本
  * （盤を連打しても、再開は1本ずつ直列に走る）。桁1つぶん余裕を取ってこの値。
  */
-const PAST_LIMIT = 32;
+const RELEASED_SEAT_LIMIT = 32;
 
 export function useEngineSeat(): EngineSeat {
   const seatRef = useRef<AnalysisSessionId | null>(null);
@@ -227,13 +227,13 @@ export function useEngineSeat(): EngineSeat {
    * `RuntimeProviders` 側に居るので、普通は畳まれない）。
    *
    * **「Rust がもう持っていない席」を別に持たない。** 持っても読む者が居ない——
-   * `shoot` に渡る識別子は、握っている席か、`discard` が受け取った新しい UUID
+   * `sendStop` に渡る識別子は、握っている席か、`discard` が受け取った新しい UUID
    * （`bridge.rs` の `new_session_id`）だけなので、**返し終えた席で停止が落ちる
    * 経路そのものが無い**。逆に「Rust に無い席を握ってしまう回」は在るが、
    * それは区別できない——`stop_session` は席を消してからエンジンを止めるので、
    * エンジン側の失敗は「席は空・`Err`」で返る（→ `analysis.md` ※12）。
    */
-  const pastRef = useRef<Set<string>>(new Set());
+  const releasedRef = useRef<Set<string>>(new Set());
 
   // 飛んでいる返却。**引き金が重なったときに、同じ席へ2本目を並べて撃たないため**に持つ。
   // 重ねても Rust は断らない（席が空なら `Ok`。`bridge.rs` の `stop_session`）が、
@@ -255,12 +255,12 @@ export function useEngineSeat(): EngineSeat {
    * ある——畳まれた後に着地した席を捨て、その停止が落ちた回（`keepOrForget`）。
    * そのとき sweep はもう走り終えているので、撃ち直す者が居ない。
    *
-   * **setup で戻すこと**（`armForMount`）。cleanup で立てるだけだと、同じインスタンスに
+   * **setup で戻すこと**（`markMounted`）。cleanup で立てるだけだと、同じインスタンスに
    * setup → cleanup → setup が走ったとき（StrictMode）に立ったまま残り、**画面が
    * 生きているのに**席を指さない停止が飛ぶ——Rust は席を全部空けるので、
    * 別の経路が取った席まで巻き添えにする。
    */
-  const sweptRef = useRef(false);
+  const unmountedRef = useRef(false);
 
   // **同じ物を返し続ける。** 呼び手はこれを effect の依存に載せる。
   // 描画のたびに別物を返すと、依存が毎回変わって cleanup が走る
@@ -274,14 +274,14 @@ export function useEngineSeat(): EngineSeat {
   // （そこが唯一の出典。ここに写すと機械より狭い規約を名乗ることになる）。
   if (apiRef.current) return apiRef.current;
 
-  const remember = (sessionId: AnalysisSessionId) => {
+  const markReleased = (sessionId: AnalysisSessionId) => {
     // 入れ直して最後尾へ。`Set` は挿入順を保つので、先頭が最も古い
-    pastRef.current.delete(sessionId);
-    pastRef.current.add(sessionId);
-    while (pastRef.current.size > PAST_LIMIT) {
-      const oldest = pastRef.current.values().next();
+    releasedRef.current.delete(sessionId);
+    releasedRef.current.add(sessionId);
+    while (releasedRef.current.size > RELEASED_SEAT_LIMIT) {
+      const oldest = releasedRef.current.values().next();
       if (oldest.done) break;
-      pastRef.current.delete(oldest.value);
+      releasedRef.current.delete(oldest.value);
     }
   };
 
@@ -300,16 +300,16 @@ export function useEngineSeat(): EngineSeat {
    * （畳む側が `stop_all_sessions` で空ける）、欄へ戻すと以後の停止が**次のエンジン**へ
    * その識別子で飛ぶ。手放した席として覚えるだけにして、遅れて届く `info` を落とす。
    *
-   * 握った席が Rust にもう無いこともある。**区別できない理由は `pastRef` の doc に1つ。**
+   * 握った席が Rust にもう無いこともある。**区別できない理由は `releasedRef` の doc に1つ。**
    *
    * **欄を書き換えるだけではない。** 畳まれた後に書き戻した回は、そのまま
-   * 席を指さない停止を1本撃つ（下の `sweptRef` の枝）。
+   * 席を指さない停止を1本撃つ（下の `unmountedRef` の枝）。
    */
   const keepOrForget = (sessionId: AnalysisSessionId | undefined, generation: number) => {
     if (sessionId === undefined || seatRef.current !== null) return;
 
     if (engineGenRef.current !== generation) {
-      remember(sessionId);
+      markReleased(sessionId);
       return;
     }
     seatRef.current = sessionId;
@@ -320,16 +320,16 @@ export function useEngineSeat(): EngineSeat {
     //
     // **自分自身を呼び戻さない。** 撃ち直しは席を指さない停止なので、それが落ちても
     // `keepOrForget` は先頭の `sessionId === undefined` で降りる。回り続けない。
-    if (sweptRef.current) {
+    if (unmountedRef.current) {
       queueBehind(async () => {
         if (seatRef.current === null) return;
-        await shootQuietly("unmount", undefined);
+        await sendStopQuietly("unmount", undefined);
       });
     }
   };
 
   /**
-   * 停止を撃つ。**失敗は呼び手へ投げる**（飲む版は `shootQuietly`）。
+   * 停止を撃つ。**失敗は呼び手へ投げる**（飲む版は `sendStopQuietly`）。
    *
    * 成功したときに欄を空ける条件は、枝で違う。**席を指した回は、握っている席と
    * 一致するときだけ**——一致しないなら、そこに居るのは新しい席で巻き添えにできない。
@@ -339,7 +339,7 @@ export function useEngineSeat(): EngineSeat {
    *
    * **落ちたときは、欄が空なら撃った席を書き戻す**——誰も知らないまま Rust に残さない。
    */
-  const shoot = async (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) => {
+  const sendStop = async (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) => {
     const held = seatRef.current;
     const generation = engineGenRef.current;
 
@@ -356,13 +356,13 @@ export function useEngineSeat(): EngineSeat {
     // ここまで来た時点で、指した席は空いている。
     if (sessionId === undefined) {
       if (held !== null) {
-        remember(held);
+        markReleased(held);
       }
       seatRef.current = null;
       return outcome;
     }
 
-    remember(sessionId);
+    markReleased(sessionId);
     // **自分が握っている席と違うなら手放さない。** 新しい席を巻き添えにする。
     if (seatRef.current === sessionId) seatRef.current = null;
     return outcome;
@@ -419,8 +419,8 @@ export function useEngineSeat(): EngineSeat {
   // 画面が生きている回は ▶ が返し直す（▶ は握っている席を返してから頼む）。
   // その返却も落ちた回は語が `応答なし` になる（→ `docs/state-transitions/analysis.md` の ※1 / F-7）。
   // **解決する Promise を返す**ので、後ろに並んだ返却がその結末を見られる。
-  const shootQuietly = (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) =>
-    shoot(by, sessionId).then(
+  const sendStopQuietly = (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) =>
+    sendStop(by, sessionId).then(
       () => {},
       (e: unknown) => {
         console.warn("[ANALYSIS] failed to release the engine session", { by, sessionId }, e);
@@ -446,15 +446,15 @@ export function useEngineSeat(): EngineSeat {
    * 要らなくなった開始が持ってきた席を捨てる。**握っている席には触らない。**
    *
    * **捨てられなかったときは握る**（欄が空で、まだ返し終えていない席のとき。
-   * 書き戻すのは `shoot` の catch）。そうしないとその席を知る者が居なくなる。
+   * 書き戻すのは `sendStop` の catch）。そうしないとその席を知る者が居なくなる。
    * **畳まれた後に落ちた回は、書き戻しの側から1回だけ撃ち直す**（`keepOrForget`）。
    */
   const discard = (by: DiscardReleasePoint, sessionId: AnalysisSessionId) => {
     // **捨てると決めた時点で `info` を落とす。** 停止の応答が返るまで Rust は
     // その席の `info` を配り続けるので、待つと前の局面の読み筋が盤に出る。
-    remember(sessionId);
+    markReleased(sessionId);
 
-    foldIntoSlot(shootQuietly(by, sessionId));
+    foldIntoSlot(sendStopQuietly(by, sessionId));
   };
 
   apiRef.current = {
@@ -462,28 +462,28 @@ export function useEngineSeat(): EngineSeat {
     engineGeneration: () => engineGenRef.current,
     accepts: (sessionId) => {
       // 順序の理由は `EngineSeat.accepts` の doc に1つ置いてある。
-      if (pastRef.current.has(sessionId)) return false;
+      if (releasedRef.current.has(sessionId)) return false;
       return seatRef.current === null || seatRef.current === sessionId;
     },
     beginTake: (discardBy, engineUsable) => {
       const generation = engineGenRef.current;
 
       return {
-        engineChanged: () => engineGenRef.current !== generation || !engineUsable(),
-        landed: (sessionId, isSuperseded) => {
-          // **見る順の理由は `SeatTake.landed` の doc に1つ置いてある。**
+        hasEngineChanged: () => engineGenRef.current !== generation || !engineUsable(),
+        receiveSeat: (sessionId, isSuperseded) => {
+          // **見る順の理由は `SeatTake.receiveSeat` の doc に1つ置いてある。**
           //
           // **撃たない。** 席が空の停止は起こし直したエンジンへ裸の `stop` を書く
           // （→ `docs/state-transitions/analysis.md` ※12）。手放した席として覚えるだけ。
           if (engineGenRef.current !== generation || !engineUsable()) {
-            remember(sessionId);
+            markReleased(sessionId);
             return "engine-gone";
           }
 
           // 渡る識別子は新品（Rust の `new_session_id` が UUID を振る）なので、ここに
           // 居るのは開始の応答より先に完了が届いた席だけ。**もう Rust に無いので、
           // 要らなくなっていても撃たない。**
-          if (pastRef.current.has(sessionId)) return isSuperseded() ? "superseded" : "finished";
+          if (releasedRef.current.has(sessionId)) return isSuperseded() ? "superseded" : "finished";
 
           if (isSuperseded()) {
             discard(discardBy, sessionId);
@@ -501,12 +501,12 @@ export function useEngineSeat(): EngineSeat {
       const held = seatRef.current;
       if (held === null) return;
       seatRef.current = null;
-      remember(held);
+      markReleased(held);
     },
     closeFinished: (sessionId) => {
       if (seatRef.current !== null && seatRef.current !== sessionId) return;
       seatRef.current = null;
-      remember(sessionId);
+      markReleased(sessionId);
     },
 
     releaseHeld: async (by) => {
@@ -527,7 +527,7 @@ export function useEngineSeat(): EngineSeat {
 
       let outcome: StopOutcome = "stopped";
       await holdSlot(async () => {
-        outcome = await shoot(by, held);
+        outcome = await sendStop(by, held);
       });
       return outcome;
     },
@@ -538,12 +538,12 @@ export function useEngineSeat(): EngineSeat {
       queueBehind(async () => {
         const held = seatRef.current;
         if (held === null) return;
-        await shootQuietly(by, held);
+        await sendStopQuietly(by, held);
       });
     },
 
-    armForMount: () => {
-      sweptRef.current = false;
+    markMounted: () => {
+      unmountedRef.current = false;
     },
 
     // React の state が消えても、Rust の `active_sessions` からは席が消えない。
@@ -552,7 +552,7 @@ export function useEngineSeat(): EngineSeat {
     //
     // **席を指さない停止を撃つ。** 理由は `docs/state-transitions/analysis.md` ※12 に1つ置いてある。
     sweepOnUnmount: () => {
-      sweptRef.current = true;
+      unmountedRef.current = true;
 
       queueBehind(async () => {
         // **席を握っていない回は撃たない。** 開始の応答を待っている間は欄が空なので、
@@ -563,7 +563,7 @@ export function useEngineSeat(): EngineSeat {
         // ——撃ち直す者が誰も居なくなり、その席は Rust に残ったままになる（#441）。
         if (seatRef.current === null) return;
 
-        await shootQuietly("unmount", undefined);
+        await sendStopQuietly("unmount", undefined);
       });
     },
   };

@@ -247,7 +247,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * 席が欄に入る前に届いた1本を消す心配も要らない。
 
    *
-   * **席を見て降りる形にしない。** 捨てる停止が落ちると `shoot` の catch
+   * **席を見て降りる形にしない。** 捨てる停止が落ちると `sendStop` の catch
    * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
    * 反映待ちを残す**——その後は `commitLatest` の席の判定も通るので、捨てた席の読み筋が
    * そこから出る。書き戻しは `await stopAnalysisCore` の向こうなので必ずここより後だが、
@@ -286,21 +286,21 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
       // **席を握れなかった回の出口は1本。** 席が返ってきて捨てる回と、Rust に断られる回で
       // 後始末が割れると、片方だけが反映待ちを落とし忘れる。
-      // **`landed` を先に決めてから、握れなかった側をまとめて畳む。**
-      let landed: SeatTakeResult;
+      // **`receiveSeat` を先に決めてから、握れなかった側をまとめて畳む。**
+      let taken: SeatTakeResult;
       try {
         const sessionId = await startInfiniteAnalysisCore();
-        landed = take.landed(sessionId, () => supersededSince(seq));
+        taken = take.receiveSeat(sessionId, () => supersededSince(seq));
       } catch (e) {
         // **断られた回も同じ窓に居る。** 畳んでいる最中のエンジンへの開始は Rust が
         // `Err` で返すので（`bridge.rs`）、起こし直しの窓は席が返るより断られるほうが
         // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
         // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
         //
-        // **判定は札の `engineChanged`**（世代とエンジンが使えるかの両方）。ここで足すと、
-        // 成功して返る側（`landed`）と条件が割れる——割れた側は、死んだエンジンの席を
+        // **判定は札の `hasEngineChanged`**（世代とエンジンが使えるかの両方）。ここで足すと、
+        // 成功して返る側（`receiveSeat`）と条件が割れる——割れた側は、死んだエンジンの席を
         // 握ったまま「解析中」で固まる。
-        if (!isAnalysisStartUnreachable(e) && !take.engineChanged()) throw e;
+        if (!isAnalysisStartUnreachable(e) && !take.hasEngineChanged()) throw e;
 
         // **Rust の言い分を残す。** ここで倒すと例外にならないので、呼び手の
         // `console.error` には届かない。断りの文言は合成した `Error` になる。
@@ -308,32 +308,32 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
         // **エンジンへ書けなかった回は語が言う。** 断りを立てず、検討の意思も切らない。
         if (isAnalysisStartUnreachable(e)) {
-          if (!take.engineChanged()) reportUnreachable();
+          if (!take.hasEngineChanged()) reportUnreachable();
           dropPendingForLostSeat();
           return "engine-gone";
         }
-        landed = "engine-gone";
+        taken = "engine-gone";
       }
 
-      if (landed !== "held" && landed !== "finished") {
+      if (taken !== "held" && taken !== "finished") {
         dropPendingForLostSeat();
-        return landed;
+        return taken;
       }
 
       dispatch({ type: "start_analysis", payload: { sfen: want } });
       sentSfenRef.current = want;
 
-      if (landed === "finished") {
+      if (taken === "finished") {
         results.dropPending();
         const finished = finishedResultRef.current;
         if (finished) dispatch({ type: "finish_analysis", payload: finished });
-        return landed;
+        return taken;
       }
 
       // **開始の応答より早く届いた `info` を、ここで出し直す**（理由は
       // `ResultFlush.schedule` の doc）。
       results.schedule();
-      return landed;
+      return taken;
     },
     [results, dropPendingForLostSeat, reportUnreachable, seat, supersededSince],
   );
@@ -350,7 +350,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     // setup → cleanup → setup が走ったとき（StrictMode）に true のまま残り、
     // 以降タイマーが1つも張られず、盤を進めても解析が黙って再開しなくなる。
     unmountedRef.current = false;
-    seat.armForMount();
+    seat.markMounted();
 
     return () => {
       unmountedRef.current = true;
@@ -484,7 +484,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         clearDebounceTimer();
 
         // 握っている席を返してから断りを出す。握っていなければ何も撃たない。
-        // 落ちたときの結末は `useEngineSeat` の `shootQuietly` にある。
+        // 落ちたときの結末は `useEngineSeat` の `sendStopQuietly` にある。
         seat.releaseHeldQuietly("sync-timeout");
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
@@ -926,12 +926,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!want) return;
 
     // **`.catch()` を挟まない。** `await` の後ろに `.then` を1段足すと、
-    // 席が返ってから `landed` が握るか捨てるかを決めるまでの微小タスクが1つ増える
+    // 席が返ってから `receiveSeat` が握るか捨てるかを決めるまでの微小タスクが1つ増える
     // ——開始の応答と unmount が同じバッチに入る窓（`provider.test.tsx`）で、
     // 畳まれた後に席を返す側が間に合わなくなる。
-    let landed: SeatTakeResult = "superseded";
+    let taken: SeatTakeResult = "superseded";
     try {
-      landed = await takeSeatAndGo(seq, want, "late-start");
+      taken = await takeSeatAndGo(seq, want, "late-start");
     } catch (e) {
       // 要らなくなった要求の失敗は誰にも見せない。
       if (supersededSince(seq)) return;
@@ -939,8 +939,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
     // **エンジンが消えた回は検討の意思を残す。** 戻れば読み始める。戻らないならその理由で断る。
     // ただし**要求がまだ生きている回だけ**——棋譜を閉じた回・畳まれた回も
-    // `landed` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
-    if (landed === "engine-gone" && !supersededSince(seq)) {
+    // `receiveSeat` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
+    if (taken === "engine-gone" && !supersededSince(seq)) {
       const engine = readinessRef.current;
       if (engine.isReady || holdsIntentWhile(engine.notReadyReason)) {
         dispatch({ type: "hold_intent" });
@@ -951,7 +951,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         new Error("engine was restarted while taking a seat"),
       );
     }
-    if (landed !== "held" && landed !== "finished") return;
+    if (taken !== "held" && taken !== "finished") return;
 
     desiredSfenRef.current = want;
   }, [

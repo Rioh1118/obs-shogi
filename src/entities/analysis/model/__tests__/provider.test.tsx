@@ -750,7 +750,7 @@ describe("AnalysisProvider の結果の照合", () => {
     const pressed = view.current.startInfiniteAnalysis().catch(() => {});
     await advance(50);
 
-    // 棋譜を閉じ、そのうえでエンジンが消える。`landed` はエンジンを先に見るので
+    // 棋譜を閉じ、そのうえでエンジンが消える。`receiveSeat` はエンジンを先に見るので
     // `"engine-gone"` が返るが、出す先の画面はもう無い。
     await view.setSync(adapter(null, null));
     engine = { isReady: false, notReadyReason: "starting" };

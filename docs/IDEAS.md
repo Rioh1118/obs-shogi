@@ -374,7 +374,7 @@ lint もテストもラチェットも赤くならない。
 ## `useEngineSeat` の doc が、`analysis.md` ※12 と同じ知識を二重に持っている
 
 `.claude/reviews/2026-09-07-441-unmount-session-r29.md`（comment reviewer）。
-`shootQuietly` の「落ちても利用者には出せない」の枝の列挙と `onEngineGone` の説明が、
+`sendStopQuietly` の「落ちても利用者には出せない」の枝の列挙と `onEngineGone` の説明が、
 ※12 の「どの失敗で席が本当に残るか」と重なる。そのファイル自身が4箇所で
 「理由は ※12 に1つだけ置いてある」と名乗っているので、方針と現物がずれている。
 コメントとコードの比が 1.8:1 なのはその結果。**密度そのものは指標にしない**
@@ -399,7 +399,7 @@ lint もテストもラチェットも赤くならない。
 
 `.claude/reviews/2026-09-09-441-unmount-session-r33.md`（architecture reviewer）。
 このフックは2つのことをしている——**席を取る/手放す**（`beginTake` /
-`keepOrForget` / `shoot`）と、**返却を1本ずつに並べる枠**（`holdSlot` /
+`keepOrForget` / `sendStop`）と、**返却を1本ずつに並べる枠**（`holdSlot` /
 `queueBehind` / `foldIntoSlot` / `sweepOnUnmount`）。後者は前者を知らなくても書ける。
 
 `useReleaseSlot` として割れば、枠側だけを単体で固定できる。いまは枠の振る舞いを
