@@ -13,7 +13,8 @@ import {
 import Button from "@/shared/ui/Button/Button";
 import { canCreateEnginesDir, canListEnginesDir } from "@/entities/engine/lib/enginesDir";
 import type { AiLibraryContents } from "@/features/settings/lib/aiLibraryContents";
-import type { AiLibraryActions, ScanState } from "@/features/settings/model/useAiLibrary";
+import type { ScanState } from "@/features/settings/lib/aiRootScan";
+import type { AiLibraryActions } from "@/features/settings/model/useAiLibrary";
 
 type HeroButton = { label: string; onClick: () => void };
 

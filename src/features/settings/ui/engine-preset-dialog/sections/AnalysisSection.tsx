@@ -1,14 +1,13 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState } from "react";
 
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SSection } from "@/features/settings/ui/kit";
 import { cx } from "@/features/settings/lib/cx";
-import { parseIntSafe } from "@/features/settings/lib/presetDialog";
 import {
   engineDefaultLabel,
   engineDefaultOf,
   savedInt,
-} from "@/features/settings/lib/quickOptions";
+} from "@/features/settings/lib/presetOptionValues";
 import {
   MULTIPV_MIN,
   MULTIPV_OPTION,
@@ -17,36 +16,41 @@ import {
 import type { AnalysisDefaults, EnginePreset } from "@/entities/engine-presets/model/types";
 import "./AnalysisSection.scss";
 
+function parseIntOr(text: string, fallback: number): number {
+  const n = Number.parseInt(text, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** 数の欄の文字を読む。空は値を持たない */
+function stopLimitOf(text: string): number | undefined {
+  return text === "" ? undefined : parseIntOr(text, 0);
+}
+
 /**
- * 解析をどう回すか。候補手の数（エンジンへは `MultiPV` として送る）と、止める条件。
- *
- * 候補手の数は値が無ければ初期値（送らない）。止める条件は保存するが、解析はまだ読まない（#107）
+ * 「検討」の節。候補手の数と終了条件と詰み探索を決める。
+ * 候補手の数は値が無ければ送らない。終了条件と詰み探索は保存するが、検討はまだ読まない。
  */
-export default function AnalysisSection(props: {
+export default function AnalysisSection({
+  draft,
+  setAnalysis,
+  setOption,
+  multiPvMax,
+}: {
   draft: EnginePreset;
-  setDraft: Dispatch<SetStateAction<EnginePreset | null>>;
-  /** `null` で値を消す（初期値。送らない） */
-  setOpt: (name: string, value: string | null) => void;
-  /** 候補手の数の上限（`multiPvMax`） */
+  setAnalysis: (patch: Partial<AnalysisDefaults>) => void;
+  /** `null` で値を消す。 */
+  setOption: (name: string, value: string | null) => void;
   multiPvMax: number;
 }) {
-  const { draft, setDraft, setOpt, multiPvMax } = props;
   const multiPv = savedInt(draft.options, MULTIPV_OPTION);
   const multiPvDefault = engineDefaultOf(draft, MULTIPV_OPTION);
   const quick = QUICK_MULTIPV.filter((n) => n <= multiPvMax);
-  // 利用者が開いたか、値がどのボタンにも無いときに開く（値から導く。ボタンに無い値が画面から消えない）
+  // 値がどのボタンにも無いときは開いたままにする。閉じると値が画面から消える
   const [customOpened, setCustomOpened] = useState(false);
   const offButtons = multiPv != null && !(quick as number[]).includes(multiPv);
   const showCustom = customOpened || offButtons;
   const setMultiPv = (n: number) =>
-    setOpt(MULTIPV_OPTION, String(Math.max(MULTIPV_MIN, Math.min(n, multiPvMax))));
-
-  const setAnalysis = (patch: Partial<AnalysisDefaults>) =>
-    setDraft({
-      ...draft,
-      analysis: { ...(draft.analysis ?? { mateSearch: false }), ...patch },
-    });
-  const numberOrUndefined = (v: string) => (v === "" ? undefined : parseIntSafe(v, 0));
+    setOption(MULTIPV_OPTION, String(Math.max(MULTIPV_MIN, Math.min(n, multiPvMax))));
 
   return (
     <SSection title="検討">
@@ -67,13 +71,12 @@ export default function AnalysisSection(props: {
                   type="button"
                   className={cx("presetDialog__segBtn", multiPv === n && "is-active")}
                   aria-pressed={multiPv === n}
-                  onClick={() => (multiPv === n ? setOpt(MULTIPV_OPTION, null) : setMultiPv(n))}
+                  onClick={() => (multiPv === n ? setOption(MULTIPV_OPTION, null) : setMultiPv(n))}
                 >
                   {n}
                 </button>
               ))}
             </div>
-            {/* ボタンに無い値の間は閉じられない（閉じると値が画面から消える）ので押せなくする */}
             <Button size="sm" onClick={() => setCustomOpened(!showCustom)} disabled={offButtons}>
               ほかの数…
             </Button>
@@ -88,11 +91,10 @@ export default function AnalysisSection(props: {
               value={multiPv ?? ""}
               placeholder={multiPvDefault ?? ""}
               aria-label="候補手の数（数値で入力）"
-              // 空にしたら初期値（1 を入れない）
               onChange={(e) =>
                 e.target.value.trim() === ""
-                  ? setOpt(MULTIPV_OPTION, null)
-                  : setMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))
+                  ? setOption(MULTIPV_OPTION, null)
+                  : setMultiPv(parseIntOr(e.target.value, MULTIPV_MIN))
               }
             />
           )}
@@ -109,7 +111,7 @@ export default function AnalysisSection(props: {
               placeholder="時間（秒）"
               aria-label="時間（秒）"
               value={draft.analysis?.timeSeconds ?? ""}
-              onChange={(e) => setAnalysis({ timeSeconds: numberOrUndefined(e.target.value) })}
+              onChange={(e) => setAnalysis({ timeSeconds: stopLimitOf(e.target.value) })}
             />
             <SInput
               type="number"
@@ -117,7 +119,7 @@ export default function AnalysisSection(props: {
               placeholder="深さ"
               aria-label="深さ"
               value={draft.analysis?.depth ?? ""}
-              onChange={(e) => setAnalysis({ depth: numberOrUndefined(e.target.value) })}
+              onChange={(e) => setAnalysis({ depth: stopLimitOf(e.target.value) })}
             />
             <SInput
               type="number"
@@ -125,7 +127,7 @@ export default function AnalysisSection(props: {
               placeholder="ノード数"
               aria-label="ノード数"
               value={draft.analysis?.nodes ?? ""}
-              onChange={(e) => setAnalysis({ nodes: numberOrUndefined(e.target.value) })}
+              onChange={(e) => setAnalysis({ nodes: stopLimitOf(e.target.value) })}
             />
           </div>
         </SField>
@@ -133,7 +135,7 @@ export default function AnalysisSection(props: {
         <label className="presetDialog__check">
           <input
             type="checkbox"
-            checked={Boolean(draft.analysis?.mateSearch)}
+            checked={draft.analysis?.mateSearch ?? false}
             onChange={(e) => setAnalysis({ mateSearch: e.target.checked })}
           />
           <span className="presetDialog__checkLabel">詰み探索</span>
