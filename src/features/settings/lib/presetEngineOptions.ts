@@ -1,5 +1,6 @@
 import type { EngineCandidate, Launchability } from "@/entities/engine/api/aiLibrary";
 import { isEngineForThisMachine } from "@/entities/engine/lib/engineCandidate";
+import { isFileKind } from "@/features/settings/lib/fileChoices";
 
 /**
  * 起動できない見込みの理由。`ready` は何も添えない。
@@ -29,9 +30,7 @@ export type PresetEngineOption = {
  * そちらの doc）、ファイルであること
  */
 export function isSelectableEngine(candidate: EngineCandidate): boolean {
-  return (
-    isEngineForThisMachine(candidate) && (candidate.kind === "file" || candidate.kind === "symlink")
-  );
+  return isEngineForThisMachine(candidate) && isFileKind(candidate.kind);
 }
 
 /**

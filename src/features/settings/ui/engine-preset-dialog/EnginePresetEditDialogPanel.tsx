@@ -5,7 +5,8 @@ import "./EnginePresetEditDialogPanel.scss";
 
 import Modal from "@/shared/ui/Modal";
 
-import { autofillPreset, basename, clampInt } from "@/features/settings/lib/presetDialog";
+import { autofillPreset, clampInt } from "@/features/settings/lib/presetDialog";
+import { getBaseName } from "@/shared/lib/path";
 import PresetDialogFooter from "./PresetDialogFooter";
 import UsedFilesSection from "./sections/UsedFilesSection";
 import AnalysisSection from "./sections/AnalysisSection";
@@ -167,7 +168,7 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
     if (cur && !opts.some((o) => o.value === cur)) {
       opts.unshift({
         value: cur,
-        label: `${basename(cur)}（現在の選択）`,
+        label: `${getBaseName(cur)}（現在の選択）`,
         disabled: false,
         note: null,
       });

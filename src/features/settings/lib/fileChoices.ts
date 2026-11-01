@@ -1,4 +1,4 @@
-import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
+import type { FsKind, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 
 type FileChoice = {
   value: string;
@@ -8,7 +8,10 @@ type FileChoice = {
   folder: string | null;
 };
 
-const usable = (kind: string) => kind === "file" || kind === "symlink";
+/** ファイルとして開けるか。フォルダはプリセットの候補にしない */
+export function isFileKind(kind: FsKind): boolean {
+  return kind === "file" || kind === "symlink";
+}
 
 /**
  * パスを「フォルダ / ファイル」で言う（`<AI のフォルダ>/<名前>/eval/nn.bin` → `名前 / nn.bin`）。
@@ -40,7 +43,7 @@ export function evalChoices(profiles: ProfileCandidate[], current: string): File
       .map((f) => ({
         value: f.path,
         label: `${p.name} / ${f.entry}`,
-        disabled: !usable(f.kind),
+        disabled: !isFileKind(f.kind),
         folder: p.name,
       })),
   );
@@ -56,7 +59,7 @@ export function bookChoices(profiles: ProfileCandidate[], current: string | null
     p.book_db_files.map((f) => ({
       value: f.path,
       label: `${p.name} / ${f.entry}`,
-      disabled: !usable(f.kind),
+      disabled: !isFileKind(f.kind),
       folder: p.name,
     })),
   );

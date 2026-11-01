@@ -412,6 +412,15 @@ describe("エンジンの欄", () => {
     expect(engineSelect().value).toBe("/elsewhere/old-build");
   });
 
+  test.each([
+    ["C:\\engines\\yaneura.exe", "yaneura.exe（現在の選択）"],
+    ["/elsewhere/build/", "build（現在の選択）"],
+    ["old-build", "old-build（現在の選択）"],
+  ])("候補に無いパス %s は末尾の名前で出す", async (path, label) => {
+    await openDialog({ enginePath: path });
+    expect(optionTexts(engineSelect())).toContain(label);
+  });
+
   test("候補にある保存済みのパスは重ねない", async () => {
     await openDialog({ enginePath: ENGINE_A });
     expect(optionTexts(engineSelect())).toEqual(["エンジンを選択", "a", "b"]);

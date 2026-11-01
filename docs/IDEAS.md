@@ -379,8 +379,8 @@ lint もテストもラチェットも赤くならない。
 
 #95（定跡ビュー）のレビュー（architecture reviewer）。
 `Math.max(lastIndexOf("/"), lastIndexOf("\\"))` の手書きが
-`entities/book/lib/recents.ts` / `features/file-conflict/ui/ConflictMeta.tsx` /
-`features/settings/lib/presetDialog.ts` ほかに散っている。
+`entities/book/lib/recents.ts` / `features/file-conflict/ui/ConflictMeta.tsx`
+ほかに散っている。
 `shared/lib/path.ts` は既に在る。
 
 同じ知識（区切りは2種、末尾区切りの扱い、`at === 0` のときに何を返すか）が

@@ -15,12 +15,6 @@ export function parseIntSafe(v: string, fallback: number) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export function basename(p: string) {
-  const s = p.replace(/\\/g, "/");
-  const last = s.split("/").filter(Boolean).pop();
-  return last || p;
-}
-
 function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {
   const xs = profile?.eval_files ?? [];
   if (xs.length === 0) return null;
