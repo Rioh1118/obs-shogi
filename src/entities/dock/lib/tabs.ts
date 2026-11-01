@@ -70,8 +70,8 @@ export function knownDockViews(): DockViewType[] {
 /**
  * 起動時に開くと決めてあるタブを返す。一覧に無ければ `null` で、前回のものを開く。
  *
- * 読む側と書く側の両方がこれを通る。通さないと、固定に選んだタブを一覧から外した後に、
- * 設定画面は選択肢に無い値を表示し、起動時の行き先だけが別になる。
+ * 設定画面はこれを通す。通さないと、固定に選んだタブを一覧から外した後に選択肢に無い値を
+ * 表示する。起動時の行き先は `resolveDockView` が同じ判定で決める。
  */
 export function resolveStartupTab(
   tabs: readonly DockViewType[],

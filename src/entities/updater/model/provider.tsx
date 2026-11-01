@@ -10,8 +10,8 @@ import type { ManualCheckResult, UpdaterState, UpdaterStatus } from "./types";
  * 確認を諦めるまでの時間。渡さないと待ち続ける。
  *
  * plugin は上限を省くと reqwest の既定（無期限）になるので、応答を返さない経路
- * （captive portal など）に当たると確認が永久に終わらない。起動時の確認は1回だけなので、
- * 固まると設定から押すまで更新に気づけない。
+ * （captive portal など）に当たると確認が永久に終わらない。固まると `checkingRef` が立った
+ * ままになり、設定から押しても確認が走らないので、その起動では二度と更新に気づけない。
  */
 const CHECK_TIMEOUT_MS = 30_000;
 
@@ -49,7 +49,7 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
    * そこを判定にすると、同じ描画のクロージャを2回踏んだだけで取得と入替が2本走る。
    *
    * 入替の後も降ろさない。走っているプロセスは古いままなので、確認すると同じ版が
-   * 見つかり、「再起動して適用」が告知へ戻る。降ろすのは失敗したときだけ。
+   * 見つかり、「いま再起動」が告知へ戻る。降ろすのは失敗したときだけ。
    */
   const installStartedRef = useRef(false);
 

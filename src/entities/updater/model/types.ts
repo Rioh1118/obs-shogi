@@ -3,7 +3,7 @@
  *
  * `installing` と `ready` は、ディスク上のアプリが入れ替わったかで分ける。
  * plugin は取得が終わった時点で完了の合図を送り、署名の検証も入替もその後に走る。
- * 合図で `ready` を立てると、まだ何も入れ替わっていないのに「再起動して適用」が出る。
+ * 合図で `ready` を立てると、まだ何も入れ替わっていないのに「いま再起動」が出る。
  */
 export type UpdaterStatus =
   | { phase: "idle" }
@@ -71,7 +71,7 @@ export type UpdaterContextType = {
   /** 確認が走っている最中か。自動・手動のどちらでも立つ */
   isChecking: boolean;
 
-  /** 取得して適用する。`available` のときだけ動く */
+  /** 取得して適用する。告知している版を握っているときだけ動く。画面は `available` で呼ぶ */
   downloadAndInstall: () => Promise<void>;
   /** 新しい版で開き直す */
   restart: () => Promise<void>;
