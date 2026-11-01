@@ -40,6 +40,8 @@ ours 戦略のマージは使わない。
 | 4 | `refactor/tidy-shared-ui` | `src/shared/ui` のコメントと書き方 | #665 | マージ済み |
 | 5 | `refactor/structure-shared-ui` | `src/shared/ui` の部品の構造 | #667 | マージ済み |
 | 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #668 | マージ済み |
+| 7 | `refactor/position-public-names` | `src/entities/position` の公開の名前と呼び手 | #669 | レビュー待ち |
+| 8 | `refactor/tidy-entities-position` | `src/entities/position` の残り | #670 | レビュー待ち |
 
 ## 語
 
