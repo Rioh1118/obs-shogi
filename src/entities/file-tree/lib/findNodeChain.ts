@@ -1,5 +1,6 @@
 import type { FileTreeNode } from "../model/types";
 
+/** 根から `targetPath` の節までの列を返す。無ければ `null`。`chain` は再帰の途中の列 */
 export function findNodeChain(
   node: FileTreeNode,
   targetPath: string,
