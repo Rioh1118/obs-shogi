@@ -6,12 +6,10 @@ export interface HandicapOption<T extends string> {
 }
 
 /**
- * 手合割の一覧
+ * 手合割の一覧。
  *
- * **型はこの一覧から導く**（下の `HandicapPreset`）。`InitialPresetString` から
- * 引き算して型を作ると、綴りが型に在るのに一覧に無い状態が黙って生まれる
- * —— 実際 `HIKY`（飛香落ち）は `InitialPresetString` に在って `shogi.js` でも組めるが、
- * この一覧には無い。型が一覧より広いと、選べない値が entities の API に載る。
+ * 型はこの一覧から導く（`HandicapPreset`）。`InitialPresetString` から引き算すると、
+ * 型に在るのに一覧に無い綴りが黙って生まれる。`HIKY` は `shogi.js` で組めるがこの一覧には無い。
  *
  * 既定値は先頭から引く（`DEFAULT_HANDICAP`）。**並べ替えると既定値が変わる。**
  */

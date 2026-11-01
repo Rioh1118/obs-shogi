@@ -11,27 +11,20 @@ export type ForkPointer = {
 declare const tesuuPointerBrand: unique symbol;
 
 /**
- * 局面を指す `"<tesuu>,[{te,forkIndex}]"` 形式の文字列
+ * 再生器が返した、局面を指す `"<tesuu>,[{te,forkIndex}]"` 形式の文字列。
  * 例: `7,[{"te":3,"forkIndex":0}]`
  *
- * **出どころは2つあり、書式だけが同じ。** 再生器が返した観測値
- * （`JKFPlayer.getTesuuPointer`）と、要求から組んだ鍵（`cursorKey`）。
- * **一意なのは1つの棋譜の中だけ。** どの棋譜でも開始局面は `"0,[]"` になるので、
- * 棋譜をまたいで鍵にするならファイル識別子と組むこと（`AnalysisPane` の `cacheKey`、
- * `KifuStreamList` の追従 effect がそうしている）。
- *
- * **本番の経路で `KifuCursor.tesuuPointer` に入れてよいのは観測の側だけ。**
+ * 書式が同じ値が2つある。再生器が返す観測値（`JKFPlayer.getTesuuPointer`）と、要求から組んだ鍵（`cursorKey`）。
+ * **本番の経路で `KifuCursor.tesuuPointer` に入れてよいのは観測値だけ。**
  * 要求の鍵を入れると、着けもしない局面の識別子で停止判定やキャッシュが回る。
- * テストの fixture は `cursorKey` で埋めてよい（本番の停止判定・キャッシュ鍵に当たる
- * 読み手がテストの中に居ないため）。書式そのものを突き合わせるテストは別で、
- * それらは `cursorKey` を**期待値**として使う。
  *
- * 素の文字列と取り違えないよう brand を付けてある。
+ * 一意なのは1つの棋譜の中だけで、どの棋譜でも開始局面は `"0,[]"` になる。
+ * 棋譜をまたいで鍵にするならファイル識別子と組む（`AnalysisPane` の `cacheKey`）。
+ *
+ * テストの fixture は `cursorKey` で埋めてよい。本番の停止判定に当たる読み手がテストの中に居ない。
+ *
  * brand が止めるのは暗黙の代入だけで、`as TesuuPointer` は通る。
- * **この型を作ってよいのはこのファイルの中だけ**、というのは規約。
- * 作っているのは2つ: `ROOT_CURSOR`（定数）と
- * `makeKifuCursor`（再生器の返り値に brand を付ける）。
- * 外に `as TesuuPointer` を書かないこと。
+ * 作るのは `ROOT_CURSOR` と `makeKifuCursor` だけで、外に `as TesuuPointer` を書かない。
  */
 export type TesuuPointer = string & { readonly [tesuuPointerBrand]: true };
 
@@ -52,14 +45,12 @@ export type CursorKey = string & { readonly [cursorKeyBrand]: true };
 declare const kifuCursorBrand: unique symbol;
 
 /**
- * 局面を指す文字列に整える。**このファイルの中だけで使う。**
+ * 局面を指す文字列に整える。このファイルの中だけで使う。
  *
- * 正規化を掛けないので、外から呼ぶと並びの違いがそのまま別の鍵になる。
- * 外向きの関数は `cursorKey`（正規化を通す）。
+ * 正規化を掛けないので、外から呼ぶと並びの違いがそのまま別の鍵になる。外向きは `cursorKey`。
  *
- * 返すのは**素の `string`**。ここで `TesuuPointer` を返すと、再生器を通していない値を
- * `tesuuPointer` の欄に入れる経路がこのファイルの中に開く（欄に書ける owner は
- * この `cursor.ts` なので、綴りの番人も素通りする）。
+ * 返すのは素の `string`。`TesuuPointer` を返すと、再生器を通していない値を `tesuuPointer` の欄に入れる経路が
+ * このファイルの中に開く。`src/__tests__/cursorConstruction.test.ts` はこのファイルを持ち主として許すので止まらない。
  */
 function formatPointer(tesuu: number, forkPointers: ForkPointer[]): string {
   // JKFPlayer の "N,[{te,forkIndex}]" と揃える
@@ -67,19 +58,15 @@ function formatPointer(tesuu: number, forkPointers: ForkPointer[]): string {
 }
 
 /**
- * アプリ側で保持する「公式カーソル」
- * 現在局面を一意に表現し、UIの再描画やデバッグに使う。
+ * 現在局面を一意に指すカーソルの欄。UI の再描画とデバッグに使う。
  *
- * `forkPointers` は `te <= tesuu` に正規化されている（組む2つが必ず通す）。
- * **`te > tesuu` を持たないのはこの型だけ。** `CursorPath` / `PlannedCursor` /
- * `BranchPlan` はいずれも持ちうる。
+ * `forkPointers` は `te <= tesuu` に正規化されている。`te > tesuu` を持たないのはこの型だけで、
+ * `CursorPath`、`PlannedCursor`、`BranchPlan` は持ちうる。
  *
- * 作るのは `makeKifuCursor` と `ROOT_CURSOR` の2つ。brand はそれを支える印だが、
- * **止まるのは素のオブジェクトリテラルだけ**（スプレッドと二重キャストは通る）。
- * 要求の鍵が観測の欄に入る形を止めているのは、`TesuuPointer` と `CursorKey` を
- * 別の型にしてあること。**ただし `makeKifuCursor` の第3引数は素の `string`** なので、
- * そこへ `cursorKey` の返りを渡す形は型では止まらない。止めているのは
- * `src/__tests__/cursorConstruction.test.ts` の「呼び出しの持ち主」の規則。
+ * 作るのは `makeKifuCursor` と `ROOT_CURSOR` の2つ。brand で止まるのは素のオブジェクトリテラルだけで、
+ * スプレッドと二重キャストは通る。要求の鍵が観測の欄に入る形は、`TesuuPointer` と `CursorKey` の型の違いが止める。
+ * **`makeKifuCursor` の第3引数は素の `string`** なので、そこへ `cursorKey` の返りを渡す形は
+ * `src/__tests__/cursorConstruction.test.ts` の「呼び出しの持ち主」の規則が止める。
  */
 interface KifuCursorFields {
   /** 現在の手数(0=開始局面) */
@@ -95,12 +82,10 @@ interface KifuCursorFields {
 export type KifuCursor = KifuCursorFields & { readonly [kifuCursorBrand]: true };
 
 /**
- * 欄を揃えた組に印を付ける。**`KifuCursor` を作れるのはこの関数を通る2つだけ。**
+ * 欄を揃えた組に印を付ける。`KifuCursor` はこの関数を通して作る。
  *
- * 引数を `KifuCursorFields` で受けるのが要点。`as unknown as KifuCursor` を
- * 作る側に直接書くと、**欄の型が入れ替わっていても tsc が何も言わない**
- * （`tesuu` に文字列、`tesuuPointer` に数値を入れても通る）。
- * ここを通せば欄は tsc が突き合わせ、印を付ける単段のキャストだけが残る。
+ * 引数を `KifuCursorFields` で受けるので、欄の型は tsc が突き合わせる。
+ * 作る側に `as unknown as KifuCursor` を書くと、`tesuu` に文字列を入れても通る。
  */
 const brandCursor = (fields: KifuCursorFields): KifuCursor => fields as KifuCursor;
 
@@ -141,20 +126,17 @@ export const asBranchPlan = (forkPointers: ForkPointer[]) => forkPointers as Bra
 declare const plannedCursorBrand: unique symbol;
 
 /**
- * 「これから降りるつもりの変化」まで載せたカーソル
+ * 「これから降りるつもりの変化」まで載せたカーソル。
  *
- * `KifuCursor` との違いは、局面を一意に指さないので `tesuuPointer` を持たないこと。
+ * `KifuCursor` と違い局面を一意に指さないので、`tesuuPointer` を持たない。
  *
  * brand が要るのは、両方とも `tesuu` と `ForkPointer[]` の組で構造が同じだから。
- * brand が無いと `state.cursor` がそのまま代入できる。`KifuCursor` は
- * `te <= tesuu` に正規化されているので、**カーソルより先の選択が黙って空になる**。
+ * 無いと `state.cursor` がそのまま代入でき、**カーソルより先の選択が黙って空になる**。
  *
- * **通すのは `plannedCursorFrom` の返り値だけ**、というのは規約。型が弾くのは
- * `KifuCursor` からの代入（自分の brand が邪魔をする）で、素の `CursorPath` に
- * `as PlannedCursor` と書けば通る。綴りのほうは
- * `src/__tests__/cursorConstruction.test.ts` が見る。
- * `te > tesuu` を持つ素の `CursorPath`（`previewCursor`）を計画として
- * 使いたい側は、`asBranchPlan` を通して `plannedCursorFrom` で組み直すこと。
+ * 通すのは `plannedCursorFrom` の返り値だけ。型が弾くのは `KifuCursor` からの代入で、
+ * `as PlannedCursor` の綴りは `src/__tests__/cursorConstruction.test.ts` が見る。
+ * `te > tesuu` を持つ素の `CursorPath`（`previewCursor`）を計画に使うなら、
+ * `asBranchPlan` を通して `plannedCursorFrom` で組み直す。
  */
 export interface PlannedCursor {
   tesuu: number;
@@ -200,7 +182,7 @@ export function normalizeForkPointers(forkPointers: ForkPointer[], tesuu?: numbe
   const filtered =
     typeof tesuu === "number" ? forkPointers.filter((fp) => fp.te <= tesuu) : [...forkPointers];
 
-  // te昇順、同一teは後勝ち（reduceで最後を残す）
+  // `sort` は安定なので、同じ `te` の中では後に来たものが最後に残る
   const sorted = [...filtered].sort((a, b) => a.te - b.te);
 
   const unique: ForkPointer[] = [];
@@ -255,16 +237,16 @@ export function mergeBranchPlan(
 }
 
 /**
- * `te` 以降の選択を落とす（`te` そのものも落とす）
+ * `te` 以降の選択を落とす（`te` そのものも落とす）。
  *
- * 使う側は3つ。**計画を書き換える側**は、`te` の選択を変えたらその先の計画が
- * 別の枝に対して作られた値になるので捨てる（残すと利用者が一度も見ていない
- * 変化に盤が入る）。**分岐編集で退避する側**は、消える枝より先の選択を落とす。
- * **分岐点を指す `BranchPointRef.forkPointers` を組む側**（`buildStreamRows`）は、
- * `te` の分岐そのものを選び直すための prefix にする（規約「すべて `p.te < te`」）。
+ * 使う側は3つ。
  *
- * 並べ替えはしない。順序も揃えたいなら `normalizeBefore`（境界が同じ `p.te < te` のまま
- * 整列する）。`normalizeForkPointers` は境界が `p.te <= te` になるので置き換えにならない。
+ * - 計画を書き換える側: `te` の選択を変えたら先の計画は別の枝の値になるので捨てる
+ * - 分岐編集で退避する側: 消える枝より先の選択を落とす
+ * - `BranchPointRef.forkPointers` を組む側（`buildStreamRows`）: `te` の分岐を選び直す prefix にする
+ *
+ * 並べ替えはしない。順序も揃えるなら `normalizeBefore`。
+ * `normalizeForkPointers` は境界が `p.te <= te` になるので置き換えにならない。
  */
 export function truncateFrom(fps: ForkPointer[], te: number): ForkPointer[] {
   return fps.filter((p) => p.te < te);
@@ -297,15 +279,12 @@ export function forkIndexAt(fps: ForkPointer[], te: number): number | null {
 }
 
 /**
- * **辿り終えた**局面から `KifuCursor` を組む
+ * 辿り終えた局面から `KifuCursor` を組む。実際の呼び手は `cursorFromPlayer`。
  *
- * `tesuuPointer` は再生器が返した文字列をそのまま brand 付きにするので、
- * 渡す3つは**同じ局面を辿り終えた1つの再生器から**取ること。別々に組むと、
- * 局面を一意に指すはずの値が中身と食い違う。実際の呼び手は `cursorFromPlayer`。
+ * `tesuuPointer` は再生器が返した文字列をそのまま使うので、渡す3つは**同じ局面を辿り終えた1つの再生器から**取る。
+ * 別々に組むと、局面を一意に指すはずの値が中身と食い違う。
  *
- * `forkPointers` は `te <= tesuu` に正規化する。だから
- * **`state.cursor.forkPointers` はカーソルより先の選択を持たない**
- * （計画は `BranchPlan` が別に持つ）。
+ * `forkPointers` は `te <= tesuu` に正規化する。計画は `BranchPlan` が別に持つ。
  */
 export function makeKifuCursor(
   tesuu: number,
@@ -322,15 +301,11 @@ export function makeKifuCursor(
 /**
  * `te` の選択を選び直して、そこへ移るカーソルを組む。
  *
- * `te` 以降の選択は落とす。`te` の選択を変えた以上、その先は別の枝に対して
- * 作られた値なので意味を失う（残すと利用者が一度も見ていない変化に盤が入る）。
+ * `te` 以降の選択は落とす。その先は別の枝に対して作られた値で、残すと利用者が見ていない変化に盤が入る。
+ * 落ちるのはこの戻り値の中だけで、`state.branchPlan` に残っている分は `mergeBranchPlan` が復活させる。
  *
- * **ただし落ちるのはこの戻り値の中だけ。** `state.branchPlan` に残っている分は
- * `mergeBranchPlan` が復活させる（線を乗り換えても深い計画は残る → #306）。
- *
- * `path` が `null` を取るのは、行を描く側が `PlannedCursor | null` を持つため
- * （`KifuStreamList`）。`view.player` の番人が先に返すので現物では通らないが、
- * 呼び出し側に `!` を書かせる代わりに「選択の履歴が無い」の意味を決めてある。
+ * `path` が `null` を取るのは、行を描く側が `PlannedCursor | null` を持つため（`KifuStreamList`）。
+ * `view.player` の判定が先に返すので本番では通らないが、呼び手に `!` を書かせず「選択の履歴が無い」と決めてある。
  */
 export function descendTo(
   path: CursorPath | null,
@@ -342,19 +317,14 @@ export function descendTo(
 }
 
 /**
- * カーソルが指す**局面**を文字列の鍵にする。**`CursorPath` の局面を比べる鍵はこれ1つ。**
+ * カーソルが指す局面を文字列の鍵にする。`CursorPath` の局面を比べる鍵はこれ1つ。
  *
- * 「着いた局面」どうしを比べるのは別で、そちらは `KifuCursor.tesuuPointer`
- * （`provider.tsx` の移動前後の比較、`AnalysisPane` のキャッシュ鍵）。
- * `KifuCursor.tesuuPointer` と違い、再生器を通していない。
- * 再生器を通していないので、その局面に本当に着ける保証は無い
- * （`goto` は実在しない変化を黙って捨て、同じ `tesuu` の別の線に着く）。
- * **見るのは `te <= tesuu` の範囲だけ。** `CursorPath` が持ちうる `te > tesuu` の計画
- * （`previewCursor`）は鍵に載らないので、**カーソルより先の予定だけが違う2つの要求は
- * 同じ鍵になる**。`applyCursor` はその部分を `branchPlan` へ引き継ぐので、
- * **要求の重複判定にこの鍵を使わないこと**（使うと先の計画を積む要求が落ちる）。
+ * 再生器を通していないので、その局面に着ける保証は無い。
+ * `goto` は実在しない変化を黙って捨て、同じ `tesuu` の別の線に着く。
+ * 着いた先の同一性が要るなら `state.cursor.tesuuPointer` を見る。
  *
- * 着いた先の同一性が要る側は `state.cursor.tesuuPointer`（再生器が返した値）を見ること。
+ * 見るのは `te <= tesuu` の範囲だけで、カーソルより先の予定だけが違う2つの要求は同じ鍵になる。
+ * `applyCursor` はその部分を `branchPlan` へ引き継ぐので、**要求の重複判定にこの鍵を使わない**。
  */
 export function cursorKey(path: CursorPath): CursorKey {
   return formatPointer(
