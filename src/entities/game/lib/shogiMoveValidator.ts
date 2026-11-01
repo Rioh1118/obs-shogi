@@ -2,7 +2,6 @@ import {
   wouldBeInCheckAfterMove,
   canPromote,
   mustPromote,
-  getAllLegalMoves,
   getLegalDrops,
 } from "./moveValidation";
 import type { MoveValidator } from "../model/moveValidator";
@@ -28,11 +27,6 @@ export class ShogiMoveValidator implements MoveValidator {
     } catch {
       return false;
     }
-  }
-
-  /** `color` は手番の側であること（前提は `moveValidation.ts` の `generateLegalMoves`） */
-  getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[] {
-    return getAllLegalMoves(shogi, color);
   }
 
   /**
@@ -70,21 +64,5 @@ export class ShogiMoveValidator implements MoveValidator {
    */
   mustPromote(shogi: Shogi, move: ShogiMove): boolean {
     return mustPromote(shogi, move);
-  }
-
-  /**
-   * 成り・不成の選択肢を含む合法手を取得
-   */
-  getLegalMovesWithPromotionOptions(
-    shogi: Shogi,
-    x: number,
-    y: number,
-  ): Array<{ move: ShogiMove; canPromote: boolean; mustPromote: boolean }> {
-    const basicMoves = this.getLegalMovesFrom(shogi, x, y);
-    return basicMoves.map((move) => ({
-      move,
-      canPromote: canPromote(shogi, move),
-      mustPromote: mustPromote(shogi, move),
-    }));
   }
 }

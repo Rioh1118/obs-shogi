@@ -2,13 +2,6 @@ import { Color, Shogi, type Kind } from "shogi.js";
 import type { ShogiMove } from "../model/types";
 
 /**
- * 王手判定
- */
-export function isInCheck(shogi: Shogi, color: Color): boolean {
-  return shogi.isCheck(color);
-}
-
-/**
  * 特定の手が王手放置になるかチェック
  * SFENを使った状態保存・復元アプローチ
  */

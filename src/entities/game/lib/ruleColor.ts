@@ -25,17 +25,6 @@ export function colorToSide(color: Color): Side {
   return color === Color.Black ? "black" : "white";
 }
 
-/**
- * **記号と語はこれを噛ませて `@/shared/lib/turn` から取ること。**
- * `Side` を直に `"▲"` へ対応させると、アプリの中で `☗` と `▲` が混ざる。
- *
- * **いま呼び手が1人も居ない** —— 読んでいたのは対局の画面だけで、
- * その面は外してある（`docs/spec/features/game-play.md`）。
- */
-export function sideToColor(side: Side): Color {
-  return side === "black" ? Color.Black : Color.White;
-}
-
 export function sideToTsColor(side: Side): TsColor {
   return side === "black" ? TsColor.BLACK : TsColor.WHITE;
 }
