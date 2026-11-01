@@ -227,7 +227,6 @@ export function GameSessionProvider({
 
         case "over":
           session.over = { result: event.result, clocks: event.clocks };
-          session.awaitingRuling = false;
           void retireEngines(session, session.gameId);
           break;
 
@@ -296,12 +295,10 @@ export function GameSessionProvider({
   );
 
   const startRefusal = useCallback(async (): Promise<StartRefusal | null> => {
-    if (isHeld(sessionRef.current)) return "held";
-
-    // 待たないと、起動直後の1局目だけ購読の成否が分からないまま始まる
+    // 待たないと、起動直後の1局目だけ購読の成否が分からないまま始まる。
+    // 待っている間に別の対局が始まることがあるので、判定はこの後に置く
     await listenSettledRef.current;
 
-    // 待っている間に別の対局が始まることがある
     if (isHeld(sessionRef.current)) return "held";
 
     if (eventsUnavailableRef.current !== null) return "events-unavailable";
@@ -369,17 +366,12 @@ export function GameSessionProvider({
 
     // 始められなかった対局も、エンジンを落とし終えた対局も、Rust の台帳に居ない。
     // `close_game` を通すと `unknown game` で断られ、結末を手放せなくなる
-    if (gameId === null || session.engineClosed) {
-      sessionRef.current = null;
-      pendingEventsRef.current = [];
-      publish();
-      return Ok(undefined);
+    if (gameId !== null && !session.engineClosed) {
+      // 落ちるまで手放さない。先に捨てると、断られたときに呼び直す `gameId` が残らず、
+      // エンジンが起きたまま `view` だけが `idle` に戻る
+      const closed = await attempt(() => closeGame(gameId));
+      if (!closed.success) return closed;
     }
-
-    // 落ちるまで手放さない。先に捨てると、断られたときに呼び直す `gameId` が残らず、
-    // エンジンが起きたまま `view` だけが `idle` に戻る
-    const closed = await attempt(() => closeGame(gameId));
-    if (!closed.success) return closed;
 
     sessionRef.current = null;
     pendingEventsRef.current = [];

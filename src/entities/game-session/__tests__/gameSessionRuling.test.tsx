@@ -650,6 +650,30 @@ describe("画面へ渡す姿", () => {
     });
   });
 
+  test("`moveDecided` は時計を進め、指し手列の同一性を変える", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    const { view: before } = session();
+
+    await emit({
+      type: "moveDecided",
+      gameId: GAME_ID,
+      side: "black",
+      usiMove: "7g7f",
+      elapsedMs: 1000,
+      clocks: RUNNING_CLOCKS,
+    });
+
+    const { view: after } = session();
+    if (before.kind !== "live" || after.kind !== "live") throw new Error("live でない");
+    expect(after.clocks).toEqual(RUNNING_CLOCKS);
+    // `GameMoveBridge` は列の同一性で積み直しを起こす
+    expect(after.usiMoves).not.toBe(before.usiMoves);
+    expect(before.usiMoves).toEqual([]);
+  });
+
   test("`clockUpdated` は時計だけを動かし、指し手列の同一性を変えない", async () => {
     mount(alwaysContinue);
     await act(async () => {
@@ -719,6 +743,18 @@ describe("画面へ渡す姿", () => {
     expect(session().view).toMatchObject({ boardFailure: null });
   });
 
+  test("棋譜の失敗が同じなら描き直さない", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    const { view: before } = session();
+
+    await act(async () => session().reportBoardFailure(null));
+
+    expect(session().view).toBe(before);
+  });
+
   test("対局が無いときの棋譜の失敗は捨てる", async () => {
     mount(alwaysContinue);
 
@@ -785,6 +821,23 @@ describe("始められるかの判定", () => {
     mount(alwaysContinue);
 
     expect(await session().startRefusal()).toBe("events-unavailable");
+  });
+
+  test("待っている間に始まった対局を数える", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    let answer: string | null | undefined;
+    await act(async () => {
+      const started = startOnce();
+      await Promise.resolve();
+      answer = await session().startRefusal();
+      await started;
+    });
+
+    expect(answer).toBe("held");
   });
 
   test("購読の結果が出るまで待ってから答える", async () => {
@@ -947,6 +1000,38 @@ describe("`startGame` の待ちの間", () => {
     });
 
     expect(kindText()).toBe("live");
+  });
+
+  test("手放した対局の断りは、次の対局の溜めを消さない", async () => {
+    const abandoned = holdStart();
+    const next = holdStart();
+    mount(alwaysContinue);
+    let first: Promise<void> | undefined;
+    await act(async () => {
+      first = startOnce();
+    });
+    await act(async () => {
+      await session().closeSession();
+    });
+    let second: Promise<void> | undefined;
+    await act(async () => {
+      second = startOnce();
+    });
+
+    await act(async () => {
+      events.emit?.({
+        type: "over",
+        gameId: GAME_ID,
+        result: { winner: "white", reason: "engineFailure", detail: null },
+        clocks: CLOCKS,
+      });
+      abandoned.reject(new Error("engine did not answer usiok"));
+      await first;
+      next.resolve(GAME_ID);
+      await second;
+    });
+
+    expect(kindText()).toBe("over");
   });
 });
 
