@@ -460,6 +460,19 @@ describe("エンジンの欄", () => {
     expect(engineSelect().options[2].disabled).toBe(true);
   });
 
+  test("読み込めても、選んでいない候補はファイル名のまま", async () => {
+    await openLoaded();
+    expect(optionTexts(engineSelect())).toEqual(["エンジンを選択", "Engine A", "b"]);
+  });
+
+  /** 候補に無いパスが1つ残っていても、走査が終わるまで選べない */
+  test("保存済みのエンジンがあっても、走査の間は欄を塞ぐ", async () => {
+    scanAiRoot.mockReturnValue(new Promise(() => {}));
+    await openDialog({ enginePath: ENGINE_A });
+
+    expect(engineSelect().disabled).toBe(true);
+  });
+
   test("読み込めたら名乗りで出し、起動できない見込みの理由は名乗りの後ろに添える", async () => {
     scanAiRoot.mockResolvedValue({
       ...INDEX,
@@ -484,6 +497,7 @@ describe("エンジンの欄", () => {
 
     const status = screen.getByText(/エンジンをまだ読み込んでいません/);
     expect(status.getAttribute("role")).toBeNull();
+    expect(status.className).toBe("presetDialog__hintMuted");
     expect(within(status).getByRole("button", { name: "もう一度読み込む" })).toBeTruthy();
   });
 });
@@ -647,6 +661,16 @@ describe("保存", () => {
     });
   });
 
+  test("エンジンのパスも前後を落として書く", async () => {
+    await openLoaded({ enginePath: ` ${ENGINE_A} ` });
+    expect((await saved()).enginePath).toBe(ENGINE_A);
+  });
+
+  test("使うと言っていてパスが無ければ、使わないで書く", async () => {
+    await openLoaded({ bookEnabled: true, bookFilePath: null });
+    expect(await saved()).toMatchObject({ bookEnabled: false, bookFilePath: null });
+  });
+
   test("使う定跡はパスの前後を落として書く", async () => {
     await openLoaded({ bookEnabled: true, bookFilePath: " /ai/hao/book/a.db " });
 
@@ -654,9 +678,9 @@ describe("保存", () => {
   });
 
   test("オプションの空は書かず、値は前後を落とす", async () => {
-    await openLoaded({ options: { Threads: " 8 ", Style: "  ", Note: "" } });
+    await openLoaded({ options: { Note: " x ", Style: "  ", Model: "" } });
 
-    expect((await saved()).options).toEqual({ Threads: "8" });
+    expect((await saved()).options).toEqual({ Note: "x" });
   });
 
   test("止める条件は上限へ丸める", async () => {
@@ -713,6 +737,13 @@ describe("評価関数と定跡の欄", () => {
 
     fireEvent.change(evalSelect(), { target: { value: "/elsewhere/x/eval/old.bin" } });
     expect(await saved()).toMatchObject({ aiName: "hao" });
+  });
+
+  test("候補に無い定跡は「（現在の選択）」として残す", async () => {
+    await openLoaded({ bookEnabled: true, bookFilePath: "/elsewhere/x/book/old.db" });
+
+    expect(bookSelect().value).toBe("/elsewhere/x/book/old.db");
+    expect(bookSelect().selectedOptions[0].textContent).toBe("x / old.db（現在の選択）");
   });
 
   test("定跡は既定で「使わない」", async () => {
@@ -792,6 +823,16 @@ describe("検討の節", () => {
     expect((await saved()).options).toEqual({ MultiPV: "1" });
   });
 
+  /** `type="number"` の欄は「.5」を値として渡すが、整数としては読めない */
+  test("数の欄で整数に読めない値は、下限で読む", async () => {
+    await openLoaded();
+    fireEvent.click(button("ほかの数…"));
+
+    fireEvent.change(multiPvInput(), { target: { value: ".5" } });
+
+    expect((await saved()).options).toEqual({ MultiPV: "1" });
+  });
+
   test("数の欄の案内は初期値", async () => {
     await openLoaded();
     fireEvent.click(button("ほかの数…"));
@@ -812,6 +853,7 @@ describe("検討の節", () => {
     fireEvent.change(depth, { target: { value: "" } });
 
     expect(time.value).toBe("30");
+    expect(depth.value).toBe("");
     expect((await saved()).analysis).toEqual({ timeSeconds: 30, nodes: 1000, mateSearch: false });
   });
 
@@ -821,6 +863,7 @@ describe("検討の節", () => {
     expect(check.checked).toBe(false);
 
     fireEvent.click(check);
+    expect(check.checked).toBe(true);
     expect((await saved()).analysis).toEqual({ mateSearch: true });
   });
 
@@ -898,6 +941,7 @@ describe("エンジン設定の節", () => {
     fireEvent.change(search(), { target: { value: "存在しない" } });
 
     expect(screen.getByText("当てはまる項目はありません")).toBeTruthy();
+    expect(search().placeholder).toBe("項目を検索（全 6 件）");
   });
 
   test("戻す値が無ければ押せない。絞っていなければ「すべて初期値に戻す」", async () => {
@@ -1021,9 +1065,13 @@ describe("エンジン設定の節", () => {
   test("数の欄に何も打たずに離れても、確定しない", async () => {
     await openLoaded({ options: { Threads: "8" } });
     const input = screen.getByDisplayValue("8") as HTMLInputElement;
+    const onError = vi.fn((e: ErrorEvent) => e.preventDefault());
+    window.addEventListener("error", onError);
 
     fireEvent.blur(input);
 
+    window.removeEventListener("error", onError);
+    expect(onError).not.toHaveBeenCalled();
     expect(input.value).toBe("8");
   });
 
@@ -1035,6 +1083,15 @@ describe("エンジン設定の節", () => {
     expect((screen.getByPlaceholderText("初期値（nn.bin）") as HTMLInputElement).value).toBe("");
 
     dialogOpen.mockResolvedValueOnce("/e/model.bin");
+    fireEvent.click(button("選択…"));
+    await tick();
+
+    expect((await saved()).options).toEqual({ Model: "/e/model.bin" });
+  });
+
+  test("選ぶ画面を取り消しても、入っている値は残す", async () => {
+    await openLoaded({ options: { Model: "/e/model.bin" } });
+    dialogOpen.mockResolvedValueOnce(null);
     fireEvent.click(button("選択…"));
     await tick();
 

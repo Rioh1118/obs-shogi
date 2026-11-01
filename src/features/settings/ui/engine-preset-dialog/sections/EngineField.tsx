@@ -73,7 +73,7 @@ export default function EngineField({
             : o,
         )}
         placeholder={placeholderOf(library)}
-        disabled={!library.hasRoot || !isReady(library) || options.length === 0}
+        disabled={!isReady(library) || options.length === 0}
         invalid={!!error}
       />
       {draft.enginePath && <div className="presetDialog__enginePath">{draft.enginePath}</div>}
