@@ -1,6 +1,6 @@
 import { BOARD_SIZE } from "../model/board";
 
-// インデックスから座標に変換（1-indexed）
+/** 盤の左上（9一）を0とする升の通し番号を、1始まりの筋と段にする。 */
 export function indexToCoords(index: number): { x: number; y: number } {
   const row = Math.floor(index / 9);
   const col = index % 9;
@@ -29,7 +29,7 @@ export function isValidCoords(x: number, y: number): boolean {
   );
 }
 
-// 数値座標から将棋の座標表記に変換
+/** 筋と段を `7六` の綴りにする。盤の外なら `null` を返す。 */
 export function coordsToShogiNotation(x: number, y: number): string | null {
   if (!isValidCoords(x, y)) return null;
 

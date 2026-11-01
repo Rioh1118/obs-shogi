@@ -270,6 +270,20 @@ describe("王手放置", () => {
     expect(kindsOf(state)).toEqual([]);
   });
 
+  test("手番でない側の玉が2枚なら、どちらに利きが通っていても出ない", () => {
+    // `isCheck` は最後に見つけた玉を見る。ここは2枚目に利きを通す
+    const state = boardOf(
+      [
+        [1, 9, "OU", Color.White],
+        [2, 9, "OU", Color.White],
+        [9, 9, "OU", Color.Black],
+        [2, 1, "HI", Color.Black],
+      ],
+      Color.Black,
+    );
+    expect(kindsOf(state)).toEqual([]);
+  });
+
   test("手番を変えると出たり消えたりする", () => {
     const placements: Placement[] = [
       [1, 9, "OU", Color.White],

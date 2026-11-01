@@ -1,5 +1,3 @@
-@use "@/index" as index;
-
 .board-preview {
   --board-size: 300px;
   --square-size: calc(var(--board-size) / 9);
@@ -40,7 +38,6 @@
     justify-content: center;
     border-right: 1px solid rgba(0, 0, 0, 0.3);
     border-bottom: 1px solid rgba(0, 0, 0, 0.3);
-    transition: background-color 0.15s ease;
 
     &:nth-child(9n) {
       border-right: none;
@@ -48,36 +45,6 @@
 
     &:nth-child(n + 73) {
       border-bottom: none;
-    }
-
-    &--interactive {
-      cursor: pointer;
-
-      &:hover {
-        background-color: rgba(index.$color-secondary-dark, 0.1);
-      }
-    }
-
-    &--selected {
-      background-color: rgba(index.$color-secondary-dark, 0.3) !important;
-    }
-
-    &--last-move {
-      background-color: rgba(255, 255, 0, 0.3);
-    }
-
-    &--legal {
-      background-color: rgba(0, 255, 0, 0.2);
-
-      &::after {
-        content: "";
-        position: absolute;
-        width: 8px;
-        height: 8px;
-        background-color: rgba(0, 255, 0, 0.6);
-        border-radius: 50%;
-        pointer-events: none;
-      }
     }
   }
 
@@ -95,96 +62,5 @@
       height: 100%;
       object-fit: contain;
     }
-  }
-
-  &__coordinate {
-    position: absolute;
-    font-size: calc(var(--square-size) * 0.2);
-    font-weight: 600;
-    color: rgba(0, 0, 0, 0.6);
-    pointer-events: none;
-
-    &--vertical {
-      right: 2px;
-      bottom: 2px;
-    }
-
-    &--horizontal {
-      left: 2px;
-      top: 2px;
-    }
-  }
-
-  // 手駒エリア
-  &__hands {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  &__hand {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-
-    &--white {
-      flex-direction: row;
-    }
-
-    &--black {
-      flex-direction: row-reverse;
-    }
-  }
-
-  &__hand-label {
-    // 盤の中は独立した縮尺で、アプリの文字の階層には乗らない。
-    // --square-size から導くと size="small"（盤 180px）で 4.5px まで落ちるので、
-    // 盤の大きさによらず読める固定値にしてある
-    font-size: 0.75rem; // scale-exempt
-    font-weight: 600;
-    min-width: 3rem;
-    text-align: center;
-    color: var(--text-secondary);
-  }
-
-  &__hand-pieces {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-
-  &__hand-piece {
-    width: calc(var(--piece-size) * 0.7);
-    height: calc(var(--piece-size) * 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    // ピースファクトリーのスタイルを調整
-    > * {
-      width: 100%;
-      height: 100%;
-    }
-  }
-
-  &__hand-empty {
-    // __hand-label と同じ理由でスケールの段に乗せない
-    font-size: 0.625rem; // scale-exempt
-    color: var(--text-tertiary);
-    font-style: italic;
-  }
-}
-
-// サイズ別の調整
-.board-preview[data-size="small"] {
-  .board-preview__coordinate {
-    font-size: 10px;
-  }
-}
-
-.board-preview[data-size="large"] {
-  .board-preview__coordinate {
-    font-size: 14px;
   }
 }

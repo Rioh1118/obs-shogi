@@ -4,16 +4,20 @@ import type { JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/board";
 import { coordsToShogiNotation } from "./boardCoords";
 import { toKan } from "./toKan";
-import { flipColor, isCheckOn, pieceAt, squareKey, type Square } from "./positionDraft";
+import {
+  flipColor,
+  isCheckOn,
+  pieceAt,
+  piecesOnBoard,
+  squareKey,
+  type Square,
+} from "./positionDraft";
 
 /**
  * 組んだ局面のうち、将棋の規則に反しているところを挙げる
  *
- * **止めるためのものではない。** 研究のために規則から外れた局面を組むことはあるし、
- * 詰将棋は玉が1枚しか無い。挙げたものは断りとして見せるだけで、作成は押せるまま。
- *
- * **玉の枚数は挙げない。** 詰将棋には攻め方の玉が無く、片側3枚も研究のために
- * 並べることがある。
+ * 挙げたものは断りとして見せるだけで、作成は押せるまま。研究のために規則から外れた局面を
+ * 組むことがあり、詰将棋は玉が1枚しか無い。同じ理由で玉の枚数は挙げない。
  */
 
 export const POSITION_ISSUE = {
@@ -29,19 +33,19 @@ export const POSITION_ISSUE = {
 
 export type PositionIssueKind = (typeof POSITION_ISSUE)[keyof typeof POSITION_ISSUE];
 
-export interface PositionIssue {
+export type PositionIssue = {
   kind: PositionIssueKind;
   /** 断りの箇条書きに出す1行。それだけ読んで意味が通ること */
   message: string;
   /** 枠を付ける升。1つの断りが複数の升にかかることがある（二歩） */
   squares: Square[];
-}
+};
 
-export interface PositionInspection {
+export type PositionInspection = {
   issues: PositionIssue[];
   /** `squareKey` の集合。升ごとに「枠を付けるか」を引くために持つ */
   illegalSquares: ReadonlySet<string>;
-}
+};
 
 /**
  * その駒が動けなくなる段の深さ
@@ -93,20 +97,15 @@ function findNifu(state: JKFState): PositionIssue[] {
 
 function findDeadEnds(state: JKFState): PositionIssue[] {
   const issues: PositionIssue[] = [];
-  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
-    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
-      const piece = pieceAt(state, { x, y });
-      if (!piece) continue;
-      // `shogi.js` の `move` が強制的に成らせる条件と同じ向き。
-      // 深さ0（どの段でも動ける駒）は段が必ず1以上なので、ここで落ちる
-      if (illegalUnpromotedRow(piece.kind) < rowToOppositeEnd(y, piece.color)) continue;
-      const square = { x, y };
-      issues.push({
-        kind: POSITION_ISSUE.DEAD_END,
-        message: `行き所のない駒：${describe(square)}の${turnSide(piece.color)}の${toKan(piece.kind)}は、この先どこへも動けません`,
-        squares: [square],
-      });
-    }
+  for (const { square, piece } of piecesOnBoard(state)) {
+    // `shogi.js` の `move` が強制的に成らせる条件と同じ向き。
+    // 深さ0（どの段でも動ける駒）は段が必ず1以上なので、ここで落ちる
+    if (illegalUnpromotedRow(piece.kind) < rowToOppositeEnd(square.y, piece.color)) continue;
+    issues.push({
+      kind: POSITION_ISSUE.DEAD_END,
+      message: `行き所のない駒：${describe(square)}の${turnSide(piece.color)}の${toKan(piece.kind)}は、この先どこへも動けません`,
+      squares: [square],
+    });
   }
   return issues;
 }
@@ -119,11 +118,7 @@ function findDeadEnds(state: JKFState): PositionIssue[] {
  * 弾くのは玉だけ）。初期局面の無い棋譜ができるので、断りに出す。
  */
 function findEmptyBoard(state: JKFState): PositionIssue[] {
-  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
-    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
-      if (pieceAt(state, { x, y })) return [];
-    }
-  }
+  if (piecesOnBoard(state).length > 0) return [];
   return [
     {
       kind: POSITION_ISSUE.EMPTY_BOARD,
@@ -134,25 +129,10 @@ function findEmptyBoard(state: JKFState): PositionIssue[] {
   ];
 }
 
-function countKings(state: JKFState, color: Color): number {
-  let n = 0;
-  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
-    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
-      const piece = pieceAt(state, { x, y });
-      if (piece?.kind === "OU" && piece.color === color) n++;
-    }
-  }
-  return n;
-}
-
-function findKing(state: JKFState, color: Color): Square | null {
-  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
-    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
-      const piece = pieceAt(state, { x, y });
-      if (piece?.kind === "OU" && piece.color === color) return { x, y };
-    }
-  }
-  return null;
+function kingSquares(state: JKFState, color: Color): Square[] {
+  return piecesOnBoard(state)
+    .filter(({ piece }) => piece.kind === "OU" && piece.color === color)
+    .map(({ square }) => square);
 }
 
 /**
@@ -162,18 +142,16 @@ function findKing(state: JKFState, color: Color): Square | null {
  * そこに「王手がかかったまま」を出すと、正しい局面に断りが出続ける。
  */
 function findCheckIgnored(state: JKFState): PositionIssue[] {
-  if (countKings(state, 0) !== 1 || countKings(state, 1) !== 1) return [];
-
   const passive = flipColor(state.color);
-  const king = findKing(state, passive);
-  if (!king) return [];
+  const passiveKings = kingSquares(state, passive);
+  if (passiveKings.length !== 1 || kingSquares(state, state.color).length !== 1) return [];
   if (!isCheckOn(state, passive)) return [];
 
   return [
     {
       kind: POSITION_ISSUE.CHECK_IGNORED,
       message: `王手放置：${turnSide(passive)}の玉が取られる形で、${turnSide(state.color)}の手番になっています`,
-      squares: [king],
+      squares: passiveKings,
     },
   ];
 }

@@ -11,6 +11,12 @@ type Props = {
   previewData: PreviewData | null;
 };
 
+/**
+ * 局面のプレビュー
+ *
+ * 局面の有無で枠の要素を替えない。枠を測る effect は mount で1度だけ走るので、
+ * 局面が無いときの枠に `ref` が無いと測る先が無く、盤が初期値のまま残る。
+ */
 function PositionPreviewPane({ previewData }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState(320);
@@ -36,8 +42,8 @@ function PositionPreviewPane({ previewData }: Props) {
 
   if (!previewData) {
     return (
-      <div className="position-navigation-modal__preview-container">
-        <div className="position-navigation-modal__board-preview">
+      <div className="position-preview__container">
+        <div className="position-preview__frame" ref={boardWrapRef}>
           <div className="board-preview-placeholder">
             <p>局面を読み込み中…</p>
           </div>
@@ -46,39 +52,23 @@ function PositionPreviewPane({ previewData }: Props) {
     );
   }
 
-  const hands = (previewData.hands ?? []) as {
-    [Color.Black]: string[];
-    [Color.White]: string[];
-  };
-
   return (
-    <div className="position-navigation-modal__preview-container">
-      <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
+    <div className="position-preview__container">
+      <div className="position-preview__frame" ref={boardWrapRef}>
         {/*
-          **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
-          初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
-          呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
+          手番はこの部品が出す。盤の絵には現れない値で、局面だけを渡されるこの面では
+          初形からの偶奇を追えない。呼び手が添える形だと、添え忘れた面だけ手番が分からなくなる。
 
-          **段を作らず枠の角に重ねる。** 盤の一辺はこの枠の内寸から決まるので、
-          段を1つ足すとその高さのぶん盤が縮む（呼び手によっては測る軸が縦横で
-          入れ替わり、縮む面と広がる面に分かれる）。重ねれば内寸が動かない
+          段を作らず枠の角に重ねる。盤の一辺はこの枠の内寸から決まるので、段を足すと盤が縮む
         */}
-        <div className="position-navigation-modal__turn-tab">{turnBadgeText(previewData.turn)}</div>
+        <div className="position-preview__turn-tab">{turnBadgeText(previewData.turn)}</div>
 
-        <BoardPreview
-          pieces={previewData.board}
-          hands={hands}
-          size={boardSize}
-          showCoordinates={false}
-          showLastMove={false}
-          showHands={false}
-          interactive={false}
-        />
+        <BoardPreview pieces={previewData.board} size={boardSize} />
       </div>
 
-      <div className="position-navigation-modal__hands">
-        <HandRow label={SENTE_LABEL} kinds={hands[Color.Black] || []} />
-        <HandRow label={GOTE_LABEL} kinds={hands[Color.White] || []} />
+      <div className="position-preview__hands">
+        <HandRow label={SENTE_LABEL} kinds={previewData.hands[Color.Black]} />
+        <HandRow label={GOTE_LABEL} kinds={previewData.hands[Color.White]} />
       </div>
     </div>
   );

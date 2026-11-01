@@ -1,7 +1,7 @@
 @use "@/index" as index;
 
-.position-navigation-modal {
-  &__preview-container {
+.position-preview {
+  &__container {
     // **部品の根で宣言する。** 器のクラスに載せると、別の器に置いたときだけ
     // 面も枠も落ちる（`var()` が解決できず無効値になる）。
     // Sass の変数は `#{}` で補間する —— 包まないと `rgba()` の呼び出しが
@@ -52,7 +52,7 @@
     white-space: nowrap;
   }
 
-  &__board-preview {
+  &__frame {
     min-height: 0;
     width: 100%;
     height: 100%;
