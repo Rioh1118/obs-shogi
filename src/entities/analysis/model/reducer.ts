@@ -12,9 +12,10 @@ export const initialState: AnalysisState = {
 };
 
 /**
- * **`error` を消すのは、開始の action（`start_analysis` / `hold_intent` / `begin_start`）と
- * `clear_results` と `engine_restored` だけ。**
- * 「消すだけ」の action は置かない——消える条件が action の名前から読めなくなる。
+ * 解析の状態を action で進める。
+ *
+ * `error` を消すのは開始の action（`start_analysis`、`hold_intent`、`begin_start`）と `clear_results`、
+ * `engine_restored` だけ。消すだけの action を置くと、消える条件が action の名前から読めなくなる。
  */
 export function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
@@ -34,7 +35,7 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
       return { ...state, isAnalyzing: true, analyzedSfen: null, finished: false, error: null };
 
     case "begin_start":
-      // 断りを空ける。**同じ文で断られても帯が出直す**ため
+      // 断りを空ける。同じ文で断られても帯が出直す
       return { ...state, starting: true, error: null };
 
     case "end_start":
@@ -55,9 +56,8 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
         stopping: false,
       };
 
-    // **最後の結果をここで一緒に書く。** 判定を `state` の1か所にするため。結果だけを
-    // `update_result` で先に出す形だと、開始の直後は `analyzingRef` がまだ倒れたままで
-    // 結果が捨てられ、`検討完了` なのに候補手が空になる
+    // 最後の結果をここで一緒に書く。`update_result` で先に出すと、開始の直後は `analyzingRef` が
+    // まだ倒れたままで結果が捨てられ、`検討完了` なのに候補手が空になる
     case "finish_analysis":
       if (!state.isAnalyzing) return state;
       return {

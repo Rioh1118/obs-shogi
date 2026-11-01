@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AnalysisResult } from "@/entities/engine";
 
 /**
- * 深度指定の解析が返すもの。**`result` は `reached` を見てから使う。**
+ * 深度指定の解析が返すもの。`result` は `reached` を見てから使う
  *
  * `usi` crate に深度を載せる手段が無く `go depth` は送れないので、Rust 側は `info depth` を見て
  * `stop` を送る。時間の打ち切りが先に来れば、目標に届かないまま結果が返る。

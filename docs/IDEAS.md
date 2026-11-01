@@ -371,15 +371,6 @@ lint もテストもラチェットも赤くならない。
 「効いている」と読める根拠も無い。**#489 で自動再開の8本の ref を切り出す回に、
 機構ごと見直す対象として拾うこと。**
 
-## `useEngineSeat` の doc が、`analysis.md` ※12 と同じ知識を二重に持っている
-
-`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（comment reviewer）。
-`sendStopQuietly` の「落ちても利用者には出せない」の枝の列挙と `onEngineGone` の説明が、
-※12 の「どの失敗で席が本当に残るか」と重なる。そのファイル自身が4箇所で
-「理由は ※12 に1つだけ置いてある」と名乗っているので、方針と現物がずれている。
-コメントとコードの比が 1.8:1 なのはその結果。**密度そのものは指標にしない**
-（削るべき行を名指しできないので）。出典を ※12 に寄せる作業として拾う。
-
 ## 畳まれたかの合図を `Notify` から `CancellationToken` に替える
 
 `.claude/reviews/2026-09-09-441-unmount-session-r33.md`（rust reviewer）。

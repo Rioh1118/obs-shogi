@@ -3,22 +3,22 @@ import type { CandidateCache } from "../lib/candidateCache";
 
 export type AnalysisState = {
   /**
-   * 検討の意思。▶ で立ち、■ と `docs/state-transitions/engine-standardization.md` の5つの条件で
-   * 下りる。**エンジンが動いているかではない**——再起動を跨いで残り、戻ったら読み直す。
+   * 検討の意思。エンジンが動いているかではない。再起動を跨いで残り、戻ったら読み直す。
+   * 立つ条件と下りる条件は `docs/state-transitions/engine-standardization.md`
    */
   isAnalyzing: boolean;
-  /** いま解析している局面。**席を握った時点の盤**で、盤の現在位置とは限らない。 */
+  /** いま解析している局面。席を握った時点の盤で、盤の現在位置とは限らない */
   analyzedSfen: string | null;
   /**
-   * `analyzedSfen` の探索をエンジンが自分で終えた。**`isAnalyzing` は倒さない**——
-   * 局面が動けば読み始める（`docs/state-transitions/engine-standardization.md` の V5）。
+   * `analyzedSfen` の探索をエンジンが自分で終えた。`isAnalyzing` は倒さず、局面が動けば読み始める
+   * （`engine-standardization.md` の V5）
    */
   finished: boolean;
   /** ■ を押してから、エンジンが止まるまで。この間 ■ は押せない（V4） */
   stopping: boolean;
   /**
-   * ▶ を押してから席が返るまで。**語はこの間も `検討中`**（V3）。
-   * `isAnalyzing` とは別に持つ。あちらを立てると自動再開の effect が動き、▶ と席を取り合う
+   * ▶ を押してから席が返るまで。語はこの間も `検討中`（V3）。
+   * `isAnalyzing` を立てると自動再開の effect が動いて ▶ と席を取り合うので、別に持つ
    */
   starting: boolean;
   candidates: AnalysisCandidate[];
@@ -38,34 +38,31 @@ export type AnalysisAction =
   | { type: "set_error"; payload: string }
   | { type: "clear_results" };
 
-/** エンジンへの局面同期を解析側へ注入するための面。実装は features 側にある。 */
+/** エンジンへの局面の同期を解析へ渡す面。実装は `features/engine-position-sync` が持つ */
 export type PositionSyncAdapter = {
-  /** 盤が指している局面の SFEN。棋譜を開いていなければ null。 */
+  /** 盤が指している局面の SFEN。棋譜を開いていなければ null */
   currentSfen: string | null;
   /**
-   * 最後にエンジンへ送れた SFEN。
-   * エンジンの切替・再起動と、棋譜を閉じたときに null に戻る。
+   * 最後にエンジンへ送れた SFEN。エンジンの切替、再起動、棋譜を閉じたときに null に戻る
    */
   syncedSfen: string | null;
   /**
    * 現在の局面をエンジンへ送る。送信に失敗すると reject する。
    *
-   * **resolve は送れたことを意味しない。** エンジンが未 ready のときと棋譜を開いていない
-   * ときは何も送らずに resolve する。送れたかどうかは `syncedSfen` で判定すること。
-   * `syncedSfen` の反映は resolve と同じレンダではない。
+   * **resolve は送れたことを意味しない。** エンジンが未 ready のときと棋譜を開いていないときは
+   * 何も送らずに resolve する。送れたかは `syncedSfen` で判定すること。
+   * `syncedSfen` の反映は resolve と同じ描画ではない。
    */
   syncPosition: () => Promise<void>;
 };
 
 /**
- * 解析ペインが使う面。**載せるのは、スライスの外に呼び手が居るものだけ**
- * ——規約と理由は `index.ts` に1つ置いてある（公開面は context だけではない）。
+ * 解析ペインが使う面
  *
- * 候補手を取り出すのは `lib` の `pickTopCandidate`（盤の向きを直してから渡すこと）。
+ * 載せるのはスライスの外に呼び手が居るものだけ（`index.ts`）。
  *
- * **`state` の外に出た結果を、この provider は無効化できない。** `clear_results` が
- * 届くのは `state` の中だけで、`candidateCache` には届かない。停止中に何を出すかは
- * 画面が決めるが、**控えを捨てる関数は控えの側**（`scopeTo`）にある。
+ * `clear_results` が届くのは `state` の中だけで、`candidateCache` には届かない。
+ * 控えを捨てる関数は控えの側（`scopeTo`）にある。
  */
 export type AnalysisContextType = {
   state: AnalysisState;
@@ -73,30 +70,24 @@ export type AnalysisContextType = {
   /**
    * 停止中に出す候補手の控え。持ち主と寿命は `lib/candidateCache.ts`。
    *
-   * **`state` には載せない。** 寿命は変わらない（同じ provider が `useReducer` で持つ）が、
-   * 控えは表示を駆動する state ではなく、`clear_results` の対象にもしたくない ——
-   * 結果を捨てても、停止中に見えていた候補手はそのまま見えていてよい。
+   * `state` には載せない。控えは表示を駆動する値ではなく、結果を捨てても停止中に見えていた
+   * 候補手は見えたままでよいので、`clear_results` の対象にしない。
    */
   candidateCache: CandidateCache;
 
   /**
-   * ▶。**エンジンの起動を待っている回は断らない。** 検討の意思を立てて resolve し、
-   * エンジンが戻ったら読み始める。
+   * ▶ の操作。エンジンの起動を待っているときは断らず、検討の意思を立てて resolve する。
    *
-   * **断りを立てた回は `state.error` に載せてから reject する**（枝と文言は
-   * `docs/state-transitions/analysis.md` の ※15。ここでは数え上げない）。
-   * **読む局面が無い回だけは断りを立てずに reject する**——その状態では ▶ が
-   * `disabled` なので、画面に出す先が無い。
-   * 断りは帯が出す（`AnalysisRefusalBridge`）。
+   * 断るときは `state.error` に載せてから reject し、帯（`AnalysisRefusalBridge`）が文を出す
+   * （枝と文言は `docs/state-transitions/analysis.md` の ※15）。読む局面が無いときだけは断りを立てずに
+   * reject する。▶ が `disabled` なので出す先が無い。
    *
-   * **要らなくなった要求は静かに resolve する**——畳まれた・止められた・読む局面が
-   * 無くなった回。その失敗を出しても、出す先の画面がもう無いか、利用者が既に降りている。
+   * アンマウント、停止、読む局面の消失で要らなくなった要求は、静かに resolve する。
    */
   startInfiniteAnalysis: () => Promise<void>;
   /**
-   * ■。**検討は必ず切れる**（`finally` で state を落とす）。
-   * **停止が Rust に届かなかった回は、エンジンを `応答なし` にして reject する**
-   * （→ `docs/state-transitions/analysis.md` の ※7 / F-7）。その回の復帰は再起動。
+   * ■ の操作。検討は必ず切れる。停止が Rust に届かなければ、エンジンを `応答なし` にして
+   * reject する（`analysis.md` の ※7、F-7）。復帰は再起動
    */
   stopAnalysis: () => Promise<void>;
 };
