@@ -30,6 +30,11 @@ import {
   START_REFUSED_MESSAGE,
 } from "./refusals";
 
+type Props = {
+  children: ReactNode;
+  positionSync: PositionSyncAdapter;
+};
+
 // 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
 //
 // `abort` を取るのは、待っている理由が消えたときに回り続けないため。
@@ -49,11 +54,6 @@ const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => b
   }
   return true;
 };
-
-interface Props {
-  children: ReactNode;
-  positionSync: PositionSyncAdapter;
-}
 
 /**
  * 検討の意思を残して、エンジンが戻るのを待つ理由か。**語が言うので断らない**
