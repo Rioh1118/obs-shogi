@@ -1,7 +1,7 @@
 import type { AnalysisCandidate, AnalysisResult } from "@/entities/engine";
 import type { CandidateCache } from "../lib/candidateCache";
 
-export interface AnalysisState {
+export type AnalysisState = {
   /**
    * 検討の意思。▶ で立ち、■ と `docs/state-transitions/engine-standardization.md` の5つの条件で
    * 下りる。**エンジンが動いているかではない**——再起動を跨いで残り、戻ったら読み直す。
@@ -23,7 +23,7 @@ export interface AnalysisState {
   starting: boolean;
   candidates: AnalysisCandidate[];
   error: string | null;
-}
+};
 
 export type AnalysisAction =
   | { type: "start_analysis"; payload: { sfen: string } }
@@ -67,7 +67,7 @@ export type PositionSyncAdapter = {
  * 届くのは `state` の中だけで、`candidateCache` には届かない。停止中に何を出すかは
  * 画面が決めるが、**控えを捨てる関数は控えの側**（`scopeTo`）にある。
  */
-export interface AnalysisContextType {
+export type AnalysisContextType = {
   state: AnalysisState;
 
   /**
@@ -99,4 +99,4 @@ export interface AnalysisContextType {
    * （→ `docs/state-transitions/analysis.md` の ※7 / F-7）。その回の復帰は再起動。
    */
   stopAnalysis: () => Promise<void>;
-}
+};

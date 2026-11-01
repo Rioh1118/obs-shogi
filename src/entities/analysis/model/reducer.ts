@@ -66,15 +66,8 @@ export function analysisReducer(state: AnalysisState, action: AnalysisAction): A
         candidates: sortByRank(action.payload.candidates ?? []),
       };
 
-    case "update_result": {
-      const result = action.payload;
-      const candidates = sortByRank(result.candidates ?? []);
-
-      return {
-        ...state,
-        candidates,
-      };
-    }
+    case "update_result":
+      return { ...state, candidates: sortByRank(action.payload.candidates ?? []) };
 
     case "set_error":
       return {

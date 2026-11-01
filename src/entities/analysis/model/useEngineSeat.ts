@@ -2,43 +2,12 @@ import { useRef } from "react";
 import {
   stopAnalysis as stopAnalysisCore,
   type AnalysisSessionId,
+  type BlockingReleasePoint,
+  type DiscardReleasePoint,
+  type QuietReleasePoint,
   type SeatReleasePoint,
   type StopOutcome,
 } from "../api/tauri";
-
-/**
- * 経路ごとの部分集合。**分け方は席を返す経路の性質**（応答を待てるか・捨てる側か）で、
- * Rust が受け取る値の集合（`SeatReleasePoint`）とは別の関心なので、こちら側で持つ。
- *
- * 値を取り違えても Rust は止まるので壊れるのはログだけ——#441 の再発を追う人が読む
- * 唯一の手掛かりが嘘になる。型で割っておけば `releaseHeldQuietly("unmount")` は tsc が止める。
- */
-export type BlockingReleasePoint = Extract<SeatReleasePoint, "stop" | "start" | "restart">;
-/** 応答を待てない経路。落ちても画面に出せない（結末は `sendStopQuietly` の頭） */
-export type QuietReleasePoint = Extract<SeatReleasePoint, "sync-timeout" | "no-position">;
-/** 要らなくなった開始が持ってきた席を捨てる経路 */
-export type DiscardReleasePoint = Extract<SeatReleasePoint, "late-start" | "late-restart">;
-
-/**
- * どの関数の引数にもならない値。**部分集合に入れない**のは、引数にできると
- * 呼び手が席を指さない停止を撃てるようになるため——それは Rust の席を**全部**
- * 空けるので、別の経路が取った席まで巻き添えにする。撃つのはフックの中だけ。
- */
-type InlineOnlyReleasePoint = "unmount";
-
-/**
- * **どの部分集合にも入れていない値を tsc に落とさせる。** `Extract` は綴りを間違えても
- * 黙って狭まるので、`SeatReleasePoint` に値を足して割り当てを忘れた回をここで止める。
- */
-type _EveryPointIsAssigned =
-  Exclude<
-    SeatReleasePoint,
-    BlockingReleasePoint | QuietReleasePoint | DiscardReleasePoint | InlineOnlyReleasePoint
-  > extends never
-    ? true
-    : never;
-const _everyPointIsAssigned: _EveryPointIsAssigned = true;
-void _everyPointIsAssigned;
 
 /**
  * 返ってきた席をどう扱ったか。
@@ -57,7 +26,7 @@ export type SeatTakeResult = "held" | "finished" | "engine-gone" | "superseded";
  * 往復を跨いで「その席はどのエンジンのものか」を言うために要る。エンジンの世代を
  * 呼び手に持たせると、席を取る経路を1本足すたびに世代の判定を通したかを目で数えることになる。
  */
-export interface SeatTake {
+type SeatTake = {
   /**
    * Rust が席を渡した行で呼ぶ。**握るか捨てるかはここで決まる。**
    *
@@ -76,7 +45,7 @@ export interface SeatTake {
    * ——という食い違いを、この述語で1つに寄せる。
    */
   hasEngineChanged: () => boolean;
-}
+};
 
 /**
  * Rust が渡した解析の席（`active_sessions` の1エントリ）の生死を持つ。
@@ -90,7 +59,7 @@ export interface SeatTake {
  * **席の在処を `state` から導かない。** 理由と、どの失敗で席が本当に Rust に残るかは
  * `docs/state-transitions/analysis.md` の ※12 に1つだけ置いてある。
  */
-export interface EngineSeat {
+type EngineSeat = {
   /** 席を握っているか */
   isHeld: () => boolean;
   /**
@@ -188,7 +157,7 @@ export interface EngineSeat {
    * **席を握っていない回は撃たない**（理由は本体の判定に置いてある）。
    */
   sweepOnUnmount: () => void;
-}
+};
 
 /**
  * 手放した席を覚えておく本数。

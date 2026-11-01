@@ -13,7 +13,7 @@
  * 変わる——間引きと猶予が入れ替わると、`useResultFlush` の窓を見るテストが
  * 現物では起きない順序を検査することになる。
  */
-export interface AnalysisWaits {
+type AnalysisWaits = {
   /** 同期が追いつくのを見に行く間隔。**1フレームぶん**（打ち切りの上限に対して十分細かい） */
   syncPollMs: number;
   /** 盤が動いてから再開を始めるまでの猶予。連打を1本に畳む */
@@ -26,7 +26,7 @@ export interface AnalysisWaits {
   positionSyncTimeoutMs: number;
   /** 結果を画面へ反映する間引き。`info` は数十 ms 間隔で届くので、1周期に1回へ畳む */
   resultFlushMs: number;
-}
+};
 
 /** 現物の値。**アプリはこれだけを使う。** */
 const PRODUCTION: AnalysisWaits = {

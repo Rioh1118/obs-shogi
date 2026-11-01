@@ -14,7 +14,7 @@ import { waits } from "./waits";
  * その組を外から触らせないためにフックへ閉じてある。捨てる関数は `dropPending` の1つで、
  * 席を握れなかった経路はどれもそこを通ること。
  */
-export interface ResultFlush {
+type ResultFlush = {
   /** 届いた結果を反映待ちに置き、間引きのタイマーを張る */
   receive: (result: AnalysisResult) => void;
   /**
@@ -49,7 +49,7 @@ export interface ResultFlush {
    * **「解析中」のまま空のペインが残る**。
    */
   schedule: () => void;
-}
+};
 
 /**
  * `analyzing` は**解析中かどうかの観測値**を持つ ref。

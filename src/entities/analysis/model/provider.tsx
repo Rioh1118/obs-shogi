@@ -5,9 +5,10 @@ import {
   isAnalysisStartUnreachable,
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
+  type DiscardReleasePoint,
   type StopOutcome,
 } from "../api/tauri";
-import { useEngineSeat, type DiscardReleasePoint, type SeatTakeResult } from "./useEngineSeat";
+import { useEngineSeat, type SeatTakeResult } from "./useEngineSeat";
 import { useResultFlush } from "./useResultFlush";
 import { waits } from "./waits";
 import { analysisReducer, initialState } from "./reducer";

@@ -57,27 +57,35 @@ declare const analysisSessionIdBrand: unique symbol;
  */
 export type AnalysisSessionId = string & { readonly [analysisSessionIdBrand]: true };
 
+/** 応答を待てる経路。失敗を呼び手へ投げる */
+export type BlockingReleasePoint = "stop" | "start" | "restart";
+/** 応答を待てない経路。落ちても画面に出せない（結末は `useEngineSeat` の `sendStopQuietly`） */
+export type QuietReleasePoint = "sync-timeout" | "no-position";
+/** 要らなくなった開始が持ってきた席を捨てる経路 */
+export type DiscardReleasePoint = "late-start" | "late-restart";
+/**
+ * どの関数の引数にもならない値。席を指さない停止は Rust の席を全部空けるので、
+ * 呼び手へ渡すと別の経路が取った席まで巻き添えにする。送るのは `useEngineSeat` の中だけ
+ */
+type InlineOnlyReleasePoint = "unmount";
+
 /**
  * 停止をどの経路から呼んだか。Rust のログにそのまま出る（理由は `bridge.rs` の `stop_all_sessions`）。
  *
  * 値の集合が閉じていることがこの引数の価値なので、境界を跨いでも `string` に落とさず、省略もできない。
  * Rust 側は名乗らない呼び手のために `unnamed` を持つが、TS からはそこへ落ちない。
  *
- * 経路ごとの部分集合は受け取る側が持つ（`useEngineSeat`）。分け方は席を返す経路の性質
- * （応答を待てるか、捨てる側か）で、Rust が受け取る値の集合とは別の関心。
+ * 部分集合の分け方は席を返す経路の性質（応答を待てるか、捨てる側か）。値を取り違えても Rust は
+ * 止まるので、壊れるのはログだけになる。型で割っておけば `releaseHeldQuietly("unmount")` は tsc が止める。
  *
  * 値を増やすときは、その経路が落ちたときの結末（返し直せるか、誰も返せないか）を、
  * その値を渡す関数の doc に書き足す。書けないなら、その経路は要らない
  */
 export type SeatReleasePoint =
-  | "stop"
-  | "start"
-  | "restart"
-  | "unmount"
-  | "no-position"
-  | "sync-timeout"
-  | "late-start"
-  | "late-restart";
+  | BlockingReleasePoint
+  | QuietReleasePoint
+  | DiscardReleasePoint
+  | InlineOnlyReleasePoint;
 
 /**
  * 解析の開始の失敗が、エンジンへ書けなかったためか。
