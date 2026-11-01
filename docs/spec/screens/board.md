@@ -107,7 +107,7 @@
 - **書き込み失敗が利用者に届かない**（上記）→ #277
 - **駒をクリックしても手番でなければ何も起きない。** 理由は出ない
 - **`Board.tsx` に空の `useEffect` が1つ残っている**（`promotionState` を見るだけで何もしない）
-- **駒のクリックで `console.log` を出している**（`PieceFactory` の `onClick`）
+- **駒のクリックで `console.log` を出している**（`PieceImage` の `onClick`）
 - **`JKFPlayer.logs` に再生ログが無制限に積まれる** → #211
 
 ## これからの要件

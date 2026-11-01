@@ -5,7 +5,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
-import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
+import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import type { StudyPositionState } from "@/entities/study-positions/model/types";
 
 import TextInput from "@/shared/ui/Form/TextInput";
@@ -168,7 +168,7 @@ export default function StudyPositionSaveModal() {
         <div className="sp-save__body">
           <aside className="sp-save__left">
             <div className="sp-save__preview">
-              <PreviewPane previewData={previewData} />
+              <PositionPreviewPane previewData={previewData} />
             </div>
             <div className="sp-save__context">
               {tesuu !== null && <span className="sp-save__contextItem">{`${tesuu}手目`}</span>}

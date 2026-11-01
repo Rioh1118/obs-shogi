@@ -22,8 +22,8 @@
 マージは下の段から順に行う。セッションの開始時に、マージ済みの段が無いかを見る。
 
 1. `git fetch origin`
-2. `git rebase --onto origin/main <下の段の旧先端> <枝>`
-3. `git push --force-with-lease`
+2. 一番上の枝で `git rebase --update-refs --onto origin/main <下の段の旧先端>`
+3. 動いた枝ごとに `git push --force-with-lease`
 4. `gh api -X PATCH repos/Rioh1118/obs-shogi/pulls/<番号> -f base=main`
 
 ours 戦略のマージは使わない。
@@ -34,12 +34,12 @@ ours 戦略のマージは使わない。
 
 | 段 | 枝 | 範囲 | PR | 状態 |
 | -- | -- | ---- | -- | ---- |
-| 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | #662 | レビュー待ち |
-| 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | #663 | レビュー待ち |
-| 3 | `refactor/shared-public-names` | `shared` の公開の名前と呼び手 | #664 | レビュー待ち |
-| 4 | `refactor/tidy-shared-ui` | `src/shared/ui` のコメントと書き方 | #665 | レビュー待ち |
-| 5 | `refactor/structure-shared-ui` | `src/shared/ui` の部品の構造 | #667 | レビュー待ち |
-| 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #668 | レビュー待ち |
+| 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | #662 | マージ済み |
+| 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | #663 | マージ済み |
+| 3 | `refactor/shared-public-names` | `shared` の公開の名前と呼び手 | #664 | マージ済み |
+| 4 | `refactor/tidy-shared-ui` | `src/shared/ui` のコメントと書き方 | #665 | マージ済み |
+| 5 | `refactor/structure-shared-ui` | `src/shared/ui` の部品の構造 | #667 | マージ済み |
+| 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #668 | マージ済み |
 
 ## 語
 

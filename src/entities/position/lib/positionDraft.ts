@@ -2,8 +2,8 @@ import { Shogi, type Color, type Kind } from "shogi.js";
 import type { RawKind } from "shogi.js/cjs/Kind";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFHand, JKFPiece, JKFState } from "@/entities/kifu/model/jkf";
-import { BOARD_SIZE } from "../model/shogi";
-import { isValidCoords } from "./boardUtils";
+import { BOARD_SIZE } from "../model/board";
+import { isValidCoords } from "./boardCoords";
 
 /**
  * 組みかけの局面を並べ替える純関数

@@ -13,7 +13,7 @@ import "./PositionSearchModal.scss";
 
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
-import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
+import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey } from "../lib/hitKey";
@@ -417,7 +417,7 @@ export default function PositionSearchModal() {
                 {params.sfen ? "検索対象の局面" : "現在の局面"}
               </div>
               <div className="pos-search__preview">
-                <PreviewPane previewData={previewData} />
+                <PositionPreviewPane previewData={previewData} />
               </div>
 
               <div className="pos-search__aux">

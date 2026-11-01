@@ -1,5 +1,5 @@
 import { Color, type Kind } from "shogi.js";
-import PieceFactory from "@/entities/position/ui/PieceFactory";
+import PieceImage from "@/entities/position/ui/PieceImage";
 import { useHandLayout, type RowConfig } from "./useHandLayout";
 import "./Hand.scss";
 import { useEffect, useState } from "react";
@@ -101,8 +101,8 @@ function Hand({ isSente }: HandProps) {
             height: `${rowConfig.pieceSize * 1.1}em`,
           }}
         >
-          <PieceFactory
-            jkfKind={pieceKind}
+          <PieceImage
+            kind={pieceKind}
             color={color}
             onClick={() => handlePieceClick(pieceKind, nth)}
           />

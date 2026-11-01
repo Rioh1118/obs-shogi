@@ -1,9 +1,9 @@
 import Square from "./Square";
-import { indexToCoords } from "@/entities/position/lib/boardUtils";
-import { BOARD_SIZE } from "@/entities/position/model/shogi";
+import { indexToCoords } from "@/entities/position/lib/boardCoords";
+import { BOARD_SIZE } from "@/entities/position/model/board";
 import "./Board.scss";
-import PieceFactory from "@/entities/position/ui/PieceFactory";
-import { Color, Piece } from "shogi.js";
+import PieceImage from "@/entities/position/ui/PieceImage";
+import { Color } from "shogi.js";
 import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
 import { useGame, type ShogiMove } from "@/entities/game";
@@ -141,10 +141,9 @@ function Board() {
         onClick={() => handleSquareClick(x, y)}
       >
         {piece && (
-          <PieceFactory
-            jkfKind={piece.kind}
+          <PieceImage
+            kind={piece.kind}
             color={piece.color}
-            isPromoted={Piece.isPromoted(piece.kind)}
             onClick={() => console.log(`Piece clicked: ${piece.kind} at ${x}${y}`)}
           />
         )}

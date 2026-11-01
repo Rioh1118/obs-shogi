@@ -38,7 +38,7 @@ const square = (x: number, y: number): HTMLElement => {
   return el;
 };
 
-/** 駒の絵から種類と先後を読む。`PieceFactory` が付ける印を通す */
+/** 駒の絵から種類と先後を読む。`PieceImage` が付ける印を通す */
 const pieceAt = (x: number, y: number): string | null => {
   const el = square(x, y).querySelector<HTMLElement>(".piece");
   if (!el) return null;

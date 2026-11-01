@@ -11,7 +11,7 @@ type Props = {
   previewData: PreviewData | null;
 };
 
-function PreviewPane({ previewData }: Props) {
+function PositionPreviewPane({ previewData }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState(320);
 
@@ -84,4 +84,4 @@ function PreviewPane({ previewData }: Props) {
   );
 }
 
-export default PreviewPane;
+export default PositionPreviewPane;

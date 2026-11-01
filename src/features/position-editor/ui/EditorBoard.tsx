@@ -1,8 +1,8 @@
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import { indexToCoords } from "@/entities/position/lib/boardUtils";
+import { indexToCoords } from "@/entities/position/lib/boardCoords";
 import { pieceAt, squareKey, type Square } from "@/entities/position/lib/positionDraft";
-import { BOARD_SIZE } from "@/entities/position/model/shogi";
-import PieceFactory from "@/entities/position/ui/PieceFactory";
+import { BOARD_SIZE } from "@/entities/position/model/board";
+import PieceImage from "@/entities/position/ui/PieceImage";
 import { squareMark } from "../lib/boardMarks";
 import type { Held } from "../model/types";
 
@@ -71,7 +71,7 @@ function EditorBoard({
               }}
               onMouseEnter={() => onHoverSquare(sq)}
             >
-              {piece && <PieceFactory jkfKind={piece.kind} color={piece.color} />}
+              {piece && <PieceImage kind={piece.kind} color={piece.color} />}
             </div>
           );
         })}

@@ -1,5 +1,5 @@
 import { Color } from "shogi.js";
-import PieceFactory from "@/entities/position/ui/PieceFactory";
+import PieceImage from "@/entities/position/ui/PieceImage";
 import "./PromotionDialog.scss";
 
 function PromotionDialog({
@@ -29,10 +29,10 @@ function PromotionDialog({
       {/* <p className="promotion-choice__text">成りますか?</p> */}
       <div className="promotion-choice__piece">
         <div className="promotion-choice__piece--promote" onClick={() => setPromote(true)}>
-          <PieceFactory jkfKind={promotionMap[jkfKind]} color={color} isPromoted={true} />
+          <PieceImage kind={promotionMap[jkfKind]} color={color} />
         </div>
         <div className="promotion-choice__piece--not-promote" onClick={() => setPromote(false)}>
-          <PieceFactory jkfKind={jkfKind} color={color} isPromoted={false} />
+          <PieceImage kind={jkfKind} color={color} />
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 
-import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
+import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
@@ -68,7 +68,7 @@ export default function PositionDetail({
   return (
     <div className="sp-detail">
       <div className="sp-detail__preview">
-        <PreviewPane previewData={previewData} />
+        <PositionPreviewPane previewData={previewData} />
       </div>
 
       <div className="sp-detail__meta">

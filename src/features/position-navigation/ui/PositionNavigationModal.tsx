@@ -2,7 +2,7 @@ import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
-import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
+import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import BranchList from "./BranchList";
 import "./PositionNavigationModal.scss";
 import { buildNextOptions } from "@/entities/kifu/lib/buildNextOptions";
@@ -193,7 +193,7 @@ function PositionNavigationModal() {
         <main className="position-navigation-modal__content">
           <div className="position-navigation-modal__grid">
             <div className="position-navigation-modal__grid-left">
-              <PreviewPane previewData={previewData} />
+              <PositionPreviewPane previewData={previewData} />
             </div>
             <div className="position-navigation-modal__grid-right">
               {unreachable ? (

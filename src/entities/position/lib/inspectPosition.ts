@@ -1,8 +1,8 @@
 import type { Color, Kind } from "shogi.js";
 import { turnSide } from "@/shared/lib/turn";
 import type { JKFState } from "@/entities/kifu/model/jkf";
-import { BOARD_SIZE } from "../model/shogi";
-import { coordsToShogiNotation } from "./boardUtils";
+import { BOARD_SIZE } from "../model/board";
+import { coordsToShogiNotation } from "./boardCoords";
 import { toKan } from "./toKan";
 import { flipColor, isCheckOn, pieceAt, squareKey, type Square } from "./positionDraft";
 
