@@ -208,6 +208,9 @@ describe("AppConfigProvider", () => {
     fireEvent.click(screen.getByTestId("startup"));
     await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByTestId("gauge"));
+    // 2件目が読みに行ける隙間を開ける。鎖が無ければここで1件目の保存の前のファイルを読む
+    await act(async () => {});
+    expect(saveConfig).toHaveBeenCalledTimes(1);
 
     release();
     await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(2));

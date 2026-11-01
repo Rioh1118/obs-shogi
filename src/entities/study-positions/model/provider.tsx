@@ -125,8 +125,8 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
       const now = new Date().toISOString();
       const position = normalizeStoredPosition({
-        ...input,
         id: crypto.randomUUID(),
+        ...input,
         createdAt: now,
         updatedAt: now,
       });

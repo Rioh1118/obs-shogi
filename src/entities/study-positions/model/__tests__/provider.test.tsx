@@ -176,6 +176,13 @@ describe("findBySfen", () => {
     expect(view.result.current.findBySfen(SFEN_B)).toBeNull();
   });
 
+  /** 壊れた SFEN どうしは局面キーがどちらも空文字になり、別の局面が同じものに読める */
+  it("壊れた SFEN で、ファイルにある壊れた SFEN の項目を引かない", async () => {
+    const view = await mounted([stored("a", "壊れた項目")]);
+
+    expect(view.result.current.findBySfen("壊れた入力")).toBeNull();
+  });
+
   it("追加した局面をその場で引ける", async () => {
     const view = await mounted([]);
 
@@ -226,6 +233,17 @@ describe("addPosition", () => {
   });
 
   /** 読み込みの前に書くと、読めるはずの一覧を空として保存し、ファイルの中身を失う */
+  it("読めた後は書くたびに読み直さない", async () => {
+    const view = await mounted([]);
+
+    await act(async () => {
+      const added = await view.result.current.addPosition(input(SFEN_A));
+      await view.result.current.updatePosition({ id: added.id, label: "題" });
+    });
+
+    expect(loadStudyPositions).toHaveBeenCalledTimes(1);
+  });
+
   it("読み込みが終わるまで待ち、読めた一覧へ足す", async () => {
     const load = deferred<{ positions: StudyPosition[] }>();
     loadStudyPositions.mockReturnValue(load.promise);
@@ -334,10 +352,14 @@ describe("updatePosition", () => {
     const view = await mounted([stored("a", SFEN_A, { description: "消える", tags: ["消える"] })]);
 
     await act(async () => {
-      await view.result.current.updatePosition({ id: "a", description: "", tags: [] });
+      await view.result.current.updatePosition({ id: "a", label: "", description: "", tags: [] });
     });
 
-    expect(view.result.current.state.positions[0]).toMatchObject({ description: "", tags: [] });
+    expect(view.result.current.state.positions[0]).toMatchObject({
+      label: "",
+      description: "",
+      tags: [],
+    });
   });
 
   it("全部の欄を差し替えられる", async () => {

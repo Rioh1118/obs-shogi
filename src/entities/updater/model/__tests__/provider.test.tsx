@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UpdaterProvider } from "../provider";
@@ -168,6 +169,30 @@ describe("確認", () => {
     expect(saveUpdaterState.mock.calls[0]![0].lastCheckedMs).toBeTypeOf("number");
   });
 
+  it("(S0, E1) Strict Mode で effect が2回走っても、読むのも確認も1回", async () => {
+    render(
+      <StrictMode>
+        <UpdaterProvider>
+          <Probe />
+        </UpdaterProvider>
+      </StrictMode>,
+    );
+    await checkSettled();
+
+    expect(loadUpdaterState).toHaveBeenCalledTimes(1);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  /** 確認に失敗すると記憶を書かないので、読めた値は確認の結果と別に画面へ届く */
+  it("確認に失敗しても、読めた記憶を画面へ渡す", async () => {
+    loadUpdaterState.mockResolvedValue({ skippedVersion: "9.9.9", lastCheckedMs: 7 });
+    check.mockRejectedValue(new Error("つながらない"));
+    mount();
+
+    await waitFor(() => expect(screen.getByTestId("skipped").textContent).toBe("9.9.9"));
+    expect(screen.getByTestId("lastChecked").textContent).toBe("7");
+  });
+
   it("上限を渡して確認する", async () => {
     mount();
     await checkSettled();
@@ -297,6 +322,57 @@ describe("取得と適用", () => {
   });
 });
 
+describe("進捗", () => {
+  /** 中身を渡した後は `next` を呼ぶまで止める。合図のたびに描かれた進捗を見るため */
+  function steppedDownload(events: DownloadEvent[]) {
+    let next!: () => void;
+    const update = fakeUpdate("9.9.9", async (emit) => {
+      for (const event of events) {
+        emit(event);
+        await new Promise<void>((resolve) => (next = resolve));
+      }
+    });
+    return { update, step: () => next() };
+  }
+
+  async function detailAfter(step: () => void, expected: string) {
+    await act(async () => step());
+    await waitFor(() => expect(screen.getByTestId("detail").textContent).toBe(expected));
+  }
+
+  it("届いた量を足し上げて百分率で出す", async () => {
+    const { update, step } = steppedDownload([
+      { event: "Started", data: { contentLength: 200 } },
+      { event: "Progress", data: { chunkLength: 50 } },
+      { event: "Progress", data: { chunkLength: 50 } },
+      { event: "Progress", data: { chunkLength: 21 } },
+    ]);
+    check.mockResolvedValue(update);
+    mount();
+    await settled("available");
+
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("downloading");
+    await detailAfter(step, "25");
+    await detailAfter(step, "50");
+    await detailAfter(step, "61");
+  });
+
+  it("全体の大きさが分からなければ 0 のまま", async () => {
+    const { update, step } = steppedDownload([
+      { event: "Started", data: {} },
+      { event: "Progress", data: { chunkLength: 50 } },
+    ]);
+    check.mockResolvedValue(update);
+    mount();
+    await settled("available");
+
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("downloading");
+    await detailAfter(step, "0");
+  });
+});
+
 describe("飛ばす／解除", () => {
   it("(S2, E16) 飛ばすと永続され、段は idle へ戻る", async () => {
     check.mockResolvedValue(fakeUpdate("9.9.9", async () => {}));
@@ -311,6 +387,31 @@ describe("飛ばす／解除", () => {
       ),
     );
     expect(screen.getByTestId("skipped").textContent).toBe("9.9.9");
+  });
+
+  it("(S2, E16) 飛ばすと告知していた版を閉じる", async () => {
+    const update = fakeUpdate("9.9.9", async () => {});
+    check.mockResolvedValue(update);
+    mount();
+    await settled("available");
+
+    fireEvent.click(screen.getByTestId("skip"));
+    await settled("idle");
+    expect(update.close).toHaveBeenCalledTimes(1);
+  });
+
+  /** `close` を受けないと、資源が1つ残るだけの失敗が未処理の棄却になる */
+  it("閉じる失敗を受ける", async () => {
+    const closing = { catch: vi.fn() };
+    const update = fakeUpdate("9.9.9", async () => {});
+    update.close.mockReturnValue(closing);
+    check.mockResolvedValue(update);
+    mount();
+    await settled("available");
+
+    fireEvent.click(screen.getByTestId("skip"));
+    await settled("idle");
+    expect(closing.catch).toHaveBeenCalledTimes(1);
   });
 
   it("飛ばしても最後に確認できた時刻を消さない", async () => {
@@ -389,6 +490,43 @@ describe("設定からの確認", () => {
 
     fireEvent.click(screen.getByTestId("checkNow"));
     await waitFor(() => expect(screen.getByTestId("manual").textContent).toBe("upToDate"));
+  });
+
+  it("(E17) 確認を始めたら前の答えを消す", async () => {
+    mount();
+    await waitFor(() => expect(screen.getByTestId("checking").textContent).toBe("false"));
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(screen.getByTestId("manual").textContent).toBe("upToDate"));
+
+    check.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(screen.getByTestId("manual").textContent).toBe("-"));
+  });
+
+  it("(E17) 確認の最中に押しても2本目を走らせない", async () => {
+    let answer!: (value: null) => void;
+    check.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    mount();
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await act(async () => {});
+    expect(check).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer(null));
+    await waitFor(() => expect(screen.getByTestId("checking").textContent).toBe("false"));
+  });
+
+  it("解除すると、飛ばす版が見つかったという答えを消す", async () => {
+    loadUpdaterState.mockResolvedValue({ skippedVersion: "9.9.9", lastCheckedMs: null });
+    check.mockResolvedValue(fakeUpdate("9.9.9", async () => {}));
+    mount();
+    await waitFor(() => expect(screen.getByTestId("checking").textContent).toBe("false"));
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(screen.getByTestId("manual").textContent).toBe("foundButSkipped"));
+
+    fireEvent.click(screen.getByTestId("unskip"));
+    await waitFor(() => expect(screen.getByTestId("manual").textContent).toBe("-"));
   });
 
   it("(E17) 失敗したら押した本人には答える", async () => {
