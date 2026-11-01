@@ -99,9 +99,8 @@ modal は F-31（2026-09-08 / `fix/434-mixed-screen-on-unloadable-kifu`）、
 **呼び出し箇所の数は書かない。**（数えると、経路を1つ足したときに嘘になる）
 → `docs/state-transitions/file-tree.md` の ※2
 
-さらに **`clearError` を公開しているのは `game` / `analysis` / `study-positions` /
-`file-tree` / `engine` の5つで、呼び出し元は `file-tree` の1つだけ**
-（#169 で `FileTree.tsx` が呼ぶようになった。残り4つは0）。
+さらに **`clearError` を公開するスライスのうち、呼び出し元が居るのは `file-tree` だけ**
+（#169 で `FileTree.tsx` が呼ぶようになった）。
 **`search` は持たない**——`openError` を落とす口が無い（2026-09-09 /
 `fix/171-engine-init-recovery` で実測）。
 

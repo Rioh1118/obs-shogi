@@ -17,7 +17,11 @@ import type { DirInfo } from "../api/aiLibrary";
  *   指す先がフォルダでもここに来る
  *
  * **読む側は `Record` で網羅する。** 三項の連鎖を手前に置くと最後の枝が残り全部を吸い、状態を足しても
- * tsc が落ちず、書き忘れた状態が別の状態の見た目で出る。文言と色は面ごとに持ってよい
+ * tsc が落ちず、書き忘れた状態が別の状態の見た目で出る。文言と色は面ごとに持ってよい。
+ *
+ * 「開けるか」「作れるか」「中を列挙してよいか」は面によらない分類の性質なので、UI の `===` で書かず
+ * 下の述語を使う。散らすと、状態を足したときに表だけが tsc で落ち、判定は黙って別の枝へ流れる。
+ * 1つの状態だけを名指しする分岐（`SetupGuide` の hero の `other`）も `canListEnginesDir` で先に受ける
  */
 export type EnginesDir = "unknown" | "missing" | "dir" | "other";
 
@@ -27,13 +31,7 @@ export function classifyEnginesDir(info: DirInfo | null | undefined): EnginesDir
   return info.kind === "dir" ? "dir" : "other";
 }
 
-/**
- * 開いて確かめられるか。そこに何かが在れば開ける（それが唯一の直し方のこともある）。
- *
- * 「開けるか」「作れるか」「中を列挙してよいか」は面によらない分類の性質なので、UI の `===` で書かない。
- * 散らすと、状態を足したときに表だけが tsc で落ち、判定は黙って別の枝へ流れる。
- * 1つの状態だけを名指しする分岐（`SetupGuide` の hero の `other`）も、この述語で先に受ける
- */
+/** 開いて確かめられるか。そこに何かが在れば開ける（それが唯一の直し方のこともある） */
 export function canRevealEnginesDir(dir: EnginesDir): boolean {
   switch (dir) {
     case "dir":

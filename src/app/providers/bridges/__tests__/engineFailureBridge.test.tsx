@@ -20,7 +20,7 @@ import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
  * どの画面にも出ないまま「解析が始まらない」だけになる。
  */
 
-const initialize = vi.fn<() => Promise<boolean>>();
+const initialize = vi.fn<() => Promise<void>>();
 const cancelStart = vi.fn<() => void>();
 const engine = {
   state: {
@@ -121,7 +121,7 @@ beforeEach(() => {
   notify.mockClear();
   dismissByKey.mockClear();
   initialize.mockReset();
-  initialize.mockResolvedValue(true);
+  initialize.mockResolvedValue(undefined);
   cancelStart.mockReset();
   openModal = vi.fn<OpenModal>();
   vi.spyOn(console, "error").mockImplementation(() => {});
