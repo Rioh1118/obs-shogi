@@ -434,8 +434,9 @@ export function GameSessionProvider({
 
     const { gameId } = session;
 
-    // **始め損ねた対局には閉じる相手が居ない**（台帳に載っていない）ので、捨てるだけ
-    if (gameId === null) {
+    // 始められなかった対局も、エンジンを落とし終えた対局も、Rust の台帳に居ない。
+    // `close_game` を通すと `unknown game` で断られ、結末を手放せなくなる
+    if (gameId === null || session.engineClosed) {
       sessionRef.current = null;
       pendingEventsRef.current = [];
       publish();

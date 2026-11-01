@@ -1053,6 +1053,35 @@ describe("操作の断り", () => {
     expect(kindText()).toBe("idle");
   });
 
+  /**
+   * 終局したエンジンは `close_game` を通して台帳から外れている。もう一度通すと
+   * Rust は `unknown game` で断り、結末が手放せなくなる。
+   */
+  test("エンジンを落とし終えた対局は、呼び直さずに手放す", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    await emit({
+      type: "over",
+      gameId: GAME_ID,
+      result: { winner: "black", reason: "resign", detail: null },
+      clocks: CLOCKS,
+    });
+    expect(tauri.closeGame).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("engineClosed").textContent).toBe("true");
+    tauri.closeGame.mockRejectedValueOnce("unknown game: g1");
+
+    let closed: Awaited<ReturnType<NonNullable<typeof closer>>> | undefined;
+    await act(async () => {
+      closed = await closer?.();
+    });
+
+    expect(closed).toEqual(Ok(undefined));
+    expect(tauri.closeGame).toHaveBeenCalledTimes(1);
+    expect(kindText()).toBe("idle");
+  });
+
   test("対局が無ければ閉じても何も起きない", async () => {
     mount(alwaysContinue);
 
