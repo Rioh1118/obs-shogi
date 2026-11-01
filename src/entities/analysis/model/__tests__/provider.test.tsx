@@ -2507,12 +2507,17 @@ describe("中断に答えない回の自動再開", () => {
     await act(async () => {
       await view.current.stopAnalysis().catch(() => {});
     });
-    stopCore.mockResolvedValueOnce("unanswered");
+    // Rust は応答より先に `応答なし` を知らせるので、`unanswered` が返る時点で `isReady` は倒れている
+    stopCore.mockImplementationOnce(async () => {
+      engine = { isReady: false, notReadyReason: "failed" };
+      return "unanswered";
+    });
     startCore.mockClear();
 
     await act(async () => {
       await view.current.startInfiniteAnalysis().catch(() => {});
     });
+    await advance(waits().restartDebounceMs * 2);
 
     expect(startCore).not.toHaveBeenCalled();
   });
@@ -2542,6 +2547,40 @@ describe("中断に答えない回の自動再開", () => {
 
 /** (V3, E15) `analysis.md` の `(S4/S5, E11)` */
 describe("中断が届かなかった回", () => {
+  it("返却の答えが無い局面を ▶ で保留しても、答えが来たら同じ局面を読み直す", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+
+    // 棋譜を閉じたときの返却が2本とも落ち、席を握ったまま停止中になる
+    stopCore.mockRejectedValue(new Error("ipc is gone"));
+    await view.setSync(adapter(null, null));
+    await advance(50);
+    await view.setSync(adapter("P1", "P1"));
+    await advance(waits().restartDebounceMs * 2);
+    expect(view.current.state.isAnalyzing).toBe(false);
+
+    // 開き直して ▶。返却に答えが無いので検討の意思だけ残る。答えは同じ描画に畳まれ、`isReady` は動かない
+    stopCore.mockReset();
+    stopCore.mockResolvedValueOnce("unanswered");
+    stopCore.mockResolvedValue("stopped");
+    startCore.mockClear();
+    startCore.mockResolvedValue("session-2");
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    await advance(waits().restartDebounceMs * 4);
+
+    expect(startCore).toHaveBeenCalledTimes(1);
+    expect(view.current.state.analyzedSfen).toBe("P1");
+
+    await act(async () => {
+      await view.current.stopAnalysis();
+    });
+    expect(stopCore).toHaveBeenLastCalledWith("session-2", "stop");
+  });
+
   it("■ が届かなければ応答なしにする", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {

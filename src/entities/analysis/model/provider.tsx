@@ -721,6 +721,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       }
       // 答えが無ければ語が `応答なし` に変わる。開始を頼むと断りの文が立つ
       if (released === "unanswered") {
+        // `swapSeatAndGo` と同じ。答えが1回の描画にまとまると `isReady` が動かず、印が残って読み始めない
+        sentSfenRef.current = null;
         dispatch({ type: "hold_intent" });
         return false;
       }
