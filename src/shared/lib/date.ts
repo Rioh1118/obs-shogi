@@ -1,4 +1,4 @@
-/** "2025-03-21" 形式 */
+/** ISO 8601 の日時を、端末の時刻帯で `2025-03-21` の形にする */
 export function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
@@ -8,7 +8,7 @@ export function formatDate(iso: string): string {
   }
 }
 
-/** "3/21" 形式（短縮） */
+/** ISO 8601 の日時を、端末の時刻帯で `3/21` の形にする */
 export function formatShortDate(iso: string): string {
   try {
     const d = new Date(iso);
