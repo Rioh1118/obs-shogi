@@ -353,8 +353,8 @@ describe("消えたセッション宛のチャンク", () => {
   /**
    * Rust の `open_project` は進行中の検索を1つもキャンセルしない
    * （`src-tauri/src/search/commands.rs`）。`open_start` がセッションを落とした後も
-   * 同じ rid のチャンクが届くので、**入口で弾かないと `ensureSession` が
-   * 消えたセッションを作り直す**——`currentRequestId` と `filePathById` が
+   * 同じ rid のチャンクが届くので、**入口で弾かないと `sessionOrNew` が
+   * 消えたセッションを作り直す**——`filePathById` が
    * 古い根のものへ戻る
    */
   test("根を開き直した後に届いた、前の検索のチャンクは捨てる", async () => {
@@ -388,7 +388,7 @@ describe("消えたセッション宛のチャンク", () => {
   /**
    * **終わりも reducer の判定を通す。** Rust は取り下げた検索でも `end` を emit する
    * （`query_service.rs` は `break` の後で必ず出す）ので、素通りさせると
-   * `ensureSession` が捨てたセッションを**空のまま作り直す**。作り直された側を
+   * `sessionOrNew` が捨てたセッションを**空のまま作り直す**。作り直された側を
    * 消す経路はもう無い——画面はその rid を忘れている
    */
   test("捨てた検索の終わりが届いても、セッションは戻らない", async () => {

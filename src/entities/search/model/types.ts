@@ -1,4 +1,4 @@
-import type { Consistency, OpenProjectOutput, SearchPositionInput } from "../api/contract";
+import type { SearchPositionInput } from "../api/contract";
 import type {
   IndexProgressPayload,
   IndexState,
@@ -30,14 +30,10 @@ export type IndexUiState = {
  */
 export type SearchSession = {
   requestId: RequestId;
-  querySfen: string | null;
-  consistency: Consistency | null;
   stale: boolean;
   isDone: boolean;
   error: string | null;
   chunks: PositionHit[][];
-  startedAt: number;
-  endedAt: number | null;
 };
 
 /** 検索を起こした結末。**受け付けられなかった回を成功と同じ形にしない** */
@@ -51,13 +47,8 @@ export type SearchState = {
 
   filePathById: FilePathById;
 
-  isOpeningProject: boolean;
-  lastOpenedRootDir: string | null;
-  lastOpenResult: OpenProjectOutput | null;
   openError: string | null;
 
-  isSearching: boolean;
-  currentRequestId: RequestId | null;
   sessions: Record<number, SearchSession>;
 };
 
@@ -66,8 +57,7 @@ export type Action =
   | { type: "index_progress"; payload: IndexProgressPayload }
   | { type: "index_warn"; payload: IndexWarnPayload }
   | { type: "clear_warns" }
-  | { type: "open_start"; payload: { rootDir: string } }
-  | { type: "open_ok"; payload: { rootDir: string; out: OpenProjectOutput } }
+  | { type: "open_start" }
   | { type: "open_error"; payload: { message: string } }
   | { type: "search_begin"; payload: SearchBeginPayload }
   /**
@@ -78,14 +68,7 @@ export type Action =
    * 溜めるのは `model/chunkBuffer.ts`。
    */
   | { type: "search_chunks"; payload: SearchChunksInput }
-  | {
-      type: "search_requested";
-      payload: {
-        requestId: RequestId;
-        sfen: string;
-        consistency: Consistency;
-      };
-    }
+  | { type: "search_requested"; payload: { requestId: RequestId } }
   | { type: "search_end"; payload: SearchEndPayload }
   | { type: "search_error"; payload: SearchErrorPayload }
   | { type: "clear_search"; payload: { requestId: RequestId } };
@@ -120,7 +103,6 @@ export type PositionSearchContextType = {
    */
   getHitsByRequestId: (requestId: RequestId | null | undefined) => PositionHit[];
   isSearchingRequest: (requestId: RequestId | null | undefined) => boolean;
-  getAbsPathByFileId: (fileId: number) => string | null;
   resolveHitAbsPath: (hit: PositionHit) => string | null;
 
   clearWarns: () => void;

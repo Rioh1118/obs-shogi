@@ -14,7 +14,7 @@ import {
   searchPosition as searchPositionApi,
   cancelSearch as cancelSearchApi,
 } from "../api/tauri";
-import type { OpenProjectOutput, SearchPositionInput } from "../api/contract";
+import type { SearchPositionInput } from "../api/contract";
 import type {
   IndexProgressPayload,
   IndexStatePayload,
@@ -67,7 +67,7 @@ export function PositionSearchProvider({
 }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const openInFlightRef = useRef<Promise<OpenProjectOutput> | null>(null);
+  const isOpenInFlightRef = useRef(false);
 
   /**
    * 償却 O(n) の hits キャッシュ。到着ぶんが増えたら**末尾だけ**追記する。
@@ -115,7 +115,7 @@ export function PositionSearchProvider({
   /**
    * 検索の持ち物を落とす。**rid で引ける置き場は3つある**——溜め場（`chunkBuffer`）、
    * 平坦化のキャッシュ（`hitsCacheRef`）、`state.sessions`（reducer）。どれか1つに
-   * 伝え忘れると、消えたはずのセッションが次の吐き出しで `ensureSession` に
+   * 伝え忘れると、消えたはずのセッションが次の吐き出しで `sessionOrNew` に
    * 作り直される。
    *
    * **落とす合図まで受け取って、3つを同じ順でしか落とせない形にする**——入口を
@@ -168,7 +168,7 @@ export function PositionSearchProvider({
             chunkBuffer.noteRequest(p.requestId);
 
             // **始まりも `isAccepting` を通す。** ここを通さないと、捨てた検索の begin が
-            // `ensureSession` でセッションを作り直す
+            // `sessionOrNew` でセッションを作り直す
             if (!chunkBuffer.isAccepting(p.requestId)) return;
             dispatch({ type: "search_begin", payload: p });
           },
@@ -209,26 +209,20 @@ export function PositionSearchProvider({
 
   // --- actions ---
   const openProject = useCallback(
-    async (rd: string): Promise<OpenProjectOutput> => {
-      if (openInFlightRef.current) return openInFlightRef.current;
+    async (root: string) => {
+      if (isOpenInFlightRef.current) return;
+      isOpenInFlightRef.current = true;
 
-      dropSearch({ type: "open_start", payload: { rootDir: rd } });
+      dropSearch({ type: "open_start" });
 
-      openInFlightRef.current = (async () => {
-        try {
-          const out = await openProjectApi(rd);
-          dispatch({ type: "open_ok", payload: { rootDir: rd, out } });
-          return out;
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          dispatch({ type: "open_error", payload: { message: msg } });
-          throw e;
-        } finally {
-          openInFlightRef.current = null;
-        }
-      })();
-
-      return openInFlightRef.current;
+      try {
+        await openProjectApi(root);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        dispatch({ type: "open_error", payload: { message } });
+      } finally {
+        isOpenInFlightRef.current = false;
+      }
     },
     [dropSearch],
   );
@@ -255,9 +249,7 @@ export function PositionSearchProvider({
    */
   useEffect(() => {
     if (!rootDir || !isListenSettled) return;
-    void openProject(rootDir).catch(() => {
-      // `open_error` に積まれている。ここで再度投げても拾う先が無い
-    });
+    void openProject(rootDir);
   }, [rootDir, isListenSettled, openProject]);
 
   const searchPosition = useCallback(
@@ -283,14 +275,7 @@ export function PositionSearchProvider({
       // 以後そのチャンクが通ってしまう
       chunkBuffer.noteRequest(out.requestId);
 
-      dispatch({
-        type: "search_requested",
-        payload: {
-          requestId: out.requestId,
-          sfen: input.sfen,
-          consistency: input.consistency,
-        },
-      });
+      dispatch({ type: "search_requested", payload: { requestId: out.requestId } });
 
       return { status: "started", requestId: out.requestId };
     },
@@ -367,11 +352,6 @@ export function PositionSearchProvider({
     [state.sessions],
   );
 
-  const getAbsPathByFileId = useCallback(
-    (fileId: number): string | null => state.filePathById[fileId] ?? null,
-    [state.filePathById],
-  );
-
   const resolveHitAbsPath = useCallback(
     (hit: PositionHit): string | null => state.filePathById[hit.occ.fileId] ?? null,
     [state.filePathById],
@@ -391,7 +371,6 @@ export function PositionSearchProvider({
       getSessionByRequestId,
       getHitsByRequestId,
       isSearchingRequest,
-      getAbsPathByFileId,
       resolveHitAbsPath,
       clearWarns,
       clearSearch,
@@ -403,7 +382,6 @@ export function PositionSearchProvider({
       getSessionByRequestId,
       getHitsByRequestId,
       isSearchingRequest,
-      getAbsPathByFileId,
       resolveHitAbsPath,
       clearWarns,
       clearSearch,

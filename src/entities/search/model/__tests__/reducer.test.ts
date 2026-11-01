@@ -99,7 +99,7 @@ describe("索引を開く", () => {
     const warned = reducer(searched, { type: "index_warn", payload: warn });
     const failed = reducer(warned, { type: "open_error", payload: { message: "失敗" } });
 
-    const opened = reducer(failed, { type: "open_start", payload: { rootDir: "/next" } });
+    const opened = reducer(failed, { type: "open_start" });
 
     expect(opened.sessions).toEqual({});
     expect(opened.filePathById).toEqual({});
@@ -134,7 +134,7 @@ describe("検索のセッション", () => {
   it("番号が返った時点でセッションが在る", () => {
     const requested = reducer(initialState, {
       type: "search_requested",
-      payload: { requestId: RID, sfen: "s", consistency: "BestEffort" },
+      payload: { requestId: RID },
     });
 
     expect(requested.sessions[RID]).toMatchObject({ isDone: false, chunks: [] });
@@ -146,7 +146,7 @@ describe("検索のセッション", () => {
 
     const requested = reducer(streamed, {
       type: "search_requested",
-      payload: { requestId: RID, sfen: "s", consistency: "BestEffort" },
+      payload: { requestId: RID },
     });
 
     expect(requested.sessions[RID].chunks).toHaveLength(1);

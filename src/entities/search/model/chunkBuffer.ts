@@ -29,8 +29,8 @@ type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
  * **溜めたぶんを捨てるだけでは止められない。** `open_start` はセッションを全部
  * 落とすが、Rust の `open_project` は進行中の検索を1つもキャンセルしない
  * （`src-tauri/src/search/commands.rs`）。その後も同じ rid のチャンクが届くので、
- * 入口で弾かないと `ensureSession` が消えたセッションを作り直し、
- * `currentRequestId` と `filePathById` が**古い根のものへ戻る**。
+ * 入口で弾かないと `sessionOrNew` が消えたセッションを作り直し、
+ * `filePathById` が**古い根のものへ戻る**。
  *
  * 線は「これより前の rid は受け取らない」で引く。rid は Rust 側で単調に増える
  * （`QueryService::next_request_id`）ので、線より後に始まった検索は必ず通る。

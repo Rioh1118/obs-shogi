@@ -23,33 +23,26 @@ export const initialState: SearchState = {
   warns: [],
   filePathById: {},
 
-  isOpeningProject: false,
-  lastOpenedRootDir: null,
-  lastOpenResult: null,
   openError: null,
 
-  isSearching: false,
-  currentRequestId: null,
   sessions: {},
 };
 
-function ensureSession(
-  sessions: Record<number, SearchSession>,
-  requestId: RequestId,
-): Record<number, SearchSession> {
-  if (sessions[requestId]) return sessions;
+function sessionOrNew(sessions: SearchState["sessions"], requestId: RequestId): SearchSession {
+  return (
+    sessions[requestId] ?? { requestId, stale: false, isDone: false, error: null, chunks: [] }
+  );
+}
+
+/** 無いセッションは作らない。 */
+function finishSession(state: SearchState, requestId: RequestId, error: string | null) {
+  const session = state.sessions[requestId];
+  if (!session) return state;
   return {
-    ...sessions,
-    [requestId]: {
-      requestId,
-      querySfen: null,
-      consistency: null,
-      stale: false,
-      isDone: false,
-      error: null,
-      chunks: [],
-      startedAt: Date.now(),
-      endedAt: null,
+    ...state,
+    sessions: {
+      ...state.sessions,
+      [requestId]: { ...session, isDone: true, error: error ?? session.error },
     },
   };
 }
@@ -164,162 +157,64 @@ export function reducer(state: SearchState, action: Action): SearchState {
       return { ...state, warns: [] };
 
     case "open_start":
-      return {
-        ...state,
-        isOpeningProject: true,
-        lastOpenedRootDir: action.payload.rootDir,
-        openError: null,
-        lastOpenResult: null,
-        filePathById: {},
-        isSearching: false,
-        currentRequestId: null,
-        sessions: {},
-      };
-
-    case "open_ok":
-      return {
-        ...state,
-        isOpeningProject: false,
-        lastOpenedRootDir: action.payload.rootDir,
-        lastOpenResult: action.payload.out,
-        openError: null,
-      };
+      return { ...state, openError: null, filePathById: {}, sessions: {} };
 
     case "open_error":
-      return {
-        ...state,
-        isOpeningProject: false,
-        openError: action.payload.message,
-      };
+      return { ...state, openError: action.payload.message };
 
     case "search_begin": {
-      const p = action.payload;
-      const sessions = ensureSession(state.sessions, p.requestId);
-      const s = sessions[p.requestId]!;
+      const { requestId, stale } = action.payload;
+      const session = sessionOrNew(state.sessions, requestId);
       return {
         ...state,
-        isSearching: true,
-        currentRequestId: p.requestId,
         sessions: {
-          ...sessions,
-          [p.requestId]: {
-            ...s,
-            stale: p.stale,
-            isDone: false,
-            error: null,
-            startedAt: s.startedAt || Date.now(),
-            endedAt: null,
-          },
+          ...state.sessions,
+          [requestId]: { ...session, stale, isDone: false, error: null },
         },
       };
     }
 
     case "search_chunks": {
-      const p = action.payload;
-      if (!p.chunks.length) return state;
-
-      const sessions = ensureSession(state.sessions, p.requestId);
-      const s = sessions[p.requestId]!;
+      const { requestId, chunks, files } = action.payload;
+      const session = sessionOrNew(state.sessions, requestId);
       // chunk は配列のまま追加。フラット化は consumer 側で償却 O(n)
       return {
         ...state,
-        currentRequestId: state.currentRequestId ?? p.requestId,
-        filePathById: mergeFiles(state.filePathById, p.files),
+        filePathById: mergeFiles(state.filePathById, files),
         sessions: {
-          ...sessions,
-          [p.requestId]: {
-            ...s,
-            chunks: [...s.chunks, ...p.chunks],
-          },
+          ...state.sessions,
+          [requestId]: { ...session, chunks: [...session.chunks, ...chunks] },
         },
       };
     }
 
     case "search_requested": {
-      const { requestId, sfen, consistency } = action.payload;
-      const sessions = ensureSession(state.sessions, requestId);
-      const s = sessions[requestId]!;
+      const { requestId } = action.payload;
       return {
         ...state,
-        sessions: {
-          ...sessions,
-          [requestId]: {
-            ...s,
-            requestId,
-            querySfen: sfen,
-            consistency,
-          },
-        },
+        sessions: { ...state.sessions, [requestId]: sessionOrNew(state.sessions, requestId) },
       };
     }
 
-    case "search_end": {
-      const p = action.payload;
-      // **無いセッションは作らない。** Rust は取り下げた検索でも終わりを emit するので
-      // （`search/query_service.rs` は `break` した後で必ず `EVT_SEARCH_END` を出す）、
-      // ここで作ると `clear_search` で捨てたセッションが**空のまま戻る**。
-      // 戻った側を消す経路はもう無い——画面はその rid を忘れている
-      const s = state.sessions[p.requestId];
-      if (!s) return state;
+    // **無いセッションは作らない。** Rust は取り下げた検索でも終わりを emit するので
+    // （`search/query_service.rs` は `break` した後で必ず `EVT_SEARCH_END` を出す）、
+    // ここで作ると `clear_search` で捨てたセッションが**空のまま戻る**。
+    // 戻った側を消す経路はもう無い——画面はその rid を忘れている
+    case "search_end":
+      return finishSession(state, action.payload.requestId, null);
 
-      const isCurrent = state.currentRequestId === p.requestId;
-
-      return {
-        ...state,
-        isSearching: isCurrent ? false : state.isSearching,
-        sessions: {
-          ...state.sessions,
-          [p.requestId]: {
-            ...s,
-            isDone: true,
-            endedAt: Date.now(),
-          },
-        },
-      };
-    }
-
-    case "search_error": {
-      const p = action.payload;
-      // 終わりと同じ。捨てたセッションを失敗の記録で作り直さない
-      const s = state.sessions[p.requestId];
-      if (!s) return state;
-
-      const isCurrent = state.currentRequestId === p.requestId;
-
-      return {
-        ...state,
-        isSearching: isCurrent ? false : state.isSearching,
-        sessions: {
-          ...state.sessions,
-          [p.requestId]: {
-            ...s,
-            error: p.message,
-            isDone: true,
-            endedAt: Date.now(),
-          },
-        },
-      };
-    }
+    // 終わりと同じ。捨てたセッションを失敗の記録で作り直さない
+    case "search_error":
+      return finishSession(state, action.payload.requestId, action.payload.message);
 
     case "clear_search": {
       // rid を必須にする。全削除を許すと、別のモーダルが見ている検索まで巻き込む。
       const rid = action.payload.requestId;
       if (!state.sessions[rid]) return state;
 
-      const next = { ...state.sessions };
-      delete next[rid];
-
-      const currentRequestId = state.currentRequestId === rid ? null : state.currentRequestId;
-
-      return {
-        ...state,
-        isSearching: currentRequestId ? state.isSearching : false,
-        currentRequestId,
-        sessions: next,
-      };
+      const sessions = { ...state.sessions };
+      delete sessions[rid];
+      return { ...state, sessions };
     }
-
-    default:
-      return state;
   }
 }
