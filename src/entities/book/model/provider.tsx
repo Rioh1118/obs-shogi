@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { AsyncResult } from "@/shared/lib/result";
+import { Ok, type AsyncResult } from "@/shared/lib/result";
 import {
   closeBook,
   listBooks,
@@ -176,7 +176,7 @@ export function BookProvider({ children, currentSfen }: Props) {
   const openBook = useCallback(
     // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
     // 名前を拾うため。外すと、この関数を投げっぱなしで呼んだ画面が機械の目から消える
-    async (path: string): AsyncResult<BookInfo, BookError> => {
+    async (path: string): AsyncResult<BookInfo | null, BookError> => {
       const seq = ++openSeqRef.current;
       setOpening(path);
       setFailure(null);
@@ -186,7 +186,7 @@ export function BookProvider({ children, currentSfen }: Props) {
       // 割り込まれていたら閉じて捨てる。閉じないと、利用者が閉じたはずの定跡が数分後に開く
       if (openSeqRef.current !== seq) {
         if (opened.success) void closeBook(opened.data.handle); // async-result-ignored: 捨てる定跡なので、閉じ損ねても案内できる操作が無い
-        return opened;
+        return Ok(null);
       }
 
       setOpening(null);

@@ -51,8 +51,11 @@ export type BookContextType = {
    */
   failure: BookFailure | null;
 
-  /** 定跡を開く。失敗は `failure` にも載るので、呼び手は戻り値の失敗を読まなくてもよい */
-  openBook: (path: string) => AsyncResult<BookInfo, BookError>;
+  /**
+   * 定跡を開く。失敗は `failure` にも載るので、呼び手は戻り値の失敗を読まなくてもよい。
+   * 開いている途中に閉じるか別の定跡を開くと、結果は捨てて `null` で返す。
+   */
+  openBook: (path: string) => AsyncResult<BookInfo | null, BookError>;
   close: () => void;
   /**
    * 定跡の外で起きた失敗を、この画面の帯に載せる。

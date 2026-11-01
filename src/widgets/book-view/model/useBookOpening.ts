@@ -17,7 +17,7 @@ export function useBookOpening() {
   const open = useCallback(
     async (path: string): Promise<void> => {
       const opened = await openBook(path);
-      if (!opened.success) return;
+      if (!opened.success || opened.data === null) return;
 
       void setDisplayConfig({ book_recent_paths: rememberBook(recents, path) }); // async-result-ignored: 控えを書き損ねても開いた定跡は使える。出す場所も無い
     },

@@ -504,7 +504,7 @@ describe("定跡の provider", () => {
     view.unmount();
     await act(async () => {
       hold.settle(Ok(info(9, "/books/slow.db")));
-      expect((await opening).success).toBe(true);
+      expect(await opening).toEqual(Ok(null));
     });
 
     expect(closed).toContain(9);
