@@ -186,6 +186,55 @@ describe("プリセットの保存は、書けてから画面に反映する", (
   });
 });
 
+describe("プリセットの複製", () => {
+  test("新しい id と名前で末尾に足し、複製を選ぶ", async () => {
+    loadPresets.mockResolvedValue(loaded());
+    savePresets.mockResolvedValue("r2");
+    const ctx = await mount();
+
+    let copy: EnginePreset | null = null;
+    await act(async () => {
+      copy = await ctx().duplicatePreset("a");
+    });
+
+    const presets = ctx().state.presets;
+    expect(presets.map((p) => p.label)).toEqual(["水匠", "水匠 (copy)"]);
+    expect(presets[1].id).not.toBe("a");
+    expect(ctx().state.selectedPresetId).toBe(presets[1].id);
+    expect(copy).toBe(presets[1]);
+  });
+
+  /** 共有すると、複製の定義を書き換えただけで元のプリセットも変わる */
+  test("入れ子の欄も元と共有しない", async () => {
+    const analysis = { mateSearch: true };
+    const definitions = [{ name: "Threads", type: "button" as const }];
+    const original = { ...PRESET, analysis, definitions };
+    loadPresets.mockResolvedValue(loaded({ presets: [original] }));
+    savePresets.mockResolvedValue("r2");
+    const ctx = await mount();
+
+    let copy: EnginePreset | null = null;
+    await act(async () => {
+      copy = await ctx().duplicatePreset("a");
+    });
+
+    const made = copy as unknown as EnginePreset;
+    expect(made.definitions).toEqual(definitions);
+    expect(made.definitions).not.toBe(ctx().state.presets[0].definitions);
+  });
+
+  test("元が無ければ何も書かない", async () => {
+    loadPresets.mockResolvedValue(loaded());
+    const ctx = await mount();
+
+    await act(async () => {
+      expect(await ctx().duplicatePreset("missing")).toBeNull();
+    });
+
+    expect(savePresets).not.toHaveBeenCalled();
+  });
+});
+
 describe("書けないファイルには書かない", () => {
   /**
    * 新しい版・読めない・移せなかったファイル。**既定の1件も作らない**——作ると、
