@@ -586,6 +586,28 @@ describe("設定からの確認", () => {
     expect(phase()).toBe("downloading");
   });
 
+  it("(S6, E2) 確認の最中に取得が落ちたら、確認の結果で告知へ進む", async () => {
+    check.mockResolvedValue(
+      fakeUpdate("9.9.9", async () => {
+        throw new Error("落ちた");
+      }),
+    );
+    mount();
+    await settled("available");
+
+    let answer!: (update: unknown) => void;
+    check.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(screen.getByTestId("checking").textContent).toBe("true"));
+
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("error");
+
+    answer(fakeUpdate("9.9.10", async () => {}));
+    await settled("available");
+    expect(screen.getByTestId("detail").textContent).toBe("9.9.10");
+  });
+
   it("(E17) 取得の最中は確認しない", async () => {
     const { update } = pendingInstall("9.9.9");
     check.mockResolvedValue(update);
