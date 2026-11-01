@@ -1428,3 +1428,20 @@ describe("AI ライブラリタブの「現在の状態」の木", () => {
     ]);
   });
 });
+
+describe("AI ライブラリタブの文面", () => {
+  test("AI フォルダの案内は文として読める", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(
+      hero().getByText("AI 名のフォルダを作成すると、eval/ と book/ が自動で用意されます。"),
+    ).toBeTruthy();
+  });
+
+  /** プリセットの名前は編集画面で自由に付ける。AI フォルダが決めるのは使う評価関数と定跡 */
+  test("フォルダ名がプリセットの名前になるとは言わない", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(screen.queryByText(/プリセット名/)).toBeNull();
+  });
+});

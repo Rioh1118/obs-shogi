@@ -119,7 +119,7 @@ function nextActionOf({ hasRoot, scan, contents, actions, onFocusAiName }: Props
       tone: "todo",
       icon: Sparkles,
       title: "AI フォルダを作成してください",
-      desc: "AI 名のフォルダを作成と、eval/ と book/ が自動で用意されます。",
+      desc: "AI 名のフォルダを作成すると、eval/ と book/ が自動で用意されます。",
       primary: { label: "AI 名の入力へ", onClick: onFocusAiName },
     };
   }

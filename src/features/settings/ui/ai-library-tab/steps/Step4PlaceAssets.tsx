@@ -15,8 +15,7 @@ export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: P
   return (
     <StepShell state={state} title="評価関数・定跡を配置" summary={`${profilesCount} 個のAI検出`}>
       <div className="setupGuide__stepDesc">
-        AI 名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code>{" "}
-        を置きます。フォルダ名がそのままプリセット名になります。
+        AI 名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code> を置きます。
       </div>
 
       <StepTree>
