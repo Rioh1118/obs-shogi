@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { FileTreeNode } from "@/entities/file-tree/model/types";
-import { findNodeChain } from "../findNodeChain";
+import { findNode, findNodeChain } from "../findNodeChain";
 
 describe("findNodeChain", () => {
   const leaf = { path: "/r/d/a.kif" } as FileTreeNode;
@@ -18,5 +18,10 @@ describe("findNodeChain", () => {
 
   test("無い節は null を返す", () => {
     expect(findNodeChain(root, "/r/none")).toBeNull();
+  });
+
+  test("findNode は列の末尾の節を返す", () => {
+    expect(findNode(root, "/r/d/a.kif")).toBe(leaf);
+    expect(findNode(root, "/r/none")).toBeNull();
   });
 });

@@ -268,6 +268,7 @@ type ConflictCase = {
   name: string;
   open: () => Promise<Result<unknown, FsError>>;
   mock: (typeof api)[keyof typeof api];
+  kind: string;
   args: unknown[];
 };
 
@@ -276,52 +277,60 @@ const CONFLICTS: ConflictCase[] = [
     name: "棋譜の作成",
     open: () => tree.createNewFile("/ws", OPTIONS),
     mock: api.createKifu,
+    kind: "create_file",
     args: ["/ws", { ...OPTIONS, fileName: "別名" }],
   },
   {
     name: "棋譜の取り込み",
     open: () => tree.importKifuFile("/ws", "a.kif", "  本文  "),
     mock: api.importKifu,
+    kind: "import_file",
     args: ["/ws", "別名", "本文"],
   },
   {
     name: "フォルダの作成",
     open: () => tree.createNewDirectory("/ws", "d"),
     mock: api.createDir,
+    kind: "create_directory",
     args: ["/ws", "別名"],
   },
   {
     name: "ファイルの改名",
     open: () => tree.renameNode(FILE, "b.kif"),
     mock: api.renameFile,
+    kind: "rename_file",
     args: ["/ws/a.kif", "別名"],
   },
   {
     name: "フォルダの改名",
     open: () => tree.renameNode(DIR, "e"),
     mock: api.renameDir,
+    kind: "rename_directory",
     args: ["/ws/d", "別名"],
   },
   {
     name: "ファイルの移動",
     open: () => tree.moveNode(FILE, "/ws/d"),
     mock: api.moveFile,
+    kind: "move_file",
     args: ["/ws/a.kif", "/ws/d", "別名"],
   },
   {
     name: "フォルダの移動",
     open: () => tree.moveNode(DIR, "/ws/p", "d"),
     mock: api.moveDir,
+    kind: "move_directory",
     args: ["/ws/d", "/ws/p", "別名"],
   },
 ];
 
-describe.each(CONFLICTS)("衝突の解決: $name", ({ open, mock, args }) => {
+describe.each(CONFLICTS)("衝突の解決: $name", ({ open, mock, kind, args }) => {
   async function openConflict() {
     await mount();
     mock.mockResolvedValueOnce(err("already_exists"));
     await run(open);
     expect(tree.conflict?.error.code).toBe("already_exists");
+    expect(tree.conflict?.request.kind).toBe(kind);
     expect(tree.error).toBeNull();
     mock.mockClear();
   }

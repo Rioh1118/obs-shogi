@@ -7,7 +7,7 @@ import { initialState, reducer } from "./reducer";
 import * as api from "../api/service";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 import { type KifuCreationOptions } from "@/entities/kifu/model/kifu";
-import { findNodeChain } from "../lib/findNodeChain";
+import { findNode, findNodeChain } from "../lib/findNodeChain";
 import { isSameOrDescendantPath, remapSubtreePath } from "../lib/path";
 import { scrollNodeIntoView } from "../lib/scrollNodeIntoView";
 import {
@@ -17,13 +17,25 @@ import {
   type FsError,
 } from "../api/error";
 import { isProjectRoot } from "../lib/isProjectRoot";
-import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
+import { Err, Ok, type AsyncResult, type Result } from "@/shared/lib/result";
 import { useAppConfig } from "@/entities/app-config";
 
 type Props = {
   rootDir: string | null;
   children: ReactNode;
 };
+
+/** パースの例外を `FsError` にする。`cause` は例外の文言だけで、スタックはノイズが多いので入れない */
+function kifuParseFailure(path: string, e: unknown): FsError {
+  const rawCause = e instanceof Error ? (e as { cause?: unknown }).cause : undefined;
+  const cause =
+    e instanceof Error
+      ? rawCause instanceof Error
+        ? `${e.message}\n原因: ${rawCause.message}`
+        : e.message
+      : String(e);
+  return { code: "kifu_parse_failed", message: "failed to parse kifu content", path, cause };
+}
 
 export function FileTreeProvider({ rootDir, children }: Props) {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -93,8 +105,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   // 通知へ積む。ツリーから直に起こす操作で使う（呼び出し元は出す場所を持たない）
   const failWithNotice = useCallback(
-    (error: FsError, request?: FileConflictRequest) => {
-      if (isResolvedByConflictDialog(error.code) && request) {
+    (error: FsError, request: FileConflictRequest) => {
+      if (isResolvedByConflictDialog(error.code)) {
         pushConflict(request, error);
       } else {
         pushError(error);
@@ -130,6 +142,17 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       return Err(error);
     },
     [pushConflict, pushError],
+  );
+
+  // 対話を先に閉じてから積む。開いている間は reducer が `error` を落とすので、閉じずに
+  // 積むと失敗がどこにも出ないまま、対話を閉じた時点で痕跡ごと消える
+  const failOutOfConflict = useCallback(
+    (error: FsError) => {
+      dispatch({ type: "conflict_closed" });
+      pushError(error);
+      return Err(error);
+    },
+    [pushError],
   );
 
   const reconcilePathMutation = useCallback((oldPath: string, nextPath: string) => {
@@ -186,70 +209,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     return Ok(undefined);
   }, [rootDir]);
 
-  useEffect(() => {
-    if (!rootDir) return;
-    void loadFileTree(); // async-result-ignored: 初回の読み込み。失敗は loadFileTree が積む
-  }, [rootDir, loadFileTree]);
-
-  // **開いている棋譜は、いまのワークスペースの中にある。**
-  //
-  // 下の効果はツリーが取れたときにしか棋譜を閉じない。ワークスペースを変えて
-  // 取得が失敗すると `reload_failed` はツリーを残すので `activeKifuPath` も
-  // 据え置かれ、`GamePersistenceGate` はそのパスへ書き続ける。画面には前の
-  // ワークスペースの棋譜が出たまま、1手指すと**別のワークスペースのファイルが
-  // 書き換わる。**
-  //
-  // ツリーの成否を見ずに根の内側かどうかだけで決める。取得が失敗しても、
-  // 新しい根の外にあるという事実は変わらない。新しい根が前の根の親なら
-  // 棋譜は内側に残るので、そのときは開いたままでよい。
-  useEffect(() => {
-    if (!rootDir) return;
-
-    // **飛行中の読み出しも同じ理由で捨てる。** そちらはまだ `activeKifuPath` を
-    // 進めていないので、下の判定には掛からない。捨てないと、返った時点で
-    // **前のワークスペースの棋譜が開き**、この効果がもう一度走って閉じるまで残る
-    if (!isSameOrDescendantPath(requestedKifuPathRef.current, rootDir)) {
-      requestedKifuPathRef.current = null;
-    }
-
-    if (!state.activeKifuPath) return;
-    if (isSameOrDescendantPath(state.activeKifuPath, rootDir)) return;
-
-    dispatch({ type: "kifu_closed" });
-  }, [rootDir, state.activeKifuPath]);
-
-  // ツリーが変わったときだけ走らせる。改名と移動はパスの張り替えを読み直しより先に state へ
-  // 入れるので、`activeKifuPath` の変化でも走らせると、新しいパスを古いツリーで引いて
-  // 「ツリーに無い棋譜」と読み、開いている棋譜を閉じる。
-  useEffect(() => {
-    if (!state.fileTree) return;
-
-    const nextSelectedPath = pendingSelectedPathRef.current;
-    if (nextSelectedPath) {
-      pendingSelectedPathRef.current = null;
-
-      const chain = findNodeChain(state.fileTree, nextSelectedPath);
-      dispatch({
-        type: "selected_node_reconciled",
-        payload: chain ? chain[chain.length - 1] : null,
-      });
-    }
-
-    const activePath = activeKifuPathRef.current;
-    if (activePath) {
-      const activeChain = findNodeChain(state.fileTree, activePath);
-      if (!activeChain) {
-        dispatch({ type: "kifu_closed" });
-      }
-    }
-
-    const targetPath = pendingRevealPathRef.current;
-    if (targetPath) {
-      pendingRevealPathRef.current = null;
-      revealNodeInCurrentTree(targetPath);
-    }
-  }, [state.fileTree, revealNodeInCurrentTree]);
-
   /**
    * 選択を動かす。**ツリーが開くべき棋譜も一緒に動く。**
    *
@@ -273,10 +232,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const findNodeByPath = useCallback((absPath: string): FileTreeNode | null => {
     const root = fileTreeRef.current;
-    if (!root) return null;
-
-    const chain = findNodeChain(root, absPath);
-    return chain ? chain[chain.length - 1] : null;
+    return root ? findNode(root, absPath) : null;
   }, []);
 
   const openKifuNode = useCallback(
@@ -303,9 +259,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         if (selectedNodeRef.current?.path !== node.path) return;
 
         const activePath = activeKifuPathRef.current;
-        const chain =
-          activePath && fileTreeRef.current ? findNodeChain(fileTreeRef.current, activePath) : null;
-        selectNode(chain ? chain[chain.length - 1] : null);
+        selectNode(activePath ? findNodeByPath(activePath) : null);
       };
 
       dispatch({ type: "kifu_loading" });
@@ -339,25 +293,12 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return Ok(undefined);
       } catch (e) {
         restoreSelectionToActiveKifu();
-        // cause には元の例外メッセージだけを入れる。スタックはノイズが多い
-        const rawCause = e instanceof Error ? (e as { cause?: unknown }).cause : undefined;
-        const cause =
-          e instanceof Error
-            ? rawCause instanceof Error
-              ? `${e.message}\n原因: ${rawCause.message}`
-              : e.message
-            : String(e);
-        const error: FsError = {
-          code: "kifu_parse_failed",
-          message: "failed to parse kifu content",
-          path: node.path,
-          cause,
-        };
+        const error = kifuParseFailure(node.path, e);
         dispatch({ type: "kifu_error", payload: error });
         return Err(error);
       }
     },
-    [selectNode],
+    [findNodeByPath, selectNode],
   );
 
   const createNewFile = useCallback(
@@ -477,20 +418,11 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         : await api.renameFile(node.path, newName);
 
       if (!res.success) {
-        return failToNameInput(
-          res.error,
-          node.isDirectory
-            ? {
-                kind: "rename_directory",
-                path: node.path,
-                newName,
-              }
-            : {
-                kind: "rename_file",
-                path: node.path,
-                newName,
-              },
-        );
+        return failToNameInput(res.error, {
+          kind: node.isDirectory ? "rename_directory" : "rename_file",
+          path: node.path,
+          newName,
+        });
       }
 
       const nextPath = res.data;
@@ -498,7 +430,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       const isRootRename = node.isDirectory && isProjectRoot(node.path, state.fileTree);
       if (isRootRename) {
         // ここだけ読み直しを起こさない。ルート自体が変わるので、
-        // `rootDir` の変化を受ける effect（上）が新しい場所で読み直す。
+        // `rootDir` の変化を受ける effect が新しい場所で読み直す。
         // ここで待つと古い `rootDir` を読む
         const saved = await setRootDir(nextPath);
         if (!saved.success) {
@@ -508,16 +440,10 @@ export function FileTreeProvider({ rootDir, children }: Props) {
           // **段のために別の code を借りない。** code は tier だけでなく利用者に
           // 見せる一文も決めるので、借りると原因を偽ることになる。`setRootDir` が
           // 落ちる理由は権限とは限らない（ディスク満杯・直列化・IPC 断）
-          const error = makeFsError("config_write_failed", saved.error, nextPath);
-
-          // **対話を先に閉じてから積む。** 衝突の対話の中から改名し直した経路でも
-          // ここへ来る。開いている間は reducer が `error` を落とすので、閉じずに
-          // 積むと「ディスクは新しい名前・設定は古い名前」がどこにも出ないまま、
-          // 対話を閉じた時点で痕跡ごと消える。
-          // 別名は通っている（ディスク上の改名は済んだ）ので、この対話に用は無い
-          dispatch({ type: "conflict_closed" });
-          pushError(error);
-          return Err(error);
+          //
+          // 衝突の対話の中から改名し直した経路でもここへ来る。別名は通っている
+          // （ディスク上の改名は済んだ）ので、この対話に用は無い
+          return failOutOfConflict(makeFsError("config_write_failed", saved.error, nextPath));
         }
         reconcilePathMutation(node.path, nextPath);
         return Ok(undefined);
@@ -528,7 +454,14 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
       return Ok(undefined);
     },
-    [failToNameInput, loadFileTree, pushError, reconcilePathMutation, setRootDir, state.fileTree],
+    [
+      failOutOfConflict,
+      failToNameInput,
+      loadFileTree,
+      reconcilePathMutation,
+      setRootDir,
+      state.fileTree,
+    ],
   );
 
   const moveNode = useCallback(
@@ -538,22 +471,12 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         : await api.moveFile(node.path, destDir, newName);
 
       if (!res.success) {
-        return failWithNotice(
-          res.error,
-          node.isDirectory
-            ? {
-                kind: "move_directory",
-                path: node.path,
-                destDir,
-                newName,
-              }
-            : {
-                kind: "move_file",
-                path: node.path,
-                destDir,
-                newName,
-              },
-        );
+        return failWithNotice(res.error, {
+          kind: node.isDirectory ? "move_directory" : "move_file",
+          path: node.path,
+          destDir,
+          newName,
+        });
       }
 
       const nextPath = res.data;
@@ -609,84 +532,52 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         return Err(makeFsError("invalid_name_empty", "name is empty"));
       }
 
+      // 別名で解決する対話は「衝突が片付いたか」だけを見ていて、作った先を使う呼び手は居ない
+      const closeWhenDone = (result: Result<unknown, FsError>): Result<void, FsError> => {
+        if (!result.success) return result;
+        dispatch({ type: "conflict_closed" });
+        return Ok(undefined);
+      };
+
       const req = conflict.request;
 
       switch (req.kind) {
         case "create_file": {
-          const result = await createNewFile(req.parentPath, {
-            ...req.options,
-            fileName: trimmed,
-          });
-
-          if (result.success) {
-            dispatch({ type: "conflict_closed" });
-          }
-          // **作られたパスはここでは返さない。** 別名で解決する対話は
-          // 「衝突が片付いたか」だけを見ていて、作った先を使う呼び手は居ない
-          return result.success ? Ok(undefined) : result;
+          const options = { ...req.options, fileName: trimmed };
+          return closeWhenDone(await createNewFile(req.parentPath, options));
         }
 
-        case "import_file": {
-          const result = await importKifuFile(req.parentPath, trimmed, req.rawContent);
+        case "import_file":
+          return closeWhenDone(await importKifuFile(req.parentPath, trimmed, req.rawContent));
 
-          if (result.success) {
-            dispatch({ type: "conflict_closed" });
-          }
-          return result;
-        }
-
-        case "create_directory": {
-          const result = await createNewDirectory(req.parentPath, trimmed);
-
-          if (result.success) {
-            dispatch({ type: "conflict_closed" });
-          }
-          return result;
-        }
+        case "create_directory":
+          return closeWhenDone(await createNewDirectory(req.parentPath, trimmed));
 
         case "rename_file":
         case "rename_directory": {
           const node = findNodeByPath(req.path);
           if (!node) {
-            // 対話を先に閉じてから積む。開いている間は reducer が `error` を落とす。
             // 対象が消えている以上、この対話では直せないので通知へ送る
-            const error = makeFsError("not_found", "rename target is missing", req.path);
-            dispatch({ type: "conflict_closed" });
-            pushError(error);
-            return Err(error);
+            return failOutOfConflict(
+              makeFsError("not_found", "rename target is missing", req.path),
+            );
           }
-
-          const result = await renameNode(node, trimmed);
-
-          if (result.success) {
-            dispatch({ type: "conflict_closed" });
-          }
-          return result;
+          return closeWhenDone(await renameNode(node, trimmed));
         }
 
         case "move_file":
         case "move_directory": {
           const node = findNodeByPath(req.path);
           if (!node) {
-            // 対話を先に閉じてから積む（上と同じ理由）
-            const error = makeFsError("not_found", "move target is missing", req.path);
-            dispatch({ type: "conflict_closed" });
-            pushError(error);
-            return Err(error);
+            return failOutOfConflict(makeFsError("not_found", "move target is missing", req.path));
           }
-
-          const result = await moveNode(node, req.destDir, trimmed);
-
-          if (result.success) {
-            dispatch({ type: "conflict_closed" });
-          }
-          return result;
+          return closeWhenDone(await moveNode(node, req.destDir, trimmed));
         }
       }
     },
     [
       state.conflict,
-      pushError,
+      failOutOfConflict,
       createNewFile,
       importKifuFile,
       createNewDirectory,
@@ -747,6 +638,66 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const closeConflict = useCallback(() => {
     dispatch({ type: "conflict_closed" });
   }, []);
+
+  useEffect(() => {
+    if (!rootDir) return;
+    void loadFileTree(); // async-result-ignored: 初回の読み込み。失敗は loadFileTree が積む
+  }, [rootDir, loadFileTree]);
+
+  // **開いている棋譜は、いまのワークスペースの中にある。**
+  //
+  // 下の効果はツリーが取れたときにしか棋譜を閉じない。ワークスペースを変えて
+  // 取得が失敗すると `reload_failed` はツリーを残すので `activeKifuPath` も
+  // 据え置かれ、`GamePersistenceGate` はそのパスへ書き続ける。画面には前の
+  // ワークスペースの棋譜が出たまま、1手指すと**別のワークスペースのファイルが
+  // 書き換わる。**
+  //
+  // ツリーの成否を見ずに根の内側かどうかだけで決める。取得が失敗しても、
+  // 新しい根の外にあるという事実は変わらない。新しい根が前の根の親なら
+  // 棋譜は内側に残るので、そのときは開いたままでよい。
+  useEffect(() => {
+    if (!rootDir) return;
+
+    // **飛行中の読み出しも同じ理由で捨てる。** そちらはまだ `activeKifuPath` を
+    // 進めていないので、下の判定には掛からない。捨てないと、返った時点で
+    // **前のワークスペースの棋譜が開き**、この効果がもう一度走って閉じるまで残る
+    if (!isSameOrDescendantPath(requestedKifuPathRef.current, rootDir)) {
+      requestedKifuPathRef.current = null;
+    }
+
+    if (!state.activeKifuPath) return;
+    if (isSameOrDescendantPath(state.activeKifuPath, rootDir)) return;
+
+    dispatch({ type: "kifu_closed" });
+  }, [rootDir, state.activeKifuPath]);
+
+  // ツリーが変わったときだけ走らせる。改名と移動はパスの張り替えを読み直しより先に state へ
+  // 入れるので、`activeKifuPath` の変化でも走らせると、新しいパスを古いツリーで引いて
+  // 「ツリーに無い棋譜」と読み、開いている棋譜を閉じる。
+  useEffect(() => {
+    if (!state.fileTree) return;
+
+    const nextSelectedPath = pendingSelectedPathRef.current;
+    if (nextSelectedPath) {
+      pendingSelectedPathRef.current = null;
+
+      dispatch({
+        type: "selected_node_reconciled",
+        payload: findNode(state.fileTree, nextSelectedPath),
+      });
+    }
+
+    const activePath = activeKifuPathRef.current;
+    if (activePath && !findNode(state.fileTree, activePath)) {
+      dispatch({ type: "kifu_closed" });
+    }
+
+    const targetPath = pendingRevealPathRef.current;
+    if (targetPath) {
+      pendingRevealPathRef.current = null;
+      revealNodeInCurrentTree(targetPath);
+    }
+  }, [state.fileTree, revealNodeInCurrentTree]);
 
   // TODO(#216): `value` は毎レンダ新しいオブジェクトで、滅多に変わらない `fileTree` と
   // クリックのたびに変わる `selectedNode` / `menu` が同居している。全ての行が
