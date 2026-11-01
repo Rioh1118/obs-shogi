@@ -76,7 +76,7 @@ export function StructureOverview({
         note={ENGINES_DIR_NOTE[enginesDir]}
         state={ENGINES_DIR_STATE[enginesDir]}
         indent={1}
-        isLast={profiles.length === 0}
+        isLast={!aiRootPath}
       />
 
       {canListEnginesDir(enginesDir) &&
@@ -96,14 +96,13 @@ export function StructureOverview({
 
       {profiles.length > 0
         ? profiles.map((p, pi) => {
-            const isLastProfile = pi === profiles.length - 1;
             return (
               <div key={p.path}>
                 <TreeNode
                   label={`📂 ${p.name}/`}
                   state="ok"
                   indent={1}
-                  isLast={isLastProfile && !p.hasEval && !p.hasBook}
+                  isLast={pi === profiles.length - 1}
                 />
                 <TreeNode
                   label="📂 eval/"
@@ -116,7 +115,7 @@ export function StructureOverview({
                   note={p.hasBook ? undefined : "← .db を置く（任意）"}
                   state={p.hasBook ? "ok" : "empty"}
                   indent={2}
-                  isLast={isLastProfile}
+                  isLast
                 />
               </div>
             );

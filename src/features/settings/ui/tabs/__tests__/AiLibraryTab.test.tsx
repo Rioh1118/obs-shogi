@@ -1388,3 +1388,43 @@ describe("AI ライブラリタブのパス", () => {
     expect(hero().getByText("作れません")).toBeTruthy();
   });
 });
+
+describe("AI ライブラリタブの「現在の状態」の木", () => {
+  test("ルートが無ければ engines/ が最後の行になる", () => {
+    aiRootValue.current = "";
+    render(<AiLibraryTab />);
+
+    expect(treeLines()).toEqual(["📂 ai_root/← まず選択", "└─ 📂 engines/"]);
+  });
+
+  test("AI フォルダが無いときは、engines/ の下に見本の行が続く", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(treeLines()).toEqual([
+      "📂 ai/",
+      "├─ 📂 engines/",
+      "└─ 🔧 YaneuraOu",
+      "└─ 📂 ＜AI 名＞/← AI フォルダを作成",
+    ]);
+  });
+
+  test("最後の AI フォルダと、各フォルダの book/ を閉じる", async () => {
+    const scanned = indexWithFolder("A");
+    await renderIndex({
+      ...scanned,
+      profiles: [...scanned.profiles, ...indexWithFolder("B").profiles],
+    });
+
+    expect(treeLines()).toEqual([
+      "📂 ai/",
+      "├─ 📂 engines/",
+      "└─ 🔧 YaneuraOu",
+      "├─ 📂 A/",
+      "├─ 📂 eval/",
+      "└─ 📂 book/",
+      "└─ 📂 B/",
+      "├─ 📂 eval/",
+      "└─ 📂 book/",
+    ]);
+  });
+});
