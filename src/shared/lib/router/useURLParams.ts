@@ -20,36 +20,28 @@ export type ModalType =
 export type PovType = "gote";
 
 /**
- * `tab` に書ける綴り。**モーダルごとの語彙をここに集める。**
+ * `tab` に書ける値。モーダルごとの語彙をここに集める。
  *
- * 集めないと `tab` は `string` になり、実在しない綴りを渡しても何も起きない——
- * 受け側（`SettingsPanel`）は知らない綴りを既定のタブへ落とすので、
- * **押した先が違うだけで、型検査もテストも黙って通る**。
+ * `string` にすると実在しない値を渡しても何も起きない。受け側（`SettingsPanel`）は知らない値を
+ * 既定のタブへ落とすので、**押した先が違うだけで、型検査もテストも通る**。
  *
- * 綴りの持ち主は各モーダルなので、増やすときは両側を直す
- * （`features/settings/model/tabs.ts` は `satisfies` でここに合わせてある）。
- * **どのモーダルにどの綴りが有効かまではここでは言えない**——
- * `openModal` は `modal` と `tab` を別々に受け取る。
+ * 持ち主は各モーダルなので、増やすときは両側を直す（`features/settings/model/tabs.ts` が `satisfies` で合わせている）。
+ * どのモーダルにどの値が有効かはここでは言えない。`openModal` は `modal` と `tab` を別々に受ける。
  */
 export type TabType = "workspace" | "aiLibrary" | "engine" | "display" | "create" | "import";
 
 /**
- * `dock` に書ける綴り。**ドックのタブになれるビューの語彙をここに集める。**
+ * `dock` に書ける値。ドックのタブになれるビューの語彙をここに集める。
  *
- * 集めないと `dock` は `string` になり、実在しない綴りを渡しても何も起きない——
- * 受け側（`entities/dock` の `resolveDockView`）は知らない綴りを既定のタブへ落とすので、
- * **開いた先が違うだけで、型検査もテストも黙って通る**（`TabType` と同じ形）。
+ * `string` にしない理由は `TabType` と同じ。受け側は `entities/dock` の `resolveDockView`。
+ * 名簿の持ち主は `entities/dock/model/views.ts` で、`satisfies` で合わせてあるので片方だけ増やすと tsc が落ちる。
  *
- * 名簿の持ち主は `entities/dock/model/views.ts` で、そちらが `satisfies` で
- * ここに合わせてある。**片方だけ増やすと tsc が落ちる。**
- *
- * **対局のタブは画面から外してある**（進行と Rust は残っている）。戻すときの綴りは
- * `play` —— `game` は棋譜を読む側が持っていて（`entities/game`、
- * `docs/state-transitions/game.md`）、2つの状態機械は交わらない。
+ * 対局のタブは画面から外してある。戻すときの値は `play`。`game` は棋譜を読む側が持っていて
+ * （`entities/game`、`docs/state-transitions/game.md`）、2つの状態機械は交わらない。
  */
 export type DockViewType = "analysis" | "book";
 
-export interface URLParams {
+export type URLParams = {
   modal?: ModalType;
   tesuu?: number;
   branch?: string;
@@ -62,7 +54,7 @@ export interface URLParams {
   sfen?: string;
   /** モーダルを閉じたとき戻る先のモーダル */
   returnTo?: ModalType;
-}
+};
 
 type UpdateOptions = { replace?: boolean };
 
@@ -70,7 +62,6 @@ export function useURLParams() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // 現在のURLパラメータを取得
   const params: URLParams = useMemo(() => {
     const povRaw = searchParams.get("pov");
     const pov = povRaw === "gote" ? povRaw : undefined;
@@ -80,11 +71,10 @@ export function useURLParams() {
       branch: searchParams.get("branch") || undefined,
       modal: (searchParams.get("modal") as URLParams["modal"]) || undefined,
       dir: searchParams.get("dir") || undefined,
-      // URL は誰でも書けるので、綴りは受け側が確かめる（`SettingsPanel` の `isTabKey`）。
-      // ここで型を名乗るのは**渡す側**を止めるため
+      // URL は誰でも書けるので、値は受け側が確かめる（`SettingsPanel` の `isTabKey`）。
+      // ここで型を名乗るのは渡す側を止めるため
       tab: (searchParams.get("tab") as TabType) || undefined,
-      // `tab` と同じく、綴りを確かめるのは受け側（`resolveDockView`）。
-      // 一覧に無い綴りは既定のタブへ落ちる
+      // `tab` と同じく、値を確かめるのは受け側（`resolveDockView`）
       dock: (searchParams.get("dock") as DockViewType) || undefined,
       pov,
       sfen: searchParams.get("sfen") || undefined,
@@ -92,12 +82,10 @@ export function useURLParams() {
     };
   }, [searchParams]);
 
-  // URLパラメータを更新
   const updateParams = useCallback(
     (newParams: Partial<URLParams>, opts: UpdateOptions = { replace: true }) => {
       const currentParams = new URLSearchParams(searchParams);
 
-      // 新しいパラメータを設定
       Object.entries(newParams).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           currentParams.set(key, String(value));
@@ -106,7 +94,6 @@ export function useURLParams() {
         }
       });
 
-      // URLを更新
       navigate(`?${currentParams.toString()}`, {
         replace: opts.replace ?? true,
       });
@@ -114,7 +101,6 @@ export function useURLParams() {
     [searchParams, navigate],
   );
 
-  // モーダルを開く
   const openModal = useCallback(
     (modalType: URLParams["modal"], extra?: Partial<URLParams>, opts?: UpdateOptions) => {
       updateParams(
@@ -128,8 +114,7 @@ export function useURLParams() {
     [updateParams],
   );
 
-  // モーダルを閉じる
-  // skipReturn=true にすると returnTo を無視して完全にクリアする（確定操作など）
+  // `skipReturn` は確定操作など、`returnTo` へ戻さず閉じるときに使う
   const closeModal = useCallback(
     ({ skipReturn = false }: { skipReturn?: boolean } = {}) => {
       const returnTo = searchParams.get("returnTo") as ModalType | null;
@@ -154,7 +139,6 @@ export function useURLParams() {
     [searchParams, updateParams],
   );
 
-  // 局面移動
   const navigateToPosition = useCallback(
     (tesuu: number, branch?: string) => {
       updateParams({ tesuu, branch, modal: undefined });

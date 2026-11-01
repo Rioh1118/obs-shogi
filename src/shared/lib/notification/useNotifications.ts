@@ -3,15 +3,12 @@ import { NotificationActionsContext, NotificationListContext } from "./context";
 import type { NotificationActions, NotificationContextType } from "./types";
 
 /**
- * 通知を出す。**出す側はこちらを使う。**
+ * 通知を出す関数を返す。
  *
- * 返るのは mount 後に一度も変わらない値なので、これを読んでいる部品は
- * 通知が出入りしても再描画しない。
- *
- * **provider の外で呼ぶと投げる。** 囲い忘れを黙った no-op にすると、
- * 失敗を出したつもりで何も出ていない状態になる——この基盤が直そうとしている形そのもの。
- *
+ * 返す値は mount 後に変わらないので、読んでいる部品は通知が出入りしても再描画しない。
  * `silent` の段を渡したときは何も起きない（`NotifyRequest`）。
+ *
+ * **provider の外で呼ぶと投げる。** 囲い忘れを黙った no-op にすると、失敗を出したつもりで何も出ない。
  */
 export function useNotify(): NotificationActions {
   const ctx = useContext(NotificationActionsContext);

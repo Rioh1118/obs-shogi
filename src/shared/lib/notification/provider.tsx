@@ -4,67 +4,23 @@ import { INITIAL_NOTIFICATION_STATE, notificationReducer } from "./reducer";
 import type { NotificationActions, NotificationId, NotifyRequest } from "./types";
 
 /**
- * 自動で消えるまで。**1つしか置かない。**
- * 呼び出し側が秒数を選べるようにすると、同じ段の通知が画面ごとに違う速さで消える。
+ * 通知が自動で消えるまでの時間。
  *
- * 6秒は、題1行と本文1行（日本語で 40 字前後）を読み終えるのに要る時間から取った。
- * **自動で消してよいのは「利用者は何もしなくてよい」失敗だけ**で、しかも
- * 動作を持てない（型が禁じている）ので、読み落としても操作は失われない。
- * 長くする理由が出るとすれば、本文が2行を超える通知に `autoDismiss` を付けたくなったとき
+ * 1つしか置かない。呼び手が選べると、同じ段の通知が画面ごとに違う速さで消える。
+ *
+ * 6秒は、題1行と本文1行（日本語で40字前後）を読み終える時間から取った。
+ * 自動で消えるのは利用者が何もしなくてよい失敗だけで、型が動作を持たせないので、読み落としても操作は失われない。
  */
 const AUTO_DISMISS_MS = 6000;
 
 /**
- * 通知の置き場（ADR-0004 決定6）。
+ * 自動で消える通知に時計を張る。
  *
- * **描かない。** ここが持つのは「いま何が出ているか」だけで、
- * 描くのは `NotificationLayer` と、インラインを置く各コンポーネント。
+ * 通知ごとに1本の時計を持ち、effect の cleanup で全部を張り直さない。
+ * 張り直すと通知が増えるたびに**先に出ていた通知の残り時間が巻き戻り**、失敗が続く間は1件も消えなくなる。
  *
- * **各スライスの `state.error` を置き換えるものではない。** 通知は利用者に
- * 伝えるためのもので、状態としてのエラーは別物（ADR-0004 決定6）。
- */
-export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(notificationReducer, INITIAL_NOTIFICATION_STATE);
-
-  const notify = useCallback((request: NotifyRequest) => {
-    dispatch({ type: "notify", request });
-  }, []);
-
-  const dismiss = useCallback((id: NotificationId) => {
-    dispatch({ type: "dismiss", id });
-  }, []);
-
-  const dismissByKey = useCallback((key: string) => {
-    dispatch({ type: "dismissByKey", key });
-  }, []);
-
-  useAutoDismiss(state.notifications, dismiss);
-
-  // **依存が空。** 3つとも `useCallback` で不変なので、この値は mount 後に
-  // 一度も変わらない。出す関数だけを購読する部品は通知が出入りしても再描画しない
-  const actions = useMemo<NotificationActions>(
-    () => ({ notify, dismiss, dismissByKey }),
-    [notify, dismiss, dismissByKey],
-  );
-
-  return (
-    <NotificationActionsContext.Provider value={actions}>
-      <NotificationListContext.Provider value={state.notifications}>
-        {children}
-      </NotificationListContext.Provider>
-    </NotificationActionsContext.Provider>
-  );
-}
-
-/**
- * 自動で消えるものに時計を持たせる。
- *
- * **1つの effect で全部の時計を張り直さない。** 通知が1つ増えるたびに
- * cleanup が走るので、張り直すと**先に出ていた通知の残り時間が毎回巻き戻る**。
- * 失敗が続けて出ている間は1件も消えなくなる。
- *
- * 鍵に件数を混ぜるのは逆で、**畳まれたら数え直したい**ため。同じ失敗がまた
- * 起きているのに、1件目の時計のまま消えると、最後の1件は出た直後に消える。
+ * 時計の鍵に件数を混ぜるのは、畳まれたら数え直すため。
+ * 1件目の時計のまま消えると、最後の1件は出た直後に消える。
  */
 function useAutoDismiss(
   notifications: { id: NotificationId; autoDismiss: boolean; count: number }[],
@@ -100,9 +56,7 @@ function useAutoDismiss(
     }
   }, [notifications]);
 
-  // 張った時計は自分で畳む。**上の effect は cleanup を返していない**ので
-  // （返すと通知が1つ増えるたびに全部が張り直され、残り時間が巻き戻る）、
-  // unmount で残る時計を落とす場所がここしか無い
+  // 上の effect は残り時間を保つために cleanup を返さないので、unmount で残る時計はここで落とす
   useEffect(() => {
     const handles = timers.current;
     return () => {
@@ -110,4 +64,43 @@ function useAutoDismiss(
       handles.clear();
     };
   }, []);
+}
+
+/**
+ * 通知の置き場（ADR-0004 決定6）。持つのは「いま何が出ているか」だけで、描かない。
+ *
+ * 描くのは `NotificationLayer` と、インラインを置く各部品。
+ * 各スライスの `state.error` は置き換えない。通知は利用者に伝えるためのもので、状態としてのエラーは別物。
+ */
+export function NotificationProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(notificationReducer, INITIAL_NOTIFICATION_STATE);
+
+  const notify = useCallback((request: NotifyRequest) => {
+    dispatch({ type: "notify", request });
+  }, []);
+
+  const dismiss = useCallback((id: NotificationId) => {
+    dispatch({ type: "dismiss", id });
+  }, []);
+
+  const dismissByKey = useCallback((key: string) => {
+    dispatch({ type: "dismissByKey", key });
+  }, []);
+
+  useAutoDismiss(state.notifications, dismiss);
+
+  // 3つとも `useCallback` で不変なので、この値は mount 後に変わらない。
+  // 出す関数だけを購読する部品は、通知が出入りしても再描画しない
+  const actions = useMemo<NotificationActions>(
+    () => ({ notify, dismiss, dismissByKey }),
+    [notify, dismiss, dismissByKey],
+  );
+
+  return (
+    <NotificationActionsContext.Provider value={actions}>
+      <NotificationListContext.Provider value={state.notifications}>
+        {children}
+      </NotificationListContext.Provider>
+    </NotificationActionsContext.Provider>
+  );
 }

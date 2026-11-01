@@ -61,18 +61,14 @@ function toNotification(request: VisibleRequest, tier: VisibleTier, seq: number)
 }
 
 /**
- * 同じ `dedupeKey` の通知は積まずに畳む。
+ * 同じ `dedupeKey` の通知を積まずに畳む。
  *
- * **本文は最後に来たもので置き換える。** 最初のものを残すと、増え続けている間
- * ずっと古い情報を見せることになる（「74手目で読めなかった」が1件目のまま止まる）。
+ * 本文は最後に来たもので置き換える。最初のものを残すと、増え続ける間ずっと古い情報を見せる。
  *
- * **id と並び順は動かさない。** 動かすと、畳まれるたびに通知が右下で跳ね、
- * 読んでいる途中の別の通知がずれる。
+ * id と並び順は動かさない。動かすと畳まれるたびに通知が跳ね、読んでいる別の通知がずれる。
  *
- * **動作だけは上書きしない。** 復帰手段を持つ通知に、動作を書かない別の経路から
- * 同じ鍵で通知が来ると、表示は残ったままボタンだけ消えて件数が増える——
- * 利用者は復帰手段の無いエラー表示の前に取り残される。
- * 消したいときは `actions: []` を明示する。
+ * **動作だけは上書きしない。** 動作を書かない別の経路から同じ鍵で通知が来ると、ボタンだけが消え、
+ * 利用者は復帰手段の無い表示の前に取り残される。消したいときは `actions: []` を明示する。
  */
 function foldInto(
   existing: Notification,
@@ -94,12 +90,11 @@ function foldInto(
 }
 
 /**
- * 同じ取っ手（`dismissKey`）で来た通知の置き換え。
+ * 同じ `dismissKey` で来た通知で置き換える。
  *
- * **id と並び順は動かさない**（`foldInto` と同じ理由）。**件数は数えない**——
- * 取っ手は条件と結び付いた通知が持つもので、2件目は「また起きた」ではなく
- * 「まだ続いている」。数を出す条件は `dedupeKey` のままにしてある
- * （`Notification.count` / `NotificationLayer`）。
+ * id と並び順は `foldInto` と同じく動かさない。件数は数えない。
+ * この鍵は条件と結び付いた通知が持つもので、2件目は「また起きた」ではなく「まだ続いている」。
+ * 数を出す条件は `dedupeKey` が持つ（`Notification.count`、`NotificationLayer`）。
  */
 function replaceHeld(
   existing: Notification,
@@ -110,15 +105,15 @@ function replaceHeld(
 }
 
 /**
- * 通知の置き場の状態遷移。**呼び出し規約は3つ。**
+ * 通知の置き場の状態遷移。
  *
  * - `silent` の段は何も積まない（ADR-0004 決定2）
  * - 同じ `dedupeKey` は畳む。件数だけが増え、id と並び順は動かず、採番も進まない
  * - 同じ `dismissKey` は置き換える。件数は増えず、id と並び順は動かない
- * - 消えるものが無い `dismiss` / `dismissByKey` は**同じ参照を返す**
+ * - 同じ `dedupeKey` の通知があれば、`dismissKey` が同じ通知があっても畳む
+ * - 消えるものが無い `dismiss` と `dismissByKey` は同じ参照を返す
  *
- * どれも「呼んだのに何も起きない」形なので、外から見て区別が付かない。
- * 変えるときは `__tests__/reducer.test.ts` が3つとも固定していることを確かめること。
+ * `__tests__/reducer.test.ts` がこれらを固定している。
  */
 export function notificationReducer(
   state: NotificationState,
@@ -127,8 +122,7 @@ export function notificationReducer(
   switch (action.type) {
     case "notify": {
       const { request } = action;
-      // 出さないと決めた段。握り潰しとの違いは、ここに来ていること自体が示す。
-      // **`request` を直に見る**ので、以降は型が見せ方の枝に絞られる
+      // `request` を直に見るので、以降は型が見せ方の枝に絞られる
       if (request.tier === "silent") return state;
       const tier = request.tier;
 
@@ -141,10 +135,7 @@ export function notificationReducer(
         return { ...state, notifications };
       }
 
-      // **取っ手が同じものは1枚に保つ。** 積み上がると、引っ込めたときに
-      // 1枚しか消えない（`dismissByKey` は最初の1枚を消して終わる形ではないが、
-      // 出した側は1枚のつもりで居る）。**件数は数えない**——条件と結び付いた通知は
-      // 条件が消えれば引っ込むので、2件目は「また起きた」ではなく「まだ続いている」
+      // 出す側は effect の cleanup で引っ込めるが、引っ込めない呼び手が居ても同じ通知を並べない
       const handle = request.dismissKey;
       const held =
         handle === undefined ? -1 : state.notifications.findIndex((n) => n.dismissKey === handle);
