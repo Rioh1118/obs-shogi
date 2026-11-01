@@ -1,31 +1,30 @@
 import { Color, Shogi, type Kind } from "shogi.js";
 import type { ShogiMove } from "../model/types";
 
+function copyPosition(shogi: Shogi): Shogi {
+  const copy = new Shogi();
+  copy.initializeFromSFENString(shogi.toSFENString());
+  return copy;
+}
+
 /**
- * 特定の手が王手放置になるかチェック
- * SFENを使った状態保存・復元アプローチ
+ * 手番の側が `move` を指すと自玉が王手される形になるかを返す。指せない手も `true` を返す。
+ *
+ * 指す側は `move.color` でなく `shogi.turn` で決める。`shogi.js` の `move` と `drop` は
+ * 手番でない側の手を投げるので、最後の行に着く手を指したのは必ず手番の側で、
+ * `getMovesFrom` が返す移動手は `color` の欄を持たない。
  */
 export function wouldBeInCheckAfterMove(shogi: Shogi, move: ShogiMove): boolean {
   try {
-    // 現在の局面をSFENで保存
-    const currentSfen = shogi.toSFENString();
-    const testShogi = new Shogi();
-    testShogi.initializeFromSFENString(currentSfen);
+    const played = copyPosition(shogi);
 
     if (move.from) {
-      // 移動手の場合
-      testShogi.move(move.from.x, move.from.y, move.to.x, move.to.y, false);
+      played.move(move.from.x, move.from.y, move.to.x, move.to.y, false);
     } else {
-      // 駒打ちの場合
-      testShogi.drop(move.to.x, move.to.y, move.kind!, move.color);
+      played.drop(move.to.x, move.to.y, move.kind!, move.color);
     }
 
-    // 手を指した側の色を判定
-    const movingColor =
-      move.color ||
-      (move.from ? (testShogi.turn === Color.Black ? Color.White : Color.Black) : move.color!);
-
-    return testShogi.isCheck(movingColor);
+    return played.isCheck(shogi.turn);
   } catch {
     return true;
   }
@@ -90,18 +89,16 @@ function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
 
   try {
     // 歩を打った後の局面をシミュレート
-    const currentSfen = shogi.toSFENString();
-    const testShogi = new Shogi();
-    testShogi.initializeFromSFENString(currentSfen);
+    const played = copyPosition(shogi);
 
     // 歩を打つ
-    testShogi.drop(move.to.x, move.to.y, move.kind, move.color!);
+    played.drop(move.to.x, move.to.y, move.kind, move.color!);
 
     // 相手の色を取得
     const opponentColor = move.color === Color.Black ? Color.White : Color.Black;
 
     // 相手が王手されているかチェック
-    if (!testShogi.isCheck(opponentColor)) {
+    if (!played.isCheck(opponentColor)) {
       return false;
     }
 
@@ -110,7 +107,7 @@ function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
     // **数え上げてから長さを見ないこと。** この検査は `hasLegalMove` から
     // 呼ばれ、その中でまた歩打ちごとにここへ入る。全部作る形だと入れ子が
     // 掛け算になり、双方が歩を2枚持つ詰み形で1分を超える（実測 66 秒）。
-    return !hasLegalMove(testShogi, opponentColor);
+    return !hasLegalMove(played, opponentColor);
   } catch (e) {
     console.log(e);
     return true; // エラーの場合は安全側に倒して打ち歩詰めとする
