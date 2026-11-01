@@ -330,6 +330,24 @@ describe("AI ライブラリの走査", () => {
     expect(engineSelect().options[0].textContent).toBe("エンジンを読み込めませんでした");
   });
 
+  /** 前の失敗を残すと、作り直している間も赤字が出続ける */
+  test("作成をやり直している間は、前の失敗を消す", async () => {
+    scanAiRoot.mockResolvedValue({
+      ...INDEX,
+      engines_dir: { path: `${AI_ROOT}/engines`, exists: false, kind: "unknown" },
+    });
+    ensureEnginesDir.mockRejectedValueOnce("EACCES");
+    await openDialog();
+    fireEvent.click(button("フォルダを作成"));
+    await tick();
+
+    ensureEnginesDir.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(button("フォルダを作成"));
+    await tick();
+
+    expect(screen.queryByText(/engines\/ の作成に失敗しました/)).toBeNull();
+  });
+
   test("作成の途中でルートが変わったら、作り終えても前のルートを探し直さない", async () => {
     scanAiRoot.mockResolvedValue({
       ...INDEX,

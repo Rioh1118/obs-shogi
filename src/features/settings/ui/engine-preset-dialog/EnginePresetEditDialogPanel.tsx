@@ -12,7 +12,7 @@ import UsedFilesSection from "./sections/UsedFilesSection";
 import AnalysisSection from "./sections/AnalysisSection";
 import EngineSettingsSection from "./sections/EngineSettingsSection";
 import { SField, SInput, SSection } from "@/features/settings/ui/kit";
-import { useAppConfig } from "@/entities/app-config";
+import { useAiRootIndex } from "@/features/settings/model/useAiRootIndex";
 import { bookInUse, type EnginePreset, type PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
 import { multiPvMax } from "@/features/settings/lib/presetOptionValues";
@@ -25,7 +25,6 @@ import {
   presetDialogReducer,
 } from "@/features/settings/model/presetDialogReducer";
 import PresetDialogHeader from "./PresetDialogHeader";
-import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engine/api/aiLibrary";
 
 type Props = {
   presetId: PresetId;
@@ -34,74 +33,17 @@ type Props = {
 
 export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props) {
   const { state, updatePreset } = useEnginePresets();
-  const { config } = useAppConfig();
+  const library = useAiRootIndex();
+  const { index, rescan } = library;
 
   const preset = useMemo(
     () => state.presets.find((p) => p.id === presetId) ?? null,
     [state.presets, presetId],
   );
 
-  const aiRoot = config?.ai_root ?? null;
-
-  /**
-   * 読めた索引と、読んだルート。
-   *
-   * ルートを持たせないと、切り替えた直後の走査中に前のルートの索引で描く。帯は前のルートのパスを
-   * 名指しするのに、隣の「フォルダを作成」は新しいルートに働き、候補の一覧も前のルートのものが残る。
-   */
-  const [loaded, setLoaded] = useState<{ root: string; index: AiRootIndex } | null>(null);
-  const [indexStatus, setIndexStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
-  const [indexError, setIndexError] = useState<string | null>(null);
-  const [scanNonce, setScanNonce] = useState(0);
-
-  const rescan = useCallback(() => setScanNonce((n) => n + 1), []);
-
-  /**
-   * いま指しているルート。`await` の後に読み、結果を書いてよいかを判定する。
-   * `aiRoot` は設定からしか変わらないので、下の effect で書く。
-   */
-  const currentRootRef = useRef(aiRoot);
-
-  useEffect(() => {
-    let cancelled = false;
-    currentRootRef.current = aiRoot;
-
-    (async () => {
-      if (!aiRoot) {
-        setLoaded(null);
-        setIndexStatus("idle");
-        setIndexError(null);
-        return;
-      }
-
-      setIndexStatus("loading");
-      setIndexError(null);
-      try {
-        const idx = await scanAiRoot(aiRoot);
-        if (cancelled) return;
-        setLoaded({ root: aiRoot, index: idx });
-        setIndexStatus("ok");
-      } catch (e) {
-        if (cancelled) return;
-        setLoaded(null);
-        setIndexStatus("error");
-        setIndexError(
-          `AI ライブラリを読めませんでした。フォルダがあるか（外付けなら繋がっているか）を確認して「もう一度読み込む」を押してください（${String(e)}）`,
-        );
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [aiRoot, scanNonce]);
-
   useEffect(() => {
     if (!preset) onClose();
   }, [preset, onClose]);
-
-  // 別のルートの索引は使わない。読み直しの最中は同じルートの索引を残すが、切り替えた直後はまだ何も読めていない
-  const index = loaded && loaded.root === aiRoot ? loaded.index : null;
 
   const engines = useMemo(() => index?.engines ?? [], [index?.engines]);
   const profiles = useMemo(() => index?.profiles ?? [], [index?.profiles]);
@@ -177,8 +119,6 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
     return opts;
   }, [engines, draft?.enginePath]);
 
-  const scanReady = indexStatus === "ok" && index != null;
-
   // 候補が揃った時点で1回だけ、エンジンがまだ無いプリセットの空欄を埋める。
   // エンジンのあるプリセットの評価関数の空は、利用者が選んだ「指定しない」なので埋めない
   useEffect(() => {
@@ -213,24 +153,6 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
     (names: string[]) => dispatch({ type: "optionsCleared", names }),
     [],
   );
-
-  const onCreateEnginesDir = useCallback(async () => {
-    const root = aiRoot;
-    if (!root) return;
-    try {
-      setIndexStatus("loading");
-      await ensureEnginesDir(root);
-
-      // 切り替え後の走査は effect が走らせている。`rescan` を重ねると同じルートをもう一度読む
-      if (root !== currentRootRef.current) return;
-      rescan();
-    } catch (e) {
-      // 前のルートの失敗を新しいルートの画面へ書かない。書くと `indexStatus` が error に落ち、候補が塞がる
-      if (root !== currentRootRef.current) return;
-      setIndexStatus("error");
-      setIndexError(`engines/ の作成に失敗しました: ${String(e)}`);
-    }
-  }, [aiRoot, rescan]);
 
   const onSave = useCallback(async () => {
     if (!draft) return;
@@ -336,17 +258,19 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
             </SField>
           </SSection>
 
-          {indexError && <div className="presetDialog__hintWarn">{indexError}</div>}
+          {library.scan.status === "error" && (
+            <div className="presetDialog__hintWarn">{library.scan.error}</div>
+          )}
 
           <UsedFilesSection
             draft={draft}
             enginePathError={errors.enginePath}
-            aiRootReady={Boolean(aiRoot)}
-            scanReady={scanReady}
-            indexStatus={indexStatus}
+            aiRootReady={library.hasRoot}
+            scanReady={library.scan.status === "ready" && index != null}
+            indexStatus={library.scan.status}
             enginesDir={classifyEnginesDir(index?.engines_dir)}
             enginesDirPath={index?.engines_dir?.path ?? ""}
-            onCreateEnginesDir={onCreateEnginesDir}
+            onCreateEnginesDir={library.createEnginesDir}
             rescan={rescan}
             engineOptions={engineOptions}
             profiles={profiles}

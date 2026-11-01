@@ -4,6 +4,7 @@ import { canCreateEnginesDir, type EnginesDir } from "@/entities/engine/lib/engi
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 import { bookInUse, type EnginePreset } from "@/entities/engine-presets/model/types";
 import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
+import type { ScanState } from "@/features/settings/lib/aiRootScan";
 import type { PresetEngineOption } from "@/features/settings/lib/presetEngineOptions";
 import { bookChoices, evalChoices } from "@/features/settings/lib/fileChoices";
 import { probeStatusText, type ProbeFailure } from "@/features/settings/lib/probeStatus";
@@ -25,7 +26,7 @@ export default function UsedFilesSection(props: {
   enginePathError: string | undefined;
   aiRootReady: boolean;
   scanReady: boolean;
-  indexStatus: "idle" | "loading" | "ok" | "error";
+  indexStatus: ScanState["status"];
   /** `engines` が何として在るか（`classifyEnginesDir`） */
   enginesDir: EnginesDir;
   enginesDirPath: string;
