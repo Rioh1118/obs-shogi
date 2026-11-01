@@ -462,6 +462,85 @@ describe("設定からの確認", () => {
     await waitFor(() => expect(screen.getByTestId("checking").textContent).toBe("false"));
     expect(check.mock.calls.length).toBe(before);
   });
+
+  it("(S2, E17) 告知の段のまま確認し、掴み直した版で取得する", async () => {
+    const first = fakeUpdate("9.9.9", async () => {});
+    const second = fakeUpdate("9.9.10", async () => {});
+    check.mockResolvedValue(first);
+    mount();
+    await settled("available");
+
+    let answer!: (update: typeof second) => void;
+    check.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(screen.getByTestId("checking").textContent).toBe("true"));
+    expect(phase()).toBe("available");
+
+    answer(second);
+    await waitFor(() => expect(screen.getByTestId("detail").textContent).toBe("9.9.10"));
+    expect(screen.getByTestId("manual").textContent).toBe("found");
+    expect(first.close).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("ready");
+    expect(second.downloadAndInstall).toHaveBeenCalledTimes(1);
+    expect(first.downloadAndInstall).not.toHaveBeenCalled();
+  });
+
+  it("(S6, E17) 失敗の段のまま確認し、更新が無ければ失敗を残す", async () => {
+    check.mockResolvedValue(
+      fakeUpdate("9.9.9", async () => {
+        throw new Error("落ちた");
+      }),
+    );
+    mount();
+    await settled("available");
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("error");
+
+    check.mockResolvedValue(null);
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(screen.getByTestId("manual").textContent).toBe("upToDate"));
+    expect(phase()).toBe("error");
+  });
+
+  it("(S6, E2) 失敗の後に確認して版が見つかれば、告知へ進み取得し直せる", async () => {
+    check.mockResolvedValue(
+      fakeUpdate("9.9.9", async () => {
+        throw new Error("落ちた");
+      }),
+    );
+    mount();
+    await settled("available");
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("error");
+
+    check.mockResolvedValue(fakeUpdate("9.9.9", async () => {}));
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await settled("available");
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("ready");
+  });
+
+  /**
+   * 走っているプロセスは古いままなので、確認すると同じ版が見つかる。告知へ戻すと、
+   * 「再起動して適用」が消え、入れ替え済みの版をもう一度取得することになる
+   */
+  it("(S5, E17) 入替が終わった後は確認しない", async () => {
+    const update = fakeUpdate("9.9.9", async () => {});
+    check.mockResolvedValue(update);
+    mount();
+    await settled("available");
+
+    fireEvent.click(screen.getByTestId("install"));
+    await settled("ready");
+
+    const before = check.mock.calls.length;
+    fireEvent.click(screen.getByTestId("checkNow"));
+    await waitFor(() => expect(screen.getByTestId("checking").textContent).toBe("false"));
+    expect(check.mock.calls.length).toBe(before);
+    expect(phase()).toBe("ready");
+  });
 });
 
 /** `取得と適用` の `pending` と同じもの。describe をまたぐので別に置く */

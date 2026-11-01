@@ -42,11 +42,14 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
   const updateRef = useRef<Update | null>(null);
 
   /**
-   * 取得が走っているか。**`status` で判定しない。**
+   * 取得が走っているか、入替まで終えたか。**`status` で判定しない。**
    *
    * 押した時点の `status` は最初のチャンクが届くまで `available` のまま動かない。
    * そこを判定にすると、同じ描画のクロージャを2回踏んだだけで取得と入替が
    * 2本走る（配布先への往復1回ぶんの窓が常に開いている）。
+   *
+   * 入替の後も降ろさない。走っているプロセスは古いままなので、確認すると同じ版が
+   * 見つかり、「再起動して適用」が告知へ戻る。降ろすのは失敗したときだけ。
    */
   const inFlightRef = useRef(false);
 
@@ -228,14 +231,13 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
       });
       setStatus({ phase: "ready" });
     } catch (e) {
+      inFlightRef.current = false;
       const detail = e instanceof Error ? e.message : String(e);
       console.error("[updater] 更新の適用に失敗した", e);
       setStatus({
         phase: "error",
         failure: { stage: downloadFinished ? "install" : "download", detail },
       });
-    } finally {
-      inFlightRef.current = false;
     }
   }, []);
 
