@@ -130,7 +130,6 @@ export default function SfenKifuCreateModal() {
     <Modal
       onClose={closeModal}
       label="課題局面から棋譜を作成"
-      theme="dark"
       variant="dialog"
       size="md"
       scroll="none"

@@ -181,10 +181,8 @@ function PositionNavigationModal() {
     <Modal
       onClose={closeModal}
       label="局面ナビゲーション"
-      theme="dark"
       variant="workspace"
       size="xl"
-      chrome="card"
       scroll="none"
     >
       <div className="position-navigation-modal">

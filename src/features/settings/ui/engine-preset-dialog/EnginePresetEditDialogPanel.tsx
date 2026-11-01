@@ -359,10 +359,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     <Modal
       onClose={onClose}
       label={title}
-      theme="dark"
       size="lg"
       variant="dialog"
-      chrome="card"
       scroll="none"
       closeOnEsc={true}
       closeOnOverlay={true}

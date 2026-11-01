@@ -9,14 +9,7 @@ export default function SettingsModal() {
   if (!isOpen) return null;
 
   return (
-    <Modal
-      onClose={closeModal}
-      label="設定"
-      theme="dark"
-      size="xl"
-      variant="workspace"
-      scroll="none"
-    >
+    <Modal onClose={closeModal} label="設定" size="xl" variant="workspace" scroll="none">
       <SettingsPanel />
     </Modal>
   );

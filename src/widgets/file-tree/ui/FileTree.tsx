@@ -241,7 +241,6 @@ function FileTree() {
       {shownError && hasTree && (
         <Modal
           label={failureHeading(shownError, operationCompleted)}
-          theme="dark"
           size="sm"
           scroll="content"
           onClose={dismissError}
