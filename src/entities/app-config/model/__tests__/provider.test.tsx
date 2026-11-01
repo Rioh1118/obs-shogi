@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppConfigProvider } from "../provider";
 import { useAppConfig } from "../useAppConfig";
 import type { AppConfig } from "../types";
+import type { PresetId } from "@/entities/engine-presets/model/types";
 
 let disk: AppConfig = { root_dir: "/old", ai_root: null };
 const loadConfig = vi.fn();
@@ -80,6 +82,23 @@ function DisplayProbe() {
   );
 }
 
+/** 設定が読めた直後の描画の `setLastPresetId` を掴んだまま呼ぶ。列の中で待つ呼び手と同じ形 */
+function StalePresetProbe() {
+  const { config, setLastPresetId } = useAppConfig();
+  const captured = useRef<typeof setLastPresetId | null>(null);
+  if (config && !captured.current) captured.current = setLastPresetId;
+  return (
+    <button
+      data-testid="preset"
+      onClick={() => {
+        void captured.current?.("preset-1" as PresetId);
+      }}
+    >
+      preset
+    </button>
+  );
+}
+
 async function mountAndFail() {
   setRootDirApi.mockRejectedValue(new Error("書けない"));
 
@@ -145,7 +164,9 @@ describe("AppConfigProvider", () => {
     await waitFor(() => expect(loadingText()).toBe("false"));
 
     expect(screen.getByTestId("error").textContent).toContain("設定を読み込めませんでした");
-    expect(screen.getByTestId("error").textContent).not.toContain("ワークスペースを開けませんでした");
+    expect(screen.getByTestId("error").textContent).not.toContain(
+      "ワークスペースを開けませんでした",
+    );
   });
 
   /**
@@ -222,6 +243,30 @@ describe("AppConfigProvider", () => {
     expect(disk.root_dir).toBe("/next");
     expect(disk.show_evaluation_bar).toBe(true);
     expect(disk.dock_startup_tab).toBe("analysis");
+  });
+
+  /**
+   * 描画が持つ `config` を土台にすると、掴まれていた間に別の経路が書いた欄を
+   * 古い値へ戻す。ファイルごと置き換えるので、表示の設定がまとめて巻き戻る
+   */
+  it("使うプリセットの保存が、描画より後に書かれた欄を書き戻さない", async () => {
+    render(
+      <AppConfigProvider>
+        <DisplayProbe />
+        <StalePresetProbe />
+      </AppConfigProvider>,
+    );
+    await waitFor(() => expect(loadConfig).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByTestId("preset")).toBeTruthy());
+    await act(async () => {});
+
+    fireEvent.click(screen.getByTestId("gauge"));
+    await waitFor(() => expect(disk.show_evaluation_bar).toBe(true));
+
+    fireEvent.click(screen.getByTestId("preset"));
+    await waitFor(() => expect(disk.last_preset_id).toBe("preset-1"));
+
+    expect(disk.show_evaluation_bar).toBe(true);
   });
 
   /**

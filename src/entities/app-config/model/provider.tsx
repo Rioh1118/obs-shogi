@@ -115,15 +115,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   async function setLastPresetId(presetId: PresetId | null) {
     dispatch({ type: "loading" });
     try {
-      const base = state.config ?? (await loadConfig());
-
-      const next: AppConfig = {
-        ...base,
-        last_preset_id: presetId,
-      };
-
-      await saveConfig(next);
-      dispatch({ type: "updated", payload: next });
+      await writeFields({ last_preset_id: presetId });
     } catch (err) {
       dispatch({
         type: "error",
@@ -133,26 +125,20 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }
 
   /**
-   * 表示の設定の書き込みを1本に並べる鎖。**順序だけを決める。**
+   * 欄の書き込みを1本に並べる鎖。順序だけを決める。
    *
-   * 並べる理由: `setDisplayConfig` は `loading` を立てないので、ディスクへの1往復が
-   * 終わるまで再レンダが起きない。並べないと2件目はレンダのクロージャが持つ古い
-   * `state.config` を土台にし、`save_config` はファイルごと置き換えるので1件目の欄が消える。
+   * 並べないと2件目は1件目の保存より前のファイルを読み、`save_config` はファイルごと
+   * 置き換えるので1件目の欄が消える。
    *
-   * **鎖に土台を持たせてはいけない。** `app.json` を書くのはここだけではない
-   * （`setLastPresetId` / `setRootDir` / `chooseRootDir` / `chooseAiRoot` は鎖を通らない）。
-   * 自分が書いた値を握り続けると、間に挟まったそれらの欄を次の書き込みが古い値へ戻す
-   * —— ワークスペースを選び直した直後にチェックを1つ押すと `root_dir` が
-   * 消えたパスへ戻る、という形で出る。**毎回ディスクから読み直す。**
+   * 鎖に土台を持たせない。`setRootDir`、`chooseRootDir`、`chooseAiRoot` は鎖を通らずに
+   * `app.json` を書くので、自分が書いた値を握り続けると、間に挟まったそれらの欄を
+   * 次の書き込みが古い値へ戻す。ワークスペースを選び直した直後にチェックを1つ押すと
+   * `root_dir` が消えたパスへ戻る、という形で出る。
    */
   const writeChainRef = useRef<Promise<void>>(Promise.resolve());
 
-  // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
-  // 名前を拾うため。外すと、この関数を投げっぱなしで呼んだ箇所が機械の目から消える
-  const setDisplayConfig = useCallback((patch: DisplayConfigPatch): AsyncResult<void, string> => {
-    // **`loading` を立てない。** 立てると `isLoading` がタブを押すたびに上下し、
-    // それを見て無効化している操作（`WorkspaceTab` のボタン、`AppLoading` の分岐）が
-    // ちらつく。失敗しても `error` には積まない（下）ので、降ろす先も要らない
+  /** 渡した欄だけを差し替えて書く。土台は毎回ファイルから読み直す */
+  const writeFields = useCallback((patch: Partial<AppConfig>): Promise<void> => {
     const chained = writeChainRef.current.then(async () => {
       // 鎖のおかげで直前の `saveConfig` は必ず終わっているので、これが最新
       const base = await loadConfig();
@@ -162,17 +148,27 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "updated", payload: next });
     });
 
-    // **鎖は切らさない。** 落ちた回に鎖ごと reject のままにすると、
-    // 以後の書き込みが全部その失敗を引き継ぐ
+    // 鎖は切らさない。reject のまま残すと、以後の書き込みが全部その失敗を引き継ぐ
     writeChainRef.current = chained.catch(() => undefined);
 
-    return chained.then(
-      () => Ok(undefined),
-      // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
-      // 表示の設定を1つ保存し損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）
-      (err: unknown) => Err(`表示の設定を保存できませんでした: ${String(err)}`),
-    );
+    return chained;
   }, []);
+
+  // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
+  // 名前を拾うため。外すと、この関数を投げっぱなしで呼んだ箇所が機械の目から消える
+  const setDisplayConfig = useCallback(
+    (patch: DisplayConfigPatch): AsyncResult<void, string> =>
+      // `loading` を立てない。立てると `isLoading` がタブを押すたびに上下し、
+      // それを見て無効化している操作（`WorkspaceTab` のボタン、`AppLoading` の分岐）が
+      // ちらつく。失敗しても `error` には積まないので、降ろす先も要らない
+      writeFields(patch).then(
+        () => Ok(undefined),
+        // `error` に積まない。`RequireRootDir` がそれを見て `/` へ飛ばすので、
+        // 表示の設定を1つ保存し損ねただけでランタイムごと畳まれる
+        (err: unknown) => Err(`表示の設定を保存できませんでした: ${String(err)}`),
+      ),
+    [writeFields],
+  );
 
   const value: AppConfigContextType = {
     ...state,
