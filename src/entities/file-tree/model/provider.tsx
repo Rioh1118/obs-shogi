@@ -217,6 +217,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     dispatch({ type: "kifu_closed" });
   }, [rootDir, state.activeKifuPath]);
 
+  // ツリーが変わったときだけ走らせる。改名と移動はパスの張り替えを読み直しより先に state へ
+  // 入れるので、`activeKifuPath` の変化でも走らせると、新しいパスを古いツリーで引いて
+  // 「ツリーに無い棋譜」と読み、開いている棋譜を閉じる。
   useEffect(() => {
     if (!state.fileTree) return;
 
@@ -231,8 +234,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       });
     }
 
-    if (state.activeKifuPath) {
-      const activeChain = findNodeChain(state.fileTree, state.activeKifuPath);
+    const activePath = activeKifuPathRef.current;
+    if (activePath) {
+      const activeChain = findNodeChain(state.fileTree, activePath);
       if (!activeChain) {
         dispatch({ type: "kifu_closed" });
       }
@@ -243,7 +247,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       pendingRevealPathRef.current = null;
       revealNodeInCurrentTree(targetPath);
     }
-  }, [state.fileTree, revealNodeInCurrentTree, state.activeKifuPath]);
+  }, [state.fileTree, revealNodeInCurrentTree]);
 
   /**
    * 選択を動かす。**ツリーが開くべき棋譜も一緒に動く。**
