@@ -1,185 +1,139 @@
 import type { ClocksView, GameId, GameResult, GameSettings, Side } from "../api/rust-types";
 
-/**
- * 裁定の答え。**`moveDecided` を受けたら必ずどちらかを返す。**
- *
- * どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で畳まれる
- * （`api/tauri.ts` の `continueGame`）。
- */
+/** 手が決まった局面への裁定。`moveDecided` のたびに1つ返す */
 export type GameRuling =
-  /** まだ続く。`continueGame` を投げる */
+  /** 対局は続く。`continueGame` を呼ぶ */
   | { kind: "continue" }
   /**
-   * 終局。`endGameByRule` を投げる。
+   * 終局。`endGameByRule` を呼ぶ。
    *
-   * `detail` は棋譜と画面に残る説明で、**文言を決めるのは裁定を返す側**
-   * （`judgeGameOutcome` は種別と勝者しか返さない）。
+   * `detail` は `over` の結末に載って返る説明で、文言は裁定を返す側が決める。
    */
   | { kind: "over"; winner: Side | null; detail: string };
 
-/** 根からの進行。`judgeGameOutcome` の `GameProgress` と同じ形 */
-export interface GameProgressView {
-  /** 対局の根の局面。**`startpos` は受け付けない** */
+/** 裁定に渡す、根からの進行。`entities/game` の `GameProgress` と同じ形 */
+export type GameProgressView = {
+  /** 対局の根の局面。`startpos` は受け付けない */
   startSfen: string;
   /** 根から現在までの USI 指し手。途中局面から始めた対局なら `initialMoves` も含む */
   usiMoves: readonly string[];
-}
+};
 
 /**
- * 裁定を返す実装。**注入で受ける。**
+ * 進行から裁定を返す実装。実体は `features/game-ruling` の `createRulingAdapter`。
  *
- * 判定そのものは `entities/game`（`judgeGameOutcome`）が持っているが、
- * **このスライスから直に読めない** —— あちらが `Side` をここから取っているので、
- * 読み返すと互いを読み合う組ができて `src/__tests__/crossSliceImports.test.ts` が落ちる。
- * `AnalysisProvider` が `PositionSyncAdapter` を prop で受けているのと同じ形で外から渡す。
+ * 判定は `entities/game` が持つが、あちらが `Side` をここから読むので、読み返すと
+ * 互いを読み合う組ができて `src/__tests__/crossSliceImports.test.ts` が落ちる。
+ * `AnalysisProvider` が `PositionSyncAdapter` を prop で受けるのと同じ形で外から渡す。
  *
- * **判定が失敗したときに何を返すかも、渡す側が決める。** ここで既定を持つと、
- * 「詰んでいるのに続行を返す」のような既定が2箇所に生える。
+ * 判定の失敗に何を返すかは実装が決める。`judge` が投げたときだけ、
+ * `GameSessionProvider` が裁定を返せるよう終局にする。
  */
-export interface RulingAdapter {
+export type RulingAdapter = {
   judge: (progress: GameProgressView) => GameRuling;
-}
+};
+
+/** Rust の台帳に載った対局が `live` でも `over` でも持つ欄 */
+type StartedGame = {
+  gameId: GameId;
+  kifuPath: string | null;
+  blackName: string;
+  whiteName: string;
+  /** 根からの指し手。`continueGame` に渡す列と同じもの */
+  usiMoves: readonly string[];
+  /**
+   * 判定が投げた文言か、Rust が裁定を断った文言。`null` でなければ故障。
+   *
+   * 断りは呼び直しで直らない。列の検算で断られた対局は `RULING_TIMEOUT` で終局する。
+   * 終局しても消さない。`over` の `detail` は判定が投げた中身も断りの文言も持たない。
+   */
+  rulingFailure: string | null;
+  /**
+   * 対局の手を棋譜へ積めなかった理由。`null` でなければ棋譜が対局から遅れている。
+   *
+   * 対局は Rust の写しで進むので止まらない。止まるのは棋譜だけ。
+   */
+  boardFailure: string | null;
+};
 
 /**
- * 画面に出る対局の姿。**`GameSnapshot`（Rust が返す形）とは別物。**
+ * 画面へ渡す対局の姿。`game-event` を畳み込んだ結果で、Rust が問い合わせに返す
+ * `GameSnapshot` とは別物。
  *
- * あちらは問い合わせの返り値で、こちらは**イベントを畳み込んだ結果**。
  * 対局がどの棋譜のものかは Rust 側に欄が無いので、こちらだけが持つ。
  */
 export type GameSessionView =
   /**
    * 対局を持っていない。
    *
-   * `eventsUnavailable` が `null` でなければ**出来事の購読そのものが張れていない**。
-   * このまま始めると、手が決まっても裁定を返す者が居ないので
-   * 必ず `RULING_TIMEOUT` で畳まれる。**始めさせないこと。**
+   * `eventsUnavailable` が `null` でなければ出来事の購読が張れていない。
+   * 始めても裁定を返せないので、`startRefusal` が断る。
    */
   | { kind: "idle"; eventsUnavailable: string | null }
   /**
-   * `startGame` がまだ解決していない。
+   * `startGame` がまだ解決していない。数十秒続くことがある（`api/tauri.ts` の `startGame`）。
    *
-   * **数十秒続きうる**（評価関数の重いエンジン）。取り消す経路は無いので、
-   * 押した側はここで待つことになる（`api/tauri.ts` の `startGame`）。
+   * Rust に取り消すコマンドは無い。`closeSession` で手放しても、起動は解決まで走り、
+   * 解決してから畳む。
    */
   | { kind: "starting"; kifuPath: string | null }
   /** 対局中。手番と時計は Rust が決める */
-  | {
+  | (StartedGame & {
       kind: "live";
-      gameId: GameId;
-      kifuPath: string | null;
-      blackName: string;
-      whiteName: string;
       /**
-       * 人が座っている席。**投了できるのはここだけ。**
-       *
-       * `resignGame` はエンジンの席を指すと Rust が断るので、
-       * エンジン同士の対局には投了の経路が無い（中断しかできない）。
+       * 人が座っている席。Rust はエンジンの席の着手と投了を断るので、操作できるのはここだけ。
        */
       humanSides: readonly Side[];
-      /** いま着手を待っている側 */
+      /** いま着手を待っている側。`clocks` が `null` の間は仮の値で、手番として読まない */
       toMove: Side;
       /**
-       * **最初のイベントが届くまで `null`。**
-       *
-       * `startGame` は最初の `turnChanged` を返る前に投げるが、こちらが
-       * それを畳み込むまでは持ち時間の値をどこからも取れない。0 で埋めると
-       * 「時間切れ寸前の対局」として描かれる
+       * 最初の `turnChanged` を畳み込むまで `null`。0 で埋めると時間切れ寸前の対局に見える。
        */
       clocks: ClocksView | null;
-      /** 根からの指し手。**`continueGame` に渡している列と同じもの** */
-      usiMoves: readonly string[];
-      /** 手が決まってから裁定を返すまでの窓に居るか */
+      /** 手が決まり、次の `turnChanged` か `over` を待っているか */
       awaitingRuling: boolean;
-      /**
-       * 裁定を返せなかったときの文言。**`null` でなければ故障。**
-       *
-       * 裁定の断りは**どれも呼び直しで直らない**（`api/tauri.ts` の `continueGame`）
-       * ので、ここに載った時点で対局は `RULING_TIMEOUT` に向かっている。
-       * 黙って捨てると、画面は動いているのに対局だけが止まる
-       */
-      rulingFailure: string | null;
-      /**
-       * 対局の手を棋譜へ積めなかった理由。**`null` でなければ棋譜が対局から遅れている。**
-       *
-       * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
-       */
-      boardFailure: string | null;
-    }
+    })
   /**
-   * 終局。**エンジンは進行の側が自分で落とす**（`closeGame` を利用者に押させない）。
+   * 終局。`GameSessionProvider` が `closeGame` でエンジンを落とす。
    *
-   * 落とし終えるまでの短い間だけ `engineClosed` が `false` で、
-   * その間に始めようとする対局は断られる（`heldSessionOf`）。
+   * `engineClosed` が `false` の間は、次の対局が断られる（`isHeld`）。
    */
-  | {
+  | (StartedGame & {
       kind: "over";
-      gameId: GameId;
-      kifuPath: string | null;
-      blackName: string;
-      whiteName: string;
       result: GameResult;
       clocks: ClocksView;
-      usiMoves: readonly string[];
-      /**
-       * 裁定を返せなかったまま終局した場合の文言。
-       *
-       * **終局と一緒に消さない。** 理由の欄が名乗れるのは原因の名詞と、
-       * Rust が載せた `detail` まで。**投げた中身（`messageOf(error)`）を持つのは
-       * この欄だけ**で、判定器が投げた回はそれが唯一の手掛かりになる
-       * （そのとき理由は `rule` で、`detail` は「判定できなかった」としか言わない）。
-       */
-      rulingFailure: string | null;
-      /**
-       * 対局の手を棋譜へ積めなかった理由。**`null` でなければ棋譜が対局から遅れている。**
-       *
-       * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
-       */
-      boardFailure: string | null;
-      /** エンジンを落とし終えたか。**`false` のうちは次の対局を始められない** */
+      /** `closeGame` が通ったか */
       engineClosed: boolean;
       /**
-       * エンジンを落とせなかった理由。
-       *
-       * **黙らない。** 落とすのは進行の側で、押し直す利用者が居ない ——
-       * 出さないと、起きたままのプロセスに気づく手段が1つも無い。
+       * `closeGame` が断られた理由。呼び直す者が居ないので、起きたままのプロセスを
+       * 画面で知る手掛かりはこの欄だけ。
        */
       closeFailure: string | null;
-    }
+    })
   /**
-   * 始められなかった。**`gameId` が無いので閉じる対象も無い**
-   * ——Rust は起動に失敗した対局を台帳に載せず、起こしたプロセスも自分で落とす。
+   * 始められなかった。Rust は起動に失敗した対局を台帳に載せないので、畳むものが無く、
+   * このまま `start` をやり直せる。
    *
-   * 設定の誤り（実行ファイルが `usiok` で答えない、`setoption` が拒まれた）と
-   * 内部の取り落としが同じ形で届くので、**原因を断言しない**
+   * 設定の誤りと内部の取り落としが同じ形で届くので、原因を断言しない
    * （`api/tauri.ts` の `startGame`）。
-   *
-   * **ここから `start` をやり直せる。** 閉じる対象が無いので、
-   * 「閉じる」を通させる理由が無い。
    */
   | { kind: "failed"; kifuPath: string | null; message: string };
 
-/**
- * いま対局を始められない理由。
- *
- * **押せるかの判定も、実際に断る判定も、同じ関数から引くこと。**
- * 画面が `view` から組み直すと材料が違う —— `view` は描画時の写しなので、
- * **購読が張り終わる前に押した1回**を「張れている」と読む。
- */
+/** いま対局を始められない理由。`startRefusal` が返す */
 export type StartRefusal =
-  /** 閉じていない対局がある。エンジンが起きたままなので、押した回数だけ増える */
+  /** エンジンが残っている対局がある。始めると押した回数だけプロセスが増える */
   | "held"
-  /** 出来事の購読が張れていない。始めても裁定を返せず、必ずアプリの異常で畳まれる */
+  /** 出来事の購読が張れていない。始めても裁定を返せず、手が決まると「アプリの異常」で終局する */
   | "events-unavailable";
 
-/** 対局を始めるときに渡すもの。**宛先が2つに割れている** */
-export interface GameStartRequest {
+/** 対局を始めるときに渡すもの */
+export type GameStartRequest = {
   /** Rust へ渡す対局者・持ち時間・開始局面 */
   settings: GameSettings;
   /**
-   * この対局が属する棋譜。**Rust は持たない。**
+   * この対局が属する棋譜。
    *
-   * `GameSettings` にも `GameSnapshot` にも棋譜を指す欄が1つも無いので、
-   * 「いま盤に出ている棋譜の対局か」を判定できるのはこちら側だけ。
+   * Rust は棋譜を指す欄を持たないので、盤に出ている棋譜の対局かを判定できるのはこちらだけ。
    */
   kifuPath: string | null;
-}
+};

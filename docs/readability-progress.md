@@ -47,7 +47,8 @@ ours 戦略のマージは使わない。
 | 11 | `refactor/tidy-entities-engine` | `src/entities/engine` | #674 | マージ済み |
 | 12 | `refactor/tidy-entities-engine-presets` | `src/entities/engine-presets` | #675 | マージ済み |
 | 13 | `refactor/tidy-entities-analysis-seat` | `src/entities/analysis` の `provider.tsx` 以外 | #677 | マージ済み |
-| 14 | `refactor/tidy-entities-analysis-provider` | `src/entities/analysis/model/provider.tsx` | #678 | レビュー待ち |
+| 14 | `refactor/tidy-entities-analysis-provider` | `src/entities/analysis/model/provider.tsx` | #678 | マージ済み |
+| 15 | `refactor/tidy-entities-game-session` | `src/entities/game-session` | #680 | レビュー待ち |
 
 ## 語
 
@@ -78,7 +79,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 7b | `src/entities/engine-presets`                            |  972 | 済     | 済     |
 | 8  | `src/entities/analysis` の `provider.tsx` 以外           | 1237 | 済     | —      |
 | 8b | `src/entities/analysis/model/provider.tsx`               |  841 | 済     | 済     |
-| 9  | `src/entities/game-session`                              | 1488 | 未着手 | 未着手 |
+| 9  | `src/entities/game-session`                              | 1488 | 済     | 済     |
 | 10 | `src/entities/file-tree`                                 | 2168 | 未着手 | 未着手 |
 | 11 | `src/entities/search`、`src/entities/book`               | 2454 | 未着手 | 未着手 |
 | 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 未着手 | 未着手 |
@@ -125,15 +126,16 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/game-board/ui/PromotionDialog.tsx` の `promotionMap` | `positionDraft.ts` の `promotedKind` の写し。`src/widgets` の範囲で寄せると `PieceImage` の `kind` を `Kind` で受けられる |
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。`promotionMap` の行と合わせて寄せる |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
-| `src/features/game-ruling/lib/rulingAdapter.ts` の `toRuling` の doc | 主語が `judgeGameOutcome` だが、この関数が呼ぶのは `createOutcomeJudge`。`features/game-ruling` の範囲で直す |
+| `src/features/game-ruling/lib/rulingAdapter.ts` の `toRuling` の doc、`createRulingAdapter` の doc、`unplayableDetail` の doc | 主語が `judgeGameOutcome` だが、この関数が呼ぶのは `createOutcomeJudge`。「棋譜と画面に残る」も、`detail` の読み手が0で棋譜に結果が残らないので誤り。`features/game-ruling` の範囲で直す |
 | `src-tauri/src/storage/disk.rs` の読み手 | 2つの rename の間で値があるのに `NotFound` を受ける筋がある。未再現 |
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
-| `.claude/skills/tidy-code/scripts/emit-unchanged.mjs` | 基点に無い新規ファイルで落ちる |
 | `src/entities/game/model/provider.tsx` の `getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。読み手は `src/widgets` と `src/features` なので、その範囲で直接読む形へ寄せる |
 | `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
 | `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める。`engineStatusOf` は `engine.error?.kind ?? null` を `failureKind` で受けており、union にすれば `useEngineStatus` の変換と `failureKind` の null の説明も消える。判定の順は変わらない |
+| `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
+| `src/entities/game-session/model/provider.tsx` の `start` の `void closeGame(gameId)` | 手放した対局を畳む呼び出しの断りを誰も受けない。本番の呼び手が `closeSession` しか無いので、対局の面を戻すときに決める |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/entities/game-session`。1488行。
+`src/entities/file-tree`。2168行で2000行を超えるので、取るときに割る。

@@ -4,65 +4,54 @@ import type { Side } from "../api/rust-types";
 import type { GameSessionView, GameStartRequest, StartRefusal } from "./types";
 
 /**
- * 対局の姿と操作。
+ * 対局の姿と、対局への操作。
  *
- * **`start` 以外は `AsyncResult` を返す。** 断りは Rust の文言でしか理由が分からず、
- * 捨てると「押したのに何も起きない」だけが残る。投げずに値で返すことで、
- * 読み落としを `src/__tests__/asyncResultUse.test.ts` が拾える形になる。
+ * Rust へ送る操作は `AsyncResult` を返す。断りの理由は Rust の文言でしか分からず、
+ * 投げずに値で返すと読み落としを `src/__tests__/asyncResultUse.test.ts` が拾える。
  */
-export interface GameSessionContextValue {
+export type GameSessionContextValue = {
   view: GameSessionView;
   /**
-   * 対局を始める。**解決まで数十秒かかりうる**（評価関数の重いエンジン）。
-   * 取り消す関数は無い。
+   * 対局を始める。解決まで数十秒かかることがある（評価関数の重いエンジン）。
    *
-   * **断りは `view` に載る**ので戻り値を持たない —— 始められなかったことは
-   * `failed` として、始めなかったことは `view` が `idle` 以外のままであることで分かる。
+   * 戻り値を持たない。始められなかったことは `view` の `failed` で分かる。
+   * `startRefusal` に断られたときは何も起きず、`view` は変わらない。
    */
   start: (request: GameStartRequest) => Promise<void>;
   /**
-   * いま始められない理由。**`null` なら始められる。**
+   * いま始められない理由を返す。`null` なら始められる。
    *
-   * **棋譜を作る前にこれを見ること。** `start` は断っても何も起きないので、
-   * 先に作ってしまうと**対局していない棋譜が1枚できる**。
-   * 押せるかを `view` から自分で組み直さないこと —— `view` は描画時の写しで、
-   * 購読が張り終わる前に押した1回を「張れている」と読む。
+   * 棋譜を作る前に呼ぶ。`start` は断っても何も起きないので、先に作ると
+   * 対局していない棋譜が1枚できる。`view` から判定し直さない。`view` は描画時の写しで、
+   * 購読の成否が決まる前に呼ぶと張れていると読む。
    */
   startRefusal: () => Promise<StartRefusal | null>;
   /**
-   * 対局の手を棋譜へ積めなかったことを伝える。**`null` で取り消す。**
+   * 対局の手を棋譜へ積めなかったことを `view` の `boardFailure` に載せる。`null` で取り消す。
    *
-   * 積む側（`features/game-move`）は何も描かないので、出す場所がここにしか無い。
-   * **対局は止まらない**（Rust の写しで進む）ので、黙ると棋譜だけが遅れ、
-   * 終局後に開き直したとき初めて後半が無いことに気づく。
+   * 積む側（`features/game-move`）は何も描かないので、ここを通して伝える。
    */
   reportBoardFailure: (message: string | null) => void;
   /**
-   * 人の着手を出す。**解決したことが「採られた」の意味。**
+   * 人の着手を送る。`Ok` なら Rust が採った手で、棋譜へ積むのはその後にする。
    *
-   * 着手が届くのと持ち時間が尽きるのが同じ tick に入ると断られる（`moveDecided` は
-   * 出ず、代わりに `over { reason: "timeout" }` が届く）。
-   * **棋譜へ積むのは解決してからにすること。**
-   *
-   * **断り方の1つだけは呼び直してよい** —— 裁定の往復の窓
-   * （`a ruling is still pending`）は、人対人なら毎手ある。
+   * `Err` の手は棋譜へ積まない。断りの種類は `api/tauri.ts` の `submitGameMove` にある。
    */
   submitMove: (side: Side, usiMove: string) => AsyncResult<void>;
-  /**
-   * 投了。**人が座っている席しか投げられない**——エンジンの席を指すと Rust が断るので、
-   * エンジン同士の対局に投了の経路は無い。
-   */
+  /** 投了する。Rust はエンジンの席の投了を断るので、エンジン同士の対局では使えない */
   resign: (side: Side) => AsyncResult<void>;
-  /** 中断。勝敗が付かずに終わる */
+  /** 勝敗を付けずに終局する */
   abort: () => AsyncResult<void>;
   /**
-   * 閉じてエンジンを落とす。**呼ぶまでプロセスは残る**（終局は落とさない）。
+   * 対局を手放す。エンジンが残っていれば `closeGame` で畳んでから手放す。
    *
-   * **1押しで終わるとは限らない**——「止める → 畳み待ち → 落とす」の順で、
-   * 取り込みに失敗すると断られる。**断られたら対局は画面に残る**ので、
-   * そのまま押し直せる（捨てるとエンジンが残ったまま画面だけが「対局なし」になる）。
+   * 断られたら対局は `view` に残るので呼び直せる。先に手放すと、エンジンが
+   * 残ったまま `view` だけが `idle` に戻る。走っている対局は、Rust が畳む前に中断を
+   * 通すので `over` へ移ることがある。
+   *
+   * `startGame` の解決を待っている間に呼ぶと、手放した対局は解決した時点で畳む。
    */
   closeSession: () => AsyncResult<void>;
-}
+};
 
 export const GameSessionContext = createContext<GameSessionContextValue | null>(null);

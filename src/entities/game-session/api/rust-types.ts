@@ -1,35 +1,25 @@
 /**
- * `src-tauri/src/engine/game/types.rs` の写し。
+ * `src-tauri/src/engine/game/types.rs` の写し。`entities/game` の型とは別物で、
+ * あちらは棋譜を読んでいる状態、ここは対局が進んでいる状態を表す。
  *
- * 綴りは ADR-0007（境界に出る型は camelCase、値つき enum は internally tagged）。
- * **ただし `searchInfo` が運ぶ `AnalysisResult` だけは snake_case のまま**
- * （`engine/types.rs` は ADR-0007 の移行対象外として据え置かれている）。
- * 線に出る実際の形は Rust 側の
- * `engine::game::types::tests::the_wire_shape_is_camel_case_all_the_way_down`
- * が固定している。**この写しを直したらあちらも見ること。**
+ * 綴りは ADR-0007（camelCase、値つき enum は internally tagged）。`searchInfo` が運ぶ
+ * `AnalysisResult` だけは snake_case のまま（`engine/types.rs` は移行の対象外）。
  *
- * `entities/game` の型とは別物。あちらは「棋譜を読んでいる状態」で、
- * ここは「対局が進んでいる状態」。
- *
- * **Rust の欄が全部ここにあることは機械が見る**
- * （`engine::game::types::tests::the_typescript_copy_has_every_field`）。
- * 逆向き（ここにあって Rust に無い欄）は serde が黙って捨てるので見ていない。
+ * Rust の検査が2つある。線に出る形は
+ * `engine::game::types::tests::the_wire_shape_is_camel_case_all_the_way_down`、
+ * Rust の欄がここに全部あることは `the_typescript_copy_has_every_field` が見る。
+ * 逆向き（ここにあって Rust に無い欄）は serde が捨てるので見ていない。
  */
-import type { AnalysisResult } from "@/entities/engine";
+import type { AnalysisResult, SetOptionValue } from "@/entities/engine";
 
 declare const gameIdBrand: unique symbol;
 
 /**
- * 対局セッションを指す値。
+ * 対局を指す値。線に出る形は文字列で、Rust 側も newtype で持つ。
  *
- * **素の `string` にしない。** 素だと `submitGameMove(usiMove, side, gameId)` と
- * 引数を並べ替えても tsc が通る。通ると Rust は `unknown game: 7g7f` を返し、
- * 盤は裁定待ちのまま `RULING_TIMEOUT` 後に「アプリが裁定を返さなかった」で畳まれる。
- *
- * 手に入る経路は `startGame` の戻り値・`listGames`・`getGameState` の `gameId`・
- * `game-event` の `gameId`。**手で `as GameId` すると brand の意味が消える**
- * （brand が止めるのは暗黙の代入だけ。`entities/kifu` の `TesuuPointer` と同じ流儀）。
- * Rust 側も `GameId` は newtype で、線に出る形は文字列のまま。
+ * brand を付けるのは、`submitGameMove(usiMove, side, gameId)` と引数を並べ替えたときに
+ * tsc で止めるため。`as GameId` は書かず、`startGame`、`listGames`、`getGameState`、
+ * `game-event` が返した値を使う。
  */
 export type GameId = string & { readonly [gameIdBrand]: true };
 
@@ -37,55 +27,37 @@ export type GameId = string & { readonly [gameIdBrand]: true };
 export type Side = "black" | "white";
 
 /**
- * `setoption` で送る値1件。**並べた順にそのまま送られる。**
- *
- * **`entities/engine` の `EngineOption` とは別物。** あちらはエンジンが
- * 宣言してくる option の定義（型・既定値・現在値）で、向きが逆。
- */
-export interface SetOptionValue {
-  name: string;
-  value: string;
-}
-
-/**
- * 対局者。人とエンジンが同じ型に入る。
- *
- * 分けると、進行側が「相手が人かエンジンか」を至る所で見ることになり、
- * 人対人・人対エンジン・エンジン対エンジンを同じ経路で回せなくなる。
+ * 対局者1人の設定。人とエンジンを1つの型にして、組み合わせによらず同じ経路で進める。
  */
 export type PlayerSpec =
   | {
       kind: "human";
       /**
-       * 画面と棋譜に出る名前。**上限は Rust の `MAX_NAME_BYTES`**（超えると
-       * `startGame` が reject。切り詰めない）。**バイトで数える**ので、
-       * 日本語なら上限の約 1/3 の文字数。
+       * 対局者の表示名。上限は Rust の `MAX_NAME_BYTES` で、超えると `startGame` が断る。
+       * バイトで数えるので、日本語なら上限の約 1/3 の文字数。
        */
       name: string;
     }
   | {
       kind: "engine";
       /**
-       * 画面と棋譜に出る名前。**上限は Rust の `MAX_NAME_BYTES`**（`human` と同じ）。
+       * 対局者の表示名。上限は `human` と同じ。
        *
-       * **エンジンが名乗った `id name` をそのまま入れないこと。** そちらは
-       * 長さを見ずに保持される値で、長い名乗りを返す実行ファイルを選ぶと
-       * **利用者が1文字も入力していないのに `startGame` が落ちる**。
+       * エンジンの `id name` をそのまま入れない。長さを見ずに保持される値なので、
+       * 長い名乗りのエンジンを選ぶと、利用者が入力していない値で `startGame` が断られる。
        */
       name: string;
       enginePath: string;
       /** 省略時は実行ファイルの置き場 */
       workDir?: string | null;
       /**
-       * `setoption` で送る値。**並べた順にそのまま送られる。**
+       * `setoption` で送る値。並べた順に送られる。
        *
-       * 連想配列にしないのは、値の解釈が前の `setoption` に依存する
-       * エンジンがあるため（`EvalDir` を変えてから `EvalFile` を指す、
-       * `Threads` を上げてから `USI_Hash` を割り当てる）。
-       * 順序が保たれないと、同じ設定なのに実行のたびに棋力が変わる。
+       * 連想配列にしないのは、値の解釈が前の `setoption` に依存するエンジンがあるため
+       * （`EvalDir` を変えてから `EvalFile` を指す）。順序が崩れると同じ設定で棋力が変わる。
        *
-       * **件数は Rust の `MAX_OPTIONS`、名前と値の長さは `MAX_WIRE_FIELD` まで。**
-       * どちらも線に出る1行の長さを縛るためのもの（超えると `startGame` が reject）。
+       * 件数は Rust の `MAX_SENT_OPTIONS`、名前と値の長さは `MAX_WIRE_FIELD` まで。超えると
+       * `startGame` が断る。
        */
       options?: SetOptionValue[];
       /** 相手の手番の間も読ませるか */
@@ -95,49 +67,44 @@ export type PlayerSpec =
 /**
  * 片側の持ち時間。
  *
- * **通る形。**
+ * 通る形は4つ。
  *
  * - 切れ負け: `mainMs > 0`、秒読みも加算も 0
  * - 秒読み: `byoyomiMs > 0`。`mainMs` は 0 でもよい
  * - フィッシャー: `incrementMs > 0`。`mainMs` は 0 でもよい
  * - 秒読み付きの持ち時間: `mainMs > 0 && byoyomiMs > 0`
  *
- * **弾かれる形は写さない。** Rust 側（`TimeLimit::validate` と `validate_settings`）が
- * 「数も一覧もここには書かない」を決めている——`if` を1つ足すたびに離れたところが
- * 嘘になるから。`startGame` の `Err` の文言がそのまま理由。
+ * 断られる形は `TimeLimit::validate` と `validate_settings` が持ち、理由は
+ * `startGame` の `Err` の文言に出る。
  */
-export interface TimeLimit {
+export type TimeLimit = {
   mainMs: number;
   /** 1手ごとに与え直される */
   byoyomiMs: number;
   /**
    * 着手できたときに持ち時間へ加算する量。
    *
-   * **開始時の残り時間には初手ぶんが既に積まれている**
-   * （`ClockView.mainMs` は `mainMs + incrementMs` から始まる）。
-   * 積まないと「持ち時間0のフィッシャー」で初手に使える時間が 0 になる。
-   * 設定した値をそのまま画面に出したいなら `GameSettings` 側を見ること
+   * 開始時の残り時間には初手のぶんが積まれている（→ `ClockView.mainMs`）。積まないと、
+   * 持ち時間0のフィッシャーで初手に使える時間が 0 になる。
    */
   incrementMs: number;
-}
+};
 
-export interface GameSettings {
+export type GameSettings = {
   black: PlayerSpec;
   white: PlayerSpec;
   blackTime: TimeLimit;
   whiteTime: TimeLimit;
   /**
-   * 根の局面の SFEN。**`startpos` は受け付けない**
-   * （Rust 側が `position sfen` を前置するので壊れた行になる）。
+   * 根の局面の SFEN。`startpos` は受け付けない（Rust が `position sfen` を前置する）。
    *
    * 長さの上限は Rust の `MAX_WIRE_FIELD`。毎手 `position` の1行に載るため。
    */
   startSfen: string;
   /**
-   * 根から対局開始局面までに既に指されている手。
+   * 根から対局開始局面までに指されている手。
    *
-   * **上限は Rust の `MAX_PLIES`。** ここから最低1手は指せる必要があるので、
-   * 上限そのものは弾かれる（相入玉の長手数の棋譜から始めるときに当たりうる）。
+   * Rust の `MAX_PLIES` より少なくなければ断られる。最低1手は指せる必要があるため。
    */
   initialMoves?: string[];
   /**
@@ -145,33 +112,24 @@ export interface GameSettings {
    * この打ち切りが当たるのはたいてい GUI 側の取りこぼしのため
    */
   enforceEngineTimeout?: boolean;
-}
+};
 
 /**
- * 終局の理由。
+ * 終局の理由。画面の語は ADR-0011 決定1 にある。
  *
- * **こちらの呼び出しから入るのは3つ。**
+ * こちらの呼び出しから入るのは3つで、残りは Rust が決める。
  *
- * - `rule` — `endGameByRule`。詰み・千日手・持将棋・最大手数・反則。
- *   自動で立つ判定は `entities/game` の `judgeGameOutcome`（`lib/gameOutcome.ts`）。
- *   **持将棋の27点法・24点法はそこに入らない**——宣言の規則なので
- *   `judgeDeclaration`（`lib/jishogiDeclaration.ts`）を宣言操作から呼ぶ。
- *   **反則の判定はどちらにも無い**（→ #536）。
- *   **ただし Rust からも入る**——盤に載る手数の上限（`MAX_PLIES`）に当たったとき。
- *   `endGameByRule` を呼んでいないのに届くので、「自分が投げた終局のこだま」として
- *   捨てないこと。そのときの `detail` は Rust が入れた英文
- * - `resign` — `resignGame`（人間の投了）。エンジンの投了は Rust が決める
- * - `aborted` — `abortGame`（利用者の中断）
+ * - `rule`: `endGameByRule` か、Rust が手数の上限（`MAX_PLIES`）に当たったとき。
+ *   後者は呼んでいないのに届き、`detail` は Rust の英文。自分の呼び出しのこだまとして捨てない
+ * - `resign`: `resignGame`。エンジンの投了は Rust が決める
+ * - `aborted`: `abortGame`。走っている対局への `closeGame` も、畳む前に中断を通すのでここへ入る
  *
- * `timeout` / `engineFailure` / `declareWin` / `rulingTimeout` は Rust が決める。
- * **`rulingTimeout` は「アプリの異常」**——`moveDecided` を受けたまま
- * `continueGame` も `endGameByRule` も `RULING_TIMEOUT` の間通せず、Rust が畳んだ対局。
- * 利用者の中断（`aborted`）とは受け手の対処が正反対なので、値が分けてある。
+ * `rulingTimeout` は「アプリの異常」で、裁定が `RULING_TIMEOUT` の間返らず Rust が終局させた
+ * 対局。利用者の `aborted` とは対処が正反対なので値を分ける。
  *
- * **画面の語に直す写しは、いまリポジトリに1つも無い**——対局の UI を外したときに
- * 一緒に消えた。戻すときは `Record<GameOverReason, string>` で持つこと
- * （網羅を tsc に見させるため）。Rust にだけ綴りを足した状態は
- * `src/__tests__/gameOverReasonWire.test.ts` が落とす。
+ * 画面の語へ直す写しはいま無い。作るときは `Record<GameOverReason, string>` で持ち、
+ * 網羅を tsc に見させる。Rust にだけ綴りを足すと `src/__tests__/gameOverReasonWire.test.ts`
+ * が落ちる。
  */
 export type GameOverReason =
   | "resign"
@@ -182,110 +140,95 @@ export type GameOverReason =
   | "aborted"
   | "rulingTimeout";
 
-export interface GameResult {
+export type GameResult = {
   /** 引き分けなら null */
   winner: Side | null;
   reason: GameOverReason;
   detail: string | null;
-}
+};
 
-/**
- * 片側の時計。**2つの欄で性質が違う。**
- *
- * `mainMs` は止まっている値なので、動いている側では手番開始時の古い値。
- * `byoyomiMs` は設定値で常に正しく、**動いている側のクランプに要る**。
- */
-export interface ClockView {
+/** 片側の時計 */
+export type ClockView = {
   /**
-   * 持ち時間の残り。動いている側は `RunningClock.mainZeroAt` を使う。
+   * 持ち時間の残り。止まっている値なので、動いている側では手番開始時の値のまま。
+   * その側の残りは `RunningClock.mainZeroAt` から求める。
    *
-   * 開始時は `TimeLimit.mainMs + incrementMs`。
-   * **利用者が設定した持ち時間そのものではない**（→ `TimeLimit.incrementMs`）
+   * 開始時は `TimeLimit.mainMs + incrementMs` で、設定した持ち時間そのものではない。
    */
   mainMs: number;
-  /** 秒読みの設定値。1手ごとに与え直されるので常にこの値 */
+  /** 秒読みの設定値。1手ごとに与え直されるので常にこの値で、動いている側の表示の上限になる */
   byoyomiMs: number;
-}
+};
 
 /**
  * 動いている側と、その表示が 0 になる時刻（UNIX epoch のミリ秒）。
  *
- * **減っていく値ではなく、尽きる時刻が来る。** こちら側は
- * `deadline - Date.now()` をクランプして出すだけで、
- * 減らすループも「持ち時間の後に秒読み」の規則も持たない。
- * その規則は Rust の中で完結する。
+ * 減る値ではなく尽きる時刻を受け、「持ち時間の後に秒読み」の規則を Rust に閉じる。
+ * 表示は次の形で求める。
  *
  * ```ts
  * const main = Math.max(0, running.mainZeroAt - Date.now());
  * const byoyomi = Math.min(clock.byoyomiMs, Math.max(0, running.byoyomiZeroAt - Date.now()));
  * ```
  *
- * **時間切れの判定には使わないこと。** それは Rust が単調時計で測って
- * `over` を出す。ここの時刻は表示のためだけで、壁時計が飛べばずれる
- * （次の更新で入れ直る）。
+ * 時間切れの判定には使わない。Rust が単調時計で測って `over` を出す。
+ * ここの時刻は表示のためだけで、壁時計が飛べばずれ、次の更新で入れ直る。
  */
-export interface RunningClock {
+export type RunningClock = {
   side: Side;
   mainZeroAt: number;
   byoyomiZeroAt: number;
-}
+};
 
-export interface ClocksView {
+export type ClocksView = {
   black: ClockView;
   white: ClockView;
   /**
-   * 動いている時計。**null を「対局が止まった」と読まないこと。**
+   * 動いている時計。`null` は対局が止まったことを意味しない。
    *
-   * null になるのは4つ。
+   * `null` になるのは4つ。
    *
-   * 1. 裁定待ち（`awaitingRuling`）
-   * 2. 終局後（`over`）
-   * 3. **手番だが Rust がまだエンジンに考え始めさせていない**（前の思考の畳み待ち）。
-   *    `phase` は `thinking` のまま。通常は数百ミリ秒、長くて `SETTLE_TIMEOUT`
-   * 4. **Rust 側の壁時計が取れない**。`phase` は何でもありうる
+   * 1. 裁定待ち
+   * 2. 終局後
+   * 3. 手番だが、止めた探索の畳み待ちで `go` をまだ出していない。`phase` は `thinking` の
+   *    まま。通常は数百ミリ秒、長くて `SETTLE_TIMEOUT`
+   * 4. Rust の壁時計が取れない。`phase` は何でもありうる
    *
-   * **3 が起きるのは、渡す先に畳む探索があったときだけ。** 先読みが外れた、
-   * 手番でない側が本番の思考をしていた、既に止めてある——の場合。
-   * それ以外では `turnChanged` は `running` を**載せて**飛ぶ。
-   * `ponder` の既定は false なので、既定の設定では 3 は起きない。
-   *
-   * **`running` の有無で分岐すること。** 「毎手 null が来る」と決め打つと、
-   * 期限を捨てて次の `clockUpdated`（最短 `CLOCK_EMIT_INTERVAL`）まで持たないことになり、
-   * 相手の手番の頭で毎回止まって見える。
+   * 3 は渡す先に畳む探索があったときだけ起き、`ponder` の既定は false なので既定の設定では
+   * 起きない。それ以外の `turnChanged` は `running` を載せて届く。受け手は有無で分岐する。
+   * 毎手 `null` と決め打って捨てると、次の `clockUpdated` まで期限を持たず止まって見える。
    */
   running: RunningClock | null;
-}
+};
 
 export type GamePhaseView =
-  /** 着手を待っている。**時計が動いているとは限らない**（`ClocksView.running` の 3） */
+  /** 着手を待っている。時計が動いているとは限らない（`ClocksView.running` の 3） */
   | { phase: "thinking"; side: Side }
   /** `continueGame` か `endGameByRule` を呼ぶまで進まない。時計は止まっている */
   | { phase: "awaitingRuling"; lastMover: Side; usiMove: string }
   | { phase: "over"; result: GameResult };
 
-export interface GameSnapshot {
+export type GameSnapshot = {
   gameId: GameId;
   blackName: string;
   whiteName: string;
   phase: GamePhaseView;
   /**
-   * Rust が持っている指し手列。**権威はこちら側の棋譜**で、
-   * これは `continueGame` が毎手上書きする写し。食い違いの検出に使う
+   * Rust が持つ指し手列。権威はこちらの指し手列で、これは `continueGame` が毎手上書きする写し
    */
   moves: string[];
   clocks: ClocksView;
-}
+};
 
 /** `game-event` で届く。`type` で判別する */
 export type GameEvent =
   | { type: "turnChanged"; gameId: GameId; side: Side; clocks: ClocksView }
   | { type: "searchInfo"; gameId: GameId; side: Side; result: AnalysisResult }
   /**
-   * 手が決まった。**ここで対局は止まる。**
+   * 手が決まり、対局が裁定待ちで止まった。
    *
-   * この手の合法性と、指した後の局面が終局かどうか（詰み・千日手・持将棋・
-   * 最大手数）を判定して、`continueGame` か `endGameByRule` を呼ぶこと。
-   * どちらも呼ばないと次の手番は始まらない（`RULING_TIMEOUT` で畳まれる）。
+   * 裁定を判定して `continueGame` か `endGameByRule` を呼ぶ。どちらも呼ばないと次の手番は
+   * 始まらず、`RULING_TIMEOUT` で終局する。
    */
   | {
       type: "moveDecided";
