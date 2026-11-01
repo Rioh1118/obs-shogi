@@ -38,23 +38,18 @@ function profileHealth(p: ProfileCandidate) {
 }
 
 /**
- * 読めた索引と、**それがどのルートのものか**。
+ * 読めた索引と、読んだルート
  *
- * ルートを持たせないと、別のルートを選んだ直後に前のルートの索引が画面に残り、
- * 「engines/ を開く」が**前のフォルダを開いて成功する**。押した人に手掛かりは残らない。
+ * ルートを持たせないと、別のルートを選んだ直後に前の索引が残り、「engines/ を開く」が前のフォルダを開く。
  */
 type LoadedIndex = { root: string; index: AiRootIndex };
 
 /**
- * **進行中と失敗のときも、最後に読めた索引を持ち歩く。**
+ * AI ルートの読み取りの状態
  *
- * 捨てた回は `classifyEnginesDir` の `unknown` に落ちる。`unknown` で
- * 「engines/ を作成」を出さないのは規則どおり（`EnginesDir` の doc）だが、
- * **同時に「開く」も閉じ、手順書の段も塞がり、押したボタン自身が消える**——
- * 作成済みのフォルダに対してできることが1つも無い画面が、押した本人の操作で現れる。
- * スキャンと無関係な失敗（名前の重複など）でも同じことが起きる。
- *
- * **ルートを読めなかった回だけは捨てる**（`scanNow` の catch）。その索引はもう根拠が無い。
+ * `loading` と `error` も最後に読めた索引を持つ。捨てると `classifyEnginesDir` が `unknown` を返し、
+ * 「開く」と手順書の段と押したボタンが消えて、作成済みのフォルダに何もできなくなる。
+ * ルートを読めなかったときだけ捨てる（`scanNow` の catch）。
  */
 type ScanState =
   | { status: "idle" }
@@ -75,15 +70,11 @@ function lastIndex(scan: ScanState): LoadedIndex | null {
 }
 
 /**
- * 「開けなかった」の通知。**文面の決まりは `docs/spec/screens/settings.md`**（ここはその実装）。
+ * フォルダを開けなかったことの通知を作る。文面の決まりは `docs/spec/screens/settings.md`。
  *
- * 段と見せ方は ADR-0004 の F-13（自分で消える toast、ボタン無し）。
- * **場所を確かめる必要があるのに `info` に留めるのは、復帰の操作が通知の外にあるから**——
+ * 段と見せ方は ADR-0004 の F-13。次の操作が要るのに `info` に留めるのは、復帰の操作が通知の外にあるため。
  * 「選択…」は常設で、「engines/ を作成」は読み直しで消えていたときに現れる。
- * 自動で消える通知に動作を持たせられないのは型の側（`NotifyRequest`）が決めている。
- *
- * doc に残すのは**コードを読んでも分からないもの**だけ——鍵にパスを混ぜるのは、
- * 別のフォルダの失敗まで1枚に畳むと、どちらが開けなかったのか分からなくなるため。
+ * 鍵にパスを混ぜるのは、別のフォルダの失敗を1枚に畳まないため。
  */
 function revealFailureNotice(label: string, path: string): NotifyRequest {
   return {
@@ -97,19 +88,10 @@ function revealFailureNotice(label: string, path: string): NotifyRequest {
 }
 
 /**
- * AI フォルダを作っている最中に AI ルートが変わった回の通知。
+ * AI フォルダを作っている間に AI ルートが変わったときの結果
  *
- * **黙らない。** `currentRootRef` と突き合わせる時点で「旧ルートに作れたか」は分かっているのに、
- * 画面はもう別のルートを指しているので一覧にも出ない。黙ると、押した人には
- * 「失敗した」ようにしか見えず、もう一度押して**新しいルートにもう1つ**作ることになる。
- *
- * **段は成否で割る。** 見せ方は F-13 と同じ（自分で消える toast、ボタン無し）だが、
- * 段まで同じにすると、6秒で消える通知で成功と失敗の差が**題の末尾の1語**だけになる
- * （記号も面も `role` も段が決めるので、`info` の2枚は完全に同じ見た目になる）。
- * 作れた回は `info`（利用者は何もしなくてよい）、作れなかった回は `warning`
- * （直せば通る見込みがある）。**本文は3つに割る**——名前で落ちた回に
- * 「同じ名前で作り直せます」と言うと、欄に残っている赤字と正面から食い違う。
- * 文面の決まりは `docs/spec/screens/settings.md`。
+ * 見せ方は F-13 と同じ toast だが、段と本文を結果で割る。文面の決まりは `docs/spec/screens/settings.md`。
+ * 段を揃えると、6秒で消える通知の差が題の末尾の1語だけになる。
  */
 type StaleCreateOutcome = "created" | "name-error" | "failed";
 
@@ -120,6 +102,11 @@ const STALE_CREATE_BODY: Record<StaleCreateOutcome, string> = {
   failed: "同じ名前で作成し直せます",
 };
 
+/**
+ * ルートが変わった後に返った作成の結果の通知を作る。
+ *
+ * 画面は別のルートを指していて一覧に出ないので、黙ると失敗に見え、押した人は新しいルートにもう1つ作る。
+ */
 function staleCreateNotice(root: string, name: string, outcome: StaleCreateOutcome): NotifyRequest {
   const created = outcome === "created";
   return {
@@ -134,15 +121,11 @@ function staleCreateNotice(root: string, name: string, outcome: StaleCreateOutco
   };
 }
 
-/**
- * 「検出された問題」に出す一言。**`Record` で持つ**——網羅の理由は `EnginesDir` の doc。
- * `null` は「この状態では何も言わない」
- */
+/** 「検出された問題」に出す一言。`null` は何も言わない状態。`Record` の理由は `EnginesDir` の doc */
 const ENGINES_DIR_WARNING: Record<EnginesDir, string | null> = {
   unknown: null,
   dir: null,
   missing: "engines/ が見つかりません。『engines/ を作成』で生成できます。",
-  // 在るものを「見つかりません」と言うと、作成を押させて英文の失敗に突き当たる
   other: "engines がフォルダではありません。同じ名前のものを削除してください。",
 };
 
@@ -156,31 +139,20 @@ export default function AiLibraryTab() {
   const [scan, setScan] = useState<ScanState>({ status: "idle" });
 
   /**
-   * 出したスキャンの世代。**遅れて届いた結果を捨てるために要る。**
-   *
-   * 読み直しは利用者の指示なしにも走る（開けなかったとき）ので、
-   * 古い要求の結果が新しい要求の後に届く並びが現実にある。上書きさせると、
-   * 画面のルートと索引のルートがずれる
+   * 最後に出した走査の番号。古い要求の結果を捨てるために持つ。
+   * 読み直しは開けなかったときにも自動で走るので、古い要求が新しい要求の後に返ることがある。
    */
   const scanSeqRef = useRef(0);
 
   /**
-   * いま画面が指しているルート。**`await` を跨いだ後の書き込みを通すかの判定に要る。**
+   * 画面が指しているルート。`await` の後に読み、結果を書いてよいかを判定する。
    *
-   * `scanNow` 以外で `await` を跨ぐ呼び出しのうち、**ここで判定するのは3つ**。扱いは2通り。
+   * - `onEnsureEngines` と `onCreateAiFolder` は呼ぶ前のルートと比べ、変わっていたら画面へ書かない
+   * - `revealOrNotify` は押した時点のルートでなく、この値で読み直す
+   * - `onPick` だけは `await` の前に読む（理由はその関数の中）
    *
-   * - 作成の2つ（`ensureEnginesDir` / `createAiProfileDirs`）は**呼ぶ前のルートを閉包に持つ**ので、
-   *   書く前にここと突き合わせて、変わっていたら書かない。前のルートの結果を新しいルートの
-   *   画面へ書き込むと、バッジは「OK」なのに中身は空、という形になる
-   * - 開けなかったときの読み直しは逆で、**押した時点のルートを使わず、ここの現在値で走らせる**。
-   *   押した後に選び直されていたら、新しいルートを読み直すのが正しい
-   *
-   * ルート自体を決める `onPick` も `await` を跨ぐが、判定はしない（新しいルートは
-   * その関数が持っている）。**`onPick` が読むのは `await` の前だけ**——
-   * そちらは分岐の材料に使うので、後で読むと effect の書き込みと競って判定が反転する。
-   * 上の3つは逆で、**`await` の後に読むのが判定の定義**そのもの。
-   * **書くのはルートが変わる場所**——レンダで書くと、選び直した直後に返る継続が
-   * 再レンダより先に走る窓で、判定が前のルートを見て素通りする。
+   * ルートが変わる場所で書き、レンダでは書かない。選び直しの直後に返る継続は再レンダより先に走るので、
+   * レンダで書くとその間の判定が前のルートを見る。
    */
   const currentRootRef = useRef(localAiRoot.trim());
 
@@ -198,9 +170,7 @@ export default function AiLibraryTab() {
     } catch (e) {
       if (seq !== scanSeqRef.current) return;
 
-      // **ルートを読めなかったのだから、その索引はもう根拠が無い。**
-      // 残すと「engines フォルダ: あり」のまま作り直すボタンが出ず、
-      // 開くボタンも押せたままで、同じ失敗を繰り返すだけになる
+      // 読めなかったルートの索引は根拠が無い。残すと engines/ を作り直せず、開いても同じ失敗を繰り返す
       setScan({ status: "error", error: e instanceof Error ? e.message : String(e), last: null });
     }
   }, []);
@@ -208,13 +178,11 @@ export default function AiLibraryTab() {
   const refresh = useCallback(async () => scanNow(localAiRoot), [localAiRoot, scanNow]);
 
   /**
-   * 設定のルートが決まったら読み直す。**初回だけの effect にしない。**
+   * 設定のルートが変わるたびに読み直す。
    *
-   * `config` は起動時に非同期で届くので、この画面が `null` で mount する回がある
-   * （設定を開いたまま再読み込みした等）。初回だけの形だと、そのときは空文字を見て
-   * 何もしないまま済ませ、後から届いたルートは誰もスキャンしない——
-   * 正常なフォルダを持っている利用者に「読めていません」と言い続けることになる。
-   * 二重に走る分は世代（`scanSeqRef`）が畳む。
+   * `config` は起動時に非同期で届くので、この画面が `null` で mount することがある。初回だけ読む形では、
+   * 後から届いたルートを誰も読まず、正常なフォルダに「読めていません」と出し続ける。
+   * 重なった走査は `scanSeqRef` が畳む。
    */
   useEffect(() => {
     currentRootRef.current = aiRoot.trim();
@@ -222,12 +190,10 @@ export default function AiLibraryTab() {
     if (aiRoot.trim()) void scanNow(aiRoot);
   }, [aiRoot, scanNow]);
 
-  // `SetupGuide` の `nextAction` はこれを依存に持つ。その場で作ると毎レンダ変わり、
-  // 組み立てが一度もキャッシュに当たらない。**同じ配列の `onSelectRoot` は別の理由で
-  // 不安定**——`chooseAiRoot` が context の値ごと毎レンダ入れ替わる（#451）
+  // `SetupGuide` の `nextAction` の依存なので、毎レンダ作り直さない
   const onRescan = useCallback(() => void refresh(), [refresh]);
 
-  // **別のルートの索引は使わない。** 切り替え直後は「まだ何も読めていない」が正しい
+  // 別のルートの索引は使わない。切り替え直後はまだ何も読めていない
   const loaded = lastIndex(scan);
   const data = loaded && loaded.root === localAiRoot.trim() ? loaded.index : null;
 
@@ -240,8 +206,8 @@ export default function AiLibraryTab() {
     const enginesWarning = ENGINES_DIR_WARNING[dir];
     if (enginesWarning) ws.push(enginesWarning);
 
-    // **`engines/` が使えるときだけ言う。** 無い回・フォルダでない回に続けて言うと、
-    // 1行目が「フォルダではない」と言った当のものの中へ置け、と指示することになる
+    // `engines/` が使えるときだけ言う。無いときに言うと、1行目が「フォルダではない」と言ったものの
+    // 中へ置けと指示することになる
     if (canListEnginesDir(dir) && !(data.engines ?? []).some(isEngineForThisMachine)) {
       ws.push("エンジン実行ファイルが未検出です。engines/ 配下に置いてください。");
     }
@@ -282,11 +248,8 @@ export default function AiLibraryTab() {
   }, [canOperate, scan.status, warnings.length]);
 
   const onPick = useCallback(async () => {
-    // **判定の材料は `await` の前に取る。** `currentRootRef` は effect も書くので、
-    // 返った後に読むと「押した時点のルート」ではなく「その瞬間の値」になる。
-    // 設定の更新が独自にレンダを予約する形（provider に `await` が1つ入るだけ）なら、
-    // 継続より先に effect が走って ref はもう新しいルートを指し、下の判定が反転する
-    // ——同じルートでもないのに `scanNow` が走り、新しいルートを2回走査する
+    // `await` の前に読む。`currentRootRef` は effect も書くので、返った後に読むと新しいルート同士を
+    // 比べることになり、別のルートでも同じルートと判定して2回走査する
     const before = currentRootRef.current;
 
     const picked = await chooseAiRoot({ force: true });
@@ -296,15 +259,13 @@ export default function AiLibraryTab() {
     }
     if (picked.data === null) return; // 取り消し
 
-    // **レンダを待たずに書く。** 選び直した直後に返る `await` の継続は、
-    // 再レンダより先に走る——レンダで更新する形だと、その窓で判定が素通りする
+    // 再レンダを待たずに書く。理由は `currentRootRef` の doc
     const sameRoot = picked.data.trim() === before;
     currentRootRef.current = picked.data.trim();
     setLocalAiRoot(picked.data);
 
-    // `chooseAiRoot` は設定を書き換えてから返るので、**別のルートなら effect が読む**。
-    // ここでも呼ぶと同じルートを2回走査することになる。同じルートを選び直した回
-    // （効かなくなった外付けを繋ぎ直した等）は `aiRoot` が変わらないので、ここで呼ぶ
+    // 別のルートなら `aiRoot` が変わって effect が読む。同じルートの選び直し（繋ぎ直した外付けなど）は
+    // `aiRoot` が変わらないので、ここで読む
     if (sameRoot) await scanNow(picked.data);
   }, [chooseAiRoot, scanNow]);
 
@@ -327,31 +288,22 @@ export default function AiLibraryTab() {
   }, [localAiRoot, scanNow]);
 
   /**
-   * 開きに行き、開けなければ通知に出す。**スキャンの診断へは回さない。**
+   * 開きに行き、開けなければ通知に出して読み直す。
    *
-   * `scan` に積むと見出しが「フォルダを確認できませんでした」になる。読み取りの失敗を
-   * 指す見出しなので嘘になるし、**索引が古い可能性はこの関数が読み直して片付ける**ので、
-   * 利用者に再スキャンを押させる必要も無い。
-   * 文面は `revealFailureNotice` が持つ。
-   *
-   * 例外の本文は出さない。プラグインの英語の文言は、利用者の次の一手を決めない
+   * `scan` には積まない。見出しが「フォルダを確認できませんでした」になり、読み取りの失敗でないので嘘になる。
+   * 例外の本文は画面に出さない。プラグインの英語の文言は利用者の次の一手を決めない。
    */
   const revealOrNotify = useCallback(
     async (label: string, path: string) => {
       const revealed = await revealInFileManager(path);
       if (revealed.success) return;
 
-      // 画面には利用者の言葉、原因はログ（`Notice` の方針）。理由は環境ごとに違う
-      // （見つからない / D-Bus が居ない / API が無い）ので、画面の文言だけでは決められない。
-      // **届くのは開発中だけ**——webview の console は配布ビルドに残らない（TODO(#448)）
+      // 理由は環境ごとに違う（見つからない、D-Bus が居ない、API が無い）ので原因はログに残す。
+      // TODO(#448): webview の console は配布ビルドに残らず、届くのは開発中だけ
       console.error("[AiLibraryTab] フォルダを開けなかった", path, revealed.error);
 
-      // **2つの原因のうち「そこに無い」側だけが索引で直せる。** 読み直さないと、
-      // 画面は「あり」のまま、消えたフォルダを作り直すボタン（「engines/ を作成」）が
-      // どこにも出ない。呼べないだけの環境では空振りするが、無い方を放置するより軽い。
-      //
-      // 読み直すのは**いま指しているルート**。押した後に選び直されていると、
-      // 押した時点のルートで走らせた結果が新しいルートの画面を上書きする
+      // 「そこに無い」なら読み直しで「engines/ を作成」が現れる。ファイル管理ソフトを呼べないだけの
+      // 環境では空振りするが、消えたフォルダを「あり」と出し続けるより軽い
       void scanNow(currentRootRef.current);
 
       notify(revealFailureNotice(label, path));
@@ -363,8 +315,8 @@ export default function AiLibraryTab() {
     if (localAiRoot.trim()) void revealOrNotify("AI ライブラリ", localAiRoot);
   }, [localAiRoot, revealOrNotify]);
 
-  // **索引に載っているパスだけを開きに行く。** 押せる条件は `canRevealEnginesDir` が持つので、
-  // 読めていない回に当て推量（`<root>/engines`）で空を埋める必要は無い
+  // 索引に載っているパスだけを開く。押せる条件は `canRevealEnginesDir` が持つので、`<root>/engines` と
+  // 推測しない
   const enginesDirPath = data?.engines_dir?.path ?? "";
 
   const onOpenEnginesDir = useCallback(() => {
@@ -374,18 +326,10 @@ export default function AiLibraryTab() {
   const revealable = canRevealEnginesDir(enginesDir);
 
   /**
-   * AI フォルダを作る。**名前の失敗だけを呼び出し元へ返す。**
+   * AI フォルダを作り、名前で直せる失敗だけを呼び出し元へ返す。
    *
-   * 全部を `scan` の状態へ移すと、見出しが「フォルダを確認できませんでした」、
-   * 主動作が「再スキャン」になる。読み取りは成功しているので嘘だし、名前を
-   * 直さない限り再スキャンは何も変えない。
-   *
-   * 逆に全部を名前の欄へ出すと、AI ルートが消えている（外付けを外した等）
-   * ときに「名前が悪い」という位置に出る。利用者は名前を打ち直し続ける。
-   * 振り分けは code で決める（`file-tree` の `failToNameInput` と同じ形）。
-   *
-   * 宛先を失った回（`"stale"`）を成功と分けるのは呼び出し元のため。
-   * 理由は `CreateAiFolderResult` の doc
+   * 全部を `scan` へ回すと、読み取りは成功しているのに見出しが「フォルダを確認できませんでした」になる。
+   * 全部を名前の欄へ返すと、AI ルートが消えたときに名前が悪いように見える。振り分けは code で決める。
    */
   const onCreateAiFolder = useCallback(
     async (aiName: string): Promise<CreateAiFolderResult> => {
@@ -395,9 +339,6 @@ export default function AiLibraryTab() {
 
       const created = await createAiProfileDirs(root, name);
       if (root !== currentRootRef.current) {
-        // 画面はもう別のルートを指しているので、この結果は一覧に出ない。通知で伝える。
-        // **名前で落ちた回を分ける**——同じ名前では何度やっても通らないので、
-        // 「同じ名前で作り直せます」は嘘になる（その赤字は欄に残っている）
         notify(
           staleCreateNotice(
             root,
@@ -414,7 +355,6 @@ export default function AiLibraryTab() {
       if (!created.success) {
         if (isNameInputError(created.error.code)) return created.error;
 
-        // 名前では直せない。AI ルートの診断側へ回す
         setScan((s) => ({
           status: "error",
           error: describeFsError(created.error.code),
@@ -493,7 +433,6 @@ export default function AiLibraryTab() {
             </SField>
 
             <div className="aiLibraryTab__rowActions">
-              {/* 出すのは「無い」と読めている回だけ。分類の理由は `EnginesDir` の doc */}
               {canCreateEnginesDir(enginesDir) && (
                 <Button
                   tone="accent"
@@ -505,7 +444,6 @@ export default function AiLibraryTab() {
                   engines/ を作成
                 </Button>
               )}
-              {/* 在らないフォルダは開けない。押させると、無い場所を探させることになる */}
               <Button
                 size="sm"
                 onClick={onOpenEnginesDir}

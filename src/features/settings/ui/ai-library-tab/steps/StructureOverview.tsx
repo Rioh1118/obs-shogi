@@ -45,16 +45,8 @@ const ENGINES_DIR_STATE: Record<EnginesDir, NodeState> = {
 
 type Props = {
   aiRootPath: string | null;
-  /** `engines` が何として在るか。4つに割れている理由は `EnginesDir` の doc */
   enginesDir: EnginesDir;
-  /**
-   * いま AI フォルダを作れるか。**この木は「作れ」と指示する側なので、要る。**
-   *
-   * 出す条件を自分で組むと、入力欄が描かれない回にも指示が出る——
-   * 読めていない回（観測していないことを断言する）と、エンジンが0件の回
-   * （同じ画面のカードは「エンジンを置いた後に作成できます」と逆を言う）。
-   * どちらも探しても作成の操作は無い。判断は `SetupGuide` が1度だけ組む
-   */
+  /** AI フォルダを作れるか。条件は `SetupGuide` が決める。ここで組むと入力欄が無いときにも作成を指示する */
   canCreateProfile: boolean;
   engineNames: string[];
   profiles: SetupGuideProfile[];
@@ -73,7 +65,6 @@ export function StructureOverview({
 
   return (
     <div className="structureOverview">
-      {/* ai_root */}
       <TreeNode
         label={`📂 ${rootLabel}/`}
         note={aiRootPath ? undefined : "← まず選択"}
@@ -81,7 +72,6 @@ export function StructureOverview({
         indent={0}
       />
 
-      {/* engines/ */}
       <TreeNode
         label="📂 engines/"
         note={ENGINES_DIR_NOTE[enginesDir]}
@@ -90,7 +80,6 @@ export function StructureOverview({
         isLast={profiles.length === 0}
       />
 
-      {/* engine files */}
       {canListEnginesDir(enginesDir) &&
         (engineNames.length > 0 ? (
           engineNames.map((name, i) => (
@@ -106,7 +95,6 @@ export function StructureOverview({
           <TreeNode label="（実行ファイルを置いてください）" state="missing" indent={2} isLast />
         ))}
 
-      {/* AI profiles */}
       {profiles.length > 0
         ? profiles.map((p, pi) => {
             const isLastProfile = pi === profiles.length - 1;

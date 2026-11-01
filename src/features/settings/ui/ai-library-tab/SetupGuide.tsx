@@ -59,14 +59,11 @@ type Props = {
   aiRootPath: string | null;
   scanStatus: "idle" | "loading" | "ok" | "error";
   scanError?: string | null;
-  /** `engines` が何として在るか。4つに割れている理由は `EnginesDir` の doc */
   enginesDir: EnginesDir;
   /**
-   * 索引を読めているか。**「読めていない」と「0 件」を分けるために要る。**
+   * 索引を読めているか。読めていないときと0件を分ける。
    *
-   * 数だけを渡すと、読めていない回も `0` になって「エンジン 0 件（要注意）」と
-   * 観測していないことを断言する。`engines` のカードだけ `—` にしても、
-   * 隣が数を言い切るとそちらが上書きして読まれる
+   * 数だけを渡すと、読めていないときも「エンジン 0 件」と断言する。
    */
   indexed: boolean;
   enginesDirPath?: string;
@@ -80,7 +77,6 @@ type Props = {
   onCreateEnginesDir: () => void;
   onOpenAiRoot: () => void;
   onOpenEnginesDir: () => void;
-  /** 答えの3つは `CreateAiFolderResult` が持つ */
   onCreateAiFolder: (aiName: string) => Promise<CreateAiFolderResult>;
 };
 
@@ -152,13 +148,13 @@ export default function SetupGuide({
   const [aiNameDraft, setAiNameDraft] = useState("");
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const inFlightRef = useRef(false);
-  // 名前を直せば通る失敗。**欄のそばに出し、打った文字列は残す**
+  // 名前を直せば通る失敗の文言。打った文字列は残す
   const [createError, setCreateError] = useState<string | null>(null);
   const aiNameRef = useRef<HTMLInputElement | null>(null);
 
   const handleCreateFolder = async () => {
-    // **`useState` では取りこぼす。** Enter のキーリピートはレンダより速いので、
-    // 同じ名前で並走して「作れたのに『すでにあります』が出る」になる
+    // state では間に合わない。Enter のキーリピートはレンダより速く、同じ名前で並走すると
+    // 作れたのに「すでにあります」が出る
     if (inFlightRef.current) return;
 
     const name = aiNameDraft.trim();
@@ -172,9 +168,7 @@ export default function SetupGuide({
     try {
       const result = await onCreateAiFolder(name);
 
-      // 宛先を失った回。**打った名前も欄の赤字も動かさない**——
-      // 直すべき理由（前の失敗の赤字）だけを消すと、直すべき文字列だけが残る。
-      // 旧ルートで何が起きたかは通知が伝える
+      // 宛先を失ったとき。打った名前も赤字も動かさない。旧ルートの結果は通知が伝える
       if (result === "stale") return;
 
       if (result) {
@@ -184,8 +178,7 @@ export default function SetupGuide({
         return;
       }
 
-      // **赤字を消すのはここ。** `await` の前で消すと、上の枝（宛先を失った回）が
-      // 「前の失敗の赤字を消しただけ」で返る
+      // `await` の前で消すと、宛先を失ったときに赤字だけが消える
       setCreateError(null);
       setAiNameDraft("");
     } finally {
@@ -194,28 +187,22 @@ export default function SetupGuide({
     }
   };
 
-  // ── step states ────────────────────────────────────────────────────────
-
   const canOperate = !!aiRootPath;
   const scanReady = scanStatus === "ok";
 
   /**
-   * いま AI フォルダを作れるか。**1度だけ組んで3箇所が引く。**
+   * AI フォルダを作れるか。カードのヒント、入力欄、「現在の状態」の木の3か所が読む。
    *
-   * 引く先はカードのヒント・入力欄・「現在の状態」の木。条件を手書きで散らすと、
-   * 木が「作成しろ」と指示するのに入力欄が描かれない、という食い違いが出る
-   * （実際に2度出した。1度目は読めていない回、2度目はエンジンが0件の回）。
+   * 条件を散らすと、木が作成を指示するのに入力欄が無い、という食い違いが出る。
    *
-   * **`enginesCount > 0` を条件にするのが正しいかは未決**（#475）——
-   * エンジンを置く前に AI フォルダだけ作りたい人を止めている
+   * TODO(#475): エンジンを置く前に AI フォルダだけ作りたい人を `enginesCount > 0` が止めている
    */
   const canCreateProfile = canOperate && indexed && enginesCount > 0;
 
   const step1: StepState = canOperate ? "done" : "active";
   const enginesDirReady = canListEnginesDir(enginesDir);
 
-  // フォルダでないものが居る間と、何が在るか読めていない間は塞ぐ。
-  // どちらもこの段の操作（作成）が通る保証が無い——何をすべきかは hero が言う
+  // フォルダでないものが在る間と読めていない間は塞ぐ。作成が通る保証が無く、すべきことは hero が言う
   const step2: StepState = !canOperate
     ? "locked"
     : enginesDirReady
@@ -241,14 +228,11 @@ export default function SetupGuide({
   const shortRoot =
     aiRootPath && aiRootPath.length > 32 ? "…" + aiRootPath.slice(-31) : (aiRootPath ?? "");
 
-  // ── next action (hero) ─────────────────────────────────────────────────
-
   /**
-   * hero の主動作と副動作。
+   * hero の主動作と副動作を決める。
    *
-   * **アプリの外での作業を指示する段には、終わったことを伝えるボタン（スキャン）を必ず置く。**
-   * 無いと、作業を終えて戻った利用者に古い画面が出て、押せるのは実在しなくなったパスへの
-   * 「開く」だけになる——正しい作業の直後に失敗の通知が出る。
+   * アプリの外での作業を指示する段には、読み直しのボタンを必ず置く。無いと、作業を終えて戻った人に
+   * 古い画面が出て、消えたパスへの「開く」しか押せない。
    */
   const nextAction = useMemo<NextAction>(() => {
     if (!aiRootPath) {
@@ -278,17 +262,14 @@ export default function SetupGuide({
         desc: scanError ?? "もう一度読み込んでください。",
         primaryLabel: "もう一度読み込む",
         onPrimary: onRescan,
-        // **ここで「開く」を勧めない。** この段には4つの失敗が来る（選択・作成・
-        // スキャン・AI フォルダの作成）ので、開く先が読めているとは限らない。
-        // 読み直し（主）と選び直し（副）だけを出す
+        // 開くボタンは出さない。選択、作成、走査、AI フォルダの作成の失敗が来るので、開く先を
+        // 読めているとは限らない
         secondaryLabel: "選択…",
         onSecondary: onSelectRoot,
       };
     }
-    // **読めていない側の枝を、フォルダとして在る以外の全部で受ける。**
-    // 3つを名前で並べると、`EnginesDir` に状態が増えた日（#469）に
-    // その状態が下の「エンジンを置いてください」へ落ちる——engines が
-    // どうなっているか誰も読めていないのに、次の段の指示が出る
+    // 状態を名前で並べず `canListEnginesDir` で受ける。並べると、`EnginesDir` に状態が増えたときに
+    // 読めていないまま下の「エンジンを置いてください」へ落ちる
     if (!canListEnginesDir(enginesDir)) {
       if (enginesDir === "other") {
         return {
@@ -384,7 +365,6 @@ export default function SetupGuide({
 
   return (
     <div className="setupGuide">
-      {/* Hero: 次にやること */}
       <div className="setupGuide__hero" data-tone={nextAction.tone}>
         <div className="setupGuide__heroIcon">{nextAction.icon}</div>
         <div className="setupGuide__heroBody">
@@ -412,7 +392,6 @@ export default function SetupGuide({
         </div>
       </div>
 
-      {/* Status grid */}
       <div className="setupGuide__statusGrid">
         <StatusCard
           label="AI ライブラリ"
@@ -452,12 +431,10 @@ export default function SetupGuide({
         />
       </div>
 
-      {/* What we're building — roles + concrete example */}
       <SSection title="フォルダ構成" description="この構造でファイルを置くと自動検出されます。">
         <FolderConcept />
       </SSection>
 
-      {/* Current state — dynamic scan result */}
       <SSection title="現在の状態" description="読み込んだ結果をリアルタイムで反映しています。">
         <StructureOverview
           aiRootPath={aiRootPath}
@@ -468,7 +445,6 @@ export default function SetupGuide({
         />
       </SSection>
 
-      {/* Wizard steps with contextual trees */}
       <SSection title="セットアップ手順" description="手順ごとに操作できます。">
         <div className="aiLibraryTab__steps">
           <Step1SelectRoot state={step1} aiRoot={aiRootPath ?? ""} onSelect={onSelectRoot} />
@@ -494,7 +470,6 @@ export default function SetupGuide({
         </div>
       </SSection>
 
-      {/* AI folder creation */}
       {canCreateProfile && (
         <SSection
           title="AI フォルダを追加"
@@ -527,8 +502,7 @@ export default function SetupGuide({
                 作成
               </Button>
             </div>
-            {/* 領域は常設する。中身と同時に DOM へ入れると、VoiceOver が
-                live region の変化として読まない */}
+            {/* 中身と同時に DOM へ入れると VoiceOver が live region の変化として読まないので常設する */}
             <p className="setupGuide__createError" role="alert">
               {createError ?? ""}
             </p>
@@ -536,7 +510,6 @@ export default function SetupGuide({
         </SSection>
       )}
 
-      {/* Detected AI profiles */}
       {scanReady && profiles.length > 0 && (
         <SSection title="検出されたAI" description="読み込んだ結果です。">
           <div className="setupGuide__profileList">
@@ -547,7 +520,6 @@ export default function SetupGuide({
         </SSection>
       )}
 
-      {/* Warnings */}
       {scanReady && warnings.length > 0 && (
         <div className="setupGuide__warnings" role="status">
           <div className="setupGuide__warningsTitle">

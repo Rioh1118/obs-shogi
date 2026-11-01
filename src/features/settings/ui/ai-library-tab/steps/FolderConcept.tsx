@@ -1,12 +1,3 @@
-/**
- * FolderConcept
- *
- * "何を作るのか" を伝えるビジュアルコンポーネント。
- * - 各フォルダの役割を小カードで一覧
- * - 具体的な完成形の例をツリーで表示
- * テキスト説明ではなく構造と例示で伝える。
- */
-
 type RoleCardProps = {
   label: string;
   role: string;
@@ -41,17 +32,16 @@ function ExampleLine({ text, note, indent = 0, dim = false }: ExampleLineProps) 
   );
 }
 
+/** 置くフォルダの役割と、完成形の例を見せる。 */
 export function FolderConcept() {
   return (
     <div className="folderConcept">
-      {/* 役割カード */}
       <div className="folderConcept__roles">
         <RoleCard label="engines/" role="エンジン実行ファイル" example="YaneuraOu-xxx" />
         <RoleCard label="＜AI 名＞/eval/" role="評価関数" example="nn.bin" />
         <RoleCard label="＜AI 名＞/book/" role="定跡ファイル" example="standard.db" optional />
       </div>
 
-      {/* 完成形の例 */}
       <div className="folderConcept__exampleWrap">
         <span className="folderConcept__exampleTag">完成形の例</span>
         <div className="folderConcept__example">
