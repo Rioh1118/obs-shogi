@@ -381,12 +381,12 @@ export function stateFromPreset(preset: HandicapPreset): JKFState {
  * （`getDerivedStateFromError` はレンダとライフサイクルしか捕まえない）。
  * 他の関数の引数は画面が作る値で、押す前に沈めてあるので、届く不正は画面側の穴として上げてよい。
  *
- * `shogi.js` に丸投げできない。あちらが投げるのは手番の欄が `b` / `w` でないときだけで、
- * 段数も筋数も駒の綴りも見ない。
+ * `shogi.js` に丸投げできない。明示の `throw` は手番の欄が `b` / `w` でないときの1本だけで、
+ * 段数も筋数も駒の綴りも見ない。欄が欠ければ偶然 `TypeError` になる。
  *
  * - `lnsgkgsnl/9/9 b - 1`（3段）→ 残りを空段で埋めた別の局面になる
  * - `9/…/9 b 250000P 1` → その枚数だけ駒を作る（`isWellFormedSfen` の doc を見ること）
- * - `x8/…` → `kind` が `undefined` の駒が盤に載る。`Piece.fromSFENString` は引けなくても投げず、
+ * - `x8/…` → `kind` が文字列 `"undefined"` の駒が盤に載る。`Piece.fromSFENString` は引けなくても投げず、
  *   投げるのは書き戻すときなので、載せた時点では気づけない
  *
  * どれも別の局面が盤に載るか、操作が無反応になるので、渡す前に形を見る。
