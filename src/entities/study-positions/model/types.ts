@@ -43,6 +43,12 @@ export type StudyPositionsFile = {
   positions: StudyPosition[];
 };
 
+export type StudyPositionsState = {
+  positions: StudyPosition[];
+  /** 最後の読み書きの失敗。画面の読み手はまだ無い（`docs/state-transitions/failure-surfacing.md` の F-11） */
+  error: string | null;
+};
+
 export type CreateStudyPositionInput = {
   sfen: string;
   label: string;

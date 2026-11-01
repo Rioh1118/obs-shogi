@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { loadStudyPositions, saveStudyPositions } from "../api/studyPositions";
 import { sfenToPositionKey } from "../lib/sfenToPositionKey";
 import { StudyPositionsContext } from "./context";
 import type { StudyPositionsContextType } from "./context";
-import { initialState, reducer } from "./reducer";
-import type { CreateStudyPositionInput, StudyPosition, UpdateStudyPositionInput } from "./types";
+import type {
+  CreateStudyPositionInput,
+  StudyPosition,
+  StudyPositionsState,
+  UpdateStudyPositionInput,
+} from "./types";
 
 function normalizeTags(tags: string[]): string[] {
   const seen = new Set<string>();
@@ -24,19 +28,11 @@ function normalizeTags(tags: string[]): string[] {
 function normalizeStoredPosition(position: StudyPosition): StudyPosition {
   return {
     ...position,
-    sfen: position.sfen.trim(), // 4トークンSFENを保持
+    sfen: position.sfen.trim(),
     label: position.label.trim(),
     description: position.description.trim(),
     tags: normalizeTags(position.tags),
   };
-}
-
-function createNowIso(): string {
-  return new Date().toISOString();
-}
-
-function createId(): string {
-  return crypto.randomUUID();
 }
 
 function requirePositionKey(sfen: string): string {
@@ -47,9 +43,19 @@ function requirePositionKey(sfen: string): string {
   return key;
 }
 
-export function StudyPositionsProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+function findByPositionKey(positions: StudyPosition[], key: string): StudyPosition | undefined {
+  return positions.find((p) => sfenToPositionKey(p.sfen) === key);
+}
 
+function messageOf(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+export function StudyPositionsProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<StudyPositionsState>({ positions: [], error: null });
+
+  // 書き込みの土台。`state` は描画まで進まないので、続けて呼ばれた2件目が1件目を知らない
+  // 一覧を書き、1件目がファイルから消える
   const positionsRef = useRef<StudyPosition[]>([]);
 
   // 読み込みの完了を待つ promise。失敗したら空に戻し、次に書く操作が読み直す。
@@ -57,55 +63,47 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
   // 手で直せば読めるはずの局面が全部消える
   const loadingRef = useRef<Promise<void> | null>(null);
 
-  const persistPositions = useCallback(async (positions: StudyPosition[]) => {
-    dispatch({ type: "save_start" });
+  const replacePositions = useCallback(
+    (positions: StudyPosition[], error: string | null = null) => {
+      positionsRef.current = positions;
+      setState({ positions, error });
+    },
+    [],
+  );
+
+  const readPositions = useCallback(async () => {
     try {
-      await saveStudyPositions({ positions });
-      dispatch({ type: "save_success" });
+      const file = await loadStudyPositions();
+      replacePositions(file.positions.map(normalizeStoredPosition));
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      dispatch({ type: "save_error", payload: { message } });
-      throw e;
-    }
-  }, []);
-
-  const load = useCallback(async () => {
-    dispatch({ type: "load_start" });
-
-    try {
-      const out = await loadStudyPositions();
-      const normalized = out.positions.map(normalizeStoredPosition);
-
-      positionsRef.current = normalized;
-      dispatch({
-        type: "load_success",
-        payload: { positions: normalized },
-      });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      dispatch({ type: "load_error", payload: { message } });
+      const message = messageOf(e);
+      replacePositions(positionsRef.current, message);
       throw new Error(`課題局面を読み込めないので、書き込みません（${message}）`);
     }
-  }, []);
+  }, [replacePositions]);
 
   const ensureLoaded = useCallback(() => {
-    loadingRef.current ??= load().catch((e: unknown) => {
+    loadingRef.current ??= readPositions().catch((e: unknown) => {
       loadingRef.current = null;
       throw e;
     });
     return loadingRef.current;
-  }, [load]);
+  }, [readPositions]);
 
-  useEffect(() => {
-    ensureLoaded().catch((e: unknown) => {
-      console.error("[StudyPositions] load failed:", e);
-    });
-  }, [ensureLoaded]);
-
-  const getById = useCallback((id: string | null | undefined): StudyPosition | null => {
-    if (!id) return null;
-    return positionsRef.current.find((p) => p.id === id) ?? null;
-  }, []);
+  /** 一覧を先に差し替えてから書く。書けなければ元へ戻し、失敗を呼び手へ投げ直す */
+  const commitPositions = useCallback(
+    async (next: StudyPosition[]) => {
+      const previous = positionsRef.current;
+      replacePositions(next);
+      try {
+        await saveStudyPositions({ positions: next });
+      } catch (e) {
+        replacePositions(previous, messageOf(e));
+        throw e;
+      }
+    },
+    [replacePositions],
+  );
 
   const findBySfen = useCallback((sfen: string | null | undefined): StudyPosition | null => {
     if (!sfen) return null;
@@ -113,52 +111,30 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     const key = sfenToPositionKey(sfen);
     if (!key) return null;
 
-    return positionsRef.current.find((p) => sfenToPositionKey(p.sfen) === key) ?? null;
+    return findByPositionKey(positionsRef.current, key) ?? null;
   }, []);
 
   const addPosition = useCallback(
     async (input: CreateStudyPositionInput): Promise<StudyPosition> => {
       await ensureLoaded();
 
-      const inputKey = requirePositionKey(input.sfen);
-
-      const duplicated = positionsRef.current.find((p) => sfenToPositionKey(p.sfen) === inputKey);
-      if (duplicated) {
+      const key = requirePositionKey(input.sfen);
+      if (findByPositionKey(positionsRef.current, key)) {
         throw new Error("Study position already exists for this position");
       }
 
-      const now = createNowIso();
-
-      const position: StudyPosition = normalizeStoredPosition({
-        id: createId(),
-        sfen: input.sfen,
-        label: input.label,
-        description: input.description,
-        state: input.state,
-        tags: input.tags,
+      const now = new Date().toISOString();
+      const position = normalizeStoredPosition({
+        ...input,
+        id: crypto.randomUUID(),
         createdAt: now,
         updatedAt: now,
       });
 
-      const prevPositions = positionsRef.current;
-      const nextPositions = [position, ...prevPositions];
-
-      dispatch({ type: "add_position", payload: { position } });
-      positionsRef.current = nextPositions;
-
-      try {
-        await persistPositions(nextPositions);
-        return position;
-      } catch (e) {
-        dispatch({
-          type: "revert_positions",
-          payload: { positions: prevPositions },
-        });
-        positionsRef.current = prevPositions;
-        throw e;
-      }
+      await commitPositions([position, ...positionsRef.current]);
+      return position;
     },
-    [ensureLoaded, persistPositions],
+    [commitPositions, ensureLoaded],
   );
 
   const updatePosition = useCallback(
@@ -170,104 +146,48 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
         throw new Error("Study position not found");
       }
 
-      const next: StudyPosition = normalizeStoredPosition({
+      const updated = normalizeStoredPosition({
         ...current,
-        sfen: input.sfen != null ? input.sfen : current.sfen,
-        label: input.label != null ? input.label : current.label,
-        description: input.description != null ? input.description : current.description,
-        state: input.state != null ? input.state : current.state,
-        tags: input.tags != null ? input.tags : current.tags,
-        updatedAt: createNowIso(),
+        sfen: input.sfen ?? current.sfen,
+        label: input.label ?? current.label,
+        description: input.description ?? current.description,
+        state: input.state ?? current.state,
+        tags: input.tags ?? current.tags,
+        updatedAt: new Date().toISOString(),
       });
 
-      const nextKey = requirePositionKey(next.sfen);
-
-      const duplicated = positionsRef.current.find(
-        (p) => p.id !== input.id && sfenToPositionKey(p.sfen) === nextKey,
-      );
-      if (duplicated) {
+      const key = requirePositionKey(updated.sfen);
+      const others = positionsRef.current.filter((p) => p.id !== updated.id);
+      if (findByPositionKey(others, key)) {
         throw new Error("Another study position already exists for this position");
       }
 
-      const prevPositions = positionsRef.current;
-      const nextPositions = prevPositions.map((p) => (p.id === next.id ? next : p));
-
-      dispatch({ type: "update_position", payload: { position: next } });
-      positionsRef.current = nextPositions;
-
-      try {
-        await persistPositions(nextPositions);
-        return next;
-      } catch (e) {
-        dispatch({
-          type: "revert_positions",
-          payload: { positions: prevPositions },
-        });
-        positionsRef.current = prevPositions;
-        throw e;
-      }
+      await commitPositions(positionsRef.current.map((p) => (p.id === updated.id ? updated : p)));
+      return updated;
     },
-    [ensureLoaded, persistPositions],
+    [commitPositions, ensureLoaded],
   );
 
   const deletePosition = useCallback(
     async (id: string): Promise<void> => {
       await ensureLoaded();
 
-      const prevPositions = positionsRef.current;
-      const exists = prevPositions.some((p) => p.id === id);
-      if (!exists) return;
+      if (!positionsRef.current.some((p) => p.id === id)) return;
 
-      const nextPositions = prevPositions.filter((p) => p.id !== id);
-
-      dispatch({ type: "delete_position", payload: { id } });
-      positionsRef.current = nextPositions;
-
-      try {
-        await persistPositions(nextPositions);
-      } catch (e) {
-        dispatch({
-          type: "revert_positions",
-          payload: { positions: prevPositions },
-        });
-        positionsRef.current = prevPositions;
-        throw e;
-      }
+      await commitPositions(positionsRef.current.filter((p) => p.id !== id));
     },
-    [ensureLoaded, persistPositions],
+    [commitPositions, ensureLoaded],
   );
 
-  const selectPosition = useCallback((id: string | null) => {
-    dispatch({ type: "select_position", payload: { id } });
-  }, []);
-
-  const clearError = useCallback(() => {
-    dispatch({ type: "clear_error" });
-  }, []);
+  useEffect(() => {
+    ensureLoaded().catch((e: unknown) => {
+      console.error("[StudyPositions] load failed:", e);
+    });
+  }, [ensureLoaded]);
 
   const value = useMemo<StudyPositionsContextType>(
-    () => ({
-      state,
-      load,
-      addPosition,
-      updatePosition,
-      deletePosition,
-      getById,
-      findBySfen,
-      selectPosition,
-      clearError,
-    }),
-    [
-      state,
-      load,
-      addPosition,
-      updatePosition,
-      deletePosition,
-      getById,
-      findBySfen,
-      selectPosition,
-      clearError,
-    ],
+    () => ({ state, addPosition, updatePosition, deletePosition, findBySfen }),
+    [state, addPosition, updatePosition, deletePosition, findBySfen],
   );
 
   return <StudyPositionsContext.Provider value={value}>{children}</StudyPositionsContext.Provider>;
