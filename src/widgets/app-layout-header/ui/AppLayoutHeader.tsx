@@ -38,7 +38,7 @@ function AppLayoutHeader({ toggleSidebar, isSidebarOpen }: Props) {
     <header className="app-header">
       <div className="app-header__left">
         <IconButton
-          handleClick={toggleSidebar}
+          onClick={toggleSidebar}
           className="app-header__sidebar-toggle"
           size="medium"
           variant="sidebar-toggle"

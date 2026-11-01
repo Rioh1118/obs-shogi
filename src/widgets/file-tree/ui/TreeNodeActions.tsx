@@ -31,7 +31,7 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
   return (
     <>
       <IconButton
-        handleClick={handleCreateFile}
+        onClick={handleCreateFile}
         size="small"
         variant="ghost"
         title="新しいファイルを作成"
@@ -40,7 +40,7 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
         <FilePlus2 size={14} />
       </IconButton>
       <IconButton
-        handleClick={handleCreateDirectory}
+        onClick={handleCreateDirectory}
         size="small"
         variant="ghost"
         title="新しいフォルダを作成"

@@ -12,9 +12,8 @@ type IconButtonVariant =
   | "sidebar-toggle"
   | "obs-danger";
 
-interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> {
+interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  handleClick?: (() => void) | ((e: React.MouseEvent<HTMLButtonElement>) => void);
   className?: string;
   size?: IconButtonSize;
   variant?: IconButtonVariant;
@@ -25,7 +24,6 @@ interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 
 
 function IconButton({
   children,
-  handleClick,
   className = "",
   size = "medium",
   variant = "obs-primary",
@@ -34,16 +32,6 @@ function IconButton({
   ariaLabel,
   ...buttonProps
 }: IconButtonProps) {
-  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    if (!disabled && handleClick) {
-      if (handleClick.length > 0) {
-        (handleClick as (e: React.MouseEvent<HTMLButtonElement>) => void)(e);
-      } else {
-        (handleClick as () => void)();
-      }
-    }
-  };
-
   const buttonClasses = [
     "btn__icon",
     `btn__icon--${size}`,
@@ -57,7 +45,6 @@ function IconButton({
   return (
     <button
       className={buttonClasses}
-      onClick={handleButtonClick}
       disabled={disabled}
       title={title}
       aria-label={ariaLabel}

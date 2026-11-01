@@ -154,7 +154,7 @@ function EditorCreateForm({
   );
 
   return (
-    <Form handleSubmit={handleSubmit}>
+    <Form onSubmit={handleSubmit}>
       <FormField horizontal>
         <TextInput
           label="ファイル名"

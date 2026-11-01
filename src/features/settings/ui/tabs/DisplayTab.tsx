@@ -109,7 +109,7 @@ export default function DisplayTab() {
                     title="上へ"
                     ariaLabel={`${dockViewLabel(key)}を上へ`}
                     disabled={at === 0}
-                    handleClick={() => saveTabs(moveDockTab(tabs, key, -1))}
+                    onClick={() => saveTabs(moveDockTab(tabs, key, -1))}
                   >
                     <ChevronUp size={16} />
                   </IconButton>
@@ -119,7 +119,7 @@ export default function DisplayTab() {
                     title="下へ"
                     ariaLabel={`${dockViewLabel(key)}を下へ`}
                     disabled={at === tabs.length - 1}
-                    handleClick={() => saveTabs(moveDockTab(tabs, key, 1))}
+                    onClick={() => saveTabs(moveDockTab(tabs, key, 1))}
                   >
                     <ChevronDown size={16} />
                   </IconButton>

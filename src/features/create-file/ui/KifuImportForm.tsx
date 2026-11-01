@@ -186,7 +186,7 @@ function KifuImportForm({
       3箇所で言うことになる。
     */
     <div className="kifu-import" hidden={hidden}>
-      <Form handleSubmit={handleSubmit}>
+      <Form onSubmit={handleSubmit}>
         <FormField>
           <Textarea
             label="棋譜テキスト"
