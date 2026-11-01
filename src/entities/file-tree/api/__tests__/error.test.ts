@@ -36,6 +36,14 @@ describe("asFsError", () => {
     expect(res.code).toBe("unknown");
   });
 
+  // 通すと `describeFsError` が `undefined` を返し、見出しの無い箱が出る
+  test.each(["toString", "constructor", "__proto__"])(
+    "Object から継いだ名前 %s を code と読まない",
+    (code) => {
+      expect(asFsError({ code, message: "?" }).code).toBe("unknown");
+    },
+  );
+
   test("FsError ですらないものも受け取る", () => {
     expect(asFsError(new Error("パースできません")).code).toBe("unknown");
     expect(asFsError("文字列").code).toBe("unknown");

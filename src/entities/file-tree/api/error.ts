@@ -70,7 +70,7 @@ export const FS_ERROR_CODES = {
 } satisfies Record<FsErrorCode, true>;
 
 function isFsErrorCode(code: unknown): code is FsErrorCode {
-  return typeof code === "string" && code in FS_ERROR_CODES;
+  return typeof code === "string" && Object.prototype.hasOwnProperty.call(FS_ERROR_CODES, code);
 }
 
 /**
