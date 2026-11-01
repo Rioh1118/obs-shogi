@@ -17,12 +17,12 @@ import {
   Dragon,
 } from "./pieces";
 
-interface PieceFactoryProps extends PieceProps {
-  jkfKind: string;
+interface PieceImageProps extends PieceProps {
+  kind: string;
 }
 
-function PieceFactory({ jkfKind, color, onClick }: PieceFactoryProps) {
-  const pieceType = convertJkfPiece(jkfKind);
+function PieceImage({ kind, color, onClick }: PieceImageProps) {
+  const pieceType = convertJkfPiece(kind);
 
   const commonProps: PieceProps = { color, onClick };
 
@@ -60,4 +60,4 @@ function PieceFactory({ jkfKind, color, onClick }: PieceFactoryProps) {
   }
 }
 
-export default PieceFactory;
+export default PieceImage;

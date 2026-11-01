@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { Color, type Piece } from "shogi.js";
 import { GOTE_LABEL, SENTE_LABEL } from "@/shared/lib/turn";
-import { indexToCoords } from "@/entities/position/lib/boardUtils";
-import { BOARD_SIZE } from "@/entities/position/model/shogi";
-import PieceFactory from "./PieceFactory";
+import { indexToCoords } from "@/entities/position/lib/boardCoords";
+import { BOARD_SIZE } from "@/entities/position/model/board";
+import PieceImage from "./PieceImage";
 import "./BoardPreview.scss";
 import type { IMove as ShogiMove } from "shogi.js";
 
@@ -113,7 +113,7 @@ function BoardPreview({
           <div className="board-preview__hand-pieces">
             {whiteHand.map((kind, index) => (
               <div key={`white-${kind}-${index}`} className="board-preview__hand-piece">
-                <PieceFactory jkfKind={kind} color={Color.White} />
+                <PieceImage kind={kind} color={Color.White} />
               </div>
             ))}
             {whiteHand.length === 0 && <div className="board-preview__hand-empty">なし</div>}
@@ -125,7 +125,7 @@ function BoardPreview({
           <div className="board-preview__hand-pieces">
             {blackHand.map((kind, index) => (
               <div key={`black-${kind}-${index}`} className="board-preview__hand-piece">
-                <PieceFactory jkfKind={kind} color={Color.Black} />
+                <PieceImage kind={kind} color={Color.Black} />
               </div>
             ))}
             {blackHand.length === 0 && <div className="board-preview__hand-empty">なし</div>}
@@ -162,7 +162,7 @@ function BoardPreview({
               <div key={index} className={squareClasses} onClick={() => handleSquareClick(index)}>
                 {piece && (
                   <div className="board-preview__piece">
-                    <PieceFactory jkfKind={piece.kind} color={piece.color} />
+                    <PieceImage kind={piece.kind} color={piece.color} />
                   </div>
                 )}
 

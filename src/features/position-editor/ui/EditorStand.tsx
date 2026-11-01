@@ -7,7 +7,7 @@ import {
   type HandKind,
   type Square,
 } from "@/entities/position/lib/positionDraft";
-import PieceFactory from "@/entities/position/ui/PieceFactory";
+import PieceImage from "@/entities/position/ui/PieceImage";
 import { turnLabel } from "@/shared/lib/turn";
 import { standMark } from "../lib/boardMarks";
 import type { Held } from "../model/types";
@@ -77,7 +77,7 @@ function EditorStand({ state, color, held, hovered, onPressStand }: EditorStandP
                   className="pos-editor__stack-piece"
                   style={{ "--stack-index": i } as CSSProperties}
                 >
-                  <PieceFactory jkfKind={kind} color={color} />
+                  <PieceImage kind={kind} color={color} />
                 </span>
               ))}
             </span>

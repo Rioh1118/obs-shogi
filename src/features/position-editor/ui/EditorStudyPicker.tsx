@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import { stateFromSfen } from "@/entities/position/lib/positionDraft";
-import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
+import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import {
   STUDY_POSITION_STATES,
   studyPositionStateLabel,
@@ -195,7 +195,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
             この課題局面は盤に載せられません。保存されている局面の綴りが壊れています。
           </p>
         ) : (
-          <PreviewPane previewData={preview} />
+          <PositionPreviewPane previewData={preview} />
         )}
         <div className="pos-editor__picker-foot">
           <button type="button" className="pos-editor__seed-button" onClick={onBack}>

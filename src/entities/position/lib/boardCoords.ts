@@ -1,4 +1,4 @@
-import { BOARD_SIZE } from "../model/shogi";
+import { BOARD_SIZE } from "../model/board";
 
 // インデックスから座標に変換（1-indexed）
 export function indexToCoords(index: number): { x: number; y: number } {

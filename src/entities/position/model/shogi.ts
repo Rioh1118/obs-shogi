@@ -43,13 +43,6 @@ export const PLAYER_COLORS = {
   GOTE: 1 as const,
 } as const;
 
-// 盤面サイズ
-export const BOARD_SIZE = {
-  WIDTH: 9,
-  HEIGHT: 9,
-  TOTAL_SQUARES: 81,
-} as const;
-
 /** `jkfKind` が JKF の駒でなければ、そのまま返す */
 export function convertJkfPiece(jkfKind: string): PieceType | string {
   return JKF_TO_PIECE_TYPE[jkfKind as keyof typeof JKF_TO_PIECE_TYPE] ?? jkfKind;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { Color, Kind } from "shogi.js";
-import PieceFactory from "@/entities/position/ui/PieceFactory";
+import PieceImage from "@/entities/position/ui/PieceImage";
 
 interface EditorGhostProps {
   kind: Kind;
@@ -69,7 +69,7 @@ function EditorGhost({ kind, color }: EditorGhostProps) {
       className={`pos-editor__ghost${placed ? " pos-editor__ghost--placed" : ""}`}
       aria-hidden="true"
     >
-      <PieceFactory jkfKind={kind} color={color} />
+      <PieceImage kind={kind} color={color} />
     </div>
   );
 }

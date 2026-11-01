@@ -12,7 +12,7 @@ import {
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import { stateFromSfen } from "@/entities/position/lib/positionDraft";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
-import PreviewPane from "@/entities/position/ui/PositionPreviewPane";
+import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 
 import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
@@ -136,7 +136,7 @@ export default function SfenKifuCreateModal() {
     >
       <div className="sfen-kifu-create">
         <div className="sfen-kifu-create__preview">
-          <PreviewPane previewData={previewData} />
+          <PositionPreviewPane previewData={previewData} />
         </div>
 
         <Form onSubmit={handleSubmit}>

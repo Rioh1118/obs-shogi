@@ -47,7 +47,7 @@
 | 500行を超えるファイル | TS 9、Rust 25 | 最大は `engine/game/session.rs` の4751行 |
 | 同上のうちテストが占める分 | `session.rs` は本体2207行、テスト2543行 | **行数の半分以上がテストのこともある** |
 | 同じ名前のファイル | `index.ts` 19、`types.ts` 17、`provider.tsx` 12 | 役割の固定なので問題ではない |
-| 役割の無いファイル名 | `utils.rs`、`boardUtils.ts` の2本 | 少ない |
+| 役割の無いファイル名 | `utils.rs`、`boardUtils.ts`（いまの `boardCoords.ts`）の2本 | 少ない |
 | `interface` と `type T = {` の export | 91 と 97 | 使い分けの決まりが無い |
 | trait | 5（全て2実装以上） | R-RST-1 は守られている |
 | データ構造に書いた総称の境界 | 0 | R-RST-5 は守られている |
