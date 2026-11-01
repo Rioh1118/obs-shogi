@@ -37,6 +37,11 @@ describe("「この先」列", () => {
     expect(label.hint).toContain("上限");
   });
 
+  /** 上限が1手でも、定跡が切れたとは言わない */
+  test("1手で上限に当たっても行き止まりと言わない", () => {
+    expect(bookLineLabel(line(1, "depthCap"), 5).text).toBe("6手目以降");
+  });
+
   /** 読めない手は行き止まりと別物。ファイルが壊れていることが出る */
   test("当てられない手は、理由つきで出る", () => {
     const label = bookLineLabel(line(0, "brokenMove"), 5);

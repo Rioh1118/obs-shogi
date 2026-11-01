@@ -67,6 +67,23 @@ describe("定跡の表の並べ替え", () => {
     ]);
   });
 
+  test("欄が欠けている行は、並びの先頭に居ても下へ移り、欠けた行どうしは順を保つ", () => {
+    const rows = [row("7g7f"), row("3g3f"), row("2g2f", { count: 5 })];
+
+    for (const desc of [true, false]) {
+      expect(spellings(sortBookRows(rows, { key: "count", desc }))).toEqual([
+        "2g2f",
+        "7g7f",
+        "3g3f",
+      ]);
+    }
+    expect(spellings(sortBookRows([...rows].reverse(), { key: "count", desc: false }))).toEqual([
+      "2g2f",
+      "3g3f",
+      "7g7f",
+    ]);
+  });
+
   test("同点は定跡が書いた順のまま", () => {
     const rows = [row("7g7f", { value: 50 }), row("2g2f", { value: 50 })];
 
@@ -81,6 +98,10 @@ describe("定跡の表の並べ替え", () => {
     expect(nextBookSort(first, "depth")).toEqual({ key: "depth", desc: true });
   });
 
+  test("既定の並びで指し手の列を押しても既定のまま", () => {
+    expect(nextBookSort(DEFAULT_BOOK_SORT, "book")).toEqual(DEFAULT_BOOK_SORT);
+  });
+
   test("指し手の列を押すと定跡の順へ戻る", () => {
     expect(nextBookSort({ key: "value", desc: false }, "book")).toEqual(DEFAULT_BOOK_SORT);
   });
@@ -93,6 +114,10 @@ describe("出現回数のバー", () => {
   });
 
   /** 0 除算で `NaN` が幅に入ると、バーが消えるのではなく行の高さが変わる */
+  test("最大値を超えても 1 で止める", () => {
+    expect(countBarRatio(5, 3)).toBe(1);
+  });
+
   test("最大が 0 でも NaN にならない", () => {
     expect(countBarRatio(0, 0)).toBe(0);
     expect(countBarRatio(null, 0)).toBe(0);

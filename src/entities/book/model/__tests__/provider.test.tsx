@@ -222,6 +222,56 @@ describe("定跡の provider", () => {
     });
 
     expect(seen!.view.kind).toBe("absent");
+    expect(walks.size).toBe(0);
+  });
+
+  it("局面が動くと、前の局面の失敗を消す", async () => {
+    const { view, handle } = await openAt("sfen-a");
+    await act(async () => {
+      pending<LookupResult>(lookups, at(handle, "sfen-a")).settle(Err(failure("io")));
+    });
+    expect(seen!.failure?.error.code).toBe("io");
+
+    await act(async () => {
+      view.rerender(at_("sfen-b"));
+    });
+
+    expect(seen!.failure).toBeNull();
+  });
+
+  it("開き始めると、前の失敗を消す", async () => {
+    mount("sfen-a");
+    await act(async () => {
+      seen!.reportError(failure("unknown"));
+    });
+    openHold = deferred<Result<BookInfo, BookError>>();
+
+    await act(async () => {
+      void seen!.openBook("/books/big.db");
+    });
+
+    expect(seen!.failure).toBeNull();
+  });
+
+  it("閉じると失敗も消す", async () => {
+    mount("sfen-a");
+    await act(async () => {
+      seen!.reportError(failure("unknown"));
+    });
+
+    act(() => {
+      seen!.close();
+    });
+
+    expect(seen!.failure).toBeNull();
+  });
+
+  it("畳まれたら、開いていた定跡を閉じる", async () => {
+    const { view, handle } = await openAt("sfen-a");
+
+    view.unmount();
+
+    expect(closed).toContain(handle);
   });
 
   /**
