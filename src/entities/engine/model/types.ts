@@ -2,21 +2,21 @@ import type { BookChoice, EngineInfo, StartWarning, UnresponsiveReason } from ".
 import type { EngineStartFailure } from "../lib/engineFailure";
 
 /**
- * `exited` は起動済みのプロセスが自分で終わった状態、`unresponsive` は指示が通らなくなった状態。
- * **どちらもアプリは自分では起動し直さない**
- * （`docs/state-transitions/engine-standardization.md` の V6 V7）。
+ * エンジンの段。`exited` は起動済みのプロセスが自分で終わった状態、`unresponsive` は指示が
+ * 通らなくなった状態。どちらもアプリは自分では起動し直さない
+ * （`docs/state-transitions/engine-standardization.md` の V6 V7）
  */
 export type EnginePhase = "idle" | "initializing" | "ready" | "error" | "exited" | "unresponsive";
 
 /**
- * エンジンを起こすときの設定。**USI の名前を持たない**——評価関数と定跡はパスで持ち、
+ * エンジンを起動するときの設定。USI の名前を持たない。評価関数と定跡はパスで持ち、
  * どの名前で送るかは Rust が起動のたびの申告から決める（`binding.rs`）
  */
 export type EngineRuntimeConfig = {
   enginePath: string;
   /** 評価関数（絶対パス）。選んでいなければ `null`（指定できないエンジンもある） */
   evalPath: string | null;
-  /** 定跡。選んでいなければ `null`。`useInAnalysis` が偽でも、切ったことを Rust が送る */
+  /** 定跡。選んでいなければ `null`。`useInAnalysis` が偽なら、切ったことを Rust が送る */
   book: BookChoice | null;
   /** 利用者の値（プリセットの `options`） */
   values: Record<string, string>;
@@ -33,7 +33,7 @@ export type EngineState = {
   lastOutput: string | null;
 
   activeRuntime: EngineRuntimeConfig | null;
-  /** 直近の起動で送らなかった・変えて送った設定。起動はできている */
+  /** 直近の起動で送らなかった、または変えて送った設定。起動はできている */
   startWarnings: StartWarning[];
 };
 
@@ -54,32 +54,24 @@ export type EngineAction =
       payload: { reason: UnresponsiveReason; lastOutput: string | null };
     }
   | { type: "engine_answered" }
-  | { type: "shutdown" }
-  | { type: "clear_error" };
+  | { type: "shutdown" };
 
 /**
- * `isReady` が false である理由。**解析側が断りを選ぶのに使う。**
- *
- * **`phase` では割れない。** 起こし直しは `ready → idle → initializing` を通り、
- * どの段でも `isReady` は false。`phase` で並べると `idle` を書き落として
- * 「エンジンを選んでください」に落ち、**起こし直しを案内された利用者がその指示に
- * 従った直後**に、もう一度同じ指示を受ける。判定は「選んでいるか」で割る
- * （導出は `entities/engine/model/provider.tsx`）。
+ * `isReady` が false である理由。解析側が断りを選ぶのに使う。導出は `notReadyReasonOf`
  */
 export type EngineNotReadyReason =
   /** まだ選んでいない（または設定が読めていない） */
   | "no-engine"
-  /** 起動中。**起こし直している最中もここ**（`ready → idle → initializing` の全部） */
+  /** 起動中。起動し直している最中もここ（`ready → idle → initializing` の全部） */
   | "starting"
-  /** 初期化が落ちている。**起動した後でプロセスが終わった回、指示が通らない回もここ** */
+  /** 起動できない。プロセスが終わったとき、指示が通らないとき、プリセットが未完成のときもここ */
   | "failed"
   /** 利用者が起動を中止した */
   | "cancelled";
 
 /**
- * **「使えないなら理由が在る」を型で持つ。** 2つの欄を独立に持つと、呼び手は
+ * エンジンを使えるか。使えないなら必ず理由が在る。2つの欄を独立に持つと、呼び手が
  * `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える
- * （どれを選んでも、3つのうち2つでは嘘になる）。
  */
 export type EngineReadiness =
   | { isReady: true; notReadyReason: null }
@@ -88,22 +80,19 @@ export type EngineReadiness =
 export type EngineContextType = EngineReadiness & {
   state: EngineState;
 
-  initialize: () => Promise<boolean>;
-  shutdown: () => Promise<void>;
+  initialize: () => Promise<void>;
   /**
-   * 進行中の起動を中止する。エンジンを落とし、失敗（種類 `cancelled`）として止まる——
+   * 進行中の起動を中止する。エンジンを落とし、失敗（種類 `cancelled`）として止まる。
    * `idle` に戻すと、設定が選ばれたままなので同じ設定で起動し直してしまう
    */
   cancelStart: () => void;
-  clearError: () => void;
-  /** `起動中…` が `SLOW_START_MS` を越えた。**帯とボタンが同じ値を読む** */
+  /** `起動中…` が `SLOW_START_MS` を越えた。帯とボタンが同じ値を読む */
   slowStart: boolean;
   /** プリセットは選んだが、エンジンが未設定で起動を試みられない */
   presetIncomplete: boolean;
   /**
-   * エンジンへ指示が届かなかったことを、呼び手が知った。`応答なし` にする。
-   *
-   * **Rust の通知を待たない。** invoke そのものが落ちた回は Rust が何も知らない
+   * エンジンへ指示が届かなかったことを知らせ、`応答なし` にする。
+   * Rust の通知を待たない。invoke そのものが落ちると Rust は何も知らない
    */
   reportUnreachable: () => void;
 };

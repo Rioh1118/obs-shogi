@@ -1,44 +1,39 @@
-export interface Duration {
-  secs: number;
-  nanos: number;
-}
-
-export interface EngineInfo {
+export type EngineInfo = {
   name: string;
   author: string;
   options: EngineOption[];
-}
+};
 
-export interface EngineOption {
+type EngineOption = {
   name: string;
   option_type: EngineOptionType;
   default_value?: string;
   current_value?: string;
-}
+};
 
-export interface EngineOptionType {
+type EngineOptionType = {
   Check?: { default?: boolean };
   Spin?: { default?: number; min?: number; max?: number };
   Combo?: { default?: string; vars: string[] };
   Button?: { default?: string };
   String?: { default?: string };
   Filename?: { default?: string };
-}
+};
 
-/** `setoption` 1件（Rust の `SetOptionValue`）。**並べた順に送られる** */
-export interface SetOptionValue {
+/** `setoption` 1件（Rust の `SetOptionValue`）。並べた順に送られる */
+export type SetOptionValue = {
   name: string;
   value: string;
-}
+};
 
 /** 解析の起動で選んだ定跡（Rust の `BookChoice`）。`path` は絶対パス */
-export interface BookChoice {
+export type BookChoice = {
   path: string;
   useInAnalysis: boolean;
-}
+};
 
 /**
- * 起動で送らなかった・変えて送った設定（Rust の `StartWarning`）。**起動はできている。**
+ * 起動で送らなかった、または変えて送った設定（Rust の `StartWarning`）。起動はできている。
  * 画面の文言は種類から組む（`app/providers/bridges/startWarningNotice.ts`）
  */
 export type StartWarning =
@@ -58,7 +53,7 @@ export type StartWarning =
   | { kind: "invalidType"; name: string; value: string };
 
 /**
- * プリセットに**保存する**オプションの定義1件（Rust の `UsiOptionDef`）。画面に欄を出すためだけに使い、
+ * プリセットに保存するオプションの定義1件（Rust の `UsiOptionDef`）。画面に欄を出すためだけに使い、
  * 送るときは起動のたびの申告を見る。**ファイルに残る形なので、変えるときはプリセットの版を上げる**
  */
 export type UsiOptionDef = UsiOptionLabel &
@@ -73,7 +68,7 @@ export type UsiOptionDef = UsiOptionLabel &
 
 /**
  * 画面の名前と分類（Rust の `option_labels`）。辞書に無い名前は持たない。
- * **取得の結果にだけ載り、プリセットには保存しない**（`storedDefinitions` が外す）
+ * 取得の結果にだけ載り、プリセットには保存しない（`storedDefinitions` が外す）
  */
 export type UsiOptionLabel = {
   label?: string;
@@ -82,7 +77,7 @@ export type UsiOptionLabel = {
 };
 
 /** エンジンの申告を取った結果（Rust の `ProbeOutcome`） */
-export interface ProbeOutcome {
+export type ProbeOutcome = {
   /** 受けた番号をそのまま返す。いまの取得でなければ捨てる */
   token: number;
   /** 受けたパスをそのまま返す */
@@ -93,13 +88,13 @@ export interface ProbeOutcome {
   definitions: UsiOptionDef[];
   /** 評価関数・定跡・固定値が持つ名前（Rust の `binding::reserved_names`）。利用者の値としては送らない */
   reserved: string[];
-}
+};
 
 /** 解析の起動が返すもの（Rust の `StartOutcome`） */
-export interface StartOutcome {
+export type StartOutcome = {
   info: EngineInfo;
   warnings: StartWarning[];
-}
+};
 
 /**
  * エンジンを起動できなかった理由の種類（Rust の `StartFailureKind`）。
@@ -116,37 +111,21 @@ export type StartFailureKind =
   | "other";
 
 /** `start_analysis_engine` が断ったときの値（Rust の `StartFailure`）。`message` はエンジンの出力を含みうる */
-export interface StartFailure {
+export type StartFailure = {
   kind: StartFailureKind;
   /** エンジンが最後に出した行の要約（stderr を先に最大3行）。無ければ `null` */
   lastOutput: string | null;
   message: string;
-}
-
-export interface AnalysisConfig {
-  time_limit?: Duration;
-  depth_limit?: number;
-  node_limit?: number;
-  mate_search: boolean;
-  multi_pv?: number;
-}
-
-export interface AnalysisStatus {
-  is_analyzing: boolean;
-  session_id?: string | null;
-  elapsed_time?: Duration | null;
-  config?: AnalysisConfig | null;
-  analysis_count: number;
-}
+};
 
 export type EvaluationKind = "Centipawn" | { MateInMoves: number } | { MateUnknown: boolean };
 
-export interface Evaluation {
+export type Evaluation = {
   value: number;
   kind: EvaluationKind;
-}
+};
 
-export interface AnalysisCandidate {
+export type AnalysisCandidate = {
   rank: number;
   first_move?: string | null;
   pv_line: string[];
@@ -154,22 +133,21 @@ export interface AnalysisCandidate {
   depth?: number | null;
   nodes?: number | null;
   time_ms?: number | null;
-}
+};
 
-export interface AnalysisResult {
+export type AnalysisResult = {
   candidates: AnalysisCandidate[];
   mate_sequence?: string[] | null;
-}
+};
 
 /**
- * 深度指定の解析が返すもの。
+ * 深度指定の解析が返すもの。**`result` は `reached` を見てから使う。**
  *
- * **`reached` を見ること。** `go depth` は送っていない（`usi` crate に
- * 深度を載せる手段が無い）ので、Rust 側は `info depth` を見て `stop` を撃つ。
- * 時間の打ち切りが先に来れば、目標に届かないまま結果が返る。
- * `result` だけを読むと、深度22の結果を深度40の解析として画面に出すことになる。
+ * `usi` crate に深度を載せる手段が無く `go depth` は送れないので、Rust 側は `info depth` を見て
+ * `stop` を送る。時間の打ち切りが先に来れば、目標に届かないまま結果が返る。
+ * `result` だけを読むと、深度22の結果を深度40の解析として画面に出すことになる
  */
-export interface DepthOutcome {
+export type DepthOutcome = {
   result: AnalysisResult;
   /** 要求した深度 */
   requested: number;
@@ -177,23 +155,7 @@ export interface DepthOutcome {
   deepest?: number | null;
   /** `requested` に届いたか */
   reached: boolean;
-}
-
-export interface BatchAnalysisPosition {
-  moves: string[];
-  name?: string;
-}
-
-export interface BatchAnalysisConfig {
-  timeSeconds?: number;
-  depth?: number;
-}
-
-export interface BatchAnalysisResult {
-  position: string;
-  name?: string;
-  result: AnalysisResult;
-}
+};
 
 /** エンジンに指示が通らなくなった理由（Rust の `UnresponsiveReason`） */
 export type UnresponsiveReason = "noAnswer" | "unwritable";

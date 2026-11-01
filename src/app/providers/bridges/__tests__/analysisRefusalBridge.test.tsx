@@ -11,7 +11,7 @@ const POSITION_SYNC_TIMEOUT_MESSAGE =
 
 /** (V2, E16) (V3, E16) AC-23: 検討の断りは帯に出る */
 let error: string | null = null;
-const initialize = vi.fn<() => Promise<boolean>>();
+const initialize = vi.fn<() => Promise<void>>();
 const notify = vi.fn<(request: NotifyRequest) => void>();
 const dismissByKey = vi.fn<(key: string) => void>();
 const openModal = vi.fn();
@@ -72,7 +72,7 @@ beforeEach(() => {
   notify.mockClear();
   dismissByKey.mockClear();
   initialize.mockReset();
-  initialize.mockResolvedValue(true);
+  initialize.mockResolvedValue(undefined);
   openModal.mockClear();
 });
 afterEach(cleanup);

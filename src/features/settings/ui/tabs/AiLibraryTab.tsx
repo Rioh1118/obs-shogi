@@ -10,8 +10,8 @@ import { useAppConfig } from "@/entities/app-config";
 import {
   canCreateEnginesDir,
   classifyEnginesDir,
-  enginesDirRevealable,
-  enginesDirUsable,
+  canRevealEnginesDir,
+  canListEnginesDir,
   type EnginesDir,
 } from "@/entities/engine/lib/enginesDir";
 import {
@@ -242,7 +242,7 @@ export default function AiLibraryTab() {
 
     // **`engines/` が使えるときだけ言う。** 無い回・フォルダでない回に続けて言うと、
     // 1行目が「フォルダではない」と言った当のものの中へ置け、と指示することになる
-    if (enginesDirUsable(dir) && !(data.engines ?? []).some(isEngineForThisMachine)) {
+    if (canListEnginesDir(dir) && !(data.engines ?? []).some(isEngineForThisMachine)) {
       ws.push("エンジン実行ファイルが未検出です。engines/ 配下に置いてください。");
     }
     for (const p of data.profiles ?? []) {
@@ -363,7 +363,7 @@ export default function AiLibraryTab() {
     if (localAiRoot.trim()) void revealOrNotify("AI ライブラリ", localAiRoot);
   }, [localAiRoot, revealOrNotify]);
 
-  // **索引に載っているパスだけを開きに行く。** 押せる条件は `enginesDirRevealable` が持つので、
+  // **索引に載っているパスだけを開きに行く。** 押せる条件は `canRevealEnginesDir` が持つので、
   // 読めていない回に当て推量（`<root>/engines`）で空を埋める必要は無い
   const enginesDirPath = data?.engines_dir?.path ?? "";
 
@@ -371,7 +371,7 @@ export default function AiLibraryTab() {
     if (enginesDirPath.trim()) void revealOrNotify("engines/", enginesDirPath);
   }, [enginesDirPath, revealOrNotify]);
 
-  const revealable = enginesDirRevealable(enginesDir);
+  const revealable = canRevealEnginesDir(enginesDir);
 
   /**
    * AI フォルダを作る。**名前の失敗だけを呼び出し元へ返す。**

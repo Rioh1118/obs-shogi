@@ -21,8 +21,8 @@
 `isReady` は S2 と同義ではない。`desiredRuntime` と `activeRuntime` の一致まで見る
 （`provider.tsx`）。**設定を変えた直後は S2 のまま `isReady === false`。**
 
-どの起動の結果を state に書くかは世代（`provider.tsx` の `seqRef`）で決める。
-`initialize` / `shutdown` を撃つたびに上がり、古い世代の結果は捨てる。
+どの起動の結果を state に書くかは世代（`provider.tsx` の `lastRequestRef`）で決める。
+`initialize` / `shutdown` を呼ぶたびに上がり、古い世代の結果は捨てる。
 
 ## 外部の状態（Rust プロセス）
 
@@ -71,9 +71,9 @@
 ### 注
 
 ※1 **停止は進行中の起動を待たない。** Rust が起動中のプロセスを落とし、その起動は `cancelled` で
-断られる。断りは世代が古いので捨てる（`provider.tsx` の `seqRef`）。待つ形だと、`readyok` を
+断られる。断りは世代が古いので捨てる（`provider.tsx` の `lastRequestRef`）。待つ形だと、`readyok` を
 返さないエンジンを選んだ回に停止ごと固まる。**停止の往復の間に次の起動を撃っていたら、停止の結果で
-`idle` を書かない**（書くと effect の `idle` の枝が同じ設定でもう1回起動する）。
+`idle` を書かない**（書くと `lifecycleStepOf` の `idle` の枝が同じ設定でもう1回起動する）。
 
 **世代は Rust にも渡す**（`startAnalysisEngine` / `shutdownEngine` の `request`）。Tauri のコマンドは
 別々のタスクで走るので、撃った順と Rust に着く順が逆転しうる。Rust は既に受けた番号より古い
@@ -81,7 +81,7 @@
 取り消すことは無い。
 
 ※2 起動中に別の設定になったら、前の起動の結果を待たずにその設定で起動し直す
-（`provider.tsx` の effect の `initializing` の枝）。前の起動は Rust が落とし、前の呼び出しの
+（`lifecycleStepOf` の `initializing` の枝）。前の起動は Rust が落とし、前の呼び出しの
 断り（`cancelled`）は世代が古いので捨てる。**進行中の起動を使い回す口は無い**——使い回すと、
 前の設定の起動結果を新しい設定のものとして `activeRuntime` に書く。
 踏んでいるのは `provider.test.tsx` の「起動中に設定が変わったら、その設定で起動し直す」。
@@ -150,8 +150,8 @@ S5 から落とすときは `quit` を待たない（`EngineRegistry::kill`）�
 - `(S2, E2)` 起動済みからの停止の、フロントの側。Rust の側は `analyzer.rs` の `tests::starting` が踏む
 
 **`entities/engine` のテスト**は `model/__tests__/provider.test.tsx`（`(S3, E4)` / `(S3, E3)` /
-`(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 撃つたびに上がる番号 / E11 と S4 の抜け方）、
+`(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 呼ぶたびに上がる番号 / E11 と S4 の抜け方）、
 `model/__tests__/notReadyReason.test.tsx`（`notReadyReason` の割り当て）と
-`lib/__tests__/`（`asStartFailure`、`valuesOf` と `equalRuntime`）。
+`lib/__tests__/`（`asStartFailure`、`toOptionValues`、`equalRuntime`、`lifecycleStepOf`、`notReadyReasonOf`）。
 `(S3, E9)` と E10 の帯は `app/providers/bridges/__tests__/engineFailureBridge.test.tsx`。
 Rust の側の順序（古い番号の要求を断る）は `analyzer.rs` の `tests::starting`。

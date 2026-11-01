@@ -43,7 +43,8 @@ ours 戦略のマージは使わない。
 | 7 | `refactor/position-public-names` | `src/entities/position` の公開の名前と呼び手 | #669 | マージ済み |
 | 8 | `refactor/tidy-entities-position` | `src/entities/position` の残り | #670 | マージ済み |
 | 9 | `refactor/tidy-entities-game-lib` | `src/entities/game` の `lib` | #672 | マージ済み |
-| 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | レビュー待ち |
+| 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | マージ済み |
+| 11 | `refactor/tidy-entities-engine` | `src/entities/engine` | #674 | レビュー待ち |
 
 ## 語
 
@@ -70,7 +71,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 5  | `src/entities/position`                                  | 1169 | 済     | 済     |
 | 6  | `src/entities/game` の `lib`                             | 1141 | 済     | —      |
 | 6b | `src/entities/game` の `model`                           | 1574 | 済     | 済     |
-| 7  | `src/entities/engine`、`src/entities/engine-presets`     | 2542 | 未着手 | 未着手 |
+| 7  | `src/entities/engine`                                    | 1570 | 済     | 済     |
+| 7b | `src/entities/engine-presets`                            |  972 | 未着手 | 未着手 |
 | 8  | `src/entities/analysis`                                  | 2298 | 未着手 | 未着手 |
 | 9  | `src/entities/game-session`                              | 1488 | 未着手 | 未着手 |
 | 10 | `src/entities/file-tree`                                 | 2168 | 未着手 | 未着手 |
@@ -123,8 +125,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
 | `.claude/skills/tidy-code/scripts/emit-unchanged.mjs` | 基点に無い新規ファイルで落ちる |
 | `src/entities/game/model/provider.tsx` の `getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。読み手は `src/widgets` と `src/features` なので、その範囲で直接読む形へ寄せる |
+| `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
+| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/entities/engine` と `src/entities/engine-presets`。2542行あるので、取るときに割る。
+`src/entities/engine-presets`。

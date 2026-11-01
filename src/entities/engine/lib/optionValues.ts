@@ -1,0 +1,10 @@
+import type { SetOptionValue } from "../api/rust-types";
+import type { EngineRuntimeConfig } from "../model/types";
+
+/**
+ * 利用者の値を送る形にする。USI の名前を足さない。評価関数、定跡、固定値の名前と送る順は、
+ * Rust が起動のたびの申告から決める（`binding.rs`）
+ */
+export function toOptionValues(config: EngineRuntimeConfig): SetOptionValue[] {
+  return Object.entries(config.values).map(([name, value]) => ({ name, value }));
+}

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { EngineRuntimeConfig } from "@/entities/engine/model/types";
 import { equalRuntime } from "../equalRuntime";
-import { valuesOf } from "../setup";
+import { toOptionValues } from "../optionValues";
 
 const CONFIG: EngineRuntimeConfig = {
   enginePath: "/ai/engines/yaneuraou",
@@ -11,12 +11,12 @@ const CONFIG: EngineRuntimeConfig = {
 };
 
 /**
- * **TS は USI の名前を足さない。** 評価関数・定跡・固定値の名前は Rust が起動のたびの申告から
+ * TS は USI の名前を足さない。評価関数、定跡、固定値の名前は Rust が起動のたびの申告から
  * 決める（`binding.rs`）。足すと、申告しないエンジン（zermelo の `EvalDir`）に届かない名前を送る
  */
-describe("valuesOf", () => {
+describe("toOptionValues", () => {
   test("利用者の値だけを送る形にし、評価関数・定跡の名前を足さない", () => {
-    const names = valuesOf(CONFIG).map((option) => option.name);
+    const names = toOptionValues(CONFIG).map((option) => option.name);
 
     expect(names).toEqual(["Threads", "USI_Hash", "MultiPV"]);
     for (const usiName of ["EvalDir", "EvalFile", "BookDir", "BookFile", "USI_OwnBook"]) {

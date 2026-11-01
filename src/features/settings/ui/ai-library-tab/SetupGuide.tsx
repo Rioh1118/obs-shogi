@@ -13,7 +13,7 @@ import Button from "@/shared/ui/Button/Button";
 import { describeFsError } from "@/entities/file-tree";
 import {
   canCreateEnginesDir,
-  enginesDirUsable,
+  canListEnginesDir,
   type EnginesDir,
 } from "@/entities/engine/lib/enginesDir";
 import { SField, SInput, SSection } from "../kit";
@@ -212,7 +212,7 @@ export default function SetupGuide({
   const canCreateProfile = canOperate && indexed && enginesCount > 0;
 
   const step1: StepState = canOperate ? "done" : "active";
-  const enginesDirReady = enginesDirUsable(enginesDir);
+  const enginesDirReady = canListEnginesDir(enginesDir);
 
   // フォルダでないものが居る間と、何が在るか読めていない間は塞ぐ。
   // どちらもこの段の操作（作成）が通る保証が無い——何をすべきかは hero が言う
@@ -289,7 +289,7 @@ export default function SetupGuide({
     // 3つを名前で並べると、`EnginesDir` に状態が増えた日（#469）に
     // その状態が下の「エンジンを置いてください」へ落ちる——engines が
     // どうなっているか誰も読めていないのに、次の段の指示が出る
-    if (!enginesDirUsable(enginesDir)) {
+    if (!canListEnginesDir(enginesDir)) {
       if (enginesDir === "other") {
         return {
           tone: "warn",
