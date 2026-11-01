@@ -9,7 +9,6 @@ import {
   type GameContextType,
   type GameProviderProps,
   type GameView,
-  type JKFPlayerHelpers,
   type KifuLoadFailure,
   type ShogiMove,
   type StandardMoveFormat,
@@ -27,7 +26,7 @@ import {
   type BranchPlan,
   type CursorPath,
 } from "@/entities/kifu/model/cursor";
-import { ShogiMoveValidator } from "../lib/shogiMoveValidator";
+import { getLegalDrops, getLegalMovesFrom } from "../lib/moveValidation";
 import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
 import {
   advanceToLeafWithPlan,
@@ -50,7 +49,6 @@ import {
 
 export function GameProvider({ children, persistence, moveGate }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
-  const moveValidator = useMemo(() => new ShogiMoveValidator(), []);
 
   /**
    * 盤の着手を通す判定。**`ref` に映す。**
@@ -244,12 +242,12 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
 
     try {
       return sel.type === "square"
-        ? moveValidator.getLegalMovesFrom(player.shogi, sel.x, sel.y)
-        : moveValidator.getLegalDropsByKind(player.shogi, sel.color, sel.kind);
+        ? getLegalMovesFrom(player.shogi, sel.x, sel.y)
+        : getLegalDrops(player.shogi, sel.color, sel.kind);
     } catch {
       return [];
     }
-  }, [cursorView.player, state.selectedPosition, moveValidator]);
+  }, [cursorView.player, state.selectedPosition]);
 
   const view = useMemo<GameView>(
     () => ({ ...cursorView, legalMoves, hasKifu: !!cursorView.player?.shogi }),
@@ -693,9 +691,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
           return;
         }
 
-        const legalMoves = moveValidator.getLegalDropsByKind(player.shogi, color, kind);
-
-        if (legalMoves.length === 0) {
+        if (getLegalDrops(player.shogi, color, kind).length === 0) {
           dispatch({ type: "clear_selection" });
           return;
         }
@@ -709,7 +705,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
         dispatch({ type: "set_error", payload: msg });
       }
     },
-    [view.player, moveValidator],
+    [view.player],
   );
 
   const clearSelection = useCallback(() => {
@@ -762,31 +758,10 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     [state.jkf, state.branchPlan],
   );
 
-  const helpers = useMemo<JKFPlayerHelpers>(
-    () => ({
-      canPromoteMove: (player, move) => {
-        try {
-          return moveValidator.canPromote(player.shogi, move);
-        } catch {
-          return false;
-        }
-      },
-      mustPromoteMove: (player, move) => {
-        try {
-          return moveValidator.mustPromote(player.shogi, move);
-        } catch {
-          return false;
-        }
-      },
-    }),
-    [moveValidator],
-  );
-
   const contextValue = useMemo<GameContextType>(
     () => ({
       state,
       view,
-      helpers,
       loadGame,
       resetGame,
       renameLoadedPath,
@@ -814,7 +789,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     [
       state,
       view,
-      helpers,
       loadGame,
       resetGame,
       renameLoadedPath,

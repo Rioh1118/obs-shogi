@@ -12,6 +12,8 @@ export { createOutcomeJudge } from "./lib/gameOutcome";
 export type { GameOutcome, GameOutcomeFailure } from "./lib/gameOutcome";
 // 盤の手を対局の境界へ出す綴り。呼び出し元は `features/game-move`
 export { fromUsiMove, isPrefixOf, lineUsiMoves, toUsiMove } from "./lib/usiMove";
+// 盤の成りの選択を出すかの判定。呼び出し元は `widgets/game-board`
+export { canPromote, mustPromote } from "./lib/moveValidation";
 export { colorToSide } from "./lib/ruleColor";
 export { DEFAULT_GAME_RULES } from "./lib/gameRules";
 export type { GameRules } from "./lib/gameRules";

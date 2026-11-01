@@ -293,11 +293,6 @@ export const initialGameState: GameContextState = {
   error: null,
 };
 
-export interface JKFPlayerHelpers {
-  canPromoteMove: (player: JKFPlayer, move: ShogiMove) => boolean;
-  mustPromoteMove: (player: JKFPlayer, move: ShogiMove) => boolean;
-}
-
 export interface StandardMoveFormat {
   from?: { x: number; y: number };
   to: { x: number; y: number };
@@ -323,7 +318,6 @@ export type GamePersistence = {
 export interface GameContextType {
   state: GameContextState;
   view: GameView;
-  helpers: JKFPlayerHelpers;
 
   /**
    * 棋譜を盤に載せる。**投げない。** 載せられなければ `Err` で `KifuLoadFailure` が返る。

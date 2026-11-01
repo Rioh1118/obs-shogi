@@ -15,7 +15,7 @@
 **Rust はここで将棋のルールを持たない。**
 
 合法手と成りの判定は**既にフロントにある**
-（`src/entities/game/lib/shogiMoveValidator.ts`、shogi.js）。盤の表示
+（`src/entities/game/lib/moveValidation.ts`、shogi.js）。盤の表示
 （移動可能マスの強調・成り選択）にも要るので消せず、Rust に重ねると
 合法手判定が2実装になる。ルールをフロント側に寄せるのはそのため。
 
