@@ -53,7 +53,7 @@ ours 戦略のマージは使わない。
 | 17 | `refactor/tidy-file-tree-provider` | `src/entities/file-tree/model/provider.tsx`、改名の不具合と #507 | #682 | マージ済み |
 | 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | マージ済み |
 | 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | マージ済み |
-| 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | 未定 | レビュー待ち |
+| 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | レビュー待ち |
 
 ## 語
 
