@@ -16,7 +16,7 @@ import type { SearchEventHandlers } from "@/entities/search/api/tauri";
  * 回数は画面に出ないので、**人の目では追えない**。
  */
 
-let handlers: SearchEventHandlers = {};
+let handlers!: SearchEventHandlers;
 let listenCount = 0;
 
 let nextRequestId = 0;
@@ -126,14 +126,13 @@ async function mount() {
 function deliver(k: number) {
   for (let i = 0; i < k; i++) {
     act(() => {
-      handlers.onSearchChunk?.(chunkOf(2, i * 2));
+      handlers.onSearchChunk(chunkOf(2, i * 2));
     });
   }
 }
 
 beforeEach(() => {
   vi.useFakeTimers();
-  handlers = {};
   listenCount = 0;
   renders = 0;
   hitCount = 0;
@@ -184,7 +183,7 @@ describe("チャンクの合流", () => {
     deliver(4);
 
     act(() => {
-      handlers.onSearchEnd?.({ requestId: RID } satisfies SearchEndPayload);
+      handlers.onSearchEnd({ requestId: RID } satisfies SearchEndPayload);
     });
 
     expect(hitCount).toBe(8);
@@ -209,7 +208,7 @@ describe("チャンクの合流", () => {
 
     for (let i = 0; i < 10; i++) {
       act(() => {
-        handlers.onSearchChunk?.(chunkOf(2, i * 2));
+        handlers.onSearchChunk(chunkOf(2, i * 2));
       });
       act(() => {
         vi.runAllTimers();
@@ -230,7 +229,7 @@ describe("チャンクの合流", () => {
     await mount();
 
     act(() => {
-      handlers.onSearchChunk?.(chunkOf(2, 0));
+      handlers.onSearchChunk(chunkOf(2, 0));
     });
     act(() => {
       vi.runAllTimers();
@@ -239,7 +238,7 @@ describe("チャンクの合流", () => {
     const first = seen;
 
     act(() => {
-      handlers.onSearchChunk?.(chunkOf(2, 2));
+      handlers.onSearchChunk(chunkOf(2, 2));
     });
     act(() => {
       vi.runAllTimers();
@@ -287,7 +286,7 @@ describe("チャンクの合流", () => {
     cleanup();
 
     act(() => {
-      handlers.onSearchChunk?.(chunkOf(2, 0));
+      handlers.onSearchChunk(chunkOf(2, 0));
     });
 
     expect(vi.getTimerCount()).toBe(0);
@@ -343,7 +342,7 @@ describe("検索の終わり", () => {
 
     // `search_begin` は撃たない（取りこぼした回）
     act(() => {
-      handlers.onSearchEnd?.({ requestId: 3 } satisfies SearchEndPayload);
+      handlers.onSearchEnd({ requestId: 3 } satisfies SearchEndPayload);
     });
 
     expect(isSearchingRequest(3)).toBe(false);
@@ -362,8 +361,8 @@ describe("消えたセッション宛のチャンク", () => {
     await mount();
 
     act(() => {
-      handlers.onSearchBegin?.({ requestId: RID, stale: false });
-      handlers.onSearchChunk?.(chunkOf(2, 0));
+      handlers.onSearchBegin({ requestId: RID, stale: false });
+      handlers.onSearchChunk(chunkOf(2, 0));
     });
 
     // 根を開き直す（`open_start`）
@@ -377,7 +376,7 @@ describe("消えたセッション宛のチャンク", () => {
 
     // 取り下げの届いていない Rust が、まだ同じ rid で送ってくる
     act(() => {
-      handlers.onSearchChunk?.(chunkOf(2, 2));
+      handlers.onSearchChunk(chunkOf(2, 2));
     });
     act(() => {
       vi.runAllTimers();
@@ -396,8 +395,8 @@ describe("消えたセッション宛のチャンク", () => {
     await mount();
 
     act(() => {
-      handlers.onSearchBegin?.({ requestId: RID, stale: false });
-      handlers.onSearchChunk?.(chunkOf(2, 0));
+      handlers.onSearchBegin({ requestId: RID, stale: false });
+      handlers.onSearchChunk(chunkOf(2, 0));
     });
     act(() => {
       vi.runAllTimers();
@@ -410,7 +409,7 @@ describe("消えたセッション宛のチャンク", () => {
     expect(sessionIds).toEqual([]);
 
     act(() => {
-      handlers.onSearchEnd?.({ requestId: RID } satisfies SearchEndPayload);
+      handlers.onSearchEnd({ requestId: RID } satisfies SearchEndPayload);
     });
 
     expect(sessionIds).toEqual([]);
@@ -421,8 +420,8 @@ describe("消えたセッション宛のチャンク", () => {
     await mount();
 
     act(() => {
-      handlers.onSearchBegin?.({ requestId: RID, stale: false });
-      handlers.onSearchChunk?.(chunkOf(2, 0));
+      handlers.onSearchBegin({ requestId: RID, stale: false });
+      handlers.onSearchChunk(chunkOf(2, 0));
     });
     act(() => {
       vi.runAllTimers();
@@ -433,7 +432,7 @@ describe("消えたセッション宛のチャンク", () => {
     });
 
     act(() => {
-      handlers.onSearchBegin?.({ requestId: RID, stale: false });
+      handlers.onSearchBegin({ requestId: RID, stale: false });
     });
 
     expect(sessionIds).toEqual([]);
@@ -449,7 +448,7 @@ describe("消えたセッション宛のチャンク", () => {
 
     // rid 8 の始まりだけを見た状態にする
     act(() => {
-      handlers.onSearchBegin?.({ requestId: 8, stale: false });
+      handlers.onSearchBegin({ requestId: 8, stale: false });
     });
 
     // rid 9 は invoke だけ済んでいる（イベントはまだ1つも来ていない）
@@ -471,7 +470,7 @@ describe("消えたセッション宛のチャンク", () => {
     });
 
     act(() => {
-      handlers.onSearchChunk?.({ ...chunkOf(2, 0), requestId: 9 });
+      handlers.onSearchChunk({ ...chunkOf(2, 0), requestId: 9 });
     });
     act(() => {
       vi.runAllTimers();
@@ -512,7 +511,7 @@ describe("消えたセッション宛のチャンク", () => {
     });
 
     act(() => {
-      handlers.onSearchChunk?.({ ...chunkOf(2, 0), requestId: 12 });
+      handlers.onSearchChunk({ ...chunkOf(2, 0), requestId: 12 });
     });
     act(() => {
       vi.runAllTimers();
@@ -527,8 +526,8 @@ describe("消えたセッション宛のチャンク", () => {
     await mount();
 
     act(() => {
-      handlers.onSearchBegin?.({ requestId: RID, stale: false });
-      handlers.onSearchChunk?.(chunkOf(2, 0));
+      handlers.onSearchBegin({ requestId: RID, stale: false });
+      handlers.onSearchChunk(chunkOf(2, 0));
     });
 
     await act(async () => {
@@ -541,8 +540,8 @@ describe("消えたセッション宛のチャンク", () => {
 
     const nextRid = RID + 1;
     act(() => {
-      handlers.onSearchBegin?.({ requestId: nextRid, stale: false });
-      handlers.onSearchChunk?.({ ...chunkOf(2, 0), requestId: nextRid });
+      handlers.onSearchBegin({ requestId: nextRid, stale: false });
+      handlers.onSearchChunk({ ...chunkOf(2, 0), requestId: nextRid });
     });
     act(() => {
       vi.runAllTimers();

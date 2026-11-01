@@ -11,7 +11,7 @@ const { openProjectApi, searchPositionApi, cancelSearchApi } = vi.hoisted(() => 
   cancelSearchApi: vi.fn(),
 }));
 
-let handlers: SearchEventHandlers = {};
+let handlers!: SearchEventHandlers;
 
 vi.mock(
   "@/entities/search/api/tauri",
@@ -142,7 +142,7 @@ describe("ヒットのパス", () => {
     });
 
     act(() => {
-      handlers.onSearchChunk?.({
+      handlers.onSearchChunk({
         requestId: 7,
         chunk: [hit],
         files: [{ fileId: 1, absPath: "/ws/a.kif" }],

@@ -7,7 +7,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { UnlistenFn } from "@tauri-apps/api/event";
 
 import {
   openProject as openProjectApi,
@@ -153,7 +152,7 @@ export function PositionSearchProvider({
   // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
   useEffect(() => {
     let cancelled = false;
-    let unlisten: UnlistenFn | null = null;
+    let unlisten: (() => void) | null = null;
 
     (async () => {
       try {

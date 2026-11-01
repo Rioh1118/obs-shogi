@@ -101,4 +101,18 @@ describe("listenSearchEvents", () => {
     unlistenAll();
     expect(unlisten).toHaveBeenCalledTimes(7);
   });
+
+  /** 残すと、購読に失敗した provider のハンドラが一部のイベントだけ受け続ける */
+  it("途中で失敗したら、張れた分を解除して投げ直す", async () => {
+    const unlisten = vi.fn();
+    listen
+      .mockResolvedValueOnce(unlisten)
+      .mockResolvedValueOnce(unlisten)
+      .mockRejectedValueOnce(new Error("張れない"));
+
+    await expect(listenSearchEvents(handlers)).rejects.toThrow("張れない");
+
+    expect(listen).toHaveBeenCalledTimes(3);
+    expect(unlisten).toHaveBeenCalledTimes(2);
+  });
 });

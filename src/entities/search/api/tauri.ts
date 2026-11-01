@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
+
+import { subscribeAll } from "@/shared/api/event/subscribeAll";
 
 import type {
   CancelSearchInput,
@@ -53,64 +55,28 @@ export async function cancelSearch(requestId: number): Promise<void> {
 // ===== イベント購読ヘルパ =====
 
 export interface SearchEventHandlers {
-  onIndexState?: (p: IndexStatePayload) => void;
-  onIndexProgress?: (p: IndexProgressPayload) => void;
-  onIndexWarn?: (p: IndexWarnPayload) => void;
+  onIndexState: (p: IndexStatePayload) => void;
+  onIndexProgress: (p: IndexProgressPayload) => void;
+  onIndexWarn: (p: IndexWarnPayload) => void;
 
-  onSearchBegin?: (p: SearchBeginPayload) => void;
-  onSearchChunk?: (p: SearchChunkPayload) => void;
-  onSearchEnd?: (p: SearchEndPayload) => void;
-  onSearchError?: (p: SearchErrorPayload) => void;
+  onSearchBegin: (p: SearchBeginPayload) => void;
+  onSearchChunk: (p: SearchChunkPayload) => void;
+  onSearchEnd: (p: SearchEndPayload) => void;
+  onSearchError: (p: SearchErrorPayload) => void;
 }
 
-export async function listenSearchEvents(handlers: SearchEventHandlers): Promise<UnlistenFn> {
-  const unlisteners: UnlistenFn[] = [];
+function subscribePayload<T>(name: string, handler: (payload: T) => void) {
+  return () => listen<T>(name, (event) => handler(event.payload));
+}
 
-  if (handlers.onIndexState) {
-    unlisteners.push(
-      await listen<IndexStatePayload>(EVT_INDEX_STATE, (e) => handlers.onIndexState?.(e.payload)),
-    );
-  }
-  if (handlers.onIndexProgress) {
-    unlisteners.push(
-      await listen<IndexProgressPayload>(EVT_INDEX_PROGRESS, (e) =>
-        handlers.onIndexProgress?.(e.payload),
-      ),
-    );
-  }
-  if (handlers.onIndexWarn) {
-    unlisteners.push(
-      await listen<IndexWarnPayload>(EVT_INDEX_WARN, (e) => handlers.onIndexWarn?.(e.payload)),
-    );
-  }
-  if (handlers.onSearchBegin) {
-    unlisteners.push(
-      await listen<SearchBeginPayload>(EVT_SEARCH_BEGIN, (e) =>
-        handlers.onSearchBegin?.(e.payload),
-      ),
-    );
-  }
-  if (handlers.onSearchChunk) {
-    unlisteners.push(
-      await listen<SearchChunkPayload>(EVT_SEARCH_CHUNK, (e) =>
-        handlers.onSearchChunk?.(e.payload),
-      ),
-    );
-  }
-  if (handlers.onSearchEnd) {
-    unlisteners.push(
-      await listen<SearchEndPayload>(EVT_SEARCH_END, (e) => handlers.onSearchEnd?.(e.payload)),
-    );
-  }
-  if (handlers.onSearchError) {
-    unlisteners.push(
-      await listen<SearchErrorPayload>(EVT_SEARCH_ERROR, (e) =>
-        handlers.onSearchError?.(e.payload),
-      ),
-    );
-  }
-
-  return () => {
-    for (const u of unlisteners) u();
-  };
+export function listenSearchEvents(handlers: SearchEventHandlers): Promise<() => void> {
+  return subscribeAll([
+    subscribePayload(EVT_INDEX_STATE, handlers.onIndexState),
+    subscribePayload(EVT_INDEX_PROGRESS, handlers.onIndexProgress),
+    subscribePayload(EVT_INDEX_WARN, handlers.onIndexWarn),
+    subscribePayload(EVT_SEARCH_BEGIN, handlers.onSearchBegin),
+    subscribePayload(EVT_SEARCH_CHUNK, handlers.onSearchChunk),
+    subscribePayload(EVT_SEARCH_END, handlers.onSearchEnd),
+    subscribePayload(EVT_SEARCH_ERROR, handlers.onSearchError),
+  ]);
 }
