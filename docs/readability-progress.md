@@ -51,6 +51,7 @@ ours 戦略のマージは使わない。
 | 15 | `refactor/tidy-entities-game-session` | `src/entities/game-session` | #680 | マージ済み |
 | 16 | `refactor/tidy-entities-file-tree` | `src/entities/file-tree` の `provider.tsx` 以外 | #681 | マージ済み |
 | 17 | `refactor/tidy-file-tree-provider` | `src/entities/file-tree/model/provider.tsx`、改名の不具合と #507 | #682 | マージ済み |
+| 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | レビュー待ち |
 
 ## 語
 
