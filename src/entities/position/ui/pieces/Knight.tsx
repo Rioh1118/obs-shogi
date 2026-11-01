@@ -10,7 +10,7 @@ function Knight({ color, onClick }: PieceProps) {
     <div
       className={`piece piece__knight ${color === PLAYER_COLORS.SENTE ? "sente" : "gote"}`}
       onClick={onClick}
-      date-piece="knight"
+      data-piece="knight"
       data-color={color}
     >
       <img src={imagePath} alt="桂馬" className="piece-image" draggable={false} />

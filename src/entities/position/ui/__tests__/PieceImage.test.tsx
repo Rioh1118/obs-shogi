@@ -40,6 +40,7 @@ describe("駒の描き分け", () => {
     const black = pieceOf(render(<PieceImage kind={kind} color={Color.Black} />).container);
     expect(black.piece.className).toBe(`piece piece__${cls} sente`);
     expect(black.piece.dataset.color).toBe("0");
+    expect(black.piece.dataset.piece).toBe(cls);
     expect(black.image.getAttribute("alt")).toBe(alt);
     expect(black.image.getAttribute("src")).toContain(`black_${file}.png`);
     cleanup();
@@ -54,6 +55,7 @@ describe("駒の描き分け", () => {
   test("玉は先手が王で後手が玉、後手の画像だけファイル名が違う", () => {
     const black = pieceOf(render(<PieceImage kind="OU" color={Color.Black} />).container);
     expect(black.piece.className).toBe("piece piece__king sente");
+    expect(black.piece.dataset.piece).toBe("king");
     expect(black.image.getAttribute("alt")).toBe("王");
     expect(black.image.getAttribute("src")).toContain("black_king.png");
     cleanup();

@@ -10,7 +10,7 @@ function Lance({ color, onClick }: PieceProps) {
     <div
       className={`piece piece__lance ${color === PLAYER_COLORS.SENTE ? "sente" : "gote"}`}
       onClick={onClick}
-      date-piece="lance"
+      data-piece="lance"
       data-color={color}
     >
       <img src={imagePath} alt="香" className="piece-image" draggable={false} />

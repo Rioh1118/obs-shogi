@@ -10,7 +10,7 @@ function Pawn({ color, onClick }: PieceProps) {
     <div
       className={`piece piece__pawn ${color === PLAYER_COLORS.SENTE ? "sente" : "gote"}`}
       onClick={onClick}
-      date-piece="pawn"
+      data-piece="pawn"
       data-color={color}
     >
       <img src={imagePath} alt="歩" className="piece-image" draggable={false} />

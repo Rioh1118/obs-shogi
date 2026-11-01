@@ -10,7 +10,7 @@ function Gold({ color, onClick }: PieceProps) {
     <div
       className={`piece piece__gold ${color === PLAYER_COLORS.SENTE ? "sente" : "gote"}`}
       onClick={onClick}
-      date-piece="gold"
+      data-piece="gold"
       data-color={color}
     >
       <img src={imagePath} alt="金" className="piece-image" draggable={false} />
