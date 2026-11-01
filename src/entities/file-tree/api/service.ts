@@ -1,145 +1,96 @@
-import { asFsError } from "./error";
-import type { AsyncResult } from "@/shared/lib/result";
+import { asFsError, type FsError } from "./error";
+import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import type { FileTreeNode } from "../model/types";
 import type { KifuCreationOptions } from "@/entities/kifu/model/kifu";
-import type { JKFData } from "@/entities/kifu/model/jkf";
 import * as fs from "./fileSystem";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { createInitialJKFData } from "@/entities/kifu/lib/createInitialJKFData";
-import type { FsError } from "./error";
 
-export async function fetchTree(rootPath: string): AsyncResult<FileTreeNode, FsError> {
+/** `run` の成否を `FsError` の `Result` へ畳む */
+async function attempt<T>(run: () => Promise<T>): AsyncResult<T, FsError> {
   try {
-    const tree = await fs.getFileTree(rootPath);
-    return { success: true, data: tree };
+    return Ok(await run());
   } catch (e) {
-    return { success: false, error: asFsError(e) };
+    return Err(asFsError(e));
   }
+}
+
+export function fetchTree(rootPath: string): AsyncResult<FileTreeNode, FsError> {
+  return attempt(() => fs.getFileTree(rootPath));
 }
 
 /**
- * テキストとして読む。**投げない。**
+ * テキストとして読む。投げない。
  *
- * `api/fileSystem` の `readFile` は生の invoke の包みで投げるので、
- * 呼び出し側が `catch {}` で握り潰すと、権限も見つからないも解析失敗も
- * 同じ「何も出ない」に落ちる。公開面にはこちらだけを出す
+ * `api/fileSystem` の `readFile` は投げるので、呼び手が `catch {}` で握り潰すと、
+ * 権限も見つからないも同じ「何も出ない」に落ちる。公開面にはこちらだけを出す
  */
-export async function readText(path: string): AsyncResult<string, FsError> {
-  try {
-    return { success: true, data: await fs.readFile(path) };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+export function readText(path: string): AsyncResult<string, FsError> {
+  return attempt(() => fs.readFile(path));
 }
 
 export async function readKifu(node: FileTreeNode): AsyncResult<string, FsError> {
-  try {
-    const content = await fs.readFile(node.path);
-    return { success: true, data: content };
-  } catch (e) {
-    // **どの棋譜で起きたかを必ず載せる。** `io::Error` 由来の失敗（権限が無い、
-    // ボリュームが外れた）は Rust 側で `path` を積まないので、補わないと
-    // 読み手は「どれが読めなかったか」を判定できない。実際に
-    // `usePositionHitNavigation` は `kifuError.path` で移動の要求を捨てている
-    const error = asFsError(e);
-    return { success: false, error: error.path ? error : { ...error, path: node.path } };
-  }
+  const read = await readText(node.path);
+  if (read.success) return read;
+
+  // Rust は `io::Error` 由来の失敗（権限が無い、ボリュームが外れた）に `path` を積まない。
+  // 読み手は `path` でどの棋譜の失敗かを判定するので、ここで補う
+  const { error } = read;
+  return Err(error.path ? error : { ...error, path: node.path });
 }
 
-export async function createKifu(
+export function createKifu(
   parentPath: string,
   opt: KifuCreationOptions,
 ): AsyncResult<string, FsError> {
-  try {
-    const jkf: JKFData = createInitialJKFData(opt);
-    const path = await fs.createKifuFile(parentPath, opt.fileName, jkf);
-    return { success: true, data: path };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+  return attempt(() => fs.createKifuFile(parentPath, opt.fileName, createInitialJKFData(opt)));
 }
 
-export async function importKifu(
+export function importKifu(
   parentPath: string,
   fileName: string,
   raw: string,
 ): AsyncResult<string, FsError> {
-  try {
-    const parsed = parseKifuStringToJKF(raw);
-    const path = await fs.importKifuFile(parentPath, fileName, parsed.jkf);
-    return { success: true, data: path };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+  return attempt(() => fs.importKifuFile(parentPath, fileName, parseKifuStringToJKF(raw).jkf));
 }
 
-export async function createDir(parentPath: string, dirName: string): AsyncResult<string, FsError> {
-  try {
-    const path = await fs.createDirectory(parentPath, dirName);
-    return { success: true, data: path };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+export function createDir(parentPath: string, dirName: string): AsyncResult<string, FsError> {
+  return attempt(() => fs.createDirectory(parentPath, dirName));
 }
 
-export async function removeFile(path: string): AsyncResult<void, FsError> {
-  try {
+/** Rust の `()` は `null` で届く。`void` の `data` は `undefined` に揃える */
+export function removeFile(path: string): AsyncResult<void, FsError> {
+  return attempt(async () => {
     await fs.deleteFile(path);
-    return { success: true, data: undefined };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+  });
 }
 
-export async function removeDir(path: string): AsyncResult<void, FsError> {
-  try {
+export function removeDir(path: string): AsyncResult<void, FsError> {
+  return attempt(async () => {
     await fs.deleteDirectory(path);
-    return { success: true, data: undefined };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+  });
 }
 
-export async function renameFile(path: string, newName: string): AsyncResult<string, FsError> {
-  try {
-    const next = await fs.renameKifuFile(path, newName);
-    return { success: true, data: next };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+export function renameFile(path: string, newName: string): AsyncResult<string, FsError> {
+  return attempt(() => fs.renameKifuFile(path, newName));
 }
 
-export async function moveFile(
+export function moveFile(
   path: string,
   destDir: string,
   newName?: string,
 ): AsyncResult<string, FsError> {
-  try {
-    const next = await fs.mvKifuFile(path, destDir, newName);
-    return { success: true, data: next };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+  return attempt(() => fs.mvKifuFile(path, destDir, newName));
 }
 
-export async function renameDir(path: string, newName: string): AsyncResult<string, FsError> {
-  try {
-    const next = await fs.renameDirectory(path, newName);
-    return { success: true, data: next };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+export function renameDir(path: string, newName: string): AsyncResult<string, FsError> {
+  return attempt(() => fs.renameDirectory(path, newName));
 }
 
-export async function moveDir(
+export function moveDir(
   path: string,
   destParentDir: string,
   newName?: string,
 ): AsyncResult<string, FsError> {
-  try {
-    const next = await fs.mvDirectory(path, destParentDir, newName);
-    return { success: true, data: next };
-  } catch (e) {
-    return { success: false, error: asFsError(e) };
-  }
+  return attempt(() => fs.mvDirectory(path, destParentDir, newName));
 }
