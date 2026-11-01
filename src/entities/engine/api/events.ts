@@ -13,7 +13,7 @@ type AnalysisUpdate = { sessionId: AnalysisSessionId; result: AnalysisResult };
  * 評価値と読み筋が現在の盤面の解析結果として画面に出る（Rust 側が
  * `AnalysisUpdate` の doc に同じことを書いている）。
  */
-export async function listenToAnalysisUpdates(
+async function listenToAnalysisUpdates(
   callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
 ): Promise<UnlistenFn> {
   return await listen<AnalysisUpdate>(EVENT_NAMES.ANALYSIS_UPDATE, (event) => {
@@ -27,7 +27,7 @@ export async function listenToAnalysisUpdates(
  * **`sessionId` を照合すること**——一致しない完了通知を採ると、走っている別の席が
  * 終わったことになる。
  */
-export async function listenToAnalysisComplete(
+async function listenToAnalysisComplete(
   callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
 ): Promise<UnlistenFn> {
   return await listen<{ sessionId: AnalysisSessionId; result: AnalysisResult }>(
@@ -49,7 +49,7 @@ export interface EngineEventListeners {
 }
 
 // ===== 統合リスナー =====
-export interface AnalysisEventListeners {
+interface AnalysisEventListeners {
   onUpdate?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
   onComplete?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
 }

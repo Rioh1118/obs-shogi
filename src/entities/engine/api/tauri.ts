@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { nextRequestNumber } from "./requestNumber";
 import type {
   AnalysisResult,
-  AnalysisStatus,
   DepthOutcome,
   BookChoice,
   ProbeOutcome,
@@ -67,18 +66,8 @@ export async function shutdownEngine(request: EngineRequest): Promise<void> {
 }
 
 // ===== 局面設定 =====
-export async function setPosition(position: string): Promise<void> {
-  return await invoke("set_position", { position });
-}
-
-export async function setPositionFromMoves(moves: string[]): Promise<void> {
-  const position = moves.length > 0 ? `startpos moves ${moves.join(" ")}` : "startpos";
-  return await setPosition(position);
-}
-
 export async function setPositionFromSfen(sfen: string): Promise<void> {
-  const position = `${sfen}`;
-  return await setPosition(position);
+  return await invoke("set_position", { position: sfen });
 }
 
 // ===== 解析実行 =====
@@ -184,19 +173,4 @@ export async function stopAnalysis(
   by: SeatReleasePoint,
 ): Promise<StopOutcome> {
   return await invoke<StopOutcome>("stop_analysis", { sessionId, by });
-}
-
-// ===== 結果取得 =====
-export async function getAnalysisResult(
-  sessionId: AnalysisSessionId,
-): Promise<AnalysisResult | null> {
-  return await invoke("get_analysis_result", { sessionId });
-}
-
-export async function getLastResult(): Promise<AnalysisResult | null> {
-  return await invoke("get_last_result");
-}
-
-export async function getAnalysisStatus(): Promise<AnalysisStatus[]> {
-  return await invoke("get_analysis_status");
 }

@@ -54,8 +54,7 @@ export type EngineAction =
       payload: { reason: UnresponsiveReason; lastOutput: string | null };
     }
   | { type: "engine_answered" }
-  | { type: "shutdown" }
-  | { type: "clear_error" };
+  | { type: "shutdown" };
 
 /**
  * `isReady` が false である理由。**解析側が断りを選ぶのに使う。**
@@ -88,14 +87,12 @@ export type EngineReadiness =
 export type EngineContextType = EngineReadiness & {
   state: EngineState;
 
-  initialize: () => Promise<boolean>;
-  shutdown: () => Promise<void>;
+  initialize: () => Promise<void>;
   /**
    * 進行中の起動を中止する。エンジンを落とし、失敗（種類 `cancelled`）として止まる——
    * `idle` に戻すと、設定が選ばれたままなので同じ設定で起動し直してしまう
    */
   cancelStart: () => void;
-  clearError: () => void;
   /** `起動中…` が `SLOW_START_MS` を越えた。**帯とボタンが同じ値を読む** */
   slowStart: boolean;
   /** プリセットは選んだが、エンジンが未設定で起動を試みられない */

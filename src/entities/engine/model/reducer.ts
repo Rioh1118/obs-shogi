@@ -86,10 +86,6 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
       };
     }
 
-    case "clear_error": {
-      return { ...state, phase: "idle", error: null };
-    }
-
     default:
       return state;
   }

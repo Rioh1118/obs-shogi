@@ -1,22 +1,17 @@
-export interface Duration {
-  secs: number;
-  nanos: number;
-}
-
 export interface EngineInfo {
   name: string;
   author: string;
   options: EngineOption[];
 }
 
-export interface EngineOption {
+interface EngineOption {
   name: string;
   option_type: EngineOptionType;
   default_value?: string;
   current_value?: string;
 }
 
-export interface EngineOptionType {
+interface EngineOptionType {
   Check?: { default?: boolean };
   Spin?: { default?: number; min?: number; max?: number };
   Combo?: { default?: string; vars: string[] };
@@ -123,22 +118,6 @@ export interface StartFailure {
   message: string;
 }
 
-export interface AnalysisConfig {
-  time_limit?: Duration;
-  depth_limit?: number;
-  node_limit?: number;
-  mate_search: boolean;
-  multi_pv?: number;
-}
-
-export interface AnalysisStatus {
-  is_analyzing: boolean;
-  session_id?: string | null;
-  elapsed_time?: Duration | null;
-  config?: AnalysisConfig | null;
-  analysis_count: number;
-}
-
 export type EvaluationKind = "Centipawn" | { MateInMoves: number } | { MateUnknown: boolean };
 
 export interface Evaluation {
@@ -177,22 +156,6 @@ export interface DepthOutcome {
   deepest?: number | null;
   /** `requested` に届いたか */
   reached: boolean;
-}
-
-export interface BatchAnalysisPosition {
-  moves: string[];
-  name?: string;
-}
-
-export interface BatchAnalysisConfig {
-  timeSeconds?: number;
-  depth?: number;
-}
-
-export interface BatchAnalysisResult {
-  position: string;
-  name?: string;
-  result: AnalysisResult;
 }
 
 /** エンジンに指示が通らなくなった理由（Rust の `UnresponsiveReason`） */

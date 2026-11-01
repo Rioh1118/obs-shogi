@@ -37,7 +37,7 @@ const ENGINE_UNRESPONSIVE_NOTICES: Record<UnresponsiveReason, EngineStoppedNotic
 };
 
 /** 帯1枚ぶんの段・本文・「もう一度起動」を出すか */
-export type EngineStartFailureNotice = {
+type EngineStartFailureNotice = {
   tier: "warning" | "danger";
   body: string;
   retry: boolean;

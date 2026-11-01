@@ -82,8 +82,8 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
   // その結果は世代（`seqRef`）で捨てる。世代は Rust にも渡し、撃った順と着く順の逆転を Rust が断る
   // （`startAnalysisEngine` の `request`）。起動中に設定が変わった回
   // （`docs/state-transitions/engine.md` の (S1, E3)）がここを通る
-  const initialize = useCallback(async (): Promise<boolean> => {
-    if (!desiredRuntime) return false;
+  const initialize = useCallback(async (): Promise<void> => {
+    if (!desiredRuntime) return;
 
     const mySeq = nextRequestNumber();
     seqRef.current = mySeq;
@@ -98,7 +98,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
 
     try {
       const outcome = await engineInitializer.initialize(desiredRuntime, mySeq);
-      if (seqRef.current !== mySeq) return false;
+      if (seqRef.current !== mySeq) return;
 
       dispatch({
         type: "initialize_success",
@@ -110,14 +110,10 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
       });
       if (exitedRequestRef.current?.request === mySeq) {
         dispatch({ type: "engine_exited", payload: exitedRequestRef.current.lastOutput });
-        return false;
       }
-
-      return true;
     } catch (e) {
-      if (seqRef.current !== mySeq) return false;
+      if (seqRef.current !== mySeq) return;
       dispatch({ type: "initialize_error", payload: asStartFailure(e) });
-      return false;
     }
   }, [desiredRuntime]);
 
@@ -150,14 +146,10 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
     });
   }, []);
 
-  const restart = useCallback(async (): Promise<boolean> => {
+  const restart = useCallback(async (): Promise<void> => {
     await shutdown();
-    return await initialize();
+    await initialize();
   }, [shutdown, initialize]);
-
-  const clearError = useCallback(() => {
-    dispatch({ type: "clear_error" });
-  }, []);
 
   const reportUnreachable = useCallback(() => {
     dispatch({
@@ -249,24 +241,12 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
       state,
       ...readiness,
       initialize,
-      shutdown,
       cancelStart,
-      clearError,
       slowStart,
       presetIncomplete,
       reportUnreachable,
     }),
-    [
-      state,
-      readiness,
-      initialize,
-      shutdown,
-      cancelStart,
-      clearError,
-      slowStart,
-      presetIncomplete,
-      reportUnreachable,
-    ],
+    [state, readiness, initialize, cancelStart, slowStart, presetIncomplete, reportUnreachable],
   );
 
   return <EngineContext.Provider value={value}>{children}</EngineContext.Provider>;
