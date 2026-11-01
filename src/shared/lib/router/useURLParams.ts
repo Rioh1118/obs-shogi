@@ -41,7 +41,7 @@ export type TabType = "workspace" | "aiLibrary" | "engine" | "display" | "create
  */
 export type DockViewType = "analysis" | "book";
 
-export interface URLParams {
+export type URLParams = {
   modal?: ModalType;
   tesuu?: number;
   branch?: string;
@@ -54,7 +54,7 @@ export interface URLParams {
   sfen?: string;
   /** モーダルを閉じたとき戻る先のモーダル */
   returnTo?: ModalType;
-}
+};
 
 type UpdateOptions = { replace?: boolean };
 

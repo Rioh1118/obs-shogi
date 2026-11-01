@@ -1,11 +1,11 @@
 import { Color, Record } from "tsshogi";
 
 /** 日本語表記になった1手 */
-export interface ConvertedMove {
+export type ConvertedMove = {
   /** 例: `７六歩` */
   move: string;
   isBlack: boolean;
-}
+};
 
 /**
  * 局面から指した手の列を、日本語表記にする。
@@ -16,9 +16,7 @@ export interface ConvertedMove {
  * `sfen` に指し手の列（`moves …`）を付けないこと。手順はこちらの引数で渡す。
  */
 export function convertSfenSequence(sfen: string | null, sfenMoves: string[]): ConvertedMove[] {
-  if (!sfen) {
-    return [];
-  }
+  if (!sfen) return [];
   const usiString = `position sfen ${sfen} moves ${sfenMoves.join(" ")}`;
 
   const record = Record.newByUSI(usiString);
