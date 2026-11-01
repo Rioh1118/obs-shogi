@@ -486,6 +486,18 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     [edit],
   );
 
+  const playIfAccepted = useCallback(
+    async (move: StandardMoveFormat, player: JKFPlayer) => {
+      // **対局中は Rust が採ってから積む。** 採られなければ選択だけ解く
+      if (!(await acceptsMove(move, player))) {
+        dispatch({ type: "clear_selection" });
+        return;
+      }
+      await makeMove(move); // async-result-ignored: 盤には出す場所が無い → #277
+    },
+    [makeMove, acceptsMove],
+  );
+
   const selectSquare = useCallback(
     async (x: number, y: number, promote?: boolean) => {
       const player = view.player;
@@ -494,63 +506,33 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       try {
         const shogi = player.shogi;
         const piece = shogi.get(x, y);
-        const currentTurn = shogi.turn;
+        const selected = state.selectedPosition;
+        const legalMove = view.legalMoves.find((m) => m.to.x === x && m.to.y === y);
 
-        if (state.selectedPosition?.type === "hand") {
-          const dropMove = view.legalMoves.find((m) => m.to.x === x && m.to.y === y);
-
-          if (dropMove) {
-            const standardMove = fromIMove(
-              dropMove,
-              state.selectedPosition.kind,
-              state.selectedPosition.color,
-            );
-            // **対局中は Rust が採ってから積む。** 採られなければ選択だけ解く
-            if (!(await acceptsMove(standardMove, player))) {
-              dispatch({ type: "clear_selection" });
-              return;
-            }
-            await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #277
+        if (selected?.type === "hand") {
+          if (legalMove) {
+            await playIfAccepted(fromIMove(legalMove, selected.kind, selected.color), player);
           } else {
             dispatch({ type: "clear_selection" });
           }
           return;
         }
 
-        if (state.selectedPosition?.type === "square") {
-          if (state.selectedPosition.x === x && state.selectedPosition.y === y) {
-            dispatch({ type: "clear_selection" });
-            return;
-          }
+        if (selected?.x === x && selected.y === y) {
+          dispatch({ type: "clear_selection" });
+          return;
+        }
 
-          const move = view.legalMoves.find((m) => m.to.x === x && m.to.y === y);
-
-          if (move) {
-            const fromPiece = shogi.get(state.selectedPosition.x, state.selectedPosition.y);
-            if (fromPiece) {
-              const standardMove = fromIMove(move, fromPiece.kind, fromPiece.color, promote);
-              // **対局中は Rust が採ってから積む**（上の駒打ちと同じ）
-              if (!(await acceptsMove(standardMove, player))) {
-                dispatch({ type: "clear_selection" });
-                return;
-              }
-              await makeMove(standardMove); // async-result-ignored: 盤には出す場所が無い → #277
-            }
-            return;
-          }
-
-          if (piece && piece.color === currentTurn) {
-            dispatch({
-              type: "set_selection",
-              payload: { type: "square", x, y },
-            });
-          } else {
-            dispatch({ type: "clear_selection" });
+        if (selected && legalMove) {
+          const fromPiece = shogi.get(selected.x, selected.y);
+          if (fromPiece) {
+            const move = fromIMove(legalMove, fromPiece.kind, fromPiece.color, promote);
+            await playIfAccepted(move, player);
           }
           return;
         }
 
-        if (piece && piece.color === currentTurn) {
+        if (piece?.color === shogi.turn) {
           dispatch({
             type: "set_selection",
             payload: { type: "square", x, y },
@@ -559,11 +541,11 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
           dispatch({ type: "clear_selection" });
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to select square";
+        const msg = errorMessageOf(e, "Failed to select square");
         dispatch({ type: "set_error", payload: msg });
       }
     },
-    [view.player, view.legalMoves, state.selectedPosition, makeMove, acceptsMove],
+    [view.player, view.legalMoves, state.selectedPosition, playIfAccepted],
   );
 
   const selectHand = useCallback(
