@@ -1,4 +1,7 @@
-import { Color, Shogi, type Kind } from "shogi.js";
+import { Normalizer } from "json-kifu-format";
+import { Color, Piece, Shogi, type Kind } from "shogi.js";
+
+import { isDeadEnd } from "@/shared/lib/shogi/deadEnd";
 import type { ShogiMove } from "../model/types";
 
 function copyPosition(shogi: Shogi): Shogi {
@@ -30,50 +33,27 @@ export function wouldBeInCheckAfterMove(shogi: Shogi, move: ShogiMove): boolean 
   }
 }
 
-/**
- * 成ることができるか
- */
+/** 移動元か移動先が敵陣なら成れる。指せる手かどうかは見ない */
 export function canPromote(shogi: Shogi, move: ShogiMove): boolean {
   if (!move.from) return false;
 
   const piece = shogi.get(move.from.x, move.from.y);
   if (!piece) return false;
 
-  // すでに成駒なら成れない
-  const promotableKinds: Kind[] = ["FU", "KY", "KE", "GI", "KA", "HI"];
-  if (!promotableKinds.includes(piece.kind)) return false;
-
-  // 敵陣に入るかどうか
-  const isBlack = piece.color === Color.Black;
-  const enemyZone = isBlack ? [1, 2, 3] : [7, 8, 9];
-
-  return enemyZone.includes(move.from.y) || enemyZone.includes(move.to.y);
+  return (
+    Piece.canPromote(piece.kind) &&
+    (Normalizer.canPromote(move.from, piece.color) || Normalizer.canPromote(move.to, piece.color))
+  );
 }
 
-/**
- * 強制成り判定
- */
+/** 不成では行き所がなくなる手か。指せる手かどうかは見ない */
 export function mustPromote(shogi: Shogi, move: ShogiMove): boolean {
   if (!move.from) return false;
 
   const piece = shogi.get(move.from.x, move.from.y);
-  if (!piece) return false; // 駒うちは成れない
+  if (!piece) return false;
 
-  const isBlack = piece.color === Color.Black;
-
-  if (piece.kind === "FU" || piece.kind === "KY") {
-    // 1段目に入ったら強制
-    const forcePromoteRow = isBlack ? 1 : 9;
-    return move.to.y === forcePromoteRow;
-  }
-
-  // 桂の強制成り判定
-  if (piece.kind === "KE") {
-    // 1,2段目に入ったら強制成り
-    const forcePromoteRows = isBlack ? [1, 2] : [8, 9];
-    return forcePromoteRows.includes(move.to.y);
-  }
-  return false;
+  return isDeadEnd(piece.kind, piece.color, move.to.y);
 }
 
 /**
