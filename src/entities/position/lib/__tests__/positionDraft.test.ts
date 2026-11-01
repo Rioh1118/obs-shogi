@@ -15,6 +15,7 @@ import {
   isHandKind,
   moveBetweenHands,
   movePieceOnBoard,
+  piecesOnBoard,
   sendToHand,
   pieceAt,
   promotedKind,
@@ -660,5 +661,17 @@ describe("flipColor", () => {
   test("先後が入れ替わる", () => {
     expect(flipColor(Color.Black)).toBe(Color.White);
     expect(flipColor(Color.White)).toBe(Color.Black);
+  });
+});
+
+describe("piecesOnBoard", () => {
+  test("筋の順、同じ筋では段の順に、駒のある升だけを返す", () => {
+    const state = stateFromSfen("7pk/9/8P/9/9/9/9/9/9 b - 1");
+    if (!state) throw new Error("種が読めない");
+    expect(piecesOnBoard(state)).toEqual([
+      { square: sq(1, 1), piece: { kind: "OU", color: Color.White } },
+      { square: sq(1, 3), piece: { kind: "FU", color: Color.Black } },
+      { square: sq(2, 1), piece: { kind: "FU", color: Color.White } },
+    ]);
   });
 });

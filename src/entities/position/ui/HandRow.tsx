@@ -1,24 +1,24 @@
+import type { Kind } from "shogi.js";
+import { HAND_KINDS, isHandKind } from "@/entities/position/lib/positionDraft";
 import { toKan } from "@/entities/position/lib/toKan";
 import "./HandRow.scss";
 
-const HAND_ORDER = ["FU", "KY", "KE", "GI", "KI", "KA", "HI"];
-
-const countKinds = (kinds: string[]) => {
-  const m = new Map<string, number>();
+const countKinds = (kinds: Kind[]) => {
+  const m = new Map<Kind, number>();
   for (const k of kinds) m.set(k, (m.get(k) ?? 0) + 1);
   return m;
 };
 
 type Props = {
   label: string;
-  kinds: string[];
+  kinds: Kind[];
 };
 
 function HandRow({ label, kinds }: Props) {
   const counts = countKinds(kinds);
   const ordered = [
-    ...HAND_ORDER.filter((k) => counts.has(k)),
-    ...[...counts.keys()].filter((k) => !HAND_ORDER.includes(k)),
+    ...HAND_KINDS.filter((k) => counts.has(k)),
+    ...[...counts.keys()].filter((k) => !isHandKind(k)),
   ];
 
   return (

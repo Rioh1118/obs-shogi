@@ -85,6 +85,15 @@ describe("局面のプレビュー", () => {
     expect(handRow(GOTE_LABEL).textContent).toContain("桂");
   });
 
+  test("種類の順に無い駒は、順のある駒の後ろに出す", () => {
+    const data = preview(HIRATE);
+    if (!data) throw new Error("平手が読めない");
+    data.hands[0] = ["OU", "KA", "FU"];
+    render(<PositionPreviewPane previewData={data} />);
+    const chips = [...handRow(SENTE_LABEL).querySelectorAll("span")];
+    expect(chips.map((chip) => chip.textContent)).toEqual(["歩", "角", "玉"]);
+  });
+
   test("持ち駒が無い側は「なし」と出す", () => {
     render(<PositionPreviewPane previewData={preview(HIRATE)} />);
     expect(handRow(SENTE_LABEL).textContent).toContain("なし");

@@ -141,6 +141,19 @@ export function pieceAt(state: JKFState, sq: Square): Required<JKFPiece> | null 
   return { kind: piece.kind, color: piece.color ?? 0 };
 }
 
+/** 盤の駒を、筋の順、同じ筋では段の順に返す */
+export function piecesOnBoard(state: JKFState): { square: Square; piece: Required<JKFPiece> }[] {
+  const found: { square: Square; piece: Required<JKFPiece> }[] = [];
+  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
+    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
+      const square = { x, y };
+      const piece = pieceAt(state, square);
+      if (piece) found.push({ square, piece });
+    }
+  }
+  return found;
+}
+
 export function handCount(state: JKFState, color: Color, kind: HandKind): number {
   return state.hands[color]?.[kind] ?? 0;
 }
@@ -512,13 +525,9 @@ function isWellFormedHandField(field: string): boolean {
 /** 盤と駒台を合わせて、将棋一式より多い駒があるか */
 function exceedsPieceSupply(state: JKFState): boolean {
   const total = new Map<Kind, number>();
-  for (let x = 1; x <= BOARD_SIZE.WIDTH; x++) {
-    for (let y = 1; y <= BOARD_SIZE.HEIGHT; y++) {
-      const piece = pieceAt(state, { x, y });
-      if (!piece) continue;
-      const raw = unpromotedKind(piece.kind);
-      total.set(raw, (total.get(raw) ?? 0) + 1);
-    }
+  for (const { piece } of piecesOnBoard(state)) {
+    const raw = unpromotedKind(piece.kind);
+    total.set(raw, (total.get(raw) ?? 0) + 1);
   }
   for (const color of [0, 1] as const) {
     for (const kind of HAND_KINDS) {
