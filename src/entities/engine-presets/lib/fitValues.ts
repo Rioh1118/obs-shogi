@@ -3,7 +3,7 @@ import type { UsiOptionMap } from "../model/types";
 
 /**
  * 定義に当てて外した利用者の値1件と、その理由。理由の綴りは起動の警告（Rust の `StartWarning`）と
- * 同じ語を使う——片方だけ改名すると、保存の前に見せる理由と起動で出る理由が別の語になる。
+ * 同じ語を使う。片方だけ改名すると、保存の前に見せる理由と起動で出る理由が別の語になる。
  * `button` だけは起動の警告に無い（送る側は黙って送らない）
  */
 export type DroppedValue = {
@@ -43,19 +43,18 @@ export function parseSpinValue(value: string): bigint | null {
   return n < I64_MIN || n > I64_MAX ? null : n;
 }
 
-type Fit = { value: string } | { clampedTo: string } | { dropped: DroppedValue["reason"] };
+type SpinFit = { value: string } | { clampedTo: string };
+
+type Fit = SpinFit | { dropped: DroppedValue["reason"] };
 
 type SpinDef = Extract<UsiOptionDef, { type: "spin" }>;
 
 /**
  * spin の値1件を申告の範囲に当てる。整数でなければ `null`。範囲が逆順の申告（min > max）は入れ替えて読む
- * （送る側 `binding::user_value` と同じ）。画面の欄が確定する値もこれを通す——別に書くと、欄が確定した値を
+ * （送る側 `binding::user_value` と同じ）。画面の欄が確定する値もこれを通す。別に書くと、欄が確定した値を
  * 送る側が別の値として扱う
  */
-export function fitSpin(
-  def: SpinDef,
-  value: string,
-): { value: string } | { clampedTo: string } | null {
+export function fitSpin(def: SpinDef, value: string): SpinFit | null {
   const n = parseSpinValue(value);
   if (n == null) return null;
   const lo = def.min == null ? I64_MIN : BigInt(def.min);
@@ -66,9 +65,9 @@ export function fitSpin(
 }
 
 /**
- * 値1件を定義に当てる。**送る側（Rust の `binding::user_value`）と同じ規則**にする——画面で残した値が
- * 起動のたびに捨てられる・丸められる、を作らない。両方が同じ表（`src-tauri/tests/fixtures/
- * option_fit_cases.json`）を当てて、ずれたら落ちる
+ * 値1件を定義に当てる。**送る側（Rust の `binding::user_value`）と同じ規則にする。** 画面で残した値が
+ * 起動のたびに捨てられたり丸められたりしないため。両方が同じ表
+ * （`src-tauri/tests/fixtures/option_fit_cases.json`）を当てて、ずれたら落ちる
  */
 function fit(def: UsiOptionDef, value: string): Fit {
   switch (def.type) {
@@ -89,11 +88,13 @@ function fit(def: UsiOptionDef, value: string): Fit {
 }
 
 /**
- * 利用者の値を、エンジンの定義に当てる。定義に無い名前・アプリが決める名前（`reserved`。評価関数・定跡の
- * 欄と解析の固定値）・
- * 選択肢に無い値・型の合わない値は外し、範囲の外は丸める。
+ * 利用者の値を、エンジンの定義に当てる。範囲の外は丸め、次の値は外す。
  *
- * 外した値・丸めた値は黙って消さずに返す（画面が保存の前に見せる）
+ * - 定義に無い名前
+ * - アプリが決める名前（`reserved`。評価関数と定跡の欄、解析の固定値）
+ * - 選択肢に無い値と、型の合わない値
+ *
+ * 外した値と丸めた値は黙って消さずに返す（画面が保存の前に見せる）
  */
 export function fitValues(
   options: UsiOptionMap,
@@ -103,7 +104,7 @@ export function fitValues(
   const defs = new Map(definitions.map((d) => [d.name, d]));
   const owned = new Set(reserved);
   const next: UsiOptionMap = {};
-  const clamped: FittedValues["clamped"] = [];
+  const clamped: ClampedValue[] = [];
   const dropped: DroppedValue[] = [];
 
   for (const [name, value] of Object.entries(options)) {

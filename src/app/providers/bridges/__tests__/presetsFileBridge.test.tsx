@@ -8,7 +8,7 @@ import type {
   PresetsLoadNotice,
   SaveFailure,
 } from "@/entities/engine-presets/model/types";
-import { initialState } from "@/entities/engine-presets/model/types";
+import { initialState } from "@/entities/engine-presets/model/reducer";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
 import { PRESETS_SAVE_NOTICES, presetsLoadNoticeView } from "../presetsFileNotice";
 

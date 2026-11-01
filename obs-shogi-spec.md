@@ -122,9 +122,9 @@ obs-shogi に実装されている機能を、UI 操作・設定値レベル（L
   - 結果取得（`get_analysis_result` / `get_last_result`）、停止（`stop_analysis`）
 - エンジンプリセット（`entities/engine-presets`、`load/save_presets`）
   - フィールド：id / label / aiName / enginePath / evalFilePath / bookEnabled / bookFilePath / options(USI map) / analysis(timeSeconds/depth/nodes/mateSearch)
-  - 作成 / 複製 / 更新 / 削除 / オプションマージ（`createPreset` / `duplicatePreset` / `updatePreset` / `mergeOptions` / `deletePreset`）
+  - 作成 / 複製 / 更新 / 削除（`createPreset` / `duplicatePreset` / `updatePreset` / `deletePreset`）
   - 選択中プリセットを設定として永続化（`AppConfig.last_preset_id`）
-  - 解析既定値（`AnalysisDefaults`）をプリセットに内包し解析 API に注入
+  - 解析既定値（`AnalysisDefaults`）をプリセットに内包
 - USI オプション GUI 編集（プリセット編集ダイアログ内、`ImportantOptionsSection` ほか、進行中 #83）
 - AI ライブラリ（エンジン置き場、`ai_library`）
   - ルート選択（`chooseAiRoot`、`AppConfig.ai_root`）、ディレクトリ確保（`ensure_engines_dir`）、スキャン（`scan_ai_root`）

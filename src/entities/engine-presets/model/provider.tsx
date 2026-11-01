@@ -1,27 +1,18 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
-import { reducer } from "./reducer";
-import {
-  initialState,
-  type AnalysisDefaults,
-  type EnginePreset,
-  type EnginePresetsContextType,
-  type PresetId,
-  type SaveFailure,
-  type UsiOptionMap,
-} from "./types";
+import { initialState, reducer } from "./reducer";
+import type { EnginePreset, EnginePresetsContextType, PresetId, SaveFailure } from "./types";
 import { useAppConfig } from "@/entities/app-config";
 import { loadPresets, savePresets } from "../api/presets";
 import type { LoadedPresets } from "../api/rust-types";
 import { asSaveFailure } from "../lib/saveFailure";
 import {
-  clonePreset,
   createDefaultPreset,
   genPresetId,
   normalizeLoadedPresets,
   normalizeOnePreset,
 } from "../lib/normalize";
 import { EnginePresetsContext } from "./context";
-import { runtimeConfigOf } from "../lib/derivePath";
+import { runtimeConfigOf } from "../lib/runtimeConfig";
 import type { EngineRuntimeConfig } from "@/entities/engine";
 
 export function EnginePresetsProvider({ children }: { children: ReactNode }) {
@@ -55,13 +46,13 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
 
   // 読んだ（か直前に書いた）ファイルの印。保存に渡し、別の書き手の変更を Rust が見分ける
   const revisionRef = useRef<string | null>(null);
-  // 書けるか。**決めるのは読み込みだけ**なので `adopt` でだけ書き換える
+  // 書けるか。決めるのは読み込みだけなので、読み込みの経路でだけ書き換える
   // （`state.writable` と同じ値。書く関数を state に依存させないために ref で持つ）
   const writableRef = useRef(false);
-  // 最後に読んだか書けた一覧。**次の一覧はここから組む**——`state.presets` を掴んでから
+  // 最後に読んだか書けた一覧。次の一覧はここから組む。`state.presets` を掴んでから
   // `await` を挟むと、先に書けた変更を知らない一覧で上書きする（先の変更が黙って消える）
   const presetsRef = useRef<EnginePreset[]>([]);
-  // 読み書きを1本ずつ通す列。**同時に2本書かない**——2本目が1本目の前の印を持って書くと、
+  // 読み書きを1本ずつ通す列。同時に2本書くと、2本目が1本目の前の印を持って書き、
   // 自分の変更どうしが `conflict` になる
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
   // 列の中で走る処理（`reload` / `deletePreset`）が、組んだ時点ではなく走った時点の選択を読む
@@ -93,9 +84,11 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * 変更を1つ通す。`build` は**最後に書けた一覧**から次の一覧を組む（組めなければ `null`）。
-   * **書けてから画面に反映する**（悲観更新）——先に変えると、書けなかった変更が画面にだけ残り、
-   * 次に開いたときに消える。書けたら次の一覧、書けなかったら `null`
+   * 変更を1つ通し、書けたら次の一覧、書けなかったら `null` を返す。`build` は最後に書けた一覧から
+   * 次の一覧を組む（組めなければ `null`）。
+   *
+   * **書けてから画面に反映する**（悲観更新）。先に変えると、書けなかった変更が画面にだけ残り、
+   * 次に開いたときに消える
    */
   const mutate = useCallback(
     (build: (current: EnginePreset[]) => EnginePreset[] | null) =>
@@ -114,7 +107,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [enqueue, write],
   );
 
-  /** 読み込みの結果を取り込む。**読み込みの経路はここ1つ**（初回と読み直しの両方） */
+  /** 読み込みの結果を画面の状態へ取り込む（初回と読み直しの両方） */
   const adopt = useCallback(
     (
       loaded: LoadedPresets,
@@ -145,19 +138,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [selectedPreset],
   );
 
-  const analysisDefaults = useMemo<AnalysisDefaults | null>(() => {
-    if (!selectedPreset) return null;
-
-    const a = selectedPreset.analysis;
-
-    return {
-      timeSeconds: a?.timeSeconds,
-      depth: a?.depth,
-      nodes: a?.nodes,
-      mateSearch: a?.mateSearch ?? false,
-    };
-  }, [selectedPreset]);
-
   const chooseInitialSelectedId = useCallback(
     (presets: EnginePreset[]): PresetId | null => {
       const preferred = config?.last_preset_id ?? null;
@@ -181,9 +161,9 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         writableRef.current = loaded.writable;
         let presets = normalizeLoadedPresets(loaded.presets);
 
-        // **書ける状態のときだけ**既定の1件を作る。読めなかったファイルや新しい版のファイルに
+        // 書ける状態のときだけ既定の1件を作る。読めなかったファイルや新しい版のファイルに
         // 書くと、読めていない中身を上書きする。書けなかった理由は取り込みと一緒に渡す
-        // （先に `save_failed` を撃つと、直後の `loaded` が消す）
+        // （先に `save_failed` を送ると、直後の `loaded` が消す）
         let saveFailure: SaveFailure | null = null;
         if (presets.length === 0 && loaded.writable) {
           const p = createDefaultPreset();
@@ -192,7 +172,8 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         }
 
         const selectedId = chooseInitialSelectedId(presets);
-        adopt(loaded, presets, selectedId, saveFailure);
+        // 既定の1件を書いたら印が進んでいる。読んだ時の印へ戻すと、次の保存が `conflict` で断られる
+        adopt({ ...loaded, revision: revisionRef.current }, presets, selectedId, saveFailure);
 
         if ((config?.last_preset_id ?? null) !== selectedId) {
           await setLastPresetId(selectedId);
@@ -265,7 +246,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         const src = current.find((p) => p.id === id);
         if (!src) return null;
         made = normalizeOnePreset({
-          ...clonePreset(src),
+          ...structuredClone(src),
           id: genPresetId(),
           label: `${src.label} (copy)`,
         });
@@ -291,16 +272,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [mutate, touchPreset],
   );
 
-  const mergeOptions = useCallback(
-    async (id: PresetId, partial: UsiOptionMap) => {
-      const next = await mutate((current) =>
-        current.map((p) => (p.id === id ? { ...p, options: { ...p.options, ...partial } } : p)),
-      );
-      return next !== null;
-    },
-    [mutate],
-  );
-
   const deletePreset = useCallback(
     async (id: PresetId) => {
       const next = await mutate((current) => current.filter((p) => p.id !== id));
@@ -320,19 +291,16 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       state,
       selectedPreset,
       runtimeConfig,
-      analysisDefaults,
       selectedPresetVersion,
       reload,
       selectPreset,
       createPreset,
       duplicatePreset,
       updatePreset,
-      mergeOptions,
       deletePreset,
     }),
     [
       runtimeConfig,
-      analysisDefaults,
       state,
       selectedPreset,
       reload,
@@ -340,7 +308,6 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
       createPreset,
       duplicatePreset,
       updatePreset,
-      mergeOptions,
       deletePreset,
       selectedPresetVersion,
     ],

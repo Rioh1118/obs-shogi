@@ -4,16 +4,11 @@ export function genPresetId(): PresetId {
   return crypto.randomUUID();
 }
 
-export function clonePreset<T>(v: T): T {
-  if (typeof structuredClone === "function") return structuredClone(v);
-  return JSON.parse(JSON.stringify(v));
-}
-
 /**
- * 新しく作るプリセットだけが持つ値。**他の名前はエンジン既定**（値を持たず、送らない）。
+ * 新しく作るプリセットだけが持つ値。他の名前はエンジン既定で、値を持たず送らない。
  *
- * MultiPV だけを入れるのは、解析ビューが候補手を並べる画面だから——やねうら王の既定は 1 で、
- * 何も入れないと候補が1本しか出ない。**読み込んだプリセットには足さない**（`normalizeOnePreset`）
+ * MultiPV だけを入れるのは、解析ビューが候補手を並べる画面だから。やねうら王の既定は 1 で、
+ * 何も入れないと候補が1本しか出ない。読み込んだプリセットには足さない（`normalizeOnePreset`）
  */
 const NEW_PRESET_OPTIONS: UsiOptionMap = { MultiPV: "5" };
 
@@ -50,18 +45,18 @@ function withDefaults(partial: Partial<EnginePreset>, options: UsiOptionMap): En
 }
 
 /**
- * 読み込んだ・複製したプリセットの形を整える。**値を足さない**——無い名前はエンジン既定で、
+ * 読み込んだプリセットと複製したプリセットの形を整える。値を足さない。無い名前はエンジン既定で、
  * 足すと利用者が選んでいない値を送る
  */
 export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
   const p = withDefaults(raw, {});
 
-  p.label = (p.label ?? "").trim() || "";
+  p.label = (p.label ?? "").trim();
   p.aiName = (p.aiName ?? "").trim();
   p.enginePath = (p.enginePath ?? "").trim();
   p.evalFilePath = (p.evalFilePath ?? "").trim();
 
-  // book: 読み込みでは**パスを落とさない**（前の版は `bookEnabled: false` とパスを両方持って保存している）。
+  // 読み込みでは定跡のパスを落とさない（前の版は `bookEnabled: false` とパスを両方持って保存している）。
   // 使うかどうかは `bookInUse` で読む
   p.bookEnabled = Boolean(p.bookEnabled);
   const bp = (p.bookFilePath ?? "").trim();
@@ -89,7 +84,7 @@ export function normalizeOnePreset(raw: Partial<EnginePreset>): EnginePreset {
 export function normalizeLoadedPresets(presets: EnginePreset[]): EnginePreset[] {
   const normalized = presets.map((p) => normalizeOnePreset(p));
 
-  // id 重複の保険（もし壊れてたら再採番）
+  // 壊れたファイルの id の欠けと重複は採番し直す。同じ id が2つあると片方を選べない
   const seen = new Set<string>();
   for (let i = 0; i < normalized.length; i++) {
     const id = normalized[i].id;

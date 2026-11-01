@@ -139,7 +139,7 @@ describe("プリセットの保存は、書けてから画面に反映する", (
   });
 
   /**
-   * **次の一覧は最後に書けた一覧から組む。** 描画を挟まずに別の欄を続けて変えると、
+   * 次の一覧は最後に書けた一覧から組む。描画を挟まずに別の欄を続けて変えると、
    * 2回目が1回目を知らない一覧から組まれ、1回目の変更が黙って消える
    */
   test("描画を挟まずに続けた変更は、どちらも残る", async () => {
@@ -160,10 +160,10 @@ describe("プリセットの保存は、書けてから画面に反映する", (
   });
 
   /**
-   * **同時に2本書かない。** 2本目が1本目の前の印を持って書くと、自分の変更どうしが
+   * 同時に2本書かない。2本目が1本目の前の印を持って書くと、自分の変更どうしが
    * `conflict` になる（「別の場所で変更されました」と誤って伝える）
    */
-  test("同時に撃った変更は1本ずつ通り、どちらも書ける", async () => {
+  test("同時に呼んだ変更は1本ずつ通り、どちらも書ける", async () => {
     let disk = "r1";
     let n = 1;
     loadPresets.mockResolvedValue(loaded({ revision: "r1" }));
@@ -183,6 +183,71 @@ describe("プリセットの保存は、書けてから画面に反映する", (
     expect(made.every((p) => p !== null)).toBe(true);
     expect(ctx().state.presets.map((p) => p.label)).toEqual(["水匠", "1", "2"]);
     expect(ctx().state.saveFailure).toBeNull();
+  });
+});
+
+describe("初回の読み込みで書いた既定の1件", () => {
+  /** 読み込みの印へ戻すと、次の保存は別の書き手の変更と判定されて断られる */
+  test("書いた印で次の保存を行う", async () => {
+    loadPresets.mockResolvedValue(loaded({ presets: [], revision: null }));
+    savePresets.mockResolvedValueOnce("r1").mockResolvedValueOnce("r2");
+    const ctx = await mount();
+    const id = ctx().state.presets[0].id;
+
+    await act(async () => {
+      await ctx().updatePreset(id, { label: "変えた名前" });
+    });
+
+    expect(savePresets.mock.calls.map((call) => call[1])).toEqual([null, "r1"]);
+  });
+});
+
+describe("プリセットの複製", () => {
+  test("新しい id と名前で末尾に足し、複製を選ぶ", async () => {
+    loadPresets.mockResolvedValue(loaded());
+    savePresets.mockResolvedValue("r2");
+    const ctx = await mount();
+
+    let copy: EnginePreset | null = null;
+    await act(async () => {
+      copy = await ctx().duplicatePreset("a");
+    });
+
+    const presets = ctx().state.presets;
+    expect(presets.map((p) => p.label)).toEqual(["水匠", "水匠 (copy)"]);
+    expect(presets[1].id).not.toBe("a");
+    expect(ctx().state.selectedPresetId).toBe(presets[1].id);
+    expect(copy).toBe(presets[1]);
+  });
+
+  /** 共有すると、複製の定義を書き換えただけで元のプリセットも変わる */
+  test("入れ子の欄も元と共有しない", async () => {
+    const analysis = { mateSearch: true };
+    const definitions = [{ name: "Threads", type: "button" as const }];
+    const original = { ...PRESET, analysis, definitions };
+    loadPresets.mockResolvedValue(loaded({ presets: [original] }));
+    savePresets.mockResolvedValue("r2");
+    const ctx = await mount();
+
+    let copy: EnginePreset | null = null;
+    await act(async () => {
+      copy = await ctx().duplicatePreset("a");
+    });
+
+    const made = copy as unknown as EnginePreset;
+    expect(made.definitions).toEqual(definitions);
+    expect(made.definitions).not.toBe(ctx().state.presets[0].definitions);
+  });
+
+  test("元が無ければ何も書かない", async () => {
+    loadPresets.mockResolvedValue(loaded());
+    const ctx = await mount();
+
+    await act(async () => {
+      expect(await ctx().duplicatePreset("missing")).toBeNull();
+    });
+
+    expect(savePresets).not.toHaveBeenCalled();
   });
 });
 

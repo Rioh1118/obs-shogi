@@ -25,6 +25,18 @@ type EnginePresetsAction =
   | { type: "save_failed"; payload: SaveFailure }
   | { type: "set_selected"; payload: PresetId | null };
 
+export const initialState: EnginePresetsState = {
+  status: "idle",
+  error: null,
+  presets: [],
+  selectedPresetId: null,
+  writable: false,
+  unreadableCount: 0,
+  loadNotice: null,
+  loadSeq: 0,
+  saveFailure: null,
+};
+
 export function reducer(
   state: EnginePresetsState,
   action: EnginePresetsAction,
@@ -46,7 +58,7 @@ export function reducer(
       };
     case "error":
       return { ...state, status: "error", error: action.payload };
-    // 書けた後にだけ撃つ（悲観更新）。直前の失敗は解消した
+    // 書けた後にだけ送る（悲観更新）。直前の失敗は解消した
     case "set_presets":
       return { ...state, presets: action.payload, saveFailure: null };
     case "save_failed":
