@@ -8,7 +8,7 @@ import {
   engineDefaultLabel,
   engineDefaultOf,
   savedInt,
-} from "@/features/settings/lib/quickOptions";
+} from "@/features/settings/lib/presetOptionValues";
 import {
   MULTIPV_MIN,
   MULTIPV_OPTION,
@@ -25,11 +25,11 @@ export default function AnalysisSection(props: {
   draft: EnginePreset;
   setDraft: Dispatch<SetStateAction<EnginePreset | null>>;
   /** `null` で値を消す。 */
-  setOpt: (name: string, value: string | null) => void;
+  setOption: (name: string, value: string | null) => void;
   /** 候補手の数の上限（`multiPvMax`） */
   multiPvMax: number;
 }) {
-  const { draft, setDraft, setOpt, multiPvMax } = props;
+  const { draft, setDraft, setOption, multiPvMax } = props;
   const multiPv = savedInt(draft.options, MULTIPV_OPTION);
   const multiPvDefault = engineDefaultOf(draft, MULTIPV_OPTION);
   const quick = QUICK_MULTIPV.filter((n) => n <= multiPvMax);
@@ -38,7 +38,7 @@ export default function AnalysisSection(props: {
   const offButtons = multiPv != null && !(quick as number[]).includes(multiPv);
   const showCustom = customOpened || offButtons;
   const setMultiPv = (n: number) =>
-    setOpt(MULTIPV_OPTION, String(Math.max(MULTIPV_MIN, Math.min(n, multiPvMax))));
+    setOption(MULTIPV_OPTION, String(Math.max(MULTIPV_MIN, Math.min(n, multiPvMax))));
 
   const setAnalysis = (patch: Partial<AnalysisDefaults>) =>
     setDraft({
@@ -66,7 +66,7 @@ export default function AnalysisSection(props: {
                   type="button"
                   className={cx("presetDialog__segBtn", multiPv === n && "is-active")}
                   aria-pressed={multiPv === n}
-                  onClick={() => (multiPv === n ? setOpt(MULTIPV_OPTION, null) : setMultiPv(n))}
+                  onClick={() => (multiPv === n ? setOption(MULTIPV_OPTION, null) : setMultiPv(n))}
                 >
                   {n}
                 </button>
@@ -88,7 +88,7 @@ export default function AnalysisSection(props: {
               aria-label="候補手の数（数値で入力）"
               onChange={(e) =>
                 e.target.value.trim() === ""
-                  ? setOpt(MULTIPV_OPTION, null)
+                  ? setOption(MULTIPV_OPTION, null)
                   : setMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))
               }
             />

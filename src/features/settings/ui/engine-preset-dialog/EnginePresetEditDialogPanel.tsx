@@ -5,11 +5,7 @@ import "./EnginePresetEditDialogPanel.scss";
 
 import Modal from "@/shared/ui/Modal";
 
-import {
-  autofillPreset,
-  basename,
-  clampInt,
-} from "@/features/settings/lib/presetDialog";
+import { autofillPreset, basename, clampInt } from "@/features/settings/lib/presetDialog";
 import PresetDialogFooter from "./PresetDialogFooter";
 import UsedFilesSection from "./sections/UsedFilesSection";
 import AnalysisSection from "./sections/AnalysisSection";
@@ -18,7 +14,7 @@ import { SField, SInput, SSection } from "@/features/settings/ui/kit";
 import { useAppConfig } from "@/entities/app-config";
 import { bookInUse, type EnginePreset, type PresetId } from "@/entities/engine-presets/model/types";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import { multiPvMax } from "@/features/settings/lib/quickOptions";
+import { multiPvMax } from "@/features/settings/lib/presetOptionValues";
 import { presetEngineOptions } from "@/features/settings/lib/presetEngineOptions";
 import { asStartFailure } from "@/entities/engine";
 import { probeEngine } from "@/entities/engine/api/tauri";
@@ -208,7 +204,7 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
     runProbe(draft.enginePath);
   }, [draft?.enginePath, runProbe]);
 
-  const setOpt = useCallback(
+  const setOption = useCallback(
     (name: string, value: string | null) => dispatch({ type: "optionSet", name, value }),
     [],
   );
@@ -378,13 +374,13 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
           <AnalysisSection
             draft={draft}
             setDraft={setDraft}
-            setOpt={setOpt}
+            setOption={setOption}
             multiPvMax={multiPvMax(draft)}
           />
 
           <EngineSettingsSection
             draft={draft}
-            setOpt={setOpt}
+            setOption={setOption}
             clearOptions={clearOptions}
             probing={probing}
             fitNote={fitNote}

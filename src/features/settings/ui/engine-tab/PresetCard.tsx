@@ -16,7 +16,7 @@ import {
   engineDefaultLabel,
   engineDefaultOf,
   savedInt,
-} from "@/features/settings/lib/quickOptions";
+} from "@/features/settings/lib/presetOptionValues";
 
 type Props = {
   preset: EnginePreset;

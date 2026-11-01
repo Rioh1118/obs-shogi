@@ -4,7 +4,7 @@ import Button from "@/shared/ui/Button/Button";
 import { pickFile } from "@/shared/api/picker/pickFile";
 import { SInput, SSection, SSelect } from "@/features/settings/ui/kit";
 import { commitSpinInput } from "@/features/settings/lib/spinInput";
-import { engineDefaultLabel } from "@/features/settings/lib/quickOptions";
+import { engineDefaultLabel } from "@/features/settings/lib/presetOptionValues";
 import { optionRows, type OptionRow } from "@/features/settings/lib/optionRows";
 import { fitNoteLines, type FitNote } from "@/features/settings/lib/fitNote";
 import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
@@ -24,11 +24,11 @@ type SpinRow = OptionRow & { def: Extract<OptionRow["def"], { type: "spin" }> };
 
 function OptionInput(props: {
   row: OptionRow;
-  setOpt: (name: string, value: string | null) => void;
+  setOption: (name: string, value: string | null) => void;
 }) {
-  const { row, setOpt } = props;
+  const { row, setOption } = props;
   const { def } = row;
-  const set = (value: string | null) => setOpt(def.name, value);
+  const set = (value: string | null) => setOption(def.name, value);
 
   switch (def.type) {
     case "check":
@@ -143,13 +143,13 @@ function FilenameInput(props: { row: OptionRow; set: (value: string | null) => v
  */
 export default function EngineSettingsSection(props: {
   draft: EnginePreset;
-  setOpt: (name: string, value: string | null) => void;
+  setOption: (name: string, value: string | null) => void;
   /** 挙げた名前の値を消す（初期値に戻す） */
   clearOptions: (names: string[]) => void;
   probing: boolean;
   fitNote: FitNote | null;
 }) {
-  const { draft, setOpt, clearOptions, probing, fitNote } = props;
+  const { draft, setOption, clearOptions, probing, fitNote } = props;
   const [query, setQuery] = useState("");
   const [changedOnly, setChangedOnly] = useState(false);
   const bookUsed = bookInUse(draft);
@@ -220,7 +220,7 @@ export default function EngineSettingsSection(props: {
                 </span>
                 {row.label && <span className="presetDialog__optionId">{row.def.name}</span>}
               </div>
-              <OptionInput row={row} setOpt={setOpt} />
+              <OptionInput row={row} setOption={setOption} />
             </div>
           ))}
           {rows.length === 0 && (

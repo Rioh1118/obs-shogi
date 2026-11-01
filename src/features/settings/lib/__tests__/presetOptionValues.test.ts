@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { MULTIPV_MAX } from "@/entities/engine-presets/model/multiPv";
-import { engineDefaultLabel, engineDefaultOf, multiPvMax, savedInt } from "../quickOptions";
+import { engineDefaultLabel, engineDefaultOf, multiPvMax, savedInt } from "../presetOptionValues";
 
 describe("savedInt", () => {
   test("値が無い・整数でないなら null（エンジン既定）", () => {
