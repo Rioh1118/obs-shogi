@@ -45,6 +45,7 @@ ours 戦略のマージは使わない。
 | 9 | `refactor/tidy-entities-game-lib` | `src/entities/game` の `lib` | #672 | マージ済み |
 | 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | マージ済み |
 | 11 | `refactor/tidy-entities-engine` | `src/entities/engine` | #674 | レビュー待ち |
+| 12 | `refactor/tidy-entities-engine-presets` | `src/entities/engine-presets` | #675 | レビュー待ち |
 
 ## 語
 
