@@ -1,6 +1,14 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useRef } from "react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { useRef, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppConfigProvider } from "../provider";
@@ -13,6 +21,7 @@ const loadConfig = vi.fn();
 const saveConfig = vi.fn();
 const setRootDirApi = vi.fn();
 const chooseRootDirApi = vi.fn();
+const chooseAiRootApi = vi.fn();
 
 vi.mock("../../api/config", () => ({
   loadConfig: (...args: unknown[]) => loadConfig(...args),
@@ -23,7 +32,7 @@ vi.mock("../../api/config", () => ({
 vi.mock("../../api/directories", () => ({
   setRootDir: (...args: unknown[]) => setRootDirApi(...args),
   chooseRootDir: (...args: unknown[]) => chooseRootDirApi(...args),
-  chooseAiRoot: vi.fn(),
+  chooseAiRoot: (...args: unknown[]) => chooseAiRootApi(...args),
 }));
 
 /** 呼び出しの成否と `isLoading` の両方を画面に出す */
@@ -278,5 +287,185 @@ describe("AppConfigProvider", () => {
 
     await waitFor(() => expect(loadingText()).toBe("false"));
     expect(screen.getByTestId("error").textContent).toBe("-");
+  });
+});
+
+describe("成否の返し方", () => {
+  function wrapper({ children }: { children: ReactNode }) {
+    return <AppConfigProvider>{children}</AppConfigProvider>;
+  }
+
+  async function mounted() {
+    const view = renderHook(() => useAppConfig(), { wrapper });
+    await waitFor(() => expect(view.result.current.isLoading).toBe(false));
+    return view;
+  }
+
+  afterEach(cleanup);
+
+  beforeEach(() => {
+    loadConfig.mockReset();
+    saveConfig.mockReset();
+    setRootDirApi.mockReset();
+    chooseRootDirApi.mockReset();
+    chooseAiRootApi.mockReset();
+    disk = { root_dir: "/old", ai_root: null };
+    loadConfig.mockImplementation(async () => ({ ...disk }));
+    saveConfig.mockImplementation(async (next: AppConfig) => {
+      disk = { ...next };
+    });
+  });
+
+  it("起動時に読めなければ error に積み、config は null のまま", async () => {
+    loadConfig.mockRejectedValue("壊れている");
+    const view = await mounted();
+
+    expect(view.result.current.config).toBeNull();
+    expect(view.result.current.error).toContain("壊れている");
+  });
+
+  it("ワークスペースを選べたら読み直して、選んだ先を返す", async () => {
+    const view = await mounted();
+    chooseRootDirApi.mockImplementation(async () => {
+      disk = { ...disk, root_dir: "/picked" };
+      return "/picked";
+    });
+
+    let picked: string | null = null;
+    await act(async () => {
+      picked = await view.result.current.chooseRootDir({ force: true });
+    });
+
+    expect(picked).toBe("/picked");
+    expect(chooseRootDirApi).toHaveBeenCalledWith({ force: true });
+    expect(view.result.current.config?.root_dir).toBe("/picked");
+  });
+
+  it("ワークスペースを選べなければ error に積み、null を返す", async () => {
+    const view = await mounted();
+    chooseRootDirApi.mockRejectedValue("書けない");
+
+    let picked: string | null = "未設定";
+    await act(async () => {
+      picked = await view.result.current.chooseRootDir();
+    });
+
+    expect(picked).toBeNull();
+    expect(view.result.current.error).toContain("書けない");
+  });
+
+  it("AI ライブラリを選べたら読み直して、選んだ先を Ok で返す", async () => {
+    const view = await mounted();
+    chooseAiRootApi.mockImplementation(async () => {
+      disk = { ...disk, ai_root: "/ai" };
+      return "/ai";
+    });
+
+    let result: unknown;
+    await act(async () => {
+      result = await view.result.current.chooseAiRoot({ force: true });
+    });
+
+    expect(result).toEqual({ success: true, data: "/ai" });
+    expect(chooseAiRootApi).toHaveBeenCalledWith({ force: true });
+    expect(view.result.current.config?.ai_root).toBe("/ai");
+  });
+
+  it("AI ライブラリの取り消しは Ok(null) で、読み直さない", async () => {
+    const view = await mounted();
+    chooseAiRootApi.mockResolvedValue(null);
+    const reads = loadConfig.mock.calls.length;
+
+    let result: unknown;
+    await act(async () => {
+      result = await view.result.current.chooseAiRoot();
+    });
+
+    expect(result).toEqual({ success: true, data: null });
+    expect(loadConfig.mock.calls.length).toBe(reads);
+  });
+
+  it("AI ライブラリを選べなければ Err で返し、error に積まず、isLoading を降ろす", async () => {
+    const view = await mounted();
+    chooseAiRootApi.mockImplementation(async () => {
+      await loadConfig();
+      throw new Error("書けない");
+    });
+
+    let result: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      result = await view.result.current.chooseAiRoot();
+    });
+
+    expect(result?.success).toBe(false);
+    expect(result?.error).toContain("書けない");
+    expect(view.result.current.error).toBeNull();
+    expect(view.result.current.isLoading).toBe(false);
+  });
+
+  it("ワークスペースの差し替えが通れば読み直して Ok を返す", async () => {
+    const view = await mounted();
+    setRootDirApi.mockImplementation(async (next: string) => {
+      disk = { ...disk, root_dir: next };
+    });
+
+    let result: unknown;
+    await act(async () => {
+      result = await view.result.current.setRootDir("/next");
+    });
+
+    expect(result).toEqual({ success: true, data: undefined });
+    expect(view.result.current.config?.root_dir).toBe("/next");
+  });
+
+  it("使うプリセットを書けたら config へ載せる", async () => {
+    const view = await mounted();
+
+    await act(async () => {
+      await view.result.current.setLastPresetId("preset-1" as PresetId);
+    });
+
+    expect(disk.last_preset_id).toBe("preset-1");
+    expect(view.result.current.config?.last_preset_id).toBe("preset-1");
+    expect(view.result.current.isLoading).toBe(false);
+  });
+
+  it("使うプリセットを書けなければ error に積む", async () => {
+    const view = await mounted();
+    saveConfig.mockRejectedValue("書けない");
+
+    await act(async () => {
+      await view.result.current.setLastPresetId("preset-1" as PresetId);
+    });
+
+    expect(view.result.current.error).toContain("書けない");
+    expect(view.result.current.isLoading).toBe(false);
+  });
+
+  it("表示の設定を書けなければ Err を返し、次の書き込みは通る", async () => {
+    const view = await mounted();
+    saveConfig.mockRejectedValueOnce("書けない");
+
+    let failed: { success: boolean; error?: string } | undefined;
+    await act(async () => {
+      failed = await view.result.current.setDisplayConfig({ show_evaluation_bar: true });
+    });
+    expect(failed?.success).toBe(false);
+    expect(failed?.error).toContain("書けない");
+    expect(view.result.current.error).toBeNull();
+
+    let retried: unknown;
+    await act(async () => {
+      retried = await view.result.current.setDisplayConfig({ show_evaluation_bar: true });
+    });
+    expect(retried).toEqual({ success: true, data: undefined });
+    expect(disk.show_evaluation_bar).toBe(true);
+    expect(view.result.current.config?.show_evaluation_bar).toBe(true);
+  });
+});
+
+describe("useAppConfig", () => {
+  it("provider の外では投げる", () => {
+    expect(() => renderHook(() => useAppConfig())).toThrow("AppConfigProvider");
   });
 });
