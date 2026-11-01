@@ -1,6 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import Button from "@/shared/ui/Button/Button";
-import { StepShell, type StepState } from "./StepShell";
+import type { StepState } from "@/features/settings/lib/setupSteps";
+import { StepShell } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 
 type Props = {
@@ -13,9 +14,8 @@ type Props = {
 export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: Props) {
   return (
     <StepShell state={state} title="評価関数・定跡を配置" summary={`${profilesCount} 個のAI検出`}>
-      <div className="aiLibraryTab__stepDesc">
-        AI 名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code>{" "}
-        を置きます。フォルダ名がそのままプリセット名になります。
+      <div className="setupGuide__stepDesc">
+        AI 名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code> を置きます。
       </div>
 
       <StepTree>
@@ -27,7 +27,7 @@ export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: P
         <TreeLine indent={3} label="📄 book.db" note="← 定跡DB" highlight />
       </StepTree>
 
-      <div className="aiLibraryTab__stepAction">
+      <div className="setupGuide__stepAction">
         <Button size="sm" onClick={onScan} disabled={isScanning}>
           <RefreshCw size={14} style={{ marginRight: 6 }} />
           もう一度読み込む

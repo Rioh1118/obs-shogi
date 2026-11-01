@@ -21,7 +21,7 @@ import type { DirInfo } from "../api/aiLibrary";
  *
  * 「開けるか」「作れるか」「中を列挙してよいか」は面によらない分類の性質なので、UI の `===` で書かず
  * 下の述語を使う。散らすと、状態を足したときに表だけが tsc で落ち、判定は黙って別の枝へ流れる。
- * 1つの状態だけを名指しする分岐（`SetupGuide` の hero の `other`）も `canListEnginesDir` で先に受ける
+ * 1つの状態だけを名指しする分岐（`SetupHero` の `other`）も `canListEnginesDir` で先に受ける
  */
 export type EnginesDir = "unknown" | "missing" | "dir" | "other";
 

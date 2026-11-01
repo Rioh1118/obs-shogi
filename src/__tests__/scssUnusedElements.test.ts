@@ -16,7 +16,7 @@ import { REPO_ROOT, SRC, scssFiles, tsFiles } from "./walk";
  *
  * 減らしたら `BASELINE` を下げること。下げないと、次に増えたぶんが隠れる。
  */
-const BASELINE = 29;
+const BASELINE = 10;
 
 /** `.block {` と、その中の `&__element {` を、展開した綴りで集める */
 function definedElements(scss: string): string[] {

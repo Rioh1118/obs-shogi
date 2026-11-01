@@ -76,10 +76,7 @@ function index(enginesDirExists: boolean, kind: FsKind = "dir"): AiRootIndex {
   };
 }
 
-/**
- * エンジンが1つ在る索引。**「AIフォルダを追加」の節はエンジンが0件だと描かれない**
- * （`SetupGuide` の `canOperate && enginesCount > 0`）
- */
+/** エンジンが1つ在る索引。エンジンが0件だと「AI フォルダを追加」の節は描かれない */
 function indexWithEngine(root = AI_ROOT): AiRootIndex {
   return {
     ...index(true),
@@ -106,7 +103,7 @@ function scanButton() {
 /**
  * スキャンが終わるまで待ち、**主カラムの**「engines/ を開く」を返す。
  *
- * 同じ名前のボタンは `SetupGuide` の hero（エンジンが0件のとき）と Step 3 にも出る。
+ * 同じ名前のボタンは `SetupHero`（エンジンが0件のとき）と Step 3 にも出る。
  * `engines/` が在る回は3つとも描かれるので、名前だけでは引けない。
  * 節（`SSection`）は見出しで名前が付いているので、そこで絞る
  */
@@ -670,14 +667,11 @@ describe("AI ライブラリタブの「開く」", () => {
   });
 
   /**
-   * `currentRootRef` が**どこで更新されるか**を固定する。
+   * `currentRootRef` をルートが変わる場所で書くこと。
    *
-   * この判定を通る2本（「ルートを切り替えた後に返る作成の失敗は、画面に書かない」と
-   * 「同 成功は、新しいルートの画面を壊さない」）は、間に `waitFor` を挟むので
-   * レンダが走る。**位置で指さない**——テストを1本挿し込むだけで指す先が変わる。
-   * `currentRootRef` をレンダで
-   * 更新する形でもそれだけなら通る。選び直した直後に返る継続は**再レンダより先**に走るので、
-   * レンダを1度も挟まずに判定できないと、その窓で前のルートの走査が新しい画面を上書きする
+   * 作成の失敗と成功の2本は間に `waitFor` を挟むのでレンダが走り、レンダで書く形でも通る。
+   * 選び直しの直後に返る継続は再レンダより先に走るので、そこで判定できないと前のルートの走査が
+   * 新しい画面を上書きする
    */
   test("選び直しと作成が続けて返っても、前のルートでは読み直さない", async () => {
     await renderScanned(false);
@@ -786,5 +780,670 @@ describe("AI ライブラリタブの「開く」", () => {
       "os error 2",
     );
     logged.mockRestore();
+  });
+});
+
+/** 主カラムのバッジの文字を読む。バッジの要素に役割が無いので class で引く */
+function badgeText() {
+  return document.querySelector(".aiLibraryTab__badge")?.textContent;
+}
+
+/** 手順書の先頭の「次にやること」の区画 */
+function hero() {
+  return within(document.querySelector<HTMLElement>(".setupGuide__hero")!);
+}
+
+function heroButtons() {
+  return hero()
+    .queryAllByRole("button")
+    .map((button) => button.textContent);
+}
+
+/** 手順の段の状態。見出しの文字から段の枠へ上がって読む */
+function stepState(title: string) {
+  return screen.getByText(title).closest("[data-state]")?.getAttribute("data-state");
+}
+
+/** 状態のカードの文字。見出しから枠へ上がり、見出し・値・補足を1本で読む */
+function statusCard(label: string) {
+  const grid = within(document.querySelector<HTMLElement>(".setupGuide__statusGrid")!);
+  const card = grid.getByText(label).closest<HTMLElement>("[data-state]")!;
+  return { text: card.textContent, state: card.getAttribute("data-state") };
+}
+
+/** 「現在の状態」の木を、接続の罫線まで含めて行ごとに読む */
+function treeLines() {
+  return [...document.querySelectorAll(".structureOverview__node")].map((node) => node.textContent);
+}
+
+type FolderFiles = { evalFiles?: number; bookFiles?: number };
+
+/** AI フォルダを1つ持つ索引。ファイルの数を変えて欠けを作る */
+function indexWithFolder(name: string, { evalFiles = 1, bookFiles = 1 }: FolderFiles = {}) {
+  const files = (dir: string, count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      entry: `${i}.bin`,
+      path: `${AI_ROOT}/${name}/${dir}/${i}.bin`,
+      kind: "file" as const,
+    }));
+  return {
+    ...indexWithEngine(),
+    profiles: [
+      {
+        name,
+        path: `${AI_ROOT}/${name}`,
+        has_eval_dir: true,
+        has_book_dir: true,
+        eval_files: files("eval", evalFiles),
+        book_db_files: files("book", bookFiles),
+      },
+    ],
+  };
+}
+
+async function renderIndex(scanned: AiRootIndex) {
+  scanAiRoot.mockResolvedValue(scanned);
+  render(<AiLibraryTab />);
+  await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
+}
+
+describe("AI ライブラリタブのバッジ", () => {
+  test("ルートが無ければ未設定で、走査しない", async () => {
+    aiRootValue.current = "";
+    render(<AiLibraryTab />);
+
+    expect(badgeText()).toBe("未設定");
+    expect(scanAiRoot).not.toHaveBeenCalled();
+  });
+
+  test("読んでいる間は診断中", () => {
+    scanAiRoot.mockReturnValue(new Promise(() => {}));
+    render(<AiLibraryTab />);
+
+    expect(badgeText()).toBe("診断中…");
+  });
+
+  test("読めなければエラー", async () => {
+    scanAiRoot.mockRejectedValue("読めません");
+    render(<AiLibraryTab />);
+
+    await waitFor(() => expect(badgeText()).toBe("エラー"));
+  });
+
+  test("注意が1つでもあれば注意あり", async () => {
+    await renderIndex(indexWithFolder("Suisho", { bookFiles: 0 }));
+
+    expect(badgeText()).toBe("注意あり");
+  });
+
+  test("注意が無ければ OK", async () => {
+    await renderIndex(indexWithFolder("Suisho"));
+
+    expect(badgeText()).toBe("OK");
+  });
+});
+
+describe("AI ライブラリタブの「検出された問題」", () => {
+  function warnings() {
+    return [...document.querySelectorAll(".setupGuide__warningItem")].map((w) => w.textContent);
+  }
+
+  test("engines/ が無ければ作成を案内し、置き場の話はしない", async () => {
+    await renderIndex(index(false));
+
+    expect(warnings()).toEqual(["engines/ が見つかりません。『engines/ を作成』で生成できます。"]);
+  });
+
+  test("engines がフォルダでなければ、同じ名前のものを外させる", async () => {
+    await renderIndex(index(true, "file"));
+
+    expect(warnings()).toEqual([
+      "engines がフォルダではありません。同じ名前のものを削除してください。",
+    ]);
+  });
+
+  test("AI フォルダごとに、欠けているものを言う", async () => {
+    await renderIndex(indexWithFolder("Suisho", { evalFiles: 0, bookFiles: 0 }));
+
+    expect(warnings()).toEqual([
+      "「Suisho」: 評価関数が未検出です（<AI 名>/eval に nn.bin 等）。",
+      "「Suisho」: 定跡が未検出です（<AI 名>/book に .db）。",
+    ]);
+  });
+
+  test("読み直している間は前の一覧を出さない", async () => {
+    await renderIndex(index(true));
+    expect(warnings()).toHaveLength(1);
+
+    scanAiRoot.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(scanButton());
+
+    expect(warnings()).toEqual([]);
+  });
+});
+
+describe("AI ライブラリタブの「次にやること」", () => {
+  test("ルートが無ければフォルダの選択を勧める", async () => {
+    aiRootValue.current = "";
+    chooseAiRoot.mockResolvedValue({ success: true, data: null });
+    render(<AiLibraryTab />);
+
+    expect(hero().getByText("AI ライブラリのフォルダを選択してください")).toBeTruthy();
+    expect(heroButtons()).toEqual(["フォルダを選択…"]);
+
+    fireEvent.click(hero().getByRole("button", { name: "フォルダを選択…" }));
+    await waitFor(() => expect(chooseAiRoot).toHaveBeenCalledTimes(1));
+  });
+
+  test("読んでいる間はボタンを出さない", () => {
+    scanAiRoot.mockReturnValue(new Promise(() => {}));
+    render(<AiLibraryTab />);
+
+    expect(hero().getByText("フォルダを確認しています")).toBeTruthy();
+    expect(heroButtons()).toEqual([]);
+  });
+
+  test("読めなければ原因を出し、読み直しと選び直しを出す", async () => {
+    scanAiRoot.mockRejectedValue(new Error("ルートがありません"));
+    render(<AiLibraryTab />);
+
+    await waitFor(() => expect(hero().getByText("ルートがありません")).toBeTruthy());
+    expect(heroButtons()).toEqual(["もう一度読み込む", "選択…"]);
+
+    scanAiRoot.mockClear();
+    scanAiRoot.mockResolvedValue(index(true));
+    fireEvent.click(hero().getByRole("button", { name: "もう一度読み込む" }));
+    await waitFor(() => expect(scanAiRoot).toHaveBeenCalledWith(AI_ROOT));
+    await waitFor(() => expect(badgeText()).toBe("注意あり"));
+  });
+
+  test("engines がフォルダでなければ、開いて確かめさせる", async () => {
+    await renderIndex(index(true, "symlink"));
+
+    expect(hero().getByText("engines がフォルダではありません")).toBeTruthy();
+    expect(heroButtons()).toEqual(["engines/ を開く", "もう一度読み込む"]);
+
+    fireEvent.click(hero().getByRole("button", { name: "engines/ を開く" }));
+    await waitFor(() => expect(revealInFileManager).toHaveBeenCalledWith(`${AI_ROOT}/engines`));
+  });
+
+  test("engines/ が無ければ作成を主にし、ルートを開けるようにする", async () => {
+    await renderIndex(index(false));
+
+    expect(hero().getByText("engines/ フォルダを作成してください")).toBeTruthy();
+    expect(heroButtons()).toEqual(["engines/ を作成", "AI ライブラリを開く"]);
+
+    fireEvent.click(hero().getByRole("button", { name: "AI ライブラリを開く" }));
+    await waitFor(() => expect(revealInFileManager).toHaveBeenCalledWith(AI_ROOT));
+
+    fireEvent.click(hero().getByRole("button", { name: "engines/ を作成" }));
+    await waitFor(() => expect(ensureEnginesDir).toHaveBeenCalledWith(AI_ROOT));
+  });
+
+  test("エンジンが0件なら、置き場を開いて読み直させる", async () => {
+    await renderIndex(index(true));
+
+    expect(hero().getByText("エンジン実行ファイルを置いてください")).toBeTruthy();
+    expect(heroButtons()).toEqual(["engines/ を開く", "もう一度読み込む"]);
+  });
+
+  test("AI フォルダが0件なら、名前の欄へ運ぶ", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(hero().getByText("AI フォルダを作成してください")).toBeTruthy();
+    expect(heroButtons()).toEqual(["AI 名の入力へ"]);
+
+    fireEvent.click(hero().getByRole("button", { name: "AI 名の入力へ" }));
+    expect(document.activeElement).toBe(screen.getByPlaceholderText("AI 名を入力"));
+  });
+
+  test("評価関数の無い AI フォルダがあれば、その名前で置き場を言う", async () => {
+    await renderIndex(indexWithFolder("Suisho", { evalFiles: 0 }));
+
+    expect(hero().getByText("「Suisho」に評価関数を置いてください")).toBeTruthy();
+    expect(heroButtons()).toEqual(["AI ライブラリを開く", "もう一度読み込む"]);
+  });
+
+  test("定跡だけが無くても、土台は完成と言う", async () => {
+    await renderIndex(indexWithFolder("Suisho", { bookFiles: 0 }));
+
+    expect(hero().getByText("セットアップの土台は完成しています")).toBeTruthy();
+    expect(heroButtons()).toEqual(["もう一度読み込む"]);
+  });
+});
+
+describe("AI ライブラリタブの手順", () => {
+  const STEPS = [
+    "AI ライブラリを選択",
+    "engines/ フォルダを作成",
+    "エンジン実行ファイルを配置",
+    "評価関数・定跡を配置",
+  ];
+
+  function stepStates() {
+    return STEPS.map(stepState);
+  }
+
+  test("ルートが無ければ1段目だけが開く", () => {
+    aiRootValue.current = "";
+    render(<AiLibraryTab />);
+
+    expect(stepStates()).toEqual(["active", "locked", "locked", "locked"]);
+  });
+
+  test("engines/ が無ければ2段目が開く", async () => {
+    await renderIndex(index(false));
+
+    expect(stepStates()).toEqual(["done", "active", "locked", "locked"]);
+  });
+
+  test("engines がフォルダでなければ2段目も塞ぐ", async () => {
+    await renderIndex(index(true, "file"));
+
+    expect(stepStates()).toEqual(["done", "locked", "locked", "locked"]);
+  });
+
+  test("読めていなければ2段目も塞ぐ", async () => {
+    scanAiRoot.mockRejectedValue("読めません");
+    render(<AiLibraryTab />);
+    await waitFor(() => expect(badgeText()).toBe("エラー"));
+
+    expect(stepStates()).toEqual(["done", "locked", "locked", "locked"]);
+  });
+
+  test("エンジンも AI フォルダも0件なら3段目と4段目が注意になる", async () => {
+    await renderIndex(index(true));
+
+    expect(stepStates()).toEqual(["done", "done", "warn", "warn"]);
+  });
+
+  test("読み直している間は、注意を保留する", async () => {
+    await renderIndex(index(true));
+
+    scanAiRoot.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(scanButton());
+
+    expect(stepStates()).toEqual(["done", "done", "active", "locked"]);
+  });
+
+  test("全部そろえば全段が済みで、数を添える", async () => {
+    await renderIndex(indexWithFolder("Suisho"));
+
+    expect(stepStates()).toEqual(["done", "done", "done", "done"]);
+    expect(screen.getByText("engines/ 検出済み")).toBeTruthy();
+    expect(screen.getByText("1 個検出")).toBeTruthy();
+    expect(screen.getByText("1 個のAI検出")).toBeTruthy();
+  });
+
+  test("済んだ段は本文を畳み、読み直しのボタンは処理中に押せない", async () => {
+    await renderIndex(index(true));
+
+    expect(screen.queryByText("engines/ を作成")).toBeNull();
+
+    scanAiRoot.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(scanButton());
+
+    const buttons = screen.getAllByRole<HTMLButtonElement>("button", {
+      name: "もう一度読み込む",
+    });
+    expect(buttons.length).toBeGreaterThan(0);
+    expect(buttons.every((button) => button.disabled)).toBe(true);
+  });
+
+  test("主カラムの作成は読んでいる間は押せない", async () => {
+    await renderIndex(index(false));
+    const main = within(screen.getByRole("region", { name: "AI ライブラリ" }));
+
+    ensureEnginesDir.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(main.getByRole("button", { name: "engines/ を作成" }));
+
+    expect(
+      (main.getByRole("button", { name: "engines/ を作成" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+});
+
+describe("AI ライブラリタブの状態のカード", () => {
+  test("読めていない間は数を言い切らない", async () => {
+    scanAiRoot.mockRejectedValue("読めません");
+    render(<AiLibraryTab />);
+    await waitFor(() => expect(badgeText()).toBe("エラー"));
+
+    expect(statusCard("engines フォルダ")).toEqual({ text: "engines フォルダ—", state: "todo" });
+    expect(statusCard("エンジン")).toEqual({ text: "エンジン—", state: "todo" });
+    expect(statusCard("AI フォルダ")).toEqual({ text: "AI フォルダ—", state: "todo" });
+  });
+
+  test("ルートが無ければ未設定", () => {
+    aiRootValue.current = "";
+    render(<AiLibraryTab />);
+
+    expect(statusCard("AI ライブラリ")).toEqual({ text: "AI ライブラリ未設定", state: "todo" });
+  });
+
+  test("engines/ の4つの状態を言い分ける", async () => {
+    await renderIndex(index(false));
+    expect(statusCard("engines フォルダ")).toEqual({
+      text: `engines フォルダなし${AI_ROOT}/engines`,
+      state: "warn",
+    });
+    cleanup();
+
+    await renderIndex(index(true, "file"));
+    expect(statusCard("engines フォルダ").text).toBe(
+      `engines フォルダフォルダでない${AI_ROOT}/engines`,
+    );
+    expect(statusCard("engines フォルダ").state).toBe("warn");
+    cleanup();
+
+    await renderIndex(index(true));
+    expect(statusCard("engines フォルダ")).toEqual({
+      text: `engines フォルダあり${AI_ROOT}/engines`,
+      state: "ok",
+    });
+  });
+
+  test("エンジンが0件なら、置き場と、AI フォルダを作れる順番を言う", async () => {
+    await renderIndex(index(true));
+
+    expect(statusCard("エンジン")).toEqual({
+      text: "エンジン0 件engines/ に置いてください",
+      state: "warn",
+    });
+    expect(statusCard("AI フォルダ")).toEqual({
+      text: "AI フォルダ0 件エンジンを置いた後に作成できます",
+      state: "warn",
+    });
+  });
+
+  test("エンジンがあれば AI フォルダは下の欄から作れると言う", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(statusCard("エンジン")).toEqual({ text: "エンジン1 件検出済み", state: "ok" });
+    expect(statusCard("AI フォルダ").text).toBe("AI フォルダ0 件下のフォームから作成できます");
+  });
+
+  test("別の OS 向けと読めないものは数えない", async () => {
+    await renderIndex({
+      ...index(true),
+      engines: [
+        { entry: "win.exe", path: "/w", kind: "file", launchability: "wrongPlatform" },
+        { entry: "bad", path: "/b", kind: "file", launchability: "unreadable" },
+        { entry: "off", path: "/o", kind: "file", launchability: "notExecutable" },
+      ],
+    });
+
+    expect(statusCard("エンジン").text).toContain("1 件");
+    expect(treeLines()).toContain("└─ 🔧 off");
+    expect(treeLines().join()).not.toContain("win.exe");
+  });
+
+  test("評価関数のある AI フォルダだけを数える", async () => {
+    await renderIndex(indexWithFolder("Suisho", { evalFiles: 0 }));
+
+    expect(statusCard("AI フォルダ")).toEqual({
+      text: "AI フォルダ1 件評価関数あり 0 件",
+      state: "ok",
+    });
+  });
+
+  test("長いルートは末尾を残して詰める", async () => {
+    const root = `/Users/me/${"d".repeat(40)}/ai`;
+    aiRootValue.current = root;
+    await renderIndex(index(true));
+
+    const short = `…${root.slice(-31)}`;
+    expect(statusCard("AI ライブラリ").text).toBe(`AI ライブラリ設定済み${short}`);
+    expect(screen.getByText(short, { selector: ".setupGuide__stepSummary" })).toBeTruthy();
+  });
+
+  test("32文字ちょうどのルートは詰めない", async () => {
+    const root = `/${"d".repeat(31)}`;
+    aiRootValue.current = root;
+    await renderIndex(index(true));
+
+    expect(statusCard("AI ライブラリ").text).toBe(`AI ライブラリ設定済み${root}`);
+  });
+});
+
+describe("AI ライブラリタブの「検出されたAI」", () => {
+  test("定跡が無くても警告の色にしない", async () => {
+    await renderIndex(indexWithFolder("Suisho", { bookFiles: 0 }));
+
+    const list = within(screen.getByRole("region", { name: "検出されたAI" }));
+    expect(list.getByText("Suisho")).toBeTruthy();
+    expect(list.getByText(`${AI_ROOT}/Suisho`)).toBeTruthy();
+    expect(list.getByText(/評価関数/).textContent).toBe("評価関数 あり");
+    expect(list.getByText(/定跡/).textContent).toBe("定跡 未設定");
+  });
+
+  test("評価関数が無ければ不足と言う", async () => {
+    await renderIndex(indexWithFolder("Suisho", { evalFiles: 0 }));
+
+    const list = within(screen.getByRole("region", { name: "検出されたAI" }));
+    expect(list.getByText(/評価関数/).textContent).toBe("評価関数 不足");
+  });
+});
+
+describe("AI フォルダの作成の欄", () => {
+  test("空の名前では呼ばず、作成のボタンも押せない", async () => {
+    await renderIndex(indexWithEngine());
+    const input = screen.getByPlaceholderText("AI 名を入力");
+
+    expect((screen.getByRole("button", { name: "作成" }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => {});
+
+    expect(createAiProfileDirs).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
+  });
+
+  test("Enter で作り、名前の前後の空白は落として渡す", async () => {
+    await renderIndex(indexWithEngine());
+    const input = screen.getByPlaceholderText("AI 名を入力");
+
+    fireEvent.change(input, { target: { value: " Suisho " } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(createAiProfileDirs).toHaveBeenCalledWith(AI_ROOT, "Suisho"));
+  });
+
+  test("Enter 以外のキーでは作らない", async () => {
+    await renderIndex(indexWithEngine());
+    const input = screen.getByPlaceholderText("AI 名を入力");
+
+    fireEvent.change(input, { target: { value: "Suisho" } });
+    fireEvent.keyDown(input, { key: "a" });
+    await act(async () => {});
+
+    expect(createAiProfileDirs).not.toHaveBeenCalled();
+  });
+
+  test("作っている間の Enter の連打は1回に畳む", async () => {
+    await renderIndex(indexWithEngine());
+    const input = screen.getByPlaceholderText("AI 名を入力");
+    createAiProfileDirs.mockReturnValue(new Promise(() => {}));
+
+    fireEvent.change(input, { target: { value: "Suisho" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => {});
+
+    expect(createAiProfileDirs).toHaveBeenCalledTimes(1);
+  });
+
+  test("打ち直すと前の赤字が消える", async () => {
+    await renderIndex(indexWithEngine());
+    const input = screen.getByPlaceholderText("AI 名を入力");
+    createAiProfileDirs.mockResolvedValue({
+      success: false,
+      error: { code: "invalid_name_separator" },
+    });
+
+    fireEvent.change(input, { target: { value: "a/b" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+    const createError = () => document.querySelector(".setupGuide__createError")?.textContent;
+    await waitFor(() => expect(createError()).not.toBe(""));
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+
+    fireEvent.change(input, { target: { value: "ab" } });
+    expect(createError()).toBe("");
+  });
+
+  test("名前では直せない失敗は AI ライブラリの診断へ回す", async () => {
+    await renderIndex(indexWithEngine());
+    createAiProfileDirs.mockResolvedValue({ success: false, error: { code: "not_found" } });
+
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    await waitFor(() => expect(badgeText()).toBe("エラー"));
+    expect(document.querySelector(".setupGuide__createError")?.textContent).toBe("");
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 名前は悪くないので、打ち直させない。同じ名前のフォルダが在る、AI ルートが消えた、などで落ちる。
+   * 消すと、フォルダを作り直せる状態に戻した後で名前を打ち直すことになる
+   */
+  test("名前では直せない失敗でも、打った名前は残す", async () => {
+    await renderIndex(indexWithEngine());
+    const input = screen.getByPlaceholderText("AI 名を入力") as HTMLInputElement;
+    createAiProfileDirs.mockResolvedValue({ success: false, error: { code: "already_exists" } });
+
+    fireEvent.change(input, { target: { value: "Suisho" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    await waitFor(() => expect(badgeText()).toBe("エラー"));
+    expect(input.value).toBe("Suisho");
+    // 直す場所ではないので、欄へ運ばない
+    expect(document.activeElement).not.toBe(input);
+  });
+
+  test("作れたらそのルートを読み直す", async () => {
+    await renderIndex(indexWithEngine());
+    scanAiRoot.mockClear();
+
+    fireEvent.change(screen.getByPlaceholderText("AI 名を入力"), { target: { value: "Suisho" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    await waitFor(() => expect(scanAiRoot).toHaveBeenCalledWith(AI_ROOT));
+  });
+});
+
+describe("AI ライブラリタブのパス", () => {
+  /**
+   * 前後の空白は走査と作成でだけ落ちる。`copyText` へ寄せたときに、同じ値を渡す呼び手で
+   * 空白を落として別のパスにした退行があったので、呼び手ごとの値を固定する
+   */
+  test("走査は空白を落とした値で、開くとコピーは表示のままの値で渡す", async () => {
+    const root = ` ${AI_ROOT} `;
+    aiRootValue.current = root;
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue();
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+
+    await renderIndex(index(true));
+    expect(scanAiRoot).toHaveBeenCalledWith(AI_ROOT);
+
+    const main = within(screen.getByRole("region", { name: "AI ライブラリ" }));
+    fireEvent.click(main.getByRole("button", { name: "開く" }));
+    await waitFor(() => expect(revealInFileManager).toHaveBeenCalledWith(root));
+
+    fireEvent.click(main.getByTitle("パスをコピー"));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(root));
+  });
+
+  test("ルートが無ければ開くとコピーは押せない", () => {
+    aiRootValue.current = "";
+    render(<AiLibraryTab />);
+    const main = within(screen.getByRole("region", { name: "AI ライブラリ" }));
+
+    expect((main.getByRole("button", { name: "開く" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((main.getByTitle("パスをコピー") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  test("開けなかったフォルダの名前を題に出し、鍵はパスごとに分ける", async () => {
+    revealInFileManager.mockResolvedValue({ success: false, error: "no" });
+    await renderIndex(index(true));
+    const main = within(screen.getByRole("region", { name: "AI ライブラリ" }));
+
+    fireEvent.click(main.getByRole("button", { name: "開く" }));
+    await waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+
+    expect(notify.mock.calls[0][0]).toMatchObject({
+      title: "AI ライブラリを開けませんでした",
+      dedupeKey: `reveal:${AI_ROOT}`,
+    });
+  });
+
+  test("engines/ の作成が落ちたら、読めていた engines/ を残して診断に出す", async () => {
+    await renderIndex(index(false));
+    ensureEnginesDir.mockRejectedValue(new Error("作れません"));
+
+    fireEvent.click(hero().getByRole("button", { name: "engines/ を作成" }));
+
+    await waitFor(() => expect(badgeText()).toBe("エラー"));
+    expect(statusCard("engines フォルダ").text).toContain("なし");
+    expect(hero().getByText("作れません")).toBeTruthy();
+  });
+});
+
+describe("AI ライブラリタブの「現在の状態」の木", () => {
+  test("ルートが無ければ engines/ が最後の行になる", () => {
+    aiRootValue.current = "";
+    render(<AiLibraryTab />);
+
+    expect(treeLines()).toEqual(["📂 ai_root/← まず選択", "└─ 📂 engines/"]);
+  });
+
+  test("AI フォルダが無いときは、engines/ の下に見本の行が続く", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(treeLines()).toEqual([
+      "📂 ai/",
+      "├─ 📂 engines/",
+      "└─ 🔧 YaneuraOu",
+      "└─ 📂 ＜AI 名＞/← AI フォルダを作成",
+    ]);
+  });
+
+  test("最後の AI フォルダと、各フォルダの book/ を閉じる", async () => {
+    const scanned = indexWithFolder("A");
+    await renderIndex({
+      ...scanned,
+      profiles: [...scanned.profiles, ...indexWithFolder("B").profiles],
+    });
+
+    expect(treeLines()).toEqual([
+      "📂 ai/",
+      "├─ 📂 engines/",
+      "└─ 🔧 YaneuraOu",
+      "├─ 📂 A/",
+      "├─ 📂 eval/",
+      "└─ 📂 book/",
+      "└─ 📂 B/",
+      "├─ 📂 eval/",
+      "└─ 📂 book/",
+    ]);
+  });
+});
+
+describe("AI ライブラリタブの文面", () => {
+  test("AI フォルダの案内は文として読める", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(
+      hero().getByText("AI 名のフォルダを作成すると、eval/ と book/ が自動で用意されます。"),
+    ).toBeTruthy();
+  });
+
+  /** プリセットの名前は編集画面で自由に付ける。AI フォルダが決めるのは使う評価関数と定跡 */
+  test("フォルダ名がプリセットの名前になるとは言わない", async () => {
+    await renderIndex(indexWithEngine());
+
+    expect(screen.queryByText(/プリセット名/)).toBeNull();
   });
 });
