@@ -16,6 +16,11 @@ describe("asBookError", () => {
     expect(asBookError(raised)).toEqual({ ...raised, code: "unknown" });
   });
 
+  /** `in` はプロトタイプの鍵も通す。通すと `code` が union の外の値になる */
+  it.each(["constructor", "toString", "__proto__"])("%s は知らない code として扱う", (code) => {
+    expect(asBookError({ code, message: "m" }).code).toBe("unknown");
+  });
+
   it("path が文字列でなければ null にする", () => {
     expect(asBookError({ code: "io", message: "m" }).path).toBeNull();
     expect(asBookError({ code: "io", message: "m", path: 3 }).path).toBeNull();

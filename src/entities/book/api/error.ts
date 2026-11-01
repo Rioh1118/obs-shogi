@@ -26,7 +26,7 @@ const BOOK_ERROR_CODES = {
 } satisfies Record<BookErrorCode, true>;
 
 function isBookErrorCode(value: unknown): value is BookErrorCode {
-  return typeof value === "string" && value in BOOK_ERROR_CODES;
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(BOOK_ERROR_CODES, value);
 }
 
 /**
