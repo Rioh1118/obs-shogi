@@ -145,6 +145,20 @@ describe("読めていない一覧の上に書かない", () => {
     expect(saveStudyPositions).not.toHaveBeenCalled();
   });
 
+  /** 開いた画面は新規の形のままなので、断りの文で開き直しへ導く */
+  it("読み直して保存済みと分かった局面は、開き直しを案内して断る", async () => {
+    const view = brokenFile();
+    await waitFor(() => expect(view.result.current.state.error).not.toBeNull());
+
+    loadStudyPositions.mockResolvedValue({ positions: [stored("a", SFEN_A)] });
+    await act(async () => {
+      await expect(view.result.current.addPosition(input(SFEN_A))).rejects.toThrow("開き直す");
+    });
+
+    expect(saveStudyPositions).not.toHaveBeenCalled();
+    expect(view.result.current.state.positions).toHaveLength(1);
+  });
+
   it("読み直して読めたら、読めた一覧へ足す", async () => {
     const view = brokenFile();
     await waitFor(() => expect(view.result.current.state.error).not.toBeNull());
@@ -220,7 +234,7 @@ describe("addPosition", () => {
     const view = await mounted([stored("a", SFEN_A)]);
 
     await expect(view.result.current.addPosition(input(SFEN_A_LATER))).rejects.toThrow(
-      "already exists",
+      "もう保存されています",
     );
     expect(saveStudyPositions).not.toHaveBeenCalled();
   });
@@ -307,6 +321,35 @@ describe("addPosition", () => {
       await view.result.current.addPosition(input(SFEN_A));
     });
     expect(view.result.current.state.error).toBeNull();
+  });
+
+  /**
+   * 重なったまま先の保存が落ちると、先の巻き戻しが後から通った局面を一覧から消し、
+   * 次の保存がファイルからも消す
+   */
+  it("先の保存の失敗が、後の保存を巻き込まない", async () => {
+    const view = await mounted([stored("a", SFEN_A)]);
+    const first = deferred<void>();
+    saveStudyPositions.mockReturnValueOnce(first.promise);
+
+    let adding!: Promise<unknown>;
+    let adding2!: Promise<unknown>;
+    await act(async () => {
+      adding = view.result.current.addPosition(input(SFEN_B)).catch((e: unknown) => e);
+      adding2 = view.result.current.addPosition(input(SFEN_C));
+    });
+    expect(saveStudyPositions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.reject(new Error("書けない"));
+      await adding;
+      await adding2;
+    });
+
+    expect(view.result.current.findBySfen(SFEN_C)).not.toBeNull();
+    expect(view.result.current.findBySfen(SFEN_B)).toBeNull();
+    expect(saveStudyPositions.mock.lastCall![0].positions).toHaveLength(2);
+    expect(view.result.current.state.positions).toHaveLength(2);
   });
 
   /** 2件目が1件目を知らない一覧を書くと、1件目がファイルから消える */

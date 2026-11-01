@@ -3,6 +3,7 @@ import { loadStudyPositions, saveStudyPositions } from "../api/studyPositions";
 import { sfenToPositionKey } from "../lib/sfenToPositionKey";
 import { StudyPositionsContext } from "./context";
 import type { StudyPositionsContextType } from "./context";
+import { createSerialQueue } from "@/shared/lib/serialQueue";
 import type {
   CreateStudyPositionInput,
   StudyPosition,
@@ -53,9 +54,11 @@ function messageOf(e: unknown): string {
 
 export function StudyPositionsProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StudyPositionsState>({ positions: [], error: null });
+  // 書く操作を1本ずつ通す。重なると、先の保存が失敗したときの巻き戻しが、後から通った局面を
+  // 一覧から消し、次の保存がファイルからも消す
+  const [enqueue] = useState(createSerialQueue);
 
-  // 書き込みの土台。`state` は描画まで進まないので、続けて呼ばれた2件目が1件目を知らない
-  // 一覧を書き、1件目がファイルから消える
+  // 書き込みの土台。`state` は描画まで進まないので、`await` の後に読むと古い一覧を書く
   const positionsRef = useRef<StudyPosition[]>([]);
 
   // 読み込みの完了を待つ promise。失敗したら空に戻し、次に書く操作が読み直す。
@@ -115,68 +118,72 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addPosition = useCallback(
-    async (input: CreateStudyPositionInput): Promise<StudyPosition> => {
-      await ensureLoaded();
+    (input: CreateStudyPositionInput): Promise<StudyPosition> =>
+      enqueue(async () => {
+        await ensureLoaded();
 
-      const key = requirePositionKey(input.sfen);
-      if (findByPositionKey(positionsRef.current, key)) {
-        throw new Error("Study position already exists for this position");
-      }
+        const key = requirePositionKey(input.sfen);
+        if (findByPositionKey(positionsRef.current, key)) {
+          // 読み直しで保存済みと分かったときに、新規の形で開いた画面から来る
+          throw new Error("この局面はもう保存されています。開き直すと編集できます");
+        }
 
-      const now = new Date().toISOString();
-      const position = normalizeStoredPosition({
-        id: crypto.randomUUID(),
-        ...input,
-        createdAt: now,
-        updatedAt: now,
-      });
+        const now = new Date().toISOString();
+        const position = normalizeStoredPosition({
+          id: crypto.randomUUID(),
+          ...input,
+          createdAt: now,
+          updatedAt: now,
+        });
 
-      await commitPositions([position, ...positionsRef.current]);
-      return position;
-    },
-    [commitPositions, ensureLoaded],
+        await commitPositions([position, ...positionsRef.current]);
+        return position;
+      }),
+    [commitPositions, enqueue, ensureLoaded],
   );
 
   const updatePosition = useCallback(
-    async (input: UpdateStudyPositionInput): Promise<StudyPosition> => {
-      await ensureLoaded();
+    (input: UpdateStudyPositionInput): Promise<StudyPosition> =>
+      enqueue(async () => {
+        await ensureLoaded();
 
-      const current = positionsRef.current.find((p) => p.id === input.id);
-      if (!current) {
-        throw new Error("Study position not found");
-      }
+        const current = positionsRef.current.find((p) => p.id === input.id);
+        if (!current) {
+          throw new Error("Study position not found");
+        }
 
-      const updated = normalizeStoredPosition({
-        ...current,
-        sfen: input.sfen ?? current.sfen,
-        label: input.label ?? current.label,
-        description: input.description ?? current.description,
-        state: input.state ?? current.state,
-        tags: input.tags ?? current.tags,
-        updatedAt: new Date().toISOString(),
-      });
+        const updated = normalizeStoredPosition({
+          ...current,
+          sfen: input.sfen ?? current.sfen,
+          label: input.label ?? current.label,
+          description: input.description ?? current.description,
+          state: input.state ?? current.state,
+          tags: input.tags ?? current.tags,
+          updatedAt: new Date().toISOString(),
+        });
 
-      const key = requirePositionKey(updated.sfen);
-      const others = positionsRef.current.filter((p) => p.id !== updated.id);
-      if (findByPositionKey(others, key)) {
-        throw new Error("Another study position already exists for this position");
-      }
+        const key = requirePositionKey(updated.sfen);
+        const others = positionsRef.current.filter((p) => p.id !== updated.id);
+        if (findByPositionKey(others, key)) {
+          throw new Error("Another study position already exists for this position");
+        }
 
-      await commitPositions(positionsRef.current.map((p) => (p.id === updated.id ? updated : p)));
-      return updated;
-    },
-    [commitPositions, ensureLoaded],
+        await commitPositions(positionsRef.current.map((p) => (p.id === updated.id ? updated : p)));
+        return updated;
+      }),
+    [commitPositions, enqueue, ensureLoaded],
   );
 
   const deletePosition = useCallback(
-    async (id: string): Promise<void> => {
-      await ensureLoaded();
+    (id: string): Promise<void> =>
+      enqueue(async () => {
+        await ensureLoaded();
 
-      if (!positionsRef.current.some((p) => p.id === id)) return;
+        if (!positionsRef.current.some((p) => p.id === id)) return;
 
-      await commitPositions(positionsRef.current.filter((p) => p.id !== id));
-    },
-    [commitPositions, ensureLoaded],
+        await commitPositions(positionsRef.current.filter((p) => p.id !== id));
+      }),
+    [commitPositions, enqueue, ensureLoaded],
   );
 
   useEffect(() => {
