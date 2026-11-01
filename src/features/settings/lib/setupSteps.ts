@@ -15,8 +15,7 @@ type SetupProgress = {
   scanReady: boolean;
 };
 
-function createEnginesState({ hasRoot, enginesDir }: SetupProgress): StepState {
-  if (!hasRoot) return "locked";
+function createEnginesState({ enginesDir }: SetupProgress): StepState {
   if (canListEnginesDir(enginesDir)) return "done";
   // フォルダでないものが在る間と読めていない間は塞ぐ。作成が通る保証が無く、すべきことは hero が言う
   return canCreateEnginesDir(enginesDir) ? "active" : "locked";

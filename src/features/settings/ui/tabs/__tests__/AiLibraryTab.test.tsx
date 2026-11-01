@@ -1319,6 +1319,8 @@ describe("AI フォルダの作成の欄", () => {
 
     await waitFor(() => expect(badgeText()).toBe("エラー"));
     expect(input.value).toBe("Suisho");
+    // 直す場所ではないので、欄へ運ばない
+    expect(document.activeElement).not.toBe(input);
   });
 
   test("作れたらそのルートを読み直す", async () => {
