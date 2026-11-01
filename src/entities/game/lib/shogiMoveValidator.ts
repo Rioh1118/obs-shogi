@@ -9,9 +9,6 @@ import type { Color, Kind, Shogi } from "shogi.js";
 import type { ShogiMove } from "../model/types";
 
 export class ShogiMoveValidator implements MoveValidator {
-  /**
-   * 基本的な合法手チェック
-   */
   isLegalMove(shogi: Shogi, move: ShogiMove): boolean {
     try {
       if (move.from) {
@@ -29,10 +26,6 @@ export class ShogiMoveValidator implements MoveValidator {
     }
   }
 
-  /**
-   * 指定位置からの合法手を取得
-   * shogi.getMovesFrom()を使用 + 王手放置チェック
-   */
   getLegalMovesFrom(shogi: Shogi, x: number, y: number): ShogiMove[] {
     const piece = shogi.get(x, y);
     if (!piece) return [];
@@ -41,27 +34,14 @@ export class ShogiMoveValidator implements MoveValidator {
     return basicMoves.filter((move) => !wouldBeInCheckAfterMove(shogi, move));
   }
 
-  /**
-   * 指定した駒種の駒打ち合法手取得。
-   *
-   * **自分で条件を並べ直さないこと。** 同じ規則を2箇所に書いていた頃、
-   * 数え上げの順序を直した修正が片方にしか入らず、盤が通るこちら側だけが
-   * 遅いまま残った（`filterLegalDrops` の doc）
-   */
   getLegalDropsByKind(shogi: Shogi, color: Color, kind: Kind): ShogiMove[] {
     return getLegalDrops(shogi, color, kind);
   }
 
-  /**
-   * 成り可能チェック
-   */
   canPromote(shogi: Shogi, move: ShogiMove): boolean {
     return canPromote(shogi, move);
   }
 
-  /**
-   * 強制成りチェック
-   */
   mustPromote(shogi: Shogi, move: ShogiMove): boolean {
     return mustPromote(shogi, move);
   }

@@ -18,7 +18,6 @@ export function fromIMove(
   };
 }
 
-// StandardMoveFormat から IMoveMoveFormat への変換
 export function toIMoveMoveFormat(move: StandardMoveFormat): IMoveMoveFormat {
   return {
     from: move.from,

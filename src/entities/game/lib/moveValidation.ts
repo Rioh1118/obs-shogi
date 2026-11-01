@@ -14,7 +14,7 @@ function copyPosition(shogi: Shogi): Shogi {
  * 手番の側が `move` を指すと自玉が王手される形になるかを返す。指せない手も `true` を返す。
  *
  * 指す側は `move.color` でなく `shogi.turn` で決める。`shogi.js` の `move` と `drop` は
- * 手番でない側の手を投げるので、最後の行に着く手を指したのは必ず手番の側で、
+ * 手番でない側の手を投げるので、`isCheck` に届く手を指したのは必ず手番の側になる。
  * `getMovesFrom` が返す移動手は `color` の欄を持たない。
  */
 export function wouldBeInCheckAfterMove(shogi: Shogi, move: ShogiMove): boolean {
@@ -56,58 +56,44 @@ export function mustPromote(shogi: Shogi, move: ShogiMove): boolean {
   return isDeadEnd(piece.kind, piece.color, move.to.y);
 }
 
-/**
- * 打ち歩詰めかどうかをチェック
- * 歩を打って相手玉を詰ませることは禁止
- */
+/** 歩を打って相手玉を詰ませる手かを返す。指せない歩打ちも `true` を返す */
 function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
-  // 駒打ちでない場合は打ち歩詰めではない
   if (move.from) return false;
-
-  // 歩でない場合は打ち歩詰めではない
   if (move.kind !== "FU") return false;
 
   try {
-    // 歩を打った後の局面をシミュレート
     const played = copyPosition(shogi);
-
-    // 歩を打つ
     played.drop(move.to.x, move.to.y, move.kind, move.color!);
 
-    // 相手の色を取得
     const opponentColor = Piece.oppositeColor(move.color!);
 
-    // 相手が王手されているかチェック
     if (!played.isCheck(opponentColor)) {
       return false;
     }
 
-    // 相手に合法手がない場合は詰み = 打ち歩詰め。
-    //
     // **数え上げてから長さを見ないこと。** この検査は `hasLegalMove` から
     // 呼ばれ、その中でまた歩打ちごとにここへ入る。全部作る形だと入れ子が
     // 掛け算になり、双方が歩を2枚持つ詰み形で1分を超える（実測 66 秒）。
     return !hasLegalMove(played, opponentColor);
   } catch (e) {
     console.log(e);
-    return true; // エラーの場合は安全側に倒して打ち歩詰めとする
+    return true;
   }
 }
 
 /**
- * 指定した色の合法手を、見つかった順に1つずつ返す
+ * 指定した色の合法手を、見つかった順に1つずつ返す。
  *
- * **数え上げの途中で打ち切れるようにするための形。** 王手放置の検査
+ * ジェネレータなのは数え上げの途中で打ち切るため。王手放置の検査
  * (`wouldBeInCheckAfterMove`) は候補1手ごとに局面を SFEN で写して指し直すので、
  * 「合法手が1つでもあるか」だけを知りたい側（`hasLegalMove`）が
  * 全部を作ると、その分だけ丸ごと無駄になる。
  *
  * **`color` は手番の側であること。** 手番でない側を渡すと、`wouldBeInCheckAfterMove`
  * の中で shogi.js が手番違いを投げ、その catch が「王手放置」に倒すので、
- * **合法手が1つも無い＝詰み**という答えが返る。エラーにはならない。
+ * 合法手が1つも無いという答えが返る。エラーにはならず、詰みと区別が付かない。
  */
 function* generateLegalMoves(shogi: Shogi, color: Color): Generator<ShogiMove> {
-  // 盤上の駒からの移動手
   for (let x = 1; x <= 9; x++) {
     for (let y = 1; y <= 9; y++) {
       const piece = shogi.get(x, y);
@@ -152,11 +138,11 @@ export function getLegalDrops(shogi: Shogi, color: Color, kind: Kind): ShogiMove
 }
 
 /**
- * 合法手が1つでもあるか
+ * 手番側（`color`）に合法手が1つでもあるかを返す。前提は `generateLegalMoves` と同じ。
  *
- * **詰み・手詰まりの判定はこれを使う。** `getAllLegalMoves(...).length === 0` でも
+ * 詰みと手詰まりの判定はこれを使う。`getAllLegalMoves(...).length === 0` でも
  * 同じ答えが出るが、詰んでいない局面（対局中はほぼ毎手そうである）でも
- * 最後の1手まで数え上げることになる。前提は `generateLegalMoves` と同じ。
+ * 最後の1手まで数え上げることになる。
  */
 export function hasLegalMove(shogi: Shogi, color: Color): boolean {
   return !generateLegalMoves(shogi, color).next().done;

@@ -10,8 +10,8 @@ import type { StandardMoveFormat } from "../model/types";
  *
  * **突き合わせる相手を持つ。** 綴りが正しいかを字面だけで見ると、
  * 段の写し違い（`7g7f` が `7g76`）が「文字列として等しい」で通ってしまう。
- * ここは**同じ局面に同じ手を、盤の側と tsshogi の側から当てて、
- * 出来上がる局面が一致すること**まで見る。
+ * ここは同じ局面に同じ手を、盤の側と tsshogi の側から当てて、
+ * 出来上がる局面が一致することまで見る。
  */
 
 const HIRATE = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
@@ -73,7 +73,7 @@ describe("USI の綴り", () => {
     expect(toUsiMove(move)).toBe("P*5e");
   });
 
-  /** **玉は打てない。** 綴れてしまうと、エンジンが解釈できない行が飛ぶ */
+  /** 玉を綴れてしまうと、エンジンが解釈できない行が飛ぶ */
   test("打てない駒は綴らない", () => {
     expect(toUsiMove({ to: { x: 5, y: 5 }, piece: "OU", color: Color.Black })).toBeNull();
     expect(toUsiMove({ to: { x: 5, y: 5 }, piece: "TO", color: Color.Black })).toBeNull();
@@ -89,7 +89,7 @@ describe("USI の綴り", () => {
   });
 
   /**
-   * **段の写し違いを、字面ではなく結果で捕まえる。**
+   * 段の写し違いを、字面ではなく結果で捕まえる。
    * 9段ぶん全部を1手ずつ当て、`a`〜`i` の対応がずれていないことを見る。
    */
   test("段の対応が9つとも合っている", () => {
@@ -112,15 +112,15 @@ describe("USI の綴り", () => {
 });
 
 /**
- * **`promote` の欄は3つの状態を持つ。**
+ * `promote` の欄は3つの状態を持つ。
  *
- * JKF の README がそう決めている —— `true:成, false:不成, 無いかnull:どちらでもない`。
+ * JKF の README の定義は `true:成, false:不成, 無いかnull:どちらでもない`。
  * `getReadableKifu()` はこの欄だけを見て「不成」を出すので、
  * **成れない手に `false` を載せると「２六歩不成」になる。**
  *
  * エンジンが決めた手はここを通ってしか盤へ載らない（`GameMoveBridge`）。
  * 人の手は `selectSquare` の引数が `undefined` のまま来て
- * `toIMoveMoveFormat` が欄ごと落とすので、**ずれるのはこちら側だけ。**
+ * `toIMoveMoveFormat` が欄ごと落とすので、ずれるのはこちら側だけ。
  */
 describe("USI の綴りから戻した手の `promote`", () => {
   /** 2四に先手の歩を置いた局面。2三へ進むと敵陣に入る */
