@@ -8,8 +8,6 @@ import type { BookError, BookInfo } from "./types";
  *
  * 真偽値を並べると、画面が同時に2つのことを言える。引くのに失敗したときに
  * 「この局面はこの定跡にありません」と断言する形が実際に出ていた。
- *
- * 呼び手の `switch` は全部の `kind` を書く。足すと tsc が落ちる。
  */
 export type BookViewState =
   /** 定跡を開いていない */
@@ -47,7 +45,7 @@ export type BookContextType = {
    * 表を消さずに添える。
    *
    * 閉じる関数は持たない。出ている間はその場所の状態が直っていない
-   * （`shared/ui/notification/InlineNotice` の doc）。消えるのは引き直しと開き直しのとき。
+   * （`shared/ui/notification/InlineNotice` の doc）。消えるのは引き直し、開き直し、閉じるとき。
    */
   failure: BookFailure | null;
 

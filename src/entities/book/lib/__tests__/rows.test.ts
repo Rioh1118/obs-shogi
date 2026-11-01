@@ -113,11 +113,11 @@ describe("出現回数のバー", () => {
     expect(countBarRatio(100, 100)).toBe(1);
   });
 
-  /** 0 除算で `NaN` が幅に入ると、バーが消えるのではなく行の高さが変わる */
   test("最大値を超えても 1 で止める", () => {
     expect(countBarRatio(5, 3)).toBe(1);
   });
 
+  /** 0 除算の `NaN` が `--book-bar-fill` に入ると、バーの塗りが消える */
   test("最大が 0 でも NaN にならない", () => {
     expect(countBarRatio(0, 0)).toBe(0);
     expect(countBarRatio(null, 0)).toBe(0);

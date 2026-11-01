@@ -93,7 +93,7 @@ export function BookProvider({ children, currentSfen }: Props) {
     // `list_books` はマウントごとに1度だけ呼ぶので、後から自分が開いたものは含まない
     void (async () => {
       const orphans = await listBooks();
-      // 掃除に失敗しても、これから開く側の邪魔はしない。この時点の画面に出す場所も無い
+      // 掃除に失敗しても、これから開く側の邪魔はしない。前の版の定跡について案内できる操作も無い
       if (!orphans.success) return;
 
       for (const orphan of orphans.data) {

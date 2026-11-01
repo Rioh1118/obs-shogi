@@ -78,7 +78,7 @@ export function nextBookSort(current: BookSort, key: BookSortKey): BookSort {
  *
  * 回数は定跡によって桁が違うので絶対値では描けない。比べたいのはこの局面の中の多さ。
  *
- * 最大が 0 なら 0 を返す。0 除算の `NaN` が幅に入ると、要素ごと潰れて行の高さが変わる。
+ * 最大が 0 なら 0 を返す。0 除算の `NaN` を `--book-bar-fill` へ渡さない。
  */
 export function countBarRatio(count: number | null, max: number): number {
   if (count === null || max <= 0) return 0;
