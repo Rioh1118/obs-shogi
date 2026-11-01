@@ -43,7 +43,7 @@ jobs:
       # 4本の build が組む commit。ここで1度だけ解決して配る
       sha: ${{ steps.create.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Create or fetch release
         id: create
@@ -162,7 +162,7 @@ jobs:
       # **SHA で受け取る。** タグ名を渡すと `actions/checkout` は fetch した時点のタグを引く
       # （commit を固定するのは `ref` 未指定か 40桁 hex のときだけ）ので、
       # 走っている最中にタグを付け替えると leg ごとに別の木になる。
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.create-release.outputs.sha }}
 
