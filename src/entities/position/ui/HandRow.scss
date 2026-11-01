@@ -22,16 +22,6 @@
     min-width: 0;
   }
 
-  &__hand-piece {
-    background: rgba(index.$color-white, 0.92);
-    color: index.$color-text-dark-1;
-    font-size: 12px;
-    font-weight: 650;
-    padding: 3px 7px;
-    border-radius: 6px;
-    border: 1px solid rgba(index.$color-primary-light, 0.3);
-  }
-
   &__hand-chip {
     display: inline-flex;
     align-items: center;
