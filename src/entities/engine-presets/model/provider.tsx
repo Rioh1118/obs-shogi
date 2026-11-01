@@ -107,7 +107,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [enqueue, write],
   );
 
-  /** 読み込みの結果を取り込む。読み込みの経路はここ1つ（初回と読み直しの両方） */
+  /** 読み込みの結果を画面の状態へ取り込む（初回と読み直しの両方） */
   const adopt = useCallback(
     (
       loaded: LoadedPresets,
