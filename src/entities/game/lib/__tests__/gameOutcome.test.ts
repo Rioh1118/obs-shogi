@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 
+import { Ok } from "@/shared/lib/result";
 import {
+  createOutcomeJudge,
   judgeGameOutcome,
   type GameOutcome,
   type GameOutcomeFailure,
@@ -234,5 +236,51 @@ describe("judgeGameOutcome", () => {
         error: { code: "unplayable_move", usiMove: "5i4i4i", ply: 1, sfen: TWO_KINGS },
       });
     });
+  });
+});
+
+describe("createOutcomeJudge", () => {
+  test("続きの手を積んで、根から組んだときと同じ答えを返す", () => {
+    const judger = createOutcomeJudge();
+
+    expect(judger.judge({ startSfen: TWO_KINGS, usiMoves: ["5i4i"] }, NO_LIMIT)).toEqual(Ok(null));
+    expect(
+      judger.judge({ startSfen: TWO_KINGS, usiMoves: repeat(KING_SHUFFLE, 3) }, NO_LIMIT),
+    ).toEqual(Ok({ kind: "repetitionDraw", winner: null }));
+  });
+
+  test("同じ長さで手が違う列は、積んだ棋譜を使わずに組み直す", () => {
+    const judger = createOutcomeJudge();
+
+    judger.judge({ startSfen: BEFORE_CHECKMATE, usiMoves: ["5i4i"] }, NO_LIMIT);
+
+    expect(judger.judge({ startSfen: BEFORE_CHECKMATE, usiMoves: ["6c5b"] }, NO_LIMIT)).toEqual(
+      Ok({ kind: "checkmate", winner: "black" }),
+    );
+  });
+
+  test("開始局面が違えば、指し手の列が続いていても組み直す", () => {
+    const judger = createOutcomeJudge();
+
+    judger.judge({ startSfen: HIRATE, usiMoves: [] }, NO_LIMIT);
+
+    expect(judger.judge({ startSfen: BEFORE_CHECKMATE, usiMoves: ["6c5b"] }, NO_LIMIT)).toEqual(
+      Ok({ kind: "checkmate", winner: "black" }),
+    );
+  });
+
+  test("積む途中で落ちたら積みかけを捨て、次の裁定は組み直す", () => {
+    const judger = createOutcomeJudge();
+
+    judger.judge({ startSfen: TWO_KINGS, usiMoves: ["5i4i"] }, NO_LIMIT);
+    const failed = judger.judge(
+      { startSfen: TWO_KINGS, usiMoves: ["5i4i", "5a4a", "9i9h"] },
+      NO_LIMIT,
+    );
+
+    expect(failed.success).toBe(false);
+    expect(judger.judge({ startSfen: TWO_KINGS, usiMoves: ["5i4i", "5a4a"] }, NO_LIMIT)).toEqual(
+      Ok(null),
+    );
   });
 });

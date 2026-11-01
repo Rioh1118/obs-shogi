@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { Color, Shogi } from "shogi.js";
 import { Position } from "tsshogi";
 
-import { fromUsiMove, toUsiMove } from "../lib/usiMove";
+import { fromUsiMove, isUsiMove, toUsiMove } from "../lib/usiMove";
 import type { StandardMoveFormat } from "../model/types";
 
 /**
@@ -152,5 +152,38 @@ describe("USI の綴りから戻した手の `promote`", () => {
     const move = fromUsiMove("2d2c+", boardOf(PAWN_ON_2D), Color.Black);
 
     expect(move?.promote).toBe(true);
+  });
+});
+
+describe("isUsiMove", () => {
+  test.each(["7g7f", "2b3a+", "P*5b", "R*9i"])("%s は読める", (text) => {
+    expect(isUsiMove(text)).toBe(true);
+  });
+
+  test.each(["7g7f7f", "7g7f+x", "P*5bx", "P*5b+", "K*5b", "p*5b", "7g76", "", "resign"])(
+    "%s は読めない",
+    (text) => {
+      expect(isUsiMove(text)).toBe(false);
+    },
+  );
+});
+
+describe("fromUsiMove の駒打ち", () => {
+  test.each([
+    ["P", "FU"],
+    ["L", "KY"],
+    ["N", "KE"],
+    ["S", "GI"],
+    ["G", "KI"],
+    ["B", "KA"],
+    ["R", "HI"],
+  ] as const)("%s は %s に戻る", (letter, piece) => {
+    const shogi = new Shogi();
+
+    expect(fromUsiMove(`${letter}*5e`, shogi, Color.White)).toEqual({
+      to: { x: 5, y: 5 },
+      piece,
+      color: Color.White,
+    });
   });
 });
