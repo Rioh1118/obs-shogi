@@ -34,12 +34,12 @@ ours 戦略のマージは使わない。
 
 | 段 | 枝 | 範囲 | PR | 状態 |
 | -- | -- | ---- | -- | ---- |
-| 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | 未作成 | 作業中 |
+| 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | #662 | レビュー待ち |
 | 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | #663 | レビュー待ち |
 | 3 | `refactor/shared-public-names` | `shared` の公開の名前と呼び手 | #664 | レビュー待ち |
 | 4 | `refactor/tidy-shared-ui` | `src/shared/ui` のコメントと書き方 | #665 | レビュー待ち |
-| 5 | `refactor/structure-shared-ui` | `src/shared/ui` の部品の構造 | #666 | レビュー待ち |
-| 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #667 | レビュー待ち |
+| 5 | `refactor/structure-shared-ui` | `src/shared/ui` の部品の構造 | #667 | レビュー待ち |
+| 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #668 | レビュー待ち |
 
 ## 語
 
