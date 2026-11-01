@@ -93,8 +93,8 @@ modal は F-31（2026-09-08 / `fix/434-mixed-screen-on-unloadable-kifu`）、
 | `engine`          | `state.error`     | `initialize_error`          | 1（`EngineFailureBridge` → 帯） |
 
 ※ `failWithNotice`（移動）/ `failToNameInput`（リネーム・フォルダ作成。
-名前を直せば通る失敗＝`isNameInputError` は積まない）/ `pushError` の直呼び
-（削除、衝突の解決の中断）/ `loadFileTree` の `reload_failed`。
+名前を直せば通る失敗＝`isNameInputError` は積まない）/ `pushError`（削除、
+`failOutOfConflict` の衝突の解決の中断とルート改名の設定の書き戻し）/ `loadFileTree` の `reload_failed`。
 `failToCaller`（作成・取り込み）は**一度も積まない**。
 **呼び出し箇所の数は書かない。**（数えると、経路を1つ足したときに嘘になる）
 → `docs/state-transitions/file-tree.md` の ※2

@@ -44,7 +44,7 @@ const GUARD: &str = "validate_under_root";
 ///   `ai_root` の外へ作れてしまう（`join("..")` は親へ抜け、`create_dir_all` は
 ///   途中の段も黙って作る）
 /// - `rename_kifu_file` と `mv_kifu_file` の `ensure_same_extension`:
-///   拡張子だけを変えると本文と形式がずれ、次の保存で棋譜が空になる
+///   拡張子だけを変えると本文と形式がずれ、開けなくなるか、次の保存で棋譜が空になる
 const EXTRA_GUARDS: [(&str, &str); 5] = [
     ("delete_directory", "is_project_root"),
     ("mv_directory", "is_move_into_itself"),

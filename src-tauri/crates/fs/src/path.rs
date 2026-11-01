@@ -147,8 +147,8 @@ pub fn is_move_into_itself(src: &Path, dest: &Path) -> Result<bool, FsError> {
 
 /// 改名で棋譜の拡張子が変わらないことを確かめる。大文字と小文字の違いは変更に数えない。
 ///
-/// 本文は拡張子の形式で書かれている。拡張子だけを変えると本文と形式がずれ、次に開くと
-/// 0手の棋譜として読まれ、次の保存でディスクの棋譜が空になる。
+/// 本文は拡張子の形式で書かれている。KIF、KI2、CSA へ変えると次に開いたときに0手の棋譜として
+/// 読まれ、次の保存でディスクの棋譜が空になる。JKF へ変えると開けなくなる。
 pub fn ensure_same_extension(src: &Path, dest: &Path) -> Result<(), FsError> {
     if get_file_extension(src) != get_file_extension(dest) {
         return Err(FsError::new(

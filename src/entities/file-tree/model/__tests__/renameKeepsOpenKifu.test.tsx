@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
@@ -17,6 +18,8 @@ const readKifu = vi.fn();
 const renameFile = vi.fn();
 const moveFile = vi.fn();
 const renameDir = vi.fn();
+/** `setRootDir` が `rootDir` を変える連鎖を、`App` の state で再現する */
+const rootDir = vi.hoisted(() => ({ set: (_path: string) => {} }));
 
 vi.mock(
   "../../api/service",
@@ -41,7 +44,13 @@ vi.mock("@/entities/app-config", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/entities/app-config")>();
   return {
     ...actual,
-    useAppConfig: () => ({ setRootDir: vi.fn().mockResolvedValue({ success: true }) }) as never,
+    useAppConfig: () =>
+      ({
+        setRootDir: (path: string) => {
+          rootDir.set(path);
+          return Promise.resolve({ success: true, data: undefined });
+        },
+      }) as never,
   } satisfies typeof import("@/entities/app-config");
 });
 
@@ -141,6 +150,12 @@ function Probe() {
         }}
       />
       <button
+        data-testid="rename-root"
+        onClick={() => {
+          void renameNode(fileTree as never, "ws2"); // async-result-ignored: 結果は state で見る
+        }}
+      />
+      <button
         data-testid="refresh"
         onClick={() => {
           void refreshTree(); // async-result-ignored: 結果は state で見る
@@ -156,12 +171,18 @@ function Probe() {
   );
 }
 
-async function openKifu() {
-  render(
-    <FileTreeProvider rootDir="/ws">
+function App() {
+  const [root, setRoot] = useState("/ws");
+  rootDir.set = setRoot;
+  return (
+    <FileTreeProvider rootDir={root}>
       <Probe />
-    </FileTreeProvider>,
+    </FileTreeProvider>
   );
+}
+
+async function openKifu() {
+  render(<App />);
   await act(async () => {});
   await act(async () => {
     screen.getByTestId("open").click();
@@ -177,6 +198,7 @@ beforeEach(() => {
   readKifu.mockReset();
   renameFile.mockReset();
   moveFile.mockReset();
+  renameDir.mockReset();
   fetchTree.mockResolvedValue(ok(OLD_TREE));
   readKifu.mockResolvedValue(ok("本文"));
 });
@@ -220,6 +242,29 @@ describe("開いている棋譜の改名", () => {
     });
 
     expect(shown("active")).toBe("/ws/b.kif");
+  });
+});
+
+describe("開いている棋譜があるルートの改名", () => {
+  it("新しいルートの読み直しを待つ間も、棋譜は新しいパスで開いたまま", async () => {
+    await openKifu();
+    const reload = deferred<unknown>();
+    fetchTree.mockReturnValue(reload.promise);
+    renameDir.mockResolvedValue(ok("/ws2"));
+
+    await act(async () => {
+      screen.getByTestId("rename-root").click();
+    });
+
+    expect(fetchTree).toHaveBeenLastCalledWith("/ws2");
+    expect(shown("active")).toBe("/ws2/a.kif");
+
+    await act(async () => {
+      reload.resolve(ok(dir("/ws2", [kifu("/ws2/a.kif")])));
+    });
+
+    expect(shown("active")).toBe("/ws2/a.kif");
+    expect(shown("selected")).toBe("/ws2/a.kif");
   });
 });
 

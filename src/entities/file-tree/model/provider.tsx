@@ -99,8 +99,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   }, []);
 
   // 失敗をどこへ出すかは、その操作を**起こした場所が出す場所を持っているか**で決まる。
-  // 行き先は5つ。名前を持つのは次の3つで、残り2つは `pushError`（削除と、
-  // `failOutOfConflict` の衝突の解決の中断）と `loadFileTree` の直積み。
+  // 行き先は5つ。名前を持つのは次の3つで、残り2つは `pushError`（削除と `failOutOfConflict`）
+  // と `loadFileTree` の直積み。
   // → docs/state-transitions/file-tree.md の ※2
 
   // 通知へ積む。ツリーから直に起こす操作で使う（呼び出し元は出す場所を持たない）
@@ -144,6 +144,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     [pushConflict, pushError],
   );
 
+  // 対話を閉じて通知へ積む。衝突の解決の中断と、ルート改名の設定の書き戻しの失敗で使う。
   // 対話を先に閉じてから積む。開いている間は reducer が `error` を落とすので、閉じずに
   // 積むと失敗がどこにも出ないまま、対話を閉じた時点で痕跡ごと消える
   const failOutOfConflict = useCallback(

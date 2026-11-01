@@ -142,6 +142,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/file-tree/ui/FileNode.tsx` の `isSelected` | `selectedNode?.id === node.id` で比べるが、`id` は走査ごとに振り直され、`tree_loaded` は `selectedNode` を張り替えない。読み直すと棋譜は開いたまま行の強調が消える筋がある。未再現。`path` で比べる形を `src/widgets` の範囲で見る |
 | `src/widgets/file-tree/ui/FileTree.tsx` のコメントの `再読み込み` | ボタンの文言は `FileTreeErrorNotice.tsx` の「もう一度読み込む」。`src/widgets` の範囲で揃える |
 | `src/widgets/file-tree/lib/dnd.ts` の `ALLOWED`、`getExt`、`findDropDirAt` | `knip` が未使用と数えている。`src/widgets` の範囲で見る |
+| `src/entities/kifu/api/parse.ts` の `parseKifuContentToJKF` | 形式を拡張子だけで決めるので、Finder で変えたファイルは本文と形式がずれたまま0手で載り、次の保存で本文を失う筋がある。未再現。指し手が0で本文が空でないときに開くのを断るかを、#210 と合わせて決める |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲

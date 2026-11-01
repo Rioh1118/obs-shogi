@@ -85,7 +85,7 @@
 | `failWithNotice`        | 移動（ドラッグ&ドロップ）                | 衝突は S4 へ、それ以外は `state.error` に積む（S3）                        |
 | `failToCaller`          | 作成・取り込み（モーダルの中）           | 衝突は S4 へ、それ以外は呼び出し元へ返す。フォームが自分の中に出す         |
 | `failToNameInput`       | リネーム・フォルダ作成（インライン編集） | 衝突は S4 へ、名前を直せば通る失敗は呼び出し元へ返す、残りは `state.error` |
-| `pushError`             | 削除。衝突の解決の中断は `failOutOfConflict` が対話を閉じてから呼ぶ | 常に `state.error` に積む（S3）                                            |
+| `pushError`             | 削除。衝突の解決の中断とルート改名の設定の書き戻しは `failOutOfConflict` が対話を閉じてから呼ぶ | 常に `state.error` に積む（S3）                                            |
 | `loadFileTree` の直積み | ツリーの読み直し                         | `state.error` に積む。**操作の戻り値には載せない**                         |
 
 **`state.error` に積むと reducer が編集行とメニューを畳む。** 名前の訂正で直る失敗を
@@ -116,7 +116,8 @@ S3 になってから戻ってくることはあるので、E8 / E9 / E11 は S3
 読み出しが返った時点でそこと違うパスなら、成功も失敗も**何も起こさない**。
 順番で捨てると、選び直して元の棋譜へ戻った要求まで落ちる。
 
-宛先を動かすのは**選択**（`selectNode`）だけ。ここを通らずに `node_selected` を
+宛先を動かすのは**選択**（`selectNode`）と、根の外の読み出しを捨てるワークスペースの effect。
+選択の側で `selectNode` を通らずに `node_selected` を
 撃つと、選択だけが動いて宛先が置き去りになり、飛行中の読み出しがそのまま盤に載る
 （→ #223）。口が1つであることは `src/__tests__/kifuOpenTarget.test.ts` が見ている
 
