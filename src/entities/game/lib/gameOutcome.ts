@@ -37,6 +37,7 @@ import { Err, Ok, type Result } from "@/shared/lib/result";
 import type { GameRules, JishogiRule } from "./gameRules";
 import { hasLegalMove } from "./moveValidation";
 import { tsColorToColor, colorToSide } from "./ruleColor";
+import { isPrefixOf, isUsiMove } from "./usiMove";
 
 /**
  * 終局の種別。**投了・時間切れ・中断は入らない**——それらは Rust が決めるので
@@ -166,15 +167,6 @@ function judgeAutomaticJishogi(
 }
 
 /**
- * USI の指し手1つ。移動は `7g7f` / `2b3a+`、駒打ちは `P*5b`。
- *
- * **末尾まで見る。** `createMoveByUSI` は先頭から読める分だけ解釈して余りを捨てるので、
- * `7g7f7f` のような綴りが `7g7f` として通る。指し手列の権威はこちら側なので、
- * 通すと**盤は `7g7f` を、エンジンは元の文字列を**それぞれ解釈して別の局面を進む。
- */
-const USI_MOVE = /^(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])$/;
-
-/**
  * `record` の末尾へ指し手を積む。**`basePly` は既に積んである手数**
  * （落ちたときに何手目かを名乗るために要る）。
  *
@@ -187,7 +179,9 @@ function appendMoves(
 ): Result<void, GameOutcomeFailure> {
   for (const [index, usiMove] of usiMoves.entries()) {
     const failure = { code: "unplayable_move", usiMove, ply: basePly + index + 1 } as const;
-    if (!USI_MOVE.test(usiMove)) {
+    // `createMoveByUSI` は先頭から読める分だけ解釈して余りを捨てるので、`7g7f7f` が `7g7f` として通る。
+    // 指し手列の権威はこちら側なので、通すと盤は `7g7f` を、エンジンは元の文字列を解釈して別の局面を進む
+    if (!isUsiMove(usiMove)) {
       return Err({ ...failure, sfen: record.position.sfen });
     }
     const move = record.position.createMoveByUSI(usiMove);
@@ -309,11 +303,7 @@ interface HeldRecord {
  * （Rust 側が `accept_continue` で接頭辞を丸ごと見ているのと同じ理由）。
  */
 function continues(held: HeldRecord, progress: GameProgress): boolean {
-  return (
-    held.startSfen === progress.startSfen &&
-    held.applied.length <= progress.usiMoves.length &&
-    held.applied.every((usiMove, ply) => usiMove === progress.usiMoves[ply])
-  );
+  return held.startSfen === progress.startSfen && isPrefixOf(held.applied, progress.usiMoves);
 }
 
 export function createOutcomeJudge(): OutcomeJudge {
