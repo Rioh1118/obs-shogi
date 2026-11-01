@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import "./EngineTab.scss";
 
 import { Plus, Pencil, Copy, Trash2, RefreshCcw, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -72,6 +72,15 @@ export default function EngineTab() {
     await deletePreset(id);
   };
 
+  const handleCardKeyDown = (e: KeyboardEvent<HTMLElement>, id: PresetId) => {
+    // 中のボタンのキーも上がってくる。ここで受けるとボタンが押されなくなる
+    if (e.target !== e.currentTarget) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      selectPreset(id);
+    }
+  };
+
   return (
     <div className="engineTab">
       <SSection
@@ -123,12 +132,7 @@ export default function EngineTab() {
                   onClick={() => selectPreset(p.id)}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      selectPreset(p.id);
-                    }
-                  }}
+                  onKeyDown={(e) => handleCardKeyDown(e, p.id)}
                 >
                   <header className="engineTab__cardHead">
                     <div className="engineTab__cardTitleRow">

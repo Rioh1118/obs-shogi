@@ -193,6 +193,23 @@ describe("カードの選択", () => {
 });
 
 describe("カードのボタン", () => {
+  /** 既定の動作を止めると、ボタンが押されないまま別のプリセットへ切り替わり、エンジンが再起動する */
+  test.each([
+    ["Enter", "編集"],
+    [" ", "編集"],
+    ["Enter", "複製"],
+    [" ", "複製"],
+    ["Enter", "削除"],
+    [" ", "削除"],
+  ])("「%s」で%sを押しても、カードを適用せずボタンの動作を止めない", (key, action) => {
+    const { container } = render(<EngineTab />);
+
+    const notPrevented = fireEvent.keyDown(inCard(container, "乙", action), { key });
+
+    expect(world.selectPreset).not.toHaveBeenCalled();
+    expect(notPrevented).toBe(true);
+  });
+
   test("編集を押すと適用せずに開き、閉じられる", () => {
     const { container } = render(<EngineTab />);
 
