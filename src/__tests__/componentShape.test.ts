@@ -9,7 +9,7 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  *
  * 正規表現でなく構文木で読む。JSX は属性の値に括弧と矢印が入るので、文字列では境界を取れない。
  *
- * `nestedComponent` は違反0なので `-D` で張る。残りは入れた時点で既存があるので件数ラチェット。
+ * `nestedComponent` と `hyphenAttribute` は違反0なので `-D` で張る。残りは入れた時点で既存があるので件数ラチェット。
  * 基準を動かしてよい向きは下げる方だけで、片付けたら `BASELINE` を下げる。
  *
  * 環境変数 `SHAPE_REPORT` にパスを渡すと、該当の全行を JSON で書き出す。
@@ -31,7 +31,7 @@ const BASELINE = {
 const MIN_FILES = 300;
 const MIN_COMPONENTS = 150;
 
-type Shape = keyof typeof BASELINE | "nestedComponent";
+type Shape = keyof typeof BASELINE | "nestedComponent" | "hyphenAttribute";
 
 type Found = { shape: Shape; line: number };
 
@@ -149,7 +149,14 @@ function shapesIn(file: string, body: string): { found: Found[]; components: num
     ) {
       add("reactNamespace", node);
     }
-    if (ts.isJsxExpression(node) && node.expression && ts.isConditionalExpression(node.expression)) {
+    if (ts.isJsxAttribute(node) && /^(?!data-|aria-).*-/.test(node.name.getText(source))) {
+      add("hyphenAttribute", node);
+    }
+    if (
+      ts.isJsxExpression(node) &&
+      node.expression &&
+      ts.isConditionalExpression(node.expression)
+    ) {
       const { whenTrue, whenFalse } = node.expression;
       if (
         whenTrue.kind === ts.SyntaxKind.NullKeyword ||
@@ -267,6 +274,11 @@ describe("走査の部品", () => {
     expect(shapesOf(`function helper() {}\nexport function A() { return <i />; }`)).toEqual([]);
   });
 
+  it("data- と aria- 以外の連字符の属性を拾う", () => {
+    expect(shapesOf(`const a = <p date-piece="pawn" />;`)).toEqual(["hyphenAttribute"]);
+    expect(shapesOf(`const a = <p data-piece="pawn" aria-label="歩" />;`)).toEqual([]);
+  });
+
   it("forwardRef を綴りを問わず拾う", () => {
     expect(shapesOf(`const a = forwardRef(f);`)).toEqual(["forwardRef"]);
     expect(shapesOf(`const a = React.forwardRef(f);`)).toEqual(["forwardRef"]);
@@ -278,7 +290,8 @@ describe("部品の形と書き方", () => {
 
   it("求められたら該当の全行を書き出す", () => {
     const destination = process.env.SHAPE_REPORT;
-    if (destination) writeFileSync(destination, JSON.stringify(Object.fromEntries(byShape), null, 2));
+    if (destination)
+      writeFileSync(destination, JSON.stringify(Object.fromEntries(byShape), null, 2));
     expect(byShape.size).toBeGreaterThan(0);
   });
 
@@ -291,6 +304,13 @@ describe("部品の形と書き方", () => {
     expect(
       byShape.get("nestedComponent") ?? [],
       "親が描くたびに別の部品になり、下の state が捨てられる。ファイルの直下へ出す",
+    ).toEqual([]);
+  });
+
+  it("属性の綴りが data- か aria- で始まる", () => {
+    expect(
+      byShape.get("hyphenAttribute") ?? [],
+      "連字符の属性は data- か aria- だけ。`date-piece` は型検査を通り、属性が付かないまま残る",
     ).toEqual([]);
   });
 
