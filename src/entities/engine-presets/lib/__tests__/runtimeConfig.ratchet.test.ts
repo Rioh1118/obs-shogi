@@ -28,7 +28,7 @@ import { codeOf } from "@/__tests__/sourceText";
  */
 
 /** 組み立て関数の持ち主。**ここだけが並べてよい** */
-const OWNER = "src/entities/engine-presets/lib/derivePath.ts";
+const OWNER = "src/entities/engine-presets/lib/runtimeConfig.ts";
 
 /**
  * 設定を組んでいる形。`enginePath` と `evalPath` が近くに並ぶ（`book` は入れ子の括弧を持つので、

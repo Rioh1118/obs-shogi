@@ -99,18 +99,6 @@ export type EnginePresetsState = {
   saveFailure: SaveFailure | null;
 };
 
-export const initialState: EnginePresetsState = {
-  status: "idle",
-  error: null,
-  presets: [],
-  selectedPresetId: null,
-  writable: false,
-  unreadableCount: 0,
-  loadNotice: null,
-  loadSeq: 0,
-  saveFailure: null,
-};
-
 export type EnginePresetsContextType = {
   state: EnginePresetsState;
 

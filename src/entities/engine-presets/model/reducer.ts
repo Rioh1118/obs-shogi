@@ -25,6 +25,18 @@ type EnginePresetsAction =
   | { type: "save_failed"; payload: SaveFailure }
   | { type: "set_selected"; payload: PresetId | null };
 
+export const initialState: EnginePresetsState = {
+  status: "idle",
+  error: null,
+  presets: [],
+  selectedPresetId: null,
+  writable: false,
+  unreadableCount: 0,
+  loadNotice: null,
+  loadSeq: 0,
+  saveFailure: null,
+};
+
 export function reducer(
   state: EnginePresetsState,
   action: EnginePresetsAction,
