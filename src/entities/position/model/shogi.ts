@@ -17,8 +17,7 @@ export const PIECE_TYPES = {
 } as const;
 
 // 型定義
-export type PieceType = (typeof PIECE_TYPES)[keyof typeof PIECE_TYPES];
-export type PlayerColor = 0 | 1;
+type PieceType = (typeof PIECE_TYPES)[keyof typeof PIECE_TYPES];
 
 // JKF形式との対応
 export const JKF_TO_PIECE_TYPE = {
@@ -62,23 +61,6 @@ export const BOARD_SIZE = {
   TOTAL_SQUARES: 81,
 } as const;
 
-// 駒の初期配置用の型（型安全に）
-export interface Piece {
-  color: PlayerColor;
-  kind: string;
-}
-
-export type PieceData = Piece | null;
-
-// 空のマス
-export const EMPTY_SQUARE: PieceData = null;
-
-// 駒を作成するヘルパー
-export const createPiece = (color: PlayerColor, kind: string): Piece => ({
-  color,
-  kind,
-});
-
 // JKF形式から内部形式への変換（型安全に）
 export function convertJkfPiece(jkfKind: string, isPromoted: boolean = false): PieceType | string {
   // まず直接マッピングを試す（成り駒のkindが直接来る場合）
@@ -96,9 +78,4 @@ export function convertJkfPiece(jkfKind: string, isPromoted: boolean = false): P
   }
 
   return baseType;
-}
-
-// 型ガード関数
-export function isPiece(data: PieceData): data is Piece {
-  return data !== null && typeof data === "object" && "color" in data && "kind" in data;
 }
