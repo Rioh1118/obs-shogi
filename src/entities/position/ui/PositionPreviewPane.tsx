@@ -11,7 +11,7 @@ type Props = {
   previewData: PreviewData | null;
 };
 
-function PositionPreviewPane({ previewData }: Props) {
+function LoadedPreview({ previewData }: { previewData: PreviewData }) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState(320);
 
@@ -33,18 +33,6 @@ function PositionPreviewPane({ previewData }: Props) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  if (!previewData) {
-    return (
-      <div className="position-navigation-modal__preview-container">
-        <div className="position-navigation-modal__board-preview">
-          <div className="board-preview-placeholder">
-            <p>局面を読み込み中…</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const hands = (previewData.hands ?? []) as {
     [Color.Black]: string[];
@@ -82,6 +70,28 @@ function PositionPreviewPane({ previewData }: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * 局面のプレビュー
+ *
+ * 枠を測る effect は、枠に `ref` が付いた状態で mount する `LoadedPreview` に置く。
+ * ここへ置くと、局面が無いまま mount したときに測る先が無く、盤が初期値のまま残る。
+ */
+function PositionPreviewPane({ previewData }: Props) {
+  if (!previewData) {
+    return (
+      <div className="position-navigation-modal__preview-container">
+        <div className="position-navigation-modal__board-preview">
+          <div className="board-preview-placeholder">
+            <p>局面を読み込み中…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <LoadedPreview previewData={previewData} />;
 }
 
 export default PositionPreviewPane;
