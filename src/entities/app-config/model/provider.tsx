@@ -32,7 +32,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   /** 渡した欄だけを差し替えて書く。土台は毎回ファイルから読み直す */
   const writeFields = useCallback((patch: Partial<AppConfig>): Promise<void> => {
     const chained = writeChainRef.current.then(async () => {
-      // 鎖のおかげで直前の `saveConfig` は必ず終わっているので、これが最新
+      // 鎖の中なので、前の `saveConfig` は終わっている
       const base = await loadConfig();
       const next: AppConfig = { ...base, ...patch };
 
@@ -47,13 +47,12 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function chooseRootDir(opts?: ChooseOpts) {
-    // **ピッカーを開く前に `loading` を立てない。** `loading` は `error` も消すので、
-    // 立てると「選ぶのをやめた」だけで直前の失敗の理由が画面から消える。
+    // ピッカーを開く前に `loading` を立てない。`loading` は `error` も消すので、
+    // 「選ぶのをやめた」だけで直前の失敗の理由が画面から消える。
     // ネイティブのピッカーは自分で画面を止めるので、待たせる表示も要らない
     try {
       const rootDir = await chooseRootDirApi(opts);
 
-      // 取り消し。設定は1バイトも動いていないので、`config` も `error` も触らない
       if (rootDir === null) return null;
 
       dispatch({ type: "loading" });
@@ -70,7 +69,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   }
 
   async function chooseAiRoot(opts?: ChooseOpts) {
-    // 理由は `chooseRootDir` と同じ
+    // `chooseRootDir` と同じで、ピッカーを開く前に `loading` を立てない
     try {
       const aiRoot = await chooseAiRootApi(opts);
       if (aiRoot === null) return Ok(null);
@@ -80,8 +79,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "loaded", payload: updated });
       return Ok(aiRoot);
     } catch (err) {
-      // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
-      // AI フォルダを選び損ねただけでランタイムごと畳まれる（`setRootDir` と同じ）
+      // `error` に積まない。積むと `RequireRootDir` が `/` へ飛ばし、呼び手が出す失敗ごと消える
       dispatch({ type: "settled" });
       return Err(`AI ライブラリを選択できませんでした（${String(err)}）`);
     }
@@ -95,12 +93,8 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       dispatch({ type: "loaded", payload: updated });
       return Ok(undefined);
     } catch (err) {
-      // **`dispatch({type:"error"})` はしない。** `RequireRootDir` がそれを見て
-      // `/` へ飛ばすので、ランタイムごと unmount され、呼び出し元が出そうとした
-      // 失敗が画面に出る前に消える。設定の**更新**が落ちただけで、
-      // すでに読めている `config` は生きている。
-      // ただし `loading` は降ろす。降ろさないと `isLoading` が `true` で固定され、
-      // 呼び出し元が案内する先（設定 → ワークスペース）のボタンが押せなくなる
+      // `error` に積まない。積むと `RequireRootDir` が `/` へ飛ばし、呼び手が出す失敗ごと消える。
+      // 更新が落ちただけで、読めている `config` は生きている
       dispatch({ type: "settled" });
       return Err(`ワークスペースを更新できませんでした（${String(err)}）`);
     }
@@ -122,13 +116,11 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
   // 名前を拾うため。外すと、この関数を投げっぱなしで呼んだ箇所が機械の目から消える
   const setDisplayConfig = useCallback(
     (patch: DisplayConfigPatch): AsyncResult<void, string> =>
-      // `loading` を立てない。立てると `isLoading` がタブを押すたびに上下し、
-      // それを見て無効化している操作（`WorkspaceTab` のボタン、`AppLoading` の分岐）が
-      // ちらつく。失敗しても `error` には積まないので、降ろす先も要らない
+      // `loading` を立てない。タブを押すたびに `isLoading` が上下し、それを見て無効化している
+      // 操作（`WorkspaceTab` のボタン、`AppLoading` の分岐）がちらつく
       writeFields(patch).then(
         () => Ok(undefined),
-        // `error` に積まない。`RequireRootDir` がそれを見て `/` へ飛ばすので、
-        // 表示の設定を1つ保存し損ねただけでランタイムごと畳まれる
+        // `error` に積まない。積むと表示の設定を1つ保存し損ねただけで `RequireRootDir` が畳む
         (err: unknown) => Err(`表示の設定を保存できませんでした: ${String(err)}`),
       ),
     [writeFields],

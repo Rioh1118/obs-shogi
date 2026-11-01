@@ -3,16 +3,14 @@ import type { AppConfig, ChooseOpts } from "../model/types";
 import { pickDirectory } from "@/shared/api/picker/pickDirectory";
 
 /**
- * 既存の設定と、それを読めたかどうか。
+ * 既存の設定と、それを読めたかどうかを返す。読めなくても投げない。
  *
- * ここは root を**決める**側で、決め直す唯一の出口でもある。読めない設定に
- * 依存すると、`app.json` が壊れているときに出口そのものが同じ理由で落ちる。
- * 起動エラーの画面で押せる唯一のボタンがこれを通る。
+ * ここは root を決める側で、`app.json` が壊れたときに決め直す経路でもある。
+ * 投げると、起動エラーの画面の `ChooseWorkspaceButton` が同じ理由で落ちる。
  *
- * **読めなかったことを値に潰さない。** `save_config` はファイルごと置き換えるので、
- * 空として扱ったまま書くと、読めていない欄（`ai_root` / `last_preset_id`）が
- * `null` で書き潰される。AI フォルダを選び直しただけでワークスペースが消える、
- * という形で次の起動に出る
+ * 読めなかったことを値に潰さない。`save_config` はファイルごと置き換えるので、
+ * 空として扱ったまま書くと、読めていない欄が `null` で書き潰される。
+ * AI ライブラリを選び直しただけでワークスペースが消える、という形で次の起動に出る
  */
 async function currentConfig(): Promise<{ config: AppConfig; loaded: boolean }> {
   try {
@@ -25,15 +23,16 @@ async function currentConfig(): Promise<{ config: AppConfig; loaded: boolean }> 
 /**
  * 読めなかった設定を退避してから書く。
  *
- * 退避に失敗しても書き込みは続ける（出口を塞がないことが優先）。
- * 退避できたかどうかは呼び出し元へは返さない → TODO(#255)
+ * 退避に失敗しても書き込みは続ける。場所を選び直せることを優先する。
+ *
+ * TODO(#277): 退避できたかどうかを呼び手へ返す
  */
 async function saveOver(config: AppConfig, loaded: boolean): Promise<void> {
   if (!loaded) {
     try {
       await backupBrokenConfig();
     } catch {
-      // 退避できなくても、選び直せることのほうが大事
+      // 書き込みは続ける
     }
   }
   await saveConfig(config);
