@@ -27,9 +27,6 @@ export class ShogiMoveValidator implements MoveValidator {
   }
 
   getLegalMovesFrom(shogi: Shogi, x: number, y: number): ShogiMove[] {
-    const piece = shogi.get(x, y);
-    if (!piece) return [];
-
     const basicMoves = shogi.getMovesFrom(x, y);
     return basicMoves.filter((move) => !wouldBeInCheckAfterMove(shogi, move));
   }

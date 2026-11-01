@@ -65,7 +65,7 @@ export function toUsiMove(move: StandardMoveFormat): string | null {
   if (to === null) return null;
 
   if (move.from === undefined) {
-    const dropped = DROP_LETTER[move.piece as Kind];
+    const dropped = DROP_LETTER[move.piece];
     // 打てない駒の綴りを作ると、Rust は形として通し、エンジンが解釈できない行を受け取る
     return dropped === undefined ? null : `${dropped}*${to}`;
   }
