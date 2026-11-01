@@ -26,7 +26,7 @@ export function isUsiMove(text: string): boolean {
  * 綴りが通ることは `judgeGameOutcome` の `isUsiMove` が別に見ている。
  */
 export function toUsiMove(move: StandardMoveFormat): string | null {
-  const to = square(move.to.x, move.to.y);
+  const to = toUsiSquare(move.to.x, move.to.y);
   if (to === null) return null;
 
   if (move.from === undefined) {
@@ -36,7 +36,7 @@ export function toUsiMove(move: StandardMoveFormat): string | null {
     return dropped === undefined ? null : `${dropped}*${to}`;
   }
 
-  const from = square(move.from.x, move.from.y);
+  const from = toUsiSquare(move.from.x, move.from.y);
   if (from === null) return null;
 
   // **成りは末尾の `+` だけで表す。** 成った後の駒種を書かない
@@ -44,7 +44,7 @@ export function toUsiMove(move: StandardMoveFormat): string | null {
 }
 
 /** 盤の升。**9×9の外は綴れない** */
-function square(x: number, y: number): string | null {
+function toUsiSquare(x: number, y: number): string | null {
   if (!Number.isInteger(x) || !Number.isInteger(y)) return null;
   if (x < 1 || x > 9 || y < 1 || y > 9) return null;
   return `${x}${RANK[y - 1]}`;

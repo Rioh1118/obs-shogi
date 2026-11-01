@@ -19,13 +19,13 @@ export function fromIMove(
 }
 
 // StandardMoveFormat から IMoveMoveFormat への変換
-export function toIMoveMoveFormat(standardMove: StandardMoveFormat): IMoveMoveFormat {
+export function toIMoveMoveFormat(move: StandardMoveFormat): IMoveMoveFormat {
   return {
-    from: standardMove.from,
-    to: standardMove.to,
-    piece: standardMove.piece,
-    color: standardMove.color,
-    ...(standardMove.promote !== undefined ? { promote: standardMove.promote } : {}),
+    from: move.from,
+    to: move.to,
+    piece: move.piece,
+    color: move.color,
+    ...(move.promote !== undefined ? { promote: move.promote } : {}),
   };
 }
 
@@ -36,7 +36,7 @@ export function toIMoveMoveFormat(standardMove: StandardMoveFormat): IMoveMoveFo
  */
 export function lastMoveHighlight(player: JKFPlayer) {
   if (player.tesuu === 0) return null;
-  const mv = player.getMove();
-  if (!mv || !mv.to) return null;
-  return { from: mv.from, to: mv.to, kind: mv.piece, color: mv.color };
+  const move = player.getMove();
+  if (!move || !move.to) return null;
+  return { from: move.from, to: move.to, kind: move.piece, color: move.color };
 }

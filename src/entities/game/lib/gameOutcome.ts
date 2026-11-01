@@ -214,7 +214,7 @@ function buildRecord(progress: GameProgress): Result<ShogiRecord, GameOutcomeFai
  * **判定の順は勝敗が付くものが先。** 詰んだ局面は、最大手数に達していても
  * 引き分けにしない。千日手も最大手数より先に立つ。
  */
-function evaluate(
+function judgeRecord(
   record: ShogiRecord,
   usiMoves: readonly string[],
   rules: GameRules,
@@ -267,7 +267,7 @@ export function judgeGameOutcome(
   rules: GameRules,
 ): Result<GameOutcome | null, GameOutcomeFailure> {
   const built = buildRecord(progress);
-  return built.success ? evaluate(built.data, progress.usiMoves, rules) : built;
+  return built.success ? judgeRecord(built.data, progress.usiMoves, rules) : built;
 }
 
 /**
@@ -302,7 +302,7 @@ interface HeldRecord {
  * 積んである棋譜とは別の局面を「現在局面」として裁定することになる
  * （Rust 側が `accept_continue` で接頭辞を丸ごと見ているのと同じ理由）。
  */
-function continues(held: HeldRecord, progress: GameProgress): boolean {
+function isContinuation(held: HeldRecord, progress: GameProgress): boolean {
   return held.startSfen === progress.startSfen && isPrefixOf(held.applied, progress.usiMoves);
 }
 
@@ -311,7 +311,7 @@ export function createOutcomeJudge(): OutcomeJudge {
 
   return {
     judge(progress, rules) {
-      const reusable = held !== null && continues(held, progress) ? held : null;
+      const reusable = held !== null && isContinuation(held, progress) ? held : null;
 
       if (reusable === null) {
         held = null;
@@ -322,7 +322,7 @@ export function createOutcomeJudge(): OutcomeJudge {
           applied: [...progress.usiMoves],
           record: built.data,
         };
-        return evaluate(held.record, progress.usiMoves, rules);
+        return judgeRecord(held.record, progress.usiMoves, rules);
       }
 
       const tail = progress.usiMoves.slice(reusable.applied.length);
@@ -333,7 +333,7 @@ export function createOutcomeJudge(): OutcomeJudge {
       }
 
       reusable.applied.push(...tail);
-      return evaluate(reusable.record, progress.usiMoves, rules);
+      return judgeRecord(reusable.record, progress.usiMoves, rules);
     },
   };
 }
