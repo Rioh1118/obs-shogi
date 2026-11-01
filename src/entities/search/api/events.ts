@@ -11,7 +11,7 @@ export type IndexStatePayload = {
    * 索引に入った棋譜の数。意味は `state` で変わる。
    *
    * - `Ready`: 索引を組めた棋譜の数。`totalFiles` との差は検索に出ない棋譜
-   * - `Updating`: 据わっている索引の数。差はまだ当てていない差分
+   * - `Updating`: 据わっている索引の数。差はまだ当てていない差分と、組めなかった棋譜の合計
    * - `Building`: いままでに組めた数。差は未処理と失敗の合計
    * - `Restoring`: 0。索引を捨てた直後
    *

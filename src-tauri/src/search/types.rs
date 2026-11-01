@@ -4,8 +4,8 @@
 //! 対岸は `src/entities/search/api/` の3本 — 要求と応答が `contract.ts`、
 //! イベントの payload が `events.ts`、識別子と結果の形が `ids.ts`。
 //!
-//! 欄の名前を変えるときは両方を同じ変更で直すこと。片方だけ直しても
-//! Rust も TS も緑のまま通り、実行時に欄が `undefined` になる。
+//! 欄の名前を変えるときは両方を同じ変更で直すこと。片方だけ直すと
+//! コンパイラは通り、`src/__tests__/searchWire.test.ts` が落ちる。
 
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,7 @@ use crate::search::message::ScreenMessage;
 // 画面へ流すイベントの名前
 // ---------------------------------------------------------------
 // TS 側が待ち受けるのは `entities/search/api/events.ts`。
-// 綴りを変えるとイベントが誰にも届かなくなるが、**どちらもエラーを出さない**
+// 綴りを変えるとイベントが誰にも届かなくなる。一致は `src/__tests__/searchWire.test.ts` が見る
 
 pub const EVT_INDEX_STATE: &str = "position-index-state";
 pub const EVT_INDEX_PROGRESS: &str = "position-index-progress";
@@ -107,7 +107,7 @@ pub struct IndexStatePayload {
     /// | 段 | 何の数か |
     /// | --- | --- |
     /// | `Ready` | [`FileEntry::indexed`] が真の件数。`total_files` との差が**検索に出ない棋譜** |
-    /// | `Updating` | 据わっている索引の件数。差は**まだ当てていない差分** |
+    /// | `Updating` | 据わっている索引の件数。差は**まだ当てていない差分と、組めなかった棋譜の合計** |
     /// | `Building` | その回でいままでに組めた件数。差は**未処理と失敗の合計** |
     /// | `Restoring` | 0（索引を捨てた直後） |
     ///

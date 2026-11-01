@@ -63,7 +63,7 @@ export function PositionSearchProvider({
   /**
    * 検索の持ち物を `chunkBuffer`、`hitsCacheRef`、`state.sessions` から落とす。
    *
-   * 1つでも残すと、消えたセッションが次の dispatch で `sessionOrNew` に作り直される。
+   * `chunkBuffer` が受け取り続けると、消えたセッションが `sessionOrNew` に作り直される。
    * 順は受け取りの停止、キャッシュ、reducer。dispatch まで受け持ち、呼び手が順を変えられない形にする。
    */
   const dropSearch = useCallback(
@@ -214,7 +214,7 @@ export function PositionSearchProvider({
   );
 
   useEffect(() => {
-    // 開け直すのは StrictMode の二重マウントのため。閉じたままだと以後のチャンクが積まれない
+    // setup で開け直す。setup → cleanup → setup で閉じたまま残ると、以後のチャンクが積まれない
     chunkBuffer.activate();
     return () => chunkBuffer.deactivate();
   }, [chunkBuffer]);
