@@ -57,6 +57,11 @@ function Select<T extends string>({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleSelect = (next: T) => {
+    onChange(next);
+    setIsOpen(false);
+  };
+
   return (
     <div className="form__field" ref={ref}>
       <label htmlFor={id} className="form__label">
@@ -83,10 +88,7 @@ function Select<T extends string>({
                 className={`form__select-option${option.value === value ? " is-selected" : ""}`}
                 role="option"
                 aria-selected={option.value === value}
-                onClick={() => {
-                  onChange(option.value);
-                  setIsOpen(false);
-                }}
+                onClick={() => handleSelect(option.value)}
               >
                 {option.label}
               </li>

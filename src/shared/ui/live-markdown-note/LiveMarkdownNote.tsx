@@ -82,7 +82,7 @@ export default function LiveMarkdownNote({
           <HistoryPlugin />
           <ListPlugin />
           <MarkdownShortcutPlugin transformers={LIVE_MARKDOWN_TRANSFORMERS} />
-          {autoFocus ? <AutoFocusPlugin /> : null}
+          {autoFocus && <AutoFocusPlugin />}
 
           <OnChangePlugin
             ignoreSelectionChange

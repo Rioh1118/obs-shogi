@@ -132,11 +132,9 @@ function Modal({
       // 登録順のせいで**先に開いた下の1枚**が閉じる
       if (!isTop()) return;
 
-      const isComposing = e.isComposing;
-      if (e.key === "Escape" && closeOnEsc && !isComposing) {
+      if (e.key === "Escape" && closeOnEsc && !e.isComposing) {
         e.preventDefault();
         onClose();
-        return;
       }
     };
 
@@ -149,17 +147,15 @@ function Modal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [closeOnEsc, onClose, isTop]);
 
+  const handleOverlayClick = () => {
+    if (closeOnOverlay) onClose();
+  };
+
   const root = document.getElementById("modal-root") ?? document.body;
 
   return createPortal(
     <div className={`modal modal--dark modal--${variant} modal--size-${size}`}>
-      <div
-        className="modal__overlay"
-        onClick={() => {
-          if (!closeOnOverlay) return;
-          onClose();
-        }}
-      >
+      <div className="modal__overlay" onClick={handleOverlayClick}>
         <div
           ref={cardRef}
           className={`modal__card modal__card--scroll-${scroll}`}

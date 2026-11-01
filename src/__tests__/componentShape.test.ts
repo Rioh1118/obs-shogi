@@ -20,10 +20,10 @@ const BASELINE = {
   arrowComponent: 2,
   typeInterface: 131,
   reactNamespace: 44,
-  conditionalNull: 11,
-  inlineHandlerBlock: 45,
+  conditionalNull: 10,
+  inlineHandlerBlock: 42,
   stateAfterEffect: 3,
-  helperAfterComponent: 11,
+  helperAfterComponent: 10,
   forwardRef: 3,
 };
 

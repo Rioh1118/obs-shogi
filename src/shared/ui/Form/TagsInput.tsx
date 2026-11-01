@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
+import { useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { X, Plus, Tag, Hash } from "lucide-react";
 import "./TagsInput.scss";
 
@@ -42,6 +42,11 @@ export function TagsInput({
   const removeTag = (indexToRemove: number) => {
     onChange(tags.filter((_, index) => index !== indexToRemove));
     inputRef.current?.focus();
+  };
+
+  const handleRemoveClick = (e: MouseEvent, index: number) => {
+    e.stopPropagation();
+    removeTag(index);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -128,10 +133,7 @@ export function TagsInput({
                   <button
                     type="button"
                     className="tag__remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeTag(index);
-                    }}
+                    onClick={(e) => handleRemoveClick(e, index)}
                     disabled={disabled}
                     aria-label={`${tag}を削除`}
                   >

@@ -5,6 +5,17 @@ import type { Notification } from "@/shared/lib/notification/types";
 import Notice from "./Notice";
 import "./NotificationLayer.scss";
 
+/** 件数を出す条件は `Notification.count` の doc */
+function toNoticeProps(n: Notification) {
+  return {
+    tier: n.tier,
+    title: n.title,
+    body: n.body,
+    actions: n.actions,
+    count: n.dedupeKey === undefined ? undefined : n.count,
+  };
+}
+
 /**
  * グローバルの3経路（`toast`、`banner`、`modal`）を1箇所で描く（ADR-0004 決定4、決定6）。
  *
@@ -102,15 +113,4 @@ export default function NotificationLayer() {
       )}
     </>
   );
-}
-
-/** 件数を出す条件は `Notification.count` の doc */
-function toNoticeProps(n: Notification) {
-  return {
-    tier: n.tier,
-    title: n.title,
-    body: n.body,
-    actions: n.actions,
-    count: n.dedupeKey === undefined ? undefined : n.count,
-  };
 }

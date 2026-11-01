@@ -83,17 +83,7 @@ export function ErrorFallbackBody({
   );
 }
 
-/**
- * 落ちた画面に並べるボタン。class 名を `shared/ui` の中に閉じるために部品にする。
- *
- * 呼び手に class を書かせると、`shared` 側で整理したときに黙って素の `<button>` へ戻る。
- */
-export function ErrorFallbackAction({
-  onClick,
-  /** 「再表示」で戻らなかったときの出口。同じ強さで並べると、先に試すべき方が読めなくなる */
-  secondary = false,
-  children,
-}: {
+type ErrorFallbackActionProps = {
   /**
    * 押されたときにすること。非同期でよい。
    *
@@ -103,9 +93,21 @@ export function ErrorFallbackAction({
    * **拒否を画面に出すのは呼び手の責任**で、置き場は `afterAction`（`app/RootErrorFallback.tsx` の `closeFailed`）。
    */
   onClick: () => void | Promise<void>;
+  /** 「再表示」で戻らなかったときの出口。同じ強さで並べると、先に試すべき方が読めなくなる */
   secondary?: boolean;
   children: ReactNode;
-}) {
+};
+
+/**
+ * 落ちた画面に並べるボタン。class 名を `shared/ui` の中に閉じるために部品にする。
+ *
+ * 呼び手に class を書かせると、`shared` 側で整理したときに黙って素の `<button>` へ戻る。
+ */
+export function ErrorFallbackAction({
+  onClick,
+  secondary = false,
+  children,
+}: ErrorFallbackActionProps) {
   const run = () => {
     const result = onClick();
     if (result) {
