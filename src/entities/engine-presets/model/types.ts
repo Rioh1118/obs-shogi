@@ -26,7 +26,7 @@ export type EnginePreset = {
   evalFilePath: string;
 
   /**
-   * **定跡を使うか。** 使うかどうかは `bookInUse` で読む（パスも要る）。
+   * 定跡を使うと言っているか。実際に使うかどうかは `bookInUse` で読む（パスも要る）。
    * 保存ファイルの鍵なので名前を変えていない
    */
   bookEnabled: boolean;
@@ -37,13 +37,13 @@ export type EnginePreset = {
   analysis?: AnalysisDefaults;
 
   /**
-   * 画面に欄を出すためのオプションの定義（申告の順）。**送る側は使わない**——起動のたびにその回の
-   * 申告を見る。取っていなければ `null`
+   * 画面に欄を出すためのオプションの定義（申告の順）。送る側は使わず、起動のたびに申告を見る。
+   * 取っていなければ `null`
    */
   definitions?: UsiOptionDef[] | null;
   /**
-   * アプリが決める名前（評価関数・定跡の欄と解析の固定値。取得の `reserved`）。**表示専用**で、
-   * その欄を読み取り専用にするために残す——送る側は起動のたびに Rust が決め直す
+   * アプリが決める名前（評価関数と定跡の欄、解析の固定値。取得の `reserved`）。その欄を読み取り専用に
+   * するために残す表示専用の値で、送る側は起動のたびに Rust が決め直す
    */
   reservedNames?: string[] | null;
   /** `definitions` を取ったエンジンのパス。`enginePath` と違えば定義は別のエンジンのもの */
@@ -64,17 +64,17 @@ export type SaveFailure = {
 };
 
 /**
- * 起動できるだけ揃っているか。**エンジンだけが要る**——評価関数を指定できないエンジンがあり
- * （流し先は起動のたびの申告から Rust が決める。受ける名前が無ければ警告になる）、`aiName` は起動に使わない
+ * 起動できるだけ揃っているか。エンジンだけが要る。評価関数を指定できないエンジンがあり
+ * （受ける名前は起動のたびの申告から Rust が決め、無ければ警告になる）、`aiName` は起動に使わない
  */
 export function isPresetConfigured(p: EnginePreset): boolean {
   return Boolean(p.enginePath);
 }
 
 /**
- * 定跡を使うか。**解析にも定跡ビューにも、この1つの答えで出す**——プリセット編集の定跡の欄は
+ * 定跡を使うか。解析にも定跡ビューにも、この1つの答えで出す。プリセット編集の定跡の欄は
  * 「使わない」を含む1つの選択で、使わないと言った定跡が定跡ビューにだけ残ると、欄の表示と食い違う。
- * `bookEnabled` だけを見ない: 使うと言ってパスが空なら、使える定跡は無い
+ * `bookEnabled` だけを見ない。使うと言ってパスが空なら、使える定跡は無い
  */
 export function bookInUse(p: Pick<EnginePreset, "bookEnabled" | "bookFilePath">): boolean {
   return p.bookEnabled && (p.bookFilePath ?? "").trim() !== "";
@@ -110,8 +110,8 @@ export type EnginePresetsContextType = {
 
   selectPreset: (id: PresetId | null) => Promise<void>;
   /**
-   * 変更の操作。**書けてから画面に反映する**（書けなかったら state は変えない）。
-   * 書けなかった・書けない状態なら `null` / `false` を返し、理由は `state.saveFailure`
+   * 変更の操作。書けてから画面に反映する（書けなかったら state は変えない）。
+   * 書けなかったら `null` か `false` を返し、理由は `state.saveFailure` に残す
    */
   createPreset: (partial?: Partial<EnginePreset>) => Promise<EnginePreset | null>;
   duplicatePreset: (id: PresetId) => Promise<EnginePreset | null>;

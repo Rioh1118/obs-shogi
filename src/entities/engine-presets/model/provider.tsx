@@ -46,13 +46,13 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
 
   // 読んだ（か直前に書いた）ファイルの印。保存に渡し、別の書き手の変更を Rust が見分ける
   const revisionRef = useRef<string | null>(null);
-  // 書けるか。**決めるのは読み込みだけ**なので `adopt` でだけ書き換える
+  // 書けるか。決めるのは読み込みだけなので、読み込みの経路でだけ書き換える
   // （`state.writable` と同じ値。書く関数を state に依存させないために ref で持つ）
   const writableRef = useRef(false);
-  // 最後に読んだか書けた一覧。**次の一覧はここから組む**——`state.presets` を掴んでから
+  // 最後に読んだか書けた一覧。次の一覧はここから組む。`state.presets` を掴んでから
   // `await` を挟むと、先に書けた変更を知らない一覧で上書きする（先の変更が黙って消える）
   const presetsRef = useRef<EnginePreset[]>([]);
-  // 読み書きを1本ずつ通す列。**同時に2本書かない**——2本目が1本目の前の印を持って書くと、
+  // 読み書きを1本ずつ通す列。同時に2本書くと、2本目が1本目の前の印を持って書き、
   // 自分の変更どうしが `conflict` になる
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
   // 列の中で走る処理（`reload` / `deletePreset`）が、組んだ時点ではなく走った時点の選択を読む
@@ -84,9 +84,11 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * 変更を1つ通す。`build` は**最後に書けた一覧**から次の一覧を組む（組めなければ `null`）。
-   * **書けてから画面に反映する**（悲観更新）——先に変えると、書けなかった変更が画面にだけ残り、
-   * 次に開いたときに消える。書けたら次の一覧、書けなかったら `null`
+   * 変更を1つ通し、書けたら次の一覧、書けなかったら `null` を返す。`build` は最後に書けた一覧から
+   * 次の一覧を組む（組めなければ `null`）。
+   *
+   * **書けてから画面に反映する**（悲観更新）。先に変えると、書けなかった変更が画面にだけ残り、
+   * 次に開いたときに消える
    */
   const mutate = useCallback(
     (build: (current: EnginePreset[]) => EnginePreset[] | null) =>
@@ -105,7 +107,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     [enqueue, write],
   );
 
-  /** 読み込みの結果を取り込む。**読み込みの経路はここ1つ**（初回と読み直しの両方） */
+  /** 読み込みの結果を取り込む。読み込みの経路はここ1つ（初回と読み直しの両方） */
   const adopt = useCallback(
     (
       loaded: LoadedPresets,
@@ -159,9 +161,9 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         writableRef.current = loaded.writable;
         let presets = normalizeLoadedPresets(loaded.presets);
 
-        // **書ける状態のときだけ**既定の1件を作る。読めなかったファイルや新しい版のファイルに
+        // 書ける状態のときだけ既定の1件を作る。読めなかったファイルや新しい版のファイルに
         // 書くと、読めていない中身を上書きする。書けなかった理由は取り込みと一緒に渡す
-        // （先に `save_failed` を撃つと、直後の `loaded` が消す）
+        // （先に `save_failed` を送ると、直後の `loaded` が消す）
         let saveFailure: SaveFailure | null = null;
         if (presets.length === 0 && loaded.writable) {
           const p = createDefaultPreset();

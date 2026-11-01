@@ -6,11 +6,11 @@ import type { UsiOptionDef } from "@/entities/engine";
 import { fitValues } from "../fitValues";
 
 /**
- * 画面が利用者の値を定義に当てる規則（`fitValues`）は、**送る側（Rust の `binding::user_value`）と
- * 同じ表を当てる。** 表は Rust の `user_values_follow_the_shared_fit_table` も読む。
+ * 画面が利用者の値を定義に当てる規則（`fitValues`）は、送る側（Rust の `binding::user_value`）と
+ * 同じ表を当てる。表は Rust の `user_values_follow_the_shared_fit_table` も読む。
  *
- * ずれると、画面で残した値が起動のたびに捨てられる・丸められる（保存の前に見せた「外した・丸めた」が
- * 嘘になる）。落ちたら、**表を直す前にどちらの規則が正しいかを決め、両方を合わせる**
+ * ずれると、画面で残した値が起動のたびに捨てられたり丸められたりする。
+ * **落ちたら、表を直す前にどちらの規則が正しいかを決め、両方を合わせる**
  */
 type Case = {
   line: string;
