@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import type { Color } from "shogi.js";
+import { Piece, type Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import type { Held } from "./types";
 import {
@@ -7,7 +7,6 @@ import {
   canSendToHand,
   cycleOnBoard,
   dropFromHand,
-  flipColor,
   handCount,
   moveBetweenHands,
   movePieceOnBoard,
@@ -152,7 +151,7 @@ export function usePositionDraft(makeSeed: () => JKFState) {
   const toggleTurn = useCallback(() => {
     setDraft((prev) => ({
       ...prev,
-      state: setTurn(prev.state, flipColor(prev.state.color)),
+      state: setTurn(prev.state, Piece.oppositeColor(prev.state.color)),
     }));
   }, []);
 

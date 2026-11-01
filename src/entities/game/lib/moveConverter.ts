@@ -1,7 +1,7 @@
 import type { Color, IMove, Kind } from "shogi.js";
 import type { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
-import type { StandardMoveFormat } from "@/entities/game/model/types";
+import type { ShogiMove, StandardMoveFormat } from "../model/types";
 
 export function fromIMove(
   move: IMove,
@@ -18,14 +18,13 @@ export function fromIMove(
   };
 }
 
-// StandardMoveFormat から IMoveMoveFormat への変換
-export function toIMoveMoveFormat(standardMove: StandardMoveFormat): IMoveMoveFormat {
+export function toIMoveMoveFormat(move: StandardMoveFormat): IMoveMoveFormat {
   return {
-    from: standardMove.from,
-    to: standardMove.to,
-    piece: standardMove.piece,
-    color: standardMove.color,
-    ...(standardMove.promote !== undefined ? { promote: standardMove.promote } : {}),
+    from: move.from,
+    to: move.to,
+    piece: move.piece,
+    color: move.color,
+    ...(move.promote !== undefined ? { promote: move.promote } : {}),
   };
 }
 
@@ -34,9 +33,9 @@ export function toIMoveMoveFormat(standardMove: StandardMoveFormat): IMoveMoveFo
  *
  * `to` を持たない手（投了・中断などの `special`）は指す升が無いので `null`。
  */
-export function lastMoveHighlight(player: JKFPlayer) {
+export function lastMoveHighlight(player: JKFPlayer): ShogiMove | null {
   if (player.tesuu === 0) return null;
-  const mv = player.getMove();
-  if (!mv || !mv.to) return null;
-  return { from: mv.from, to: mv.to, kind: mv.piece, color: mv.color };
+  const move = player.getMove();
+  if (!move || !move.to) return null;
+  return { from: move.from, to: move.to, kind: move.piece, color: move.color };
 }

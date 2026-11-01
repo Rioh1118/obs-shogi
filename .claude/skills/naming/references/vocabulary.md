@@ -22,7 +22,7 @@
 | 定跡       | 語なし                             | 語なし                     | 語なし                       | 本文で未確認             | `book` 112（`CONTEXT.md` の語）   |
 
 **先後は3語が役割で分かれている。** `Side` は Rust の enum とその写し、`Color` は `tsshogi` の値、`turn` は局面の手番。
-`sideToColor` と `sideToTsColor` が変換を担う。新しいコードは層の語に合わせ、4つ目を足さない。
+`colorToSide` と `sideToTsColor` が変換を担う。新しいコードは層の語に合わせ、4つ目を足さない。
 
 ## 言語の形
 

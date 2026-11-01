@@ -9,7 +9,7 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  *
  * 正規表現でなく構文木で読む。JSX は属性の値に括弧と矢印が入るので、文字列では境界を取れない。
  *
- * `nestedComponent` と `hyphenAttribute` は違反0なので `-D` で張る。残りは入れた時点で既存があるので件数ラチェット。
+ * `nestedComponent` と `hyphenAttribute` と `colorTruthiness` は違反0なので `-D` で張る。残りは入れた時点で既存があるので件数ラチェット。
  * 基準を動かしてよい向きは下げる方だけで、片付けたら `BASELINE` を下げる。
  *
  * 環境変数 `SHAPE_REPORT` にパスを渡すと、該当の全行を JSON で書き出す。
@@ -18,7 +18,7 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 const BASELINE = {
   arrowComponent: 2,
-  typeInterface: 114,
+  typeInterface: 109,
   reactNamespace: 43,
   conditionalNull: 10,
   inlineHandlerBlock: 34,
@@ -31,7 +31,7 @@ const BASELINE = {
 const MIN_FILES = 300;
 const MIN_COMPONENTS = 150;
 
-type Shape = keyof typeof BASELINE | "nestedComponent" | "hyphenAttribute";
+type Shape = keyof typeof BASELINE | "nestedComponent" | "hyphenAttribute" | "colorTruthiness";
 
 type Found = { shape: Shape; line: number };
 
@@ -93,6 +93,29 @@ function isInsideFunction(node: ts.Node): boolean {
   return false;
 }
 
+/** `color` か `x.color`。先手の `Color.Black` は `0` で、真偽で読むと後手だけが残る */
+function isColorValue(node: ts.Expression): boolean {
+  if (ts.isIdentifier(node)) return node.text === "color";
+  return ts.isPropertyAccessExpression(node) && node.name.text === "color";
+}
+
+/** 真偽として読まれる位置にある式を返す */
+function truthinessOperand(node: ts.Node): ts.Expression | undefined {
+  if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
+    return node.operand;
+  }
+  if (
+    ts.isBinaryExpression(node) &&
+    (node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)
+  ) {
+    return node.left;
+  }
+  if (ts.isConditionalExpression(node)) return node.condition;
+  if (ts.isIfStatement(node)) return node.expression;
+  return undefined;
+}
+
 function isAmbientBlock(node: ts.Node): boolean {
   for (let at = node.parent; at !== undefined; at = at.parent) {
     if (ts.isModuleDeclaration(at)) return true;
@@ -133,6 +156,8 @@ function shapesIn(file: string, body: string): { found: Found[]; components: num
         if (ts.isArrowFunction(fn)) add("arrowComponent", node);
       }
     }
+    const operand = truthinessOperand(node);
+    if (operand && isColorValue(operand)) add("colorTruthiness", node);
     if (ts.isInterfaceDeclaration(node) && !isAmbientBlock(node)) add("typeInterface", node);
     if (
       ts.isTypeReferenceNode(node) &&
@@ -279,6 +304,21 @@ describe("走査の部品", () => {
     expect(shapesOf(`const a = <p data-piece="pawn" aria-label="歩" />;`)).toEqual([]);
   });
 
+  it("手番の色を真偽で読む形を拾う", () => {
+    expect(shapesOf(`const a = !move.color;`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`const a = move.color || fallback;`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`const a = color && f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`const a = color ? 1 : 2;`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`if (piece.color) f();`)).toEqual(["colorTruthiness"]);
+  });
+
+  it("手番の色の比較と欠けの判定は拾わない", () => {
+    expect(shapesOf(`const a = color === Color.Black ? 1 : 2;`)).toEqual([]);
+    expect(shapesOf(`if (move.color === undefined) f();`)).toEqual([]);
+    expect(shapesOf(`const a = move.color ?? turn;`)).toEqual([]);
+    expect(shapesOf(`const a = fallback || move.color;`)).toEqual([]);
+  });
+
   it("forwardRef を綴りを問わず拾う", () => {
     expect(shapesOf(`const a = forwardRef(f);`)).toEqual(["forwardRef"]);
     expect(shapesOf(`const a = React.forwardRef(f);`)).toEqual(["forwardRef"]);
@@ -311,6 +351,13 @@ describe("部品の形と書き方", () => {
     expect(
       byShape.get("hyphenAttribute") ?? [],
       "連字符の属性は data- か aria- だけ。`date-piece` は型検査を通り、属性が付かないまま残る",
+    ).toEqual([]);
+  });
+
+  it("手番の色を真偽で読まない", () => {
+    expect(
+      byShape.get("colorTruthiness") ?? [],
+      "`Color.Black` は 0 なので先手だけが偽になる。`=== undefined` か `=== Color.Black` で比べる（R-TST-4）",
     ).toEqual([]);
   });
 

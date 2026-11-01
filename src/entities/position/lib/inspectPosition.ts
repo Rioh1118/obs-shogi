@@ -1,11 +1,11 @@
-import type { Color, Kind } from "shogi.js";
+import { Piece, type Color } from "shogi.js";
+import { isDeadEnd } from "@/shared/lib/shogi/deadEnd";
 import { turnSide } from "@/shared/lib/turn";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/board";
 import { coordsToShogiNotation } from "./boardCoords";
 import { toKan } from "./toKan";
 import {
-  flipColor,
   isCheckOn,
   pieceAt,
   piecesOnBoard,
@@ -47,29 +47,6 @@ export type PositionInspection = {
   illegalSquares: ReadonlySet<string>;
 };
 
-/**
- * その駒が動けなくなる段の深さ
- *
- * `shogi.js` の `getIllegalUnpromotedRow` と同じ式。向こうは private なので写している。
- * 0 は「どの段でも動ける」。
- */
-function illegalUnpromotedRow(kind: Kind): number {
-  switch (kind) {
-    case "FU":
-    case "KY":
-      return 1;
-    case "KE":
-      return 2;
-    default:
-      return 0;
-  }
-}
-
-/** その駒から見て、相手陣の端から数えた段数。先手は上（y が小さい方）が相手陣 */
-function rowToOppositeEnd(y: number, color: Color): number {
-  return color === 0 ? y : BOARD_SIZE.HEIGHT + 1 - y;
-}
-
 function describe(sq: Square): string {
   return coordsToShogiNotation(sq.x, sq.y) ?? `${sq.x},${sq.y}`;
 }
@@ -98,9 +75,7 @@ function findNifu(state: JKFState): PositionIssue[] {
 function findDeadEnds(state: JKFState): PositionIssue[] {
   const issues: PositionIssue[] = [];
   for (const { square, piece } of piecesOnBoard(state)) {
-    // `shogi.js` の `move` が強制的に成らせる条件と同じ向き。
-    // 深さ0（どの段でも動ける駒）は段が必ず1以上なので、ここで落ちる
-    if (illegalUnpromotedRow(piece.kind) < rowToOppositeEnd(square.y, piece.color)) continue;
+    if (!isDeadEnd(piece.kind, piece.color, square.y)) continue;
     issues.push({
       kind: POSITION_ISSUE.DEAD_END,
       message: `行き所のない駒：${describe(square)}の${turnSide(piece.color)}の${toKan(piece.kind)}は、この先どこへも動けません`,
@@ -142,7 +117,7 @@ function kingSquares(state: JKFState, color: Color): Square[] {
  * そこに「王手がかかったまま」を出すと、正しい局面に断りが出続ける。
  */
 function findCheckIgnored(state: JKFState): PositionIssue[] {
-  const passive = flipColor(state.color);
+  const passive = Piece.oppositeColor(state.color);
   const passiveKings = kingSquares(state, passive);
   if (passiveKings.length !== 1 || kingSquares(state, state.color).length !== 1) return [];
   if (!isCheckOn(state, passive)) return [];

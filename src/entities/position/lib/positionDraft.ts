@@ -1,4 +1,4 @@
-import { Shogi, type Color, type Kind } from "shogi.js";
+import { Piece, Shogi, type Color, type Kind } from "shogi.js";
 import type { RawKind } from "shogi.js/cjs/Kind";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFHand, JKFPiece, JKFState } from "@/entities/kifu/model/jkf";
@@ -297,17 +297,17 @@ export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): Cyc
   const current = (((carried ?? (UNPROMOTED[kind] ? 1 : 0)) % period) + period) % period;
 
   // いま何巡目かが分かれば、1巡目の持ち主が逆算できる
-  const owner: Color = (promoted ? current >= 2 : current === 1) ? flipColor(color) : color;
+  const owner: Color = (promoted ? current >= 2 : current === 1) ? Piece.oppositeColor(color) : color;
   const nextCyc = (current + 1) % period;
 
   if (!promoted) {
-    return { kind: raw, color: nextCyc === 0 ? owner : flipColor(owner), cyc: nextCyc };
+    return { kind: raw, color: nextCyc === 0 ? owner : Piece.oppositeColor(owner), cyc: nextCyc };
   }
   const steps: Array<{ kind: Kind; color: Color }> = [
     { kind: raw, color: owner },
     { kind: promoted, color: owner },
-    { kind: raw, color: flipColor(owner) },
-    { kind: promoted, color: flipColor(owner) },
+    { kind: raw, color: Piece.oppositeColor(owner) },
+    { kind: promoted, color: Piece.oppositeColor(owner) },
   ];
   return { ...steps[nextCyc], cyc: nextCyc };
 }
@@ -332,10 +332,6 @@ export function cycleOnBoard(
   const next = cloneState(state);
   setSquare(next, sq, { kind: step.kind, color: step.color });
   return { state: next, step };
-}
-
-export function flipColor(color: Color): Color {
-  return (1 - color) as Color;
 }
 
 export function setTurn(state: JKFState, color: Color): JKFState {

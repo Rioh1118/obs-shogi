@@ -23,7 +23,7 @@
 | コメント行がコード行より多いファイル | TS 83、Rust 22 | `entities/game-session/api/tauri.ts` は183対34 |
 
 20字以下の1行 doc 154件から無作為に50件を読むと、**10件が名前の言い換え**だった。
-`isInCheck`「王手判定」、`remove_listener`「リスナー削除」、`SideClock`「片側の時計。」など。
+`remove_listener`「リスナー削除」、`SideClock`「片側の時計。」など。
 
 ## 語
 
