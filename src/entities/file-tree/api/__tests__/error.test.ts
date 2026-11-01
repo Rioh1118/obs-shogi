@@ -4,6 +4,9 @@ import {
   describeFsError,
   fsErrorTier,
   FS_ERROR_CODES,
+  isNameInputError,
+  isOperationAlreadyCommitted,
+  isResolvedByConflictDialog,
   makeFsError,
   type FsErrorCode,
 } from "@/entities/file-tree/api/error";
@@ -115,5 +118,27 @@ describe("fsErrorTier", () => {
     for (const code of ["io", "not_found", "unknown"] as const) {
       expect(fsErrorTier(code), code).toBe("warning");
     }
+  });
+});
+
+describe("失敗の行き先の判定", () => {
+  test("別名の対話が引き取るのは already_exists だけ", () => {
+    expect(ALL_CODES.filter(isResolvedByConflictDialog)).toEqual(["already_exists"]);
+  });
+
+  test("入力欄に出すのは名前を直せば通る失敗だけ", () => {
+    expect(ALL_CODES.filter(isNameInputError).sort()).toEqual(
+      [
+        "invalid_extension",
+        "invalid_name_control",
+        "invalid_name_empty",
+        "invalid_name_reserved",
+        "invalid_name_separator",
+      ].sort(),
+    );
+  });
+
+  test("ディスクの変更が済んでいる失敗は config_write_failed だけ", () => {
+    expect(ALL_CODES.filter(isOperationAlreadyCommitted)).toEqual(["config_write_failed"]);
   });
 });
