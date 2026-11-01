@@ -49,8 +49,8 @@ export function closeBook(handle: number): AsyncResult<void, BookError> {
  * **孤児を拾うための関数。** ハンドルはフロントの変数にしか無いので、webview が
  * 作り直されると閉じる術が無くなり、定跡ぶんのメモリがプロセス終了まで残る。
  */
-export function listBooks(): Promise<BookInfo[]> {
-  return invoke<BookInfo[]>("list_books");
+export function listBooks(): AsyncResult<BookInfo[], BookError> {
+  return invokeBook(() => invoke<BookInfo[]>("list_books"));
 }
 
 /**

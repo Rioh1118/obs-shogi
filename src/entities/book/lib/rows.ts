@@ -49,7 +49,7 @@ export function sortBookRows(rows: readonly BookRow[], sort: BookSort): BookRow[
   const valueOf = (row: BookRow): number | null => {
     const { value, count, depth } = row.move;
     if (sort.key === "value") return value;
-    if (sort.key === "count") return count === null ? null : Number(count);
+    if (sort.key === "count") return count;
     return depth;
   };
 

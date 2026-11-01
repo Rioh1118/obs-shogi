@@ -35,6 +35,28 @@ type Looked = {
   rows: BookRow[] | null;
 };
 
+function viewState(input: {
+  info: BookInfo | null;
+  opening: string | null;
+  looked: Looked | null;
+  currentSfen: string | null;
+}): BookViewState {
+  const { info, opening, looked, currentSfen } = input;
+
+  if (opening !== null) return { kind: "opening", path: opening };
+  if (info === null) return { kind: "closed" };
+  if (currentSfen === null) return { kind: "noPosition" };
+
+  // **どの定跡のどの局面かが揃って初めて出す。** 揃うまでは引いている最中
+  if (looked === null || looked.handle !== info.handle || looked.sfen !== currentSfen) {
+    return { kind: "looking" };
+  }
+
+  if (looked.rows === null) return { kind: "unavailable" };
+  if (looked.rows.length === 0) return { kind: "absent" };
+  return { kind: "rows", rows: looked.rows };
+}
+
 /**
  * 開いている定跡と、現局面の候補手を持つ。
  *
@@ -84,13 +106,12 @@ export function BookProvider({ children, currentSfen }: Props) {
     // プロセスの終わりまで残る。`list_books` はここで1度だけ呼ぶので、
     // 後から自分が開いたものを巻き込まない
     void (async () => {
-      try {
-        for (const orphan of await listBooks()) {
-          await closeBook(orphan.handle); // async-result-ignored: 前の版が開いたものなので、閉じ損ねても案内できる操作が無い
-        }
-      } catch {
-        // 掃除に失敗しても、これから開く側の邪魔はしない。
-        // 出す場所も無い（この時点で画面はまだ何も言っていない）
+      const orphans = await listBooks();
+      // 掃除に失敗しても、これから開く側の邪魔はしない。この時点の画面に出す場所も無い
+      if (!orphans.success) return;
+
+      for (const orphan of orphans.data) {
+        await closeBook(orphan.handle); // async-result-ignored: 前の版が開いたものなので、閉じ損ねても案内できる操作が無い
       }
     })();
 
@@ -237,26 +258,4 @@ export function BookProvider({ children, currentSfen }: Props) {
   );
 
   return <BookContext.Provider value={value}>{children}</BookContext.Provider>;
-}
-
-function viewState(input: {
-  info: BookInfo | null;
-  opening: string | null;
-  looked: Looked | null;
-  currentSfen: string | null;
-}): BookViewState {
-  const { info, opening, looked, currentSfen } = input;
-
-  if (opening !== null) return { kind: "opening", path: opening };
-  if (info === null) return { kind: "closed" };
-  if (currentSfen === null) return { kind: "noPosition" };
-
-  // **どの定跡のどの局面かが揃って初めて出す。** 揃うまでは引いている最中
-  if (looked === null || looked.handle !== info.handle || looked.sfen !== currentSfen) {
-    return { kind: "looking" };
-  }
-
-  if (looked.rows === null) return { kind: "unavailable" };
-  if (looked.rows.length === 0) return { kind: "absent" };
-  return { kind: "rows", rows: looked.rows };
 }

@@ -1,3 +1,4 @@
+import type { BookLine } from "../model/types";
 import type { BookRowLine } from "./rows";
 
 /** 「この先」列に出す中身 */
@@ -40,10 +41,7 @@ export function bookLineLabel(line: BookRowLine, baseTesuu: number): BookLineLab
   }
 }
 
-function walkedLabel(
-  line: { plies: number; stopped: "outOfBook" | "depthCap" | "brokenMove" },
-  baseTesuu: number,
-): BookLineLabel {
+function walkedLabel(line: BookLine, baseTesuu: number): BookLineLabel {
   if (line.stopped === "brokenMove") {
     return {
       text: "読めない手",

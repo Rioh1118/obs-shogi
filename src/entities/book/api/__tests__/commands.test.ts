@@ -49,11 +49,12 @@ describe("定跡のコマンド", () => {
     });
   });
 
-  it("list_books は引数を持たない", async () => {
-    invoke.mockResolvedValue([]);
+  it("list_books は引数を持たず、失敗も Err で返す", async () => {
+    invoke.mockRejectedValue("落ちた");
 
-    await listBooks();
+    const listed = await listBooks();
 
     expect(invoke).toHaveBeenCalledWith("list_books");
+    expect(listed.success).toBe(false);
   });
 });

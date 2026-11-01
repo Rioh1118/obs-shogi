@@ -52,6 +52,7 @@ const lookups = new Map<string, ReturnType<typeof deferred<LookupResult>>>();
 const walks = new Map<string, ReturnType<typeof deferred<WalkResult>>>();
 const closed: number[] = [];
 let orphans: BookInfo[] = [];
+let listFails: BookError | null = null;
 /** 開くたびに別のハンドルを配る。**同じ値を配ると定跡の取り違えが観測できない** */
 let nextHandle = 0;
 /** 開くのを失敗させたい回だけ立てる */
@@ -87,7 +88,7 @@ vi.mock("../../api/commands", () => ({
     closed.push(handle);
     return Promise.resolve(Ok(undefined));
   },
-  listBooks: () => Promise.resolve(orphans),
+  listBooks: () => Promise.resolve(listFails ? Err(listFails) : Ok(orphans)),
 }));
 
 let seen: BookContextType | null = null;
@@ -522,6 +523,20 @@ describe("定跡の provider", () => {
     await act(async () => {});
 
     expect(closed).toEqual([7, 8]);
+  });
+
+  it("残りを拾えなくても、開くのは止めない", async () => {
+    listFails = failure("io");
+
+    mount("sfen-a");
+    await act(async () => {});
+    await act(async () => {
+      expect((await seen!.openBook("/books/a.db")).success).toBe(true);
+    });
+
+    expect(seen!.info?.path).toBe("/books/a.db");
+    expect(closed).toEqual([]);
+    listFails = null;
   });
 
   it("棋譜が盤から降りると、引く先が無いことを言う", async () => {

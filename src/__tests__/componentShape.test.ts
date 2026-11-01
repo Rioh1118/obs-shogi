@@ -23,7 +23,7 @@ const BASELINE = {
   conditionalNull: 10,
   inlineHandlerBlock: 34,
   stateAfterEffect: 3,
-  helperAfterComponent: 4,
+  helperAfterComponent: 3,
   forwardRef: 3,
 };
 
