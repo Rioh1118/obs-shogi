@@ -1,4 +1,3 @@
-import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import { Color } from "shogi.js";
 
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
@@ -46,33 +45,13 @@ export function buildCursorView(
       totalMoves = player.getMaxTesuu();
     }
 
-    let currentMove: IMoveMoveFormat | undefined;
-    try {
-      currentMove = player.tesuu === 0 ? undefined : player.getMove();
-    } catch {
-      currentMove = undefined;
-    }
-
-    let currentComments: string[] = [];
-    try {
-      const comments = player.getComments();
-      currentComments = Array.isArray(comments) ? comments : [];
-    } catch {
-      currentComments = [];
-    }
-
-    let currentTurn = Color.Black;
-    try {
-      currentTurn = player.shogi.turn;
-    } catch {
-      currentTurn = Color.Black;
-    }
+    const comments = player.getComments();
 
     // SFEN の手数フィールドは 1 始まり（shogi.js の既定値も 1）。
     // 初期局面の tesuu 0 をそのまま渡すと USI 側で不正な position になるため丸める。
     let currentSfen: string | null = null;
     try {
-      currentSfen = player.shogi ? player.shogi.toSFENString(player.tesuu || 1) : null;
+      currentSfen = player.shogi.toSFENString(player.tesuu || 1);
     } catch {
       currentSfen = null;
     }
@@ -80,9 +59,9 @@ export function buildCursorView(
     return {
       player,
       lastMove: lastMoveHighlight(player),
-      currentMove,
-      currentComments,
-      currentTurn,
+      currentMove: player.tesuu === 0 ? undefined : player.getMove(),
+      currentComments: Array.isArray(comments) ? comments : [],
+      currentTurn: player.shogi.turn,
       totalMoves,
       currentSfen,
     };
