@@ -35,6 +35,7 @@ ours 戦略のマージは使わない。
 | 段 | 枝 | 範囲 | PR | 状態 |
 | -- | -- | ---- | -- | ---- |
 | 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | 未作成 | 作業中 |
+| 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | 未作成 | 作業中 |
 
 ## 語
 
@@ -54,7 +55,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 | 順 | 範囲                                                     | 行数 | 状態   | 構造   |
 | -- | -------------------------------------------------------- | ---- | ------ | ------ |
-| 1  | `src/shared/lib`、`src/shared/api`                       | 1102 | 未着手 | —      |
+| 1  | `src/shared/lib`、`src/shared/api`                       | 1102 | 済     | —      |
 | 2  | `src/shared/ui`                                          | 2023 | 未着手 | 未着手 |
 | 3  | `src/entities/kifu/lib`                                  | 1287 | 済     | —      |
 | 4  | `src/entities/kifu` の残り                               | 1023 | 未着手 | 未着手 |
@@ -101,7 +102,17 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/board-orientation/model/useBoardOrientation.ts` の冒頭の doc | URL の文字列を絞る検査は `PovType` にあると書くが、実体は `useURLParams.ts` の `povRaw === "gote"` で `PovType` は型だけ |
 | `src/features/position-search/ui/PositionSearchModal.tsx` の `discardSearch` の説明 | `clearSearch` を呼ぶのは「ここだけ」と書くが、同じファイルの別の箇所でも呼ぶ |
 | `src/features/game-move/ui/__tests__/gameMoveBridge.test.tsx` の `vi.mock` の doc | export が増えれば落ちると書くが、`importActual` を展開しているので落ちない疑いがある。未再現 |
+| `src/features/settings/ui/tabs/WorkspaceTab.tsx` の `copyText` | `shared/api/clipboard` と同じ名前で別の本体を持つ。寄せられるかを本体で判定する |
+
+## 公開の名前の候補
+
+`shared` と `entities` の公開の名前は、呼び手を含めて独立した段にする。
+
+| 名前 | 問い |
+| ---- | ---- |
+| `convertSfenSequence` | 何へ変換するかが読めない。返すのは日本語表記の手 |
+| `NotificationContextType` | この形の context は無い。出す関数と出ている通知の組 |
 
 ## 次に取る範囲
 
-`src/shared/lib` と `src/shared/api`。
+`src/shared/ui`。
