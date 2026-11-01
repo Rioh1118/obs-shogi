@@ -99,21 +99,51 @@ function isColorValue(node: ts.Expression): boolean {
   return ts.isPropertyAccessExpression(node) && node.name.text === "color";
 }
 
-/** 真偽として読まれる位置にある式を返す */
+function isShortCircuit(kind: ts.SyntaxKind): boolean {
+  return kind === ts.SyntaxKind.BarBarToken || kind === ts.SyntaxKind.AmpersandAmpersandToken;
+}
+
+/**
+ * 真偽として読まれる位置にある式を返す。
+ *
+ * `||` と `&&` の右辺は値の位置なので返さない。`a = fallback || move.color` は
+ * 先手の `0` をそのまま返すだけで、真偽では読まない。
+ */
 function truthinessOperand(node: ts.Node): ts.Expression | undefined {
   if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
     return node.operand;
   }
+  if (ts.isBinaryExpression(node) && isShortCircuit(node.operatorToken.kind)) return node.left;
+  if (ts.isConditionalExpression(node)) return node.condition;
+  if (ts.isIfStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node)) {
+    return node.expression;
+  }
+  if (ts.isForStatement(node)) return node.condition;
+  return undefined;
+}
+
+/**
+ * 真偽の位置の式を開き、結果が真偽として読まれる末端の式を全部返す。
+ *
+ * `if (fallback || move.color)` は式全体が真偽の位置にあるので、右辺も真偽で読まれる。
+ * `??` は左辺が `0` でも止まるので、結果は左右どちらも真偽で読まれる。
+ */
+function truthinessLeaves(node: ts.Expression): ts.Expression[] {
+  if (ts.isParenthesizedExpression(node)) return truthinessLeaves(node.expression);
+  if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
+    return truthinessLeaves(node.operand);
+  }
   if (
     ts.isBinaryExpression(node) &&
-    (node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
-      node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)
+    (isShortCircuit(node.operatorToken.kind) ||
+      node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
   ) {
-    return node.left;
+    return [...truthinessLeaves(node.left), ...truthinessLeaves(node.right)];
   }
-  if (ts.isConditionalExpression(node)) return node.condition;
-  if (ts.isIfStatement(node)) return node.expression;
-  return undefined;
+  if (ts.isConditionalExpression(node)) {
+    return [...truthinessLeaves(node.whenTrue), ...truthinessLeaves(node.whenFalse)];
+  }
+  return [node];
 }
 
 function isAmbientBlock(node: ts.Node): boolean {
@@ -129,6 +159,7 @@ function shapesIn(file: string, body: string): { found: Found[]; components: num
   const source = ts.createSourceFile(file, body, ts.ScriptTarget.Latest, true, kind);
   const found: Found[] = [];
   let components = 0;
+  const colorReads = new Set<ts.Expression>();
   const add = (shape: Shape, node: ts.Node): void => {
     found.push({ shape, line: source.getLineAndCharacterOfPosition(node.getStart()).line + 1 });
   };
@@ -157,7 +188,12 @@ function shapesIn(file: string, body: string): { found: Found[]; components: num
       }
     }
     const operand = truthinessOperand(node);
-    if (operand && isColorValue(operand)) add("colorTruthiness", node);
+    for (const leaf of operand ? truthinessLeaves(operand) : []) {
+      if (isColorValue(leaf) && !colorReads.has(leaf)) {
+        colorReads.add(leaf);
+        add("colorTruthiness", leaf);
+      }
+    }
     if (ts.isInterfaceDeclaration(node) && !isAmbientBlock(node)) add("typeInterface", node);
     if (
       ts.isTypeReferenceNode(node) &&
@@ -312,11 +348,36 @@ describe("走査の部品", () => {
     expect(shapesOf(`if (piece.color) f();`)).toEqual(["colorTruthiness"]);
   });
 
+  it("条件式の中の右辺も手番の色として拾う", () => {
+    expect(shapesOf(`if (fallback || move.color) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`if (ready && color) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`if (a || (b && color)) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`if (a ?? color) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`if (a ? color : b) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`const a = !(fallback || move.color);`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`const a = (fallback || color) ? 1 : 2;`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`const a = (fallback || color) || other;`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`while (fallback || color) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`do f(); while (fallback || color);`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`for (; fallback || color; ) f();`)).toEqual(["colorTruthiness"]);
+  });
+
+  it("1つの読みを条件の入れ子で重ねて数えない", () => {
+    expect(shapesOf(`if (!color) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`if (color || other) f();`)).toEqual(["colorTruthiness"]);
+    expect(shapesOf(`if (!(color && other)) f();`)).toEqual(["colorTruthiness"]);
+  });
+
   it("手番の色の比較と欠けの判定は拾わない", () => {
     expect(shapesOf(`const a = color === Color.Black ? 1 : 2;`)).toEqual([]);
     expect(shapesOf(`if (move.color === undefined) f();`)).toEqual([]);
     expect(shapesOf(`const a = move.color ?? turn;`)).toEqual([]);
     expect(shapesOf(`const a = fallback || move.color;`)).toEqual([]);
+    expect(shapesOf(`const a = ready && color;`)).toEqual([]);
+    expect(shapesOf(`const a = ready ? color : other;`)).toEqual([]);
+    expect(shapesOf(`if (f(a || color)) g();`)).toEqual([]);
+    expect(shapesOf(`if (a || color === Color.Black) f();`)).toEqual([]);
+    expect(shapesOf(`if (a && move.color !== undefined) f();`)).toEqual([]);
   });
 
   it("forwardRef を綴りを問わず拾う", () => {
