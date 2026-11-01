@@ -1,9 +1,9 @@
 import type { InitialPresetString } from "./jkf";
 
-export interface HandicapOption<T extends string> {
+export type HandicapOption<T extends string> = {
   value: T;
   label: string;
-}
+};
 
 /**
  * 手合割の一覧。

@@ -68,7 +68,7 @@ function formatPointer(tesuu: number, forkPointers: ForkPointer[]): string {
  * **`makeKifuCursor` の第3引数は素の `string`** なので、そこへ `cursorKey` の返りを渡す形は
  * `src/__tests__/cursorConstruction.test.ts` の「呼び出しの持ち主」の規則が止める。
  */
-interface KifuCursorFields {
+type KifuCursorFields = {
   /** 現在の手数(0=開始局面) */
   tesuu: number;
 
@@ -77,7 +77,7 @@ interface KifuCursorFields {
 
   /** `JKFPlayer.getTesuuPointer()` が返した観測値。要求の鍵（`cursorKey`）を入れない */
   tesuuPointer: TesuuPointer;
-}
+};
 
 export type KifuCursor = KifuCursorFields & { readonly [kifuCursorBrand]: true };
 
@@ -138,12 +138,12 @@ declare const plannedCursorBrand: unique symbol;
  * `te > tesuu` を持つ素の `CursorPath`（`previewCursor`）を計画に使うなら、
  * `asBranchPlan` を通して `plannedCursorFrom` で組み直す。
  */
-export interface PlannedCursor {
+export type PlannedCursor = {
   tesuu: number;
   /** `te > tesuu` を持ちうる。brand はここまで通す（`planByTe` が `BranchPlan` を要求する）。 */
   forkPointers: BranchPlan;
   readonly [plannedCursorBrand]: true;
-}
+};
 
 /**
  * 現在局面と分岐計画から `PlannedCursor` を組む。**この型を作ってよいのはここだけ**
