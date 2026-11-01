@@ -183,7 +183,7 @@ describe("fetchTree", () => {
     expect(await service.fetchTree("/r")).toMatchObject({ success: false, error: expected });
   });
 
-  test("答えが欄を欠いて写せないときも投げない", async () => {
+  test("答えが null でも投げない", async () => {
     invoke.mockResolvedValue(null);
 
     expect(await service.fetchTree("/r")).toMatchObject({

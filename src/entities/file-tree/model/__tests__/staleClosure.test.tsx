@@ -116,7 +116,7 @@ function Probe() {
 }
 
 /**
- * 作ってから選ぶ。**2つを1つの closure で握る**——`GameStartModal` の送信と同じ形。
+ * 作ってから選ぶ。**2つを1つの closure で握る**——`createNewFile` を待ってから `selectNodeByAbsPath` を呼ぶ形。
  *
  * 押した時点の `selectNodeByAbsPath` を握ったまま `createNewFile` を待つので、
  * 待っている間に届いたツリーは握った側からは見えない。
@@ -194,14 +194,12 @@ describe("IPC を跨いだあとの読み出し", () => {
   });
 
   /**
-   * **作ったばかりの棋譜を、同じ closure から選べること。**
+   * 作ったばかりの棋譜を、同じ closure から選べること。
    *
    * `createNewFile` はツリーの読み直しを待ってから返るので、返った時点で節は在る。
-   * それでも呼び出し側が握っているのは**押した時点の** `selectNodeByAbsPath` で、
-   * そこから見えるツリーには作ったファイルがまだ無い。
-   *
-   * 見つからないと `GameStartModal` は送信を打ち切る。**棋譜だけが1枚できて、
-   * モーダルは開いたまま、対局は始まらない。**
+   * それでも呼び手が握っているのは**押した時点の** `selectNodeByAbsPath` で、
+   * state から引くと、そこから見えるツリーには作ったファイルがまだ無い。
+   * 見つからないと `false` が返り、棋譜だけが1枚できて選択は動かない。
    */
   it("作った棋譜を、作る前に握った関数から選べる", async () => {
     createKifu.mockResolvedValue({ success: true, data: NEW_KIFU });
@@ -235,10 +233,10 @@ describe("IPC を跨いだあとの読み出し", () => {
     );
     await act(async () => {});
 
-    // **`await act()` で包まない。** あれは React の作業を microtask の合間に流すので、
-    // 送信の鎖の途中に**本番には無い再描画**が挟まる。挟まると ref が描画で書き直されて
+    // `await act()` で包まない。あれは React の作業を microtask の合間に流すので、
+    // 送信の鎖の途中に本番には無い再描画が挟まる。挟まると ref が描画で書き直されて
     // 緑になり、実機だけが落ちる。本番の再描画は scheduler の macrotask なので、
-    // 鎖は**一度も描画されないまま**最後まで走る
+    // 鎖は一度も描画されないまま最後まで走る
     act(() => {
       screen.getByTestId("create-then-select").click();
     });

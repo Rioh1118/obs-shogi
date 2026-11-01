@@ -2,6 +2,10 @@ function trimTrailingSeparators(path: string): string {
   return path.replace(/[\\/]+$/, "");
 }
 
+/**
+ * `targetPath` が `basePath` と同じか、その配下にあるか。
+ * 末尾の区切りは無視し、区切りは `/` と `\` の両方を見る。
+ */
 export function isSameOrDescendantPath(
   targetPath: string | null | undefined,
   basePath: string,
@@ -14,6 +18,10 @@ export function isSameOrDescendantPath(
   return target === base || target.startsWith(`${base}/`) || target.startsWith(`${base}\\`);
 }
 
+/**
+ * `oldBasePath` の下にある `targetPath` を、`newBasePath` の下のパスへ付け替える。
+ * `targetPath` が配下でないか空なら `null` を返す。
+ */
 export function remapSubtreePath(
   targetPath: string | null | undefined,
   oldBasePath: string,

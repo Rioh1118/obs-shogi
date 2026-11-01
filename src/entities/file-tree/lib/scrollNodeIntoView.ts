@@ -1,3 +1,7 @@
+/**
+ * そのパスの行までスクロールする。
+ * 呼び手はフォルダの展開を dispatch した直後に呼ぶので、行が描かれるのを2フレーム待つ。
+ */
 export function scrollNodeIntoView(path: string) {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
