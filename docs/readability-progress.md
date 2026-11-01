@@ -45,7 +45,8 @@ ours 戦略のマージは使わない。
 | 9 | `refactor/tidy-entities-game-lib` | `src/entities/game` の `lib` | #672 | マージ済み |
 | 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | マージ済み |
 | 11 | `refactor/tidy-entities-engine` | `src/entities/engine` | #674 | マージ済み |
-| 12 | `refactor/tidy-entities-engine-presets` | `src/entities/engine-presets` | #675 | レビュー待ち |
+| 12 | `refactor/tidy-entities-engine-presets` | `src/entities/engine-presets` | #675 | マージ済み |
+| 13 | `refactor/tidy-entities-analysis-seat` | `src/entities/analysis` の `provider.tsx` 以外 | #677 | レビュー待ち |
 
 ## 語
 
@@ -74,7 +75,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 6b | `src/entities/game` の `model`                           | 1574 | 済     | 済     |
 | 7  | `src/entities/engine`                                    | 1570 | 済     | 済     |
 | 7b | `src/entities/engine-presets`                            |  972 | 済     | 済     |
-| 8  | `src/entities/analysis`                                  | 2298 | 未着手 | 未着手 |
+| 8  | `src/entities/analysis` の `provider.tsx` 以外           | 1237 | 済     | —      |
+| 8b | `src/entities/analysis/model/provider.tsx`               | 1024 | 未着手 | 未着手 |
 | 9  | `src/entities/game-session`                              | 1488 | 未着手 | 未着手 |
 | 10 | `src/entities/file-tree`                                 | 2168 | 未着手 | 未着手 |
 | 11 | `src/entities/search`、`src/entities/book`               | 2454 | 未着手 | 未着手 |
@@ -116,7 +118,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/game-move/ui/__tests__/gameMoveBridge.test.tsx` の `vi.mock` の doc | export が増えれば落ちると書くが、`importActual` を展開しているので落ちない疑いがある。未再現 |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `usedExisting` と `createdNew` | 本番の読み手が0。テストだけが読んでいる |
 | `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
-| `src/entities/analysis/model/__tests__/provider.test.tsx` の「次の局面が保留されていても、届かなかった回に読み始めない」 | 2回に1回の頻度でゲートを止めた。`entities/analysis` の範囲で原因を調べる |
 | `src/features/settings/ui/tabs/WorkspaceTab.tsx` の `copyText` | `shared/api/clipboard` と同じ名前で別の本体を持つ。寄せられるかを本体で判定する |
 | `src/widgets/game-board/ui/PromotionDialog.tsx` の `promotionMap` | `positionDraft.ts` の `promotedKind` の写し。`src/widgets` の範囲で寄せると `PieceImage` の `kind` を `Kind` で受けられる |
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。`promotionMap` の行と合わせて寄せる |
@@ -127,9 +128,9 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `.claude/skills/tidy-code/scripts/emit-unchanged.mjs` | 基点に無い新規ファイルで落ちる |
 | `src/entities/game/model/provider.tsx` の `getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。読み手は `src/widgets` と `src/features` なので、その範囲で直接読む形へ寄せる |
 | `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
-| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める |
+| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める。`engineStatusOf` は `engine.error?.kind ?? null` を `failureKind` で受けており、union にすれば `useEngineStatus` の変換と `failureKind` の null の説明も消える。判定の順は変わらない |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/entities/analysis`。2298行あるので、取るときに割る。
+`src/entities/analysis/model/provider.tsx`。残りは `src/entities/game-session`。
