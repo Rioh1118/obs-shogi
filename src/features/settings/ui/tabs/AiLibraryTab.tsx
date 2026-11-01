@@ -187,7 +187,7 @@ export default function AiLibraryTab() {
   useEffect(() => {
     currentRootRef.current = aiRoot.trim();
     setLocalAiRoot(aiRoot);
-    if (aiRoot.trim()) void scanNow(aiRoot);
+    void scanNow(aiRoot);
   }, [aiRoot, scanNow]);
 
   // `SetupGuide` の `nextAction` の依存なので、毎レンダ作り直さない
@@ -208,10 +208,10 @@ export default function AiLibraryTab() {
 
     // `engines/` が使えるときだけ言う。無いときに言うと、1行目が「フォルダではない」と言ったものの
     // 中へ置けと指示することになる
-    if (canListEnginesDir(dir) && !(data.engines ?? []).some(isEngineForThisMachine)) {
+    if (canListEnginesDir(dir) && !data.engines.some(isEngineForThisMachine)) {
       ws.push("エンジン実行ファイルが未検出です。engines/ 配下に置いてください。");
     }
-    for (const p of data.profiles ?? []) {
+    for (const p of data.profiles) {
       const { okEval, okBook } = profileHealth(p);
       if (!okEval) ws.push(`「${p.name}」: 評価関数が未検出です（<AI 名>/eval に nn.bin 等）。`);
       if (!okBook) ws.push(`「${p.name}」: 定跡が未検出です（<AI 名>/book に .db）。`);
@@ -271,7 +271,6 @@ export default function AiLibraryTab() {
 
   const onEnsureEngines = useCallback(async () => {
     const root = localAiRoot.trim();
-    if (!root) return;
     setScan((s) => ({ status: "loading", last: lastIndex(s) }));
     try {
       await ensureEnginesDir(root);
@@ -311,17 +310,19 @@ export default function AiLibraryTab() {
     [notify, scanNow],
   );
 
-  const onOpenAiRoot = useCallback(() => {
-    if (localAiRoot.trim()) void revealOrNotify("AI ライブラリ", localAiRoot);
-  }, [localAiRoot, revealOrNotify]);
+  const onOpenAiRoot = useCallback(
+    () => void revealOrNotify("AI ライブラリ", localAiRoot),
+    [localAiRoot, revealOrNotify],
+  );
 
   // 索引に載っているパスだけを開く。押せる条件は `canRevealEnginesDir` が持つので、`<root>/engines` と
   // 推測しない
-  const enginesDirPath = data?.engines_dir?.path ?? "";
+  const enginesDirPath = data?.engines_dir.path ?? "";
 
-  const onOpenEnginesDir = useCallback(() => {
-    if (enginesDirPath.trim()) void revealOrNotify("engines/", enginesDirPath);
-  }, [enginesDirPath, revealOrNotify]);
+  const onOpenEnginesDir = useCallback(
+    () => void revealOrNotify("engines/", enginesDirPath),
+    [enginesDirPath, revealOrNotify],
+  );
 
   const revealable = canRevealEnginesDir(enginesDir);
 
@@ -332,11 +333,8 @@ export default function AiLibraryTab() {
    * 全部を名前の欄へ返すと、AI ルートが消えたときに名前が悪いように見える。振り分けは code で決める。
    */
   const onCreateAiFolder = useCallback(
-    async (aiName: string): Promise<CreateAiFolderResult> => {
+    async (name: string): Promise<CreateAiFolderResult> => {
       const root = localAiRoot.trim();
-      const name = aiName.trim();
-      if (!root || !name) return "stale";
-
       const created = await createAiProfileDirs(root, name);
       if (root !== currentRootRef.current) {
         notify(
@@ -438,7 +436,7 @@ export default function AiLibraryTab() {
                   tone="accent"
                   size="sm"
                   onClick={onEnsureEngines}
-                  disabled={!canOperate || scan.status === "loading"}
+                  disabled={scan.status === "loading"}
                 >
                   <Sparkles size={16} style={{ marginRight: 6 }} />
                   engines/ を作成
@@ -447,7 +445,7 @@ export default function AiLibraryTab() {
               <Button
                 size="sm"
                 onClick={onOpenEnginesDir}
-                disabled={!canOperate || !revealable}
+                disabled={!revealable}
                 title="engines/ を開く"
               >
                 engines/ を開く

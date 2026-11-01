@@ -14,7 +14,7 @@ type TreeNodeProps = {
 
 function TreeNode({ label, note, state, indent = 0, isLast = false }: TreeNodeProps) {
   const connector = indent === 0 ? "" : isLast ? "└─ " : "├─ ";
-  const padding = indent === 0 ? 0 : (indent - 1) * 18 + (indent > 0 ? 4 : 0);
+  const padding = indent === 0 ? 0 : (indent - 1) * 18 + 4;
 
   return (
     <div className="structureOverview__node" data-state={state} style={{ paddingLeft: padding }}>
@@ -69,7 +69,6 @@ export function StructureOverview({
         label={`📂 ${rootLabel}/`}
         note={aiRootPath ? undefined : "← まず選択"}
         state={aiRootPath ? "ok" : "placeholder"}
-        indent={0}
       />
 
       <TreeNode
@@ -113,7 +112,6 @@ export function StructureOverview({
                   note={evalOk ? undefined : "← nn.bin を置く"}
                   state={evalOk ? "ok" : "missing"}
                   indent={2}
-                  isLast={false}
                 />
                 <TreeNode
                   label="📂 book/"

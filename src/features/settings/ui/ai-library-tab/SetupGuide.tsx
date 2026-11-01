@@ -28,16 +28,15 @@ import { StructureOverview } from "./steps/StructureOverview";
 import { FolderConcept } from "./steps/FolderConcept";
 import "./SetupGuide.scss";
 
+type HeroButton = { label: string; onClick: () => void };
+
 type NextAction = {
   tone: "ok" | "warn" | "todo";
   icon: React.ReactNode;
   title: string;
   desc: string;
-  primaryLabel?: string;
-  onPrimary?: () => void;
-  primaryLoading?: boolean;
-  secondaryLabel?: string;
-  onSecondary?: () => void;
+  primary?: HeroButton;
+  secondary?: HeroButton;
 };
 
 /** カードに出す状態の名前。網羅の理由は `EnginesDir` の doc */
@@ -58,7 +57,7 @@ const ENGINES_DIR_TONE: Record<EnginesDir, "ok" | "warn" | "todo"> = {
 type Props = {
   aiRootPath: string | null;
   scanStatus: "idle" | "loading" | "ok" | "error";
-  scanError?: string | null;
+  scanError: string | null;
   enginesDir: EnginesDir;
   /**
    * 索引を読めているか。読めていないときと0件を分ける。
@@ -66,11 +65,11 @@ type Props = {
    * 数だけを渡すと、読めていないときも「エンジン 0 件」と断言する。
    */
   indexed: boolean;
-  enginesDirPath?: string;
+  enginesDirPath: string;
   enginesCount: number;
   engineNames: string[];
   profiles: SetupGuideProfile[];
-  warnings?: string[];
+  warnings: string[];
   isScanning: boolean;
   onSelectRoot: () => void;
   onRescan: () => void;
@@ -88,7 +87,7 @@ function StatusCard({
   state,
 }: {
   label: string;
-  value: React.ReactNode;
+  value: string;
   hint?: string;
   icon: React.ReactNode;
   state: "ok" | "warn" | "todo";
@@ -129,14 +128,14 @@ function ProfileItem({ profile }: { profile: SetupGuideProfile }) {
 export default function SetupGuide({
   aiRootPath,
   scanStatus,
-  scanError = null,
+  scanError,
   enginesDir,
   indexed,
   enginesDirPath,
   enginesCount,
   engineNames,
   profiles,
-  warnings = [],
+  warnings,
   isScanning,
   onSelectRoot,
   onRescan,
@@ -241,8 +240,7 @@ export default function SetupGuide({
         icon: <FolderOpen size={18} />,
         title: "AI ライブラリのフォルダを選択してください",
         desc: "エンジン・評価関数・定跡をまとめる専用フォルダを1つ選択するところから始まります。",
-        primaryLabel: "フォルダを選択…",
-        onPrimary: onSelectRoot,
+        primary: { label: "フォルダを選択…", onClick: onSelectRoot },
       };
     }
     if (scanStatus === "loading") {
@@ -251,7 +249,6 @@ export default function SetupGuide({
         icon: <RefreshCw size={18} />,
         title: "フォルダを確認しています",
         desc: "エンジンや AI フォルダの有無を読み取っています。",
-        primaryLoading: true,
       };
     }
     if (scanStatus === "error") {
@@ -260,12 +257,10 @@ export default function SetupGuide({
         icon: <AlertTriangle size={18} />,
         title: "フォルダを確認できませんでした",
         desc: scanError ?? "もう一度読み込んでください。",
-        primaryLabel: "もう一度読み込む",
-        onPrimary: onRescan,
+        primary: { label: "もう一度読み込む", onClick: onRescan },
         // 開くボタンは出さない。選択、作成、走査、AI フォルダの作成の失敗が来るので、開く先を
         // 読めているとは限らない
-        secondaryLabel: "選択…",
-        onSecondary: onSelectRoot,
+        secondary: { label: "選択…", onClick: onSelectRoot },
       };
     }
     // 状態を名前で並べず `canListEnginesDir` で受ける。並べると、`EnginesDir` に状態が増えたときに
@@ -277,10 +272,8 @@ export default function SetupGuide({
           icon: <Wrench size={18} />,
           title: "engines がフォルダではありません",
           desc: "同じ名前のファイル（またはリンク）があります。削除するか、フォルダに置き換えてください。",
-          primaryLabel: "engines/ を開く",
-          onPrimary: onOpenEnginesDir,
-          secondaryLabel: "もう一度読み込む",
-          onSecondary: onRescan,
+          primary: { label: "engines/ を開く", onClick: onOpenEnginesDir },
+          secondary: { label: "もう一度読み込む", onClick: onRescan },
         };
       }
       if (canCreateEnginesDir(enginesDir)) {
@@ -289,10 +282,8 @@ export default function SetupGuide({
           icon: <Wrench size={18} />,
           title: "engines/ フォルダを作成してください",
           desc: "エンジン実行ファイルをまとめる engines/ フォルダをボタンひとつで作成できます。",
-          primaryLabel: "engines/ を作成",
-          onPrimary: onCreateEnginesDir,
-          secondaryLabel: "AI ライブラリを開く",
-          onSecondary: onOpenAiRoot,
+          primary: { label: "engines/ を作成", onClick: onCreateEnginesDir },
+          secondary: { label: "AI ライブラリを開く", onClick: onOpenAiRoot },
         };
       }
       return {
@@ -300,10 +291,8 @@ export default function SetupGuide({
         icon: <RefreshCw size={18} />,
         title: "フォルダの状態を読めていません",
         desc: "もう一度読み込むと、いま何が在るかを読み直します。",
-        primaryLabel: "もう一度読み込む",
-        onPrimary: onRescan,
-        secondaryLabel: "選択…",
-        onSecondary: onSelectRoot,
+        primary: { label: "もう一度読み込む", onClick: onRescan },
+        secondary: { label: "選択…", onClick: onSelectRoot },
       };
     }
     if (enginesCount === 0) {
@@ -312,10 +301,8 @@ export default function SetupGuide({
         icon: <Bot size={18} />,
         title: "エンジン実行ファイルを置いてください",
         desc: "engines/ の場所を表示します。その中に YaneuraOu などの実行ファイルを置いてから、もう一度読み込んでください。",
-        primaryLabel: "engines/ を開く",
-        onPrimary: onOpenEnginesDir,
-        secondaryLabel: "もう一度読み込む",
-        onSecondary: onRescan,
+        primary: { label: "engines/ を開く", onClick: onOpenEnginesDir },
+        secondary: { label: "もう一度読み込む", onClick: onRescan },
       };
     }
     if (profiles.length === 0) {
@@ -324,8 +311,7 @@ export default function SetupGuide({
         icon: <Sparkles size={18} />,
         title: "AI フォルダを作成してください",
         desc: "AI 名のフォルダを作成と、eval/ と book/ が自動で用意されます。",
-        primaryLabel: "AI 名の入力へ",
-        onPrimary: () => aiNameRef.current?.focus(),
+        primary: { label: "AI 名の入力へ", onClick: () => aiNameRef.current?.focus() },
       };
     }
     const missingEval = profiles.find((p) => !p.hasEvalDir || p.evalCount === 0);
@@ -335,10 +321,8 @@ export default function SetupGuide({
         icon: <Database size={18} />,
         title: `「${missingEval.name}」に評価関数を置いてください`,
         desc: `AI ライブラリの場所を表示します。その中の ${missingEval.name}/eval/ に nn.bin などを置いてから、もう一度読み込んでください。`,
-        primaryLabel: "AI ライブラリを開く",
-        onPrimary: onOpenAiRoot,
-        secondaryLabel: "もう一度読み込む",
-        onSecondary: onRescan,
+        primary: { label: "AI ライブラリを開く", onClick: onOpenAiRoot },
+        secondary: { label: "もう一度読み込む", onClick: onRescan },
       };
     }
     return {
@@ -346,8 +330,7 @@ export default function SetupGuide({
       icon: <CheckCircle2 size={18} />,
       title: "セットアップの土台は完成しています",
       desc: "エンジンと評価関数が見つかっています。プリセット作成に進めます。",
-      primaryLabel: "もう一度読み込む",
-      onPrimary: onRescan,
+      primary: { label: "もう一度読み込む", onClick: onRescan },
     };
   }, [
     aiRootPath,
@@ -373,20 +356,14 @@ export default function SetupGuide({
           <div className="setupGuide__heroDesc">{nextAction.desc}</div>
         </div>
         <div className="setupGuide__heroActions">
-          {nextAction.primaryLabel && (
-            <Button
-              tone="accent"
-              size="sm"
-              onClick={nextAction.onPrimary}
-              disabled={!nextAction.onPrimary}
-              isLoading={nextAction.primaryLoading}
-            >
-              {nextAction.primaryLabel}
+          {nextAction.primary && (
+            <Button tone="accent" size="sm" onClick={nextAction.primary.onClick}>
+              {nextAction.primary.label}
             </Button>
           )}
-          {nextAction.secondaryLabel && nextAction.onSecondary && (
-            <Button size="sm" onClick={nextAction.onSecondary}>
-              {nextAction.secondaryLabel}
+          {nextAction.secondary && (
+            <Button size="sm" onClick={nextAction.secondary.onClick}>
+              {nextAction.secondary.label}
             </Button>
           )}
         </div>
@@ -403,7 +380,7 @@ export default function SetupGuide({
         <StatusCard
           label="engines フォルダ"
           value={ENGINES_DIR_LABEL[enginesDir]}
-          hint={enginesDir === "unknown" ? undefined : enginesDirPath}
+          hint={enginesDirPath}
           icon={<Wrench size={13} />}
           state={ENGINES_DIR_TONE[enginesDir]}
         />

@@ -1,6 +1,6 @@
 type TreeLineProps = {
   indent?: number;
-  label: React.ReactNode;
+  label: string;
   note?: string;
   highlight?: boolean;
   dim?: boolean;

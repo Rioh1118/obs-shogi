@@ -5,8 +5,8 @@ export type StepState = "done" | "active" | "warn" | "locked";
 type Props = {
   state: StepState;
   title: string;
-  summary?: string;
-  children?: React.ReactNode;
+  summary: string;
+  children: React.ReactNode;
 };
 
 export function StepShell({ state, title, summary, children }: Props) {
@@ -29,9 +29,7 @@ export function StepShell({ state, title, summary, children }: Props) {
       <div className="aiLibraryTab__stepBody">
         <div className="aiLibraryTab__stepHeader">
           <span className="aiLibraryTab__stepTitle">{title}</span>
-          {state === "done" && summary && (
-            <span className="aiLibraryTab__stepSummary">{summary}</span>
-          )}
+          {state === "done" && <span className="aiLibraryTab__stepSummary">{summary}</span>}
         </div>
         {isExpanded && children}
       </div>
