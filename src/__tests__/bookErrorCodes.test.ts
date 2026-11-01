@@ -7,9 +7,9 @@ import { rustFile, SRC } from "./walk";
  * Rust の `BookErrorCode` が TS の `BookErrorCode` に収まっていることを見る。
  *
  * 収まっていないと `asBookError` の `isBookErrorCode` を通らず `unknown` に落ち、
- * **段（`bookNoticeTier`）まで `danger` の既定に流れる。** Rust 側には
+ * 段（`bookNoticeTier`）も種別ごとのものでなく `warning` になる。Rust 側には
  * `BookErrorCode` を網羅 `match` する箇所が1つも無いので、片側だけ増やしても
- * **どちらのコンパイラも何も言わない。**
+ * どちらのコンパイラも何も言わない。
  *
  * `FsErrorCode` と同じ形（`fsErrorCodes.test.ts`）。両方をデータとして読むのは、
  * `src/__tests__` がレイヤに依存しないため（`testsLayerBoundary.test.ts`）。

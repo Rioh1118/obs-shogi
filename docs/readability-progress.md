@@ -86,7 +86,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 10 | `src/entities/file-tree` の `provider.tsx` 以外           | 1240 | 済     | 済     |
 | 10b | `src/entities/file-tree/model/provider.tsx`              |  737 | 済     | 済     |
 | 11 | `src/entities/search`                                    | 1587 | 済     | 済     |
-| 11b | `src/entities/book`                                     |  867 | 未着手 | 未着手 |
+| 11b | `src/entities/book`                                     |  867 | 済     | 済     |
 | 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 未着手 | 未着手 |
 | 13 | `src/features/settings`                                  | 4778 | 未着手 | 未着手 |
 | 14 | `src/features/position-search`、`src/features/position-editor` | 3186 | 未着手 | 未着手 |
@@ -151,4 +151,4 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-`src/entities/book`。
+`src/entities` の残り（app-config、dock、study-positions、updater）。

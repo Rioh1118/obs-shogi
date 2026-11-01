@@ -1,21 +1,16 @@
-/**
- * 控えておく本数。**多くしない。** 空の画面に並ぶ一覧で、
- * 押し間違えて GB 級を開き直させる余地を増やすだけになる。
- */
+/** 控えておく本数。空の画面に並ぶ一覧なので、増やすと GB 級を押し間違えて開き直す余地が増える */
 export const MAX_RECENT_BOOKS = 5;
 
 /**
- * 最近開いた定跡の一覧に1件足す。**新しいものが先頭。**
+ * 最近開いた定跡の一覧に `path` を先頭で足して返す。
  *
- * 同じパスが既に居れば先頭へ持ち上げる（重ねない）。空の綴りは落とす。
+ * 同じパスは重ねず先頭へ持ち上げ、空の綴りは落とす。
  *
- * **文字列でない値は来ない。** 設定の欄は Rust 側が `Option<Vec<String>>` で、
- * `app.json` に別の型が入っていれば `serde` が設定ごと parse に失敗する
- * （`settings::app::read_or_default`）ので、ここまで届かない。
+ * 文字列でない値は来ない。設定の `book_recent_paths` は Rust で `Option<Vec<String>>` なので、
+ * 別の型が入っていれば `serde` が設定ごと parse に失敗する（`settings::app::read_or_default`）。
  *
- * **存在の検査はしない。** 消えたファイルを一覧から黙って外すと、
- * 外付けドライブを繋ぎ忘れた回に「そんな定跡は開いていない」ことになる。
- * 開けなかったことは開いたときに `not_found` として出る。
+ * 存在は検査しない。消えたファイルを黙って外すと、外付けドライブを繋ぎ忘れただけで一覧から消える。
+ * 開けなければ `not_found` が出る。
  */
 export function rememberBook(
   recents: readonly string[] | null | undefined,
@@ -29,12 +24,10 @@ export function rememberBook(
 /**
  * 設定に残っている一覧を、画面に出せる形へ濾す。
  *
- * **上限は書く側だけでなく読む側にも掛ける。** 上限の理由は「空の画面に並ぶ数」
- * なので、書く側にしか掛けないと、前の版や手で書かれた 100 件がそのまま
- * 100 個のボタンとして並ぶ。
+ * 上限は読む側でも掛ける。前の版や手で書かれた 100 件が、そのまま 100 個のボタンになるため。
  *
- * **名前が取れない綴りは落とす。** `/books/` のように区切りで終わる綴りは
- * `bookFileName` が空を返すので、**名前の無いボタン**になる（押すと `InvalidType`）。
+ * 名前が取れない綴りは落とす。`/books/` のような綴りは `bookFileName` が空を返し、
+ * 名前の無いボタンになる。
  */
 export function readRecentBooks(recents: readonly string[] | null | undefined): string[] {
   const seen = new Set<string>();
