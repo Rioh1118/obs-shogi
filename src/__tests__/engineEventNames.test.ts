@@ -9,14 +9,14 @@ import { REPO_ROOT } from "./walk";
  * 別々に持つので、片方だけ消えても型は止めない。
  */
 const SINK = "src-tauri/src/engine/commands/analysis.rs";
-const NAMES = "src/entities/engine/api/eventNames.ts";
+const NAMES = ["src/entities/engine/api/eventNames.ts", "src/entities/analysis/api/eventNames.ts"];
 
 describe("エンジンの通知の綴り", () => {
   const source = readFileSync(join(REPO_ROOT, SINK), "utf8");
   const emitted = [...source.matchAll(/\.emit\("([^"]+)"/g)].map((m) => m[1]);
 
-  const listened = [...readFileSync(join(REPO_ROOT, NAMES), "utf8").matchAll(/: "([a-z-]+)"/g)].map(
-    (m) => m[1],
+  const listened = NAMES.flatMap((names) =>
+    [...readFileSync(join(REPO_ROOT, names), "utf8").matchAll(/: "([a-z-]+)"/g)].map((m) => m[1]),
   );
 
   test("走査が空振りしていない", () => {

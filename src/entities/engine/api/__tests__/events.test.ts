@@ -1,6 +1,4 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import type { AnalysisResult } from "../rust-types";
-import type { AnalysisSessionId } from "../tauri";
 
 type Handler = (event: { payload: unknown }) => void;
 
@@ -28,10 +26,7 @@ vi.mock(
     }) satisfies typeof import("@tauri-apps/api/event"),
 );
 
-const { setupAnalysisEventListeners, setupEngineEventListeners } = await import("../events");
-
-const SESSION = "session-1" as AnalysisSessionId;
-const RESULT: AnalysisResult = { candidates: [] };
+const { setupEngineEventListeners } = await import("../events");
 
 beforeEach(() => {
   bus.handlers.clear();
@@ -43,22 +38,6 @@ beforeEach(() => {
 function fire(name: string, payload: unknown) {
   bus.handlers.get(name)?.({ payload });
 }
-
-describe("解析の通知", () => {
-  test("途中経過と完了を、席の識別子を付けて別々の購読先へ渡す", async () => {
-    const onUpdate = vi.fn();
-    const onComplete = vi.fn();
-    await setupAnalysisEventListeners({ onUpdate, onComplete });
-
-    fire("analysis-update", { sessionId: SESSION, result: RESULT });
-    expect(onUpdate).toHaveBeenCalledExactlyOnceWith(SESSION, RESULT);
-    expect(onComplete).not.toHaveBeenCalled();
-
-    fire("analysis-complete", { sessionId: SESSION, result: RESULT });
-    expect(onComplete).toHaveBeenCalledExactlyOnceWith(SESSION, RESULT);
-    expect(onUpdate).toHaveBeenCalledTimes(1);
-  });
-});
 
 describe("プロセスの通知", () => {
   const listeners = () => ({

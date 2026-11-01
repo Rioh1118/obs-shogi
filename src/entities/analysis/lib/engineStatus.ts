@@ -2,8 +2,9 @@ import type { EngineNotReadyReason, EnginePhase, EngineStartFailureKind } from "
 import type { AnalysisState } from "../model/types";
 
 /**
- * 操作列が1語で言う、エンジンの状態。**判定と遷移の出典は
- * `docs/state-transitions/engine-standardization.md`**（記号 V0〜V8 はそちら）。
+ * 操作列が1語で言うエンジンの状態
+ *
+ * 判定と遷移の出典は `docs/state-transitions/engine-standardization.md`（記号 V0〜V8 はそちら）。
  */
 export type EngineStatus =
   /** V0 `エンジンなし` */
@@ -37,10 +38,12 @@ type Inputs = {
 };
 
 /**
- * **エンジンの状態を先に見る。** 検討の入り切りはエンジンが動いていなくても倒れないので
- * （戻ったら読み直すため）、こちらを先に見ると動いていないエンジンの前に `検討中` が出る。
+ * 操作列に出す語を決める。
  *
- * **完了は局面まで見る。** 局面を動かしてから次の探索が始まるまでの間も `検討完了` と言うと、
+ * エンジンの状態を先に見る。検討の意思はエンジンが動いていなくても下りないので、先に見ると
+ * 動いていないエンジンに `検討中` が出る。
+ *
+ * 完了は局面まで見る。局面を動かしてから次の探索が始まるまでの間に `検討完了` と言うと、
  * 動かした局面を読み終えたように見える。
  */
 export function engineStatusOf({

@@ -5,27 +5,15 @@ import { REPO_ROOT } from "@/__tests__/walk";
 import { codeOf } from "@/__tests__/sourceText";
 
 /**
- * 解析の席を返す「枠」を書き換えてよいのは、`useEngineSeat` の `holdSlot` の中だけ。
+ * `releasingRef` に書くのは `useEngineSeat` の `holdSlot` の中だけ。
  *
- * `useEngineSeat` は飛んでいる返却を1枠（`releasingRef`）で持ち、後から来た返却は
- * その後ろに並ぶ。**空けてよいのは自分がまだその枠に居るときだけ**で、無条件に
- * 空けると、並んだ側が枠から消え、次に来た返却が「誰も居ない」と読んで
- * 同じ席へ2本目を並列で撃つ。
+ * 応答待ちの返却はこの ref が持ち、後から来た返却はその後ろに並ぶ。空けてよいのは自分がまだ
+ * 載っているときだけで、無条件に空けると、次の返却が誰も居ないと読んで同じ席へ並列で送る。
+ * 差が出るのは3本の返却が重なる筋だけで、振る舞いのテストでは守りきれないので綴りで止める。
  *
- * **この規約は振る舞いのテストが持てない。** 枠への書き込みを1箇所ずつ無条件の
- * 代入へ変異させても、落ちるテストは1本しかない（3本の返却が重なる筋を組まないと
- * 差が出ない）。差が出ないものを人の目で守り続けることになるので、綴りで止める。
- *
- * **同じ理由でもう1つ見る**——`useEngineSeat` は返す値を初回の描画で凍らせる
- * （`apiRef`）。早期 return より上に置いてよいのは `useRef` と、**依存が全部安定な**
- * `useCallback` だけ。それ以外を置くと、そこで読んだ値が初回のまま凍り、
- * 描画ごとに変わる値を読んだ人はそれに気づけない。
- * **安定かどうかは機械が見ない**——`exhaustive-deps` と読む人が見る。
- *
- * **見るのは形だけ。** `holdSlot` の中身が正しいかは見ない。
- *
- * **置き場はスライスの中。** `src/__tests__/` はリポジトリ横断の検査だけを置く場所で
- * （`vite.config.ts`）、この検査は1ファイルの内部の形しか見ない。
+ * 返す値を初回の描画で固定するフックも見る。早期 return より上に置いてよいのは `useRef` と、
+ * 依存が全部安定な `useCallback` だけ。それ以外は読んだ値が初回のまま残る。
+ * 依存の安定は `exhaustive-deps` と読む人が見る。ここが見るのは形だけ。
  */
 const SEAT = "src/entities/analysis/model/useEngineSeat.ts";
 
@@ -72,13 +60,8 @@ describe("解析の席を返す枠", () => {
 
     expect(head, `${path}: 早期 return が見つからない（この検査の前提が崩れている）`).not.toBe("");
 
-    // **`useRef` / `useCallback` を含まない宣言を数える。** 名前だけを見ると、
-    // この検査がいちばん止めたい形——`const { isReady } = useEngine();` のような
-    // 分割代入——が素通りする。
-    //
-    // **`useCallback` を許すのは、依存が全部安定なときだけ。** そこは
-    // `react-hooks/exhaustive-deps`（`vite.config.ts` で `error`）と、
-    // 依存に何を渡しているかを読む人が見る。ここは形しか見ない。
+    // `useRef` と `useCallback` を含まない宣言を数える。名前だけを見ると、
+    // `const { isReady } = useEngine();` のような分割代入が素通りする。
     const offenders = (head.match(/^ {2}(?:const|let|var)\b[^\n]*/gm) ?? []).filter(
       (line) => !/\buse(?:Ref|Callback)\s*[<(]/.test(line),
     );

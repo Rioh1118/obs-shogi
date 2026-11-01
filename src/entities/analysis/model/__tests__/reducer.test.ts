@@ -4,13 +4,11 @@ import { analysisReducer, initialState } from "../reducer";
 import type { AnalysisState } from "../types";
 
 /**
- * 停止が**何を残すか**を固定する。
+ * 停止が `analyzedSfen` と `candidates` の組を残す。
  *
- * 候補手の控え（`lib/candidateCache.ts`）は「`analyzedSfen` と `candidates` が
- * 同じ解析の組である」ことを前提に、`AnalysisPane` の判定で局面を突き合わせてから控える。
- * 停止でどちらか片方だけが落ちると、その組が崩れたまま判定を通る回が生まれる。
- *
- * **書き手の場所は `stateFieldWriters` が見るが、残ることは誰も見ていない。**
+ * 候補手の控え（`lib/candidateCache.ts`）は両方が同じ解析の組であることを前提に、`AnalysisPane` の
+ * 判定で局面を突き合わせて控える。片方だけが落ちると、組が崩れたまま判定を通る。
+ * 書き手の場所は `stateFieldWriters` が見るが、残ることはここでしか見ない。
  */
 describe("解析の停止が残すもの", () => {
   const analyzing = (): AnalysisState =>
@@ -85,9 +83,10 @@ describe("解析の停止が残すもの", () => {
 });
 
 /**
- * **並びが最善手の唯一の印になる面がある。** 行モード（`CandidatesSection`）は
- * 最善手に帯も太さも付けず、1行目にあることだけで示す。届いた順のまま置くと、
- * エンジンが rank を逆順で送った回に最善手がどれか画面から読めなくなる。
+ * 候補手を rank の昇順に保つ。
+ *
+ * 行モード（`CandidatesSection`）は最善手を1行目にあることだけで示す。届いた順のまま置くと、
+ * エンジンが rank を逆順で送ったときに最善手が画面から読めなくなる。
  */
 describe("解析結果の並び", () => {
   it("届いた順によらず rank の昇順に置く", () => {
