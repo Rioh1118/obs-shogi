@@ -47,7 +47,7 @@ ours 戦略のマージは使わない。
 | 11 | `refactor/tidy-entities-engine` | `src/entities/engine` | #674 | マージ済み |
 | 12 | `refactor/tidy-entities-engine-presets` | `src/entities/engine-presets` | #675 | マージ済み |
 | 13 | `refactor/tidy-entities-analysis-seat` | `src/entities/analysis` の `provider.tsx` 以外 | #677 | マージ済み |
-| 14 | `refactor/tidy-entities-analysis-provider` | `src/entities/analysis/model/provider.tsx` | #678 | レビュー待ち |
+| 14 | `refactor/tidy-entities-analysis-provider` | `src/entities/analysis/model/provider.tsx` | #678 | マージ済み |
 
 ## 語
 
@@ -128,7 +128,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/game-ruling/lib/rulingAdapter.ts` の `toRuling` の doc | 主語が `judgeGameOutcome` だが、この関数が呼ぶのは `createOutcomeJudge`。`features/game-ruling` の範囲で直す |
 | `src-tauri/src/storage/disk.rs` の読み手 | 2つの rename の間で値があるのに `NotFound` を受ける筋がある。未再現 |
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
-| `.claude/skills/tidy-code/scripts/emit-unchanged.mjs` | 基点に無い新規ファイルで落ちる |
 | `src/entities/game/model/provider.tsx` の `getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。読み手は `src/widgets` と `src/features` なので、その範囲で直接読む形へ寄せる |
 | `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
 | `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める。`engineStatusOf` は `engine.error?.kind ?? null` を `failureKind` で受けており、union にすれば `useEngineStatus` の変換と `failureKind` の null の説明も消える。判定の順は変わらない |

@@ -37,8 +37,23 @@ const changed = git("diff", "--name-only", base, "--", "*.ts", "*.tsx")
   .split("\n")
   .filter((path) => path && existsSync(path));
 
+/** 基点に無いファイルは比べる相手が無い。`git show` は落ちるので、先に見る */
+function isNewFile(path) {
+  try {
+    execFileSync("git", ["cat-file", "-e", `${base}:${path}`], { stdio: "ignore" });
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 let different = 0;
 for (const path of changed) {
+  if (isNewFile(path)) {
+    console.log(`新規: ${path}`);
+    different += 1;
+    continue;
+  }
   const before = git("show", `${base}:${path}`);
   if (emit(before, path) !== emit(readFileSync(path, "utf8"), path)) {
     console.log(`差あり: ${path}`);
