@@ -1,5 +1,6 @@
 import "./DisplayModePreview.scss";
 import type { AnalysisDisplayMode } from "@/entities/analysis";
+import { cx } from "@/features/settings/lib/cx";
 
 /**
  * 候補手の見せ方の見本。「表」と「行」は名前だけでは何が変わるか読めないので、並び方を出す。
@@ -15,7 +16,7 @@ function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
         [0, 1, 2, 3, 4, 5].map((n) => (
           <i
             key={n}
-            className={`displayModePreview__fill ${n === 0 ? "displayModePreview__fill--best" : ""}`}
+            className={cx("displayModePreview__fill", n === 0 && "displayModePreview__fill--best")}
           />
         ))}
 
@@ -32,7 +33,10 @@ function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
               {[0, 1, 2, 3].map((c) => (
                 <i
                   key={c}
-                  className={`displayModePreview__cell ${n === 0 ? "displayModePreview__cell--best" : ""}`}
+                  className={cx(
+                    "displayModePreview__cell",
+                    n === 0 && "displayModePreview__cell--best",
+                  )}
                 />
               ))}
             </span>

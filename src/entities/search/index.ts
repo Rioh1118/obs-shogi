@@ -26,4 +26,5 @@ export type { IndexHealth } from "./lib/indexHealth";
 export { PositionSearchProvider } from "./model/provider";
 export { usePositionSearch } from "./model/usePositionSearch";
 
+export type { IndexWarnPayload } from "./api/events";
 export type { IndexUiState } from "./model/types";

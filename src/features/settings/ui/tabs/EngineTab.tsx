@@ -1,27 +1,24 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, useState } from "react";
 import "./EngineTab.scss";
 
-import { Plus, Pencil, Copy, Trash2, RefreshCcw, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Plus, RefreshCcw } from "lucide-react";
 
 import Button from "@/shared/ui/Button/Button";
 import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
+import PresetCard from "../engine-tab/PresetCard";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import {
-  bookInUse,
-  isPresetConfigured,
-  type PresetId,
-} from "@/entities/engine-presets/model/types";
-import { MULTIPV_OPTION } from "@/entities/engine-presets/model/multiPv";
-import { cx } from "@/features/settings/lib/cx";
-import { fileLabel } from "@/features/settings/lib/fileChoices";
-import { basename } from "@/features/settings/lib/presetDialog";
-import {
-  engineDefaultLabel,
-  engineDefaultOf,
-  savedInt,
-} from "@/features/settings/lib/quickOptions";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+
+/** 適用中を先頭にして、残りは名前順に並べる */
+function sortForList(presets: EnginePreset[], selectedId: PresetId | null) {
+  return [...presets].sort((a, b) => {
+    if (a.id === selectedId) return -1;
+    if (b.id === selectedId) return 1;
+    return a.label.localeCompare(b.label);
+  });
+}
 
 export default function EngineTab() {
   const { state, reload, selectPreset, createPreset, duplicatePreset, deletePreset } =
@@ -32,43 +29,16 @@ export default function EngineTab() {
   const selectedId = state.selectedPresetId;
   const presets = state.presets;
 
-  const sorted = useMemo(() => {
-    const xs = [...presets];
-    xs.sort((a, b) => {
-      if (a.id === selectedId) return -1;
-      if (b.id === selectedId) return 1;
-      return a.label.localeCompare(b.label);
-    });
-    return xs;
-  }, [presets, selectedId]);
+  const sorted = useMemo(() => sortForList(presets, selectedId), [presets, selectedId]);
 
   // 書けないファイル（新しい版、読めない、移せなかった）では変更の操作を押せなくする。
   // 理由は帯が出す（`PresetsFileBridge`）
   const readOnly = !state.writable;
 
-  const onAdd = async () => {
-    await createPreset({ label: "新規プリセット" });
-  };
-
-  const onDup = async (id: PresetId) => {
-    // 複製先へは適用を移さない（`docs/spec/screens/settings.md`）
-    await duplicatePreset(id);
-  };
-
-  const onDelete = async (id: PresetId) => {
-    const p = state.presets.find((x) => x.id === id);
-    const name = p?.label?.trim() || "このプリセット";
+  const handleDelete = async (preset: EnginePreset) => {
+    const name = preset.label.trim() || "このプリセット";
     if (!window.confirm(`${name} を削除します。よろしいですか？`)) return;
-    await deletePreset(id);
-  };
-
-  const handleCardKeyDown = (e: KeyboardEvent<HTMLElement>, id: PresetId) => {
-    // 中のボタンのキーも上がってくる。ここで受けるとボタンが押されなくなる
-    if (e.target !== e.currentTarget) return;
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      selectPreset(id);
-    }
+    await deletePreset(preset.id);
   };
 
   return (
@@ -85,7 +55,7 @@ export default function EngineTab() {
             <Button
               tone="accent"
               size="sm"
-              onClick={onAdd}
+              onClick={() => createPreset({ label: "新規プリセット" })}
               disabled={state.status === "loading" || readOnly}
             >
               <Plus size={16} style={{ marginRight: 6 }} />
@@ -104,147 +74,20 @@ export default function EngineTab() {
           <div className="engineTab__loading">読み込み中…</div>
         ) : (
           <div className="engineTab__grid">
-            {sorted.map((p) => {
-              const configured = isPresetConfigured(p);
-              const isSelected = p.id === selectedId;
-
-              const multiPv = savedInt(p.options, MULTIPV_OPTION);
-              const threads = savedInt(p.options, "Threads");
-              const hash = savedInt(p.options, "USI_Hash");
-
-              const multiPvWarn = multiPv != null && multiPv >= 2;
-              const title = p.label?.trim() || "（無名プリセット）";
-
-              return (
-                <article
-                  key={p.id}
-                  className={cx("engineTab__card", isSelected && "is-selected")}
-                  onClick={() => selectPreset(p.id)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => handleCardKeyDown(e, p.id)}
-                >
-                  <header className="engineTab__cardHead">
-                    <div className="engineTab__cardTitleRow">
-                      <div className="engineTab__cardTitle" title={title}>
-                        {title}
-                      </div>
-
-                      <div className="engineTab__badges">
-                        {isSelected && (
-                          <span className="engineTab__badge engineTab__badge--active">適用中</span>
-                        )}
-                        {!configured && (
-                          <span className="engineTab__badge engineTab__badge--warn">
-                            <AlertTriangle size={14} style={{ marginRight: 4 }} />
-                            要設定
-                          </span>
-                        )}
-                        {configured && (
-                          <span className="engineTab__badge engineTab__badge--ok">
-                            <CheckCircle2 size={14} style={{ marginRight: 4 }} />
-                            設定済み
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="engineTab__cardActions" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        onClick={() => setEditingId(p.id)}
-                        aria-label="編集"
-                        title="編集"
-                        disabled={readOnly}
-                      >
-                        <Pencil size={16} />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        onClick={() => onDup(p.id)}
-                        aria-label="複製"
-                        title="複製"
-                        disabled={readOnly}
-                      >
-                        <Copy size={16} />
-                      </Button>
-
-                      <Button
-                        tone="danger"
-                        size="sm"
-                        onClick={() => onDelete(p.id)}
-                        aria-label="削除"
-                        title="削除"
-                        disabled={readOnly || presets.length <= 1}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </header>
-
-                  <div className="engineTab__cardBody">
-                    <div className="engineTab__row">
-                      <div className="engineTab__k">エンジン</div>
-                      <div className="engineTab__v" title={p.enginePath || ""}>
-                        {p.enginePath ? (
-                          basename(p.enginePath)
-                        ) : (
-                          <span className="engineTab__muted">未設定</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="engineTab__row">
-                      <div className="engineTab__k">評価関数</div>
-                      <div className="engineTab__v" title={p.evalFilePath || ""}>
-                        {p.evalFilePath ? (
-                          fileLabel(p.evalFilePath)
-                        ) : (
-                          <span className="engineTab__muted">指定しない</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="engineTab__divider" />
-
-                    <div className="engineTab__miniGrid">
-                      <div className="engineTab__mini">
-                        <div className="engineTab__miniK">候補手の数</div>
-                        <div className={cx("engineTab__miniV", multiPvWarn && "is-warn")}>
-                          {multiPv ?? engineDefaultLabel(engineDefaultOf(p, MULTIPV_OPTION))}
-                        </div>
-                      </div>
-                      <div className="engineTab__mini">
-                        <div className="engineTab__miniK">Threads</div>
-                        <div className="engineTab__miniV">
-                          {threads ?? engineDefaultLabel(engineDefaultOf(p, "Threads"))}
-                        </div>
-                      </div>
-                      <div className="engineTab__mini">
-                        <div className="engineTab__miniK">Hash</div>
-                        <div className="engineTab__miniV">
-                          {hash == null
-                            ? engineDefaultLabel(engineDefaultOf(p, "USI_Hash"), "MB")
-                            : `${hash}MB`}
-                        </div>
-                      </div>
-                      <div className="engineTab__mini">
-                        <div className="engineTab__miniK">定跡</div>
-                        <div className="engineTab__miniV">{bookInUse(p) ? "ON" : "OFF"}</div>
-                      </div>
-                    </div>
-
-                    {multiPvWarn && (
-                      <div className="engineTab__note">
-                        候補手の数を増やすと 1手あたりの読みが浅くなります（研究向けの “幅 vs 深さ”
-                        トレードオフ）。
-                      </div>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+            {sorted.map((p) => (
+              <PresetCard
+                key={p.id}
+                preset={p}
+                isSelected={p.id === selectedId}
+                canChange={!readOnly}
+                canDelete={!readOnly && presets.length > 1}
+                onSelect={() => selectPreset(p.id)}
+                onEdit={() => setEditingId(p.id)}
+                // 複製先へは適用を移さない（`docs/spec/screens/settings.md`）
+                onDuplicate={() => duplicatePreset(p.id)}
+                onDelete={() => handleDelete(p)}
+              />
+            ))}
           </div>
         )}
       </SSection>
