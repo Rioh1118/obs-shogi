@@ -6,8 +6,6 @@ import type {
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { isSelectableEngine } from "@/features/settings/lib/presetEngineOptions";
 
-export const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
-
 export function clampInt(n: number, min: number, max: number) {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, Math.trunc(n)));

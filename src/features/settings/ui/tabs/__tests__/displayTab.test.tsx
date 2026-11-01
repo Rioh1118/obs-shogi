@@ -73,6 +73,13 @@ describe("設定「表示」タブ", () => {
     expect([...previews].every((p) => p.getAttribute("aria-hidden") === "true")).toBe(true);
   });
 
+  test("見本は1行目を最善手として塗る", () => {
+    const { container } = render(<DisplayTab />);
+
+    expect(container.querySelectorAll(".displayModePreview__fill--best")).toHaveLength(1);
+    expect(container.querySelectorAll(".displayModePreview__cell--best")).toHaveLength(4);
+  });
+
   test("評価値バーは既定で入っていない", () => {
     const { container } = render(<DisplayTab />);
 

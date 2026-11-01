@@ -1,42 +1,31 @@
-import { forwardRef, type SelectHTMLAttributes } from "react";
+import type { Ref, SelectHTMLAttributes } from "react";
 import "./SSelect.scss";
 
-export type SSelectOption = {
+type SSelectOption = {
   value: string;
   label: string;
   disabled?: boolean;
 };
 
-type Props = Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> & {
+type Props = Omit<SelectHTMLAttributes<HTMLSelectElement>, "children" | "className" | "size"> & {
+  ref?: Ref<HTMLSelectElement>;
   options: SSelectOption[];
-  placeholder?: string; // value="" のとき表示
+  /** `value` が空のときに選べない行で出す案内 */
+  placeholder?: string;
   invalid?: boolean;
-  size?: "sm" | "md" | "lg";
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
-
-const SSelect = forwardRef<HTMLSelectElement, Props>(function SSelect(
-  { className, options, placeholder, invalid, size = "md", value, ...rest },
-  ref,
-) {
-  const v = value ?? "";
-  const hasPlaceholder = typeof placeholder === "string" && placeholder.length > 0;
-
+export default function SSelect({ options, placeholder, invalid, value, ref, ...rest }: Props) {
   return (
-    <div
-      className={cx("sui-select", className)}
-      data-size={size}
-      data-invalid={invalid ? "true" : "false"}
-    >
+    <div className="sui-select" data-invalid={invalid ? "true" : "false"}>
       <select
         ref={ref}
         className="sui-select__control"
-        value={v}
+        value={value ?? ""}
         aria-invalid={invalid || undefined}
         {...rest}
       >
-        {hasPlaceholder && (
+        {!!placeholder && (
           <option value="" disabled>
             {placeholder}
           </option>
@@ -52,6 +41,4 @@ const SSelect = forwardRef<HTMLSelectElement, Props>(function SSelect(
       </span>
     </div>
   );
-});
-
-export default SSelect;
+}

@@ -42,10 +42,15 @@ function uiFiles(): string[] {
  * **`IndexHealth` で分岐する画面を全部入れること。**
  * 漏れは同じファイルの「IndexHealth で分岐する画面は全部 SCREENS に載っている」が見る。
  */
-const SCREENS: { source: string; spec: string }[] = [
+const SCREENS: { source: string; spec: string; minLabels?: number }[] = [
   {
-    source: "src/features/settings/ui/tabs/WorkspaceTab.tsx",
+    source: "src/features/settings/ui/workspace-tab/IndexStatusSection.tsx",
     spec: "docs/spec/screens/settings.md",
+  },
+  {
+    source: "src/features/settings/ui/workspace-tab/AppUpdateSection.tsx",
+    spec: "docs/spec/screens/settings.md",
+    minLabels: 3,
   },
   {
     source: "src/features/position-search/ui/PositionSearchStatusBar.tsx",
@@ -128,8 +133,10 @@ describe("画面の文言と仕様書", () => {
 
   /** 走査が空振りしたのを緑と読まない。 */
   it("文言を1つも拾えていないなら、それは走査の失敗", () => {
-    for (const { source } of SCREENS) {
-      expect(labelsOf(source).length, `${source} から文言を拾えていない`).toBeGreaterThan(3);
+    for (const { source, minLabels = 4 } of SCREENS) {
+      expect(labelsOf(source).length, `${source} から文言を拾えていない`).toBeGreaterThanOrEqual(
+        minLabels,
+      );
     }
   });
 });

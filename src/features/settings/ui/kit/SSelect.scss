@@ -20,6 +20,8 @@
   font: inherit;
   font-size: 1.3rem;
 
+  height: 36px;
+  padding-left: 10px;
   padding-right: 32px;
 
   transition:
@@ -35,21 +37,6 @@
     opacity: 0.55;
     cursor: not-allowed;
   }
-}
-
-.sui-select[data-size="sm"] .sui-select__control {
-  height: 32px;
-  padding-left: 10px;
-}
-
-.sui-select[data-size="md"] .sui-select__control {
-  height: 36px;
-  padding-left: 10px;
-}
-
-.sui-select[data-size="lg"] .sui-select__control {
-  height: 40px;
-  padding-left: 12px;
 }
 
 .sui-select__chev {

@@ -1,11 +1,10 @@
-import React from "react";
+import type { CSSProperties, ReactNode } from "react";
 import "./SRadioGroup.scss";
 
 type SRadioOption = {
   value: string;
-  label: React.ReactNode;
-  description?: React.ReactNode;
-  disabled?: boolean;
+  label: ReactNode;
+  description?: ReactNode;
 };
 
 type Layout = "list" | "grid";
@@ -17,14 +16,9 @@ type Props = {
   onChange: (value: string) => void;
 
   layout?: Layout;
-  columns?: number; // gridのときだけ
-  disabled?: boolean;
-  invalid?: boolean;
-
-  className?: string;
+  /** `layout` が `grid` のときの列の数 */
+  columns?: number;
 };
-
-const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
 
 export default function SRadioGroup({
   name,
@@ -33,31 +27,22 @@ export default function SRadioGroup({
   onChange,
   layout = "list",
   columns = 2,
-  disabled,
-  invalid,
-  className,
 }: Props) {
   return (
     <div
-      className={cx("sui-radio", className)}
+      className="sui-radio"
       data-layout={layout}
-      data-invalid={invalid ? "true" : "false"}
-      style={
-        layout === "grid" ? ({ ["--cols"]: String(columns) } as React.CSSProperties) : undefined
-      }
+      style={layout === "grid" ? ({ "--cols": String(columns) } as CSSProperties) : undefined}
       role="radiogroup"
-      aria-invalid={invalid || undefined}
     >
       {options.map((o) => {
         const checked = o.value === value;
-        const isDisabled = disabled || o.disabled;
 
         return (
           <label
             key={o.value}
             className="sui-radio__item"
             data-checked={checked ? "true" : "false"}
-            data-disabled={isDisabled ? "true" : "false"}
           >
             <input
               className="sui-radio__input"
@@ -65,7 +50,6 @@ export default function SRadioGroup({
               name={name}
               value={o.value}
               checked={checked}
-              disabled={isDisabled}
               onChange={(e) => onChange(e.target.value)}
             />
             <span className="sui-radio__card">

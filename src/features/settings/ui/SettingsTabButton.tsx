@@ -1,38 +1,26 @@
 import type { ReactNode } from "react";
-import SettingsBadge, { type SettingsBadgeTone } from "./kit/SettingsBadge";
 import "./SettingsTabButton.scss";
 
-type TabBadge = {
-  tone?: SettingsBadgeTone;
-  children: ReactNode;
-};
+import { cx } from "@/features/settings/lib/cx";
 
 type Props = {
   active: boolean;
   label: string;
   onClick: () => void;
-  badges?: TabBadge[];
+  badges?: ReactNode;
 };
 
-function SettingsTabButton({ active, label, onClick, badges = [] }: Props) {
-  const cls = ["stab", active ? "stab--active" : ""].filter(Boolean).join(" ");
-
+function SettingsTabButton({ active, label, onClick, badges }: Props) {
   return (
     <button
       type="button"
-      className={cls}
+      className={cx("stab", active && "stab--active")}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
     >
       <div className="stab__row">
         <span className="stab__label">{label}</span>
-        <span className="stab__right">
-          {badges.map((b, i) => (
-            <SettingsBadge key={i} tone={b.tone}>
-              {b.children}
-            </SettingsBadge>
-          ))}
-        </span>
+        <span className="stab__right">{badges}</span>
       </div>
     </button>
   );

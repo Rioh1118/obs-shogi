@@ -1,13 +1,12 @@
 import "./DisplayModePreview.scss";
 import type { AnalysisDisplayMode } from "@/entities/analysis";
+import { cx } from "@/features/settings/lib/cx";
 
 /**
- * 候補手の見せ方の見本。**言葉より先に形を見せる。**
+ * 候補手の見せ方の見本。「表」と「行」は名前だけでは何が変わるか読めないので、並び方を出す。
  *
- * 「表 / 行」は名前だけでは何が変わるか読めない。選ぶ前に並び方そのものを出す。
- *
- * **中身は持たない。** 実データを描くと、設定を開いた時点の解析結果に見えてしまう。
- * 出すのは骨だけで、読み上げは選択肢のラベルが担う（`aria-hidden`）。
+ * 実データを描くと設定を開いた時点の解析結果に見えるので、骨だけを描く。読み上げは選択肢の
+ * ラベルが担う。
  */
 function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
   return (
@@ -17,7 +16,7 @@ function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
         [0, 1, 2, 3, 4, 5].map((n) => (
           <i
             key={n}
-            className={`displayModePreview__fill ${n === 0 ? "displayModePreview__fill--best" : ""}`}
+            className={cx("displayModePreview__fill", n === 0 && "displayModePreview__fill--best")}
           />
         ))}
 
@@ -34,7 +33,10 @@ function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
               {[0, 1, 2, 3].map((c) => (
                 <i
                   key={c}
-                  className={`displayModePreview__cell ${n === 0 ? "displayModePreview__cell--best" : ""}`}
+                  className={cx(
+                    "displayModePreview__cell",
+                    n === 0 && "displayModePreview__cell--best",
+                  )}
                 />
               ))}
             </span>

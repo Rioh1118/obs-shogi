@@ -88,15 +88,3 @@
   outline: 2px solid var(--s-focus, rgba(220, 215, 201, 0.55));
   outline-offset: 2px;
 }
-
-.sui-radio__item[data-disabled="true"] {
-  cursor: not-allowed;
-
-  .sui-radio__card {
-    opacity: 0.55;
-  }
-}
-
-.sui-radio[data-invalid="true"] .sui-radio__card {
-  border-color: var(--intent-danger-border, rgba(255, 90, 90, 0.32));
-}

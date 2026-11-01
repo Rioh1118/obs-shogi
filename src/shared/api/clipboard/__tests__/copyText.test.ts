@@ -17,9 +17,9 @@ afterEach(() => {
 });
 
 describe("copyText", () => {
-  it("クリップボードへ前後の空白を落として書く", async () => {
+  it("前後の空白を含めて渡した値のまま書く", async () => {
     await copyText("  /path  ");
-    expect(writeText).toHaveBeenCalledWith("/path");
+    expect(writeText).toHaveBeenCalledWith("  /path  ");
     expect(execCommand).not.toHaveBeenCalled();
   });
 
