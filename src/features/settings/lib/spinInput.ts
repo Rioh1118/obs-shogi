@@ -1,7 +1,7 @@
 import type { UsiOptionDef } from "@/entities/engine";
 import { fitSpin } from "@/entities/engine-presets/lib/fitValues";
 
-type SpinDef = Extract<UsiOptionDef, { type: "spin" }>;
+export type SpinDef = Extract<UsiOptionDef, { type: "spin" }>;
 
 /**
  * spin の欄に打った文字を、欄を離れたときに確定する値にする。

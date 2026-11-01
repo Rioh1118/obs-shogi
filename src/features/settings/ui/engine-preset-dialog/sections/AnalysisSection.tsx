@@ -30,15 +30,18 @@ function stopLimitOf(text: string): number | undefined {
  * 「検討」の節。候補手の数と終了条件と詰み探索を決める。
  * 候補手の数は値が無ければ送らない。終了条件と詰み探索は保存するが、検討はまだ読まない。
  */
-export default function AnalysisSection(props: {
+export default function AnalysisSection({
+  draft,
+  setAnalysis,
+  setOption,
+  multiPvMax,
+}: {
   draft: EnginePreset;
   setAnalysis: (patch: Partial<AnalysisDefaults>) => void;
   /** `null` で値を消す。 */
   setOption: (name: string, value: string | null) => void;
-  /** 候補手の数の上限（`multiPvMax`） */
   multiPvMax: number;
 }) {
-  const { draft, setAnalysis, setOption, multiPvMax } = props;
   const multiPv = savedInt(draft.options, MULTIPV_OPTION);
   const multiPvDefault = engineDefaultOf(draft, MULTIPV_OPTION);
   const quick = QUICK_MULTIPV.filter((n) => n <= multiPvMax);

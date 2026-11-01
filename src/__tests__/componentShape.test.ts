@@ -21,7 +21,7 @@ const BASELINE = {
   typeInterface: 35,
   reactNamespace: 31,
   conditionalNull: 9,
-  inlineHandlerBlock: 31,
+  inlineHandlerBlock: 29,
   stateAfterEffect: 1,
   helperAfterComponent: 2,
   forwardRef: 1,

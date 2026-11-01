@@ -95,7 +95,7 @@ const SPELLINGS: Record<string, RegExp> = {
 
 /** 綴りには当たるが、表の語の意味ではないもの。ファイルと文字列の一部で指す。`why` は読み手のため */
 const EXCEPTIONS: ReadonlyArray<{ word: string; file: string; text: string; why: string }> = [
-  ...["engineNotices.ts:のパスに", "EngineSettingsSection.tsx:欄にパスを", "AiLibraryTab.tsx:パスをコピー"]
+  ...["engineNotices.ts:のパスに", "EngineOptionInput.tsx:欄にパスを", "AiLibraryTab.tsx:パスをコピー"]
     .concat(["open.rs:定跡のパスが空", "open.rs:定跡のパスに", "open.rs:定跡のパスは"])
     .map((spot) => {
       const [file, text] = spot.split(":");

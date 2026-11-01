@@ -1,9 +1,4 @@
-import { classifyEnginesDir } from "@/entities/engine/lib/enginesDir";
 import type { PresetId } from "@/entities/engine-presets/model/types";
-import {
-  keepCurrentEngine,
-  presetEngineOptions,
-} from "@/features/settings/lib/presetEngineOptions";
 import { multiPvMax } from "@/features/settings/lib/presetOptionValues";
 import { useAiRootIndex } from "@/features/settings/model/useAiRootIndex";
 import { usePresetDialog } from "@/features/settings/model/usePresetDialog";
@@ -24,8 +19,7 @@ type Props = {
 /** プリセットを1枚で編集する別窓。開いている間だけ描く。 */
 export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props) {
   const library = useAiRootIndex();
-  const { index } = library;
-  const dialog = usePresetDialog({ presetId, index, onClose });
+  const dialog = usePresetDialog({ presetId, index: library.index, onClose });
   const { draft, errors, probing } = dialog;
 
   if (!draft) return null;
@@ -66,18 +60,7 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
           <UsedFilesSection
             draft={draft}
             enginePathError={errors.enginePath}
-            aiRootReady={library.hasRoot}
-            scanReady={library.scan.status === "ready" && index != null}
-            indexStatus={library.scan.status}
-            enginesDir={classifyEnginesDir(index?.engines_dir)}
-            enginesDirPath={index?.engines_dir.path ?? ""}
-            onCreateEnginesDir={library.createEnginesDir}
-            rescan={library.rescan}
-            engineOptions={keepCurrentEngine(
-              presetEngineOptions(index?.engines ?? []),
-              draft.enginePath,
-            )}
-            profiles={index?.profiles ?? []}
+            library={library}
             onEngineChosen={dialog.chooseEngine}
             onEvalChosen={dialog.chooseEval}
             onBookChosen={dialog.chooseBook}

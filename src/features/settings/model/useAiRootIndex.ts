@@ -80,3 +80,5 @@ export function useAiRootIndex() {
     createEnginesDir,
   };
 }
+
+export type AiRootIndexState = ReturnType<typeof useAiRootIndex>;

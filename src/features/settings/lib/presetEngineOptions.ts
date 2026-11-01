@@ -18,7 +18,7 @@ const LAUNCHABILITY_NOTE: Record<Launchability, string | null> = {
   wrongPlatform: "別の OS 向けです",
 };
 
-export type PresetEngineOption = {
+type PresetEngineOption = {
   value: string;
   label: string;
   disabled: boolean;
