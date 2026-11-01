@@ -40,6 +40,30 @@ export type RulingAdapter = {
   judge: (progress: GameProgressView) => GameRuling;
 };
 
+/** 走り出した対局が `live` でも `over` でも持つ欄 */
+type StartedGame = {
+  gameId: GameId;
+  kifuPath: string | null;
+  blackName: string;
+  whiteName: string;
+  /** 根からの指し手。**`continueGame` に渡している列と同じもの** */
+  usiMoves: readonly string[];
+  /**
+   * 裁定を返せなかったときの文言。**`null` でなければ故障。**
+   *
+   * 裁定の断りは**どれも呼び直しで直らない**（`api/tauri.ts` の `continueGame`）
+   * ので、ここに載った時点で対局は `RULING_TIMEOUT` に向かっている。
+   * 黙って捨てると、画面は動いているのに対局だけが止まる
+   */
+  rulingFailure: string | null;
+  /**
+   * 対局の手を棋譜へ積めなかった理由。**`null` でなければ棋譜が対局から遅れている。**
+   *
+   * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
+   */
+  boardFailure: string | null;
+};
+
 /**
  * 画面に出る対局の姿。**`GameSnapshot`（Rust が返す形）とは別物。**
  *
@@ -63,12 +87,8 @@ export type GameSessionView =
    */
   | { kind: "starting"; kifuPath: string | null }
   /** 対局中。手番と時計は Rust が決める */
-  | {
+  | (StartedGame & {
       kind: "live";
-      gameId: GameId;
-      kifuPath: string | null;
-      blackName: string;
-      whiteName: string;
       /**
        * 人が座っている席。**投了できるのはここだけ。**
        *
@@ -86,55 +106,19 @@ export type GameSessionView =
        * 「時間切れ寸前の対局」として描かれる
        */
       clocks: ClocksView | null;
-      /** 根からの指し手。**`continueGame` に渡している列と同じもの** */
-      usiMoves: readonly string[];
       /** 手が決まってから裁定を返すまでの窓に居るか */
       awaitingRuling: boolean;
-      /**
-       * 裁定を返せなかったときの文言。**`null` でなければ故障。**
-       *
-       * 裁定の断りは**どれも呼び直しで直らない**（`api/tauri.ts` の `continueGame`）
-       * ので、ここに載った時点で対局は `RULING_TIMEOUT` に向かっている。
-       * 黙って捨てると、画面は動いているのに対局だけが止まる
-       */
-      rulingFailure: string | null;
-      /**
-       * 対局の手を棋譜へ積めなかった理由。**`null` でなければ棋譜が対局から遅れている。**
-       *
-       * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
-       */
-      boardFailure: string | null;
-    }
+    })
   /**
    * 終局。**エンジンは進行の側が自分で落とす**（`closeGame` を利用者に押させない）。
    *
    * 落とし終えるまでの短い間だけ `engineClosed` が `false` で、
    * その間に始めようとする対局は断られる（`isHeld`）。
    */
-  | {
+  | (StartedGame & {
       kind: "over";
-      gameId: GameId;
-      kifuPath: string | null;
-      blackName: string;
-      whiteName: string;
       result: GameResult;
       clocks: ClocksView;
-      usiMoves: readonly string[];
-      /**
-       * 裁定を返せなかったまま終局した場合の文言。
-       *
-       * **終局と一緒に消さない。** 理由の欄が名乗れるのは原因の名詞と、
-       * Rust が載せた `detail` まで。**投げた中身（`messageOf(error)`）を持つのは
-       * この欄だけ**で、判定器が投げた回はそれが唯一の手掛かりになる
-       * （そのとき理由は `rule` で、`detail` は「判定できなかった」としか言わない）。
-       */
-      rulingFailure: string | null;
-      /**
-       * 対局の手を棋譜へ積めなかった理由。**`null` でなければ棋譜が対局から遅れている。**
-       *
-       * 対局は Rust の写しで進むので止まらない。**止まるのは棋譜だけ。**
-       */
-      boardFailure: string | null;
       /** エンジンを落とし終えたか。**`false` のうちは次の対局を始められない** */
       engineClosed: boolean;
       /**
@@ -144,7 +128,7 @@ export type GameSessionView =
        * 出さないと、起きたままのプロセスに気づく手段が1つも無い。
        */
       closeFailure: string | null;
-    }
+    })
   /**
    * 始められなかった。**`gameId` が無いので閉じる対象も無い**
    * ——Rust は起動に失敗した対局を台帳に載せず、起こしたプロセスも自分で落とす。

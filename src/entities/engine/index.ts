@@ -16,6 +16,7 @@ export type {
   UsiOptionDef,
   ProbeOutcome,
   AnalysisResult,
+  SetOptionValue,
   AnalysisCandidate,
   Evaluation,
   EvaluationKind,

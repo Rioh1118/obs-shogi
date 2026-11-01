@@ -26,7 +26,8 @@ export type Session = {
    * 黙っていると**終局後に開き直したとき初めて**後半が無いことに気づく。
    */
   boardFailure: string | null;
-  result: GameResult | null;
+  /** 終局の結末と、その時の時計。`over` イベントが必ず両方を運ぶ */
+  over: { result: GameResult; clocks: ClocksView } | null;
   startFailure: string | null;
   /**
    * エンジンを落とし終えたか。**終局したら進行の側が自分で落とす。**
@@ -60,7 +61,7 @@ export function createSession(request: GameStartRequest): Session {
     awaitingRuling: false,
     rulingFailure: null,
     boardFailure: null,
-    result: null,
+    over: null,
     startFailure: null,
     engineClosed: false,
     closeFailure: null,
@@ -87,7 +88,7 @@ export function requireGameId(session: Session | null): GameId {
 export function isHeld(session: Session | null): boolean {
   if (session === null) return false;
   if (session.startFailure !== null) return false;
-  return session.result === null || !session.engineClosed;
+  return session.over === null || !session.engineClosed;
 }
 
 /**
@@ -107,16 +108,15 @@ export function toView(session: Session | null, eventsUnavailable: string | null
   if (session.gameId === null) {
     return { kind: "starting", kifuPath: session.kifuPath };
   }
-  if (session.result !== null) {
+  if (session.over !== null) {
     return {
       kind: "over",
       gameId: session.gameId,
       kifuPath: session.kifuPath,
       blackName: session.blackName,
       whiteName: session.whiteName,
-      result: session.result,
-      // `over` は必ず時計を載せて届くので、ここに来た時点で `null` ではない
-      clocks: session.clocks ?? emptyClocks(),
+      result: session.over.result,
+      clocks: session.over.clocks,
       usiMoves: session.usiMoves,
       rulingFailure: session.rulingFailure,
       boardFailure: session.boardFailure,
@@ -141,15 +141,4 @@ export function toView(session: Session | null, eventsUnavailable: string | null
     rulingFailure: session.rulingFailure,
     boardFailure: session.boardFailure,
   };
-}
-
-/**
- * 終局の時計が1度も届かなかったときの埋め草。
- *
- * **`over` は必ず時計を載せるので、通る経路は無い。** それでも 0 を置くのは、
- * `null` を許すと終局の表示だけが「時計が無い」枝を持つことになるため。
- */
-function emptyClocks(): ClocksView {
-  const zero = { mainMs: 0, byoyomiMs: 0 };
-  return { black: zero, white: zero, running: null };
 }

@@ -15,7 +15,7 @@
  * （`engine::game::types::tests::the_typescript_copy_has_every_field`）。
  * 逆向き（ここにあって Rust に無い欄）は serde が黙って捨てるので見ていない。
  */
-import type { AnalysisResult } from "@/entities/engine";
+import type { AnalysisResult, SetOptionValue } from "@/entities/engine";
 
 declare const gameIdBrand: unique symbol;
 
@@ -35,17 +35,6 @@ export type GameId = string & { readonly [gameIdBrand]: true };
 
 /** SFEN の2番目のフィールド（`b` / `w`）と対応する */
 export type Side = "black" | "white";
-
-/**
- * `setoption` で送る値1件。**並べた順にそのまま送られる。**
- *
- * **`entities/engine` の `EngineOption` とは別物。** あちらはエンジンが
- * 宣言してくる option の定義（型・既定値・現在値）で、向きが逆。
- */
-export type SetOptionValue = {
-  name: string;
-  value: string;
-};
 
 /**
  * 対局者。人とエンジンが同じ型に入る。

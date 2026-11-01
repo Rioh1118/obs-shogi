@@ -255,8 +255,7 @@ export function GameSessionProvider({
         }
 
         case "over":
-          session.result = event.result;
-          session.clocks = event.clocks;
+          session.over = { result: event.result, clocks: event.clocks };
           session.awaitingRuling = false;
           // **終局はエンジンを畳まない。** 押させる形にしていた間は、押し忘れたぶんだけ
           // プロセスが残った。結末が決まった時点でこちらから落とす
@@ -392,7 +391,6 @@ export function GameSessionProvider({
         // 別の対局が始まっていた回に、こちらの断りをその対局へ書き込む
         if (sessionRef.current !== mine) return;
         mine.startFailure = messageOf(error);
-        mine.gameId = null;
         pendingEventsRef.current = [];
         publish();
         return;
@@ -434,8 +432,10 @@ export function GameSessionProvider({
     const session = sessionRef.current;
     if (session === null) return Ok(undefined);
 
+    const { gameId } = session;
+
     // **始め損ねた対局には閉じる相手が居ない**（台帳に載っていない）ので、捨てるだけ
-    if (session.gameId === null) {
+    if (gameId === null) {
       sessionRef.current = null;
       pendingEventsRef.current = [];
       publish();
@@ -444,7 +444,7 @@ export function GameSessionProvider({
 
     // **落ちるまで手放さない。** 先に捨てると `gameId` が消えて呼び直せなくなり、
     // 断られた回にエンジンが起きたまま画面だけが「対局していません」に戻る
-    const closed = await attempt(() => closeGame(session.gameId as GameId));
+    const closed = await attempt(() => closeGame(gameId));
     if (!closed.success) return closed;
 
     sessionRef.current = null;
