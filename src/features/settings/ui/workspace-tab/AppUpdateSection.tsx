@@ -31,9 +31,9 @@ function manualCheckText(result: ManualCheckResult): string {
 /**
  * 最後に確認できた時刻の文。
  *
- * 一度も確認できていないときも空欄にしない。確認の失敗は画面に出さない（理由は
+ * 一度も確認できていないときも空欄にしない。起動時の確認の失敗は画面に出さない（理由は
  * `entities/updater` の provider の `runCheck`）ので、時刻が古いまま止まっていることが、
- * 失敗し続けていることの唯一の手掛かりになる。
+ * 失敗し続けていることの手掛かりになる。
  */
 function lastCheckedText(ms: number | null): string {
   if (ms === null) return "まだ確認できていません";

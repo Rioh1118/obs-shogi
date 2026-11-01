@@ -251,7 +251,7 @@ describe("カードのボタン", () => {
     expect(screen.queryByRole("button", { name: "編集中:b" })).toBeNull();
   });
 
-  test("複製を押すと適用せずに複製する", () => {
+  test("複製はカードの選択を通らず、複製の操作だけを呼ぶ", () => {
     const { container } = render(<EngineTab />);
 
     fireEvent.click(inCard(container, "乙", "複製"));

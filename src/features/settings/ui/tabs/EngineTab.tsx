@@ -83,7 +83,6 @@ export default function EngineTab() {
                 canDelete={!readOnly && presets.length > 1}
                 onSelect={() => selectPreset(p.id)}
                 onEdit={() => setEditingId(p.id)}
-                // 複製先へは適用を移さない（`docs/spec/screens/settings.md`）
                 onDuplicate={() => duplicatePreset(p.id)}
                 onDelete={() => handleDelete(p)}
               />
