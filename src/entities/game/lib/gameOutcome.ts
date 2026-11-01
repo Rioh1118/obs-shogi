@@ -62,7 +62,7 @@ export type GameOutcomeKind =
   /** 最大手数（`GameRules.maxMoves`）に達した */
   | "maxMoves";
 
-export interface GameOutcome {
+export type GameOutcome = {
   kind: GameOutcomeKind;
   /**
    * 引き分けなら null。**`endGameByRule` にそのまま渡せる形で返す。**
@@ -72,7 +72,7 @@ export interface GameOutcome {
    * 先手勝ちが引き分けに潰れ、tsc は通してしまう
    */
   winner: Side | null;
-}
+};
 
 /**
  * 局面を組み立てられなかった。**「まだ終わっていない」と混ぜないこと。**
@@ -101,7 +101,7 @@ export type GameOutcomeFailure =
       sfen: string;
     };
 
-export interface GameProgress {
+export type GameProgress = {
   /**
    * 対局の根の局面。`GameSettings.startSfen` と同じもの。
    * **`startpos` は受け付けない**（あちらと同じ制約）
@@ -112,7 +112,7 @@ export interface GameProgress {
    * 途中局面から始めた対局なら `GameSettings.initialMoves` も含む
    */
   usiMoves: readonly string[];
-}
+};
 
 /** トライルールの到達点は相手玉の初期位置。先手なら5一、後手なら5九 */
 function trySquareOf(color: Color): { usi: string; x: number; y: number } {
@@ -283,17 +283,17 @@ export function judgeGameOutcome(
  * 途中局面が変わった、前の裁定が落ちた —— どれも「続きではない」で同じ扱いにする。
  * 積みかけの `Record` は捨てる（残すと、次の裁定が続きだと思って更に積む）。
  */
-interface OutcomeJudge {
+type OutcomeJudge = {
   judge(progress: GameProgress, rules: GameRules): Result<GameOutcome | null, GameOutcomeFailure>;
-}
+};
 
 /** 積んである棋譜と、それを組んだ材料 */
-interface HeldRecord {
+type HeldRecord = {
   startSfen: string;
   /** 積んだ指し手。**`record` に入っているものと必ず一致する** */
   applied: string[];
   record: ShogiRecord;
-}
+};
 
 /**
  * 積んである列が `usiMoves` の接頭辞か。

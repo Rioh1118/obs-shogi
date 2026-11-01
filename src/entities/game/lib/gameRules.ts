@@ -18,7 +18,7 @@
  */
 export type JishogiRule = "none" | "general24" | "general27" | "try";
 
-export interface GameRules {
+export type GameRules = {
   jishogiRule: JishogiRule;
   /**
    * この手数に達したら引き分けにする。**正の有限値でなければ上限なし**
@@ -37,7 +37,7 @@ export interface GameRules {
    * 既定はあちらより十分に小さい。
    */
   maxMoves: number;
-}
+};
 
 /** ShogiHome の既定値に合わせてある（`research/shogihome/02-game.md` の §4） */
 export const DEFAULT_GAME_RULES: GameRules = {
