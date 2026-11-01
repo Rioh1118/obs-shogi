@@ -460,6 +460,29 @@ describe("分岐の編集", () => {
     expect(game.current!.state.isLoading).toBe(false);
   });
 
+  test("保存を待っている間は「操作中」を立てる", async () => {
+    let finishSave!: () => void;
+    const game = await mountLoaded(FORKED, {
+      absPath: "/w/a.kif",
+      save: () =>
+        new Promise((resolve) => {
+          finishSave = () => resolve(Ok(undefined));
+        }),
+    });
+
+    let writing!: ReturnType<GameContextType["swapBranches"]>;
+    await act(async () => {
+      writing = game.current!.swapBranches(SWAP);
+    });
+    expect(game.current!.state.isLoading).toBe(true);
+
+    await act(async () => {
+      finishSave();
+      await writing;
+    });
+    expect(game.current!.state.isLoading).toBe(false);
+  });
+
   test("同じ候補どうしの入れ替えは書かない", async () => {
     let saves = 0;
     const game = await mountLoaded(FORKED, {
@@ -581,6 +604,38 @@ describe("コメントの書き込み", () => {
         ),
       );
     });
+  });
+
+  test("書き込みを始めると、前の失敗の error を消す", async () => {
+    let saveOk = false;
+    const game = await mountLoaded(FORKED, {
+      absPath: "/w/a.kif",
+      save: async () => (saveOk ? Ok(undefined) : Err("書けない")),
+    });
+
+    await act(async () => {
+      await game.current!.setCommentsByCursor(ROOT, ["書いた"]);
+    });
+    expect(game.current!.state.error).toBe("書けない");
+
+    saveOk = true;
+    await act(async () => {
+      await game.current!.setCommentsByCursor(ROOT, ["開始"]);
+    });
+
+    expect(game.current!.state.error).toBeNull();
+  });
+
+  test("書いた後も、いま辿っている変化を進路に残す", async () => {
+    const game = await mountLoaded(FORKED);
+    const forkPointers = [{ te: 2, forkIndex: 0 }];
+    act(() => game.current!.applyCursor({ tesuu: 3, forkPointers }));
+
+    await act(async () => {
+      await game.current!.setCommentsByCursor(ROOT, ["書いた"]);
+    });
+
+    expect(game.current!.state.branchPlan).toEqual(forkPointers);
   });
 
   test("棋譜が無ければ読みも書きも空で返す", async () => {

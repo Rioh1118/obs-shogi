@@ -130,9 +130,6 @@ function truthinessOperand(node: ts.Node): ts.Expression | undefined {
  */
 function truthinessLeaves(node: ts.Expression): ts.Expression[] {
   if (ts.isParenthesizedExpression(node)) return truthinessLeaves(node.expression);
-  if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) {
-    return truthinessLeaves(node.operand);
-  }
   if (
     ts.isBinaryExpression(node) &&
     (isShortCircuit(node.operatorToken.kind) ||

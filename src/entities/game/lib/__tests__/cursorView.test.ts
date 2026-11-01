@@ -94,6 +94,21 @@ describe("buildCursorView", () => {
     expect(view.totalMoves).toBe(2);
   });
 
+  test("開始局面は棋譜に手が書かれていても手の情報を空にする", () => {
+    const moveOnRoot = {
+      header: {},
+      moves: [{ move: { to: { x: 5, y: 5 }, piece: "FU", color: Color.Black } }],
+    } as unknown as JKFData;
+
+    expect(buildCursorView(moveOnRoot, ROOT_CURSOR, NO_PLAN).currentMove).toBeUndefined();
+  });
+
+  test("配列でないコメントは空にする", () => {
+    const textComment = { header: {}, moves: [{ comments: "本文" }] } as unknown as JKFData;
+
+    expect(buildCursorView(textComment, ROOT_CURSOR, NO_PLAN).currentComments).toEqual([]);
+  });
+
   test("SFEN に綴れない駒があっても盤の表示は残す", () => {
     const view = buildCursorView(UNSPELLABLE_PIECE, ROOT_CURSOR, NO_PLAN);
 
