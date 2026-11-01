@@ -208,7 +208,7 @@ describe("AppConfigProvider", () => {
     fireEvent.click(screen.getByTestId("startup"));
     await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByTestId("gauge"));
-    // 2件目が読みに行ける隙間を開ける。鎖が無ければここで1件目の保存の前のファイルを読む
+    // 2件目が読みに行ける隙間を開ける。列が無ければここで1件目の保存の前のファイルを読む
     await act(async () => {});
     expect(saveConfig).toHaveBeenCalledTimes(1);
 
@@ -222,9 +222,9 @@ describe("AppConfigProvider", () => {
   });
 
   /**
-   * 鎖に土台を持たせない。
+   * 列に土台を持たせない。
    *
-   * `app.json` を書くのは表示の設定だけではない。自分が書いた値を鎖が握り続けると、
+   * `app.json` を書くのは表示の設定だけではない。自分が書いた値を列が握り続けると、
    * 間に挟まった別の書き手（ここでは `setRootDir`）の欄を次の書き込みが古い値へ戻す
    * —— ワークスペースを選び直した直後にチェックを1つ押すと、`root_dir` が
    * 消えたパスへ戻る。
@@ -254,6 +254,42 @@ describe("AppConfigProvider", () => {
     expect(disk.root_dir).toBe("/next");
     expect(disk.show_evaluation_bar).toBe(true);
     expect(disk.dock_startup_tab).toBe("analysis");
+  });
+
+  /** 読んでから書くまでの間に差し替えが挟まると、`root_dir` が古い値へ戻る */
+  it("表示の設定の保存と重なったワークスペースの差し替えを、書き戻さない", async () => {
+    setRootDirApi.mockImplementation(async (next: string) => {
+      disk = { ...disk, root_dir: next };
+    });
+    let release: () => void = () => {};
+    const write = saveConfig.getMockImplementation()!;
+    saveConfig.mockImplementationOnce(
+      (next: AppConfig) =>
+        new Promise<void>((resolve) => {
+          release = () => {
+            void write(next);
+            resolve();
+          };
+        }),
+    );
+
+    render(
+      <AppConfigProvider>
+        <DisplayProbe />
+        <Probe />
+      </AppConfigProvider>,
+    );
+    await waitFor(() => expect(loadingText()).toBe("false"));
+
+    fireEvent.click(screen.getByTestId("gauge"));
+    await waitFor(() => expect(saveConfig).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("set"));
+    await act(async () => {});
+    expect(setRootDirApi).not.toHaveBeenCalled();
+
+    release();
+    await waitFor(() => expect(disk.root_dir).toBe("/next"));
+    expect(disk.show_evaluation_bar).toBe(true);
   });
 
   /**
@@ -430,6 +466,19 @@ describe("成否の返し方", () => {
     expect(disk.last_preset_id).toBe("preset-1");
     expect(view.result.current.config?.last_preset_id).toBe("preset-1");
     expect(view.result.current.isLoading).toBe(false);
+  });
+
+  /** 壊れたファイルの上に書かない。読めない欄を `null` で潰すより、起動の失敗として扱う */
+  it("使うプリセットの保存は、ファイルを読めなければ書かずに error に積む", async () => {
+    const view = await mounted();
+    loadConfig.mockRejectedValue("壊れている");
+
+    await act(async () => {
+      await view.result.current.setLastPresetId("preset-1" as PresetId);
+    });
+
+    expect(saveConfig).not.toHaveBeenCalled();
+    expect(view.result.current.error).toContain("壊れている");
   });
 
   it("使うプリセットを書けなければ error に積む", async () => {
