@@ -82,6 +82,32 @@ function normalizeAndSanitize(exported: JKFData): JKFData {
   return sanitizeJkf(normalizeNotation(exported));
 }
 
+function importRecord(text: string, format: KifuFormat) {
+  switch (format) {
+    case "csa":
+      return importCSA(text);
+    case "ki2":
+      return importKI2(text);
+    case "kif":
+      return importKIF(text);
+    case "jkf":
+      return importJKFString(text);
+  }
+}
+
+function kifuFormatOf(type: RecordFormatType): KifuFormat {
+  switch (type) {
+    case RecordFormatType.CSA:
+      return "csa";
+    case RecordFormatType.KI2:
+      return "ki2";
+    case RecordFormatType.KIF:
+      return "kif";
+    default:
+      return "jkf";
+  }
+}
+
 /**
  * 形式が分かっている棋譜テキストを `JKFData` にする。
  *
@@ -100,15 +126,7 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
 
-  const rec =
-    format === "csa"
-      ? importCSA(text)
-      : format === "ki2"
-        ? importKI2(text)
-        : format === "kif"
-          ? importKIF(text)
-          : importJKFString(text);
-
+  const rec = importRecord(text, format);
   if (rec instanceof Error) {
     throw new KifuParseError(`棋譜(${format})を読み込めませんでした。`, rec);
   }
@@ -144,25 +162,9 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
     );
   }
 
-  const rec =
-    fmt === RecordFormatType.CSA
-      ? importCSA(text)
-      : fmt === RecordFormatType.KI2
-        ? importKI2(text)
-        : fmt === RecordFormatType.KIF
-          ? importKIF(text)
-          : importJKFString(text);
-
+  const detectedFormat = kifuFormatOf(fmt);
+  const rec = importRecord(text, detectedFormat);
   if (rec instanceof Error) throw new KifuParseError("棋譜を読み込めませんでした。", rec);
-
-  const detectedFormat: KifuFormat =
-    fmt === RecordFormatType.CSA
-      ? "csa"
-      : fmt === RecordFormatType.KI2
-        ? "ki2"
-        : fmt === RecordFormatType.KIF
-          ? "kif"
-          : "jkf";
 
   return { detectedFormat, jkf: normalizeAndSanitize(exportJKF(rec) as JKFData) };
 }
