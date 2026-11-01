@@ -14,45 +14,6 @@ import type { NotificationActions, NotificationId, NotifyRequest } from "./types
 const AUTO_DISMISS_MS = 6000;
 
 /**
- * 通知の置き場（ADR-0004 決定6）。持つのは「いま何が出ているか」だけで、描かない。
- *
- * 描くのは `NotificationLayer` と、インラインを置く各部品。
- * 各スライスの `state.error` は置き換えない。通知は利用者に伝えるためのもので、状態としてのエラーは別物。
- */
-export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(notificationReducer, INITIAL_NOTIFICATION_STATE);
-
-  const notify = useCallback((request: NotifyRequest) => {
-    dispatch({ type: "notify", request });
-  }, []);
-
-  const dismiss = useCallback((id: NotificationId) => {
-    dispatch({ type: "dismiss", id });
-  }, []);
-
-  const dismissByKey = useCallback((key: string) => {
-    dispatch({ type: "dismissByKey", key });
-  }, []);
-
-  useAutoDismiss(state.notifications, dismiss);
-
-  // 3つとも `useCallback` で不変なので、この値は mount 後に変わらない。
-  // 出す関数だけを購読する部品は、通知が出入りしても再描画しない
-  const actions = useMemo<NotificationActions>(
-    () => ({ notify, dismiss, dismissByKey }),
-    [notify, dismiss, dismissByKey],
-  );
-
-  return (
-    <NotificationActionsContext.Provider value={actions}>
-      <NotificationListContext.Provider value={state.notifications}>
-        {children}
-      </NotificationListContext.Provider>
-    </NotificationActionsContext.Provider>
-  );
-}
-
-/**
  * 自動で消える通知に時計を張る。
  *
  * 通知ごとに1本の時計を持ち、effect の cleanup で全部を張り直さない。
@@ -103,4 +64,43 @@ function useAutoDismiss(
       handles.clear();
     };
   }, []);
+}
+
+/**
+ * 通知の置き場（ADR-0004 決定6）。持つのは「いま何が出ているか」だけで、描かない。
+ *
+ * 描くのは `NotificationLayer` と、インラインを置く各部品。
+ * 各スライスの `state.error` は置き換えない。通知は利用者に伝えるためのもので、状態としてのエラーは別物。
+ */
+export function NotificationProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(notificationReducer, INITIAL_NOTIFICATION_STATE);
+
+  const notify = useCallback((request: NotifyRequest) => {
+    dispatch({ type: "notify", request });
+  }, []);
+
+  const dismiss = useCallback((id: NotificationId) => {
+    dispatch({ type: "dismiss", id });
+  }, []);
+
+  const dismissByKey = useCallback((key: string) => {
+    dispatch({ type: "dismissByKey", key });
+  }, []);
+
+  useAutoDismiss(state.notifications, dismiss);
+
+  // 3つとも `useCallback` で不変なので、この値は mount 後に変わらない。
+  // 出す関数だけを購読する部品は、通知が出入りしても再描画しない
+  const actions = useMemo<NotificationActions>(
+    () => ({ notify, dismiss, dismissByKey }),
+    [notify, dismiss, dismissByKey],
+  );
+
+  return (
+    <NotificationActionsContext.Provider value={actions}>
+      <NotificationListContext.Provider value={state.notifications}>
+        {children}
+      </NotificationListContext.Provider>
+    </NotificationActionsContext.Provider>
+  );
 }
