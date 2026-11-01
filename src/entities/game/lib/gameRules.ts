@@ -33,7 +33,7 @@ export type GameRules = {
    *
    * Rust の `MAX_PLIES` とは別の上限。あちらは `position` の1行が
    * 伸びすぎないための機械的な枷で、超えると `over { reason: "rule" }` が
-   * こちらの裁定を待たずに届く。ここはルールとしての最大手数で、
+   * `continueGame` の応答として届く。ここはルールとしての最大手数で、
    * 既定はあちらより十分に小さい。
    */
   maxMoves: number;
