@@ -14,7 +14,7 @@ import {
 } from "../api/tauri";
 import type { GameEvent, GameId, Side } from "../api/rust-types";
 import { GameSessionContext, type GameSessionContextValue } from "./context";
-import { createSession, heldSessionOf, IDLE, requireGameId, toView, type Session } from "./session";
+import { createSession, IDLE, isHeld, requireGameId, toView, type Session } from "./session";
 import type {
   GameRuling,
   GameSessionView,
@@ -98,7 +98,7 @@ export function GameSessionProvider({
    * 評価関数のパスを間違えたエンジンは起動段を通って最初の `go` で落ちるので、
    * `over` までここに溜まる（`api/tauri.ts` の `startGame`）。
    */
-  const pendingRef = useRef<GameEvent[]>([]);
+  const pendingEventsRef = useRef<GameEvent[]>([]);
 
   /** 裁定を返す実装。**effect の中から読むので ref に映す**（毎回張り直さないため） */
   const rulingRef = useRef(ruling);
@@ -215,7 +215,7 @@ export function GameSessionProvider({
     [publish],
   );
 
-  const apply = useCallback(
+  const applyEvent = useCallback(
     (event: GameEvent) => {
       const session = sessionRef.current;
       if (session === null) return;
@@ -223,7 +223,7 @@ export function GameSessionProvider({
       // **解決前は溜める。** ここで `gameId` を突き合わせると、起動直後に
       // 終わった対局の `over` を必ず捨てることになる
       if (session.gameId === null) {
-        pendingRef.current.push(event);
+        pendingEventsRef.current.push(event);
         return;
       }
       // 別の対局のもの。1局しか持たないので、届くのは閉じ損ねた前の対局のぶん
@@ -276,8 +276,8 @@ export function GameSessionProvider({
   );
 
   /** 購読の中から読む関数。**effect の依存を空に保つため**（→ 購読の doc） */
-  const applyRef = useRef(apply);
-  applyRef.current = apply;
+  const applyEventRef = useRef(applyEvent);
+  applyEventRef.current = applyEvent;
 
   /**
    * 購読はアプリの寿命で張りっぱなしにする。**依存は空。**
@@ -290,10 +290,10 @@ export function GameSessionProvider({
     let disposed = false;
 
     listenSettledRef.current = listenToGameEvents((event) => {
-      // **ref を通す。** 直に `apply` を渡すと effect がそれに依存することになり、
+      // **ref を通す。** 直に `applyEvent` を渡すと effect がそれに依存することになり、
       // 依存が動いた回に購読を張り直す窓ができる。その窓に `moveDecided` が落ちると
       // 裁定が返らず、対局が `RULING_TIMEOUT` で畳まれる
-      applyRef.current(event);
+      applyEventRef.current(event);
     })
       .then((fn) => {
         if (disposed) {
@@ -358,14 +358,14 @@ export function GameSessionProvider({
     // 押した回数だけプロセスが増える。
     // **始め損ねた対局（`failed`）は別** —— Rust は起動に失敗した対局を台帳に載せず、
     // 起こしたプロセスも自分で落とすので、閉じるものが無い。捨ててやり直す
-    if (heldSessionOf(sessionRef.current) !== null) return "held";
+    if (isHeld(sessionRef.current)) return "held";
 
     // **購読が張り終わるのを待つ。** 待たずに始めると、起動直後の1局目だけ
     // 「張れているか分からないまま」走り出す
     await listenSettledRef.current;
 
     // 待っている間に別の対局が始まっていることがある。**待った後にもう一度見る**
-    if (heldSessionOf(sessionRef.current) !== null) return "held";
+    if (isHeld(sessionRef.current)) return "held";
 
     // 出来事が届かないなら、始めても裁定を返せない
     if (eventsUnavailableRef.current !== null) return "events-unavailable";
@@ -381,7 +381,7 @@ export function GameSessionProvider({
 
       const mine = createSession(request);
       sessionRef.current = mine;
-      pendingRef.current = [];
+      pendingEventsRef.current = [];
       publish();
 
       let gameId: GameId;
@@ -391,9 +391,9 @@ export function GameSessionProvider({
         // **同じものかを見る。** `!== null` で見ると、待っている間に閉じられて
         // 別の対局が始まっていた回に、こちらの断りをその対局へ書き込む
         if (sessionRef.current !== mine) return;
-        mine.failure = messageOf(error);
+        mine.startFailure = messageOf(error);
         mine.gameId = null;
-        pendingRef.current = [];
+        pendingEventsRef.current = [];
         publish();
         return;
       }
@@ -407,15 +407,15 @@ export function GameSessionProvider({
 
       mine.gameId = gameId;
 
-      // **溜めたものを流し直す。** `apply` は `gameId` が入った後なので、
+      // **溜めたものを流し直す。** `applyEvent` は `gameId` が入った後なので、
       // ここから先は突き合わせが効く
-      const buffered = pendingRef.current;
-      pendingRef.current = [];
-      for (const event of buffered) apply(event);
+      const buffered = pendingEventsRef.current;
+      pendingEventsRef.current = [];
+      for (const event of buffered) applyEvent(event);
 
       publish();
     },
-    [apply, publish, startRefusal],
+    [applyEvent, publish, startRefusal],
   );
 
   const submitMove = useCallback(async (side: Side, usiMove: string): AsyncResult<void> => {
@@ -437,7 +437,7 @@ export function GameSessionProvider({
     // **始め損ねた対局には閉じる相手が居ない**（台帳に載っていない）ので、捨てるだけ
     if (session.gameId === null) {
       sessionRef.current = null;
-      pendingRef.current = [];
+      pendingEventsRef.current = [];
       publish();
       return Ok(undefined);
     }
@@ -448,7 +448,7 @@ export function GameSessionProvider({
     if (!closed.success) return closed;
 
     sessionRef.current = null;
-    pendingRef.current = [];
+    pendingEventsRef.current = [];
     publish();
     return Ok(undefined);
   }, [publish]);

@@ -27,7 +27,7 @@ export type Session = {
    */
   boardFailure: string | null;
   result: GameResult | null;
-  failure: string | null;
+  startFailure: string | null;
   /**
    * エンジンを落とし終えたか。**終局したら進行の側が自分で落とす。**
    *
@@ -61,7 +61,7 @@ export function createSession(request: GameStartRequest): Session {
     rulingFailure: null,
     boardFailure: null,
     result: null,
-    failure: null,
+    startFailure: null,
     engineClosed: false,
     closeFailure: null,
   };
@@ -75,7 +75,7 @@ export function requireGameId(session: Session | null): GameId {
 }
 
 /**
- * 閉じる対象として残っている対局。**無ければ `null`。**
+ * 閉じる対象として残っている対局か。
  *
  * 始め損ねた対局は数えない —— Rust は起動に失敗した対局を台帳に載せないので、
  * 閉じる相手が居ない。数えると、設定を直してもやり直せなくなる。
@@ -84,22 +84,16 @@ export function requireGameId(session: Session | null): GameId {
  * 落ちた後まで断ると、**結末を読んでいる間ずっと次の対局を始められない**
  * ——しかも畳む経路はもうどこにも無い（終局したエンジンは自分で落ちる）。
  */
-export function heldSessionOf(session: Session | null): Session | null {
-  if (session === null) return null;
-  if (isFailed(session)) return null;
-  if (session.result !== null && session.engineClosed) return null;
-  return session;
-}
-
-/** 始め損ねた対局か。**閉じる相手が居ないので、残っていても次を始めてよい** */
-function isFailed(session: Session): boolean {
-  return session.failure !== null;
+export function isHeld(session: Session | null): boolean {
+  if (session === null) return false;
+  if (session.startFailure !== null) return false;
+  return session.result === null || !session.engineClosed;
 }
 
 /**
  * 進行から画面の姿へ。
  *
- * **`failure` を `gameId === null` より先に見る。** 始め損ねた対局は両方が真になるので、
+ * **`startFailure` を `gameId === null` より先に見る。** 始め損ねた対局は両方が真になるので、
  * 逆にすると「エンジンを起こしています…」から抜けられなくなる（取り消す経路は無い）。
  */
 export function toView(session: Session | null, eventsUnavailable: string | null): GameSessionView {
@@ -107,8 +101,8 @@ export function toView(session: Session | null, eventsUnavailable: string | null
     return eventsUnavailable === null ? IDLE : { kind: "idle", eventsUnavailable };
   }
 
-  if (session.failure !== null) {
-    return { kind: "failed", kifuPath: session.kifuPath, message: session.failure };
+  if (session.startFailure !== null) {
+    return { kind: "failed", kifuPath: session.kifuPath, message: session.startFailure };
   }
   if (session.gameId === null) {
     return { kind: "starting", kifuPath: session.kifuPath };

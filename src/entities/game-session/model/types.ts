@@ -109,7 +109,7 @@ export type GameSessionView =
    * 終局。**エンジンは進行の側が自分で落とす**（`closeGame` を利用者に押させない）。
    *
    * 落とし終えるまでの短い間だけ `engineClosed` が `false` で、
-   * その間に始めようとする対局は断られる（`heldSessionOf`）。
+   * その間に始めようとする対局は断られる（`isHeld`）。
    */
   | {
       kind: "over";
