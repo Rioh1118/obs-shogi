@@ -104,8 +104,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
         ...state,
         activeKifuPath: action.payload.path,
         jkfData: action.payload.path === null ? null : state.jkfData,
-        kifuFormat:
-          action.payload.path === null ? null : (action.payload.format ?? state.kifuFormat),
+        kifuFormat: action.payload.path === null ? null : state.kifuFormat,
       };
 
     // 編集中の行とメニューは畳む。名前を直せば通る失敗は `failToNameInput` が入力欄へ返す。

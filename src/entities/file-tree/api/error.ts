@@ -11,6 +11,7 @@ export type FsErrorCode =
   | "invalid_path"
   | "invalid_type"
   | "invalid_extension"
+  | "extension_changed"
   | "invalid_destination"
   // ワークスペースそのものを消そうとした。UI の判定に頼らず Rust が止める
   | "root_not_deletable"
@@ -59,6 +60,7 @@ export const FS_ERROR_CODES = {
   invalid_path: true,
   invalid_type: true,
   invalid_extension: true,
+  extension_changed: true,
   invalid_destination: true,
   root_not_deletable: true,
   kifu_conversion_failed: true,
@@ -140,6 +142,7 @@ export function isNameInputError(code: FsErrorCode): boolean {
     case "invalid_name_separator":
     case "invalid_name_control":
     case "invalid_extension": // 拡張子も名前の一部。直すのは同じ入力欄
+    case "extension_changed":
       return true;
 
     // ここから下は名前を直しても通らない。網羅にしてあるので、
@@ -193,6 +196,7 @@ export function fsErrorTier(code: FsErrorCode): Extract<VisibleTier, "warning" |
     case "invalid_path":
     case "invalid_type":
     case "invalid_extension":
+    case "extension_changed":
     case "invalid_destination":
     case "root_not_deletable":
     case "kifu_conversion_failed":
@@ -226,6 +230,7 @@ export function isOperationAlreadyCommitted(code: FsErrorCode): boolean {
     case "invalid_path":
     case "invalid_type":
     case "invalid_extension":
+    case "extension_changed":
     case "invalid_destination":
     case "root_not_deletable":
     case "kifu_conversion_failed":
@@ -262,6 +267,8 @@ export function describeFsError(code: FsErrorCode): string {
       return "ファイルとフォルダを取り違えています";
     case "invalid_extension":
       return "対応していない拡張子です";
+    case "extension_changed":
+      return "拡張子は変えられません";
     case "invalid_destination":
       return "その移動先には置けません";
     case "root_not_deletable":

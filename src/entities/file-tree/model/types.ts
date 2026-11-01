@@ -141,17 +141,16 @@ export type FileTreeAction =
   | { type: "nodes_expanded"; payload: string[] }
   | { type: "selected_node_reconciled"; payload: FileTreeNode | null }
   /**
-   * 改名か移動でパスが張り替わった。`jkfData` は据え置く。
+   * 改名か移動でパスが張り替わった。`jkfData` と `kifuFormat` は据え置く。
    *
    * 同じ棋譜の名前が変わっただけなので、参照が残ることが盤の載せ直しを避ける根拠になる
    * （`jkfData` の doc）。`path` が `null` なら棋譜を閉じる。
-   * `format` は省くと据え置く。いま送る経路は無い（TODO(#507)）
+   * 形式が据え置けるのは、`ensure_same_extension` が拡張子を変える改名を断るから。
    */
   | {
       type: "active_kifu_reconciled";
       payload: {
         path: string | null;
-        format?: KifuFormat | null;
       };
     }
   | { type: "error"; payload: FsError }
@@ -177,8 +176,6 @@ export type SelectNodeOptions = {
 };
 
 export type FileTreeContextType = FileTreeState & {
-  loadFileTree: () => AsyncResult<void, FsError>;
-
   /**
    * 選択を動かす。ツリーが開くべき棋譜も一緒に動く（フォルダは動かさない）。
    *
@@ -198,7 +195,6 @@ export type FileTreeContextType = FileTreeState & {
    * 開けたかは `activeKifuPath`、盤に載ったかは `entities/game` の `loadedAbsPath`
    */
   openKifuNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
-  closeActiveKifu: () => void;
 
   /**
    * 棋譜を1枚作り、作られた絶対パスを返す。
@@ -225,8 +221,6 @@ export type FileTreeContextType = FileTreeState & {
   moveNode: (node: FileTreeNode, destDir: string, newName?: string) => AsyncResult<void, FsError>;
 
   refreshTree: () => AsyncResult<void, FsError>;
-  isKifuSelected: () => boolean;
-  getSelectedKifuData: () => JKFData | null;
 
   openContextMenu: (node: FileTreeNode, x: number, y: number) => void;
   closeContextMenu: () => void;
@@ -241,8 +235,6 @@ export type FileTreeContextType = FileTreeState & {
   clearKifuError: () => void;
   closeConflict: () => void;
   resolveConflictByRename: (nextName: string) => AsyncResult<void, FsError>;
-
-  revealNodeByAbsPath: (absPath: string) => void;
 
   /**
    * ツリーの選択をそのパスへ移し、必要なら棋譜を開く。

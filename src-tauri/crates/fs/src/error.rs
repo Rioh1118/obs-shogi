@@ -27,6 +27,9 @@ pub enum FsErrorCode {
     /// ファイルとディレクトリの取り違え。`is_file()` / `is_dir()` の判定にだけ使う
     InvalidType,
     InvalidExtension,
+    /// 改名で拡張子を変えようとした。`InvalidExtension` に載せると、`.csa` のような
+    /// 対応している拡張子まで「対応していない」と表示される
+    ExtensionChanged,
     InvalidDestination,
     /// ワークスペースそのものを消そうとした。中身ごと消えて取り消せないので、
     /// UI の判定に頼らずここで止める
@@ -103,6 +106,7 @@ mod tests {
             FsErrorCode::InvalidPath => "invalid_path",
             FsErrorCode::InvalidType => "invalid_type",
             FsErrorCode::InvalidExtension => "invalid_extension",
+            FsErrorCode::ExtensionChanged => "extension_changed",
             FsErrorCode::InvalidDestination => "invalid_destination",
             FsErrorCode::RootNotDeletable => "root_not_deletable",
             FsErrorCode::KifuConversionFailed => "kifu_conversion_failed",
@@ -131,6 +135,7 @@ mod tests {
             FsErrorCode::InvalidPath,
             FsErrorCode::InvalidType,
             FsErrorCode::InvalidExtension,
+            FsErrorCode::ExtensionChanged,
             FsErrorCode::InvalidDestination,
             FsErrorCode::RootNotDeletable,
             FsErrorCode::KifuConversionFailed,
