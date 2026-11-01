@@ -14,7 +14,8 @@ import {
  *
  * `finished` は開始の応答より先に探索の完了が届いた席で、もう Rust に無いので握らない。
  * ▶ の経路は値を書き分け、自動再開の経路はどの値でも黙って降りる。
- * 読まずに捨てるなら理由を書く（`src/__tests__/asyncResultUse.test.ts`）。
+ * `Promise` で受ける値を読まずに捨てるなら理由を書く（`src/__tests__/asyncResultUse.test.ts`）。
+ * 同期で返す `receiveSeat` の戻り値は検査の外で、人が見る。
  */
 export type SeatTakeResult = "held" | "finished" | "engine-gone" | "superseded";
 
@@ -299,9 +300,9 @@ export function useEngineSeat(): EngineSeat {
    * 停止を送り、落ちたらログだけ残す。解決する Promise を返すので、後ろに並んだ返却が結末を見られる。
    *
    * 落ちても利用者には出せない。画面が無い（`unmount`）、棋譜を閉じた（`no-position`）、
-   * 直後に別の断りが立つ（`sync-timeout`）、利用者が既に止めている（`late-start`、`late-restart`）。
-   * ログが唯一の手掛かりになるので経路を書く。席が残ると以後の開始が全部断られ、▶ を押しても
-   * 何も起きないとしか見えない。落ちた後の結末は `analysis.md` の ※12 と不変条件5 に置く。
+   * 直後に別の断りが立つ（`sync-timeout`）、要求が既に要らなくなっている（`late-start`、`late-restart`）。
+   * ログが唯一の手掛かりになるので経路を書く。席が残ると以後の開始が全部断られ、起動し直すまで
+   * 解析が始まらない。落ちた後の結末は `analysis.md` の ※1、※12、※14 と不変条件1、3、5 に置く。
    */
   const sendStopQuietly = (by: SeatReleasePoint, sessionId: AnalysisSessionId | undefined) =>
     sendStop(by, sessionId).then(

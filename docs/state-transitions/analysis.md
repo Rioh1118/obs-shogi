@@ -118,7 +118,7 @@ E2 の欄は、それでも `stopAnalysis()` が呼ばれたときに何が起�
 席が欄に入る前に届いた1本は枠に残り、握った直後の `schedule` が出し直す
 
 ※4 `startInfiniteAnalysis` の throw は `AnalysisControls` の `console.error` で終わる。
-**押しても何も起きない。** `set_error` は飛ぶ（→ ※15。断りは枝ごとに文言が違う）が、その読み手が0
+利用者に見えるのは `set_error` の断りで、`AnalysisRefusalBridge` が帯に出す（→ ※15。断りは枝ごとに文言が違う）
 → [failure-surfacing.md](failure-surfacing.md) F-6 / F-2
 
 ※5 **`isReady` が false になっても解析は止まらない。** 自動再開の effect が
@@ -256,7 +256,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 ——閉じたままではボタンが無い。
 
 ※15 **解析の断りは枝ごとに文言が違う**（`entities/analysis/model/refusals.ts`。復帰の手が
-違うものを同じ1文に潰すと、読み手——まだ0、→ #277——がどちらを案内するか選べない）。
+違うものを同じ1文に潰すと、読み手の `AnalysisRefusalBridge` がどちらを案内するか選べない）。
 **枝を足したらここにも足すこと**（`src/__tests__/analysisRefusals.test.ts` が定数名で突き合わせる）。
 
 エンジンの起動を待っている回は断らず、検討の意思を立てる（`hold_intent`）。戻れば読み始める。

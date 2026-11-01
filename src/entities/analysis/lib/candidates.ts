@@ -12,6 +12,7 @@ export function sortByRank(cands: AnalysisCandidate[]): AnalysisCandidate[] {
  *
  * `rank === 1` が無ければ先頭を返す。MultiPV を返さないエンジンや、探索の途中で2位以降だけが
  * 届いたときに `null` を返すと、候補手は出ているのに最善手の欄だけが空く。
+ * 先頭が最良なのは `sortByRank` を通した列だけなので、`rank` の昇順で渡すこと。
  */
 export function pickTopCandidate(cands: AnalysisCandidate[]): AnalysisCandidate | null {
   if (cands.length === 0) return null;
