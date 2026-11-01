@@ -163,7 +163,7 @@ export type NotificationActions = {
 };
 
 /** 出す関数と、出ているもの。**両方が要るのは通知を描く層だけ** */
-export type NotificationContextType = NotificationActions & {
+export type NotificationsView = NotificationActions & {
   /** 出た順。同じ見せ方の中ではこの順に積む */
   notifications: Notification[];
 };

@@ -1,7 +1,7 @@
 import { Color, Record } from "tsshogi";
 
 /** 日本語表記になった1手 */
-export type ConvertedMove = {
+export type FormattedMove = {
   /** 例: `７六歩` */
   move: string;
   isBlack: boolean;
@@ -15,7 +15,7 @@ export type ConvertedMove = {
  *
  * `sfen` に指し手の列（`moves …`）を付けないこと。手順はこちらの引数で渡す。
  */
-export function convertSfenSequence(sfen: string | null, sfenMoves: string[]): ConvertedMove[] {
+export function formatMoveSequence(sfen: string | null, sfenMoves: string[]): FormattedMove[] {
   if (!sfen) return [];
   const usiString = `position sfen ${sfen} moves ${sfenMoves.join(" ")}`;
 

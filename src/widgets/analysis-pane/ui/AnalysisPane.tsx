@@ -1,5 +1,5 @@
 import { evaluationToPercentage } from "@/widgets/analysis-pane/lib/sfenConverter";
-import { convertSfenSequence } from "@/shared/lib/shogi/moveText";
+import { formatMoveSequence } from "@/shared/lib/shogi/moveText";
 import { useEffect, useMemo, type ReactNode } from "react";
 import CandidatesSection from "./CandidatesSection";
 import CandidateTable from "./CandidateTable";
@@ -112,7 +112,7 @@ function AnalysisPane() {
 
     const senteMoves = canConvert
       ? senteCandidates.map((c) =>
-          convertSfenSequence(
+          formatMoveSequence(
             pvBaseSfen,
             c.pv_line?.length ? c.pv_line : c.first_move ? [c.first_move] : [],
           ),
