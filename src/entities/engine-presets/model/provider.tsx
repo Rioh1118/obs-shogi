@@ -172,7 +172,8 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         }
 
         const selectedId = chooseInitialSelectedId(presets);
-        adopt(loaded, presets, selectedId, saveFailure);
+        // 既定の1件を書いたら印が進んでいる。読んだ時の印へ戻すと、次の保存が `conflict` で断られる
+        adopt({ ...loaded, revision: revisionRef.current }, presets, selectedId, saveFailure);
 
         if ((config?.last_preset_id ?? null) !== selectedId) {
           await setLastPresetId(selectedId);

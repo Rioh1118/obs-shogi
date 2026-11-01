@@ -186,6 +186,22 @@ describe("プリセットの保存は、書けてから画面に反映する", (
   });
 });
 
+describe("初回の読み込みで書いた既定の1件", () => {
+  /** 読み込みの印へ戻すと、次の保存は別の書き手の変更と判定されて断られる */
+  test("書いた印で次の保存を行う", async () => {
+    loadPresets.mockResolvedValue(loaded({ presets: [], revision: null }));
+    savePresets.mockResolvedValueOnce("r1").mockResolvedValueOnce("r2");
+    const ctx = await mount();
+    const id = ctx().state.presets[0].id;
+
+    await act(async () => {
+      await ctx().updatePreset(id, { label: "変えた名前" });
+    });
+
+    expect(savePresets.mock.calls.map((call) => call[1])).toEqual([null, "r1"]);
+  });
+});
+
 describe("プリセットの複製", () => {
   test("新しい id と名前で末尾に足し、複製を選ぶ", async () => {
     loadPresets.mockResolvedValue(loaded());
