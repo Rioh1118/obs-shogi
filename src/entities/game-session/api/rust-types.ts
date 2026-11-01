@@ -56,7 +56,7 @@ export type PlayerSpec =
        * 連想配列にしないのは、値の解釈が前の `setoption` に依存するエンジンがあるため
        * （`EvalDir` を変えてから `EvalFile` を指す）。順序が崩れると同じ設定で棋力が変わる。
        *
-       * 件数は Rust の `MAX_OPTIONS`、名前と値の長さは `MAX_WIRE_FIELD` まで。超えると
+       * 件数は Rust の `MAX_SENT_OPTIONS`、名前と値の長さは `MAX_WIRE_FIELD` まで。超えると
        * `startGame` が断る。
        */
       options?: SetOptionValue[];
@@ -122,13 +122,14 @@ export type GameSettings = {
  * - `rule`: `endGameByRule` か、Rust が手数の上限（`MAX_PLIES`）に当たったとき。
  *   後者は呼んでいないのに届き、`detail` は Rust の英文。自分の呼び出しのこだまとして捨てない
  * - `resign`: `resignGame`。エンジンの投了は Rust が決める
- * - `aborted`: `abortGame`
+ * - `aborted`: `abortGame`。走っている対局への `closeGame` も、畳む前に中断を通すのでここへ入る
  *
  * `rulingTimeout` は「アプリの異常」で、裁定が `RULING_TIMEOUT` の間返らず Rust が終局させた
  * 対局。利用者の `aborted` とは対処が正反対なので値を分ける。
  *
- * 画面の語へ直す写しは `Record<GameOverReason, string>` で持ち、網羅を tsc に見させる。
- * Rust にだけ綴りを足すと `src/__tests__/gameOverReasonWire.test.ts` が落ちる。
+ * 画面の語へ直す写しはいま無い。作るときは `Record<GameOverReason, string>` で持ち、
+ * 網羅を tsc に見させる。Rust にだけ綴りを足すと `src/__tests__/gameOverReasonWire.test.ts`
+ * が落ちる。
  */
 export type GameOverReason =
   | "resign"

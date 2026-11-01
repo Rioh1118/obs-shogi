@@ -6,7 +6,7 @@ import type { GameSessionView, GameStartRequest, StartRefusal } from "./types";
 /**
  * 対局の姿と、対局への操作。
  *
- * `start` 以外の操作は `AsyncResult` を返す。断りの理由は Rust の文言でしか分からず、
+ * Rust へ送る操作は `AsyncResult` を返す。断りの理由は Rust の文言でしか分からず、
  * 投げずに値で返すと読み落としを `src/__tests__/asyncResultUse.test.ts` が拾える。
  */
 export type GameSessionContextValue = {
@@ -33,10 +33,9 @@ export type GameSessionContextValue = {
    */
   reportBoardFailure: (message: string | null) => void;
   /**
-   * 人の着手を送る。解決したら Rust が採った手で、棋譜へ積むのはその後にする。
+   * 人の着手を送る。`Ok` なら Rust が採った手で、棋譜へ積むのはその後にする。
    *
-   * 断られた手は棋譜へ積まない。断りの種類と呼び直してよいものは `api/tauri.ts` の
-   * `submitGameMove` にある。
+   * `Err` の手は棋譜へ積まない。断りの種類は `api/tauri.ts` の `submitGameMove` にある。
    */
   submitMove: (side: Side, usiMove: string) => AsyncResult<void>;
   /** 投了する。Rust はエンジンの席の投了を断るので、エンジン同士の対局では使えない */
@@ -47,7 +46,8 @@ export type GameSessionContextValue = {
    * 対局を手放す。エンジンが残っていれば `closeGame` で畳んでから手放す。
    *
    * 断られたら対局は `view` に残るので呼び直せる。先に手放すと、エンジンが
-   * 残ったまま `view` だけが `idle` に戻る。
+   * 残ったまま `view` だけが `idle` に戻る。走っている対局は、Rust が畳む前に中断を
+   * 通すので `over` へ移ることがある。
    *
    * `startGame` の解決を待っている間に呼ぶと、手放した対局は解決した時点で畳む。
    */

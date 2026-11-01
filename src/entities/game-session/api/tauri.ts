@@ -46,14 +46,15 @@ export const ALREADY_OVER = "game is already over";
  * 人の着手を送る。合法性はこちらが確かめてから呼ぶ。解決したら Rust が採った手で、
  * 棋譜へ積むのは解決してからにする。
  *
- * 呼び直してよい断りは1つだけ。
+ * 断りごとに次にすることが違う。
  *
  * - `a ruling is still pending; retry after continue_game`: 裁定の往復の間に来た。
  *   往復が済めば同じ手を指せるので、捨てない
  * - {@link ALREADY_OVER}: 呼び直しても同じ `Err`。結末は `over` が運ぶ
  * - `the clock ran out before the move landed`: 着手が届く前に持ち時間が尽きた。
  *   手は採られず、`moveDecided` の代わりに `over { reason: "timeout" }` が届く
- * - それ以外（手番が違う、その側がエンジン、指し手の書式、対局が台帳に無い）: 呼び直しても同じ
+ * - それ以外（手番が違う、その側がエンジン、指し手の書式、対局が台帳に無い）: 呼び手の誤りか、
+ *   対局が畳まれている。呼び直して直るとは限らない
  */
 export async function submitGameMove(gameId: GameId, side: Side, usiMove: string): Promise<void> {
   return await invoke("submit_game_move", { gameId, side, usiMove });
@@ -73,8 +74,9 @@ export async function submitGameMove(gameId: GameId, side: Side, usiMove: string
  *
  * - {@link ALREADY_OVER}: 中断や時間切れが判定の間に入った。結末は `over` が運ぶ
  * - `not awaiting a ruling`: 裁定を待っていない
- * - それ以外（`moves` がいまの写しの続きでない、末尾が直前の手でない、長さが手番と
- *   合わない）: 送った列の誤り
+ * - `move list is not the current one` など列の検算（続きでない、末尾が直前の手でない、
+ *   長さが手番と合わない）: 送った列の誤り。この断りだけ `RULING_TIMEOUT` まで裁定待ちに残る
+ * - `unknown game:` と `the game is being closed`: 対局が畳まれている
  */
 export async function continueGame(gameId: GameId, moves: string[]): Promise<void> {
   return await invoke("continue_game", { gameId, moves });

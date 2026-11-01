@@ -84,7 +84,7 @@ export function requireGameId(session: Session | null): GameId {
  * 通った後まで断ると、結末が残っている間ずっと次の対局を始められない。
  *
  * `closeGame` が断られた終局は数える。`start` が畳み直す処理はまだ無く、
- * 復帰は `closeSession` かアプリの再起動になる（ADR-0011 決定1）。
+ * `closeSession` にも本番の呼び手が無いので、いまの復帰はアプリの再起動だけ（ADR-0011 決定1）。
  */
 export function isHeld(session: Session | null): boolean {
   if (session === null) return false;

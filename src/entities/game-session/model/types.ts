@@ -44,8 +44,8 @@ type StartedGame = {
   /**
    * 判定が投げた文言か、Rust が裁定を断った文言。`null` でなければ故障。
    *
-   * Rust の断りは呼び直しで直らないので、載った対局は `RULING_TIMEOUT` で終局する。
-   * 終局しても消さない。投げた中身と断りの文言はこの欄にしか残らない。
+   * 断りは呼び直しで直らない。列の検算で断られた対局は `RULING_TIMEOUT` で終局する。
+   * 終局しても消さない。`over` の `detail` は判定が投げた中身も断りの文言も持たない。
    */
   rulingFailure: string | null;
   /**
@@ -84,7 +84,7 @@ export type GameSessionView =
        * 人が座っている席。Rust はエンジンの席の着手と投了を断るので、操作できるのはここだけ。
        */
       humanSides: readonly Side[];
-      /** いま着手を待っている側 */
+      /** いま着手を待っている側。`clocks` が `null` の間は仮の値で、手番として読まない */
       toMove: Side;
       /**
        * 最初の `turnChanged` を畳み込むまで `null`。0 で埋めると時間切れ寸前の対局に見える。
@@ -105,8 +105,8 @@ export type GameSessionView =
       /** `closeGame` が通ったか */
       engineClosed: boolean;
       /**
-       * `closeGame` が断られた理由。呼び直す者が居ないので、起きたままのプロセスを知る
-       * 手掛かりはこの欄だけ。
+       * `closeGame` が断られた理由。呼び直す者が居ないので、起きたままのプロセスを
+       * 画面で知る手掛かりはこの欄だけ。
        */
       closeFailure: string | null;
     })
@@ -123,7 +123,7 @@ export type GameSessionView =
 export type StartRefusal =
   /** エンジンが残っている対局がある。始めると押した回数だけプロセスが増える */
   | "held"
-  /** 出来事の購読が張れていない。始めても裁定を返せず、必ず「アプリの異常」で終局する */
+  /** 出来事の購読が張れていない。始めても裁定を返せず、手が決まると「アプリの異常」で終局する */
   | "events-unavailable";
 
 /** 対局を始めるときに渡すもの */

@@ -100,7 +100,7 @@ export function GameSessionProvider({
   /**
    * 出来事の購読が張れなかったときの文言。`null` でなければ `startRefusal` が断る。
    *
-   * 張れていないまま始めると手が決まっても裁定を返せず、必ず `RULING_TIMEOUT` で終局する。
+   * 張れていないまま始めると、手が決まっても裁定を返せない。
    */
   const [eventsUnavailable, setEventsUnavailable] = useState<string | null>(null);
   /**
@@ -156,8 +156,8 @@ export function GameSessionProvider({
         // `rulingFailure` に載せると、自分で中断した対局が故障として残る
         if (messageOf(error) === ALREADY_OVER) return;
 
-        // 断られた対局は `RULING_TIMEOUT` の後に `rulingTimeout` で終局する。
-        // `over` の `detail` は Rust の文言で、断られた呼び出しの文言はここにしか残らない
+        // 呼び直さない。列の検算で断られた対局は `RULING_TIMEOUT` で終局する。
+        // `over` の `detail` は Rust の文言なので、断られた理由を画面へ渡すのはこの欄だけ
         sessionRef.current.rulingFailure = messageOf(error);
         publish();
       }
@@ -364,8 +364,9 @@ export function GameSessionProvider({
 
     const { gameId } = session;
 
-    // 始められなかった対局も、エンジンを落とし終えた対局も、Rust の台帳に居ない。
-    // `close_game` を通すと `unknown game` で断られ、結末を手放せなくなる
+    // `gameId` が無ければ送り先が無い。`startGame` の解決を待っている対局は、解決した
+    // `start` が畳む。エンジンを落とし終えた対局は台帳に居ないので、`close_game` を
+    // 通すと `unknown game` で断られ、結末を手放せなくなる
     if (gameId !== null && !session.engineClosed) {
       // 落ちるまで手放さない。先に捨てると、断られたときに呼び直す `gameId` が残らず、
       // エンジンが起きたまま `view` だけが `idle` に戻る
