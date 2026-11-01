@@ -32,81 +32,6 @@ export function wouldBeInCheckAfterMove(shogi: Shogi, move: ShogiMove): boolean 
 }
 
 /**
- * (二歩チェック): 指定した列に指定した色の歩があるかチェック
- */
-export function hasFuInColumn(shogi: Shogi, column: number, color: Color): boolean {
-  for (let y = 1; y <= 9; y++) {
-    const piece = shogi.get(column, y);
-    if (piece && piece.color === color && piece.kind === "FU") {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * 歩の駒打ち制約チェック(二歩禁止、1段目禁止)
- */
-export function canDropFu(shogi: Shogi, x: number, y: number, color: Color): boolean {
-  // 二歩チェック
-  if (hasFuInColumn(shogi, x, color)) {
-    return false;
-  }
-
-  // 1段目禁止チェック
-  const prohibitedRow = color === Color.Black ? 1 : 9;
-  if (y === prohibitedRow) {
-    return false;
-  }
-
-  const fuDropMove: ShogiMove = {
-    to: { x, y },
-    color,
-    kind: "FU",
-  };
-
-  if (isUchifudume(shogi, fuDropMove)) {
-    return false;
-  }
-
-  return true;
-}
-
-export function canDropKe(_x: number, y: number, color: Color): boolean {
-  const prohibitedRows = color === Color.Black ? [1, 2] : [8, 9];
-  return !prohibitedRows.includes(y);
-}
-
-export function canDropKy(_x: number, y: number, color: Color): boolean {
-  const prohibitedRow = color === Color.Black ? 1 : 9;
-  return y !== prohibitedRow;
-}
-
-/**
- * 駒種別の駒打ちチェック。
- *
- * **公開しない。** 駒打ちの合否を組み立てる関数は `filterLegalDrops` の1つだけで、
- * ここを外から呼べると、王手放置より先に打ち歩詰めを見る形が別の場所で復活する
- */
-function canDropPieceAt(shogi: Shogi, kind: Kind, x: number, y: number, color: Color): boolean {
-  switch (kind) {
-    case "FU":
-      return canDropFu(shogi, x, y, color);
-    case "KE":
-      return canDropKe(x, y, color);
-    case "KY":
-      return canDropKy(x, y, color);
-    case "GI":
-    case "KI":
-    case "KA":
-    case "HI":
-      return true;
-    default:
-      return false;
-  }
-}
-
-/**
  * 成ることができるか
  */
 export function canPromote(shogi: Shogi, move: ShogiMove): boolean {
@@ -156,7 +81,7 @@ export function mustPromote(shogi: Shogi, move: ShogiMove): boolean {
  * 打ち歩詰めかどうかをチェック
  * 歩を打って相手玉を詰ませることは禁止
  */
-export function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
+function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
   // 駒打ちでない場合は打ち歩詰めではない
   if (move.from) return false;
 
@@ -217,47 +142,23 @@ function* generateLegalMoves(shogi: Shogi, color: Color): Generator<ShogiMove> {
     }
   }
 
-  // 持ち駒から打つ
-  const hands = shogi.getHandsSummary(color);
-  const kinds: Array<"FU" | "KY" | "KE" | "GI" | "KI" | "KA" | "HI"> = [
-    "FU",
-    "KY",
-    "KE",
-    "GI",
-    "KI",
-    "KA",
-    "HI",
-  ];
-
-  const allDrops = shogi.getDropsBy(color);
-  for (const kind of kinds) {
-    if (hands[kind] === 0) continue;
-    yield* filterLegalDrops(shogi, color, kind, allDrops);
-  }
+  yield* filterLegalDrops(shogi, shogi.getDropsBy(color));
 }
 
 /**
- * `allDrops` のうち `kind` の合法な駒打ちを返す。
+ * `drops` のうち合法な駒打ちを返す。`drops` は `getDropsBy` の返り値かその部分であること。
  *
- * **駒打ちの合否を決めるのはこの関数だけ。** 同じ条件を2箇所に書くと、
- * 片方だけ順序や条件が変わっても両方緑のまま通る（実際に
- * `ShogiMoveValidator.getLegalDropsByKind` が同じ規則の写しを持っていた）。
+ * 二歩と行き所のない升は `getDropsBy` が既に除いているので、残りの2つだけを見る。
+ * 駒打ちの合否を決めるのはこの関数だけ。
  *
  * **`wouldBeInCheckAfterMove` を先に見る。** 積の条件なので結果は変わらないが、
- * `canDropPieceAt` は歩について `isUchifudume` を通り、その中で相手の合法手を
- * また数え上げる。王手放置で落ちる歩打ちにその値段を払うと、双方が歩を2枚持つ
- * 詰み形で1分を超える（実測 66 秒 → 1ms 未満）。
+ * `isUchifudume` は歩の王手ごとに相手の合法手を数え上げる。王手放置で落ちる歩打ちに
+ * その値段を払うと、双方が歩を2枚持つ詰み形で1分を超える（実測 66 秒 → 1ms 未満）。
  */
-function* filterLegalDrops(
-  shogi: Shogi,
-  color: Color,
-  kind: Kind,
-  allDrops: ShogiMove[],
-): Generator<ShogiMove> {
-  for (const move of allDrops) {
-    if (move.kind !== kind) continue;
+function* filterLegalDrops(shogi: Shogi, drops: ShogiMove[]): Generator<ShogiMove> {
+  for (const move of drops) {
     if (wouldBeInCheckAfterMove(shogi, move)) continue;
-    if (!canDropPieceAt(shogi, kind, move.to.x, move.to.y, color)) continue;
+    if (isUchifudume(shogi, move)) continue;
     yield move;
   }
 }
@@ -269,9 +170,8 @@ export function getAllLegalMoves(shogi: Shogi, color: Color): ShogiMove[] {
 
 /** 手番側（`color`）が `kind` を打てる合法手。前提は `generateLegalMoves` と同じ */
 export function getLegalDrops(shogi: Shogi, color: Color, kind: Kind): ShogiMove[] {
-  const hands = shogi.getHandsSummary(color);
-  if ((hands[kind as keyof typeof hands] || 0) === 0) return [];
-  return [...filterLegalDrops(shogi, color, kind, shogi.getDropsBy(color))];
+  const drops = shogi.getDropsBy(color).filter((move) => move.kind === kind);
+  return [...filterLegalDrops(shogi, drops)];
 }
 
 /**
