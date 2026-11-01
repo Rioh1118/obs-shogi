@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { EngineCandidate, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
-import { autofillPreset } from "../presetDialog";
+import { autofillPreset } from "../autofillPreset";
 
 /**
  * `autofillPreset` は、プリセット編集ダイアログの effect がそのまま呼ぶ。

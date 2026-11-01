@@ -1,5 +1,3 @@
-import type { SetStateAction } from "react";
-
 import type { ProbeOutcome } from "@/entities/engine";
 import { fitValues } from "@/entities/engine-presets/lib/fitValues";
 import { withDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
@@ -38,7 +36,7 @@ export type PresetDialogAction =
   /** プリセットから下書きを作る（開いたとき・プリセットが読み直されたとき） */
   | { type: "opened"; preset: EnginePreset }
   /** 値以外の欄の編集 */
-  | { type: "edited"; update: SetStateAction<EnginePreset | null> }
+  | { type: "edited"; update: (cur: EnginePreset) => EnginePreset }
   /** オプションの値を変える。`null` で消す */
   | { type: "optionSet"; name: string; value: string | null }
   /** 挙げた名前のオプションの値を消す。呼び手は「エンジン設定」の画面に出ている行だけを渡す */
@@ -73,8 +71,8 @@ export function presetDialogReducer(
       };
 
     case "edited": {
-      const draft =
-        typeof action.update === "function" ? action.update(state.draft) : action.update;
+      if (!state.draft) return state;
+      const draft = action.update(state.draft);
       return draft === state.draft ? state : { ...state, draft };
     }
 

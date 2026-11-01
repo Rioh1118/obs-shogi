@@ -1,6 +1,7 @@
 import type { EngineCandidate, Launchability } from "@/entities/engine/api/aiLibrary";
 import { isEngineForThisMachine } from "@/entities/engine/lib/engineCandidate";
 import { isFileKind } from "@/features/settings/lib/fileChoices";
+import { getBaseName } from "@/shared/lib/path";
 
 /**
  * 起動できない見込みの理由。`ready` は何も添えない。
@@ -49,4 +50,20 @@ export function presetEngineOptions(engines: EngineCandidate[]): PresetEngineOpt
       note,
     };
   });
+}
+
+/**
+ * 候補に無いパス（engines/ の外、消えた）も選択として先頭に足す。
+ * 落とすと保存したパスが画面から見えなくなる。
+ */
+export function keepCurrentEngine(
+  options: PresetEngineOption[],
+  current: string,
+): PresetEngineOption[] {
+  const path = current.trim();
+  if (!path || options.some((o) => o.value === path)) return options;
+  return [
+    { value: path, label: `${getBaseName(path)}（現在の選択）`, disabled: false, note: null },
+    ...options,
+  ];
 }

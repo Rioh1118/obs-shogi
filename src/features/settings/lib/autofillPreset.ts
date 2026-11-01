@@ -6,15 +6,6 @@ import type {
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { isSelectableEngine } from "@/features/settings/lib/presetEngineOptions";
 
-export function clampInt(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
-export function parseIntSafe(v: string, fallback: number) {
-  const n = Number.parseInt(v, 10);
-  return Number.isFinite(n) ? n : fallback;
-}
-
 function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {
   const xs = profile?.eval_files ?? [];
   if (xs.length === 0) return null;

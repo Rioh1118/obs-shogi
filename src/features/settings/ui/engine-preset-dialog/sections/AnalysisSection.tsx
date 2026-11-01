@@ -1,9 +1,8 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState } from "react";
 
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SSection } from "@/features/settings/ui/kit";
 import { cx } from "@/features/settings/lib/cx";
-import { parseIntSafe } from "@/features/settings/lib/presetDialog";
 import {
   engineDefaultLabel,
   engineDefaultOf,
@@ -17,19 +16,29 @@ import {
 import type { AnalysisDefaults, EnginePreset } from "@/entities/engine-presets/model/types";
 import "./AnalysisSection.scss";
 
+function parseIntOr(text: string, fallback: number): number {
+  const n = Number.parseInt(text, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** 数の欄の文字を読む。空は値を持たない */
+function stopLimitOf(text: string): number | undefined {
+  return text === "" ? undefined : parseIntOr(text, 0);
+}
+
 /**
  * 「検討」の節。候補手の数と終了条件と詰み探索を決める。
  * 候補手の数は値が無ければ送らない。終了条件と詰み探索は保存するが、検討はまだ読まない。
  */
 export default function AnalysisSection(props: {
   draft: EnginePreset;
-  setDraft: Dispatch<SetStateAction<EnginePreset | null>>;
+  setAnalysis: (patch: Partial<AnalysisDefaults>) => void;
   /** `null` で値を消す。 */
   setOption: (name: string, value: string | null) => void;
   /** 候補手の数の上限（`multiPvMax`） */
   multiPvMax: number;
 }) {
-  const { draft, setDraft, setOption, multiPvMax } = props;
+  const { draft, setAnalysis, setOption, multiPvMax } = props;
   const multiPv = savedInt(draft.options, MULTIPV_OPTION);
   const multiPvDefault = engineDefaultOf(draft, MULTIPV_OPTION);
   const quick = QUICK_MULTIPV.filter((n) => n <= multiPvMax);
@@ -39,13 +48,6 @@ export default function AnalysisSection(props: {
   const showCustom = customOpened || offButtons;
   const setMultiPv = (n: number) =>
     setOption(MULTIPV_OPTION, String(Math.max(MULTIPV_MIN, Math.min(n, multiPvMax))));
-
-  const setAnalysis = (patch: Partial<AnalysisDefaults>) =>
-    setDraft({
-      ...draft,
-      analysis: { ...(draft.analysis ?? { mateSearch: false }), ...patch },
-    });
-  const numberOrUndefined = (v: string) => (v === "" ? undefined : parseIntSafe(v, 0));
 
   return (
     <SSection title="検討">
@@ -89,7 +91,7 @@ export default function AnalysisSection(props: {
               onChange={(e) =>
                 e.target.value.trim() === ""
                   ? setOption(MULTIPV_OPTION, null)
-                  : setMultiPv(parseIntSafe(e.target.value, MULTIPV_MIN))
+                  : setMultiPv(parseIntOr(e.target.value, MULTIPV_MIN))
               }
             />
           )}
@@ -106,7 +108,7 @@ export default function AnalysisSection(props: {
               placeholder="時間（秒）"
               aria-label="時間（秒）"
               value={draft.analysis?.timeSeconds ?? ""}
-              onChange={(e) => setAnalysis({ timeSeconds: numberOrUndefined(e.target.value) })}
+              onChange={(e) => setAnalysis({ timeSeconds: stopLimitOf(e.target.value) })}
             />
             <SInput
               type="number"
@@ -114,7 +116,7 @@ export default function AnalysisSection(props: {
               placeholder="深さ"
               aria-label="深さ"
               value={draft.analysis?.depth ?? ""}
-              onChange={(e) => setAnalysis({ depth: numberOrUndefined(e.target.value) })}
+              onChange={(e) => setAnalysis({ depth: stopLimitOf(e.target.value) })}
             />
             <SInput
               type="number"
@@ -122,7 +124,7 @@ export default function AnalysisSection(props: {
               placeholder="ノード数"
               aria-label="ノード数"
               value={draft.analysis?.nodes ?? ""}
-              onChange={(e) => setAnalysis({ nodes: numberOrUndefined(e.target.value) })}
+              onChange={(e) => setAnalysis({ nodes: stopLimitOf(e.target.value) })}
             />
           </div>
         </SField>
