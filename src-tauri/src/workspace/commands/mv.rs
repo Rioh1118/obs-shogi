@@ -4,7 +4,9 @@ use tauri::{command, AppHandle, Runtime};
 
 use crate::workspace::guard::{is_project_root, validate_under_root};
 use ::fs::error::{FsError, FsErrorCode};
-use ::fs::path::{ensure_not_exists, is_kifu_file, is_move_into_itself, validate_basename};
+use ::fs::path::{
+    ensure_not_exists, ensure_same_extension, is_kifu_file, is_move_into_itself, validate_basename,
+};
 
 // 行き先を呼び出し側から受けるのは `mv_kifu_file` / `mv_directory` の2つ。
 // `rename_*` の行き先は `src.parent().join(name)` で導出する。`validate_basename` が
@@ -44,13 +46,14 @@ pub fn rename_kifu_file<R: Runtime>(
     })?;
     let dest = parent.join(&new_file_name);
 
-    // リネーム後も棋譜拡張子のみ許可（拡張子変更を防ぐ）
+    // リネーム後も棋譜拡張子のみ許可
     if !is_kifu_file(&dest) {
         return Err(
             FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
                 .with_path(dest.to_string_lossy().to_string()),
         );
     }
+    ensure_same_extension(&src, &dest)?;
 
     validate_under_root(&app, &dest)?;
     ensure_not_exists(&dest)?;
@@ -111,6 +114,7 @@ pub fn mv_kifu_file<R: Runtime>(
                 .with_path(dest.to_string_lossy().to_string()),
         );
     }
+    ensure_same_extension(&src, &dest)?;
 
     validate_under_root(&app, &dest)?;
     ensure_not_exists(&dest)?;

@@ -137,6 +137,7 @@ describe("失敗の行き先の判定", () => {
   test("入力欄に出すのは名前を直せば通る失敗だけ", () => {
     expect(ALL_CODES.filter(isNameInputError).sort()).toEqual(
       [
+        "extension_changed",
         "invalid_extension",
         "invalid_name_control",
         "invalid_name_empty",

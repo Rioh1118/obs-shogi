@@ -145,6 +145,21 @@ pub fn is_move_into_itself(src: &Path, dest: &Path) -> Result<bool, FsError> {
     ))
 }
 
+/// 改名で棋譜の拡張子が変わらないことを確かめる。大文字と小文字の違いは変更に数えない。
+///
+/// 本文は拡張子の形式で書かれている。拡張子だけを変えると本文と形式がずれ、次に開くと
+/// 0手の棋譜として読まれ、次の保存でディスクの棋譜が空になる。
+pub fn ensure_same_extension(src: &Path, dest: &Path) -> Result<(), FsError> {
+    if get_file_extension(src) != get_file_extension(dest) {
+        return Err(FsError::new(
+            FsErrorCode::ExtensionChanged,
+            "cannot change the kifu extension",
+        )
+        .with_path(dest.to_string_lossy().to_string()));
+    }
+    Ok(())
+}
+
 // TODO(#215): dest が src と同じ実体かを見ていない。APFS では大文字小文字だけを
 // 変える改名が、自分自身を衝突相手として弾かれる
 pub fn ensure_not_exists(path: &Path) -> Result<(), FsError> {
@@ -160,6 +175,19 @@ pub fn ensure_not_exists(path: &Path) -> Result<(), FsError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn same_extension_accepts_only_an_unchanged_extension() {
+        let same = |src: &str, dest: &str| ensure_same_extension(Path::new(src), Path::new(dest));
+
+        assert!(same("/r/a.kif", "/r/b.kif").is_ok());
+        // 形式は変わらない。`get_file_extension` は小文字へ揃える
+        assert!(same("/r/a.KIF", "/r/a.kif").is_ok());
+
+        let refused = same("/r/a.kif", "/r/a.csa").unwrap_err();
+        assert!(matches!(refused.code, FsErrorCode::ExtensionChanged));
+        assert_eq!(refused.path.as_deref(), Some("/r/a.csa"));
+    }
 
     #[test]
     fn returns_the_name_that_will_be_used() {

@@ -141,17 +141,16 @@ export type FileTreeAction =
   | { type: "nodes_expanded"; payload: string[] }
   | { type: "selected_node_reconciled"; payload: FileTreeNode | null }
   /**
-   * 改名か移動でパスが張り替わった。`jkfData` は据え置く。
+   * 改名か移動でパスが張り替わった。`jkfData` と `kifuFormat` は据え置く。
    *
    * 同じ棋譜の名前が変わっただけなので、参照が残ることが盤の載せ直しを避ける根拠になる
    * （`jkfData` の doc）。`path` が `null` なら棋譜を閉じる。
-   * `format` は省くと据え置く。いま送る経路は無い（TODO(#507)）
+   * 形式が据え置けるのは、`ensure_same_extension` が拡張子を変える改名を断るから。
    */
   | {
       type: "active_kifu_reconciled";
       payload: {
         path: string | null;
-        format?: KifuFormat | null;
       };
     }
   | { type: "error"; payload: FsError }

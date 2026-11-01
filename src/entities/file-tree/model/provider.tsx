@@ -133,7 +133,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const reconcilePathMutation = useCallback((oldPath: string, nextPath: string) => {
-    const selectedPath = selectedNodeRef.current?.path ?? null;
+    // 読み直しが落ちると選択は古い節のまま残り、張り替え先は保留に居る
+    const selectedPath = pendingSelectedPathRef.current ?? selectedNodeRef.current?.path ?? null;
     if (isSameOrDescendantPath(selectedPath, oldPath)) {
       pendingSelectedPathRef.current = remapSubtreePath(selectedPath, oldPath, nextPath);
     }
@@ -217,6 +218,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     dispatch({ type: "kifu_closed" });
   }, [rootDir, state.activeKifuPath]);
 
+  // ツリーが変わったときだけ走らせる。改名と移動はパスの張り替えを読み直しより先に state へ
+  // 入れるので、`activeKifuPath` の変化でも走らせると、新しいパスを古いツリーで引いて
+  // 「ツリーに無い棋譜」と読み、開いている棋譜を閉じる。
   useEffect(() => {
     if (!state.fileTree) return;
 
@@ -231,8 +235,9 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       });
     }
 
-    if (state.activeKifuPath) {
-      const activeChain = findNodeChain(state.fileTree, state.activeKifuPath);
+    const activePath = activeKifuPathRef.current;
+    if (activePath) {
+      const activeChain = findNodeChain(state.fileTree, activePath);
       if (!activeChain) {
         dispatch({ type: "kifu_closed" });
       }
@@ -243,7 +248,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       pendingRevealPathRef.current = null;
       revealNodeInCurrentTree(targetPath);
     }
-  }, [state.fileTree, revealNodeInCurrentTree, state.activeKifuPath]);
+  }, [state.fileTree, revealNodeInCurrentTree]);
 
   /**
    * 選択を動かす。**ツリーが開くべき棋譜も一緒に動く。**
@@ -259,6 +264,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
    * フォルダは宛先を動かさない。開閉の操作であって、棋譜の要求ではない
    */
   const selectNode = useCallback((node: FileTreeNode | null) => {
+    pendingSelectedPathRef.current = null;
     if (!node?.isDirectory) {
       requestedKifuPathRef.current = node?.path ?? null;
     }
@@ -455,7 +461,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       }
 
       if (isSameOrDescendantPath(selectedNodeRef.current?.path, node.path)) {
-        pendingSelectedPathRef.current = null;
         selectNode(null);
       }
 
@@ -731,10 +736,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       // 載っているかを見られるのは呼び出し側なので、覆せるようにしてある
       // （省略できない理由は `SelectNodeOptions` の doc）。
       //
-      // **形式は見ない。** 改名で拡張子が変わった回は `active_kifu_reconciled` が形式を
-      // 運ばないのでずれるが、そこで開き直すと**中身と違う形式でパースされる**。
-      // パーサは投げずに0手の棋譜を返すので、盤が空になったまま成功として載る。
-      // ずれは発生源で直すもの → #507
+      // 形式は見ない。`ensure_same_extension` が拡張子を変える改名を断るので、開いている
+      // 棋譜の形式は節の形式と揃っている。
       const canSkipOpen =
         !options.forceReopen && state.activeKifuPath === node.path && state.jkfData !== null;
 
