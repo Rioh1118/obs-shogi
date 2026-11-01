@@ -60,7 +60,7 @@ const MEASURED_COUNT = 157;
  * それ以外で増やさない。面が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 343;
+const UNMEASURED_COUNT = 340;
 
 /**
  * 透明の面で銅の枠と文字を持つ部品。**自分では面を持たないので、載る先を渡さないと測れない。**
