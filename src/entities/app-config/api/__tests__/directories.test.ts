@@ -23,7 +23,7 @@ vi.mock("@/shared/api/picker/pickDirectory", () => ({
   pickDirectory: (...a: unknown[]) => pickDirectory(...a),
 }));
 
-const { chooseAiRoot, chooseRootDir } = await import("../directories");
+const { chooseAiRoot, chooseRootDir, setRootDir } = await import("../directories");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -72,5 +72,88 @@ describe("設定を読めないときの選び直し", () => {
     await chooseAiRoot({ force: true });
 
     expect(backupBrokenConfig).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("読めているときの選び直し", () => {
+  beforeEach(() => {
+    loadConfig.mockResolvedValue({ root_dir: "/w", ai_root: "/a", last_preset_id: "p" });
+  });
+
+  it("決まっていれば、force でない限りピッカーを開かず今の値を返す", async () => {
+    await expect(chooseRootDir()).resolves.toBe("/w");
+    await expect(chooseAiRoot()).resolves.toBe("/a");
+
+    expect(pickDirectory).not.toHaveBeenCalled();
+    expect(saveConfig).not.toHaveBeenCalled();
+  });
+
+  it("force なら選び直し、他の欄を保ったまま書く", async () => {
+    await expect(chooseRootDir({ force: true })).resolves.toBe("/picked");
+    expect(saveConfig).toHaveBeenLastCalledWith({
+      root_dir: "/picked",
+      ai_root: "/a",
+      last_preset_id: "p",
+    });
+
+    await expect(chooseAiRoot({ force: true })).resolves.toBe("/picked");
+    expect(saveConfig).toHaveBeenLastCalledWith({
+      root_dir: "/w",
+      ai_root: "/picked",
+      last_preset_id: "p",
+    });
+  });
+
+  it("欄ごとの言葉でピッカーを開く", async () => {
+    await chooseRootDir({ force: true });
+    expect(pickDirectory).toHaveBeenLastCalledWith("ワークスペースを選択してください");
+
+    await chooseAiRoot({ force: true });
+    expect(pickDirectory).toHaveBeenLastCalledWith("AI ライブラリを選択してください");
+  });
+
+  it("取り消しは null で、書かない", async () => {
+    pickDirectory.mockResolvedValue(null);
+
+    await expect(chooseRootDir({ force: true })).resolves.toBeNull();
+    await expect(chooseAiRoot({ force: true })).resolves.toBeNull();
+    expect(saveConfig).not.toHaveBeenCalled();
+  });
+
+  it("空白だけのパスは断り、書かない", async () => {
+    pickDirectory.mockResolvedValue("  ");
+
+    await expect(chooseRootDir({ force: true })).rejects.toThrow("不正なワークスペースです");
+    await expect(chooseAiRoot({ force: true })).rejects.toThrow("不正なAI ライブラリです");
+    expect(saveConfig).not.toHaveBeenCalled();
+  });
+
+  it("ワークスペースの差し替えは他の欄を保って書き、空を断る", async () => {
+    await setRootDir("/next");
+    expect(saveConfig).toHaveBeenLastCalledWith({
+      root_dir: "/next",
+      ai_root: "/a",
+      last_preset_id: "p",
+    });
+
+    await expect(setRootDir(" ")).rejects.toThrow("不正なワークスペースです");
+    expect(saveConfig).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("保存の失敗", () => {
+  it("退避に失敗しても、書き込みは続ける", async () => {
+    loadConfig.mockRejectedValue(new Error("壊れている"));
+    backupBrokenConfig.mockRejectedValue(new Error("退避できない"));
+
+    await expect(setRootDir("/next")).resolves.toBeUndefined();
+    expect(saveConfig).toHaveBeenCalledWith({ root_dir: "/next", ai_root: null });
+  });
+
+  it("書けなければ投げる", async () => {
+    loadConfig.mockResolvedValue({ root_dir: null, ai_root: null });
+    saveConfig.mockRejectedValue(new Error("書けない"));
+
+    await expect(setRootDir("/next")).rejects.toThrow("書けない");
   });
 });

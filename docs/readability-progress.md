@@ -52,7 +52,8 @@ ours 戦略のマージは使わない。
 | 16 | `refactor/tidy-entities-file-tree` | `src/entities/file-tree` の `provider.tsx` 以外 | #681 | マージ済み |
 | 17 | `refactor/tidy-file-tree-provider` | `src/entities/file-tree/model/provider.tsx`、改名の不具合と #507 | #682 | マージ済み |
 | 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | マージ済み |
-| 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | レビュー待ち |
+| 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | マージ済み |
+| 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | レビュー待ち |
 
 ## 語
 
@@ -88,7 +89,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 10b | `src/entities/file-tree/model/provider.tsx`              |  737 | 済     | 済     |
 | 11 | `src/entities/search`                                    | 1587 | 済     | 済     |
 | 11b | `src/entities/book`                                     |  867 | 済     | 済     |
-| 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 未着手 | 未着手 |
+| 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 済     | 済     |
 | 13 | `src/features/settings`                                  | 4778 | 未着手 | 未着手 |
 | 14 | `src/features/position-search`、`src/features/position-editor` | 3186 | 未着手 | 未着手 |
 | 15 | `src/features` の残り                                    | 4409 | 未着手 | 未着手 |
@@ -152,8 +153,12 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。中止で前の定跡へ戻すかを `src/widgets` の範囲で決める |
 | `src/entities/book/model/provider.tsx` の辿る失敗の枝 | `invalid_handle` を引く枝でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
 | `src-tauri/src/book/commands.rs` の `open_book` と `list_books` | 開いている間に webview が作り直されると、登録が新しい `list_books` より後になり、ハンドルが次の読み直しまで残る筋がある。未再現 |
+| `src/features/settings/ui/tabs/WorkspaceTab.tsx` の「更新を確認」 | `downloading`、`installing`、`ready` の間は `runCheck` が走らないが、ボタンの無効化は `isChecking` だけを見るので押せて、何も返らず前の答えが残る。`src/features/settings` の範囲で無効にするか理由を出す |
+| `src/features/study-position-save/ui/StudyPositionSaveModal.tsx` の `existing` | `findBySfen` の同一性が動かないので、開いた後に一覧が届いても `existing` が再計算されない。一覧に追わせると `isOpen, existing` の effect がフォームを初期化し、保存の失敗の巻き戻しで入力が消える。effect の条件を分けてから直す |
+| `src/entities/updater/model/provider.tsx` の `persist` | 記憶を読み終える前に `checkNow` が通ると、`skippedVersion: null` で `updater.json` を書く。provider の単体では再現した。読み込みの応答より前に設定を開く必要があり、失うものは告知1回。手順では未再現 |
+| `src/entities/app-config/api/directories.ts` の `chooseDirectory` | ピッカーの前に読んだ設定を閉じた後に書くので、開いている間に列の書き込みが入るとその欄が消える。ピッカーが画面を止めるなら踏めない。未再現 |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/entities` の残り（app-config、dock、study-positions、updater）。
+`src/features/settings`。4778行あるので、取るときに割る。

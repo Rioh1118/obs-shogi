@@ -2,10 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 import type { UpdaterState } from "../model/types";
 
 /**
- * `updater.json` を読む。
+ * `updater.json` を読む。壊れていても Rust が既定値を返す。
  *
- * **Rust 側は壊れていても既定値を返す**（`settings` crate の `updater` モジュール）。
- * ここへ来る `Err` は、設定ディレクトリそのものが解決できないときだけ。
+ * 投げるのは、設定ディレクトリそのものを解決できないときだけ。
  */
 export async function loadUpdaterState(): Promise<UpdaterState> {
   return invoke<UpdaterState>("load_updater_state");

@@ -28,7 +28,7 @@ describe("barrel の公開名", () => {
    *
    * 減らしたらこの数も下げること。上げるのは、外から使う場所と一緒に足すときだけ。
    */
-  const BASELINE = 4;
+  const BASELINE = 1;
 
   test("barrel の公開面が、呼び出し元の無いまま増えていない", () => {
     const dead = unconsumed(namedExports()).map(({ slice, name }) => `${slice}: ${name}`);

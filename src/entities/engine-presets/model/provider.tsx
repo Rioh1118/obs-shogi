@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { initialState, reducer } from "./reducer";
 import type { EnginePreset, EnginePresetsContextType, PresetId, SaveFailure } from "./types";
 import { useAppConfig } from "@/entities/app-config";
@@ -12,6 +20,7 @@ import {
   normalizeOnePreset,
 } from "../lib/normalize";
 import { EnginePresetsContext } from "./context";
+import { createSerialQueue } from "@/shared/lib/serialQueue";
 import { runtimeConfigOf } from "../lib/runtimeConfig";
 import type { EngineRuntimeConfig } from "@/entities/engine";
 
@@ -54,18 +63,12 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   const presetsRef = useRef<EnginePreset[]>([]);
   // 読み書きを1本ずつ通す列。同時に2本書くと、2本目が1本目の前の印を持って書き、
   // 自分の変更どうしが `conflict` になる
-  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const [enqueue] = useState(createSerialQueue);
   // 列の中で走る処理（`reload` / `deletePreset`）が、組んだ時点ではなく走った時点の選択を読む
   const selectedIdRef = useRef<PresetId | null>(null);
   useEffect(() => {
     selectedIdRef.current = state.selectedPresetId;
   }, [state.selectedPresetId]);
-
-  const enqueue = useCallback(<T,>(job: () => Promise<T>): Promise<T> => {
-    const run = queueRef.current.then(job, job);
-    queueRef.current = run.catch(() => undefined);
-    return run;
-  }, []);
 
   /** 書く。書けたら `null`、断られたら理由（列の中からだけ呼ぶ） */
   const write = useCallback(async (presets: EnginePreset[]): Promise<SaveFailure | null> => {

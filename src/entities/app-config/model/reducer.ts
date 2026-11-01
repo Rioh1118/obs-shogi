@@ -11,7 +11,6 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
     case "loading":
       return { ...state, isLoading: true, error: null };
     case "loaded":
-    case "updated":
       return { config: action.payload, isLoading: false, error: null };
     case "settled":
       return { ...state, isLoading: false };
