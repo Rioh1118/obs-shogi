@@ -6,36 +6,23 @@ import { BOARD_SIZE } from "../model/board";
 import { isValidCoords } from "./boardCoords";
 
 /**
- * 組みかけの局面を並べ替える純関数
+ * 組みかけの局面を `JKFState` のまま読み書きする純関数
  *
- * **`Shogi` を状態として持たない。** `editMode(true)` を張っても足りないから。
+ * `Shogi` を状態として持たない。`editMode(true)` で止まるのは手番の側の駒かの確認
+ * （`checkTurn`）、動きの合法性の照合（`getMovesFrom`）、`nextTurn`、`prevTurn` の4つだけで、
+ * 残りはこの面の前提と逆を向いている。
  *
- * 編集モードで止まるのは4つだけ ——「手番の側の駒か」（`checkTurn`）、
- * 「その動きが合法か」（`move` の `getMovesFrom` の照合）、そして手番を進める／戻す
- * （`nextTurn` と `prevTurn` は `flagEditMode` なら先頭から返る）。
- *
- * **残りは編集モードでも効いたままで、どれもこの面の前提と逆を向いている。**
- *
- * - `move` は行き所のない升へ動かすと**強制的に成らせる**（`deadEnd` の判定は
- *   編集モードの外にある）。この面は行き所のない駒を**置けたうえで断りに出す**
- * - `move` が駒を取ると `capture` が走り、取られた駒を `inverse()` してから積む。
- *   つまり**取られた駒の反対側**の駒台へ入る（下の `movePieceOnBoard` を見ること）
+ * - `move` は行き所のない升へ動かすと強制的に成らせる（`deadEnd` の判定は編集モードの外にある）。
+ *   この面は行き所のない駒を置けたうえで断りに出す
+ * - `move` が駒を取ると `capture` が走り、取られた駒の反対側の駒台へ積む
+ *   （`movePieceOnBoard` の doc を見ること）
  * - `drop` は `getDropsBy` で置ける升を絞る。あちらは `flagEditMode` を見ないので、
- *   **二歩と行き所のない駒は編集モードでも `throw`** になる
- * - `initialize` は末尾で `flagEditMode` を `false` に落とす
- *   （`initializeFromSFENString` は落とさない。非対称）
+ *   二歩と行き所のない駒は編集モードでも `throw` になる
+ * - `initialize` は末尾で `flagEditMode` を `false` に落とす。`initializeFromSFENString` は落とさない
  *
- * 状態は `JKFState`（ただの配列とカウンタ）で持ち、`Shogi` は SFEN が要るときと
- * 王手の判定に1つ作って捨てる。
- *
- * **どの関数も引数を書き換えない。** 呼び手は返り値を使うこと。
- *
- * **不正な引数は throw する。ただし `stateFromSfen` だけは `null` を返す。**
- * 境目は「その値を誰が作ったか」。画面が作る引数（升・駒台・色）は押す前に沈めてあるので、
- * 届いた不正は画面側の穴であり、上げてよい。`stateFromSfen` に届くのは保存ファイルの
- * 中身と利用者が貼った文字列で、**盤に載せられないことは正常な入力の一種**。
- * throw にすると、React のイベントハンドラから呼んだときに出口が1つも無くなる
- * （`getDerivedStateFromError` はレンダとライフサイクルしか捕まえない）。
+ * `Shogi` は SFEN が要るときと王手の判定に1つ作って捨てる。
+ * どの関数も引数を書き換えないので、呼び手は返り値を使うこと。
+ * 不正な引数は throw する。例外は `null` を返す `stateFromSfen` で、理由はその doc に書く。
  */
 
 /**
@@ -62,8 +49,7 @@ export const HAND_KINDS = [
  * 駒台に載る駒の種類
  *
  * `shogi.js` の `RawKind` そのもの。根の `shogi.js` はこれを再エクスポートしないので
- * 深い経路で読む。写して3つ目の綴りを作ると、`JKFHand`（`Record<RawKind, number>`）と
- * ずれても tsc が黙る。
+ * 深い経路で読む。写すと、`JKFHand`（`Record<RawKind, number>`）とずれても tsc が黙る。
  */
 export type HandKind = RawKind;
 
@@ -179,18 +165,14 @@ function pushToHand(state: JKFState, color: Color, kind: Kind): void {
 }
 
 /**
- * 盤の駒を別の升へ動かす
+ * 盤の駒を別の升へ動かす。
  *
- * 移動先に駒があれば、**動かす側と同じ側**の駒台へ成りを落として入れる。
+ * 移動先に駒があれば、成りを落として動かす側の駒台へ入れる。
+ * `shogi.js` の `capture` は取られた駒の反対側へ積む（`inverse()` してから `hands[piece.color]`）。
+ * 先後が違えば行き先は同じで、食い違うのは同じ側の駒を重ねたときだけになる。
+ * 並べ替えている人にとってそれは取ったのではなくどかしたので、どかした駒は手元に残す。
  *
- * `shogi.js` の `capture` は**取られた駒の反対側**へ積む（`inverse()` してから
- * `hands[piece.color]`）。先後が違うときは同じ行き先になるので、**食い違うのは
- * 同じ側の駒を重ねたときだけ** —— あちらは相手の駒台へ、こちらは動かした側の駒台へ入る。
- * 並べ替えている人にとってそれは「取った」のではなく「どかした」なので、
- * どかした駒は手元に残る。
- *
- * 移動先が玉なら2つの位置を入れ替える。玉は駒台に載らないので、
- * 取り除く先が無い。
+ * 移動先が玉なら2つの位置を入れ替える。玉は駒台に載らないので、取り除く先が無い。
  */
 export function movePieceOnBoard(state: JKFState, from: Square, to: Square): JKFState {
   const moving = pieceAt(state, from);
@@ -282,29 +264,20 @@ export type CycleStep = {
 };
 
 /**
- * 盤の駒を裏返した次の姿
+ * 盤の駒を裏返した次の姿を返す。
  *
- * 不成 → 成 → 相手の不成 → 相手の成 で1周する。成れない駒（玉・金）は2巡。
- * **持ち主が変わるのは1周に1度だけ**（成から相手の不成へ渡るところ）で、
- * その手前までは同じ側の不成と成が並ぶ。`shogi.js` の `flip` と同じ順。
+ * 不成 → 成 → 相手の不成 → 相手の成 で1周する。順は `shogi.js` の `flip` と同じで、
+ * 成れない駒（玉、金）は2巡。持ち主が変わるのは成から相手の不成へ渡るところだけ。
  *
- * **(kind, color) だけでは次が決まらない。** 「後手の不成」の次が「先手の不成」なのか
- * 「後手の成」なのかは、何巡目かを知らないと決まらない。だから巡目を引数に取る。
+ * 「後手の不成」の次が「先手の不成」か「後手の成」かは `kind` と `color` だけでは決まらないので、
+ * 巡目を引数に取る。巡目は画面が升ごとに覚える値で、出口の `initial.data` に
+ * 余計な欄を持ち込まないよう `JKFState` には入れない。
  *
- * **`remembered` は「その升で最後に返した値」をそのまま渡す。** 渡された駒の姿が
- * いま升にある駒（`kind` / `color`）と食い違えば**引き継がない**。この照合が無いと、
- * 呼ぶ側は駒が動くたびに覚えを消して回ることになり、消す場所が
- * 「盤の移動・駒台へ送る・駒台から置く・種を載せ直す」に散る。1つ忘れると
- * こう壊れる —— 歩を2回裏返して（後手の歩、巡目2）、別の先手歩をその升に重ねると、
- * 次の右クリックが `{FU, 先手}` を返して**同じ駒がそのまま返る**。
- * 例外も出ず、押しても何も起きない形になる。
- *
- * 照合してあれば、残った覚えは黙って無視されるだけなので、**駒が動くたびに
- * 消して回る必要が無い。** 消す経路は種を載せ直すときの1つで足りる
- * （`usePositionDraft` の `loadSeed` が `cycles` を丸ごと捨てる）。
- *
- * 巡目は画面が升ごとに覚える値で、`JKFState` には入れない。
- * 出口（`initial.data`）に余計な欄を持ち込まないため。
+ * `remembered` には、その升で最後に返した値をそのまま渡す。駒の姿がいま升にある駒と
+ * 食い違えば引き継がないので、**呼び手は駒が動くたびに覚えを消さなくてよい。**
+ * 消すのは種を載せ直すときだけ（`usePositionDraft` の `loadSeed`）。この照合が無いと、
+ * 歩を2回裏返して（後手の歩、巡目2）別の先手歩をその升に重ねたとき、
+ * 次の右クリックが同じ駒を返し、押しても何も起きない形になる。
  */
 export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): CycleStep {
   const raw = unpromotedKind(kind);
@@ -340,12 +313,10 @@ export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): Cyc
 }
 
 /**
- * 盤の駒を裏返して、覚えておく巡目を返す
+ * 盤の駒を裏返し、次の局面と覚えておく巡目を返す。
  *
- * **駒の顔ぶれを変えない関数。** 盤へ駒を書く `setSquare` は非公開のままにしてある
- * ——「任意の駒を任意の升へ置く」を出すと、置き場3つで閉じている前提
- * （盤にも駒台にも無い駒を足せない）が崩れる。ここが変えるのは
- * 既にその升にいる駒の姿だけ。
+ * 駒の顔ぶれは変えない。`setSquare` を非公開にしてあるのは、任意の駒を任意の升へ置ける関数を
+ * 出すと「盤と駒台に無い駒を足せない」という前提が崩れるため。
  *
  * `remembered` の扱いは `cycleFrom` を見ること。
  */
@@ -402,24 +373,23 @@ export function stateFromPreset(preset: HandicapPreset): JKFState {
 }
 
 /**
- * SFEN を種にする。読めなければ `null`
+ * SFEN を種にする。読めなければ `null` を返す。
  *
- * **このファイルで唯一、不正な入力に throw しない関数。** 他の関数の引数は画面が作る値で、
- * 押す前に沈めてあるので、届く不正は画面側の穴として上げてよい。ここへ来るのは
- * `study_positions.json` の中身（Rust 側に SFEN の検査は無い）と、利用者が貼った
- * 文字列で、**盤に載せられないことは正常な入力の一種**。
+ * このファイルで唯一、不正な入力に throw しない。ここへ来るのは `study_positions.json` の中身
+ * （Rust 側に SFEN の検査は無い）と URL の `sfen=` で、盤に載せられないことは正常な入力の一種。
+ * throw にすると、React のイベントハンドラから呼んだときに受け手が無い
+ * （`getDerivedStateFromError` はレンダとライフサイクルしか捕まえない）。
+ * 他の関数の引数は画面が作る値で、押す前に沈めてあるので、届く不正は画面側の穴として上げてよい。
  *
- * `shogi.js` に丸投げできない。あちらが投げるのは手番の欄が `b` / `w` でないときの
- * 1本だけで、段数も筋数も駒の綴りも見ない。
+ * `shogi.js` に丸投げできない。あちらが投げるのは手番の欄が `b` / `w` でないときだけで、
+ * 段数も筋数も駒の綴りも見ない。
  *
- * - `lnsgkgsnl/9/9 b - 1`（3段）→ **throw せず**、残りを空段で埋めた別の局面になる
- * - `9/…/9 b 250000P 1` → その枚数だけ駒を作る（枚数に線形。下の `isWellFormedSfen` を見ること）
- * - `x8/…` → 駒の綴りの表を引けず、`kind` が `undefined` の駒が**黙って盤に載る**
- *   （`Piece.fromSFENString` は引けなくても投げない。投げるのは書き戻すときで、
- *   載せた時点では気づけない）
+ * - `lnsgkgsnl/9/9 b - 1`（3段）→ 残りを空段で埋めた別の局面になる
+ * - `9/…/9 b 250000P 1` → その枚数だけ駒を作る（`isWellFormedSfen` の doc を見ること）
+ * - `x8/…` → `kind` が `undefined` の駒が盤に載る。`Piece.fromSFENString` は引けなくても投げず、
+ *   投げるのは書き戻すときなので、載せた時点では気づけない
  *
- * どれも「黙って別の局面が盤に載る」か「操作が無反応になる」に化けるので、
- * 渡す前に形を見る。
+ * どれも別の局面が盤に載るか、操作が無反応になるので、渡す前に形を見る。
  */
 export function stateFromSfen(sfen: string): JKFState | null {
   if (!isWellFormedSfen(sfen)) return null;
@@ -468,12 +438,11 @@ const PIECE_SUPPLY = {
 } as const satisfies Partial<Record<Kind, number>>;
 
 /**
- * `shogi.js` に渡してよい形か
+ * `shogi.js` に渡してよい形かを返す。
  *
- * **枚数まで見るのは、構築の前に止めるため。** 持ち駒の欄は数字を素直に読んで
- * その回数だけ駒を作る。枚数に線形で、実測は `250000P` が 41ms、`4000000P` が 604ms、
- * 1桁増えるごとに10倍。桁数を制限する綴りがライブラリ側に無いので、
- * **作らせてから数えるのでは遅い**（この値はここにだけ書く）。
+ * 構築の前に枚数まで見る。持ち駒の欄は数字の回数だけ駒を作るので、枚数に線形で、
+ * 実測は `250000P` が 41ms、`4000000P` が 604ms。桁数を制限する綴りがライブラリ側に無く、
+ * 作らせてから数えるのでは間に合わない。
  */
 function isWellFormedSfen(sfen: string): boolean {
   const [board, turn, hands] = sfen.trim().split(/\s+/);
@@ -538,12 +507,11 @@ function exceedsPieceSupply(state: JKFState): boolean {
 }
 
 /**
- * いまの局面から `Shogi` を1つ作る
+ * いまの局面から `Shogi` を1つ作る。
  *
- * **公開しない。** このファイルの唯一の不変条件は「`Shogi` を状態として持たない」で、
- * `Shogi` を返す関数が公開されている限り、それを守っているのはコメントだけになる
- * （`useState(stateToShogi(...))` を tsc も lint も止めない）。
- * `shogi.js` にしか無い判定は、下の2つのように**答えだけ**を返す形で出す。
+ * 公開しない。`Shogi` を返す関数が公開されていると、「`Shogi` を状態として持たない」を
+ * 守るものがコメントだけになる（`useState(stateToShogi(...))` を tsc も lint も止めない）。
+ * `shogi.js` にしか無い判定は、`isCheckOn` のように答えだけを返す形で出す。
  */
 function stateToShogi(state: JKFState): Shogi {
   return new Shogi({ preset: "OTHER", data: normalizeForShogi(state) });

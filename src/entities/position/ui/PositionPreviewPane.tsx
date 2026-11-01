@@ -38,13 +38,10 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
     <div className="position-preview__container">
       <div className="position-preview__frame" ref={boardWrapRef}>
         {/*
-          **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
-          初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
-          呼び手それぞれが横に添える形だと、添え忘れた面だけが手番の分からない盤になる。
+          手番はこの部品が出す。盤の絵には現れない値で、局面だけを渡されるこの面では
+          初形からの偶奇を追えない。呼び手が添える形だと、添え忘れた面だけ手番が分からなくなる。
 
-          **段を作らず枠の角に重ねる。** 盤の一辺はこの枠の内寸から決まるので、
-          段を1つ足すとその高さのぶん盤が縮む（呼び手によっては測る軸が縦横で
-          入れ替わり、縮む面と広がる面に分かれる）。重ねれば内寸が動かない
+          段を作らず枠の角に重ねる。盤の一辺はこの枠の内寸から決まるので、段を足すと盤が縮む
         */}
         <div className="position-preview__turn-tab">{turnBadgeText(previewData.turn)}</div>
 
