@@ -12,7 +12,7 @@ type IconButtonVariant =
   | "sidebar-toggle"
   | "obs-danger";
 
-interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
   className?: string;
   size?: IconButtonSize;
@@ -20,7 +20,7 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   disabled?: boolean;
   title?: string;
   ariaLabel?: string;
-}
+};
 
 function IconButton({
   children,

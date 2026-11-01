@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import "./ControlButton.scss";
 
-interface ControlButtonProps {
+type ControlButtonProps = {
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
   title?: string; // ツールチップ用
-}
+};
 
 function ControlButton({ children, onClick, disabled = false, title }: ControlButtonProps) {
   return (

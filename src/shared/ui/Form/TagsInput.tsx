@@ -1,8 +1,8 @@
-import { useState, type KeyboardEvent, useRef } from "react";
+import { useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { X, Plus, Tag, Hash } from "lucide-react";
 import "./TagsInput.scss";
 
-interface TagsInputProps {
+type TagsInputProps = {
   label: string;
   id: string;
   tags: string[];
@@ -11,7 +11,7 @@ interface TagsInputProps {
   maxTags?: number;
   disabled?: boolean;
   variant?: "default" | "compact";
-}
+};
 
 export function TagsInput({
   label,
@@ -61,7 +61,7 @@ export function TagsInput({
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
 
     if (value.includes(",") || value.includes("、")) {

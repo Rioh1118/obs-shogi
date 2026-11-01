@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type KeyboardEvent } from "react";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { $convertFromMarkdownString, $convertToMarkdownString } from "@lexical/markdown";
@@ -38,7 +38,7 @@ export default function LiveMarkdownNote({
   onSubmitShortcut,
 }: Props) {
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
+    (e: KeyboardEvent<HTMLDivElement>) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         onSubmitShortcut?.();

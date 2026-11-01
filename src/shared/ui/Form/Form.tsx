@@ -1,10 +1,10 @@
-import { type ReactNode } from "react";
+import type { FormEvent, FormHTMLAttributes, ReactNode } from "react";
 import "./Form.scss";
 
-interface FormProps extends React.FormHTMLAttributes<HTMLFormElement> {
+type FormProps = FormHTMLAttributes<HTMLFormElement> & {
   children: ReactNode;
-  onSubmit: (e: React.FormEvent) => Promise<void>;
-}
+  onSubmit: (e: FormEvent) => Promise<void>;
+};
 
 // 面は暗い側だけ（ADR-0005 決定3）。明暗の軸は持たない。
 // 持つと、暗いモーダルの中に明るい前提のフォームが載る組み合わせが型として通る

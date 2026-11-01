@@ -1,6 +1,8 @@
-interface ButtonGroupProps {
-  children: React.ReactNode;
-}
+import type { ReactNode } from "react";
+
+type ButtonGroupProps = {
+  children: ReactNode;
+};
 
 // 並びは右揃えだけ（`Form.scss` の `--buttons`）。軸を持つと、値に対応する規則が
 // 無いまま「選べるが効かない」prop になる

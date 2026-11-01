@@ -12,7 +12,7 @@ type ModalVariant = "dialog" | "workspace";
 type ModalSize = "sm" | "md" | "lg" | "xl";
 type ModalScroll = "card" | "content" | "none";
 
-interface ModalProps {
+type ModalProps = {
   children: ReactNode;
   onClose: () => void;
   /**
@@ -28,7 +28,7 @@ interface ModalProps {
   closeOnEsc?: boolean;
   closeOnOverlay?: boolean;
   showCloseButton?: boolean;
-}
+};
 
 function Modal({
   children,

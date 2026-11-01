@@ -12,7 +12,7 @@ export type ButtonTone = "primary" | "accent" | "neutral" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 export type ButtonRadius = "soft" | "pill";
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   tone?: ButtonTone;
   size?: ButtonSize;
   radius?: ButtonRadius;
@@ -30,7 +30,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    */
   busy?: boolean;
   children: ReactNode;
-}
+};
 
 /**
  * アプリ共通のボタン。

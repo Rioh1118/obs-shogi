@@ -2,12 +2,12 @@ import { ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import "./Select.scss";
 
-interface Option<T extends string> {
+type Option<T extends string> = {
   value: T;
   label: string;
-}
+};
 
-interface SelectProps<T extends string> {
+type SelectProps<T extends string> = {
   label: string;
   id: string;
   options: readonly Option<T>[];
@@ -23,7 +23,7 @@ interface SelectProps<T extends string> {
   /** 選択肢の値しか出さないので、空文字は返らない */
   onChange: (value: T) => void;
   placeholder?: string;
-}
+};
 
 /**
  * 値の集合を `options` から受け継ぐ。

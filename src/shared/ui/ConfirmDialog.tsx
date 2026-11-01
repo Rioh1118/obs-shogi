@@ -2,7 +2,7 @@ import Button from "@/shared/ui/Button/Button";
 import Modal from "@/shared/ui/Modal";
 import "./ConfirmDialog.scss";
 
-interface ConfirmDialogProps {
+type ConfirmDialogProps = {
   title: string;
   subtitle?: string;
   /**
@@ -18,7 +18,7 @@ interface ConfirmDialogProps {
   isLoading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-}
+};
 
 /**
  * 取り消せない操作の確認（ADR-0004）。

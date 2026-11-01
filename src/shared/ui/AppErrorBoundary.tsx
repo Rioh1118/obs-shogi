@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 
 /**
  * 境界の名乗りの名簿。
@@ -118,7 +118,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   // 落ちた原因はここでしか見られない。表示側は詳細を出さない
-  componentDidCatch(error: unknown, info: React.ErrorInfo) {
+  componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error(
       `[AppErrorBoundary:${this.props.label}] Uncaught error:`,
       error,
