@@ -6,7 +6,8 @@ type FormFieldProps = {
   horizontal?: boolean;
 };
 function FormField({ children, horizontal = false }: FormFieldProps) {
-  return <div className={`form__group ${horizontal && "form__group--horizontal"}`}>{children}</div>;
+  const className = horizontal ? "form__group form__group--horizontal" : "form__group";
+  return <div className={className}>{children}</div>;
 }
 
 export default FormField;
