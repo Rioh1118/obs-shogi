@@ -47,6 +47,12 @@ describe("isLegalMove の移動", () => {
 describe("isLegalMove の駒打ち", () => {
   const WHITE_HOLDS_SILVER = "7k1/9/9/9/9/9/9/9/1K7 w s 1";
 
+  /** `Color.Black` は `0` なので、色の有無を真偽で見ると先手の駒打ちだけが全て断られる */
+  test("先手の駒打ちは指せる", () => {
+    const move = { to: { x: 5, y: 5 }, color: Color.Black, kind: "GI" as const };
+    expect(validator.isLegalMove(positionOf("7k1/9/9/9/9/9/9/9/1K7 b S 1"), move)).toBe(true);
+  });
+
   test("後手の駒打ちは指せる", () => {
     const move = { to: { x: 5, y: 5 }, color: Color.White, kind: "GI" as const };
     expect(validator.isLegalMove(positionOf(WHITE_HOLDS_SILVER), move)).toBe(true);
