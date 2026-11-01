@@ -480,6 +480,33 @@ describe("updatePosition", () => {
   });
 });
 
+describe("書く操作の順", () => {
+  it("更新の保存が終わるまで、次の更新も削除も書かない", async () => {
+    const view = await mounted([stored("a", SFEN_A), stored("b", SFEN_B)]);
+    const first = deferred<void>();
+    saveStudyPositions.mockReturnValueOnce(first.promise);
+
+    let pending!: Promise<unknown>;
+    await act(async () => {
+      pending = Promise.all([
+        view.result.current.updatePosition({ id: "a", label: "1件目" }),
+        view.result.current.updatePosition({ id: "a", label: "2件目" }),
+        view.result.current.deletePosition("b"),
+      ]);
+    });
+    expect(saveStudyPositions).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      first.resolve();
+      await pending;
+    });
+
+    expect(saveStudyPositions).toHaveBeenCalledTimes(3);
+    expect(view.result.current.state.positions).toHaveLength(1);
+    expect(view.result.current.state.positions[0]!.label).toBe("2件目");
+  });
+});
+
 describe("deletePosition", () => {
   it("消して、残りを書く", async () => {
     const view = await mounted([stored("a", SFEN_A), stored("b", SFEN_B)]);
