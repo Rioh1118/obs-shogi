@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { ManualCheckResult, UpdaterStatus } from "@/entities/updater";
-import type { IndexUiState } from "@/entities/search";
+import { indexHealth } from "@/entities/search";
+import type { IndexHealth, IndexUiState } from "@/entities/search";
 
 /**
  * 設定「ワークスペース」タブの3つの節。
@@ -85,6 +86,42 @@ const READY: IndexUiState = {
   currentPath: null,
 };
 
+/** 具合が増えたらここで tsc が止まる。語と色を1つの表で見る */
+const HEALTH_BADGES: Record<
+  IndexHealth,
+  { index: Partial<IndexUiState>; label: string; tone: "warn" | "muted" | "accent" }
+> = {
+  ok: { index: {}, label: "準備完了", tone: "accent" },
+  notStarted: { index: { state: "Empty" }, label: "未作成", tone: "muted" },
+  building: { index: { state: "Building" }, label: "作成中", tone: "warn" },
+  notRefreshed: { index: { scanFailed: true }, label: "更新できていません", tone: "warn" },
+  buildFailed: {
+    index: { state: "Empty", scanFailed: true },
+    label: "作成できませんでした",
+    tone: "warn",
+  },
+  partiallyUnreadable: {
+    index: { partiallyUnreadable: true },
+    label: "一部を読めていません",
+    tone: "warn",
+  },
+  partiallyIndexed: {
+    index: { indexedFiles: 0 },
+    label: "一部を索引に入れられていません",
+    tone: "warn",
+  },
+  notRefreshedAndPartiallyIndexed: {
+    index: { scanFailed: true, indexedFiles: 0 },
+    label: "更新できず、入れられなかった棋譜もあります",
+    tone: "warn",
+  },
+  partiallyUnreadableAndIndexed: {
+    index: { partiallyUnreadable: true, indexedFiles: 0 },
+    label: "読めない場所と、入れられなかった棋譜があります",
+    tone: "warn",
+  },
+};
+
 const clipboardWrite = vi.fn<(text: string) => Promise<void>>();
 const reload = vi.fn();
 
@@ -136,33 +173,30 @@ afterEach(() => {
 });
 
 describe("「状態」の節", () => {
-  test.each<[string, Partial<IndexUiState>, string]>([
-    ["作成済み", {}, "準備完了"],
-    ["未作成", { state: "Empty" }, "未作成"],
-    ["復元中", { state: "Restoring" }, "復元中"],
-    ["作成中", { state: "Building" }, "作成中"],
-    ["更新中", { state: "Updating" }, "更新中"],
-    ["走査の失敗", { scanFailed: true }, "更新できていません"],
-    ["読めない場所", { partiallyUnreadable: true }, "一部を読めていません"],
-    ["入れられない棋譜", { indexedFiles: 0, totalFiles: 3 }, "一部を索引に入れられていません"],
-  ])("バッジは具合の語を出す: %s", async (_name, patch, label) => {
-    world.search.index = { ...READY, indexedFiles: READY.totalFiles, ...patch };
+  test.each(Object.entries(HEALTH_BADGES))(
+    "バッジは具合の語と色を出す: %s",
+    async (health, want) => {
+      world.search.index = { ...READY, indexedFiles: READY.totalFiles, ...want.index };
+      expect(indexHealth(world.search.index as IndexUiState)).toBe(health);
+
+      const { container } = await renderTab();
+
+      const badge = container.querySelector(".sbadge");
+      expect(badge?.textContent).toBe(want.label);
+      expect(badge?.className).toContain(`sbadge--${want.tone}`);
+    },
+  );
+
+  test.each<[IndexUiState["state"], string]>([
+    ["Restoring", "復元中"],
+    ["Building", "作成中"],
+    ["Updating", "更新中"],
+  ])("作業中の語は段で分かれる: %s", async (state, label) => {
+    world.search.index = { ...READY, state };
 
     const { container } = await renderTab();
 
     expect(container.querySelector(".sbadge")?.textContent).toBe(label);
-  });
-
-  test.each<[string, Partial<IndexUiState>, string]>([
-    ["準備完了", { indexedFiles: READY.totalFiles }, "sbadge--accent"],
-    ["未作成", { state: "Empty" }, "sbadge--muted"],
-    ["作成中", { state: "Building" }, "sbadge--warn"],
-    ["走査の失敗", { scanFailed: true }, "sbadge--warn"],
-  ])("バッジの色: %s", async (_name, patch, tone) => {
-    world.search.index = { ...READY, ...patch };
-    const { container } = await renderTab();
-
-    expect(container.querySelector(".sbadge")?.className).toContain(tone);
   });
 
   test("数を区切りつきで出す", async () => {

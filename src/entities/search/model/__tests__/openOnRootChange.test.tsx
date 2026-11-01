@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { StrictMode } from "react";
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
+
+import type { IndexWarnPayload } from "@/entities/search/api/events";
 
 /**
  * 索引を開く合図は `rootDir` prop。呼び出し側の再描画ではない。
@@ -13,17 +15,20 @@ import { act, cleanup, render } from "@testing-library/react";
 
 const openProjectApi = vi.fn();
 
+type Handlers = { onIndexWarn: (p: IndexWarnPayload) => void };
+
 /** 購読が張り終わる時点を試験の側から決める。既定は即時 */
-let listenImpl: () => Promise<() => void> = () => Promise.resolve(() => {});
+let listenImpl: (handlers: Handlers) => Promise<() => void> = () => Promise.resolve(() => {});
 
 vi.mock("../../api/tauri", () => ({
   openProject: (rootDir: string) => openProjectApi(rootDir),
-  listenSearchEvents: () => listenImpl(),
+  listenSearchEvents: (handlers: Handlers) => listenImpl(handlers),
   searchPosition: vi.fn(),
   cancelSearch: vi.fn(),
 }));
 
 const { PositionSearchProvider } = await import("../provider");
+const { usePositionSearch } = await import("../usePositionSearch");
 
 const app = (rootDir: string | null) => (
   <PositionSearchProvider rootDir={rootDir}>
@@ -40,6 +45,45 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+function WarnPaths() {
+  const { state } = usePositionSearch();
+  return <p>{state.warns.map((w) => w.path).join(",") || "警告なし"}</p>;
+}
+
+describe("根が変わったときの警告", () => {
+  const warned = (rootDir: string) => (
+    <PositionSearchProvider rootDir={rootDir}>
+      <WarnPaths />
+    </PositionSearchProvider>
+  );
+  const warnAt = (path: string): IndexWarnPayload => ({
+    kind: "place",
+    path,
+    message: "読めません",
+  });
+
+  /** ルートの改名は `setRootDir` を読み直しなしで通るので、`rootDir` だけが変わる */
+  test("前の根の警告を消し、新しい根の警告は残す", async () => {
+    let handlers!: Handlers;
+    listenImpl = (h) => {
+      handlers = h;
+      return Promise.resolve(() => {});
+    };
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(warned("/old"));
+    });
+    await act(async () => handlers.onIndexWarn(warnAt("/old/a")));
+    expect(screen.getByText("/old/a")).toBeTruthy();
+
+    await act(async () => view.rerender(warned("/new")));
+    expect(screen.getByText("警告なし")).toBeTruthy();
+
+    await act(async () => handlers.onIndexWarn(warnAt("/new/b")));
+    expect(screen.getByText("/new/b")).toBeTruthy();
+  });
+});
 
 describe("索引を開く合図", () => {
   test("根が無いうちは開かない", async () => {
