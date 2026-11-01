@@ -9,7 +9,6 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
       return { ...state, kifuError: null };
 
     case "tree_loaded":
-    case "tree_updated":
       return {
         ...state,
         fileTree: action.payload,
@@ -88,7 +87,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
       return {
         ...state,
         activeKifuPath: action.payload.path,
-        jkfData: action.payload.path === null ? null : (action.payload.jkfData ?? state.jkfData),
+        jkfData: action.payload.path === null ? null : state.jkfData,
         kifuFormat:
           action.payload.path === null ? null : (action.payload.format ?? state.kifuFormat),
       };

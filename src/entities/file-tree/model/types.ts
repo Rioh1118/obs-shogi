@@ -22,19 +22,10 @@ export interface FileSystemNode {
 
 export interface FileTreeDisplayInfo {
   iconType: "folder" | "kif-file";
-  isExpanded?: boolean;
-  isSelected?: boolean;
 }
 
 export interface KifuFileInfo {
   format: KifuFormat;
-  moveCount?: number;
-  hasBranches?: boolean;
-  gameInfo?: {
-    black?: string;
-    white?: string;
-    date?: string;
-  };
 }
 
 export type FileTreeNode = FileSystemNode & {
@@ -151,7 +142,6 @@ export type FileTreeAction =
       };
     }
   | { type: "kifu_closed" }
-  | { type: "tree_updated"; payload: FileTreeNode }
   | { type: "node_expanded"; payload: string }
   | { type: "node_collapsed"; payload: string }
   | { type: "menu_opened"; payload: MenuState }
@@ -163,16 +153,15 @@ export type FileTreeAction =
   | { type: "nodes_expanded"; payload: string[] }
   | { type: "selected_node_reconciled"; payload: FileTreeNode | null }
   /**
-   * 改名・移動でパスが張り替わった。**`jkfData` を省くと据え置かれる**（`?? state.jkfData`）。
+   * 改名・移動でパスが張り替わった。`jkfData` は据え置く。
    *
-   * 据え置くのは、同じ棋譜の名前が変わっただけだから。**省いたときに参照が
-   * そのまま残ることが、盤が載せ直しを避けられる根拠**（`jkfData` の doc）。
+   * 同じ棋譜の名前が変わっただけなので、参照が残ることが盤の載せ直しを避ける根拠になる
+   * （`jkfData` の doc）。
    */
   | {
       type: "active_kifu_reconciled";
       payload: {
         path: string | null;
-        jkfData?: JKFData | null;
         format?: KifuFormat | null;
       };
     }

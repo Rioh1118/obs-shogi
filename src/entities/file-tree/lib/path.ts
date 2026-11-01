@@ -1,14 +1,5 @@
 import type { FileTreeNode } from "../model/types";
 
-export function joinPath(parentPath: string, name: string): string {
-  const trimmed = parentPath.replace(/[\\/]+$/, "");
-  if (!trimmed) return name;
-
-  const sep: "/" | "\\" = trimmed.includes("\\") && !trimmed.includes("/") ? "\\" : "/";
-
-  return `${trimmed}${sep}${name}`;
-}
-
 export function findNodeChain(
   node: FileTreeNode,
   targetPath: string,
@@ -73,15 +64,4 @@ export function remapSubtreePath(
   }
 
   return null;
-}
-
-export function replaceBasename(path: string, nextName: string): string {
-  const p = trimTrailingSeparators(path);
-  const lastSlash = p.lastIndexOf("/");
-  const lastBack = p.lastIndexOf("\\");
-  const idx = Math.max(lastSlash, lastBack);
-
-  if (idx < 0) return nextName;
-
-  return `${p.slice(0, idx + 1)}${nextName}`;
 }

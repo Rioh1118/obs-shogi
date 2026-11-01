@@ -132,7 +132,7 @@ E1 は `pov` を消しにいき、E7 は消さずに戻る。
 
 ※5 **改名・移動では、この feature の外を一周してから合図が動く。** 経路は3段:
 
-1. `active_kifu_reconciled` が `jkfData` を `?? state.jkfData` で持ち越し、
+1. `active_kifu_reconciled` が `jkfData` を持ち越し、
    `activeKifuPath` だけを張り替える（`src/entities/file-tree/model/reducer.ts`）
 2. `GameFileTreeBridge` は `jkfData` が前回と同じ参照なら `loadGame` を撃たず、
    `renameLoadedPath` で宛先だけを張り替える（`path_renamed`）

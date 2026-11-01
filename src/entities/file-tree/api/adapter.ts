@@ -16,8 +16,6 @@ export class RustFileTreeAdapter {
       size: r.size,
       displayInfo: {
         iconType: r.isDir ? "folder" : "kif-file",
-        isExpanded: false,
-        isSelected: false,
       },
       kifuInfo: this.kifuInfo(r),
     };

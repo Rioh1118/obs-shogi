@@ -9,7 +9,7 @@
  * ここに並ぶのは**スライスの外に呼び出し元があるものだけ**。
  * 増やすときは、外から使う場所と一緒に足すこと。
  */
-export type { FsError, FsErrorCode } from "./api/error";
+export type { FsError } from "./api/error";
 export {
   asFsError,
   describeFsError,

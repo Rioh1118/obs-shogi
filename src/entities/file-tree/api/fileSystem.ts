@@ -61,18 +61,6 @@ export async function readFile(filePath: string): Promise<string> {
   return await invokeFs<string>("read_file", { filePath });
 }
 
-export async function saveKifuFile(
-  parentDir: string,
-  fileName: string,
-  content: string,
-): Promise<string> {
-  return await invokeFs<string>("save_kifu_file", {
-    parentDir,
-    fileName,
-    content,
-  });
-}
-
 // mv / rename
 
 export async function renameKifuFile(filePath: string, newFileName: string): Promise<string> {
