@@ -36,7 +36,8 @@ ours 戦略のマージは使わない。
 | -- | -- | ---- | -- | ---- |
 | 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | 未作成 | 作業中 |
 | 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | #663 | レビュー待ち |
-| 3 | `refactor/shared-public-names` | `shared` の公開の名前と呼び手 | 未作成 | 作業中 |
+| 3 | `refactor/shared-public-names` | `shared` の公開の名前と呼び手 | #664 | レビュー待ち |
+| 4 | `refactor/tidy-shared-ui` | `src/shared/ui` のコメントと書き方 | 未作成 | 作業中 |
 
 ## 語
 
@@ -57,7 +58,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 順 | 範囲                                                     | 行数 | 状態   | 構造   |
 | -- | -------------------------------------------------------- | ---- | ------ | ------ |
 | 1  | `src/shared/lib`、`src/shared/api`                       | 1102 | 済     | —      |
-| 2  | `src/shared/ui`                                          | 2023 | 未着手 | 未着手 |
+| 2  | `src/shared/ui`                                          | 2023 | 済     | 未着手 |
 | 3  | `src/entities/kifu/lib`                                  | 1287 | 済     | —      |
 | 4  | `src/entities/kifu` の残り                               | 1023 | 未着手 | 未着手 |
 | 5  | `src/entities/position`                                  | 1894 | 未着手 | 未着手 |
