@@ -3,39 +3,17 @@ import type { AnalysisSessionId } from "./tauri";
 import type { AnalysisResult, UnresponsiveReason } from "./rust-types";
 import { EVENT_NAMES } from "./eventNames";
 
-type AnalysisUpdate = { sessionId: AnalysisSessionId; result: AnalysisResult };
-// ===== リアルタイムイベントリスナー =====
-/**
- * 解析の途中経過を受ける。
- *
- * **`sessionId` を捨てないこと。** 前の探索が畳まりきる前に次の `go` が出ると、
- * 古い局面の `info` が新しいリスナーへ配られる。照合しないと、前の局面の
- * 評価値と読み筋が現在の盤面の解析結果として画面に出る（Rust 側が
- * `AnalysisUpdate` の doc に同じことを書いている）。
- */
-async function listenToAnalysisUpdates(
-  callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
-): Promise<UnlistenFn> {
-  return await listen<AnalysisUpdate>(EVENT_NAMES.ANALYSIS_UPDATE, (event) => {
-    const p: AnalysisUpdate = event.payload;
-    callback(p.sessionId, p.result);
-  });
-}
+type AnalysisEvent = { sessionId: AnalysisSessionId; result: AnalysisResult };
 
-/**
- * エンジンが自分で探索を終えた通知。`stop` の答えはここに来ない。
- * **`sessionId` を照合すること**——一致しない完了通知を採ると、走っている別の席が
- * 終わったことになる。
- */
-async function listenToAnalysisComplete(
-  callback: (sessionId: AnalysisSessionId, result: AnalysisResult) => void,
+type AnalysisEventListener = (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
+
+function listenToAnalysisEvent(
+  eventName: string,
+  callback: AnalysisEventListener,
 ): Promise<UnlistenFn> {
-  return await listen<{ sessionId: AnalysisSessionId; result: AnalysisResult }>(
-    EVENT_NAMES.ANALYSIS_COMPLETE,
-    (event) => {
-      callback(event.payload.sessionId, event.payload.result);
-    },
-  );
+  return listen<AnalysisEvent>(eventName, (event) => {
+    callback(event.payload.sessionId, event.payload.result);
+  });
 }
 
 /**
@@ -48,10 +26,17 @@ export type EngineEventListeners = {
   onAnswered: (request: number) => void;
 };
 
-// ===== 統合リスナー =====
+/**
+ * 解析の通知の購読先。**`sessionId` を照合すること。**
+ *
+ * - `onUpdate`: 解析の途中経過。前の探索が畳まりきる前に次の `go` が出ると、古い局面の `info` が
+ *   新しいリスナーへ配られる。照合しないと、前の局面の評価値と読み筋が現在の盤面の結果として出る
+ * - `onComplete`: エンジンが自分で探索を終えた通知。`stop` の答えはここに来ない。
+ *   照合しないと、走っている別の席が終わったことになる
+ */
 type AnalysisEventListeners = {
-  onUpdate?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
-  onComplete?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
+  onUpdate: AnalysisEventListener;
+  onComplete: AnalysisEventListener;
 };
 
 /**
@@ -92,10 +77,9 @@ async function subscribeAll(subscribes: (() => Promise<UnlistenFn>)[]): Promise<
 export async function setupAnalysisEventListeners(
   listeners: AnalysisEventListeners,
 ): Promise<() => void> {
-  const { onUpdate, onComplete } = listeners;
   return subscribeAll([
-    ...(onUpdate ? [() => listenToAnalysisUpdates(onUpdate)] : []),
-    ...(onComplete ? [() => listenToAnalysisComplete(onComplete)] : []),
+    () => listenToAnalysisEvent(EVENT_NAMES.ANALYSIS_UPDATE, listeners.onUpdate),
+    () => listenToAnalysisEvent(EVENT_NAMES.ANALYSIS_COMPLETE, listeners.onComplete),
   ]);
 }
 

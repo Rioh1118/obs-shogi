@@ -80,11 +80,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
 
     const request = issueRequest(lastRequestRef);
 
-    const snapshot: EngineRuntimeConfig =
-      typeof structuredClone === "function"
-        ? structuredClone(desiredRuntime)
-        : JSON.parse(JSON.stringify(desiredRuntime));
-
+    const snapshot = structuredClone(desiredRuntime);
     lastTriedRuntimeRef.current = snapshot;
     dispatch({ type: "initialize_start" });
 

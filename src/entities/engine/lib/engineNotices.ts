@@ -54,6 +54,17 @@ const FIX_SETTINGS = "設定を直せば自動でもう一度起動します。"
 const TWO_WAYS =
   "設定を直したときは自動で、ファイルや権限・ドライブを直したときは「もう一度起動」で再起動します。";
 
+/** 原因を言えない失敗の文。Rust の `other` もフロントの `unknown` も、利用者がすることは同じ */
+const UNIDENTIFIED_FAILURE_NOTICE: EngineStartFailureNotice = {
+  tier: "danger",
+  body:
+    "検討はできません。設定の「エンジン管理」で、選んでいるプリセットの" +
+    "エンジンと評価関数の場所を確認してください。" +
+    TWO_WAYS +
+    "それでも起動しないときは、アプリを再起動してください。",
+  retry: true,
+};
+
 /**
  * 起動の失敗の種類ごとに、帯の段・本文・「もう一度起動」を出すかを決めた表。
  * **判断の出典はここ1つ。** 他の doc は種類を列挙せず、ここを指す。
@@ -126,24 +137,8 @@ export const ENGINE_START_FAILURE_NOTICES: Record<
     body: "エンジンの起動を中止しました。もう一度起動するか、設定を開いてプリセットを選択し直してください。",
     retry: true,
   },
-  other: {
-    tier: "danger",
-    body:
-      "検討はできません。設定の「エンジン管理」で、選んでいるプリセットの" +
-      "エンジンと評価関数の場所を確認してください。" +
-      TWO_WAYS +
-      "それでも起動しないときは、アプリを再起動してください。",
-    retry: true,
-  },
-  unknown: {
-    tier: "danger",
-    body:
-      "検討はできません。設定の「エンジン管理」で、選んでいるプリセットの" +
-      "エンジンと評価関数の場所を確認してください。" +
-      TWO_WAYS +
-      "それでも起動しないときは、アプリを再起動してください。",
-    retry: true,
-  },
+  other: UNIDENTIFIED_FAILURE_NOTICE,
+  unknown: UNIDENTIFIED_FAILURE_NOTICE,
 };
 
 /** 帯の見出し。起動の失敗はどの種類も同じ */

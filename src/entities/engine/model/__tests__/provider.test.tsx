@@ -113,6 +113,21 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+describe("EngineProvider の起動した設定", () => {
+  /** 共有すると、渡した設定を書き換えただけで起動し直さないまま一致したことになる */
+  test("起動した設定は、渡された設定の写しを持つ", async () => {
+    initialize.mockResolvedValue(INFO);
+    const desired = sameValues();
+
+    const app = mountWith(desired);
+    await settle();
+
+    expect(app.state.activeRuntime).toEqual(desired);
+    expect(app.state.activeRuntime).not.toBe(desired);
+    expect(app.state.activeRuntime?.values).not.toBe(desired.values);
+  });
+});
+
 describe("EngineProvider の失敗からの復帰", () => {
   /**
    * 表の (S3, E4)。同じ runtime での再設定。
