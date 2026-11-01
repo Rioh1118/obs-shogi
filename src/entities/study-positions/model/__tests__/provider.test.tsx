@@ -113,6 +113,53 @@ describe("読み込み", () => {
   });
 });
 
+/**
+ * `save_study_positions` はファイルごと置き換える。読めなかった一覧を空として書くと、
+ * 手で直せば読めるはずの局面が全部消える
+ */
+describe("読めていない一覧の上に書かない", () => {
+  function brokenFile() {
+    loadStudyPositions.mockRejectedValue("failed to parse study_positions.json");
+    return renderHook(() => useStudyPositions(), { wrapper });
+  }
+
+  it("追加を断り、書かず、理由を返す", async () => {
+    const view = brokenFile();
+    await waitFor(() => expect(view.result.current.state.error).not.toBeNull());
+
+    await expect(view.result.current.addPosition(input(SFEN_A))).rejects.toThrow(
+      "failed to parse study_positions.json",
+    );
+    expect(saveStudyPositions).not.toHaveBeenCalled();
+    expect(view.result.current.state.positions).toEqual([]);
+  });
+
+  it("更新と削除も断る", async () => {
+    const view = brokenFile();
+    await waitFor(() => expect(view.result.current.state.error).not.toBeNull());
+
+    await expect(view.result.current.updatePosition({ id: "a", label: "題" })).rejects.toThrow(
+      "failed to parse",
+    );
+    await expect(view.result.current.deletePosition("a")).rejects.toThrow("failed to parse");
+    expect(saveStudyPositions).not.toHaveBeenCalled();
+  });
+
+  it("読み直して読めたら、読めた一覧へ足す", async () => {
+    const view = brokenFile();
+    await waitFor(() => expect(view.result.current.state.error).not.toBeNull());
+
+    loadStudyPositions.mockResolvedValue({ positions: [stored("a", SFEN_A)] });
+    await act(async () => {
+      await view.result.current.addPosition(input(SFEN_B));
+    });
+
+    expect(saveStudyPositions.mock.lastCall![0].positions).toHaveLength(2);
+    expect(view.result.current.state.positions).toHaveLength(2);
+    expect(view.result.current.state.error).toBeNull();
+  });
+});
+
 describe("findBySfen", () => {
   it("手数が違っても同じ局面を返す", async () => {
     const view = await mounted([stored("a", SFEN_A), stored("b", SFEN_B)]);

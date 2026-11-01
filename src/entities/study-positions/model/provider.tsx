@@ -52,9 +52,10 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
   const positionsRef = useRef<StudyPosition[]>([]);
 
-  // CRUD 操作が positionsRef を読む前にロード完了を保証するゲート
-  // エラー時も必ず resolve させることで mutation がブロックされるのを防ぐ
-  const loadPromise = useRef<Promise<void>>(Promise.resolve());
+  // 読み込みの完了を待つ promise。失敗したら空に戻し、次に書く操作が読み直す。
+  // `save_study_positions` はファイルごと置き換えるので、読めていない一覧の上に書くと
+  // 手で直せば読めるはずの局面が全部消える
+  const loadingRef = useRef<Promise<void> | null>(null);
 
   const persistPositions = useCallback(async (positions: StudyPosition[]) => {
     dispatch({ type: "save_start" });
@@ -71,19 +72,10 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
   const load = useCallback(async () => {
     dispatch({ type: "load_start" });
 
-    // ゲート用 Promise をセット（エラーでも必ず resolve して mutation をブロックしない）
-    let settle!: () => void;
-    loadPromise.current = new Promise<void>((resolve) => {
-      settle = resolve;
-    });
-
     try {
       const out = await loadStudyPositions();
       const normalized = out.positions.map(normalizeStoredPosition);
 
-      // settle() より前に ref を更新する。
-      // useEffect による state→ref 同期は render 後なので、
-      // settle() 直後に mutation が positionsRef を読んでも最新データが見えるようにする。
       positionsRef.current = normalized;
       dispatch({
         type: "load_success",
@@ -92,17 +84,23 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       dispatch({ type: "load_error", payload: { message } });
-      throw e;
-    } finally {
-      settle();
+      throw new Error(`課題局面を読み込めないので、書き込みません（${message}）`);
     }
   }, []);
 
+  const ensureLoaded = useCallback(() => {
+    loadingRef.current ??= load().catch((e: unknown) => {
+      loadingRef.current = null;
+      throw e;
+    });
+    return loadingRef.current;
+  }, [load]);
+
   useEffect(() => {
-    load().catch((e) => {
+    ensureLoaded().catch((e: unknown) => {
       console.error("[StudyPositions] load failed:", e);
     });
-  }, [load]);
+  }, [ensureLoaded]);
 
   const getById = useCallback((id: string | null | undefined): StudyPosition | null => {
     if (!id) return null;
@@ -120,8 +118,7 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
 
   const addPosition = useCallback(
     async (input: CreateStudyPositionInput): Promise<StudyPosition> => {
-      // ロード完了前に呼ばれた場合、既存データが positionsRef に揃うまで待つ
-      await loadPromise.current;
+      await ensureLoaded();
 
       const inputKey = requirePositionKey(input.sfen);
 
@@ -161,12 +158,12 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
         throw e;
       }
     },
-    [persistPositions],
+    [ensureLoaded, persistPositions],
   );
 
   const updatePosition = useCallback(
     async (input: UpdateStudyPositionInput): Promise<StudyPosition> => {
-      await loadPromise.current;
+      await ensureLoaded();
 
       const current = positionsRef.current.find((p) => p.id === input.id);
       if (!current) {
@@ -210,12 +207,12 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
         throw e;
       }
     },
-    [persistPositions],
+    [ensureLoaded, persistPositions],
   );
 
   const deletePosition = useCallback(
     async (id: string): Promise<void> => {
-      await loadPromise.current;
+      await ensureLoaded();
 
       const prevPositions = positionsRef.current;
       const exists = prevPositions.some((p) => p.id === id);
@@ -237,7 +234,7 @@ export function StudyPositionsProvider({ children }: { children: ReactNode }) {
         throw e;
       }
     },
-    [persistPositions],
+    [ensureLoaded, persistPositions],
   );
 
   const selectPosition = useCallback((id: string | null) => {
