@@ -21,8 +21,7 @@ export default function SSection({
   className,
   tone = "default",
 }: Props) {
-  // 見出しを節の名前にする。**名前の無い `<section>` は landmark として引けない**ので、
-  // 支援技術からも、名前で節を絞るテストからも、中身が同じ塊として扱えない
+  // 見出しを節の名前にする。名前の無い `<section>` は landmark として引けない
   const titleId = useId();
 
   return (

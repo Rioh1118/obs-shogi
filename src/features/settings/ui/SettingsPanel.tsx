@@ -22,7 +22,6 @@ function SettingsPanel() {
 
   const goTab = (t: TabKey) => updateParams({ tab: t }, { replace: true });
 
-
   return (
     <div className="settings">
       <header className="settings__header">
@@ -38,7 +37,7 @@ function SettingsPanel() {
               const isActive = tab === t.key;
 
               // 外のもの（AI ライブラリの置き場、エンジン）を指すタブだけ。
-              // **中身は見ていない**ので、設定が済んでいても消えない
+              // 中身は見ていないので、設定が済んでいても消えない
               const needsSetup = t.key === "aiLibrary" || t.key === "engine";
 
               const showLock = needsSetup;

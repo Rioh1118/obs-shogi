@@ -52,7 +52,7 @@ export default function EngineTab() {
     console.log(selectedId);
   }, [selectedId]);
 
-  // 書けないファイル（新しい版・読めない・移せなかった）では変更の操作を出さない。
+  // 書けないファイル（新しい版、読めない、移せなかった）では変更の操作を押せなくする。
   // 理由は帯が出す（`PresetsFileBridge`）
   const readOnly = !state.writable;
 
@@ -61,7 +61,7 @@ export default function EngineTab() {
   };
 
   const onDup = async (id: PresetId) => {
-    // duplicatePreset は今の実装だと「新しいid」を返さないので、ここでは作るだけにする
+    // 複製先へは適用を移さない（`docs/spec/screens/settings.md`）
     await duplicatePreset(id);
   };
 
@@ -122,7 +122,7 @@ export default function EngineTab() {
               const threads = savedInt(p.options, "Threads");
               const hash = savedInt(p.options, "USI_Hash");
 
-              const multiPvWarn = multiPv != null && multiPv >= 2; // 研究用途ではOKだが注意
+              const multiPvWarn = multiPv != null && multiPv >= 2;
               const title = p.label?.trim() || "（無名プリセット）";
 
               return (

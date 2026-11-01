@@ -23,14 +23,13 @@ import {
 import type { DockViewType } from "@/shared/lib/router/useURLParams";
 import { ANALYSIS_DISPLAY_MODES, resolveAnalysisDisplayMode } from "@/entities/analysis";
 
-/** 「起動時に開くタブ」の左の腕。**ビューの綴りとは別の語彙**なので、綴りを分ける */
+/** 「起動時に開くタブ」の「前回のもの」の値。ビューの綴りとは別の語彙 */
 const STARTUP_LAST = "last";
 
 /**
- * 設定「表示」タブ。**ドックに何を出すかを決める。**
+ * 設定「表示」タブ。ドックのタブの構成と、検討ビューの見せ方を決める。
  *
- * 原則は「その場で変わるものはその場に、恒久的な構成は設定に」（ADR-0010 決定4）。
- * ここに置くのは構成のほう —— どのタブを出すか、どの順に並べるか、起動時にどれを開くか。
+ * その場で変わるものはその場に、恒久的な構成は設定に置く（ADR-0010 決定4）。
  */
 export default function DisplayTab() {
   const { config, setDisplayConfig } = useAppConfig();
@@ -45,8 +44,8 @@ export default function DisplayTab() {
     [tabs],
   );
 
-  // **読む側と同じ関数を通す。** 通さないと、一覧に無い綴りが設定に残っている回に
-  // 「決めておく」を選んだまま選択肢に無い値を表示し、起動時の行き先だけが別になる
+  // 起動時に読む側と同じ関数を通す。通さないと、一覧に無い綴りが設定に残っているときに、
+  // 選択肢に無い値を表示したまま起動時の行き先だけが別になる
   const startupTab = resolveStartupTab(tabs, config?.dock_startup_tab);
   const showEvaluationBar = config?.show_evaluation_bar === true;
   const displayMode = resolveAnalysisDisplayMode(config?.analysis_display_mode);
@@ -57,23 +56,22 @@ export default function DisplayTab() {
   };
 
   /**
-   * 一覧を書き換える。**外れたタブが起動時タブに残らないよう、同じ書き込みで掃除する。**
+   * 一覧を書き換える。外れたタブが起動時に開くタブに残らないよう、同じ書き込みで直す。
    *
-   * 別々に書くと、掃除の側だけが落ちた回に「決めておく」が指す先が一覧の外に残る。
+   * 別々に書くと、後の書き込みだけが落ちたときに「決めておく」の指す先が一覧の外に残る。
    */
   const saveTabs = (nextTabs: DockViewType[]) =>
     save({
       dock_tabs: nextTabs,
-      // **選ぶ機会があった顔ぶれを一緒に残す。** 残さないと、後から名簿に足したビューと
-      // ここで外したビューが見分けられず、外した意思が毎回取り消される
+      // 選ぶ機会があった顔ぶれを残す。残さないと、後から名簿に足したビューとここで外した
+      // ビューを見分けられない
       dock_tabs_known: knownDockViews(),
       dock_startup_tab: resolveStartupTab(nextTabs, config?.dock_startup_tab),
     });
 
   return (
     <div className="displayTab">
-      {/* **失敗はここに出す。** 出さないと、押したチェックが戻るだけになる
-          ——タブの構成は設定から導いているので、保存が落ちれば画面も動かない。
+      {/* タブの構成は設定から導くので、保存が落ちると押したチェックが戻るだけになる。
           見せ方は通知基盤を通らない経路の共通部品に寄せる（ADR-0004 決定4） */}
       {error && (
         <InlineNotice
@@ -93,8 +91,7 @@ export default function DisplayTab() {
                   <input
                     type="checkbox"
                     checked
-                    // **解析は外せない。** 全部外せると「空のドック」という状態が
-                    // 生まれ、そこに出す案内を設計することになる（ADR-0010 決定1）
+                    // 全部外せると、空のドックに出す案内が要る（ADR-0010 決定1）
                     disabled={!removable}
                     onChange={() => saveTabs(toggleDockTab(tabs, key))}
                   />
@@ -128,8 +125,7 @@ export default function DisplayTab() {
             );
           })}
 
-          {/* 出していないビュー。**並べ替えは出してから** —— 一覧に無いものの
-              順番を決めさせても、決めた結果を確かめる場所が無い */}
+          {/* 並べ替えは出してから。一覧に無いものの順番は、決めた結果を確かめる場所が無い */}
           {hidden.map((meta) => (
             <li key={meta.key} className="displayTab__row displayTab__row--hidden">
               <label className="displayTab__check">

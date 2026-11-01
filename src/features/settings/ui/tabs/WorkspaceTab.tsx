@@ -20,17 +20,12 @@ function percent(done: number, total: number) {
 }
 
 /**
- * 状態バッジ。
+ * 索引の状態バッジ。具合の判断は `indexHealth` が持つ。
  *
- * **走査に失敗した `Ready` を「準備完了」と言わせない。** 索引そのものは
- * 最後に読めたときのまま健全なので状態は `Ready` だが、それ以降の
- * 追加・変更・削除は1件も反映されていない。緑の「準備完了」を出すと、
- * 利用者は索引が最新だと確信する。
- *
- * **読めなかった場所があった回も同じ。** 索引に入っていない棋譜があるのに
- * 緑を出すと、0件が「自分の棋譜に無い」と読める。
- *
- * 具合の判断は `indexHealth` が持つ——画面ごとに旗を並べ直さない。
+ * 走査に失敗した `Ready` に「準備完了」を出さない。索引は最後に読めたときのまま健全なので
+ * 状態は `Ready` だが、それ以降の追加、変更、削除は反映されていない。緑を出すと、利用者は
+ * 索引が最新だと思い込む。読めなかった場所があるときも同じで、検索の0件が「自分の棋譜に
+ * 無い」と読める。
  */
 function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
   switch (health) {
@@ -85,7 +80,7 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
         label: "準備完了",
       };
     default: {
-      // 具合が増えたら tsc がここで止める。**黙って既定へ落ちない**
+      // 具合が増えたら tsc がここで止める
       const never: never = health;
       return never;
     }
@@ -93,21 +88,15 @@ function badgeForIndex(idx: IndexUiState, health: IndexHealth) {
 }
 
 /**
- * 段そのものの語。**どれを出すかは決めない**——決めるのは `indexHealth`。
+ * 索引の段の語。どれを出すかは `indexHealth` が決める。
  *
- * **表で書く。** `switch` の `default:` は網羅検査を無条件に抑えるので、段が
- * 1つ増えた日に黙って「更新中」になる。そのとき `isIndexBusy` の表は分類を
- * 迫るのに、こちらは tsc を1つも落とさずに**間違った語を出す**
- * （同じ理由で `entities/search/lib/indexState.ts` も表にしてある）。
+ * 表で書くのは、段が増えたときに tsc で止めるため。`default:` のある `switch` は別の語を
+ * 黙って出す（`entities/search/lib/indexState.ts` も同じ理由で表にしてある）。
+ * `label:` の形は `src/__tests__/screenSpecCoverage.test.ts` が拾う形で、素の値にすると
+ * 仕様書との突き合わせから外れる。
  *
- * **`label:` の形で書く。** `src/__tests__/screenSpecCoverage.test.ts` が拾うのは `label:` と
- * `return` と三項の両腕だけなので、素の値にすると**仕様書との突き合わせから
- * 落ちる**——網羅は tsc が見るが、語が仕様書と合っているかは誰も見なくなる。
- *
- * **引くのは `badgeForIndex` の `building` の腕だけ。** `state` から直接語を
- * 引かないこと。`Ready` は `indexHealth` で6通りに落ちるので、ここから引くと
- * **走査に失敗した `Ready` に緑の「準備完了」を出す**——このファイルが
- * 冒頭で禁じている表示になる。`Empty` / `Ready` の欄は表を埋めるためだけに在る。
+ * 引くのは `badgeForIndex` の `building` の腕だけにする。`state` から直接引くと、走査に
+ * 失敗した `Ready` にも「準備完了」を出す。`Empty` と `Ready` の欄は表を埋めるためにある。
  */
 const STAGE_LABEL: Record<IndexUiState["state"], { label: string }> = {
   Restoring: { label: "復元中" },
@@ -117,18 +106,15 @@ const STAGE_LABEL: Record<IndexUiState["state"], { label: string }> = {
   Ready: { label: "準備完了" },
 };
 
-/** 警告の枠。**増やすと状態の要約が押し出される**ので、増やす前に置き場を決めること */
+/** 警告の一覧に出す件数。増やすと状態の要約が押し出される */
 const WARN_SLOTS = 5;
 
 /**
- * 手で押した確認の結果。
+ * 手で押した確認の結果の文。
  *
- * **見つかっても、ここからは取得させない。** 更新のカードは設定モーダルの下に
- * 出る（重なりの順は `docs/spec/design-language.md`）ので、ここに取得のボタンを
- * 置くと進捗と失敗の出る面が2つになる。取得と適用はカードが持つ。
- *
- * **失敗に「もう一度」を出さない。** すぐ上の「更新を確認」がそれなので、
- * 同じ動作のボタンが2つ並ぶ。
+ * 見つかっても取得のボタンを置かない。更新のカードは設定モーダルの下に出る（重なりの順は
+ * `docs/spec/design-language.md`）ので、ここに置くと進捗と失敗の出る面が2つになる。
+ * 失敗に「もう一度」を出さない。すぐ上の「更新を確認」と同じ動作のボタンが2つ並ぶ。
  */
 function manualCheckText(result: ManualCheckResult): string {
   switch (result.kind) {
@@ -144,11 +130,11 @@ function manualCheckText(result: ManualCheckResult): string {
 }
 
 /**
- * 最後に確認できた時刻。
+ * 最後に確認できた時刻の文。
  *
- * **「まだ確認できていません」と「しばらく確認できていない」を、同じ空欄にしない。**
- * ここが古いまま止まっていることが、確認が失敗し続けていることを読み取れる
- * 唯一の徴候になる（確認の失敗は画面に出さない。理由は `entities/updater` の provider）。
+ * 一度も確認できていないときも空欄にしない。確認の失敗は画面に出さない（理由は
+ * `entities/updater` の provider の `runCheck`）ので、時刻が古いまま止まっていることが、
+ * 失敗し続けていることの唯一の手掛かりになる。
  */
 function lastCheckedText(ms: number | null): string {
   if (ms === null) return "まだ確認できていません";
@@ -174,11 +160,10 @@ export default function WorkspaceTab() {
   const { state: search, clearWarns } = usePositionSearch();
 
   const rootDir = config!.root_dir!;
-  const idx = search.index; // ←あなたの state 形
-  const warns = search.warns; // ←あなたの state 形
+  const idx = search.index;
+  const warns = search.warns;
 
-  // 具合を一度だけ導いて配る。画面の中で `state` を並べ直すと、段が増えたときに
-  // バッジだけ追随して進捗バーが消える（`indexHealth` は `switch` ではない）
+  // 進捗バーもこの具合で決める。`state` を並べ直すと、段が増えたときにバーだけ出なくなる
   const health = indexHealth(idx);
   const badge = badgeForIndex(idx, health);
 
@@ -206,7 +191,6 @@ export default function WorkspaceTab() {
     };
   }, []);
 
-  // root_dir 変更の儀式
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const canChange = confirmText.trim().toLowerCase() === "change";
@@ -219,7 +203,7 @@ export default function WorkspaceTab() {
     const picked = await chooseRootDir({ force: true });
     if (!picked) return;
 
-    // いろんな Provider が root_dir に依存してるので、確実性優先でリロード
+    // `root_dir` に依存する provider が多いので、個別に差し替えずアプリごと作り直す
     window.location.reload();
   };
 
@@ -256,11 +240,7 @@ export default function WorkspaceTab() {
 
             <div className="wsTab__mini">
               <div className="wsTab__miniK">未同期</div>
-              {/*
-                **数えられなかったときに 0 と書かない。** 走査が失敗すると
-                差分を1件も取れていないので、0 は「無い」ではなく「分からない」。
-                0 と描くと、索引が最新だと読める
-              */}
+              {/* 走査が失敗すると差分を取れていない。0 と描くと索引が最新だと読める */}
               <div className="wsTab__miniV">
                 {idx.scanFailed ? "確認できていません" : idx.dirtyCount.toLocaleString()}
               </div>
@@ -268,10 +248,8 @@ export default function WorkspaceTab() {
 
             <div className="wsTab__mini">
               {/*
-                **入れ終えた数を出す。** `Ready` の回にかぎり、対象との差が
-                そのまま「検索に出ない棋譜」の数。数を伏せると、警告欄の5件しか
-                手掛かりが無くなる。
-                進行中は据わっている索引の数が出るので、差は「まだ当てていない分」
+                `Ready` のときは対象との差が「検索に出ない棋譜」の数で、警告の一覧のほかに
+                手掛かりが無い。進行中は据わっている索引の数が出るので、差は未処理の分になる
               */}
               <div className="wsTab__miniK">索引済み</div>
               <div className="wsTab__miniV">
@@ -315,10 +293,7 @@ export default function WorkspaceTab() {
             </div>
 
             {/*
-              **切ったことを言う。** 「警告 200」と出しているのに一覧が5行で
-              終わると、利用者は「5件だけ壊れている」と読む——「一部を索引に
-              入れられていません」と言われた人が次にできるのは、ここで
-              どの棋譜かを見ることだけ
+              切ったことを言う。「警告 200」のまま一覧が短く終わると、それだけが壊れていると読める
             */}
             {warns.length > shownWarns.length && (
               <div className="wsTab__warnMore">
@@ -439,9 +414,7 @@ export default function WorkspaceTab() {
         )}
 
         {/*
-          **飛ばしている版は常に出す。** 押したことを忘れたまま「更新が来ない」と
-          読まれると、確認が壊れているのか飛ばしているのかを区別する手掛かりが
-          どこにも無くなる
+          確認の結果と別に常に出す。更新が来ない理由が、確認の故障か飛ばす設定かを見分けるため
         */}
         {persisted?.skippedVersion && (
           <div className="wsTab__updateSkipped">

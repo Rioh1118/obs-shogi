@@ -87,7 +87,7 @@ export type EnginePresetsState = {
   error: string | null;
   presets: EnginePreset[];
   selectedPresetId: PresetId | null;
-  /** 偽なら変更の操作を出さない（新しい版・読めない・移せなかったファイル） */
+  /** 偽なら変更の操作を押せなくする（新しい版、読めない、移せなかったファイル） */
   writable: boolean;
   /** 読めなかった件の数（ファイルには残してある） */
   unreadableCount: number;

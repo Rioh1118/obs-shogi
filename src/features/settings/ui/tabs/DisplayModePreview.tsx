@@ -2,12 +2,10 @@ import "./DisplayModePreview.scss";
 import type { AnalysisDisplayMode } from "@/entities/analysis";
 
 /**
- * 候補手の見せ方の見本。**言葉より先に形を見せる。**
+ * 候補手の見せ方の見本。「表」と「行」は名前だけでは何が変わるか読めないので、並び方を出す。
  *
- * 「表 / 行」は名前だけでは何が変わるか読めない。選ぶ前に並び方そのものを出す。
- *
- * **中身は持たない。** 実データを描くと、設定を開いた時点の解析結果に見えてしまう。
- * 出すのは骨だけで、読み上げは選択肢のラベルが担う（`aria-hidden`）。
+ * 実データを描くと設定を開いた時点の解析結果に見えるので、骨だけを描く。読み上げは選択肢の
+ * ラベルが担う。
  */
 function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
   return (
