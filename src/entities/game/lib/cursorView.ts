@@ -45,7 +45,8 @@ export function buildCursorView(
       totalMoves = player.getMaxTesuu();
     }
 
-    const comments = player.getComments();
+    // `moves` が空の棋譜には開始局面の要素が無く、`getComments` が投げる
+    const comments = player.currentStream.length > 0 ? player.getComments() : [];
 
     // SFEN の手数は 1 始まりなので、初期局面の tesuu 0 は 1 へ丸める。0 のまま渡すと
     // USI 側で不正な position になる。

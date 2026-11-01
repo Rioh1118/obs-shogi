@@ -103,6 +103,16 @@ describe("buildCursorView", () => {
     expect(buildCursorView(moveOnRoot, ROOT_CURSOR, NO_PLAN).currentMove).toBeUndefined();
   });
 
+  test("手の列が空の棋譜でも盤の表示は残す", () => {
+    const noMoves = { header: {}, moves: [] } as unknown as JKFData;
+
+    const view = buildCursorView(noMoves, ROOT_CURSOR, NO_PLAN);
+
+    expect(view.player).not.toBeNull();
+    expect(view.currentComments).toEqual([]);
+    expect(view.currentSfen).not.toBeNull();
+  });
+
   test("配列でないコメントは空にする", () => {
     const textComment = { header: {}, moves: [{ comments: "本文" }] } as unknown as JKFData;
 
