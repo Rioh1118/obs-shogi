@@ -95,6 +95,7 @@ export function BookProvider({ children, currentSfen }: Props) {
     })();
 
     return () => {
+      openSeqRef.current += 1;
       const open = infoRef.current;
       if (open) void closeBook(open.handle); // async-result-ignored: 畳まれた後に出す場所が無い
     };

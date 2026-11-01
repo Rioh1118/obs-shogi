@@ -438,6 +438,27 @@ describe("定跡の provider", () => {
     expect(closed).toContain(nextHandle);
   });
 
+  /** 残すと閉じる者が居なくなり、定跡ぶんのメモリが次の起動まで残る */
+  it("開いている途中で畳まれたら、返ってきた定跡を閉じる", async () => {
+    const hold = deferred<Result<BookInfo, BookError>>();
+    openHold = hold;
+    const view = mount("sfen-a");
+    await act(async () => {});
+
+    let opening!: ReturnType<BookContextType["openBook"]>;
+    act(() => {
+      opening = seen!.openBook("/books/slow.db");
+    });
+
+    view.unmount();
+    await act(async () => {
+      hold.settle(Ok(info(9, "/books/slow.db")));
+      expect((await opening).success).toBe(true);
+    });
+
+    expect(closed).toContain(9);
+  });
+
   /** 同じハンドルを2度閉じない（2度目は Rust が `invalid_handle` を返す） */
   it("開き直しで、前の定跡を2度閉じない", async () => {
     const first = await openAt("sfen-a");
