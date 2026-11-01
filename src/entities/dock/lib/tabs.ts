@@ -11,6 +11,11 @@ function isDockViewType(value: unknown): value is DockViewType {
   return typeof value === "string" && DOCK_VIEWS.some((v) => v.key === value);
 }
 
+/** 保存や URL の綴りが、いまのタブ一覧に在るか */
+function isListed(tabs: readonly DockViewType[], value: unknown): value is DockViewType {
+  return isDockViewType(value) && tabs.includes(value);
+}
+
 /**
  * タブ一覧を組む。**返る一覧は必ず1枚以上ある。**
  *
@@ -86,7 +91,7 @@ export function resolveStartupTab(
   tabs: readonly DockViewType[],
   saved: string | null | undefined,
 ): DockViewType | null {
-  return isDockViewType(saved) && tabs.includes(saved) ? saved : null;
+  return isListed(tabs, saved) ? saved : null;
 }
 
 /** どのビューを出すかを決める材料 */
@@ -115,7 +120,7 @@ export function resolveDockView(
   const candidates = [selection.fromUrl, selection.startupTab, selection.lastTab];
 
   for (const candidate of candidates) {
-    if (isDockViewType(candidate) && tabs.includes(candidate)) return candidate;
+    if (isListed(tabs, candidate)) return candidate;
   }
 
   return tabs[0];
