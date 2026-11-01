@@ -93,7 +93,7 @@ describe("索引の進捗", () => {
 });
 
 describe("索引を開く", () => {
-  it("検索とパスの表を空にして、警告と索引の状態は残す", () => {
+  it("検索とパスの表と前の根の警告を空にして、索引の状態は残す", () => {
     const warn = { kind: "place" as const, path: "/ws", message: "読めません" };
     const searched = withChunk(withBegunSearch());
     const warned = reducer(searched, { type: "index_warn", payload: warn });
@@ -104,7 +104,8 @@ describe("索引を開く", () => {
     expect(opened.sessions).toEqual({});
     expect(opened.filePathById).toEqual({});
     expect(opened.openError).toBeNull();
-    expect(opened.warns).toEqual([warn]);
+    expect(failed.warns).toEqual([warn]);
+    expect(opened.warns).toEqual([]);
     expect(opened.index).toBe(failed.index);
   });
 

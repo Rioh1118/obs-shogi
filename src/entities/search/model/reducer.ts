@@ -151,8 +151,9 @@ export function reducer(state: SearchState, action: Action): SearchState {
     case "clear_warns":
       return { ...state, warns: [] };
 
+    // 開くのは起動と根が変わるときで、持っている警告は前の根の絶対パスを指す
     case "open_start":
-      return { ...state, openError: null, filePathById: {}, sessions: {} };
+      return { ...state, openError: null, filePathById: {}, sessions: {}, warns: [] };
 
     case "open_error":
       return { ...state, openError: action.payload.message };
