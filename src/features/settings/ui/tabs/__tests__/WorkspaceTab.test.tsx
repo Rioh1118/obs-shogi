@@ -383,6 +383,27 @@ describe("「更新」の節", () => {
     expect(check().disabled).toBe(true);
   });
 
+  test.each<UpdaterStatus>([
+    { phase: "downloading", progress: 10 },
+    { phase: "installing" },
+    { phase: "ready" },
+  ])("取得を始めてからは押せない: %o", async (status) => {
+    world.updater.status = status;
+    await renderTab();
+
+    expect(check().disabled).toBe(true);
+  });
+
+  test.each<UpdaterStatus>([
+    { phase: "available", version: "2.0.0" },
+    { phase: "error", failure: { stage: "download", detail: "x" } },
+  ])("カードが出ていても押せる: %o", async (status) => {
+    world.updater.status = status;
+    await renderTab();
+
+    expect(check().disabled).toBe(false);
+  });
+
   test("押していなければ結果を出さない", async () => {
     await renderTab();
 

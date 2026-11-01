@@ -9,7 +9,7 @@ import Button from "@/shared/ui/Button/Button";
 import { useAppConfig } from "@/entities/app-config";
 import { indexHealth, pickWarns, usePositionSearch } from "@/entities/search";
 import type { IndexHealth, IndexUiState } from "@/entities/search";
-import { useUpdater } from "@/entities/updater";
+import { acceptsManualCheck, useUpdater } from "@/entities/updater";
 import type { ManualCheckResult } from "@/entities/updater";
 import { getAppVersion } from "@/shared/api/app/appVersion";
 import SettingsBadge from "../kit/SettingsBadge";
@@ -190,7 +190,7 @@ export default function WorkspaceTab() {
 
   const pct = useMemo(() => percent(idx.doneFiles, progressTotal), [idx.doneFiles, progressTotal]);
 
-  const { persisted, manualCheck, isChecking, checkNow, unskip } = useUpdater();
+  const { status, persisted, manualCheck, isChecking, checkNow, unskip } = useUpdater();
   const [appVersion, setAppVersion] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
@@ -409,7 +409,11 @@ export default function WorkspaceTab() {
         title="更新"
         description="アプリ本体の更新を確認します。起動のたびに一度だけ自動で確認します。"
         actions={
-          <Button size="sm" onClick={() => void checkNow()} disabled={isChecking}>
+          <Button
+            size="sm"
+            onClick={() => void checkNow()}
+            disabled={isChecking || !acceptsManualCheck(status)}
+          >
             更新を確認
           </Button>
         }
