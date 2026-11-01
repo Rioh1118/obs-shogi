@@ -113,19 +113,19 @@ export function PositionSearchProvider({
 
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchLaunch> => {
-      // 番号が返るまで `chunkBuffer` はこの検索を知らない。待っている間に根が開き直されても
-      // `firstLiveRid` はこの rid より前に留まるので、世代を控えて見張る
+      // 番号が返るまで、`firstLiveRid` の判定ではこの検索を止められない。`chunkBuffer` が見ていない
+      // rid は、待っている間に根が開き直されても下限より後に残るので、世代を控えて見張る
       const myGeneration = chunkBuffer.generation();
 
       const out = await searchPositionApi(input);
 
-      // イベントより先に数える。`stopAccepting()` は `maxSeenRid` まで `firstLiveRid` を進めて
+      // 両方の枝より先に数える。`stopAccepting()` は `maxSeenRid` まで `firstLiveRid` を進めて
       // `droppedRids` を空にするので、数えていない rid を捨てた後に開き直すとチャンクが通る
       chunkBuffer.noteRequest(out.requestId);
 
       if (chunkBuffer.generation() !== myGeneration) {
-        // 開き直された根の state に前の根の検索を残さない
-        chunkBuffer.stopAccepting(out.requestId);
+        // 番号より先に begin が届いていると、セッションが立っている。前の根の検索を残さない
+        dropSearch({ type: "clear_search", payload: { requestId: out.requestId } });
         void cancelSearchApi(out.requestId).catch(() => {});
         return { status: "superseded" };
       }
@@ -134,7 +134,7 @@ export function PositionSearchProvider({
 
       return { status: "started", requestId: out.requestId };
     },
-    [chunkBuffer],
+    [chunkBuffer, dropSearch],
   );
 
   const cancelSearch = useCallback(async (requestId: RequestId) => {

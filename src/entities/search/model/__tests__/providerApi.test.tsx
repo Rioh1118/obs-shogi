@@ -206,6 +206,33 @@ describe("検索を起こす", () => {
     expect(search.getSessionByRequestId(7)).toBeNull();
   });
 
+  /** 応答より始まりのイベントが先に届くと、前の根のセッションが誰にも握られずに残る */
+  test("番号が返る前に始まりが届いた検索も、取り下げたら state に残さない", async () => {
+    let resolveSearch!: (out: { requestId: number }) => void;
+    searchPositionApi.mockReturnValue(new Promise((r) => (resolveSearch = r)));
+
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(app("/old"));
+    });
+
+    const pending = search.searchPosition(INPUT);
+    await act(async () => {
+      view.rerender(app("/new"));
+    });
+    act(() => {
+      handlers.onSearchBegin({ requestId: 7, stale: false });
+    });
+    expect(search.getSessionByRequestId(7)).not.toBeNull();
+
+    await act(async () => {
+      resolveSearch({ requestId: 7 });
+      await pending;
+    });
+
+    expect(search.getSessionByRequestId(7)).toBeNull();
+  });
+
   test("取り下げの失敗は投げない", async () => {
     cancelSearchApi.mockRejectedValue(new Error("届かない"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
