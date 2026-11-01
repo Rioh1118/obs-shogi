@@ -1,0 +1,92 @@
+import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
+import { Color } from "shogi.js";
+
+import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
+import { plannedCursorFrom, type BranchPlan, type KifuCursor } from "@/entities/kifu/model/cursor";
+import type { JKFData } from "@/entities/kifu/model/jkf";
+import type { GameView } from "../model/types";
+import { lastMoveHighlight } from "./moveConverter";
+
+/** `GameView` のうち、棋譜とカーソルだけから決まる欄 */
+type CursorView = Omit<GameView, "legalMoves" | "hasKifu">;
+
+const EMPTY_CURSOR_VIEW: CursorView = {
+  player: null,
+  lastMove: null,
+  currentMove: undefined,
+  currentComments: [],
+  currentTurn: Color.Black,
+  totalMoves: 0,
+  currentSfen: null,
+};
+
+/**
+ * 棋譜とカーソルから盤の表示を組む。局面を組み立てられなければ空の表示を返す。
+ *
+ * 駒の選択は引数に取らない。選択で作り直すと、局面が変わらないのに `JKFPlayer` が
+ * 作り直され、`currentSfen` の同一性が変わって下流のエンジン同期や解析が再実行される。
+ */
+export function buildCursorView(
+  jkf: JKFData | null,
+  cursor: KifuCursor | null,
+  branchPlan: BranchPlan,
+): CursorView {
+  if (!jkf) return EMPTY_CURSOR_VIEW;
+
+  try {
+    const player = buildPlayer(jkf, cursor);
+
+    const plannedCursor = plannedCursorFrom(cursor, branchPlan);
+
+    let totalMoves = 0;
+    try {
+      totalMoves = computeLeafTesuu(jkf, plannedCursor);
+    } catch {
+      totalMoves = player.getMaxTesuu();
+    }
+
+    let currentMove: IMoveMoveFormat | undefined;
+    try {
+      currentMove = player.tesuu === 0 ? undefined : player.getMove();
+    } catch {
+      currentMove = undefined;
+    }
+
+    let currentComments: string[] = [];
+    try {
+      const comments = player.getComments();
+      currentComments = Array.isArray(comments) ? comments : [];
+    } catch {
+      currentComments = [];
+    }
+
+    let currentTurn = Color.Black;
+    try {
+      currentTurn = player.shogi.turn;
+    } catch {
+      currentTurn = Color.Black;
+    }
+
+    // SFEN の手数フィールドは 1 始まり（shogi.js の既定値も 1）。
+    // 初期局面の tesuu 0 をそのまま渡すと USI 側で不正な position になるため丸める。
+    let currentSfen: string | null = null;
+    try {
+      currentSfen = player.shogi ? player.shogi.toSFENString(player.tesuu || 1) : null;
+    } catch {
+      currentSfen = null;
+    }
+
+    return {
+      player,
+      lastMove: lastMoveHighlight(player),
+      currentMove,
+      currentComments,
+      currentTurn,
+      totalMoves,
+      currentSfen,
+    };
+  } catch {
+    return EMPTY_CURSOR_VIEW;
+  }
+}

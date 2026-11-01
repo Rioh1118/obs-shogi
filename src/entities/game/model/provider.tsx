@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useReducer, useRef } from "react";
 import { JKFPlayer } from "json-kifu-format";
-import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
-import { Color, type Kind } from "shogi.js";
+import type { Color, Kind } from "shogi.js";
 
 import { gameReducer } from "./reducer";
 import {
@@ -21,13 +20,11 @@ import {
   ROOT_CURSOR,
   asBranchPlan,
   mergeBranchPlan,
-  plannedCursorFrom,
   sameForkPointers,
   type BranchPlan,
   type CursorPath,
 } from "@/entities/kifu/model/cursor";
 import { getLegalDrops, getLegalMovesFrom } from "../lib/moveValidation";
-import { computeLeafTesuu } from "@/entities/kifu/lib/leafTesuu";
 import {
   advanceToLeafWithPlan,
   advanceWithPlan,
@@ -36,7 +33,8 @@ import {
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
-import { fromIMove, lastMoveHighlight, toIMoveMoveFormat } from "../lib/moveConverter";
+import { buildCursorView } from "../lib/cursorView";
+import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
 import { lineUsiMoves } from "../lib/usiMove";
 import type { BoardLine } from "./types";
 import { buildPlayer, gotoPath } from "@/entities/kifu/lib/buildPlayer";
@@ -154,86 +152,10 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     [persistence, state.loadedAbsPath],
   );
 
-  // 駒の選択には依存させない。選択を混ぜると、局面が変わっていない
-  // 「駒をクリックしただけ」でも JKFPlayer を作り直すことになり、
-  // currentSfen の identity が変わって下流のエンジン同期や解析まで巻き添えで再実行される。
-  const cursorView = useMemo<Omit<GameView, "legalMoves" | "hasKifu">>(() => {
-    if (!state.jkf) {
-      return {
-        player: null,
-        lastMove: null,
-        currentMove: undefined,
-        currentComments: [],
-        currentTurn: Color.Black,
-        totalMoves: 0,
-        currentSfen: null,
-      };
-    }
-
-    try {
-      const player = buildPlayer(state.jkf, state.cursor);
-
-      const plannedCursor = plannedCursorFrom(state.cursor, state.branchPlan);
-
-      let totalMoves = 0;
-      try {
-        totalMoves = computeLeafTesuu(state.jkf, plannedCursor);
-      } catch {
-        totalMoves = player.getMaxTesuu();
-      }
-
-      let currentMove: IMoveMoveFormat | undefined;
-      try {
-        currentMove = player.tesuu === 0 ? undefined : player.getMove();
-      } catch {
-        currentMove = undefined;
-      }
-
-      let currentComments: string[] = [];
-      try {
-        const comments = player.getComments();
-        currentComments = Array.isArray(comments) ? comments : [];
-      } catch {
-        currentComments = [];
-      }
-
-      let currentTurn = Color.Black;
-      try {
-        currentTurn = player.shogi.turn;
-      } catch {
-        currentTurn = Color.Black;
-      }
-
-      // SFEN の手数フィールドは 1 始まり（shogi.js の既定値も 1）。
-      // 初期局面の tesuu 0 をそのまま渡すと USI 側で不正な position になるため丸める。
-      let currentSfen: string | null = null;
-      try {
-        currentSfen = player.shogi ? player.shogi.toSFENString(player.tesuu || 1) : null;
-      } catch {
-        currentSfen = null;
-      }
-
-      return {
-        player,
-        lastMove: lastMoveHighlight(player),
-        currentMove,
-        currentComments,
-        currentTurn,
-        totalMoves,
-        currentSfen,
-      };
-    } catch {
-      return {
-        player: null,
-        lastMove: null,
-        currentMove: undefined,
-        currentComments: [],
-        currentTurn: Color.Black,
-        totalMoves: 0,
-        currentSfen: null,
-      };
-    }
-  }, [state.jkf, state.cursor, state.branchPlan]);
+  const cursorView = useMemo(
+    () => buildCursorView(state.jkf, state.cursor, state.branchPlan),
+    [state.jkf, state.cursor, state.branchPlan],
+  );
 
   const legalMoves = useMemo<ShogiMove[]>(() => {
     const player = cursorView.player;
