@@ -174,6 +174,9 @@ beforeEach(() => {
   tauri.startGame.mockResolvedValue(GAME_ID);
   vi.clearAllMocks();
   tauri.startGame.mockResolvedValue(GAME_ID);
+  // 消費されなかった `mockRejectedValueOnce` を次のテストへ持ち越さない
+  tauri.closeGame.mockReset();
+  tauri.closeGame.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -394,7 +397,7 @@ describe("対局の進行", () => {
   });
 
   test("終局しても、裁定を返せなかったことは残る", async () => {
-    tauri.continueGame.mockRejectedValueOnce(new Error("not awaiting a ruling"));
+    tauri.continueGame.mockRejectedValueOnce(new Error("move list is not the current one"));
     mount(alwaysContinue);
     await act(async () => {
       await startOnce();
@@ -417,7 +420,7 @@ describe("対局の進行", () => {
     });
 
     expect(kindText()).toBe("over");
-    expect(rulingFailureText()).toBe("not awaiting a ruling");
+    expect(rulingFailureText()).toBe("move list is not the current one");
   });
 
   test("判定が投げても裁定は返す", async () => {
@@ -1129,6 +1132,61 @@ describe("操作の断り", () => {
     expect(closed).toEqual(Ok(undefined));
     expect(tauri.closeGame).toHaveBeenCalledTimes(1);
     expect(kindText()).toBe("idle");
+  });
+
+  /**
+   * 本物の `close_game` は畳む前に中断を通すので、応答より先に `over` が届く。
+   * それを受けた2本目の `close_game` は断られるが、手放す妨げにはならない。
+   */
+  test("走っている対局を手放す間に届いた `over` と2本目の断りで止まらない", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    tauri.closeGame.mockImplementationOnce(async () => {
+      tauri.closeGame.mockRejectedValueOnce("the game is being closed: g1");
+      await emit({
+        type: "over",
+        gameId: GAME_ID,
+        result: { winner: null, reason: "aborted", detail: null },
+        clocks: CLOCKS,
+      });
+    });
+
+    let closed: Awaited<ReturnType<NonNullable<typeof closer>>> | undefined;
+    await act(async () => {
+      closed = await closer?.();
+    });
+
+    expect(closed).toEqual(Ok(undefined));
+    expect(tauri.closeGame).toHaveBeenCalledTimes(2);
+    expect(kindText()).toBe("idle");
+  });
+
+  test("手放す途中で `busy` に断られた対局は、`over` の姿で残る", async () => {
+    mount(alwaysContinue);
+    await act(async () => {
+      await startOnce();
+    });
+    tauri.closeGame.mockImplementationOnce(async () => {
+      tauri.closeGame.mockRejectedValueOnce("the game is busy and could not be closed: g1");
+      await emit({
+        type: "over",
+        gameId: GAME_ID,
+        result: { winner: null, reason: "aborted", detail: null },
+        clocks: CLOCKS,
+      });
+      throw new Error("the game is busy and could not be closed: g1");
+    });
+
+    let closed: Awaited<ReturnType<NonNullable<typeof closer>>> | undefined;
+    await act(async () => {
+      closed = await closer?.();
+    });
+
+    expect(closed).toEqual(Err("the game is busy and could not be closed: g1"));
+    expect(kindText()).toBe("over");
+    expect(closeFailureText()).toBe("the game is busy and could not be closed: g1");
   });
 
   test("対局が無ければ閉じても何も起きない", async () => {
