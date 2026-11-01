@@ -44,7 +44,9 @@ export type PresetDialogAction =
   /** 挙げた名前のオプションの値を消す。呼び手は「エンジン設定」の画面に出ている行だけを渡す */
   | { type: "optionsCleared"; names: string[] }
   | { type: "probeStarted"; token: number; enginePath: string }
+  /** `token` がいま待っている取得でなければ捨てる。やめた回と撃ち直した回の結果がここへ来る */
   | { type: "probeSucceeded"; token: number; outcome: ProbeOutcome; probedAt: string }
+  /** 捨てる条件は `probeSucceeded` と同じ */
   | { type: "probeFailed"; token: number; failure: Omit<ProbeFailure, "enginePath"> }
   /** 待ちをやめる。後から返った結果は `token` が合わずに捨てる */
   | { type: "probeAbandoned" };
@@ -54,11 +56,6 @@ function withOption(options: UsiOptionMap, name: string, value: string | null): 
   if (value == null) delete next[name];
   else next[name] = value;
   return next;
-}
-
-/** 返った取得が、いま待っている取得か（やめた・撃ち直した後の結果は捨てる） */
-function isCurrent(state: PresetDialogState, token: number): boolean {
-  return state.probe?.token === token;
 }
 
 export function presetDialogReducer(
@@ -113,7 +110,7 @@ export function presetDialogReducer(
       };
 
     case "probeSucceeded": {
-      if (!isCurrent(state, action.token)) return state;
+      if (state.probe?.token !== action.token) return state;
       const fitted = fitValues(state.baseline, action.outcome.definitions, action.outcome.reserved);
       const note: FitNote = {
         enginePath: action.outcome.enginePath,
@@ -129,7 +126,7 @@ export function presetDialogReducer(
     }
 
     case "probeFailed":
-      if (!isCurrent(state, action.token) || !state.probe) return state;
+      if (state.probe?.token !== action.token) return state;
       return {
         ...state,
         probe: null,

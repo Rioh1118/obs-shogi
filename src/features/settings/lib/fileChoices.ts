@@ -23,7 +23,7 @@ export function fileLabel(path: string): string {
 }
 
 /** 選択肢に無いパス（消えた）も選択として残す。落とすと保存したパスが画面から見えなくなる。 */
-function keepCurrent(choices: FileChoice[], current: string | null | undefined): FileChoice[] {
+function keepCurrent(choices: FileChoice[], current: string | null): FileChoice[] {
   const cur = (current ?? "").trim();
   if (!cur || choices.some((c) => c.value === cur)) return choices;
   return [{ value: cur, label: `${fileLabel(cur)}（現在の選択）`, folder: null }, ...choices];

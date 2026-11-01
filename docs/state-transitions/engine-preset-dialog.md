@@ -3,7 +3,7 @@
 対象: `src/features/settings/model/presetDialogReducer.ts`（`presetDialogReducer`）。
 呼び手は `EnginePresetEditDialogPanel`。画面の仕様は `docs/spec/screens/engine-preset-dialog.md`。
 
-ダイアログを閉じると部品ごと外れる（`EnginePresetEditDialogPanel` が `open` でないとき描かない）ので、
+ダイアログを閉じると部品ごと外れる（`EngineTab` が `editingId` のある間だけ描く）ので、
 「閉じている」状態はこの表に無い。閉じた後に返った取得の結果は、外れた部品の `dispatch` へは届かない
 （Rust の取得は止まらない。`probeEngine` の doc）。
 

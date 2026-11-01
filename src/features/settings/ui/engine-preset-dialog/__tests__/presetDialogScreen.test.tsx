@@ -141,7 +141,7 @@ const { default: EnginePresetEditDialogPanel } = await import("../EnginePresetEd
 
 const onClose = vi.fn();
 
-const dialog = () => <EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={onClose} />;
+const dialog = () => <EnginePresetEditDialogPanel presetId={PRESET.id} onClose={onClose} />;
 
 const engineSelect = () =>
   screen.getByLabelText("エンジン", { selector: "select" }) as HTMLSelectElement;

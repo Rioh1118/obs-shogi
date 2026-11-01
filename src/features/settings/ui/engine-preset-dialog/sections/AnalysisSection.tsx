@@ -130,7 +130,7 @@ export default function AnalysisSection(props: {
         <label className="presetDialog__check">
           <input
             type="checkbox"
-            checked={Boolean(draft.analysis?.mateSearch)}
+            checked={draft.analysis?.mateSearch ?? false}
             onChange={(e) => setAnalysis({ mateSearch: e.target.checked })}
           />
           <span className="presetDialog__checkLabel">詰み探索</span>

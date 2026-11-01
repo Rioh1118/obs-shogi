@@ -77,7 +77,7 @@ afterEach(cleanup);
 describe("プリセット編集ダイアログの engines の帯", () => {
   test("engines/ が無ければ、その場所を名乗って作成を出す", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
 
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
     expect(band()?.textContent).toContain(`${AI_ROOT}/engines`);
@@ -97,7 +97,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
    */
   test("初回の走査が返らない間も、押せる探し直すが残る", async () => {
     scanAiRoot.mockReturnValue(new Promise(() => {}));
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
 
     await waitFor(() => expect(scanAiRoot).toHaveBeenCalled(), { timeout: 5000 });
     expect(enabledRescans()).toBeGreaterThan(0);
@@ -109,7 +109,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
       ...indexWithoutEngines(AI_ROOT),
       engines_dir: { path: `${AI_ROOT}/engines`, exists: true, kind: "dir" },
     });
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
     await waitFor(() => expect(enabledRescans()).toBeGreaterThan(0), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));
@@ -128,7 +128,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
   test("ルートを選び直したら、走査が返るまで帯を出さない", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
     const { rerender } = render(
-      <EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />,
+      <EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />,
     );
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
@@ -137,7 +137,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     aiRootValue.current = "/Users/me/ai2";
     // ルートは設定（AI ライブラリ）で変わる。本番では設定の provider が再描画する。ここは手で促す。
     // 帯が消えるのはこの描画の中（索引を突き合わせた結果なので、走査を待たない）
-    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
 
     expect(band()).toBeUndefined();
   }, 20000);
@@ -149,7 +149,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
   test("作成の途中でルートを切り替えたら、前のルートの失敗を書かない", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
     const { rerender } = render(
-      <EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />,
+      <EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />,
     );
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
@@ -159,7 +159,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
     scanAiRoot.mockResolvedValue(indexWithoutEngines("/Users/me/ai2"));
     aiRootValue.current = "/Users/me/ai2";
-    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
     await waitFor(() => expect(scanAiRoot).toHaveBeenCalledWith("/Users/me/ai2"), {
       timeout: 5000,
     });
@@ -177,7 +177,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
    */
   test("同じルートを読み直している間は、帯の作成だけ押せない", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));

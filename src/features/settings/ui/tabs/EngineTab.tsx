@@ -94,7 +94,6 @@ export default function EngineTab() {
       {editingId && (
         <EnginePresetEditDialogPanel
           presetId={editingId}
-          open={true}
           onClose={() => setEditingId(null)}
         />
       )}

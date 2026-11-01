@@ -127,7 +127,7 @@ export default function UsedFilesSection(props: {
           }
         >
           <SSelect
-            value={draft.enginePath ?? ""}
+            value={draft.enginePath}
             aria-label="エンジン"
             onChange={(e) => onEngineChosen(e.target.value)}
             options={engineOptions.map((o) =>
@@ -176,7 +176,7 @@ export default function UsedFilesSection(props: {
 
         <SField label="評価関数">
           <SSelect
-            value={draft.evalFilePath ?? ""}
+            value={draft.evalFilePath}
             aria-label="評価関数"
             onChange={(e) =>
               onEvalChosen(

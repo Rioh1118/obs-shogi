@@ -9,8 +9,6 @@ import {
   autofillPreset,
   basename,
   clampInt,
-  cleanText,
-  parseIntSafe,
 } from "@/features/settings/lib/presetDialog";
 import PresetDialogFooter from "./PresetDialogFooter";
 import UsedFilesSection from "./sections/UsedFilesSection";
@@ -34,18 +32,10 @@ import { ensureEnginesDir, scanAiRoot, type AiRootIndex } from "@/entities/engin
 
 type Props = {
   presetId: PresetId;
-  open: boolean;
   onClose: () => void;
 };
 
-/** Hookなしラッパー：Hookルール的に safe */
-export default function EnginePresetEditDialogPanel(props: Props) {
-  if (!props.open) return null;
-  return <EnginePresetEditDialogInner {...props} />;
-}
-
-/** ここから Hook を使う本体 */
-function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
+export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props) {
   const { state, updatePreset } = useEnginePresets();
   const { config } = useAppConfig();
 
@@ -80,7 +70,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     currentRootRef.current = aiRoot;
 
     (async () => {
-      if (!open) return;
       if (!aiRoot) {
         setLoaded(null);
         setIndexStatus("idle");
@@ -108,12 +97,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, aiRoot, scanNonce]);
+  }, [aiRoot, scanNonce]);
 
   useEffect(() => {
-    if (!open) return;
     if (!preset) onClose();
-  }, [open, preset, onClose]);
+  }, [preset, onClose]);
 
   // 別のルートの索引は使わない。読み直しの最中は同じルートの索引を残すが、切り替えた直後はまだ何も読めていない
   const index = loaded && loaded.root === aiRoot ? loaded.index : null;
@@ -169,18 +157,17 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const stopProbe = useCallback(() => dispatch({ type: "probeAbandoned" }), []);
 
   useEffect(() => {
-    if (!open) return;
     if (!preset) return;
 
     dispatch({ type: "opened", preset: structuredClone(preset) });
     setErrors({});
-  }, [open, preset]);
+  }, [preset]);
 
   const engineOptions = useMemo(() => {
     const opts = presetEngineOptions(engines);
 
     // 候補に無いパス（engines/ の外、消えた）も選択として残す。落とすと保存したパスが画面から見えなくなる
-    const cur = cleanText(draft?.enginePath ?? "");
+    const cur = draft?.enginePath.trim();
     if (cur && !opts.some((o) => o.value === cur)) {
       opts.unshift({
         value: cur,
@@ -198,12 +185,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   // 候補が揃った時点で1回だけ、エンジンがまだ無いプリセットの空欄を埋める。
   // エンジンのあるプリセットの評価関数の空は、利用者が選んだ「指定しない」なので埋めない
   useEffect(() => {
-    if (!open) return;
     if (!draft) return;
     if (!index) return;
     if (autofilledRef.current) return;
     autofilledRef.current = true;
-    if (cleanText(draft.enginePath)) return;
+    if (draft.enginePath.trim()) return;
 
     setDraft((cur) =>
       cur
@@ -213,13 +199,12 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
           })
         : cur,
     );
-  }, [open, draft, index, profiles, engines, setDraft]);
+  }, [draft, index, profiles, engines, setDraft]);
 
   // 開いたときに1回、エンジンを読み込む。画面の名前は保存しないので、毎回いまの辞書から取る。
   // 空欄の補完でエンジンが埋まった回も読み込み、利用者が先に選んでいれば `runProbe` が印を立てている
   useEffect(() => {
     if (openedProbeRef.current || !draft?.enginePath) return;
-    openedProbeRef.current = true;
     runProbe(draft.enginePath);
   }, [draft?.enginePath, runProbe]);
 
@@ -252,15 +237,13 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   const onSave = useCallback(async () => {
     if (!draft) return;
-    // 取得中に保存すると、取得が返る前のエンジンの定義（または無し）で書く
-    if (probing) return;
 
     const nextErrors: Record<string, string> = {};
 
-    const label = cleanText(draft.label);
-    const aiName = cleanText(draft.aiName);
-    const enginePath = cleanText(draft.enginePath);
-    const evalFilePath = cleanText(draft.evalFilePath);
+    const label = draft.label.trim();
+    const aiName = draft.aiName.trim();
+    const enginePath = draft.enginePath.trim();
+    const evalFilePath = draft.evalFilePath.trim();
 
     // 評価関数は必須にしない。指定できないエンジンがある
     if (!label) nextErrors.label = "名前を入力してください";
@@ -268,7 +251,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
     // 前の版は使わない定跡のパスを残して保存している。落とせば、欄の「使わない」とファイルが揃う
     const bookEnabled = bookInUse(draft);
-    const bookFilePath = bookEnabled ? cleanText(draft.bookFilePath ?? "") : null;
+    const bookFilePath = bookEnabled ? (draft.bookFilePath ?? "").trim() : null;
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
@@ -276,10 +259,9 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     }
 
     const a = draft.analysis ?? { mateSearch: false };
-    const timeSeconds =
-      a.timeSeconds != null ? clampInt(parseIntSafe(a.timeSeconds, 0), 0, 3600) : undefined;
-    const depth = a.depth != null ? clampInt(parseIntSafe(a.depth, 0), 0, 999) : undefined;
-    const nodes = a.nodes != null ? clampInt(parseIntSafe(a.nodes, 0), 0, 999_999_999) : undefined;
+    const timeSeconds = a.timeSeconds != null ? clampInt(a.timeSeconds, 0, 3600) : undefined;
+    const depth = a.depth != null ? clampInt(a.depth, 0, 999) : undefined;
+    const nodes = a.nodes != null ? clampInt(a.nodes, 0, 999_999_999) : undefined;
 
     const analysis =
       (timeSeconds && timeSeconds > 0) ||
@@ -290,15 +272,14 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             timeSeconds: timeSeconds && timeSeconds > 0 ? timeSeconds : undefined,
             depth: depth && depth > 0 ? depth : undefined,
             nodes: nodes && nodes > 0 ? nodes : undefined,
-            mateSearch: Boolean(a.mateSearch),
+            mateSearch: a.mateSearch,
           }
         : undefined;
 
     // 空は入れない。無い名前はエンジン既定で、送らない
-    const rawOpt = draft.options ?? {};
     const options: Record<string, string> = {};
-    for (const [k, v] of Object.entries(rawOpt)) {
-      const vv = cleanText(String(v ?? ""));
+    for (const [k, v] of Object.entries(draft.options)) {
+      const vv = v.trim();
       if (!vv) continue;
       options[k] = vv;
     }
@@ -322,11 +303,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
     // 書けなかったら閉じずに入力を残す。理由は `PresetsFileBridge` の帯が出す
     if (await updatePreset(presetId, patch)) onClose();
-  }, [draft, onClose, presetId, probing, updatePreset]);
+  }, [draft, onClose, presetId, updatePreset]);
 
   if (!preset || !draft) return null;
 
-  const title = cleanText(draft.label) || "プリセット編集";
+  const title = draft.label.trim() || "プリセット編集";
 
   return (
     <Modal

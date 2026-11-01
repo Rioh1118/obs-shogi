@@ -7,23 +7,18 @@ import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { isSelectableEngine } from "@/features/settings/lib/presetEngineOptions";
 
 export function clampInt(n: number, min: number, max: number) {
-  if (!Number.isFinite(n)) return min;
-  return Math.max(min, Math.min(max, Math.trunc(n)));
+  return Math.max(min, Math.min(max, n));
 }
 
-export function parseIntSafe(v: unknown, fallback: number) {
-  const n = Number.parseInt(String(v ?? ""), 10);
+export function parseIntSafe(v: string, fallback: number) {
+  const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : fallback;
 }
 
-export function cleanText(s: string) {
-  return (s ?? "").trim();
-}
-
 export function basename(p: string) {
-  const s = (p ?? "").replace(/\\/g, "/");
+  const s = p.replace(/\\/g, "/");
   const last = s.split("/").filter(Boolean).pop();
-  return last || (p ?? "");
+  return last || p;
 }
 
 function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {
@@ -57,7 +52,7 @@ export function autofillPreset(
   const next = { ...cur };
   let changed = false;
 
-  if (!cleanText(next.aiName)) {
+  if (!next.aiName.trim()) {
     const p = profiles.find((x) => x.has_eval_dir) ?? profiles[0] ?? null;
     if (p) {
       next.aiName = p.name;
@@ -65,9 +60,9 @@ export function autofillPreset(
     }
   }
 
-  const prof = profiles.find((p) => p.name === cleanText(next.aiName)) ?? null;
+  const prof = profiles.find((p) => p.name === next.aiName.trim()) ?? null;
 
-  if (!cleanText(next.enginePath)) {
+  if (!next.enginePath.trim()) {
     const selectable = engines.filter(isSelectableEngine);
     if (selectable.length === 1) {
       next.enginePath = selectable[0].path;
@@ -75,7 +70,7 @@ export function autofillPreset(
     }
   }
 
-  if (!cleanText(next.evalFilePath)) {
+  if (!next.evalFilePath.trim()) {
     const defEval = pickDefaultEvalFile(prof);
     const path = defEval ? defEval.path : "";
     if (next.evalFilePath !== path) {
@@ -84,7 +79,7 @@ export function autofillPreset(
     }
   }
 
-  if (next.bookEnabled && !cleanText(next.bookFilePath ?? "")) {
+  if (next.bookEnabled && !(next.bookFilePath ?? "").trim()) {
     const defBook = pickDefaultBookDb(prof);
     const path = defBook ? defBook.path : null;
     if (next.bookFilePath !== path) {
