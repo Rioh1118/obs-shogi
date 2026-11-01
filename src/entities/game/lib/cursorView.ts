@@ -47,8 +47,9 @@ export function buildCursorView(
 
     const comments = player.getComments();
 
-    // SFEN の手数フィールドは 1 始まり（shogi.js の既定値も 1）。
-    // 初期局面の tesuu 0 をそのまま渡すと USI 側で不正な position になるため丸める。
+    // SFEN の手数は 1 始まりなので、初期局面の tesuu 0 は 1 へ丸める。0 のまま渡すと
+    // USI 側で不正な position になる。
+    // 投げるのは知らない駒種の後手の駒があるとき（`Piece.toSFENString`）で、盤は描ける。
     let currentSfen: string | null = null;
     try {
       currentSfen = player.shogi.toSFENString(player.tesuu || 1);

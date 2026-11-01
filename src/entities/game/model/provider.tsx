@@ -54,49 +54,44 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
 
   /**
-   * 盤の着手を通す判定。**`ref` に映す。**
+   * 盤の着手を通す判定。
    *
-   * `selectSquare` の依存に入れると、対局の状態が動くたびに（手番・時計）
-   * 盤の着手の関数が作り直され、盤ぜんぶが描き直される。
+   * `ref` に映すのは、`selectSquare` の依存に入れると対局の手番や時計が動くたびに
+   * 着手の関数が作り直され、盤の全体が描き直されるため。
    */
   const moveGateRef = useRef(moveGate);
   moveGateRef.current = moveGate;
 
-  /** いま盤に載っている棋譜。**`moveGate` へ渡すためだけに映す** */
+  /** `moveGate` へ渡すためだけに、`state.loadedAbsPath` を映す */
   const loadedPathRef = useRef(state.loadedAbsPath);
   loadedPathRef.current = state.loadedAbsPath;
 
   /**
-   * いま盤に載っている棋譜そのもの。**同一性で見る。**
-   *
-   * パスだけで見分けると、**同じファイルを開き直した回**が素通りする
-   * （改名でパスが動く経路もある）。積む相手が入れ替わったかは中身の同一性で決める。
+   * いま盤に載っている棋譜そのもの。積む相手が入れ替わったかを同一性で決める。
+   * パスで見分けると、同じファイルを開き直したときに素通りする。
    */
   const loadedJkfRef = useRef(state.jkf);
   loadedJkfRef.current = state.jkf;
 
   /**
-   * 盤で決まった手を積んでよいか。**`moveGate` が無ければ素通し。**
+   * 盤で決まった手を積んでよいかを返す。`moveGate` が無ければ常に積める。
    *
-   * 対局中は Rust が採るまで積まない —— 積んでしまうと、Rust の写しと
-   * 食い違った指し手列で裁定を返すことになり、断られたまま対局が畳まれる。
+   * 対局中は Rust が採るまで積まない。積むと Rust の写しと食い違った指し手列で
+   * 裁定を返すことになり、断られたまま対局が畳まれる。
    */
   const acceptsMove = useCallback(
     async (move: StandardMoveFormat, player: JKFPlayer): Promise<boolean> => {
       const gate = moveGateRef.current;
       if (gate === undefined) return true;
 
-      // **どの線の上で指したかを渡す。** 手数だけでは、分岐で指した手と
-      // 対局の次の1手が見分けられない（`lineUsiMoves` の doc）
       const line: BoardLine = {
         kifuPath: loadedPathRef.current,
         usiMoves: lineUsiMoves(player),
       };
 
-      // **待つ前に、いま積もうとしている相手を控える。**
-      // `moveGate` は対局中 `submit_game_move` の往復ぶん待つので、その間にツリーが
-      // 別の棋譜を盤へ載せうる。気づかずに進むと、**`selectSquare` が握っている
-      // 1つ前の棋譜の中身**を、新しく載った棋譜の宛先へ保存することになる
+      // 待つ前に、積む相手を控える。`moveGate` は対局中 `submit_game_move` の往復を待つので、
+      // その間に別の棋譜が載りうる。気づかずに進むと、`selectSquare` が握っている
+      // 1つ前の棋譜の中身を、新しく載った棋譜の宛先へ保存する
       const before = loadedJkfRef.current;
       const accepted = await gate.accept(move, line);
 
@@ -105,12 +100,10 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     [],
   );
 
-  // 失敗を `state.error` へ積んだうえで、**呼び出し元にも返す**。
+  // 失敗を `state.error` へ積み、呼び出し元にも返す。
   //
-  // 積むだけでは届かない。`state.error` を描いている場所はまだ無いので
-  // （ADR-0004 決定6 は state を残すとしか決めていない）、
-  // 「保存済み」と出す側が自分で成否を見られないと、書けなかった本文が
-  // 画面から消えて利用者だけが保存されたと信じることになる。
+  // `state.error` を描く部品はまだ無い（ADR-0004 決定6）。「保存済み」と出す側が成否を
+  // 見られないと、書けなかった本文が画面から消えて、利用者だけが保存されたと信じる。
   const persistIfPossible = useCallback(
     async (jkfToSave: JKFData): AsyncResult<void, string> => {
       if (!persistence) {
@@ -119,24 +112,15 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
         return Err(msg);
       }
 
-      // **書き込み先が、いま読み込んでいる棋譜と同じときだけ書く。**
+      // 書き込み先が読み込んでいる棋譜と同じときだけ書く（`GamePersistence` の `absPath`）。
+      // 棋譜の保存は全部 `replaceJkf` からここを通るので、検査はここ1つで足りる。
       //
-      // `persistence` は `activeKifuPath`（file-tree 側）から組まれ、
-      // `state.loadedAbsPath` は橋渡しの effect が走ってから追いつく。
-      // そのずれの中で書くと、**前の棋譜が新しく開いたファイルへ入る**。
-      // ここは5つの書き込み経路が必ず通るので、検査はここ1つで足りる。
+      // 盤に載せられなかったとき（`game.md` の E16）は `loadedAbsPath` が据え置かれ、
+      // 次の棋譜が載るまで書き込みはここで止まる。指した手は一瞬出てから戻る。
+      // 理由は `GameFileTreeBridge` が断りとして出す。
       //
-      // **追いつかない場合がある。** 盤に載せられなかった回（`game.md` の E16）は
-      // `activeKifuPath` だけが進み、`loadedAbsPath` は据え置かれるので、
-      // 次の棋譜が載るまでこの条件は真であり続ける。その間、盤には前の棋譜が出ているのに
-      // 書き込みは全部ここで止まる——`edit` は `jkf_restored` を撃つので、
-      // **指した手が一瞬出てから戻る**。読み手のいない `state.error` にしか理由が残らないので、
-      // 載せられなかったこと自体は `GameFileTreeBridge` が断りとして出している。
-      //
-      // **改名（`path_renamed`）はこの据え置きを崩さない。** 崩すのは橋が
-      // `renameLoadedPath` を撃ったときだけで、橋は**載せられた回にしか**
-      // 突き合わせ用の `jkfData` を控えない（`loadedJkfDataRef`）。載せられなかった棋譜は
-      // その参照と一致しないので、改名しても宛先はここで止まったまま残る。
+      // `renameLoadedPath` はこの据え置きを崩さない。橋は載せられたときだけ `jkfData` を
+      // `loadedJkfDataRef` へ控えるので、載せられなかった棋譜の改名では撃たれない。
       if (persistence.absPath !== state.loadedAbsPath) {
         const msg = "保存先が切り替わったため書き込みを中止しました";
         dispatch({ type: "set_error", payload: msg });
@@ -145,10 +129,8 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
 
       const res = await persistence.save(jkfToSave);
       if (!res.success) {
-        // **待っている間に棋譜が別物になっていたら積まない。** `jkf_restored` と同じ判定。
-        // A の保存が失敗して返ってきたときに B が読み込まれていると、
-        // B を表す state に A の失敗理由が載る。#277 で描いた瞬間、
-        // **別のファイルの失敗が新しく開いたファイルの上に出る**。
+        // 待っている間に棋譜が別物になっていたら積まない（`write_failed`）。
+        // 積むと、別のファイルの失敗が新しく開いたファイルの上に出る。
         dispatch({ type: "write_failed", payload: { error: res.error, expectedJkf: jkfToSave } });
         return Err(res.error);
       }
@@ -220,12 +202,10 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   );
 
   /**
-   * 棋譜を書き換える処理を、`isLoading` の数え上げと失敗の受け取りで包む。
+   * 棋譜を書き換える処理を、書き込み中の数え上げと失敗の受け取りで包む。
    * 棋譜が無ければ何もせず `Ok` を返す。
    *
-   * `blocking` は棋譜一覧の全行を止めるかを決める。利用者が起動していない書き込みでは
-   * 立てない。コメントの自動保存は打鍵が止まった 900ms 後に走るので、次の手を押す瞬間と
-   * 重なり、行が止まると押した手が黙って捨てられる。
+   * 利用者が起動していない書き込みでは `blocking` を立てない（`isLoading` の doc）。
    */
   const runWrite = useCallback(
     async (
@@ -306,9 +286,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
           const moved = nextCursor.tesuuPointer !== beforePointer;
           if (!opt?.forceCommit && !moved) return Ok(undefined);
 
-          // **局面を動かさなかった書き込みでは、カーソルを戻さない。**
-          // コメントの自動保存は 900ms 後に撃つので、待っている間に利用者が
-          // 手を進めていることがある。戻すと盤と一覧が黙って戻る。
           return await replaceJkf(nextJkf, nextCursor, moved);
         },
         errorMessage,
@@ -350,11 +327,10 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
 
         const nextJkf = cloneJkf(jkf);
 
-        // 盤に載せられることをここで確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
+        // 盤に載せられることを確かめる。`new JKFPlayer` は `new Shogi(kifu.initial)` を
         // 通るので、`preset: "OTHER"` で `initial.data.board` が壊れていれば投げる。
-        // **`game.md` の E16 はこの1行だけが根拠。** 開始局面のカーソルは定数なので、
-        // ここを「カーソルの計算」と読んで消すと、壊れた棋譜が `state.jkf` に入り、
-        // `cursorView` の catch で盤が黙って空になる。
+        // **`game.md` の E16 はこの1行だけが根拠。** 返り値を使わないが、消すと壊れた棋譜が
+        // `state.jkf` に入り、`buildCursorView` の catch で盤が黙って空になる。
         buildPlayer(nextJkf, ROOT_CURSOR);
 
         dispatch({
@@ -365,12 +341,11 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       } catch (e) {
         const cause = e instanceof Error ? e.message : String(e);
         dispatch({ type: "set_error", payload: cause });
-        // **宛先も残す。** `error` は文字列なのでどのファイルの失敗か分からず、
+        // 宛先も残す。`error` は文字列なのでどのファイルの失敗か分からず、
         // その棋譜が載るのを待っている側（`usePositionHitNavigation`）が
         // 要求を捨てられない
         dispatch({ type: "load_failed", payload: { absPath } });
-        // **例外の文をそのまま返さない。** 中身は `shogi.js` の英文で、呼び出し側は
-        // 利用者に出せない。段と文言を code から決められる形で返す
+        // 例外の文は `shogi.js` の英文で利用者に出せないので、`code` を返す
         return Err({ code: "unplayable_initial", absPath, cause });
       } finally {
         dispatch({ type: "write_ended", payload: { blocking: true } });
@@ -469,9 +444,8 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
           const result = setCommentsByCursorInKifu(nextJkf, cursor, comments);
 
           if (!result.ok) {
-            // **利用者の言葉で書く。** この文字列はノートの赤い箱にそのまま出る。
-            // 「続けて書けば保存し直します」は嘘になる理由（同じ場所を指し続ける）なので、
-            // 何をすれば直るかを書く。
+            // この文字列はノートの赤い箱にそのまま出る。同じ場所を指し続ける間は書き直しても
+            // 直らないので、何をすれば直るかを書く。
             throw new Error(
               "この手が棋譜の中に見つかりませんでした。棋譜が変わっている可能性があります。ノートを閉じて開き直してください",
             );
@@ -488,7 +462,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
 
   const playIfAccepted = useCallback(
     async (move: StandardMoveFormat, player: JKFPlayer) => {
-      // **対局中は Rust が採ってから積む。** 採られなければ選択だけ解く
+      // 採られなければ選択だけ解く
       if (!(await acceptsMove(move, player))) {
         dispatch({ type: "clear_selection" });
         return;

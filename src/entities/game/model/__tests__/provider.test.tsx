@@ -48,10 +48,10 @@ describe("loadGame", () => {
   /**
    * 盤に載せられない `initial` を持つ棋譜を弾く（`game.md` の E16）。
    *
-   * これを見ているのは `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` **1行だけ**で、
+   * これを見ているのは `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` 1行だけで、
    * 返り値を使わないので消しても tsc も lint も通る。消すと壊れた棋譜が
-   * `state.jkf` に入り、`cursorView` の catch が `player: null` を返して
-   * **盤も棋譜ペインも空・文言なし・`error` すら null** になる。
+   * `state.jkf` に入り、`buildCursorView` の catch が `player: null` を返して
+   * 盤も棋譜ペインも空・文言なし・`error` すら null になる。
    */
   test("盤に載せられない棋譜は state に入れず、理由を error に残す", async () => {
     const game = mountGame();
@@ -59,8 +59,8 @@ describe("loadGame", () => {
 
     await act(async () => {
       const res = await game.current!.loadGame(broken, "/broken.kif");
-      // **`Err` を返すことが唯一の伝達路。** `state.error` を描いている場所は
-      // 無いので（#277）、これを捨てると F-31 が黙って通る
+      // `Err` を返すことが唯一の伝達路。 `state.error` を描いている場所は
+      // 無いので、これを捨てると F-31 が黙って通る
       expect(res.success).toBe(false);
     });
 
@@ -69,7 +69,7 @@ describe("loadGame", () => {
   });
 
   /**
-   * **どのファイルが載らなかったかを残す。** `error` は文字列でパスを持たないので、
+   * どのファイルが載らなかったかを残す。 `error` は文字列でパスを持たないので、
    * その棋譜が載るのを待っている側（`usePositionHitNavigation`）が要求と突き合わせられない。
    */
   test("載せられなかった宛先と、その回数を残す", async () => {
@@ -83,8 +83,8 @@ describe("loadGame", () => {
     expect(game.current!.state.loadFailedAbsPath).toBe("/broken.kif");
     expect(game.current!.state.loadFailedSeq).toBe(1);
 
-    // 2度目の失敗は回数だけが進む。**進まないと、待っている側が
-    // 「前の回の失敗」と「いまの失敗」を区別できない**
+    // 2度目の失敗は回数だけが進む。進まないと、待っている側が
+    // 前の失敗といまの失敗を区別できない
     await act(async () => {
       await game.current!.loadGame(broken, "/broken.kif");
     });
@@ -92,7 +92,7 @@ describe("loadGame", () => {
     expect(game.current!.state.loadFailedSeq).toBe(2);
   });
 
-  /** 載ったら宛先は消える。**回数は戻さない**（戻すと控えた値と別の失敗が一致しうる） */
+  /** 載ったら宛先は消える。回数は戻さない（戻すと控えた値と別の失敗が一致しうる） */
   test("次に載せられたら宛先は消え、回数は戻らない", async () => {
     const game = mountGame();
     const broken = { header: {}, initial: { preset: "OTHER" }, moves: [{}] } as unknown as JKFData;
@@ -110,7 +110,7 @@ describe("loadGame", () => {
   });
 
   /**
-   * **回数は閉じても戻らない。** 戻すと、控えた値と同じ回数で別の失敗が観測されうる——
+   * 回数は閉じても戻らない。 戻すと、控えた値と同じ回数で別の失敗が観測されうる——
    * そのとき待っている側は「自分の要求はまだ落ちていない」と読み、落ちた要求を捨てそこねる。
    */
   test("棋譜を閉じたら宛先は消えるが、回数は戻らない", async () => {
@@ -130,10 +130,10 @@ describe("loadGame", () => {
 });
 
 /**
- * `hasKifu` は**画面を丸ごと切り替える側**の綴り（盤の内側の判定は別の問い。
+ * `hasKifu` は画面を丸ごと切り替える側の綴り（盤の内側の判定は別の問い。
  * `GameView` の doc を見る）。読み手は `player` も `shogi` も知らない形で問える必要がある。
  *
- * **壊れても例外は出ない**——切り替えが狂って空の作業面が出るか、
+ * 壊れても例外は出ない——切り替えが狂って空の作業面が出るか、
  * 棋譜があるのに WelcomeScreen が出るだけ。
  */
 describe("hasKifu", () => {
