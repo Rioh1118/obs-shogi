@@ -23,7 +23,7 @@ import { useSlowStart } from "./useSlowStart";
 type Props = {
   children: ReactNode;
   desiredRuntime: EngineRuntimeConfig | null;
-  /** プリセットは選んだが `desiredRuntime` を組めない。**選んでいない回と言い分けるために要る** */
+  /** プリセットは選んだが `desiredRuntime` を組めない。選んでいないときと言い分けるために要る */
   presetIncomplete?: boolean;
 };
 
@@ -39,13 +39,12 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
 
   const slowStart = useSlowStart(state.phase === "initializing");
 
-  // 最後に撃った起動・停止の番号。番号は `nextRequestNumber`（webview を読み直しても下がらない）
+  // 最後の起動または停止の要求の番号
   const lastRequestRef = useRef(0);
   const lastTriedRuntimeRef = useRef<EngineRuntimeConfig | null>(null);
   /**
-   * 終わったと知らされた起動の番号。**起動の応答より先に通知が着く回のために持つ**
-   * （`readyok` の直後に終わったプロセス）。その回は `engine_exited` が `initializing` に
-   * 当たって捨てられるので、応答を書いた直後に読み直す。
+   * 終わったと知らされた起動の番号。`readyok` の直後に終わったプロセスは、起動の応答より先に通知が
+   * 着く。そのとき `engine_exited` は `initializing` に当たって捨てられるので、応答を書いた直後に読み直す
    */
   const exitedRequestRef = useRef<{ request: number; lastOutput: string | null } | null>(null);
 
@@ -63,18 +62,13 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
     failureKind: state.error?.kind ?? null,
   });
 
-  // **合併にしてから配る。** 2つの欄を独立に持たせると、呼び手が
-  // `notReadyReason ?? "既定値"` を書くことになり、その既定値が理由を取り違える。
   const readiness: EngineReadiness = useMemo(
     () => (isReady ? { isReady: true, notReadyReason: null } : { isReady: false, notReadyReason }),
     [isReady, notReadyReason],
   );
 
-  // lifecycle
-  // **起動中でも撃ってよい。** 前の起動は Rust が落とし（前の呼び出しは `cancelled` で断られる）、
-  // その結果は世代（`lastRequestRef`）で捨てる。世代は Rust にも渡し、撃った順と着く順の逆転を Rust が断る
-  // （`startAnalysisEngine` の `request`）。起動中に設定が変わった回
-  // （`docs/state-transitions/engine.md` の (S1, E3)）がここを通る
+  // 起動中でも呼んでよい。前の起動は Rust が落とし（前の呼び出しは `cancelled` で断られる）、その結果は
+  // `lastRequestRef` で捨てる。起動中に設定が変わったとき（`engine.md` の (S1, E3)）がここを通る
   const initialize = useCallback(async (): Promise<void> => {
     if (!desiredRuntime) return;
 
@@ -110,8 +104,8 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
     try {
       await engineInitializer.shutdown(request);
     } finally {
-      // **停止の往復の間に次の起動が撃たれていたら、`idle` を書かない。** 書くと起動中の段が
-      // `idle` に落ち、effect の `idle` の枝が同じ設定でもう1回起動する（進行中の起動は捨てられる）
+      // 停止の往復の間に次の起動が始まっていたら `idle` を書かない。書くと起動中の段が `idle` に落ち、
+      // `lifecycleStepOf` が同じ設定でもう1回起動して、進行中の起動が捨てられる
       if (lastRequestRef.current === request) dispatch({ type: "shutdown" });
     }
   }, []);
@@ -144,7 +138,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
     });
   }, []);
 
-  // **番号が最後に撃った起動のものだけ採る。** 起動し直しの窓には古いプロセスの通知が届く。
+  // 番号が最後の要求のものだけ採る。起動し直しの間は古いプロセスの通知が届く。
   // 読み手は `dispatch` と ref だけなので、購読はマウントの1回でよい
   useEffect(() => {
     if (!isTauri()) return;

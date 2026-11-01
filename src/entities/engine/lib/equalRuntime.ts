@@ -1,6 +1,6 @@
 import type { EngineRuntimeConfig } from "../model/types";
 
-/** 利用者の値を**名前で**突き合わせる（並びは見ない。送る順は Rust が申告から決める） */
+/** 利用者の値を名前で突き合わせる。送る順は Rust が申告から決めるので、並びは見ない */
 function sameValues(a: Record<string, string>, b: Record<string, string>) {
   const ak = Object.keys(a);
   if (ak.length !== Object.keys(b).length) return false;
@@ -8,8 +8,8 @@ function sameValues(a: Record<string, string>, b: Record<string, string>) {
 }
 
 /**
- * 同じ設定で起こしたことになるか。**違えば起動し直す**（`provider.tsx`）。
- * 評価関数・定跡はパスで比べる（ファイルを変えただけでも起動し直す）
+ * 同じ設定で起動したことになるか。違えば起動し直す（`lifecycleStepOf`）。
+ * 評価関数と定跡はパスで比べるので、ファイルを変えただけでも起動し直す
  */
 export function equalRuntime(a: EngineRuntimeConfig, b: EngineRuntimeConfig) {
   return (

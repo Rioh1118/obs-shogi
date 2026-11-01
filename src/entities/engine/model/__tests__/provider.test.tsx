@@ -56,11 +56,11 @@ const RUNTIME: EngineRuntimeConfig = {
 };
 
 /**
- * 値は同じで**入れ物だけ新しい**設定。
+ * 値は同じで入れ物だけ新しい設定。
  *
- * 実際に作るのは、選択中のプリセットの**編集**（`updatePreset` が `set_presets` で
+ * 実際に作るのは、選択中のプリセットの編集（`updatePreset` が `set_presets` で
  * 箱ごと差し替える。ラベルや解析の既定だけ直せば runtime の欄は同値）と、
- * プリセットの**読み直し**。同じプリセットを選び直しても `selectedPresetId` は
+ * プリセットの読み直し。同じプリセットを選び直しても `selectedPresetId` は
  * 動かないので、そちらでは `runtimeConfig` のメモが再計算されない
  */
 const sameValues = (): EngineRuntimeConfig => ({ ...RUNTIME, values: { ...RUNTIME.values } });
@@ -250,10 +250,10 @@ describe("EngineProvider の起動中の切り替え", () => {
 
 describe("EngineProvider の要求の順序", () => {
   /**
-   * **撃った順の番号を Rust に渡す**（`startAnalysisEngine` の `request`）。Rust はより古い番号の
-   * 要求を断るので、番号は撃つたびに上がっていなければならない
+   * 呼んだ順の番号を Rust に渡す（`startAnalysisEngine` の `request`）。Rust はより古い番号の
+   * 要求を断るので、番号は呼ぶたびに上がっていなければならない
    */
-  test("起動と停止に、撃つたびに上がる番号を付ける", async () => {
+  test("起動と停止に、呼ぶたびに上がる番号を付ける", async () => {
     initialize.mockResolvedValue(INFO);
 
     const app = mountWith(RUNTIME);
@@ -271,7 +271,7 @@ describe("EngineProvider の要求の順序", () => {
   });
 
   /**
-   * **番号は webview の読み直しを跨いで下がらない**（`nextRequestNumber`）。Rust の「最新」は
+   * 番号は webview の読み直しを跨いで下がらない（`nextRequestNumber`）。Rust の「最新」は
    * アプリのプロセスが続く間残るので、読み直した後に 1 から数えると起動が黙って断られる。
    * 読み直しはこのテストでは作れないので、番号が時刻を下限にしていること（0 から数えていないこと）を見る
    */

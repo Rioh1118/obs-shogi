@@ -20,7 +20,7 @@ type EngineOptionType = {
   Filename?: { default?: string };
 };
 
-/** `setoption` 1件（Rust の `SetOptionValue`）。**並べた順に送られる** */
+/** `setoption` 1件（Rust の `SetOptionValue`）。並べた順に送られる */
 export type SetOptionValue = {
   name: string;
   value: string;
@@ -33,7 +33,7 @@ export type BookChoice = {
 };
 
 /**
- * 起動で送らなかった・変えて送った設定（Rust の `StartWarning`）。**起動はできている。**
+ * 起動で送らなかった、または変えて送った設定（Rust の `StartWarning`）。起動はできている。
  * 画面の文言は種類から組む（`app/providers/bridges/startWarningNotice.ts`）
  */
 export type StartWarning =
@@ -53,7 +53,7 @@ export type StartWarning =
   | { kind: "invalidType"; name: string; value: string };
 
 /**
- * プリセットに**保存する**オプションの定義1件（Rust の `UsiOptionDef`）。画面に欄を出すためだけに使い、
+ * プリセットに保存するオプションの定義1件（Rust の `UsiOptionDef`）。画面に欄を出すためだけに使い、
  * 送るときは起動のたびの申告を見る。**ファイルに残る形なので、変えるときはプリセットの版を上げる**
  */
 export type UsiOptionDef = UsiOptionLabel &
@@ -68,7 +68,7 @@ export type UsiOptionDef = UsiOptionLabel &
 
 /**
  * 画面の名前と分類（Rust の `option_labels`）。辞書に無い名前は持たない。
- * **取得の結果にだけ載り、プリセットには保存しない**（`storedDefinitions` が外す）
+ * 取得の結果にだけ載り、プリセットには保存しない（`storedDefinitions` が外す）
  */
 export type UsiOptionLabel = {
   label?: string;
@@ -141,12 +141,11 @@ export type AnalysisResult = {
 };
 
 /**
- * 深度指定の解析が返すもの。
+ * 深度指定の解析が返すもの。**`result` は `reached` を見てから使う。**
  *
- * **`reached` を見ること。** `go depth` は送っていない（`usi` crate に
- * 深度を載せる手段が無い）ので、Rust 側は `info depth` を見て `stop` を撃つ。
- * 時間の打ち切りが先に来れば、目標に届かないまま結果が返る。
- * `result` だけを読むと、深度22の結果を深度40の解析として画面に出すことになる。
+ * `usi` crate に深度を載せる手段が無く `go depth` は送れないので、Rust 側は `info depth` を見て
+ * `stop` を送る。時間の打ち切りが先に来れば、目標に届かないまま結果が返る。
+ * `result` だけを読むと、深度22の結果を深度40の解析として画面に出すことになる
  */
 export type DepthOutcome = {
   result: AnalysisResult;

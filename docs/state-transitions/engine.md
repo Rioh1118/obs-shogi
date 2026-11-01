@@ -22,7 +22,7 @@
 （`provider.tsx`）。**設定を変えた直後は S2 のまま `isReady === false`。**
 
 どの起動の結果を state に書くかは世代（`provider.tsx` の `lastRequestRef`）で決める。
-`initialize` / `shutdown` を撃つたびに上がり、古い世代の結果は捨てる。
+`initialize` / `shutdown` を呼ぶたびに上がり、古い世代の結果は捨てる。
 
 ## 外部の状態（Rust プロセス）
 
@@ -150,7 +150,7 @@ S5 から落とすときは `quit` を待たない（`EngineRegistry::kill`）�
 - `(S2, E2)` 起動済みからの停止の、フロントの側。Rust の側は `analyzer.rs` の `tests::starting` が踏む
 
 **`entities/engine` のテスト**は `model/__tests__/provider.test.tsx`（`(S3, E4)` / `(S3, E3)` /
-`(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 撃つたびに上がる番号 / E11 と S4 の抜け方）、
+`(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 呼ぶたびに上がる番号 / E11 と S4 の抜け方）、
 `model/__tests__/notReadyReason.test.tsx`（`notReadyReason` の割り当て）と
 `lib/__tests__/`（`asStartFailure`、`toOptionValues`、`equalRuntime`、`lifecycleStepOf`、`notReadyReasonOf`）。
 `(S3, E9)` と E10 の帯は `app/providers/bridges/__tests__/engineFailureBridge.test.tsx`。

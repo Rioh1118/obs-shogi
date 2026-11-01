@@ -70,7 +70,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 5  | `src/entities/position`                                  | 1169 | 済     | 済     |
 | 6  | `src/entities/game` の `lib`                             | 1141 | 済     | —      |
 | 6b | `src/entities/game` の `model`                           | 1574 | 済     | 済     |
-| 7  | `src/entities/engine`                                    | 1570 | 未着手 | 未着手 |
+| 7  | `src/entities/engine`                                    | 1570 | 済     | 済     |
 | 7b | `src/entities/engine-presets`                            |  972 | 未着手 | 未着手 |
 | 8  | `src/entities/analysis`                                  | 2298 | 未着手 | 未着手 |
 | 9  | `src/entities/game-session`                              | 1488 | 未着手 | 未着手 |
@@ -124,8 +124,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
 | `.claude/skills/tidy-code/scripts/emit-unchanged.mjs` | 基点に無い新規ファイルで落ちる |
 | `src/entities/game/model/provider.tsx` の `getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。読み手は `src/widgets` と `src/features` なので、その範囲で直接読む形へ寄せる |
+| `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
+| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/entities/engine`。その次に `src/entities/engine-presets`（`engine` に依存するので後に取る）。
+`src/entities/engine-presets`。

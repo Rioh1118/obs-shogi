@@ -17,7 +17,7 @@ type NotReadyInputs = {
  * `desiredRuntime` が `null` になってから `phase` が `idle` へ戻るまでには IPC の往復がある。
  *
  * 選んでいて `error`、`exited`、`unresponsive` でなければ全部 `starting` にする。
- * 起こし直しは `ready → idle → initializing` を通り、その `idle` も画面に出るので、
+ * 起動し直しは `ready → idle → initializing` を通り、その `idle` も画面に出るので、
  * `idle` を `no-engine` に読むと「エンジンを選んでください」が出る
  */
 export function notReadyReasonOf({

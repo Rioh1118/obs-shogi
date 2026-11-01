@@ -11,7 +11,7 @@ const CONFIG: EngineRuntimeConfig = {
 };
 
 /**
- * **TS は USI の名前を足さない。** 評価関数・定跡・固定値の名前は Rust が起動のたびの申告から
+ * TS は USI の名前を足さない。評価関数、定跡、固定値の名前は Rust が起動のたびの申告から
  * 決める（`binding.rs`）。足すと、申告しないエンジン（zermelo の `EvalDir`）に届かない名前を送る
  */
 describe("toOptionValues", () => {

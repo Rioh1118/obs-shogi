@@ -5,7 +5,8 @@ import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 export type FsKind = "file" | "dir" | "symlink" | "unknown";
 
 export type DirInfo = {
-  path: string; // full path
+  /** 絶対パス */
+  path: string;
   exists: boolean;
   kind: FsKind;
 };
@@ -25,27 +26,35 @@ export type Launchability =
   | "wrongPlatform";
 
 export type EngineCandidate = {
-  entry: string; // engines/ からの相対。1段下のフォルダなら "<フォルダ>/<ファイル>"、開けないフォルダは "<フォルダ>/"
-  path: string; // full path
+  /** `engines/` からの相対。1段下のフォルダなら `<フォルダ>/<ファイル>`、開けないフォルダは `<フォルダ>/` */
+  entry: string;
+  /** 絶対パス */
+  path: string;
   kind: FsKind;
   launchability: Launchability;
 };
 
 export type FileCandidate = {
-  entry: string; // file name
-  path: string; // full path
+  /** ファイル名 */
+  entry: string;
+  /** 絶対パス */
+  path: string;
   kind: FsKind;
 };
 
 export type ProfileCandidate = {
-  name: string; // directory name under ai_root
-  path: string; // full path
+  /** `ai_root` の直下のフォルダ名 */
+  name: string;
+  /** 絶対パス */
+  path: string;
 
   has_eval_dir: boolean;
   has_book_dir: boolean;
 
-  eval_files: FileCandidate[]; // full path candidates under <profile>/eval
-  book_db_files: FileCandidate[]; // full path candidates under <profile>/book (db only)
+  /** `<profile>/eval` の中の候補 */
+  eval_files: FileCandidate[];
+  /** `<profile>/book` の中の `.db` の候補 */
+  book_db_files: FileCandidate[];
 };
 
 export type AiRootIndex = {
@@ -64,14 +73,11 @@ export async function ensureEnginesDir(aiRoot: string): Promise<string> {
 }
 
 /**
- * AI フォルダ（`<ai_root>/<name>/{eval,book}`）を作る。
+ * AI フォルダ（`<ai_root>/<name>/{eval,book}`）を作る。ワークスペース配下かの検査を通るコマンドでは
+ * 作れない（理由は Rust の `create_ai_profile_dirs` の doc）。
  *
- * **ワークスペース配下かの検査を通るコマンドでは作れない**
- * （理由は Rust の `create_ai_profile_dirs` の doc）。
- *
- * **失敗は `FsError` で返す。** 呼び出し元は code を見て、名前の欄のそばに出すか
- * （名前を直せば通る失敗）、AI ルートの診断側へ回すかを決める。`string` に潰すと
- * 「AI ルートが無い」まで名前が悪いという位置に出る
+ * 失敗は `FsError` で返す。呼び出し元は code を見て、名前の欄のそばに出すか（名前を直せば通る失敗）、
+ * AI ルートの診断側へ回すかを決める。`string` に潰すと「AI ルートが無い」まで名前が悪いという位置に出る
  */
 export async function createAiProfileDirs(
   aiRoot: string,
