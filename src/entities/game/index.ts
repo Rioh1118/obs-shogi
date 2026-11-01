@@ -1,6 +1,13 @@
-export * from "./model/provider";
-export * from "./model/useGame";
-export * from "./model/types";
+export { GameProvider } from "./model/provider";
+export { useGame, useLoadedKifuPath } from "./model/useGame";
+export type {
+  BoardLine,
+  GameContextType,
+  GamePersistence,
+  MoveGate,
+  ShogiMove,
+  StandardMoveFormat,
+} from "./model/types";
 
 // 終局の判定。呼び出し元は `features/game-ruling`。
 //
