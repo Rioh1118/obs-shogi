@@ -1,5 +1,5 @@
 import { Normalizer } from "json-kifu-format";
-import { Color, Piece, Shogi, type Kind } from "shogi.js";
+import { Piece, Shogi, type Color, type Kind } from "shogi.js";
 
 import { isDeadEnd } from "@/shared/lib/shogi/deadEnd";
 import type { ShogiMove } from "../model/types";
@@ -75,7 +75,7 @@ function isUchifudume(shogi: Shogi, move: ShogiMove): boolean {
     played.drop(move.to.x, move.to.y, move.kind, move.color!);
 
     // 相手の色を取得
-    const opponentColor = move.color === Color.Black ? Color.White : Color.Black;
+    const opponentColor = Piece.oppositeColor(move.color!);
 
     // 相手が王手されているかチェック
     if (!played.isCheck(opponentColor)) {

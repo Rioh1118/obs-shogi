@@ -1,4 +1,4 @@
-import type { Color } from "shogi.js";
+import { Piece, type Color } from "shogi.js";
 import { isDeadEnd } from "@/shared/lib/shogi/deadEnd";
 import { turnSide } from "@/shared/lib/turn";
 import type { JKFState } from "@/entities/kifu/model/jkf";
@@ -6,7 +6,6 @@ import { BOARD_SIZE } from "../model/board";
 import { coordsToShogiNotation } from "./boardCoords";
 import { toKan } from "./toKan";
 import {
-  flipColor,
   isCheckOn,
   pieceAt,
   piecesOnBoard,
@@ -118,7 +117,7 @@ function kingSquares(state: JKFState, color: Color): Square[] {
  * そこに「王手がかかったまま」を出すと、正しい局面に断りが出続ける。
  */
 function findCheckIgnored(state: JKFState): PositionIssue[] {
-  const passive = flipColor(state.color);
+  const passive = Piece.oppositeColor(state.color);
   const passiveKings = kingSquares(state, passive);
   if (passiveKings.length !== 1 || kingSquares(state, state.color).length !== 1) return [];
   if (!isCheckOn(state, passive)) return [];

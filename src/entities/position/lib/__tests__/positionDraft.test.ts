@@ -9,7 +9,6 @@ import {
   squareKey,
   dropFromHand,
   emptyHand,
-  flipColor,
   handCount,
   isCheckOn,
   isHandKind,
@@ -654,13 +653,6 @@ describe("emptyHand", () => {
     const a = emptyHand();
     a.FU = 3;
     expect(emptyHand().FU).toBe(0);
-  });
-});
-
-describe("flipColor", () => {
-  test("先後が入れ替わる", () => {
-    expect(flipColor(Color.Black)).toBe(Color.White);
-    expect(flipColor(Color.White)).toBe(Color.Black);
   });
 });
 

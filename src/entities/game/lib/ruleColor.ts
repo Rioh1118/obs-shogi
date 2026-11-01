@@ -7,7 +7,7 @@
  * | tsshogi の `Color`（文字列 enum） | 千日手と持将棋の点数（tsshogi へ渡す値）     | `sideToTsColor` の戻り値    |
  * | `Side`（`"black"` / `"white"`）   | Rust との境界（`endGameByRule` の `winner`） | `colorToSide` の戻り値      |
  *
- * **名前は `<源>To<先>` で揃える。** 揃えないと、`colorToSide(opponentOf(tsColorToColor(x)))`
+ * **名前は `<源>To<先>` で揃える。** 揃えないと、`colorToSide(Piece.oppositeColor(tsColorToColor(x)))`
  * のように重ねたときに、途中の値がどの綴りなのかを名前から追えなくなる。
  *
  * **外へ出すのは `Side`。** shogi.js の `Color.Black` は `0` なので、
@@ -31,9 +31,4 @@ export function sideToTsColor(side: Side): TsColor {
 
 export function tsColorToColor(color: TsColor): Color {
   return color === TsColor.BLACK ? Color.Black : Color.White;
-}
-
-/** 相手の手番。**綴りの変換ではない**ので `<源>To<先>` の規則には載らない */
-export function opponentOf(color: Color): Color {
-  return color === Color.Black ? Color.White : Color.Black;
 }

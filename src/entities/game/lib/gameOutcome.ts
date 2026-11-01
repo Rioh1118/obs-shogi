@@ -29,14 +29,14 @@
  * ただし消えるのは**組み直しの分だけ**（同じ400手で約2ms）で、1手ごとの
  * `hasLegalMove` と千日手の判定は残る（同じ400手で約7ms）。
  */
-import { Color, Shogi } from "shogi.js";
+import { Color, Piece, Shogi } from "shogi.js";
 import { Position, Record as ShogiRecord } from "tsshogi";
 
 import type { Side } from "@/entities/game-session";
 import { Err, Ok, type Result } from "@/shared/lib/result";
 import type { GameRules, JishogiRule } from "./gameRules";
 import { hasLegalMove } from "./moveValidation";
-import { tsColorToColor, opponentOf, colorToSide } from "./ruleColor";
+import { tsColorToColor, colorToSide } from "./ruleColor";
 
 /**
  * 終局の種別。**投了・時間切れ・中断は入らない**——それらは Rust が決めるので
@@ -228,7 +228,7 @@ function evaluate(
   const shogi = new Shogi();
   shogi.initializeFromSFENString(record.position.sfen);
   const toMove = shogi.turn;
-  const lastMover = opponentOf(toMove);
+  const lastMover = Piece.oppositeColor(toMove);
 
   if (!hasLegalMove(shogi, toMove)) {
     return Ok({
@@ -248,7 +248,10 @@ function evaluate(
     return Ok(
       checking === null
         ? { kind: "repetitionDraw", winner: null }
-        : { kind: "perpetualCheck", winner: colorToSide(opponentOf(tsColorToColor(checking))) },
+        : {
+            kind: "perpetualCheck",
+            winner: colorToSide(Piece.oppositeColor(tsColorToColor(checking))),
+          },
     );
   }
 
