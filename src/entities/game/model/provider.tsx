@@ -23,6 +23,7 @@ import {
   sameForkPointers,
   type BranchPlan,
   type CursorPath,
+  type KifuCursor,
 } from "@/entities/kifu/model/cursor";
 import { getLegalDrops, getLegalMovesFrom } from "../lib/moveValidation";
 import {
@@ -31,7 +32,7 @@ import {
   planByTe,
 } from "@/entities/kifu/lib/advanceWithPlan";
 import { applyMoveWithBranch } from "@/entities/kifu/lib/applyMoveWithBranch";
-import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
+import type { BranchEditResult, DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 import { deleteBranchInKifu, swapBranchesInKifu } from "@/entities/kifu/lib/branchEdit";
 import { buildCursorView } from "../lib/cursorView";
 import { fromIMove, toIMoveMoveFormat } from "../lib/moveConverter";
@@ -44,6 +45,10 @@ import {
   setCommentsByCursorInKifu,
   getCommentsByCursor as getCommentsByCursorFromJkf,
 } from "@/entities/kifu/lib/comment";
+
+function errorMessageOf(e: unknown, fallback: string): string {
+  return e instanceof Error ? e.message : fallback;
+}
 
 export function GameProvider({ children, persistence, moveGate }: GameProviderProps) {
   const [state, dispatch] = useReducer(gameReducer, initialGameState);
@@ -207,84 +212,134 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
           },
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : errorMessage;
+        const msg = errorMessageOf(e, errorMessage);
         dispatch({ type: "set_error", payload: msg });
       }
     },
     [state.jkf, state.cursor, state.branchPlan],
   );
 
-  // `Ok` は「棋譜が意図どおりになり、書けた」。書き込みが失敗したら `Err` を返す。
-  // 何も変えなかった場合（棋譜が無い / `run` が `false` を返した / 局面が動かなかった）も
-  // `Ok` にする。呼び出し側にとって「変える必要が無かった」は失敗ではない。
-  const edit = useCallback(
+  /**
+   * 棋譜を書き換える処理を、`isLoading` の数え上げと失敗の受け取りで包む。
+   * 棋譜が無ければ何もせず `Ok` を返す。
+   *
+   * `blocking` は棋譜一覧の全行を止めるかを決める。利用者が起動していない書き込みでは
+   * 立てない。コメントの自動保存は打鍵が止まった 900ms 後に走るので、次の手を押す瞬間と
+   * 重なり、行が止まると押した手が黙って捨てられる。
+   */
+  const runWrite = useCallback(
     async (
-      run: (player: JKFPlayer, nextJkf: JKFData) => boolean | void,
+      write: (jkf: JKFData) => AsyncResult<void, string>,
       errorMessage: string,
-      opt?: { forceCommit?: boolean; background?: boolean },
+      blocking: boolean,
     ): AsyncResult<void, string> => {
       if (!state.jkf) return Ok(undefined);
-
-      // `isLoading` は棋譜一覧の全行を無効にする。**利用者が起動していない書き込みで
-      // 立てない。** コメントの自動保存は打鍵が止まった 900ms 後に撃つので、
-      // 書き終えて次の手をクリックする瞬間と正確に重なる。そこで行が反応しなくなると、
-      // 合図も無くクリックが捨てられる。
-      const blocking = !opt?.background;
 
       try {
         dispatch({ type: "write_started", payload: { blocking } });
         dispatch({ type: "clear_error" });
-
-        const nextJkf = cloneJkf(state.jkf);
-        const player = buildPlayer(nextJkf, state.cursor);
-        const beforePointer = observedPointerOf(state.cursor, player);
-
-        const result = run(player, nextJkf);
-        if (result === false) return Ok(undefined);
-
-        const nextCursor = cursorFromPlayer(player);
-        if (!opt?.forceCommit && nextCursor.tesuuPointer === beforePointer) {
-          return Ok(undefined);
-        }
-
-        const before = {
-          jkf: state.jkf,
-          cursor: state.cursor,
-          branchPlan: state.branchPlan,
-        };
-
-        dispatch({
-          type: "jkf_replaced",
-          payload: {
-            jkf: nextJkf,
-            cursor: nextCursor,
-            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
-          },
-        });
-
-        const saved = await persistIfPossible(nextJkf);
-        if (!saved.success)
-          dispatch({
-            type: "jkf_restored",
-            payload: {
-              ...before,
-              expectedJkf: nextJkf,
-              // **局面を動かさなかった書き込みでは、カーソルを戻さない。**
-              // コメントの自動保存は 900ms 後に撃つので、待っている間に利用者が
-              // 手を進めていることがある。戻すと盤と一覧が黙って戻る。
-              restoreCursor: nextCursor.tesuuPointer !== beforePointer,
-            },
-          });
-        return saved;
+        return await write(state.jkf);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : errorMessage;
+        const msg = errorMessageOf(e, errorMessage);
         dispatch({ type: "set_error", payload: msg });
         return Err(msg);
       } finally {
         dispatch({ type: "write_ended", payload: { blocking } });
       }
     },
+    [state.jkf],
+  );
+
+  /** 棋譜を先に置き換えてから保存し、書けなければ置き換える前へ戻す。 */
+  const replaceJkf = useCallback(
+    async (
+      nextJkf: JKFData,
+      nextCursor: KifuCursor,
+      restoreCursor: boolean,
+    ): AsyncResult<void, string> => {
+      const before = {
+        jkf: state.jkf,
+        cursor: state.cursor,
+        branchPlan: state.branchPlan,
+      };
+
+      dispatch({
+        type: "jkf_replaced",
+        payload: {
+          jkf: nextJkf,
+          cursor: nextCursor,
+          branchPlan: asBranchPlan([...nextCursor.forkPointers]),
+        },
+      });
+
+      const saved = await persistIfPossible(nextJkf);
+      if (!saved.success) {
+        dispatch({
+          type: "jkf_restored",
+          payload: { ...before, expectedJkf: nextJkf, restoreCursor },
+        });
+      }
+      return saved;
+    },
     [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
+  );
+
+  // `Ok` は「棋譜が意図どおりになり、書けた」。書き込みが失敗したら `Err` を返す。
+  // 何も変えなかった場合（棋譜が無い / `run` が `false` を返した / 局面が動かなかった）も
+  // `Ok` にする。呼び出し側にとって「変える必要が無かった」は失敗ではない。
+  const edit = useCallback(
+    (
+      run: (player: JKFPlayer, nextJkf: JKFData) => boolean | void,
+      errorMessage: string,
+      opt?: { forceCommit?: boolean; background?: boolean },
+    ): AsyncResult<void, string> => {
+      return runWrite(
+        async (jkf) => {
+          const nextJkf = cloneJkf(jkf);
+          const player = buildPlayer(nextJkf, state.cursor);
+          const beforePointer = observedPointerOf(state.cursor, player);
+
+          const result = run(player, nextJkf);
+          if (result === false) return Ok(undefined);
+
+          const nextCursor = cursorFromPlayer(player);
+          const moved = nextCursor.tesuuPointer !== beforePointer;
+          if (!opt?.forceCommit && !moved) return Ok(undefined);
+
+          // **局面を動かさなかった書き込みでは、カーソルを戻さない。**
+          // コメントの自動保存は 900ms 後に撃つので、待っている間に利用者が
+          // 手を進めていることがある。戻すと盤と一覧が黙って戻る。
+          return await replaceJkf(nextJkf, nextCursor, moved);
+        },
+        errorMessage,
+        !opt?.background,
+      );
+    },
+    [state.cursor, runWrite, replaceJkf],
+  );
+
+  const editBranches = useCallback(
+    (
+      rewrite: (jkf: JKFData, cursor: KifuCursor | null) => BranchEditResult,
+      errorMessage: string,
+    ): AsyncResult<void, string> => {
+      return runWrite(
+        async (jkf) => {
+          const nextJkf = cloneJkf(jkf);
+          const res = rewrite(nextJkf, state.cursor);
+          if (!res.changed) return Ok(undefined);
+
+          const baseCursor = res.nextCursor ?? state.cursor ?? ROOT_CURSOR;
+          const rebuilt = buildPlayer(nextJkf, baseCursor);
+
+          // 分岐の入れ替え・削除は自分でカーソルを動かすので、戻すときも一緒に戻す
+          return await replaceJkf(nextJkf, cursorFromPlayer(rebuilt), true);
+        },
+        errorMessage,
+        true,
+      );
+    },
+    [state.cursor, runWrite, replaceJkf],
   );
 
   const loadGame = useCallback(
@@ -378,103 +433,20 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   );
 
   const swapBranches = useCallback(
-    async (q: SwapQuery): AsyncResult<void, string> => {
-      if (!state.jkf) return Ok(undefined);
-
-      try {
-        dispatch({ type: "write_started", payload: { blocking: true } });
-        dispatch({ type: "clear_error" });
-
-        const nextJkf = cloneJkf(state.jkf);
-        const res = swapBranchesInKifu(nextJkf, q, state.cursor);
-
-        if (!res.changed) return Ok(undefined);
-
-        const baseCursor = res.nextCursor ?? state.cursor ?? ROOT_CURSOR;
-        const rebuilt = buildPlayer(nextJkf, baseCursor);
-        const nextCursor = cursorFromPlayer(rebuilt);
-
-        const before = {
-          jkf: state.jkf,
-          cursor: state.cursor,
-          branchPlan: state.branchPlan,
-        };
-
-        dispatch({
-          type: "jkf_replaced",
-          payload: {
-            jkf: nextJkf,
-            cursor: nextCursor,
-            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
-          },
-        });
-        const saved = await persistIfPossible(nextJkf);
-        if (!saved.success)
-          dispatch({
-            type: "jkf_restored",
-            // 分岐の入れ替え・削除は自分でカーソルを動かすので、戻すときも一緒に戻す
-            payload: { ...before, expectedJkf: nextJkf, restoreCursor: true },
-          });
-        return saved;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to swap branches";
-        dispatch({ type: "set_error", payload: msg });
-        return Err(msg);
-      } finally {
-        dispatch({ type: "write_ended", payload: { blocking: true } });
-      }
+    (q: SwapQuery) => {
+      const swap = (jkf: JKFData, cursor: KifuCursor | null) => swapBranchesInKifu(jkf, q, cursor);
+      return editBranches(swap, "Failed to swap branches");
     },
-    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
+    [editBranches],
   );
 
   const deleteBranch = useCallback(
-    async (q: DeleteQuery): AsyncResult<void, string> => {
-      if (!state.jkf) return Ok(undefined);
-
-      try {
-        dispatch({ type: "write_started", payload: { blocking: true } });
-        dispatch({ type: "clear_error" });
-
-        const nextJkf = cloneJkf(state.jkf);
-        const res = deleteBranchInKifu(nextJkf, q, state.cursor);
-
-        if (!res.changed) return Ok(undefined);
-
-        const baseCursor = res.nextCursor ?? state.cursor ?? ROOT_CURSOR;
-        const rebuilt = buildPlayer(nextJkf, baseCursor);
-        const nextCursor = cursorFromPlayer(rebuilt);
-
-        const before = {
-          jkf: state.jkf,
-          cursor: state.cursor,
-          branchPlan: state.branchPlan,
-        };
-
-        dispatch({
-          type: "jkf_replaced",
-          payload: {
-            jkf: nextJkf,
-            cursor: nextCursor,
-            branchPlan: asBranchPlan([...nextCursor.forkPointers]),
-          },
-        });
-        const saved = await persistIfPossible(nextJkf);
-        if (!saved.success)
-          dispatch({
-            type: "jkf_restored",
-            // 分岐の入れ替え・削除は自分でカーソルを動かすので、戻すときも一緒に戻す
-            payload: { ...before, expectedJkf: nextJkf, restoreCursor: true },
-          });
-        return saved;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to delete branch";
-        dispatch({ type: "set_error", payload: msg });
-        return Err(msg);
-      } finally {
-        dispatch({ type: "write_ended", payload: { blocking: true } });
-      }
+    (q: DeleteQuery) => {
+      const remove = (jkf: JKFData, cursor: KifuCursor | null) =>
+        deleteBranchInKifu(jkf, q, cursor);
+      return editBranches(remove, "Failed to delete branch");
     },
-    [state.jkf, state.cursor, state.branchPlan, persistIfPossible],
+    [editBranches],
   );
 
   const getCommentsByCursor = useCallback(
@@ -491,10 +463,8 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
   );
 
   const setCommentsByCursor = useCallback(
-    async (cursor: CursorPath, comments: string[]): AsyncResult<void, string> => {
-      if (!state.jkf) return Ok(undefined);
-
-      return await edit(
+    (cursor: CursorPath, comments: string[]): AsyncResult<void, string> =>
+      edit(
         (_player, nextJkf) => {
           const result = setCommentsByCursorInKifu(nextJkf, cursor, comments);
 
@@ -507,18 +477,13 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
             );
           }
 
-          if (!result.changed) {
-            return false;
-          }
-
-          return true;
+          return result.changed;
         },
         "Failed to update comments",
         // 自動保存は利用者が起動しない。棋譜一覧の行を止めない
         { forceCommit: true, background: true },
-      );
-    },
-    [state.jkf, edit],
+      ),
+    [edit],
   );
 
   const selectSquare = useCallback(
@@ -623,7 +588,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
           payload: { type: "hand", color, kind },
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to select hand";
+        const msg = errorMessageOf(e, "Failed to select hand");
         dispatch({ type: "set_error", payload: msg });
       }
     },
@@ -673,7 +638,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
           },
         });
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Failed to apply cursor";
+        const msg = errorMessageOf(e, "Failed to apply cursor");
         dispatch({ type: "set_error", payload: msg });
       }
     },
