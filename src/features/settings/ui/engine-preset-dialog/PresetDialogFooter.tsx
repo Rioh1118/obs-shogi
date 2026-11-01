@@ -8,7 +8,6 @@ export default function PresetDialogFooter({
 }: {
   onClose: () => void;
   onSave: () => void;
-  /** オプションを取得している間は保存させない */
   saveDisabled?: boolean;
 }) {
   return (

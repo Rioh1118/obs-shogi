@@ -8,10 +8,7 @@ import type { PresetEngineOption } from "@/features/settings/lib/presetEngineOpt
 import { bookChoices, evalChoices } from "@/features/settings/lib/fileChoices";
 import { probeStatusText, type ProbeFailure } from "@/features/settings/lib/probeStatus";
 
-/**
- * engines/ の帯の文言。網羅の理由は `EnginesDir` の doc。
- * `null` は帯を出さない（読めていない `unknown` に「存在しません」と言わない）
- */
+/** `engines` の帯の文言。`null` は帯を出さない。 */
 const ENGINES_DIR_HINT: Record<EnginesDir, ((path: string) => string) | null> = {
   unknown: null,
   dir: null,
@@ -19,19 +16,10 @@ const ENGINES_DIR_HINT: Record<EnginesDir, ((path: string) => string) | null> = 
   other: (path) => `engines がフォルダではありません（${path}）。同じ名前のものを削除してください。`,
 };
 
-/**
- * AI ライブラリを読み直すボタンの読み上げ名。**エンジンの読み込みの「もう一度読み込む」が同じ欄に
- * 並ぶ**ので、見える語は同じでも読み上げでは何を読み直すかを名指す
- */
+/** AI ライブラリを読み直すボタンの読み上げ名。エンジンの「もう一度読み込む」が同じ欄に並ぶので分ける。 */
 const RESCAN_NAME = "AI ライブラリをもう一度読み込む";
 
-/**
- * 何を使うか: エンジン・評価関数・定跡。評価関数と定跡は、AI ライブラリの全部のフォルダから
- * 「フォルダ / ファイル」で1つ選ぶ（`evalChoices` / `bookChoices`）。
- *
- * エンジンを選ぶと裏で読み込む（呼び手の `onEngineChosen`）。欄の下に出すのは読み込み中と、
- * 読めなかったときだけ（`probeStatusText`）
- */
+/** 「使うもの」の節。エンジン、評価関数、定跡を選ぶ。 */
 export default function UsedFilesSection(props: {
   draft: EnginePreset;
   enginePathError: string | undefined;
@@ -83,7 +71,6 @@ export default function UsedFilesSection(props: {
   const evals = evalChoices(profiles, draft.evalFilePath);
   const bookUsed = bookInUse(draft);
   const books = bookChoices(profiles, bookUsed ? draft.bookFilePath : null);
-  // 名乗り（id name）は、いまのエンジンを読み込めたときだけ使う
   const engineName = hasCurrentDefinitions(draft) ? draft.engineName : null;
 
   return (
@@ -98,7 +85,7 @@ export default function UsedFilesSection(props: {
         <div className="presetDialog__hintWarn">
           {band(enginesDirPath)}
           <div className="presetDialog__bandActions">
-            {/* 読み直している間は押せなくする（帯の文言は前の索引のままなので、押せると効かなかったと読まれる） */}
+            {/* 帯の文言は読み直しの間も前の索引のままなので、押せると効かなかったと読まれる */}
             {canCreateEnginesDir(enginesDir) && (
               <Button
                 tone="accent"
@@ -126,8 +113,7 @@ export default function UsedFilesSection(props: {
           label="エンジン"
           error={enginePathError}
           right={
-            // **いつも押せる。** 探すのが返らない（応答しないドライブ）ときと、開いたままエンジンを
-            // 置いたときに、閉じずに探し直すボタンが要る
+            // 走査が返らないドライブでも閉じずに探し直せるよう、読み込み中も押せる（`busy`）
             aiRootReady && (
               <Button
                 size="sm"
@@ -145,7 +131,6 @@ export default function UsedFilesSection(props: {
             aria-label="エンジン"
             onChange={(e) => onEngineChosen(e.target.value)}
             options={engineOptions.map((o) =>
-              // 読み込めたエンジンは名乗りで出す。起動できない見込みの理由は名乗りの後ろにも添える
               o.value === draft.enginePath && engineName
                 ? { ...o, label: o.note ? `${engineName}（${o.note}）` : engineName }
                 : o,

@@ -10,7 +10,6 @@ import { fitNoteLines, type FitNote } from "@/features/settings/lib/fitNote";
 import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
 import { bookInUse, type EnginePreset } from "@/entities/engine-presets/model/types";
 
-/** check の既定値の表示 */
 function onOff(v: string | null): string {
   return v === "true" ? "ON" : v === "false" ? "OFF" : (v ?? "");
 }
@@ -51,7 +50,7 @@ function OptionInput(props: {
           onChange={(e) => set(e.target.value || null)}
           options={[
             { value: "", label: defaultLabel(row) },
-            // 選択肢に無い保存済みの値も選択として残す（送る側は送らない。外すかは利用者が決める）
+            // 選択肢に無い保存済みの値も残す。送る側は送らず、外すかは利用者が決める
             ...(row.value != null && !def.vars.includes(row.value)
               ? [{ value: row.value, label: `${row.value}（選択肢に無い）` }]
               : []),
@@ -74,7 +73,7 @@ function OptionInput(props: {
   }
 }
 
-/** 打っている間は文字のまま持ち、欄を離れたときに確定する（途中の「-」で丸めない。`commitSpinInput`） */
+/** 打っている間は文字のまま持ち、欄を離れたときに確定する。途中の「-」で丸めない。 */
 function SpinInput(props: { row: SpinRow; set: (value: string | null) => void }) {
   const { row, set } = props;
   const [text, setText] = useState<string | null>(null);
@@ -98,7 +97,7 @@ function SpinInput(props: { row: SpinRow; set: (value: string | null) => void })
   );
 }
 
-/** 文字の欄と、ファイルを選ぶ画面。選ぶ画面を開けなければ、そう言って文字の欄へ誘う */
+/** パスの欄と、ファイルを選ぶボタン。選ぶ画面を開けなければ、直接の入力へ誘う。 */
 function FilenameInput(props: { row: OptionRow; set: (value: string | null) => void }) {
   const { row, set } = props;
   const [pickError, setPickError] = useState<string | null>(null);
@@ -139,10 +138,8 @@ function FilenameInput(props: { row: OptionRow; set: (value: string | null) => v
 }
 
 /**
- * エンジンの設定（エンジンが申告したオプション）。**1つのリスト**: 先頭にスレッド数とハッシュ、続けて申告の順
- * （`optionRows`）。名前は日本語（辞書に無ければエンジンの綴り）で、綴りを下に小さく添える。
- *
- * 定義が無いあいだ（読み込み中・読めなかった）は行を出さない。読めない理由はエンジンの欄の下に出る
+ * 「エンジン設定」の節。エンジンが申告したオプションを1つのリストで編集する。
+ * いまのエンジンの定義が無いあいだは行を出さない。読めない理由はエンジンの欄の下に出る。
  */
 export default function EngineSettingsSection(props: {
   draft: EnginePreset;
@@ -150,7 +147,6 @@ export default function EngineSettingsSection(props: {
   /** 挙げた名前の値を消す（初期値に戻す） */
   clearOptions: (names: string[]) => void;
   probing: boolean;
-  /** 読み込んだ定義に当てて変えた値 */
   fitNote: FitNote | null;
 }) {
   const { draft, setOpt, clearOptions, probing, fitNote } = props;
@@ -159,7 +155,7 @@ export default function EngineSettingsSection(props: {
   const bookUsed = bookInUse(draft);
   const rows = optionRows(draft, { query, changedOnly, bookUsed });
   const total = optionRows(draft, { bookUsed }).length;
-  // 戻せるのは、画面に出ていて値を持つ行だけ（絞り込みで見えない行は消さない）
+  // 絞り込みで見えない行は消さない
   const clearable = rows.filter((r) => r.value != null).map((r) => r.def.name);
   const fitLines = fitNoteLines(fitNote, draft.enginePath);
 

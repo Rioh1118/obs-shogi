@@ -18,14 +18,13 @@ import type { AnalysisDefaults, EnginePreset } from "@/entities/engine-presets/m
 import "./AnalysisSection.scss";
 
 /**
- * 解析をどう回すか。候補手の数（エンジンへは `MultiPV` として送る）と、止める条件。
- *
- * 候補手の数は値が無ければ初期値（送らない）。止める条件は保存するが、解析はまだ読まない（#107）
+ * 「検討」の節。候補手の数と終了条件と詰み探索を決める。
+ * 候補手の数は値が無ければ送らない。終了条件と詰み探索は保存するが、検討はまだ読まない。
  */
 export default function AnalysisSection(props: {
   draft: EnginePreset;
   setDraft: Dispatch<SetStateAction<EnginePreset | null>>;
-  /** `null` で値を消す（初期値。送らない） */
+  /** `null` で値を消す。 */
   setOpt: (name: string, value: string | null) => void;
   /** 候補手の数の上限（`multiPvMax`） */
   multiPvMax: number;
@@ -34,7 +33,7 @@ export default function AnalysisSection(props: {
   const multiPv = savedInt(draft.options, MULTIPV_OPTION);
   const multiPvDefault = engineDefaultOf(draft, MULTIPV_OPTION);
   const quick = QUICK_MULTIPV.filter((n) => n <= multiPvMax);
-  // 利用者が開いたか、値がどのボタンにも無いときに開く（値から導く。ボタンに無い値が画面から消えない）
+  // 値がどのボタンにも無いときは開いたままにする。閉じると値が画面から消える
   const [customOpened, setCustomOpened] = useState(false);
   const offButtons = multiPv != null && !(quick as number[]).includes(multiPv);
   const showCustom = customOpened || offButtons;
@@ -73,7 +72,6 @@ export default function AnalysisSection(props: {
                 </button>
               ))}
             </div>
-            {/* ボタンに無い値の間は閉じられない（閉じると値が画面から消える）ので押せなくする */}
             <Button size="sm" onClick={() => setCustomOpened(!showCustom)} disabled={offButtons}>
               ほかの数…
             </Button>
@@ -88,7 +86,6 @@ export default function AnalysisSection(props: {
               value={multiPv ?? ""}
               placeholder={multiPvDefault ?? ""}
               aria-label="候補手の数（数値で入力）"
-              // 空にしたら初期値（1 を入れない）
               onChange={(e) =>
                 e.target.value.trim() === ""
                   ? setOpt(MULTIPV_OPTION, null)

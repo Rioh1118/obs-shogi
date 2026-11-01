@@ -7,7 +7,7 @@ import { autofillPreset } from "../presetDialog";
 /**
  * `autofillPreset` は、プリセット編集ダイアログの effect がそのまま呼ぶ。
  *
- * 固定するのは**「何も埋めなかったら同じ参照」**。理由は `autofillPreset` の doc。
+ * 「何も埋めなかったら同じ参照」を固定する。理由は `autofillPreset` の doc。
  */
 
 const PRESET: EnginePreset = {
@@ -83,9 +83,8 @@ describe("autofillPreset", () => {
   });
 
   /**
-   * **欄ごとに1本ずつ当てる。** 全欄が空の下書きを渡すテストだけだと、
-   * どれか1つの枝が `changed` を立て損ねても残りが `next` を運ぶので、
-   * 「4分岐それぞれが独立に立てる」という前提を1つも固定できない
+   * 欄ごとに1本ずつ当てる。全欄が空の下書きを渡すテストだけだと、
+   * どれか1つの枝が `changed` を立て損ねても残りが `next` を運ぶ
    */
   test("AI名だけが空なら、AI名だけ埋まる", () => {
     const cur: EnginePreset = {

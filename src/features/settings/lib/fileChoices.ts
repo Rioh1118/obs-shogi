@@ -4,7 +4,7 @@ type FileChoice = {
   value: string;
   label: string;
   disabled?: boolean;
-  /** 選んだときにプリセットの `aiName` に入れるフォルダの名前（AI ライブラリの1件） */
+  /** 選んだときにプリセットの `aiName` に入れるフォルダの名前 */
   folder: string | null;
 };
 
@@ -22,7 +22,7 @@ export function fileLabel(path: string): string {
   return (kind === "eval" || kind === "book") && folder ? `${folder} / ${file}` : file;
 }
 
-/** 選択肢に無いパス（手で入れた、消えた）も選択として残す。落とすと保存したパスが画面から見えなくなる */
+/** 選択肢に無いパス（消えた）も選択として残す。落とすと保存したパスが画面から見えなくなる。 */
 function keepCurrent(choices: FileChoice[], current: string | null | undefined): FileChoice[] {
   const cur = (current ?? "").trim();
   if (!cur || choices.some((c) => c.value === cur)) return choices;
@@ -49,7 +49,7 @@ export function evalChoices(profiles: ProfileCandidate[], current: string): File
 
 /**
  * 定跡の選択肢。先頭は「使わない」（値は空）。AI ライブラリの全部のフォルダの `book/` の `.db` を並べる。
- * 選んだ定跡は解析で使い、定跡ビューにも出す（「使わない」ならどちらにも出ない）
+ * 選んだ定跡は検討で使い、定跡ビューにも出す（「使わない」ならどちらにも出ない）
  */
 export function bookChoices(profiles: ProfileCandidate[], current: string | null): FileChoice[] {
   const files = profiles.flatMap((p) =>

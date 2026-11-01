@@ -38,8 +38,7 @@ export function isSelectableEngine(candidate: EngineCandidate): boolean {
  * プリセット編集のエンジンの候補。列挙（`scan_ai_root`）が返したものを**名前で絞らずに**全部並べる。
  * 列挙は engines/ の直下と1段下のフォルダの実行ファイルを見る（`ai_library/engines.rs`）。
  *
- * 評価関数・定跡をどの名前で送るかは実行ファイル名でなくエンジンの申告から決まるので
- * （`engine/binding.rs`）、名前で候補を選ぶ理由は無い
+ * 評価関数と定跡をどの名前で送るかは申告から決まるので（`engine/binding.rs`）、名前で候補を選ぶ理由は無い
  */
 export function presetEngineOptions(engines: EngineCandidate[]): PresetEngineOption[] {
   return engines.map((e) => {

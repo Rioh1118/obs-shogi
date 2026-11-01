@@ -4,8 +4,8 @@ import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { MULTIPV_OPTION } from "@/entities/engine-presets/model/multiPv";
 
 /**
- * 「検討」の節に置く名前（`AnalysisSection` が欄を持つ）。エンジンのオプションとして送るが、利用者から
- * 見ると解析の結果の出し方（候補手を何本出すか）なので、エンジンの設定の行には出さない
+ * 「検討」の節に置く名前。エンジンのオプションとして送るが、利用者から見ると検討の結果の出し方なので、
+ * エンジン設定の行には出さない
  */
 const ANALYSIS_OPTION_NAMES: ReadonlySet<string> = new Set([MULTIPV_OPTION]);
 
@@ -40,9 +40,8 @@ type OptionRowFilter = {
  * 「エンジンの設定」の行。いまのエンジンの定義（`hasCurrentDefinitions`）があるときだけ。
  *
  * - 先頭に `PINNED_OPTION_NAMES`（よく変えるもの）、続けて申告の順
- * - **出さないもの**: 値を持たない `button`、アプリが決める名前（`reservedNames`。評価関数・定跡の欄と解析の
- *   固定値で決まるので、利用者が変えても送らない）、「検討」に置く名前（`ANALYSIS_OPTION_NAMES`）、
- *   定跡を使わないときの定跡の設定
+ * - 出さないもの: 値を持たない `button`、アプリが決める名前（`reservedNames`。利用者が変えても送らない）、
+ *   「検討」に置く名前（`ANALYSIS_OPTION_NAMES`）、定跡を使わないときの定跡の設定
  * - 同じ名前を2回申告するエンジンでも行は1つ（最初の申告）——どちらの行も同じ値を書く
  */
 export function optionRows(

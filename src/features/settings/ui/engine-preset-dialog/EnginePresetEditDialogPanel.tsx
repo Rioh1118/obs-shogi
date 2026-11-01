@@ -56,14 +56,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   const aiRoot = config?.ai_root ?? null;
 
-  // ---- scan state ----
   /**
-   * 読めた索引と、**それがどのルートのものか**。
+   * 読めた索引と、読んだルート。
    *
-   * ルートを持たせないと、切り替えた直後の走査中に前のルートの索引で描くことになる——
-   * 帯が旧ルートの絶対パスを名指しし、その隣の「フォルダを作成」は新しいルートに対して
-   * 働く（本文と動作の宛先が食い違う）。候補の一覧も前のルートのものが残る。
-   * 同じ形を `AiLibraryTab` が `LoadedIndex` で持っている
+   * ルートを持たせないと、切り替えた直後の走査中に前のルートの索引で描く。帯は前のルートのパスを
+   * 名指しするのに、隣の「フォルダを作成」は新しいルートに働き、候補の一覧も前のルートのものが残る。
    */
   const [loaded, setLoaded] = useState<{ root: string; index: AiRootIndex } | null>(null);
   const [indexStatus, setIndexStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -73,11 +70,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const rescan = useCallback(() => setScanNonce((n) => n + 1), []);
 
   /**
-   * いま指しているルート。**`await` を跨いだ後の書き込みを通すかの判定に要る。**
-   *
-   * 書くのはルートが変わる場所＝この effect（`aiRoot` は設定からしか変わらない）。
-   * 読むのは `await` の後だけ——それが判定の定義。
-   * 同じ役の ref を `AiLibraryTab` が `currentRootRef` として持っている
+   * いま指しているルート。`await` の後に読み、結果を書いてよいかを判定する。
+   * `aiRoot` は設定からしか変わらないので、下の effect で書く。
    */
   const currentRootRef = useRef(aiRoot);
 
@@ -116,26 +110,22 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     };
   }, [open, aiRoot, scanNonce]);
 
-  // preset が消えたら閉じる
   useEffect(() => {
     if (!open) return;
     if (!preset) onClose();
   }, [open, preset, onClose]);
 
-  // ---- derived candidates ----
-  // **別のルートの索引は使わない。** 読み直しの最中は同じルートの索引を残すが、
-  // 切り替えた直後は「まだ何も読めていない」が正しい
+  // 別のルートの索引は使わない。読み直しの最中は同じルートの索引を残すが、切り替えた直後はまだ何も読めていない
   const index = loaded && loaded.root === aiRoot ? loaded.index : null;
 
   const engines = useMemo(() => index?.engines ?? [], [index?.engines]);
   const profiles = useMemo(() => index?.profiles ?? [], [index?.profiles]);
 
-  // ---- draft と取得（`presetDialogReducer`） ----
-  /** 開いてから一度でも読み込んだか（開いたときの読み込みを1回にする） */
+  /** 開いてから一度でも読み込んだか。開いたときの読み込みを1回にする。 */
   const openedProbeRef = useRef(false);
   /**
-   * 開いてから空欄の補完を済ませたか。**補完は開いた後の1回だけ**——評価関数の空は「指定しない」という
-   * 選択でもあるので、下書きが変わるたびに補完すると、選んだ「指定しない」を既定の評価関数で埋め直す
+   * 開いてから空欄の補完を済ませたか。
+   * 評価関数の空は「指定しない」という選択でもあるので、下書きが変わるたびに補完すると選んだ値を埋め直す。
    */
   const autofilledRef = useRef(false);
   const [dialog, dispatch] = useReducer(presetDialogReducer, initialPresetDialogState);
@@ -143,16 +133,13 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const probing = dialog.probe !== null;
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  /** 各節が下書きを直す関数（値以外の欄）。reducer の `edited` に渡す */
+  /** 値以外の欄を直す。 */
   const setDraft = useCallback(
     (update: SetStateAction<EnginePreset | null>) => dispatch({ type: "edited", update }),
     [],
   );
 
-  /**
-   * `enginePath` の申告を取る。結果を使うかは reducer が決める（いま待っている取得の結果だけ。
-   * 取得を撃たずにパスだけが変わっていたら当てない）
-   */
+  /** `rawPath` のエンジンの申告を取る。結果を使うかは reducer が `token` で決める。 */
   const runProbe = useCallback((rawPath: string) => {
     const enginePath = probePathOf(rawPath);
     if (!enginePath) return;
@@ -179,10 +166,8 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     );
   }, []);
 
-  /** 待ちをやめ、保存できるようにする。待っていた取得の結果は来ても捨てる */
   const stopProbe = useCallback(() => dispatch({ type: "probeAbandoned" }), []);
 
-  // preset → draft 初期化
   useEffect(() => {
     if (!open) return;
     if (!preset) return;
@@ -194,8 +179,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
   const engineOptions = useMemo(() => {
     const opts = presetEngineOptions(engines);
 
-    // 候補に無いパス（手で入れた、engines/ の外、消えた）も選択として残す。
-    // 落とすと select が空になり、保存したパスが画面から見えなくなる
+    // 候補に無いパス（engines/ の外、消えた）も選択として残す。落とすと保存したパスが画面から見えなくなる
     const cur = cleanText(draft?.enginePath ?? "");
     if (cur && !opts.some((o) => o.value === cur)) {
       opts.unshift({
@@ -211,7 +195,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
 
   const scanReady = indexStatus === "ok" && index != null;
 
-  // 候補が揃った時点で1回だけ、**エンジンがまだ無い（作ったばかりの）プリセット**の空欄を埋める。
+  // 候補が揃った時点で1回だけ、エンジンがまだ無いプリセットの空欄を埋める。
   // エンジンのあるプリセットの評価関数の空は、利用者が選んだ「指定しない」なので埋めない
   useEffect(() => {
     if (!open) return;
@@ -231,18 +215,14 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     );
   }, [open, draft, index, profiles, engines, setDraft]);
 
-  /**
-   * 開いたときに1回、エンジンを読み込む（定義と画面の名前はいつも今のエンジン・今の辞書から。画面の名前は
-   * 保存しない）。空欄の自動補完でエンジンが埋まった回も、ここで読み込む。利用者が先にエンジンを選んで
-   * 読み込んでいれば、もう読まない（`runProbe` が `openedProbeRef` を立てる）
-   */
+  // 開いたときに1回、エンジンを読み込む。画面の名前は保存しないので、毎回いまの辞書から取る。
+  // 空欄の補完でエンジンが埋まった回も読み込み、利用者が先に選んでいれば `runProbe` が印を立てている
   useEffect(() => {
     if (openedProbeRef.current || !draft?.enginePath) return;
     openedProbeRef.current = true;
     runProbe(draft.enginePath);
   }, [draft?.enginePath, runProbe]);
 
-  /** `null` で値を消す（初期値。送らない） */
   const setOpt = useCallback(
     (name: string, value: string | null) => dispatch({ type: "optionSet", name, value }),
     [],
@@ -259,14 +239,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       setIndexStatus("loading");
       await ensureEnginesDir(root);
 
-      // 切り替え後の走査と重ねて、同じルートをもう一度歩かせない
-      // （`rescan` はそのときの `aiRoot` を読むので、古いルートを走ることは無い）
+      // 切り替え後の走査は effect が走らせている。`rescan` を重ねると同じルートをもう一度読む
       if (root !== currentRootRef.current) return;
       rescan();
     } catch (e) {
-      // **前のルートの失敗を新しいルートの画面へ書かない。** 書くと、指してもいない
-      // フォルダの失敗が赤字で出たうえ、`indexStatus` が error に落ちて
-      // 読めている索引ごと候補が塞がる
+      // 前のルートの失敗を新しいルートの画面へ書かない。書くと `indexStatus` が error に落ち、候補が塞がる
       if (root !== currentRootRef.current) return;
       setIndexStatus("error");
       setIndexError(`engines/ の作成に失敗しました: ${String(e)}`);
@@ -285,13 +262,11 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
     const enginePath = cleanText(draft.enginePath);
     const evalFilePath = cleanText(draft.evalFilePath);
 
-    // 要るのは名前とエンジンだけ。評価関数は必須にしない（指定できないエンジンがある。流し先は
-    // 起動のたびに Rust が決める）
+    // 評価関数は必須にしない。指定できないエンジンがある
     if (!label) nextErrors.label = "名前を入力してください";
     if (!enginePath) nextErrors.enginePath = "エンジンを選択してください";
 
-    // 「使わない」定跡はパスごと落とす。前の版は使わない定跡のパスを残して保存しているので、
-    // 開いて保存し直せば、欄の「使わない」とファイルが揃う
+    // 前の版は使わない定跡のパスを残して保存している。落とせば、欄の「使わない」とファイルが揃う
     const bookEnabled = bookInUse(draft);
     const bookFilePath = bookEnabled ? cleanText(draft.bookFilePath ?? "") : null;
 
@@ -300,7 +275,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       return;
     }
 
-    // analysis: <=0 は落とす（軽く）
     const a = draft.analysis ?? { mateSearch: false };
     const timeSeconds =
       a.timeSeconds != null ? clampInt(parseIntSafe(a.timeSeconds, 0), 0, 3600) : undefined;
@@ -320,7 +294,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
           }
         : undefined;
 
-    // options: 空は入れない。値は下書きのとおり（無い名前はエンジン既定で、送らない）
+    // 空は入れない。無い名前はエンジン既定で、送らない
     const rawOpt = draft.options ?? {};
     const options: Record<string, string> = {};
     for (const [k, v] of Object.entries(rawOpt)) {
@@ -346,7 +320,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
       engineAuthor: draft.engineAuthor ?? null,
     };
 
-    // 書けなかったら閉じない（入力を残す）。理由は帯が出す（`PresetsFileBridge`）
+    // 書けなかったら閉じずに入力を残す。理由は `PresetsFileBridge` の帯が出す
     if (await updatePreset(presetId, patch)) onClose();
   }, [draft, onClose, presetId, probing, updatePreset]);
 
@@ -399,7 +373,7 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
             engineOptions={engineOptions}
             profiles={profiles}
             onEngineChosen={(path) => {
-              // 名乗りは読み込めたエンジンのもの。残すと、読み込めなかった別のエンジンを前の名乗りで出す
+              // 名乗りを残すと、読み込めなかった別のエンジンを前の名乗りで出す
               setDraft({ ...draft, enginePath: path, engineName: null, engineAuthor: null });
               setErrors((es) => ({ ...es, enginePath: "" }));
               runProbe(path);
@@ -408,7 +382,6 @@ function EnginePresetEditDialogInner({ presetId, open, onClose }: Props) {
               setDraft({
                 ...draft,
                 evalFilePath: path,
-                // ライブラリから選べばそのフォルダ。「指定しない」なら空（`EnginePreset.aiName`）
                 aiName: path === "" ? "" : (folder ?? draft.aiName),
               })
             }
