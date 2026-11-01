@@ -17,7 +17,6 @@ const world = vi.hoisted(() => ({
   appConfig: {
     config: { root_dir: "/ws" },
     isLoading: false,
-    error: null as string | null,
     chooseRootDir: vi.fn<(opts?: { force?: boolean }) => Promise<string | null>>(),
   },
   search: {
@@ -149,7 +148,6 @@ function warn(n: number, kind: Warn["kind"] = "file"): Warn {
 beforeEach(() => {
   world.appConfig.config = { root_dir: "/ws" };
   world.appConfig.isLoading = false;
-  world.appConfig.error = null;
   world.appConfig.chooseRootDir.mockReset().mockResolvedValue(null);
   world.search.index = READY;
   world.search.warns = [];
@@ -294,13 +292,6 @@ describe("「状態」の節", () => {
     fireEvent.click(screen.getByRole("button", { name: "警告をクリア" }));
 
     expect(world.search.clearWarns).toHaveBeenCalledTimes(1);
-  });
-
-  test("設定の失敗をこの節の中に出す", async () => {
-    world.appConfig.error = "設定を更新できませんでした";
-    await renderTab();
-
-    expect(section("状態").getByRole("alert").textContent).toBe("設定を更新できませんでした");
   });
 });
 

@@ -15,7 +15,7 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
 const BASELINE: Record<Bucket, number> = {
   "font-size": 178,
   "border-radius": 80,
-  spacing: 382,
+  spacing: 381,
   elevation: 41,
   motion: 63,
   family: 9,

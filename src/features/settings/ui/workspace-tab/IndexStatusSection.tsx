@@ -6,7 +6,6 @@ import Button from "@/shared/ui/Button/Button";
 import SettingsBadge, { type SettingsBadgeTone } from "../kit/SettingsBadge";
 import MiniStat from "./MiniStat";
 
-import { useAppConfig } from "@/entities/app-config";
 import { indexHealth, pickWarns, usePositionSearch } from "@/entities/search";
 import type { IndexHealth, IndexUiState, IndexWarnPayload } from "@/entities/search";
 
@@ -172,9 +171,8 @@ function IndexWarnings({ warns }: { warns: IndexWarnPayload[] }) {
   );
 }
 
-/** ワークスペースタブの「状態」の節。局面検索の索引の具合と、設定の更新の失敗を出す */
+/** ワークスペースタブの「状態」の節。局面検索の索引の具合を出す */
 export default function IndexStatusSection() {
-  const { error } = useAppConfig();
   const { state: search, clearWarns } = usePositionSearch();
 
   const idx = search.index;
@@ -196,12 +194,6 @@ export default function IndexStatusSection() {
         )
       }
     >
-      {error && (
-        <div className="wsTab__error" role="alert">
-          {error}
-        </div>
-      )}
-
       <div className="wsTab__statusTop">
         <SettingsBadge tone={badge.tone} shape="pill">
           {badge.icon}
