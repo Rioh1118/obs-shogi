@@ -109,6 +109,26 @@ describe("並び", () => {
     expect(card(container, "い").className).not.toContain("is-selected");
   });
 
+  test("適用中が元の並びの先頭でも末尾でも先頭に出る", () => {
+    world.state.selectedPresetId = "a";
+    world.state.presets = [preset("a", "ろ"), preset("b", "い")];
+    const first = render(<EngineTab />);
+    expect(titles(first.container)).toEqual(["ろ", "い"]);
+    first.unmount();
+
+    world.state.presets = [preset("b", "い"), preset("a", "ろ")];
+    const last = render(<EngineTab />);
+    expect(titles(last.container)).toEqual(["ろ", "い"]);
+  });
+
+  test("並べ替えは一覧そのものを動かさない", () => {
+    const presets = [preset("c", "ぬ"), preset("b", "い")];
+    world.state.presets = presets;
+    render(<EngineTab />);
+
+    expect(presets.map((p) => p.id)).toEqual(["c", "b"]);
+  });
+
   test("空の名前は無名として出す", () => {
     world.state.presets = [preset("a", "  ")];
     const { container } = render(<EngineTab />);
@@ -158,11 +178,14 @@ describe("上の操作", () => {
     expect(world.createPreset).toHaveBeenCalledWith({ label: "新規プリセット" });
   });
 
-  test("読み込み中は追加できない", () => {
+  test("読み込み中は追加も読み直しもできない", () => {
     world.state.status = "loading";
     render(<EngineTab />);
 
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "追加" }).disabled).toBe(true);
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "もう一度読み込む" }).disabled,
+    ).toBe(true);
   });
 });
 
@@ -181,6 +204,14 @@ describe("カードの選択", () => {
     fireEvent.keyDown(card(container, "乙"), { key });
 
     expect(world.selectPreset).toHaveBeenCalledWith("b");
+  });
+
+  test.each(["Enter", " "])("「%s」の既定の動作を止める", (key) => {
+    const { container } = render(<EngineTab />);
+
+    const notPrevented = fireEvent.keyDown(card(container, "乙"), { key });
+
+    expect(notPrevented).toBe(false);
   });
 
   test("ほかのキーでは適用しない", () => {
@@ -278,6 +309,53 @@ describe("カードのボタン", () => {
     expect(inCard(container, "甲", "複製").disabled).toBe(true);
     expect(inCard(container, "甲", "削除").disabled).toBe(true);
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "追加" }).disabled).toBe(true);
+  });
+});
+
+describe("カードの値", () => {
+  const stats = (container: HTMLElement, label: string) =>
+    [...card(container, label).querySelectorAll(".engineTab__mini")].map(
+      (m) =>
+        `${m.querySelector(".engineTab__miniK")?.textContent}:${m.querySelector(".engineTab__miniV")?.textContent}`,
+    );
+
+  test("保存した値を欄ごとに出す", () => {
+    world.state.presets = [
+      preset("a", "甲", {
+        options: { MultiPV: "3", Threads: "4", USI_Hash: "1024" },
+        bookEnabled: true,
+        bookFilePath: "/b/book.db",
+      }),
+    ];
+    const { container } = render(<EngineTab />);
+
+    expect(stats(container, "甲")).toEqual(["候補手の数:3", "Threads:4", "Hash:1024MB", "定跡:ON"]);
+  });
+
+  test("保存していない値はエンジンの初期値を欄ごとに出す", () => {
+    const definition = (name: string, value: number) =>
+      ({ name, type: "spin", default: value, min: 1, max: 9999 }) as NonNullable<
+        EnginePreset["definitions"]
+      >[number];
+    world.state.presets = [
+      preset("a", "甲", {
+        definitionsFor: "/e/engine",
+        reservedNames: [],
+        definitions: [
+          definition("MultiPV", 1),
+          definition("Threads", 2),
+          definition("USI_Hash", 256),
+        ],
+      }),
+    ];
+    const { container } = render(<EngineTab />);
+
+    expect(stats(container, "甲")).toEqual([
+      "候補手の数:初期値（1）",
+      "Threads:初期値（2）",
+      "Hash:初期値（256MB）",
+      "定跡:OFF",
+    ]);
   });
 });
 

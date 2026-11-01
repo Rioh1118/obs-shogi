@@ -40,6 +40,13 @@ describe("SSection", () => {
     expect(container.querySelector(".sui-section__actions")?.textContent).toBe("押す");
   });
 
+  test("題が無くても操作があれば頭を出す", () => {
+    const { container } = render(<SSection actions={<button>押す</button>}>中身</SSection>);
+
+    expect(container.querySelector(".sui-section__actions")?.textContent).toBe("押す");
+    expect(container.querySelector(".sui-section__title")).toBeNull();
+  });
+
   test("操作が偽なら置き場を出さない", () => {
     const { container } = render(
       <SSection title="状態" actions={false}>
@@ -63,6 +70,13 @@ describe("SField", () => {
     expect(container.querySelector(".sui-field__desc")?.textContent).toBe("説明");
     expect(container.querySelector(".sui-field__right")?.textContent).toBe("右");
     expect(container.querySelector(".sui-field__control input")).not.toBeNull();
+  });
+
+  test("題が無くても右があれば頭を出す", () => {
+    const { container } = render(<SField right={<button>右</button>}>中身</SField>);
+
+    expect(container.querySelector(".sui-field__right")?.textContent).toBe("右");
+    expect(container.querySelector(".sui-field__label")).toBeNull();
   });
 
   test("題も右も無ければ頭を出さない", () => {
@@ -104,7 +118,7 @@ describe("SInput", () => {
     expect(input().getAttribute("data-invalid")).toBe("true");
     expect(input().getAttribute("aria-invalid")).toBe("true");
 
-    rerender(<SInput aria-label="欄" />);
+    rerender(<SInput aria-label="欄" invalid={false} />);
 
     expect(input().getAttribute("data-invalid")).toBe("false");
     expect(input().hasAttribute("aria-invalid")).toBe(false);

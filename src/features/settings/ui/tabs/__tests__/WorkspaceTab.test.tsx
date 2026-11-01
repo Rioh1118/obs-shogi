@@ -153,6 +153,18 @@ describe("「状態」の節", () => {
     expect(container.querySelector(".sbadge")?.textContent).toBe(label);
   });
 
+  test.each<[string, Partial<IndexUiState>, string]>([
+    ["準備完了", { indexedFiles: READY.totalFiles }, "sbadge--accent"],
+    ["未作成", { state: "Empty" }, "sbadge--muted"],
+    ["作成中", { state: "Building" }, "sbadge--warn"],
+    ["走査の失敗", { scanFailed: true }, "sbadge--warn"],
+  ])("バッジの色: %s", async (_name, patch, tone) => {
+    world.search.index = { ...READY, ...patch };
+    const { container } = await renderTab();
+
+    expect(container.querySelector(".sbadge")?.className).toContain(tone);
+  });
+
   test("数を区切りつきで出す", async () => {
     const { container } = await renderTab();
 
@@ -189,6 +201,13 @@ describe("「状態」の節", () => {
     expect(container.querySelector(".wsTab__progressLeft")?.textContent).toBe("50 / 200 files25%");
     expect(container.querySelector(".wsTab__progressPath")?.textContent).toBe("/ws/a.kif");
     expect(container.querySelector<HTMLElement>(".wsTab__barFill")?.style.width).toBe("25%");
+  });
+
+  test("未作成なら分母があっても進捗バーを出さない", async () => {
+    world.search.index = { ...READY, state: "Empty", totalFiles: 10 };
+    const { container } = await renderTab();
+
+    expect(container.querySelector(".wsTab__progress")).toBeNull();
   });
 
   test("更新中の分母は未同期の数で、対象ファイルの数ではない", async () => {
@@ -288,6 +307,15 @@ describe("「保存場所」の節", () => {
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "コピー" }).disabled).toBe(true);
   });
 
+  test("設定を書いている間は実行を押せない", async () => {
+    world.appConfig.isLoading = true;
+    await renderTab();
+    openConfirm();
+    typeConfirm("CHANGE");
+
+    expect((change() as HTMLButtonElement).disabled).toBe(true);
+  });
+
   test("押すまで確認の欄を出さない", async () => {
     await renderTab();
 
@@ -375,6 +403,13 @@ describe("「更新」の節", () => {
     const { container } = await renderTab();
 
     expect(valueOf(container, "最後に確認できた")).toBe("まだ確認できていません");
+  });
+
+  test("時刻の値だけ文の形で出す", async () => {
+    const { container } = await renderTab();
+
+    const plain = [...container.querySelectorAll(".wsTab__miniV--plain")];
+    expect(plain.map((v) => v.textContent)).toEqual(["まだ確認できていません"]);
   });
 
   test("確認できた時刻を日本語の形で出す", async () => {
