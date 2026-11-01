@@ -36,13 +36,22 @@ type OptionRowFilter = {
   bookUsed: boolean;
 };
 
+/** 同じ名前の申告は最初の1件だけを残す。どちらの行も同じ値を書くので、行を分ける意味が無い */
+function firstDeclarations(defs: UsiOptionDef[]): UsiOptionDef[] {
+  const seen = new Set<string>();
+  return defs.filter((d) => {
+    if (seen.has(d.name)) return false;
+    seen.add(d.name);
+    return true;
+  });
+}
+
 /**
- * 「エンジンの設定」の行。いまのエンジンの定義（`hasCurrentDefinitions`）があるときだけ。
+ * 「エンジン設定」の行。いまのエンジンの定義（`hasCurrentDefinitions`）があるときだけ。
  *
  * - 先頭に `PINNED_OPTION_NAMES`（よく変えるもの）、続けて申告の順
  * - 出さないもの: 値を持たない `button`、アプリが決める名前（`reservedNames`。利用者が変えても送らない）、
  *   「検討」に置く名前（`ANALYSIS_OPTION_NAMES`）、定跡を使わないときの定跡の設定
- * - 同じ名前を2回申告するエンジンでも行は1つ（最初の申告）——どちらの行も同じ値を書く
  */
 export function optionRows(
   draft: Pick<
@@ -54,9 +63,7 @@ export function optionRows(
   if (!hasCurrentDefinitions(draft)) return [];
   const reserved = new Set(draft.reservedNames ?? []);
   const q = (filter.query ?? "").trim().toLowerCase();
-  const seen = new Set<string>();
-  const rows = (draft.definitions ?? [])
-    .filter((d) => !seen.has(d.name) && Boolean(seen.add(d.name)))
+  const rows = firstDeclarations(draft.definitions ?? [])
     .filter((d): d is ValueDef => d.type !== "button")
     .filter((d) => !reserved.has(d.name) && !ANALYSIS_OPTION_NAMES.has(d.name))
     .filter((d) => filter.bookUsed || d.group !== "book")
