@@ -8,7 +8,7 @@ import type {
   SearchEndPayload,
   SearchErrorPayload,
 } from "../api/events";
-import type { FilePathEntry, PositionHit, RequestId } from "../api/ids";
+import type { FileId, FilePathEntry, PositionHit, RequestId } from "../api/ids";
 
 export type IndexUiState = {
   state: IndexState;
@@ -39,7 +39,7 @@ export type SearchSession = {
 /** 検索を起こした結末。**受け付けられなかった回を成功と同じ形にしない** */
 export type SearchLaunch = { status: "started"; requestId: RequestId } | { status: "superseded" };
 
-export type FilePathById = Record<number, string>;
+export type FilePathById = Record<FileId, string>;
 
 export type SearchState = {
   index: IndexUiState;
@@ -49,7 +49,14 @@ export type SearchState = {
 
   openError: string | null;
 
-  sessions: Record<number, SearchSession>;
+  sessions: Record<RequestId, SearchSession>;
+};
+
+/** 1回ぶんの取り込み。`chunks` は到着順、`files` はそのぶんを平らに繋いだもの */
+type SearchChunksInput = {
+  requestId: RequestId;
+  chunks: PositionHit[][];
+  files: FilePathEntry[];
 };
 
 export type Action =
@@ -91,7 +98,7 @@ export type PositionSearchContextType = {
 
   cancelSearch: (requestId: RequestId) => Promise<void>;
 
-  getSessionByRequestId: (requestId: RequestId | null | undefined) => SearchSession | null;
+  getSessionByRequestId: (requestId: RequestId | null) => SearchSession | null;
 
   /**
    * その検索のヒットを、届いた順に平らにして返す。
@@ -101,19 +108,10 @@ export type PositionSearchContextType = {
    * ——呼び手はその同一性で「増えたか」を判断してよい。触ると、次の増分追記が
    * 壊れた並びの上に足される。
    */
-  getHitsByRequestId: (requestId: RequestId | null | undefined) => PositionHit[];
-  isSearchingRequest: (requestId: RequestId | null | undefined) => boolean;
+  getHitsByRequestId: (requestId: RequestId | null) => PositionHit[];
+  isSearchingRequest: (requestId: RequestId | null) => boolean;
   resolveHitAbsPath: (hit: PositionHit) => string | null;
 
   clearWarns: () => void;
   clearSearch: (requestId: RequestId) => void;
-};
-
-export type MergeFilesInput = FilePathEntry[];
-
-/** 1回ぶんの取り込み。`chunks` は到着順、`files` はそのぶんを平らに繋いだもの */
-export type SearchChunksInput = {
-  requestId: RequestId;
-  chunks: PositionHit[][];
-  files: MergeFilesInput;
 };

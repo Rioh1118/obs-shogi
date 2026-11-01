@@ -5,6 +5,7 @@ import { subscribeAll } from "@/shared/api/event/subscribeAll";
 
 import type {
   CancelSearchInput,
+  OpenProjectInput,
   OpenProjectOutput,
   SearchPositionInput,
   SearchPositionOutput,
@@ -25,13 +26,13 @@ import {
   type SearchEndPayload,
   type SearchErrorPayload,
 } from "./events";
+import type { RequestId } from "./ids";
 
 // ===== プロジェクト操作 =====
 
 export async function openProject(rootDir: string): Promise<OpenProjectOutput> {
-  return await invoke<OpenProjectOutput>("open_project", {
-    input: { rootDir },
-  });
+  const input: OpenProjectInput = { rootDir };
+  return await invoke<OpenProjectOutput>("open_project", { input });
 }
 
 // ===== 局面検索 =====
@@ -47,14 +48,14 @@ export async function searchPosition(input: SearchPositionInput): Promise<Search
 /**
  * 進行中の検索をキャンセル。フロント側 cleanup で必ず呼ぶ。
  */
-export async function cancelSearch(requestId: number): Promise<void> {
+export async function cancelSearch(requestId: RequestId): Promise<void> {
   const input: CancelSearchInput = { requestId };
   await invoke<void>("cancel_search", { input });
 }
 
 // ===== イベント購読ヘルパ =====
 
-export interface SearchEventHandlers {
+export type SearchEventHandlers = {
   onIndexState: (p: IndexStatePayload) => void;
   onIndexProgress: (p: IndexProgressPayload) => void;
   onIndexWarn: (p: IndexWarnPayload) => void;
@@ -63,7 +64,7 @@ export interface SearchEventHandlers {
   onSearchChunk: (p: SearchChunkPayload) => void;
   onSearchEnd: (p: SearchEndPayload) => void;
   onSearchError: (p: SearchErrorPayload) => void;
-}
+};
 
 function subscribePayload<T>(name: string, handler: (payload: T) => void) {
   return () => listen<T>(name, (event) => handler(event.payload));

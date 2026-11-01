@@ -1,33 +1,4 @@
-export type {
-  Consistency,
-  OpenProjectInput,
-  OpenProjectOutput,
-  SearchPositionInput,
-  SearchPositionOutput,
-} from "./api/contract";
-
-export type {
-  FileId,
-  Gen,
-  NodeId,
-  RequestId,
-  ForkPointer,
-  Occurrence,
-  FilePathEntry,
-  CursorLite,
-  PositionHit,
-} from "./api/ids";
-
-export type {
-  IndexState,
-  IndexStatePayload,
-  IndexProgressPayload,
-  IndexWarnPayload,
-  SearchBeginPayload,
-  SearchChunkPayload,
-  SearchEndPayload,
-  SearchErrorPayload,
-} from "./api/events";
+export type { CursorLite, PositionHit } from "./api/ids";
 
 // **検索を起こす関数も、イベント名も、ここからは出さない。**
 //
@@ -57,10 +28,4 @@ export type { IndexHealth } from "./lib/indexHealth";
 export { PositionSearchProvider } from "./model/provider";
 export { usePositionSearch } from "./model/usePositionSearch";
 
-export type {
-  SearchState,
-  SearchSession,
-  IndexUiState,
-  FilePathById,
-  PositionSearchContextType,
-} from "./model/types";
+export type { IndexUiState } from "./model/types";

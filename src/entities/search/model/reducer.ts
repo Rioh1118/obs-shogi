@@ -1,5 +1,6 @@
-import type { RequestId } from "../api/ids";
-import type { Action, FilePathById, MergeFilesInput, SearchSession, SearchState } from "./types";
+import type { IndexWarnPayload } from "../api/events";
+import type { FilePathEntry, RequestId } from "../api/ids";
+import type { Action, FilePathById, SearchSession, SearchState } from "./types";
 
 /**
  * `state.sessions` を落とすアクション。**この列挙はここが出典**——`sessions` を
@@ -29,13 +30,15 @@ export const initialState: SearchState = {
 };
 
 function sessionOrNew(sessions: SearchState["sessions"], requestId: RequestId): SearchSession {
-  return (
-    sessions[requestId] ?? { requestId, stale: false, isDone: false, error: null, chunks: [] }
-  );
+  return sessions[requestId] ?? { requestId, stale: false, isDone: false, error: null, chunks: [] };
 }
 
 /** 無いセッションは作らない。 */
-function finishSession(state: SearchState, requestId: RequestId, error: string | null) {
+function finishSession(
+  state: SearchState,
+  requestId: RequestId,
+  error: string | null,
+): SearchState {
   const session = state.sessions[requestId];
   if (!session) return state;
   return {
@@ -47,7 +50,7 @@ function finishSession(state: SearchState, requestId: RequestId, error: string |
   };
 }
 
-function mergeFiles(base: FilePathById, files: MergeFilesInput): FilePathById {
+function mergeFiles(base: FilePathById, files: FilePathEntry[]): FilePathById {
   if (!files.length) return base;
 
   let next: FilePathById | null = null;
@@ -78,7 +81,7 @@ const WARNS_KEPT = 200;
 const PLACE_KEPT = 20;
 
 /** 同じ警告かを決める鍵。**直前との比較では足りない**（下の `appendWarn`）。 */
-function warnKey(w: SearchState["warns"][number]) {
+function warnKey(w: IndexWarnPayload) {
   return `${w.kind}\u0000${w.path}\u0000${w.message}`;
 }
 
@@ -97,7 +100,7 @@ function warnKey(w: SearchState["warns"][number]) {
  * **種類ごとに上限を持つ。** 総数だけで切ると、1回の再走査が棋譜1件ごとに出す
  * 警告が枠を独占し、場所の警告が消える。
  */
-function appendWarn(warns: SearchState["warns"], next: SearchState["warns"][number]) {
+function appendWarn(warns: IndexWarnPayload[], next: IndexWarnPayload) {
   const key = warnKey(next);
   const withoutDup = warns.filter((w) => warnKey(w) !== key);
   const grown = [...withoutDup, next];

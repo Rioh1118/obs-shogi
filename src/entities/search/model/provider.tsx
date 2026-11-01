@@ -15,17 +15,9 @@ import {
   cancelSearch as cancelSearchApi,
 } from "../api/tauri";
 import type { SearchPositionInput } from "../api/contract";
-import type {
-  IndexProgressPayload,
-  IndexStatePayload,
-  IndexWarnPayload,
-  SearchBeginPayload,
-  SearchEndPayload,
-  SearchErrorPayload,
-} from "../api/events";
 import type { PositionHit, RequestId } from "../api/ids";
 
-import { createChunkBuffer, type ChunkBufferApi } from "./chunkBuffer";
+import { createChunkBuffer, type ChunkBuffer } from "./chunkBuffer";
 import { PositionSearchContext } from "./context";
 import { flattenHits, type HitsCache } from "./hitsCache";
 import { initialState, reducer, type DropSearchAction } from "./reducer";
@@ -82,7 +74,7 @@ export function PositionSearchProvider({
    * 依存に載せても effect が張り直らないので、購読の effect が
    * これを呼んでよい形になる。
    */
-  const chunkBufferRef = useRef<ChunkBufferApi | null>(null);
+  const chunkBufferRef = useRef<ChunkBuffer | null>(null);
   chunkBufferRef.current ??= createChunkBuffer(dispatch);
   const chunkBuffer = chunkBufferRef.current;
 
@@ -160,7 +152,7 @@ export function PositionSearchProvider({
       }
 
       // **線はここでも進める。** `stopAccepting()` は「見た中で最大の rid」に線を引き、
-      // それより手前は個別に覚えない（`dead` を空にする）。イベントで見た rid しか
+      // それより手前は個別に覚えない（`droppedRids` を空にする）。イベントで見た rid しか
       // 数えていないと、`clear_search` に渡された rid が線を追い越して忘れられ、
       // 以後そのチャンクが通ってしまう
       chunkBuffer.noteRequest(out.requestId);
@@ -183,7 +175,7 @@ export function PositionSearchProvider({
   }, []);
 
   const getSessionByRequestId = useCallback(
-    (requestId: RequestId | null | undefined): SearchSession | null => {
+    (requestId: RequestId | null): SearchSession | null => {
       if (requestId == null) return null;
       return state.sessions[requestId] ?? null;
     },
@@ -191,7 +183,7 @@ export function PositionSearchProvider({
   );
 
   const getHitsByRequestId = useCallback(
-    (requestId: RequestId | null | undefined): PositionHit[] => {
+    (requestId: RequestId | null): PositionHit[] => {
       if (requestId == null) return EMPTY_HITS;
       const session = state.sessions[requestId];
       if (!session) return EMPTY_HITS;
@@ -204,7 +196,7 @@ export function PositionSearchProvider({
   );
 
   const isSearchingRequest = useCallback(
-    (requestId: RequestId | null | undefined): boolean => {
+    (requestId: RequestId | null): boolean => {
       if (requestId == null) return false;
       const s = state.sessions[requestId];
       return !!s && !s.isDone;
@@ -261,13 +253,12 @@ export function PositionSearchProvider({
 
     (async () => {
       try {
-        const u = await listenSearchEvents({
-          onIndexState: (p: IndexStatePayload) => dispatch({ type: "index_state", payload: p }),
-          onIndexProgress: (p: IndexProgressPayload) =>
-            dispatch({ type: "index_progress", payload: p }),
-          onIndexWarn: (p: IndexWarnPayload) => dispatch({ type: "index_warn", payload: p }),
+        const unlistenAll = await listenSearchEvents({
+          onIndexState: (p) => dispatch({ type: "index_state", payload: p }),
+          onIndexProgress: (p) => dispatch({ type: "index_progress", payload: p }),
+          onIndexWarn: (p) => dispatch({ type: "index_warn", payload: p }),
 
-          onSearchBegin: (p: SearchBeginPayload) => {
+          onSearchBegin: (p) => {
             // 溜め場は「これ以下の rid はもう受け取らない」の線を rid の最大値から
             // 引く。チャンクが1つも来なかった検索も数に入れる
             chunkBuffer.noteRequest(p.requestId);
@@ -282,20 +273,20 @@ export function PositionSearchProvider({
           // **終わりと失敗は、溜めたぶんを吐き出してから。** 先に `isDone` を
           // 立てると、まだ届いていない結果を抱えたまま一覧が「完了」と名乗る。
           // 失敗のときも同じで、届いたぶんは残す
-          onSearchEnd: (p: SearchEndPayload) => {
+          onSearchEnd: (p) => {
             chunkBuffer.flush();
             dispatch({ type: "search_end", payload: p });
           },
-          onSearchError: (p: SearchErrorPayload) => {
+          onSearchError: (p) => {
             chunkBuffer.flush();
             dispatch({ type: "search_error", payload: p });
           },
         });
         if (cancelled) {
-          u();
+          unlistenAll();
           return;
         }
-        unlisten = u;
+        unlisten = unlistenAll;
         setIsListenSettled(true);
       } catch (e) {
         // eslint-disable-next-line no-console

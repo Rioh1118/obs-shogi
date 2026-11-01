@@ -37,7 +37,7 @@ type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
  * **通すのが既定**なので、`search_begin` を1発取りこぼしても結果が黙って
  * 0件になることはない。
  */
-export type ChunkBufferApi = {
+export type ChunkBuffer = {
   /** 1つ届いた。受け取ってよければ溜める */
   enqueue: (p: SearchChunkPayload) => void;
   /** 溜めたぶんを吐き出す。待ち時間は待たない */
@@ -81,14 +81,14 @@ export type ChunkBufferApi = {
  *
  * `dispatch` は `useReducer` が返すもので、React が同一性を保証している。
  */
-export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
+export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBuffer {
   const pending = new Map<RequestId, PendingChunks>();
   /**
    * 名指しで捨てた rid。入れる経路は2つ——`clear_search` と、番号が返る前に線が
    * 引かれた起動（`model/provider.tsx` の `searchPosition`）。
    * 線より後のものだけがここに要る
    */
-  const dead = new Set<RequestId>();
+  const droppedRids = new Set<RequestId>();
 
   let timer: number | null = null;
   let active = true;
@@ -124,7 +124,7 @@ export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
   };
 
   const isAccepting = (requestId: RequestId) =>
-    active && requestId >= firstLiveRid && !dead.has(requestId);
+    active && requestId >= firstLiveRid && !droppedRids.has(requestId);
 
   return {
     flush,
@@ -156,10 +156,10 @@ export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBufferApi {
         // 回ってしまうので、呼び手が `generation` で見張る
         firstLiveRid = maxSeenRid + 1;
         // 線より前は `firstLiveRid` が受け持つので、個別に覚えておく必要は無い
-        dead.clear();
+        droppedRids.clear();
       } else {
         pending.delete(requestId);
-        if (requestId >= firstLiveRid) dead.add(requestId);
+        if (requestId >= firstLiveRid) droppedRids.add(requestId);
       }
 
       if (pending.size === 0) cancelTimer();

@@ -440,7 +440,7 @@ describe("消えたセッション宛のチャンク", () => {
 
   /**
    * 線は「見た中で最大の rid」に引き、それより手前は個別に覚えない
-   * （`dead` を空にする）。**イベントで見た rid しか数えないと**、
+   * （`droppedRids` を空にする）。**イベントで見た rid しか数えないと**、
    * `clear_search` に渡された rid が線を追い越して忘れられ、以後そのチャンクが通る
    */
   test("イベントを1つも見ていない検索でも、捨てたら線より後ろに残らない", async () => {
@@ -460,7 +460,7 @@ describe("消えたセッション宛のチャンク", () => {
       clearSearch(9);
     });
 
-    // 根を開き直す → 線が引かれ、`dead` は空になる
+    // 根を開き直す → 線が引かれ、`droppedRids` は空になる
     await act(async () => {
       view.rerender(
         <PositionSearchProvider rootDir="/ws">

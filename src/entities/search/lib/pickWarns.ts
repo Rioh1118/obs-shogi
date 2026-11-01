@@ -27,7 +27,7 @@ import type { IndexWarnPayload } from "../api/events";
  * 回の切れ目を示すものが payload に無い。名指しできるかどうかで割るのが
  * いまできる最大で、`lost` と `carried` のあいだの順は保証していない。
  */
-export function pickWarns(warns: IndexWarnPayload[], slots: number) {
+export function pickWarns(warns: IndexWarnPayload[], slots: number): IndexWarnPayload[] {
   const newestFirst = warns.slice().reverse();
   const places = newestFirst.filter((w) => w.kind === "place");
   const files = newestFirst.filter((w) => w.kind !== "place");

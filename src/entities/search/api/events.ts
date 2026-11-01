@@ -4,7 +4,7 @@ import type { FilePathEntry, PositionHit, RequestId } from "./ids";
 export type IndexState = "Empty" | "Restoring" | "Building" | "Ready" | "Updating";
 
 // camelCase via serde(rename_all = "camelCase")
-export interface IndexStatePayload {
+export type IndexStatePayload = {
   state: IndexState;
   dirtyCount: number;
   /**
@@ -37,13 +37,13 @@ export interface IndexStatePayload {
    * 返した理由を利用者が取り違える。
    */
   partiallyUnreadable: boolean;
-}
+};
 
-export interface IndexProgressPayload {
+export type IndexProgressPayload = {
   currentPath: string;
   doneFiles: number;
   totalFiles: number;
-}
+};
 
 /**
  * 警告が**何について**のものか。Rust: `pub enum IndexWarnKind`
@@ -55,31 +55,31 @@ export interface IndexProgressPayload {
  */
 export type IndexWarnKind = "place" | "file";
 
-export interface IndexWarnPayload {
+export type IndexWarnPayload = {
   kind: IndexWarnKind;
   path: string;
   message: string;
-}
+};
 
-export interface SearchBeginPayload {
+export type SearchBeginPayload = {
   requestId: RequestId;
   stale: boolean;
-}
+};
 
-export interface SearchChunkPayload {
+export type SearchChunkPayload = {
   requestId: RequestId;
   chunk: PositionHit[];
   files: FilePathEntry[];
-}
+};
 
-export interface SearchEndPayload {
+export type SearchEndPayload = {
   requestId: RequestId;
-}
+};
 
-export interface SearchErrorPayload {
+export type SearchErrorPayload = {
   requestId: RequestId;
   message: string;
-}
+};
 
 // ===== イベント名（Rust const と一致させる） =====
 export const EVT_INDEX_STATE = "position-index-state" as const;
