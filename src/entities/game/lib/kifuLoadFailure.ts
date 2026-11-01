@@ -27,7 +27,5 @@ export function describeKifuLoadFailure(failure: KifuLoadFailure): string {
   switch (failure.code) {
     case "unplayable_initial":
       return "このファイルは、いまの中身では盤に並べられません。";
-    case "unknown":
-      return "このファイルを盤に並べられませんでした。";
   }
 }

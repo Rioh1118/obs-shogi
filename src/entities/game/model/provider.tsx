@@ -371,7 +371,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
         dispatch({ type: "load_failed", payload: { absPath } });
         // **例外の文をそのまま返さない。** 中身は `shogi.js` の英文で、呼び出し側は
         // 利用者に出せない。段と文言を code から決められる形で返す
-        return Err({ code: "unplayable_initial", absPath, cause } as const);
+        return Err({ code: "unplayable_initial", absPath, cause });
       } finally {
         dispatch({ type: "write_ended", payload: { blocking: true } });
       }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { JKFPlayer } from "json-kifu-format";
+import type { JKFPlayer } from "json-kifu-format";
 import type { IMoveMoveFormat } from "json-kifu-format/dist/src/Formats";
 import type { Color, Kind } from "shogi.js";
 
@@ -31,13 +31,13 @@ export type SelectedPosition =
  * `cause` は診断のためだけに持つ。**利用者に出さない**（内部の語が混ざる）。
  */
 export type KifuLoadFailure = {
-  /** `initial` から局面を組めない（`game.md` の E16）。いま実際に起きるのはこれだけ */
-  code: "unplayable_initial" | "unknown";
+  /** `initial` から局面を組めない（`game.md` の E16） */
+  code: "unplayable_initial";
   absPath: string;
   cause: string;
 };
 
-export interface GameContextState {
+export type GameContextState = {
   jkf: JKFData | null;
 
   /** 現在局面 */
@@ -126,9 +126,9 @@ export interface GameContextState {
   /** 利用者を待たせている書き込みの本数。`isLoading` を導く */
   blockingWrites: number;
   error: string | null;
-}
+};
 
-export interface GameView {
+export type GameView = {
   player: JKFPlayer | null;
 
   /**
@@ -161,7 +161,7 @@ export interface GameView {
    * 局面を組み立てられない間は null。
    */
   currentSfen: string | null;
-}
+};
 
 export type GameAction =
   | {
@@ -234,7 +234,7 @@ export type GameAction =
     }
   | {
       type: "set_selection";
-      payload: SelectedPosition | null;
+      payload: SelectedPosition;
     }
   | {
       type: "clear_selection";
@@ -252,7 +252,7 @@ export type GameAction =
     }
   | {
       type: "set_error";
-      payload: string | null;
+      payload: string;
     }
   /**
    * 盤に載せられなかった（E16）。`error` と違い**どのファイルかを持つ**ので、
@@ -293,13 +293,13 @@ export const initialGameState: GameContextState = {
   error: null,
 };
 
-export interface StandardMoveFormat {
+export type StandardMoveFormat = {
   from?: { x: number; y: number };
   to: { x: number; y: number };
   piece: Kind;
   promote?: boolean;
   color: Color;
-}
+};
 
 export type GamePersistence = {
   /**
@@ -315,7 +315,7 @@ export type GamePersistence = {
   save: (jkf: JKFData) => AsyncResult<void, string>;
 };
 
-export interface GameContextType {
+export type GameContextType = {
   state: GameContextState;
   view: GameView;
 
@@ -387,7 +387,7 @@ export interface GameContextType {
    * `cursor.tesuu` より先の `ForkPointer` は捨てずに `branchPlan` へ引き継ぐ。
    */
   applyCursor: (cursor: CursorPath) => void;
-}
+};
 
 /**
  * 盤で決まった手を、棋譜へ積む前に通すかを決める判定。
@@ -398,10 +398,10 @@ export interface GameContextType {
  * **注入で受ける。** 対局（`entities/game-session`）を知っているのは上の層で、
  * ここから読むと互いを読み合う組ができる。
  */
-export interface MoveGate {
+export type MoveGate = {
   /** `false` なら積まない */
   accept: (move: StandardMoveFormat, line: BoardLine) => Promise<boolean>;
-}
+};
 
 /**
  * 盤がいま辿っている線。**`MoveGate` はこれだけで「対局の先端か」を判じる。**
@@ -409,7 +409,7 @@ export interface MoveGate {
  * **手数を渡さない。** 同じ深さの別の線と見分けが付かないので、
  * 渡すと `MoveGate` が「対局の次の1手」と「分岐で指した手」を取り違える。
  */
-export interface BoardLine {
+export type BoardLine = {
   /**
    * 盤にいま載っている棋譜。対局は棋譜が入れ替わっても走り続けるので、
    * 別の棋譜を触っているだけの操作を止めないために渡す。
@@ -417,11 +417,11 @@ export interface BoardLine {
   kifuPath: string | null;
   /** 根からの USI の綴り。**綴れない手があれば `null`**（→ `lineUsiMoves`） */
   usiMoves: string[] | null;
-}
+};
 
-export interface GameProviderProps {
+export type GameProviderProps = {
   children: ReactNode;
   persistence?: GamePersistence;
   /** **省略すると素通し。** 対局を知らない呼び手（試験）はそのまま指せる */
   moveGate?: MoveGate;
-}
+};
