@@ -2,7 +2,7 @@ import Button from "@/shared/ui/Button/Button";
 import Modal from "@/shared/ui/Modal";
 import "./ConfirmDialog.scss";
 
-interface ConfirmDialogProps {
+type ConfirmDialogProps = {
   title: string;
   subtitle?: string;
   /**
@@ -18,7 +18,7 @@ interface ConfirmDialogProps {
   isLoading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-}
+};
 
 /**
  * 取り消せない操作の確認（ADR-0004）。
@@ -38,11 +38,9 @@ export default function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    // **閉じる道を塞がない。** 実行中でも Escape とオーバーレイは効かせる。
-    // 書き込みが返ってこない（NFS / SMB のワークスペース、他プロセスが掴んでいる、
-    // fsync が返らない）とき、塞いでいるとこのダイアログが**出口ゼロの行き止まり**になる。
-    // × ボタンも無く、キャンセルも実行も押せず、残るのはウィンドウごと閉じることだけになる。
-    // 二重実行を止めるのは下の実行ボタンの `isLoading` で足りる。
+    // 実行中でも Escape とオーバーレイは効かせる。書き込みが返ってこないとき
+    // （NFS や SMB のワークスペース、他プロセスが掴んでいる）に塞ぐと、**出口の無い行き止まり**になる。
+    // 二重実行を止めるのは下の実行ボタンの `isLoading` で足りる
     <Modal onClose={onCancel} label={title} size="sm" scroll="none">
       <div className="confirm-dialog">
         <p className="confirm-dialog__title">{title}</p>

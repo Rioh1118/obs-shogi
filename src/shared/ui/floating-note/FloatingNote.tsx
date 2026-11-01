@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import "./FloatingNote.scss";
@@ -30,11 +38,11 @@ export type FloatingNoteProps = {
   open: boolean;
   anchorEl: HTMLElement | null;
   onClose: () => void;
-  title?: React.ReactNode;
-  headerRight?: React.ReactNode;
+  title?: ReactNode;
+  headerRight?: ReactNode;
   width?: number;
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 };
 
 function clamp(v: number, lo: number, hi: number) {
@@ -194,7 +202,7 @@ export default function FloatingNote({
     };
   }, []);
 
-  const startInteraction = (e: React.PointerEvent, type: InteractionType) => {
+  const startInteraction = (e: ReactPointerEvent, type: InteractionType) => {
     if (e.button !== 0) return;
 
     const panel = panelRef.current;

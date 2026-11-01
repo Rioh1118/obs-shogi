@@ -1,8 +1,8 @@
-import { useState, type KeyboardEvent, useRef } from "react";
+import { useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { X, Plus, Tag, Hash } from "lucide-react";
 import "./TagsInput.scss";
 
-interface TagsInputProps {
+type TagsInputProps = {
   label: string;
   id: string;
   tags: string[];
@@ -11,7 +11,7 @@ interface TagsInputProps {
   maxTags?: number;
   disabled?: boolean;
   variant?: "default" | "compact";
-}
+};
 
 export function TagsInput({
   label,
@@ -44,6 +44,11 @@ export function TagsInput({
     inputRef.current?.focus();
   };
 
+  const handleRemoveClick = (e: MouseEvent, index: number) => {
+    e.stopPropagation();
+    removeTag(index);
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -61,7 +66,7 @@ export function TagsInput({
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
 
     if (value.includes(",") || value.includes("、")) {
@@ -120,7 +125,6 @@ export function TagsInput({
 
       <div className={containerClasses} onClick={handleContainerClick}>
         <div className="tags-input__content">
-          {/* Tags Display */}
           {tags.length > 0 && (
             <div className="tags-input__tags">
               {tags.map((tag, index) => (
@@ -129,10 +133,7 @@ export function TagsInput({
                   <button
                     type="button"
                     className="tag__remove"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeTag(index);
-                    }}
+                    onClick={(e) => handleRemoveClick(e, index)}
                     disabled={disabled}
                     aria-label={`${tag}を削除`}
                   >
@@ -143,7 +144,6 @@ export function TagsInput({
             </div>
           )}
 
-          {/* Input Area */}
           <div className="tags-input__input-area">
             <input
               ref={inputRef}
@@ -178,7 +178,6 @@ export function TagsInput({
         </div>
       </div>
 
-      {/* Help Text */}
       <div className="tags-input__help">
         <span>Enter</span>や<span>カンマ</span>で区切って複数追加可能
       </div>

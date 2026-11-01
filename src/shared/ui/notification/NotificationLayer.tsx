@@ -5,16 +5,23 @@ import type { Notification } from "@/shared/lib/notification/types";
 import Notice from "./Notice";
 import "./NotificationLayer.scss";
 
+/** 件数を出す条件は `Notification.count` の doc */
+function toNoticeProps(n: Notification) {
+  return {
+    tier: n.tier,
+    title: n.title,
+    body: n.body,
+    actions: n.actions,
+    count: n.dedupeKey === undefined ? undefined : n.count,
+  };
+}
+
 /**
- * グローバルの3経路（`toast` / `banner` / `modal`）を**1箇所で描く**
- * （ADR-0004 決定4・決定6）。
+ * グローバルの3経路（`toast`、`banner`、`modal`）を1箇所で描く（ADR-0004 決定4、決定6）。
  *
- * 出す側は `notify` を呼ぶだけでよく、表示・閉じる導線・動作の並べ方が
- * 失敗ごとに散らない。いまどの失敗がどこへ出ているかは
- * `docs/state-transitions/failure-surfacing.md` §1・§2。
- *
- * **インラインはここに来ない。** 置き場がコンポーネントの中にあるので、
- * ここからは描けない（`InlineNotice`）。
+ * 出す側は `notify` を呼ぶだけでよく、表示と閉じる導線が失敗ごとに散らない。
+ * どの失敗がどこへ出るかは `docs/state-transitions/failure-surfacing.md`。
+ * インラインは置き場が部品の中にあるのでここに来ない（`InlineNotice`）。
  */
 export default function NotificationLayer() {
   const { notifications, dismiss } = useNotifications();
@@ -106,15 +113,4 @@ export default function NotificationLayer() {
       )}
     </>
   );
-}
-
-/** 件数を出す条件は `Notification.count` の doc */
-function toNoticeProps(n: Notification) {
-  return {
-    tier: n.tier,
-    title: n.title,
-    body: n.body,
-    actions: n.actions,
-    count: n.dedupeKey === undefined ? undefined : n.count,
-  };
 }

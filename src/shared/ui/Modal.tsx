@@ -12,7 +12,7 @@ type ModalVariant = "dialog" | "workspace";
 type ModalSize = "sm" | "md" | "lg" | "xl";
 type ModalScroll = "card" | "content" | "none";
 
-interface ModalProps {
+type ModalProps = {
   children: ReactNode;
   onClose: () => void;
   /**
@@ -28,7 +28,7 @@ interface ModalProps {
   closeOnEsc?: boolean;
   closeOnOverlay?: boolean;
   showCloseButton?: boolean;
-}
+};
 
 function Modal({
   children,
@@ -59,17 +59,13 @@ function Modal({
     if (!card) return;
 
     /**
-     * Tab の順に並ぶ、**実際に焦点を取れる**要素
+     * Tab の順に並ぶ、実際に焦点を取れる要素を返す。
      *
-     * **隠れているものを落とす。** `querySelectorAll` は `display: none` を除かないので、
-     * 器が面を外さずに `hidden` で隠していると、隠れた面の中のボタンが
-     * 折り返しの端に選ばれる。端が取れない要素だと、そこからの Tab は
-     * ここの分岐に入らず**器の外へ抜ける**。`focus()` も何もしないので、
-     * 引き戻しの先に選ばれた場合は焦点が `<body>` へ落ちる。
+     * 隠れた面の中のボタンを落とす。`querySelectorAll` は `display: none` を除かないので、
+     * 隠れたボタンが折り返しの端に選ばれると、そこからの Tab は**器の外へ抜ける**。
      *
-     * 見るのは `hidden` 属性で、`checkVisibility()` は使わない ——
-     * あちらは実装差が大きく（happy-dom は `[hidden]` に `true` を返す）、
-     * 何を落としたのかがテストから見えなくなる。
+     * 見るのは `hidden` 属性で、`checkVisibility()` は使わない。
+     * 実装差が大きく（happy-dom は `[hidden]` に `true` を返す）、テストから見えなくなる。
      */
     const focusables = () =>
       [...card.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
@@ -136,37 +132,30 @@ function Modal({
       // 登録順のせいで**先に開いた下の1枚**が閉じる
       if (!isTop()) return;
 
-      const isComposing = e.isComposing;
-      if (e.key === "Escape" && closeOnEsc && !isComposing) {
+      if (e.key === "Escape" && closeOnEsc && !e.isComposing) {
         e.preventDefault();
         onClose();
-        return;
       }
     };
 
-    // **バブル段で聞く。** キャプチャ段だと、ポータル先（`#modal-root`）に張られた
-    // React のハンドラより必ず先に走る。中の入力が Escape を自分の用途に使う
-    // （`TagsInput` は打ちかけの文字を消す）経路が、届く前に閉じられて死ぬ。
-    // バブルなら内側が先に処理でき、`e.defaultPrevented` でここが降りる。
+    // バブル段で聞く。キャプチャ段だと `#modal-root` に張られた React のハンドラより先に走り、
+    // 中の入力が Escape を使う経路（`TagsInput` は打ちかけの文字を消す）が届く前に閉じられる。
     //
-    // **内側は `preventDefault()` で降ろすこと。`stopPropagation()` は使わない。**
-    // あちらは `document` までイベントを届かせないので、`defaultPrevented` の判定に
-    // 到達せず、消すものが無いときも Escape が無反応になる
+    // **内側は `preventDefault()` で降ろす。** `stopPropagation()` は `document` まで届かないので、
+    // 消すものが無いときも Escape が無反応になる
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [closeOnEsc, onClose, isTop]);
+
+  const handleOverlayClick = () => {
+    if (closeOnOverlay) onClose();
+  };
 
   const root = document.getElementById("modal-root") ?? document.body;
 
   return createPortal(
     <div className={`modal modal--dark modal--${variant} modal--size-${size}`}>
-      <div
-        className="modal__overlay"
-        onClick={() => {
-          if (!closeOnOverlay) return;
-          onClose();
-        }}
-      >
+      <div className="modal__overlay" onClick={handleOverlayClick}>
         <div
           ref={cardRef}
           className={`modal__card modal__card--scroll-${scroll}`}

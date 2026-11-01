@@ -2,10 +2,9 @@ import type { ReactNode } from "react";
 import "./ErrorFallbackBody.scss";
 
 /**
- * 畳むのをやめる出口の文言。**出典はここ1つ。**
+ * 畳むのをやめる出口の文言。
  *
- * 案内（`hint`）がこの綴りを本文に埋めるので（「…してから『再表示』を押してください。」）、
- * 手書きにすると、ボタンを改名したときに案内が**存在しないボタン**を名指しする。
+ * 案内（`hint`）がこの語を本文に埋めるので、手書きにするとボタンの改名で**存在しないボタンを名指しする**。
  * `src/__tests__/errorBoundaryInventory.test.ts` が写しを禁じている。
  */
 export const RETRY_LABEL = "再表示";
@@ -31,30 +30,26 @@ export type ErrorFallbackBodyProps = {
    */
   hint?: ReactNode;
   /**
-   * 「再表示」の隣に並べる出口。**再表示で戻らなかったとき**に使うものを渡す。
-   * `ErrorFallbackAction` を並べること。
+   * 「再表示」の隣に並べる出口。再表示で戻らなかったときに使う `ErrorFallbackAction` を渡す。
    *
    * `children` にしないのは、`AppErrorBoundary` の `children`（囲う対象）と逆の意味になるため。
-   * `actions` にしないのは、`notification/Notice` の `actions` が**描画済みの要素ではなく
-   * `NotifyAction[]`（データ）**を指していて、形が違うため。
+   * `actions` にしないのは、`notification/Notice` の `actions` が描画済みの要素でなく `NotifyAction[]` を指すため。
    */
   extraActions?: ReactNode;
   /**
-   * 出口を押した**結果**の知らせ。**出口の下に流れで置く**（重ねると出口を覆う）。
+   * 出口を押した結果の知らせ。重ねると出口を覆うので、出口の下に流れで置く。
    *
-   * `notice` にしないのは、同じ `shared/ui` の `notification/Notice` が
-   * 「失敗を伝える箱」そのものの名前として先に使っているため。
+   * `notice` にしないのは、`notification/Notice` が失敗を伝える箱の名前として先に使っているため。
    */
   afterAction?: ReactNode;
 };
 
 /**
- * 落ちたことを伝える本文。**この形は3通りの置き方で共有する。**
+ * 落ちたことを伝える本文。3通りの置き方で共有する。
  *
- * 流れの中に出す境界はこれをそのまま `fallback` に渡し、浮かせて出す境界は
- * `FloatingErrorFallback` が、ウィンドウ枠ごと差し替える境界は `app/RootErrorFallback.tsx` が
- * これを包む。**包む側が決めるのは置き方と、その置き方に固有の出口だけ。**
- * 本文の写しを持たせると、文言を直したときに片方だけが変わる。
+ * 流れの中に出す境界はこれをそのまま `fallback` に渡し、浮かせて出す境界は `FloatingErrorFallback` が、
+ * ウィンドウ枠ごと差し替える境界は `app/RootErrorFallback.tsx` が包む。
+ * 包む側が決めるのは置き方と、その置き方に固有の出口だけ。本文の写しを持たせると文言が片方だけ変わる。
  */
 export function ErrorFallbackBody({
   label,
@@ -88,33 +83,31 @@ export function ErrorFallbackBody({
   );
 }
 
+type ErrorFallbackActionProps = {
+  /**
+   * 押されたときにすること。非同期でよい。
+   *
+   * `() => void` に絞ると `() => Promise<void>` が代入でき、拒否が拾われないまま消える。
+   *
+   * ここで握るのは未処理の拒否にしないためだけで、`console.error` は配布版では読めない。
+   * **拒否を画面に出すのは呼び手の責任**で、置き場は `afterAction`（`app/RootErrorFallback.tsx` の `closeFailed`）。
+   */
+  onClick: () => void | Promise<void>;
+  /** 「再表示」で戻らなかったときの出口。同じ強さで並べると、先に試すべき方が読めなくなる */
+  secondary?: boolean;
+  children: ReactNode;
+};
+
 /**
- * 落ちた画面に並べるボタン。**class 名は `shared/ui` の中に閉じる。**
+ * 落ちた画面に並べるボタン。class 名を `shared/ui` の中に閉じるために部品にする。
  *
- * 呼び出し側に綴りを書かせると、`shared` 側で class を整理したときに黙って素の `<button>` へ戻る。
- * 落ちる場所は「最後の砦」の画面なので、型でも lint でもテストでも赤くならない。
+ * 呼び手に class を書かせると、`shared` 側で整理したときに黙って素の `<button>` へ戻る。
  */
 export function ErrorFallbackAction({
   onClick,
-  /** 「再表示」で戻らなかったときの出口。同じ強さで並べると、先に試すべき方が読めなくなる */
   secondary = false,
   children,
-}: {
-  /**
-   * 押されたときにすること。**非同期でよい。**
-   *
-   * `() => void` に絞ると `() => Promise<void>` が代入できてしまい、拒否が誰にも
-   * 拾われないまま消える（型でも lint でも赤くならない）。
-   *
-   * **ここで握るのは、未処理の拒否にしないためだけ。** `console.error` は配布版では読めないので
-   * （同じファイルの `error` の doc）、**これは利用者に何も届けない。**
-   * 押しても何も起きないボタンにしないために、**拒否を画面に出すのは呼び出し側の責任**で、
-   * 置き場は `afterAction`（`app/RootErrorFallback.tsx` の `closeFailed` がその実装例）。
-   */
-  onClick: () => void | Promise<void>;
-  secondary?: boolean;
-  children: ReactNode;
-}) {
+}: ErrorFallbackActionProps) {
   const run = () => {
     const result = onClick();
     if (result) {
