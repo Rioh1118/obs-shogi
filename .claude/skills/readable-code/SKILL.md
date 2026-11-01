@@ -21,7 +21,7 @@ allowed-tools: Read, Grep, Glob, Bash
 
 設計の判断は `docs/rules/`、語は `CONTEXT.md`、コメントの規則は `CONTRIBUTING.md`「コメントの書き方」が正本。
 ここには**読み手の問いと、このリポジトリで起きた形**だけを置く。実測は `references/evidence.md`、
-コメントの判定の型は `references/comments.md`、出典は `references/sources.md`。
+コメントの判定の型は `references/comments.md`、部品の構造は `references/structure.md`、出典は `references/sources.md`。
 判定が割れたら `/decide` で決める。**人の確認を待たない。**
 
 ## 読み手の問い
@@ -53,7 +53,7 @@ allowed-tools: Read, Grep, Glob, Bash
 | 意味の違う値     | 別の型にする（R-TST-2、R-RSA-7）。`KifuCursor` と `CursorKey` が見本                                                  |
 | 真偽の位置引数   | 呼び手の行で意味が読めないなら enum か名前つきの引数にする（R-RSA-7）。真偽の組が取りうる値を余らせるなら union にする |
 | trait            | 差し替えが実在するときだけ（R-RST-1）。`BlobStore` は `DiskStore` と `InMemory` の2実装で、テストの差し替えも実在に数える |
-| interface と type | 使い分けは決まっていない（`mechanization-backlog.md`）。**触ったファイルの形に揃え**、書き換えで差分を増やさない       |
+| interface と type | オブジェクトの形は `type`（R-TSW-2、ADR-0014）。`interface` は `declare` の中だけ                                     |
 | ジェネリクス     | 呼び手が別の型を実際に渡すときだけ。`cloneJkf<T extends …>` のように型引数が目印でしかないなら、そう書く              |
 | 構造体           | 同じ欄を束で渡し続けるなら型にする（R-RES-5）。Rust の総称の境界は `impl` に書く（R-RST-5）                            |
 
@@ -69,6 +69,25 @@ allowed-tools: Read, Grep, Glob, Bash
 - **まとめる**: 「片方の仕様が変わったら、もう片方も必ず変わるか」が「はい」のとき（R-DUP-1）。判定、形式、上限の写しは数によらず1つにする（R-DUP-3）
 - **まとめない**: 形が同じだけのもの。`cloneJkf` は `undefined` のキーを保つ理由があり、`JSON` の退路を持つ上の2つに寄せてはいけない。`docs/rules/common.md` の R-DUP-2、R-DUP-4 で判定する
 - 共通の関数に呼び手ごとの旗が増えたら、呼び手へ戻す（R-DUP-4）。置き場の名前に困るなら概念がまだ無い（R-DUP-5）
+
+## 部品の構造
+
+`.tsx` を読むときの別の軸。読み手は JSX から画面を推測する。上の問いが通っても、ここが読めないと迷う。
+規則は `docs/rules/ts.md` の R-TSC。例、実測、動作の危険は `references/structure.md`。
+
+| 観点                   | 問い                                                                     | ルール             |
+| ---------------------- | ------------------------------------------------------------------------ | ------------------ |
+| 親子関係               | JSX の木を読んで画面の親子を言えるか                                     | R-TSC-1            |
+| `children` と `props`  | 中身は `children` か。区画は名前か。素通しを解けるか。Context は後回しか | R-TSC-2〜4         |
+| 粒度                   | 頭に収まるか。分けて飛び先だけが増えていないか                           | R-TSC-5            |
+| 複雑さ                 | 分岐、state、effect を追えるか。組み合わせが形を余らせていないか         | R-TSC-6            |
+| 再利用性               | 呼び手が実際に複数あるか。使い回しのために旗が増えていないか             | R-TSC-7            |
+| 責務                   | 取得、状態、描画が混ざっていないか。役割を1文で言えるか                  | R-TSC-8、R-TSR-5   |
+| 内容とレイアウトの分離 | 何を見せるかと、どこに並べるかを別々に読めるか                           | R-TSC-9            |
+
+**分割、統合、`children` への置き換えは動作が変わりうる。** state の寿命は木の位置で決まる。`references/structure.md` の表で確かめる。
+
+同じことの書き方は `docs/rules/ts.md` の R-TSW に揃える。字面で見えるものは `src/__tests__/componentShape.test.ts` が止める。
 
 ## 書くとき
 

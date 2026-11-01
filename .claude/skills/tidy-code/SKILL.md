@@ -29,6 +29,7 @@ D=.claude/plans/tidy-<日付>-<範囲>
 mkdir -p "$D"
 node .claude/skills/cross-cutting-audit/scripts/inventory.mjs "$D/inventory" <範囲>
 COMMENT_REPORT="$D/comments.json" ./node_modules/.bin/vp test run src/__tests__/commentReadability.test.ts
+SHAPE_REPORT="$D/shapes.json" ./node_modules/.bin/vp test run src/__tests__/componentShape.test.ts
 node .claude/skills/naming/scripts/word-usage.mjs verbs <範囲>
 ```
 
@@ -42,8 +43,9 @@ node .claude/skills/naming/scripts/word-usage.mjs verbs <範囲>
 1. 範囲の公開の宣言を全部、`/readable-code` の「確かめるとき」の手順2〜4で読む。差分の代わりに範囲を見る
 2. コメントは全部読み、`.claude/skills/readable-code/references/comments.md` の順で判定する
 3. 同じ名前と似た動詞を `functions.tsv` で寄せ、本体を読み比べる
-4. `comments.json` から範囲の行を拾う（`grep <範囲> "$D/comments.json"`）。**ここでは機械が見ている形も所見に数える。** 片付けるのが整理の仕事
-5. 公開の宣言の呼び手を `git grep -w` で数える。**本番の呼び手が0でテストだけが使うものは knip に映らない**。knip は Rust も見ない
+4. `comments.json` と `shapes.json` から範囲の行を拾う（`grep <範囲> "$D/comments.json"`）。**ここでは機械が見ている形も所見に数える。** 片付けるのが整理の仕事
+5. `.tsx` は `/readable-code` の「部品の構造」の問いで全部読む
+6. 公開の宣言の呼び手を `git grep -w` で数える。**本番の呼び手が0でテストだけが使うものは knip に映らない**。knip は Rust も見ない
 
 完了: 見た宣言の数と所見の数を書いた。
 
@@ -71,9 +73,12 @@ node .claude/skills/naming/scripts/word-usage.mjs verbs <範囲>
 | 3  | 移動、分割 | 本体を変えずに移す。テストの本文を変えない。`git diff --color-moved` で動いただけと見る |
 | 4  | 共通化     | 呼び手ごとの振る舞いを固定するテストを確かめ、変異を当てて落ちることを見る              |
 | 5  | 型の補い   | `Debug` の derive、`Error` の実装など、振る舞いを足さないもの。`npm run verify:rust`    |
+| 6  | 書き方     | `docs/rules/ts.md` の R-TSW へ揃える。型だけなら `scripts/emit-unchanged.mjs <基点>` が差なしと言う。それ以外は差分を読み、理由を PR の表に書く |
+| 7  | 構造       | 動作が変わりうる。テストで振る舞いを固定し、変異を当て、画面に出るものは `docs/spec/` と実アプリで確かめる（`/readable-code` の `references/structure.md`） |
 
 - **テストの期待値を変えたくなったら止める。** 動作が変わっている
 - 検査の基準（`BASELINE`）が下がったら、同じコミットで下げる
+- 種類の7は整理だけの PR と分ける。大きくなる範囲は別の段にする
 - 強調を外した跡に `。 ` の空白を残さない
 
 完了: 種類ごとに検証が通っている。Rust を触ったなら `npm run verify:rust` も通っている。
