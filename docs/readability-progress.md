@@ -34,11 +34,12 @@ ours 戦略のマージは使わない。
 
 | 段 | 枝 | 範囲 | PR | 状態 |
 | -- | -- | ---- | -- | ---- |
-| 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | 未作成 | 作業中 |
+| 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | #662 | レビュー待ち |
 | 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | #663 | レビュー待ち |
 | 3 | `refactor/shared-public-names` | `shared` の公開の名前と呼び手 | #664 | レビュー待ち |
 | 4 | `refactor/tidy-shared-ui` | `src/shared/ui` のコメントと書き方 | #665 | レビュー待ち |
-| 5 | `refactor/structure-shared-ui` | `src/shared/ui` の部品の構造 | 未作成 | 作業中 |
+| 5 | `refactor/structure-shared-ui` | `src/shared/ui` の部品の構造 | #667 | レビュー待ち |
+| 6 | `refactor/tidy-entities-kifu` | `src/entities/kifu` の api と model | #668 | レビュー待ち |
 
 ## 語
 
@@ -61,7 +62,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 1  | `src/shared/lib`、`src/shared/api`                       | 1102 | 済     | —      |
 | 2  | `src/shared/ui`                                          | 2023 | 済     | 済     |
 | 3  | `src/entities/kifu/lib`                                  | 1287 | 済     | —      |
-| 4  | `src/entities/kifu` の残り                               | 1023 | 未着手 | 未着手 |
+| 4  | `src/entities/kifu` の残り                               | 1023 | 済     | —      |
 | 5  | `src/entities/position`                                  | 1894 | 未着手 | 未着手 |
 | 6  | `src/entities/game`                                      | 2734 | 未着手 | 未着手 |
 | 7  | `src/entities/engine`、`src/entities/engine-presets`     | 2542 | 未着手 | 未着手 |
@@ -105,8 +106,11 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/board-orientation/model/useBoardOrientation.ts` の冒頭の doc | URL の文字列を絞る検査は `PovType` にあると書くが、実体は `useURLParams.ts` の `povRaw === "gote"` で `PovType` は型だけ |
 | `src/features/position-search/ui/PositionSearchModal.tsx` の `discardSearch` の説明 | `clearSearch` を呼ぶのは「ここだけ」と書くが、同じファイルの別の箇所でも呼ぶ |
 | `src/features/game-move/ui/__tests__/gameMoveBridge.test.tsx` の `vi.mock` の doc | export が増えれば落ちると書くが、`importActual` を展開しているので落ちない疑いがある。未再現 |
+| `src/entities/kifu/lib/applyMoveWithBranch.ts` の `usedExisting` と `createdNew` | 本番の読み手が0。テストだけが読んでいる |
+| `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
+| `src/entities/analysis/model/__tests__/provider.test.tsx` の「次の局面が保留されていても、届かなかった回に読み始めない」 | 2回に1回の頻度でゲートを止めた。`entities/analysis` の範囲で原因を調べる |
 | `src/features/settings/ui/tabs/WorkspaceTab.tsx` の `copyText` | `shared/api/clipboard` と同じ名前で別の本体を持つ。寄せられるかを本体で判定する |
 
 ## 次に取る範囲
 
-`src/entities/kifu` の残り。
+`src/entities/position`。

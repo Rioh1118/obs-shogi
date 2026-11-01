@@ -76,6 +76,17 @@ describe("parseKifuStringToJKF", () => {
  * **投げなかったことを「読めた」と読まない。** 通すと、呼んだ側は中身の無い棋譜を
  * 「読めた」前提で扱う。この穴はパーサの性質なので、判定はここが1つ持つ。
  */
+describe("判定した形式", () => {
+  test.each([
+    ["ki2", "▲７六歩    △３四歩"],
+    ["kif", "手数----指手---------消費時間--\n   1 ７六歩(77)   ( 0:00/00:00:00)"],
+    ["csa", "V2.2\nPI\n+\n+7776FU"],
+    ["jkf", '{"header":{},"moves":[{}]}'],
+  ])("%s を読むと形式を名乗る", (format, text) => {
+    expect(parseKifuStringToJKF(text).detectedFormat).toBe(format);
+  });
+});
+
 describe("readKifuText", () => {
   test("指し手が読めれば、判定した形式と手数と棋譜を返す", () => {
     const read = readKifuText(CSA);

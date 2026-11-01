@@ -42,7 +42,7 @@ allowed-tools: Read, Grep, Glob, Bash
 - **決めるときは `/naming` を通す。** ここでは読んで推測できるかだけを問う
 - 関数は**動詞＋目的語**、真偽は問いの形（R-NAM-5）。読む名前の関数は書き換えない（R-EFF-2）
 - 同じ役割に同じ動詞。`settings` crate は3モジュールが `read_or_default` / `write`、1モジュールが `load` / `save` と割れている（R-NAM-4）
-- 違いを修飾語で言う。`eqMoveFull` / `eqMoveMinimal` は何の完全さかが分からず、`eqMove` が別名として3つ目に居る
+- 違いを修飾語で言う。`eqMoveMinimal` は何の最小かが分からず、`eqMove` が別名として2つ目に居る
 - 比喩より実物の語。`口` `門` `札` の代わりに関数・経路・引数と書く（`references/comments.md`）
 
 ### 3. 型から推測できるか

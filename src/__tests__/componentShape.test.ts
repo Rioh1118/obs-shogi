@@ -18,7 +18,7 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 const BASELINE = {
   arrowComponent: 2,
-  typeInterface: 131,
+  typeInterface: 123,
   reactNamespace: 44,
   conditionalNull: 10,
   inlineHandlerBlock: 34,

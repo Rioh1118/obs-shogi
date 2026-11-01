@@ -58,7 +58,6 @@ function stripBom(s: string): string {
  *
  * 盤上で再生できない手を含む棋譜では正規化が throw する。そのときは元をそのまま返すが、
  * 揃わないのは表記だけではない。**その手より先へは進めない**（`goto` がそこで失敗する）。
- * 利用者への通知は issue #157 の担当。
  */
 function normalizeNotation(jkf: JKFData): JKFData {
   try {
@@ -83,21 +82,43 @@ function normalizeAndSanitize(exported: JKFData): JKFData {
   return sanitizeJkf(normalizeNotation(exported));
 }
 
+function importRecord(text: string, format: KifuFormat) {
+  switch (format) {
+    case "csa":
+      return importCSA(text);
+    case "ki2":
+      return importKI2(text);
+    case "kif":
+      return importKIF(text);
+    case "jkf":
+      return importJKFString(text);
+  }
+}
+
+function kifuFormatOf(type: RecordFormatType): KifuFormat {
+  switch (type) {
+    case RecordFormatType.CSA:
+      return "csa";
+    case RecordFormatType.KI2:
+      return "ki2";
+    case RecordFormatType.KIF:
+      return "kif";
+    default:
+      return "jkf";
+  }
+}
+
 /**
- * 形式が分かっている棋譜テキストを `JKFData` にする
+ * 形式が分かっている棋譜テキストを `JKFData` にする。
  *
- * throw するのは空文字のときと、tsshogi が `Error` を返したときだけ。
- * **読めなかった入力が「0手の棋譜」として返ることがある。** KIF / KI2 / CSA の
- * インポータは、指し手を1つも読み取れなくても `Error` ではなく空の record を返す
- * （壊れた JSON もただのテキストも `moves: [{}]` になる）。
- * 「throw しなかった＝棋譜として読めた」ではない。
+ * 投げるのは空文字のときと、tsshogi が `Error` を返したときだけ。
+ * **読めなかった入力が「0手の棋譜」として返ることがある。** KIF、KI2、CSA のインポータは指し手を1つも読めなくても
+ * 空の record を返すので、投げなかったことは読めたことを意味しない。
  *
- * 返り値は空の変化を含まない（`sanitizeJkf`）。受け取った側で掛け直す必要はない。
+ * 返り値は空の変化を含まない（`sanitizeJkf`）。
  *
- * 盤上で再生できない手を含む棋譜では throw せず、**未正規化のまま返る**。
- * このとき表記が揃わないだけでなく、その手以降へ `JKFPlayer.goto` が進めない。
- * 返り値を持って局面を動かす側は、`goto` が失敗しうる前提で境界を用意すること
- * （レンダ中に呼ぶと画面が落ちる）。
+ * 盤上で再生できない手を含む棋譜では投げず、未正規化のまま返る。その手以降へ `JKFPlayer.goto` は進めないので、
+ * 局面を動かす側は `goto` が失敗しうる前提で境界を用意する。レンダ中に呼ぶと画面が落ちる。
  *
  * @throws {KifuParseError} 棋譜として読めなかったとき
  */
@@ -105,15 +126,7 @@ export function parseKifuContentToJKF(raw: string, format: KifuFormat): JKFData 
   const text = stripBom(raw).trim();
   if (!text) throw new KifuParseError("空の棋譜です。");
 
-  const rec =
-    format === "csa"
-      ? importCSA(text)
-      : format === "ki2"
-        ? importKI2(text)
-        : format === "kif"
-          ? importKIF(text)
-          : importJKFString(text);
-
+  const rec = importRecord(text, format);
   if (rec instanceof Error) {
     throw new KifuParseError(`棋譜(${format})を読み込めませんでした。`, rec);
   }
@@ -149,54 +162,31 @@ export function parseKifuStringToJKF(raw: string): ParsedKifu {
     );
   }
 
-  const rec =
-    fmt === RecordFormatType.CSA
-      ? importCSA(text)
-      : fmt === RecordFormatType.KI2
-        ? importKI2(text)
-        : fmt === RecordFormatType.KIF
-          ? importKIF(text)
-          : importJKFString(text);
-
+  const detectedFormat = kifuFormatOf(fmt);
+  const rec = importRecord(text, detectedFormat);
   if (rec instanceof Error) throw new KifuParseError("棋譜を読み込めませんでした。", rec);
-
-  const detectedFormat: KifuFormat =
-    fmt === RecordFormatType.CSA
-      ? "csa"
-      : fmt === RecordFormatType.KI2
-        ? "ki2"
-        : fmt === RecordFormatType.KIF
-          ? "kif"
-          : "jkf";
 
   return { detectedFormat, jkf: normalizeAndSanitize(exportJKF(rec) as JKFData) };
 }
 
 /**
- * 棋譜テキストを読めたかどうかの判定
+ * 棋譜テキストを読めたかどうかの判定。
  *
- * `readable: false` の `message` は**そのまま利用者に見せる想定**で日本語で書く
- * （`KifuParseError.message` と同じ約束）。`cause` は開発者向けで、画面には出さない。
- * **その場で何をすればよいかは含めない** —— 貼り付けとファイルを開くのでは
- * 次にすべきことが違うので、そこは呼ぶ側が足す。
+ * `readable: false` の `message` はそのまま利用者に見せる想定で日本語で書く。`cause` は開発者向けで画面に出さない。
+ * その場で何をすればよいかは含めない。貼り付けとファイルを開くのでは次の手が違うので、呼ぶ側が足す。
  */
 export type KifuReadResult =
   | { readable: true; format: KifuFormat; moves: number; jkf: JKFData }
   | { readable: false; message: string; cause?: string };
 
 /**
- * 棋譜テキストが**棋譜として使えるか**を判定する
+ * 棋譜テキストが棋譜として使えるかを判定する。
  *
- * **`parseKifuStringToJKF` が投げなかったことを「読めた」と読まない。**
- * KIF / KI2 / CSA のインポータは指し手を1つも読み取れなくても `Error` ではなく
- * 空の record を返すので（同関数の doc）、棋譜でないただの文章がそのまま通る。
- * 通した先では「読めた」前提で中身の無いファイルが作られ、元のテキストは失われる。
+ * **`parseKifuStringToJKF` が投げなかったことを「読めた」と読まない。** 棋譜でないただの文章がそのまま通り、
+ * 通した先で中身の無いファイルが作られて元のテキストが失われる。
  *
- * **この判定を呼ぶ側に書かせない。** 穴はパーサの性質なので、棋譜テキストを
- * 受け取るどの経路にも同じように在る。写すと、写し忘れた経路だけが通してしまう。
- *
- * 判定できるのは「1手も読めなかった」までで、**途中まで読めた棋譜は見分けられない**
- * （tsshogi は落とした行を返さない）。3手目から壊れた棋譜は「2手」として読める。
+ * 穴はパーサの性質で、棋譜テキストを受け取るどの経路にも在るので、この判定を呼ぶ側に写さない。
+ * 判定できるのは「1手も読めなかった」までで、3手目から壊れた棋譜は「2手」として読める。
  */
 export function readKifuText(raw: string): KifuReadResult {
   try {
@@ -206,8 +196,7 @@ export function readKifuText(raw: string): KifuReadResult {
     if (moves <= 0) {
       return { readable: false, message: "指し手を1つも読み取れませんでした。" };
     }
-    // **読めた棋譜そのものを返す。** 呼ぶ側は対局者名や初期局面を出すのに要る。
-    // ヘッダの欄名を知っているのは `playerNames` だけなので、ここでは解釈しない
+    // 呼ぶ側は対局者名や初期局面を出すのに要る。欄名を知る `playerNames` が読むので、ここでは解釈しない
     return { readable: true, format: detectedFormat, moves, jkf };
   } catch (e) {
     // `KifuParseError` の `message` は利用者に見せるために書かれた日本語。

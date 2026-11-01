@@ -43,7 +43,7 @@ export function kifuFileName(name: string, format: KifuFormat): string {
   return base ? `${base}.${format}` : "";
 }
 
-export interface KifuCreationOptions {
+export type KifuCreationOptions = {
   fileName: string;
   format: KifuFormat;
 
@@ -59,4 +59,4 @@ export interface KifuCreationOptions {
     preset: InitialPresetString;
     data?: JKFState;
   };
-}
+};
