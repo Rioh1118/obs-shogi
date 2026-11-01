@@ -1,9 +1,9 @@
 import type { FileTreeNode } from "../model/types";
 
-interface DirOption {
+type DirOption = {
   value: string;
   label: string;
-}
+};
 
 /**
  * ツリーのフォルダを平らな一覧にする（保存先を選ぶ欄のため）

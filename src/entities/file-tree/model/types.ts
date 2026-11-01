@@ -3,7 +3,7 @@ import type { KifuCreationOptions, KifuFormat } from "@/entities/kifu/model/kifu
 import type { AsyncResult } from "@/shared/lib/result";
 import type { FsError } from "../api/error";
 
-export interface FileSystemNode {
+export type FileTreeNode = {
   id: string;
   name: string;
   path: string;
@@ -18,22 +18,11 @@ export interface FileSystemNode {
   truncated?: boolean;
   lastModified?: Date;
   size?: number;
-}
-
-export interface FileTreeDisplayInfo {
-  iconType: "folder" | "kif-file";
-}
-
-export interface KifuFileInfo {
-  format: KifuFormat;
-}
-
-export type FileTreeNode = FileSystemNode & {
-  displayInfo: FileTreeDisplayInfo;
-  kifuInfo?: KifuFileInfo;
+  displayInfo: { iconType: "folder" | "kif-file" };
+  kifuInfo?: { format: KifuFormat };
 };
 
-export type MenuState = { node: FileTreeNode; x: number; y: number } | null;
+type MenuState = { node: FileTreeNode; x: number; y: number } | null;
 
 export type FileConflictRequest =
   | {

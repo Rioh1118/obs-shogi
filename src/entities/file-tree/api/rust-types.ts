@@ -1,4 +1,4 @@
-export interface RustFileTreeNode {
+export type RustFileTreeNode = {
   id: string;
   name: string;
   path: string;
@@ -10,4 +10,4 @@ export interface RustFileTreeNode {
   lastModified?: number;
   size?: number;
   extension?: string;
-}
+};

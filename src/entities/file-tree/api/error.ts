@@ -38,8 +38,8 @@ export type FsError = {
    * 文章化されることになる。
    */
   message: string;
-  path?: string;
-  existingPath?: string;
+  path?: string | null;
+  existingPath?: string | null;
   cause?: string;
 };
 
