@@ -50,6 +50,7 @@ ours 戦略のマージは使わない。
 | 14 | `refactor/tidy-entities-analysis-provider` | `src/entities/analysis/model/provider.tsx` | #678 | マージ済み |
 | 15 | `refactor/tidy-entities-game-session` | `src/entities/game-session` | #680 | マージ済み |
 | 16 | `refactor/tidy-entities-file-tree` | `src/entities/file-tree` の `provider.tsx` 以外 | #681 | マージ済み |
+| 17 | `refactor/tidy-file-tree-provider` | `src/entities/file-tree/model/provider.tsx`、改名の不具合と #507 | PR を作ったら書く | レビュー待ち |
 
 ## 語
 
@@ -82,7 +83,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 8b | `src/entities/analysis/model/provider.tsx`               |  841 | 済     | 済     |
 | 9  | `src/entities/game-session`                              | 1488 | 済     | 済     |
 | 10 | `src/entities/file-tree` の `provider.tsx` 以外           | 1240 | 済     | 済     |
-| 10b | `src/entities/file-tree/model/provider.tsx`              |  809 | 未着手 | 未着手 |
+| 10b | `src/entities/file-tree/model/provider.tsx`              |  737 | 済     | 済     |
 | 11 | `src/entities/search`、`src/entities/book`               | 2454 | 未着手 | 未着手 |
 | 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 未着手 | 未着手 |
 | 13 | `src/features/settings`                                  | 4778 | 未着手 | 未着手 |

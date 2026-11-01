@@ -85,7 +85,7 @@
 | `failWithNotice`        | 移動（ドラッグ&ドロップ）                | 衝突は S4 へ、それ以外は `state.error` に積む（S3）                        |
 | `failToCaller`          | 作成・取り込み（モーダルの中）           | 衝突は S4 へ、それ以外は呼び出し元へ返す。フォームが自分の中に出す         |
 | `failToNameInput`       | リネーム・フォルダ作成（インライン編集） | 衝突は S4 へ、名前を直せば通る失敗は呼び出し元へ返す、残りは `state.error` |
-| `pushError` の直呼び    | 削除、衝突の解決を中断するとき           | 常に `state.error` に積む（S3）                                            |
+| `pushError`             | 削除。衝突の解決の中断は `failOutOfConflict` が対話を閉じてから呼ぶ | 常に `state.error` に積む（S3）                                            |
 | `loadFileTree` の直積み | ツリーの読み直し                         | `state.error` に積む。**操作の戻り値には載せない**                         |
 
 **`state.error` に積むと reducer が編集行とメニューを畳む。** 名前の訂正で直る失敗を
@@ -98,6 +98,7 @@
 「作成に失敗した」という嘘が同じ画面に2つ出る。`loadFileTree` が積む1箇所だけに任せる。
 
 **S4 の間、`error` は積まない。** `conflict` が立っているとき reducer は落とす。
+対話では直せない失敗は `failOutOfConflict` が先に対話を閉じる。
 **例外は `reload_failed`。** 操作の失敗ではなく、そのあとの読み直しの失敗で、
 捨てるとツリーが古いまま失敗がどこにも出ないまま対話が成功として閉じる。
 衝突を解決しようとして起きた失敗は `FileConflictDialog` の中で伝える
