@@ -33,7 +33,7 @@ type Props = {
 };
 
 function isKnownKind(kind: string): kind is Kind {
-  return kind in PIECE_LOOKS;
+  return Object.prototype.hasOwnProperty.call(PIECE_LOOKS, kind);
 }
 
 function PieceImage({ kind, color, onClick }: Props) {

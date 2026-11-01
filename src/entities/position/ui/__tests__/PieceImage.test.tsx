@@ -66,8 +66,8 @@ describe("駒の描き分け", () => {
     expect(white.image.getAttribute("src")).toContain("white_king2.png");
   });
 
-  test("知らない駒は何も描かない", () => {
-    const { container } = render(<PieceImage kind="XX" color={Color.Black} />);
+  test.each(["XX", "constructor", "__proto__"])("%s は駒でないので何も描かない", (kind) => {
+    const { container } = render(<PieceImage kind={kind} color={Color.Black} />);
     expect(container.firstElementChild).toBeNull();
   });
 
