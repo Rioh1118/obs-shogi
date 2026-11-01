@@ -2626,14 +2626,63 @@ describe("中断が届かなかった回", () => {
     await advance(waits().restartDebounceMs * 2);
     await view.setSync(adapter("P3", "P3"));
     await advance(waits().restartDebounceMs * 2);
+    // `engine` の変化は再描画で provider に届く。`refuse` の後に描画すると、`finally` が張る
+    // 0ms の再試行と順序が競り、再試行が先に起きれば下のテストの筋へ入って読み始める。
     engine = { isReady: false, notReadyReason: "failed" };
+    await view.setSync(adapter("P3", "P3"));
     await act(async () => {
       refuse(new Error("ipc is gone"));
     });
-    await view.setSync(adapter("P3", "P3"));
     await advance(waits().restartDebounceMs * 2);
 
     expect(startCore).not.toHaveBeenCalled();
+  });
+
+  it("返却が落ちても次の局面が保留されていれば、返し直せたときに読み始める", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    let refuse: (e: Error) => void = () => {};
+    stopCore.mockImplementationOnce(() => new Promise((_, reject) => (refuse = reject)));
+    startCore.mockClear();
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 2);
+    await view.setSync(adapter("P3", "P3"));
+    await advance(waits().restartDebounceMs * 2);
+    await act(async () => {
+      refuse(new Error("ipc is gone"));
+    });
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(startCore).toHaveBeenCalledTimes(1);
+    expect(reportUnreachable).not.toHaveBeenCalled();
+    expect(view.current.state.analyzedSfen).toBe("P3");
+  });
+
+  it("保留の局面で返し直しても届かなければ、応答なしにして読み始めない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    let refuse: (e: Error) => void = () => {};
+    stopCore.mockImplementationOnce(() => new Promise((_, reject) => (refuse = reject)));
+    startCore.mockClear();
+
+    await view.setSync(adapter("P2", "P2"));
+    await advance(waits().restartDebounceMs * 2);
+    await view.setSync(adapter("P3", "P3"));
+    await advance(waits().restartDebounceMs * 2);
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      refuse(new Error("ipc is gone"));
+    });
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(startCore).not.toHaveBeenCalled();
+    expect(reportUnreachable).toHaveBeenCalledTimes(1);
+    expect(view.current.state.isAnalyzing).toBe(true);
   });
 });
 
