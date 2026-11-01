@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle, ChevronRight, Circle } from "lucide-react";
 
-export type StepState = "done" | "active" | "warn" | "locked";
+import type { StepState } from "@/features/settings/lib/setupSteps";
 
 type Props = {
   state: StepState;

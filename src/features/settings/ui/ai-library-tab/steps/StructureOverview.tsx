@@ -1,6 +1,6 @@
 import { canListEnginesDir, type EnginesDir } from "@/entities/engine/lib/enginesDir";
 
-import type { SetupGuideProfile } from "../types";
+import type { AiFolderSummary } from "@/features/settings/lib/aiLibraryContents";
 
 type NodeState = "ok" | "missing" | "empty" | "placeholder";
 
@@ -49,7 +49,7 @@ type Props = {
   /** AI フォルダを作れるか。条件は `SetupGuide` が決める。ここで組むと入力欄が無いときにも作成を指示する */
   canCreateProfile: boolean;
   engineNames: string[];
-  profiles: SetupGuideProfile[];
+  profiles: AiFolderSummary[];
 };
 
 export function StructureOverview({
@@ -97,26 +97,24 @@ export function StructureOverview({
       {profiles.length > 0
         ? profiles.map((p, pi) => {
             const isLastProfile = pi === profiles.length - 1;
-            const evalOk = p.hasEvalDir && p.evalCount > 0;
-            const bookOk = p.hasBookDir && p.bookCount > 0;
             return (
               <div key={p.path}>
                 <TreeNode
                   label={`📂 ${p.name}/`}
                   state="ok"
                   indent={1}
-                  isLast={isLastProfile && !evalOk && !bookOk}
+                  isLast={isLastProfile && !p.hasEval && !p.hasBook}
                 />
                 <TreeNode
                   label="📂 eval/"
-                  note={evalOk ? undefined : "← nn.bin を置く"}
-                  state={evalOk ? "ok" : "missing"}
+                  note={p.hasEval ? undefined : "← nn.bin を置く"}
+                  state={p.hasEval ? "ok" : "missing"}
                   indent={2}
                 />
                 <TreeNode
                   label="📂 book/"
-                  note={bookOk ? undefined : "← .db を置く（任意）"}
-                  state={bookOk ? "ok" : "empty"}
+                  note={p.hasBook ? undefined : "← .db を置く（任意）"}
+                  state={p.hasBook ? "ok" : "empty"}
                   indent={2}
                   isLast={isLastProfile}
                 />

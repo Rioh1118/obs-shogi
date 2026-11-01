@@ -1,6 +1,7 @@
 import { Sparkles } from "lucide-react";
 import Button from "@/shared/ui/Button/Button";
-import { StepShell, type StepState } from "./StepShell";
+import type { StepState } from "@/features/settings/lib/setupSteps";
+import { StepShell } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 
 type Props = {

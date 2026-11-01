@@ -1,17 +1,17 @@
 import { FolderOpen } from "lucide-react";
 import Button from "@/shared/ui/Button/Button";
-import { StepShell, type StepState } from "./StepShell";
+import type { StepState } from "@/features/settings/lib/setupSteps";
+import { StepShell } from "./StepShell";
 import { StepTree, TreeLine } from "./StepTree";
 
 type Props = {
   state: StepState;
-  aiRoot: string;
+  /** 見出しの横に出す、詰めたルート */
+  shortRoot: string;
   onSelect: () => void;
 };
 
-export function Step1SelectRoot({ state, aiRoot, onSelect }: Props) {
-  const shortRoot = aiRoot.length > 32 ? "…" + aiRoot.slice(-31) : aiRoot;
-
+export function Step1SelectRoot({ state, shortRoot, onSelect }: Props) {
   return (
     <StepShell state={state} title="AI ライブラリを選択" summary={shortRoot}>
       <div className="aiLibraryTab__stepDesc">
