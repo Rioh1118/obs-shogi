@@ -1305,6 +1305,22 @@ describe("AI フォルダの作成の欄", () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
+  /**
+   * 名前は悪くないので、打ち直させない。同じ名前のフォルダが在る、AI ルートが消えた、などで落ちる。
+   * 消すと、フォルダを作り直せる状態に戻した後で名前を打ち直すことになる
+   */
+  test("名前では直せない失敗でも、打った名前は残す", async () => {
+    await renderIndex(indexWithEngine());
+    const input = screen.getByPlaceholderText("AI 名を入力") as HTMLInputElement;
+    createAiProfileDirs.mockResolvedValue({ success: false, error: { code: "already_exists" } });
+
+    fireEvent.change(input, { target: { value: "Suisho" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    await waitFor(() => expect(badgeText()).toBe("エラー"));
+    expect(input.value).toBe("Suisho");
+  });
+
   test("作れたらそのルートを読み直す", async () => {
     await renderIndex(indexWithEngine());
     scanAiRoot.mockClear();

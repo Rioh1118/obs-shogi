@@ -48,12 +48,13 @@ function lastIndex(scan: ScanState): LoadedIndex | null {
 /**
  * AI フォルダの作成の結果
  *
+ * - `"created"`: 作れた
  * - `FsError`: 名前を直せば通る。欄のそばに出し、打った文字列は残す
+ * - `"diagnosed"`: 名前では直せない失敗で、診断へ回した。打った文字列は残す
  * - `"stale"`: 作り終える前に AI ルートが変わった。成功に畳むと打った名前が消え、`FsError` に畳むと
  *   名前が悪くないのに欄が赤くなる。旧ルートの結果は `staleCreateNotice` の通知が伝える
- * - `null`: 作れた。または名前で直せない失敗を診断へ回した
  */
-export type CreateAiFolderResult = FsError | "stale" | null;
+export type CreateAiFolderResult = "created" | FsError | "diagnosed" | "stale";
 
 /** 画面から呼ぶ操作。どれも失敗を投げず、画面の状態か通知に出す */
 export type AiLibraryActions = {
@@ -215,11 +216,11 @@ export function useAiLibrary() {
       if (isNameInputError(created.error.code)) return created.error;
 
       setScan(failKeepingIndex(describeFsError(created.error.code)));
-      return null;
+      return "diagnosed";
     }
 
     await scanRoot(root);
-    return null;
+    return "created";
   };
 
   // 別のルートの索引は使わない。切り替え直後はまだ何も読めていない

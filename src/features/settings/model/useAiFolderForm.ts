@@ -40,19 +40,18 @@ export function useAiFolderForm(createAiFolder: (name: string) => Promise<Create
     try {
       const result = await createAiFolder(name);
 
-      // 宛先を失ったとき。打った名前も赤字も動かさない。旧ルートの結果は通知が伝える
-      if (result === "stale") return;
-
-      if (result) {
-        // 打った名前は消さない。消すと、直すのではなく打ち直しになる
-        setError(describeFsError(result.code));
-        focusInput();
+      if (result === "created") {
+        setError(null);
+        setDraft("");
         return;
       }
 
-      // `await` の前で消すと、宛先を失ったときに赤字だけが消える
-      setError(null);
-      setDraft("");
+      // どちらも名前は悪くない。打った名前も赤字も動かさず、結果は通知か診断が伝える
+      if (result === "stale" || result === "diagnosed") return;
+
+      // 打った名前は消さない。消すと、直すのではなく打ち直しになる
+      setError(describeFsError(result.code));
+      focusInput();
     } finally {
       inFlightRef.current = false;
       setIsCreating(false);
