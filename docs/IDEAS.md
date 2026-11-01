@@ -242,19 +242,6 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
 
-## AI ライブラリタブの部品と SCSS の持ち主が別ディレクトリ
-
-`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（architecture reviewer）。
-`aiLibraryTab__step*` / `aiLibraryTab__tree*` の規則は `ui/tabs/AiLibraryTab.scss` に在るのに、
-使う `.tsx` は `ui/ai-library-tab/` に7ファイル（そちらは `SetupGuide.scss` しか import しない）。
-r11 で `types.ts` をこのディレクトリに新設したので、次の書き手は「AI ライブラリタブのものは
-`ai-library-tab/`」と読み、新しい段のスタイルを `SetupGuide.scss` に書く——
-`.aiLibraryTab` の入れ子の外に出て**何も当たらない**。tsc も lint も見ないので緑のまま通る。
-
-- `AiLibraryTab.tsx`（+ `.scss` + `__tests__`）を `ui/ai-library-tab/` へ移して
-  1ディレクトリ = 1画面にする（`engine-preset-dialog/` が既にその形）
-- 移さないなら、`aiLibraryTab__step*` / `__tree*` の規則を `SetupGuide.scss` 側へ移す
-
 ## 「作成を出すのは無いときだけ」の理由が2箇所にある
 
 `.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（comment reviewer）。

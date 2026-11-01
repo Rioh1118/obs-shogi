@@ -105,7 +105,7 @@ export default function SetupGuide({ aiRootPath, scan, contents, actions }: Prop
       </SSection>
 
       <SSection title="セットアップ手順" description="手順ごとに操作できます。">
-        <div className="aiLibraryTab__steps">
+        <div className="setupGuide__steps">
           <Step1SelectRoot
             state={steps.selectRoot}
             shortRoot={shortRoot}
@@ -158,9 +158,9 @@ export default function SetupGuide({ aiRootPath, scan, contents, actions }: Prop
             <AlertTriangle size={13} />
             検出された問題
           </div>
-          {warnings.map((w, i) => (
-            <div key={i} className="setupGuide__warningItem">
-              {w}
+          {warnings.map((warning) => (
+            <div key={warning} className="setupGuide__warningItem">
+              {warning}
             </div>
           ))}
         </div>

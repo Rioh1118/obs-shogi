@@ -1194,7 +1194,7 @@ describe("AI ライブラリタブの状態のカード", () => {
 
     const short = `…${root.slice(-31)}`;
     expect(statusCard("AI ライブラリ").text).toBe(`AI ライブラリ設定済み${short}`);
-    expect(screen.getByText(short, { selector: ".aiLibraryTab__stepSummary" })).toBeTruthy();
+    expect(screen.getByText(short, { selector: ".setupGuide__stepSummary" })).toBeTruthy();
   });
 
   test("32文字ちょうどのルートは詰めない", async () => {

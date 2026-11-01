@@ -28,7 +28,7 @@ export function Step3PlaceEngines({
 
   return (
     <StepShell state={state} title="エンジン実行ファイルを配置" summary={`${enginesCount} 個検出`}>
-      <div className="aiLibraryTab__stepDesc">{desc}</div>
+      <div className="setupGuide__stepDesc">{desc}</div>
 
       <StepTree>
         <TreeLine label="📂 ai_root/" dim />
@@ -37,7 +37,7 @@ export function Step3PlaceEngines({
         <TreeLine indent={2} label="🔧 …" dim />
       </StepTree>
 
-      <div className="aiLibraryTab__stepAction">
+      <div className="setupGuide__stepAction">
         <Button size="sm" onClick={onOpenEnginesDir}>
           <FolderOpen size={14} style={{ marginRight: 6 }} />
           engines/ を開く

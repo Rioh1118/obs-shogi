@@ -1,5 +1,3 @@
-import "./AiLibraryTab.scss";
-
 import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
 import Button from "@/shared/ui/Button/Button";
@@ -8,6 +6,7 @@ import { canCreateEnginesDir, canRevealEnginesDir } from "@/entities/engine/lib/
 import { useAiLibrary, type ScanState } from "@/features/settings/model/useAiLibrary";
 import { copyText } from "@/shared/api/clipboard/copyText";
 import SetupGuide from "../ai-library-tab/SetupGuide";
+import "./AiLibraryTab.scss";
 
 type Badge = { tone: "ok" | "warn" | "danger" | "muted"; text: string };
 
@@ -35,7 +34,7 @@ export default function AiLibraryTab() {
   return (
     <div className="aiLibraryTab">
       <div className="aiLibraryTab__grid">
-        <div className="aiLibraryTab__mainCol">
+        <div>
           <SSection
             title="AI ライブラリ"
             description="エンジン本体・評価関数・定跡DBをまとめて管理する場所です（推奨：専用フォルダを1つ作成して固定）。"

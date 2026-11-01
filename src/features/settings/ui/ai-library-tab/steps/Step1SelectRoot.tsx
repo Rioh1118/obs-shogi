@@ -14,7 +14,7 @@ type Props = {
 export function Step1SelectRoot({ state, shortRoot, onSelect }: Props) {
   return (
     <StepShell state={state} title="AI ライブラリを選択" summary={shortRoot}>
-      <div className="aiLibraryTab__stepDesc">
+      <div className="setupGuide__stepDesc">
         エンジン・評価関数・定跡をすべてまとめる専用フォルダを1つ選択します。
         既存フォルダでも新規フォルダでも構いません。
       </div>
@@ -25,7 +25,7 @@ export function Step1SelectRoot({ state, shortRoot, onSelect }: Props) {
         <TreeLine indent={1} label="└─ &lt;AI 名&gt;/" dim />
       </StepTree>
 
-      <div className="aiLibraryTab__stepAction">
+      <div className="setupGuide__stepAction">
         <Button tone="accent" size="sm" onClick={onSelect}>
           <FolderOpen size={14} style={{ marginRight: 6 }} />
           フォルダを選択…

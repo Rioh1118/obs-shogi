@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 type TreeLineProps = {
   indent?: number;
   label: string;
@@ -15,17 +17,17 @@ export function TreeLine({
 }: TreeLineProps) {
   return (
     <div
-      className="aiLibraryTab__treeLine"
+      className="setupGuide__treeLine"
       data-highlight={highlight}
       data-dim={dim}
       style={{ paddingLeft: indent * 16 }}
     >
-      <span className="aiLibraryTab__treeLabel">{label}</span>
-      {note && <span className="aiLibraryTab__treeNote">{note}</span>}
+      <span className="setupGuide__treeLabel">{label}</span>
+      {note && <span className="setupGuide__treeNote">{note}</span>}
     </div>
   );
 }
 
-export function StepTree({ children }: { children: React.ReactNode }) {
-  return <div className="aiLibraryTab__stepTree">{children}</div>;
+export function StepTree({ children }: { children: ReactNode }) {
+  return <div className="setupGuide__stepTree">{children}</div>;
 }
