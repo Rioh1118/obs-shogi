@@ -31,6 +31,6 @@ describe("プレビューの手番", () => {
   // 前に見ていた局面の手番が、次の局面の読み込み中に居座る
   test("局面が無ければ出さない", () => {
     render(<PositionPreviewPane previewData={null} />);
-    expect(document.querySelector(".position-navigation-modal__turn-tab")).toBeNull();
+    expect(document.querySelector(".position-preview__turn-tab")).toBeNull();
   });
 });

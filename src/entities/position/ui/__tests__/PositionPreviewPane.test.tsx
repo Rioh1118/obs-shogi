@@ -31,7 +31,7 @@ class FakeResizeObserver {
 
 /** 枠の内寸を流す。余白は `--board-pad` の下限の 8px を四辺に置く */
 function resizeFrame(width: number, height: number) {
-  const frame = document.querySelector<HTMLElement>(".position-navigation-modal__board-preview");
+  const frame = document.querySelector<HTMLElement>(".position-preview__frame");
   frame?.style.setProperty("padding", "8px");
   act(() => observers.forEach((measure) => measure([{ contentRect: { width, height } }])));
 }

@@ -35,8 +35,8 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
   }, []);
 
   return (
-    <div className="position-navigation-modal__preview-container">
-      <div className="position-navigation-modal__board-preview" ref={boardWrapRef}>
+    <div className="position-preview__container">
+      <div className="position-preview__frame" ref={boardWrapRef}>
         {/*
           **手番はこの部品が出す。** 盤の絵には現れない値で、並んでいる駒からは
           初形からの偶奇を追わないと分からない（局面だけを渡されるこの面では追えない）。
@@ -46,12 +46,12 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
           段を1つ足すとその高さのぶん盤が縮む（呼び手によっては測る軸が縦横で
           入れ替わり、縮む面と広がる面に分かれる）。重ねれば内寸が動かない
         */}
-        <div className="position-navigation-modal__turn-tab">{turnBadgeText(previewData.turn)}</div>
+        <div className="position-preview__turn-tab">{turnBadgeText(previewData.turn)}</div>
 
         <BoardPreview pieces={previewData.board} size={boardSize} />
       </div>
 
-      <div className="position-navigation-modal__hands">
+      <div className="position-preview__hands">
         <HandRow label={SENTE_LABEL} kinds={previewData.hands[Color.Black]} />
         <HandRow label={GOTE_LABEL} kinds={previewData.hands[Color.White]} />
       </div>
@@ -68,8 +68,8 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
 function PositionPreviewPane({ previewData }: Props) {
   if (!previewData) {
     return (
-      <div className="position-navigation-modal__preview-container">
-        <div className="position-navigation-modal__board-preview">
+      <div className="position-preview__container">
+        <div className="position-preview__frame">
           <div className="board-preview-placeholder">
             <p>局面を読み込み中…</p>
           </div>

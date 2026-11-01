@@ -22,21 +22,21 @@ function HandRow({ label, kinds }: Props) {
   ];
 
   return (
-    <div className="position-navigation-modal__hand">
-      <div className="position-navigation-modal__hand-label">{label}</div>
-      <div className="position-navigation-modal__hand-pieces">
+    <div className="position-preview__hand">
+      <div className="position-preview__hand-label">{label}</div>
+      <div className="position-preview__hand-pieces">
         {ordered.length > 0 ? (
           ordered.map((kind) => {
             const n = counts.get(kind) ?? 0;
             const text = n >= 2 ? `${toKan(kind)}×${n}` : `${toKan(kind)}`;
             return (
-              <span key={`${label}-${kind}`} className="position-navigation-modal__hand-chip">
+              <span key={`${label}-${kind}`} className="position-preview__hand-chip">
                 {text}
               </span>
             );
           })
         ) : (
-          <span className="position-navigation-modal__hand-empty">なし</span>
+          <span className="position-preview__hand-empty">なし</span>
         )}
       </div>
     </div>
