@@ -94,7 +94,7 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 | **E14** | 保存の失敗                      | `persistence.save`（Rust の書き込み）                                                                       |
 | **E15** | ワークスペース変更              | `GameFileTreeBridge` / `GamePersistenceGate`                                                                |
 | **E16** | 棋譜を載せられない              | `JKFPlayer` 構築の失敗（`loadGame` の `catch`）。`cloneJkf` は `structuredClone` なので実質到達しない       |
-| **E17** | 編集の失敗                      | `applyMoveWithBranch` / `assertBranchIndex` の throw（`edit` / `swapBranches` / `deleteBranch` の `catch`） |
+| **E17** | 編集の失敗                      | `applyMoveWithBranch` / `assertBranchIndex` の throw（`runWrite` の `catch`） |
 | **E18** | 開いている棋譜の改名・移動      | `GameFileTreeBridge` → `renameLoadedPath`（`path_renamed`）※9                                               |
 
 `selectSquare` / `selectHand` の失敗は `selectedPosition` の話で、
@@ -297,9 +297,9 @@ E2 は `GameFileTreeBridge` が `activeKifuPath` / `jkfData` / `kifuFormat` の
 
 E15（ワークスペース変更）の帰結は ※4。
 
-P2 は state の中に印が無い。`error` は7箇所で消える（局面を動かすか棋譜を書き換える
-操作の先頭6つ — `navigate` / `edit` / `loadGame` / `swapBranches` / `deleteBranch` /
-`applyCursor` — と、公開されている `clearError`）ので、
+P2 は state の中に印が無い。`error` は5箇所で消える（局面を動かすか棋譜を書き換える
+操作の先頭4つ — `navigate` / `runWrite` / `loadGame` / `applyCursor` — と、
+公開されている `clearError`）ので、
 **「保存に失敗したまま操作を続けている」状態を後から判定する手段が無い。**
 
 そもそも `state.error` には**読み手が0**で、上の表の「`error` に載る」は state に載るだけで
@@ -346,7 +346,7 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 
 | #      | 読み手                                        | 何に使うか                               | 壊れた `forkIndex` を                                 |
 | ------ | --------------------------------------------- | ---------------------------------------- | ----------------------------------------------------- |
-| **R1** | `cursorView` → `computeLeafTesuu`             | `view.totalMoves`                        | **捨てる** ✓                                          |
+| **R1** | `buildCursorView` → `computeLeafTesuu`             | `view.totalMoves`                        | **捨てる** ✓                                          |
 | **R2** | `goToIndex` → `goto`                          | `goto` の第2引数（`te <= index` に絞る） | 捨てない。`goto` は `forkAndForward` の返り値も見ない |
 | **R3** | `nextMove` → `advanceWithPlan`                | 次の1手で降りる変化                      | **捨てる** ✓                                          |
 | **R4** | `goToEnd` → `advanceToLeafWithPlan`           | 末尾まで降り続ける経路                   | **捨てる** ✓                                          |

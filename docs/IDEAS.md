@@ -131,8 +131,7 @@
   見て門番しているので、`Board` が描かれた時点で `player?.shogi` は必ずある。しかも
   `.board-loading` の CSS 規則はリポジトリに1つも無く、ビルド後の CSS にも出ない。
   **仕様の側は直してある**（`docs/spec/screens/board.md` の P0 の※）。残っているのは
-  枝そのものを畳むかどうかで、畳むなら `GameView` の `hasKifu` の doc が言う
-  「`?.shogi` を残してあるのは `cursorView` の catch を将来ゆるめたときの保険」と
+  枝そのものを畳むかどうかで、畳むなら `GameView` の `hasKifu` の `?.shogi` と
   一緒に決めることになる
 
 ## 呼び出し元の無い公開面が、スライスの barrel と context に残っている
