@@ -11,7 +11,13 @@ type Props = {
   previewData: PreviewData | null;
 };
 
-function LoadedPreview({ previewData }: { previewData: PreviewData }) {
+/**
+ * 局面のプレビュー
+ *
+ * 局面の有無で枠の要素を替えない。枠を測る effect は mount で1度だけ走るので、
+ * 局面が無いときの枠に `ref` が無いと測る先が無く、盤が初期値のまま残る。
+ */
+function PositionPreviewPane({ previewData }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState(320);
 
@@ -34,6 +40,18 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
     return () => ro.disconnect();
   }, []);
 
+  if (!previewData) {
+    return (
+      <div className="position-preview__container">
+        <div className="position-preview__frame" ref={boardWrapRef}>
+          <div className="board-preview-placeholder">
+            <p>局面を読み込み中…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="position-preview__container">
       <div className="position-preview__frame" ref={boardWrapRef}>
@@ -54,28 +72,6 @@ function LoadedPreview({ previewData }: { previewData: PreviewData }) {
       </div>
     </div>
   );
-}
-
-/**
- * 局面のプレビュー
- *
- * 枠を測る effect は、枠に `ref` が付いた状態で mount する `LoadedPreview` に置く。
- * ここへ置くと、局面が無いまま mount したときに測る先が無く、盤が初期値のまま残る。
- */
-function PositionPreviewPane({ previewData }: Props) {
-  if (!previewData) {
-    return (
-      <div className="position-preview__container">
-        <div className="position-preview__frame">
-          <div className="board-preview-placeholder">
-            <p>局面を読み込み中…</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return <LoadedPreview previewData={previewData} />;
 }
 
 export default PositionPreviewPane;

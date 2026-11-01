@@ -133,11 +133,20 @@ describe("局面のプレビュー", () => {
     expect(observers).toHaveLength(0);
   });
 
-  // 検討の一覧や検索は、行を選ぶまで局面が無い状態で開く
+  // 検索は再生器がまだ無いとき、`EditorStudyPicker` は一覧が空のときに局面が無いまま開く
   test("局面が後から届いても枠を測る", () => {
     const { rerender } = render(<PositionPreviewPane previewData={null} />);
     rerender(<PositionPreviewPane previewData={preview(HIRATE)} />);
     resizeFrame(500, 500);
+    expect(boardSize()).toBe("484px");
+  });
+
+  // 局面ナビは行き先に届かないと局面を失い、次の移動で取り戻す
+  test("局面が一度消えても、測った一辺を保つ", () => {
+    const { rerender } = render(<PositionPreviewPane previewData={preview(HIRATE)} />);
+    resizeFrame(500, 500);
+    rerender(<PositionPreviewPane previewData={null} />);
+    rerender(<PositionPreviewPane previewData={preview(HIRATE)} />);
     expect(boardSize()).toBe("484px");
   });
 });
