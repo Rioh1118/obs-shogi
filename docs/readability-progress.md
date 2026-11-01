@@ -54,6 +54,7 @@ ours 戦略のマージは使わない。
 | 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | マージ済み |
 | 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | マージ済み |
 | 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | マージ済み |
+| 21 | `refactor/tidy-features-settings-workspace` | `src/features/settings` の第1段（範囲13） | #687 | レビュー待ち |
 
 ## 語
 
