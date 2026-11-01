@@ -14,11 +14,11 @@ function isReady({ scan, index }: AiRootIndexState): boolean {
   return scan.status === "ready" && index != null;
 }
 
-function placeholderOf(library: AiRootIndexState): string {
+function placeholderOf(library: AiRootIndexState, optionCount: number): string {
   if (!library.hasRoot) return "AI ライブラリが未設定";
   if (library.scan.status === "loading") return "読み込んでいます…";
   if (!isReady(library)) return "エンジンを読み込めませんでした";
-  return library.index?.engines.length ? "エンジンを選択" : "engines/ にエンジンがありません";
+  return optionCount > 0 ? "エンジンを選択" : "engines/ にエンジンがありません";
 }
 
 type Props = {
@@ -72,7 +72,7 @@ export default function EngineField({
             ? { ...o, label: o.note ? `${engineName}（${o.note}）` : engineName }
             : o,
         )}
-        placeholder={placeholderOf(library)}
+        placeholder={placeholderOf(library, options.length)}
         disabled={!isReady(library) || options.length === 0}
         invalid={!!error}
       />

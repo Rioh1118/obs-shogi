@@ -439,6 +439,14 @@ describe("エンジンの欄", () => {
     expect(optionTexts(engineSelect())).toContain(label);
   });
 
+  test("候補が0件でも、残した現在の選択があれば欄を開け、案内は「エンジンを選択」", async () => {
+    scanAiRoot.mockResolvedValue({ ...INDEX, engines: [] });
+    await openDialog({ enginePath: "/elsewhere/old-build" });
+
+    expect(engineSelect().disabled).toBe(false);
+    expect(engineSelect().options[0].textContent).toBe("エンジンを選択");
+  });
+
   test("候補にある保存済みのパスは重ねない", async () => {
     await openDialog({ enginePath: ENGINE_A });
     expect(optionTexts(engineSelect())).toEqual(["エンジンを選択", "a", "b"]);
