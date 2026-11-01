@@ -1,6 +1,6 @@
 import { isTauri } from "@tauri-apps/api/core";
 import { reducer, initialState } from "./reducer";
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type {
   EngineContextType,
   EngineNotReadyReason,
@@ -16,7 +16,7 @@ import { EngineContext } from "./context";
 import { useSlowStart } from "./useSlowStart";
 
 type Props = {
-  children: React.ReactNode;
+  children: ReactNode;
   desiredRuntime: EngineRuntimeConfig | null;
   /** プリセットは選んだが `desiredRuntime` を組めない。**選んでいない回と言い分けるために要る** */
   presetIncomplete?: boolean;

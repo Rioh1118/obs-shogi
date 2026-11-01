@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { AnalysisSessionId } from "./tauri";
-import type { AnalysisResult, UnresponsiveReason } from "@/entities/engine/api/rust-types";
+import type { AnalysisResult, UnresponsiveReason } from "./rust-types";
 import { EVENT_NAMES } from "./eventNames";
 
 type AnalysisUpdate = { sessionId: AnalysisSessionId; result: AnalysisResult };
@@ -42,17 +42,17 @@ async function listenToAnalysisComplete(
  * プロセスの通知の購読先。`request` はそのプロセスを起動した要求の番号で、
  * **最後に撃った番号と照合すること**——起動し直している最中に古いプロセスの通知が届く。
  */
-export interface EngineEventListeners {
+export type EngineEventListeners = {
   onExited: (request: number, lastOutput: string | null) => void;
   onUnresponsive: (request: number, reason: UnresponsiveReason, lastOutput: string | null) => void;
   onAnswered: (request: number) => void;
-}
+};
 
 // ===== 統合リスナー =====
-interface AnalysisEventListeners {
+type AnalysisEventListeners = {
   onUpdate?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
   onComplete?: (sessionId: AnalysisSessionId, result: AnalysisResult) => void;
-}
+};
 
 /**
  * 順に購読する。**途中で落ちたら、そこまでに登録した分を解除してから投げ直す。**

@@ -12,13 +12,8 @@ import { shutdownEngine, startAnalysisEngine, type EngineRequest } from "./tauri
  * 別の設定の起動結果を新しい設定のものとして受け取る。停止も進行中の起動を待たない——待つと、
  * `readyok` を返さないエンジンで停止ごと固まる。
  */
-export interface EngineInitializer {
-  initialize(runtime: EngineRuntimeConfig, request: EngineRequest): Promise<StartOutcome>;
-  shutdown(request: EngineRequest): Promise<void>;
-}
-
-export const engineInitializer: EngineInitializer = {
-  initialize: (runtime, request) =>
+export const engineInitializer = {
+  initialize: (runtime: EngineRuntimeConfig, request: EngineRequest): Promise<StartOutcome> =>
     startAnalysisEngine({
       enginePath: runtime.enginePath,
       values: toOptionValues(runtime),
@@ -26,5 +21,5 @@ export const engineInitializer: EngineInitializer = {
       book: runtime.book,
       request,
     }),
-  shutdown: (request) => shutdownEngine(request),
+  shutdown: (request: EngineRequest): Promise<void> => shutdownEngine(request),
 };
