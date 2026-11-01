@@ -136,7 +136,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める。`engineStatusOf` は `engine.error?.kind ?? null` を `failureKind` で受けており、union にすれば `useEngineStatus` の変換と `failureKind` の null の説明も消える。判定の順は変わらない |
 | `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
 | `src/entities/game-session/model/provider.tsx` の `start` の `void closeGame(gameId)` | 手放した対局を畳む呼び出しの断りを誰も受けない。本番の呼び手が `closeSession` しか無いので、対局の面を戻すときに決める |
-| `src/entities/file-tree/model/provider.tsx` の context の欄 | `loadFileTree`、`closeActiveKifu`、`revealNodeByAbsPath`、`isKifuSelected`、`getSelectedKifuData` はスライスの外の読み手が0。`refreshTree` は `loadFileTree` の包み。`provider.tsx` の範囲で消す |
 | `src-tauri/src/workspace/commands/kifu.rs` の `save_kifu_file` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
 | `src/entities/file-tree/model/types.ts` の `displayInfo.iconType` | `isDirectory` の写しで、読み手は `src/widgets/file-tree` の2か所。`src/widgets` の範囲で `FileIcon` の受け方と合わせて畳む |
 | `src/widgets/file-tree/ui/FileNode.tsx` の `isSelected` | `selectedNode?.id === node.id` で比べるが、`id` は走査ごとに振り直され、`tree_loaded` は `selectedNode` を張り替えない。読み直すと棋譜は開いたまま行の強調が消える筋がある。未再現。`path` で比べる形を `src/widgets` の範囲で見る |

@@ -176,8 +176,6 @@ export type SelectNodeOptions = {
 };
 
 export type FileTreeContextType = FileTreeState & {
-  loadFileTree: () => AsyncResult<void, FsError>;
-
   /**
    * 選択を動かす。ツリーが開くべき棋譜も一緒に動く（フォルダは動かさない）。
    *
@@ -197,7 +195,6 @@ export type FileTreeContextType = FileTreeState & {
    * 開けたかは `activeKifuPath`、盤に載ったかは `entities/game` の `loadedAbsPath`
    */
   openKifuNode: (node: FileTreeNode) => AsyncResult<void, FsError>;
-  closeActiveKifu: () => void;
 
   /**
    * 棋譜を1枚作り、作られた絶対パスを返す。
@@ -224,8 +221,6 @@ export type FileTreeContextType = FileTreeState & {
   moveNode: (node: FileTreeNode, destDir: string, newName?: string) => AsyncResult<void, FsError>;
 
   refreshTree: () => AsyncResult<void, FsError>;
-  isKifuSelected: () => boolean;
-  getSelectedKifuData: () => JKFData | null;
 
   openContextMenu: (node: FileTreeNode, x: number, y: number) => void;
   closeContextMenu: () => void;
@@ -240,8 +235,6 @@ export type FileTreeContextType = FileTreeState & {
   clearKifuError: () => void;
   closeConflict: () => void;
   resolveConflictByRename: (nextName: string) => AsyncResult<void, FsError>;
-
-  revealNodeByAbsPath: (absPath: string) => void;
 
   /**
    * ツリーの選択をそのパスへ移し、必要なら棋譜を開く。

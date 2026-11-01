@@ -360,10 +360,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     [selectNode],
   );
 
-  const closeActiveKifu = useCallback(() => {
-    dispatch({ type: "kifu_closed" });
-  }, []);
-
   const createNewFile = useCallback(
     async (parentPath: string, options: KifuCreationOptions): AsyncResult<string, FsError> => {
       const res = await api.createKifu(parentPath, options);
@@ -601,16 +597,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     dispatch({ type: "create_dir_ended" });
   }, []);
 
-  const refreshTree = useCallback(async (): AsyncResult<void, FsError> => {
-    return await loadFileTree();
-  }, [loadFileTree]);
-
-  const isKifuSelected = useCallback(() => {
-    return state.jkfData !== null && state.kifuFormat !== null;
-  }, [state.jkfData, state.kifuFormat]);
-
-  const getSelectedKifuData = useCallback(() => state.jkfData, [state.jkfData]);
-
   const resolveConflictByRename = useCallback(
     async (nextName: string): AsyncResult<void, FsError> => {
       const conflict = state.conflict;
@@ -710,13 +696,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     ],
   );
 
-  const revealNodeByAbsPath = useCallback(
-    (absPath: string) => {
-      revealNodeInCurrentTree(absPath);
-    },
-    [revealNodeInCurrentTree],
-  );
-
   const selectNodeByAbsPath = useCallback(
     (absPath: string, options: SelectNodeOptions): boolean => {
       const node = findNodeByPath(absPath);
@@ -776,10 +755,8 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     <FileTreeContext.Provider
       value={{
         ...state,
-        loadFileTree,
         selectNode,
         openKifuNode,
-        closeActiveKifu,
         createNewFile,
         importKifuFile,
         createNewDirectory,
@@ -788,16 +765,13 @@ export function FileTreeProvider({ rootDir, children }: Props) {
         deleteNode,
         renameNode,
         moveNode,
-        refreshTree,
-        isKifuSelected,
-        getSelectedKifuData,
+        refreshTree: loadFileTree,
         openContextMenu,
         closeContextMenu,
         startInlineRename,
         cancelInlineRename,
         startCreateDirectory,
         cancelCreateDirectory,
-        revealNodeByAbsPath,
         selectNodeByAbsPath,
         resolveConflictByRename,
         pushError,
