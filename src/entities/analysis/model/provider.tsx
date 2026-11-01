@@ -35,16 +35,17 @@ type Props = {
   positionSync: PositionSyncAdapter;
 };
 
-// 条件が満たされるまで待つ。**上限か `abort` で抜ける。**
-//
-// `abort` を取るのは、待っている理由が消えたときに回り続けないため。
-// 畳まれた後は `syncedSfen` がもう動かないので、渡さないと必ず上限まで回る。
+/**
+ * `cond` が真になるまで待ち、真なら `true`、上限か `abort` で抜けたら `false` を返す。
+ *
+ * `abort` は待つ理由が消えたときに抜けるために取る。アンマウント後は `syncedSfen` がもう動かないので、
+ * 渡さないと必ず上限まで回る。
+ */
 const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => boolean) => {
   const start = Date.now();
 
-  // **入る前に1度見る。** 条件が既に真の回（盤が同期済みで ▶ を押した回＝いちばん
-  // 普通の回）はループへ入らないので、本体だけに置くと `abort` が1度も評価されない
-  // ——往復の最中にエンジンが消えても、そのまま席を取りに行く。
+  // 盤が同期済みなら条件は既に真でループへ入らない。ループの中だけで見ると `abort` が評価されず、
+  // 往復の最中にエンジンが消えてもそのまま席を取りに行く。
   if (abort?.()) return false;
 
   while (!cond()) {
@@ -56,30 +57,26 @@ const waitUntil = async (cond: () => boolean, timeoutMs: number, abort?: () => b
 };
 
 /**
- * 検討の意思を残して、エンジンが戻るのを待つ理由か。**語が言うので断らない**
- * （起動の失敗でもエンジン終了でも意思は下りない）。
+ * 検討の意思を残してエンジンが戻るのを待つ理由か。断らず語で言う。
  */
 const holdsIntentWhile = (reason: EngineNotReadyReason) =>
   reason === "starting" || reason === "failed";
 
 /**
- * 解析の状態と、Rust の席の生死を持つ。
+ * 解析の状態を子へ渡し、Rust の席の生死を持つ。
  *
- * **呼び手が守ること。**
+ * 呼び手が守ることは2つある。
  *
- * - **棋譜の有無で畳まれない位置に置くこと**（`RuntimeProviders`）。棋譜を閉じるたびに
- *   畳まれる位置に置くと、「読む局面が無くなったら止める」effect（→ ※14）は死に、
- *   席を指して返す機会が消える。代わりに飛ぶのは `sweepOnUnmount` の**席を指さない停止**で、
- *   そちらは Rust の席を**全部**空けるので、別の経路が取った席まで巻き添えにする
- * - `positionSync` は**アプリ全体で1箇所だけがマウントした** `useEnginePositionSync`
- *   を渡すこと（同期の状態が二重になると、待つ相手が食い違う）
+ * - 棋譜の有無でアンマウントされない位置に置く（`RuntimeProviders`）。棋譜を閉じるたびにアンマウント
+ *   すると、席を指して返す機会が無くなり、`sweepOnUnmount` の席を指さない停止が別の経路の席まで空ける
+ * - `positionSync` にはアプリ全体で1箇所だけがマウントした `useEnginePositionSync` を渡す。
+ *   同期の状態が二重になると待つ相手が食い違う
  *
- * 畳まれた回は席を指さずに撃つ（→ `docs/state-transitions/analysis.md` ※12）。
+ * 遷移の表は `docs/state-transitions/analysis.md`。コメントの ※ はその表の注を指す。
  */
 export function AnalysisProvider({ children, positionSync }: Props) {
   const [state, dispatch] = useReducer(analysisReducer, initialState);
 
-  // Rust の席の生死。**識別子を書き換えられるのはこのフックの中だけ。**
   const seat = useEngineSeat();
 
   const readiness = useEngine();
@@ -90,39 +87,34 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const unlistenRef = useRef<UnlistenFn | null>(null);
 
   /**
-   * 最後に届いた完了の結果。**開始の応答より先に完了が届いた回に、応答の側が読む**。
-   * ▶ の経路ではその時点で `isAnalyzing` が立っていないので、完了を reducer が捨てる。
+   * 最後に届いた完了の結果。開始の応答より先に完了が届いたとき、応答の側が読む。
+   * ▶ の経路はその時点で `isAnalyzing` が立っておらず、reducer が完了を捨てるため。
    */
   const finishedResultRef = useRef<AnalysisResult | null>(null);
 
-  /** 結果の購読に失敗した。**張り直す経路はマウント時の1回だけ**なので、以後 ▶ は断りを立て直して降りる */
+  /** 結果の購読に失敗した。張り直す経路はマウント時の1回だけなので、以後の ▶ は断りを立て直して降りる */
   const listenersFailedRef = useRef(false);
 
   /**
-   * `waitUntil` の中から読む。**await の向こう側でエンジンが消えたかを見る。**
+   * await の向こう側でエンジンが消えたかを見るための写し。
    *
-   * **合併のまま1本で持つ。** 2つの ref に割ると tsc の narrowing が消え、読む側が
-   * `notReadyReason ?? "既定値"` を書くことになる。どの既定値を選んでも3つのうち2つでは
-   * 嘘になる（→ `EngineNotReadyReason`）。
+   * 合併のまま1本で持つ。2つの ref に割ると tsc の narrowing が消え、読む側が既定値を書くことになる。
    */
   const readinessRef = useRef<EngineReadiness>(readiness);
 
-  // **`useMemo` ではなく `useRef`。** React の仕様では `useMemo` は覚えた値を
-  // 捨てうる（性能のための関数で、同一性の保証ではない）。捨てられると控えが空に戻り、
-  // 読み手より長生きするという置き場の目的（`lib/candidateCache.ts`）が崩れる。
+  // `useMemo` は覚えた値を捨てうる。捨てられると控えが空に戻り、読み手より長生きするという
+  // 置き場の目的（`lib/candidateCache.ts`）が崩れる。
   const candidateCacheRef = useRef<CandidateCache | null>(null);
   candidateCacheRef.current ??= createCandidateCache();
   const candidateCache = candidateCacheRef.current;
 
   const syncedSfenRef = useRef<string | null>(syncedSfen);
 
-  // いま盤が見ている局面。**手動開始が待つ相手をここから読む。**
-  // 押した瞬間の値に焼き付けると、待っている間に盤が動いたとき、
-  // もう誰も見ていない局面の同期を上限いっぱい待って断りを積む。
+  // ▶ が待つ相手。押した瞬間の値に固定すると、待っている間に盤が動いたとき、
+  // 誰も見ていない局面の同期を上限まで待って断りを立てる。
   const currentSfenRef = useRef<string | null>(currentSfen);
   const analyzingRef = useRef(state.isAnalyzing);
 
-  // 届いた結果の間引き。**反映待ちとタイマーの組はこのフックの中だけ。**
   const results = useResultFlush(dispatch, analyzingRef, seat.isHeld);
 
   const safeUnlisten = useCallback(() => {
@@ -154,9 +146,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [readiness]);
 
   /**
-   * エンジンへ投げ済みの局面。**`null` は「もう一度投げてよい」の印**で、
-   * 自動再開が落ちた回に戻す。`state.analyzedSfen` は画面が読む値で、こちらは
-   * 再開を抑止する印——落ちた回だけ両者は食い違う。
+   * エンジンへ送り済みの局面。自動再開を抑止する印で、`null` はもう一度送ってよいことを表す。
+   * 画面が読む `state.analyzedSfen` とは別に動く。
    */
   const sentSfenRef = useRef<string | null>(null);
   const restartInFlightRef = useRef<Promise<void> | null>(null);
@@ -164,9 +155,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const desiredSfenRef = useRef<string | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const restartSeqRef = useRef(0);
-  // 自動再開の同期待ち。打ち切りの判定に使う。
-  // 待っている対象（seq と局面）ごと持つ。時刻だけを持つと、前回の待ちの経過時間を
-  // 引き継いで、次の待ちを1ミリ秒も待たずに打ち切ってしまう。
+  // 自動再開の同期待ちの開始。時刻だけを持つと前回の経過を引き継ぎ、次の待ちをすぐ打ち切るので、
+  // 待つ相手（`seq` と局面）ごと持つ。
   const syncWaitRef = useRef<{
     seq: number;
     want: string;
@@ -174,10 +164,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   } | null>(null);
   const pendingAfterRef = useRef(false);
 
-  // **`window` を通さない。** ここはタイマーのコールバックからも、畳んだ後の
-  // 後始末からも呼ばれる。テスト環境は畳んだ後に `window` を落とすので、
-  // そこで参照すると**テストが1本も失敗していないのに実行そのものが落ちる**。
-  // `clearTimeout` はブラウザにも Node にもある。
+  // `window` を通さない。アンマウント後の後始末からも呼ばれ、テスト環境はその時点で `window` を
+  // 落とすので、参照するとテストが通っていても実行そのものが落ちる。
   const clearDebounceTimer = useCallback(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -188,19 +176,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const unmountedRef = useRef(false);
 
   /**
-   * 再開のタイマーが張られているか。**欄を読む綴りをここ1つにする。**
-   *
-   * 発火した時点で `scheduleRestart` が欄を空けるので、ここが true を返すのは
-   * まだ起きていないタイマーが在るときだけ。空け忘れると、この判定は**もう発火した id**
-   * を見て降りる——盤が追いついても再開が張られない。
+   * 再開のタイマーが張られているか。発火で `scheduleRestart` が欄を空けるので、
+   * `true` はまだ起きていないタイマーがあるときだけ。
    */
   const isRestartScheduled = useCallback(() => debounceTimerRef.current !== null, []);
 
   /**
-   * 飛んでいる再開があるなら予約して `true`。**2本目を重ねないための判定。**
+   * 応答待ちの再開があれば予約して `true` を返す。2本目を重ねないための判定。
    *
-   * 予約は `swapSeatAndGo` の `finally` が拾う。**判定を2箇所に書き下ろさない**
-   * ——拾い忘れると、エンジンが2回続けて落ちた回に再開の引き金が消える。
+   * 予約は `swapSeatAndGo` の `finally` が拾う。予約しないと、エンジンが2回続けて落ちたときに
+   * 再開の引き金が消える。
    */
   const bookIfRestarting = useCallback(() => {
     if (!restartInFlightRef.current) return false;
@@ -208,26 +193,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     return true;
   }, []);
 
-  // 開始を頼んでから席が返るまでの間に、その要求が要らなくなっていないか。
-  //
-  // **3つの引き金を同じに扱う**——畳まれた、利用者が止めた（または次の要求が始まった）、
-  // 読む局面が無くなった。どれも「返ってきた席の持ち主が居ない」で、
-  // 返さなければ Rust に残る。
-  // `stopAnalysis` は世代を上げるが、撃てるのはその時点で握っている席まで
-  // ——後から返る席を返せるのは、応答が返った側だけ。
+  // 開始を頼んでから席が返るまでの間に、要求が要らなくなったかを返す。引き金はアンマウント、
+  // 利用者の停止か次の要求、読む局面の消失で、どれも返ってきた席の持ち主が居なくなる。
+  // `stopAnalysis` が返せるのはその時点で握っている席までで、後から返る席は応答の側でしか返せない。
   const supersededSince = useCallback(
     (seq: number) => unmountedRef.current || restartSeqRef.current !== seq,
     [],
   );
 
-  // 走っている要求を全部捨てる。**捨てるときの後始末をここにまとめる**
-  // （世代・望みの局面・保留・タイマー）。利用者が止めた回と、読む局面が
-  // 無くなった回が通る。散らすと、引き金を1つ足すたびにどれを写し忘れたかを
-  // 人が数えることになる。
-  //
-  // **世代だけを上げる経路はもう1つある**——局面が変わった回（下の effect）は
-  // 次の要求を同時に立てるので、望みの局面を残したままここを通らない。
-  // 畳まれた回は `unmountedRef` が同じ役をする。
+  // 走っている要求を全部捨てる（世代、望みの局面、保留、タイマー）。局面が変わったときの effect は
+  // 次の要求を同時に立てるので世代だけを上げ、アンマウントでは `unmountedRef` が同じ役をする。
   const supersedeRequests = useCallback(() => {
     desiredSfenRef.current = null;
     pendingAfterRef.current = false;
@@ -236,78 +211,48 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [clearDebounceTimer]);
 
   /**
-   * 握れなかった席の**反映待ち**を捨てる。**席の判定と2段で守る。**
+   * 握れなかった席の反映待ちを捨てる。`clear_results` は `error` も消すので使わない。
    *
-   * 主の保証は `commitLatest` の席の判定（`useResultFlush`）——枠を落とすだけだと、
-   * 落とす前にタイマーが起きた回を守れない。ここが落とすのは、次に席を握るまで
-   * 枠に残る**古い1本**と、下の窓（席の判定が通ってしまう回）。
+   * 主の保証は `commitLatest` の席の判定で、ここは次に席を握るまで残る古い1本を落とす。
+   * 呼び手は握れなかった経路だけで、どれも先に席を返し終えている。
    *
-   * **無条件に落とす。** 呼び手は握れなかった回だけで、そこへ来る道はどれも
-   * 先に席を返し終えている（返せなければ `takeSeatAndGo` へ入らない）。
-   * 握った回は**ここを通らず** `results.schedule()` が出し直すので、
-   * 席が欄に入る前に届いた1本を消す心配も要らない。
-
-   *
-   * **席を見て降りる形にしない。** 捨てる停止が落ちると `sendStop` の catch
-   * （`keepOrForget`）が席を欄へ書き戻すので、席を見る形だと**書き戻された席を根拠に
-   * 反映待ちを残す**——その後は `commitLatest` の席の判定も通るので、捨てた席の読み筋が
-   * そこから出る。書き戻しは `await stopAnalysisCore` の向こうなので必ずここより後だが、
-   * 席を返さずに呼ぶ経路を足せば順序は変わる。
-   * 守っているのは `provider.test.tsx` の
-   * 「捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない」。
-   *
-   * **`clear_results` は撃たない**——`error` も消すので、直前に立った断りが黙って消える。
+   * **席を見て降りる形にしない。** 捨てる停止が落ちると `keepOrForget` が席を欄へ書き戻すので、
+   * 席を見ると反映待ちが残り、席の判定も通って捨てた席の読み筋が出る。
+   * テストは「捨てる停止が落ちて席が欄へ戻っても、その席の結果は出さない」。
    */
   const dropPendingForLostSeat = useCallback(() => {
     results.dropPending();
   }, [results]);
 
   /**
-   * 席を取って `go` を出し、握るまで。**開始する2つの経路（▶ と自動再開）が同じものを通る。**
+   * 席を取って `go` を出し、握るまでを進め、結末を返す。▶ と自動再開の両方が通る。
    *
-   * 書き下ろしを2つ持つと、判定を1つ足したときに片方だけに入る。
-   * 開始の失敗は**呼び手へ投げる**（断りの文言は
-   * 経路ごとに違う）。握れなかった回は理由を返す（`SeatTakeResult`）。
+   * 開始の失敗は呼び手へ投げる。断りの文は経路ごとに違う。
    *
-   * **▶ の経路は3値を書き分ける**——エンジンが消えた回と、利用者が降りた回では出す物が
-   * 違う。**自動再開の経路はどちらでも黙って降りる**（押した人が居ない）。捨てる側は
-   * その理由を `async-result-ignored:` で書くこと
-   * （`src/__tests__/asyncResultUse.test.ts` が要求する）。
-   *
-   * **呼ぶ前に要求の世代の判定（`supersededSince`）を通すこと。** 本体の先頭で
-   * `clear_results` が飛び、それは `error` も消すので（`reducer.ts`）、要らなくなった
-   * 要求がここへ入ると直前に立った断りが黙って消える。
+   * **呼ぶ前に `supersededSince` を通すこと。** 本体の先頭の `clear_results` は `error` も消すので、
+   * 要らなくなった要求が入ると直前に立った断りが黙って消える。
    */
   const takeSeatAndGo = useCallback(
     async (seq: number, want: string, discardBy: DiscardReleasePoint): Promise<SeatTakeResult> => {
       results.discardShown();
 
-      // **開始を頼む前に札を取る。** 往復の間にエンジンが消えたかは、この札が見る。
       const take = seat.beginTake(discardBy, () => readinessRef.current.isReady);
 
-      // **席を握れなかった回の出口は1本。** 席が返ってきて捨てる回と、Rust に断られる回で
-      // 後始末が割れると、片方だけが反映待ちを落とし忘れる。
-      // **`receiveSeat` を先に決めてから、握れなかった側をまとめて畳む。**
+      // 席が返って捨てるときも断られるときも、握れなければ反映待ちを落とす。
       let taken: SeatTakeResult;
       try {
         const sessionId = await startInfiniteAnalysisCore();
         taken = take.receiveSeat(sessionId, () => supersededSince(seq));
       } catch (e) {
-        // **断られた回も同じ窓に居る。** 畳んでいる最中のエンジンへの開始は Rust が
-        // `Err` で返すので（`bridge.rs`）、起こし直しの窓は席が返るより断られるほうが
-        // 多い。ここで分けないと、同じ操作の結末が「起こし直しの案内」と
-        // 「起こし直してください」に割れる——**後者は利用者がいま済ませた操作**。
-        //
-        // **判定は札の `hasEngineChanged`**（世代とエンジンが使えるかの両方）。ここで足すと、
-        // 成功して返る側（`receiveSeat`）と条件が割れる——割れた側は、死んだエンジンの席を
-        // 握ったまま「解析中」で固まる。
+        // 起動し直している最中のエンジンへの開始は Rust が `Err` で返す（`bridge.rs`）。
+        // 分けないと、利用者が起動し直した直後に「再起動してください」と案内する。
+        // 判定は `receiveSeat` と同じ条件にするため `hasEngineChanged` に任せる。
         if (!isAnalysisStartUnreachable(e) && !take.hasEngineChanged()) throw e;
 
-        // **Rust の言い分を残す。** ここで倒すと例外にならないので、呼び手の
-        // `console.error` には届かない。断りの文言は合成した `Error` になる。
+        // ここで降りると例外にならず、呼び手の `console.error` に届かないので Rust の文を残す。
         console.warn("[ANALYSIS] start refused while the engine was away", e);
 
-        // **エンジンへ書けなかった回は語が言う。** 断りを立てず、検討の意思も切らない。
+        // エンジンへ書けなかったときは語が言う。断りを立てず、検討の意思も切らない。
         if (isAnalysisStartUnreachable(e)) {
           if (!take.hasEngineChanged()) reportUnreachable();
           dropPendingForLostSeat();
@@ -331,25 +276,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         return taken;
       }
 
-      // **開始の応答より早く届いた `info` を、ここで出し直す**（理由は
-      // `ResultFlush.schedule` の doc）。
       results.schedule();
       return taken;
     },
     [results, dropPendingForLostSeat, reportUnreachable, seat, supersededSince],
   );
 
-  // 畳まれたときに、この画面が残していくものを断つ。**2つある。**
-  //
-  // - 再開のタイマー。局面を見る effect の cleanup だけでは足りない——早期 return を
-  //   踏んだ回は cleanup を登録しないので、その回に張られた分を止める者が残らない。
-  //   残ると、居ない画面のためにエンジンへ go を出し、window の消えたテスト環境では
-  //   タイマー自身が投げる
-  // - Rust の席。→ `seat.sweepOnUnmount()`（`useEngineSeat.ts`）
+  // アンマウントで再開のタイマーと Rust の席を片付ける。局面を見る effect は早期 return の描画で
+  // cleanup を登録しないので、そのタイマーはここで消す。
   useEffect(() => {
-    // **setup で戻す。** cleanup で落とすだけだと、同じインスタンスに
-    // setup → cleanup → setup が走ったとき（StrictMode）に true のまま残り、
-    // 以降タイマーが1つも張られず、盤を進めても解析が黙って再開しなくなる。
+    // cleanup で立てる印は setup で戻す。StrictMode の setup → cleanup → setup で true のまま残ると、
+    // タイマーが1つも張られず、盤を進めても解析が黙って再開しなくなる。
     unmountedRef.current = false;
     seat.markMounted();
 
@@ -358,10 +295,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       clearDebounceTimer();
       seat.sweepOnUnmount();
     };
-    // `seat` は同じ物が返り続ける（`useEngineSeat`）。載せても再実行されない。
   }, [seat, clearDebounceTimer]);
 
-  // === Event listeners ===
   useEffect(() => {
     let alive = true;
 
@@ -373,13 +308,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       try {
         const unlisten = await setupAnalysisEventListeners({
           onUpdate: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
-            // **自分の席のものだけ採る**（判定と理由は `EngineSeat.accepts`）。
             if (!seat.accepts(sessionId)) return;
             results.receive(result);
           },
           onComplete: (sessionId: AnalysisSessionId, result: AnalysisResult) => {
-            // **自分の席のものだけ採る**（`onUpdate` と同じ判定）。通さないと、古い席の
-            // 完了通知1本で走っている検討が終わったことになる。
+            // 通さないと、古い席の完了通知で走っている検討が終わったことになる。
             if (!seat.accepts(sessionId)) return;
 
             // 終わった探索の席は Rust が消し終えている（`forward_results_to_ui`）。
@@ -396,21 +329,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           return;
         }
         unlistenRef.current = unlisten;
-        // **同じインスタンスに setup → cleanup → setup が走った回（StrictMode）に
-        // 印を戻す。** 戻さないと、1度の一時的な失敗が以後の ▶ を永久に断る
-        // （購読は生きているのに「アプリを起動し直してください」が出続ける）。
+        // StrictMode の setup → cleanup → setup で印を戻す。戻さないと、1度の失敗が以後の ▶ を断り続ける。
         listenersFailedRef.current = false;
       } catch (e) {
-        // 畳まれた／張り直された pass の失敗で、生きているインスタンスの印と
-        // `state.error` を汚さない。
+        // アンマウント済みの setup の失敗で、生きているインスタンスの印と `state.error` を汚さない。
         if (!alive) return;
 
-        // **張り直す経路が無い。** この effect の依存は全部固定なのでマウント1回きりで、
-        // 落ちると結果が二度と届かない——`isAnalyzing` は true のまま候補手が0で固まる。
-        //
-        // **印を残す。** 断りだけでは足りない——▶ を1回押すと `clear_results` が
-        // `error` を消し（`reducer.ts`）、そのまま `go` が出る。以後は「解析中・候補手0・
-        // 断りも無し」で、唯一の案内（起動し直し）が画面から消える。
+        // この effect はマウント1回きりで、落ちると結果が二度と届かない。断りだけでは ▶ の
+        // `clear_results` に消されて `go` が出るので、印を残して以後の ▶ を断る。
         console.error("[ANALYSIS] Failed to setup listeners:", e);
         listenersFailedRef.current = true;
         dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
@@ -426,7 +352,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     };
   }, [safeUnlisten, results, seat]);
 
-  /** 往復の間にエンジンが替わっていたら、その失敗は新しいエンジンのものではない */
+  /** エンジンが `generation` のままなら `応答なし` を報告する。替わっていれば前のエンジンの失敗 */
   const reportUnreachableSince = useCallback(
     (generation: number) => {
       if (seat.engineGeneration() === generation) reportUnreachable();
@@ -436,22 +362,16 @@ export function AnalysisProvider({ children, positionSync }: Props) {
 
   const runRestartRef = useRef<(seq: number) => void>(() => {});
 
-  // 再開のタイマーを張る関数をここ1つにする。畳まれた後に張ると、それを止める
-  // cleanup はもう走らない。非同期の再開が返ってきた後の張り直しは、まさにそこを通る。
+  // 再開のタイマーを張る。アンマウント後に張ると止める cleanup が無いので、ここで見る。
   const scheduleRestart = useCallback(
     (seq: number, delayMs: number) => {
       if (unmountedRef.current) return;
 
-      // **張る前に必ず消す。** 呼び手に手書きさせると、1箇所落としたときに消えなかった
-      // タイマーが本体（`runRestartRef.current`）を余分に起こす——`finally` が張り直す
-      // 0ms の分は最新の `seq` なので世代の判定で落ちず、同じ局面へ2本並んで
-      // `take_session` に断られる（利用者はボタンを1つも押していない）。
+      // 張る前に消し、本体を起こすタイマーを1本に保つ。
       clearDebounceTimer();
 
       debounceTimerRef.current = window.setTimeout(() => {
-        // **発火で欄を空ける。** 空けないと「タイマーが張られているか」を見る判定
-        // （同期の追従）が、もう発火した id を見て降りる。`useResultFlush` の
-        // 間引きのタイマーが同じ形をしている。
+        // 空けないと `isRestartScheduled` が発火済みの id を見て、盤が追いついても再開を張らない。
         debounceTimerRef.current = null;
         runRestartRef.current(seq);
       }, delayMs);
@@ -460,18 +380,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * エンジンが望みの局面に追いつくのを、刻みながら待つ。**追いつかなければ打ち切る。**
+   * エンジンが局面に追いつくのをタイマーで待ち、上限を越えたら席を返して断る。
    *
-   * 上限が無いと、同期が恒久的に失敗したときに「解析中」の表示のままタイマーだけが
-   * 回り続け、利用者には何も起きていないのに正常に見える。
+   * 上限が無いと、同期が失敗し続けても `検討中` のままタイマーだけが回り、正常に見える。
    *
-   * **経過時間は待つ相手（`seq` と局面）ごと持つ。** 時刻だけを持つと、前回の待ちの
-   * 経過を引き継いで、次の待ちを1ミリ秒も待たずに打ち切る。
-   *
-   * **上限と刻みは `waits()` を共有している**
-   * ので、値を変えれば両方に効く。**二重化しているのは待ちの形のほう**——手動の ▶ は
-   * `sendAndAwaitSync` が `waitUntil` で待って断りを立てて投げ、こちらはタイマーを
-   * 張り直して打ち切りで席を返す。**打ち切りの条件を変えるときは両方を見ること。**
+   * **打ち切りの条件を変えるときは `sendAndAwaitSync` も見ること。** ▶ は同じ上限を `waitUntil` で待つ。
    */
   const keepWaitingForSync = useCallback(
     (seq: number, want: string) => {
@@ -484,8 +397,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         syncWaitRef.current = null;
         clearDebounceTimer();
 
-        // 握っている席を返してから断りを出す。握っていなければ何も撃たない。
-        // 落ちたときの結末は `useEngineSeat` の `sendStopQuietly` にある。
         seat.releaseHeldQuietly("sync-timeout");
 
         dispatch({ type: "set_error", payload: POSITION_SYNC_TIMEOUT_MESSAGE });
@@ -499,19 +410,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * 古い席を返して新しい席を取り直す。**同期が追いついた回だけが通る。**
+   * 同期が追いついた局面へ、古い席を返して新しい席を取り直す。
    *
-   * `seq` は要求の世代。**await から戻った時点でもう一度見る**——返却は本物の往復なので、
-   * その間に利用者が止めたり畳まれたりする。
-   *
-   * **飛んでいる間に来た要求は `finally` が拾う**（`pendingAfterRef`）。返す Promise を
-   * `restartInFlightRef` に載せるのは呼び手。
+   * `seq` は要求の世代で、await から戻るたびに見直す。返却の往復の間に止められることがある。
+   * 応答待ちの間に来た要求は `finally` が拾う。返す Promise を `restartInFlightRef` に載せるのは呼び手。
    */
   const swapSeatAndGo = useCallback(
     async (seq: number, want: string) => {
       try {
-        // 答えが無い回は読み直さない。答えが来ればエンジンが戻り、同期の追従が張り直す。
-        // **届かなかった回も検討は切らない。** `応答なし` から再起動すれば同じ局面を読む
+        // 届かなかったときも検討は切らない。`応答なし` から再起動すれば同じ局面を読む
         const generation = seat.engineGeneration();
         let released: StopOutcome;
         try {
@@ -523,36 +430,25 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           sentSfenRef.current = null;
           return;
         }
-        // **読み直しの印を捨て、遅らせて張り直す。** 上限の直後に答えが来ると、知らせが1回の
-        // 描画に畳まれて `isReady` が動かず、エンジンが戻った回の入口が開かない。
-        // 遅らせるのは知らせを描画に通すため。まだ答えていなければ `isReady` の判定で降りる
+        // 読み直しの印を捨て、遅らせて張り直す。上限の直後に答えが来ると知らせが1回の描画にまとまり、
+        // `isReady` が動かないので、同期の追従の effect が走らない。まだ答えていなければ
+        // `runRestartRef` の `isReady` の判定で降りる。
         if (released === "unanswered") {
           sentSfenRef.current = null;
           scheduleRestart(restartSeqRef.current, waits().restartDebounceMs);
           return;
         }
 
-        // 停止の応答を待っている間に、畳まれたり止められたりしている。
-        // ここで go を出すと、誰も見ていない探索が走り、それを止める者もいない。
-        //
-        // **画面に触るのは `supersededSince` の後ろ。** `clear_results` は `error` も消すので
-        // （`reducer.ts`）、要らなくなった要求がここを通ると、直前に立った
-        // 打ち切りの `error` が黙って消える。
+        // 応答待ちの間に要らなくなっていたら `go` を出さない。誰も見ていない探索が走り、止める者も居ない。
         if (supersededSince(seq)) return;
 
-        // 自動再開はどの失敗でも黙って降りる。押した人が居ないうえ、エンジンが
-        // 消えた回は戻れば同期の追従が張り直し、要求が死んだ回は利用者自身が
-        // 降りている（→ `docs/state-transitions/analysis.md` の ※13）。
-        await takeSeatAndGo(seq, want, "late-restart"); // async-result-ignored: 上のとおり黙って降りる
+        // 押した人が居ない。エンジンが消えたなら戻れば同期の追従が張り直す（※13）。
+        await takeSeatAndGo(seq, want, "late-restart"); // async-result-ignored: 自動再開は黙って降りる
       } catch (e) {
-        // 要らなくなった要求の失敗は、誰にも見せない。利用者が止めた後に
-        // 「再開に失敗しました」が出るし、`stop_analysis` の dispatch は
-        // 別の理由で走り出した解析を巻き添えにする。
+        // 要らなくなった要求の失敗は見せない。`stop_analysis` は別の理由で走り出した解析を巻き添えにする。
         if (supersededSince(seq)) return;
 
-        // **上流の文をそのまま載せない。** ここに入る `e` は Rust の英文
-        // （`take_session` の断りなど）で、`state.error` は画面へ出す欄。
-        // 中身は `console.error` にだけ残す。
+        // `e` は Rust の英文で、`state.error` は画面へ出す欄なのでそのまま載せない。
         console.error("[ANALYSIS] restart failed", e);
         dispatch({ type: "set_error", payload: RESTART_FAILED_MESSAGE });
         dispatch({ type: "stop_analysis" });
@@ -570,20 +466,11 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     [reportUnreachableSince, scheduleRestart, seat, supersededSince, takeSeatAndGo],
   );
 
-  // 自動再開の本体。**`scheduleRestart` が張ったタイマーからだけ呼ばれる。**
+  // 自動再開の本体。追いつくのを待つか席を取り直すかを選ぶ。`scheduleRestart` のタイマーだけが呼ぶ。
   //
-  // **描画のたびに差し替える。** タイマーが運ぶのは `seq` だけなので、最新の
-  // `syncedSfen` / `isReady` を運ぶのはこの再代入だけ。`useCallback` に包むと、
-  // 依存を書いた時点で本体が**その描画の値で凍り**、盤が追いついても再開が動かない。
-  // effect の中へ移すと commit 後の1描画ぶん遅れる。
-  //
-  // 判定を並べて、追いつくのを待つか（`keepWaitingForSync`）、席を取り直すか
-  // （`swapSeatAndGo`）を選ぶだけ。
-  //
-  // `seq` は要求の世代。**タイマーが起きた時点で見る**（await の向こうは各段が見る）。
+  // 描画のたびに差し替える。タイマーが運ぶのは `seq` だけで、最新の `syncedSfen` と `isReady` は
+  // この再代入が運ぶ。`useCallback` に包むと描画の値で固定され、effect へ移すと1描画ぶん遅れる。
   runRestartRef.current = (seq: number) => {
-    // **張った後に要らなくなった回はここへ来る。** 張る側（`scheduleRestart`）は
-    // 張る時点しか見ていない。
     if (supersededSince(seq)) return;
     if (!analyzingRef.current) return;
     if (!isReady) return;
@@ -609,16 +496,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (!isReady) return;
     if (!currentSfen) return;
 
-    // **読ませたい局面は下の判定より前に書く。** これは盤の現在位置そのもので、
-    // 再開が要るかどうかとは別の事実。判定の後ろに置くと、盤を1手進めてすぐ戻した回
-    // （再開が飛んでいる最中）に**前の局面が「読ませたい」欄に取り残される**
-    // ——飛んでいた再開が着いた先で `syncedSfen` が動き、盤と違う局面へ `go` を撃つか、
-    // 追いつかない局面を上限まで待って嘘の断りを立てる。
+    // 下の判定より前に書く。後ろに置くと、盤を1手進めてすぐ戻したときに前の局面が欄に残り、
+    // 盤と違う局面へ `go` を出すか、追いつかない局面を上限まで待って断りを立てる。
     desiredSfenRef.current = currentSfen;
 
-    // **判定は `state` で書く。** ref で書くと、その ref が動いた回に effect が
-    // 再実行されない——盤が戻ってきた局面を既に解析済みだと読んだまま、
-    // **盤と読んでいる局面が食い違ったことに誰も気づかない**。
+    // `state` で判定する。ref で書くとその ref が動いても effect が再実行されず、
+    // 盤と読んでいる局面の食い違いを誰も拾わない。
     if (state.analyzedSfen === currentSfen) return;
 
     const seq = ++restartSeqRef.current;
@@ -637,12 +520,9 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer,
   ]);
 
-  // **エンジンが落ちたら、投げ済みの印と席の欄を捨てる。**
-  //
-  // 落ちる引き金は解析中の起こし直し（設定でオプションを変えて保存する——**この画面の
-  // 断りが案内している操作**）。Rust は畳む前に席を全部空けるので、こちらの欄に残るのは
-  // もう無い席。捨てないと、戻ってきたときに下の effect が「その局面は投げ済み」と読んで
-  // 降り、**「解析中」の表示のまま数字が一切動かない**（席は死んだまま握られ、断りも出ない）。
+  // エンジンが使えなくなったら送り済みの印と席の欄を捨てる。起動し直しで Rust の席は全部空くので、
+  // 欄に残るのはもう無い席。捨てないと、戻ったときに下の effect が送り済みと読んで降り、
+  // `検討中` のまま数字が動かない。
   const engineWasGoneRef = useRef(false);
   useEffect(() => {
     if (isReady) {
@@ -652,21 +532,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     }
     engineWasGoneRef.current = true;
 
-    // **エンジンの世代も進む**（`onEngineGone` の中）。立ち下がりを1回見るだけでは
-    // 足りない——飛んでいる開始がこの後に着地して、捨てたばかりの印を書き戻す
-    // （席が返るのは往復の後）。
     sentSfenRef.current = null;
     clearDebounceTimer();
     seat.onEngineGone();
   }, [isReady, seat, clearDebounceTimer]);
 
-  // **同期が追いついた回と、エンジンが戻った回の入口。**
-  //
-  // 局面が変わった側の effect は `syncedSfen` を依存に持たないので、送信が遅れて
-  // 追いついた回を拾えない（盤が動いていない回は `state.analyzedSfen === currentSfen` の
-  // 判定でも降りる）。エンジンが戻った回は、上の effect が投げ済みの印を捨てているのでここを通る。
-  //
-  // 最後の判定は、**既に張られているタイマーと飛んでいる再開に2本目を重ねない**ため。
+  // 同期が追いついたときと、エンジンが戻ったときに再開を張る。局面を見る effect は `syncedSfen` を
+  // 依存に持たないので、送信が遅れて追いついたときを拾えない。
   useEffect(() => {
     if (!state.isAnalyzing) return;
     if (!isReady) return;
@@ -677,9 +549,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     if (syncedSfen !== want) return;
     if (sentSfenRef.current === want) return;
 
-    // **飛んでいるなら捨てずに予約する。** 降りてしまうと、エンジンが2回続けて
-    // 落ちた回に再開の引き金が消える——飛んでいる側は席を捨てて降りるので
-    // 張り直す者が居ない。盤を動かすまで「解析中」の表示のまま数字が動かない。
     if (bookIfRestarting()) return;
 
     if (isRestartScheduled()) return;
@@ -694,8 +563,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     isRestartScheduled,
   ]);
 
-  // **選択が外れた、起動を中止した回は検討の意思を下ろす。** どちらも利用者がエンジンから
-  // 離れたので、次に動いたエンジンが勝手に読み始めない。
+  // 選択が外れたときと起動を中止したときは検討の意思を下ろす。利用者がエンジンから離れたので、
+  // 次に動いたエンジンに読ませない。
   useEffect(() => {
     if (notReadyReason !== "no-engine" && notReadyReason !== "cancelled") return;
     if (!state.isAnalyzing) return;
@@ -704,43 +573,29 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     dispatch({ type: "stop_analysis" });
   }, [notReadyReason, state.isAnalyzing, supersedeRequests]);
 
-  // **読む局面が無くなったら止める。** 棋譜を閉じると `currentSfen` が null になる。
-  // `AnalysisProvider` は畳まれない（`RuntimeProviders` 側に居る）が、
-  // `AnalysisPane` は消える（`AppLayout` の `hasKifu` の内側）ので ▶ も ■ も無くなる。
-  // 自動再開は `if (!currentSfen) return` で黙って止まるだけなので、放っておくと
-  // エンジンは閉じた棋譜の局面を読み続け、**それを止めるボタンは画面から消えている**。
+  // 読む局面が無くなったら止める。棋譜を閉じると `AnalysisPane` ごと ▶ と ■ が消えるが、provider は
+  // 残るので、放っておくとエンジンは閉じた棋譜を読み続け、止めるボタンも無い（※14）。
   useEffect(() => {
     if (currentSfen) return;
 
-    // **世代は先に上げる。** 飛んでいる開始（席が返るまで `isAnalyzing` は false）を
-    // 打ち切るのはこの1行で、下の判定より後ろに置くと、閉じた棋譜のために
-    // 同期待ちが上限まで回り、閉じた局面で「解析中」が1回 commit される。
+    // 下の判定より先に世代を上げる。応答待ちの開始は `isAnalyzing` が false なので、後ろに置くと
+    // 閉じた棋譜のために同期待ちが上限まで回る。
     supersedeRequests();
 
-    // **席を握っていれば、表示が停止中でも返す。** 停止が届かなかった回は
-    // `isAnalyzing` が false のまま席だけ残る（→ `docs/state-transitions/analysis.md` の ※7）。`state` の写しで
-    // 決めると、その回にエンジンが閉じた棋譜を読み続ける。
+    // 同期の打ち切りの返却が落ちると、`isAnalyzing` が false のまま席だけ残るので、席も見る。
     if (!state.isAnalyzing && !seat.isHeld()) return;
 
     seat.releaseHeldQuietly("no-position");
     dispatch({ type: "stop_analysis" });
-    // **解析中に閉じた回は、この effect が2回走る。** ここの `dispatch` が
-    // `isAnalyzing` を倒し、それが依存に載っているため。2本目は
-    // `releaseHeldQuietly` が1本目の後ろに並び、**1本目が席を返せていれば撃たない**
-    // （並んだ側は撃つ直前に席を読み直す）。撃つのは返せなかった回だけ。
-    //
-    // **停止が届かないまま「停止中」になっていた回は1回で終わる**（→ `docs/state-transitions/analysis.md` の ※7）。
-    // `isAnalyzing` は既に false なので、この `dispatch` では値が動かない。
-    // その回に席を返すのは、上の判定を `seat.isHeld()` で通した1本目。
+    // 解析中に閉じると `isAnalyzing` が倒れてこの effect が2回走る。2本目は1本目の後ろに並び、
+    // 席を返せていれば送らない。
   }, [currentSfen, state.isAnalyzing, seat, supersedeRequests]);
 
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
   /**
-   * 断りを立てて投げる。**断りを立てる回はどの段もここを通る**——立て方を段ごとに選ばせない。
-   *
-   * **断りを立てない `throw` が1つだけ在る**（読む局面が無い回。理由は
-   * `refuseIfCannotStart` の中）。`AnalysisContextType` がその1つを契約に書いている。
+   * 断りを立てて投げる。▶ の経路で断るときはどの段もここを通る。
+   * 例外は読む局面が無いときで、`refuseIfCannotStart` が断りを立てずに投げる。
    */
   const failStart = useCallback((message: string, e: unknown): never => {
     dispatch({ type: "set_error", payload: message });
@@ -748,8 +603,8 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, []);
 
   /**
-   * エンジンへ届かなかった。**断りを立てずに語を `応答なし` にして投げる**（▶ の押し直しは
-   * `応答なし` では効かないので、案内する文が無い）。
+   * エンジンへ届かなかったとして、語を `応答なし` にして投げる。
+   * ▶ の押し直しは `応答なし` では効かず案内する文が無いので、断りは立てない。
    */
   const failUnreachable = useCallback(
     (e: unknown, generation: number): never => {
@@ -762,48 +617,37 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * ▶ がいま `go` を出せるか。**エンジンの起動を待っている回は `false`**（断らない）。
-   * **出せない回は断りを立てて投げる。**
+   * ▶ がいま `go` を出せるかを返す。エンジンの起動を待っているなら断らず `false`、
+   * 押しても結果が届かないと分かっていれば断りを立てて投げる。
    *
-   * 断るのは、押しても結果が届かない／エンジンに届かないと分かっている回だけ。
-   * どの判定も**席に触る前**に通るので、断った回に Rust の状態は1ビットも動かない。
+   * どの判定も席に触る前に通るので、断っても Rust の状態は動かない。
    */
   const refuseIfCannotStart = useCallback(() => {
-    // **結果を受け取れない回は `go` を出さない。** 出しても候補手は永久に届かず、
-    // Rust の席だけが埋まる。断りは押すたびに立て直す（消えても次の ▶ で戻る）。
+    // 結果を受け取れないなら `go` を出さない。候補手は届かず Rust の席だけが埋まる。
     if (listenersFailedRef.current) {
       failStart(LISTENERS_FAILED_MESSAGE, new Error("Analysis event listeners are not registered"));
     }
 
-    // 理由は engine 側が決める（`desiredRuntime` を見られるのはあちらだけ）。
-    // `isReady` が false なら理由は必ず在る（`EngineReadiness`）。
     if (!isReady) {
       if (holdsIntentWhile(notReadyReason)) return false;
       failStart(NOT_READY_REFUSALS[notReadyReason], new Error("Engine not ready"));
     }
 
-    // **ここは断りを立てない。** 局面が無いとき ▶ は `disabled`（`AnalysisControls` が
-    // 同じ値を見る）なので、**この文が画面に出る操作が無い**。context を直に呼ぶ経路が
-    // 増えたときのために `throw` だけ残す。
+    // 局面が無いとき ▶ は `disabled` で、文が画面に出る操作が無いので断りを立てない。
     if (!currentSfen) throw new Error("No position available for analysis");
     return true;
   }, [isReady, notReadyReason, currentSfen, failStart]);
 
   /**
-   * 盤の局面をエンジンへ送り、追いつくのを待つ。**追いつかなければ断りを立てて投げる。**
+   * 盤の局面をエンジンへ送って追いつくのを待ち、席を取ってよければ `true` を返す。
+   * 追いつかなければ断りを立てて投げる。要らなくなった要求と、エンジンの起動を待つときは `false`。
    *
-   * 要らなくなった要求（畳まれた／止められた／読む局面が無くなった）は、断りを立てずに
-   * `false` を返す——その失敗を出しても、出す先の画面がもう無いか、利用者が既に降りている。
-   *
-   * **待つ相手は「いま盤が見ている局面」。** 押した瞬間の値を待つと、待っている間に盤が
-   * 動いた回は条件が二度と真にならず、上限いっぱい回してから断りを積む（同期は新しい
-   * 局面へ追いついている）。
+   * 待つ相手は `currentSfenRef` で読む。押した瞬間の値を待つと、盤が動いたときに条件が真にならない。
    */
   const sendAndAwaitSync = useCallback(
     async (seq: number) => {
       const generation = seat.engineGeneration();
-      // 局面を Rust に覚えさせられなかった回はエンジンが居ない。`syncPosition` は
-      // `set_position` の失敗を呼び手へ投げる（自動追従の経路は飲むので、投げ先はここだけ）。
+      // `syncPosition` は `set_position` の失敗を投げる。覚えさせられないならエンジンが居ない。
       try {
         await syncPosition();
       } catch (e) {
@@ -811,9 +655,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         failUnreachable(e, generation);
       }
 
-      // 覚えさせていないまま始めると、前の局面のまま候補手が返り、盤面と
-      // 一致しないものが表示される。**要らなくなったら待つのをやめる**——待ち続けても
-      // `syncedSfen` はもう動かないので、上限いっぱい回るだけになる。
+      // 同期を待たずに始めると、前の局面の候補手が盤面と一致しないまま出る。
       const synced = await waitUntil(
         () => currentSfenRef.current !== null && syncedSfenRef.current === currentSfenRef.current,
         waits().positionSyncTimeoutMs,
@@ -822,8 +664,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       if (!synced) {
         if (supersededSince(seq)) return false;
 
-        // **エンジンが消えた回は上限まで待たない。** 起動を待っているなら検討の意思を残し、
-        // 戻らないならその理由で断る。
+        // エンジンが消えたら上限まで待たない。起動を待っているなら意思を残し、戻らないなら理由で断る。
         const engine = readinessRef.current;
         if (!engine.isReady) {
           if (holdsIntentWhile(engine.notReadyReason)) {
@@ -839,21 +680,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         failStart(POSITION_SYNC_TIMEOUT_MESSAGE, new Error("position sync timed out"));
       }
 
-      // **`go` を出す前にも見る。** 抜かすと、止めた後・畳まれた後に `go` を出してから
-      // 返ってきた席を返す——誰も見ていない探索が1往復ぶん走る。
+      // `go` の前にも見る。抜かすと、誰も見ていない探索が1往復ぶん走る。
       return !supersededSince(seq);
     },
     [seat, syncPosition, supersededSince, failStart, failUnreachable],
   );
 
   /**
-   * 飛んでいる自動再開の開始を待つ。**要らなくなっていたら `false`。**
+   * 応答待ちの自動再開を待ち、続けてよければ `true` を返す。
    *
-   * Rust は席を**取ってから** `go` を待つので（`bridge.rs` の
-   * `start_infinite_analysis_impl`）、その往復の間に ▶ を押すと `take_session` に
-   * 断られる——**数百ミリ秒待てば通る回に「エンジンを起こし直せ」と案内する**ことになる。
-   * 席の欄は空なので、返却の枠を待つだけでは足りない（席を握っているのは
-   * 飛んでいる開始の側）。
+   * Rust は席を取ってから `go` を待つ（`bridge.rs` の `start_infinite_analysis_impl`）ので、その往復の
+   * 間に ▶ を押すと `take_session` に断られる。席の欄は空なので、`releaseHeld` の待ちでは足りない。
    */
   const awaitInFlightRestart = useCallback(
     async (seq: number) => {
@@ -867,11 +704,10 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * 握っている席を、開始を頼む前に返す。**返せなければ `応答なし` にして投げる。**
+   * 握っている席を開始の前に返し、続けてよければ `true` を返す。返せなければ `応答なし` にして投げる。
    *
-   * 停止が届かなかった回はこの形になり、`isAnalyzing` が false なので ■ は出ていない。
-   * 返さずに開始を頼むと Rust に断られ続ける（→ #172）。握っていなければ
-   * `releaseHeld` は何もしない。要らなくなっていたら `false`。
+   * 停止が届かないと席を握ったまま `isAnalyzing` が false になり、■ は出ていない。
+   * 返さずに開始を頼むと Rust に断られ続ける。
    */
   const releaseHeldBeforeStart = useCallback(
     async (seq: number) => {
@@ -883,7 +719,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         if (supersededSince(seq)) return false;
         failUnreachable(e, generation);
       }
-      // 答えが無い回は語が `応答なし` に変わる。開始を頼むと断りの文が立つ
+      // 答えが無ければ語が `応答なし` に変わる。開始を頼むと断りの文が立つ
       if (released === "unanswered") {
         dispatch({ type: "hold_intent" });
         return false;
@@ -894,19 +730,13 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   );
 
   /**
-   * ▶ の本体。**降りる段を3つ並べ**（飛んでいる自動再開を待つ／握っている席を返す／
-   * 局面を送って追いつくのを待つ）、そのあと席を取って `go` を出す。
+   * ▶ の本体。応答待ちの自動再開を待ち、握っている席を返し、局面を送って追いつくのを待ってから、
+   * 席を取って `go` を出す。
    *
-   * **3つの段は、要らなくなっていたら `false` を返して降りる。** 断りを立てるかどうかは
-   * 段の側が決める（立てる段は `failStart` で投げる）。
+   * 3つの段は先へ進めなければ `false` を返し、断りは段の側が `failStart` で立てる。席を取る段の
+   * 結末はエンジンが消えたときと利用者が降りたときで出す物が違うので、ここで書き分ける。
    *
-   * **席を取る段だけは3値を返す**（`SeatTakeResult`）。エンジンが消えた回と利用者が
-   * 降りた回で出す物が違うので、**書き分けはここ**——段の中に押し込むと、断りの立て方が
-   * 2通りになる。
-   *
-   * `seq` は押した時点の世代。**返却より前に読む**——`releaseHeld` は本物の往復を
-   * 挟むので、その間に世代が上がる（棋譜を閉じた回）と、後で読むと上がった後の値を
-   * 持ってしまい、以降の判定が1つも効かない。
+   * **`seq` は返却より前に読む。** 返却の往復の間に世代が上がると、以降の判定が効かない。
    */
   const startInfiniteAnalysis = useCallback(async () => {
     if (state.isAnalyzing) return;
@@ -915,7 +745,6 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       return;
     }
 
-    // この窓で動くのは ■ と、畳まれた回と、読む局面が無くなった回。
     const seq = restartSeqRef.current;
 
     if (!(await awaitInFlightRestart(seq))) return;
@@ -926,21 +755,17 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     const want = currentSfenRef.current;
     if (!want) return;
 
-    // **`.catch()` を挟まない。** `await` の後ろに `.then` を1段足すと、
-    // 席が返ってから `receiveSeat` が握るか捨てるかを決めるまでの微小タスクが1つ増える
-    // ——開始の応答と unmount が同じバッチに入る窓（`provider.test.tsx`）で、
-    // 畳まれた後に席を返す側が間に合わなくなる。
+    // `.catch()` を挟まない。微小タスクが1つ増えると、開始の応答とアンマウントが同じバッチに入ったときに
+    // 席を返す側が間に合わない（`provider.test.tsx`）。
     let taken: SeatTakeResult = "superseded";
     try {
       taken = await takeSeatAndGo(seq, want, "late-start");
     } catch (e) {
-      // 要らなくなった要求の失敗は誰にも見せない。
       if (supersededSince(seq)) return;
       failStart(START_REFUSED_MESSAGE, e);
     }
-    // **エンジンが消えた回は検討の意思を残す。** 戻れば読み始める。戻らないならその理由で断る。
-    // ただし**要求がまだ生きている回だけ**——棋譜を閉じた回・畳まれた回も
-    // `receiveSeat` はエンジンを先に見るのでここへ来るが、出す先の画面がもう無い。
+    // エンジンが消えたら検討の意思を残し、戻らないなら理由で断る。要らなくなった要求も
+    // `receiveSeat` はエンジンを先に見るのでここへ来るが、出す先の画面が無いので除く。
     if (taken === "engine-gone" && !supersededSince(seq)) {
       const engine = readinessRef.current;
       if (engine.isReady || holdsIntentWhile(engine.notReadyReason)) {
@@ -966,17 +791,12 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     takeSeatAndGo,
   ]);
 
-  // **飛んでいる間に呼ばれても1本にする。** `isAnalyzing` が立つのは局面を送って席が返った後で、
-  // 2本目は Rust の `take_session` に断られる。
-  //
-  // **`finally` で必ず外す。** 外し忘れると、以降 ▶ が「走っている」と
-  // 見なされて二度と始まらない。
+  // 応答待ちの間に呼ばれても1本にする。`isAnalyzing` が立つのは席が返った後で、2本目は `take_session` に断られる。
   const startInfiniteAnalysisOnce = useCallback(async () => {
     const running = startInFlightRef.current;
     if (running) return running;
 
-    // **語は押した時点で変える。** 席を返す往復と局面の同期の間、画面が動かないと
-    // 成功しているのか死んでいるのかが分からない
+    // 語は押した時点で変える。席を返す往復と局面の同期の間、画面が動かないと失敗に見える
     dispatch({ type: "begin_start" });
     const started = startInfiniteAnalysis().finally(() => {
       startInFlightRef.current = null;
@@ -987,21 +807,15 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [startInfiniteAnalysis]);
 
   const stopAnalysis = useCallback(async () => {
-    // **世代は返却より先に上げる。** 上げないと、飛んでいる開始が返ってきた席を
-    // 古い世代のまま握り、止めたのに Rust で走り続ける（理由の本文は
-    // 「読む局面が無くなったら止める」effect の同じ行）。
+    // 世代は返却より先に上げる。上げないと、応答待ちの開始が返った席を握り、止めたのに走り続ける。
     supersedeRequests();
     dispatch({ type: "begin_stop" });
 
-    // **撃つかどうかの判定はフックの中。** 呼び手が `isHeld()` を見るのは、
-    // **フックに撃たせるかどうかとは別の判断**をするときだけ——席と `isAnalyzing` の
-    // どちらかが立っていれば後始末ごと走らせたい「読む局面が無くなった」回と、
-    // `useResultFlush` に席の判定を渡す呼び出し。
     const generation = seat.engineGeneration();
     try {
       await seat.releaseHeld("stop"); // async-result-ignored: `応答なし` は Rust の通知が語を変える
     } catch (e) {
-      // **`待機中` にしない。** エンジンは閉じた探索を回し続けているかもしれない
+      // `待機中` にしない。エンジンは探索を回し続けているかもしれない
       reportUnreachableSince(generation);
       throw e;
     } finally {

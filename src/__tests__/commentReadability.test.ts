@@ -23,9 +23,9 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
  */
 
 const BASELINE = {
-  docStartsWithEmphasis: 396,
-  manyEmphases: 1229,
-  issueReference: 133,
+  docStartsWithEmphasis: 394,
+  manyEmphases: 1196,
+  issueReference: 127,
   retiredTerm: 0,
 };
 

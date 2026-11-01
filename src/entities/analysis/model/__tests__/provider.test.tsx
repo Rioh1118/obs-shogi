@@ -67,23 +67,18 @@ const oneCandidate: AnalysisResult = { candidates: [{ rank: 1, pv_line: ["7g7f"]
 const advance = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
 /**
- * **上限を跨ぐテストだけ**に付ける持ち時間。
+ * 上限を跨ぐテストに付ける持ち時間
  *
- * 寸法は `shortenWaits` で縮めてあるが（下の `beforeEach`）、それでも1本あたり数百ミリ秒を
- * 実時間で進める。既定の5秒でも足りるはずだが、並走する機械でも取りこぼさない幅を残す。
- * ミリ秒しか進めないテストには付けない——付けると、本当に止まったテストが長く待たされる。
+ * 縮めた寸法でも1本あたり数百ミリ秒を実時間で進めるので、並走する機械でも取りこぼさない幅を残す。
+ * ミリ秒しか進めないテストには付けない。本当に止まったテストが長く待たされる。
  */
 const SLOW = 20_000;
 
 /**
- * 縮めた寸法（`shortenWaits`）。**数字も比も写さない**——写すと片方だけ動かせる。
+ * 縮めた寸法（`shortenWaits`）。数字も比も写さない。写すと片方だけ動かせる。
  *
- * 散文に現物の値を書かないこと。このファイルは `beforeEach` で寸法を縮めるので、
- * **現物の値はどれも当たらない**。
- *
- * **`advance()` の引数まで導く必要は無い。** 上限や間引きを**跨ぐ**待ちだけを
- * `limitMs()` / `flushMs()` から導く。跨がない短い待ち（連打を畳む・応答を1つ進める）は
- * 生の数字でよい——全部を比に直すと、何が寸法に依存しているのか読めなくなる。
+ * 上限や間引きを跨ぐ待ちだけをここから導く。跨がない短い待ちは生の数字でよい。
+ * 全部を比に直すと、何が寸法に依存しているのか読めなくなる。
  */
 const limitMs = () => waits().positionSyncTimeoutMs;
 const flushMs = () => waits().resultFlushMs;
@@ -134,9 +129,7 @@ const adapter = (currentSfen: string | null, syncedSfen: string | null): Positio
 });
 
 /**
- * **上限を実時計で待たない。** 現物の `positionSyncTimeoutMs` を跨ぐ待ち方をすると、並走する機械では
- * コードを触っていないコミットがランダムに落ちる。寸法は4つとも**同じ比**で縮むので、
- * 大小の順序（刻み < 間引き < 猶予 < 上限）は現物と同じ。比は `waits.ts` が持つ。
+ * 上限を実時計のまま待たないよう、寸法を縮めて走らせる。理由と比は `waits.ts` の `shortenWaits`。
  */
 let restoreWaits: () => void = () => {};
 beforeEach(() => {
@@ -160,11 +153,8 @@ beforeEach(() => {
   listenerSetupFails = false;
 });
 
-// **畳まないまま次のテストへ渡さない。** 自動 cleanup は入っていない
-// （`vite.config.ts` の test に setup ファイルが無い）ので、`unmount()` を
-// 呼ばずに終わったテストの画面は生きたまま残る。残ると同期待ちの打ち切りが
-// 上限の後に停止を撃ち、**それが後のテストの中に落ちる**——「畳んだ後は撃たない」
-// を見ている検査が、他のテストの置き土産で赤くなる。
+// 自動 cleanup は入っていない（`vite.config.ts` の test に setup ファイルが無い）。アンマウントせずに
+// 次のテストへ渡すと、同期待ちの打ち切りが後のテストの中で停止を送り、別のテストが赤くなる。
 afterEach(cleanup);
 
 describe("AnalysisProvider の同期待ちの打ち切り", () => {
@@ -239,9 +229,8 @@ describe("AnalysisProvider の同期待ちの打ち切り", () => {
         await view.current.stopAnalysis();
       });
 
-      // **この空白がこのテストの検出源。** 停止中に上限を越える時間が経つので、
-      // 前回の待ちの開始時刻を持ち越すと、次の待ちは1ミリ秒も待たずに打ち切られる。
-      // **縮めると検査でなくなる**——縮めても下の2つだけでは上限に届かない。
+      // この空白がこのテストの検出源。前回の待ちの開始時刻を持ち越すと、次の待ちはすぐ打ち切られる。
+      // 縮めると検査でなくなる。下の2つだけでは上限に届かない。
       await advance(limitMs() * 1.4);
       await view.setSync(adapter("P2", "P2"));
       await act(async () => {
@@ -1567,7 +1556,7 @@ describe("AnalysisProvider の開始", () => {
       await view.current.startInfiniteAnalysis().catch(() => {});
     });
 
-    // #441 が再発したときの症状そのもの。上流の英文はここには出さない。
+    // 席が残ったときの断り。上流の英文は画面へ出さない。
     expect(view.current.state.error).toBe(START_REFUSED_MESSAGE);
     expect(view.current.state.error).not.toContain("Analysis already running");
     expect(view.current.state.isAnalyzing).toBe(false);
@@ -1904,8 +1893,7 @@ describe("AnalysisProvider のアンマウント", () => {
       view.unmount();
       await advance(50);
 
-      // **その後で停止が落ちる。** 席が欄へ戻るので、返す者が要る
-      // ——ここで取り残すと Rust に席が残り、以後の解析が全部断られる（#441）。
+      // その後で停止が落ちる。席が欄へ戻るので、返さないと Rust に席が残り、以後の開始が全部断られる。
       await act(async () => {
         failDiscard(new Error("ipc is gone"));
         await Promise.resolve();
@@ -1951,12 +1939,11 @@ describe("AnalysisProvider のアンマウント", () => {
       await advance(150);
       await pressed;
 
-      // **同期待ちの打ち切りに先を越されていないこと。** 越されると席は
-      // `sync-timeout` が返すので、この筋は「返せている」まま赤くなる
-      // ——寸法を動かした人が #441 の再発と読み違える。
+      // 同期待ちの打ち切りに先を越されると、席は `sync-timeout` が返すので筋が変わる。
+      // 寸法を動かした人が席の取り残しと読み違えないよう先に見る。
       expect(stopCore.mock.calls.map((c) => c[1])).not.toContain("sync-timeout");
 
-      // 書き戻した席を返し直さないと、Rust に残ったままになる（#441）。
+      // 書き戻した席を返し直さないと、Rust に残ったままになる。
       expect(stopCore.mock.calls).toContainEqual([undefined, "unmount"]);
 
       // **着地は1本なので、撃ち直しも1本。** 席を指さない停止は書き戻しに乗らない
@@ -2553,7 +2540,7 @@ describe("中断に答えない回の自動再開", () => {
   });
 });
 
-/** (V3, E15) `analysis.md` の `(S4/S5, E11)`。#172 の残りの2本 */
+/** (V3, E15) `analysis.md` の `(S4/S5, E11)` */
 describe("中断が届かなかった回", () => {
   it("■ が届かなければ応答なしにする", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
