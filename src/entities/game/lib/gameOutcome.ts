@@ -114,6 +114,31 @@ export type GameProgress = {
   usiMoves: readonly string[];
 };
 
+/**
+ * 対局の間ずっと持ち回る判定器。**進んだぶんだけ積む。**
+ *
+ * `judgeGameOutcome` は呼ばれるたびに根から棋譜を組み直すので、毎手呼ぶと
+ * 合計が手数の2乗で効く（値段はこのファイルの冒頭に実測がある）。
+ * 対局はまさに毎手呼ぶ側なので、そこだけはこちらを使う。
+ *
+ * **消えるのは組み直しの分だけ。** 1手ごとの `hasLegalMove` と千日手の判定は残る。
+ *
+ * **前に裁定した列の続きでなければ、黙って組み直す。** 別の対局が始まった、
+ * 途中局面が変わった、前の裁定が落ちた —— どれも「続きではない」で同じ扱いにする。
+ * 積みかけの `Record` は捨てる（残すと、次の裁定が続きだと思って更に積む）。
+ */
+type OutcomeJudge = {
+  judge(progress: GameProgress, rules: GameRules): Result<GameOutcome | null, GameOutcomeFailure>;
+};
+
+/** 積んである棋譜と、それを組んだ材料 */
+type HeldRecord = {
+  startSfen: string;
+  /** 積んだ指し手。**`record` に入っているものと必ず一致する** */
+  applied: string[];
+  record: ShogiRecord;
+};
+
 /** トライルールの到達点は相手玉の初期位置。先手なら5一、後手なら5九 */
 function trySquareOf(color: Color): { usi: string; x: number; y: number } {
   return color === Color.Black ? { usi: "5a", x: 5, y: 1 } : { usi: "5i", x: 5, y: 9 };
@@ -269,31 +294,6 @@ export function judgeGameOutcome(
   const built = buildRecord(progress);
   return built.success ? judgeRecord(built.data, progress.usiMoves, rules) : built;
 }
-
-/**
- * 対局の間ずっと持ち回る判定器。**進んだぶんだけ積む。**
- *
- * `judgeGameOutcome` は呼ばれるたびに根から棋譜を組み直すので、毎手呼ぶと
- * 合計が手数の2乗で効く（値段はこのファイルの冒頭に実測がある）。
- * 対局はまさに毎手呼ぶ側なので、そこだけはこちらを使う。
- *
- * **消えるのは組み直しの分だけ。** 1手ごとの `hasLegalMove` と千日手の判定は残る。
- *
- * **前に裁定した列の続きでなければ、黙って組み直す。** 別の対局が始まった、
- * 途中局面が変わった、前の裁定が落ちた —— どれも「続きではない」で同じ扱いにする。
- * 積みかけの `Record` は捨てる（残すと、次の裁定が続きだと思って更に積む）。
- */
-type OutcomeJudge = {
-  judge(progress: GameProgress, rules: GameRules): Result<GameOutcome | null, GameOutcomeFailure>;
-};
-
-/** 積んである棋譜と、それを組んだ材料 */
-type HeldRecord = {
-  startSfen: string;
-  /** 積んだ指し手。**`record` に入っているものと必ず一致する** */
-  applied: string[];
-  record: ShogiRecord;
-};
 
 /**
  * 積んである列が `usiMoves` の接頭辞か。

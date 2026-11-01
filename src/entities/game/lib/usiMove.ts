@@ -3,11 +3,46 @@ import type { JKFPlayer } from "json-kifu-format";
 import type { StandardMoveFormat } from "../model/types";
 import { canPromote } from "./moveValidation";
 
+/** 段。**上から `a`。** JKF の `y` は1始まり */
+const RANK = ["a", "b", "c", "d", "e", "f", "g", "h", "i"] as const;
+
+/**
+ * 打てる駒の綴り。**玉を入れない**（打てないので、入れると綴れてしまう）。
+ *
+ * **成駒も入れない。** 打つのは必ず生駒で、`TO` や `NY` を打つ手は存在しない。
+ */
+const DROP_LETTER: Partial<Record<Kind, string>> = {
+  FU: "P",
+  KY: "L",
+  KE: "N",
+  GI: "S",
+  KI: "G",
+  KA: "B",
+  HI: "R",
+};
+
+/** 打てる駒の綴りから駒種 */
+const DROP_KIND = Object.fromEntries(
+  Object.entries(DROP_LETTER).map(([kind, letter]) => [letter, kind as Kind]),
+);
+
 /** 駒打ちの綴り。例は `P*5b` */
 const USI_DROP = /^([PLNSGBR])\*([1-9])([a-i])$/;
 
 /** 盤の上の移動の綴り。例は `7g7f`、`2b3a+` */
 const USI_BOARD_MOVE = /^([1-9])([a-i])([1-9])([a-i])(\+?)$/;
+
+/** 盤の升。**9×9の外は綴れない** */
+function toUsiSquare(x: number, y: number): string | null {
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return null;
+  if (x < 1 || x > 9 || y < 1 || y > 9) return null;
+  return `${x}${RANK[y - 1]}`;
+}
+
+/** 段の文字から `y`。**`toUsiMove` の `RANK` と対で、片方だけ直すと綴りが崩れる** */
+function rankOf(rank: string): number {
+  return RANK.indexOf(rank as (typeof RANK)[number]) + 1;
+}
 
 /** USI の指し手1つとして末尾まで読めるかを返す。指せる手かどうかは見ない */
 export function isUsiMove(text: string): boolean {
@@ -42,31 +77,6 @@ export function toUsiMove(move: StandardMoveFormat): string | null {
   // **成りは末尾の `+` だけで表す。** 成った後の駒種を書かない
   return `${from}${to}${move.promote === true ? "+" : ""}`;
 }
-
-/** 盤の升。**9×9の外は綴れない** */
-function toUsiSquare(x: number, y: number): string | null {
-  if (!Number.isInteger(x) || !Number.isInteger(y)) return null;
-  if (x < 1 || x > 9 || y < 1 || y > 9) return null;
-  return `${x}${RANK[y - 1]}`;
-}
-
-/** 段。**上から `a`。** JKF の `y` は1始まり */
-const RANK = ["a", "b", "c", "d", "e", "f", "g", "h", "i"] as const;
-
-/**
- * 打てる駒の綴り。**玉を入れない**（打てないので、入れると綴れてしまう）。
- *
- * **成駒も入れない。** 打つのは必ず生駒で、`TO` や `NY` を打つ手は存在しない。
- */
-const DROP_LETTER: Partial<Record<Kind, string>> = {
-  FU: "P",
-  KY: "L",
-  KE: "N",
-  GI: "S",
-  KI: "G",
-  KA: "B",
-  HI: "R",
-};
 
 /**
  * USI の綴りを、盤へ積める手に戻す。**盤の現局面が要る。**
@@ -114,16 +124,6 @@ export function fromUsiMove(
     ...(promoted || canPromote(shogi, { from, to }) ? { promote: promoted } : {}),
   };
 }
-
-/** 段の文字から `y`。**`toUsiMove` の `RANK` と対で、片方だけ直すと綴りが崩れる** */
-function rankOf(rank: string): number {
-  return RANK.indexOf(rank as (typeof RANK)[number]) + 1;
-}
-
-/** 打てる駒の綴りから駒種 */
-const DROP_KIND = Object.fromEntries(
-  Object.entries(DROP_LETTER).map(([kind, letter]) => [letter, kind as Kind]),
-);
 
 /**
  * 盤がいま辿っている線を、根からの USI の綴りで表す。**綴れない手が1つでもあれば `null`。**
