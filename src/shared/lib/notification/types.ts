@@ -81,7 +81,7 @@ type VisibleRequestBase = {
    * 出した側が引っ込めるための鍵。畳まず、件数を数えない。
    *
    * 条件と結び付いた通知が持つ。同じ鍵の通知は1枚に保たれ、2枚目は1枚目を置き換える。
-   * `dedupeKey` と両方は書かない。両方あるときは畳みが勝つ（`notificationReducer`）。
+   * `dedupeKey` と両方は書かない。同じ `dedupeKey` の通知が既にあれば畳みが勝つ（`notificationReducer`）。
    */
   dismissKey?: string;
 };

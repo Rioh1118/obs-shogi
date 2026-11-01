@@ -190,6 +190,26 @@ describe("通知の置き場", () => {
     });
   });
 
+  describe("両方の鍵を持つ通知", () => {
+    it("同じ dedupeKey があれば、dismissKey が同じでも畳む", () => {
+      const keys = { dedupeKey: "read", dismissKey: "engine" };
+      const state = notify(notify(INITIAL_NOTIFICATION_STATE, keys), keys);
+
+      expect(state.notifications).toHaveLength(1);
+      expect(state.notifications[0].count).toBe(2);
+    });
+
+    it("同じ dedupeKey が無ければ、同じ dismissKey の通知を置き換える", () => {
+      const state = notify(notify(INITIAL_NOTIFICATION_STATE, { dismissKey: "engine" }), {
+        dedupeKey: "read",
+        dismissKey: "engine",
+      });
+
+      expect(state.notifications).toHaveLength(1);
+      expect(state.notifications[0].count).toBe(1);
+    });
+  });
+
   describe("消す", () => {
     const two = notify(notify(INITIAL_NOTIFICATION_STATE, { dedupeKey: "engine" }));
 

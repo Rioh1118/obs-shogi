@@ -109,10 +109,11 @@ function replaceHeld(
  *
  * - `silent` の段は何も積まない（ADR-0004 決定2）
  * - 同じ `dedupeKey` は畳む。件数だけが増え、id と並び順は動かず、採番も進まない
- * - 同じ `dismissKey` は置き換える。件数は増えず、id と並び順は動かない。両方あれば畳みが勝つ
+ * - 同じ `dismissKey` は置き換える。件数は増えず、id と並び順は動かない
+ * - 同じ `dedupeKey` の通知があれば、`dismissKey` が同じ通知があっても畳む
  * - 消えるものが無い `dismiss` と `dismissByKey` は同じ参照を返す
  *
- * `__tests__/reducer.test.ts` がこの4つを固定している。
+ * `__tests__/reducer.test.ts` がこれらを固定している。
  */
 export function notificationReducer(
   state: NotificationState,
@@ -134,7 +135,7 @@ export function notificationReducer(
         return { ...state, notifications };
       }
 
-      // 同じ `dismissKey` の通知は1枚に保つ。出す側は条件が続く間に出し直すので、積むと同じ通知が並ぶ
+      // 出す側は effect の cleanup で引っ込めるが、引っ込めない呼び手が居ても同じ通知を並べない
       const handle = request.dismissKey;
       const held =
         handle === undefined ? -1 : state.notifications.findIndex((n) => n.dismissKey === handle);
