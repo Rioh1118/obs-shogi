@@ -119,16 +119,16 @@ export function PositionSearchProvider({
 
       const out = await searchPositionApi(input);
 
+      // イベントより先に数える。`stopAccepting()` は `maxSeenRid` まで `firstLiveRid` を進めて
+      // `droppedRids` を空にするので、数えていない rid を捨てた後に開き直すとチャンクが通る
+      chunkBuffer.noteRequest(out.requestId);
+
       if (chunkBuffer.generation() !== myGeneration) {
         // 開き直された根の state に前の根の検索を残さない
         chunkBuffer.stopAccepting(out.requestId);
         void cancelSearchApi(out.requestId).catch(() => {});
         return { status: "superseded" };
       }
-
-      // イベントより先に数える。`stopAccepting()` は `maxSeenRid` まで `firstLiveRid` を進めて
-      // `droppedRids` を空にするので、数えていない rid を捨てた後に開き直すとチャンクが通る
-      chunkBuffer.noteRequest(out.requestId);
 
       dispatch({ type: "search_requested", payload: { requestId: out.requestId } });
 

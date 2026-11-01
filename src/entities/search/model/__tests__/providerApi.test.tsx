@@ -120,6 +120,35 @@ describe("検索を起こす", () => {
     expect(search.getSessionByRequestId(7)).toBeNull();
   });
 
+  /** 数えずに名指しで捨てると、次に開き直したとき名指しを忘れて通ってしまう */
+  test("番号が返る前に取り下げた検索は、さらに開き直しても通らない", async () => {
+    let resolveSearch!: (out: { requestId: number }) => void;
+    searchPositionApi.mockReturnValue(new Promise((r) => (resolveSearch = r)));
+
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(app("/first"));
+    });
+
+    const pending = search.searchPosition(INPUT);
+    await act(async () => {
+      view.rerender(app("/second"));
+    });
+    resolveSearch({ requestId: 7 });
+    await pending;
+
+    await act(async () => {
+      view.rerender(app("/third"));
+    });
+    expect(openProjectApi.mock.calls).toEqual([["/first"], ["/second"], ["/third"]]);
+
+    act(() => {
+      handlers.onSearchBegin({ requestId: 7, stale: false });
+    });
+
+    expect(search.getSessionByRequestId(7)).toBeNull();
+  });
+
   test("取り下げの失敗は投げない", async () => {
     cancelSearchApi.mockRejectedValue(new Error("届かない"));
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
