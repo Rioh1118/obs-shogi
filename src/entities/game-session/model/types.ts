@@ -18,12 +18,12 @@ export type GameRuling =
   | { kind: "over"; winner: Side | null; detail: string };
 
 /** 根からの進行。`judgeGameOutcome` の `GameProgress` と同じ形 */
-export interface GameProgressView {
+export type GameProgressView = {
   /** 対局の根の局面。**`startpos` は受け付けない** */
   startSfen: string;
   /** 根から現在までの USI 指し手。途中局面から始めた対局なら `initialMoves` も含む */
   usiMoves: readonly string[];
-}
+};
 
 /**
  * 裁定を返す実装。**注入で受ける。**
@@ -36,9 +36,9 @@ export interface GameProgressView {
  * **判定が失敗したときに何を返すかも、渡す側が決める。** ここで既定を持つと、
  * 「詰んでいるのに続行を返す」のような既定が2箇所に生える。
  */
-export interface RulingAdapter {
+export type RulingAdapter = {
   judge: (progress: GameProgressView) => GameRuling;
-}
+};
 
 /**
  * 画面に出る対局の姿。**`GameSnapshot`（Rust が返す形）とは別物。**
@@ -172,7 +172,7 @@ export type StartRefusal =
   | "events-unavailable";
 
 /** 対局を始めるときに渡すもの。**宛先が2つに割れている** */
-export interface GameStartRequest {
+export type GameStartRequest = {
   /** Rust へ渡す対局者・持ち時間・開始局面 */
   settings: GameSettings;
   /**
@@ -182,4 +182,4 @@ export interface GameStartRequest {
    * 「いま盤に出ている棋譜の対局か」を判定できるのはこちら側だけ。
    */
   kifuPath: string | null;
-}
+};

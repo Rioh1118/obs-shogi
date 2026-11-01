@@ -42,10 +42,10 @@ export type Side = "black" | "white";
  * **`entities/engine` の `EngineOption` とは別物。** あちらはエンジンが
  * 宣言してくる option の定義（型・既定値・現在値）で、向きが逆。
  */
-export interface SetOptionValue {
+export type SetOptionValue = {
   name: string;
   value: string;
-}
+};
 
 /**
  * 対局者。人とエンジンが同じ型に入る。
@@ -106,7 +106,7 @@ export type PlayerSpec =
  * 「数も一覧もここには書かない」を決めている——`if` を1つ足すたびに離れたところが
  * 嘘になるから。`startGame` の `Err` の文言がそのまま理由。
  */
-export interface TimeLimit {
+export type TimeLimit = {
   mainMs: number;
   /** 1手ごとに与え直される */
   byoyomiMs: number;
@@ -119,9 +119,9 @@ export interface TimeLimit {
    * 設定した値をそのまま画面に出したいなら `GameSettings` 側を見ること
    */
   incrementMs: number;
-}
+};
 
-export interface GameSettings {
+export type GameSettings = {
   black: PlayerSpec;
   white: PlayerSpec;
   blackTime: TimeLimit;
@@ -145,7 +145,7 @@ export interface GameSettings {
    * この打ち切りが当たるのはたいてい GUI 側の取りこぼしのため
    */
   enforceEngineTimeout?: boolean;
-}
+};
 
 /**
  * 終局の理由。
@@ -182,12 +182,12 @@ export type GameOverReason =
   | "aborted"
   | "rulingTimeout";
 
-export interface GameResult {
+export type GameResult = {
   /** 引き分けなら null */
   winner: Side | null;
   reason: GameOverReason;
   detail: string | null;
-}
+};
 
 /**
  * 片側の時計。**2つの欄で性質が違う。**
@@ -195,7 +195,7 @@ export interface GameResult {
  * `mainMs` は止まっている値なので、動いている側では手番開始時の古い値。
  * `byoyomiMs` は設定値で常に正しく、**動いている側のクランプに要る**。
  */
-export interface ClockView {
+export type ClockView = {
   /**
    * 持ち時間の残り。動いている側は `RunningClock.mainZeroAt` を使う。
    *
@@ -205,7 +205,7 @@ export interface ClockView {
   mainMs: number;
   /** 秒読みの設定値。1手ごとに与え直されるので常にこの値 */
   byoyomiMs: number;
-}
+};
 
 /**
  * 動いている側と、その表示が 0 になる時刻（UNIX epoch のミリ秒）。
@@ -224,13 +224,13 @@ export interface ClockView {
  * `over` を出す。ここの時刻は表示のためだけで、壁時計が飛べばずれる
  * （次の更新で入れ直る）。
  */
-export interface RunningClock {
+export type RunningClock = {
   side: Side;
   mainZeroAt: number;
   byoyomiZeroAt: number;
-}
+};
 
-export interface ClocksView {
+export type ClocksView = {
   black: ClockView;
   white: ClockView;
   /**
@@ -254,7 +254,7 @@ export interface ClocksView {
    * 相手の手番の頭で毎回止まって見える。
    */
   running: RunningClock | null;
-}
+};
 
 export type GamePhaseView =
   /** 着手を待っている。**時計が動いているとは限らない**（`ClocksView.running` の 3） */
@@ -263,7 +263,7 @@ export type GamePhaseView =
   | { phase: "awaitingRuling"; lastMover: Side; usiMove: string }
   | { phase: "over"; result: GameResult };
 
-export interface GameSnapshot {
+export type GameSnapshot = {
   gameId: GameId;
   blackName: string;
   whiteName: string;
@@ -274,7 +274,7 @@ export interface GameSnapshot {
    */
   moves: string[];
   clocks: ClocksView;
-}
+};
 
 /** `game-event` で届く。`type` で判別する */
 export type GameEvent =

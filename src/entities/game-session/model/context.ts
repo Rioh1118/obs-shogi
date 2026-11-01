@@ -10,7 +10,7 @@ import type { GameSessionView, GameStartRequest, StartRefusal } from "./types";
  * 捨てると「押したのに何も起きない」だけが残る。投げずに値で返すことで、
  * 読み落としを `src/__tests__/asyncResultUse.test.ts` が拾える形になる。
  */
-export interface GameSessionContextValue {
+export type GameSessionContextValue = {
   view: GameSessionView;
   /**
    * 対局を始める。**解決まで数十秒かかりうる**（評価関数の重いエンジン）。
@@ -63,6 +63,6 @@ export interface GameSessionContextValue {
    * そのまま押し直せる（捨てるとエンジンが残ったまま画面だけが「対局なし」になる）。
    */
   closeSession: () => AsyncResult<void>;
-}
+};
 
 export const GameSessionContext = createContext<GameSessionContextValue | null>(null);

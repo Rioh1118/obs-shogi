@@ -756,7 +756,7 @@ mod tests {
             .keys()
             .filter(|name| !sampled.contains(name.as_str()))
             // 欄を持たない型（判別子だけの union）と、解析側だけが使う型は対象外
-            .filter(|name| game_copy.contains(&format!("export interface {name} ")))
+            .filter(|name| game_copy.contains(&format!("export type {name} = {{")))
             .collect();
         assert!(
             unchecked.is_empty(),

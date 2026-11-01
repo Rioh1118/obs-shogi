@@ -28,7 +28,7 @@ import type {
  * `usiMoves` は `continueGame` に渡す列そのもので、`startGame` に渡した
  * `initialMoves` から始まる（`api/tauri.ts`）。
  */
-interface Session {
+type Session = {
   gameId: GameId | null;
   kifuPath: string | null;
   startSfen: string;
@@ -58,7 +58,7 @@ interface Session {
   engineClosed: boolean;
   /** エンジンを落とせなかった理由。**押し直す人が居ないので、黙ると気づけない** */
   closeFailure: string | null;
-}
+};
 
 const IDLE: GameSessionView = { kind: "idle", eventsUnavailable: null };
 
