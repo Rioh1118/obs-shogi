@@ -116,7 +116,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/settings/ui/tabs/WorkspaceTab.tsx` の `copyText` | `shared/api/clipboard` と同じ名前で別の本体を持つ。寄せられるかを本体で判定する |
 | `src/widgets/game-board/ui/PromotionDialog.tsx` の `promotionMap` | `positionDraft.ts` の `promotedKind` の写し。`src/widgets` の範囲で寄せると `PieceImage` の `kind` を `Kind` で受けられる |
 | `src/entities/game/lib/shogiMoveValidator.ts` と `src/entities/game/model/moveValidator.ts` | 実装が1つのクラスと `interface` で、中身は `moveValidation.ts` の関数への転送。`getLegalDropsByKind` と `getLegalDrops` で名前も割れている。`entities/game` の `model` の範囲で関数の呼び出しへ替える |
-| `src/entities/game/model/provider.tsx` の `helpers.isLegalMove` | 読み手が0。`entities/game` の `model` の範囲で消すかを決める |
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。`promotionMap` の行と合わせて寄せる |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
 | `src/features/game-ruling/lib/rulingAdapter.ts` の `toRuling` の doc | 主語が `judgeGameOutcome` だが、この関数が呼ぶのは `createOutcomeJudge`。`features/game-ruling` の範囲で直す |

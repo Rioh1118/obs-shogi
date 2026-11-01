@@ -9,23 +9,6 @@ import type { Color, Kind, Shogi } from "shogi.js";
 import type { ShogiMove } from "../model/types";
 
 export class ShogiMoveValidator implements MoveValidator {
-  isLegalMove(shogi: Shogi, move: ShogiMove): boolean {
-    try {
-      if (move.from) {
-        const legalMoves = this.getLegalMovesFrom(shogi, move.from.x, move.from.y);
-        return legalMoves.some((legal) => legal.to.x === move.to.x && legal.to.y === move.to.y);
-      } else {
-        if (move.color === undefined || !move.kind) return false;
-
-        const legalDrops = this.getLegalDropsByKind(shogi, move.color, move.kind);
-
-        return legalDrops.some((legal) => legal.to.x === move.to.x && legal.to.y === move.to.y);
-      }
-    } catch {
-      return false;
-    }
-  }
-
   getLegalMovesFrom(shogi: Shogi, x: number, y: number): ShogiMove[] {
     const basicMoves = shogi.getMovesFrom(x, y);
     return basicMoves.filter((move) => !wouldBeInCheckAfterMove(shogi, move));

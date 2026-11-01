@@ -764,13 +764,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
 
   const helpers = useMemo<JKFPlayerHelpers>(
     () => ({
-      isLegalMove: (player, move) => {
-        try {
-          return moveValidator.isLegalMove(player.shogi, move);
-        } catch {
-          return false;
-        }
-      },
       canPromoteMove: (player, move) => {
         try {
           return moveValidator.canPromote(player.shogi, move);
