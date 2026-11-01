@@ -2,7 +2,7 @@ import { isTauri } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useReducer, useRef, type ReactNode } from "react";
 import type { AnalysisContextType, PositionSyncAdapter } from "./types";
 import {
-  startFailedUnreachable,
+  isAnalysisStartUnreachable,
   startInfiniteAnalysis as startInfiniteAnalysisCore,
   type AnalysisSessionId,
   type StopOutcome,
@@ -300,14 +300,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
         // **判定は札の `engineChanged`**（世代とエンジンが使えるかの両方）。ここで足すと、
         // 成功して返る側（`landed`）と条件が割れる——割れた側は、死んだエンジンの席を
         // 握ったまま「解析中」で固まる。
-        if (!startFailedUnreachable(e) && !take.engineChanged()) throw e;
+        if (!isAnalysisStartUnreachable(e) && !take.engineChanged()) throw e;
 
         // **Rust の言い分を残す。** ここで倒すと例外にならないので、呼び手の
         // `console.error` には届かない。断りの文言は合成した `Error` になる。
         console.warn("[ANALYSIS] start refused while the engine was away", e);
 
         // **エンジンへ書けなかった回は語が言う。** 断りを立てず、検討の意思も切らない。
-        if (startFailedUnreachable(e)) {
+        if (isAnalysisStartUnreachable(e)) {
           if (!take.engineChanged()) reportUnreachable();
           dropPendingForLostSeat();
           return "engine-gone";

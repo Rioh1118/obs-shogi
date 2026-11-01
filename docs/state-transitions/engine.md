@@ -152,6 +152,6 @@ S5 から落とすときは `quit` を待たない（`EngineRegistry::kill`）�
 **`entities/engine` のテスト**は `model/__tests__/provider.test.tsx`（`(S3, E4)` / `(S3, E3)` /
 `(S1, E3)` / `(S1, E4)` / `(S1, E2)` の後の E1 / `(S1, E10)` / 撃つたびに上がる番号 / E11 と S4 の抜け方）、
 `model/__tests__/notReadyReason.test.tsx`（`notReadyReason` の割り当て）と
-`lib/__tests__/`（`asStartFailure`、`valuesOf` と `equalRuntime`）。
+`lib/__tests__/`（`asStartFailure`、`toOptionValues` と `equalRuntime`）。
 `(S3, E9)` と E10 の帯は `app/providers/bridges/__tests__/engineFailureBridge.test.tsx`。
 Rust の側の順序（古い番号の要求を断る）は `analyzer.rs` の `tests::starting`。

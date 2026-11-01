@@ -52,7 +52,7 @@ export function classifyEnginesDir(info: DirInfo | null | undefined): EnginesDir
  */
 
 /** 開いて確かめられるか。**そこに何かが在る**なら開ける（それが唯一の直し方の回がある） */
-export function enginesDirRevealable(dir: EnginesDir): boolean {
+export function canRevealEnginesDir(dir: EnginesDir): boolean {
   switch (dir) {
     case "dir":
     case "other":
@@ -76,7 +76,7 @@ export function canCreateEnginesDir(dir: EnginesDir): boolean {
 }
 
 /** 中を列挙してよいか。フォルダとして在るときだけ */
-export function enginesDirUsable(dir: EnginesDir): boolean {
+export function canListEnginesDir(dir: EnginesDir): boolean {
   switch (dir) {
     case "dir":
       return true;

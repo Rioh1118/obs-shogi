@@ -1,4 +1,4 @@
-import { enginesDirUsable, type EnginesDir } from "@/entities/engine/lib/enginesDir";
+import { canListEnginesDir, type EnginesDir } from "@/entities/engine/lib/enginesDir";
 
 import type { SetupGuideProfile } from "../types";
 
@@ -91,7 +91,7 @@ export function StructureOverview({
       />
 
       {/* engine files */}
-      {enginesDirUsable(enginesDir) &&
+      {canListEnginesDir(enginesDir) &&
         (engineNames.length > 0 ? (
           engineNames.map((name, i) => (
             <TreeNode

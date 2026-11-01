@@ -29,7 +29,7 @@ vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => tauri }));
 vi.mock("@/entities/engine/api/tauri", () => ({
   startInfiniteAnalysis: () => startCore(),
   stopAnalysis: (sessionId?: string, by?: string) => stopCore(sessionId, by),
-  startFailedUnreachable: (e: unknown) => (e as { unreachable?: boolean }).unreachable === true,
+  isAnalysisStartUnreachable: (e: unknown) => (e as { unreachable?: boolean }).unreachable === true,
 }));
 // エンジンの状態。**理由を決めるのは engine 側**（`EngineNotReadyReason`）なので、
 // 断りを枝ごとに見るテストはその理由を動かす。

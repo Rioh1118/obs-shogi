@@ -1,4 +1,4 @@
-import { valuesOf } from "../lib/setup";
+import { toOptionValues } from "../lib/optionValues";
 import type { EngineRuntimeConfig } from "../model/types";
 import type { StartOutcome } from "./rust-types";
 import { shutdownEngine, startAnalysisEngine, type EngineRequest } from "./tauri";
@@ -21,7 +21,7 @@ export const engineInitializer: EngineInitializer = {
   initialize: (runtime, request) =>
     startAnalysisEngine({
       enginePath: runtime.enginePath,
-      values: valuesOf(runtime),
+      values: toOptionValues(runtime),
       evalPath: runtime.evalPath,
       book: runtime.book,
       request,

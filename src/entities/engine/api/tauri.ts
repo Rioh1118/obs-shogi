@@ -84,7 +84,7 @@ export async function setPositionFromSfen(sfen: string): Promise<void> {
  * 席を取るコマンドはこれだけではない（`analyze_with_time` / `analyze_with_depth` も同じ席を取る）。
  */
 export async function startInfiniteAnalysis(): Promise<AnalysisSessionId> {
-  // reject の値は Rust の `StartRefusal`（`startFailedUnreachable` で見分ける）
+  // reject の値は Rust の `StartRefusal`（`isAnalysisStartUnreachable` で見分ける）
   return (await invoke<string>("start_infinite_analysis")) as AnalysisSessionId;
 }
 
@@ -146,7 +146,7 @@ export type SeatReleasePoint =
  * 開始の失敗が、エンジンへ書けなかったためか。**断りと分ける**——書けなかった回は `応答なし` に入り
  * 検討の意思が残る。やり直しても同じ断りとは次の手が違う。
  */
-export function startFailedUnreachable(e: unknown): boolean {
+export function isAnalysisStartUnreachable(e: unknown): boolean {
   return typeof e === "object" && e !== null && "unreachable" in e && e.unreachable === true;
 }
 
