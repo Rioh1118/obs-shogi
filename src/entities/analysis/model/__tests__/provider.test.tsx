@@ -2547,6 +2547,37 @@ describe("中断に答えない回の自動再開", () => {
 
 /** (V3, E15) `analysis.md` の `(S4/S5, E11)` */
 describe("中断が届かなかった回", () => {
+  it("▶ の返却を待つ間に棋譜を閉じて開き直したら、答えが無くても検討を立て直さない", async () => {
+    const view = mountAnalysis(adapter("P1", "P1"));
+    await act(async () => {
+      await view.current.startInfiniteAnalysis();
+    });
+    stopCore.mockRejectedValueOnce(new Error("ipc is gone"));
+    await act(async () => {
+      await view.current.stopAnalysis().catch(() => {});
+    });
+    let answer: () => void = () => {};
+    stopCore.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = () => resolve("unanswered"))),
+    );
+    startCore.mockClear();
+
+    let pressed: Promise<void> = Promise.resolve();
+    await act(async () => {
+      pressed = view.current.startInfiniteAnalysis();
+    });
+    await view.setSync(adapter(null, null));
+    await view.setSync(adapter("P1", "P1"));
+    await act(async () => {
+      answer();
+      await pressed;
+    });
+    await advance(waits().restartDebounceMs * 2);
+
+    expect(view.current.state.isAnalyzing).toBe(false);
+    expect(startCore).not.toHaveBeenCalled();
+  });
+
   it("返却の答えが無い局面を ▶ で保留しても、答えが来たら同じ局面を読み直す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
