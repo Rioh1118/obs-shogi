@@ -4,30 +4,27 @@ import { asBookError } from "./error";
 import type { BookError, BookInfo, BookLine, BookMove } from "../model/types";
 
 /**
- * 定跡を開いてハンドルを受け取る。**画面が呼ぶ関数ではない。**
+ * 定跡を開いてハンドルを受け取る。画面からは `useBook().openBook` を呼ぶ。
+ * こちらは前の定跡を閉じず、開いている最中を画面に出さない。
  *
- * 画面から開くのは `useBook().openBook` —— こちらはハンドルを返すだけで、
- * 前の定跡を閉じることも、開いている最中を画面に出すこともしない。
+ * パスに置き場の規約は無い。エンジンに食わせる定跡は AI ライブラリに置くが、
+ * ビューが覗くのは任意のパス（`docs/spec/features/book.md`）。
  *
- * **パスに置き場の規約は無い。** エンジンに食わせる定跡は AI ライブラリに置くが、
- * ビューが覗くのは任意のパス（→ `docs/spec/features/book.md`）。
- *
- * 大きい定跡では**返るまで待つ**。上限も進捗も中断も無い（→ #197）。
+ * TODO(#197): 大きい定跡では返るまで待つ。上限も進捗も中断も無い。
  */
 export function openBookFile(path: string): AsyncResult<BookInfo, BookError> {
   return invokeBook(() => invoke<BookInfo>("open_book", { input: { path } }));
 }
 
-/** 局面の候補手。**未収録の局面は空**（失敗ではない） */
+/** 局面の候補手を返す。未収録の局面は空で、失敗ではない。 */
 export function lookupBookMoves(handle: number, sfen: string): AsyncResult<BookMove[], BookError> {
   return invokeBook(() => invoke<BookMove[]>("lookup_book_moves", { input: { handle, sfen } }));
 }
 
 /**
- * 候補手それぞれの先を、定跡が続くかぎり辿る。**返る並びは `moves` と同じ。**
+ * 候補手それぞれの先を、定跡が続くかぎり辿る。返る並びは `moves` と同じ。
  *
- * **引くより桁違いに重い。** 候補 N 本ぶんの線を辿るので、引いた結果を出すのと
- * 同じ待ち方をさせないこと（先に候補手を出し、届いた順にこちらを足す）。
+ * 候補 N 本分の線を辿るので、引くより桁違いに重い。先に候補手を出し、終わってからこちらを足すこと。
  */
 export function walkBookLines(
   handle: number,
@@ -46,20 +43,18 @@ export function closeBook(handle: number): AsyncResult<void, BookError> {
 /**
  * 開いている定跡を全部返す。
  *
- * **孤児を拾うための関数。** ハンドルはフロントの変数にしか無いので、webview が
- * 作り直されると閉じる術が無くなり、定跡ぶんのメモリがプロセス終了まで残る。
+ * 孤児を拾うために使う。ハンドルはフロントの変数にしか無いので、webview が作り直されると
+ * 閉じる術が無くなり、定跡分のメモリがプロセスの終わりまで残る。
  */
-export function listBooks(): Promise<BookInfo[]> {
-  return invoke<BookInfo[]>("list_books");
+export function listBooks(): AsyncResult<BookInfo[], BookError> {
+  return invokeBook(() => invoke<BookInfo[]>("list_books"));
 }
 
 /**
- * `invoke` の失敗を [`BookError`] にして返す。
+ * `invoke` の失敗を `BookError` にして返す。
  *
- * **名前を `call` のような一般的な綴りにしない。** 失敗を握り潰した呼び出しを
- * 名前で拾う機械（`src/__tests__/asyncResultUse.test.ts`）があり、
- * よくある綴りを `AsyncResult` の宣言として置くと、**関係の無いファイルの
- * 同名の呼び出しまで咎められる。**
+ * 名前を `call` のように一般的にしない。`src/__tests__/asyncResultUse.test.ts` は
+ * `AsyncResult` を返す宣言の名前で呼び出しを拾うので、関係の無いファイルの同名の呼び出しまで止める。
  */
 async function invokeBook<T>(run: () => Promise<T>): AsyncResult<T, BookError> {
   try {

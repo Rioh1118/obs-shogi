@@ -1,13 +1,10 @@
+import type { BookLine } from "../model/types";
 import type { BookRowLine } from "./rows";
 
 /** 「この先」列に出す中身 */
 type BookLineLabel = {
   text: string;
-  /**
-   * 定跡がその手の先へ続いているか。**色の出し分けに使う。**
-   *
-   * 行き止まりと読めない行は、どちらも「その先は無い」ので `false`
-   */
+  /** 定跡がその手の先へ続いているか。色の出し分けに使う。行き止まりと読めない行は偽 */
   continues: boolean;
   /** 読み上げと `title` に出す説明。`text` だけでは足りないものにだけ付く */
   hint?: string;
@@ -16,12 +13,11 @@ type BookLineLabel = {
 /**
  * 辿った結果を「この先」列の中身にする。
  *
- * `baseTesuu` は現局面までに指された手数。定跡が切れる手数はこれに
- * 辿った手数を足したもので、**画面に出すのは相対ではなく絶対の手数**
- * （棋譜の手数と突き合わせられる形にする）。
+ * `baseTesuu` は現局面までに指された手数。画面に出すのは、棋譜の手数と突き合わせられる
+ * 絶対の手数で、`baseTesuu` に辿った手数を足す。
  *
- * **`switch` の腕を網羅する。** `BookRowLine` に状態を足して腕を足さないと
- * tsc が落ちる —— 「まだ」と「辿れなかった」を同じ綴りで出すのを型で止める。
+ * `switch` は全部の状態を書く。`BookRowLine` に状態を足すと tsc が落ちるので、
+ * 「まだ」と「辿れなかった」が同じ綴りになることを型で止める。
  */
 export function bookLineLabel(line: BookRowLine, baseTesuu: number): BookLineLabel {
   switch (line.state) {
@@ -40,10 +36,7 @@ export function bookLineLabel(line: BookRowLine, baseTesuu: number): BookLineLab
   }
 }
 
-function walkedLabel(
-  line: { plies: number; stopped: "outOfBook" | "depthCap" | "brokenMove" },
-  baseTesuu: number,
-): BookLineLabel {
+function walkedLabel(line: BookLine, baseTesuu: number): BookLineLabel {
   if (line.stopped === "brokenMove") {
     return {
       text: "読めない手",
@@ -52,7 +45,7 @@ function walkedLabel(
     };
   }
 
-  // 辿れたのが最初の1手だけ＝その手は定跡にあるが、指した先は載っていない
+  // 辿れたのが最初の1手だけなら、その手は定跡にあるが、指した先は載っていない
   if (line.plies <= 1 && line.stopped === "outOfBook") {
     return { text: "行き止まり", continues: false };
   }

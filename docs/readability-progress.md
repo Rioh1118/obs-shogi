@@ -51,7 +51,8 @@ ours 戦略のマージは使わない。
 | 15 | `refactor/tidy-entities-game-session` | `src/entities/game-session` | #680 | マージ済み |
 | 16 | `refactor/tidy-entities-file-tree` | `src/entities/file-tree` の `provider.tsx` 以外 | #681 | マージ済み |
 | 17 | `refactor/tidy-file-tree-provider` | `src/entities/file-tree/model/provider.tsx`、改名の不具合と #507 | #682 | マージ済み |
-| 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | レビュー待ち |
+| 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | マージ済み |
+| 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | レビュー待ち |
 
 ## 語
 
@@ -86,7 +87,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 10 | `src/entities/file-tree` の `provider.tsx` 以外           | 1240 | 済     | 済     |
 | 10b | `src/entities/file-tree/model/provider.tsx`              |  737 | 済     | 済     |
 | 11 | `src/entities/search`                                    | 1587 | 済     | 済     |
-| 11b | `src/entities/book`                                     |  867 | 未着手 | 未着手 |
+| 11b | `src/entities/book`                                     |  867 | 済     | 済     |
 | 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 未着手 | 未着手 |
 | 13 | `src/features/settings`                                  | 4778 | 未着手 | 未着手 |
 | 14 | `src/features/position-search`、`src/features/position-editor` | 3186 | 未着手 | 未着手 |
@@ -147,8 +148,12 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/entities/kifu/api/parse.ts` の `parseKifuContentToJKF` | 形式を拡張子だけで決めるので、Finder で変えたファイルは本文と形式がずれたまま0手で載り、次の保存で本文を失う筋がある。未再現。指し手が0で本文が空でないときに開くのを断るかを、#210 と合わせて決める |
 | `src/features/position-search/ui/PositionSearchModal.tsx` の `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` | git に載っていない。`src/features/position-search` の範囲で実測の値だけを残す |
 | `src/entities/search/model/reducer.ts` の `open_start` | 根を変えても `warns` を残すので、前の根の絶対パスが設定の画面に残る。`src-tauri/src/search/announce.rs` の `warn_scan_failed` の doc は「開き直しても消えない」を前提にしている。`src/features/settings` の範囲で、根を変えたら消すかを決める |
+| `src/widgets/book-view/ui/BookView.tsx` の `body` の `switch` | 戻り値が `ReactNode` で `default` も無いので、`BookViewState` に `kind` を足しても tsc が落ちず、本体が空になる。`src/widgets` の範囲で `never` の網羅を足す |
+| `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。中止で前の定跡へ戻すかを `src/widgets` の範囲で決める |
+| `src/entities/book/model/provider.tsx` の辿る失敗の枝 | `invalid_handle` を引く枝でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
+| `src-tauri/src/book/commands.rs` の `open_book` と `list_books` | 開いている間に webview が作り直されると、登録が新しい `list_books` より後になり、ハンドルが次の読み直しまで残る筋がある。未再現 |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/entities/book`。
+`src/entities` の残り（app-config、dock、study-positions、updater）。
