@@ -1,54 +1,23 @@
-export type {
-  Consistency,
-  OpenProjectInput,
-  OpenProjectOutput,
-  SearchPositionInput,
-  SearchPositionOutput,
-} from "./api/contract";
+export type { CursorLite, PositionHit } from "./api/ids";
 
-export type {
-  FileId,
-  Gen,
-  NodeId,
-  RequestId,
-  ForkPointer,
-  Occurrence,
-  FilePathEntry,
-  CursorLite,
-  PositionHit,
-} from "./api/ids";
-
-export type {
-  IndexState,
-  IndexStatePayload,
-  IndexProgressPayload,
-  IndexWarnPayload,
-  SearchBeginPayload,
-  SearchChunkPayload,
-  SearchEndPayload,
-  SearchErrorPayload,
-} from "./api/events";
-
-// **検索を起こす関数も、イベント名も、ここからは出さない。**
+// 検索を起こす関数とイベント名はここから出さない。
 //
-// 検索の生死（rid の発行・取り下げ・結果の破棄）は `PositionSearchProvider` が
-// 1人で持つ。生の `searchPosition` を出すと provider を通らずに検索を起こす形が、
-// `EVT_SEARCH_CHUNK` を出すと `listen` と2行で2人目の購読者が立つ形が、それぞれ
-// 1 import で作れる。**溜め場の `isAccepting` は購読者が1人であることに全面的に依存している。**
+// 検索の番号の発行、取り下げ、結果の破棄は `PositionSearchProvider` が持つ。
+// `searchPosition` や `EVT_SEARCH_CHUNK` を出すと、provider を通らない検索と2人目の購読者を
+// 作れてしまい、`chunkBuffer` の `isAccepting` の判定を素通りする。
 //
 // スライスの中からは barrel を経由せず実体を読むこと（1階層なら相対、
-// 2階層以上は `@/entities/search/...`——`no-restricted-imports` が深い相対を禁じている）。
+// 2階層以上は `@/entities/search/...`。`no-restricted-imports` が深い相対を禁じている）。
 
 /**
- * 索引のカーソルを `CursorPath` に直す唯一の関数。**素の `CursorLite` を
- * 自分で組み直さないこと**（並びと `te <= tesuu` の前提をここで揃えている）。
+ * 索引のカーソルを `CursorPath` に直す。`CursorLite` を自分で組み直さないこと
+ * （並びと `te <= tesuu` の前提をここで揃えている）。
  */
 export { cursorFromLite } from "./lib/cursorAdapter";
 
 /**
- * 索引の具合を1つに決める唯一の関数。**画面ごとに旗を並べ直さないこと**
- * ——見る順が割れると、同じ状態に別の理由が付く。文言は画面が持ってよいが、
- * **どの具合かの判断はここを通す**。
+ * 索引の具合を1つに決める。画面ごとに旗を並べ直さないこと。見る順が割れると、
+ * 同じ状態に別の理由が付く。文言は画面が持ってよい。
  */
 export { indexHealth } from "./lib/indexHealth";
 export { pickWarns } from "./lib/pickWarns";
@@ -57,10 +26,4 @@ export type { IndexHealth } from "./lib/indexHealth";
 export { PositionSearchProvider } from "./model/provider";
 export { usePositionSearch } from "./model/usePositionSearch";
 
-export type {
-  SearchState,
-  SearchSession,
-  IndexUiState,
-  FilePathById,
-  PositionSearchContextType,
-} from "./model/types";
+export type { IndexUiState } from "./model/types";

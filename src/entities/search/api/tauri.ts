@@ -1,8 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
+
+import { subscribeAll } from "@/shared/api/event/subscribeAll";
 
 import type {
   CancelSearchInput,
+  OpenProjectInput,
   OpenProjectOutput,
   SearchPositionInput,
   SearchPositionOutput,
@@ -23,94 +26,51 @@ import {
   type SearchEndPayload,
   type SearchErrorPayload,
 } from "./events";
-
-// ===== プロジェクト操作 =====
+import type { RequestId } from "./ids";
 
 export async function openProject(rootDir: string): Promise<OpenProjectOutput> {
-  return await invoke<OpenProjectOutput>("open_project", {
-    input: { rootDir },
-  });
+  const input: OpenProjectInput = { rootDir };
+  return await invoke<OpenProjectOutput>("open_project", { input });
 }
 
-// ===== 局面検索 =====
-
 /**
- * 局面検索を開始。Rust 側は spawn してすぐ rid を返すので、この Promise は
- * 検索完了を待たず、直ちに resolve する。結果は EVT_SEARCH_CHUNK で届く。
+ * 局面検索を始める。Rust は検索を spawn して番号をすぐ返すので、解決は検索の完了を待たない。
+ * 結果は `EVT_SEARCH_CHUNK` で届く。
  */
 export async function searchPosition(input: SearchPositionInput): Promise<SearchPositionOutput> {
   return await invoke<SearchPositionOutput>("search_position", { input });
 }
 
-/**
- * 進行中の検索をキャンセル。フロント側 cleanup で必ず呼ぶ。
- */
-export async function cancelSearch(requestId: number): Promise<void> {
+/** 進行中の検索を取り消す。Rust は終わった検索の番号でも `Ok` を返す。 */
+export async function cancelSearch(requestId: RequestId): Promise<void> {
   const input: CancelSearchInput = { requestId };
   await invoke<void>("cancel_search", { input });
 }
 
-// ===== イベント購読ヘルパ =====
+export type SearchEventHandlers = {
+  onIndexState: (p: IndexStatePayload) => void;
+  onIndexProgress: (p: IndexProgressPayload) => void;
+  onIndexWarn: (p: IndexWarnPayload) => void;
 
-export interface SearchEventHandlers {
-  onIndexState?: (p: IndexStatePayload) => void;
-  onIndexProgress?: (p: IndexProgressPayload) => void;
-  onIndexWarn?: (p: IndexWarnPayload) => void;
+  onSearchBegin: (p: SearchBeginPayload) => void;
+  onSearchChunk: (p: SearchChunkPayload) => void;
+  onSearchEnd: (p: SearchEndPayload) => void;
+  onSearchError: (p: SearchErrorPayload) => void;
+};
 
-  onSearchBegin?: (p: SearchBeginPayload) => void;
-  onSearchChunk?: (p: SearchChunkPayload) => void;
-  onSearchEnd?: (p: SearchEndPayload) => void;
-  onSearchError?: (p: SearchErrorPayload) => void;
+function subscribePayload<T>(name: string, handler: (payload: T) => void) {
+  return () => listen<T>(name, (event) => handler(event.payload));
 }
 
-export async function listenSearchEvents(handlers: SearchEventHandlers): Promise<UnlistenFn> {
-  const unlisteners: UnlistenFn[] = [];
-
-  if (handlers.onIndexState) {
-    unlisteners.push(
-      await listen<IndexStatePayload>(EVT_INDEX_STATE, (e) => handlers.onIndexState?.(e.payload)),
-    );
-  }
-  if (handlers.onIndexProgress) {
-    unlisteners.push(
-      await listen<IndexProgressPayload>(EVT_INDEX_PROGRESS, (e) =>
-        handlers.onIndexProgress?.(e.payload),
-      ),
-    );
-  }
-  if (handlers.onIndexWarn) {
-    unlisteners.push(
-      await listen<IndexWarnPayload>(EVT_INDEX_WARN, (e) => handlers.onIndexWarn?.(e.payload)),
-    );
-  }
-  if (handlers.onSearchBegin) {
-    unlisteners.push(
-      await listen<SearchBeginPayload>(EVT_SEARCH_BEGIN, (e) =>
-        handlers.onSearchBegin?.(e.payload),
-      ),
-    );
-  }
-  if (handlers.onSearchChunk) {
-    unlisteners.push(
-      await listen<SearchChunkPayload>(EVT_SEARCH_CHUNK, (e) =>
-        handlers.onSearchChunk?.(e.payload),
-      ),
-    );
-  }
-  if (handlers.onSearchEnd) {
-    unlisteners.push(
-      await listen<SearchEndPayload>(EVT_SEARCH_END, (e) => handlers.onSearchEnd?.(e.payload)),
-    );
-  }
-  if (handlers.onSearchError) {
-    unlisteners.push(
-      await listen<SearchErrorPayload>(EVT_SEARCH_ERROR, (e) =>
-        handlers.onSearchError?.(e.payload),
-      ),
-    );
-  }
-
-  return () => {
-    for (const u of unlisteners) u();
-  };
+/** 全部のイベントを順に購読する。途中で失敗したら、張れた分を解除して投げ直す。 */
+export function listenSearchEvents(handlers: SearchEventHandlers): Promise<() => void> {
+  return subscribeAll([
+    subscribePayload(EVT_INDEX_STATE, handlers.onIndexState),
+    subscribePayload(EVT_INDEX_PROGRESS, handlers.onIndexProgress),
+    subscribePayload(EVT_INDEX_WARN, handlers.onIndexWarn),
+    subscribePayload(EVT_SEARCH_BEGIN, handlers.onSearchBegin),
+    subscribePayload(EVT_SEARCH_CHUNK, handlers.onSearchChunk),
+    subscribePayload(EVT_SEARCH_END, handlers.onSearchEnd),
+    subscribePayload(EVT_SEARCH_ERROR, handlers.onSearchError),
+  ]);
 }

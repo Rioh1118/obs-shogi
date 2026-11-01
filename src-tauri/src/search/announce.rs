@@ -188,7 +188,7 @@ impl IndexProgress {
 /// 仕事が終わったことの告げ方。**`IndexState` そのものではない**——
 /// 段と旗をどう組むかはこの型が決める。
 ///
-/// **TS の `IndexAnnouncement`（reducer が積む索引の現況）とは別物。**
+/// **TS の `IndexUiState`（reducer が積む索引の現況）とは別物。**
 /// あちらは8欄のオブジェクトで、こちらは1回の結末。線には出ない。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexAnnouncement {
