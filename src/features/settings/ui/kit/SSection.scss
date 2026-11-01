@@ -11,8 +11,6 @@ $surface-1: rgba(index.$color-primary-black, 0.18); // body
 
 $text-muted: rgba(index.$color-text-light-1, 0.72);
 
-$danger: #ff5a5a;
-$warn: #f0b429;
 
 .sui-section {
   border-radius: $radius;
@@ -77,13 +75,4 @@ $warn: #f0b429;
   padding: 12px 12px;
   display: grid;
   gap: 12px;
-}
-
-// tones
-.sui-section[data-tone="danger"] {
-  border-color: rgba($danger, 0.36);
-}
-
-.sui-section[data-tone="warn"] {
-  border-color: rgba($warn, 0.4);
 }

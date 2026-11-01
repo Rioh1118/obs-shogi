@@ -2,7 +2,8 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SSection } from "@/features/settings/ui/kit";
-import { cx, parseIntSafe } from "@/features/settings/lib/presetDialog";
+import { cx } from "@/features/settings/lib/cx";
+import { parseIntSafe } from "@/features/settings/lib/presetDialog";
 import {
   engineDefaultLabel,
   engineDefaultOf,

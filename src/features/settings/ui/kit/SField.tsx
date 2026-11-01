@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import "./SField.scss";
 
 type Props = {
@@ -6,45 +6,16 @@ type Props = {
   description?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
-
-  htmlFor?: string;
   right?: ReactNode;
-
-  disabled?: boolean;
-  invalid?: boolean;
-
-  className?: string;
   children: ReactNode;
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
-
-export default function SField({
-  label,
-  description,
-  hint,
-  error,
-  htmlFor,
-  right,
-  disabled,
-  invalid,
-  className,
-  children,
-}: Props) {
-  const showError = !!error;
+export default function SField({ label, description, hint, error, right, children }: Props) {
   return (
-    <div
-      className={cx("sui-field", className)}
-      data-disabled={disabled ? "true" : "false"}
-      data-invalid={invalid || showError ? "true" : "false"}
-    >
+    <div className="sui-field">
       {(label || right) && (
         <div className="sui-field__head">
-          {label && (
-            <label className="sui-field__label" htmlFor={htmlFor}>
-              {label}
-            </label>
-          )}
+          {label && <label className="sui-field__label">{label}</label>}
           {right && <div className="sui-field__right">{right}</div>}
         </div>
       )}
@@ -53,7 +24,7 @@ export default function SField({
 
       <div className="sui-field__control">{children}</div>
 
-      {showError ? (
+      {error ? (
         <div className="sui-field__error" role="alert">
           {error}
         </div>

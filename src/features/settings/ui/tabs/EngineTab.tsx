@@ -14,20 +14,14 @@ import {
   type PresetId,
 } from "@/entities/engine-presets/model/types";
 import { MULTIPV_OPTION } from "@/entities/engine-presets/model/multiPv";
+import { cx } from "@/features/settings/lib/cx";
 import { fileLabel } from "@/features/settings/lib/fileChoices";
+import { basename } from "@/features/settings/lib/presetDialog";
 import {
   engineDefaultLabel,
   engineDefaultOf,
   savedInt,
 } from "@/features/settings/lib/quickOptions";
-
-const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
-
-function basename(p: string) {
-  const s = (p ?? "").replace(/\\/g, "/");
-  const last = s.split("/").filter(Boolean).pop();
-  return last || (p ?? "");
-}
 
 export default function EngineTab() {
   const { state, reload, selectPreset, createPreset, duplicatePreset, deletePreset } =

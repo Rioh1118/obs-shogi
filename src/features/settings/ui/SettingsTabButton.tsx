@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import SettingsBadge, { type SettingsBadgeTone } from "./kit/SettingsBadge";
 import "./SettingsTabButton.scss";
 
+import { cx } from "@/features/settings/lib/cx";
+
 type TabBadge = {
   tone?: SettingsBadgeTone;
   children: ReactNode;
@@ -15,12 +17,10 @@ type Props = {
 };
 
 function SettingsTabButton({ active, label, onClick, badges = [] }: Props) {
-  const cls = ["stab", active ? "stab--active" : ""].filter(Boolean).join(" ");
-
   return (
     <button
       type="button"
-      className={cls}
+      className={cx("stab", active && "stab--active")}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
     >

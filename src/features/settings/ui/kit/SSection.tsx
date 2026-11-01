@@ -6,30 +6,14 @@ type Props = {
   description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
-
-  className?: string;
-  tone?: "default" | "danger" | "warn";
 };
 
-const cx = (...xs: Array<string | false | null | undefined>) => xs.filter(Boolean).join(" ");
-
-export default function SSection({
-  title,
-  description,
-  actions,
-  children,
-  className,
-  tone = "default",
-}: Props) {
+export default function SSection({ title, description, actions, children }: Props) {
   // 見出しを節の名前にする。名前の無い `<section>` は landmark として引けない
   const titleId = useId();
 
   return (
-    <section
-      className={cx("sui-section", className)}
-      data-tone={tone}
-      aria-labelledby={title ? titleId : undefined}
-    >
+    <section className="sui-section" aria-labelledby={title ? titleId : undefined}>
       {(title || actions) && (
         <header className="sui-section__head">
           <div className="sui-section__titles">
