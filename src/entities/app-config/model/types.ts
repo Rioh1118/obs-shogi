@@ -72,7 +72,6 @@ export type ConfigState = {
 export type ConfigAction =
   | { type: "loading" }
   | { type: "loaded"; payload: AppConfig }
-  | { type: "updated"; payload: AppConfig }
   /**
    * 失敗を積まずに `isLoading` だけ降ろす。
    *
@@ -94,7 +93,6 @@ export type ConfigAction =
   | { type: "error"; payload: string };
 
 export type AppConfigContextType = ConfigState & {
-  updateConfig: (config: AppConfig) => Promise<void>;
   chooseRootDir: (opts?: ChooseOpts) => Promise<string | null>;
   /**
    * AI フォルダを選ばせる。**成否を返す。**
@@ -116,7 +114,7 @@ export type AppConfigContextType = ConfigState & {
   /**
    * 表示の設定を書き換える。**渡した欄だけを差し替える。**
    *
-   * 呼び手に `AppConfig` を組ませない —— 組ませると、`updateConfig` は
+   * 呼び手に `AppConfig` を組ませない —— 組ませると、`save_config` は
    * ファイルごと置き換えるので、呼び手が知らない欄（あとから足された欄）を
    * `undefined` で書き潰す。
    */

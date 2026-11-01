@@ -46,36 +46,41 @@ function ensureNonEmpty(label: string, value: string | null): string {
   return value;
 }
 
-export async function chooseRootDir(opts: ChooseOpts = {}): Promise<string | null> {
-  const { force = false } = opts;
+type DirectoryField = "root_dir" | "ai_root";
+
+/**
+ * 欄の場所を決める。`force` でなければ、決まっている値をピッカーなしで返す。
+ *
+ * 取り消しは `null` で、設定は書かない。
+ */
+async function chooseDirectory(
+  field: DirectoryField,
+  label: string,
+  { force = false }: ChooseOpts,
+): Promise<string | null> {
   const { config, loaded } = await currentConfig();
 
-  if (!force && config.root_dir) return config.root_dir;
+  const current = config[field];
+  if (!force && current) return current;
 
-  const picked = await pickDirectory("ワークスペースを選択してください");
+  const picked = await pickDirectory(`${label}を選択してください`);
   if (!picked) return null;
 
-  const rootDir = ensureNonEmpty("ワークスペース", picked);
-  await saveOver({ ...config, root_dir: rootDir }, loaded);
-  return rootDir;
+  const directory = ensureNonEmpty(label, picked);
+  await saveOver({ ...config, [field]: directory }, loaded);
+  return directory;
 }
 
-export async function chooseAiRoot(opts: ChooseOpts = {}): Promise<string | null> {
-  const { force = false } = opts;
-  const { config, loaded } = await currentConfig();
-
-  if (!force && config.ai_root) return config.ai_root;
-
-  const picked = await pickDirectory("AI ライブラリを選択してください");
-  if (!picked) return null;
-
-  const aiRoot = ensureNonEmpty("AI ライブラリ", picked);
-  await saveOver({ ...config, ai_root: aiRoot }, loaded);
-  return aiRoot;
+export function chooseRootDir(opts: ChooseOpts = {}): Promise<string | null> {
+  return chooseDirectory("root_dir", "ワークスペース", opts);
 }
 
-export async function setRootDir(root_dir: string): Promise<void> {
+export function chooseAiRoot(opts: ChooseOpts = {}): Promise<string | null> {
+  return chooseDirectory("ai_root", "AI ライブラリ", opts);
+}
+
+export async function setRootDir(rootDir: string): Promise<void> {
   const { config, loaded } = await currentConfig();
-  const next = ensureNonEmpty("ワークスペース", root_dir);
+  const next = ensureNonEmpty("ワークスペース", rootDir);
   await saveOver({ ...config, root_dir: next }, loaded);
 }

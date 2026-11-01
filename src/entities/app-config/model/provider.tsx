@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import type { ReactNode } from "react";
-import type { AppConfig, AppConfigContextType, DisplayConfigPatch } from "./types";
+import type { AppConfig, AppConfigContextType, ChooseOpts, DisplayConfigPatch } from "./types";
 
 import { AppConfigContext } from "./context";
 import { configReducer, initialState } from "./reducer";
@@ -16,43 +16,37 @@ import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 export function AppConfigProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(configReducer, initialState);
 
-  useEffect(() => {
-    let cancelled = false;
+  /**
+   * 欄の書き込みを1本に並べる鎖。順序だけを決める。
+   *
+   * 並べないと2件目は1件目の保存より前のファイルを読み、`save_config` はファイルごと
+   * 置き換えるので1件目の欄が消える。
+   *
+   * 鎖に土台を持たせない。`setRootDir`、`chooseRootDir`、`chooseAiRoot` は鎖を通らずに
+   * `app.json` を書くので、自分が書いた値を握り続けると、間に挟まったそれらの欄を
+   * 次の書き込みが古い値へ戻す。ワークスペースを選び直した直後にチェックを1つ押すと
+   * `root_dir` が消えたパスへ戻る、という形で出る。
+   */
+  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
 
-    (async () => {
-      dispatch({ type: "loading" });
-      try {
-        const config = await loadConfig();
-        if (!cancelled) dispatch({ type: "loaded", payload: config });
-      } catch (err) {
-        if (!cancelled) {
-          dispatch({
-            type: "error",
-            payload: `設定を読み込めませんでした。ワークスペースを選択し直してください（${String(err)}）`,
-          });
-        }
-      }
-    })();
+  /** 渡した欄だけを差し替えて書く。土台は毎回ファイルから読み直す */
+  const writeFields = useCallback((patch: Partial<AppConfig>): Promise<void> => {
+    const chained = writeChainRef.current.then(async () => {
+      // 鎖のおかげで直前の `saveConfig` は必ず終わっているので、これが最新
+      const base = await loadConfig();
+      const next: AppConfig = { ...base, ...patch };
 
-    return () => {
-      cancelled = true;
-    };
+      await saveConfig(next);
+      dispatch({ type: "loaded", payload: next });
+    });
+
+    // 鎖は切らさない。reject のまま残すと、以後の書き込みが全部その失敗を引き継ぐ
+    writeChainRef.current = chained.catch(() => undefined);
+
+    return chained;
   }, []);
 
-  async function updateConfig(config: AppConfig) {
-    dispatch({ type: "loading" });
-    try {
-      await saveConfig(config);
-      dispatch({ type: "updated", payload: config });
-    } catch (err) {
-      dispatch({
-        type: "error",
-        payload: `設定を保存できませんでした。もう一度お試しください（${String(err)}）`,
-      });
-    }
-  }
-
-  async function chooseRootDir(opts = {}) {
+  async function chooseRootDir(opts?: ChooseOpts) {
     // **ピッカーを開く前に `loading` を立てない。** `loading` は `error` も消すので、
     // 立てると「選ぶのをやめた」だけで直前の失敗の理由が画面から消える。
     // ネイティブのピッカーは自分で画面を止めるので、待たせる表示も要らない
@@ -64,7 +58,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
 
       dispatch({ type: "loading" });
       const updated = await loadConfig();
-      dispatch({ type: "updated", payload: updated });
+      dispatch({ type: "loaded", payload: updated });
       return rootDir;
     } catch (err) {
       dispatch({
@@ -75,7 +69,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function chooseAiRoot(opts = {}) {
+  async function chooseAiRoot(opts?: ChooseOpts) {
     // 理由は `chooseRootDir` と同じ
     try {
       const aiRoot = await chooseAiRootApi(opts);
@@ -83,7 +77,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
 
       dispatch({ type: "loading" });
       const updated = await loadConfig();
-      dispatch({ type: "updated", payload: updated });
+      dispatch({ type: "loaded", payload: updated });
       return Ok(aiRoot);
     } catch (err) {
       // **`error` に積まない。** `RequireRootDir` がそれを見て `/` へ飛ばすので、
@@ -98,7 +92,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     try {
       await setRootDirApi(rootDir);
       const updated = await loadConfig();
-      dispatch({ type: "updated", payload: updated });
+      dispatch({ type: "loaded", payload: updated });
       return Ok(undefined);
     } catch (err) {
       // **`dispatch({type:"error"})` はしない。** `RequireRootDir` がそれを見て
@@ -124,36 +118,6 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  /**
-   * 欄の書き込みを1本に並べる鎖。順序だけを決める。
-   *
-   * 並べないと2件目は1件目の保存より前のファイルを読み、`save_config` はファイルごと
-   * 置き換えるので1件目の欄が消える。
-   *
-   * 鎖に土台を持たせない。`setRootDir`、`chooseRootDir`、`chooseAiRoot` は鎖を通らずに
-   * `app.json` を書くので、自分が書いた値を握り続けると、間に挟まったそれらの欄を
-   * 次の書き込みが古い値へ戻す。ワークスペースを選び直した直後にチェックを1つ押すと
-   * `root_dir` が消えたパスへ戻る、という形で出る。
-   */
-  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
-
-  /** 渡した欄だけを差し替えて書く。土台は毎回ファイルから読み直す */
-  const writeFields = useCallback((patch: Partial<AppConfig>): Promise<void> => {
-    const chained = writeChainRef.current.then(async () => {
-      // 鎖のおかげで直前の `saveConfig` は必ず終わっているので、これが最新
-      const base = await loadConfig();
-      const next: AppConfig = { ...base, ...patch };
-
-      await saveConfig(next);
-      dispatch({ type: "updated", payload: next });
-    });
-
-    // 鎖は切らさない。reject のまま残すと、以後の書き込みが全部その失敗を引き継ぐ
-    writeChainRef.current = chained.catch(() => undefined);
-
-    return chained;
-  }, []);
-
   // 戻り値の型をここに書くのは、`src/__tests__/asyncResultUse.test.ts` が宣言から
   // 名前を拾うため。外すと、この関数を投げっぱなしで呼んだ箇所が機械の目から消える
   const setDisplayConfig = useCallback(
@@ -170,9 +134,31 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     [writeFields],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      dispatch({ type: "loading" });
+      try {
+        const config = await loadConfig();
+        if (!cancelled) dispatch({ type: "loaded", payload: config });
+      } catch (err) {
+        if (!cancelled) {
+          dispatch({
+            type: "error",
+            payload: `設定を読み込めませんでした。ワークスペースを選択し直してください（${String(err)}）`,
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const value: AppConfigContextType = {
     ...state,
-    updateConfig,
     chooseRootDir,
     chooseAiRoot,
     setRootDir,
