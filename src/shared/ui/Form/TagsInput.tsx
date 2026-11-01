@@ -120,7 +120,6 @@ export function TagsInput({
 
       <div className={containerClasses} onClick={handleContainerClick}>
         <div className="tags-input__content">
-          {/* Tags Display */}
           {tags.length > 0 && (
             <div className="tags-input__tags">
               {tags.map((tag, index) => (
@@ -143,7 +142,6 @@ export function TagsInput({
             </div>
           )}
 
-          {/* Input Area */}
           <div className="tags-input__input-area">
             <input
               ref={inputRef}
@@ -178,7 +176,6 @@ export function TagsInput({
         </div>
       </div>
 
-      {/* Help Text */}
       <div className="tags-input__help">
         <span>Enter</span>や<span>カンマ</span>で区切って複数追加可能
       </div>
