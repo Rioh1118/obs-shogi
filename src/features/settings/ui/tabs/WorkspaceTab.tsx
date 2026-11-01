@@ -12,6 +12,7 @@ import type { IndexHealth, IndexUiState } from "@/entities/search";
 import { acceptsManualCheck, useUpdater } from "@/entities/updater";
 import type { ManualCheckResult } from "@/entities/updater";
 import { getAppVersion } from "@/shared/api/app/appVersion";
+import { copyText } from "@/shared/api/clipboard/copyText";
 import SettingsBadge from "../kit/SettingsBadge";
 
 function percent(done: number, total: number) {
@@ -147,14 +148,6 @@ function lastCheckedText(ms: number | null): string {
   });
 }
 
-async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    // 必要なら後で clipboard plugin に
-  }
-}
-
 export default function WorkspaceTab() {
   const { config, isLoading, error, chooseRootDir } = useAppConfig();
   const { state: search, clearWarns } = usePositionSearch();
@@ -194,10 +187,6 @@ export default function WorkspaceTab() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const canChange = confirmText.trim().toLowerCase() === "change";
-
-  const onCopyPath = async () => {
-    await copyText(rootDir);
-  };
 
   const onChangeWorkspace = async () => {
     const picked = await chooseRootDir({ force: true });
@@ -320,7 +309,7 @@ export default function WorkspaceTab() {
         description="棋譜・ノート・タグなどのデータを保存する“Vault”です。通常は変更しません。"
         actions={
           <div className="wsTab__actions">
-            <Button size="sm" onClick={onCopyPath} disabled={isLoading}>
+            <Button size="sm" onClick={() => void copyText(rootDir)} disabled={isLoading}>
               <Copy size={16} />
               コピー
             </Button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 import "./EngineTab.scss";
 
 import { Plus, Pencil, Copy, Trash2, RefreshCcw, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -47,10 +47,6 @@ export default function EngineTab() {
     });
     return xs;
   }, [presets, selectedId]);
-
-  useEffect(() => {
-    console.log(selectedId);
-  }, [selectedId]);
 
   // 書けないファイル（新しい版、読めない、移せなかった）では変更の操作を押せなくする。
   // 理由は帯が出す（`PresetsFileBridge`）

@@ -268,6 +268,19 @@ describe("「保存場所」の節", () => {
     expect(clipboardWrite).toHaveBeenCalledWith("/ws");
   });
 
+  test("クリップボードの API が拒んだら、選択を写す経路へ落ちる", async () => {
+    clipboardWrite.mockRejectedValue(new Error("denied"));
+    const execCommand = vi.fn(() => true);
+    document.execCommand = execCommand as unknown as typeof document.execCommand;
+    await renderTab();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "コピー" }));
+    });
+
+    expect(execCommand).toHaveBeenCalledWith("copy");
+  });
+
   test("読み込み中はコピーできない", async () => {
     world.appConfig.isLoading = true;
     await renderTab();
