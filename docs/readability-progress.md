@@ -35,7 +35,8 @@ ours 戦略のマージは使わない。
 | 段 | 枝 | 範囲 | PR | 状態 |
 | -- | -- | ---- | -- | ---- |
 | 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | 未作成 | 作業中 |
-| 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | 未作成 | 作業中 |
+| 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | #663 | レビュー待ち |
+| 3 | `refactor/shared-public-names` | `shared` の公開の名前と呼び手 | 未作成 | 作業中 |
 
 ## 語
 
@@ -103,15 +104,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/position-search/ui/PositionSearchModal.tsx` の `discardSearch` の説明 | `clearSearch` を呼ぶのは「ここだけ」と書くが、同じファイルの別の箇所でも呼ぶ |
 | `src/features/game-move/ui/__tests__/gameMoveBridge.test.tsx` の `vi.mock` の doc | export が増えれば落ちると書くが、`importActual` を展開しているので落ちない疑いがある。未再現 |
 | `src/features/settings/ui/tabs/WorkspaceTab.tsx` の `copyText` | `shared/api/clipboard` と同じ名前で別の本体を持つ。寄せられるかを本体で判定する |
-
-## 公開の名前の候補
-
-`shared` と `entities` の公開の名前は、呼び手を含めて独立した段にする。
-
-| 名前 | 問い |
-| ---- | ---- |
-| `convertSfenSequence` | 何へ変換するかが読めない。返すのは日本語表記の手 |
-| `NotificationContextType` | この形の context は無い。出す関数と出ている通知の組 |
 
 ## 次に取る範囲
 

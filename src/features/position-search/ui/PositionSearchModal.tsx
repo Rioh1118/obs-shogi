@@ -373,10 +373,8 @@ export default function PositionSearchModal() {
     <Modal
       onClose={closeModal}
       label="局面検索"
-      theme="dark"
       variant="workspace"
       size="xl"
-      chrome="card"
       scroll="none"
       closeOnEsc
       closeOnOverlay

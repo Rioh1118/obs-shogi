@@ -43,7 +43,7 @@ export default function ConfirmDialog({
     // fsync が返らない）とき、塞いでいるとこのダイアログが**出口ゼロの行き止まり**になる。
     // × ボタンも無く、キャンセルも実行も押せず、残るのはウィンドウごと閉じることだけになる。
     // 二重実行を止めるのは下の実行ボタンの `isLoading` で足りる。
-    <Modal onClose={onCancel} label={title} theme="dark" size="sm" scroll="none">
+    <Modal onClose={onCancel} label={title} size="sm" scroll="none">
       <div className="confirm-dialog">
         <p className="confirm-dialog__title">{title}</p>
         {subtitle && <p className="confirm-dialog__sub">{subtitle}</p>}

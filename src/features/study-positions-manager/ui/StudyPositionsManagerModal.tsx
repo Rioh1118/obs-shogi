@@ -296,10 +296,8 @@ export default function StudyPositionsManagerModal() {
     <Modal
       onClose={closeModal}
       label="課題局面"
-      theme="dark"
       variant="workspace"
       size="xl"
-      chrome="card"
       scroll="none"
       closeOnEsc
       closeOnOverlay

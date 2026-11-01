@@ -130,7 +130,6 @@ export default function SfenKifuCreateModal() {
     <Modal
       onClose={closeModal}
       label="課題局面から棋譜を作成"
-      theme="dark"
       variant="dialog"
       size="md"
       scroll="none"
@@ -140,7 +139,7 @@ export default function SfenKifuCreateModal() {
           <PreviewPane previewData={previewData} />
         </div>
 
-        <Form handleSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit}>
           <FormField>
             <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
           </FormField>

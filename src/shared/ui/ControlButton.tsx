@@ -3,14 +3,14 @@ import "./ControlButton.scss";
 
 interface ControlButtonProps {
   children: ReactNode;
-  handleClick: () => void;
+  onClick: () => void;
   disabled?: boolean;
   title?: string; // ツールチップ用
 }
 
-function ControlButton({ children, handleClick, disabled = false, title }: ControlButtonProps) {
+function ControlButton({ children, onClick, disabled = false, title }: ControlButtonProps) {
   return (
-    <button className="control-button" onClick={handleClick} disabled={disabled} title={title}>
+    <button className="control-button" onClick={onClick} disabled={disabled} title={title}>
       {children}
     </button>
   );

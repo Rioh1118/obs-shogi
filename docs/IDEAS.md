@@ -491,7 +491,7 @@ IPC 型を編集することになり、その同期漏れを捕まえるため�
 ## `sfenConverter.ts` から SFEN 変換が無くなったので改名する
 
 #95（定跡ビュー）のレビュー（architecture reviewer）。
-`convertSfenSequence` を `shared/lib/shogi/moveText.ts` へ下げた結果、
+`formatMoveSequence` を `shared/lib/shogi/moveText.ts` へ下げた結果、
 `widgets/analysis-pane/lib/sfenConverter.ts` に残ったのは
 `formatEvaluation` と `evaluationToPercentage` だけになった。
 

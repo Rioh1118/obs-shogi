@@ -152,10 +152,8 @@ export default function StudyPositionSaveModal() {
     <Modal
       onClose={closeModal}
       label={isEdit ? "課題局面を編集" : "局面を保存"}
-      theme="dark"
       variant="workspace"
       size="xl"
-      chrome="card"
       scroll="none"
       closeOnEsc
       closeOnOverlay

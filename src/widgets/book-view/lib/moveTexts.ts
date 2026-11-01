@@ -1,5 +1,5 @@
 import type { BookMove } from "@/entities/book";
-import { convertSfenSequence } from "@/shared/lib/shogi/moveText";
+import { formatMoveSequence } from "@/shared/lib/shogi/moveText";
 
 /** 表に出す、1行ぶんの指し手の綴り */
 type BookMoveTexts = {
@@ -21,13 +21,13 @@ type BookMoveTexts = {
  */
 export function bookMoveTexts(sfen: string | null, move: BookMove): BookMoveTexts {
   if (move.ponder) {
-    const both = convertSfenSequence(sfen, [move.usiMove, move.ponder]);
+    const both = formatMoveSequence(sfen, [move.usiMove, move.ponder]);
     if (both.length === 2) {
       return { move: both[0].move, ponder: both[1].move };
     }
   }
 
-  const only = convertSfenSequence(sfen, [move.usiMove]);
+  const only = formatMoveSequence(sfen, [move.usiMove]);
 
   return {
     move: only[0]?.move ?? move.usiMove,

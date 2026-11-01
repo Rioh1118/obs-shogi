@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
 import "./Modal.scss";
 import { X } from "lucide-react";
@@ -8,10 +8,8 @@ import { createPortal } from "react-dom";
 const FOCUSABLE =
   'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
-type ModalTheme = "dark";
 type ModalVariant = "dialog" | "workspace";
 type ModalSize = "sm" | "md" | "lg" | "xl";
-type ModalChrome = "card";
 type ModalScroll = "card" | "content" | "none";
 
 interface ModalProps {
@@ -23,10 +21,8 @@ interface ModalProps {
    * 何が開いたのかが分からない。画面の見出しと同じ文にする
    */
   label: string;
-  theme?: ModalTheme;
   variant?: ModalVariant;
   size?: ModalSize;
-  chrome?: ModalChrome;
   scroll?: ModalScroll;
 
   closeOnEsc?: boolean;
@@ -39,29 +35,14 @@ function Modal({
   onClose,
   label,
 
-  // 対話の面は暗い側を既定にしてある（ADR-0005）。共通の `Button` は暗い面の上に
-  // しか色を持たないので、既定を明るい側にすると theme を書き忘れたモーダルで
-  // 「キャンセル」が背景に溶ける。既定を安全側に置いて書き忘れを事故にしない
-  theme = "dark",
   variant = "dialog",
   size = "md",
-  chrome = "card",
   scroll = "none",
 
   closeOnEsc = true,
   closeOnOverlay = true,
   showCloseButton = false,
 }: ModalProps) {
-  const className = useMemo(() => {
-    return [
-      "modal",
-      `modal--${theme}`,
-      `modal--${variant}`,
-      `modal--size-${size}`,
-      `modal--chrome-${chrome}`,
-    ].join(" ");
-  }, [theme, variant, size, chrome]);
-
   const cardRef = useRef<HTMLDivElement | null>(null);
   // 開いている間だけマウントされる
   const isTop = useOverlayLayer(true);
@@ -178,7 +159,7 @@ function Modal({
   const root = document.getElementById("modal-root") ?? document.body;
 
   return createPortal(
-    <div className={className}>
+    <div className={`modal modal--dark modal--${variant} modal--size-${size}`}>
       <div
         className="modal__overlay"
         onClick={() => {

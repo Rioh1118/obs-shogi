@@ -49,7 +49,6 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
     <Modal
       onClose={onDismiss}
       label="棋譜を開けませんでした"
-      theme="dark"
       variant="dialog"
       size="sm"
       scroll="content"

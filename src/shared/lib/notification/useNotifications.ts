@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import { NotificationActionsContext, NotificationListContext } from "./context";
-import type { NotificationActions, NotificationContextType } from "./types";
+import type { NotificationActions, NotificationsView } from "./types";
 
 /**
  * 通知を出す関数を返す。
@@ -24,7 +24,7 @@ export function useNotify(): NotificationActions {
  * 出すだけなら `useNotify` を使うこと。こちらは通知が出入りするたびに
  * 呼び出し側を再描画させる。
  */
-export function useNotifications(): NotificationContextType {
+export function useNotifications(): NotificationsView {
   const actions = useNotify();
   const notifications = useContext(NotificationListContext);
   if (!notifications) {
