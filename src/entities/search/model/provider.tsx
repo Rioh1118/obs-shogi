@@ -25,30 +25,13 @@ import type {
 } from "../api/events";
 import type { PositionHit, RequestId } from "../api/ids";
 
-import { isAppendOnlyContinuation } from "@/shared/lib/appendOnly";
-
 import { createChunkBuffer, type ChunkBufferApi } from "./chunkBuffer";
 import { PositionSearchContext } from "./context";
+import { flattenHits, type HitsCache } from "./hitsCache";
 import { initialState, reducer, type DropSearchAction } from "./reducer";
 import type { PositionSearchContextType, SearchLaunch, SearchSession } from "./types";
 
 const EMPTY_HITS: PositionHit[] = [];
-
-type HitsCacheEntry = {
-  /**
-   * 直前に取り込んだチャンクの実体。
-   *
-   * **チャンクを入れている配列の同一性では判定しない。** reducer は到着のたびに
-   * `[...s.chunks, ...p.chunks]` で新しい配列へ差し替えるので、同一性で見ると
-   * 増分追記は**一度も起きず**、毎回先頭から n 件を作り直すことになる。
-   */
-  lastChunk: PositionHit[] | null;
-  consumed: number;
-  /** 追記していく作業用。**呼び手へ渡すのはこれではない** */
-  flat: PositionHit[];
-  /** 呼び手へ渡した写し。同じ state を見ている間は同じものを返す */
-  snapshot: PositionHit[];
-};
 
 /**
  * 局面検索の state と索引の操作。
@@ -77,7 +60,7 @@ export function PositionSearchProvider({
    * 常に別の配列を返せば memo が毎回外れ、常に同じ配列を返せば増えたことが
    * 伝わらない。境目は `getHitsByRequestId` の中。
    */
-  const hitsCacheRef = useRef(new Map<RequestId, HitsCacheEntry>());
+  const hitsCacheRef = useRef<HitsCache>(new Map());
 
   /**
    * 購読の試行が決着したか。**索引を開くのはこれが真になってから。**
@@ -94,8 +77,6 @@ export function PositionSearchProvider({
    */
   const [isListenSettled, setIsListenSettled] = useState(false);
 
-  // ---- チャンクの合流 ----
-
   /**
    * **同一性の変わらない1つの object。** 中身は `createChunkBuffer` の doc。
    * 依存に載せても effect が張り直らないので、購読の effect が
@@ -104,13 +85,6 @@ export function PositionSearchProvider({
   const chunkBufferRef = useRef<ChunkBufferApi | null>(null);
   chunkBufferRef.current ??= createChunkBuffer(dispatch);
   const chunkBuffer = chunkBufferRef.current;
-
-  useEffect(() => {
-    // 対にする。**setup で開け直す**のは、畳んで張り直す経路（StrictMode の
-    // 二重マウント）で閉じたまま残ると以後のチャンクが1つも積まれないため
-    chunkBuffer.activate();
-    return () => chunkBuffer.deactivate();
-  }, [chunkBuffer]);
 
   /**
    * 検索の持ち物を落とす。**rid で引ける置き場は3つある**——溜め場（`chunkBuffer`）、
@@ -149,7 +123,138 @@ export function PositionSearchProvider({
     [chunkBuffer],
   );
 
-  // ---- event listeners (StrictMode-safe: outer scope cancelled flag) ----
+  const openProject = useCallback(
+    async (root: string) => {
+      if (isOpenInFlightRef.current) return;
+      isOpenInFlightRef.current = true;
+
+      dropSearch({ type: "open_start" });
+
+      try {
+        await openProjectApi(root);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        dispatch({ type: "open_error", payload: { message } });
+      } finally {
+        isOpenInFlightRef.current = false;
+      }
+    },
+    [dropSearch],
+  );
+
+  const searchPosition = useCallback(
+    async (input: SearchPositionInput): Promise<SearchLaunch> => {
+      // **投げる前に世代を控える。** 番号が返るまでこの検索は溜め場から見えない
+      // ——線は「見えている rid の最大」で引かれるので、待っている間に根が開き直ると
+      // この検索は線の後ろに回り、消えたはずの根の結果が新しい state に混ざる
+      const myGeneration = chunkBuffer.generation();
+
+      const out = await searchPositionApi(input);
+
+      if (chunkBuffer.generation() !== myGeneration) {
+        // 待っている間に線が引かれた。この検索は state に一切残さないし、
+        // Rust にも走らせ続けない
+        chunkBuffer.stopAccepting(out.requestId);
+        void cancelSearchApi(out.requestId).catch(() => {});
+        return { status: "superseded" };
+      }
+
+      // **線はここでも進める。** `stopAccepting()` は「見た中で最大の rid」に線を引き、
+      // それより手前は個別に覚えない（`dead` を空にする）。イベントで見た rid しか
+      // 数えていないと、`clear_search` に渡された rid が線を追い越して忘れられ、
+      // 以後そのチャンクが通ってしまう
+      chunkBuffer.noteRequest(out.requestId);
+
+      dispatch({ type: "search_requested", payload: { requestId: out.requestId } });
+
+      return { status: "started", requestId: out.requestId };
+    },
+    [chunkBuffer],
+  );
+
+  const cancelSearch = useCallback(async (requestId: RequestId) => {
+    try {
+      await cancelSearchApi(requestId);
+    } catch (e) {
+      // ベストエフォート。 既に終了している rid に対する cancel は no-op として通る。
+      // eslint-disable-next-line no-console
+      console.error("[SEARCH] cancelSearch failed:", e);
+    }
+  }, []);
+
+  const getSessionByRequestId = useCallback(
+    (requestId: RequestId | null | undefined): SearchSession | null => {
+      if (requestId == null) return null;
+      return state.sessions[requestId] ?? null;
+    },
+    [state.sessions],
+  );
+
+  const getHitsByRequestId = useCallback(
+    (requestId: RequestId | null | undefined): PositionHit[] => {
+      if (requestId == null) return EMPTY_HITS;
+      const session = state.sessions[requestId];
+      if (!session) return EMPTY_HITS;
+
+      if (session.chunks.length === 0) return EMPTY_HITS;
+
+      return flattenHits(hitsCacheRef.current, requestId, session.chunks);
+    },
+    [state.sessions],
+  );
+
+  const isSearchingRequest = useCallback(
+    (requestId: RequestId | null | undefined): boolean => {
+      if (requestId == null) return false;
+      const s = state.sessions[requestId];
+      return !!s && !s.isDone;
+    },
+    [state.sessions],
+  );
+
+  const resolveHitAbsPath = useCallback(
+    (hit: PositionHit): string | null => state.filePathById[hit.occ.fileId] ?? null,
+    [state.filePathById],
+  );
+
+  const clearWarns = useCallback(() => dispatch({ type: "clear_warns" }), []);
+  const clearSearch = useCallback(
+    (requestId: RequestId) => dropSearch({ type: "clear_search", payload: { requestId } }),
+    [dropSearch],
+  );
+
+  const value = useMemo<PositionSearchContextType>(
+    () => ({
+      state,
+      searchPosition,
+      cancelSearch,
+      getSessionByRequestId,
+      getHitsByRequestId,
+      isSearchingRequest,
+      resolveHitAbsPath,
+      clearWarns,
+      clearSearch,
+    }),
+    [
+      state,
+      searchPosition,
+      cancelSearch,
+      getSessionByRequestId,
+      getHitsByRequestId,
+      isSearchingRequest,
+      resolveHitAbsPath,
+      clearWarns,
+      clearSearch,
+    ],
+  );
+
+  useEffect(() => {
+    // 対にする。**setup で開け直す**のは、畳んで張り直す経路（StrictMode の
+    // 二重マウント）で閉じたまま残ると以後のチャンクが1つも積まれないため
+    chunkBuffer.activate();
+    return () => chunkBuffer.deactivate();
+  }, [chunkBuffer]);
+
   useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | null = null;
@@ -207,26 +312,6 @@ export function PositionSearchProvider({
     };
   }, [chunkBuffer]);
 
-  // --- actions ---
-  const openProject = useCallback(
-    async (root: string) => {
-      if (isOpenInFlightRef.current) return;
-      isOpenInFlightRef.current = true;
-
-      dropSearch({ type: "open_start" });
-
-      try {
-        await openProjectApi(root);
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        dispatch({ type: "open_error", payload: { message } });
-      } finally {
-        isOpenInFlightRef.current = false;
-      }
-    },
-    [dropSearch],
-  );
-
   /**
    * 根そのものが入れ替わったときに索引を開き直す。
    * （棋譜1本ずつの差分は Rust 側の watcher が入れる。こちらは別経路）
@@ -251,142 +336,6 @@ export function PositionSearchProvider({
     if (!rootDir || !isListenSettled) return;
     void openProject(rootDir);
   }, [rootDir, isListenSettled, openProject]);
-
-  const searchPosition = useCallback(
-    async (input: SearchPositionInput): Promise<SearchLaunch> => {
-      // **投げる前に世代を控える。** 番号が返るまでこの検索は溜め場から見えない
-      // ——線は「見えている rid の最大」で引かれるので、待っている間に根が開き直ると
-      // この検索は線の後ろに回り、消えたはずの根の結果が新しい state に混ざる
-      const myGeneration = chunkBuffer.generation();
-
-      const out = await searchPositionApi(input);
-
-      if (chunkBuffer.generation() !== myGeneration) {
-        // 待っている間に線が引かれた。この検索は state に一切残さないし、
-        // Rust にも走らせ続けない
-        chunkBuffer.stopAccepting(out.requestId);
-        void cancelSearchApi(out.requestId).catch(() => {});
-        return { status: "superseded" };
-      }
-
-      // **線はここでも進める。** `stopAccepting()` は「見た中で最大の rid」に線を引き、
-      // それより手前は個別に覚えない（`dead` を空にする）。イベントで見た rid しか
-      // 数えていないと、`clear_search` に渡された rid が線を追い越して忘れられ、
-      // 以後そのチャンクが通ってしまう
-      chunkBuffer.noteRequest(out.requestId);
-
-      dispatch({ type: "search_requested", payload: { requestId: out.requestId } });
-
-      return { status: "started", requestId: out.requestId };
-    },
-    [chunkBuffer],
-  );
-
-  const cancelSearch = useCallback(async (requestId: RequestId) => {
-    try {
-      await cancelSearchApi(requestId);
-    } catch (e) {
-      // ベストエフォート。 既に終了している rid に対する cancel は no-op として通る。
-      // eslint-disable-next-line no-console
-      console.error("[SEARCH] cancelSearch failed:", e);
-    }
-  }, []);
-
-  const getSessionByRequestId = useCallback(
-    (requestId: RequestId | null | undefined): SearchSession | null => {
-      if (requestId == null) return null;
-      return state.sessions[requestId] ?? null;
-    },
-    [state.sessions],
-  );
-
-  const getHitsByRequestId = useCallback(
-    (requestId: RequestId | null | undefined): PositionHit[] => {
-      if (requestId == null) return EMPTY_HITS;
-      const session = state.sessions[requestId];
-      if (!session) return EMPTY_HITS;
-
-      const chunks = session.chunks;
-      if (chunks.length === 0) return EMPTY_HITS;
-
-      const cache = hitsCacheRef.current.get(requestId);
-
-      // 前に取り込んだところまでが、いまの並びの先頭とそのまま一致しているか。
-      // 一致していれば末尾だけ足せばよい
-      const canAppend =
-        !!cache && isAppendOnlyContinuation(chunks, cache.consumed, cache.lastChunk);
-
-      if (canAppend && cache.consumed === chunks.length) return cache.snapshot;
-
-      const flat = canAppend ? cache.flat : [];
-      const start = canAppend ? cache.consumed : 0;
-      for (let i = start; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        for (let j = 0; j < chunk.length; j++) flat.push(chunk[j]);
-      }
-
-      // **写しを渡す。** `flat` は増分追記のために同じ配列を伸ばし続けるので、
-      // 直に返すと呼び手の `useMemo` が「変わっていない」と読み、
-      // **新着ヒットが一覧に出ない**。写しは要素の指し直しだけ（n=100,000 で
-      // 0.035ms。`.claude/reviews/2026-09-07-447-position-search-perf-r1.md` M-4）
-      // なので、増分追記の意味は消えない
-      const snapshot = flat.slice();
-
-      hitsCacheRef.current.set(requestId, {
-        lastChunk: chunks[chunks.length - 1],
-        consumed: chunks.length,
-        flat,
-        snapshot,
-      });
-      return snapshot;
-    },
-    [state.sessions],
-  );
-
-  const isSearchingRequest = useCallback(
-    (requestId: RequestId | null | undefined): boolean => {
-      if (requestId == null) return false;
-      const s = state.sessions[requestId];
-      return !!s && !s.isDone;
-    },
-    [state.sessions],
-  );
-
-  const resolveHitAbsPath = useCallback(
-    (hit: PositionHit): string | null => state.filePathById[hit.occ.fileId] ?? null,
-    [state.filePathById],
-  );
-
-  const clearWarns = useCallback(() => dispatch({ type: "clear_warns" }), []);
-  const clearSearch = useCallback(
-    (requestId: RequestId) => dropSearch({ type: "clear_search", payload: { requestId } }),
-    [dropSearch],
-  );
-
-  const value = useMemo<PositionSearchContextType>(
-    () => ({
-      state,
-      searchPosition,
-      cancelSearch,
-      getSessionByRequestId,
-      getHitsByRequestId,
-      isSearchingRequest,
-      resolveHitAbsPath,
-      clearWarns,
-      clearSearch,
-    }),
-    [
-      state,
-      searchPosition,
-      cancelSearch,
-      getSessionByRequestId,
-      getHitsByRequestId,
-      isSearchingRequest,
-      resolveHitAbsPath,
-      clearWarns,
-      clearSearch,
-    ],
-  );
 
   return <PositionSearchContext.Provider value={value}>{children}</PositionSearchContext.Provider>;
 }
