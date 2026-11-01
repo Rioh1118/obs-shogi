@@ -46,7 +46,8 @@ ours 戦略のマージは使わない。
 | 10 | `refactor/tidy-entities-game-model` | `src/entities/game` の `model` | #673 | マージ済み |
 | 11 | `refactor/tidy-entities-engine` | `src/entities/engine` | #674 | マージ済み |
 | 12 | `refactor/tidy-entities-engine-presets` | `src/entities/engine-presets` | #675 | マージ済み |
-| 13 | `refactor/tidy-entities-analysis-seat` | `src/entities/analysis` の `provider.tsx` 以外 | #677 | レビュー待ち |
+| 13 | `refactor/tidy-entities-analysis-seat` | `src/entities/analysis` の `provider.tsx` 以外 | #677 | マージ済み |
+| 14 | `refactor/tidy-entities-analysis-provider` | `src/entities/analysis/model/provider.tsx` | #678 | レビュー待ち |
 
 ## 語
 
@@ -76,7 +77,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 7  | `src/entities/engine`                                    | 1570 | 済     | 済     |
 | 7b | `src/entities/engine-presets`                            |  972 | 済     | 済     |
 | 8  | `src/entities/analysis` の `provider.tsx` 以外           | 1237 | 済     | —      |
-| 8b | `src/entities/analysis/model/provider.tsx`               |  838 | 済     | 済     |
+| 8b | `src/entities/analysis/model/provider.tsx`               |  841 | 済     | 済     |
 | 9  | `src/entities/game-session`                              | 1488 | 未着手 | 未着手 |
 | 10 | `src/entities/file-tree`                                 | 2168 | 未着手 | 未着手 |
 | 11 | `src/entities/search`、`src/entities/book`               | 2454 | 未着手 | 未着手 |
