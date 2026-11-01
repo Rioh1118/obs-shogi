@@ -147,4 +147,30 @@ describe("createChunkBuffer", () => {
 
     expect(dispatched).toHaveLength(0);
   });
+
+  /** 別のチャンクに載ったファイルを落とすと、そのヒットのパスが引けず開けない */
+  test("待ち時間の中で続けて届いたファイルも全部渡す", () => {
+    const { buffer, dispatched } = setup();
+    const entry = (fileId: number) => ({ fileId, absPath: `/ws/${fileId}.kif` });
+
+    buffer.enqueue({ requestId: 1, chunk: [], files: [entry(1)] });
+    buffer.enqueue({ requestId: 1, chunk: [], files: [entry(2)] });
+    buffer.flush();
+
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toMatchObject({
+      type: "search_chunks",
+      payload: { files: [entry(1), entry(2)] },
+    });
+  });
+
+  test("溜めた分を全部捨てたらタイマも止める", () => {
+    const { buffer } = setup();
+
+    buffer.enqueue({ requestId: 1, chunk: [], files: [] });
+    expect(vi.getTimerCount()).toBe(1);
+
+    buffer.stopAccepting(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

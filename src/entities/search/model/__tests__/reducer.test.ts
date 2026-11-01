@@ -131,6 +131,15 @@ describe("検索のセッション", () => {
     });
   });
 
+  it("始まりで前の完了と失敗を外す", () => {
+    const failed = reducer(withBegunSearch(), {
+      type: "search_error",
+      payload: { requestId: RID, message: "失敗" },
+    });
+
+    expect(withBegunSearch(failed).sessions[RID]).toMatchObject({ isDone: false, error: null });
+  });
+
   it("番号が返った時点でセッションが在る", () => {
     const requested = reducer(initialState, {
       type: "search_requested",

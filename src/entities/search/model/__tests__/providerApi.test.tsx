@@ -73,6 +73,63 @@ describe("番号が無いときの読み出し", () => {
   });
 });
 
+describe("空のヒット", () => {
+  /** 呼び手の `useMemo` は配列の同一性で増えたかを読む */
+  test("セッションが無くてもチャンクが無くても、同じ配列を返す", async () => {
+    await act(async () => {
+      render(app(null));
+    });
+    const empty = search.getHitsByRequestId(null);
+
+    act(() => {
+      handlers.onSearchBegin({ requestId: 7, stale: false });
+    });
+
+    expect(search.getHitsByRequestId(9)).toBe(empty);
+    expect(search.getHitsByRequestId(7)).toBe(empty);
+  });
+});
+
+describe("イベントで見た検索", () => {
+  /** チャンクが1つも来なかった検索も数えないと、開き直しの後に前の根の結果が通る */
+  test("始まりだけを見た検索も、開き直した後は通さない", async () => {
+    let view!: ReturnType<typeof render>;
+    await act(async () => {
+      view = render(app("/first"));
+    });
+
+    act(() => {
+      handlers.onSearchBegin({ requestId: 7, stale: false });
+    });
+    await act(async () => {
+      view.rerender(app("/second"));
+    });
+    act(() => {
+      handlers.onSearchBegin({ requestId: 7, stale: false });
+    });
+
+    expect(search.getSessionByRequestId(7)).toBeNull();
+  });
+
+  /** 溜めたまま失敗を立てると、届いた結果が失敗の後に遅れて出る */
+  test("失敗より先に、溜めた結果を入れる", async () => {
+    vi.useFakeTimers();
+    await act(async () => {
+      render(app(null));
+    });
+
+    act(() => {
+      handlers.onSearchBegin({ requestId: 7, stale: false });
+      handlers.onSearchChunk({ requestId: 7, chunk: [hit], files: [] });
+      handlers.onSearchError({ requestId: 7, message: "失敗" });
+    });
+    vi.useRealTimers();
+
+    expect(search.getHitsByRequestId(7)).toHaveLength(1);
+    expect(search.getSessionByRequestId(7)).toMatchObject({ isDone: true, error: "失敗" });
+  });
+});
+
 describe("検索を起こす", () => {
   test("番号が返ったら受け付けた結末を返し、セッションが検索中になる", async () => {
     await act(async () => {
