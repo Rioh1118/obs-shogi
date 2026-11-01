@@ -1,63 +1,62 @@
-import { PIECE_TYPES, convertJkfPiece } from "@/entities/position/model/shogi";
-import {
-  type PieceProps,
-  Pawn,
-  Lance,
-  Knight,
-  Silver,
-  Gold,
-  Bishop,
-  Rook,
-  King,
-  PromPawn,
-  PromLance,
-  PromKnight,
-  PromSilver,
-  Horse,
-  Dragon,
-} from "./pieces";
+import { Color, type Kind } from "shogi.js";
+import { PIECE_IMAGES } from "@/entities/position/model/pieceImages";
+import "./Piece.scss";
 
-interface PieceImageProps extends PieceProps {
+type PieceLook = {
+  /** `Piece.scss` のクラス `piece__<name>` と `data-piece` の値 */
+  name: string;
+  alt: string;
+};
+
+const PIECE_LOOKS: Record<Kind, PieceLook> = {
+  FU: { name: "pawn", alt: "歩" },
+  KY: { name: "lance", alt: "香" },
+  KE: { name: "knight", alt: "桂馬" },
+  GI: { name: "silver", alt: "銀" },
+  KI: { name: "gold", alt: "金" },
+  KA: { name: "bishop", alt: "角" },
+  HI: { name: "rook", alt: "飛" },
+  OU: { name: "king", alt: "玉" },
+  TO: { name: "prom-pawn", alt: "と" },
+  NY: { name: "prom-lance", alt: "成香" },
+  NK: { name: "prom-knight", alt: "成桂" },
+  NG: { name: "prom-silver", alt: "成銀" },
+  UM: { name: "horse", alt: "馬" },
+  RY: { name: "dragon", alt: "龍" },
+};
+
+type Props = {
+  /** 駒台と成りの選択は駒を素の文字列で運ぶので `string` で受ける。知らない駒は描かない */
   kind: string;
+  color: Color;
+  onClick?: () => void;
+};
+
+function isKnownKind(kind: string): kind is Kind {
+  return kind in PIECE_LOOKS;
 }
 
-function PieceImage({ kind, color, onClick }: PieceImageProps) {
-  const pieceType = convertJkfPiece(kind);
+function PieceImage({ kind, color, onClick }: Props) {
+  if (!isKnownKind(kind)) return null;
 
-  const commonProps: PieceProps = { color, onClick };
+  const { name, alt } = PIECE_LOOKS[kind];
+  const isSente = color === Color.Black;
 
-  switch (pieceType) {
-    case PIECE_TYPES.PAWN:
-      return <Pawn {...commonProps} />;
-    case PIECE_TYPES.LANCE:
-      return <Lance {...commonProps} />;
-    case PIECE_TYPES.KNIGHT:
-      return <Knight {...commonProps} />;
-    case PIECE_TYPES.SILVER:
-      return <Silver {...commonProps} />;
-    case PIECE_TYPES.GOLD:
-      return <Gold {...commonProps} />;
-    case PIECE_TYPES.BISHOP:
-      return <Bishop {...commonProps} />;
-    case PIECE_TYPES.ROOK:
-      return <Rook {...commonProps} />;
-    case PIECE_TYPES.KING:
-      return <King {...commonProps} />;
-    case PIECE_TYPES.PROM_PAWN:
-      return <PromPawn {...commonProps} />;
-    case PIECE_TYPES.PROM_LANCE:
-      return <PromLance {...commonProps} />;
-    case PIECE_TYPES.PROM_KNIGHT:
-      return <PromKnight {...commonProps} />;
-    case PIECE_TYPES.PROM_SILVER:
-      return <PromSilver {...commonProps} />;
-    case PIECE_TYPES.HORSE:
-      return <Horse {...commonProps} />;
-    case PIECE_TYPES.DRAGON:
-      return <Dragon {...commonProps} />;
-    default:
-      return null;
-  }
+  return (
+    <div
+      className={`piece piece__${name} ${isSente ? "sente" : "gote"}`}
+      onClick={onClick}
+      data-piece={name}
+      data-color={color}
+    >
+      <img
+        src={PIECE_IMAGES[color][kind]}
+        alt={kind === "OU" && isSente ? "王" : alt}
+        className="piece-image"
+        draggable={false}
+      />
+    </div>
+  );
 }
 
 export default PieceImage;
