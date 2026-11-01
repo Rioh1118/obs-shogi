@@ -28,32 +28,24 @@ import {
 } from "./events";
 import type { RequestId } from "./ids";
 
-// ===== プロジェクト操作 =====
-
 export async function openProject(rootDir: string): Promise<OpenProjectOutput> {
   const input: OpenProjectInput = { rootDir };
   return await invoke<OpenProjectOutput>("open_project", { input });
 }
 
-// ===== 局面検索 =====
-
 /**
- * 局面検索を開始。Rust 側は spawn してすぐ rid を返すので、この Promise は
- * 検索完了を待たず、直ちに resolve する。結果は EVT_SEARCH_CHUNK で届く。
+ * 局面検索を始める。Rust は検索を spawn して番号をすぐ返すので、解決は検索の完了を待たない。
+ * 結果は `EVT_SEARCH_CHUNK` で届く。
  */
 export async function searchPosition(input: SearchPositionInput): Promise<SearchPositionOutput> {
   return await invoke<SearchPositionOutput>("search_position", { input });
 }
 
-/**
- * 進行中の検索をキャンセル。フロント側 cleanup で必ず呼ぶ。
- */
+/** 進行中の検索を取り消す。Rust は終わった検索の番号でも `Ok` を返す。 */
 export async function cancelSearch(requestId: RequestId): Promise<void> {
   const input: CancelSearchInput = { requestId };
   await invoke<void>("cancel_search", { input });
 }
-
-// ===== イベント購読ヘルパ =====
 
 export type SearchEventHandlers = {
   onIndexState: (p: IndexStatePayload) => void;
@@ -70,6 +62,7 @@ function subscribePayload<T>(name: string, handler: (payload: T) => void) {
   return () => listen<T>(name, (event) => handler(event.payload));
 }
 
+/** 全部のイベントを順に購読する。途中で失敗したら、張れた分を解除して投げ直す。 */
 export function listenSearchEvents(handlers: SearchEventHandlers): Promise<() => void> {
   return subscribeAll([
     subscribePayload(EVT_INDEX_STATE, handlers.onIndexState),

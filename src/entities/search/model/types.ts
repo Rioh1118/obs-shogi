@@ -24,9 +24,10 @@ export type IndexUiState = {
 };
 
 /**
- * セッション。chunks に到着したチャンクを配列のまま保持し、reducer は
- * `[...hits, ...chunk]` の O(n²) を回避する。フラット化は provider 側で
- * 償却 O(n) のキャッシュにして返す。
+ * 検索1回の結果と進み具合。
+ *
+ * `chunks` は届いた単位のまま持つ。reducer で `[...hits, ...chunk]` と繋ぐと全体で O(n²) になる。
+ * 平らにするのは `flattenHits`。
  */
 export type SearchSession = {
   requestId: RequestId;
@@ -36,7 +37,7 @@ export type SearchSession = {
   chunks: PositionHit[][];
 };
 
-/** 検索を起こした結末。**受け付けられなかった回を成功と同じ形にしない** */
+/** 検索を起こした結末。受け付けられなかった場合を成功と同じ形にしない */
 export type SearchLaunch = { status: "started"; requestId: RequestId } | { status: "superseded" };
 
 export type FilePathById = Record<FileId, string>;
@@ -68,11 +69,9 @@ export type Action =
   | { type: "open_error"; payload: { message: string } }
   | { type: "search_begin"; payload: SearchBeginPayload }
   /**
-   * 到着したチャンクを**まとめて**積む。
+   * 到着したチャンクをまとめて積む。溜めるのは `model/chunkBuffer.ts`。
    *
-   * 1チャンク1アクションにしない。`filePathById` と `sessions` はアクション1回ごとに
-   * 作り直されるので、10万件の表を「件数 ÷ 区切り」回コピーすることになる。
-   * 溜めるのは `model/chunkBuffer.ts`。
+   * `filePathById` と `sessions` はアクションごとに作り直されるので、1チャンク1アクションにしない。
    */
   | { type: "search_chunks"; payload: SearchChunksInput }
   | { type: "search_requested"; payload: { requestId: RequestId } }
@@ -84,15 +83,14 @@ export type PositionSearchContextType = {
   state: SearchState;
 
   /**
-   * 検索を起こす。**結末は2つあり、型で分かれる。**
+   * 検索を起こす。結末は `SearchLaunch` の2つ。
    *
    * `"started"` なら結果はイベントで届き、`requestId` で引ける。
-   * `"superseded"` は**受け付けられなかった**回——番号が返るまでの間に索引が
-   * 開き直され、この検索は state にも溜め場にも残っていない（Rust 側も取り下げ済み）。
+   * `"superseded"` は番号が返るまでの間に索引が開き直された場合で、state に何も残らず、
+   * Rust へ取り下げを頼んである。
    *
-   * **成功と同じ形で返さない。** 返すと呼び手は `requestId` を採用し、セッションの
-   * 無い rid を握って「待機中 / 一致する棋譜がありません」を出す——0件が完了として
-   * 出る形（`docs/state-transitions/search.md`）。分岐を書かない限り tsc が落ちる。
+   * 成功と同じ形で返すと、呼び手がセッションの無い rid を握り、「一致する棋譜がありません」が
+   * 完了として出る。
    */
   searchPosition: (input: SearchPositionInput) => Promise<SearchLaunch>;
 
@@ -101,12 +99,10 @@ export type PositionSearchContextType = {
   getSessionByRequestId: (requestId: RequestId | null) => SearchSession | null;
 
   /**
-   * その検索のヒットを、届いた順に平らにして返す。
+   * その検索のヒットを届いた順に平らにして返す。
    *
-   * **返り値は共有の配列。破壊的に触らないこと**（`sort` / `reverse` / `push`）。
-   * 同じ到着ぶんを見ている間は**同じ配列**が返り、増えたときだけ別の配列になる
-   * ——呼び手はその同一性で「増えたか」を判断してよい。触ると、次の増分追記が
-   * 壊れた並びの上に足される。
+   * 返り値は共有の配列なので `sort`、`reverse`、`push` を呼ばない。同じ到着分には同じ配列を返し、
+   * 増えたら別の配列を返すので、呼び手は同一性で増えたかを判断できる。
    */
   getHitsByRequestId: (requestId: RequestId | null) => PositionHit[];
   isSearchingRequest: (requestId: RequestId | null) => boolean;

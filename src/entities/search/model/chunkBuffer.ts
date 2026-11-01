@@ -7,16 +7,12 @@ import type { Action } from "./types";
 /**
  * 届いたチャンクを溜めておく時間（ms）。
  *
- * **1チャンク1レンダにしない。** Rust は `yield_now` を挟んで実時間に散らして
- * emit する（`src-tauri/src/search/query_service.rs`）ので、チャンクは結果の
- * 件数ぶん飛んでくる。区切りを決めているのは要求する側
- * （`features/position-search/ui/PositionSearchModal.tsx` の `chunkSize`）で、
- * **ここは区切りの値を知らない**。1回ごとに state を作り直すと、10万件の
- * `filePathById` と一覧の平坦化を「件数 ÷ 区切り」回やり直す。
+ * Rust はチャンクを実時間に散らして emit するので（`src-tauri/src/search/query_service.rs` の
+ * `yield_now`）、1つごとに state を作り直すと `filePathById` と一覧の平坦化を
+ * 「件数 ÷ `chunkSize`」回やり直す。溜めると回数が経過時間で決まる。
  *
- * 溜めると、その回数が**件数でなく経過時間**で決まるようになる。50ms は
- * 「結果が育っていくのが見える」ことと「回数の上限（20回/秒）」の折り合い。
- * 検索の完了・失敗はここを待たずに吐き出すので、終わりが遅れることはない。
+ * 50ms は結果が育つのが見えることと、毎秒20回の上限の折り合い。検索の終わりと失敗は
+ * これを待たずに `flush` する。
  */
 const CHUNK_FLUSH_MS = 50;
 
@@ -24,79 +20,63 @@ const CHUNK_FLUSH_MS = 50;
 type PendingChunks = { chunks: PositionHit[][]; files: FilePathEntry[] };
 
 /**
- * 溜め場と、そこへ入れてよいかの判定。
+ * 届いたチャンクを溜める入れ物と、受け取ってよいかの判定。
  *
- * **溜めたぶんを捨てるだけでは止められない。** `open_start` はセッションを全部
- * 落とすが、Rust の `open_project` は進行中の検索を1つもキャンセルしない
- * （`src-tauri/src/search/commands.rs`）。その後も同じ rid のチャンクが届くので、
- * 入口で弾かないと `sessionOrNew` が消えたセッションを作り直し、
- * `filePathById` が**古い根のものへ戻る**。
+ * 入口で断るのは、Rust の `open_project` が進行中の検索を取り消さないため。`open_start` で
+ * セッションを落とした後も同じ rid のチャンクが届き、通すと `sessionOrNew` がセッションを
+ * 作り直して、`filePathById` が古い根のものへ戻る。
  *
- * 線は「これより前の rid は受け取らない」で引く。rid は Rust 側で単調に増える
- * （`QueryService::next_request_id`）ので、線より後に始まった検索は必ず通る。
- * **通すのが既定**なので、`search_begin` を1発取りこぼしても結果が黙って
- * 0件になることはない。
+ * rid は Rust が単調に増やす（`QueryService::next_request_id`）ので、`firstLiveRid` より前を
+ * 断れば、開き直しの後に始まった検索は断られない。知らない rid も通すので、`search_begin` を
+ * 取りこぼしても結果は消えない。
  */
 export type ChunkBuffer = {
-  /** 1つ届いた。受け取ってよければ溜める */
+  /** 受け取ってよければ溜める */
   enqueue: (p: SearchChunkPayload) => void;
-  /** 溜めたぶんを吐き出す。待ち時間は待たない */
+  /** 溜めた分を待たずに dispatch する */
   flush: () => void;
   /**
-   * 以後この検索のチャンクを受け取らない。溜めたぶんも**吐き出さずに**捨てる。
-   * `requestId` を省くと「いま在る検索は全部」——`open_start` がそれに当たる。
+   * 以後この検索のチャンクを断り、溜めた分は dispatch せずに捨てる。
+   * `requestId` を省くと、いま見えている全部の検索を対象にする。
    */
   stopAccepting: (requestId?: RequestId) => void;
-  /** 検索が1つ始まった。線を引く位置に要る */
+  /** 見えた rid を数える。`stopAccepting()` が `firstLiveRid` を引く位置に使う */
   noteRequest: (requestId: RequestId) => void;
-  /**
-   * いま在る検索を全部止めた回数。**invoke が飛んでいる間に線が引かれたか**を
-   * 呼び手が確かめるのに使う（rid はまだ返っていないので、線には数えられない）
-   */
+  /** 全部の検索を止めた回数。番号を待つ間に止められたかを呼び手が確かめる */
   generation: () => number;
   /**
-   * この検索をまだ受け取ってよいか。**通すのが既定**（知らない rid は通る）。
+   * この検索をまだ受け取ってよいかを返す。知らない rid には真を返す。
    *
-   * ここを通すのは `search_chunks` と `search_begin` の2つだけ。
-   * `search_end` / `search_error` は**通さない**——通すのが既定である以上、
-   * セッションを作りうる経路をここでは守れないので、reducer 側で
-   * 「在るセッションにしか効かない」で守る。
-   * `search_requested` はフロントが自分で出す action で、rid が返るまで溜め場から
-   * 見えないためこの判定では守れない（`generation` のほうで見張る）。
+   * 通すのは `search_chunks` と `search_begin` だけ。`search_end` と `search_error` は
+   * reducer が在るセッションにしか効かせないので通さない。`search_requested` は番号が
+   * 返るまで判定できないので `generation` で見張る。
    */
   isAccepting: (requestId: RequestId) => boolean;
-  /** 受け取りを開ける／閉じる。effect の setup と cleanup で対にする */
+  /** 受け取りを開ける。effect の setup で呼ぶ */
   activate: () => void;
+  /** 受け取りを閉じ、溜めた分を捨てる。effect の cleanup で呼ぶ */
   deactivate: () => void;
 };
 
 /**
- * **起こし手ごと1つの object に閉じる。**
+ * `ChunkBuffer` を作る。
  *
- * 購読の effect（`listenSearchEvents`）はここから `enqueue` と `flush` を呼ぶ。
- * 起こし手が `useCallback` のままだと、その effect の依存に載せることになり、
- * **同一性が変われば tauri の購読が張り直る**。`listen` は IPC の往復を待つので、
- * 張り直しの隙間に emit されたチャンクは誰にも届かず、エラーも出ずに件数だけ減る。
- * 同一性の変わらない object に入れておけば、その形が作れない。
- *
- * `dispatch` は `useReducer` が返すもので、React が同一性を保証している。
+ * 状態を1つの object に閉じるのは、購読の effect の依存に載せても同一性が変わらないようにするため。
+ * 変わると購読が張り直り、`listen` の IPC の往復の隙間に emit されたチャンクが黙って失われる。
  */
 export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBuffer {
   const pending = new Map<RequestId, PendingChunks>();
   /**
-   * 名指しで捨てた rid。入れる経路は2つ——`clear_search` と、番号が返る前に線が
-   * 引かれた起動（`model/provider.tsx` の `searchPosition`）。
-   * 線より後のものだけがここに要る
+   * 名指しで捨てた rid。`clearSearch` と、番号が返る前に根が開き直された起動
+   * （`model/provider.tsx` の `searchPosition`）が入れる。`firstLiveRid` より後のものだけを持つ。
    */
   const droppedRids = new Set<RequestId>();
 
   let timer: number | null = null;
   let active = true;
-  /** `open_start` が引いた線。**これより前**の rid は受け取らない */
+  /** これより前の rid は受け取らない。`stopAccepting()` が進める */
   let firstLiveRid: RequestId = 1;
-  /** 見た中で最大の rid。線を引く位置に使う */
   let maxSeenRid: RequestId = 0;
-  /** 線を引き直した回数 */
   let generation = 0;
 
   const cancelTimer = () => {
@@ -109,8 +89,7 @@ export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBuffer {
     cancelTimer();
     if (pending.size === 0) return;
 
-    // **溜め場を先に空にする**——dispatch の最中に届いたチャンクは次の回のもので、
-    // 後から消すと落ちる
+    // 先に空にする。後から消すと、dispatch の最中に届いたチャンクが消える
     const batches = [...pending];
     pending.clear();
 
@@ -151,11 +130,9 @@ export function createChunkBuffer(dispatch: Dispatch<Action>): ChunkBuffer {
       if (requestId == null) {
         pending.clear();
         generation += 1;
-        // 見えている rid はここで全部止める。**ここに数えられていない rid がある**
-        // ——invoke が飛んでいて番号がまだ返っていない検索。それは線の後ろに
-        // 回ってしまうので、呼び手が `generation` で見張る
+        // 番号を待っている検索はここに数えられないので、呼び手が `generation` で見張る
         firstLiveRid = maxSeenRid + 1;
-        // 線より前は `firstLiveRid` が受け持つので、個別に覚えておく必要は無い
+        // `firstLiveRid` より前は個別に覚えなくてよい
         droppedRids.clear();
       } else {
         pending.delete(requestId);

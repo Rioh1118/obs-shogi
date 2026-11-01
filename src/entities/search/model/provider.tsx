@@ -26,12 +26,10 @@ import type { PositionSearchContextType, SearchLaunch, SearchSession } from "./t
 const EMPTY_HITS: PositionHit[] = [];
 
 /**
- * 局面検索の state と索引の操作。
+ * 局面検索の state と、索引を開く操作を持つ。
  *
- * **根は prop で受け取る。** 自分で `useAppConfig` を読むと、このスライスが
- * 起動シーケンスを持つことになり、`AppConfigProvider` の下に置く制約が
- * 呼び出し側からは prop でも型でも読めなくなる。流し込むのは
- * `src/app/providers/gates/SearchRootGate.tsx`（`FileTreeRootGate` と同じ形）。
+ * 根は prop で受ける。自分で `useAppConfig` を読むと、`AppConfigProvider` の下に置く制約が
+ * prop でも型でも読めなくなる。流し込むのは `src/app/providers/gates/SearchRootGate.tsx`。
  */
 export function PositionSearchProvider({
   rootDir,
@@ -44,54 +42,33 @@ export function PositionSearchProvider({
 
   const isOpenInFlightRef = useRef(false);
 
-  /**
-   * 償却 O(n) の hits キャッシュ。到着ぶんが増えたら**末尾だけ**追記する。
-   *
-   * 同じ `sessions` を見ている間は同じ配列を返すので React の memo が効き、
-   * 増えたときだけ別の配列になる。**どちらか片方だけでは成り立たない**——
-   * 常に別の配列を返せば memo が毎回外れ、常に同じ配列を返せば増えたことが
-   * 伝わらない。境目は `getHitsByRequestId` の中。
-   */
   const hitsCacheRef = useRef<HitsCache>(new Map());
 
   /**
-   * 購読の試行が決着したか。**索引を開くのはこれが真になってから。**
+   * 購読の試行が決着したか。索引を開くのはこれが真になってからにする。
    *
-   * `listenSearchEvents` は `listen` の連なりで、登録の完了は IPC の往復を待つ。
-   * 一方 `open_project` は入口で即 `Restoring` を emit する。宣言順は購読が
-   * 「始まる」ことしか保証しないので、順序を守るものがコードに要る。
-   * 取りこぼすと `index.state` は `"Empty"` のままになり、`indexHealth` は
-   * `"notStarted"` を返す。**復元が進んでいるのに「索引がありません」と出続ける。**
+   * `open_project` は呼ばれるとすぐ `Restoring` を emit する。購読の登録は IPC の往復を待つので、
+   * 先に開くとこの通知を取りこぼし、復元が進んでいるのに「索引がありません」と出続ける。
    *
-   * **「張れたか」ではなく「決着したか」。** 失敗でも真にする。購読が張れないことと
-   * 索引が作られないことは別の失敗で、束ねると**購読の失敗が索引の構築まで巻き添えに
-   * する**。索引はディスクにも残るので、次の起動で効いてくる。
+   * 購読に失敗しても真にする。待ちに含めると索引の構築まで止まる。索引はディスクに残るので、
+   * 購読できなくても次の起動で使える。
    */
   const [isListenSettled, setIsListenSettled] = useState(false);
 
-  /**
-   * **同一性の変わらない1つの object。** 中身は `createChunkBuffer` の doc。
-   * 依存に載せても effect が張り直らないので、購読の effect が
-   * これを呼んでよい形になる。
-   */
+  /** 描画をまたいで同じものを使う。effect の依存に載せても購読が張り直らない */
   const chunkBufferRef = useRef<ChunkBuffer | null>(null);
   chunkBufferRef.current ??= createChunkBuffer(dispatch);
   const chunkBuffer = chunkBufferRef.current;
 
   /**
-   * 検索の持ち物を落とす。**rid で引ける置き場は3つある**——溜め場（`chunkBuffer`）、
-   * 平坦化のキャッシュ（`hitsCacheRef`）、`state.sessions`（reducer）。どれか1つに
-   * 伝え忘れると、消えたはずのセッションが次の吐き出しで `sessionOrNew` に
-   * 作り直される。
+   * 検索の持ち物を `chunkBuffer`、`hitsCacheRef`、`state.sessions` から落とす。
    *
-   * **落とす合図まで受け取って、3つを同じ順でしか落とせない形にする**——入口を
-   * 閉じるのが先、置き場を捨てるのが次、reducer が最後。呼び手に `dispatch` を
-   * 書かせると、その順を変える改変が1行で書けてしまう。
+   * 1つでも残すと、消えたセッションが次の dispatch で `sessionOrNew` に作り直される。
+   * 順は受け取りの停止、キャッシュ、reducer。dispatch まで受け持ち、呼び手が順を変えられない形にする。
    */
   const dropSearch = useCallback(
     (action: DropSearchAction) => {
-      // **既定を破壊側にしない。** 三項で書くと、合図が3つ目に増えたときに
-      // 黙って `undefined`（＝全部落とす）へ落ちる。ここで分類を迫る
+      // 三項で書かない。アクションが増えたとき `undefined`（全部落とす）へ黙って落ちる
       let requestId: RequestId | undefined;
       switch (action.type) {
         case "open_start":
@@ -136,25 +113,21 @@ export function PositionSearchProvider({
 
   const searchPosition = useCallback(
     async (input: SearchPositionInput): Promise<SearchLaunch> => {
-      // **投げる前に世代を控える。** 番号が返るまでこの検索は溜め場から見えない
-      // ——線は「見えている rid の最大」で引かれるので、待っている間に根が開き直ると
-      // この検索は線の後ろに回り、消えたはずの根の結果が新しい state に混ざる
+      // 番号が返るまで `chunkBuffer` はこの検索を知らない。待っている間に根が開き直されても
+      // `firstLiveRid` はこの rid より前に留まるので、世代を控えて見張る
       const myGeneration = chunkBuffer.generation();
 
       const out = await searchPositionApi(input);
 
       if (chunkBuffer.generation() !== myGeneration) {
-        // 待っている間に線が引かれた。この検索は state に一切残さないし、
-        // Rust にも走らせ続けない
+        // 開き直された根の state に前の根の検索を残さない
         chunkBuffer.stopAccepting(out.requestId);
         void cancelSearchApi(out.requestId).catch(() => {});
         return { status: "superseded" };
       }
 
-      // **線はここでも進める。** `stopAccepting()` は「見た中で最大の rid」に線を引き、
-      // それより手前は個別に覚えない（`droppedRids` を空にする）。イベントで見た rid しか
-      // 数えていないと、`clear_search` に渡された rid が線を追い越して忘れられ、
-      // 以後そのチャンクが通ってしまう
+      // イベントより先に数える。`stopAccepting()` は `maxSeenRid` まで `firstLiveRid` を進めて
+      // `droppedRids` を空にするので、数えていない rid を捨てた後に開き直すとチャンクが通る
       chunkBuffer.noteRequest(out.requestId);
 
       dispatch({ type: "search_requested", payload: { requestId: out.requestId } });
@@ -168,7 +141,7 @@ export function PositionSearchProvider({
     try {
       await cancelSearchApi(requestId);
     } catch (e) {
-      // ベストエフォート。 既に終了している rid に対する cancel は no-op として通る。
+      // ここへ来るのは IPC の失敗だけ。結果は呼び手が `clearSearch` で捨てる
       // eslint-disable-next-line no-console
       console.error("[SEARCH] cancelSearch failed:", e);
     }
@@ -241,8 +214,7 @@ export function PositionSearchProvider({
   );
 
   useEffect(() => {
-    // 対にする。**setup で開け直す**のは、畳んで張り直す経路（StrictMode の
-    // 二重マウント）で閉じたまま残ると以後のチャンクが1つも積まれないため
+    // 開け直すのは StrictMode の二重マウントのため。閉じたままだと以後のチャンクが積まれない
     chunkBuffer.activate();
     return () => chunkBuffer.deactivate();
   }, [chunkBuffer]);
@@ -259,20 +231,16 @@ export function PositionSearchProvider({
           onIndexWarn: (p) => dispatch({ type: "index_warn", payload: p }),
 
           onSearchBegin: (p) => {
-            // 溜め場は「これ以下の rid はもう受け取らない」の線を rid の最大値から
-            // 引く。チャンクが1つも来なかった検索も数に入れる
+            // チャンクが1つも来なかった検索も `maxSeenRid` に数える
             chunkBuffer.noteRequest(p.requestId);
 
-            // **始まりも `isAccepting` を通す。** ここを通さないと、捨てた検索の begin が
-            // `sessionOrNew` でセッションを作り直す
+            // 捨てた検索の begin で `sessionOrNew` がセッションを作り直さないようにする
             if (!chunkBuffer.isAccepting(p.requestId)) return;
             dispatch({ type: "search_begin", payload: p });
           },
           onSearchChunk: chunkBuffer.enqueue,
 
-          // **終わりと失敗は、溜めたぶんを吐き出してから。** 先に `isDone` を
-          // 立てると、まだ届いていない結果を抱えたまま一覧が「完了」と名乗る。
-          // 失敗のときも同じで、届いたぶんは残す
+          // 先に吐き出す。逆だと溜めた結果を抱えたまま一覧が完了と出る。失敗でも届いた分は残す
           onSearchEnd: (p) => {
             chunkBuffer.flush();
             dispatch({ type: "search_end", payload: p });
@@ -304,24 +272,17 @@ export function PositionSearchProvider({
   }, [chunkBuffer]);
 
   /**
-   * 根そのものが入れ替わったときに索引を開き直す。
-   * （棋譜1本ずつの差分は Rust 側の watcher が入れる。こちらは別経路）
+   * 根が変わったら索引を開き直す。棋譜1本ずつの差分は Rust の watcher が入れる。
    *
-   * **撃つのは2回だけ。** 購読の試行が決着したとき（起動時の一発はこちら。根はそれまで
-   * 保留される）と、`rootDir` prop が変わったとき。**どちらの依存も外さないこと。**
-   * `isListenSettled` を外すと購読より先に開いてしまい、`Restoring` の最初の1発を
-   * 取りこぼす。`rootDir` を外すとワークスペースを変えても開き直さない。
+   * 動くのは購読の試行が決着したときと、`rootDir` が変わったときの2つ。呼び手の再描画に頼ると
+   * 開き直しが画面の描かれ方に左右され、索引が古いまま検索だけが成功する。
+   * `isListenSettled` を依存から外すと購読より先に開き、`rootDir` を外すとワークスペースを
+   * 変えても開き直さない。
    *
-   * 呼び出し側の再描画に頼らないのが要点。頼ると張り直しが「どの画面が描かれているか」と
-   * 「`openProject` の同一性が変わったか」に乗る。どちらもこのスライスの外にあって、
-   * 崩れても**索引が古いまま黙って動く**——検索は成功し、結果だけが実物と食い違う。
+   * TODO(#430): `openProject` は進行中の open があると根を見ずに戻るので、その間に根が変わると
+   * そのセッション中は開き直さない。
    *
-   * **`openProject` は飛行中の open を根を見ずに1本へ畳む**（TODO(#430)）。
-   * 前の open が終わる前に根が変わると、その回は空振りする。撃つ機会は上の2回しか
-   * 無いので、空振りするとそのセッション中は開き直さない。
-   *
-   * 失敗はここでは出せない。`openError` に載るが読み手が居ない（F-17 / #403）。
-   * 握り潰しているのではなく、出口がまだ無い。
+   * TODO(#403): 失敗は `openError` に載るが、読み手がまだ無い。
    */
   useEffect(() => {
     if (!rootDir || !isListenSettled) return;
