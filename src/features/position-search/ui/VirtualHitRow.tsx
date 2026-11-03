@@ -1,5 +1,5 @@
 import type { PositionHit } from "@/entities/search";
-import { getBaseName, toRelPath } from "@/shared/lib/path";
+import { getBaseName } from "@/shared/lib/path";
 import { PositionHitItem } from "./PositionHitItem";
 import type { RowComponentProps } from "react-window";
 
@@ -7,10 +7,10 @@ export type HitRowProps = {
   hits: PositionHit[];
   activeIndex: number;
 
-  rootDir: string | null;
   currentAbs: string | null;
 
-  relCache: Map<string, string>;
+  /** ワークスペースのルートからの相対パスを返す */
+  relPathOf: (absPath: string) => string;
   resolveAbsPath: (hit: PositionHit) => string | null;
 
   onActiveIndexChange: (next: number) => void;
@@ -24,14 +24,7 @@ export function VirtualHitRow(props: RowComponentProps<HitRowProps>) {
   const isActive = index === props.activeIndex;
 
   const abs = props.resolveAbsPath(hit);
-  const rel = (() => {
-    if (!abs) return "path unknown";
-    const cached = props.relCache.get(abs);
-    if (cached) return cached;
-    const next = toRelPath(abs, props.rootDir);
-    props.relCache.set(abs, next);
-    return next;
-  })();
+  const rel = abs ? props.relPathOf(abs) : "path unknown";
 
   const isSame = abs && props.currentAbs ? abs === props.currentAbs : false;
 

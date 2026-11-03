@@ -16,8 +16,11 @@ import PositionSearchHitList from "../PositionSearchHitList";
  * 高さを決め打つと `react-window` が行に `height` を書き込むので、そこは観測できる。
  */
 
+/** ワークスペースのルート。試験の側から差し替える */
+const appConfig = { root_dir: "/root" };
+
 vi.mock("@/entities/app-config", () => ({
-  useAppConfig: () => ({ config: { root_dir: "/root" } }),
+  useAppConfig: () => ({ config: appConfig }),
 }));
 
 vi.mock("@/entities/game", () => ({
@@ -53,7 +56,10 @@ function renderList(hits: PositionHit[], overrides: Partial<ListProps> = {}) {
 
 type ListProps = ComponentProps<typeof PositionSearchHitList>;
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  appConfig.root_dir = "/root";
+});
 
 describe("PositionSearchHitList", () => {
   test("行の高さを決め打たない（カードがスロットからはみ出せる形を作らない）", () => {
@@ -223,5 +229,32 @@ describe("PositionSearchHitList", () => {
     const card = container.querySelector<HTMLElement>(".pos-hit");
     expect(card?.querySelector(".pos-hit__path")?.textContent).toBe("path unknown");
     expect(card?.querySelector(".pos-hit__badge")?.textContent).toBe("切替");
+  });
+
+  test("ルートが変わったら、行のパスを新しいルートからの相対で出し直す", () => {
+    // 描くたびに要素を作り直す。同じ要素を渡すと React が描き直しを省く
+    const list = () => (
+      <PositionSearchHitList
+        hits={HITS.slice(0, 1)}
+        activeIndex={0}
+        onActiveIndexChange={() => {}}
+        onAccept={() => {}}
+        isSearching={false}
+        error={null}
+        resolveAbsPath={() => "/root/戦型/角換わり.kif"}
+        hasQuery
+        indexHealth="ok"
+        sessionStale={false}
+      />
+    );
+    const { container, rerender } = render(list());
+    // 描き直しを1回挟む。行はこの描画で、前のルートからの相対パスを控えに書く
+    rerender(list());
+    expect(container.querySelector(".pos-hit__path")?.textContent).toBe("戦型/角換わり.kif");
+
+    appConfig.root_dir = "/root/戦型";
+    rerender(list());
+
+    expect(container.querySelector(".pos-hit__path")?.textContent).toBe("角換わり.kif");
   });
 });

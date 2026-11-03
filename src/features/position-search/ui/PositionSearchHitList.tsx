@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useDynamicRowHeight } from "react-window";
 import { useAppConfig } from "@/entities/app-config";
+import { toRelPath } from "@/shared/lib/path";
 import "./PositionSearchHitList.scss";
 import { useGame } from "@/entities/game";
 import type { IndexHealth, PositionHit } from "@/entities/search";
@@ -93,23 +94,31 @@ export default function PositionSearchHitList({
   const rootDir = config?.root_dir ?? null;
   const currentAbs = gameState.loadedAbsPath ?? null;
 
-  const relCacheRef = useRef<Map<string, string>>(new Map());
-  useEffect(() => {
-    relCacheRef.current = new Map();
+  // 相対パスの控えはルートごとに作り直す。ルートと同じ描画で入れ替えないと、行が前のルートからの
+  // 相対パスを読み続ける。控えるのは、行が画面に入るたびに同じパスを組み直すため
+  const relPathOf = useMemo(() => {
+    const rels = new Map<string, string>();
+    return (absPath: string) => {
+      let rel = rels.get(absPath);
+      if (rel === undefined) {
+        rel = toRelPath(absPath, rootDir);
+        rels.set(absPath, rel);
+      }
+      return rel;
+    };
   }, [rootDir]);
 
   const rowProps = useMemo<HitRowProps>(
     () => ({
       hits,
       activeIndex,
-      rootDir,
       currentAbs,
-      relCache: relCacheRef.current,
+      relPathOf,
       resolveAbsPath,
       onActiveIndexChange,
       onAccept,
     }),
-    [hits, activeIndex, rootDir, currentAbs, resolveAbsPath, onActiveIndexChange, onAccept],
+    [hits, activeIndex, currentAbs, relPathOf, resolveAbsPath, onActiveIndexChange, onAccept],
   );
 
   if (hits.length === 0) {
