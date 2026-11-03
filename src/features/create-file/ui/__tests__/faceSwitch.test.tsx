@@ -285,6 +285,8 @@ describe("作成中（W）", () => {
     expect((tab("作成") as HTMLButtonElement).disabled).toBe(true);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(closeModal).not.toHaveBeenCalled();
+    // 貼りかけがあるので、作成中を見落とすと確認が出る。それも出さない（表の W×X10）
+    expect(screen.queryByText(/保存されません/)).toBeNull();
 
     await act(async () => {
       finish({ success: true });

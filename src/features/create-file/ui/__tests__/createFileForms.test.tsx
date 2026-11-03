@@ -287,6 +287,21 @@ describe("KifuImportForm", () => {
     expect(importKifuFile).toHaveBeenCalledWith("/other", "研究.kif", expect.any(String));
   });
 
+  // 取り込みは書き込みとツリーの読み直しを通るので、返事までに間がある。
+  // もう一度送ると、1回目は成功して2回目が already_exists になる
+  test("返事を待つあいだにもう一度送っても、2本は取り込まない", async () => {
+    let resolve: (value: unknown) => void = () => {};
+    importKifuFile.mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+    fillImport();
+    await submitForm();
+    await submitForm();
+
+    expect(importKifuFile).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true, data: "/root/研究.kif" }));
+  });
+
   test("衝突は別名を選ぶ対話が引き取るので、フォーム側では出さない", async () => {
     importKifuFile.mockResolvedValue({ success: false, error: CONFLICT });
     render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
