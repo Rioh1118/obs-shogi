@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
@@ -18,7 +18,7 @@ import Textarea from "@/shared/ui/Form/Textarea";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 
-interface EditorCreateFormProps {
+type EditorCreateFormProps = {
   /** 組んだ局面 */
   state: JKFState;
   /**
@@ -33,22 +33,24 @@ interface EditorCreateFormProps {
   onCreated: () => void;
   onCancel: () => void;
   /**
-   * 送信中かどうかを外へ知らせる
+   * 送信中か
    *
-   * Esc の段は**作成中を最初に見る**（止められないので無視する）ので、
-   * 段を判定する側がこの旗を要る。
+   * 旗は組む面が持つ。Esc の段は作成中を最初に見る（止められないので無視する）ので、
+   * 段を判定する組む面もこの旗を読む。ここで別に持つと、同じ値の入れ物が2つになる。
    */
+  isSubmitting: boolean;
+  /** 送信を始めたときと終えたとき */
   onSubmittingChange: (submitting: boolean) => void;
-}
+};
 
 /**
  * 組んだ局面から棋譜ファイルを作るフォーム
  *
- * **保存先の欄を持つ。** 入口がツリーの `＋ファイル` だけなら `dir=` が必ず来るが、
+ * 保存先の欄を持つ。入口がツリーの `＋ファイル` だけなら `dir=` が必ず来るが、
  * ようこそ画面からも開くので、そちらでは来ない。欄が無いと、来なかったときに
  * 黙って root へ作ることになる。
  *
- * 失敗の見せ方は `sfen-kifu-create` と揃える —— 衝突は別名を選ぶ対話が引き取り、
+ * 失敗の見せ方は `SfenKifuCreateModal` と揃える。衝突は別名を選ぶ対話が引き取り、
  * それ以外はこのフォームの中に出して**入力欄を残す**。差し替えると入力欄が消え、
  * 失敗して戻ったときキーボードの利用者は自分がどこにいるか分からなくなる。
  */
@@ -58,6 +60,7 @@ function EditorCreateForm({
   initialDir,
   onCreated,
   onCancel,
+  isSubmitting,
   onSubmittingChange,
 }: EditorCreateFormProps) {
   const { createNewFile, fileTree } = useFileTree();
@@ -68,7 +71,6 @@ function EditorCreateForm({
   const [whitePlayer, setWhitePlayer] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   const rootPath = fileTree?.path ?? "";
@@ -90,7 +92,7 @@ function EditorCreateForm({
     setSelectedDir(rootPath);
   }
 
-  // **選んでいたフォルダだけが消えたときも根へ戻す。** `Select` は選択肢に無い値を
+  // 選んでいたフォルダだけが消えたときも根へ戻す。`Select` は選択肢に無い値を
   // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
   // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**。
   //
@@ -101,12 +103,11 @@ function EditorCreateForm({
   }
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!fullFileName || !selectedDir || isSubmitting) return;
 
       setSubmitError(null);
-      setIsSubmitting(true);
       onSubmittingChange(true);
       const result = await createNewFile(selectedDir, {
         fileName: fullFileName,
@@ -123,7 +124,6 @@ function EditorCreateForm({
         initialPosition:
           handicap !== null ? { preset: handicap } : { preset: "OTHER", data: state },
       });
-      setIsSubmitting(false);
       onSubmittingChange(false);
 
       if (result.success) {

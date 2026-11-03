@@ -25,9 +25,11 @@ const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTre
   }) as FileTreeNode;
 
 const TREE = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+/** ツリーの読み直しを試すときだけ差し替える */
+let tree = TREE;
 
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
-  useFileTree: () => ({ createNewFile, fileTree: TREE }),
+  useFileTree: () => ({ createNewFile, fileTree: tree }),
 }));
 
 const { EditorHarness } = await import("./harness");
@@ -44,6 +46,7 @@ const DENIED: FsError = {
 };
 
 beforeEach(() => {
+  tree = TREE;
   createNewFile.mockReset();
   createNewFile.mockResolvedValue({ success: true });
 });
@@ -134,6 +137,18 @@ describe("ファイルの欄", () => {
     expect(createNewFile.mock.calls[0]![0]).toBe("/root/角換わり");
   });
 
+  test("選んでいたフォルダが消えたら根へ戻す", async () => {
+    // 値だけ残すと、欄は「選択してください」なのに消えたパスへ書きに行く
+    render(<EditorHarness />);
+    fireEvent.click(document.querySelector<HTMLElement>("#pos-editor-dir")!);
+    fireEvent.click(screen.getByRole("option", { name: "/角換わり" }));
+
+    tree = dir("root", "/root");
+    await submit();
+
+    expect(createNewFile.mock.calls[0]![0]).toBe("/root");
+  });
+
   test("タグとメモも渡る", async () => {
     render(<EditorHarness />);
     fireEvent.change(screen.getByLabelText("メモ"), { target: { value: "先手良し" } });
@@ -215,5 +230,68 @@ describe("失敗の見せ方", () => {
       settle({ success: true });
     });
     expect(createNewFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("作成中", () => {
+  /** 書き込みを保留にして「作成」を押す。返す関数で結果を返す */
+  const pressCreatePending = () => {
+    let settle: (v: unknown) => void = () => undefined;
+    createNewFile.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    fireEvent.change(nameInput(), { target: { value: "45角戦法" } });
+    fireEvent.click(createButton());
+    return async (result: unknown) => {
+      await act(async () => {
+        settle(result);
+      });
+    };
+  };
+
+  const boardFace = () => document.querySelector<HTMLElement>(".pos-editor__main:not([hidden])")!;
+
+  test("盤の面を沈めて止め、ボタンが作成中を名乗る", async () => {
+    // 受け付けないだけだと「押しても何も起きない」になる。止まっていることを見せる
+    render(<EditorHarness />);
+    const finish = pressCreatePending();
+
+    expect(boardFace().classList.contains("is-busy")).toBe(true);
+    expect(boardFace().hasAttribute("inert")).toBe(true);
+    expect(screen.getByRole("button", { name: "作成中…" })).not.toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "キャンセル" }).disabled).toBe(
+      true,
+    );
+
+    await finish({ success: true });
+  });
+
+  test("失敗したら止めるのを解き、閉じられるように戻る", async () => {
+    // 解き忘れると、失敗の後に盤も Esc も覆いも効かなくなる
+    const onClose = vi.fn();
+    render(<EditorHarness onClose={onClose} />);
+    const finish = pressCreatePending();
+
+    await finish({ success: false, error: DENIED });
+
+    expect(boardFace().classList.contains("is-busy")).toBe(false);
+    expect(boardFace().hasAttribute("inert")).toBe(false);
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "作成" }).disabled).toBe(false);
+
+    fireEvent.click(document.querySelector<HTMLElement>(".modal__overlay")!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test("失敗の後は Esc の段へ戻る", async () => {
+    // 段0 に残ると、掴んだ駒を Esc で離せない
+    render(<EditorHarness />);
+    const finish = pressCreatePending();
+    await finish({ success: false, error: DENIED });
+
+    fireEvent.click(square(7, 7));
+    fireEvent.keyDown(square(5, 5), { key: "Escape" });
+    expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { HANDICAP_PRESETS, type HandicapPreset } from "@/entities/kifu/model/handicap";
 import Select from "@/shared/ui/Form/Select";
 
-interface EditorSeedProps {
+type EditorSeedProps = {
   /**
    * いま載っている種の手合割。課題局面から載せたなら `null`
    *
@@ -11,13 +11,14 @@ interface EditorSeedProps {
   handicap: HandicapPreset | null;
   onPickHandicap: (preset: HandicapPreset) => void;
   onOpenStudyPositions: () => void;
-}
+};
 
 /**
  * 種を選ぶ行
  *
  * 種は2通り —— 手合割13と、登録済みの課題局面。
- * **駒箱を持たないので、駒の顔ぶれはここで決まりきる**（→ #548）。
+ * 駒箱を持たず駒を足す操作が無いので、駒の顔ぶれはここで決まりきる
+ * （`docs/spec/features/position-edit.md` の「置き場は3つだけ」）。
  *
  * **確定ボタンは置かない。** 選んだ瞬間に載る。載せる前に「本当に載せるか」を
  * 聞く場面は組みかけのときだけで、それは捨てる確認が受け持つ。

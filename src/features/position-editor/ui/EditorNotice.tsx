@@ -1,14 +1,14 @@
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import type { PositionIssue } from "@/entities/position/lib/inspectPosition";
 
-interface EditorNoticeProps {
+type EditorNoticeProps = {
   issues: PositionIssue[];
-}
+};
 
 /**
  * 規則に反する配置の断り
  *
- * **止めない。通す。** 「作成」は押せるまま。押せなくすると詰将棋が作れない
+ * 断るだけで止めない。「作成」は押せるまま。押せなくすると詰将棋が作れない
  * （攻め方の玉が無い形は、王手放置の検査に掛からないだけで玉の枚数としては
  * 規則から外れている）。研究のために規則から外れた局面を組むこともある。
  *
@@ -17,7 +17,7 @@ interface EditorNoticeProps {
  * 押して直るものが無い）。
  *
  * 置き場は右の列の一番上。盤の右隣の上端で、枠を付けた升との距離が最短になる。
- * 高さが変わってもフォームが下がるだけで**盤は動かない**。
+ * 高さが変わってもフォームが下がるだけで、盤は動かない。
  */
 function EditorNotice({ issues }: EditorNoticeProps) {
   if (issues.length === 0) return null;

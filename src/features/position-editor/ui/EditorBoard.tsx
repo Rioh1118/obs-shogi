@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { indexToCoords } from "@/entities/position/lib/boardCoords";
 import { pieceAt, squareKey, type Square } from "@/entities/position/lib/positionDraft";
@@ -6,7 +7,7 @@ import PieceImage from "@/entities/position/ui/PieceImage";
 import { squareMark } from "../lib/boardMarks";
 import type { Held } from "../model/types";
 
-interface EditorBoardProps {
+type EditorBoardProps = {
   state: JKFState;
   held: Held | null;
   hovered: Square | null;
@@ -15,7 +16,7 @@ interface EditorBoardProps {
   onPressSquare: (sq: Square) => void;
   onFlipSquare: (sq: Square) => void;
   onHoverSquare: (sq: Square | null) => void;
-}
+};
 
 /**
  * 組む面の盤
@@ -37,6 +38,14 @@ function EditorBoard({
   onHoverSquare,
 }: EditorBoardProps) {
   const heldFrom = held?.from === "square" ? held.sq : null;
+
+  const handleContextMenu = (event: MouseEvent, sq: Square) => {
+    // 盤の上では既定のメニューを出さない。器の中に OS のメニューが
+    // 開くと、その裏で局面が変わったのかどうかが分からなくなる。
+    // 駒が無い升では裏返すものが無いので、止めるだけ
+    event.preventDefault();
+    onFlipSquare(sq);
+  };
 
   return (
     <div className="pos-editor__board" onMouseLeave={() => onHoverSquare(null)}>
@@ -62,13 +71,7 @@ function EditorBoard({
               data-x={sq.x}
               data-y={sq.y}
               onClick={() => onPressSquare(sq)}
-              onContextMenu={(e) => {
-                // 盤の上では既定のメニューを出さない。器の中に OS のメニューが
-                // 開くと、その裏で局面が変わったのかどうかが分からなくなる。
-                // 駒が無い升では裏返すものが無いので、止めるだけ
-                e.preventDefault();
-                onFlipSquare(sq);
-              }}
+              onContextMenu={(e) => handleContextMenu(e, sq)}
               onMouseEnter={() => onHoverSquare(sq)}
             >
               {piece && <PieceImage kind={piece.kind} color={piece.color} />}

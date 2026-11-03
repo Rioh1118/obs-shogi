@@ -57,15 +57,13 @@ $picker-list-w: 32rem; // scale-exempt
 }
 
 // 課題局面の面に移っているあいだ、盤とフォームは木に残したまま隠れる
-// （外すと打った入力が消える）。`display` を書いた側が UA の
-// `[hidden] { display: none }` に勝つので、**書いた側で降ろす**
+// （外すと打った入力が消える）。`display` を降ろす理由は `.pos-editor[hidden]` と同じ
 .pos-editor__main[hidden],
 .pos-editor__side[hidden] {
   display: none;
 }
 
-// 種を選ぶ行。**確定ボタンは置かない**ので、押せるものは選択肢と1つのボタンだけ。
-// 出どころを選ぶ段（分節）を挟まない —— 押すものが2つしか無いので段が増えるだけになる
+// 種を選ぶ行。選択肢は上に見出しを持つので、ボタンと下端で揃える
 .pos-editor__seed {
   flex: 0 0 auto;
   display: flex;

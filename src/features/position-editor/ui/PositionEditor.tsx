@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { Color } from "shogi.js";
 import { DEFAULT_HANDICAP, type HandicapPreset } from "@/entities/kifu/model/handicap";
 import { inspectPosition } from "@/entities/position/lib/inspectPosition";
@@ -24,7 +24,7 @@ import "./PositionEditor.scss";
 /** 組む面のどちらが出ているか。インポートの面は器（`create-file`）が持つ */
 export type EditorFace = "board" | "study";
 
-interface PositionEditorProps {
+type PositionEditorProps = {
   /** いま出ている面。**器が1つの変数で持つ**ので、ここでは受け取るだけ */
   face: EditorFace;
   onFaceChange: (face: EditorFace) => void;
@@ -50,7 +50,7 @@ interface PositionEditorProps {
   /**
    * 組みかけかどうかを器へ知らせる
    *
-   * **閉じるときの確認は器が出す。** 閉じる経路は4つ（Esc・覆いの押下・両方の面の
+   * 閉じるときの確認は器が出す。閉じる経路は4つ（Esc・覆いの押下・両方の面の
    * 「キャンセル」）あり、そのうち2つは面の外にある。加えて捨てるものは組みかけだけでなく
    * **隣のタブの貼りかけもある**ので、数えられるのは両方を見ている器だけ。
    */
@@ -59,15 +59,16 @@ interface PositionEditorProps {
   onClose?: () => void;
   /** 種にできる課題局面。provider はこの面から読まない */
   studyPositions?: StudyPosition[];
-}
+};
 
 /**
  * 初期局面を組む面
  *
- * **置き場は盤と駒台2つの3つだけ。** 駒箱を持たないので、駒の顔ぶれは種が決める
- * （→ #548）。3つに閉じると、玉3枚・駒余り・歩19枚が構造的に作れない。
+ * 置き場は盤と駒台2つの3つだけ。駒箱を持たないので、駒の顔ぶれは種が決める
+ * （`docs/spec/features/position-edit.md` の「置き場は3つだけ」）。
+ * 3つに閉じると、玉3枚・駒余り・歩19枚が構造的に作れない。
  *
- * 駒台は**盤の左右**に置き、後手を盤の上端、先手を下端に揃える（対局中の盤と同じ位置）。
+ * 駒台は盤の左右に置き、後手を盤の上端、先手を下端に揃える（対局中の盤と同じ位置）。
  * 中央に揃えると、どちらの駒台かが位置から読めなくなる。
  *
  * 開いた瞬間は平手。**空盤から始めない** —— 駒箱が無いので、空盤に置くと
@@ -96,9 +97,54 @@ function PositionEditor({
     isDirty,
   } = usePositionDraft(() => stateFromPreset(DEFAULT_HANDICAP));
 
-  // 作成中は Esc の段の**外**にある（止められないので無視する）。
-  // 旗をここへ上げるのは、段を判定するのがこの面だから
+  // 作成中か。フォームが送信の始めと終わりに切り替え、フォームのボタンと Esc の段と
+  // 盤の面の沈め方が読む。読み手の共通の親がこの面なので、旗はフォームでなくここに置く
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /**
+   * 組みかけを捨てて種を載せ替える確認
+   *
+   * この面が出すのは種の載せ替えの確認だけ。閉じるときの確認は器が出す
+   * （`onDirtyChange` の doc）。
+   * **組みかけのときだけ出す** —— 聞きすぎると、聞かれること自体が意味を失う。
+   */
+  const [pending, setPending] = useState<{ subtitle: string; run: () => void } | null>(null);
+
+  // ホバーは局面ではなく見ている場所。`usePositionDraft` に混ぜると、
+  // ポインタを動かすたびに組みかけの判定が走る
+  const [hovered, setHovered] = useState<Square | null>(null);
+
+  // 最後に載せた手合割。課題局面を載せたら `null`。組みかけになっても残す
+  // （`EditorSeed` の `handicap` の doc）ので、局面そのものからは引けない
+  const [handicap, setHandicap] = useState<HandicapPreset | null>(DEFAULT_HANDICAP);
+
+  // 局面が変わったときだけ数え直す。`inspectPosition` は 81 升を7周以上なめる
+  // （空盤・二歩は先後で2周・行き所のない駒・玉の枚数を2周・玉の位置・王手の判定）ので、
+  // ポインタを動かすたびに走らせない
+  const inspection = useMemo(() => inspectPosition(state), [state]);
+
+  const heldPiece =
+    held === null
+      ? null
+      : held.from === "hand"
+        ? { kind: held.kind, color: held.color }
+        : pieceAt(state, held.sq);
+
+  const onStudyFace = face === "study";
+
+  /**
+   * 出口に書く手合割。並べ替えたら `null`
+   *
+   * 画面に出す名前（`handicap`）とは意味が違うので分ける。
+   * 種を選ぶ行が出すのは「何をもとに組んだか」で、載せた手合割の名前は直した後も残す。
+   * こちらが答えるのは「`initial` に `{preset}` と書いてよいか」で、
+   * 1升でも動かしたら**盤面そのものを書かないと直した配置が黙って落ちる**。
+   *
+   * 画面には出さない。出口が変わったことを名前に添えると、
+   * 種を選ぶ行が「いま何が載っているか」と「何が書かれるか」の2つを名乗ることになる。
+   */
+  const handicapForOutput = isDirty ? null : handicap;
+
   const reportSubmitting = useCallback(
     (submitting: boolean) => {
       setIsSubmitting(submitting);
@@ -106,20 +152,6 @@ function PositionEditor({
     },
     [onSubmittingChange],
   );
-
-  // 隠れているあいだは掴みを持ち越さない（状態遷移表の B1/B2 × X9「掴みを離す」）
-  useEffect(() => {
-    if (hidden) release();
-  }, [hidden, release]);
-
-  /**
-   * 組みかけを捨てて種を載せ替える確認
-   *
-   * **この面が出すのは種の載せ替えだけ。** 閉じるときの確認は器が出す
-   * （捨てるものが隣のタブにもあり、数えられるのは器だけ）。
-   * **組みかけのときだけ出す** —— 聞きすぎると、聞かれること自体が意味を失う。
-   */
-  const [pending, setPending] = useState<{ subtitle: string; run: () => void } | null>(null);
 
   /** 組みかけなら確認してから実行する */
   const confirmIfDirty = useCallback(
@@ -133,19 +165,6 @@ function PositionEditor({
     [isDirty],
   );
 
-  // ホバーは局面ではなく見ている場所。`usePositionDraft` に混ぜると、
-  // ポインタを動かすたびに組みかけの判定が走る
-  const [hovered, setHovered] = useState<Square | null>(null);
-
-  // 最後に載せた手合割。**組みかけになったら忘れる**（プレースホルダへ戻す）ので、
-  // 局面そのものからは引けない
-  const [handicap, setHandicap] = useState<HandicapPreset | null>(DEFAULT_HANDICAP);
-
-  // 局面が変わったときだけ数え直す。`inspectPosition` は 81 升を7周以上なめる
-  // （空盤・二歩は先後で2周・行き所のない駒・玉の枚数を2周・玉の位置・王手の判定）ので、
-  // ポインタを動かすたびに走らせない
-  const inspection = useMemo(() => inspectPosition(state), [state]);
-
   const pickHandicap = useCallback(
     (preset: HandicapPreset) => {
       confirmIfDirty("別の手合割を載せると、いま組んでいる局面は削除されます。", () => {
@@ -157,11 +176,11 @@ function PositionEditor({
   );
 
   /**
-   * 課題局面の面へ移る
+   * 掴んでいる駒を離して、課題局面の面へ移る。
    *
-   * **掴んでいる駒は離す。** 掴んだまま移れると `face === "study"` かつ
-   * `held !== null` という、状態の表に無い組み合わせができる。そこで Esc を押すと
-   * 段2（離す）が段3（盤へ戻る）より先に効くのに、**掴んでいること自体が画面に出ていない**
+   * 掴んだまま移れると `face === "study"` かつ `held !== null` という、
+   * 状態の表に無い組み合わせができる。そこで Esc を押すと段2（離す）が
+   * 段3（盤へ戻る）より先に効くのに、**掴んでいること自体が画面に出ていない**
    * （ゴーストは盤の面でしか描かない）ので、押しても何も起きないように見える。
    */
   const openStudyPositions = useCallback(() => {
@@ -169,7 +188,7 @@ function PositionEditor({
     onFaceChange("study");
   }, [release, onFaceChange]);
 
-  const useStudyPosition = useCallback(
+  const pickStudyPosition = useCallback(
     (position: StudyPosition) => {
       const seed = stateFromSfen(position.sfen);
       // 読めない SFEN は種にしない。黙って盤へ戻すと、種が変わっていないのに
@@ -186,40 +205,27 @@ function PositionEditor({
   );
 
   /**
-   * 組みかけを器へ知らせる
+   * Esc を、内側の段から順に1つだけ畳む。
    *
-   * **閉じるときの確認は器が出す**（状態遷移表の段4）。捨てるものは組みかけだけでなく
-   * 隣のタブの貼りかけもあり、**両方を数えられるのは器だけ**だから ——
-   * ここで自分の分だけを見て確認を出すと、2つ捨てるときに1つしか名指せない。
-   */
-  useEffect(() => {
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange]);
-
-  /**
-   * Esc の段
+   * 段が1つずれると、組んだものが黙って消えるか、逆に何も組んでいないのに毎回確認が出て、
+   * 確認そのものが読まれなくなる。段の表は `docs/state-transitions/position-editor.md`。
    *
-   * **内側から順に畳む。** 段が1つずれると、組んだものが黙って消えるか、
-   * 逆に何も組んでいないのに毎回確認が出て、確認そのものが読まれなくなる。
-   *
-   * **このハンドラが持つのは段0〜段3だけ。** 器を閉じる段（段4・段5）は
-   * 器の `Modal` の `onClose` が受け持つ。
-   * ここで畳んだ段は `preventDefault()` で降ろす ——
+   * このハンドラが持つのは段0〜段3だけ。器を閉じる段（段4・段5）は
+   * 器の `Modal` の `onClose` が受け持つ。ここで畳んだ段は `preventDefault()` で降ろす。
    * **`stopPropagation()` は使わない**（`document` まで届かないと
    * `defaultPrevented` の判定に到達せず、畳むものが無いときも無反応になる）。
    *
-   * ハンドラを DOM の要素側に置くのは、**面の器が焦点を持っているあいだだけ畳みたい**ため。
+   * ハンドラを DOM の要素側に置くのは、面の器が焦点を持っているあいだだけ畳みたいため。
    * `document` に足すと、面が出ていない器（インポートの面）でも Escape を拾ってしまう。
    *
-   * **そのために面の器が焦点を持てる必要がある**（下の `tabIndex={-1}`）。
-   * 升も駒台も焦点を持てないので、押したときブラウザは最も近い焦点を持てる祖先へ
-   * 焦点を移す。面の器が焦点を持てないと、その祖先は `Modal` のカード ——
-   * つまり**この面の外**になり、合成イベントの経路に載らないのでハンドラが呼ばれない。
+   * そのために面の器は焦点を持てる（下の `tabIndex={-1}`）。升も駒台も焦点を持てないので、
+   * 押したときブラウザは最も近い焦点を持てる祖先へ焦点を移す。面の器が焦点を持てないと、
+   * その祖先は `Modal` のカード、つまりこの面の外になり、合成イベントの経路に載らない。
    * 組みかけにできる操作（盤を押す・手番を変える）はどれもこの面の中にあるので、
    * 器が焦点を持てさえすれば、畳むべきときには必ず経路に載る。
    */
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
+    (event: KeyboardEvent) => {
       // 変換中の Escape は「変換を取り消す」であって、面を畳む合図ではない
       if (event.key !== "Escape" || event.nativeEvent.isComposing) return;
 
@@ -228,10 +234,10 @@ function PositionEditor({
         event.preventDefault();
         return;
       }
-      // 段1: 確認が出ている。**降ろさずに通す。**
+      // 段1: 確認が出ている。降ろさずに通す。
       //
       // React の合成イベントは DOM ではなく React の木を伝うので、確認（`#modal-root` へ
-      // portal している）の中で押した Escape も**ここへ届く**。ここで降ろすと、
+      // portal している）の中で押した Escape もここへ届く。ここで降ろすと、
       // 確認自身の器が `document` で受け取るときには既に `defaultPrevented` で、
       // **Esc では確認が閉じられなくなる**（残る出口はオーバーレイの押下だけ）。
       // 重なった器のうち最上位だけが閉じる仕組みは `Modal` の `isTop()` が持っている
@@ -255,46 +261,22 @@ function PositionEditor({
     [isSubmitting, pending, held, face, release, onFaceChange],
   );
 
-  const confirmView = pending && (
-    <ConfirmDialog
-      title="組んだ局面は保存されません。"
-      subtitle={pending.subtitle}
-      confirmLabel="捨てる"
-      // フォームの「キャンセル」（器ごと閉じる）と同じ語にしない。**戻り先が違う** ——
-      // こちらは組みかけの盤へ帰るだけ。同じ語だと、どちらを押しても
-      // 同じところへ戻ると読める
-      cancelLabel="組み続ける"
-      onConfirm={() => {
-        const run = pending.run;
-        setPending(null);
-        run();
-      }}
-      onCancel={() => setPending(null)}
-    />
-  );
+  const handleConfirm = () => {
+    if (pending === null) return;
+    setPending(null);
+    pending.run();
+  };
 
-  const heldPiece =
-    held === null
-      ? null
-      : held.from === "hand"
-        ? { kind: held.kind, color: held.color }
-        : pieceAt(state, held.sq);
+  // 隠れているあいだは掴みを持ち越さない（状態遷移表の B1/B2 × X9「掴みを離す」）
+  useEffect(() => {
+    if (hidden) release();
+  }, [hidden, release]);
 
-  const onStudyFace = face === "study";
-
-  /**
-   * 出口に書く手合割。**並べ替えたら `null`**
-   *
-   * **画面に出す名前（`handicap`）と分ける。** 意味が違う ——
-   * 種を選ぶ行が出すのは「何をもとに組んだか」で、載せた手合割の名前は直した後も残す。
-   * こちらが答えるのは「`initial` に `{preset}` と書いてよいか」で、
-   * 1升でも動かしたら**盤面そのものを書かないと直した配置が黙って落ちる**。
-   *
-   * **画面には出さない。** 出口が変わったことを名前に添えると、
-   * 種を選ぶ行が「いま何が載っているか」と「何が書かれるか」の2つを名乗ることになる。
-   * ここが答えるのは後者だけ。
-   */
-  const handicapForOutput = isDirty ? null : handicap;
+  // 閉じるときの確認（状態遷移表の段4）は器が出すので、組みかけかどうかだけを渡す。
+  // ここで自分の分だけを見て確認を出すと、2つ捨てるときに1つしか名指せない
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   return (
     <div className="pos-editor" tabIndex={-1} hidden={hidden} onKeyDown={handleKeyDown}>
@@ -306,7 +288,7 @@ function PositionEditor({
         <div className="pos-editor__main">
           <EditorStudyPicker
             positions={studyPositions}
-            onPick={useStudyPosition}
+            onPick={pickStudyPosition}
             onBack={() => onFaceChange("board")}
           />
         </div>
@@ -372,11 +354,24 @@ function PositionEditor({
           initialDir={initialDir}
           onCreated={onCreated}
           onCancel={onClose}
+          isSubmitting={isSubmitting}
           onSubmittingChange={reportSubmitting}
         />
       </div>
 
-      {confirmView}
+      {pending && (
+        <ConfirmDialog
+          title="組んだ局面は保存されません。"
+          subtitle={pending.subtitle}
+          confirmLabel="捨てる"
+          // フォームの「キャンセル」（器ごと閉じる）と同じ語にしない。**戻り先が違う** ——
+          // こちらは組みかけの盤へ帰るだけ。同じ語だと、どちらを押しても
+          // 同じところへ戻ると読める
+          cancelLabel="組み続ける"
+          onConfirm={handleConfirm}
+          onCancel={() => setPending(null)}
+        />
+      )}
     </div>
   );
 }

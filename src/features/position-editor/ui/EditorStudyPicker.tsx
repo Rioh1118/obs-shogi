@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import { stateFromSfen } from "@/entities/position/lib/positionDraft";
 import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
@@ -10,11 +10,11 @@ import {
 } from "@/entities/study-positions/model/types";
 import Select from "@/shared/ui/Form/Select";
 
-interface EditorStudyPickerProps {
+type EditorStudyPickerProps = {
   positions: StudyPosition[];
   onPick: (position: StudyPosition) => void;
   onBack: () => void;
-}
+};
 
 /**
  * 状態の絞り込み。空文字は「絞らない」
@@ -39,16 +39,9 @@ const STATE_OPTIONS: readonly { value: StudyPositionState | ""; label: string }[
  */
 function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps) {
   const [query, setQuery] = useState("");
-  const [state, setState] = useState<StudyPositionState | "">("");
+  const [stateFilter, setStateFilter] = useState<StudyPositionState | "">("");
   const [lookingId, setLookingId] = useState<string | null>(null);
   const faceRef = useRef<HTMLDivElement>(null);
-
-  // 面に入ったら焦点を移す。**移さないと ↑↓ が効かない** ——
-  // 「課題局面から」のボタンは面へ入った時点で消えるので、`Modal` が焦点を
-  // タブへ引き戻し、このハンドラは合成イベントの経路から外れる
-  useEffect(() => {
-    faceRef.current?.focus();
-  }, []);
 
   /**
    * 盤に載せられない課題局面
@@ -65,7 +58,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return positions.filter((p) => {
-      if (state !== "" && p.state !== state) return false;
+      if (stateFilter !== "" && p.state !== stateFilter) return false;
       if (needle === "") return true;
       return (
         p.label.toLowerCase().includes(needle) ||
@@ -73,16 +66,43 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
         p.tags.some((tag) => tag.toLowerCase().includes(needle))
       );
     });
-  }, [positions, query, state]);
+  }, [positions, query, stateFilter]);
 
   // **選んだ行そのもので覚える。** 位置で覚えると、絞り込みで件数が変わらないまま
   // 中身が入れ替わったときに、押していない別の局面へ黙って移る
   const looking = shown.find((p) => p.id === lookingId) ?? shown[0] ?? null;
-  const at = looking ? shown.indexOf(looking) : -1;
+  const lookingIndex = looking ? shown.indexOf(looking) : -1;
   const preview = useMemo(
     () => (looking ? buildPreviewDataFromSfen(looking.sfen) : null),
     [looking],
   );
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // 入力欄ではキャレット移動・IME 候補操作を優先する
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      const next = Math.max(0, Math.min(shown.length - 1, lookingIndex + step));
+      setLookingId(shown[next]?.id ?? null);
+      return;
+    }
+
+    // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で選ぶだけできて決める操作が無いと、
+    // 鍵盤だけの利用者は種を1つも選べない。沈めた行は押下と同じで受け付けない
+    if (e.key === "Enter" && looking && !unusable.has(looking.id)) {
+      e.preventDefault();
+      onPick(looking);
+    }
+  };
+
+  // 面に入ったら焦点を移す。**移さないと ↑↓ が効かない** ——
+  // 「課題局面から」のボタンは面へ入った時点で消えるので、`Modal` が焦点を
+  // タブへ引き戻し、`handleKeyDown`は合成イベントの経路から外れる
+  useEffect(() => {
+    faceRef.current?.focus();
+  }, []);
 
   return (
     <div
@@ -90,25 +110,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
       // 一覧に焦点が無くても ↑↓ で下見できるようにする。器の中でこの面だけが出ている
       tabIndex={-1}
       ref={faceRef}
-      onKeyDown={(e) => {
-        // 入力欄ではキャレット移動・IME 候補操作を優先する
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          e.preventDefault();
-          const step = e.key === "ArrowDown" ? 1 : -1;
-          const next = Math.max(0, Math.min(shown.length - 1, at + step));
-          setLookingId(shown[next]?.id ?? null);
-          return;
-        }
-
-        // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で選ぶだけできて決める操作が無いと、
-        // 鍵盤だけの利用者は種を1つも選べない。沈めた行は押下と同じで受け付けない
-        if (e.key === "Enter" && looking && !unusable.has(looking.id)) {
-          e.preventDefault();
-          onPick(looking);
-        }
-      }}
+      onKeyDown={handleKeyDown}
     >
       <div className="pos-editor__picker-list">
         <div className="pos-editor__picker-filters">
@@ -123,8 +125,8 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
             label="状態"
             id="pos-editor-study-state"
             options={STATE_OPTIONS}
-            value={state}
-            onChange={setState}
+            value={stateFilter}
+            onChange={setStateFilter}
           />
         </div>
 
@@ -149,18 +151,18 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
                   id={`pos-editor-study-${position.id}`}
                   className={[
                     "pos-editor__picker-row",
-                    index === at && "is-looking",
+                    index === lookingIndex && "is-looking",
                     broken && "is-broken",
                   ]
                     .filter(Boolean)
                     .join(" ")}
                   role="option"
-                  aria-selected={index === at}
+                  aria-selected={index === lookingIndex}
                   aria-disabled={broken}
                   title={
                     broken ? "保存されている局面の綴りが壊れていて、盤に載せられません" : undefined
                   }
-                  // **1回目で選び、2回目で載せる。** 局面検索の一覧と同じ規則で、
+                  // 1回目で選び、2回目で載せる。局面検索の一覧と同じ規則で、
                   // 「見たいだけ」を押下で表せるようにする。ホバーでは動かさない ——
                   // 通り過ぎただけでプレビューが変わると、見たい局面に辿り着けない。
                   //
@@ -171,7 +173,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
                     broken
                       ? undefined
                       : (e) =>
-                          e.detail >= 2 && index === at
+                          e.detail >= 2 && index === lookingIndex
                             ? onPick(position)
                             : setLookingId(position.id)
                   }
