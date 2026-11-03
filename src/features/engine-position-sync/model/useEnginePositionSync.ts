@@ -26,6 +26,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   const engineKey = presetsState.selectedPresetId
     ? `${presetsState.selectedPresetId}@${selectedPresetVersion}`
     : "no-engine";
+  const currentSfen = gameView.currentSfen;
 
   const [syncedSfen, setSyncedSfen] = useState<string | null>(null);
 
@@ -42,6 +43,14 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   // 送信ループが読む engineKey。クロージャに焼き付けると切替後も古い値を書く。
   const engineKeyRef = useRef(engineKey);
   engineKeyRef.current = engineKey;
+
+  const lastEngineKeyRef = useRef<string | null>(engineKey);
+  const lastReadyRef = useRef(isReady);
+
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const queuedSfenRef = useRef<string | null>(null);
+
+  const pendingBeforeReadyRef = useRef<string | null>(null);
 
   const markSynced = useCallback((sfen: string, key: string | null) => {
     syncedSfenRef.current = sfen;
@@ -60,16 +69,6 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     syncedEngineKeyRef.current = nextEngineKey;
     setSyncedSfen(null);
   }, []);
-
-  const lastEngineKeyRef = useRef<string | null>(engineKey);
-  const lastReadyRef = useRef(isReady);
-
-  const inFlightRef = useRef<Promise<void> | null>(null);
-  const queuedSfenRef = useRef<string | null>(null);
-
-  const pendingBeforeReadyRef = useRef<string | null>(null);
-
-  const currentSfen = gameView.currentSfen;
 
   const syncPosition = useCallback(async (): Promise<void> => {
     const sfen = currentSfen;
