@@ -6,6 +6,7 @@ import {
 } from "@/entities/kifu/model/branch";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
+import { placeBelowOrAbove } from "../lib/popoverPlacement";
 import KifuForkActions from "./KifuForkActions";
 import "./KifuForkMenu.scss";
 
@@ -97,31 +98,13 @@ const KifuForkMenu = memo(function KifuForkMenu({
     const menu = selfRef.current;
     if (!menu) return;
 
-    const a = anchorEl.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    const mw = menu.offsetWidth;
-    const mh = menu.offsetHeight;
-
-    const margin = 8;
-
-    let left = a.right - mw;
-    left = Math.max(margin, Math.min(vw - mw - margin, left));
-
-    const spaceBelow = vh - a.bottom;
-    const spaceAbove = a.top;
-
-    let top: number;
-    if (spaceBelow >= mh + margin) {
-      top = a.bottom + 6;
-    } else if (spaceAbove >= mh + margin) {
-      top = a.top - mh - 6;
-    } else {
-      top = Math.max(margin, Math.min(vh - mh - margin, a.bottom + 6));
-    }
-
-    setPos({ top, left });
+    setPos(
+      placeBelowOrAbove(
+        anchorEl.getBoundingClientRect(),
+        { width: menu.offsetWidth, height: menu.offsetHeight },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    );
   };
 
   useLayoutEffect(() => {

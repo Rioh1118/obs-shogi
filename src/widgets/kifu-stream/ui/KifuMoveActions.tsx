@@ -1,6 +1,7 @@
 import type React from "react";
-import { memo, useLayoutEffect, useRef, useState } from "react";
+import { memo } from "react";
 import { createPortal } from "react-dom";
+import { useBesidePlacement } from "./useBesidePlacement";
 import { Trash2 } from "lucide-react";
 import "./KifuMoveActions.scss";
 
@@ -14,8 +15,6 @@ type Props = {
   onDeleteFromHere: (te: number) => void;
 };
 
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
-
 const KifuMoveActions = memo(function KifuMoveActions({
   open,
   busy,
@@ -24,71 +23,19 @@ const KifuMoveActions = memo(function KifuMoveActions({
   onClose,
   onDeleteFromHere,
 }: Props) {
-  const selfRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{
-    top: number;
-    left: number;
-    placement: "right" | "left";
-  } | null>(null);
-
-  const updatePosition = () => {
-    if (!anchorRect) return;
-    const pop = selfRef.current;
-    if (!pop) return;
-
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    const mw = pop.offsetWidth;
-    const mh = pop.offsetHeight;
-
-    const gap = 8;
-    const margin = 8;
-
-    let placement: "right" | "left" = "right";
-    let left = anchorRect.right + gap;
-
-    if (left + mw + margin > vw) {
-      placement = "left";
-      left = anchorRect.left - mw - gap;
-    }
-    left = clamp(left, margin, vw - mw - margin);
-
-    const idealTop = anchorRect.top + anchorRect.height / 2 - mh / 2;
-    const top = clamp(idealTop, margin, vh - mh - margin);
-
-    setPos({ top, left, placement });
-  };
-
-  useLayoutEffect(() => {
-    if (!open || !anchorRect) return;
-    requestAnimationFrame(updatePosition);
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, anchorRect?.top, anchorRect?.left, anchorRect?.width, anchorRect?.height]);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const onResize = () => updatePosition();
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onResize, true);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onResize, true);
-    };
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  const { selfRef, placement } = useBesidePlacement(open, anchorRect);
 
   if (!open || !anchorRect) return null;
 
-  const style: React.CSSProperties = pos
-    ? { top: pos.top, left: pos.left }
+  const style: React.CSSProperties = placement
+    ? { top: placement.top, left: placement.left }
     : { top: -9999, left: -9999 };
 
   return createPortal(
     <div
       ref={selfRef}
       className="kifu-moveactions-pop"
-      data-placement={pos?.placement ?? "right"}
+      data-placement={placement?.side ?? "right"}
       style={style}
       role="menu"
       aria-label={`${te}手目の操作`}
