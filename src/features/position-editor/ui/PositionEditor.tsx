@@ -97,8 +97,8 @@ function PositionEditor({
     isDirty,
   } = usePositionDraft(() => stateFromPreset(DEFAULT_HANDICAP));
 
-  // 作成中は Esc の段の**外**にある（止められないので無視する）。
-  // 旗をここへ上げるのは、段を判定するのがこの面だから
+  // 作成中か。フォームが送信の始めと終わりに切り替え、フォームのボタンと Esc の段と
+  // 盤の面の沈め方が読む。読み手の共通の親がこの面なので、旗はフォームでなくここに置く
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   /**
@@ -354,6 +354,7 @@ function PositionEditor({
           initialDir={initialDir}
           onCreated={onCreated}
           onCancel={onClose}
+          isSubmitting={isSubmitting}
           onSubmittingChange={reportSubmitting}
         />
       </div>

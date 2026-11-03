@@ -33,11 +33,13 @@ type EditorCreateFormProps = {
   onCreated: () => void;
   onCancel: () => void;
   /**
-   * 送信中かどうかを外へ知らせる
+   * 送信中か
    *
-   * Esc の段は**作成中を最初に見る**（止められないので無視する）ので、
-   * 段を判定する側がこの旗を要る。
+   * 旗は組む面が持つ。Esc の段は作成中を最初に見る（止められないので無視する）ので、
+   * 段を判定する組む面もこの旗を読む。ここで別に持つと、同じ値の入れ物が2つになる。
    */
+  isSubmitting: boolean;
+  /** 送信を始めたときと終えたとき */
   onSubmittingChange: (submitting: boolean) => void;
 };
 
@@ -58,6 +60,7 @@ function EditorCreateForm({
   initialDir,
   onCreated,
   onCancel,
+  isSubmitting,
   onSubmittingChange,
 }: EditorCreateFormProps) {
   const { createNewFile, fileTree } = useFileTree();
@@ -68,7 +71,6 @@ function EditorCreateForm({
   const [whitePlayer, setWhitePlayer] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   const rootPath = fileTree?.path ?? "";
@@ -106,7 +108,6 @@ function EditorCreateForm({
       if (!fullFileName || !selectedDir || isSubmitting) return;
 
       setSubmitError(null);
-      setIsSubmitting(true);
       onSubmittingChange(true);
       const result = await createNewFile(selectedDir, {
         fileName: fullFileName,
@@ -123,7 +124,6 @@ function EditorCreateForm({
         initialPosition:
           handicap !== null ? { preset: handicap } : { preset: "OTHER", data: state },
       });
-      setIsSubmitting(false);
       onSubmittingChange(false);
 
       if (result.success) {
