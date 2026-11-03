@@ -7,70 +7,30 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
-import type { StudyPosition, StudyPositionState } from "@/entities/study-positions/model/types";
+import type { StudyPositionState } from "@/entities/study-positions/model/types";
 
+import {
+  computeTagCounts,
+  matchesQuery,
+  sortPositions,
+  topTags,
+  type SortKey,
+} from "../lib/positionFilters";
 import { useTurnInfoCache } from "../lib/useTurnInfoCache";
 import StateTabNav from "./StateTabNav";
 import ActiveFilterChips from "./ActiveFilterChips";
 import TagFilterPanel from "./TagFilterPanel";
 import PositionListItem from "./PositionListItem";
 import PositionDetail from "./PositionDetail";
+import SearchBox from "./SearchBox";
+import SortMenu from "./SortMenu";
 
 import "./StudyPositionsManagerModal.scss";
-
-type SortKey = "updatedAt_desc" | "updatedAt_asc" | "createdAt_desc" | "label_asc";
-
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "updatedAt_desc", label: "更新日↓" },
-  { value: "updatedAt_asc", label: "更新日↑" },
-  { value: "createdAt_desc", label: "作成日↓" },
-  { value: "label_asc", label: "ラベル順" },
-];
-
-function matchesQuery(p: StudyPosition, q: string): boolean {
-  const lower = q.toLowerCase();
-  return (
-    p.label.toLowerCase().includes(lower) ||
-    p.description.toLowerCase().includes(lower) ||
-    p.tags.some((t) => t.toLowerCase().includes(lower))
-  );
-}
-
-function sortPositions(list: StudyPosition[], key: SortKey): StudyPosition[] {
-  const sorted = [...list];
-  switch (key) {
-    case "updatedAt_desc":
-      return sorted.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    case "updatedAt_asc":
-      return sorted.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
-    case "createdAt_desc":
-      return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    case "label_asc":
-      return sorted.sort((a, b) => a.label.localeCompare(b.label, "ja"));
-  }
-}
-
-function computeTagCounts(positions: StudyPosition[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (const p of positions) {
-    for (const t of p.tags) {
-      map.set(t, (map.get(t) ?? 0) + 1);
-    }
-  }
-  return map;
-}
-
-function topTags(tagCounts: Map<string, number>, limit: number): string[] {
-  return [...tagCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([tag]) => tag);
-}
 
 export default function StudyPositionsManagerModal() {
   const { params, closeModal, openModal } = useURLParams();
@@ -90,7 +50,6 @@ export default function StudyPositionsManagerModal() {
   const [showTagPanel, setShowTagPanel] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
 
-  const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -226,11 +185,6 @@ export default function StudyPositionsManagerModal() {
     setTagFilter([]);
   }, []);
 
-  const handleClearQuery = () => {
-    setQuery("");
-    searchRef.current?.focus();
-  };
-
   const handleSelectSort = (value: SortKey) => {
     setSort(value);
     setShowSortMenu(false);
@@ -296,8 +250,6 @@ export default function StudyPositionsManagerModal() {
 
   if (!isOpen) return null;
 
-  const sortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label ?? "更新日↓";
-
   const isEmpty = positions.length === 0;
   const isFilterEmpty = !isEmpty && displayPositions.length === 0;
 
@@ -339,35 +291,7 @@ export default function StudyPositionsManagerModal() {
             <div className="sp-manager__divider" />
 
             <div className="sp-manager__searchRow">
-              <div className="sp-manager__searchBox">
-                <Search size={14} className="sp-manager__searchIcon" />
-                <input
-                  ref={searchRef}
-                  type="text"
-                  className="sp-manager__searchInput"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="ラベル・メモを検索"
-                  onKeyDown={(e) => {
-                    // 消すものがあるときだけ消費する。`stopPropagation()` にすると
-                    // `document` まで届かず、消すものが無いときの Escape で対話が閉じない
-                    if (e.key === "Escape" && query) {
-                      e.preventDefault();
-                      setQuery("");
-                    }
-                  }}
-                />
-                {query && (
-                  <button
-                    type="button"
-                    className="sp-manager__searchClear"
-                    onClick={handleClearQuery}
-                    aria-label="検索クリア"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
+              <SearchBox query={query} onChange={setQuery} />
               <button
                 type="button"
                 className={`sp-manager__filterBtn ${tagFilter.length > 0 ? "sp-manager__filterBtn--active" : ""}`}
@@ -394,30 +318,12 @@ export default function StudyPositionsManagerModal() {
             )}
 
             <div className="sp-manager__sortRow">
-              <div className="sp-manager__sortBtn">
-                <button
-                  type="button"
-                  className="sp-manager__sortTrigger"
-                  onClick={() => setShowSortMenu((v) => !v)}
-                >
-                  <span>{sortLabel}</span>
-                  <ChevronDown size={12} />
-                </button>
-                {showSortMenu && (
-                  <div className="sp-manager__sortMenu">
-                    {SORT_OPTIONS.map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        className={`sp-manager__sortOption ${sort === opt.value ? "sp-manager__sortOption--active" : ""}`}
-                        onClick={() => handleSelectSort(opt.value)}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <SortMenu
+                value={sort}
+                open={showSortMenu}
+                onToggle={() => setShowSortMenu((v) => !v)}
+                onSelect={handleSelectSort}
+              />
               <span className="sp-manager__count">
                 {displayPositions.length}件
                 {(query || tagFilter.length > 0) && ` / ${stateFiltered.length}件中`}
