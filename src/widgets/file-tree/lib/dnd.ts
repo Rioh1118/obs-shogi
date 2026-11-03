@@ -8,9 +8,12 @@ export const DROP_ID = {
   file: (filePath: string) => `drop:file:${filePath}`,
 } as const;
 
-export type DropData =
-  | { kind: "drop"; destDir: string }
-  | { kind: "drop"; destDir: string; via: "file" | "dir" | "root" | "blank" };
+/** 落とし先が `useDroppable` の `data` に載せる値。読むのは FileTree の `onDragEnd` で、見るのは `destDir` だけ */
+export type DropData = {
+  kind: "drop";
+  destDir: string;
+  via: "file" | "dir" | "root" | "blank";
+};
 
 export type DragData = {
   kind: "tree-node";

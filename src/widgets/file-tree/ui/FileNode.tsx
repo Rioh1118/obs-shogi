@@ -5,7 +5,7 @@ import InlineNameEditor from "./InlineNameEditor";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
+import { DROP_ID, parentDir, type DragData, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useRef, type MouseEventHandler } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
@@ -51,7 +51,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     isDragging,
   } = useDraggable({
     id: node.path,
-    data: { kind: "tree-node", path: node.path, isDirectory: false },
+    data: { kind: "tree-node", path: node.path, isDirectory: false } satisfies DragData,
     disabled: isRenaming,
   });
 
