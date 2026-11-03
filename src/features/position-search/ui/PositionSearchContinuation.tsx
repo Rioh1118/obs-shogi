@@ -18,10 +18,11 @@ type Props = {
    * 先読みした行の続きも組んでおく処理を足せてしまい、画面に出ているのは
    * `activeHit` の続きなのに、別の局面の続きが混ざる形が作れる。
    */
-  prefetchAbsPath?: string | null;
+  prefetchAbsPath: string | null;
 
   resolveAbsPath: (hit: PositionHit) => string | null;
-  ply?: number;
+  /** 続きを何手ぶん読むか */
+  ply: number;
 };
 
 /** 1回の読みに要るもの（どのファイルの、どの局面か）と、その同一性の鍵 */
@@ -53,9 +54,9 @@ const PREFETCH_DELAY_MS = 300;
 
 export default function PositionSearchContinuation({
   activeHit,
-  prefetchAbsPath = null,
+  prefetchAbsPath,
   resolveAbsPath,
-  ply = 3,
+  ply,
 }: Props) {
   const [moves, setMoves] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
