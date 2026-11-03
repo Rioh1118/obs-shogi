@@ -8,9 +8,9 @@ interface EditorGhostProps {
 }
 
 /**
- * 固定配置の原点を1度だけ測る
+ * 固定配置の原点を1度だけ測って返す。
  *
- * **`position: fixed` はビューポート基準とは限らない。** `filter` / `backdrop-filter` /
+ * `position: fixed` はビューポート基準とは限らない。`filter` / `backdrop-filter` /
  * `transform` を持つ祖先は固定配置の包含ブロックになる。`Modal` の覆いは
  * `backdrop-filter` を持ち、タイトルバーの下から始まるので、ポインタの座標を
  * そのまま書くと**縦にだけ**ずれて「少し下に付いてくる」形になる。

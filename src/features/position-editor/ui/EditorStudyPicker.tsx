@@ -160,7 +160,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
                   title={
                     broken ? "保存されている局面の綴りが壊れていて、盤に載せられません" : undefined
                   }
-                  // **1回目で選び、2回目で載せる。** 局面検索の一覧と同じ規則で、
+                  // 1回目で選び、2回目で載せる。局面検索の一覧と同じ規則で、
                   // 「見たいだけ」を押下で表せるようにする。ホバーでは動かさない ——
                   // 通り過ぎただけでプレビューが変わると、見たい局面に辿り着けない。
                   //

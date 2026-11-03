@@ -74,9 +74,9 @@ export function squareMark(
     (isSameSquare(preview.target, sq) || (held?.from === "square" && isSameSquare(held.sq, sq)));
 
   return {
-    // **掴んでいる間だけ沈める。** 何も掴んでいないときの空升は押しても何も起きないが、
-    // そこで沈めると休んでいる盤の 40 升が黒くなり、**盤が盤に見えなくなる**。
-    // 沈めるのは「置き先を探している最中に、置けない場所を除く」ためだけ。
+    // 沈めるのは駒台の駒を掴んでいる間だけ。何も掴んでいないときの空升も押して何も起きないが、
+    // そこで沈めると平手なら41升が黒くなり、**盤が盤に見えなくなる**。
+    // 沈めるのは置き先を探している最中に置けない場所を除くため。
     // 盤の駒を掴んでいるときに置けない升は無い（空升へは動き、駒には重なる）
     blocked: held?.from === "hand" && !canDropOn(state, sq),
     takes: preview !== null && !preview.swaps && isSameSquare(preview.target, sq),
