@@ -63,6 +63,7 @@ ours 戦略のマージは使わない。
 | 27 | `refactor/tidy-features-study-positions` | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note`（範囲15の第2段）、局面を保存する対話の詰め直し | #695 | マージ済み |
 | 28 | `refactor/tidy-features-rest` | `src/features` の残りの8つ（範囲15の第3段） | #696 | マージ済み |
 | 29 | `refactor/tidy-widgets-kifu-stream` | `src/widgets/kifu-stream`（範囲16の第1段） | #697 | マージ済み |
+| 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2段）、読み直した後の行の強調 | — | レビュー待ち |
 
 ## 語
 
@@ -108,7 +109,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 15b | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note` | 1830 | 済 | 済 |
 | 15c | `src/features` の残りの8つ（`game-move`、`engine-position-sync`、`updater` など） |  923 | 済 | 済 |
 | 16 | `src/widgets/kifu-stream`                                | 1472 | 済     | 済     |
-| 16b | `src/widgets/file-tree`                                 | 1395 | 未着手 | 未着手 |
+| 16b | `src/widgets/file-tree`                                 | 1395 | 済     | 済     |
 | 16c | `src/widgets` の `analysis-pane`、`game-board`          | 1754 | 未着手 | 未着手 |
 | 16d | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar` | 1034 | 未着手 | 未着手 |
 | 17 | `src/pages`、`src/app`                                   | 1682 | 未着手 | 未着手 |
@@ -154,10 +155,9 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
 | `src/entities/game-session/model/provider.tsx` の `start` の `void closeGame(gameId)` | 手放した対局を畳む呼び出しの断りを誰も受けない。本番の呼び手が `closeSession` しか無いので、対局の面を戻すときに決める |
 | `src-tauri/src/workspace/commands/kifu.rs` の `save_kifu_file` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
-| `src/entities/file-tree/model/types.ts` の `displayInfo.iconType` | `isDirectory` の写しで、読み手は `src/widgets/file-tree` の2か所。`src/widgets` の範囲で `FileIcon` の受け方と合わせて畳む |
-| `src/widgets/file-tree/ui/FileNode.tsx` の `isSelected` | `selectedNode?.id === node.id` で比べるが、`id` は走査ごとに振り直され、`tree_loaded` は `selectedNode` を張り替えない。読み直すと棋譜は開いたまま行の強調が消える筋がある。未再現。`path` で比べる形を `src/widgets` の範囲で見る |
-| `src/widgets/file-tree/ui/FileTree.tsx` のコメントの `再読み込み` | ボタンの文言は `FileTreeErrorNotice.tsx` の「もう一度読み込む」。`src/widgets` の範囲で揃える |
-| `src/widgets/file-tree/lib/dnd.ts` の `ALLOWED`、`getExt`、`findDropDirAt` | `knip` が未使用と数えている。`src/widgets` の範囲で見る |
+| `src/widgets/file-tree/ui/TreeNode.tsx` の `key={child.id}` と、`renamingNodeId` | どちらも走査のたびに振り直す `id` で同一性を見るので、読み直すとフォルダの下の行が作り直され、改名の欄が打った文字ごと畳まれる。行の強調はパスで比べる形へ直した（範囲16の第2段）。`renamingNodeId` を `path` にするのは `entities/file-tree` の state の変更で、改名と移動の張り替えと合わせて決める |
+| `src/widgets/file-tree/ui/TreeNodeActions.tsx` の `isDirectory` | 呼び手はルートとフォルダの行だけで、常に真。消すと `shared/lib/path.ts` の `getParentPath` の読み手が0になるので、`shared` の範囲と合わせて消す |
+| `src/widgets/file-tree/ui/DirectoryToggleIcon.scss` の `transition: transform 0.15 ease` | 時間に単位が無く、宣言ごと無効になっている。フォルダの矢印は回らずに切り替わる。直すと見た目が変わるので、画面の動きの棚卸しで決める |
 | `src/entities/kifu/api/parse.ts` の `parseKifuContentToJKF` | 形式を拡張子だけで決めるので、Finder で変えたファイルは本文と形式がずれたまま0手で載り、次の保存で本文を失う筋がある。未再現。指し手が0で本文が空でないときに開くのを断るかを、#210 と合わせて決める |
 | `src/widgets/book-view/ui/BookView.tsx` の `body` の `switch` | 戻り値が `ReactNode` で `default` も無いので、`BookViewState` に `kind` を足しても tsc が落ちず、本体が空になる。`src/widgets` の範囲で `never` の網羅を足す |
 | `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。中止で前の定跡へ戻すかを `src/widgets` の範囲で決める |
@@ -186,12 +186,12 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-範囲16b: `src/widgets/file-tree`（1395行）。範囲16の第2段で、残りは 16c と 16d（TypeScript の表）。
+範囲16c: `src/widgets` の `analysis-pane`、`game-board`（1754行）。範囲16の第3段で、残りは 16d（TypeScript の表）。
 スライスどうしは import し合わないので、段の間で同じファイルを触らない。
 
-所見の表のうち、`FileNode.tsx` の `isSelected`、`FileTree.tsx` のコメントの `再読み込み`、
-`dnd.ts` の `ALLOWED`、`getExt`、`findDropDirAt` と、読み手が `src/widgets/file-tree` にある
-`displayInfo.iconType` がこの段にかかる。
+所見の表のうち、`PromotionDialog.tsx` の `promotionMap`（`positionDraft.ts` の `PROMOTED` の行と合わせる）と、
+`getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` の読み手の `AnalysisPane` と `Hand`、
+`EngineState` の union がこの段にかかる。
 
 `docs/IDEAS.md` の「feature の SCSS が shared の部品の内部クラスを掴んでいる」は、
 外すのに `shared/ui/Form` の手が要るので、範囲15では閉じない。
