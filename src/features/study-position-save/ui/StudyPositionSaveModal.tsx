@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -6,7 +6,7 @@ import { useGame } from "@/entities/game";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
-import type { StudyPositionState } from "@/entities/study-positions/model/types";
+import type { StudyPosition, StudyPositionState } from "@/entities/study-positions/model/types";
 
 import TextInput from "@/shared/ui/Form/TextInput";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
@@ -35,10 +35,48 @@ export default function StudyPositionSaveModal() {
   const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  /** フォームを詰めたときの記録。保存中に一覧が先に差し替わっても、題と保存の宛先を動かさない */
+  const [existing, setExisting] = useState<StudyPosition | null>(null);
+  const [filledOpen, setFilledOpen] = useState(false);
 
   const sfen = params.sfen ?? currentSfen;
-  const existing = useMemo(() => (isOpen ? findBySfen(sfen) : null), [isOpen, findBySfen, sfen]);
+  // 描くたびに引く。`findBySfen` は一覧を ref から読むので同一性が動かず、
+  // memo にすると開いた後に届いた一覧を拾わない
+  const listed = isOpen ? findBySfen(sfen) : null;
   const isEdit = !!existing;
+  const isPristine =
+    label === "" && studyState === "inbox" && tags.length === 0 && description === "";
+
+  const fillForm = (record: StudyPosition | null) => {
+    setExisting(record);
+    setIsSaving(false);
+    setConfirmDelete(false);
+    setErrorMsg(null);
+    setLabel(record?.label ?? "");
+    setStudyState(record?.state ?? "inbox");
+    setTags(record?.tags ?? []);
+    setDescription(record?.description ?? "");
+  };
+
+  // 開くたびにフォームを詰め直す。`AppModalLayer` が常にマウントしているので、詰め直さないと
+  // 前回の入力が残る。開いた後に記録が変わったら、保存中を除いて詰め直す。
+  // 記録が後から届いたときは、何も打っていない間だけ詰める。打った値を記録で上書きすると、
+  // 読み直しで保存済みと分かった保存の失敗で、打った値が消える。
+  //
+  // 保存と削除が通ったときは `isSaving` を解かずに閉じ、開き直したときに `fillForm` が解く。
+  // `closeModal` は router の transition を通るので、解くと閉じる前の描画でここが詰め直し、
+  // 見出しが一瞬入れ替わる
+  if (isOpen !== filledOpen) {
+    setFilledOpen(isOpen);
+    if (isOpen) fillForm(listed);
+  } else if (
+    isOpen &&
+    !isSaving &&
+    listed?.id !== existing?.id &&
+    (existing !== null || isPristine)
+  ) {
+    fillForm(listed);
+  }
 
   const previewData = useMemo(() => {
     if (!isOpen || !sfen) return null;
@@ -82,7 +120,6 @@ export default function StudyPositionSaveModal() {
     } catch (e) {
       console.error("[StudyPositionSaveModal] save failed:", e);
       setErrorMsg(e instanceof Error ? e.message : "保存に失敗しました");
-    } finally {
       setIsSaving(false);
     }
   }, [
@@ -108,7 +145,6 @@ export default function StudyPositionSaveModal() {
     } catch (e) {
       console.error("[StudyPositionSaveModal] delete failed:", e);
       setErrorMsg(e instanceof Error ? e.message : "削除に失敗しました");
-    } finally {
       setIsSaving(false);
     }
   }, [existing, isSaving, deletePosition, closeModal]);
@@ -122,26 +158,6 @@ export default function StudyPositionSaveModal() {
     },
     [handleSave],
   );
-
-  // 開くたびにフォームを詰め直す。`AppModalLayer` が常にマウントしているので、詰め直さないと
-  // 前回の入力が残る。保存済みの局面なら記録の値を、そうでなければ空を入れる。
-  // `existing` が別の値に変わったときも詰め直す
-  useEffect(() => {
-    if (!isOpen) return;
-    setConfirmDelete(false);
-    setErrorMsg(null);
-    if (existing) {
-      setLabel(existing.label);
-      setStudyState(existing.state);
-      setTags(existing.tags);
-      setDescription(existing.description);
-    } else {
-      setLabel("");
-      setStudyState("inbox");
-      setTags([]);
-      setDescription("");
-    }
-  }, [isOpen, existing]);
 
   if (!isOpen) return null;
 
