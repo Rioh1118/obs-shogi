@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -23,11 +23,13 @@ import Button from "@/shared/ui/Button/Button";
 
 import "./SfenKifuCreateModal.scss";
 
-export default function SfenKifuCreateModal() {
-  const { params, closeModal } = useURLParams();
-  const isOpen = params.modal === "sfen-kifu-create";
-  const sfen = params.sfen;
-
+/**
+ * 開いているあいだだけ立つ対話
+ *
+ * `AppModalLayer` は対話を常にマウントしている。閉じたら入力ごと消えるので、
+ * 開き直したときに前回の名前や保存先が残らない。
+ */
+function SfenKifuCreateDialog({ sfen, closeModal }: { sfen: string; closeModal: () => void }) {
   const { createNewFile, fileTree } = useFileTree();
 
   const [fileName, setFileName] = useState("");
@@ -41,11 +43,11 @@ export default function SfenKifuCreateModal() {
   // URL から来た任意の局面は手合割として書けないので、`OTHER` に固定する。
   // 読めない綴りなら `null` —— 下の送信がそこで止まる
   const sfenInitial = useMemo(() => {
-    const data = sfen ? stateFromSfen(sfen) : null;
+    const data = stateFromSfen(sfen);
     return data ? ({ preset: "OTHER", data } as const) : null;
   }, [sfen]);
 
-  const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
+  const previewData = useMemo(() => buildPreviewDataFromSfen(sfen), [sfen]);
 
   const dirOptions = useMemo(() => {
     if (!fileTree) return [];
@@ -54,8 +56,6 @@ export default function SfenKifuCreateModal() {
 
   // ツリーの根が入れ替わったら保存先を根へ戻す
   const rootPath = fileTree?.path ?? "";
-  const rootPathRef = useRef(rootPath);
-  rootPathRef.current = rootPath;
   const [prevRoot, setPrevRoot] = useState(rootPath);
   if (rootPath !== prevRoot) {
     setPrevRoot(rootPath);
@@ -116,21 +116,6 @@ export default function SfenKifuCreateModal() {
     setSelectedDir(dir);
     setSubmitError(null);
   };
-
-  // 開くたびにフォームを初期化する。`AppModalLayer` が常にマウントしているので、
-  // 初期化しないと前回の入力が残る。根は依存に入れずに `rootPathRef` から読む ——
-  // 依存に入れると、開いているあいだに根が変わっただけで打った名前まで消える
-  useEffect(() => {
-    if (!isOpen) return;
-    setFileName("");
-    setFormat("kif");
-    setBlackPlayer("");
-    setWhitePlayer("");
-    setSelectedDir(rootPathRef.current);
-    setSubmitError(null);
-  }, [isOpen]);
-
-  if (!isOpen || !sfen) return null;
 
   return (
     <Modal
@@ -226,4 +211,12 @@ export default function SfenKifuCreateModal() {
       </div>
     </Modal>
   );
+}
+
+export default function SfenKifuCreateModal() {
+  const { params, closeModal } = useURLParams();
+  const isOpen = params.modal === "sfen-kifu-create";
+  return isOpen && params.sfen ? (
+    <SfenKifuCreateDialog sfen={params.sfen} closeModal={closeModal} />
+  ) : null;
 }
