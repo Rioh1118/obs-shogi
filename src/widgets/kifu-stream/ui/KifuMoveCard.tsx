@@ -7,18 +7,26 @@ import type { ForkPointer } from "@/entities/kifu/model/cursor";
 import type { BranchIndex } from "@/entities/kifu/model/branch";
 import { kifuRowId } from "../lib/rowId";
 
+/** 棋譜ストリームの1行。`te` 手目に指した手と、同じ手数で選べる分岐 */
 export type RowModel = {
   te: number;
+  /** 開始局面の行だけが `"none"` */
   side: "sente" | "gote" | "none";
+  /** この行が降りた線の手。変化を選んでいれば変化の手 */
   text: string;
   commentCount: number;
 
+  /** 同じ手数の本譜の手。分岐メニューの「本譜」に出す */
   mainText: string;
+  /** 同じ手数の変化の手。添字が `forkIndex` */
   forkTexts: string[];
   forkCount: number;
+  /** この行が実際に降りた変化。本譜なら null */
   selectedForkIndex: number | null;
 
+  /** 盤のカーソルがこの行にある */
   isActive: boolean;
+  /** この行より前に選んだ変化（`te` 未満）。入れ替えと削除のクエリに渡す */
   branchForkPointers: ForkPointer[];
 };
 

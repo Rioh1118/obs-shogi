@@ -53,11 +53,10 @@ const KifuForkActions = memo(function KifuForkActions({
     const gap = 8;
     const margin = 8;
 
-    // まず「右」
+    // 行の右に出し、入らなければ左へ反転する
     let placement: "right" | "left" = "right";
     let left = anchorRect.right + gap;
 
-    // 入らなければ左へ反転（※“右に出す”を基本にしつつ、破綻回避）
     if (left + mw + margin > vw) {
       placement = "left";
       left = anchorRect.left - mw - gap;
@@ -65,7 +64,6 @@ const KifuForkActions = memo(function KifuForkActions({
 
     left = clamp(left, margin, vw - mw - margin);
 
-    // 行の中心に合わせる
     const idealTop = anchorRect.top + anchorRect.height / 2 - mh / 2;
     const top = clamp(idealTop, margin, vh - mh - margin);
 
@@ -106,7 +104,7 @@ const KifuForkActions = memo(function KifuForkActions({
       role="menu"
       aria-label="分岐の操作"
       onPointerDown={(e) => {
-        // StreamList の outside click で ForkMenu が閉じるのを防ぐ
+        // `KifuStreamList` が document で受ける外側の押下へ届かせない。届くと分岐メニューが閉じる
         e.stopPropagation();
       }}
       onClick={(e) => e.stopPropagation()}

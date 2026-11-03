@@ -80,11 +80,9 @@ const KifuForkMenu = memo(function KifuForkMenu({
     ];
   }, [forkTexts, mainText, normalized]);
 
-  // fixed 位置
   const selfRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  // actions popover
   const [actions, setActions] = useState<ActionsState | null>(null);
 
   const setBothRef = useCallback(
@@ -175,7 +173,8 @@ const KifuForkMenu = memo(function KifuForkMenu({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onScroll={() => {
-        // スクロール時は追従させずに閉じる（ズレ事故を防ぐ）
+        // 操作の面は開いたときの行の矩形に置く。メニューの中を流すと行だけが動き、
+        // 面が別の行の横に残るので閉じる
         if (actions) setActions(null);
       }}
     >
@@ -204,7 +203,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
               aria-disabled={busy}
               data-selected={opt.selected ? "1" : "0"}
               onPointerDown={(e) => {
-                // ✅ 左クリックだけ選択（右クリックは context menu 用）
+                // 選ぶのは左ボタンだけ。右ボタンは行の contextmenu で操作の面を開く
                 if (e.button !== 0) return;
                 e.stopPropagation();
                 e.preventDefault();
@@ -228,7 +227,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
               aria-label="分岐の操作"
               disabled={busy}
               onPointerDown={(e) => {
-                // 左ボタンだけで開く（右クリックは contextmenu）
+                // 右ボタンは行の contextmenu が受けるので、ここでは左ボタンだけを見る
                 if (e.button !== 0) return;
                 e.stopPropagation();
                 e.preventDefault();

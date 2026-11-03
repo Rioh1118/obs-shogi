@@ -76,9 +76,9 @@ type OpenCommentNote = {
 /**
  * 確認に出す一文。
  *
- * **主語を空にしない。** 1手目も手数も欠けたときに
- * `.filter(Boolean).join()` で組むと「が消えます。」で始まる文になり、
- * **何が消えるのか1つも書かれていない確認**を取り消せない操作に出すことになる。
+ * 主語を空にしない。1手目も手数も欠けたときに `.filter(Boolean).join()` で組むと
+ * 「が削除されます。」で始まる文になり、**何が消えるのか1つも書かれていない確認**を
+ * 取り消せない操作に出すことになる。1手目が読めなければ「本譜」か「変化N」を主語にする。
  */
 function describeDelete(pending: PendingDelete): string {
   const what = pending.firstMove ? `${pending.firstMove} から先` : pending.label;
@@ -94,7 +94,7 @@ export default function KifuStreamList() {
   const lastScrollAtRef = useRef<number>(0);
 
   const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
-  // Escape は最上位の1枚だけ → `overlayStack`
+  // Escape は重なった面のうち最上位の1枚だけが受ける。最上位かは `useOverlayLayer` の返す関数に問う
   const isTop = useOverlayLayer(openFork !== null);
   const [openComment, setOpenComment] = useState<OpenCommentNote | null>(null);
 
@@ -107,16 +107,16 @@ export default function KifuStreamList() {
 
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   /**
-   * いま書いている最中の削除。**どの削除かまで持つ。**
+   * いま書いている最中の削除。どの削除かまで持つ。
    *
-   * **`state.isLoading` を使わない。** あれは「棋譜への書き込みが1つ以上走っている」で、
+   * `state.isLoading` は使わない。あれは「棋譜への書き込みが1つ以上走っている」で、
    * 誰の書き込みかを区別しない。コメントの自動保存が並行して終わると
-   * 「削除中...」が解け、まだ書いている最中に「削除する」を押し直せる。
+   * 「削除中…」が解け、まだ書いている最中に「削除する」を押し直せる。
    * そのとき候補列は既に1つ減っているので、**確認していない枝が消える。**
    *
    * 真偽値1つでも足りない。実行中でも確認は閉じられる（塞ぐと出口ゼロの
-   * 行き止まりになる）ので、閉じてから**別の枝**の確認を開ける。
-   * 誰の書き込みかを持たないと、その新しい確認が最初から「削除中...」で出る。
+   * 行き止まりになる）ので、閉じてから別の枝の確認を開ける。
+   * 誰の書き込みかを持たないと、その新しい確認が最初から「削除中…」で出る。
    */
   const [deleting, setDeleting] = useState<DeleteQuery | null>(null);
 
@@ -125,9 +125,9 @@ export default function KifuStreamList() {
     [state.cursor, state.branchPlan],
   );
 
-  // TODO(#277): buildStreamRowsFromCursor は盤上で再生できない手で投げる（症状は #295 の本文）。ここは
-  // レンダ中なので AppErrorBoundary が受けて棋譜ペインが行き止まりになる。
-  // try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
+  // TODO(#277): buildStreamRowsFromCursor は盤上で再生できない手で投げる。正規化に失敗して
+  // 未正規化のまま開いた棋譜で起きる。ここはレンダ中なので、棋譜ペインを包む AppErrorBoundary が
+  // 受けて一覧ごと畳まれる。try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
   const rows = useMemo(() => {
     if (!view.player) return [];
     // 一覧を組むための再生用に、盤の player とは別の player を立てる。
@@ -214,8 +214,9 @@ export default function KifuStreamList() {
         a,
         b,
       };
-      // 失敗しても画面に出す場所がまだ無い。巻き戻しはメモリの側で効く → #277
-      await swapBranches(q); // async-result-ignored: 出口が無い（#277）
+      // TODO(#277): 失敗を画面に出す場所がまだ無い。失敗したときは `swapBranches` が
+      // メモリの棋譜を戻すので、並びが元のまま残るだけになる。
+      await swapBranches(q); // async-result-ignored: 失敗を出す場所が無い
     },
     [swapBranches],
   );
@@ -236,10 +237,10 @@ export default function KifuStreamList() {
       const row = rows.find((r) => r.te === te);
       const forkIndex = forkIndexOrNull(branchIndex) ?? undefined;
 
-      // 数えるのは実際に消す関数と同じ経路。`q` を解決できないクエリはここで throw する。
-      // そのときは数を伏せて確認だけ出す（**数が出ないことを理由に確認を飛ばさない**）。
-      // ただし throw の有無は削除が通るかの保証ではない。`cursor` 由来の失敗は
-      // ここでは起こしようがないので、数が出ても削除が落ちる経路は残る → #277
+      // 数えるのは実際に消す関数と同じ経路で、指す枝を解決できないクエリはここで投げる。
+      // そのときは数を伏せて確認だけ出す。**数が出ないことを理由に確認を飛ばさない。**
+      // 投げなかったことは削除が通る保証にならない。数えるときはカーソルを渡さないので、
+      // `deleteBranchInKifu` がカーソルの検査で投げる経路はここでは起きない。
       let moveCount: number | null = null;
       if (state.jkf) {
         try {
@@ -279,12 +280,11 @@ export default function KifuStreamList() {
     const res = await deleteBranch(query).finally(() =>
       setDeleting((cur) => (cur === query ? null : cur)),
     );
-    // **閉じられていても失敗は出す。**
+    // 閉じられていても失敗は出す。
     //
     // 待つのが長いと利用者は Escape で確認を閉じる。そこで失敗を捨てると、
     // 見えるのは「削除したはずの変化が勝手に生き返った」だけになる
-    // （巻き戻しがメモリを戻すため）。確認文で「棋譜ファイルもすぐ書き換わります」と
-    // 断言している以上、破れたことは伝える。
+    // （巻き戻しがメモリを戻すため）。
     //
     // 開き直しても危険ではない。`error` があるとき実行ボタンは押せないので、
     // 「利用者が閉じた確認が復活して、古いクエリのまま再実行される」形にはならない。
@@ -324,7 +324,7 @@ export default function KifuStreamList() {
   // `jkfData` を保持する）ので、**ノートは同じ位置に開いたまま前の棋譜の本文を出し続ける。**
   // 見出しは手数しか出さないので、どのファイルのものかは画面から読めない。
   //
-  // **`loadedAbsPath` では畳まない。** あちらは改名・移動でも動くので、名前を直しただけで
+  // `loadedAbsPath` では畳まない。あちらは改名・移動でも動くので、名前を直しただけで
   // 書きかけのノートが閉じる。閉じると `KifuCommentNote` の離脱時の保存が走り、
   // 面がもう外れているぶん失敗の断りも出ないまま本文が消える。
   useEffect(() => {
