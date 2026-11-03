@@ -78,7 +78,6 @@ const KifuMoveCard = memo(function KifuMoveCard({
   }, [row.isActive, row.selectedForkIndex, busy]);
 
   const menuId = useId();
-  const toggleId = useId();
 
   const onRowKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -148,7 +147,6 @@ const KifuMoveCard = memo(function KifuMoveCard({
       <div className="kifu-row__badges" onClick={(e) => e.stopPropagation()}>
         {hasFork && (
           <button
-            id={toggleId}
             type="button"
             className={["kifu-badge", "kifu-badge--btn", isForkMenuOpen ? "kifu-badge--active" : ""]
               .filter(Boolean)
@@ -190,6 +188,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
 
       {hasFork && isForkMenuOpen && openForkAnchorEl && (
         <KifuForkMenu
+          id={menuId}
           te={row.te}
           mainText={row.mainText}
           forkTexts={row.forkTexts}

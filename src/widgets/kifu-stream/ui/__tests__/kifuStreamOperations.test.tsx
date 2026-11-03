@@ -219,6 +219,17 @@ describe("分岐メニュー", () => {
     expect(screen.queryByRole("menu", { name: "2手目の分岐" })).toBeNull();
   });
 
+  /** 読み上げは `aria-controls` を辿って開いたメニューへ移る。指す先が無いと辿れない */
+  test("開いたバッジは、開いたメニューを指す", async () => {
+    await mount();
+    const menu = await openForkMenu();
+
+    const controls = within(rowOf(2)).getByTitle("分岐を選択").getAttribute("aria-controls");
+
+    expect(controls).not.toBeNull();
+    expect(document.getElementById(controls ?? "")).toBe(menu);
+  });
+
   test("同じバッジをもう一度押すと閉じる", async () => {
     await mount();
     await openForkMenu();

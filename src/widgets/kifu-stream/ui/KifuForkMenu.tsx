@@ -22,6 +22,8 @@ import KifuForkActions from "./KifuForkActions";
 import "./KifuForkMenu.scss";
 
 type Props = {
+  /** 開いたバッジの `aria-controls` が指す id */
+  id: string;
   te: number;
   mainText: string;
   forkTexts: string[];
@@ -58,6 +60,7 @@ type ActionsState = {
 };
 
 const KifuForkMenu = memo(function KifuForkMenu({
+  id,
   te,
   mainText,
   forkTexts,
@@ -211,6 +214,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
   return createPortal(
     <div
       ref={setBothRef}
+      id={id}
       className="kifu-forkmenu"
       style={style}
       role="menu"
