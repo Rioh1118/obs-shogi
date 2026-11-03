@@ -20,16 +20,16 @@ import type { Held } from "../model/types";
  * DOM を通して確かめると組み合わせのどれを見ているのか読めなくなるため。
  */
 
-interface SquareMark {
+type SquareMark = {
   /** 押しても何も起きない升。**押す前に沈める** */
   blocked: boolean;
   /** ここに重ねると、そこの駒が駒台へ飛ぶ */
   takes: boolean;
   /** ここに重ねると、2つの升が入れ替わる（玉は駒台に載らない） */
   swaps: boolean;
-}
+};
 
-interface StandMark {
+type StandMark = {
   /** 掴んでいる駒の置き場として名乗る */
   drop: boolean;
   /**
@@ -41,7 +41,7 @@ interface StandMark {
   blocked: boolean;
   /** 重ねたときに駒が飛んでくる先 */
   dest: boolean;
-}
+};
 
 const isSameSquare = (a: Square, b: Square): boolean => a.x === b.x && a.y === b.y;
 

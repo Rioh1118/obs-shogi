@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { Color, Kind } from "shogi.js";
 import PieceImage from "@/entities/position/ui/PieceImage";
 
-interface EditorGhostProps {
+type EditorGhostProps = {
   kind: Kind;
   color: Color;
-}
+};
 
 /**
  * 固定配置の原点を1度だけ測って返す。
@@ -21,7 +21,7 @@ interface EditorGhostProps {
  */
 function originOf(
   el: HTMLElement,
-  cache: MutableRefObject<{ x: number; y: number } | null>,
+  cache: RefObject<{ x: number; y: number } | null>,
 ): { x: number; y: number } {
   if (cache.current) return cache.current;
 

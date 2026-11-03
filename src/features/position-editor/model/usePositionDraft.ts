@@ -20,7 +20,7 @@ import {
   type Square,
 } from "@/entities/position/lib/positionDraft";
 
-interface DraftState {
+type DraftState = {
   state: JKFState;
   held: Held | null;
   /**
@@ -38,7 +38,7 @@ interface DraftState {
    * なると、閉じるたびに確認が出て、確認そのものが読まれなくなる。
    */
   baseline: string;
-}
+};
 
 /**
  * 組みかけの局面と掴んでいるものを持ち、盤と駒台の押下を局面の変化へ写す。

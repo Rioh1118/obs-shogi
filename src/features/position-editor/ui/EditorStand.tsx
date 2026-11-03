@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, MouseEvent } from "react";
 import type { Color } from "shogi.js";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import {
@@ -12,13 +12,13 @@ import { turnLabel } from "@/shared/lib/turn";
 import { standMark } from "../lib/boardMarks";
 import type { Held } from "../model/types";
 
-interface EditorStandProps {
+type EditorStandProps = {
   state: JKFState;
   color: Color;
   held: Held | null;
   hovered: Square | null;
   onPressStand: (color: Color, kind: HandKind | null) => void;
-}
+};
 
 /**
  * 駒台
@@ -44,6 +44,13 @@ function EditorStand({ state, color, held, hovered, onPressStand }: EditorStandP
     mark.dest && "pos-editor__stand--dest",
   ].filter(Boolean);
 
+  const handleStackClick = (event: MouseEvent, kind: HandKind) => {
+    // 駒台そのもののハンドラへ二重に届かせない。掴んでいない間の意味
+    // （この駒を掴む）と、掴んでいる間の意味（この駒台へ置く）は別
+    event.stopPropagation();
+    onPressStand(color, kind);
+  };
+
   return (
     <div
       className={classes.join(" ")}
@@ -64,12 +71,7 @@ function EditorStand({ state, color, held, hovered, onPressStand }: EditorStandP
               className={`pos-editor__stack${heldHere === kind ? " pos-editor__stack--held" : ""}`}
               data-kind={kind}
               style={{ "--stack-count": count } as CSSProperties}
-              onClick={(e) => {
-                // 駒台そのもののハンドラへ二重に届かせない。掴んでいない間の意味
-                // （この駒を掴む）と、掴んでいる間の意味（この駒台へ置く）は別
-                e.stopPropagation();
-                onPressStand(color, kind);
-              }}
+              onClick={(e) => handleStackClick(e, kind)}
             >
               {Array.from({ length: count }, (_, i) => (
                 <span

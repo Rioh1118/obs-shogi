@@ -1,9 +1,9 @@
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import type { PositionIssue } from "@/entities/position/lib/inspectPosition";
 
-interface EditorNoticeProps {
+type EditorNoticeProps = {
   issues: PositionIssue[];
-}
+};
 
 /**
  * 規則に反する配置の断り

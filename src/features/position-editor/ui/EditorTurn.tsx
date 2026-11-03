@@ -1,10 +1,10 @@
 import type { Color } from "shogi.js";
 import { turnLabel } from "@/shared/lib/turn";
 
-interface EditorTurnProps {
+type EditorTurnProps = {
   color: Color;
   onToggle: () => void;
-}
+};
 
 /**
  * 手番

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
@@ -18,7 +18,7 @@ import Textarea from "@/shared/ui/Form/Textarea";
 import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 
-interface EditorCreateFormProps {
+type EditorCreateFormProps = {
   /** 組んだ局面 */
   state: JKFState;
   /**
@@ -39,7 +39,7 @@ interface EditorCreateFormProps {
    * 段を判定する側がこの旗を要る。
    */
   onSubmittingChange: (submitting: boolean) => void;
-}
+};
 
 /**
  * 組んだ局面から棋譜ファイルを作るフォーム
@@ -101,7 +101,7 @@ function EditorCreateForm({
   }
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!fullFileName || !selectedDir || isSubmitting) return;
 

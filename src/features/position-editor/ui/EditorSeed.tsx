@@ -1,7 +1,7 @@
 import { HANDICAP_PRESETS, type HandicapPreset } from "@/entities/kifu/model/handicap";
 import Select from "@/shared/ui/Form/Select";
 
-interface EditorSeedProps {
+type EditorSeedProps = {
   /**
    * いま載っている種の手合割。課題局面から載せたなら `null`
    *
@@ -11,7 +11,7 @@ interface EditorSeedProps {
   handicap: HandicapPreset | null;
   onPickHandicap: (preset: HandicapPreset) => void;
   onOpenStudyPositions: () => void;
-}
+};
 
 /**
  * 種を選ぶ行

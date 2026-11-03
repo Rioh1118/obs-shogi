@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import { stateFromSfen } from "@/entities/position/lib/positionDraft";
 import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
@@ -10,11 +10,11 @@ import {
 } from "@/entities/study-positions/model/types";
 import Select from "@/shared/ui/Form/Select";
 
-interface EditorStudyPickerProps {
+type EditorStudyPickerProps = {
   positions: StudyPosition[];
   onPick: (position: StudyPosition) => void;
   onBack: () => void;
-}
+};
 
 /**
  * 状態の絞り込み。空文字は「絞らない」
@@ -42,13 +42,6 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
   const [stateFilter, setStateFilter] = useState<StudyPositionState | "">("");
   const [lookingId, setLookingId] = useState<string | null>(null);
   const faceRef = useRef<HTMLDivElement>(null);
-
-  // 面に入ったら焦点を移す。**移さないと ↑↓ が効かない** ——
-  // 「課題局面から」のボタンは面へ入った時点で消えるので、`Modal` が焦点を
-  // タブへ引き戻し、このハンドラは合成イベントの経路から外れる
-  useEffect(() => {
-    faceRef.current?.focus();
-  }, []);
 
   /**
    * 盤に載せられない課題局面
@@ -84,31 +77,40 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
     [looking],
   );
 
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // 入力欄ではキャレット移動・IME 候補操作を優先する
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      const next = Math.max(0, Math.min(shown.length - 1, lookingIndex + step));
+      setLookingId(shown[next]?.id ?? null);
+      return;
+    }
+
+    // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で選ぶだけできて決める操作が無いと、
+    // 鍵盤だけの利用者は種を1つも選べない。沈めた行は押下と同じで受け付けない
+    if (e.key === "Enter" && looking && !unusable.has(looking.id)) {
+      e.preventDefault();
+      onPick(looking);
+    }
+  };
+
+  // 面に入ったら焦点を移す。**移さないと ↑↓ が効かない** ——
+  // 「課題局面から」のボタンは面へ入った時点で消えるので、`Modal` が焦点を
+  // タブへ引き戻し、`handleKeyDown`は合成イベントの経路から外れる
+  useEffect(() => {
+    faceRef.current?.focus();
+  }, []);
+
   return (
     <div
       className="pos-editor__picker"
       // 一覧に焦点が無くても ↑↓ で下見できるようにする。器の中でこの面だけが出ている
       tabIndex={-1}
       ref={faceRef}
-      onKeyDown={(e) => {
-        // 入力欄ではキャレット移動・IME 候補操作を優先する
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-          e.preventDefault();
-          const step = e.key === "ArrowDown" ? 1 : -1;
-          const next = Math.max(0, Math.min(shown.length - 1, lookingIndex + step));
-          setLookingId(shown[next]?.id ?? null);
-          return;
-        }
-
-        // **鍵盤で始めたら鍵盤で終われること。** ↑↓ で選ぶだけできて決める操作が無いと、
-        // 鍵盤だけの利用者は種を1つも選べない。沈めた行は押下と同じで受け付けない
-        if (e.key === "Enter" && looking && !unusable.has(looking.id)) {
-          e.preventDefault();
-          onPick(looking);
-        }
-      }}
+      onKeyDown={handleKeyDown}
     >
       <div className="pos-editor__picker-list">
         <div className="pos-editor__picker-filters">
