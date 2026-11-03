@@ -1,7 +1,5 @@
 import type { FileTreeNode } from "@/entities/file-tree";
-import { dirname, extname, relative, normalize } from "pathe";
-
-export const ALLOWED = new Set([".kif", ".ki2", ".csa", ".jkf"]);
+import { dirname, relative, normalize } from "pathe";
 
 export const DROP_ID = {
   blank: "drop:blank",
@@ -19,16 +17,6 @@ export type DragData = {
   path: string;
   isDirectory: boolean;
 };
-
-export function getExt(p: string) {
-  return extname(p).toLowerCase();
-}
-
-export function findDropDirAt(x: number, y: number): string | null {
-  const el = document.elementFromPoint(x, y) as HTMLElement | null;
-  const target = el?.closest?.("[data-drop-dir]") as HTMLElement | null;
-  return target?.dataset.dropDir ?? null;
-}
 
 export function normPath(p: string) {
   return normalize(p);

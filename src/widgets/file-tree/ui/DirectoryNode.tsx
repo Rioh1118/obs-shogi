@@ -16,12 +16,10 @@ import { commitName, useFileTree } from "@/entities/file-tree";
 function DirectoryNode({
   level,
   node,
-  externalHoverDir,
   renderChild,
 }: {
   level: number;
   node: FileTreeNode;
-  externalHoverDir?: string | null;
   /** 子ノードの描画。返す要素には key を付けること（ここでは付けない）。 */
   renderChild: (child: FileTreeNode, level: number) => ReactNode;
 }) {
@@ -95,8 +93,6 @@ function DirectoryNode({
   const handleCommitCreate = (nextName: string) =>
     commitName(nextName, (name) => createNewDirectory(node.path, name), cancelCreateDirectory);
 
-  const isExternalOver = externalHoverDir && externalHoverDir === node.path;
-
   return (
     <>
       <NodeBox
@@ -106,8 +102,7 @@ function DirectoryNode({
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onContextMenu={onContextMenu}
-        data-drop-dir={node.path}
-        className={isOver || isExternalOver ? "node-box__droppable-over" : ""}
+        className={isOver ? "node-box__droppable-over" : ""}
         style={{
           transform: CSS.Translate.toString(transform),
           opacity: isDragging ? 0.5 : undefined,

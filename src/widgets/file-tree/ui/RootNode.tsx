@@ -12,13 +12,7 @@ import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
 
-function RootNode({
-  node,
-  externalHoverDir,
-}: {
-  node: FileTreeNode;
-  externalHoverDir?: string | null;
-}) {
+function RootNode({ node }: { node: FileTreeNode }) {
   const [isOpen, setIsOpen] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -69,15 +63,12 @@ function RootNode({
     data: { kind: "drop", destDir: node.path, via: "root" } satisfies DropData,
   });
 
-  const isExternalOver = externalHoverDir && externalHoverDir === node.path;
-
   return (
     <>
       <NodeBox
         ref={setNodeRef}
         level={0}
-        data-drop-dir={node.path}
-        className={isOver || isExternalOver ? "node-box__droppable-over" : ""}
+        className={isOver ? "node-box__droppable-over" : ""}
         handleClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
