@@ -334,6 +334,22 @@ describe("StudyPositionsManagerModal", () => {
     type("角");
     expect(selectedLabel()).toBe("角換わり");
     expect(detailTitle()).toBe("角換わり");
+
+    // 寄せ直した先を選んだことにする。絞り込みを外しても、消えていた局面へ戻らない
+    type("");
+    expect(selectedLabel()).toBe("角換わり");
+  });
+
+  test("削除の確認を出したまま選択が動いたら、確認を畳む", () => {
+    render(<StudyPositionsManagerModal />);
+    fireEvent.click(screen.getByRole("button", { name: "削除" }));
+    expect(screen.getByText("「角換わり」を削除しますか？")).toBeTruthy();
+
+    // 確認の中のボタンで押した鍵も、一覧の鍵として届く
+    key(screen.getByRole("button", { name: "キャンセル" }), "j");
+
+    expect(selectedLabel()).toBe("四間飛車");
+    expect(screen.queryByText(/を削除しますか？/)).toBeNull();
   });
 
   test("検索の欄の Escape は、語があれば消して止め、無ければ対話を閉じる", () => {

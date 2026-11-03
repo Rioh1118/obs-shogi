@@ -167,6 +167,8 @@ describe("PositionNavigationModal", () => {
 
     press("h");
     expect(chips()).toEqual(["0手目", "選択:本譜"]);
+    press("l");
+    expect(chips()).toEqual(["1手目", "選択:本譜"]);
   });
 
   test("次の手が無い局面では案内を出し、l で動かない", () => {

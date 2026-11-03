@@ -347,6 +347,24 @@ describe("面が入れ替わるとき", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("一度書けた後の失敗は、また初めての失敗として数える", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    const onClose = vi.fn();
+    const view = open(1);
+    await show(view, { onClose });
+    await typeAndAutosave("メモ");
+
+    setCommentsByCursor.mockResolvedValue(Ok(undefined));
+    await typeAndAutosave("メモを足す");
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    await type("メモを更に足す");
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   /**
    * 宛先が切り替わった枝は `setCommentsByCursor` を**呼ぶ前に**戻るので、
    * 本文はディスクにもメモリの棋譜にも入っていない。失敗と同じだけ失うのに
