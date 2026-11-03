@@ -160,6 +160,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     invalidateSynced(syncedEngineKeyRef.current);
   }, [isReady, invalidateSynced]);
 
+  // 自動同期。局面かエンジンが変わったら送り直す。
   // 盤が局面を持たなくなったら、送る局面が無いので送信済みの記録と保留を捨てる
   useEffect(() => {
     if (!gameState.cursor) {
