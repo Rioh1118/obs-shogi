@@ -1,5 +1,5 @@
 import type { PositionHit } from "@/entities/search";
-import { toRelPath } from "@/shared/lib/path";
+import { getBaseName, toRelPath } from "@/shared/lib/path";
 import { PositionHitItem } from "./PositionHitItem";
 import type { RowComponentProps } from "react-window";
 
@@ -16,11 +16,6 @@ export type HitRowProps = {
   onActiveIndexChange: (next: number) => void;
   onAccept: (hit: PositionHit) => void;
 };
-
-function fileNameFromRel(rel: string) {
-  const i = rel.lastIndexOf("/");
-  return i >= 0 ? rel.slice(i + 1) : rel;
-}
 
 export function VirtualHitRow(props: RowComponentProps<HitRowProps>) {
   const { index, style, hits } = props;
@@ -49,7 +44,7 @@ export function VirtualHitRow(props: RowComponentProps<HitRowProps>) {
       posInSet={props.ariaAttributes["aria-posinset"]}
       setSize={props.ariaAttributes["aria-setsize"]}
       relPath={rel}
-      fileName={fileNameFromRel(rel)}
+      fileName={getBaseName(rel)}
       isSameFile={isSame}
       tesuu={hit.cursor.tesuu}
       forks={hit.cursor.forkPointers.length}
