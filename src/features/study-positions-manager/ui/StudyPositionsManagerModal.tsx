@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 
 import Modal from "@/shared/ui/Modal";
@@ -44,8 +52,6 @@ function sortPositions(list: StudyPosition[], key: SortKey): StudyPosition[] {
       return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     case "label_asc":
       return sorted.sort((a, b) => a.label.localeCompare(b.label, "ja"));
-    default:
-      return sorted;
   }
 }
 
@@ -74,6 +80,7 @@ export default function StudyPositionsManagerModal() {
     state: { positions },
     deletePosition,
   } = useStudyPositions();
+  const getTurnInfo = useTurnInfoCache();
 
   const [stateFilter, setStateFilter] = useState<StudyPositionState | null>(null);
   const [query, setQuery] = useState("");
@@ -90,7 +97,7 @@ export default function StudyPositionsManagerModal() {
 
   // 状態のタブの件数は、絞り込む前の一覧から数える
   const stateCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const counts: Partial<Record<StudyPositionState, number>> = {};
     for (const p of positions) {
       counts[p.state] = (counts[p.state] ?? 0) + 1;
     }
@@ -130,41 +137,6 @@ export default function StudyPositionsManagerModal() {
 
   const selectedPosition = displayPositions[selectedIndex] ?? null;
 
-  // 表示中の一覧が空でなければ、選択を必ず1つ置く。選んでいた局面が消えたら先頭へ寄せる
-  useEffect(() => {
-    if (displayPositions.length === 0) {
-      setSelectedId(null);
-      return;
-    }
-    if (!selectedId || !displayPositions.some((p) => p.id === selectedId)) {
-      setSelectedId(displayPositions[0]?.id ?? null);
-    }
-  }, [displayPositions, selectedId]);
-
-  const getTurnInfo = useTurnInfoCache();
-
-  useLayoutEffect(() => {
-    const el = itemRefs.current[selectedIndex];
-    if (!el || !listRef.current) return;
-    const container = listRef.current;
-    const viewTop = container.scrollTop;
-    const viewH = container.clientHeight;
-    const elTop = el.offsetTop;
-    const elH = el.offsetHeight;
-
-    if (elTop < viewTop + viewH * 0.15) {
-      container.scrollTo({
-        top: Math.max(0, elTop - viewH * 0.25),
-        behavior: "smooth",
-      });
-    } else if (elTop + elH > viewTop + viewH * 0.85) {
-      container.scrollTo({
-        top: elTop + elH - viewH * 0.75,
-        behavior: "smooth",
-      });
-    }
-  }, [selectedIndex]);
-
   const moveSelection = useCallback(
     (delta: number) => {
       const n = displayPositions.length;
@@ -176,7 +148,7 @@ export default function StudyPositionsManagerModal() {
   );
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       const isInInput =
         e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
 
@@ -253,6 +225,55 @@ export default function StudyPositionsManagerModal() {
   const clearTags = useCallback(() => {
     setTagFilter([]);
   }, []);
+
+  const handleClearQuery = () => {
+    setQuery("");
+    searchRef.current?.focus();
+  };
+
+  const handleSelectSort = (value: SortKey) => {
+    setSort(value);
+    setShowSortMenu(false);
+  };
+
+  const handleClearFilters = () => {
+    setQuery("");
+    setTagFilter([]);
+    setStateFilter(null);
+  };
+
+  // 表示中の一覧が空でなければ、選択を必ず1つ置く。選んでいた局面が消えたら先頭へ寄せる
+  useEffect(() => {
+    if (displayPositions.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    if (!selectedId || !displayPositions.some((p) => p.id === selectedId)) {
+      setSelectedId(displayPositions[0]?.id ?? null);
+    }
+  }, [displayPositions, selectedId]);
+
+  useLayoutEffect(() => {
+    const el = itemRefs.current[selectedIndex];
+    if (!el || !listRef.current) return;
+    const container = listRef.current;
+    const viewTop = container.scrollTop;
+    const viewH = container.clientHeight;
+    const elTop = el.offsetTop;
+    const elH = el.offsetHeight;
+
+    if (elTop < viewTop + viewH * 0.15) {
+      container.scrollTo({
+        top: Math.max(0, elTop - viewH * 0.25),
+        behavior: "smooth",
+      });
+    } else if (elTop + elH > viewTop + viewH * 0.85) {
+      container.scrollTo({
+        top: elTop + elH - viewH * 0.75,
+        behavior: "smooth",
+      });
+    }
+  }, [selectedIndex]);
 
   // 閉じたら絞り込みを捨てる。子の対話を開いている間（URL の `returnTo` が
   // `study-positions`）は隠れているだけなので残す
@@ -340,10 +361,7 @@ export default function StudyPositionsManagerModal() {
                   <button
                     type="button"
                     className="sp-manager__searchClear"
-                    onClick={() => {
-                      setQuery("");
-                      searchRef.current?.focus();
-                    }}
+                    onClick={handleClearQuery}
                     aria-label="検索クリア"
                   >
                     <X size={12} />
@@ -392,10 +410,7 @@ export default function StudyPositionsManagerModal() {
                         key={opt.value}
                         type="button"
                         className={`sp-manager__sortOption ${sort === opt.value ? "sp-manager__sortOption--active" : ""}`}
-                        onClick={() => {
-                          setSort(opt.value);
-                          setShowSortMenu(false);
-                        }}
+                        onClick={() => handleSelectSort(opt.value)}
                       >
                         {opt.label}
                       </button>
@@ -427,11 +442,7 @@ export default function StudyPositionsManagerModal() {
                   <button
                     type="button"
                     className="sp-manager__emptyClear"
-                    onClick={() => {
-                      setQuery("");
-                      setTagFilter([]);
-                      setStateFilter(null);
-                    }}
+                    onClick={handleClearFilters}
                   >
                     {"条件をクリア"}
                   </button>

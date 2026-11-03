@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { X, Search } from "lucide-react";
 import "./TagFilterPanel.scss";
 
-interface Props {
+type Props = {
   contextualTags: string[];
   frequentTags: string[];
   selectedTags: string[];
   onToggleTag: (tag: string) => void;
   onClose: () => void;
-}
+};
 
 export default function TagFilterPanel({
   contextualTags,
@@ -19,10 +19,6 @@ export default function TagFilterPanel({
 }: Props) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   const filterByQuery = (tags: string[]) => {
     if (!query) return tags;
@@ -45,6 +41,10 @@ export default function TagFilterPanel({
       {tag}
     </button>
   );
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   return (
     <div className="tag-panel">

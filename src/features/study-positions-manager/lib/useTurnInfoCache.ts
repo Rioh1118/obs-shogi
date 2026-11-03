@@ -1,10 +1,10 @@
 import { useCallback, useRef } from "react";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 
-export interface TurnInfo {
+type TurnInfo = {
   turnShortText: string | null;
   tesuu: number;
-}
+};
 
 function parseTesuu(sfen: string): number {
   const tokens = sfen.trim().split(/\s+/);

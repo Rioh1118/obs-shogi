@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import type { Ref } from "react";
 import {
   studyPositionStateLabel,
   type StudyPosition,
@@ -6,18 +6,23 @@ import {
 import { formatShortDate } from "@/shared/lib/date";
 import "./PositionListItem.scss";
 
-interface Props {
+type Props = {
   position: StudyPosition;
   selected: boolean;
   onClick: () => void;
   turnShortText: string | null;
   tesuu: number;
-}
+  ref?: Ref<HTMLDivElement>;
+};
 
-const PositionListItem = forwardRef<HTMLDivElement, Props>(function PositionListItem(
-  { position, selected, onClick, turnShortText, tesuu },
+export default function PositionListItem({
+  position,
+  selected,
+  onClick,
+  turnShortText,
+  tesuu,
   ref,
-) {
+}: Props) {
   const stateLabel = studyPositionStateLabel(position.state);
   const updatedDate = formatShortDate(position.updatedAt);
 
@@ -53,6 +58,4 @@ const PositionListItem = forwardRef<HTMLDivElement, Props>(function PositionList
       </div>
     </div>
   );
-});
-
-export default PositionListItem;
+}

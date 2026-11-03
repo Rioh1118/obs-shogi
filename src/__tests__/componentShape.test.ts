@@ -18,13 +18,13 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
 
 const BASELINE = {
   arrowComponent: 1,
-  typeInterface: 20,
-  reactNamespace: 25,
+  typeInterface: 13,
+  reactNamespace: 22,
   conditionalNull: 9,
-  inlineHandlerBlock: 22,
+  inlineHandlerBlock: 19,
   stateAfterEffect: 0,
   helperAfterComponent: 2,
-  forwardRef: 1,
+  forwardRef: 0,
 };
 
 /** 走査が壊れて0件になったことを「違反が無い」と読ませないための下限。実測より大きく下に置く */

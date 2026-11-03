@@ -11,13 +11,13 @@ import {
 } from "@/entities/study-positions/model/types";
 import "./PositionDetail.scss";
 
-interface Props {
+type Props = {
   position: StudyPosition | null;
   onSearch: (sfen: string) => void;
   onEdit: (sfen: string) => void;
   onCreateKifu: (sfen: string) => void;
   onDelete: (id: string) => Promise<void>;
-}
+};
 
 export default function PositionDetail({
   position,
@@ -28,6 +28,14 @@ export default function PositionDetail({
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 選んだ局面が変わったら削除の確認を畳む。確認の題は前の局面のまま、消すのは新しい局面になる
+  const posId = position?.id;
+  const [prevPosId, setPrevPosId] = useState<string | undefined>(posId);
+  if (posId !== prevPosId) {
+    setPrevPosId(posId);
+    setConfirmDelete(false);
+  }
 
   const previewData = useMemo(() => {
     if (!position) return null;
@@ -46,14 +54,6 @@ export default function PositionDetail({
       setIsDeleting(false);
     }
   }, [position, isDeleting, onDelete]);
-
-  // 選んだ局面が変わったら削除の確認を畳む。確認の題は前の局面のまま、消すのは新しい局面になる
-  const posId = position?.id;
-  const [prevPosId, setPrevPosId] = useState<string | undefined>(posId);
-  if (posId !== prevPosId) {
-    setPrevPosId(posId);
-    setConfirmDelete(false);
-  }
 
   if (!position) {
     return (

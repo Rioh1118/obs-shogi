@@ -1,11 +1,11 @@
 import { X } from "lucide-react";
 import "./ActiveFilterChips.scss";
 
-interface Props {
+type Props = {
   tags: string[];
   onRemoveTag: (tag: string) => void;
   onClearAll: () => void;
-}
+};
 
 export default function ActiveFilterChips({ tags, onRemoveTag, onClearAll }: Props) {
   if (tags.length === 0) return null;

@@ -46,23 +46,6 @@ function PositionNavigationModal() {
     selectedOptionIndex: 0,
   });
 
-  // 開いたときと盤が動いたときに、盤の位置から nav を作り直す。**閉じている間は何もしない。**
-  // この部品は `AppModalLayer` が常にマウントしているので、
-  // 閉じていても走らせると盤を1手進めるたびに `setNav` が呼ばれる
-  // （`nav` は閉じている間は誰も読まない）
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const cur = gameView.player ? gameState.cursor : null;
-    setNav({
-      previewCursor: {
-        tesuu: cur?.tesuu ?? 0,
-        forkPointers: cur?.forkPointers ?? [],
-      },
-      selectedOptionIndex: 0,
-    });
-  }, [isOpen, gameView.player, gameState.cursor]);
-
   const { previewData, options, unreachable } = useMemo(() => {
     if (!isOpen || !gameView.player) {
       return { previewData: null, options: [] as BranchOption[], unreachable: false };
@@ -135,6 +118,23 @@ function PositionNavigationModal() {
     applyCursor(nav.previewCursor);
     closeModal();
   }, [applyCursor, closeModal, gameView.player, nav.previewCursor, unreachable]);
+
+  // 開いたときと盤が動いたときに、盤の位置から nav を作り直す。**閉じている間は何もしない。**
+  // この部品は `AppModalLayer` が常にマウントしているので、
+  // 閉じていても走らせると盤を1手進めるたびに `setNav` が呼ばれる
+  // （`nav` は閉じている間は誰も読まない）
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const cur = gameView.player ? gameState.cursor : null;
+    setNav({
+      previewCursor: {
+        tesuu: cur?.tesuu ?? 0,
+        forkPointers: cur?.forkPointers ?? [],
+      },
+      selectedOptionIndex: 0,
+    });
+  }, [isOpen, gameView.player, gameState.cursor]);
 
   useEffect(() => {
     if (!isOpen) return;

@@ -1,4 +1,11 @@
-import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react";
+import {
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import "./BranchList.scss";
 import BranchCard from "./BranchCard";
 import type { BranchOption } from "@/entities/kifu/model/branch";
@@ -12,6 +19,7 @@ type Props = {
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 export default function BranchList({ branches, selectedIndex, onSelectIndex }: Props) {
+  const [cursor, setCursor] = useState({ y: 0, h: 0, ready: false });
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const isUserScrollingRef = useRef(false);
@@ -64,8 +72,6 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
   const setCardRef = (index: number) => (el: HTMLDivElement | null) => {
     cardRefs.current[index] = el;
   };
-
-  const [cursor, setCursor] = useState({ y: 0, h: 0, ready: false });
 
   // スクロール
   useLayoutEffect(() => {
@@ -174,7 +180,7 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
           "--cursor-y": `${cursor.y}px`,
           "--cursor-h": `${cursor.h}px`,
           "--cursor-o": cursor.ready ? 1 : 0,
-        } as React.CSSProperties
+        } as CSSProperties
       }
     >
       <div className="branch-selector__cursor" aria-hidden="true" />

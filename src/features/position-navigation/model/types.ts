@@ -1,6 +1,6 @@
 import type { CursorPath } from "@/entities/kifu/model/cursor";
 
-export interface NavigationState {
+export type NavigationState = {
   /**
    * プレビューが見ている位置と、そこへ降りるための選択。
    *
@@ -21,4 +21,4 @@ export interface NavigationState {
    * `branchIndexFromSelection` で作り直すこと。
    */
   selectedOptionIndex: number;
-}
+};
