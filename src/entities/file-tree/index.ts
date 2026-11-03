@@ -16,7 +16,6 @@ export {
   isOperationAlreadyCommitted,
   isResolvedByConflictDialog,
 } from "./api/error";
-export { collectDirs } from "./lib/collectDirs";
 export { commitName, type CommitOutcome } from "./lib/commitName";
 export { isProjectRoot } from "./lib/isProjectRoot";
 export type {
@@ -26,6 +25,7 @@ export type {
   FileConflictState,
 } from "./model/types";
 export { useFileTree } from "./model/useFileTree";
+export { useSaveDir } from "./model/useSaveDir";
 export { FileTreeProvider } from "./model/provider";
 export { default as FsErrorView } from "./ui/FsErrorView";
 export { readText } from "./api/service";

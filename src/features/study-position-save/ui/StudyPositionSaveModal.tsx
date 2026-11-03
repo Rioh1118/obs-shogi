@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -29,45 +29,24 @@ export default function StudyPositionSaveModal() {
   const { findBySfen, addPosition, updatePosition, deletePosition } = useStudyPositions();
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const sfen = params.sfen ?? currentSfen;
-  const existing = useMemo(() => (isOpen ? findBySfen(sfen) : null), [isOpen, findBySfen, sfen]);
-  const isEdit = !!existing;
-
-  // --- form state ---
   const [label, setLabel] = useState("");
-  const [spState, setSpState] = useState<StudyPositionState>("inbox");
+  const [studyState, setStudyState] = useState<StudyPositionState>("inbox");
   const [tags, setTags] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // reset form when modal opens or existing changes
-  useEffect(() => {
-    if (!isOpen) return;
-    setConfirmDelete(false);
-    setErrorMsg(null);
-    if (existing) {
-      setLabel(existing.label);
-      setSpState(existing.state);
-      setTags(existing.tags);
-      setDescription(existing.description);
-    } else {
-      setLabel("");
-      setSpState("inbox");
-      setTags([]);
-      setDescription("");
-    }
-  }, [isOpen, existing]);
+  const sfen = params.sfen ?? currentSfen;
+  const existing = useMemo(() => (isOpen ? findBySfen(sfen) : null), [isOpen, findBySfen, sfen]);
+  const isEdit = !!existing;
 
   const previewData = useMemo(() => {
     if (!isOpen || !sfen) return null;
     return buildPreviewDataFromSfen(sfen);
   }, [isOpen, sfen]);
 
-  // context info
-  // params.sfen が明示されている場合（マネージャー等から開かれた場合）は
-  // 現在対局の tesuu / fileName は別の棋譜のものになるため表示しない
+  // URL に `sfen` があるとき（課題局面の一覧から開いたとき）は、手数とファイル名を出さない。
+  // 盤に載っている棋譜は、保存しようとしている局面とは別の棋譜なので
   const isFromGameContext = !params.sfen;
   const tesuu = isFromGameContext ? getCurrentMoveIndex() : null;
   const fileName = useMemo(() => {
@@ -86,7 +65,7 @@ export default function StudyPositionSaveModal() {
         await updatePosition({
           id: existing.id,
           label,
-          state: spState,
+          state: studyState,
           tags,
           description,
         });
@@ -94,7 +73,7 @@ export default function StudyPositionSaveModal() {
         await addPosition({
           sfen,
           label,
-          state: spState,
+          state: studyState,
           tags,
           description,
         });
@@ -111,7 +90,7 @@ export default function StudyPositionSaveModal() {
     isSaving,
     existing,
     label,
-    spState,
+    studyState,
     tags,
     description,
     addPosition,
@@ -135,7 +114,7 @@ export default function StudyPositionSaveModal() {
   }, [existing, isSaving, deletePosition, closeModal]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         handleSave();
@@ -143,6 +122,26 @@ export default function StudyPositionSaveModal() {
     },
     [handleSave],
   );
+
+  // 開くたびにフォームを詰め直す。`AppModalLayer` が常にマウントしているので、詰め直さないと
+  // 前回の入力が残る。保存済みの局面なら記録の値を、そうでなければ空を入れる。
+  // `existing` が別の値に変わったときも詰め直す
+  useEffect(() => {
+    if (!isOpen) return;
+    setConfirmDelete(false);
+    setErrorMsg(null);
+    if (existing) {
+      setLabel(existing.label);
+      setStudyState(existing.state);
+      setTags(existing.tags);
+      setDescription(existing.description);
+    } else {
+      setLabel("");
+      setStudyState("inbox");
+      setTags([]);
+      setDescription("");
+    }
+  }, [isOpen, existing]);
 
   if (!isOpen) return null;
 
@@ -193,8 +192,8 @@ export default function StudyPositionSaveModal() {
             <div className="sp-save__field">
               <label className="sp-save__label">{"研究状態"}</label>
               <StudyPositionStateSegment
-                value={spState}
-                onChange={setSpState}
+                value={studyState}
+                onChange={setStudyState}
                 disabled={isSaving}
               />
             </div>

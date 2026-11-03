@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Modal from "@/shared/ui/Modal";
 import Button from "@/shared/ui/Button/Button";
 
@@ -12,7 +12,8 @@ import ConflictMeta from "./ConflictMeta";
 
 import "./FileConflictDialog.scss";
 
-function getSelectionEnd(name: string): number {
+/** 拡張子を除いた名前の長さを返す。先頭の `.` は拡張子の区切りと見なさない */
+function stemLength(name: string): number {
   const dot = name.lastIndexOf(".");
   return dot > 0 ? dot : name.length;
 }
@@ -42,7 +43,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
       const el = inputRef.current;
       if (!el) return;
       el.focus();
-      el.setSelectionRange(0, getSelectionEnd(requestedName));
+      el.setSelectionRange(0, stemLength(requestedName));
     });
   }, [sessionKey]);
 
@@ -56,7 +57,8 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
   // 自分を無効にするので、そこへ重ねると「送信中は押せない」が2箇所に分かれる
   const isNameSendable = trimmed.length > 0 && trimmed !== requestedName;
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
     if (!isNameSendable || isSubmitting) return;
 
     try {
@@ -79,13 +81,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
       closeOnEsc={!isSubmitting}
       closeOnOverlay={!isSubmitting}
     >
-      <form
-        className="file-conflict"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void handleSubmit();
-        }}
-      >
+      <form className="file-conflict" onSubmit={handleSubmit}>
         <header className="file-conflict__header">
           <div className="file-conflict__iconWrap" aria-hidden="true">
             <AlertTriangle size={14} />

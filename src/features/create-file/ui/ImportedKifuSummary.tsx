@@ -4,20 +4,20 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import "./ImportedKifuSummary.scss";
 
-interface ImportedKifuSummaryProps {
+type ImportedKifuSummaryProps = {
   format: KifuFormat;
   moves: number;
   jkf: JKFData;
-}
+};
 
 /**
  * 読み取った棋譜の素性
  *
- * **「読めました」の1行より確かめられるものを出す。** 貼った人が知りたいのは
+ * 「読めました」の1行より確かめられるものを出す。貼った人が知りたいのは
  * 「読めたか」ではなく**「貼ろうとした棋譜がこれか」**で、それに答えるのは
  * 対局者と棋戦と日付。取り違えて貼っても、いまは作ってから開くまで気づけない。
  *
- * **欄の並びと欄名は `kifuOverview` が決める**（JKF の語彙なので）。
+ * 欄の並びと欄名は `kifuOverview` が決める（JKF の語彙なので）。
  * ここが決めるのは、それをどう並べるかだけ。
  */
 function ImportedKifuSummary({ format, moves, jkf }: ImportedKifuSummaryProps) {

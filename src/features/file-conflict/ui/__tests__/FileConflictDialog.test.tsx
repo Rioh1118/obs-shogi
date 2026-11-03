@@ -97,4 +97,52 @@ describe("FileConflictDialog", () => {
 
     expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("c.kif");
   });
+
+  test("要求名のままでは送れない", () => {
+    render(
+      <FileConflictDialog
+        conflict={conflictFor("a.kif")}
+        onCancel={vi.fn()}
+        onSubmitRename={vi.fn()}
+      />,
+    );
+
+    const send = screen.getByRole<HTMLButtonElement>("button", { name: "名前を変更" });
+    expect(send.disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: " a.kif " } });
+    expect(send.disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "b.kif" } });
+    expect(send.disabled).toBe(false);
+  });
+
+  /** 打ち直すのは名前の部分なので、拡張子の手前までを選んでおく */
+  test.each([
+    ["a.kif", 1],
+    // 先頭の `.` は拡張子の区切りではない。全体を選ぶ
+    [".kif", 4],
+  ])("開いたら %s の %i 文字目までを選ぶ", async (name, end) => {
+    render(
+      <FileConflictDialog
+        conflict={conflictFor(name)}
+        onCancel={vi.fn()}
+        onSubmitRename={vi.fn()}
+      />,
+    );
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+
+    const input = screen.getByRole<HTMLInputElement>("textbox");
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(end);
+  });
+
+  test("名前を変えるときの保存先は、元の項目の親フォルダ", () => {
+    const rename: FileConflictState = {
+      request: { kind: "rename_file", path: "/root/研究/a.kif", newName: "b.kif" },
+      error: { code: "already_exists", message: "exists", path: "/root/研究/b.kif" },
+    };
+    render(<FileConflictDialog conflict={rename} onCancel={vi.fn()} onSubmitRename={vi.fn()} />);
+
+    expect(screen.getByText("元の項目").nextElementSibling?.textContent).toBe("/root/研究/a.kif");
+    expect(screen.getByText("保存先 / 移動先").nextElementSibling?.textContent).toBe("/root/研究");
+  });
 });

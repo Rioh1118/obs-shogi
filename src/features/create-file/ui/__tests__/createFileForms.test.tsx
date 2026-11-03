@@ -112,7 +112,7 @@ describe("KifuImportForm", () => {
     });
 
     /**
-     * **「読めました」の1行では足りない。** 貼った人が確かめたいのは
+     * 「読めました」の1行では足りない。貼った人が確かめたいのは
      * 「貼ろうとした棋譜がこれか」なので、素性（形式・手数・対局者・初期局面）を出す。
      */
     test("読めたら、読み取った棋譜の素性を出す", () => {
@@ -254,6 +254,52 @@ describe("KifuImportForm", () => {
     fillImport();
     await submitForm();
     expect(importKifuFile).toHaveBeenCalledWith("/root", "研究.kif", expect.any(String));
+  });
+
+  test("ツリーから開いたら、そのフォルダが保存先になる", () => {
+    fileTree = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />);
+
+    expect(screen.getByLabelText("保存先").textContent).toBe("/角換わり");
+  });
+
+  test("ようこそ画面から開いたら（`dir=` が来ない）、保存先はツリーの根", () => {
+    fileTree = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="" />);
+
+    expect(screen.getByLabelText("保存先").textContent).toBe("/");
+  });
+
+  test("ツリーの根が替わったら、保存先を新しい根へ戻す", async () => {
+    importKifuFile.mockResolvedValue({ success: true, data: "/other/研究.kif" });
+    fileTree = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+    const view = render(
+      <KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />,
+    );
+
+    fileTree = dir("other", "/other", [dir("角換わり", "/other/角換わり")]);
+    view.rerender(
+      <KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />,
+    );
+
+    fillImport();
+    await submitForm();
+    expect(importKifuFile).toHaveBeenCalledWith("/other", "研究.kif", expect.any(String));
+  });
+
+  // 取り込みは書き込みとツリーの読み直しを通るので、返事までに間がある。
+  // もう一度送ると、1回目は成功して2回目が already_exists になる
+  test("返事を待つあいだにもう一度送っても、2本は取り込まない", async () => {
+    let resolve: (value: unknown) => void = () => {};
+    importKifuFile.mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
+
+    fillImport();
+    await submitForm();
+    await submitForm();
+
+    expect(importKifuFile).toHaveBeenCalledTimes(1);
+    await act(async () => resolve({ success: true, data: "/root/研究.kif" }));
   });
 
   test("衝突は別名を選ぶ対話が引き取るので、フォーム側では出さない", async () => {

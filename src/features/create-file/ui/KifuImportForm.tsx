@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
+  useSaveDir,
   type FsError,
 } from "@/entities/file-tree";
 import { KIFU_FORMAT_OPTIONS } from "@/entities/kifu/model/kifu";
@@ -59,12 +59,12 @@ function KifuImportForm({
   /**
    * 貼りかけを器へ知らせる
    *
-   * **閉じるときの確認は器が出す**（状態遷移表の直交軸「捨てるもの」）。
+   * 閉じるときの確認は器が出す（状態遷移表の直交軸「捨てるもの」）。
    * 捨てるものは隣のタブの組みかけにもあり、**両方を数えられるのは器だけ**。
    */
   onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const { importKifuFile, fileTree } = useFileTree();
+  const { importKifuFile } = useFileTree();
 
   /**
    * 貼りかけと、作るファイルの指定
@@ -86,64 +86,11 @@ function KifuImportForm({
   } = useKifuImportDraft();
 
   const [submitError, setSubmitError] = useState<FsError | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  /**
-   * 保存先
-   *
-   * **欄を持つ。** 入口は2つあり、ようこそ画面から開くと `dir=` が来ない。
-   * 空のまま送ると Rust 側が `invalid_path` を返すので、
-   * **保存先を一度も選んでいないのに「その場所は扱えません」と言われる**。
-   */
-  const rootPath = fileTree?.path ?? "";
-  const dirOptions = useMemo(
-    () => (fileTree ? collectDirs(fileTree, rootPath) : []),
-    [fileTree, rootPath],
-  );
-  const [selectedDir, setSelectedDir] = useState(dirPath || rootPath);
-
-  // ツリーの根が入れ替わったら保存先を根へ戻す
-  const [prevRoot, setPrevRoot] = useState(rootPath);
-  if (rootPath !== prevRoot) {
-    setPrevRoot(rootPath);
-    setSelectedDir(rootPath);
-  }
-
-  // **選んでいたフォルダだけが消えたときも根へ戻す。** `Select` は選択肢に無い値を
-  // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
-  // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**。
-  //
-  // 一覧が空のあいだは触らない。ツリーが未読のときも `dirOptions` は空で、
-  // ここで戻すと URL から来た `dir=` を読み込みの途中で根へ潰す
-  if (selectedDir && dirOptions.length > 0 && !dirOptions.some((o) => o.value === selectedDir)) {
-    setSelectedDir(rootPath);
-  }
-
-  // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
-  // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
-  // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす経路が他に無い
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const rawRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (hidden) return;
-    // 次のフレームまで待つ。器の `Modal` は開いた直後に焦点を引き戻すので、
-    // 同じターンで移すと奪われる
-    requestAnimationFrame(() => rawRef.current?.focus());
-  }, [hidden]);
+  const { dirOptions, selectedDir, setSelectedDir } = useSaveDir(dirPath);
 
-  useEffect(() => {
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange]);
-
-  // 開発者向けの手掛かりはコンソールへ。**配布ビルドには残らない** ——
-  // 棋譜のパースは webview の中だけで走り、`tauri-plugin-log` は Rust のログしか受けない。
-  // 開発中に追うためのもので、利用者から原因を受け取る経路ではない（→ #157）
-  useEffect(() => {
-    if (read && !read.readable && read.cause) {
-      console.error("[create-file] 貼られた棋譜を読めなかった", read.cause);
-    }
-  }, [read]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const name = fullFileName;
@@ -153,10 +100,10 @@ function KifuImportForm({
     if (!read?.readable) return;
     // 取り込みは書き込みとツリーの読み直しを通る。押しても画面が変わらない間に
     // もう一度押すと、1回目は成功して2回目が already_exists になる
-    if (isSaving) return;
+    if (isSubmitting) return;
 
     setSubmitError(null);
-    setIsSaving(true);
+    setIsSubmitting(true);
     onSubmittingChange?.(true);
     try {
       const result = await importKifuFile(selectedDir, name, text);
@@ -170,10 +117,33 @@ function KifuImportForm({
         setSubmitError(result.error);
       }
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
       onSubmittingChange?.(false);
     }
   };
+
+  // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
+  // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
+  // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす経路が他に無い
+  useEffect(() => {
+    if (hidden) return;
+    // 次のフレームまで待つ。器の `Modal` は開いた直後に焦点を引き戻すので、
+    // 同じターンで移すと奪われる
+    requestAnimationFrame(() => rawRef.current?.focus());
+  }, [hidden]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  // 開発者向けの手掛かりはコンソールへ出す。開発中に追うためのもので、利用者から原因を
+  // 受け取る経路ではない。**配布ビルドには残らない** —— 棋譜のパースは webview の中だけで走り、
+  // `tauri-plugin-log` は Rust のログしか受けない
+  useEffect(() => {
+    if (read && !read.readable && read.cause) {
+      console.error("[create-file] 貼られた棋譜を読めなかった", read.cause);
+    }
+  }, [read]);
 
   return (
     /*
@@ -190,7 +160,7 @@ function KifuImportForm({
         <FormField>
           <Textarea
             label="棋譜テキスト"
-            id="rawKifu"
+            id="kifu-import-raw"
             ref={rawRef}
             placeholder=".kif / .ki2 / .csa / .jkf を貼り付け"
             value={rawContent}
@@ -224,7 +194,7 @@ function KifuImportForm({
         <FormField horizontal>
           <TextInput
             label="ファイル名"
-            id="fileName"
+            id="kifu-import-file-name"
             placeholder="45角戦法"
             value={fileName}
             onChange={(e) => setFileName(e.target.value)}
@@ -232,14 +202,14 @@ function KifuImportForm({
           />
           <Select
             label="形式"
-            id="format"
+            id="kifu-import-format"
             options={KIFU_FORMAT_OPTIONS}
             value={format}
             onChange={setFormat}
           />
           <Select
             label="保存先"
-            id="import-dir"
+            id="kifu-import-dir"
             options={dirOptions}
             value={selectedDir}
             onChange={setSelectedDir}
@@ -264,14 +234,14 @@ function KifuImportForm({
             type="submit"
             tone="primary"
             size="lg"
-            isLoading={isSaving}
+            isLoading={isSubmitting}
             disabled={!fullFileName || !read?.readable || !selectedDir}
           >
-            {isSaving ? "作成中…" : "作成"}
+            {isSubmitting ? "作成中…" : "作成"}
           </Button>
           {/* 盤の面と同じ語。**同じ `requestClose` を通る同じ操作**なので、
               面ごとに別の語を当てると、戻り先が違うように読める */}
-          <Button type="button" size="lg" onClick={onCancel} disabled={isSaving}>
+          <Button type="button" size="lg" onClick={onCancel} disabled={isSubmitting}>
             キャンセル
           </Button>
         </ButtonGroup>

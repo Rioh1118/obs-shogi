@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import {
-  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
+  useSaveDir,
   type FsError,
 } from "@/entities/file-tree";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
@@ -23,72 +23,47 @@ import Button from "@/shared/ui/Button/Button";
 
 import "./SfenKifuCreateModal.scss";
 
-export default function SfenKifuCreateModal() {
-  const { params, closeModal } = useURLParams();
-  const isOpen = params.modal === "sfen-kifu-create";
-  const sfen = params.sfen;
-
-  const { createNewFile, fileTree } = useFileTree();
+/**
+ * 開いているあいだだけ立つ対話
+ *
+ * `AppModalLayer` は対話を常にマウントしている。閉じたら入力ごと消えるので、
+ * 開き直したときに前回の名前や保存先が残らない。
+ */
+function SfenKifuCreateDialog({ sfen, closeModal }: { sfen: string; closeModal: () => void }) {
+  const { createNewFile } = useFileTree();
 
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
   const [blackPlayer, setBlackPlayer] = useState("");
   const [whitePlayer, setWhitePlayer] = useState("");
-  const [selectedDir, setSelectedDir] = useState(fileTree?.path ?? "");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
+  const { dirOptions, selectedDir, setSelectedDir } = useSaveDir();
 
-  // 手合割としては書けない（URL から来た任意の局面なので）ので `OTHER` に固定する。
+  // URL から来た任意の局面は手合割として書けないので、`OTHER` に固定する。
   // 読めない綴りなら `null` —— 下の送信がそこで止まる
   const sfenInitial = useMemo(() => {
-    const data = sfen ? stateFromSfen(sfen) : null;
+    const data = stateFromSfen(sfen);
     return data ? ({ preset: "OTHER", data } as const) : null;
   }, [sfen]);
 
-  const previewData = useMemo(() => (sfen ? buildPreviewDataFromSfen(sfen) : null), [sfen]);
-
-  const dirOptions = useMemo(() => {
-    if (!fileTree) return [];
-    return collectDirs(fileTree, fileTree.path);
-  }, [fileTree]);
-
-  // fileTree が変わったら selectedDir を同期
-  const rootPath = fileTree?.path ?? "";
-  const rootPathRef = useRef(rootPath);
-  rootPathRef.current = rootPath;
-  const [prevRoot, setPrevRoot] = useState(rootPath);
-  if (rootPath !== prevRoot) {
-    setPrevRoot(rootPath);
-    setSelectedDir(rootPath);
-  }
-
-  // 開くたびにフォームをリセットする（常駐レンダリングで状態が残るため）
-  // selectedDir は rootPathRef 経由で最新の rootPath を参照する
-  useEffect(() => {
-    if (!isOpen) return;
-    setFileName("");
-    setFormat("kif");
-    setBlackPlayer("");
-    setWhitePlayer("");
-    setSelectedDir(rootPathRef.current);
-    setSubmitError(null);
-  }, [isOpen]);
+  const previewData = useMemo(() => buildPreviewDataFromSfen(sfen), [sfen]);
 
   // 拡張子は形式の欄が決める。**打った拡張子は落とす**ので `研究.kif.kif` にならない
   // （規則は `kifuFileName` が1箇所で持つ）
   const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
-      if (!fullFileName || !sfenInitial || isLoading) return;
+      if (!fullFileName || !sfenInitial || isSubmitting) return;
 
       // `selectedDir` が空になるのはツリーが1本も無いときだけで、
       // そのとき送信ボタンは押せない。理由は Select の下に出している
       if (dirOptions.length === 0) return;
 
       setSubmitError(null);
-      setIsLoading(true);
+      setIsSubmitting(true);
       const result = await createNewFile(selectedDir, {
         fileName: fullFileName,
         format,
@@ -98,7 +73,7 @@ export default function SfenKifuCreateModal() {
         },
         initialPosition: sfenInitial,
       });
-      setIsLoading(false);
+      setIsSubmitting(false);
 
       if (result.success) {
         closeModal();
@@ -118,13 +93,16 @@ export default function SfenKifuCreateModal() {
       dirOptions.length,
       fullFileName,
       sfenInitial,
-      isLoading,
+      isSubmitting,
       createNewFile,
       closeModal,
     ],
   );
 
-  if (!isOpen || !sfen) return null;
+  const handleDirChange = (dir: string) => {
+    setSelectedDir(dir);
+    setSubmitError(null);
+  };
 
   return (
     <Modal
@@ -147,13 +125,10 @@ export default function SfenKifuCreateModal() {
           <FormField>
             <Select
               label="保存先フォルダ"
-              id="saveDir"
+              id="sfen-kifu-create-dir"
               options={dirOptions}
               value={selectedDir}
-              onChange={(v) => {
-                setSelectedDir(v);
-                setSubmitError(null);
-              }}
+              onChange={handleDirChange}
             />
             {dirOptions.length === 0 && (
               <p className="sfen-kifu-create__hint">
@@ -165,7 +140,7 @@ export default function SfenKifuCreateModal() {
           <FormField horizontal>
             <TextInput
               label="ファイル名"
-              id="sfenFileName"
+              id="sfen-kifu-create-file-name"
               placeholder="45角戦法"
               value={fileName}
               onChange={(e) => setFileName(e.target.value)}
@@ -173,7 +148,7 @@ export default function SfenKifuCreateModal() {
             />
             <Select
               label="フォーマット"
-              id="sfenFormat"
+              id="sfen-kifu-create-format"
               options={KIFU_FORMAT_OPTIONS}
               value={format}
               onChange={setFormat}
@@ -183,39 +158,39 @@ export default function SfenKifuCreateModal() {
           <FormField horizontal>
             <TextInput
               label="先手名"
-              id="sfenBlack"
+              id="sfen-kifu-create-black"
               placeholder="Player1"
               value={blackPlayer}
               onChange={(e) => setBlackPlayer(e.target.value)}
             />
             <TextInput
               label="後手名"
-              id="sfenWhite"
+              id="sfen-kifu-create-white"
               placeholder="Player2"
               value={whitePlayer}
               onChange={(e) => setWhitePlayer(e.target.value)}
             />
           </FormField>
 
-          {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+          {/* 押した場所の隣に出す。フォームは差し替えない —— 入力欄が消えると、失敗して
+              戻ったときキーボードの利用者はどこにいるか分からなくなる。残っていれば、
+              名前を直してそのまま押し直せる */}
           {submitError && (
             <FormField>
               <FsErrorView error={submitError} />
             </FormField>
           )}
 
-          {/* フォームは出したままにする。差し替えると入力欄が消え、
-                  失敗して戻ったときキーボードの利用者はどこにいるか分からなくなる */}
           <ButtonGroup>
             <Button
               type="submit"
               tone="primary"
-              isLoading={isLoading}
+              isLoading={isSubmitting}
               disabled={!fullFileName || !selectedDir}
             >
-              {isLoading ? "作成中…" : "作成"}
+              {isSubmitting ? "作成中…" : "作成"}
             </Button>
-            <Button type="button" onClick={() => closeModal()} disabled={isLoading}>
+            <Button type="button" onClick={() => closeModal()} disabled={isSubmitting}>
               キャンセル
             </Button>
           </ButtonGroup>
@@ -223,4 +198,12 @@ export default function SfenKifuCreateModal() {
       </div>
     </Modal>
   );
+}
+
+export default function SfenKifuCreateModal() {
+  const { params, closeModal } = useURLParams();
+  const isOpen = params.modal === "sfen-kifu-create";
+  return isOpen && params.sfen ? (
+    <SfenKifuCreateDialog sfen={params.sfen} closeModal={closeModal} />
+  ) : null;
 }
