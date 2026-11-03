@@ -19,7 +19,10 @@ const SFEN_A = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL b - 1";
 const SFEN_B = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL w - 2";
 
 /** 検索する局面を試験の側から差し替える。撃ち直しの経路はこれでしか作れない */
-const urlParams = { modal: "position-search", sfen: SFEN_A };
+const urlParams: { modal: string; sfen: string | undefined } = {
+  modal: "position-search",
+  sfen: SFEN_A,
+};
 
 vi.mock("@/shared/lib/router/useURLParams", () => ({
   useURLParams: () => ({
@@ -30,10 +33,13 @@ vi.mock("@/shared/lib/router/useURLParams", () => ({
   }),
 }));
 
+/** 盤の現在局面。`sfen=` が無いときの検索の対象 */
+const gameView: { player: null; currentSfen: string | null } = { player: null, currentSfen: null };
+
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
     state: { loadedAbsPath: "/root/a.kif" },
-    view: { player: null, currentSfen: null },
+    view: gameView,
   }),
 }));
 
@@ -42,6 +48,8 @@ vi.mock("@/entities/app-config", () => ({
 }));
 
 const REQUEST_ID = 1;
+/** 検索の途中で索引が動いたか。セッションの `stale` */
+const sessionFlags = { stale: false };
 const searchPosition = vi.fn();
 const cancelSearch = vi.fn();
 const clearSearch = vi.fn();
@@ -57,7 +65,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
     searchPosition,
     cancelSearch,
     getSessionByRequestId: (rid: number | null) =>
-      rid == null ? null : { isDone: true, error: null, stale: false },
+      rid == null ? null : { isDone: true, error: null, stale: sessionFlags.stale },
     getHitsByRequestId: (rid: number | null) => (rid == null ? [] : hitsState.current),
     isSearchingRequest: () => false,
     resolveHitAbsPath,
@@ -65,7 +73,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
   }),
 }));
 
-vi.mock("@/features/position-search/lib/usePositionHitNavigation", () => ({
+vi.mock("@/features/position-search/model/usePositionHitNavigation", () => ({
   usePositionHitNavigation: () => ({ startNavigationToHit }),
 }));
 
@@ -92,9 +100,18 @@ vi.mock("@/shared/ui/Modal", () => ({
 vi.mock("@/entities/position/ui/PositionPreviewPane", () => ({ default: () => null }));
 /** 「いまどの行が選ばれているか」を、描かれた回ごとに記録する */
 const seenActiveHits: (PositionHit | null)[] = [];
+/** 先読みに渡された棋譜。描かれた回ごとに記録する */
+const seenPrefetch: (string | null)[] = [];
 vi.mock("../PositionSearchContinuation", () => ({
-  default: ({ activeHit }: { activeHit: PositionHit | null }) => {
+  default: ({
+    activeHit,
+    prefetchAbsPath,
+  }: {
+    activeHit: PositionHit | null;
+    prefetchAbsPath: string | null;
+  }) => {
     seenActiveHits.push(activeHit);
+    seenPrefetch.push(prefetchAbsPath);
     return null;
   },
 }));
@@ -136,6 +153,10 @@ beforeEach(() => {
   hitsState.current = HITS;
   hitKeyCalls.mockReset();
   seenActiveHits.length = 0;
+  seenPrefetch.length = 0;
+  sessionFlags.stale = false;
+  gameView.currentSfen = null;
+  urlParams.modal = "position-search";
   urlParams.sfen = SFEN_A;
 });
 
@@ -215,8 +236,8 @@ describe("PositionSearchModal のヒットを開く", () => {
    * 選択追従がヒット件数に比例した仕事をしないこと。
    *
    * 鍵の文字列で照合すると、選んだ行より前の全件ぶん `hitKey` を組み直す。
-   * 実測では n=100,000 で 24 秒（`.claude/reviews/2026-09-06-420-unopenable-position-hit-r2.md` H-5）。
-   * **チャンクが届くたびに起きる**ので、件数が増えるほど「何もしていないのに止まる」。
+   * 2026-09-06 の実測で、n=100,000 のとき 24 秒かかった。
+   * チャンクが届くたびに起きるので、件数が増えるほど「何もしていないのに止まる」。
    *
    * 上限を定数で置くのが要点。ここが件数と一緒に増えてよいなら、
    * どんな実装でも通ってしまう。
@@ -237,10 +258,9 @@ describe("PositionSearchModal のヒットを開く", () => {
   });
 
   /**
-   * **取り下げるだけでは足りない。** 届いたヒットの実体はセッションに残り、
-   * 開き直すたびに1検索ぶん積み上がる（10万件なら 17.6MB。
-   * `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` D-1）。捨てる関数
-   * （`clearSearch`）を呼ぶのはこの画面だけなので、呼ばないと**誰も呼ばない**。
+   * 取り下げるだけでは足りない。届いたヒットの実体はセッションに残り、
+   * 開き直すたびに1検索ぶん積み上がる（2026-09-07 の実測で、10万件なら 17.6MB）。
+   * 捨てる関数（`clearSearch`）を呼ぶのはこの画面だけなので、ここが呼ばないと誰も呼ばない。
    */
   test("画面を畳むとき、進行中の検索を取り下げたうえで結果も捨てる", async () => {
     const { unmount } = await renderWithHits();
@@ -252,11 +272,10 @@ describe("PositionSearchModal のヒットを開く", () => {
   });
 
   /**
-   * **rid が分かるのは invoke が解決してから。** それより先に畳まれると
+   * rid が分かるのは invoke が解決してから。それより先に畳まれると
    * `discardSearch` は rid を知らないので、取り下げも破棄も飛ばない。素通りさせると
    * Rust の検索は最後まで走り、閉じた画面が到着のたびに一覧を組み直し続ける
-   * （実測で n=100,000 のとき 19.4MB を抱える。
-   * `.claude/reviews/2026-09-07-447-position-search-perf-r2.md` R2-3）
+   * （2026-09-07 の実測で、n=100,000 のとき 19.4MB を抱える）
    */
   test("rid が分かる前に畳まれても、解決した側が取り下げて捨てる", async () => {
     let settleLaunch!: (out: { status: "started"; requestId: number }) => void;
@@ -277,12 +296,11 @@ describe("PositionSearchModal のヒットを開く", () => {
 
   /**
    * 一覧はチャンクが届くたびに並び替わる（開いている棋譜のヒットが先頭へ寄る）。
-   * 選んだ行の**添字と実体の両方を state に持つ**と、突き合わせが済むまでの1レンダで
+   * 選んだ行の添字と実体の両方を state に持つと、突き合わせが済むまでの1レンダで
    * 利用者が選んでいない隣の行が選択として描かれる。その1フレームで行き先も
    * 先読みも「続き5手」も別の棋譜を指し、Enter を押せばそちらへ移動する。
    *
-   * 50ms ごとの吐き出しに乗るので、検索が続くあいだ最大 20回/秒 繰り返す
-   * （`.claude/reviews/2026-09-07-447-position-search-perf-r2.md` R2-6）。
+   * 50ms ごとの吐き出しに乗るので、検索が続くあいだ最大 20回/秒 繰り返す。
    */
   test("並び替えで選択行の添字が動いても、途中で別の行が選ばれない", async () => {
     // fileId 99 だけが「いま開いている棋譜」。届くと先頭へ寄る
@@ -419,5 +437,227 @@ describe("PositionSearchModal のヒットを開く", () => {
     fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
 
     expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+});
+
+/**
+ * 部品を割る前後で、画面の段と後始末の時点が変わらないことを固定する。
+ * 起動の世代と選択の初期化は同じ effect の中で起きるので、片方だけを別の時点へ動かすと
+ * 断りが前の検索の行へ残ったり、閉じた後に結果を抱えたりする。
+ */
+describe("PositionSearchModal の検索の段と後始末", () => {
+  function statusBar() {
+    return screen.getByLabelText("検索状態", { selector: "section.pos-search-status" });
+  }
+
+  test("起動が解決するまでは「検索中…」、届いて終われば「完了」", async () => {
+    let settleLaunch!: (out: { status: "started"; requestId: number }) => void;
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => (settleLaunch = resolve as typeof settleLaunch)),
+    );
+
+    render(<PositionSearchModal />);
+    expect(statusBar().textContent).toContain("検索中…");
+    expect(screen.getByText("検索結果を受信中…")).toBeTruthy();
+
+    await act(async () => {
+      settleLaunch({ status: "started", requestId: REQUEST_ID });
+    });
+
+    expect(statusBar().textContent).toContain("完了");
+    expect(statusBar().textContent).toContain(`一致: ${HITS.length}`);
+  });
+
+  test("起動が失敗したら「エラー」と理由を出す", async () => {
+    searchPosition.mockRejectedValue(new Error("索引が無い"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<PositionSearchModal />);
+    await act(async () => {});
+
+    expect(statusBar().textContent).toContain("エラー");
+    expect(screen.getByText("検索に失敗しました: 索引が無い")).toBeTruthy();
+  });
+
+  test("検索する局面が無ければ検索を立てず、「待機中」のまま", async () => {
+    urlParams.sfen = undefined;
+
+    render(<PositionSearchModal />);
+    await act(async () => {});
+
+    expect(searchPosition).not.toHaveBeenCalled();
+    expect(statusBar().textContent).toContain("待機中");
+    expect(screen.getByText("検索する局面がありません")).toBeTruthy();
+  });
+
+  test("局面を渡されたら局面と区切りの大きさを添えて検索する", async () => {
+    await renderWithHits();
+
+    expect(searchPosition).toHaveBeenCalledWith({
+      sfen: SFEN_A,
+      consistency: "BestEffort",
+      chunkSize: 300,
+    });
+  });
+
+  test("局面が変わったら前の検索を取り下げて捨て、断りも消す", async () => {
+    startNavigationToHit.mockReturnValue("not-in-tree");
+    const { rerender } = await renderWithHits();
+    pressEnter();
+    expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+
+    searchPosition.mockResolvedValue({ status: "started", requestId: REQUEST_ID + 1 });
+    urlParams.sfen = SFEN_B;
+    rerender(<PositionSearchModal />);
+    await screen.findByRole("listbox");
+
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(searchPosition).toHaveBeenLastCalledWith(expect.objectContaining({ sfen: SFEN_B }));
+    // 同じヒットの実体が届いても、前の検索で付けた断りは残らない
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  test("閉じたら取り下げて捨て、開き直すと断りの無い状態から検索し直す", async () => {
+    startNavigationToHit.mockReturnValue("not-in-tree");
+    const { rerender } = await renderWithHits();
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "j" });
+    pressEnter();
+    expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+
+    urlParams.modal = "";
+    rerender(<PositionSearchModal />);
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+
+    urlParams.modal = "position-search";
+    rerender(<PositionSearchModal />);
+    await screen.findByRole("listbox");
+
+    expect(searchPosition).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+    // 選択も先頭へ戻っている
+    startNavigationToHit.mockReturnValue("started");
+    pressEnter();
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/1.kif", HITS[0].cursor);
+  });
+
+  test("j と k、↓ と ↑ で選択が動き、端では止まる", async () => {
+    startNavigationToHit.mockReturnValue("started");
+    await renderWithHits();
+    const section = screen.getByLabelText("局面検索");
+
+    fireEvent.keyDown(section, { key: "j" });
+    fireEvent.keyDown(section, { key: "ArrowDown" });
+    pressEnter();
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/2.kif", HITS[1].cursor);
+
+    fireEvent.keyDown(section, { key: "k" });
+    fireEvent.keyDown(section, { key: "ArrowUp" });
+    pressEnter();
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/1.kif", HITS[0].cursor);
+  });
+
+  test("局面を渡されたときの見出しは「検索対象の局面」、渡されなければ「現在の局面」", async () => {
+    const { rerender } = await renderWithHits();
+    expect(screen.getByText("検索対象の局面")).toBeTruthy();
+
+    urlParams.sfen = undefined;
+    rerender(<PositionSearchModal />);
+    expect(screen.getByText("現在の局面")).toBeTruthy();
+  });
+
+  test("行き先の欄は選んだ行の棋譜と、いま開いている棋譜をルートからの相対で出す", async () => {
+    await renderWithHits();
+
+    const card = screen.getByLabelText("選択中の棋譜");
+    expect(card.textContent).toContain("1.kif");
+    expect(card.textContent).toContain("現在:a.kif");
+  });
+
+  test("閉じた後に畳まれても、同じ検索を2度は取り下げない", async () => {
+    const { rerender, unmount } = await renderWithHits();
+
+    urlParams.modal = "";
+    rerender(<PositionSearchModal />);
+    unmount();
+
+    expect(cancelSearch).toHaveBeenCalledTimes(1);
+    expect(clearSearch).toHaveBeenCalledTimes(1);
+  });
+
+  test("検索した後に局面が無くなったら、検索を立て直さない", async () => {
+    const { rerender } = await renderWithHits();
+    expect(searchPosition).toHaveBeenCalledTimes(1);
+
+    urlParams.sfen = undefined;
+    rerender(<PositionSearchModal />);
+    await act(async () => {});
+
+    expect(searchPosition).toHaveBeenCalledTimes(1);
+  });
+
+  test("局面を渡されたら、盤の現在局面より渡された局面を検索する", async () => {
+    gameView.currentSfen = SFEN_B;
+    await renderWithHits();
+
+    expect(searchPosition).toHaveBeenCalledWith(expect.objectContaining({ sfen: SFEN_A }));
+  });
+
+  test("局面を渡されなければ、盤の現在局面を検索する", async () => {
+    urlParams.sfen = undefined;
+    gameView.currentSfen = SFEN_B;
+    await renderWithHits();
+
+    expect(searchPosition).toHaveBeenCalledWith(expect.objectContaining({ sfen: SFEN_B }));
+  });
+
+  test("検索の途中で索引が動いたら、状況バーで言う", async () => {
+    sessionFlags.stale = true;
+    await renderWithHits();
+
+    expect(statusBar().textContent).toContain("検索中に索引が動きました");
+  });
+
+  test("選んだ行の実体が届き直して見失ったら、先頭の行を開く", async () => {
+    startNavigationToHit.mockReturnValue("started");
+    const { rerender } = await renderWithHits();
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
+
+    // 同じ中身の別の実体が届く。選んだ行は参照で追っているので見失う
+    hitsState.current = HITS.map((h) => ({ ...h }));
+    rerender(<PositionSearchModal />);
+    pressEnter();
+
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/1.kif", HITS[0].cursor);
+  });
+
+  test("先読みするのは直前に動いた向きの次の行", async () => {
+    hitsState.current = [hitAt(1, 20), hitAt(2, 30), hitAt(3, 40)];
+    await renderWithHits();
+    const section = screen.getByLabelText("局面検索");
+
+    // 既定は下向き
+    expect(seenPrefetch[seenPrefetch.length - 1]).toBe("/root/2.kif");
+
+    fireEvent.keyDown(section, { key: "ArrowDown" });
+    fireEvent.keyDown(section, { key: "ArrowDown" });
+    fireEvent.keyDown(section, { key: "ArrowUp" });
+
+    // 3行目から2行目へ上がったので、次に読むのは1行目
+    expect(seenPrefetch[seenPrefetch.length - 1]).toBe("/root/1.kif");
+  });
+
+  test("ツリーをまだ読めていなければ、警告の段で断る", async () => {
+    startNavigationToHit.mockReturnValue("tree-unavailable");
+    const { container } = await renderWithHits();
+
+    pressEnter();
+
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(screen.getByText("ワークスペースの一覧をまだ読み込めていません")).toBeTruthy();
+    expect(container.querySelector(".notice--warning")).not.toBeNull();
   });
 });

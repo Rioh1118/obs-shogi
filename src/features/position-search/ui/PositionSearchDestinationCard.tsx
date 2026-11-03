@@ -1,5 +1,4 @@
 import "./PositionSearchDestinationCard.scss";
-import { useMemo } from "react";
 import { useAppConfig } from "@/entities/app-config";
 import { toRelPath } from "@/shared/lib/path";
 
@@ -12,17 +11,8 @@ export default function PositionSearchDestinationCard({ currentAbsPath, destAbsP
   const { config } = useAppConfig();
   const rootDir = config?.root_dir ?? null;
 
-  const currentRel = useMemo(() => {
-    if (!currentAbsPath) return null;
-    return toRelPath(currentAbsPath, rootDir);
-  }, [currentAbsPath, rootDir]);
-
-  const destRel = useMemo(() => {
-    if (!destAbsPath) return null;
-    return toRelPath(destAbsPath, rootDir);
-  }, [destAbsPath, rootDir]);
-
-  const hasDest = !!destRel;
+  const currentRel = currentAbsPath ? toRelPath(currentAbsPath, rootDir) : null;
+  const destRel = destAbsPath ? toRelPath(destAbsPath, rootDir) : null;
 
   return (
     <div className="pos-search-dest" aria-label="選択中の棋譜">
@@ -30,7 +20,7 @@ export default function PositionSearchDestinationCard({ currentAbsPath, destAbsP
         <div className="pos-search-dest__title">選択中</div>
       </div>
 
-      {!hasDest ? (
+      {!destRel ? (
         <div className="pos-search-dest__empty">未選択</div>
       ) : (
         <>

@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useDynamicRowHeight } from "react-window";
 import { useAppConfig } from "@/entities/app-config";
+import { toRelPath } from "@/shared/lib/path";
 import "./PositionSearchHitList.scss";
 import { useGame } from "@/entities/game";
 import type { IndexHealth, PositionHit } from "@/entities/search";
 import { VirtualHitRow, type HitRowProps } from "./VirtualHitRow";
-import { VirtualList } from "../lib/virtual/VirtualList";
+import { VirtualList } from "./VirtualList";
 
 type Props = {
   hits: PositionHit[];
@@ -19,9 +20,9 @@ type Props = {
   /** 検索する局面があるか。無ければ検索はそもそも走らない */
   hasQuery: boolean;
   /**
-   * 索引の具合。**0件の理由がここで変わる。**
+   * 索引の具合。0件の理由がここで変わる。
    *
-   * 旗を並べ直さない——並べる順は `indexHealth` が1つ持っている。
+   * 旗を並べ直さない。並べる順は `indexHealth` が1つ持っている。
    */
   indexHealth: IndexHealth;
   /** この検索が走っている間に索引が動いた。索引の具合とは別の話 */
@@ -29,10 +30,10 @@ type Props = {
 };
 
 /**
- * 0件の理由を言う。
+ * 0件の理由を言う文を返す。
  *
- * **索引の具合を伏せて「一致する棋譜がありません」と言い切らない。**
- * 走査が完走していない回も、読めなかった場所があった回も、索引に無いだけで
+ * 索引の具合を伏せて「一致する棋譜がありません」と言い切らない。
+ * 走査が完走していないときも、読めなかった場所があったときも、索引に無いだけで
  * ディスクには在る。裸で断言すると、利用者は自分の棋譜に無いと読んで探すのをやめる。
  */
 function emptyReason(health: IndexHealth, sessionStale: boolean): string {
@@ -58,7 +59,7 @@ function emptyReason(health: IndexHealth, sessionStale: boolean): string {
         ? "一致する棋譜がありません（検索中に索引が動いたので、取り直すと変わる場合があります）"
         : "一致する棋譜がありません";
     default: {
-      // 具合が増えたら tsc がここで止める。**黙って既定へ落ちない**
+      // 具合が増えたら tsc がここで止める。黙って既定へ落ちない
       const never: never = health;
       return never;
     }
@@ -81,9 +82,9 @@ export default function PositionSearchHitList({
   const { state: gameState } = useGame();
 
   // 行の高さは `PositionHitItem.scss` だけが決める。ここで固定値を持つと、
-  // 文字サイズや余白を動かしたときに**カードだけが伸びてスロットからはみ出し**、
-  // 次の行が上のカードの裾を覆う（行は絶対配置なので、はみ出しても押しのけない）。
-  // 実測に任せておけば、両者がずれるという状態自体が作れない。
+  // 文字サイズや余白を動かしたときにカードだけが伸びてスロットからはみ出し、
+  // 次の行が上のカードの裾を覆う。行は絶対配置なので、はみ出しても押しのけない。
+  // 実測に任せておけば、両者がずれる状態自体が作れない。
   //
   // `defaultRowHeight` は実測が付くまでの見積もりにしか使われないので、
   // 現物とぴったり合っている必要はない。スクロールバーの長さが最初の1フレームだけ
@@ -93,23 +94,31 @@ export default function PositionSearchHitList({
   const rootDir = config?.root_dir ?? null;
   const currentAbs = gameState.loadedAbsPath ?? null;
 
-  const relCacheRef = useRef<Map<string, string>>(new Map());
-  useEffect(() => {
-    relCacheRef.current = new Map();
+  // 相対パスの控えはルートごとに作り直す。ルートと同じ描画で入れ替えないと、行が前のルートからの
+  // 相対パスを読み続ける。控えるのは、行が画面に入るたびに同じパスを組み直すため
+  const relPathOf = useMemo(() => {
+    const rels = new Map<string, string>();
+    return (absPath: string) => {
+      let rel = rels.get(absPath);
+      if (rel === undefined) {
+        rel = toRelPath(absPath, rootDir);
+        rels.set(absPath, rel);
+      }
+      return rel;
+    };
   }, [rootDir]);
 
   const rowProps = useMemo<HitRowProps>(
     () => ({
       hits,
       activeIndex,
-      rootDir,
       currentAbs,
-      relCache: relCacheRef.current,
+      relPathOf,
       resolveAbsPath,
       onActiveIndexChange,
       onAccept,
     }),
-    [hits, activeIndex, rootDir, currentAbs, resolveAbsPath, onActiveIndexChange, onAccept],
+    [hits, activeIndex, currentAbs, relPathOf, resolveAbsPath, onActiveIndexChange, onAccept],
   );
 
   if (hits.length === 0) {

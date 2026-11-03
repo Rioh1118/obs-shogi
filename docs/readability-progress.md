@@ -56,7 +56,8 @@ ours 戦略のマージは使わない。
 | 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | マージ済み |
 | 21 | `refactor/tidy-features-settings-workspace` | `src/features/settings` の第1段（範囲13） | #687 | マージ済み |
 | 22 | `refactor/tidy-features-settings-ai-library` | `src/features/settings` の AI ライブラリタブ（範囲13b） | #688 | マージ済み |
-| 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | レビュー待ち |
+| 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | マージ済み |
+| 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | レビュー待ち |
 
 ## 語
 
@@ -96,7 +97,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 13 | `src/features/settings` の `ui/tabs`（`AiLibraryTab.tsx` 以外）、`ui/kit`、`ui/workspace-tab`、`ui/engine-tab`、`SettingsPanel` まわり、`model/tabs.ts` | 1389 | 済 | 済 |
 | 13b | `src/features/settings` の `ui/tabs/AiLibraryTab.tsx`、`ui/ai-library-tab` | 1599 | 済 | 済 |
 | 13c | `src/features/settings` の `ui/engine-preset-dialog`、`lib`、`model/presetDialogReducer.ts` | 1858 | 済 | 済 |
-| 14 | `src/features/position-search`、`src/features/position-editor` | 3186 | 未着手 | 未着手 |
+| 14 | `src/features/position-search` | 1677 | 済 | 済 |
+| 14b | `src/features/position-editor` | 1514 | 未着手 | 未着手 |
 | 15 | `src/features` の残り                                    | 4409 | 未着手 | 未着手 |
 | 16 | `src/widgets`                                            | 5661 | 未着手 | 未着手 |
 | 17 | `src/pages`、`src/app`                                   | 1682 | 未着手 | 未着手 |
@@ -128,7 +130,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | ---- | -------- |
 | `src-tauri/tests/root_guard.rs` の冒頭の doc | `validate_under_root` の場所を `utils.rs` と書くが、実体は `src-tauri/src/workspace/guard.rs` |
 | `src/features/board-orientation/model/useBoardOrientation.ts` の冒頭の doc | URL の文字列を絞る検査は `PovType` にあると書くが、実体は `useURLParams.ts` の `povRaw === "gote"` で `PovType` は型だけ |
-| `src/features/position-search/ui/PositionSearchModal.tsx` の `discardSearch` の説明 | `clearSearch` を呼ぶのは「ここだけ」と書くが、同じファイルの別の箇所でも呼ぶ |
 | `src/features/game-move/ui/__tests__/gameMoveBridge.test.tsx` の `vi.mock` の doc | export が増えれば落ちると書くが、`importActual` を展開しているので落ちない疑いがある。未再現 |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `usedExisting` と `createdNew` | 本番の読み手が0。テストだけが読んでいる |
 | `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
@@ -151,7 +152,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/file-tree/ui/FileTree.tsx` のコメントの `再読み込み` | ボタンの文言は `FileTreeErrorNotice.tsx` の「もう一度読み込む」。`src/widgets` の範囲で揃える |
 | `src/widgets/file-tree/lib/dnd.ts` の `ALLOWED`、`getExt`、`findDropDirAt` | `knip` が未使用と数えている。`src/widgets` の範囲で見る |
 | `src/entities/kifu/api/parse.ts` の `parseKifuContentToJKF` | 形式を拡張子だけで決めるので、Finder で変えたファイルは本文と形式がずれたまま0手で載り、次の保存で本文を失う筋がある。未再現。指し手が0で本文が空でないときに開くのを断るかを、#210 と合わせて決める |
-| `src/features/position-search/ui/PositionSearchModal.tsx` の `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` | git に載っていない。`src/features/position-search` の範囲で実測の値だけを残す |
 | `src/widgets/book-view/ui/BookView.tsx` の `body` の `switch` | 戻り値が `ReactNode` で `default` も無いので、`BookViewState` に `kind` を足しても tsc が落ちず、本体が空になる。`src/widgets` の範囲で `never` の網羅を足す |
 | `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。中止で前の定跡へ戻すかを `src/widgets` の範囲で決める |
 | `src/entities/book/model/provider.tsx` の辿る失敗の枝 | `invalid_handle` を引く枝でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
@@ -168,8 +168,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/settings/model/useAiLibrary.ts` の `aiRootPath` | `config.ai_root` の控え（R-TSS-4）。本番では `chooseAiRoot` が設定を更新してから返るので要らないが、`AiLibraryTab.test.tsx` の `useAppConfig` の mock は値が変わっても描き直さず、控えの更新が再描画を起こしている。mock を購読の形にしてから消す |
 | `src/features/settings/ui/ai-library-tab/steps/Step3PlaceEngines.tsx` の「個検出」 | 状態のカードは同じ数を「件」と書く。`Step4PlaceAssets.tsx` も同じ。単位を揃えるかを画面の語の棚卸しで決める |
 | `src-tauri/src/search/build.rs` と `project_manager.rs` の棋譜の警告 | `warn_scan_failed` と違って代を見ずに出すので、根が変わった直後に届くと前の根のパスが残る筋がある。未再現 |
+| `src/features/position-search/ui/VirtualHitRow.tsx` の `path unknown` | 索引がパスを返さない行に英語のまま出る。画面の語の棚卸しで、断りの「この棋譜の場所が分かりません」と揃えるかを決める |
+| `src/shared/lib/path.ts` の `toRelPath` | `norm` が最初の `\` しか置き換えないので、名前に `\` を2つ以上含む棋譜は相対パスに `\` が残る。局面検索の行のファイル名は `getBaseName` が `\` でも区切るので、パスの欄と名前の欄で区切りが食い違う。TODO(#216) で直す |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/features/position-search`（範囲14の第1段）。範囲14は2000行を超えるので、`src/features/position-editor` と分ける。
+`src/features/position-editor`（範囲14の第2段）。

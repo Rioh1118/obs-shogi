@@ -31,7 +31,8 @@
 - 無ければ盤の現在局面
 - どちらも無ければ「検索する局面がありません」
 
-**`queryKey` が変わると検索し直す。** 前の検索は `cancelSearch` で取り下げる。
+**`queryKey` が変わると検索し直す。** 前の検索は `cancelSearch` で取り下げ、結果も `clearSearch` で捨てる。
+起動から後始末までは `useSearchSession`（`model/useSearchSession.ts`）が持つ。
 取り下げは `requestId` を `ref` で追いかけて行う（`setRequestId` の反映を待たないため）。
 
 ## 画面構成
@@ -105,7 +106,7 @@
 `"tree-unavailable"`。
 
 **下の表で `InlineNotice` を出す行が割れている根拠は `RefusalReason`**
-（`PositionSearchModal`）で、`NavigationOutcome` の失敗2値に `"no-path"` を
+（`lib/hitRefusals.ts`）で、`NavigationOutcome` の失敗2値に `"no-path"` を
 足したもの。`"no-path"` は `startNavigationToHit` を呼ぶ前——索引が行き先の
 パスを返さなかった回。
 
@@ -121,7 +122,7 @@
 
 ### ヒットを開けなかったときの断り（`InlineNotice`）
 
-一覧の上に出る。**閉じない**（F-32）。分岐を持つのは `PositionSearchModal` の
+一覧の上に出る。**閉じない**（F-32）。分岐を持つのは `lib/hitRefusals.ts` の
 `RefusalReason` で、`NavigationOutcome` の失敗2値に `"no-path"` を足したもの。
 
 **実文で載せる。** 要約で書くと、画面を触った人が仕様書を開かないまま文言を変えられる。

@@ -5,22 +5,24 @@ import { cursorFromLite } from "@/entities/search";
 import type { PositionHit } from "@/entities/search";
 import { cursorKey, type CursorPath } from "@/entities/kifu/model/cursor";
 
-import { KifuCache } from "../lib/kifuCache";
+import { KifuCache } from "../model/kifuCache";
 import { readContinuation } from "../lib/readContinuation";
 
 type Props = {
   activeHit: PositionHit | null;
 
   /**
-   * 次に選ばれそうな行の棋譜（直前の移動方向へ1つ）。**先に読んでおくためだけ**に
-   * 使うので、受け取るのは絶対パス1本。ヒットそのものを受け取ると
-   * 「先読みした行の続きも組んでおく」を足せてしまい、画面に出ているのは
-   * `activeHit` の続きなのに別の局面の続きが混ざる形が作れる。
+   * 次に選ばれそうな行の棋譜の絶対パス。直前の移動方向へ1つ先の行を指す。
+   *
+   * 先に読んでおくためだけに使うので、ヒットそのものは受け取らない。受け取ると
+   * 先読みした行の続きも組んでおく処理を足せてしまい、画面に出ているのは
+   * `activeHit` の続きなのに、別の局面の続きが混ざる形が作れる。
    */
-  prefetchAbsPath?: string | null;
+  prefetchAbsPath: string | null;
 
   resolveAbsPath: (hit: PositionHit) => string | null;
-  ply?: number;
+  /** 続きを何手ぶん読むか */
+  ply: number;
 };
 
 /** 1回の読みに要るもの（どのファイルの、どの局面か）と、その同一性の鍵 */
@@ -29,12 +31,12 @@ type ReadTarget = { abs: string; cursor: CursorPath; key: string };
 /**
  * 選択が止まるまで読みに行かない時間（ms）。
  *
- * 一覧は矢印で降りられる。押しっぱなしは macOS の**最速設定で 30 回/秒**に達する
+ * 一覧は矢印で降りられる。押しっぱなしは macOS の最速設定で 30 回/秒に達する
  * （`KeyRepeat` の下限 2 × 15ms。既定の 6 なら 11 回/秒）ので、打鍵ごとに読むと
  * ファイル全文の転送と全文パースがその回数ぶん IPC を占める。
  * 通り過ぎた行の中身は誰も見ないので、止まったときだけ読めばよい。
  *
- * **読み込み済み（または読んでいる最中）なら待たない。** その場合 IPC は増えず、
+ * 読み込み済みか読んでいる最中なら待たない。その場合 IPC は増えず、
  * 待つ理由が無い。先読み（下の `PREFETCH_DELAY_MS`）が効くのはここ。
  */
 const READ_DEBOUNCE_MS = 150;
@@ -42,7 +44,7 @@ const READ_DEBOUNCE_MS = 150;
 /**
  * 次に選ばれそうな1行を先に読むまでの時間（ms）。
  *
- * **選んでいる行より後に置く。** 同時に走らせると、利用者が待っている読みと
+ * 選んでいる行の読みより後に置く。同時に走らせると、利用者が待っている読みと
  * 誰も待っていない読みが同じ IPC を取り合う。
  *
  * 先読みが当たると、次の矢印は待ち時間ごと消える（読み込み済みなら待たない）。
@@ -52,9 +54,9 @@ const PREFETCH_DELAY_MS = 300;
 
 export default function PositionSearchContinuation({
   activeHit,
-  prefetchAbsPath = null,
+  prefetchAbsPath,
   resolveAbsPath,
-  ply = 3,
+  ply,
 }: Props) {
   const [moves, setMoves] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -65,16 +67,16 @@ export default function PositionSearchContinuation({
   const targetRef = useRef<ReadTarget | null>(null);
 
   /**
-   * **鍵が同じなら、前に作った object をそのまま返す。**
+   * 選んでいる行の読みの行き先。鍵が前と同じなら、前に作った object をそのまま返す。
    *
    * `resolveAbsPath` は `filePathById` を閉じ込めていて、チャンクが新しい
    * fileId を1つでも運んでくると同一性が壊れる（`entities/search/model/reducer.ts`
    * の `mergeFiles`）。Rust はほぼ全チャンクに `files` を付けて emit するので、
-   * 素直に組むと**選択が動いていないのに**下の effect がチャンクごとに走り、
+   * 素直に組むと選択が動いていないのに下の effect がチャンクごとに走り、
    * 右ペインが「取得中…」へ差し替わって検索が終わるまで点滅し続ける。
    *
-   * 鍵は `abs` と `cursorKey` の組なので、**鍵が同じなら中身も同じ**。引けなかった
-   * パスが後から索引に入った場合は `abs` が変わるので鍵も変わり、読み直される。
+   * 鍵は `abs` と `cursorKey` の組なので、鍵が同じなら中身も同じ。引けなかった
+   * パスが後から索引に入ると `abs` が変わるので鍵も変わり、読み直される。
    */
   const target = useMemo<ReadTarget | null>(() => {
     const next = ((): ReadTarget | null => {
@@ -94,9 +96,9 @@ export default function PositionSearchContinuation({
   }, [activeHit, resolveAbsPath]);
 
   useEffect(() => {
-    // **世代は行き先の有無より先に進める。** 行き先が消えた側が世代を据え置くと、
-    // 飛んでいる読みの `mySeq` が有効なまま残り、解決したときに**もう選ばれて
-    // いない行の続きが書き戻される**。検索をやり直して0件になった場面では、
+    // 世代は行き先の有無より先に進める。行き先が消えたときに世代を据え置くと、
+    // 飛んでいる読みの `mySeq` が有効なまま残り、解決したときに、もう選ばれて
+    // いない行の続きが書き戻される。検索をやり直して0件になった場面では、
     // 前の検索で選んでいた行の続きが「取得中」ですらない顔で残る
     const mySeq = ++seqRef.current;
 
@@ -116,7 +118,7 @@ export default function PositionSearchContinuation({
         try {
           const { jkf } = await cache.load(abs);
 
-          // **捨てると決まった選択は、ここから先へ進めない。** 読みと解析は
+          // 捨てると決まった選択は、ここから先へ進めない。読みと解析は
           // ファイル単位で共有されるので途中で止めても得は無いが、この先は
           // 選んだ1行のためだけの仕事（`buildPlayer` 以降）で、誰も見ない
           if (seqRef.current !== mySeq) return;
@@ -148,8 +150,8 @@ export default function PositionSearchContinuation({
     if (cache.has(prefetchAbsPath)) return;
 
     const timer = window.setTimeout(() => {
-      // 誰も待っていない読み。失敗しても画面には出さない——出す先は
-      // 「選んでいる行の続き」だけで、そこはこの棋譜ではない
+      // 誰も待っていない読みなので、失敗しても画面には出さない。出す先は
+      // 選んでいる行の続きだけで、そこはこの棋譜ではない
       void cache.load(prefetchAbsPath).catch(() => {});
     }, PREFETCH_DELAY_MS);
 

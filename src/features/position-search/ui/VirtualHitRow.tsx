@@ -1,53 +1,30 @@
-import type { CSSProperties } from "react";
 import type { PositionHit } from "@/entities/search";
-import { toRelPath } from "@/shared/lib/path";
+import { getBaseName } from "@/shared/lib/path";
 import { PositionHitItem } from "./PositionHitItem";
-import type { ListProps } from "react-window";
+import type { RowComponentProps } from "react-window";
 
 export type HitRowProps = {
   hits: PositionHit[];
   activeIndex: number;
 
-  rootDir: string | null;
   currentAbs: string | null;
 
-  relCache: Map<string, string>;
+  /** ワークスペースのルートからの相対パスを返す */
+  relPathOf: (absPath: string) => string;
   resolveAbsPath: (hit: PositionHit) => string | null;
 
   onActiveIndexChange: (next: number) => void;
   onAccept: (hit: PositionHit) => void;
 };
 
-function fileNameFromRel(rel: string) {
-  const i = rel.lastIndexOf("/");
-  return i >= 0 ? rel.slice(i + 1) : rel;
-}
-
-export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
-  props: {
-    ariaAttributes: {
-      "aria-posinset": number;
-      "aria-setsize": number;
-      role: "listitem";
-    };
-    index: number;
-    style: CSSProperties;
-  } & HitRowProps,
-) => {
+export function VirtualHitRow(props: RowComponentProps<HitRowProps>) {
   const { index, style, hits } = props;
 
   const hit = hits[index];
   const isActive = index === props.activeIndex;
 
   const abs = props.resolveAbsPath(hit);
-  const rel = (() => {
-    if (!abs) return "path unknown";
-    const cached = props.relCache.get(abs);
-    if (cached) return cached;
-    const next = toRelPath(abs, props.rootDir);
-    props.relCache.set(abs, next);
-    return next;
-  })();
+  const rel = abs ? props.relPathOf(abs) : "path unknown";
 
   const isSame = abs && props.currentAbs ? abs === props.currentAbs : false;
 
@@ -60,7 +37,7 @@ export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
       posInSet={props.ariaAttributes["aria-posinset"]}
       setSize={props.ariaAttributes["aria-setsize"]}
       relPath={rel}
-      fileName={fileNameFromRel(rel)}
+      fileName={getBaseName(rel)}
       isSameFile={isSame}
       tesuu={hit.cursor.tesuu}
       forks={hit.cursor.forkPointers.length}
@@ -71,4 +48,4 @@ export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
       onAccept={() => props.onAccept(hit)}
     />
   );
-};
+}

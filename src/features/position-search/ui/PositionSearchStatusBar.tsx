@@ -5,7 +5,7 @@ import type { IndexHealth } from "@/entities/search";
 type Props = {
   hitsCount: number;
   statusText: string;
-  /** 索引の具合。**旗を並べ直さない**——順を持つのは `indexHealth` 1つ */
+  /** 索引の具合。旗を並べ直さない。順を持つのは `indexHealth` 1つ */
   indexHealth: IndexHealth;
   /** この検索が走っている間に索引が動いた。索引の具合とは別の話 */
   sessionStale: boolean;
@@ -13,10 +13,10 @@ type Props = {
 };
 
 /**
- * 索引の具合を1語で言う。`null` は「言うことが無い」。
+ * 索引の具合を言う短い語を返す。言うことが無ければ `null`。
  *
- * **待てば直るものと、直しに行くべきものを同じ語にしない。**
- * 走査が失敗した回に「更新待ち」と出すと、利用者は待ち続ける——
+ * 待てば直るものと、直しに行くべきものを同じ語にしない。
+ * 走査が失敗したときに「更新待ち」と出すと利用者は待ち続けるが、
  * 再試行の導線は無いので、待っても何も起きない。
  */
 function indexNote(health: IndexHealth): string | null {
@@ -40,7 +40,7 @@ function indexNote(health: IndexHealth): string | null {
     case "ok":
       return null;
     default: {
-      // 具合が増えたら tsc がここで止める。**黙って既定へ落ちない**
+      // 具合が増えたら tsc がここで止める。黙って既定へ落ちない
       const never: never = health;
       return never;
     }

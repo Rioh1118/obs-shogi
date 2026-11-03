@@ -7,7 +7,7 @@ import type { PositionHit } from "@/entities/search";
 import PositionSearchHitList from "../PositionSearchHitList";
 
 /**
- * 行は絶対配置で置かれるので、**スロットより背の高いカードは隣を押しのけず、覆う**。
+ * 行は絶対配置で置かれるので、スロットより背の高いカードは隣を押しのけず、覆う。
  * スロットの高さを数値で決め打つと、その数値とカードの実寸を繋ぐものが何も無くなり、
  * 文字サイズや余白を動かしただけで重なりが戻る。
  *
@@ -16,8 +16,11 @@ import PositionSearchHitList from "../PositionSearchHitList";
  * 高さを決め打つと `react-window` が行に `height` を書き込むので、そこは観測できる。
  */
 
+/** ワークスペースのルート。試験の側から差し替える */
+const appConfig = { root_dir: "/root" };
+
 vi.mock("@/entities/app-config", () => ({
-  useAppConfig: () => ({ config: { root_dir: "/root" } }),
+  useAppConfig: () => ({ config: appConfig }),
 }));
 
 vi.mock("@/entities/game", () => ({
@@ -53,7 +56,10 @@ function renderList(hits: PositionHit[], overrides: Partial<ListProps> = {}) {
 
 type ListProps = ComponentProps<typeof PositionSearchHitList>;
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  appConfig.root_dir = "/root";
+});
 
 describe("PositionSearchHitList", () => {
   test("行の高さを決め打たない（カードがスロットからはみ出せる形を作らない）", () => {
@@ -191,5 +197,64 @@ describe("PositionSearchHitList", () => {
     fireEvent.click(cards[3], { detail: 1 });
 
     expect(onAccept).not.toHaveBeenCalled();
+  });
+
+  test("行はファイル名、ルートからの相対パス、手数と分岐の数を出す", () => {
+    const forked = {
+      ...hitAt(7),
+      cursor: { tesuu: 7, forkPointers: [{ te: 3, forkIndex: 0 }] },
+    } as unknown as PositionHit;
+    const { container } = renderList([forked], {
+      resolveAbsPath: () => "/root/戦型/角換わり.kif",
+    });
+
+    const card = container.querySelector<HTMLElement>(".pos-hit");
+    expect(card?.querySelector(".pos-hit__file")?.textContent).toBe("角換わり.kif");
+    expect(card?.querySelector(".pos-hit__path")?.textContent).toBe("戦型/角換わり.kif");
+    expect(card?.querySelector(".pos-hit__meta")?.textContent).toBe("7手目 / 分岐 1");
+  });
+
+  test("いま開いている棋譜の行は「同一」、他は「切替」", () => {
+    const { container } = renderList(HITS.slice(0, 2), {
+      resolveAbsPath: (h) => (h.cursor.tesuu === 1 ? "/root/a.kif" : "/root/b.kif"),
+    });
+
+    const badges = [...container.querySelectorAll(".pos-hit__badge")].map((b) => b.textContent);
+    expect(badges).toEqual(["同一", "切替"]);
+  });
+
+  test("索引がパスを返さない行は、場所が分からないと書いて「切替」", () => {
+    const { container } = renderList(HITS.slice(0, 1), { resolveAbsPath: () => null });
+
+    const card = container.querySelector<HTMLElement>(".pos-hit");
+    expect(card?.querySelector(".pos-hit__path")?.textContent).toBe("path unknown");
+    expect(card?.querySelector(".pos-hit__badge")?.textContent).toBe("切替");
+  });
+
+  test("ルートが変わったら、行のパスを新しいルートからの相対で出し直す", () => {
+    // 描くたびに要素を作り直す。同じ要素を渡すと React が描き直しを省く
+    const list = () => (
+      <PositionSearchHitList
+        hits={HITS.slice(0, 1)}
+        activeIndex={0}
+        onActiveIndexChange={() => {}}
+        onAccept={() => {}}
+        isSearching={false}
+        error={null}
+        resolveAbsPath={() => "/root/戦型/角換わり.kif"}
+        hasQuery
+        indexHealth="ok"
+        sessionStale={false}
+      />
+    );
+    const { container, rerender } = render(list());
+    // 描き直しを1回挟む。行はこの描画で、前のルートからの相対パスを控えに書く
+    rerender(list());
+    expect(container.querySelector(".pos-hit__path")?.textContent).toBe("戦型/角換わり.kif");
+
+    appConfig.root_dir = "/root/戦型";
+    rerender(list());
+
+    expect(container.querySelector(".pos-hit__path")?.textContent).toBe("角換わり.kif");
   });
 });

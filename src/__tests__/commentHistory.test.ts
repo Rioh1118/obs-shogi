@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -16,9 +17,9 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
  * レビューが振った識別子も止める。付いた時点では意味があるが、
  * 読み手はその番号から何も辿れない。
  *
- * **報告書のパスを書く形（`.claude/reviews/…`）は止めていない。** 報告書は
- * 追跡されているので指す先は消えず、実測の出典として引いている行が現に在る。
- * 止めているのは**裸の回次**のほう。
+ * 報告書のパスを書く形（`.claude/reviews/…`）は、指す先が git に載っている間だけ許す。
+ * 報告書は消されることがあり、消えた後のパスは辿れない参照になる。
+ * 実測を引くなら値と日付をコメントに書く。
  *
  * **このファイル自身も走査の対象。** 止めたい形は下の `HISTORY_WORDS` と
  * `REVIEW_TAG` に**リテラルとして**書くこと。文章で例示すると自分で落ちる。
@@ -239,6 +240,47 @@ describe("コメント", () => {
         "いま何がどうあるべきかだけを書くこと。経緯は git log と PR に残る。",
         ...offenders,
       ].join("\n"),
+    ).toEqual([]);
+  });
+});
+
+/** 報告書のパス。ファイル名まで書いたものだけを見る。ディレクトリだけを指す文は対象にしない */
+const REVIEW_REPORT = /\.claude\/reviews\/[\w.-]+\.md/g;
+
+describe("報告書の参照", () => {
+  it("ファイル名まで書いたパスを拾う", () => {
+    // このファイル自身も走査の対象なので、パスは繋いで組む。1つの綴りで書くと自分で落ちる
+    const report = ".claude/reviews/" + "2026-09-07-perf-r1.md";
+    const text = `実測（\`${report}\` M-4）と \`.claude/reviews/\` の所見`;
+    expect(text.match(REVIEW_REPORT)).toEqual([report]);
+  });
+
+  it("コメントが指す報告書は git に載っている", () => {
+    // 作業ツリーに在るかでは判定しない。手元にだけ残った報告書を指すと、
+    // CI と他の作業ツリーでは辿れない
+    const tracked = new Set(
+      execFileSync("git", ["ls-files", ".claude/reviews"], { cwd: REPO_ROOT, encoding: "utf8" })
+        .split("\n")
+        .filter(Boolean),
+    );
+    const missing: string[] = [];
+
+    for (const root of ROOTS) {
+      for (const file of sourceFiles(root)) {
+        const source = readFileSync(file, "utf8");
+        for (const comment of source.matchAll(commentPatternFor(file))) {
+          for (const path of comment[0].match(REVIEW_REPORT) ?? []) {
+            if (tracked.has(path)) continue;
+            const line = source.slice(0, comment.index).split("\n").length;
+            missing.push(`${relative(REPO_ROOT, file)}:${line}  ${path}`);
+          }
+        }
+      }
+    }
+
+    expect(
+      missing,
+      ["報告書が git に無い。実測の値と日付をコメントに書くこと。", ...missing].join("\n"),
     ).toEqual([]);
   });
 });
