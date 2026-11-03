@@ -4,9 +4,9 @@ import type { RulingAdapter } from "@/entities/game-session";
 import { createRulingAdapter } from "../lib/rulingAdapter";
 
 /**
- * 対局の進行へ渡す裁定器。
+ * 対局の進行へ渡す裁定器を返す。
  *
- * **ルール（持将棋の規則・最大手数）を持つのもここ。** `GameRules` は
+ * ルール（持将棋の規則・最大手数）を持つのもここ。`GameRules` は
  * `entities/game` の型なので、対局の進行に持たせると互いを読み合う組ができる。
  * 利用者が選べるようにする画面はまだ無いので、いまは既定値を使う
  * （→ `docs/spec/features/game-play.md` の「いま埋まっていない穴」）。

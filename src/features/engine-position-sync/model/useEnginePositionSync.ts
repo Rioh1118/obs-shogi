@@ -6,7 +6,7 @@ import { setPositionFromSfen } from "@/entities/engine/api/tauri";
 import type { PositionSyncAdapter } from "@/entities/analysis";
 
 /**
- * 盤の現在局面を Rust に覚えさせ続ける。**線に書くのは `go` の直前だけ**（`analyzer.rs`）。
+ * 盤の現在局面を Rust に覚えさせ続ける。線に書くのは `go` の直前だけ（`analyzer.rs`）。
  *
  * entities/game・entities/engine・entities/engine-presets の3スライスを束ねるので、
  * FSD 上これを置ける最下層は features になる。
@@ -161,7 +161,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     invalidateSynced(syncedEngineKeyRef.current);
   }, [isReady, invalidateSynced]);
 
-  //  自動同期：cursor変化で追従
+  // 盤が局面を持たなくなったら、送る局面が無いので送信済みの記録と保留を捨てる
   useEffect(() => {
     if (!gameState.cursor) {
       invalidateSynced(syncedEngineKeyRef.current);

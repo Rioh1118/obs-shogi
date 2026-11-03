@@ -2,14 +2,14 @@ import { useCallback } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 /**
- * 盤をどちら側から見るか。`?pov=gote` なら後手を手前にする。
+ * 盤をどちら側から見るかを読み、切り替える。`?pov=gote` なら後手を手前にする。
  *
- * **読む側と書く側をここに揃えてある。** 既定を値の欠落で表しているので、別々に綴ると
+ * 読む側と書く側をここに揃えてある。既定を値の欠落で表しているので、別々に綴ると
  * 片方だけ直したときに「ボタンは回るがリセットが効かない」形で静かに壊れる。
  *
- * ただし**URL の文字列を型へ絞る検査は `shared/lib/router` の `PovType` にある**。
- * 表現を増やすならそちらも直すこと——`povRaw === "gote"` は union が広がっても
- * 代入可能なままで、tsc は落ちない。
+ * URL の文字列を絞る検査は `useURLParams` の `povRaw === "gote"` にあり、
+ * `PovType` は型だけを持つ。表現を増やすなら検査も直すこと。
+ * union が広がっても検査は代入可能なままなので、**tsc は落ちない。**
  *
  * 棋譜をまたいで持ち越さないための落とす側は
  * [useResetOrientationOnKifuChange](./useResetOrientationOnKifuChange.ts)。
