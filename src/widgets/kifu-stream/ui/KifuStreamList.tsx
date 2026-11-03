@@ -37,17 +37,24 @@ import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
  */
 const RECENT_SCROLL_MS = 120;
 
-type OpenMoveMenu = { te: number; anchorRect: DOMRect };
-type OpenForkMenu = { te: number; anchorEl: HTMLButtonElement };
-type OpenCommentNote = {
-  cursor: CursorPath;
-  anchorEl: HTMLButtonElement;
-  /**
-   * 開いた時点で盤に載っていた棋譜（`boardSeq`）。ここが今と違うなら、
-   * 書き込み先と中身が食い違っている。**パスでは代用できない**（`PendingDelete` と同じ理由）
-   */
-  boardSeq: number;
-};
+/**
+ * 行から開く面。同時に開くのは1つだけで、どれかを開くと他は閉じる。
+ *
+ * 削除の確認はこの外にある。確認はモーダルで、`useBranchDeleteConfirm` が持つ。
+ */
+type OpenFace =
+  | { kind: "fork"; te: number; anchorEl: HTMLButtonElement }
+  | { kind: "move"; te: number; anchorRect: DOMRect }
+  | {
+      kind: "comment";
+      cursor: CursorPath;
+      anchorEl: HTMLButtonElement;
+      /**
+       * 開いた時点で盤に載っていた棋譜（`boardSeq`）。ここが今と違うなら、
+       * 書き込み先と中身が食い違っている。**パスでは代用できない**（`PendingDelete` と同じ理由）
+       */
+      boardSeq: number;
+    };
 
 /**
  * 確認に出す一文。
@@ -70,17 +77,16 @@ export default function KifuStreamList() {
   const listRef = useRef<HTMLDivElement | null>(null);
   const lastScrollAtRef = useRef<number>(0);
 
-  const [openFork, setOpenFork] = useState<OpenForkMenu | null>(null);
+  const [openFace, setOpenFace] = useState<OpenFace | null>(null);
+  const openFork = openFace?.kind === "fork" ? openFace : null;
+  const openMoveMenu = openFace?.kind === "move" ? openFace : null;
+  const openComment = openFace?.kind === "comment" ? openFace : null;
   // Escape は重なった面のうち最上位の1枚だけが受ける。最上位かは `useOverlayLayer` の返す関数に問う
   const isTop = useOverlayLayer(openFork !== null);
-  const [openComment, setOpenComment] = useState<OpenCommentNote | null>(null);
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef<HTMLButtonElement | null>(null);
   const lastForkTeRef = useRef<number | null>(null);
-
-  const [openMoveMenu, setOpenMoveMenu] = useState<OpenMoveMenu | null>(null);
-  const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
   const plannedCursor = useMemo(
     () => plannedCursorFrom(state.cursor, state.branchPlan),
@@ -100,9 +106,19 @@ export default function KifuStreamList() {
   const totalMoves = view.player ? view.totalMoves : 0;
   const currentTesuu = state.cursor?.tesuu ?? 0;
 
-  const closeCommentNote = useCallback(() => {
-    setOpenComment(null);
+  /**
+   * `kind` の面が開いていれば閉じる。別の面が開いていたら触らない。
+   *
+   * 閉じる経路はそれぞれ自分の面だけを知っている。無条件に空にすると、
+   * 行を押したときに分岐メニューと一緒に開いているノートまで閉じる（`onClickRow`）。
+   */
+  const closeFace = useCallback((kind: OpenFace["kind"]) => {
+    setOpenFace((prev) => (prev?.kind === kind ? null : prev));
   }, []);
+
+  const closeCommentNote = useCallback(() => closeFace("comment"), [closeFace]);
+
+  const closeMoveMenu = useCallback(() => closeFace("move"), [closeFace]);
 
   /**
    * 行を見える位置へ戻す。位置合わせの入口はここ1つで、幾何の計算は
@@ -133,7 +149,7 @@ export default function KifuStreamList() {
     (focusAnchor: boolean) => {
       const anchor = lastAnchorRef.current;
       const te = lastForkTeRef.current;
-      setOpenFork(null);
+      closeFace("fork");
       if (!focusAnchor) return;
 
       requestAnimationFrame(() => {
@@ -146,7 +162,7 @@ export default function KifuStreamList() {
         if (te != null) revealRow(te, true);
       });
     },
-    [revealRow],
+    [closeFace, revealRow],
   );
 
   // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
@@ -154,9 +170,9 @@ export default function KifuStreamList() {
   const closeForkMenuAndFocus = useCallback(() => closeForkMenu(true), [closeForkMenu]);
 
   const toggleMoveMenu = useCallback((te: number, anchorRect: DOMRect) => {
-    setOpenFork(null);
-    setOpenComment(null);
-    setOpenMoveMenu((prev) => (prev?.te === te ? null : { te, anchorRect }));
+    setOpenFace((prev) =>
+      prev?.kind === "move" && prev.te === te ? null : { kind: "move", te, anchorRect },
+    );
   }, []);
 
   const onSwapBranch = useCallback(
@@ -212,8 +228,8 @@ export default function KifuStreamList() {
         }
       }
 
-      setOpenFork(null);
-      setOpenMoveMenu(null);
+      closeFace("fork");
+      closeFace("move");
       requestDelete({
         query,
         label: branchLabel(forkIndex),
@@ -221,7 +237,7 @@ export default function KifuStreamList() {
         moveCount,
       });
     },
-    [rows, state.jkf, requestDelete],
+    [rows, state.jkf, closeFace, requestDelete],
   );
 
   const onOpenComment = useCallback(
@@ -230,12 +246,50 @@ export default function KifuStreamList() {
 
       const cursor = descendTo(plannedCursor, row.te, row.selectedForkIndex);
 
-      setOpenFork(null);
-      setOpenMoveMenu(null);
-      setOpenComment({ cursor, anchorEl, boardSeq: state.boardSeq });
+      setOpenFace({ kind: "comment", cursor, anchorEl, boardSeq: state.boardSeq });
     },
     [plannedCursor, state.boardSeq],
   );
+
+  const onClickRow = useCallback(
+    (te: number) => {
+      closeForkMenu(false);
+      closeFace("move");
+      goToIndex(te);
+    },
+    [goToIndex, closeForkMenu, closeFace],
+  );
+
+  const onToggleForkMenu = useCallback((te: number, anchorEl: HTMLButtonElement) => {
+    lastAnchorRef.current = anchorEl;
+    lastForkTeRef.current = te;
+    setOpenFace((prev) =>
+      prev?.kind === "fork" && prev.te === te ? null : { kind: "fork", te, anchorEl },
+    );
+  }, []);
+
+  const onSelectFork = useCallback(
+    (te: number, forkIndex: number | null) => {
+      if (!plannedCursor) return;
+
+      const next = resolveForkSelection(plannedCursor, te, forkIndex);
+      closeForkMenu(true);
+
+      if (next.kind === "goToIndex") goToIndex(next.te);
+      else applyCursor(next.cursor);
+    },
+    [plannedCursor, applyCursor, goToIndex, closeForkMenu],
+  );
+
+  const handleDeleteFromHere = (te: number) => {
+    if (te <= 0) return;
+
+    const r = rows.find((x) => x.te === te);
+    if (!r) return;
+
+    const branchIndex = branchIndexFromRow(r);
+    onDeleteBranch(te, r.branchForkPointers, branchIndex);
+  };
 
   // 盤の中身が入れ替わったら、開いている面を全部閉じる。削除の確認は
   // `useBranchDeleteConfirm` が同じ合図で閉じる。
@@ -249,24 +303,17 @@ export default function KifuStreamList() {
   // 書きかけのノートが閉じる。閉じると `KifuCommentNote` の離脱時の保存が走り、
   // 面がもう外れているぶん失敗の断りも出ないまま本文が消える。
   useEffect(() => {
-    setOpenComment(null);
-    setOpenFork(null);
-    setOpenMoveMenu(null);
+    setOpenFace(null);
   }, [state.boardSeq]);
 
+  // 行の操作の面は自分の押下を止める（`KifuMoveActions` の `stopPropagation`）ので、
+  // document まで届いた押下は全部、面の外側の押下
   useEffect(() => {
     if (!openMoveMenu) return;
 
-    const onDocPointerDown = (e: PointerEvent) => {
-      const path = e.composedPath();
-      const menuEl = moveMenuRef.current;
-      if (menuEl && path.includes(menuEl)) return;
-      setOpenMoveMenu(null);
-    };
-
-    document.addEventListener("pointerdown", onDocPointerDown);
-    return () => document.removeEventListener("pointerdown", onDocPointerDown);
-  }, [openMoveMenu]);
+    document.addEventListener("pointerdown", closeMoveMenu);
+    return () => document.removeEventListener("pointerdown", closeMoveMenu);
+  }, [openMoveMenu, closeMoveMenu]);
 
   useEffect(() => {
     if (!openFork) return;
@@ -317,49 +364,6 @@ export default function KifuStreamList() {
     revealRow(state.cursor?.tesuu ?? 0, false);
   }, [state.boardSeq, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
-  const onClickRow = useCallback(
-    (te: number) => {
-      closeForkMenu(false);
-      setOpenMoveMenu(null);
-      goToIndex(te);
-    },
-    [goToIndex, closeForkMenu],
-  );
-
-  const onToggleForkMenu = useCallback((te: number, anchorEl: HTMLButtonElement) => {
-    lastAnchorRef.current = anchorEl;
-    lastForkTeRef.current = te;
-    setOpenComment(null);
-    setOpenMoveMenu(null);
-    setOpenFork((prev) => {
-      if (prev?.te === te) return null;
-      return { te, anchorEl };
-    });
-  }, []);
-
-  const onSelectFork = useCallback(
-    (te: number, forkIndex: number | null) => {
-      if (!plannedCursor) return;
-
-      const next = resolveForkSelection(plannedCursor, te, forkIndex);
-      closeForkMenu(true);
-
-      if (next.kind === "goToIndex") goToIndex(next.te);
-      else applyCursor(next.cursor);
-    },
-    [plannedCursor, applyCursor, goToIndex, closeForkMenu],
-  );
-
-  const handleDeleteFromHere = (te: number) => {
-    if (te <= 0) return;
-
-    const r = rows.find((x) => x.te === te);
-    if (!r) return;
-
-    const branchIndex = branchIndexFromRow(r);
-    onDeleteBranch(te, r.branchForkPointers, branchIndex);
-  };
-
   if (!view.player) {
     return (
       <div className="kifu">
@@ -381,7 +385,7 @@ export default function KifuStreamList() {
         busy={state.isLoading}
         te={openMoveMenu?.te ?? 0}
         anchorRect={openMoveMenu?.anchorRect ?? null}
-        onClose={() => setOpenMoveMenu(null)}
+        onClose={closeMoveMenu}
         onDeleteFromHere={handleDeleteFromHere}
       />
 
