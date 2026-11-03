@@ -64,11 +64,10 @@ describe("出すもの", () => {
   });
 
   test("パスが無ければファイル名の行を出さない", () => {
-    const { container } = render(
-      <KifuReadErrorDialog error={{ ...ERROR, path: null }} onDismiss={vi.fn()} />,
-    );
+    render(<KifuReadErrorDialog error={{ ...ERROR, path: null }} onDismiss={vi.fn()} />);
 
-    expect(container.ownerDocument.querySelector(".kifuReadError__file")).toBeNull();
+    const heading = screen.getByRole("heading", { name: "棋譜を開けませんでした" });
+    expect(heading.parentElement?.textContent).toBe("棋譜を開けませんでした");
   });
 
   test("閉じるを押すと呼び手へ返す", () => {
