@@ -57,7 +57,8 @@ ours 戦略のマージは使わない。
 | 21 | `refactor/tidy-features-settings-workspace` | `src/features/settings` の第1段（範囲13） | #687 | マージ済み |
 | 22 | `refactor/tidy-features-settings-ai-library` | `src/features/settings` の AI ライブラリタブ（範囲13b） | #688 | マージ済み |
 | 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | マージ済み |
-| 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | レビュー待ち |
+| 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | マージ済み |
+| 25 | `refactor/tidy-features-position-editor` | `src/features/position-editor`（範囲14の第2段） | — | レビュー待ち |
 
 ## 語
 
@@ -98,7 +99,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 13b | `src/features/settings` の `ui/tabs/AiLibraryTab.tsx`、`ui/ai-library-tab` | 1599 | 済 | 済 |
 | 13c | `src/features/settings` の `ui/engine-preset-dialog`、`lib`、`model/presetDialogReducer.ts` | 1858 | 済 | 済 |
 | 14 | `src/features/position-search` | 1677 | 済 | 済 |
-| 14b | `src/features/position-editor` | 1514 | 未着手 | 未着手 |
+| 14b | `src/features/position-editor` | 1514 | 済 | 済 |
 | 15 | `src/features` の残り                                    | 4409 | 未着手 | 未着手 |
 | 16 | `src/widgets`                                            | 5661 | 未着手 | 未着手 |
 | 17 | `src/pages`、`src/app`                                   | 1682 | 未着手 | 未着手 |
@@ -170,8 +171,15 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/search/build.rs` と `project_manager.rs` の棋譜の警告 | `warn_scan_failed` と違って代を見ずに出すので、根が変わった直後に届くと前の根のパスが残る筋がある。未再現 |
 | `src/features/position-search/ui/VirtualHitRow.tsx` の `path unknown` | 索引がパスを返さない行に英語のまま出る。画面の語の棚卸しで、断りの「この棋譜の場所が分かりません」と揃えるかを決める |
 | `src/shared/lib/path.ts` の `toRelPath` | `norm` が最初の `\` しか置き換えないので、名前に `\` を2つ以上含む棋譜は相対パスに `\` が残る。局面検索の行のファイル名は `getBaseName` が `\` でも区切るので、パスの欄と名前の欄で区切りが食い違う。TODO(#216) で直す |
+| `src/features/position-editor/ui/EditorCreateForm.tsx` の保存先 | ツリーが読み終わる前に `initialDir` 付きで開くと、根が `""` から変わった描画で `prevRoot` の枝が保存先を根へ戻し、`initialDir` が消える。部品の試験では再現した。ツリーから開けば読み終わっているので、踏むのは読み込み中に URL の `dir=` から開いたときだけ。同じ3段（`collectDirs`、根の入れ替え、消えたフォルダ）が `KifuImportForm.tsx` と `SfenKifuCreateModal.tsx` にもあるので、範囲15の最初の段で1つの hook に寄せて直す |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-`src/features/position-editor`（範囲14の第2段）。
+`src/features` の残り（範囲15、4409行）。2000行を超えるので、取るときに割る。
+割り方の案は3つ。保存先の3段の写しと、`docs/IDEAS.md` の2項（`shared/ui/Form` の内部クラスを
+掴む SCSS、2つの面のフォームの id）が最初の段に集まる。
+
+1. `create-file`、`file-conflict`、`study-position-save`
+2. `study-positions-manager`、`position-navigation`、`kifu-comment-note`
+3. それ以外の8つ（`game-move`、`engine-position-sync`、`updater` など）
