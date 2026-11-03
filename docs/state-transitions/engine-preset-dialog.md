@@ -1,9 +1,9 @@
 # 状態遷移表: プリセット編集ダイアログ（下書きと取得）
 
 対象: `src/features/settings/model/presetDialogReducer.ts`（`presetDialogReducer`）。
-呼び手は `EnginePresetEditDialogPanel`。画面の仕様は `docs/spec/screens/engine-preset-dialog.md`。
+呼び手は `usePresetDialog`。画面の仕様は `docs/spec/screens/engine-preset-dialog.md`。
 
-ダイアログを閉じると部品ごと外れる（`EnginePresetEditDialogPanel` が `open` でないとき描かない）ので、
+ダイアログを閉じると部品ごと外れる（`EngineTab` が `editingId` のある間だけ描く）ので、
 「閉じている」状態はこの表に無い。閉じた後に返った取得の結果は、外れた部品の `dispatch` へは届かない
 （Rust の取得は止まらない。`probeEngine` の doc）。
 
@@ -24,7 +24,7 @@ reducer は見ない——見るのは表示の側（`optionRows`・`probeStatus
 | 記号 | イベント                                   | 発生源                                                           |
 | ---- | ------------------------------------------ | ---------------------------------------------------------------- |
 | O    | `opened`（プリセットから下書きを作る）     | 開いたとき・プリセットが読み直されたとき                         |
-| E    | `edited`（値以外の欄）                     | 各節の `setDraft`（名前・エンジン・評価関数・定跡・止める条件）  |
+| E    | `edited`（値以外の欄）                     | `usePresetDialog`（名前・エンジン・評価関数・定跡・終了条件）    |
 | V    | `optionSet`                                | 候補手の数・エンジンの設定の欄                                   |
 | C    | `optionsCleared`（挙げた名前）             | 「すべて初期値に戻す」（エンジンの設定の、画面に出ている行だけ） |
 | S    | `probeStarted`                             | 開いたとき1回・エンジンを選ぶ・「もう一度読み込む」              |
@@ -52,4 +52,4 @@ reducer は見ない——見るのは表示の側（`optionRows`・`probeStatus
 ## 埋まっていないセル
 
 - (P0, C) / (P1, C) は同じ枝（`probe` を見ない）。テストは P0 だけ
-- 保存（`onSave`）は reducer の外。取得中に塞ぐことは `presetDialogProbe.test.tsx` が踏む
+- 保存（`save`）は reducer の外。取得中に塞ぐことは `presetDialogProbe.test.tsx` が踏む

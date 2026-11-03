@@ -55,7 +55,8 @@ ours 戦略のマージは使わない。
 | 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | マージ済み |
 | 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | マージ済み |
 | 21 | `refactor/tidy-features-settings-workspace` | `src/features/settings` の第1段（範囲13） | #687 | マージ済み |
-| 22 | `refactor/tidy-features-settings-ai-library` | `src/features/settings` の AI ライブラリタブ（範囲13b） | #688 | レビュー待ち |
+| 22 | `refactor/tidy-features-settings-ai-library` | `src/features/settings` の AI ライブラリタブ（範囲13b） | #688 | マージ済み |
+| 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | レビュー待ち |
 
 ## 語
 
@@ -94,7 +95,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 12 | `src/entities` の残り（app-config、dock、study-positions、updater） | 1664 | 済     | 済     |
 | 13 | `src/features/settings` の `ui/tabs`（`AiLibraryTab.tsx` 以外）、`ui/kit`、`ui/workspace-tab`、`ui/engine-tab`、`SettingsPanel` まわり、`model/tabs.ts` | 1389 | 済 | 済 |
 | 13b | `src/features/settings` の `ui/tabs/AiLibraryTab.tsx`、`ui/ai-library-tab` | 1599 | 済 | 済 |
-| 13c | `src/features/settings` の `ui/engine-preset-dialog`、`lib`、`model/presetDialogReducer.ts` | 1706 | 未着手 | 未着手 |
+| 13c | `src/features/settings` の `ui/engine-preset-dialog`、`lib`、`model/presetDialogReducer.ts` | 1858 | 済 | 済 |
 | 14 | `src/features/position-search`、`src/features/position-editor` | 3186 | 未着手 | 未着手 |
 | 15 | `src/features` の残り                                    | 4409 | 未着手 | 未着手 |
 | 16 | `src/widgets`                                            | 5661 | 未着手 | 未着手 |
@@ -162,6 +163,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/settings/ui/workspace-tab/AppUpdateSection.tsx` の確認の結果 | 取得を始めた後も「この画面を閉じると案内が出ます」が残る。押せなくした後に残る前の答えで、段が動いたら消すかを決める |
 | `src/features/settings/lib/aiLibraryContents.ts` の `warningsOf` の定跡 | 定跡は任意なのに、無いと「検出された問題」に出てバッジが「注意あり」のまま消えない。hero は「土台は完成」、木は「（任意）」、一覧は「未設定」と言う。任意なら警告から外すかを決める |
 | `src/features/settings/model/useAiLibrary.ts` の `trim` | 走査と作成は前後の空白を落とし、開くとコピーは落とさない。名前の末尾に空白のあるフォルダを選ぶと、別のパスを読む。ピッカーの返す値は落とさない形へ揃えられる |
+| `src/features/settings/model/presetDialogReducer.ts` の `optionsCleared` | 絞り込みで一部の行だけを戻しても、当てて変えた値の一覧を全部消す。戻していない値の変更は保存で確定するのに、画面の説明が消える。消した名前の行だけを落とすかを決める |
+| `src/features/settings/model/useAiRootIndex.ts` の `createEnginesDir` | 待っている間に読み直しを押し、作成が失敗してから走査が成功すると、失敗文が消える。`useAiLibrary` も同じ形。未再現 |
 | `src/features/settings/model/useAiLibrary.ts` の `aiRootPath` | `config.ai_root` の控え（R-TSS-4）。本番では `chooseAiRoot` が設定を更新してから返るので要らないが、`AiLibraryTab.test.tsx` の `useAppConfig` の mock は値が変わっても描き直さず、控えの更新が再描画を起こしている。mock を購読の形にしてから消す |
 | `src/features/settings/ui/ai-library-tab/steps/Step3PlaceEngines.tsx` の「個検出」 | 状態のカードは同じ数を「件」と書く。`Step4PlaceAssets.tsx` も同じ。単位を揃えるかを画面の語の棚卸しで決める |
 | `src-tauri/src/search/build.rs` と `project_manager.rs` の棋譜の警告 | `warn_scan_failed` と違って代を見ずに出すので、根が変わった直後に届くと前の根のパスが残る筋がある。未再現 |
@@ -169,4 +172,4 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-`src/features/settings` の `ui/engine-preset-dialog`、`lib`、`model/presetDialogReducer.ts`（13c）。
+`src/features/position-search`（範囲14の第1段）。範囲14は2000行を超えるので、`src/features/position-editor` と分ける。

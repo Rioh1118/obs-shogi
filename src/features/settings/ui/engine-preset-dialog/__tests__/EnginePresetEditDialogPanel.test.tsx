@@ -49,10 +49,7 @@ vi.mock("@/entities/engine/api/aiLibrary", () => ({
 
 const { default: EnginePresetEditDialogPanel } = await import("../EnginePresetEditDialogPanel");
 
-/**
- * `engines/` が無いルートの索引。帯が出る2つの分類（`missing` / `other`）のうち、
- * 作成ボタンも出るほう。**`other` の帯はまだどのテストも通っていない**
- */
+/** `engines/` が無いルートの索引。帯が出る2つの分類のうち、作成ボタンも出る `missing` */
 function indexWithoutEngines(root: string): AiRootIndex {
   return {
     ai_root: root,
@@ -80,7 +77,7 @@ afterEach(cleanup);
 describe("プリセット編集ダイアログの engines の帯", () => {
   test("engines/ が無ければ、その場所を名乗って作成を出す", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
 
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
     expect(band()?.textContent).toContain(`${AI_ROOT}/engines`);
@@ -95,13 +92,12 @@ describe("プリセット編集ダイアログの engines の帯", () => {
   }
 
   /**
-   * 走査が返らない環境（応答しないボリューム）。**出口を残す。**
-   *
+   * 走査が返らない環境（応答しないボリューム）でも、探し直すボタンを残す。
    * 塞ぐと、閉じて開き直す以外に手が無く、編集中の下書きが消える
    */
   test("初回の走査が返らない間も、押せる探し直すが残る", async () => {
     scanAiRoot.mockReturnValue(new Promise(() => {}));
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
 
     await waitFor(() => expect(scanAiRoot).toHaveBeenCalled(), { timeout: 5000 });
     expect(enabledRescans()).toBeGreaterThan(0);
@@ -113,7 +109,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
       ...indexWithoutEngines(AI_ROOT),
       engines_dir: { path: `${AI_ROOT}/engines`, exists: true, kind: "dir" },
     });
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
     await waitFor(() => expect(enabledRescans()).toBeGreaterThan(0), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));
@@ -125,15 +121,14 @@ describe("プリセット編集ダイアログの engines の帯", () => {
   }, 20000);
 
   /**
-   * 切り替えた直後の走査中。**前のルートの索引で描かない。**
-   *
+   * 切り替えた直後の走査中は前のルートの索引で描かない。
    * 描くと、帯は旧ルートの絶対パスを名指しするのに、その隣の「フォルダを作成」は
    * 新しいルートに対して働く
    */
   test("ルートを選び直したら、走査が返るまで帯を出さない", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
     const { rerender } = render(
-      <EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />,
+      <EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />,
     );
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
@@ -141,22 +136,20 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     scanAiRoot.mockReturnValue(new Promise(() => {}));
     aiRootValue.current = "/Users/me/ai2";
     // ルートは設定（AI ライブラリ）で変わる。本番では設定の provider が再描画する。ここは手で促す。
-    // **帯が消えるのはこの描画の中**（索引を突き合わせた結果なので、走査を待たない）
-    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    // 帯が消えるのはこの描画の中（索引を突き合わせた結果なので、走査を待たない）
+    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
 
     expect(band()).toBeUndefined();
   }, 20000);
 
   /**
-   * 作成の途中でルートを切り替えた回。**前のルートの失敗を新しいルートの画面に書かない。**
-   *
-   * 書くと、もう指していないフォルダの失敗が赤字で出るうえ、`indexStatus` が error に落ちて
-   * **読めている索引ごと候補が全部塞がる**
+   * 作成の途中でルートを切り替えた回は、前のルートの失敗を新しいルートの画面に書かない。
+   * 書くと、もう指していないフォルダの失敗が赤字で出るうえ、読めている候補が全部塞がる
    */
   test("作成の途中でルートを切り替えたら、前のルートの失敗を書かない", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
     const { rerender } = render(
-      <EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />,
+      <EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />,
     );
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
@@ -166,7 +159,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
     scanAiRoot.mockResolvedValue(indexWithoutEngines("/Users/me/ai2"));
     aiRootValue.current = "/Users/me/ai2";
-    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
     await waitFor(() => expect(scanAiRoot).toHaveBeenCalledWith("/Users/me/ai2"), {
       timeout: 5000,
     });
@@ -180,12 +173,11 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
   /**
    * 読み直している間の帯は前の索引のままなので、作成は押せると「効かなかった」と読まれる。
-   * **「もう一度読み込む」は塞がない**——画面の再試行のボタンが2つとも同じ条件で死ぬと、
-   * 走査が返らない環境で出口が無くなる
+   * 「もう一度読み込む」は塞がない。塞ぐと、走査が返らない環境で再試行の手が無くなる
    */
   test("同じルートを読み直している間は、帯の作成だけ押せない", async () => {
     scanAiRoot.mockResolvedValue(indexWithoutEngines(AI_ROOT));
-    render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));

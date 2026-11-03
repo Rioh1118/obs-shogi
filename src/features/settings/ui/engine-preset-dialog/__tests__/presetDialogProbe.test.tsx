@@ -202,7 +202,7 @@ const saveButton = () => screen.getByRole("button", { name: "保存" }) as HTMLB
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
 async function open(): Promise<ReturnType<typeof render>> {
-  const view = render(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+  const view = render(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
   await waitFor(() => expect(engineSelect().disabled).toBe(false), {
     timeout: 5000,
   });
@@ -323,7 +323,7 @@ describe("読み込み", () => {
     const view = await open();
     fireEvent.change(engineSelect(), { target: { value: ENGINE_A } });
     presets.current = { ...PRESET };
-    view.rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} open onClose={() => {}} />);
+    view.rerender(<EnginePresetEditDialogPanel presetId={PRESET.id} onClose={() => {}} />);
     await tick();
     expect(saveButton().disabled).toBe(true);
   }, 20000);

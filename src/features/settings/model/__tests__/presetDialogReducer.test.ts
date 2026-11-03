@@ -54,6 +54,17 @@ describe("P0（取得なし）", () => {
     expect(next.draft?.label).toBe("x");
   });
 
+  test("E: 同じ参照が返ったら state を保つ", () => {
+    expect(run(opened, { type: "edited", update: (cur) => cur })).toBe(opened);
+  });
+
+  test("E: 下書きが無ければ何もしない", () => {
+    const update = (cur: EnginePreset) => ({ ...cur, label: cur.label });
+    expect(run(initialPresetDialogState, { type: "edited", update })).toBe(
+      initialPresetDialogState,
+    );
+  });
+
   test("V: 下書きと当てる元の値の両方に重ねる。null で消す", () => {
     const next = run(
       opened,

@@ -1,49 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAppConfig } from "@/entities/app-config";
-import {
-  createAiProfileDirs,
-  ensureEnginesDir,
-  scanAiRoot,
-  type AiRootIndex,
-} from "@/entities/engine/api/aiLibrary";
+import { createAiProfileDirs, ensureEnginesDir, scanAiRoot } from "@/entities/engine/api/aiLibrary";
 import { describeFsError, isNameInputError, type FsError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { readContents, type AiLibraryContents } from "../lib/aiLibraryContents";
 import { revealFailureNotice, staleCreateNotice } from "../lib/aiLibraryNotices";
-
-/**
- * 読めた索引と、読んだルート
- *
- * ルートを持たせないと、別のルートを選んだ直後に前の索引が残り、「engines/ を開く」が前のフォルダを開く。
- */
-type LoadedIndex = { root: string; index: AiRootIndex };
-
-/**
- * AI ルートの読み取りの状態
- *
- * `loading` と `error` も最後に読めた索引を持つ。捨てると `classifyEnginesDir` が `unknown` を返し、
- * 「開く」と手順書の段と押したボタンが消えて、作成済みのフォルダに何もできなくなる。
- * ルートを読めなかったときだけ捨てる（`scanRoot` の catch）。
- */
-export type ScanState =
-  | { status: "idle" }
-  | { status: "loading"; last: LoadedIndex | null }
-  | { status: "ready"; loaded: LoadedIndex }
-  | { status: "error"; error: string; last: LoadedIndex | null };
-
-function lastIndex(scan: ScanState): LoadedIndex | null {
-  switch (scan.status) {
-    case "ready":
-      return scan.loaded;
-    case "loading":
-    case "error":
-      return scan.last;
-    case "idle":
-      return null;
-  }
-}
+import { failKeepingIndex, indexOfRoot, startLoading, type ScanState } from "../lib/aiRootScan";
 
 /**
  * AI フォルダの作成の結果
@@ -68,15 +32,6 @@ export type AiLibraryActions = {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** 失敗を積む更新。読めていた索引は残す */
-function failKeepingIndex(error: string) {
-  return (scan: ScanState): ScanState => ({ status: "error", error, last: lastIndex(scan) });
-}
-
-function startLoading(scan: ScanState): ScanState {
-  return { status: "loading", last: lastIndex(scan) };
 }
 
 /** AI ライブラリの読み取りと、フォルダの作成と開く操作を持つ。 */
@@ -223,9 +178,7 @@ export function useAiLibrary() {
     return "created";
   };
 
-  // 別のルートの索引は使わない。切り替え直後はまだ何も読めていない
-  const loaded = lastIndex(scan);
-  const index = loaded?.root === aiRootPath.trim() ? loaded.index : null;
+  const index = indexOfRoot(scan, aiRootPath.trim());
 
   const contents: AiLibraryContents = readContents(index);
 

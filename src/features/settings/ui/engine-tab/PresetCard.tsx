@@ -11,12 +11,12 @@ import {
 import { MULTIPV_OPTION } from "@/entities/engine-presets/model/multiPv";
 import { cx } from "@/features/settings/lib/cx";
 import { fileLabel } from "@/features/settings/lib/fileChoices";
-import { basename } from "@/features/settings/lib/presetDialog";
+import { getBaseName } from "@/shared/lib/path";
 import {
   engineDefaultLabel,
   engineDefaultOf,
   savedInt,
-} from "@/features/settings/lib/quickOptions";
+} from "@/features/settings/lib/presetOptionValues";
 
 type Props = {
   preset: EnginePreset;
@@ -142,7 +142,7 @@ export default function PresetCard({
           <div className="engineTab__k">エンジン</div>
           <div className="engineTab__v" title={preset.enginePath || ""}>
             {preset.enginePath ? (
-              basename(preset.enginePath)
+              getBaseName(preset.enginePath)
             ) : (
               <span className="engineTab__muted">未設定</span>
             )}

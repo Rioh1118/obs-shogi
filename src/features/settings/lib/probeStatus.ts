@@ -2,7 +2,7 @@ import type { EngineStartFailureKind } from "@/entities/engine";
 import { hasCurrentDefinitions, probePathOf } from "@/entities/engine-presets/lib/withDefinitions";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 
-/** 取得に失敗したこと。**どのパスの取得か**を持つ——パスを打ち換えた後に前の失敗を出さない */
+/** 取得の失敗。どのパスの取得かを持ち、選び直した後に前の失敗を出さない */
 export type ProbeFailure = {
   kind: EngineStartFailureKind;
   /** OS やエンジンの出力を含みうる。補足として小さく出す */
@@ -15,8 +15,8 @@ const RETRY = "「もう一度読み込む」を押してください";
 /**
  * 取得に失敗した理由と、次にすること。起動の失敗と同じ種類で届く（Rust の `EngineProber::probe`）。
  *
- * 解析の帯の文言（`ENGINE_START_FAILURE_NOTICES`）とは別に持つ。次にすることが違う——帯は
- * 「もう一度起動」「エンジン管理を開く」へ誘い、ここはこのダイアログの中で読み込み直す。
+ * 検討の帯の文言（`ENGINE_START_FAILURE_NOTICES`）とは次にすることが違うので別に持つ。帯は
+ * 「もう一度起動」「エンジン管理を開く」へ誘い、ここはこの画面の中で読み込み直す。
  * 取得に固有の読み替えもある: `timedOut` は起こす前（パスを開く・プロセスを作る）の上限で、
  * `usi` に答えない形は `notUsi` で届く
  */
@@ -36,11 +36,10 @@ const PROBE_FAILURE_TEXT: Record<EngineStartFailureKind, string> = {
 type ProbeStatus = { tone: "muted" | "warn"; text: string; detail: string | null };
 
 /**
- * エンジンの欄の下に出す、読み込みの状態。**うまくいっているときは何も出さない**（`null`）——読み込みは
- * エンジンを選べば裏で進むもので、利用者が意識するものではない。出すのは読み込み中と、読めなかったときと、
- * いまのエンジンの定義が無いまま止まっているとき（「中止」の後・プリセットが読み直された後）。最後の形を
- * 黙らせると、同じエンジンは選び直しても読み込まれないので、読み込み直すボタンが画面から消える。
- * 失敗は、失敗したパスがいまのパスと同じときだけ出す
+ * エンジンの欄の下に出す読み込みの状態。読み込めていれば `null`。
+ *
+ * 出すのは読み込み中、読めなかったとき、定義が無いまま止まっているとき（「中止」の後、プリセットが読み直された後）。
+ * 最後の形を黙らせると、同じエンジンは選び直しても読み込まれないので、読み込み直すボタンが消える
  */
 export function probeStatusText(
   draft: Pick<EnginePreset, "enginePath" | "definitions" | "definitionsFor" | "reservedNames">,

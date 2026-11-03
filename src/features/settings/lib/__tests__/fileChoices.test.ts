@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
-import { bookChoices, evalChoices, fileLabel } from "../fileChoices";
+import { bookChoices, evalChoices, fileLabel, isFileKind } from "../fileChoices";
 
 const profile = (name: string, evals: string[], books: string[]): ProfileCandidate => ({
   name,
@@ -15,6 +15,15 @@ const PROFILES = [
   profile("hao", ["x.bin", "nn.bin"], []),
   profile("li", ["nn.bin"], ["user_book1.db"]),
 ];
+
+describe("isFileKind", () => {
+  test("ファイルとリンクは開ける。フォルダと種類の分からないものは開けない", () => {
+    expect(isFileKind("file")).toBe(true);
+    expect(isFileKind("symlink")).toBe(true);
+    expect(isFileKind("dir")).toBe(false);
+    expect(isFileKind("unknown")).toBe(false);
+  });
+});
 
 describe("fileLabel", () => {
   test("AI ライブラリの形なら「フォルダ / ファイル」、そうでなければファイル名", () => {

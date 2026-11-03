@@ -242,13 +242,6 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
 
-## 「作成を出すのは無いときだけ」の理由が2箇所にある
-
-`.claude/reviews/2026-09-06-404-reveal-item-in-dir-r12.md`（comment reviewer）。
-`canCreateEnginesDir` の doc と `UsedFilesSection` の JSX コメント。条件を変えた日
-（`other` でも作成を出す判断に倒す等）に、述語の doc だけ直して片方が古い理由を主張する。
-理由は述語の doc に1つだけ置き、呼び出し側は参照1行にする。
-
 ## `entities/app-config` と `entities/engine-presets` が互いを読んでいる
 
 #113 で同層横断の走査（`src/__tests__/crossSliceImports.test.ts`）を入れたときに出た。
@@ -379,8 +372,8 @@ lint もテストもラチェットも赤くならない。
 
 #95（定跡ビュー）のレビュー（architecture reviewer）。
 `Math.max(lastIndexOf("/"), lastIndexOf("\\"))` の手書きが
-`entities/book/lib/recents.ts` / `features/file-conflict/ui/ConflictMeta.tsx` /
-`features/settings/lib/presetDialog.ts` ほかに散っている。
+`entities/book/lib/recents.ts` / `features/file-conflict/ui/ConflictMeta.tsx`
+ほかに散っている。
 `shared/lib/path.ts` は既に在る。
 
 同じ知識（区切りは2種、末尾区切りの扱い、`at === 0` のときに何を返すか）が
@@ -459,9 +452,6 @@ lint もテストもラチェットも赤くならない。
 
 - **`fileLabel` が AI ライブラリの配置（`<名前>/eval|book/<file>`）を知っている**のに `features/settings/lib` にある。
   配置を変えると、表示だけが黙ってファイル名に落ちる。`entities/engine` に下げ、分解は `shared/lib/path.ts` に寄せる（#216）
-- **`UsedFilesSection` に engines/ の帯・エンジンの欄と読み込み・評価関数と定跡の3つが同居**（props 18個）。
-  帯とエンジンの欄を別の部品に分ける。下書きの setter は既に節から外した
-- **`quickOptions.ts` の名前が中身と合わない**（重要オプションの節は消え、残るのは値の読み書きの道具）
 - **「やめる」は Rust の取得を止めない**（上限まで動く。`probeEngine` の doc）。開くたびに読み込むので、
   応答しないドライブでは開いて閉じるたびに1本ずつ残りうる
 
