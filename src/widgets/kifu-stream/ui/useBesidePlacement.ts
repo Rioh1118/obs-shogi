@@ -4,7 +4,8 @@ import { placeBeside, type BesidePlacement } from "../lib/popoverPlacement";
 /**
  * 行の横に出す面の位置を測って持つ。`selfRef` を面の要素に付ける。
  *
- * 位置は面を描いた後に測るので、測るまでの `placement` は null になる。
+ * 位置は面を描いた後に測る。最初に開いたときは測るまで null で、閉じても戻さないので、
+ * 開き直したときは測り直すまでの1拍だけ前の位置を持つ。
  * 開いている間は、画面の大きさが変わるか、どこかが流れるたびに測り直す。
  */
 export function useBesidePlacement(open: boolean, anchorRect: DOMRect | null) {

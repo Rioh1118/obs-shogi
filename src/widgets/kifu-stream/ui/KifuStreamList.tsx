@@ -109,8 +109,8 @@ export default function KifuStreamList() {
   /**
    * `kind` の面が開いていれば閉じる。別の面が開いていたら触らない。
    *
-   * 閉じる経路はそれぞれ自分の面だけを知っている。無条件に空にすると、
-   * 行を押したときに分岐メニューと一緒に開いているノートまで閉じる（`onClickRow`）。
+   * 閉じる経路はそれぞれ自分の面だけを知っている。`onClickRow` は `closeFace("fork")` と
+   * `closeFace("move")` を呼ぶので、無条件に空にすると、行を押したときに開いているノートまで閉じる。
    */
   const closeFace = useCallback((kind: OpenFace["kind"]) => {
     setOpenFace((prev) => (prev?.kind === kind ? null : prev));

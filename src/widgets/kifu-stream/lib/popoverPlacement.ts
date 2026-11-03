@@ -20,7 +20,8 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(ma
  * 基準の矩形の右に面を置く位置を返す。右に入らなければ左へ反転し、縦は基準の中心に合わせる。
  *
  * どちらの向きでも、最後に画面の端から `MARGIN` の内側へ寄せる。
- * 行の操作と分岐の操作は、同じ行の横に出る面なので、この1つを共有する。
+ * 行の操作（一覧の行の横）と分岐の操作（分岐メニューの行の横）は、どちらも行の横に出す面で
+ * 置き方が同じなので、この1つを共有する。
  */
 export function placeBeside(anchor: AnchorRect, pop: Size, viewport: Size): BesidePlacement {
   let side: BesidePlacement["side"] = "right";
