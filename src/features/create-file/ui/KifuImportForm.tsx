@@ -86,7 +86,7 @@ function KifuImportForm({
   } = useKifuImportDraft();
 
   const [submitError, setSubmitError] = useState<FsError | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   /**
    * 保存先の欄
@@ -152,10 +152,10 @@ function KifuImportForm({
     if (!read?.readable) return;
     // 取り込みは書き込みとツリーの読み直しを通る。押しても画面が変わらない間に
     // もう一度押すと、1回目は成功して2回目が already_exists になる
-    if (isSaving) return;
+    if (isSubmitting) return;
 
     setSubmitError(null);
-    setIsSaving(true);
+    setIsSubmitting(true);
     onSubmittingChange?.(true);
     try {
       const result = await importKifuFile(selectedDir, name, text);
@@ -169,7 +169,7 @@ function KifuImportForm({
         setSubmitError(result.error);
       }
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
       onSubmittingChange?.(false);
     }
   };
@@ -263,14 +263,14 @@ function KifuImportForm({
             type="submit"
             tone="primary"
             size="lg"
-            isLoading={isSaving}
+            isLoading={isSubmitting}
             disabled={!fullFileName || !read?.readable || !selectedDir}
           >
-            {isSaving ? "作成中…" : "作成"}
+            {isSubmitting ? "作成中…" : "作成"}
           </Button>
           {/* 盤の面と同じ語。**同じ `requestClose` を通る同じ操作**なので、
               面ごとに別の語を当てると、戻り先が違うように読める */}
-          <Button type="button" size="lg" onClick={onCancel} disabled={isSaving}>
+          <Button type="button" size="lg" onClick={onCancel} disabled={isSubmitting}>
             キャンセル
           </Button>
         </ButtonGroup>

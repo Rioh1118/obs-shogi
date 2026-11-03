@@ -35,7 +35,7 @@ export default function StudyPositionSaveModal() {
   const isEdit = !!existing;
 
   const [label, setLabel] = useState("");
-  const [spState, setSpState] = useState<StudyPositionState>("inbox");
+  const [studyState, setStudyState] = useState<StudyPositionState>("inbox");
   const [tags, setTags] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -50,12 +50,12 @@ export default function StudyPositionSaveModal() {
     setErrorMsg(null);
     if (existing) {
       setLabel(existing.label);
-      setSpState(existing.state);
+      setStudyState(existing.state);
       setTags(existing.tags);
       setDescription(existing.description);
     } else {
       setLabel("");
-      setSpState("inbox");
+      setStudyState("inbox");
       setTags([]);
       setDescription("");
     }
@@ -86,7 +86,7 @@ export default function StudyPositionSaveModal() {
         await updatePosition({
           id: existing.id,
           label,
-          state: spState,
+          state: studyState,
           tags,
           description,
         });
@@ -94,7 +94,7 @@ export default function StudyPositionSaveModal() {
         await addPosition({
           sfen,
           label,
-          state: spState,
+          state: studyState,
           tags,
           description,
         });
@@ -111,7 +111,7 @@ export default function StudyPositionSaveModal() {
     isSaving,
     existing,
     label,
-    spState,
+    studyState,
     tags,
     description,
     addPosition,
@@ -193,8 +193,8 @@ export default function StudyPositionSaveModal() {
             <div className="sp-save__field">
               <label className="sp-save__label">{"研究状態"}</label>
               <StudyPositionStateSegment
-                value={spState}
-                onChange={setSpState}
+                value={studyState}
+                onChange={setStudyState}
                 disabled={isSaving}
               />
             </div>

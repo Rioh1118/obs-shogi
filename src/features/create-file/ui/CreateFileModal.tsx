@@ -29,8 +29,8 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   /**
    * 作成中の旗は面ごとに立つ
    *
-   * 状態遷移表の W は1つだが、旗は面ごとに別の綴りで持つ。組む面は `PositionEditor` の
-   * `isSubmitting`、インポートの面は `KifuImportForm` の `isSaving`。器は両方を見る ——
+   * 状態遷移表の W は1つだが、旗は面ごとに持つ。組む面は `PositionEditor` が、
+   * インポートの面は `KifuImportForm` が `isSubmitting` で持つ。器は両方を見る ——
    * **片方しか見ないと、見ていない面で送信中にタブを押せて、失敗を出す場所ごと消える**。
    */
   const [editorBusy, setEditorBusy] = useState(false);

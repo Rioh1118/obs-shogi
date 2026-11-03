@@ -35,7 +35,7 @@ export default function SfenKifuCreateModal() {
   const [blackPlayer, setBlackPlayer] = useState("");
   const [whitePlayer, setWhitePlayer] = useState("");
   const [selectedDir, setSelectedDir] = useState(fileTree?.path ?? "");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
   // URL から来た任意の局面は手合割として書けないので、`OTHER` に固定する。
@@ -82,14 +82,14 @@ export default function SfenKifuCreateModal() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!fullFileName || !sfenInitial || isLoading) return;
+      if (!fullFileName || !sfenInitial || isSubmitting) return;
 
       // `selectedDir` が空になるのはツリーが1本も無いときだけで、
       // そのとき送信ボタンは押せない。理由は Select の下に出している
       if (dirOptions.length === 0) return;
 
       setSubmitError(null);
-      setIsLoading(true);
+      setIsSubmitting(true);
       const result = await createNewFile(selectedDir, {
         fileName: fullFileName,
         format,
@@ -99,7 +99,7 @@ export default function SfenKifuCreateModal() {
         },
         initialPosition: sfenInitial,
       });
-      setIsLoading(false);
+      setIsSubmitting(false);
 
       if (result.success) {
         closeModal();
@@ -119,7 +119,7 @@ export default function SfenKifuCreateModal() {
       dirOptions.length,
       fullFileName,
       sfenInitial,
-      isLoading,
+      isSubmitting,
       createNewFile,
       closeModal,
     ],
@@ -211,12 +211,12 @@ export default function SfenKifuCreateModal() {
             <Button
               type="submit"
               tone="primary"
-              isLoading={isLoading}
+              isLoading={isSubmitting}
               disabled={!fullFileName || !selectedDir}
             >
-              {isLoading ? "作成中…" : "作成"}
+              {isSubmitting ? "作成中…" : "作成"}
             </Button>
-            <Button type="button" onClick={() => closeModal()} disabled={isLoading}>
+            <Button type="button" onClick={() => closeModal()} disabled={isSubmitting}>
               キャンセル
             </Button>
           </ButtonGroup>

@@ -12,7 +12,8 @@ import ConflictMeta from "./ConflictMeta";
 
 import "./FileConflictDialog.scss";
 
-function getSelectionEnd(name: string): number {
+/** 拡張子を除いた名前の長さを返す。先頭の `.` は拡張子の区切りと見なさない */
+function stemLength(name: string): number {
   const dot = name.lastIndexOf(".");
   return dot > 0 ? dot : name.length;
 }
@@ -42,7 +43,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
       const el = inputRef.current;
       if (!el) return;
       el.focus();
-      el.setSelectionRange(0, getSelectionEnd(requestedName));
+      el.setSelectionRange(0, stemLength(requestedName));
     });
   }, [sessionKey]);
 
