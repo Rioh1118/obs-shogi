@@ -33,11 +33,13 @@ export function useSaveDir(initialDir?: string): SaveDir {
   );
   const [selectedDir, setSelectedDir] = useState(initialDir || rootPath);
 
-  // ツリーの根が入れ替わったら保存先を根へ戻す
+  // ツリーの根が入れ替わったら保存先を根へ戻す。ただし前の根が空（ツリーを読み終わる前）
+  // なら、選んでいる値は呼び手から来た `initialDir` なので残す —— 根が無いあいだは一覧も
+  // 空で、利用者は何も選べない。読み終わったツリーに無ければ、下の枝が根へ戻す
   const [prevRoot, setPrevRoot] = useState(rootPath);
   if (rootPath !== prevRoot) {
     setPrevRoot(rootPath);
-    setSelectedDir(rootPath);
+    setSelectedDir(prevRoot === "" && selectedDir ? selectedDir : rootPath);
   }
 
   // 選んでいたフォルダだけが消えたときも根へ戻す。

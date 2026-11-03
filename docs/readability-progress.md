@@ -171,7 +171,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/search/build.rs` と `project_manager.rs` の棋譜の警告 | `warn_scan_failed` と違って代を見ずに出すので、根が変わった直後に届くと前の根のパスが残る筋がある。未再現 |
 | `src/features/position-search/ui/VirtualHitRow.tsx` の `path unknown` | 索引がパスを返さない行に英語のまま出る。画面の語の棚卸しで、断りの「この棋譜の場所が分かりません」と揃えるかを決める |
 | `src/shared/lib/path.ts` の `toRelPath` | `norm` が最初の `\` しか置き換えないので、名前に `\` を2つ以上含む棋譜は相対パスに `\` が残る。局面検索の行のファイル名は `getBaseName` が `\` でも区切るので、パスの欄と名前の欄で区切りが食い違う。TODO(#216) で直す |
-| `src/features/position-editor/ui/EditorCreateForm.tsx` の保存先 | ツリーが読み終わる前に `initialDir` 付きで開くと、根が `""` から変わった描画で `prevRoot` の枝が保存先を根へ戻し、`initialDir` が消える。部品の試験では再現した。ツリーから開けば読み終わっているので、踏むのは読み込み中に URL の `dir=` から開いたときだけ。同じ3段（`collectDirs`、根の入れ替え、消えたフォルダ）が `KifuImportForm.tsx` と `SfenKifuCreateModal.tsx` にもあるので、範囲15の最初の段で1つの hook に寄せて直す |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
