@@ -98,7 +98,7 @@ function DirectoryNode({
       <NodeBox
         ref={setNodeRef}
         level={level}
-        handleClick={handleClick}
+        onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onContextMenu={onContextMenu}
@@ -132,7 +132,7 @@ function DirectoryNode({
       {!isOpen ? null : (
         <>
           {showCreateRow && (
-            <NodeBox level={level + 1} handleClick={() => {}}>
+            <NodeBox level={level + 1} onClick={() => {}}>
               <FileIcon type="folder" />
               <InlineNameEditor
                 initialName=""

@@ -69,7 +69,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     setDropRef(el);
   };
 
-  const showNativeTooltip = () => {
+  const showNameTooltip = () => {
     const el = nameRef.current;
     if (!el) return;
 
@@ -101,7 +101,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     pop.style.top = `${box.top}px`;
   };
 
-  const hideNativeTooltip = () => {
+  const hideNameTooltip = () => {
     const pop = document.getElementById("filetree-tooltip");
     pop?.hidePopover?.();
   };
@@ -130,7 +130,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     <NodeBox
       ref={setNodeRef}
       level={level}
-      handleClick={handleClick}
+      onClick={handleClick}
       isSelected={isSelected}
       onContextMenu={onContextMenu}
       className={`${isOver ? "node-box__droppable-over" : ""} ${isDragging ? "node-box--drag-source" : ""}`}
@@ -154,11 +154,11 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
           ref={nameRef}
           onPointerEnter={() => {
             if (isDragging) return;
-            showNativeTooltip();
+            showNameTooltip();
           }}
-          onPointerLeave={hideNativeTooltip}
-          onFocus={showNativeTooltip}
-          onBlur={hideNativeTooltip}
+          onPointerLeave={hideNameTooltip}
+          onFocus={showNameTooltip}
+          onBlur={hideNameTooltip}
           className="file-name"
         >
           {node.name}

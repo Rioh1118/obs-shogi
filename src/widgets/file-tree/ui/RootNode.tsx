@@ -69,7 +69,7 @@ function RootNode({ node }: { node: FileTreeNode }) {
         ref={setNodeRef}
         level={0}
         className={isOver ? "node-box__droppable-over" : ""}
-        handleClick={handleClick}
+        onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onContextMenu={onContextMenu}
@@ -96,7 +96,7 @@ function RootNode({ node }: { node: FileTreeNode }) {
       {!isOpen ? null : (
         <>
           {showCreateRow && (
-            <NodeBox level={1} handleClick={() => {}}>
+            <NodeBox level={1} onClick={() => {}}>
               <FileIcon type="folder" />
               <InlineNameEditor
                 initialName=""

@@ -8,7 +8,7 @@ import "./InlineNameEditor.scss";
  * 呼び出し側は5経路とも `isRenaming` か `showCreateRow` で分岐して unmount する
  * （`inline-name-editor.md` の E0）
  */
-type InlineRenameProps = {
+type InlineNameEditorProps = {
   initialName: string;
   /**
    * 確定の結果。**成功と「失敗したがここには出さない」を型で分ける**（`CommitOutcome`）。
@@ -45,7 +45,7 @@ function InlineNameEditor({
   onUnshowable,
   className = "file-name__input",
   selectMode = "all",
-}: InlineRenameProps) {
+}: InlineNameEditorProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cancelRef = useRef(false);
   // 送信中と、直前に落ちた名前。blur でも確定するので、この2つが無いと
