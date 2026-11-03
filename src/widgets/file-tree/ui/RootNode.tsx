@@ -5,8 +5,8 @@ import TreeNode from "./TreeNode";
 import "./RootNode.scss";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import NewDirectoryRow from "./NewDirectoryRow";
 import TruncatedNotice from "./TruncatedNotice";
-import FileIcon from "./FileIcon";
 import { useDroppable } from "@dnd-kit/core";
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import type { FileTreeNode } from "@/entities/file-tree";
@@ -23,8 +23,6 @@ function RootNode({ node }: { node: FileTreeNode }) {
     cancelInlineRename,
     pushError,
     creatingDirParentPath,
-    cancelCreateDirectory,
-    createNewDirectory,
   } = useFileTree();
 
   const isRenaming = renamingNodeId === node.id;
@@ -39,9 +37,6 @@ function RootNode({ node }: { node: FileTreeNode }) {
 
   const handleCommitRename = (nextName: string) =>
     commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
-
-  const handleCommitCreate = (nextName: string) =>
-    commitName(nextName, (name) => createNewDirectory(node.path, name), cancelCreateDirectory);
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -95,18 +90,7 @@ function RootNode({ node }: { node: FileTreeNode }) {
 
       {!isOpen ? null : (
         <>
-          {showCreateRow && (
-            <NodeBox level={1} onClick={() => {}}>
-              <FileIcon type="folder" />
-              <InlineNameEditor
-                initialName=""
-                selectMode="all"
-                onCancel={cancelCreateDirectory}
-                onCommit={handleCommitCreate}
-                onUnshowable={pushError}
-              />
-            </NodeBox>
-          )}
+          {showCreateRow && <NewDirectoryRow parentPath={node.path} level={1} />}
 
           {!node.children?.length
             ? null

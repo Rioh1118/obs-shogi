@@ -4,6 +4,7 @@ import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import { useState, type ReactNode } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import NewDirectoryRow from "./NewDirectoryRow";
 import TruncatedNotice from "./TruncatedNotice";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
@@ -28,12 +29,10 @@ function DirectoryNode({
     isNodeExpanded,
     openContextMenu,
     creatingDirParentPath,
-    cancelCreateDirectory,
     renamingNodeId,
     renameNode,
     cancelInlineRename,
     pushError,
-    createNewDirectory,
   } = useFileTree();
 
   const [isHovered, setIsHovered] = useState(false);
@@ -90,9 +89,6 @@ function DirectoryNode({
   const handleCommitRename = (nextName: string) =>
     commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
-  const handleCommitCreate = (nextName: string) =>
-    commitName(nextName, (name) => createNewDirectory(node.path, name), cancelCreateDirectory);
-
   return (
     <>
       <NodeBox
@@ -131,18 +127,7 @@ function DirectoryNode({
       </NodeBox>
       {!isOpen ? null : (
         <>
-          {showCreateRow && (
-            <NodeBox level={level + 1} onClick={() => {}}>
-              <FileIcon type="folder" />
-              <InlineNameEditor
-                initialName=""
-                selectMode="all"
-                onCancel={cancelCreateDirectory}
-                onCommit={handleCommitCreate}
-                onUnshowable={pushError}
-              />
-            </NodeBox>
-          )}
+          {showCreateRow && <NewDirectoryRow parentPath={node.path} level={level + 1} />}
           {!node.children?.length
             ? null
             : node.children.map((child) => renderChild(child, level + 1))}
