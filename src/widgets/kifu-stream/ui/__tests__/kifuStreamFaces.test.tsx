@@ -5,14 +5,14 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 
 /**
- * **開いている面を畳む合図は `boardSeq` で、`loadedAbsPath` ではない。**
+ * 開いている面を畳む合図は `boardSeq` で、`loadedAbsPath` ではない。
  *
  * 畳むのは盤の中身が入れ替わったときだけ。パスは改名・移動でも動くので、そちらで畳むと
- * **名前を直しただけで書きかけのノートが閉じる**——閉じると `KifuCommentNote` の
+ * **名前を直しただけで書きかけのノートが閉じる**。閉じると `KifuCommentNote` の
  * 離脱時の保存が走り、面がもう外れているぶん断りも出ないまま本文が消える。
  *
  * ノートの中身は見ない（Lexical ごと立てることになる）。見るのは
- * **開いたままか、閉じたか**と、渡している棋譜の識別子だけ。
+ * 開いたままか閉じたかと、渡している棋譜の識別子だけ。
  */
 
 /** 本譜2手。行が組めれば十分なので、変化は要らない */
@@ -31,8 +31,7 @@ const game = {
     isLoading: false,
   },
   // 一覧は `view.player.kifu` から再生用の player を組み直す
-  view: { player: { kifu: jkf, shogi: {} } },
-  getTotalMoves: () => 2,
+  view: { player: { kifu: jkf, shogi: {} }, totalMoves: 2 },
   goToIndex: vi.fn(),
   applyCursor: vi.fn(),
   deleteBranch: vi.fn(),

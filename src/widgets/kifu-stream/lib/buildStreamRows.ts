@@ -1,30 +1,50 @@
 import { advanceWithPlan, planByTe } from "@/entities/kifu/lib/advanceWithPlan";
-import { truncateFrom, type PlannedCursor } from "@/entities/kifu/model/cursor";
+import { truncateFrom, type ForkPointer, type PlannedCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
-import type { RowModel } from "../ui/KifuMoveCard";
+
+/** 棋譜ストリームの1行。`te` 手目に指した手と、同じ手数で選べる分岐 */
+export type StreamRow = {
+  te: number;
+  /** 開始局面の行だけが `"none"` */
+  side: "sente" | "gote" | "none";
+  /** この行が降りた線の手。変化を選んでいれば変化の手 */
+  text: string;
+  commentCount: number;
+
+  /** 同じ手数の本譜の手。分岐メニューの「本譜」に出す */
+  mainText: string;
+  /** 同じ手数の変化の手。添字が `forkIndex` */
+  forkTexts: string[];
+  forkCount: number;
+  /** この行が実際に降りた変化。本譜なら null */
+  selectedForkIndex: number | null;
+
+  /** 盤のカーソルがこの行にある */
+  isActive: boolean;
+  /** この行より前に選んだ変化（`te` 未満）。入れ替えと削除のクエリに渡す */
+  branchForkPointers: ForkPointer[];
+};
 
 /**
- * 棋譜ストリームの行を組む
+ * 棋譜ストリームの行を、カーソルの計画どおりに降りながら末尾まで組む。
  *
  * `player` を末尾まで進めるが、棋譜自体は書き換えない（`inputMove` を呼ばない）。
- * 呼び出し側はこの前提で棋譜を複製せずに渡している。ここで棋譜を編集しないこと。
+ * 呼び出し側はこの前提で棋譜を複製せずに渡している。
  *
- * **これはレンダ中に走る。** 壊れた計画は `advanceWithPlan` が捨てるので投げないが、
+ * これはレンダ中に走る。壊れた計画は `advanceWithPlan` が捨てるので投げないが、
  * 盤上で再生できない手を含む棋譜（正規化に失敗して未正規化のまま開いたもの）では
- * 再生そのものが投げる。
- *
- * **唯一の呼び出し側（`KifuStreamList`）はいま拾っていない。** 拾うだけだと
- * 読める手まで消えるので、復帰導線と一緒に直す → #277（症状は #295 の本文）
+ * 再生そのものが投げる。**唯一の呼び出し側の `KifuStreamList` はまだ拾っていない。**
+ * 拾うだけだと読める手まで消えるので、復帰導線と一緒に直す（TODO(#277)）。
  *
  * @throws {Error} 盤上で再生できない手に当たったとき（`advanceWithPlan` が投げる）
  */
 export function buildStreamRowsFromCursor(
   player: JKFPlayer,
   cursor: PlannedCursor | null,
-): RowModel[] {
+): StreamRow[] {
   const plan = planByTe(cursor?.forkPointers);
 
-  const rows: RowModel[] = [];
+  const rows: StreamRow[] = [];
   const currentTesuu = cursor?.tesuu ?? 0;
 
   const mf0 = player.currentStream[0];

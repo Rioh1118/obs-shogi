@@ -1,3 +1,4 @@
+/** 行が表示の上下25%の帯にかかっていたら、帯の境目の近くまで流す。中央の帯に収まっていれば動かさない。 */
 export function scrollToRowSafeZone(
   scroller: HTMLElement,
   rowEl: HTMLElement,
@@ -13,7 +14,7 @@ export function scrollToRowSafeZone(
 
   const safeMargin = Math.round(viewH * 0.25);
 
-  const lookAhead = Math.min(24, Math.round(rowH * 0.4)); // 0〜24px 程度
+  const lookAhead = Math.min(24, Math.round(rowH * 0.4));
 
   const safeTop = viewTop + safeMargin;
   const safeBottom = viewBottom - safeMargin;

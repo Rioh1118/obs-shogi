@@ -1,4 +1,15 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent,
+  type RefObject,
+} from "react";
 import {
   branchIndexFromSelection,
   branchLabel,
@@ -6,10 +17,13 @@ import {
 } from "@/entities/kifu/model/branch";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
+import { placeBelowOrAbove } from "../lib/popoverPlacement";
 import KifuForkActions from "./KifuForkActions";
 import "./KifuForkMenu.scss";
 
 type Props = {
+  /** 開いたバッジの `aria-controls` が指す id */
+  id: string;
   te: number;
   mainText: string;
   forkTexts: string[];
@@ -23,10 +37,10 @@ type Props = {
   onSwap: (branchIndex: BranchIndex, dir: "up" | "down") => void;
   onDelete: (branchIndex: BranchIndex) => void;
 
-  menuRef?: React.RefObject<HTMLDivElement | null>;
+  menuRef?: RefObject<HTMLDivElement | null>;
 };
 
-type Opt = {
+type ForkOption = {
   forkIndex: number | null;
   tag: string;
   move: string;
@@ -46,6 +60,7 @@ type ActionsState = {
 };
 
 const KifuForkMenu = memo(function KifuForkMenu({
+  id,
   te,
   mainText,
   forkTexts,
@@ -63,7 +78,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
     [selectedForkIndex, forkTexts.length],
   );
 
-  const options: Opt[] = useMemo(() => {
+  const options: ForkOption[] = useMemo(() => {
     return [
       {
         forkIndex: null,
@@ -80,11 +95,9 @@ const KifuForkMenu = memo(function KifuForkMenu({
     ];
   }, [forkTexts, mainText, normalized]);
 
-  // fixed 位置
   const selfRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  // actions popover
   const [actions, setActions] = useState<ActionsState | null>(null);
 
   const setBothRef = useCallback(
@@ -99,31 +112,13 @@ const KifuForkMenu = memo(function KifuForkMenu({
     const menu = selfRef.current;
     if (!menu) return;
 
-    const a = anchorEl.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    const mw = menu.offsetWidth;
-    const mh = menu.offsetHeight;
-
-    const margin = 8;
-
-    let left = a.right - mw;
-    left = Math.max(margin, Math.min(vw - mw - margin, left));
-
-    const spaceBelow = vh - a.bottom;
-    const spaceAbove = a.top;
-
-    let top: number;
-    if (spaceBelow >= mh + margin) {
-      top = a.bottom + 6;
-    } else if (spaceAbove >= mh + margin) {
-      top = a.top - mh - 6;
-    } else {
-      top = Math.max(margin, Math.min(vh - mh - margin, a.bottom + 6));
-    }
-
-    setPos({ top, left });
+    setPos(
+      placeBelowOrAbove(
+        anchorEl.getBoundingClientRect(),
+        { width: menu.offsetWidth, height: menu.offsetHeight },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    );
   };
 
   useLayoutEffect(() => {
@@ -145,9 +140,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [pos]);
 
-  const style: React.CSSProperties = pos
-    ? { top: pos.top, left: pos.left }
-    : { top: -9999, left: -9999 };
+  const style: CSSProperties = pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 };
 
   const openActionsForRow = (
     rowEl: HTMLElement,
@@ -165,9 +158,63 @@ const KifuForkMenu = memo(function KifuForkMenu({
     });
   };
 
+  const handleRowContextMenu = (
+    e: MouseEvent<HTMLElement>,
+    canUp: boolean,
+    canDown: boolean,
+    forkIndex: number | null,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    openActionsForRow(e.currentTarget, canUp, canDown, forkIndex);
+  };
+
+  const handleItemPointerDown = (e: PointerEvent<HTMLElement>, forkIndex: number | null) => {
+    // 選ぶのは左ボタンだけ。右ボタンは行の contextmenu で操作の面を開く
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (busy) return;
+
+    setActions(null);
+    onSelect(forkIndex);
+    onClose();
+  };
+
+  const handleMorePointerDown = (
+    e: PointerEvent<HTMLElement>,
+    canUp: boolean,
+    canDown: boolean,
+    forkIndex: number | null,
+  ) => {
+    // 右ボタンは行の contextmenu が受けるので、ここでは左ボタンだけを見る
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (busy) return;
+
+    const rowEl = e.currentTarget.closest(".kifu-forkmenu__row") as HTMLElement | null;
+    if (!rowEl) return;
+    openActionsForRow(rowEl, canUp, canDown, forkIndex);
+  };
+
+  const handleSwapUp = () => {
+    if (actions) onSwap(actions.branchIndex, "up");
+  };
+
+  const handleSwapDown = () => {
+    if (actions) onSwap(actions.branchIndex, "down");
+  };
+
+  const handleDelete = () => {
+    if (actions) onDelete(actions.branchIndex);
+  };
+
   return createPortal(
     <div
       ref={setBothRef}
+      id={id}
       className="kifu-forkmenu"
       style={style}
       role="menu"
@@ -175,7 +222,8 @@ const KifuForkMenu = memo(function KifuForkMenu({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onScroll={() => {
-        // スクロール時は追従させずに閉じる（ズレ事故を防ぐ）
+        // 操作の面は開いたときの行の矩形に置く。メニューの中を流すと行だけが動き、
+        // 面が別の行の横に残るので閉じる
         if (actions) setActions(null);
       }}
     >
@@ -188,13 +236,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
             key={opt.forkIndex == null ? "main" : `fork-${opt.forkIndex}`}
             className="kifu-forkmenu__row"
             role="none"
-            onContextMenu={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (busy) return;
-              const rowEl = e.currentTarget as HTMLElement;
-              openActionsForRow(rowEl, canUp, canDown, opt.forkIndex);
-            }}
+            onContextMenu={(e) => handleRowContextMenu(e, canUp, canDown, opt.forkIndex)}
           >
             <button
               type="button"
@@ -203,17 +245,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
               aria-checked={opt.selected}
               aria-disabled={busy}
               data-selected={opt.selected ? "1" : "0"}
-              onPointerDown={(e) => {
-                // ✅ 左クリックだけ選択（右クリックは context menu 用）
-                if (e.button !== 0) return;
-                e.stopPropagation();
-                e.preventDefault();
-                if (busy) return;
-
-                setActions(null);
-                onSelect(opt.forkIndex);
-                onClose();
-              }}
+              onPointerDown={(e) => handleItemPointerDown(e, opt.forkIndex)}
             >
               <span className="kifu-forkmenu__tag">{opt.tag}</span>
               <span className="kifu-forkmenu__move" title={opt.move}>
@@ -227,19 +259,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
               className="kifu-forkmenu__more"
               aria-label="分岐の操作"
               disabled={busy}
-              onPointerDown={(e) => {
-                // 左ボタンだけで開く（右クリックは contextmenu）
-                if (e.button !== 0) return;
-                e.stopPropagation();
-                e.preventDefault();
-                if (busy) return;
-
-                const rowEl = (e.currentTarget as HTMLElement).closest(
-                  ".kifu-forkmenu__row",
-                ) as HTMLElement | null;
-                if (!rowEl) return;
-                openActionsForRow(rowEl, canUp, canDown, opt.forkIndex);
-              }}
+              onPointerDown={(e) => handleMorePointerDown(e, canUp, canDown, opt.forkIndex)}
             >
               <MoreHorizontal size={16} />
             </button>
@@ -254,18 +274,9 @@ const KifuForkMenu = memo(function KifuForkMenu({
         canDown={!!actions?.canDown}
         anchorRect={actions?.anchorRect ?? null}
         onClose={() => setActions(null)}
-        onUp={() => {
-          if (!actions) return;
-          onSwap(actions.branchIndex, "up");
-        }}
-        onDown={() => {
-          if (!actions) return;
-          onSwap(actions.branchIndex, "down");
-        }}
-        onDelete={() => {
-          if (!actions) return;
-          onDelete(actions.branchIndex);
-        }}
+        onUp={handleSwapUp}
+        onDown={handleSwapDown}
+        onDelete={handleDelete}
       />
     </div>,
     document.body,

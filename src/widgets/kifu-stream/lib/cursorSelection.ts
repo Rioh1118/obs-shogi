@@ -5,9 +5,9 @@ import {
   type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
 import { branchIndexFromSelection, type BranchIndex } from "@/entities/kifu/model/branch";
-import type { RowModel } from "../ui/KifuMoveCard";
+import type { StreamRow } from "./buildStreamRows";
 
-export const branchIndexFromRow = (r: RowModel): BranchIndex => {
+export const branchIndexFromRow = (r: StreamRow): BranchIndex => {
   return branchIndexFromSelection(r.selectedForkIndex);
 };
 
@@ -25,7 +25,7 @@ export type ForkMenuAction =
  * 読める。すると「本譜」を押したときだけ一致し、計画を積んだままの `goToIndex` へ落ちて
  * 本譜どころか変化が確定する。型で `KifuCursor` を弾いているのはそのため。
  *
- * 行のチェックは計画そのものではなく、`buildStreamRowsFromCursor` が**実際に降りた**
+ * 行のチェックは計画そのものではなく、`buildStreamRowsFromCursor` が実際に降りた
  * 分岐から出る。2つが食い違うのは計画が `forks` の範囲外だったときだけで、
  * そのとき行は「本譜」に ✓ を描き、ここは範囲外の値を読む。**その値はメニューの
  * 選択肢に無い**（選択肢も同じ `forks` から作られる）ので、どの項目を押しても
