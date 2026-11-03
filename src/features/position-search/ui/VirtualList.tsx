@@ -1,6 +1,31 @@
-import { useCallback, useEffect, useRef } from "react";
-import { List, type ListImperativeAPI } from "react-window";
-import type { VirtualListBaseProps } from "./types";
+import { useCallback, useEffect, useRef, type CSSProperties } from "react";
+import { List, type Align, type ListImperativeAPI, type ListProps } from "react-window";
+
+type VirtualListAlign = Align;
+
+type VirtualScrollBehavior = "auto" | "instant" | "smooth";
+
+type VirtualListBaseProps<RowProps extends object> = {
+  className?: string;
+  style?: CSSProperties;
+
+  // 器そのものに当てる。仮想化ではスクロールする要素が行の持ち主なので、
+  // listbox のような「子を数える」役割は包む側でなくここに置く必要がある
+  role?: string;
+  "aria-label"?: string;
+  tabIndex?: number;
+
+  rowCount: number;
+  rowHeight: ListProps<RowProps>["rowHeight"];
+  rowComponent: ListProps<RowProps>["rowComponent"];
+  rowProps: ListProps<RowProps>["rowProps"];
+
+  overscanCount?: number;
+
+  followIndex?: number | null;
+  followAlign?: VirtualListAlign;
+  followBehavior?: VirtualScrollBehavior;
+};
 
 export function VirtualList<RowProps extends object>({
   className,

@@ -5,7 +5,7 @@ import "./PositionSearchHitList.scss";
 import { useGame } from "@/entities/game";
 import type { IndexHealth, PositionHit } from "@/entities/search";
 import { VirtualHitRow, type HitRowProps } from "./VirtualHitRow";
-import { VirtualList } from "../lib/virtual/VirtualList";
+import { VirtualList } from "./VirtualList";
 
 type Props = {
   hits: PositionHit[];

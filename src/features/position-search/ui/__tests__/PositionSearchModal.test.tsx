@@ -68,7 +68,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
   }),
 }));
 
-vi.mock("@/features/position-search/lib/usePositionHitNavigation", () => ({
+vi.mock("@/features/position-search/model/usePositionHitNavigation", () => ({
   usePositionHitNavigation: () => ({ startNavigationToHit }),
 }));
 

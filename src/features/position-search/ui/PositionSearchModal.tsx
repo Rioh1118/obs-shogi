@@ -4,7 +4,10 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 import Modal from "@/shared/ui/Modal";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import type { VisibleTier } from "@/shared/lib/notification/types";
-import { usePositionHitNavigation, type NavigationOutcome } from "../lib/usePositionHitNavigation";
+import {
+  usePositionHitNavigation,
+  type NavigationOutcome,
+} from "../model/usePositionHitNavigation";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
@@ -17,7 +20,7 @@ import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey } from "../lib/hitKey";
-import { useOrderedPositionHits } from "../lib/useOrderedPositionHits";
+import { useOrderedPositionHits } from "../model/useOrderedPositionHits";
 import { useGame } from "@/entities/game";
 import { indexHealth, usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
