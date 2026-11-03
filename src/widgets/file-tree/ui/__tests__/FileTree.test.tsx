@@ -385,7 +385,7 @@ describe("段による出し分け", () => {
  * 押した本人には「何も起きなかった」ようにしか見えない。
  */
 describe("再読み込みの最中", () => {
-  // 操作の失敗から「再読み込み」を押して、その読み直しも落ちると `from` は
+  // 操作の失敗から「もう一度読み込む」を押して、その読み直しも落ちると `from` は
   // `reload` に化ける。そのまま出すと、失敗した操作を「完了しました」と断言する
   test("操作の失敗から再読み込みして失敗しても、完了したとは言わない", async () => {
     stub.fileTree = TREE;
@@ -402,6 +402,22 @@ describe("再読み込みの最中", () => {
     });
 
     expect(screen.queryByText(/操作は完了しましたが/)).toBeNull();
+  });
+
+  // 覚えた引き金は、読み直しが通ったら捨てる。残すと、次の操作の後の読み直しが
+  // 落ちたときに「操作は完了しました」を言えなくなる
+  test("読み直しが通った後の操作で一覧だけが落ちたら、完了したと言う", async () => {
+    stub.fileTree = TREE;
+    stub.error = asOperationFailure(IO_ERROR);
+    nextError = null;
+    const view = mount();
+
+    await startRetry();
+    await finishRetry();
+    stub.error = { from: "reload", error: IO_ERROR };
+    view.rerender(<FileTree />);
+
+    expect(screen.getByText(/操作は完了しましたが/)).toBeTruthy();
   });
 
   test("読み込み中でもツリーは消えない", async () => {

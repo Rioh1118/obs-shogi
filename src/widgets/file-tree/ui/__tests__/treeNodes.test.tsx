@@ -62,6 +62,25 @@ vi.mock("@/shared/lib/router/useURLParams", async () => {
   return mocked satisfies typeof import("@/shared/lib/router/useURLParams");
 });
 
+// 行が落とし先と掴める元に何を載せたか。当たり判定は happy-dom で取れないので、登録した値で見る
+const droppables: { id: string; destDir: string }[] = [];
+const draggables: { id: string; disabled: boolean }[] = [];
+vi.mock("@dnd-kit/core", async () => {
+  const actual = await vi.importActual<typeof import("@dnd-kit/core")>("@dnd-kit/core");
+  const mocked = {
+    ...actual,
+    useDroppable: (args: Parameters<typeof actual.useDroppable>[0]) => {
+      droppables.push({ id: String(args.id), destDir: args.data?.destDir as string });
+      return actual.useDroppable(args);
+    },
+    useDraggable: (args: Parameters<typeof actual.useDraggable>[0]) => {
+      draggables.push({ id: String(args.id), disabled: !!args.disabled });
+      return actual.useDraggable(args);
+    },
+  };
+  return mocked satisfies typeof import("@dnd-kit/core");
+});
+
 const { default: DirectoryNode } = await import("../DirectoryNode");
 const { default: RootNode } = await import("../RootNode");
 const { default: FileNode } = await import("../FileNode");
@@ -105,6 +124,8 @@ async function typeAndEnter(value: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  droppables.length = 0;
+  draggables.length = 0;
   tree.isNodeExpanded.mockImplementation(() => true);
   tree.creatingDirParentPath = null;
   tree.renamingNodeId = null;
@@ -205,6 +226,36 @@ describe("フォルダの行", () => {
     expect(tree.toggleNode).not.toHaveBeenCalled();
   });
 
+  test("子は1段深く描かせる", () => {
+    const renderChild = vi.fn((child: FileTreeNode) => <div key={child.path}>{child.name}</div>);
+    inDnd(<DirectoryNode node={DIR} level={1} renderChild={renderChild} />);
+
+    expect(renderChild).toHaveBeenCalledWith(KIFU, 2);
+  });
+
+  test("落とし先はそのフォルダ自身", () => {
+    renderDir();
+
+    expect(droppables).toContainEqual({ id: "drop:dir:/ws/研究", destDir: "/ws/研究" });
+  });
+
+  test("改名の最中は掴めない", () => {
+    tree.renamingNodeId = DIR.id;
+    renderDir();
+
+    expect(draggables).toContainEqual({ id: "/ws/研究", disabled: true });
+  });
+
+  test("作成の行で Escape を押すと作成をやめる", () => {
+    tree.creatingDirParentPath = DIR.path;
+    renderDir();
+
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+
+    expect(tree.cancelCreateDirectory).toHaveBeenCalledTimes(1);
+    expect(tree.createNewDirectory).not.toHaveBeenCalled();
+  });
+
   test("指を離すと操作を引っ込める", () => {
     renderDir();
     const row = screen.getByText("研究").closest(".node-box") as HTMLElement;
@@ -253,6 +304,21 @@ describe("ルートの行", () => {
     await typeAndEnter("ws2");
 
     expect(tree.renameNode).toHaveBeenCalledWith(ROOT, "ws2");
+    expect(tree.cancelInlineRename).toHaveBeenCalledTimes(1);
+  });
+
+  test("改名の最中は作成の行を出さない", () => {
+    tree.creatingDirParentPath = ROOT.path;
+    tree.renamingNodeId = ROOT.id;
+    renderRoot();
+
+    expect(screen.getAllByRole("textbox")).toHaveLength(1);
+  });
+
+  test("走査を打ち切ったなら、子の最後にそう書く", () => {
+    inDnd(<RootNode node={{ ...ROOT, truncated: true }} />);
+
+    expect(screen.getByText(/ここから先は読み込めていません/)).toBeTruthy();
   });
 
   test("作成の行で確定すると、ルートの直下に作る", async () => {
@@ -291,6 +357,20 @@ describe("棋譜の行", () => {
     await typeAndEnter("b.kif");
 
     expect(tree.renameNode).toHaveBeenCalledWith(KIFU, "b.kif");
+    expect(tree.cancelInlineRename).toHaveBeenCalledTimes(1);
+  });
+
+  test("落とし先は棋譜の入っているフォルダ", () => {
+    inDnd(<FileNode node={KIFU} level={2} />);
+
+    expect(droppables).toContainEqual({ id: "drop:file:/ws/研究/a.kif", destDir: "/ws/研究" });
+  });
+
+  test("改名の最中は掴めない", () => {
+    tree.renamingNodeId = KIFU.id;
+    inDnd(<FileNode node={KIFU} level={2} />);
+
+    expect(draggables).toContainEqual({ id: "/ws/研究/a.kif", disabled: true });
   });
 
   test("改名の最中は押しても開かない", () => {

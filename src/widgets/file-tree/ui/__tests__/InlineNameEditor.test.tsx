@@ -313,3 +313,52 @@ describe("InlineNameEditor", () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("送り直しと取り消し", () => {
+  function mount(onCommit = vi.fn().mockResolvedValue(rejected), onCancel = vi.fn()) {
+    render(
+      <InlineNameEditor
+        initialName="研究"
+        onCommit={onCommit}
+        onCancel={onCancel}
+        onUnshowable={vi.fn()}
+      />,
+    );
+    return { onCommit, onCancel };
+  }
+
+  test("落ちた名前のまま Enter を押し直しても送り直さない", async () => {
+    const { onCommit } = mount();
+
+    await typeAndCommit("研究/2026");
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+    });
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  test("打ち直してから同じ名前に戻せば、もう一度送る", async () => {
+    const { onCommit } = mount();
+
+    await typeAndCommit("研究/2026");
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "研究2026" } });
+    await typeAndCommit("研究/2026");
+
+    expect(onCommit).toHaveBeenCalledTimes(2);
+  });
+
+  test("Escape で閉じた後の blur では確定しない", async () => {
+    const { onCommit, onCancel } = mount();
+    const input = screen.getByRole("textbox");
+
+    fireEvent.change(input, { target: { value: "定跡" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    await act(async () => {
+      fireEvent.blur(input);
+    });
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+});

@@ -30,6 +30,10 @@ describe("parentDir", () => {
     expect(parentDir("/ws/研究/a.kif")).toBe("/ws/研究");
   });
 
+  test("綴りを正規化してから上を取る", () => {
+    expect(parentDir("/ws/x/../研究/a.kif")).toBe("/ws/研究");
+  });
+
   test("親の無い名前は空文字にする", () => {
     expect(parentDir("a.kif")).toBe("");
   });
