@@ -1,6 +1,6 @@
 import type { FileTreeNode } from "../model/types";
 
-type DirOption = {
+export type DirOption = {
   value: string;
   label: string;
 };

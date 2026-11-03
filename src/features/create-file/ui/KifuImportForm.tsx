@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
-  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
+  useSaveDir,
   type FsError,
 } from "@/entities/file-tree";
 import { KIFU_FORMAT_OPTIONS } from "@/entities/kifu/model/kifu";
@@ -64,7 +64,7 @@ function KifuImportForm({
    */
   onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const { importKifuFile, fileTree } = useFileTree();
+  const { importKifuFile } = useFileTree();
 
   /**
    * 貼りかけと、作るファイルの指定
@@ -88,36 +88,7 @@ function KifuImportForm({
   const [submitError, setSubmitError] = useState<FsError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const rawRef = useRef<HTMLTextAreaElement>(null);
-
-  /**
-   * 保存先の欄
-   *
-   * 入口は2つあり、ようこそ画面から開くと `dir=` が来ない。欄を持たずに空のまま送ると
-   * Rust 側が `invalid_path` を返し、**保存先を一度も選んでいないのに「その場所は扱えません」と言われる**。
-   */
-  const rootPath = fileTree?.path ?? "";
-  const dirOptions = useMemo(
-    () => (fileTree ? collectDirs(fileTree, rootPath) : []),
-    [fileTree, rootPath],
-  );
-  const [selectedDir, setSelectedDir] = useState(dirPath || rootPath);
-
-  // ツリーの根が入れ替わったら保存先を根へ戻す
-  const [prevRoot, setPrevRoot] = useState(rootPath);
-  if (rootPath !== prevRoot) {
-    setPrevRoot(rootPath);
-    setSelectedDir(rootPath);
-  }
-
-  // 選んでいたフォルダだけが消えたときも根へ戻す。`Select` は選択肢に無い値を
-  // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
-  // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**。
-  //
-  // 一覧が空のあいだは触らない。ツリーが未読のときも `dirOptions` は空で、
-  // ここで戻すと URL から来た `dir=` を読み込みの途中で根へ潰す
-  if (selectedDir && dirOptions.length > 0 && !dirOptions.some((o) => o.value === selectedDir)) {
-    setSelectedDir(rootPath);
-  }
+  const { dirOptions, selectedDir, setSelectedDir } = useSaveDir(dirPath);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

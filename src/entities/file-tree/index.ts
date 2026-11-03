@@ -26,6 +26,7 @@ export type {
   FileConflictState,
 } from "./model/types";
 export { useFileTree } from "./model/useFileTree";
+export { useSaveDir } from "./model/useSaveDir";
 export { FileTreeProvider } from "./model/provider";
 export { default as FsErrorView } from "./ui/FsErrorView";
 export { readText } from "./api/service";

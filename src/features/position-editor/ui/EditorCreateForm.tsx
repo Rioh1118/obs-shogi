@@ -3,10 +3,10 @@ import type { HandicapPreset } from "@/entities/kifu/model/handicap";
 import type { JKFState } from "@/entities/kifu/model/jkf";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 import {
-  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
+  useSaveDir,
   type FsError,
 } from "@/entities/file-tree";
 import Form from "@/shared/ui/Form/Form";
@@ -63,7 +63,7 @@ function EditorCreateForm({
   isSubmitting,
   onSubmittingChange,
 }: EditorCreateFormProps) {
-  const { createNewFile, fileTree } = useFileTree();
+  const { createNewFile } = useFileTree();
 
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
@@ -73,34 +73,11 @@ function EditorCreateForm({
   const [note, setNote] = useState("");
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
-  const rootPath = fileTree?.path ?? "";
-  const dirOptions = useMemo(
-    () => (fileTree ? collectDirs(fileTree, rootPath) : []),
-    [fileTree, rootPath],
-  );
-
-  const [selectedDir, setSelectedDir] = useState(initialDir || rootPath);
+  const { dirOptions, selectedDir, setSelectedDir } = useSaveDir(initialDir);
 
   // 拡張子は形式の欄が決める。**打った拡張子は落とす**ので、`45角戦法.kif` と打っても
   // `45角戦法.kif.kif` にならない（規則は `kifuFileName` が1箇所で持つ）
   const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
-
-  // ツリーの根が入れ替わったら保存先を根へ戻す
-  const [prevRoot, setPrevRoot] = useState(rootPath);
-  if (rootPath !== prevRoot) {
-    setPrevRoot(rootPath);
-    setSelectedDir(rootPath);
-  }
-
-  // 選んでいたフォルダだけが消えたときも根へ戻す。`Select` は選択肢に無い値を
-  // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
-  // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**。
-  //
-  // 一覧が空のあいだは触らない。ツリーが未読のときも `dirOptions` は空で、
-  // ここで戻すと呼び出し元から来た `initialDir` を読み込みの途中で根へ潰す
-  if (selectedDir && dirOptions.length > 0 && !dirOptions.some((o) => o.value === selectedDir)) {
-    setSelectedDir(rootPath);
-  }
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {
