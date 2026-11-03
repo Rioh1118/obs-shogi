@@ -46,23 +46,6 @@ function PositionNavigationModal() {
     selectedOptionIndex: 0,
   });
 
-  // 盤の位置から nav を作り直す。**閉じている間は何もしない。**
-  // この component は `AppModalLayer` から常時マウントされているので、
-  // 閉じていても走らせると盤を1手進めるたびに `setNav` が呼ばれる
-  // （`nav` は閉じている間は誰も読まない）
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const cur = gameView.player ? gameState.cursor : null;
-    setNav({
-      previewCursor: {
-        tesuu: cur?.tesuu ?? 0,
-        forkPointers: cur?.forkPointers ?? [],
-      },
-      selectedOptionIndex: 0,
-    });
-  }, [isOpen, gameView.player, gameState.cursor]);
-
   const { previewData, options, unreachable } = useMemo(() => {
     if (!isOpen || !gameView.player) {
       return { previewData: null, options: [] as BranchOption[], unreachable: false };
@@ -84,7 +67,7 @@ function PositionNavigationModal() {
     };
   }, [isOpen, gameView.player, nav.previewCursor]);
 
-  const handleSelectBranch = useCallback(
+  const moveSelection = useCallback(
     (delta: number) => {
       setNav((prev) => ({
         ...prev,
@@ -136,7 +119,23 @@ function PositionNavigationModal() {
     closeModal();
   }, [applyCursor, closeModal, gameView.player, nav.previewCursor, unreachable]);
 
-  // Keyboard navigation
+  // 開いたときと盤が動いたときに、盤の位置から nav を作り直す。**閉じている間は何もしない。**
+  // この部品は `AppModalLayer` が常にマウントしているので、
+  // 閉じていても走らせると盤を1手進めるたびに `setNav` が呼ばれる
+  // （`nav` は閉じている間は誰も読まない）
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const cur = gameView.player ? gameState.cursor : null;
+    setNav({
+      previewCursor: {
+        tesuu: cur?.tesuu ?? 0,
+        forkPointers: cur?.forkPointers ?? [],
+      },
+      selectedOptionIndex: 0,
+    });
+  }, [isOpen, gameView.player, gameState.cursor]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -155,11 +154,11 @@ function PositionNavigationModal() {
           break;
         case "j":
         case "ArrowDown":
-          handleSelectBranch(1);
+          moveSelection(1);
           break;
         case "k":
         case "ArrowUp":
-          handleSelectBranch(-1);
+          moveSelection(-1);
           break;
         case "Enter":
           handleConfirm();
@@ -172,9 +171,8 @@ function PositionNavigationModal() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm]);
+  }, [isOpen, handleNext, handlePrevious, moveSelection, handleConfirm]);
 
-  // ---- render ----
   if (!isOpen) return null;
 
   return (

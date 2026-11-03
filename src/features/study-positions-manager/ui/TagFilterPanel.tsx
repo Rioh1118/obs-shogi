@@ -2,13 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { X, Search } from "lucide-react";
 import "./TagFilterPanel.scss";
 
-interface Props {
+type Props = {
   contextualTags: string[];
   frequentTags: string[];
   selectedTags: string[];
   onToggleTag: (tag: string) => void;
   onClose: () => void;
-}
+};
 
 export default function TagFilterPanel({
   contextualTags,
@@ -19,10 +19,6 @@ export default function TagFilterPanel({
 }: Props) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   const filterByQuery = (tags: string[]) => {
     if (!query) return tags;
@@ -46,6 +42,10 @@ export default function TagFilterPanel({
     </button>
   );
 
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   return (
     <div className="tag-panel">
       <div className="tag-panel__header">
@@ -65,8 +65,8 @@ export default function TagFilterPanel({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="タグを検索"
           onKeyDown={(e) => {
-            // 消してから閉じる。どちらの場合も消費するが、`stopPropagation()` は
-            // 使わない（`document` まで届かず、上位のハンドラが全部死ぬ）
+            // 語があれば消し、無ければ枠を閉じる。どちらも消費するが、`stopPropagation()` は
+            // 使わない。`document` まで届かず、上位のハンドラが1つも動かなくなる
             if (e.key === "Escape") {
               e.preventDefault();
               if (query) setQuery("");

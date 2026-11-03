@@ -1,4 +1,11 @@
-import { useRef, useEffect, useLayoutEffect, useState, useCallback } from "react";
+import {
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  type CSSProperties,
+} from "react";
 import "./BranchList.scss";
 import BranchCard from "./BranchCard";
 import type { BranchOption } from "@/entities/kifu/model/branch";
@@ -12,6 +19,7 @@ type Props = {
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 export default function BranchList({ branches, selectedIndex, onSelectIndex }: Props) {
+  const [cursor, setCursor] = useState({ y: 0, h: 0, ready: false });
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const isUserScrollingRef = useRef(false);
@@ -34,9 +42,9 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
       let v = 0;
       let last = performance.now();
 
-      // 触感チューニング（硬さ/減衰）: ここは好みで微調整
-      const k = 260; // stiffness
-      const c = 34; // damping
+      // ばねの硬さと減衰。減衰を臨界（2√k ≈ 32）より強くし、行き過ぎて戻る揺れを出さない
+      const k = 260;
+      const c = 34;
 
       const step = (now: number) => {
         const dt = Math.min(0.032, (now - last) / 1000);
@@ -65,20 +73,19 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
     cardRefs.current[index] = el;
   };
 
-  const [cursor, setCursor] = useState({ y: 0, h: 0, ready: false });
-
   // スクロール
   useLayoutEffect(() => {
     const container = containerRef.current;
     const card = cardRefs.current[selectedIndex];
     if (!container || !card) return;
 
-    // cardの位置はスクロールコンテンツ内のoffsetで取る（安定）
+    // 札の位置は、スクロールする中身の中の offset で取る。`.branch-selector` が
+    // `position: relative` なので、スクロールしても値が動かない
     const y = card.offsetTop;
     const h = card.offsetHeight;
     setCursor({ y, h, ready: true });
 
-    // ------- “粘性（抵抗）”を作る：safe zone外だけスクロール -------
+    // 利用者がスクロールしている間は追わない。追うと利用者の手と取り合う
     if (isUserScrollingRef.current) return;
 
     const viewTop = container.scrollTop;
@@ -87,7 +94,8 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
     const cardTopInView = y - viewTop;
     const cardBottomInView = cardTopInView + h;
 
-    // safe zone: 中央寄りに固定して“吸着感”
+    // 札が中央の帯（上下22%〜78%）の外に出たときだけ、札を中央へ寄せる。
+    // 毎回寄せると、j / k を押すたびに一覧が動く
     const safeTop = viewH * 0.22;
     const safeBottom = viewH * 0.78;
 
@@ -107,10 +115,11 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
       isUserScrollingRef.current = true;
       cancelScrollAnim();
 
+      // 操作が止まってから 140ms は追わない。ホイールの慣性は最後の入力の後も続く
       if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = window.setTimeout(() => {
         isUserScrollingRef.current = false;
-      }, 140); // ← 1msは短すぎ。人間の操作は“余韻”がある
+      }, 140);
     };
 
     container.addEventListener("wheel", markUserScrolling, { passive: true });
@@ -171,7 +180,7 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
           "--cursor-y": `${cursor.y}px`,
           "--cursor-h": `${cursor.h}px`,
           "--cursor-o": cursor.ready ? 1 : 0,
-        } as React.CSSProperties
+        } as CSSProperties
       }
     >
       <div className="branch-selector__cursor" aria-hidden="true" />

@@ -59,7 +59,8 @@ ours 戦略のマージは使わない。
 | 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | マージ済み |
 | 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | マージ済み |
 | 25 | `refactor/tidy-features-position-editor` | `src/features/position-editor`（範囲14の第2段） | #693 | マージ済み |
-| 26 | `refactor/tidy-features-create-file` | `src/features` の `create-file`、`file-conflict`、`study-position-save`（範囲15の第1段）、保存先の欄の不具合 | #694 | レビュー待ち |
+| 26 | `refactor/tidy-features-create-file` | `src/features` の `create-file`、`file-conflict`、`study-position-save`（範囲15の第1段）、保存先の欄の不具合 | #694 | マージ済み |
+| 27 | `refactor/tidy-features-study-positions` | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note`（範囲15の第2段）、局面を保存する対話の詰め直し | #695 | レビュー待ち |
 
 ## 語
 
@@ -102,7 +103,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 14 | `src/features/position-search` | 1677 | 済 | 済 |
 | 14b | `src/features/position-editor` | 1514 | 済 | 済 |
 | 15 | `src/features` の `create-file`、`file-conflict`、`study-position-save` | 1471 | 済 | 済 |
-| 15b | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note` | 1830 | 未着手 | 未着手 |
+| 15b | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note` | 1830 | 済 | 済 |
 | 15c | `src/features` の残りの8つ（`game-move`、`engine-position-sync`、`updater` など） |  923 | 未着手 | 未着手 |
 | 16 | `src/widgets`                                            | 5661 | 未着手 | 未着手 |
 | 17 | `src/pages`、`src/app`                                   | 1682 | 未着手 | 未着手 |
@@ -160,9 +161,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。中止で前の定跡へ戻すかを `src/widgets` の範囲で決める |
 | `src/entities/book/model/provider.tsx` の辿る失敗の枝 | `invalid_handle` を引く枝でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
 | `src-tauri/src/book/commands.rs` の `open_book` と `list_books` | 開いている間に webview が作り直されると、登録が新しい `list_books` より後になり、ハンドルが次の読み直しまで残る筋がある。未再現 |
-| `src/features/study-position-save/ui/StudyPositionSaveModal.tsx` の `existing` | `findBySfen` の同一性が動かないので、開いた後に一覧が届いても `existing` が再計算されない。一覧に追わせると `isOpen, existing` の effect がフォームを初期化し、保存の失敗の巻き戻しで入力が消える。踏めるのは起動直後の読み込みが終わる前に開いたときだけで、そのまま保存しても `addPosition` が同じ局面を断るので記録は失わない。直すなら、詰め直すのを「開いたとき」と「記録が無い→有るに変わったとき」に分ける。追加の保存中は一覧を先に差し替えるので、題が一瞬「課題局面を編集」に変わる筋も合わせて決める。範囲15の第1段では送った（未再現） |
 | `src/entities/updater/model/provider.tsx` の `persist` | 記憶を読み終える前に `checkNow` が通ると、`skippedVersion: null` で `updater.json` を書く。provider の単体では再現した。読み込みの応答より前に設定を開く必要があり、失うものは告知1回。手順では未再現 |
 | `src/entities/app-config/api/directories.ts` の `chooseDirectory` | ピッカーの前に読んだ設定を閉じた後に書くので、開いている間に列の書き込みが入るとその欄が消える。ピッカーが画面を止めるなら踏めない。未再現 |
+| `src/features/kifu-comment-note/lib/faceKey.ts` の `faceKey` | 要求の `forkPointers` を正規化せずに鍵へ入れるので、`cursorKey` なら同じ鍵になる、カーソルより先の予定だけが違う2つの要求が別の面になる。別の面と見ると、書きかけの本文を出ていく面として書き、エディタを組み直す。呼び手の `KifuStreamList` がそういう要求を渡すかは未再現 |
+| `src/features/kifu-comment-note/ui/KifuCommentNote.tsx` の hook の順 | ref の宣言が effect の間に散り、R-TSW-4 の順と違う。各 ref の理由を書いたコメントが使う effect の隣にあるので、範囲15の第2段では動かさなかった。本体を割るときに揃える |
 | `src/features/settings/ui/engine-tab/PresetCard.tsx` の `article` | `role="button"` の中にボタンがある。読み上げと操作の入れ子を解くかは、カードの適用の押し方と合わせて決める |
 | `src/features/settings/ui/workspace-tab/AppUpdateSection.tsx` の確認の結果 | 取得を始めた後も「この画面を閉じると案内が出ます」が残る。押せなくした後に残る前の答えで、段が動いたら消すかを決める |
 | `src/features/settings/lib/aiLibraryContents.ts` の `warningsOf` の定跡 | 定跡は任意なのに、無いと「検出された問題」に出てバッジが「注意あり」のまま消えない。hero は「土台は完成」、木は「（任意）」、一覧は「未設定」と言う。任意なら警告から外すかを決める |
@@ -178,9 +180,9 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-範囲15の第2段（15b）: `src/features` の `study-positions-manager`、`position-navigation`、
-`kifu-comment-note`（1830行）。所見の表の `StudyPositionSaveModal.tsx` の `existing` の行は、
-課題局面の一覧（`study-positions-manager`）と同じ provider を読むので、この段で合わせて見る。
+範囲15の第3段（15c）: `src/features` の残りの8つ（`game-move`、`engine-position-sync`、`updater` など、923行）。
+所見の表の `gameMoveBridge.test.tsx` の `vi.mock`、`useBoardOrientation.ts` の冒頭の doc、
+`rulingAdapter.ts` の doc の行がこの範囲にある。
 
 `docs/IDEAS.md` の「feature の SCSS が shared の部品の内部クラスを掴んでいる」は、
 外すのに `shared/ui/Form` の手が要るので、範囲15では閉じない。

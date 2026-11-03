@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { readableMove } from "@/entities/kifu/lib/readableMove";
 import "./BranchCard.scss";
 import { branchLabel, type BranchOption } from "@/entities/kifu/model/branch";
@@ -6,7 +7,7 @@ type Props = {
   branch: BranchOption;
   selected: boolean;
   onClick: () => void;
-  ref?: React.Ref<HTMLDivElement>;
+  ref?: Ref<HTMLDivElement>;
 };
 
 function BranchCard({ branch, selected, onClick, ref }: Props) {

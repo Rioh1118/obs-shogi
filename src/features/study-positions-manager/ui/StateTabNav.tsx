@@ -4,17 +4,17 @@ import {
 } from "@/entities/study-positions/model/types";
 import "./StateTabNav.scss";
 
+type Props = {
+  value: StudyPositionState | null;
+  onChange: (value: StudyPositionState | null) => void;
+  counts: Partial<Record<StudyPositionState, number>>;
+  totalCount: number;
+};
+
 const TABS: { value: StudyPositionState | null; label: string }[] = [
   { value: null, label: "全て" },
   ...STUDY_POSITION_STATES,
 ];
-
-interface Props {
-  value: StudyPositionState | null;
-  onChange: (value: StudyPositionState | null) => void;
-  counts: Record<string, number>;
-  totalCount: number;
-}
 
 export default function StateTabNav({ value, onChange, counts, totalCount }: Props) {
   return (

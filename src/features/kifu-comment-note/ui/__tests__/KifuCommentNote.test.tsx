@@ -6,11 +6,11 @@ import { Err, Ok } from "@/shared/lib/result";
 import type { CursorPath } from "@/entities/kifu/model/cursor";
 
 /**
- * ノートは**書けたときだけ**「保存済み」を出し、**開いた棋譜へだけ**書く。
+ * ノートは書けたときだけ「保存済み」を出し、開いた棋譜へだけ書く。
  *
  * どちらが破れても、利用者は保存されたと信じたまま本文を失う。
- * - 失敗を成功と表示する → #227
- * - 棋譜を切り替えたあとに前の本文を次のファイルへ書く → #204
+ * - 失敗を成功と表示する
+ * - 棋譜を切り替えたあとに前の本文を次のファイルへ書く
  */
 
 const setCommentsByCursor = vi.fn();
@@ -29,7 +29,7 @@ vi.mock("@/entities/game", () => ({
 
 // Lexical は happy-dom で組み立てられないので、本文の入口だけを持つ板に差し替える。
 //
-// **`initialMarkdown` は捨てない。** Lexical は `initialConfig` を mount 時にしか読まないので、
+// `initialMarkdown` は捨てない。Lexical は `initialConfig` を mount 時にしか読まないので、
 // 「エディタが何で組まれたか」は mount 時の値そのもの。捨てると、
 // **移った先のエディタが前の手の本文で mount される**形をテストが1本も見なくなる。
 function EditorStub({
@@ -135,7 +135,7 @@ describe("保存の失敗", () => {
     expect(screen.getByRole("alert").textContent).toContain("Permission denied");
   });
 
-  // **これが #227 の核。** 失敗しても baseText を進めると dirty が落ち、
+  // 失敗を成功と表示しないための要。失敗しても baseText を進めると dirty が落ち、
   // autosave も閉じるときの保存も二度と走らない。閉じた時点で本文が消える。
   // 「保存済みを出さない」だけでは足りない（出さずに本文だけ失う形が通る）。
   it("失敗したあと、何も書き足さずに閉じても保存をやり直す", async () => {
@@ -325,7 +325,7 @@ describe("面が入れ替わるとき", () => {
   });
 
   /**
-   * **止め続けない側も固定する。** 止め続けると、書き込めない場所に置いた棋譜では
+   * 失敗が続いても閉じる手段を残す。止め続けると、書き込めない場所に置いた棋譜では
    * ノートを閉じる手段が1つも無くなる（失敗を伝えるより悪い行き止まり）。
    * `ConfirmDialog` の同じ判断と揃えてある（「閉じる道は塞がない」）。
    */
@@ -345,6 +345,24 @@ describe("面が入れ替わるとき", () => {
       screen.getByTestId("close").click();
     });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("一度書けた後の失敗は、また初めての失敗として数える", async () => {
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    const onClose = vi.fn();
+    const view = open(1);
+    await show(view, { onClose });
+    await typeAndAutosave("メモ");
+
+    setCommentsByCursor.mockResolvedValue(Ok(undefined));
+    await typeAndAutosave("メモを足す");
+    setCommentsByCursor.mockResolvedValue(Err("boom"));
+    await type("メモを更に足す");
+
+    await act(async () => {
+      screen.getByTestId("close").click();
+    });
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   /**
@@ -407,7 +425,7 @@ describe("面が入れ替わるとき", () => {
 });
 
 /**
- * `edit` は書き込みの**前**にメモリの棋譜を置き換える（ADR-0004 決定7）。
+ * `edit` は書き込みの前にメモリの棋譜を置き換える（ADR-0004 決定7）。
  * その最中に面を組み直すと、`baseText` に**まだディスクに無い本文**が入る。
  *
  * ここは `useGame` を板に差し替えているので、楽観的更新は `comments` を手で進めて表す。
