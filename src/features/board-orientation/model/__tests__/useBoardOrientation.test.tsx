@@ -1,25 +1,23 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 
 /**
- * 盤の向きを戻す合図は、**盤に載っている棋譜**（`loadedAbsPath` と `boardSeq` の組）。
+ * 盤の向きを戻す合図は、盤に載っている棋譜（`loadedAbsPath` と `boardSeq` の組）。
  * なぜツリー側のパスではないかは `../useResetOrientationOnKifuChange.ts` の doc にある。
  * セルの一覧は `docs/state-transitions/board-orientation.md`。
  *
- * ここでの決め事は2つ。
+ * ここでの決め事は3つ。
  *
- * **URL は本物を通す。** `useURLParams` を差し替えると、見たいもの（最終的に
- * `pov` が残るか）ではなく呼ばれた回数を見ることになる。同じ値の書き戻しは
- * 害が無いので、回数では合否を決められない。
- *
- * **向きは起動時の URL では作らない。** 実際の順序は「棋譜を開く → ボタンで回す」で、
- * 開いた時点で一度リセットが走る。`?pov=gote` で始める形はアプリに無い。
- *
- * **盤の中身が入れ替わった回数（`boardSeq`）も組にして動かす。** パスだけを動かすと改名になり、
- * 載せ直しの場合が1つも踏めなくなる。動かす関数は `loadKifu` / `renameTo` / `closeKifu` の
- * 3つだけで、`game.state` を直に書かない。
+ * - URL は本物を通す。`useURLParams` を差し替えると、見たいもの（最終的に
+ *   `pov` が残るか）ではなく呼ばれた回数を見ることになる。同じ値の書き戻しは
+ *   害が無いので、回数では合否を決められない
+ * - 向きは起動時の URL では作らない。実際の順序は「棋譜を開く → ボタンで回す」で、
+ *   開いた時点で一度リセットが走る。`?pov=gote` で始める形はアプリに無い
+ * - 盤の中身が入れ替わった回数（`boardSeq`）も組にして動かす。パスだけを動かすと改名になり、
+ *   載せ直しの場合が1つも踏めなくなる。動かす関数は `loadKifu` / `renameTo` / `closeKifu` の
+ *   3つだけで、`game.state` を直に書かない
  */
 
 const game = { state: { loadedAbsPath: null as string | null, boardSeq: 0 } };
@@ -50,6 +48,8 @@ const { useResetOrientationOnKifuChange } = await import("../useResetOrientation
 
 let search = "";
 let isGotePov = false;
+/** 最後の移動が履歴を積んだか（`PUSH`）、置き換えたか（`REPLACE`） */
+let navigationType = "";
 
 /** 見た location の鍵。`navigate` が撃たれるたびに増える */
 const seenKeys: string[] = [];
@@ -66,6 +66,7 @@ const seenKeys: string[] = [];
 function Probe() {
   const location = useLocation();
   search = location.search;
+  navigationType = useNavigationType();
   if (seenKeys[seenKeys.length - 1] !== location.key) seenKeys.push(location.key);
   const orientation = useBoardOrientation();
   isGotePov = orientation.isGotePov;
@@ -78,7 +79,7 @@ function Probe() {
 }
 
 /**
- * **要素は毎回作り直す。** 同じ要素オブジェクトを `rerender` に渡すと、React は
+ * 描くたびに要素を作り直す。同じ要素オブジェクトを `rerender` に渡すと、React は
  * 参照が変わっていないものとして部分木ごと描き直しを飛ばす。`game` を書き換えても
  * フックが読み直さないので、テストは全て「何も起きない」を見ることになる。
  *
@@ -111,6 +112,7 @@ beforeEach(() => {
   game.state.boardSeq = 0;
   search = "";
   isGotePov = false;
+  navigationType = "";
   seenKeys.length = 0;
 });
 
@@ -122,6 +124,13 @@ describe("盤の向き", () => {
     openAndRotate("/ws/a.kif");
 
     expect(search).toContain("pov=gote");
+  });
+
+  /** 回すたびに履歴を積むと、戻る操作で向きだけが1つずつ巻き戻る */
+  test("回しても履歴を積まない", () => {
+    openAndRotate("/ws/a.kif");
+
+    expect(navigationType).toBe("REPLACE");
   });
 
   /** 表の E1 */
@@ -138,7 +147,7 @@ describe("盤の向き", () => {
   /**
    * 表の E4（選択だけが動く）/ E5（選択が巻き戻る）/ E9（開いたが盤に載らない）。
    *
-   * **3つとも同じ形に還元して見ている。** このフックは file-tree を読まないので、
+   * 3つとも同じ形に還元して見ている。このフックは file-tree を読まないので、
    * どのイベントも「`loadedAbsPath` が動かない再描画」としてしか届かない。
    * ツリー側を組み立てても、このフックからは区別が付かない。
    * **還元が成り立つのは file-tree を読まない間だけ。** 読む形にするなら3つを分ける。
@@ -219,7 +228,7 @@ describe("盤の向き", () => {
   });
 
   /**
-   * 表の (B2, E7)。**改名・移動では向きを持ち越す。**
+   * 表の (B2, E7)。改名・移動では向きを持ち越す。
    *
    * 変わったのは名前だけで、盤に並んでいる駒は同じ。パスだけを見ていると
    * 「別の棋譜が載った」と読めてしまい、**名前を直しただけで盤が回る**。
@@ -252,7 +261,7 @@ describe("盤の向き", () => {
   });
 
   /**
-   * 表の (B2, E6)。**同じ棋譜を開き直しても、向きは持ち越す。**
+   * 表の (B2, E6)。同じ棋譜を開き直しても、向きは持ち越す。
    *
    * 向きは棋譜に付くので、同じ棋譜なら開き直しても同じ向きでよい。踏むのは
    * E16 のあとの復帰導線——盤に載せられない棋譜を開いたあと前の棋譜を選び直すと、
@@ -270,7 +279,7 @@ describe("盤の向き", () => {
   });
 
   /**
-   * **記録は載せ直しでも追いつく。** 同じ名前のまま載り直した回で回数を控えそこねると、
+   * 記録は載せ直しでも追いつく。同じ名前のまま載り直したときに回数を控えそこねると、
    * 次の改名で「回数が違う＝別の棋譜が載った」と読んで向きが落ちる。
    */
   test("同じ名前で載り直したあとの改名でも、向きを落とさない", () => {
@@ -287,7 +296,7 @@ describe("盤の向き", () => {
   });
 
   /**
-   * **閉じた回を改名と読ませない。** 閉じるのも「盤の中身が空へ入れ替わった」なので
+   * 閉じたことを改名と読ませない。閉じるのも「盤の中身が空へ入れ替わった」なので
    * `reset_state` は回数を進める。進めないと、閉じてから別の棋譜が載るまでの間に
    * パスだけが動いた形になり、改名と区別が付かなくなる。
    */

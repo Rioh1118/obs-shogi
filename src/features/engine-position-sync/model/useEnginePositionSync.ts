@@ -6,7 +6,7 @@ import { setPositionFromSfen } from "@/entities/engine/api/tauri";
 import type { PositionSyncAdapter } from "@/entities/analysis";
 
 /**
- * 盤の現在局面を Rust に覚えさせ続ける。**線に書くのは `go` の直前だけ**（`analyzer.rs`）。
+ * 盤の現在局面を Rust に覚えさせ続ける。線に書くのは `go` の直前だけ（`analyzer.rs`）。
  *
  * entities/game・entities/engine・entities/engine-presets の3スライスを束ねるので、
  * FSD 上これを置ける最下層は features になる。
@@ -26,6 +26,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   const engineKey = presetsState.selectedPresetId
     ? `${presetsState.selectedPresetId}@${selectedPresetVersion}`
     : "no-engine";
+  const currentSfen = gameView.currentSfen;
 
   const [syncedSfen, setSyncedSfen] = useState<string | null>(null);
 
@@ -42,6 +43,14 @@ export function useEnginePositionSync(): PositionSyncAdapter {
   // 送信ループが読む engineKey。クロージャに焼き付けると切替後も古い値を書く。
   const engineKeyRef = useRef(engineKey);
   engineKeyRef.current = engineKey;
+
+  const lastEngineKeyRef = useRef<string | null>(engineKey);
+  const lastReadyRef = useRef(isReady);
+
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const queuedSfenRef = useRef<string | null>(null);
+
+  const pendingBeforeReadyRef = useRef<string | null>(null);
 
   const markSynced = useCallback((sfen: string, key: string | null) => {
     syncedSfenRef.current = sfen;
@@ -60,16 +69,6 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     syncedEngineKeyRef.current = nextEngineKey;
     setSyncedSfen(null);
   }, []);
-
-  const lastEngineKeyRef = useRef<string | null>(engineKey);
-  const lastReadyRef = useRef(isReady);
-
-  const inFlightRef = useRef<Promise<void> | null>(null);
-  const queuedSfenRef = useRef<string | null>(null);
-
-  const pendingBeforeReadyRef = useRef<string | null>(null);
-
-  const currentSfen = gameView.currentSfen;
 
   const syncPosition = useCallback(async (): Promise<void> => {
     const sfen = currentSfen;
@@ -161,7 +160,8 @@ export function useEnginePositionSync(): PositionSyncAdapter {
     invalidateSynced(syncedEngineKeyRef.current);
   }, [isReady, invalidateSynced]);
 
-  //  自動同期：cursor変化で追従
+  // 自動同期。局面かエンジンが変わったら送り直す。
+  // 盤が局面を持たなくなったら、送る局面が無いので送信済みの記録と保留を捨てる
   useEffect(() => {
     if (!gameState.cursor) {
       invalidateSynced(syncedEngineKeyRef.current);

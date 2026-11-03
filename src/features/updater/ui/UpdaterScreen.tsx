@@ -6,9 +6,9 @@ import "./UpdaterScreen.scss";
 import Button from "@/shared/ui/Button/Button";
 
 /**
- * 失敗の見出しと、次に何をすればよいか。
+ * 失敗の見出しと、次に何をすればよいかを返す。
  *
- * **例外の文字列を見出しにしない。** 内部の語がそのまま利用者に届く（ADR-0004）。
+ * 例外の文字列を見出しにしない。内部の語がそのまま利用者に届く（ADR-0004）。
  * どこまで進んでいたかは `stage` が持っているので、綴りを読む必要はない。
  *
  * **`install` の警告を弱めない。** macOS の入替は旧バンドルを退避してから
@@ -31,7 +31,7 @@ function failureText(failure: UpdaterFailure): {
   };
 }
 
-/** 描く段の見出し。**`idle` と `checking` は何も描かないのでここへ来ない。** */
+/** 描く段の見出しを返す。`idle` と `checking` は何も描かないので型で外してある。 */
 function headingOf(status: Exclude<UpdaterStatus, { phase: "idle" | "checking" }>): string {
   switch (status.phase) {
     case "available":

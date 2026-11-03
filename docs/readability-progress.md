@@ -60,7 +60,8 @@ ours 戦略のマージは使わない。
 | 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | マージ済み |
 | 25 | `refactor/tidy-features-position-editor` | `src/features/position-editor`（範囲14の第2段） | #693 | マージ済み |
 | 26 | `refactor/tidy-features-create-file` | `src/features` の `create-file`、`file-conflict`、`study-position-save`（範囲15の第1段）、保存先の欄の不具合 | #694 | マージ済み |
-| 27 | `refactor/tidy-features-study-positions` | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note`（範囲15の第2段）、局面を保存する対話の詰め直し | #695 | レビュー待ち |
+| 27 | `refactor/tidy-features-study-positions` | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note`（範囲15の第2段）、局面を保存する対話の詰め直し | #695 | マージ済み |
+| 28 | `refactor/tidy-features-rest` | `src/features` の残りの8つ（範囲15の第3段） | #696 | レビュー待ち |
 
 ## 語
 
@@ -104,7 +105,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 14b | `src/features/position-editor` | 1514 | 済 | 済 |
 | 15 | `src/features` の `create-file`、`file-conflict`、`study-position-save` | 1471 | 済 | 済 |
 | 15b | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note` | 1830 | 済 | 済 |
-| 15c | `src/features` の残りの8つ（`game-move`、`engine-position-sync`、`updater` など） |  923 | 未着手 | 未着手 |
+| 15c | `src/features` の残りの8つ（`game-move`、`engine-position-sync`、`updater` など） |  923 | 済 | 済 |
 | 16 | `src/widgets`                                            | 5661 | 未着手 | 未着手 |
 | 17 | `src/pages`、`src/app`                                   | 1682 | 未着手 | 未着手 |
 
@@ -134,8 +135,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 場所 | 食い違い |
 | ---- | -------- |
 | `src-tauri/tests/root_guard.rs` の冒頭の doc | `validate_under_root` の場所を `utils.rs` と書くが、実体は `src-tauri/src/workspace/guard.rs` |
-| `src/features/board-orientation/model/useBoardOrientation.ts` の冒頭の doc | URL の文字列を絞る検査は `PovType` にあると書くが、実体は `useURLParams.ts` の `povRaw === "gote"` で `PovType` は型だけ |
-| `src/features/game-move/ui/__tests__/gameMoveBridge.test.tsx` の `vi.mock` の doc | export が増えれば落ちると書くが、`importActual` を展開しているので落ちない疑いがある。未再現 |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `usedExisting` と `createdNew` | 本番の読み手が0。テストだけが読んでいる |
 | `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
 | `src/entities/analysis/model/provider.tsx` の hook の順 | ref の宣言が effect の後ろに散り、R-TSW-4 の順と違う。自動再開の状態機械を割る Issue #489 で動くので、そこで揃える |
@@ -143,7 +142,6 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/game-board/ui/PromotionDialog.tsx` の `promotionMap` | `positionDraft.ts` の `promotedKind` の写し。`src/widgets` の範囲で寄せると `PieceImage` の `kind` を `Kind` で受けられる |
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。`promotionMap` の行と合わせて寄せる |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
-| `src/features/game-ruling/lib/rulingAdapter.ts` の `toRuling` の doc、`createRulingAdapter` の doc、`unplayableDetail` の doc | 主語が `judgeGameOutcome` だが、この関数が呼ぶのは `createOutcomeJudge`。「棋譜と画面に残る」も、`detail` の読み手が0で棋譜に結果が残らないので誤り。`features/game-ruling` の範囲で直す |
 | `src-tauri/src/storage/disk.rs` の読み手 | 2つの rename の間で値があるのに `NotFound` を受ける筋がある。未再現 |
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
 | `src/entities/game/model/provider.tsx` の `getCurrentTurn`、`getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。読み手は `src/widgets` と `src/features` なので、その範囲で直接読む形へ寄せる |
@@ -176,13 +174,25 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/search/build.rs` と `project_manager.rs` の棋譜の警告 | `warn_scan_failed` と違って代を見ずに出すので、根が変わった直後に届くと前の根のパスが残る筋がある。未再現 |
 | `src/features/position-search/ui/VirtualHitRow.tsx` の `path unknown` | 索引がパスを返さない行に英語のまま出る。画面の語の棚卸しで、断りの「この棋譜の場所が分かりません」と揃えるかを決める |
 | `src/shared/lib/path.ts` の `toRelPath` | `norm` が最初の `\` しか置き換えないので、名前に `\` を2つ以上含む棋譜は相対パスに `\` が残る。局面検索の行のファイル名は `getBaseName` が `\` でも区切るので、パスの欄と名前の欄で区切りが食い違う。TODO(#216) で直す |
+| `src/features/engine-position-sync/model/useEnginePositionSync.ts` の `pendingBeforeReadyRef` | `isReady` が `syncPosition` の依存にあるので、ready になると自動同期の effect が送り直す。保留を書かない変異を当てても `src/features src/pages src/widgets src/app` の試験は落ちない。保留の ref と送り直しの effect を消すかを、部品の構造の段で決める |
+| `src/entities/game/lib/gameOutcome.ts` の `stalemate` の doc | 詰みと分ける理由を「棋譜に落とす綴りが違うため」と書くが、説明の綴りを決める `rulingAdapter.ts` の `detail` は Rust の終局の結果に載るだけで、棋譜にも画面にも読み手が無い |
+| `src/__tests__/viMockShape.test.ts` の冒頭の doc | `satisfies` で export の増減と改名を tsc が落とすと書くが、`importActual` を展開する形では増えても落ちない。`entities/game` に export を足して `gameMoveBridge.test.tsx` の tsc が通ることを確かめた。差し替えの形ごとに何が落ちるかを書き分ける |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
 
 ## 次に取る範囲
 
-範囲15の第3段（15c）: `src/features` の残りの8つ（`game-move`、`engine-position-sync`、`updater` など、923行）。
-所見の表の `gameMoveBridge.test.tsx` の `vi.mock`、`useBoardOrientation.ts` の冒頭の doc、
-`rulingAdapter.ts` の doc の行がこの範囲にある。
+範囲16: `src/widgets`（5661行）。2000行を超えるので、取るときに割る。スライスどうしは import し合わないので、
+行数で次の4段に割れる。
+
+| 段 | 範囲 | 行数 |
+| -- | ---- | ---- |
+| 16 | `kifu-stream` | 1472 |
+| 16b | `file-tree` | 1395 |
+| 16c | `analysis-pane`、`game-board` | 1754 |
+| 16d | `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar` | 1034 |
+
+所見の表の `src/widgets` の行（`PromotionDialog.tsx`、`FileNode.tsx`、`FileTree.tsx`、`dnd.ts`、`BookView.tsx`、
+`BookControls.tsx`）と、読み手が `src/widgets` にある行（`getCurrentTurn` などの包み、`EngineState`、`displayInfo.iconType`）がこの範囲にかかる。
 
 `docs/IDEAS.md` の「feature の SCSS が shared の部品の内部クラスを掴んでいる」は、
 外すのに `shared/ui/Form` の手が要るので、範囲15では閉じない。
