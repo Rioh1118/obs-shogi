@@ -84,7 +84,7 @@ function PositionNavigationModal() {
     };
   }, [isOpen, gameView.player, nav.previewCursor]);
 
-  const handleSelectBranch = useCallback(
+  const moveSelection = useCallback(
     (delta: number) => {
       setNav((prev) => ({
         ...prev,
@@ -154,11 +154,11 @@ function PositionNavigationModal() {
           break;
         case "j":
         case "ArrowDown":
-          handleSelectBranch(1);
+          moveSelection(1);
           break;
         case "k":
         case "ArrowUp":
-          handleSelectBranch(-1);
+          moveSelection(-1);
           break;
         case "Enter":
           handleConfirm();
@@ -171,7 +171,7 @@ function PositionNavigationModal() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm]);
+  }, [isOpen, handleNext, handlePrevious, moveSelection, handleConfirm]);
 
   if (!isOpen) return null;
 

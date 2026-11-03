@@ -70,8 +70,10 @@ export default function StudyPositionsManagerModal() {
   const { params, closeModal, openModal } = useURLParams();
   const isOpen = params.modal === "study-positions";
 
-  const { state: spState, deletePosition } = useStudyPositions();
-  const positions = spState.positions;
+  const {
+    state: { positions },
+    deletePosition,
+  } = useStudyPositions();
 
   const [stateFilter, setStateFilter] = useState<StudyPositionState | null>(null);
   const [query, setQuery] = useState("");

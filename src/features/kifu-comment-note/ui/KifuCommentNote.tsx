@@ -29,7 +29,7 @@ type Face = { key: string; cursor: CursorPath; boardSeq: number };
 /**
  * ノートが出している面の、確定した中身。鍵と本文が必ず同じコミットで揃う。
  *
- * `told` は「この面で失敗を見せたか」。**見せていない失敗を「1回目」と数えないため。**
+ * `failureShown` は、**見せていない失敗を「1回目」と数えないため**に持つ。
  * 面の中に置く（面が変われば数え直す）。
  */
 type Editing = {
@@ -37,7 +37,7 @@ type Editing = {
   draft: string;
   baseText: string;
   error: string | null;
-  told: boolean;
+  failureShown: boolean;
 };
 
 export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onClose }: Props) {
@@ -69,7 +69,13 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
   const [editing, setEditing] = useState<Editing | null>(null);
   if (face) {
     if (editing?.face.key !== face.key) {
-      setEditing({ face, draft: sourceText, baseText: sourceText, error: null, told: false });
+      setEditing({
+        face,
+        draft: sourceText,
+        baseText: sourceText,
+        error: null,
+        failureShown: false,
+      });
     }
   } else if (editing) {
     setEditing(null);
@@ -133,7 +139,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
           const msg = "棋譜が切り替わったので保存できませんでした";
           if (showing())
             setEditing((e) =>
-              e && e.face.key === target.key ? { ...e, error: msg, told: true } : e,
+              e && e.face.key === target.key ? { ...e, error: msg, failureShown: true } : e,
             );
           return "skipped";
         }
@@ -159,8 +165,8 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
                 const base = e.baseText === baseAtFire ? e : { ...e, baseText: baseAtFire };
                 // 中身が同じなら同じ参照を返す。新しい参照は面の入れ替えを見る効果を
                 // 走らせるだけで、そこは鍵が同じなら何もしない
-                if (base === e && e.error === res.error && e.told) return e;
-                return { ...base, error: res.error, told: true };
+                if (base === e && e.error === res.error && e.failureShown) return e;
+                return { ...base, error: res.error, failureShown: true };
               });
             return "failed";
           }
@@ -168,7 +174,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
           if (showing()) {
             setEditing((e) =>
               e && e.face.key === target.key
-                ? { ...e, baseText: text, error: null, told: false }
+                ? { ...e, baseText: text, error: null, failureShown: false }
                 : e,
             );
             setStatus({ key: target.key, kind: "saved" });
@@ -279,7 +285,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
       // **`"skipped"` も同じだけ本文を失う。** 宛先が切り替わった枝は
       // `setCommentsByCursor` を呼ぶ前に戻るので、本文はディスクにもメモリの棋譜にも
       // 入っていない。ここで抜けると、理由を入れた赤い箱が1フレームも見えないまま閉じる。
-      if (result !== "saved" && !target.told) return;
+      if (result !== "saved" && !target.failureShown) return;
 
       // 待っている間に別の面へ移っていたら、その面を閉じない。
       // `onClose` はどの面を閉じるかを引数に取らないので、そのまま呼ぶと
