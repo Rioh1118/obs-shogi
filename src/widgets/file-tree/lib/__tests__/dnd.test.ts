@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { FileTreeNode } from "@/entities/file-tree";
-import { buildNodeMap, isDescendantDir, parentDir } from "../dnd";
+import { buildNodeMap, canMoveInto, isDescendantDir, parentDir } from "../dnd";
 
 describe("isDescendantDir", () => {
   test("同じフォルダは中に含める", () => {
@@ -49,5 +49,25 @@ describe("buildNodeMap", () => {
 
   test("木が無ければ空", () => {
     expect(buildNodeMap(null).size).toBe(0);
+  });
+});
+
+describe("canMoveInto", () => {
+  const kifu = { path: "/ws/d/a.kif", isDirectory: false } as FileTreeNode;
+  const dir = { path: "/ws/d", isDirectory: true } as FileTreeNode;
+
+  test("別のフォルダへは移せる", () => {
+    expect(canMoveInto(kifu, "/ws/e")).toBe(true);
+    expect(canMoveInto(dir, "/ws/e")).toBe(true);
+  });
+
+  test("今いるフォルダへは移さない", () => {
+    expect(canMoveInto(kifu, "/ws/d")).toBe(false);
+    expect(canMoveInto(dir, "/ws")).toBe(false);
+  });
+
+  test("フォルダを自分自身と自分の下へは移さない", () => {
+    expect(canMoveInto(dir, "/ws/d")).toBe(false);
+    expect(canMoveInto(dir, "/ws/d/x")).toBe(false);
   });
 });

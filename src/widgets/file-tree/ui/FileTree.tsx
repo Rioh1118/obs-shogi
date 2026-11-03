@@ -3,14 +3,7 @@ import "./FileTree.scss";
 import ContextMenu from "./ContextMenu";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 import { useCallback, useMemo, useState } from "react";
-import {
-  buildNodeMap,
-  DROP_ID,
-  isDescendantDir,
-  normPath,
-  parentDir,
-  type DropData,
-} from "@/widgets/file-tree/lib/dnd";
+import { buildNodeMap, canMoveInto, DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import {
   closestCenter,
   DndContext,
@@ -159,17 +152,7 @@ function FileTree() {
       if (!destDir) return;
 
       const node = nodeMap.get(srcPath);
-      if (!node) return;
-
-      const srcNorm = normPath(node.path);
-      const destNorm = normPath(destDir);
-
-      if (node.isDirectory && srcNorm === destNorm) return;
-
-      const currentParent = parentDir(node.path);
-      if (normPath(currentParent) === destNorm) return;
-
-      if (node.isDirectory && isDescendantDir(node.path, destDir)) return;
+      if (!node || !canMoveInto(node, destDir)) return;
 
       await moveNode(node, destDir); // async-result-ignored: 失敗は moveNode が通知へ積む
     } finally {
