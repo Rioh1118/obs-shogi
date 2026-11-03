@@ -2,10 +2,10 @@ import "./FileIcon.scss";
 import { Folder, FolderOpen } from "lucide-react";
 import { SENTE_GLYPH } from "@/shared/lib/turn";
 
-interface FileIconProps {
+type FileIconProps = {
   type: "folder" | "kif-file";
   isOpen?: boolean;
-}
+};
 
 export default function FileIcon({ type, isOpen }: FileIconProps) {
   function getIcon() {

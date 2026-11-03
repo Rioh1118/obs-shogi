@@ -1,13 +1,8 @@
 import { DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import { useDroppable } from "@dnd-kit/core";
+import type { ReactNode } from "react";
 
-function ScrollDropZone({
-  rootPath,
-  children,
-}: {
-  rootPath: string | null;
-  children: React.ReactNode;
-}) {
+function ScrollDropZone({ rootPath, children }: { rootPath: string | null; children: ReactNode }) {
   const { setNodeRef } = useDroppable({
     id: DROP_ID.blank,
     disabled: !rootPath,

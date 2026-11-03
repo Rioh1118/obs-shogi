@@ -6,7 +6,7 @@ import InlineNameEditor from "./InlineNameEditor";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
-import { useRef } from "react";
+import { useRef, type MouseEventHandler } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
 import { useLoadedKifuPath } from "@/entities/game";
@@ -106,6 +106,11 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     pop?.hidePopover?.();
   };
 
+  const handlePointerEnter = () => {
+    if (isDragging) return;
+    showNameTooltip();
+  };
+
   const handleClick = () => {
     if (isRenaming || isDragging) return;
     if (node.isDirectory) return;
@@ -117,7 +122,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     }
   };
 
-  const onContextMenu: React.MouseEventHandler<HTMLDivElement> = (e) => {
+  const handleContextMenu: MouseEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault();
     e.stopPropagation();
     openContextMenu(node, e.clientX, e.clientY);
@@ -132,7 +137,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       level={level}
       onClick={handleClick}
       isSelected={isSelected}
-      onContextMenu={onContextMenu}
+      onContextMenu={handleContextMenu}
       className={`${isOver ? "node-box__droppable-over" : ""} ${isDragging ? "node-box--drag-source" : ""}`}
       style={{
         transform: CSS.Translate.toString(transform),
@@ -152,10 +157,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       ) : (
         <span
           ref={nameRef}
-          onPointerEnter={() => {
-            if (isDragging) return;
-            showNameTooltip();
-          }}
+          onPointerEnter={handlePointerEnter}
           onPointerLeave={hideNameTooltip}
           onFocus={showNameTooltip}
           onBlur={hideNameTooltip}

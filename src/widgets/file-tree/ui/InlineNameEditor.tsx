@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { describeFsError, type CommitOutcome, type FsError } from "@/entities/file-tree";
 
 import "./InlineNameEditor.scss";
@@ -124,6 +124,40 @@ function InlineNameEditor({
     }
   };
 
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setDraft(e.target.value);
+    setError(null);
+    rejectedRef.current = null;
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.key === "Enter") void commit();
+    if (e.key === "Escape") {
+      cancelRef.current = true;
+      onCancel();
+    }
+  };
+
+  const handleBlur = () => {
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      return;
+    }
+
+    // 送信中なら確定し直さない。`inFlightRef` が握り潰すだけ
+    if (inFlightRef.current) return;
+
+    // 落ちた名前のまま外へ出たら編集を閉じる。残すと、失敗の箱が
+    // 行の上に出たまま閉じる手段が無くなる（Escape は入力欄にしか届かない）
+    if (draft.trim() === rejectedRef.current) {
+      onCancel();
+      return;
+    }
+
+    void commit();
+  };
+
   return (
     <span className="inline-name-editor">
       <input
@@ -131,38 +165,10 @@ function InlineNameEditor({
         className={className}
         value={draft}
         aria-invalid={error ? true : undefined}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setError(null);
-          rejectedRef.current = null;
-        }}
+        onChange={handleChange}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Enter") void commit();
-          if (e.key === "Escape") {
-            cancelRef.current = true;
-            onCancel();
-          }
-        }}
-        onBlur={() => {
-          if (cancelRef.current) {
-            cancelRef.current = false;
-            return;
-          }
-
-          // 送信中なら確定し直さない。`inFlightRef` が握り潰すだけ
-          if (inFlightRef.current) return;
-
-          // 落ちた名前のまま外へ出たら編集を閉じる。残すと、失敗の箱が
-          // 行の上に出たまま閉じる手段が無くなる（Escape は入力欄にしか届かない）
-          if (draft.trim() === rejectedRef.current) {
-            onCancel();
-            return;
-          }
-
-          void commit();
-        }}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
       />
       {/* 行を押し広げて全文を出す。理由は docs/state-transitions/inline-name-editor.md */}
       {/* 領域は常設する。中身と同時に DOM へ入れると、VoiceOver は

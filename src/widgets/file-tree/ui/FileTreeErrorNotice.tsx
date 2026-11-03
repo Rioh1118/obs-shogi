@@ -1,7 +1,7 @@
 import Button from "@/shared/ui/Button/Button";
 import { FsErrorView, fsErrorTier, type FsError } from "@/entities/file-tree";
 
-interface Props {
+type Props = {
   error: FsError;
   onRetry: () => void;
   onDismiss?: () => void;
@@ -16,7 +16,7 @@ interface Props {
    * TODO(#277): この部品が逃げ道の失敗を出せる形になれば `NotifyAction` に寄せる。
    */
   fallback?: { label: string; run: () => void };
-}
+};
 
 /**
  * ファイル操作とツリー取得の失敗を、復帰路つきで出す。

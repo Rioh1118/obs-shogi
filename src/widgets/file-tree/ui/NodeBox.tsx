@@ -6,10 +6,6 @@ type NodeBoxProps = {
   children?: ReactNode;
   action?: ReactNode;
   isSelected?: boolean;
-  onClick?: () => void;
-  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
-  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
-  onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
 } & ComponentPropsWithRef<"div">;
 
 function NodeBox({
@@ -19,10 +15,6 @@ function NodeBox({
   isSelected,
   className,
   style,
-  onClick,
-  onMouseEnter,
-  onMouseLeave,
-  onContextMenu,
   ref,
   ...rest
 }: NodeBoxProps) {
@@ -34,10 +26,6 @@ function NodeBox({
         paddingLeft: `${2 + level * 1.3}rem`,
         ...style,
       }}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onContextMenu={onContextMenu}
       {...rest}
     >
       <div className="node-box__content">

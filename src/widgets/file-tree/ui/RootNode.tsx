@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type MouseEventHandler } from "react";
 import NodeBox from "./NodeBox";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import TreeNode from "./TreeNode";
@@ -13,9 +13,6 @@ import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
 
 function RootNode({ node }: { node: FileTreeNode }) {
-  const [isOpen, setIsOpen] = useState(true);
-  const [isHovered, setIsHovered] = useState(false);
-
   const {
     openContextMenu,
     renamingNodeId,
@@ -24,12 +21,19 @@ function RootNode({ node }: { node: FileTreeNode }) {
     pushError,
     creatingDirParentPath,
   } = useFileTree();
+  const { setNodeRef, isOver } = useDroppable({
+    id: DROP_ID.root(node.path),
+    data: { kind: "drop", destDir: node.path, via: "root" } satisfies DropData,
+  });
+
+  const [isOpen, setIsOpen] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
 
   const isRenaming = renamingNodeId === node.id;
 
   const showCreateRow = isOpen && creatingDirParentPath === node.path && !isRenaming;
 
-  const onContextMenu: React.MouseEventHandler<HTMLDivElement> = (e) => {
+  const handleContextMenu: MouseEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault();
     e.stopPropagation();
     openContextMenu(node, e.clientX, e.clientY);
@@ -38,25 +42,12 @@ function RootNode({ node }: { node: FileTreeNode }) {
   const handleCommitRename = (nextName: string) =>
     commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
-
   const handleClick = () => {
     // 改名中は畳まない。失敗の箱は行を押し広げて出るので、その文を読もうとした
     // クリックがここに来る。畳むと打った名前と理由が同時に消える
     if (isRenaming) return;
     setIsOpen(!isOpen);
   };
-
-  const { setNodeRef, isOver } = useDroppable({
-    id: DROP_ID.root(node.path),
-    data: { kind: "drop", destDir: node.path, via: "root" } satisfies DropData,
-  });
 
   return (
     <>
@@ -65,9 +56,9 @@ function RootNode({ node }: { node: FileTreeNode }) {
         level={0}
         className={isOver ? "node-box__droppable-over" : ""}
         onClick={handleClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onContextMenu={onContextMenu}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onContextMenu={handleContextMenu}
         action={
           isHovered ? (
             <TreeNodeActions nodePath={node.path} isDirectory={node.isDirectory} />
@@ -88,13 +79,12 @@ function RootNode({ node }: { node: FileTreeNode }) {
         )}
       </NodeBox>
 
-      {!isOpen ? null : (
+      {isOpen && (
         <>
           {showCreateRow && <NewDirectoryRow parentPath={node.path} level={1} />}
-
-          {!node.children?.length
-            ? null
-            : node.children.map((child) => <TreeNode key={child.path} node={child} level={1} />)}
+          {node.children?.map((child) => (
+            <TreeNode key={child.path} node={child} level={1} />
+          ))}
           {node.truncated && <TruncatedNotice level={1} />}
         </>
       )}

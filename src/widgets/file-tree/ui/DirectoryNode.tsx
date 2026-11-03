@@ -1,7 +1,7 @@
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
-import { useState, type ReactNode } from "react";
+import { useState, type MouseEventHandler, type ReactNode } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
 import NewDirectoryRow from "./NewDirectoryRow";
@@ -67,20 +67,12 @@ function DirectoryNode({
 
   const showCreateRow = isOpen && creatingDirParentPath === node.path && !isRenaming;
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
-
-  function handleClick() {
+  const handleClick = () => {
     if (isRenaming) return;
     toggleNode(node.path);
-  }
+  };
 
-  const onContextMenu: React.MouseEventHandler<HTMLDivElement> = (e) => {
+  const handleContextMenu: MouseEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault();
     e.stopPropagation();
     openContextMenu(node, e.clientX, e.clientY);
@@ -95,9 +87,9 @@ function DirectoryNode({
         ref={setNodeRef}
         level={level}
         onClick={handleClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onContextMenu={onContextMenu}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onContextMenu={handleContextMenu}
         className={isOver ? "node-box__droppable-over" : ""}
         style={{
           transform: CSS.Translate.toString(transform),
@@ -125,12 +117,10 @@ function DirectoryNode({
           <span>{node.name}</span>
         )}
       </NodeBox>
-      {!isOpen ? null : (
+      {isOpen && (
         <>
           {showCreateRow && <NewDirectoryRow parentPath={node.path} level={level + 1} />}
-          {!node.children?.length
-            ? null
-            : node.children.map((child) => renderChild(child, level + 1))}
+          {node.children?.map((child) => renderChild(child, level + 1))}
           {node.truncated && <TruncatedNotice level={level + 1} />}
         </>
       )}
