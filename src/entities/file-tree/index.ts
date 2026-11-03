@@ -16,7 +16,6 @@ export {
   isOperationAlreadyCommitted,
   isResolvedByConflictDialog,
 } from "./api/error";
-export { collectDirs } from "./lib/collectDirs";
 export { commitName, type CommitOutcome } from "./lib/commitName";
 export { isProjectRoot } from "./lib/isProjectRoot";
 export type {

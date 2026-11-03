@@ -3,10 +3,10 @@ import { useCallback, useMemo, useState, type FormEvent } from "react";
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import {
-  collectDirs,
   FsErrorView,
   isResolvedByConflictDialog,
   useFileTree,
+  useSaveDir,
   type FsError,
 } from "@/entities/file-tree";
 import { KIFU_FORMAT_OPTIONS, kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
@@ -30,15 +30,15 @@ import "./SfenKifuCreateModal.scss";
  * 開き直したときに前回の名前や保存先が残らない。
  */
 function SfenKifuCreateDialog({ sfen, closeModal }: { sfen: string; closeModal: () => void }) {
-  const { createNewFile, fileTree } = useFileTree();
+  const { createNewFile } = useFileTree();
 
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
   const [blackPlayer, setBlackPlayer] = useState("");
   const [whitePlayer, setWhitePlayer] = useState("");
-  const [selectedDir, setSelectedDir] = useState(fileTree?.path ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
+  const { dirOptions, selectedDir, setSelectedDir } = useSaveDir();
 
   // URL から来た任意の局面は手合割として書けないので、`OTHER` に固定する。
   // 読めない綴りなら `null` —— 下の送信がそこで止まる
@@ -48,19 +48,6 @@ function SfenKifuCreateDialog({ sfen, closeModal }: { sfen: string; closeModal: 
   }, [sfen]);
 
   const previewData = useMemo(() => buildPreviewDataFromSfen(sfen), [sfen]);
-
-  const dirOptions = useMemo(() => {
-    if (!fileTree) return [];
-    return collectDirs(fileTree, fileTree.path);
-  }, [fileTree]);
-
-  // ツリーの根が入れ替わったら保存先を根へ戻す
-  const rootPath = fileTree?.path ?? "";
-  const [prevRoot, setPrevRoot] = useState(rootPath);
-  if (rootPath !== prevRoot) {
-    setPrevRoot(rootPath);
-    setSelectedDir(rootPath);
-  }
 
   // 拡張子は形式の欄が決める。**打った拡張子は落とす**ので `研究.kif.kif` にならない
   // （規則は `kifuFileName` が1箇所で持つ）

@@ -203,4 +203,21 @@ describe("SfenKifuCreateModal", () => {
     // 根が替わっても、打った名前は残る
     expect(screen.getByLabelText<HTMLInputElement>("ファイル名").value).toBe("研究");
   });
+
+  /**
+   * 状態遷移表の X14 と同じ筋。`Select` は選択肢に無い値をプレースホルダで描くので、
+   * 値だけ残すと、欄が「選択してください」と言っているのに消えたパスへ書きに行く。
+   */
+  test("選んでいた保存先が消えたら、根へ戻す", async () => {
+    createNewFile.mockResolvedValue({ success: true, data: "/root/研究.kif" });
+    const view = render(<SfenKifuCreateModal />);
+    chooseDir("/角換わり");
+
+    fileTree = dir("root", "/root");
+    view.rerender(<SfenKifuCreateModal />);
+    typeInto("ファイル名", "研究");
+    await submitForm();
+
+    expect(createNewFile.mock.calls[0]![0]).toBe("/root");
+  });
 });
