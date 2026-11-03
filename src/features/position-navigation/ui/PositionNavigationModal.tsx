@@ -46,8 +46,8 @@ function PositionNavigationModal() {
     selectedOptionIndex: 0,
   });
 
-  // 盤の位置から nav を作り直す。**閉じている間は何もしない。**
-  // この component は `AppModalLayer` から常時マウントされているので、
+  // 開いたときと盤が動いたときに、盤の位置から nav を作り直す。**閉じている間は何もしない。**
+  // この部品は `AppModalLayer` が常にマウントしているので、
   // 閉じていても走らせると盤を1手進めるたびに `setNav` が呼ばれる
   // （`nav` は閉じている間は誰も読まない）
   useEffect(() => {
@@ -136,7 +136,6 @@ function PositionNavigationModal() {
     closeModal();
   }, [applyCursor, closeModal, gameView.player, nav.previewCursor, unreachable]);
 
-  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 
@@ -174,7 +173,6 @@ function PositionNavigationModal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isOpen, handleNext, handlePrevious, handleSelectBranch, handleConfirm]);
 
-  // ---- render ----
   if (!isOpen) return null;
 
   return (

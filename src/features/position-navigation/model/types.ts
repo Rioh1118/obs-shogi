@@ -7,9 +7,10 @@ export interface NavigationState {
    * `tesuu` より先の `ForkPointer` を持ちうる。`handlePrevious` は `tesuu` だけ戻して
    * 計画を残すので、戻ってから確定すると先の選択が `branchPlan` に引き継がれる。
    *
-   * ただし**種は計画を持たない**。モーダルを開くときの初期値は `state.cursor`
-   * （`te <= tesuu` に正規化済み）からだけ作られ、`state.branchPlan` が持つ
-   * カーソルより先の選択は載らない → #297
+   * ただし開いたときの初期値は計画を持たない。初期値は `state.cursor`
+   * （`te <= tesuu` に正規化済み）からだけ作り、`state.branchPlan` が持つ
+   * カーソルより先の選択は載らない。盤が変化へ進むつもりでいても、ナビは本譜を選んで開く。
+   * 他の読み手は `plannedCursorFrom` で計画を重ねている
    */
   previewCursor: CursorPath;
   /**

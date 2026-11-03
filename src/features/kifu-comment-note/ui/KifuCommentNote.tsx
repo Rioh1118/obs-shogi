@@ -15,7 +15,7 @@ type Props = {
    * このノートを開いた時点で盤に載っていた棋譜（`boardSeq`）。
    * いま載っている棋譜と違うなら保存しない。
    *
-   * **パスでは代用できない。** 改名・移動でもパスは動くが、盤に載っている棋譜は
+   * パスでは代用できない。改名や移動でもパスは動くが、盤に載っている棋譜は
    * 同じままなので、そこで保存を止めると**書きかけの本文が行き場を失う**
    */
   boardSeq: number | null;
@@ -61,7 +61,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     [open, cursor, boardSeq],
   );
 
-  // **面はレンダ中に確定させる。**
+  // 面はレンダ中に確定させる。
   //
   // 効果で差し替えると、エディタを作り直す鍵（props 由来）だけが1レンダ先に進み、
   // **移った先のエディタが前の手の本文で mount される**。`LexicalComposer` は
@@ -80,7 +80,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
   // 待っている間に棋譜は動く。**書き込みの実体は走る時点で引き直す。**
   //
   // 撃った時点の `setCommentsByCursor` を捕まえると、その先の `edit` が
-  // **撃った時点の `state.jkf`** を閉じ込めているので、待っている間に盤で指した手を
+  // 撃った時点の `state.jkf` を閉じ込めているので、待っている間に盤で指した手を
   // 含まない棋譜を書き戻す。指した手がメモリからもディスクからも消える。
   const commitRef = useRef({ setCommentsByCursor, boardSeq: state.boardSeq });
   useEffect(() => {
@@ -114,7 +114,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
    * 分岐メニューを開いてノートが閉じる）。「いまの面」を読むと、待っている間に
    * 入れ替わった別の面へ書き、打っていない手のノートに結果が出る。
    *
-   * `baseAtFire` は**撃った時点でディスクにあった本文**。返ってきたときの
+   * `baseAtFire` は撃った時点でディスクにあった本文。返ってきたときの
    * `baseText` とは限らない（下の書き戻しを参照）。
    */
   const save = useCallback(
@@ -122,14 +122,13 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
       const saveOnce = async (): Promise<"saved" | "failed" | "skipped"> => {
         const showing = () => mountedRef.current && faceRef.current?.key === target.key;
 
-        // **開いた棋譜と、いま盤に載っている棋譜が同じときだけ書く。**
+        // 開いた棋譜と、いま盤に載っている棋譜が同じときだけ書く。
         // `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、
         // 棋譜が差し替わったあとに走ると、前のファイルの本文が**次のファイルの
         // 同じ手数へ**書き込まれる。鍵だけでは塞がらない。
         //
-        // **見るのは `boardSeq` で、パスではない。** 改名・移動ではパスだけが動いて
-        // 盤の中身は同じなので、パスで止めると書きかけの本文が保存されないまま残る。
-        // 書き込みは `persistIfPossible` が現在の宛先（＝改名後のパス）へ通す。
+        // 見るのは `boardSeq` で、パスではない（`Props` の `boardSeq` を参照）。
+        // 書き込みは `persistIfPossible` が現在の宛先（改名した後のパス）へ通す。
         if (target.boardSeq !== commitRef.current.boardSeq) {
           const msg = "棋譜が切り替わったので保存できませんでした";
           if (showing())
@@ -150,12 +149,12 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
             if (showing())
               setEditing((e) => {
                 if (!e || e.face.key !== target.key) return e;
-                // **基準もディスクの側へ戻す。**
+                // 基準もディスクの側へ戻す。
                 //
-                // `edit` は書き込みの**前**に棋譜を置き換える（ADR-0004 決定7）ので、
+                // `edit` は書き込みの前に棋譜を置き換える（ADR-0004 決定7）ので、
                 // 走っている最中に面を組み直すと `baseText` に**まだディスクに無い本文**が
                 // 入り、`dirty` が落ちる。落ちたままだと、閉じるときの再試行も
-                // 「この面で初めての失敗なら閉じない」も**どちらも発火しない**。
+                // 「この面で初めての失敗なら閉じない」もどちらも発火しない。
                 // 利用者から見ると、失敗を出したまま1回で閉じて本文が消える。
                 const base = e.baseText === baseAtFire ? e : { ...e, baseText: baseAtFire };
                 // 中身が同じなら同じ参照を返す。新しい参照は面の入れ替えを見る効果を
@@ -191,19 +190,19 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     [],
   );
 
-  // **面が入れ替わる前に、出ていく面を書き切る。**
+  // 面が入れ替わる前に、出ていく面を書き切る。
   //
   // ノートは `KifuStreamList` が `setOpenComment(null)` / 別の面の `setOpenComment(...)` を
-  // 直に呼ぶ経路でも閉じたり移ったりする（分岐メニュー・手のメニュー・棋譜の差し替え）。
+  // 直に呼ぶ経路でも閉じたり移ったりする（分岐メニュー、手のメニュー、棋譜の差し替え）。
   // そこは閉じる手続きを通らないので、ここで書かないと**書きかけの本文が黙って消える**。
   //
-  // **ここで書き切れなかったぶんは、失敗も本文も画面に出ない。** 面はもう外れており、
-  // 下の `showing()` が書き戻しを弾く。「閉じると、この本文は失われます」を出せるのは
-  // ノート自身の閉じる操作を通ったときだけ。
+  // ここで書き切れなかったぶんは、失敗も本文も画面に出ない。面はもう外れており、
+  // `save` の中の `showing()` が書き戻しを弾く。「閉じると、この本文は失われます」を
+  // 出せるのは、ノート自身の閉じる操作を通ったときだけ。
   //
-  // **止まること自体は正しい。** 同じ棋譜を開き直した回はディスクを読み直しているので、
+  // 同じ棋譜を開き直したときに書かないのは正しい。ディスクを読み直しているので、
   // 開き直す前の下書きをそのまま書くと、読み直したばかりの内容を上書きする。
-  // 黙って捨てるほうが問題で、そこは → #538
+  // ただし、その下書きを利用者に告げずに捨てている。直し方は決まっていない
   const leavingRef = useRef<Editing | null>(null);
   useEffect(() => {
     const prev = leavingRef.current;
@@ -222,7 +221,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
   }, [editing, save]);
 
   useEffect(() => {
-    // **setup で戻す。** cleanup で落とすだけだと、同じインスタンスに
+    // setup で戻す。cleanup で落とすだけだと、同じインスタンスに
     // setup → cleanup → setup が走ったとき（StrictMode）に false のまま残り、
     // 失敗の理由も「保存済み」も**一切描かなくなる**。
     mountedRef.current = true;
@@ -255,7 +254,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
         autoSaveTimerRef.current = null;
       }
     };
-    // **`editing` そのものを見ない。** 失敗の書き戻しも `editing` を作り直すので、
+    // `editing` そのものを見ない。失敗の書き戻しも `editing` を作り直すので、
     // 書けない棋譜では「失敗 → 張り直し → 900ms → 失敗」で**毎秒1本の書き込みを
     // 永久に撃ち続ける**。画面には「続けて書けば保存し直します」と出しており、
     // 自動で再試行しないと宣言している。張り直す理由は本文か面が変わったときだけ。
@@ -267,7 +266,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
       autoSaveTimerRef.current = null;
     }
 
-    // **閉じる前に必ずもう一度書きにいく。** 失敗が出ているからと飛ばすと、
+    // 閉じる前に必ずもう一度書きにいく。失敗が出ているからと飛ばすと、
     // 一時的な失敗（別のプロセスが掴んでいた等）でも本文が捨てられる。
     //
     // 閉じないのは**この面で失敗を見せたのが初めてのときだけ**。止め続けると、
@@ -292,7 +291,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
         // 失わせる。**基準へ戻すのは、この直後に面が消える効果がもう1本
         // 書きに行かないため。**
         //
-        // `leavingRef` は**同期で**書く。`setEditing` は `onClose()` と同じバッチに
+        // `leavingRef` は同期で書く。`setEditing` は `onClose()` と同じバッチに
         // まとまるので、効果が読む前のコミットに載らない。ref なら巻き込まれない。
         const settled = { ...target, draft: target.baseText, error: null };
         leavingRef.current = settled;

@@ -65,8 +65,8 @@ export default function TagFilterPanel({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="タグを検索"
           onKeyDown={(e) => {
-            // 消してから閉じる。どちらの場合も消費するが、`stopPropagation()` は
-            // 使わない（`document` まで届かず、上位のハンドラが全部死ぬ）
+            // 語があれば消し、無ければ枠を閉じる。どちらも消費するが、`stopPropagation()` は
+            // 使わない。`document` まで届かず、上位のハンドラが1つも動かなくなる
             if (e.key === "Escape") {
               e.preventDefault();
               if (query) setQuery("");

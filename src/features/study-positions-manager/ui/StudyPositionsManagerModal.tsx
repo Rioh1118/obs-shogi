@@ -73,7 +73,6 @@ export default function StudyPositionsManagerModal() {
   const { state: spState, deletePosition } = useStudyPositions();
   const positions = spState.positions;
 
-  // --- filter/sort state ---
   const [stateFilter, setStateFilter] = useState<StudyPositionState | null>(null);
   const [query, setQuery] = useState("");
   const [tagFilter, setTagFilter] = useState<string[]>([]);
@@ -87,7 +86,7 @@ export default function StudyPositionsManagerModal() {
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const rootRef = useRef<HTMLElement | null>(null);
 
-  // --- state counts (unfiltered) ---
+  // 状態のタブの件数は、絞り込む前の一覧から数える
   const stateCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const p of positions) {
@@ -96,37 +95,31 @@ export default function StudyPositionsManagerModal() {
     return counts;
   }, [positions]);
 
-  // --- filter pipeline ---
-  // 1. State filter
+  // 絞り込みは状態、本文、タグの順に通す。タグの候補は本文までの結果から数え、
+  // いま見えている範囲に多いタグを出す（`docs/spec/screens/study-positions.md`）
   const stateFiltered = useMemo(
     () => (stateFilter === null ? positions : positions.filter((p) => p.state === stateFilter)),
     [positions, stateFilter],
   );
 
-  // 2. Text search
   const textFiltered = useMemo(
     () => (query ? stateFiltered.filter((p) => matchesQuery(p, query)) : stateFiltered),
     [stateFiltered, query],
   );
 
-  // 3. Contextual tag candidates
   const tagCounts = useMemo(() => computeTagCounts(textFiltered), [textFiltered]);
   const contextualTags = useMemo(() => topTags(tagCounts, 8), [tagCounts]);
 
-  // Frequent tags (from all positions)
   const allTagCounts = useMemo(() => computeTagCounts(positions), [positions]);
   const frequentTags = useMemo(() => topTags(allTagCounts, 8), [allTagCounts]);
 
-  // 4. Tag filter (AND)
   const tagFiltered = useMemo(() => {
     if (tagFilter.length === 0) return textFiltered;
     return textFiltered.filter((p) => tagFilter.every((t) => p.tags.includes(t)));
   }, [textFiltered, tagFilter]);
 
-  // 5. Sort
   const displayPositions = useMemo(() => sortPositions(tagFiltered, sort), [tagFiltered, sort]);
 
-  // --- selection ---
   const selectedIndex = useMemo(() => {
     if (!selectedId) return 0;
     const idx = displayPositions.findIndex((p) => p.id === selectedId);
@@ -135,7 +128,7 @@ export default function StudyPositionsManagerModal() {
 
   const selectedPosition = displayPositions[selectedIndex] ?? null;
 
-  // Sync selectedId when list changes
+  // 表示中の一覧が空でなければ、選択を必ず1つ置く。選んでいた局面が消えたら先頭へ寄せる
   useEffect(() => {
     if (displayPositions.length === 0) {
       setSelectedId(null);
@@ -146,10 +139,8 @@ export default function StudyPositionsManagerModal() {
     }
   }, [displayPositions, selectedId]);
 
-  // --- preview data for list items ---
   const getTurnInfo = useTurnInfoCache();
 
-  // --- scroll to selected ---
   useLayoutEffect(() => {
     const el = itemRefs.current[selectedIndex];
     if (!el || !listRef.current) return;
@@ -172,7 +163,6 @@ export default function StudyPositionsManagerModal() {
     }
   }, [selectedIndex]);
 
-  // --- keyboard ---
   const moveSelection = useCallback(
     (delta: number) => {
       const n = displayPositions.length;
@@ -229,7 +219,6 @@ export default function StudyPositionsManagerModal() {
     [moveSelection, selectedPosition, openModal],
   );
 
-  // --- actions ---
   const handleSearch = useCallback(
     (sfen: string) => {
       openModal("position-search", { sfen, returnTo: "study-positions" });
@@ -251,7 +240,6 @@ export default function StudyPositionsManagerModal() {
     [openModal],
   );
 
-  // --- tag toggle ---
   const toggleTag = useCallback((tag: string) => {
     setTagFilter((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }, []);
@@ -264,9 +252,8 @@ export default function StudyPositionsManagerModal() {
     setTagFilter([]);
   }, []);
 
-  // --- reset on close ---
-  // チャイルドモーダルを開いた場合（returnTo=study-positions が URL にある）は
-  // 一時的に非表示になっているだけなので state を保持する
+  // 閉じたら絞り込みを捨てる。子の対話を開いている間（URL の `returnTo` が
+  // `study-positions`）は隠れているだけなので残す
   useEffect(() => {
     if (!isOpen && params.returnTo !== "study-positions") {
       setQuery("");
@@ -279,7 +266,6 @@ export default function StudyPositionsManagerModal() {
     }
   }, [isOpen, params.returnTo]);
 
-  // --- focus on open ---
   useLayoutEffect(() => {
     if (!isOpen) return;
     rootRef.current?.focus({ preventScroll: true });
@@ -317,9 +303,7 @@ export default function StudyPositionsManagerModal() {
         </header>
 
         <div className="sp-manager__body">
-          {/* ===== LEFT ===== */}
           <div className="sp-manager__left">
-            {/* Layer 1: State tabs */}
             <div className="sp-manager__stateTabs">
               <StateTabNav
                 value={stateFilter}
@@ -331,7 +315,6 @@ export default function StudyPositionsManagerModal() {
 
             <div className="sp-manager__divider" />
 
-            {/* Layer 2: Search + Filter */}
             <div className="sp-manager__searchRow">
               <div className="sp-manager__searchBox">
                 <Search size={14} className="sp-manager__searchIcon" />
@@ -344,7 +327,7 @@ export default function StudyPositionsManagerModal() {
                   placeholder="ラベル・メモを検索"
                   onKeyDown={(e) => {
                     // 消すものがあるときだけ消費する。`stopPropagation()` にすると
-                    // `document` まで届かず、消すものが無いときも Escape が死ぬ
+                    // `document` まで届かず、消すものが無いときの Escape で対話が閉じない
                     if (e.key === "Escape" && query) {
                       e.preventDefault();
                       setQuery("");
@@ -378,10 +361,8 @@ export default function StudyPositionsManagerModal() {
               </button>
             </div>
 
-            {/* Active tag chips */}
             <ActiveFilterChips tags={tagFilter} onRemoveTag={removeTag} onClearAll={clearTags} />
 
-            {/* Tag filter panel */}
             {showTagPanel && (
               <TagFilterPanel
                 contextualTags={contextualTags}
@@ -392,7 +373,6 @@ export default function StudyPositionsManagerModal() {
               />
             )}
 
-            {/* Sort */}
             <div className="sp-manager__sortRow">
               <div className="sp-manager__sortBtn">
                 <button
@@ -427,7 +407,6 @@ export default function StudyPositionsManagerModal() {
               </span>
             </div>
 
-            {/* List */}
             <div
               className="sp-manager__list"
               ref={listRef}
@@ -475,7 +454,6 @@ export default function StudyPositionsManagerModal() {
             </div>
           </div>
 
-          {/* ===== RIGHT ===== */}
           <div className="sp-manager__right">
             <PositionDetail
               position={selectedPosition}

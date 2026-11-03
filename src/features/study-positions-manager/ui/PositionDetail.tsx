@@ -47,7 +47,7 @@ export default function PositionDetail({
     }
   }, [position, isDeleting, onDelete]);
 
-  // Reset confirm state when position changes
+  // 選んだ局面が変わったら削除の確認を畳む。確認の題は前の局面のまま、消すのは新しい局面になる
   const posId = position?.id;
   const [prevPosId, setPrevPosId] = useState<string | undefined>(posId);
   if (posId !== prevPosId) {
