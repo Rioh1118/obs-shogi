@@ -256,6 +256,37 @@ describe("KifuImportForm", () => {
     expect(importKifuFile).toHaveBeenCalledWith("/root", "研究.kif", expect.any(String));
   });
 
+  test("ツリーから開いたら、そのフォルダが保存先になる", () => {
+    fileTree = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />);
+
+    expect(screen.getByLabelText("保存先").textContent).toBe("/角換わり");
+  });
+
+  test("ようこそ画面から開いたら（`dir=` が来ない）、保存先はツリーの根", () => {
+    fileTree = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+    render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="" />);
+
+    expect(screen.getByLabelText("保存先").textContent).toBe("/");
+  });
+
+  test("ツリーの根が替わったら、保存先を新しい根へ戻す", async () => {
+    importKifuFile.mockResolvedValue({ success: true, data: "/other/研究.kif" });
+    fileTree = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+    const view = render(
+      <KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />,
+    );
+
+    fileTree = dir("other", "/other", [dir("角換わり", "/other/角換わり")]);
+    view.rerender(
+      <KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root/角換わり" />,
+    );
+
+    fillImport();
+    await submitForm();
+    expect(importKifuFile).toHaveBeenCalledWith("/other", "研究.kif", expect.any(String));
+  });
+
   test("衝突は別名を選ぶ対話が引き取るので、フォーム側では出さない", async () => {
     importKifuFile.mockResolvedValue({ success: false, error: CONFLICT });
     render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
