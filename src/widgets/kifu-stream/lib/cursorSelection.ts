@@ -5,7 +5,7 @@ import {
   type PlannedCursor,
 } from "@/entities/kifu/model/cursor";
 import { branchIndexFromSelection, type BranchIndex } from "@/entities/kifu/model/branch";
-import type { StreamRow } from "../ui/KifuMoveCard";
+import type { StreamRow } from "./buildStreamRows";
 
 export const branchIndexFromRow = (r: StreamRow): BranchIndex => {
   return branchIndexFromSelection(r.selectedForkIndex);

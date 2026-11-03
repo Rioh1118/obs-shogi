@@ -21,9 +21,9 @@ import {
 } from "@/entities/kifu/model/branch";
 import { countMovesToDelete } from "@/entities/kifu/lib/branchEdit";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
-import KifuMoveCard, { type StreamRow } from "./KifuMoveCard";
+import KifuMoveCard from "./KifuMoveCard";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
-import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
+import { buildStreamRowsFromCursor, type StreamRow } from "../lib/buildStreamRows";
 import { branchIndexFromRow, resolveForkSelection } from "../lib/cursorSelection";
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import { kifuRowId } from "../lib/rowId";
