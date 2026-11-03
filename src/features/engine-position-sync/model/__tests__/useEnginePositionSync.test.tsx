@@ -120,6 +120,12 @@ describe("useEnginePositionSync", () => {
     await view.refresh();
 
     expect(view.current.syncedSfen).toBe("SFEN-1");
+
+    // 送れた記録は B に付く。送信を始めたときの A を付けると、同じ局面を B へ送り直す
+    await act(async () => {
+      await view.current.syncPosition();
+    });
+    expect(setPositionFromSfen).toHaveBeenCalledTimes(2);
   });
 
   it("送信の失敗で、その後に積まれた新しい局面まで捨てない", async () => {
@@ -146,6 +152,29 @@ describe("useEnginePositionSync", () => {
     // エンジンには誰も送らない状態が残る。
     expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-2");
     expect(view.current.syncedSfen).toBe("SFEN-2");
+  });
+
+  it("先の送信が落ちても、最後に積んだ局面が送れたなら手で呼んだ側へ投げない", async () => {
+    const failing = deferred<void>();
+    setPositionFromSfen.mockReturnValueOnce(failing.promise);
+
+    const view = mountSync();
+    setPositionFromSfen.mockResolvedValue(undefined);
+    gameStub.currentSfen = "SFEN-2";
+    gameStub.cursor = { tesuuPointer: "1,[]" };
+    await view.refresh();
+
+    // 送信中に手で呼ぶ。返るのは走っている送信の約束
+    const manual = view.current.syncPosition();
+
+    await act(async () => {
+      failing.reject(new Error("boom"));
+      await failing.promise.catch(() => {});
+    });
+
+    // Rust に残っているのは SFEN-2 なので、解析を始めてよい
+    await expect(manual).resolves.toBeUndefined();
+    expect(setPositionFromSfen).toHaveBeenLastCalledWith("SFEN-2");
   });
 
   it("engineKey が変わらないエンジン再起動でも送り直す", async () => {

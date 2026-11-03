@@ -36,6 +36,26 @@ describe("裁定器", () => {
     });
   });
 
+  /**
+   * 詰みと手詰まりは勝敗の付き方が同じなので、勝者だけを見ると取り違えても通る。
+   * 説明の綴りで分ける。
+   */
+  test("詰みと手詰まりは説明で分ける", () => {
+    expect(
+      createRulingAdapter(RULES).judge({
+        startSfen: "4k4/9/3GP4/9/9/9/9/9/4K4 b - 1",
+        usiMoves: ["6c5b"],
+      }),
+    ).toEqual({ kind: "over", winner: "black", detail: "詰み" });
+
+    expect(
+      createRulingAdapter(RULES).judge({
+        startSfen: "k8/2G6/9/1S7/9/9/9/9/4K4 b - 1",
+        usiMoves: ["8d8c"],
+      }),
+    ).toEqual({ kind: "over", winner: "black", detail: "手詰まり" });
+  });
+
   test("千日手は引き分け", () => {
     const ruling = createRulingAdapter(RULES);
     const usiMoves = Array.from({ length: 16 }, (_, i) => CYCLE[i % CYCLE.length]);

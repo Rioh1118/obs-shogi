@@ -229,6 +229,41 @@ describe("エンジンの手を盤へ載せる", () => {
     expect(session.reportBoardFailure).toHaveBeenCalledWith(SAVE_REFUSED);
   });
 
+  /** 前に積めなかったことを伝えた帯は、積めた時点で下ろす。残すと直った後も故障に見える */
+  test("積めたら、伝えていた失敗を取り下げる", async () => {
+    session.view = liveView(USI.slice(0, 1));
+    board.player = boardAt(0, 0);
+
+    render(<GameMoveBridge />);
+    await act(async () => {});
+
+    expect(session.reportBoardFailure).toHaveBeenCalledTimes(1);
+    expect(session.reportBoardFailure).toHaveBeenCalledWith(null);
+  });
+
+  /**
+   * 積めた位置の控えは捨てる。残すと、遡って見てから同じ位置へ戻ったときに
+   * 対局の手を積み直せず、盤だけが対局から遅れたままになる。
+   */
+  test("積めた位置へ遡って戻ると、もう一度積む", async () => {
+    session.view = liveView(USI.slice(0, 1));
+    board.player = boardAt(0, 0);
+
+    const { rerender } = render(<GameMoveBridge />);
+    await act(async () => {});
+    expect(board.makeMove).toHaveBeenCalledTimes(1);
+
+    // 積めた盤
+    board.player = boardAt(1, 1);
+    rerender(<GameMoveBridge />);
+    // 利用者が遡った盤。積んだ手は棋譜から消えていないが、盤は手前に居る
+    board.player = boardAt(1, 0);
+    rerender(<GameMoveBridge />);
+    await act(async () => {});
+
+    expect(board.makeMove).toHaveBeenCalledTimes(2);
+  });
+
   /**
    * 対局は棋譜が入れ替わっても走り続ける。
    * 別の棋譜を見ている間に積むと、関係の無い棋譜へ対局の手が入る。

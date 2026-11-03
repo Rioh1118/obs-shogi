@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 
 /**
  * 盤の向きを戻す合図は、盤に載っている棋譜（`loadedAbsPath` と `boardSeq` の組）。
@@ -48,6 +48,8 @@ const { useResetOrientationOnKifuChange } = await import("../useResetOrientation
 
 let search = "";
 let isGotePov = false;
+/** 最後の移動が履歴を積んだか（`PUSH`）、置き換えたか（`REPLACE`） */
+let navigationType = "";
 
 /** 見た location の鍵。`navigate` が撃たれるたびに増える */
 const seenKeys: string[] = [];
@@ -64,6 +66,7 @@ const seenKeys: string[] = [];
 function Probe() {
   const location = useLocation();
   search = location.search;
+  navigationType = useNavigationType();
   if (seenKeys[seenKeys.length - 1] !== location.key) seenKeys.push(location.key);
   const orientation = useBoardOrientation();
   isGotePov = orientation.isGotePov;
@@ -109,6 +112,7 @@ beforeEach(() => {
   game.state.boardSeq = 0;
   search = "";
   isGotePov = false;
+  navigationType = "";
   seenKeys.length = 0;
 });
 
@@ -120,6 +124,13 @@ describe("盤の向き", () => {
     openAndRotate("/ws/a.kif");
 
     expect(search).toContain("pov=gote");
+  });
+
+  /** 回すたびに履歴を積むと、戻る操作で向きだけが1つずつ巻き戻る */
+  test("回しても履歴を積まない", () => {
+    openAndRotate("/ws/a.kif");
+
+    expect(navigationType).toBe("REPLACE");
   });
 
   /** 表の E1 */
