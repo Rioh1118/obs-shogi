@@ -28,8 +28,8 @@ export function useResetOrientationOnKifuChange() {
   const shownKifuPath = state.loadedAbsPath;
   const boardSeq = state.boardSeq;
 
-  // 初期値は `loadedAbsPath` と `boardSeq` の初期値に揃える。ずらすと、
-  // マウント直後のエフェクトが空振りせずに `?pov` を消す
+  // 初期値は `loadedAbsPath` と `boardSeq` の初期値に揃え、マウント直後のエフェクトを
+  // 空振りさせる。片方だけずれても載せ直しか改名と読んで返るが、両方ずれると `?pov` を消す
   const shownKifuRef = useRef<{ path: string | null; seq: number }>({ path: null, seq: 0 });
 
   useEffect(() => {
