@@ -1,7 +1,7 @@
 import { advanceWithPlan, planByTe } from "@/entities/kifu/lib/advanceWithPlan";
 import { truncateFrom, type PlannedCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
-import type { RowModel } from "../ui/KifuMoveCard";
+import type { StreamRow } from "../ui/KifuMoveCard";
 
 /**
  * 棋譜ストリームの行を、カーソルの計画どおりに降りながら末尾まで組む。
@@ -19,10 +19,10 @@ import type { RowModel } from "../ui/KifuMoveCard";
 export function buildStreamRowsFromCursor(
   player: JKFPlayer,
   cursor: PlannedCursor | null,
-): RowModel[] {
+): StreamRow[] {
   const plan = planByTe(cursor?.forkPointers);
 
-  const rows: RowModel[] = [];
+  const rows: StreamRow[] = [];
   const currentTesuu = cursor?.tesuu ?? 0;
 
   const mf0 = player.currentStream[0];

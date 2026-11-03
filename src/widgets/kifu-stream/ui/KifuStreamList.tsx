@@ -21,7 +21,7 @@ import {
 } from "@/entities/kifu/model/branch";
 import { countMovesToDelete } from "@/entities/kifu/lib/branchEdit";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
-import KifuMoveCard, { type RowModel } from "./KifuMoveCard";
+import KifuMoveCard, { type StreamRow } from "./KifuMoveCard";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import { buildStreamRowsFromCursor } from "../lib/buildStreamRows";
 import { branchIndexFromRow, resolveForkSelection } from "../lib/cursorSelection";
@@ -208,7 +208,7 @@ export default function KifuStreamList() {
       const b = neighborBranchIndex(branchIndex, dir);
       if (b < MAIN_LINE) return;
 
-      const q: SwapQuery = {
+      const query: SwapQuery = {
         te,
         forkPointers: branchForkPointers,
         a,
@@ -216,7 +216,7 @@ export default function KifuStreamList() {
       };
       // TODO(#277): 失敗を画面に出す場所がまだ無い。失敗したときは `swapBranches` が
       // メモリの棋譜を戻すので、並びが元のまま残るだけになる。
-      await swapBranches(q); // async-result-ignored: 失敗を出す場所が無い
+      await swapBranches(query); // async-result-ignored: 失敗を出す場所が無い
     },
     [swapBranches],
   );
@@ -305,7 +305,7 @@ export default function KifuStreamList() {
   }, [deleteBranch, pendingDelete]);
 
   const onOpenComment = useCallback(
-    (row: RowModel, anchorEl: HTMLButtonElement) => {
+    (row: StreamRow, anchorEl: HTMLButtonElement) => {
       if (!plannedCursor) return;
 
       const cursor = descendTo(plannedCursor, row.te, row.selectedForkIndex);

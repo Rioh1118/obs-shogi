@@ -26,7 +26,7 @@ type Props = {
   menuRef?: React.RefObject<HTMLDivElement | null>;
 };
 
-type Opt = {
+type ForkOption = {
   forkIndex: number | null;
   tag: string;
   move: string;
@@ -63,7 +63,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
     [selectedForkIndex, forkTexts.length],
   );
 
-  const options: Opt[] = useMemo(() => {
+  const options: ForkOption[] = useMemo(() => {
     return [
       {
         forkIndex: null,

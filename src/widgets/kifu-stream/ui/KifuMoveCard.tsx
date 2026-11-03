@@ -8,7 +8,7 @@ import type { BranchIndex } from "@/entities/kifu/model/branch";
 import { kifuRowId } from "../lib/rowId";
 
 /** 棋譜ストリームの1行。`te` 手目に指した手と、同じ手数で選べる分岐 */
-export type RowModel = {
+export type StreamRow = {
   te: number;
   /** 開始局面の行だけが `"none"` */
   side: "sente" | "gote" | "none";
@@ -31,7 +31,7 @@ export type RowModel = {
 };
 
 type Props = {
-  row: RowModel;
+  row: StreamRow;
   busy: boolean;
 
   isForkMenuOpen: boolean;
@@ -44,7 +44,7 @@ type Props = {
   onToggleForkMenu: (te: number, anchorEl: HTMLButtonElement) => void;
   onSelectFork: (te: number, forkIndex: number | null) => void;
   onRequestCloseForkMenu: () => void;
-  onOpenComment: (row: RowModel, anchorEl: HTMLButtonElement) => void;
+  onOpenComment: (row: StreamRow, anchorEl: HTMLButtonElement) => void;
 
   onSwapBranch: (
     te: number,
@@ -56,7 +56,7 @@ type Props = {
   onDeleteBranch: (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => void;
 };
 
-function sideLabel(side: RowModel["side"]) {
+function sideLabel(side: StreamRow["side"]) {
   if (side === "sente") return "先手";
   if (side === "gote") return "後手";
   return "";
