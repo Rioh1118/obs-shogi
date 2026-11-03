@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "@/shared/ui/Modal";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
-import type { VisibleTier } from "@/shared/lib/notification/types";
-import {
-  usePositionHitNavigation,
-  type NavigationOutcome,
-} from "../model/usePositionHitNavigation";
+import { usePositionHitNavigation } from "../model/usePositionHitNavigation";
+import { REFUSALS, type RefusalReason } from "../lib/hitRefusals";
 
 import PositionSearchModalHeader from "./PositionSearchModalHeader";
 import PositionSearchHitList from "./PositionSearchHitList";
@@ -21,48 +18,10 @@ import PositionSearchStatusBar from "./PositionSearchStatusBar";
 import PositionSearchDestinationCard from "./PositionSearchDestinationCard";
 import { hitKey } from "../lib/hitKey";
 import { useOrderedPositionHits } from "../model/useOrderedPositionHits";
+import { useSearchSession } from "../model/useSearchSession";
 import { useGame } from "@/entities/game";
 import { indexHealth, usePositionSearch, type PositionHit } from "@/entities/search";
 import PositionSearchContinuation from "./PositionSearchContinuation";
-
-/**
- * ヒットを開けなかった理由
- *
- * 段はこの画面から直せるかで決める（ADR-0004 決定1）。
- *
- * - `danger`（別の操作が要る）は、索引がパスを返さないときと、ツリーにその棋譜が無いとき。
- *   どちらも次に索引が更新されるまでは同じ結果が返るので、検索し直しても直らない。
- *   Rust は1回の検索のあいだ同じスナップショットを使い、`mergeFiles` は同じ値なら書き換えない
- * - `warning` は、ツリーをまだ読めていないとき。読めれば同じ操作で開ける
- *
- * 2つの `danger` を1つの文言に畳まない。行き先のパスを引けないのは索引の側の
- * 欠けで、ツリーを見てもいない。同じ文で「ワークスペースを探した」と言うと、
- * 動かしていない棋譜を探しに行かせる。
- *
- * `describeFsError` / `fsErrorTier` は通さない。あちらは fs を叩いた結果の
- * `FsError` を訳す関数だが、この断りは fs を1回も叩いておらず、見ているのは
- * 索引とツリーの食い違いだけ。ツリーから開いたときの `not_found` は読み直せば直る
- * `warning` で、復帰の仕方が違う。
- */
-type RefusalReason = "no-path" | Exclude<NavigationOutcome, "started">;
-
-const REFUSALS: Record<RefusalReason, { tier: VisibleTier; title: string; body: string }> = {
-  "no-path": {
-    tier: "danger",
-    title: "この棋譜の場所が分かりません",
-    body: "検索の索引が、この結果の置き場を返していません。索引が更新されるまで、この結果からは開けません。",
-  },
-  "tree-unavailable": {
-    tier: "warning",
-    title: "ワークスペースの一覧をまだ読み込めていません",
-    body: "一覧を読み込めたあと、もう一度お試しください。",
-  },
-  "not-in-tree": {
-    tier: "danger",
-    title: "この棋譜を開けません",
-    body: "ワークスペースの一覧にこの棋譜がありません。移動・削除されたか、索引がまだ古い可能性があります。一覧から別のヒットを選択してください。",
-  },
-};
 
 export default function PositionSearchModal() {
   const { params, closeModal } = useURLParams();
@@ -71,16 +30,7 @@ export default function PositionSearchModal() {
   const { state: gameState, view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
 
-  const {
-    state,
-    searchPosition,
-    cancelSearch,
-    getSessionByRequestId,
-    getHitsByRequestId,
-    isSearchingRequest,
-    resolveHitAbsPath,
-    clearSearch,
-  } = usePositionSearch();
+  const { state, resolveHitAbsPath } = usePositionSearch();
 
   const { startNavigationToHit } = usePositionHitNavigation();
 
@@ -93,14 +43,6 @@ export default function PositionSearchModal() {
    * 1レンダで、利用者が選んでいない行が選択として描かれる。
    */
   const [selectedHit, setSelectedHit] = useState<PositionHit | null>(null);
-  const [requestId, setRequestId] = useState<number | null>(null);
-  /**
-   * 撃ち直しの合図。受け付けられなかった検索の後に、同じ問い合わせでもう一度立てる。
-   * `queryKey` が変わっていないので、これが無いと起動の effect が再走しない。
-   */
-  const [relaunchNonce, setRelaunchNonce] = useState(0);
-  const [launchError, setLaunchError] = useState<string | null>(null);
-  const [isLaunching, setIsLaunching] = useState(false);
   // 移動を断ったヒットは鍵（`hitKey`）で覚える。使い分けは
   // `docs/state-transitions/position-search-view.md` の「選択を追うのは参照、
   // 断りを覚えるのは鍵」
@@ -109,12 +51,18 @@ export default function PositionSearchModal() {
     reason: RefusalReason;
   } | null>(null);
 
-  const session = getSessionByRequestId(requestId);
-  const hits = getHitsByRequestId(requestId);
+  const forgetSelection = useCallback(() => {
+    setSelectedHit(null);
+    setRefusedHit(null);
+  }, []);
 
-  const isSearching = isLaunching || isSearchingRequest(requestId);
-  const isDone = !!session?.isDone && !isSearching;
-  const error = launchError ?? session?.error ?? null;
+  // 課題局面の一覧から来たときは渡された局面を、それ以外は盤の現在局面を検索する
+  const queryKey = params.sfen ?? currentSfen ?? null;
+  const { hits, isSearching, isDone, error, isStale } = useSearchSession({
+    queryKey,
+    isOpen,
+    onReset: forgetSelection,
+  });
 
   // 旗をここで並べ直さない。順を持っているのは `indexHealth` 1つ
   const health = indexHealth(state.index);
@@ -144,127 +92,6 @@ export default function PositionSearchModal() {
     resolveHitAbsPath,
     gameState.loadedAbsPath ?? null,
   );
-
-  // 課題局面の一覧から来たときは渡された局面を、それ以外は盤の現在局面を検索する
-  const queryKey = params.sfen ?? currentSfen ?? null;
-  const lastQueryKeyRef = useRef<string | null>(null);
-
-  // 取り下げる rid は state でなく ref で持つ。`setRequestId` の反映を待つと、
-  // invoke の解決の直後に続けて撃ち直したとき、直前の rid を取り下げ損なう
-  const inFlightRidRef = useRef<number | null>(null);
-
-  /**
-   * 起動の世代。`search_position` の invoke が解決するまで rid は分からないので、
-   * もう要らないことを rid でなくこれで表す。解決した側が自分の番かを確かめる。
-   */
-  const launchSeqRef = useRef(0);
-
-  /**
-   * 今の起動を要らないものにし、rid が分かっていれば検索を取り下げて結果も捨てる。
-   *
-   * 取り下げるだけでは足りない。届いたヒットの実体はセッションに残り、
-   * 開き直すたびに1検索ぶん積み上がる（2026-09-07 の実測で、10万件なら 17.6MB）。
-   * 結果を捨てる `clearSearch` を呼ぶのはこの画面だけで、ここと、要らなくなった
-   * 起動の invoke が解決した側の2か所が呼ぶ。
-   *
-   * 開いた直後に Esc を押すと、rid が分かる前に呼ばれる。そのときは世代を進めるだけで、
-   * 実際の取り下げは invoke が解決した側が引き受ける。
-   */
-  const discardSearch = useCallback(() => {
-    launchSeqRef.current += 1;
-
-    // 捨てたら、次に描かれたときに撃ち直す。ここを呼ぶのは、閉じる枝、撃ち直しの枝、
-    // 畳みの後始末の3か所。畳みの後始末は世代を進めるだけなので、覚えている問い合わせを
-    // 残すと、張り直された effect が早期 return して飛行中の起動を降ろす者が居なくなり、
-    // 画面は結果の来ない「検索中…」で固まる
-    lastQueryKeyRef.current = null;
-
-    const rid = inFlightRidRef.current;
-    if (rid == null) return;
-
-    inFlightRidRef.current = null;
-    void cancelSearch(rid);
-    clearSearch(rid);
-  }, [cancelSearch, clearSearch]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      discardSearch();
-      setRequestId(null);
-      setLaunchError(null);
-      setIsLaunching(false);
-      setSelectedHit(null);
-      setRefusedHit(null);
-      return;
-    }
-
-    if (!queryKey) return;
-    if (lastQueryKeyRef.current === queryKey) return;
-
-    discardSearch();
-
-    lastQueryKeyRef.current = queryKey;
-    setRequestId(null);
-    setLaunchError(null);
-    setIsLaunching(true);
-    setSelectedHit(null);
-    setRefusedHit(null);
-
-    const myLaunch = launchSeqRef.current;
-
-    void (async () => {
-      try {
-        // 区切りの大きさは測って決めた値ではない。大きくすると1本あたりの IPC が重くなり、
-        // 小さくすると溜め場に積む回数が増える、という向きが分かっているだけ。
-        // レンダの回数は `CHUNK_FLUSH_MS`（20回/秒）が抑えるので、この値に左右されない
-        const launch = await searchPosition({
-          sfen: queryKey,
-          consistency: "BestEffort",
-          chunkSize: 300,
-        });
-
-        // 自分の番でなければ、ここで取り下げる。待っているあいだに閉じたか
-        // 撃ち直されたなら、`discardSearch` は rid を知らないので何もできていない。
-        // 素通りさせると Rust の検索は最後まで走り、閉じた画面が到着のたびに
-        // 一覧を組み直し続ける
-        if (launchSeqRef.current !== myLaunch) {
-          if (launch.status === "started") {
-            void cancelSearch(launch.requestId);
-            clearSearch(launch.requestId);
-          }
-          return;
-        }
-
-        // 索引が開き直されて受け付けられなかったときは、rid を採用せずに撃ち直す。
-        // 採用するとセッションの無い rid を握って「待機中 / 一致する棋譜が
-        // ありません」になり、0件が完了として出る。`isLaunching` も降ろさない。
-        // 降ろすと、撃ち直しが立つまでの1レンダで同じ画面が出る
-        if (launch.status === "superseded") {
-          lastQueryKeyRef.current = null;
-          setRelaunchNonce((n) => n + 1);
-          return;
-        }
-
-        inFlightRidRef.current = launch.requestId;
-        setRequestId(launch.requestId);
-        setIsLaunching(false);
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error("[PositionSearchModal] search failed:", e);
-
-        // 失敗も自分の番のときだけ出す。捨てた起動の失敗をここで載せると、
-        // 後から解決した検索の正しい結果の上に「検索に失敗しました」が残り、
-        // 同じ画面では撃ち直せない
-        if (launchSeqRef.current !== myLaunch) return;
-        setLaunchError(e instanceof Error ? e.message : String(e));
-        setIsLaunching(false);
-      }
-    })();
-  }, [isOpen, queryKey, relaunchNonce, searchPosition, cancelSearch, clearSearch, discardSearch]);
-
-  useEffect(() => {
-    return () => discardSearch();
-  }, [discardSearch]);
 
   /**
    * 選んだ行の添字。`selectedHit` から導出し、state には持たない（`selectedHit` の doc）。
@@ -381,7 +208,7 @@ export default function PositionSearchModal() {
                 hitsCount={hits.length}
                 statusText={statusText}
                 indexHealth={health}
-                sessionStale={!!session?.stale}
+                sessionStale={isStale}
                 error={error}
               />
 
@@ -399,7 +226,7 @@ export default function PositionSearchModal() {
                 resolveAbsPath={resolveHitAbsPath}
                 hasQuery={queryKey != null}
                 indexHealth={health}
-                sessionStale={!!session?.stale}
+                sessionStale={isStale}
               />
             </section>
 

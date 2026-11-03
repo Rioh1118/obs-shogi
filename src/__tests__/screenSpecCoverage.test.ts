@@ -64,6 +64,10 @@ const SCREENS: { source: string; spec: string; minLabels?: number }[] = [
     source: "src/features/position-search/ui/PositionSearchModal.tsx",
     spec: "docs/spec/screens/position-search.md",
   },
+  {
+    source: "src/features/position-search/lib/hitRefusals.ts",
+    spec: "docs/spec/screens/position-search.md",
+  },
 ];
 
 /**
@@ -73,7 +77,7 @@ const SCREENS: { source: string; spec: string; minLabels?: number }[] = [
  * `return "…"`、**両腕とも文字列リテラルの三項**（`cond ? "A" : "B"`）。
  *
  * 三項を拾うのは `return` だけだと `emptyReason` の `ok` の腕が漏れるから。
- * `title:` / `body:` は、断りの文言を**表で持つ**画面（`PositionSearchModal` の
+ * `title:` / `body:` は、断りの文言を**表で持つ**画面（`position-search/lib/hitRefusals.ts` の
  * `REFUSALS`）がそのどれでもない形で文言を出すため——素の値にすると
  * 仕様書との突き合わせから落ちる。
  *
