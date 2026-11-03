@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   collectDirs,
   FsErrorView,
@@ -87,6 +87,7 @@ function KifuImportForm({
 
   const [submitError, setSubmitError] = useState<FsError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const rawRef = useRef<HTMLTextAreaElement>(null);
 
   /**
    * 保存先の欄
@@ -118,31 +119,7 @@ function KifuImportForm({
     setSelectedDir(rootPath);
   }
 
-  // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
-  // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
-  // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす経路が他に無い
-  const rawRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (hidden) return;
-    // 次のフレームまで待つ。器の `Modal` は開いた直後に焦点を引き戻すので、
-    // 同じターンで移すと奪われる
-    requestAnimationFrame(() => rawRef.current?.focus());
-  }, [hidden]);
-
-  useEffect(() => {
-    onDirtyChange?.(isDirty);
-  }, [isDirty, onDirtyChange]);
-
-  // 開発者向けの手掛かりはコンソールへ出す。開発中に追うためのもので、利用者から原因を
-  // 受け取る経路ではない。**配布ビルドには残らない** —— 棋譜のパースは webview の中だけで走り、
-  // `tauri-plugin-log` は Rust のログしか受けない
-  useEffect(() => {
-    if (read && !read.readable && read.cause) {
-      console.error("[create-file] 貼られた棋譜を読めなかった", read.cause);
-    }
-  }, [read]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const name = fullFileName;
@@ -173,6 +150,29 @@ function KifuImportForm({
       onSubmittingChange?.(false);
     }
   };
+
+  // **見えてから焦点を移す。** 面は隠れていても木に在るので、マウントの時点は
+  // 「この面が見えている時点」ではない。`display: none` の中で `focus()` を
+  // 呼んでも何も起きず、そのあとタブで出てきても焦点を動かす経路が他に無い
+  useEffect(() => {
+    if (hidden) return;
+    // 次のフレームまで待つ。器の `Modal` は開いた直後に焦点を引き戻すので、
+    // 同じターンで移すと奪われる
+    requestAnimationFrame(() => rawRef.current?.focus());
+  }, [hidden]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  // 開発者向けの手掛かりはコンソールへ出す。開発中に追うためのもので、利用者から原因を
+  // 受け取る経路ではない。**配布ビルドには残らない** —— 棋譜のパースは webview の中だけで走り、
+  // `tauri-plugin-log` は Rust のログしか受けない
+  useEffect(() => {
+    if (read && !read.readable && read.cause) {
+      console.error("[create-file] 貼られた棋譜を読めなかった", read.cause);
+    }
+  }, [read]);
 
   return (
     /*

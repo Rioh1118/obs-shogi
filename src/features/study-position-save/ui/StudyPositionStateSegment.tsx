@@ -4,11 +4,11 @@ import {
 } from "@/entities/study-positions/model/types";
 import "./StudyPositionStateSegment.scss";
 
-interface Props {
+type Props = {
   value: StudyPositionState;
   onChange: (value: StudyPositionState) => void;
   disabled?: boolean;
-}
+};
 
 export default function StudyPositionStateSegment({ value, onChange, disabled = false }: Props) {
   return (

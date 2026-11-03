@@ -27,7 +27,7 @@ function getActionLabel(conflict: FileConflictState): string {
   }
 }
 
-function getDestinationLabel(conflict: FileConflictState): string | null {
+function getDestinationLabel(conflict: FileConflictState): string {
   const req = conflict.request;
   switch (req.kind) {
     case "create_file":
@@ -40,8 +40,6 @@ function getDestinationLabel(conflict: FileConflictState): string | null {
     case "rename_file":
     case "rename_directory":
       return dirname(req.path);
-    default:
-      return null;
   }
 }
 
@@ -90,7 +88,7 @@ function ConflictMeta({ conflict }: { conflict: FileConflictState }) {
           </div>
         )}
 
-        {destination && (
+        {destination !== "" && (
           <div className="file-conflict__field file-conflict__field--full">
             <div className="file-conflict__label">保存先 / 移動先</div>
             <div className="file-conflict__path">{destination}</div>

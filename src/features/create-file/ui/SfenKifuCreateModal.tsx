@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -62,25 +62,12 @@ export default function SfenKifuCreateModal() {
     setSelectedDir(rootPath);
   }
 
-  // 開くたびにフォームを初期化する。`AppModalLayer` が常にマウントしているので、
-  // 初期化しないと前回の入力が残る。根は依存に入れずに `rootPathRef` から読む ——
-  // 依存に入れると、開いているあいだに根が変わっただけで打った名前まで消える
-  useEffect(() => {
-    if (!isOpen) return;
-    setFileName("");
-    setFormat("kif");
-    setBlackPlayer("");
-    setWhitePlayer("");
-    setSelectedDir(rootPathRef.current);
-    setSubmitError(null);
-  }, [isOpen]);
-
   // 拡張子は形式の欄が決める。**打った拡張子は落とす**ので `研究.kif.kif` にならない
   // （規則は `kifuFileName` が1箇所で持つ）
   const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       if (!fullFileName || !sfenInitial || isSubmitting) return;
 
@@ -125,6 +112,24 @@ export default function SfenKifuCreateModal() {
     ],
   );
 
+  const handleDirChange = (dir: string) => {
+    setSelectedDir(dir);
+    setSubmitError(null);
+  };
+
+  // 開くたびにフォームを初期化する。`AppModalLayer` が常にマウントしているので、
+  // 初期化しないと前回の入力が残る。根は依存に入れずに `rootPathRef` から読む ——
+  // 依存に入れると、開いているあいだに根が変わっただけで打った名前まで消える
+  useEffect(() => {
+    if (!isOpen) return;
+    setFileName("");
+    setFormat("kif");
+    setBlackPlayer("");
+    setWhitePlayer("");
+    setSelectedDir(rootPathRef.current);
+    setSubmitError(null);
+  }, [isOpen]);
+
   if (!isOpen || !sfen) return null;
 
   return (
@@ -151,10 +156,7 @@ export default function SfenKifuCreateModal() {
               id="saveDir"
               options={dirOptions}
               value={selectedDir}
-              onChange={(v) => {
-                setSelectedDir(v);
-                setSubmitError(null);
-              }}
+              onChange={handleDirChange}
             />
             {dirOptions.length === 0 && (
               <p className="sfen-kifu-create__hint">

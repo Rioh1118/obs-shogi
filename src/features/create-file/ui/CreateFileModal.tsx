@@ -25,6 +25,7 @@ type Face = EditorFace | "import";
  */
 function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   const { params } = useURLParams();
+  const { state: studyState } = useStudyPositions();
   const [face, setFace] = useState<Face>(params.tab === "import" ? "import" : "board");
   /**
    * 作成中の旗は面ごとに立つ
@@ -68,7 +69,10 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
     closeModal();
   }, [closeModal, isSubmitting, editorDirty, importDirty]);
 
-  const { state: studyState } = useStudyPositions();
+  const handleConfirmClose = () => {
+    setConfirmingClose(false);
+    closeModal();
+  };
 
   return (
     <Modal
@@ -158,10 +162,7 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
             // こちらは組みかけ・貼りかけを持ったままの面へ帰るだけ。
             // 「組み続ける」にもしない —— 貼りかけだけを捨てるときに組んでいない
             cancelLabel="閉じない"
-            onConfirm={() => {
-              setConfirmingClose(false);
-              closeModal();
-            }}
+            onConfirm={handleConfirmClose}
             onCancel={() => setConfirmingClose(false)}
           />
         )}

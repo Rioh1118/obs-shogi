@@ -13,7 +13,7 @@ import { kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
  * 書き込む名前は `kifuFileName` が決める（どちらも `entities/kifu`）。
  * ここが持つのは「いま何が打たれているか」と、そこから引ける組み合わせだけ。
  */
-interface KifuImportDraft {
+type KifuImportDraft = {
   rawContent: string;
   setRawContent: (value: string) => void;
   fileName: string;
@@ -33,7 +33,7 @@ interface KifuImportDraft {
    * 聞かれること自体が意味を失う。
    */
   isDirty: boolean;
-}
+};
 
 export function useKifuImportDraft(): KifuImportDraft {
   const [rawContent, setRawContent] = useState("");

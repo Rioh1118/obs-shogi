@@ -4,11 +4,11 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 import "./ImportedKifuSummary.scss";
 
-interface ImportedKifuSummaryProps {
+type ImportedKifuSummaryProps = {
   format: KifuFormat;
   moves: number;
   jkf: JKFData;
-}
+};
 
 /**
  * 読み取った棋譜の素性

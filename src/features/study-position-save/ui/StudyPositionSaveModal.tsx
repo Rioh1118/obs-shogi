@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
@@ -29,11 +29,6 @@ export default function StudyPositionSaveModal() {
   const { findBySfen, addPosition, updatePosition, deletePosition } = useStudyPositions();
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-
-  const sfen = params.sfen ?? currentSfen;
-  const existing = useMemo(() => (isOpen ? findBySfen(sfen) : null), [isOpen, findBySfen, sfen]);
-  const isEdit = !!existing;
-
   const [label, setLabel] = useState("");
   const [studyState, setStudyState] = useState<StudyPositionState>("inbox");
   const [tags, setTags] = useState<string[]>([]);
@@ -41,25 +36,9 @@ export default function StudyPositionSaveModal() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 開くたびにフォームを詰め直す。`AppModalLayer` が常にマウントしているので、詰め直さないと
-  // 前回の入力が残る。保存済みの局面なら記録の値を、そうでなければ空を入れる。
-  // `existing` が別の値に変わったときも詰め直す
-  useEffect(() => {
-    if (!isOpen) return;
-    setConfirmDelete(false);
-    setErrorMsg(null);
-    if (existing) {
-      setLabel(existing.label);
-      setStudyState(existing.state);
-      setTags(existing.tags);
-      setDescription(existing.description);
-    } else {
-      setLabel("");
-      setStudyState("inbox");
-      setTags([]);
-      setDescription("");
-    }
-  }, [isOpen, existing]);
+  const sfen = params.sfen ?? currentSfen;
+  const existing = useMemo(() => (isOpen ? findBySfen(sfen) : null), [isOpen, findBySfen, sfen]);
+  const isEdit = !!existing;
 
   const previewData = useMemo(() => {
     if (!isOpen || !sfen) return null;
@@ -135,7 +114,7 @@ export default function StudyPositionSaveModal() {
   }, [existing, isSaving, deletePosition, closeModal]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         handleSave();
@@ -143,6 +122,26 @@ export default function StudyPositionSaveModal() {
     },
     [handleSave],
   );
+
+  // 開くたびにフォームを詰め直す。`AppModalLayer` が常にマウントしているので、詰め直さないと
+  // 前回の入力が残る。保存済みの局面なら記録の値を、そうでなければ空を入れる。
+  // `existing` が別の値に変わったときも詰め直す
+  useEffect(() => {
+    if (!isOpen) return;
+    setConfirmDelete(false);
+    setErrorMsg(null);
+    if (existing) {
+      setLabel(existing.label);
+      setStudyState(existing.state);
+      setTags(existing.tags);
+      setDescription(existing.description);
+    } else {
+      setLabel("");
+      setStudyState("inbox");
+      setTags([]);
+      setDescription("");
+    }
+  }, [isOpen, existing]);
 
   if (!isOpen) return null;
 
