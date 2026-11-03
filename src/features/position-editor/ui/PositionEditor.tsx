@@ -170,7 +170,7 @@ function PositionEditor({
     onFaceChange("study");
   }, [release, onFaceChange]);
 
-  const useStudyPosition = useCallback(
+  const pickStudyPosition = useCallback(
     (position: StudyPosition) => {
       const seed = stateFromSfen(position.sfen);
       // 読めない SFEN は種にしない。黙って盤へ戻すと、種が変わっていないのに
@@ -299,7 +299,7 @@ function PositionEditor({
         <div className="pos-editor__main">
           <EditorStudyPicker
             positions={studyPositions}
-            onPick={useStudyPosition}
+            onPick={pickStudyPosition}
             onBack={() => onFaceChange("board")}
           />
         </div>

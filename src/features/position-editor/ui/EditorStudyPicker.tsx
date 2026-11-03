@@ -39,7 +39,7 @@ const STATE_OPTIONS: readonly { value: StudyPositionState | ""; label: string }[
  */
 function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps) {
   const [query, setQuery] = useState("");
-  const [state, setState] = useState<StudyPositionState | "">("");
+  const [stateFilter, setStateFilter] = useState<StudyPositionState | "">("");
   const [lookingId, setLookingId] = useState<string | null>(null);
   const faceRef = useRef<HTMLDivElement>(null);
 
@@ -65,7 +65,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return positions.filter((p) => {
-      if (state !== "" && p.state !== state) return false;
+      if (stateFilter !== "" && p.state !== stateFilter) return false;
       if (needle === "") return true;
       return (
         p.label.toLowerCase().includes(needle) ||
@@ -73,12 +73,12 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
         p.tags.some((tag) => tag.toLowerCase().includes(needle))
       );
     });
-  }, [positions, query, state]);
+  }, [positions, query, stateFilter]);
 
   // **選んだ行そのもので覚える。** 位置で覚えると、絞り込みで件数が変わらないまま
   // 中身が入れ替わったときに、押していない別の局面へ黙って移る
   const looking = shown.find((p) => p.id === lookingId) ?? shown[0] ?? null;
-  const at = looking ? shown.indexOf(looking) : -1;
+  const lookingIndex = looking ? shown.indexOf(looking) : -1;
   const preview = useMemo(
     () => (looking ? buildPreviewDataFromSfen(looking.sfen) : null),
     [looking],
@@ -97,7 +97,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault();
           const step = e.key === "ArrowDown" ? 1 : -1;
-          const next = Math.max(0, Math.min(shown.length - 1, at + step));
+          const next = Math.max(0, Math.min(shown.length - 1, lookingIndex + step));
           setLookingId(shown[next]?.id ?? null);
           return;
         }
@@ -123,8 +123,8 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
             label="状態"
             id="pos-editor-study-state"
             options={STATE_OPTIONS}
-            value={state}
-            onChange={setState}
+            value={stateFilter}
+            onChange={setStateFilter}
           />
         </div>
 
@@ -149,13 +149,13 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
                   id={`pos-editor-study-${position.id}`}
                   className={[
                     "pos-editor__picker-row",
-                    index === at && "is-looking",
+                    index === lookingIndex && "is-looking",
                     broken && "is-broken",
                   ]
                     .filter(Boolean)
                     .join(" ")}
                   role="option"
-                  aria-selected={index === at}
+                  aria-selected={index === lookingIndex}
                   aria-disabled={broken}
                   title={
                     broken ? "保存されている局面の綴りが壊れていて、盤に載せられません" : undefined
@@ -171,7 +171,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
                     broken
                       ? undefined
                       : (e) =>
-                          e.detail >= 2 && index === at
+                          e.detail >= 2 && index === lookingIndex
                             ? onPick(position)
                             : setLookingId(position.id)
                   }
