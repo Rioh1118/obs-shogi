@@ -65,11 +65,11 @@ afterEach(() => cleanup());
 
 describe("usePositionHitNavigation", () => {
   /**
-   * **一度盤に載せられなかった棋譜へ、もう一度ヒットから飛ぶ経路。**
+   * 一度盤に載せられなかった棋譜へ、もう一度ヒットから飛ぶ経路。
    *
    * ツリーは `activeKifuPath` をその棋譜に進めたまま（構文としては読めている）なので、
    * `selectNodeByAbsPath` に任せると「もう開いている」と判断して `openKifuNode` を飛ばす。
-   * 飛ばされると載せ直しの effect が走らず、**モーダルだけが閉じて何も起きない**。
+   * 飛ばされると載せ直しの effect が走らず、モーダルだけが閉じて何も起きない。
    */
   test("盤に載っていない棋譜は、ツリーが開いていると言っていても開き直させる", () => {
     selectNodeByAbsPath.mockReturnValue(true);
@@ -196,11 +196,11 @@ describe("usePositionHitNavigation", () => {
   });
 
   /**
-   * **読めたが盤に載せられなかった回**（`game.md` の E16）。`kifuError` は立たず、
+   * 読めたが盤に載せられなかったとき（`game.md` の E16）。`kifuError` は立たず、
    * 選択もその棋譜のままなので、上の2つでは見分けが付かない。
    *
    * 捨てないと、利用者が外でそのファイルを直して普通に開き直した瞬間に、
-   * **ずっと前に押した検索ヒットの局面へ盤が飛ぶ**。
+   * ずっと前に押した検索ヒットの局面へ盤が飛ぶ。
    */
   test("盤に載せられなかったら要求は流れる", () => {
     selectNodeByAbsPath.mockReturnValue(true);
@@ -224,7 +224,7 @@ describe("usePositionHitNavigation", () => {
   });
 
   /**
-   * **読み込みの最中は捨てない。** `loadedAbsPath` の不一致で代用すると、
+   * 読み込みの最中は捨てない。`loadedAbsPath` の不一致で代用すると、
    * 成功する要求まで捨てることになる。
    */
   test("まだ載っていないだけなら要求は生きている", () => {
@@ -246,14 +246,14 @@ describe("usePositionHitNavigation", () => {
   });
 
   /**
-   * **前の回の失敗が残っているうちに、新しい要求を出す。**
+   * 前の要求の失敗が残っているうちに、新しい要求を出す。
    *
-   * 印が「いま失敗している」を表すと、armed の直後から立っているので、effect が
-   * 1回でも走った時点で新しい要求まで捨てられる。**印は直近の試行だけを指すこと。**
+   * 印が「いま失敗している」を表すと、要求を出した直後から立っているので、effect が
+   * 1回でも走った時点で新しい要求まで捨てられる。印は直近の読み込みだけを指すこと。
    */
   test("前の失敗の印が残っていても、新しい要求は捨てない", () => {
     selectNodeByAbsPath.mockReturnValue(true);
-    // 前の回に載せられなかった印が残っている
+    // 前の要求で載せられなかった印が残っている
     stub.loadFailedAbsPath = "/root/b.kif";
     stub.loadFailedSeq = 1;
 

@@ -7,7 +7,7 @@ import type { PositionHit } from "@/entities/search";
 import PositionSearchHitList from "../PositionSearchHitList";
 
 /**
- * 行は絶対配置で置かれるので、**スロットより背の高いカードは隣を押しのけず、覆う**。
+ * 行は絶対配置で置かれるので、スロットより背の高いカードは隣を押しのけず、覆う。
  * スロットの高さを数値で決め打つと、その数値とカードの実寸を繋ぐものが何も無くなり、
  * 文字サイズや余白を動かしただけで重なりが戻る。
  *

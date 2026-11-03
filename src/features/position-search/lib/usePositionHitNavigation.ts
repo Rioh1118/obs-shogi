@@ -9,40 +9,41 @@ type PendingNav = {
   absPath: string;
   cursor: CursorLite;
   /**
-   * 要求を出した時点の `loadFailedSeq`。**これより進んだ失敗だけが自分のもの。**
+   * 要求を出した時点の `loadFailedSeq`。これより進んだ失敗だけがこの要求の失敗。
    *
-   * パスの一致だけで捨てると、前の回の失敗が残っている状態で同じ棋譜を
-   * もう一度要求したときに、**まだ走っている試行を「もう来ない」と読む**。
+   * パスの一致だけで捨てると、前の要求の失敗が残っている状態で同じ棋譜を
+   * もう一度要求したときに、まだ走っている読み込みを「もう来ない」と読む。
    */
   failedSeq: number;
 };
 
 /**
- * 移動を始められたか。始められなかったときは**理由まで返す**——
+ * 移動を始められたか、始められなかったならその理由
+ *
  * ツリーそのものがまだ無いのと、ツリーにその棋譜が無いのは別の失敗で、
- * 前者は読み込めれば同じ操作で開ける（呼び手が段と文言を分けられるように）
+ * 前者は読み込めれば同じ操作で開ける。呼び手が段と文言を分けられるように理由まで返す。
  */
 export type NavigationOutcome = "started" | "not-in-tree" | "tree-unavailable";
 
 /**
- * 検索ヒット -> (必要ならファイルを開く) -> 指定局面へ applyCursor
+ * 検索ヒットの局面へ盤を動かす関数を返す。必要ならその棋譜を開いてから動かす。
  *
- * - 同一ファイルなら即 applyCursor
- * - 別ファイルなら selectNodeByAbsPath で FileTree を切り替え、
- *   GameContext がそのファイルを load して view.player が立ったら applyCursor
+ * - 盤に載っている棋譜なら、その場で `applyCursor` する
+ * - 別の棋譜なら `selectNodeByAbsPath` でツリーを切り替え、その棋譜が盤に載って
+ *   `view.player` が立ったら `applyCursor` する
  *
- * **返すのは「移動を始められたか」であって「開けたか」ではない。** 索引に在る棋譜が
+ * 返すのは移動を始められたかで、開けたかではない。索引に在る棋譜が
  * ツリーに無いのは正常運転で起こる（理由は
  * `docs/state-transitions/search.md` の「走査が失敗しても `Y` に上がる」）。
- * 呼び手が戻り値を捨てると、盤が動かないまま「開いた」ように見える経路になる
+ * 呼び手が戻り値を捨てると、盤が動かないまま「開いた」ように見える経路になる。
  */
 export function usePositionHitNavigation() {
   const { fileTree, selectedNode, selectNodeByAbsPath, kifuError } = useFileTree();
   const { state: gameState, view: gameView, applyCursor } = useGame();
 
-  // **真偽に落としてから依存に入れる。** `view.player` は `buildPlayer` が作る新しい
-  // オブジェクトなので、盤が1手動くたびに同一性が変わる。ここが要るのは「有るか無いか」
-  // だけなのに、そのまま依存に入れると `accept` → 行の props → `memo` の連鎖が毎手切れる
+  // 真偽に落としてから依存に入れる。`view.player` は `buildPlayer` が作る新しい
+  // オブジェクトなので、盤が1手動くたびに同一性が変わる。要るのは有るか無いかだけなのに、
+  // そのまま依存に入れると `accept` → 行の props → `memo` の連鎖が毎手切れる
   const hasPlayer = gameView.player !== null;
 
   const pendingRef = useRef<PendingNav | null>(null);
@@ -51,16 +52,14 @@ export function usePositionHitNavigation() {
     (absPath: string, cursor: CursorLite): NavigationOutcome => {
       pendingRef.current = { absPath, cursor, failedSeq: gameState.loadFailedSeq };
 
-      // すでにその棋譜が**盤に載っていて**、view.player もあるなら即ジャンプ。
-      //
-      // **`selectedNode` だけで判定しない。** ツリーの選択は即座に切り替わるのに
+      // `selectedNode` だけで判定しない。ツリーの選択は即座に切り替わるのに
       // `view.player` は盤に載っている棋譜の再生器なので、選択だけを見ると
-      // 読み込みの飛行中や盤に載せられなかった棋譜（#434）で
-      // **前の棋譜に別の棋譜のカーソルを当てて成功を返す**。
+      // 読み込みの飛行中や盤に載せられなかった棋譜で、前の棋譜に別の棋譜の
+      // カーソルを当てて成功を返す。
       //
-      // **`state.isLoading` は見ない。** あれは `blockingWrites > 0` の射影
+      // `state.isLoading` は見ない。あれは `blockingWrites > 0` の射影
       // （`entities/game/model/types.ts`）で、棋譜の読み込み中には立たない。
-      // 読み込みの飛行中を実際に弾いているのは `loadedAbsPath` の一致で、
+      // 読み込みの飛行中を弾いているのは `loadedAbsPath` の一致で、
       // 条件は下の effect（着いてから当てる側）と同じ2つにしてある
       if (
         selectedNode &&
@@ -82,9 +81,10 @@ export function usePositionHitNavigation() {
         return "tree-unavailable";
       }
 
-      // **盤に載っていないなら必ず開き直させる。** ツリー側の判断に任せると、載せられなかった棋譜は2度目以降の要求で `openKifuNode` ごと飛ばされる。
-      // 飛ばされると `jkfData` の同一性も `activeKifuPath` も動かず、載せ直しの effect が
-      // 走らないので**モーダルだけが閉じて何も起きない**。
+      // 盤に載っていないなら必ず開き直させる。ツリー側の判断に任せると、載せられなかった
+      // 棋譜は2度目以降の要求で `openKifuNode` ごと飛ばされる。飛ばされると `jkfData` の
+      // 同一性も `activeKifuPath` も動かず、載せ直しの effect が走らないので、
+      // モーダルだけが閉じて何も起きない。
       const forceReopen = gameState.loadedAbsPath !== absPath;
 
       if (!selectNodeByAbsPath(absPath, { forceReopen })) {
@@ -105,16 +105,16 @@ export function usePositionHitNavigation() {
     ],
   );
 
-  // ファイル切替 → 読み込み完了（view.player が立つ）を待ってから applyCursor
+  // 要求した棋譜が盤に載り、`view.player` が立つのを待ってから当てる
   useEffect(() => {
     const p = pendingRef.current;
     if (!p) return;
 
-    // **流れた要求は捨てる。** このフックはモーダルごと常時マウントされている
+    // 流れた要求は捨てる。このフックはモーダルごと常時マウントされている
     // （`AppModalLayer`）ので、捨てないと要求はアプリを終えるまで生き残り、
     // あとでその棋譜を普通に開いた瞬間に、誰も頼んでいない局面へ盤が動く。
-    // 見分けは3つ——利用者が別の棋譜を選んだ／その棋譜を読めなかった／
-    // 読めたが盤に載せられなかった
+    // 流れたと見るのは、利用者が別の棋譜を選んだとき、その棋譜を読めなかったとき、
+    // 読めたが盤に載せられなかったときの3つ
     if (selectedNode && !selectedNode.isDirectory && selectedNode.path !== p.absPath) {
       pendingRef.current = null;
       return;
@@ -123,11 +123,11 @@ export function usePositionHitNavigation() {
       pendingRef.current = null;
       return;
     }
-    // **`loadedAbsPath` が一致しないことでは代用できない。** 読み込みが進んでいる間も
+    // `loadedAbsPath` が一致しないことでは代用できない。読み込みが進んでいる間も
     // 一致しないので、成功する要求まで捨てることになる。載せられなかったことは
     // `loadFailedAbsPath` にしか出ない。
     //
-    // **回数まで見る。** パスの一致だけだと、前の回の失敗が残っている状態で同じ棋譜を
+    // 失敗の番号まで見る。パスの一致だけだと、前の要求の失敗が残っている状態で同じ棋譜を
     // もう一度要求したときに、要求を出した直後の effect が古い印を読んで捨てる。
     if (gameState.loadFailedAbsPath === p.absPath && gameState.loadFailedSeq !== p.failedSeq) {
       pendingRef.current = null;

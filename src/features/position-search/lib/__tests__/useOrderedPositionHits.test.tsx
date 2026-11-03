@@ -6,12 +6,11 @@ import type { PositionHit } from "@/entities/search";
 import { useOrderedPositionHits } from "../useOrderedPositionHits";
 
 /**
- * 並べ替えが**新しく届いたぶんだけ**を見ること。
+ * 並べ替えが新しく届いたぶんだけを見ること。
  *
  * 一覧はチャンクが届くたびに伸びるので、毎回全件を走らせると `resolveAbsPath` の
- * 呼び出しが二乗で伸びる（実測で n=100,000 のとき合計 2,357ms。
- * `.claude/reviews/2026-09-07-447-position-search-perf-r1.md` M-4）。呼び出し回数は
- * 画面のどこにも出ないので、**数える以外に見る方法が無い**。
+ * 呼び出しが二乗で伸びる（2026-09-07 の実測で、n=100,000 のとき合計 2,357ms）。
+ * 呼び出し回数は画面のどこにも出ないので、数える以外に見る方法が無い。
  */
 
 const CURRENT = "/root/open.kif";
