@@ -38,7 +38,7 @@ export default function SfenKifuCreateModal() {
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<FsError | null>(null);
 
-  // 手合割としては書けない（URL から来た任意の局面なので）ので `OTHER` に固定する。
+  // URL から来た任意の局面は手合割として書けないので、`OTHER` に固定する。
   // 読めない綴りなら `null` —— 下の送信がそこで止まる
   const sfenInitial = useMemo(() => {
     const data = sfen ? stateFromSfen(sfen) : null;
@@ -52,7 +52,7 @@ export default function SfenKifuCreateModal() {
     return collectDirs(fileTree, fileTree.path);
   }, [fileTree]);
 
-  // fileTree が変わったら selectedDir を同期
+  // ツリーの根が入れ替わったら保存先を根へ戻す
   const rootPath = fileTree?.path ?? "";
   const rootPathRef = useRef(rootPath);
   rootPathRef.current = rootPath;
@@ -62,8 +62,9 @@ export default function SfenKifuCreateModal() {
     setSelectedDir(rootPath);
   }
 
-  // 開くたびにフォームをリセットする（常駐レンダリングで状態が残るため）
-  // selectedDir は rootPathRef 経由で最新の rootPath を参照する
+  // 開くたびにフォームを初期化する。`AppModalLayer` が常にマウントしているので、
+  // 初期化しないと前回の入力が残る。根は依存に入れずに `rootPathRef` から読む ——
+  // 依存に入れると、開いているあいだに根が変わっただけで打った名前まで消える
   useEffect(() => {
     if (!isOpen) return;
     setFileName("");
@@ -197,15 +198,15 @@ export default function SfenKifuCreateModal() {
             />
           </FormField>
 
-          {/* 押した場所の隣に出す。入力欄は残すので、名前を直してそのまま押し直せる */}
+          {/* 押した場所の隣に出す。フォームは差し替えない —— 入力欄が消えると、失敗して
+              戻ったときキーボードの利用者はどこにいるか分からなくなる。残っていれば、
+              名前を直してそのまま押し直せる */}
           {submitError && (
             <FormField>
               <FsErrorView error={submitError} />
             </FormField>
           )}
 
-          {/* フォームは出したままにする。差し替えると入力欄が消え、
-                  失敗して戻ったときキーボードの利用者はどこにいるか分からなくなる */}
           <ButtonGroup>
             <Button
               type="submit"

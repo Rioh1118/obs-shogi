@@ -34,7 +34,6 @@ export default function StudyPositionSaveModal() {
   const existing = useMemo(() => (isOpen ? findBySfen(sfen) : null), [isOpen, findBySfen, sfen]);
   const isEdit = !!existing;
 
-  // --- form state ---
   const [label, setLabel] = useState("");
   const [spState, setSpState] = useState<StudyPositionState>("inbox");
   const [tags, setTags] = useState<string[]>([]);
@@ -42,7 +41,9 @@ export default function StudyPositionSaveModal() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // reset form when modal opens or existing changes
+  // 開くたびにフォームを詰め直す。`AppModalLayer` が常にマウントしているので、詰め直さないと
+  // 前回の入力が残る。保存済みの局面なら記録の値を、そうでなければ空を入れる。
+  // `existing` が別の値に変わったときも詰め直す
   useEffect(() => {
     if (!isOpen) return;
     setConfirmDelete(false);
@@ -65,9 +66,8 @@ export default function StudyPositionSaveModal() {
     return buildPreviewDataFromSfen(sfen);
   }, [isOpen, sfen]);
 
-  // context info
-  // params.sfen が明示されている場合（マネージャー等から開かれた場合）は
-  // 現在対局の tesuu / fileName は別の棋譜のものになるため表示しない
+  // URL に `sfen` があるとき（課題局面の一覧から開いたとき）は、手数とファイル名を出さない。
+  // 盤に載っている棋譜は、保存しようとしている局面とは別の棋譜なので
   const isFromGameContext = !params.sfen;
   const tesuu = isFromGameContext ? getCurrentMoveIndex() : null;
   const fileName = useMemo(() => {

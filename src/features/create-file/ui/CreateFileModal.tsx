@@ -29,10 +29,9 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   /**
    * 作成中の旗は面ごとに立つ
    *
-   * **同じ状態が2つの綴りを持つ**（状態遷移表の W）。組む面は
-   * `EditorCreateForm` の `isSubmitting`、インポートの面は `KifuImportForm` の
-   * `isSaving`。器は両方を見る —— 片方しか見ないと、見ていない面で送信中に
-   * タブを押せて、失敗を出す場所ごと消える。
+   * 状態遷移表の W は1つだが、旗は面ごとに別の綴りで持つ。組む面は `PositionEditor` の
+   * `isSubmitting`、インポートの面は `KifuImportForm` の `isSaving`。器は両方を見る ——
+   * **片方しか見ないと、見ていない面で送信中にタブを押せて、失敗を出す場所ごと消える**。
    */
   const [editorBusy, setEditorBusy] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
@@ -41,20 +40,20 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
   /**
    * 捨てるものがあるか
    *
-   * **面ごとに数えて器が足す**（状態遷移表の直交軸「捨てるもの」）。組みかけの局面は
+   * 面ごとに数えて器が足す（状態遷移表の直交軸「捨てるもの」）。組みかけの局面は
    * 組む面が、貼りかけの棋譜はインポートの面が持つ。片方しか見ないと、
    * **見ていないほうが閉じるときに黙って消える**。
    */
   const [editorDirty, setEditorDirty] = useState(false);
   const [importDirty, setImportDirty] = useState(false);
 
-  /** 確認が出ているあいだ保留している「閉じる」。`null` なら確認は出ていない */
+  /** 閉じる前の確認が出ているか */
   const [confirmingClose, setConfirmingClose] = useState(false);
 
   /**
    * 閉じる経路を1つにする判定
    *
-   * **閉じる経路は4つある**（Esc・覆いの押下・両方の面の「キャンセル」）。
+   * 閉じる経路は4つある（Esc・覆いの押下・両方の面の「キャンセル」）。
    * `Modal` は Esc と覆いの両方で `onClose` を呼ぶので、そこへ寄せれば経路が1つになる。
    * 段を面の中だけで持つと、焦点が面の外にある Esc と覆いの押下が素通りして、
    * **捨てるものが確認なしに消える**。

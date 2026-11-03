@@ -59,7 +59,7 @@ function KifuImportForm({
   /**
    * 貼りかけを器へ知らせる
    *
-   * **閉じるときの確認は器が出す**（状態遷移表の直交軸「捨てるもの」）。
+   * 閉じるときの確認は器が出す（状態遷移表の直交軸「捨てるもの」）。
    * 捨てるものは隣のタブの組みかけにもあり、**両方を数えられるのは器だけ**。
    */
   onDirtyChange?: (dirty: boolean) => void;
@@ -89,11 +89,10 @@ function KifuImportForm({
   const [isSaving, setIsSaving] = useState(false);
 
   /**
-   * 保存先
+   * 保存先の欄
    *
-   * **欄を持つ。** 入口は2つあり、ようこそ画面から開くと `dir=` が来ない。
-   * 空のまま送ると Rust 側が `invalid_path` を返すので、
-   * **保存先を一度も選んでいないのに「その場所は扱えません」と言われる**。
+   * 入口は2つあり、ようこそ画面から開くと `dir=` が来ない。欄を持たずに空のまま送ると
+   * Rust 側が `invalid_path` を返し、**保存先を一度も選んでいないのに「その場所は扱えません」と言われる**。
    */
   const rootPath = fileTree?.path ?? "";
   const dirOptions = useMemo(
@@ -109,7 +108,7 @@ function KifuImportForm({
     setSelectedDir(rootPath);
   }
 
-  // **選んでいたフォルダだけが消えたときも根へ戻す。** `Select` は選択肢に無い値を
+  // 選んでいたフォルダだけが消えたときも根へ戻す。`Select` は選択肢に無い値を
   // プレースホルダで描くので、欄は「選択してください」に戻る。値だけ残すと、
   // **画面が「選んでいない」と言っているのに消えたパスへ書きに行く**。
   //
@@ -134,9 +133,9 @@ function KifuImportForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  // 開発者向けの手掛かりはコンソールへ。**配布ビルドには残らない** ——
-  // 棋譜のパースは webview の中だけで走り、`tauri-plugin-log` は Rust のログしか受けない。
-  // 開発中に追うためのもので、利用者から原因を受け取る経路ではない（→ #157）
+  // 開発者向けの手掛かりはコンソールへ出す。開発中に追うためのもので、利用者から原因を
+  // 受け取る経路ではない。**配布ビルドには残らない** —— 棋譜のパースは webview の中だけで走り、
+  // `tauri-plugin-log` は Rust のログしか受けない
   useEffect(() => {
     if (read && !read.readable && read.cause) {
       console.error("[create-file] 貼られた棋譜を読めなかった", read.cause);

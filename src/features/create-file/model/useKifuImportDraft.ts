@@ -5,7 +5,7 @@ import { kifuFileName, type KifuFormat } from "@/entities/kifu/model/kifu";
 /**
  * 貼りかけの棋譜と、作るファイルの指定
  *
- * **組む面の `usePositionDraft` と同じ役。** 面の中に散らすと、`isDirty`（捨てるものが
+ * 組む面の `usePositionDraft` と同じ役。面の中に散らすと、`isDirty`（捨てるものが
  * あるか）や「送れるか」の判定が描画のたびに別々の綴りで書かれ、器が数えたいものと
  * 画面が出しているものが離れていく。
  *
@@ -40,10 +40,8 @@ export function useKifuImportDraft(): KifuImportDraft {
   const [fileName, setFileName] = useState("");
   const [format, setFormat] = useState<KifuFormat>("kif");
 
-  /**
-   * **貼られたテキストから毎回引く。** state に置くと、`rawContent` が新しくて
-   * この値が古い組み合わせが作れてしまい、送ってよいかの判定がどちらを信じるか決まらない。
-   */
+  // 貼られたテキストから毎回引く。state に置くと、`rawContent` が新しくて
+  // この値が古い組み合わせが作れてしまい、送ってよいかの判定がどちらを信じるか決まらない
   const read = useMemo(() => (rawContent.trim() ? readKifuText(rawContent) : null), [rawContent]);
 
   const fullFileName = useMemo(() => kifuFileName(fileName, format), [fileName, format]);
