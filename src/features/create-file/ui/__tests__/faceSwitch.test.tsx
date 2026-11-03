@@ -229,11 +229,11 @@ describe("インポートの面から閉じる", () => {
     await frame();
     // **隠れているあいだに移してはいけない。** 実ブラウザでは `display: none` への
     // `focus()` は何も起きず、そのあとタブで出てきても焦点を動かす経路が無い
-    expect(document.activeElement?.id).not.toBe("rawKifu");
+    expect(document.activeElement?.id).not.toBe("kifu-import-raw");
 
     fireEvent.click(tab("インポート"));
     await frame();
-    expect(document.activeElement?.id).toBe("rawKifu");
+    expect(document.activeElement?.id).toBe("kifu-import-raw");
   });
 });
 
@@ -300,5 +300,29 @@ describe("作成中（W）", () => {
 
     expect(importKifuFile).toHaveBeenCalledTimes(1);
     expect(importKifuFile.mock.calls[0]?.[0]).toBe("/root");
+  });
+});
+
+/**
+ * 2つの面が同じ `id` を名乗ると、ラベルを押したときに隠れている面の欄へ焦点が入る。
+ * ブラウザがラベルから引くのは文書の中で最初にその `id` を持つ要素なので、
+ * ここも `getElementById` で引く（面の中だけを探すと衝突が見えない）。
+ */
+describe("ラベルと欄", () => {
+  test.each([
+    [".kifu-import", ["棋譜テキスト", "ファイル名", "形式", "保存先"]],
+    [".pos-editor", ["ファイル名", "形式", "保存先", "先手名", "後手名"]],
+  ])("%s のラベルは、同じ面の中の欄を指す", (selector, labels) => {
+    render(<CreateFileModal />);
+    const face = document.querySelector<HTMLElement>(selector);
+    if (!face) throw new Error(`面が無い: ${selector}`);
+
+    for (const text of labels) {
+      const label = [...face.querySelectorAll("label")].find((el) => el.textContent === text);
+      if (!label) throw new Error(`ラベルが無い: ${text}`);
+      const control = document.getElementById(label.htmlFor);
+      expect(control, text).not.toBeNull();
+      expect(face.contains(control), text).toBe(true);
+    }
   });
 });

@@ -189,7 +189,7 @@ function KifuImportForm({
         <FormField>
           <Textarea
             label="棋譜テキスト"
-            id="rawKifu"
+            id="kifu-import-raw"
             ref={rawRef}
             placeholder=".kif / .ki2 / .csa / .jkf を貼り付け"
             value={rawContent}
@@ -223,7 +223,7 @@ function KifuImportForm({
         <FormField horizontal>
           <TextInput
             label="ファイル名"
-            id="fileName"
+            id="kifu-import-file-name"
             placeholder="45角戦法"
             value={fileName}
             onChange={(e) => setFileName(e.target.value)}
@@ -231,14 +231,14 @@ function KifuImportForm({
           />
           <Select
             label="形式"
-            id="format"
+            id="kifu-import-format"
             options={KIFU_FORMAT_OPTIONS}
             value={format}
             onChange={setFormat}
           />
           <Select
             label="保存先"
-            id="import-dir"
+            id="kifu-import-dir"
             options={dirOptions}
             value={selectedDir}
             onChange={setSelectedDir}

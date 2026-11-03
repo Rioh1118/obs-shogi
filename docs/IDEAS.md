@@ -286,17 +286,6 @@ tsshogi 2.3.x）で **KIF 1KB あたり約 0.47ms**、総手数に線形。
 **2:1 になったので、どちらが正かがコードから読めない。** 寄せるなら
 `label="フォーマット"` / `label="保存先フォルダ"` を禁じる綴りの走査で再発を止められる。
 
-## 同時に DOM に在る2つの面で、フォーム要素の id の付け方が違う
-
-同じレビュー（comment reviewer）。組む面は `pos-editor-file-name` のように
-面ごとの接頭辞＋kebab、インポートの面は `fileName` / `format` / `import-dir` と
-綴りが混ざっている。**器は両方の面を同時にマウントする**（片方は `hidden`）ので、
-いまは綴りが偶然ずれているだけで衝突していない。片方が `format` を名乗った瞬間に、
-ラベルを押すと隠れている面の欄に焦点が入る。
-
-寄せ先は `pos-editor-*` の形。`id="..."` が kebab で、同じファイル内が共通の接頭辞を
-持つことを見る走査で固定できる。
-
 ## feature の SCSS が shared の部品の内部クラスを掴んでいる
 
 同じレビュー（ui / architecture reviewer）。`KifuImportForm.scss` は

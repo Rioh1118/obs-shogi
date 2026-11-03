@@ -153,7 +153,7 @@ export default function SfenKifuCreateModal() {
           <FormField>
             <Select
               label="保存先フォルダ"
-              id="saveDir"
+              id="sfen-kifu-create-dir"
               options={dirOptions}
               value={selectedDir}
               onChange={handleDirChange}
@@ -168,7 +168,7 @@ export default function SfenKifuCreateModal() {
           <FormField horizontal>
             <TextInput
               label="ファイル名"
-              id="sfenFileName"
+              id="sfen-kifu-create-file-name"
               placeholder="45角戦法"
               value={fileName}
               onChange={(e) => setFileName(e.target.value)}
@@ -176,7 +176,7 @@ export default function SfenKifuCreateModal() {
             />
             <Select
               label="フォーマット"
-              id="sfenFormat"
+              id="sfen-kifu-create-format"
               options={KIFU_FORMAT_OPTIONS}
               value={format}
               onChange={setFormat}
@@ -186,14 +186,14 @@ export default function SfenKifuCreateModal() {
           <FormField horizontal>
             <TextInput
               label="先手名"
-              id="sfenBlack"
+              id="sfen-kifu-create-black"
               placeholder="Player1"
               value={blackPlayer}
               onChange={(e) => setBlackPlayer(e.target.value)}
             />
             <TextInput
               label="後手名"
-              id="sfenWhite"
+              id="sfen-kifu-create-white"
               placeholder="Player2"
               value={whitePlayer}
               onChange={(e) => setWhitePlayer(e.target.value)}
