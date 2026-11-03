@@ -189,6 +189,52 @@ describe("Esc の段", () => {
     });
   });
 
+  test("段0: 作成中は掴んでいる駒も離さない", async () => {
+    // 作成中の Esc は段のどれにも落とさない。落ちると、止められない書き込みの途中で盤が動く
+    let settle: (v: unknown) => void = () => undefined;
+    createNewFile.mockReturnValue(
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+    );
+    render(<EditorHarness />);
+    fireEvent.click(square(7, 7));
+    fireEvent.change(screen.getByLabelText("ファイル名"), { target: { value: "a" } });
+    fireEvent.click(screen.getByRole("button", { name: "作成" }));
+
+    expect(pressEscape()).toBe(true);
+    expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(true);
+
+    await act(async () => {
+      settle({ success: true });
+    });
+  });
+
+  test("段1: 確認の中の Esc は確認を閉じ、組みかけを残す", () => {
+    // ここで降ろすと、確認の器が `defaultPrevented` を見て閉じなくなる
+    render(<EditorHarness onClose={onClose} />);
+    makeDirty();
+    fireEvent.click(document.querySelector<HTMLElement>("#pos-editor-handicap")!);
+    fireEvent.click(screen.getByRole("option", { name: "二枚落ち" }));
+    expect(confirm()).not.toBeNull();
+
+    fireEvent.keyDown(confirm()!, { key: "Escape" });
+
+    expect(confirm()).toBeNull();
+    expect(square(7, 6).querySelector(".piece")).not.toBeNull();
+  });
+
+  test("課題局面の面へ移ると、掴んでいる駒は離れる", () => {
+    // 掴んだまま移ると、面の上の Esc が見えない駒を離すだけになり、盤へ戻れない
+    render(<EditorHarness studyPositions={[STUDY]} />);
+    fireEvent.click(square(7, 7));
+    fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
+
+    expect(pressEscape(document.querySelector<HTMLElement>(".pos-editor__picker")!)).toBe(true);
+    expect(onBoardFace()).toBe(true);
+    expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(false);
+  });
+
   test("変換中の Escape では畳まない", () => {
     // 変換中の Escape は「変換を取り消す」であって、面を畳む合図ではない
     render(<EditorHarness />);

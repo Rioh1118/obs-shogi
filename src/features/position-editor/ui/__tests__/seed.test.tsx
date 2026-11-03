@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { EditorHarness } from "./harness";
+import { stateFromPreset } from "@/entities/position/lib/positionDraft";
+import { EditorHarness, renderSeeded } from "./harness";
 
 /**
  * 種を選ぶ（状態遷移表の X5）。
@@ -90,5 +91,13 @@ describe("手合割から", () => {
     fireEvent.click(screen.getByRole("button", { name: "捨てる" }));
     expect(square(7, 7).querySelector(".piece")).not.toBeNull();
     expect(handicapButton().textContent).toBe("平手");
+  });
+});
+
+describe("課題局面から", () => {
+  test("載せると手合割の欄はプレースホルダに戻る", () => {
+    // 残すと、手合割を載せていないのに平手を名乗る
+    renderSeeded(stateFromPreset("HIRATE"));
+    expect(handicapButton().textContent).toBe("手合割から…");
   });
 });

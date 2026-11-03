@@ -25,9 +25,11 @@ const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTre
   }) as FileTreeNode;
 
 const TREE = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
+/** ツリーの読み直しを試すときだけ差し替える */
+let tree = TREE;
 
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
-  useFileTree: () => ({ createNewFile, fileTree: TREE }),
+  useFileTree: () => ({ createNewFile, fileTree: tree }),
 }));
 
 const { EditorHarness } = await import("./harness");
@@ -44,6 +46,7 @@ const DENIED: FsError = {
 };
 
 beforeEach(() => {
+  tree = TREE;
   createNewFile.mockReset();
   createNewFile.mockResolvedValue({ success: true });
 });
@@ -132,6 +135,18 @@ describe("ファイルの欄", () => {
     await submit();
 
     expect(createNewFile.mock.calls[0]![0]).toBe("/root/角換わり");
+  });
+
+  test("選んでいたフォルダが消えたら根へ戻す", async () => {
+    // 値だけ残すと、欄は「選択してください」なのに消えたパスへ書きに行く
+    render(<EditorHarness />);
+    fireEvent.click(document.querySelector<HTMLElement>("#pos-editor-dir")!);
+    fireEvent.click(screen.getByRole("option", { name: "/角換わり" }));
+
+    tree = dir("root", "/root");
+    await submit();
+
+    expect(createNewFile.mock.calls[0]![0]).toBe("/root");
   });
 
   test("タグとメモも渡る", async () => {
