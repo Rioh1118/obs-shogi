@@ -57,7 +57,7 @@ ours 戦略のマージは使わない。
 | 21 | `refactor/tidy-features-settings-workspace` | `src/features/settings` の第1段（範囲13） | #687 | マージ済み |
 | 22 | `refactor/tidy-features-settings-ai-library` | `src/features/settings` の AI ライブラリタブ（範囲13b） | #688 | マージ済み |
 | 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | マージ済み |
-| 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #PR | レビュー待ち |
+| 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | レビュー待ち |
 
 ## 語
 
