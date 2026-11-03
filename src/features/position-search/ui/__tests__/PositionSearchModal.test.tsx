@@ -19,7 +19,10 @@ const SFEN_A = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL b - 1";
 const SFEN_B = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL w - 2";
 
 /** 検索する局面を試験の側から差し替える。撃ち直しの経路はこれでしか作れない */
-const urlParams = { modal: "position-search", sfen: SFEN_A };
+const urlParams: { modal: string; sfen: string | undefined } = {
+  modal: "position-search",
+  sfen: SFEN_A,
+};
 
 vi.mock("@/shared/lib/router/useURLParams", () => ({
   useURLParams: () => ({
@@ -136,6 +139,7 @@ beforeEach(() => {
   hitsState.current = HITS;
   hitKeyCalls.mockReset();
   seenActiveHits.length = 0;
+  urlParams.modal = "position-search";
   urlParams.sfen = SFEN_A;
 });
 
@@ -419,5 +423,143 @@ describe("PositionSearchModal のヒットを開く", () => {
     fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
 
     expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+});
+
+/**
+ * 部品を割る前後で、画面の段と後始末の時点が変わらないことを固定する。
+ * 起動の世代と選択の初期化は同じ effect の中で起きるので、片方だけを別の時点へ動かすと
+ * 断りが前の検索の行へ残ったり、閉じた後に結果を抱えたりする。
+ */
+describe("PositionSearchModal の検索の段と後始末", () => {
+  function statusBar() {
+    return screen.getByLabelText("検索状態", { selector: "section.pos-search-status" });
+  }
+
+  test("起動が解決するまでは「検索中…」、届いて終われば「完了」", async () => {
+    let settleLaunch!: (out: { status: "started"; requestId: number }) => void;
+    searchPosition.mockImplementation(
+      () => new Promise((resolve) => (settleLaunch = resolve as typeof settleLaunch)),
+    );
+
+    render(<PositionSearchModal />);
+    expect(statusBar().textContent).toContain("検索中…");
+    expect(screen.getByText("検索結果を受信中…")).toBeTruthy();
+
+    await act(async () => {
+      settleLaunch({ status: "started", requestId: REQUEST_ID });
+    });
+
+    expect(statusBar().textContent).toContain("完了");
+    expect(statusBar().textContent).toContain(`一致: ${HITS.length}`);
+  });
+
+  test("起動が失敗したら「エラー」と理由を出す", async () => {
+    searchPosition.mockRejectedValue(new Error("索引が無い"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<PositionSearchModal />);
+    await act(async () => {});
+
+    expect(statusBar().textContent).toContain("エラー");
+    expect(screen.getByText("検索に失敗しました: 索引が無い")).toBeTruthy();
+  });
+
+  test("検索する局面が無ければ検索を立てず、「待機中」のまま", async () => {
+    urlParams.sfen = undefined;
+
+    render(<PositionSearchModal />);
+    await act(async () => {});
+
+    expect(searchPosition).not.toHaveBeenCalled();
+    expect(statusBar().textContent).toContain("待機中");
+    expect(screen.getByText("検索する局面がありません")).toBeTruthy();
+  });
+
+  test("局面を渡されたら局面と区切りの大きさを添えて検索する", async () => {
+    await renderWithHits();
+
+    expect(searchPosition).toHaveBeenCalledWith({
+      sfen: SFEN_A,
+      consistency: "BestEffort",
+      chunkSize: 300,
+    });
+  });
+
+  test("局面が変わったら前の検索を取り下げて捨て、断りも消す", async () => {
+    startNavigationToHit.mockReturnValue("not-in-tree");
+    const { rerender } = await renderWithHits();
+    pressEnter();
+    expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+
+    searchPosition.mockResolvedValue({ status: "started", requestId: REQUEST_ID + 1 });
+    urlParams.sfen = SFEN_B;
+    rerender(<PositionSearchModal />);
+    await screen.findByRole("listbox");
+
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(searchPosition).toHaveBeenLastCalledWith(expect.objectContaining({ sfen: SFEN_B }));
+    // 同じヒットの実体が届いても、前の検索で付けた断りは残らない
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  test("閉じたら取り下げて捨て、開き直すと断りの無い状態から検索し直す", async () => {
+    startNavigationToHit.mockReturnValue("not-in-tree");
+    const { rerender } = await renderWithHits();
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "j" });
+    pressEnter();
+    expect(screen.getByRole("alert").textContent).toContain(NOTICE);
+
+    urlParams.modal = "";
+    rerender(<PositionSearchModal />);
+
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(cancelSearch).toHaveBeenCalledWith(REQUEST_ID);
+    expect(clearSearch).toHaveBeenCalledWith(REQUEST_ID);
+
+    urlParams.modal = "position-search";
+    rerender(<PositionSearchModal />);
+    await screen.findByRole("listbox");
+
+    expect(searchPosition).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+    // 選択も先頭へ戻っている
+    startNavigationToHit.mockReturnValue("started");
+    pressEnter();
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/1.kif", HITS[0].cursor);
+  });
+
+  test("j と k、↓ と ↑ で選択が動き、端では止まる", async () => {
+    startNavigationToHit.mockReturnValue("started");
+    await renderWithHits();
+    const section = screen.getByLabelText("局面検索");
+
+    fireEvent.keyDown(section, { key: "j" });
+    fireEvent.keyDown(section, { key: "ArrowDown" });
+    pressEnter();
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/2.kif", HITS[1].cursor);
+
+    fireEvent.keyDown(section, { key: "k" });
+    fireEvent.keyDown(section, { key: "ArrowUp" });
+    pressEnter();
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/1.kif", HITS[0].cursor);
+  });
+
+  test("局面を渡されたときの見出しは「検索対象の局面」、渡されなければ「現在の局面」", async () => {
+    const { rerender } = await renderWithHits();
+    expect(screen.getByText("検索対象の局面")).toBeTruthy();
+
+    urlParams.sfen = undefined;
+    rerender(<PositionSearchModal />);
+    expect(screen.getByText("現在の局面")).toBeTruthy();
+  });
+
+  test("行き先の欄は選んだ行の棋譜と、いま開いている棋譜をルートからの相対で出す", async () => {
+    await renderWithHits();
+
+    const card = screen.getByLabelText("選択中の棋譜");
+    expect(card.textContent).toContain("1.kif");
+    expect(card.textContent).toContain("現在:a.kif");
   });
 });

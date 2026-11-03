@@ -192,4 +192,36 @@ describe("PositionSearchHitList", () => {
 
     expect(onAccept).not.toHaveBeenCalled();
   });
+
+  test("行はファイル名、ルートからの相対パス、手数と分岐の数を出す", () => {
+    const forked = {
+      ...hitAt(7),
+      cursor: { tesuu: 7, forkPointers: [{ te: 3, forkIndex: 0 }] },
+    } as unknown as PositionHit;
+    const { container } = renderList([forked], {
+      resolveAbsPath: () => "/root/戦型/角換わり.kif",
+    });
+
+    const card = container.querySelector<HTMLElement>(".pos-hit");
+    expect(card?.querySelector(".pos-hit__file")?.textContent).toBe("角換わり.kif");
+    expect(card?.querySelector(".pos-hit__path")?.textContent).toBe("戦型/角換わり.kif");
+    expect(card?.querySelector(".pos-hit__meta")?.textContent).toBe("7手目 / 分岐 1");
+  });
+
+  test("いま開いている棋譜の行は「同一」、他は「切替」", () => {
+    const { container } = renderList(HITS.slice(0, 2), {
+      resolveAbsPath: (h) => (h.cursor.tesuu === 1 ? "/root/a.kif" : "/root/b.kif"),
+    });
+
+    const badges = [...container.querySelectorAll(".pos-hit__badge")].map((b) => b.textContent);
+    expect(badges).toEqual(["同一", "切替"]);
+  });
+
+  test("索引がパスを返さない行は、場所が分からないと書いて「切替」", () => {
+    const { container } = renderList(HITS.slice(0, 1), { resolveAbsPath: () => null });
+
+    const card = container.querySelector<HTMLElement>(".pos-hit");
+    expect(card?.querySelector(".pos-hit__path")?.textContent).toBe("path unknown");
+    expect(card?.querySelector(".pos-hit__badge")?.textContent).toBe("切替");
+  });
 });
