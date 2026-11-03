@@ -28,9 +28,6 @@ export function toFileTreeNode(r: RustFileTreeNode): FileTreeNode {
     truncated: r.truncated,
     lastModified: typeof r.lastModified === "number" ? new Date(r.lastModified * 1000) : undefined,
     size: r.size,
-    displayInfo: {
-      iconType: r.isDir ? "folder" : "kif-file",
-    },
     kifuInfo: kifuInfo(r),
   };
 }

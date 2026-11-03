@@ -55,7 +55,6 @@ const A_NODE = {
   name: "a.kif",
   path: A_KIFU,
   isDirectory: false,
-  displayInfo: { iconType: "kif-file" as const },
   kifuInfo: { format: "kif" as const },
 };
 
@@ -67,7 +66,6 @@ const TREE = {
   name: "ws",
   path: "/ws",
   isDirectory: true,
-  displayInfo: { iconType: "folder" as const },
   children: [A_NODE, B_NODE, C_NODE],
 };
 

@@ -70,7 +70,6 @@ type Node = {
   name: string;
   path: string;
   isDirectory: boolean;
-  displayInfo: { iconType: "folder" | "kif-file" };
   kifuInfo?: { format: "kif" };
   children?: Node[];
 };
@@ -80,7 +79,6 @@ const kifu = (path: string): Node => ({
   name: path,
   path,
   isDirectory: false,
-  displayInfo: { iconType: "kif-file" },
   kifuInfo: { format: "kif" },
 });
 const dir = (path: string, children: Node[]): Node => ({
@@ -88,7 +86,6 @@ const dir = (path: string, children: Node[]): Node => ({
   name: path,
   path,
   isDirectory: true,
-  displayInfo: { iconType: "folder" },
   children,
 });
 

@@ -44,7 +44,6 @@ const NODE = {
   name: "a.kif",
   path: "/ws/a.kif",
   isDirectory: false,
-  displayInfo: { iconType: "kifu" },
   kifuInfo: { format: "kif" },
 } as unknown as FileTreeNode;
 
@@ -143,6 +142,6 @@ describe("読み直した後の選択", () => {
     );
 
     const selected = Array.from(document.querySelectorAll(".node-box__selected"));
-    expect(selected.map((el) => el.textContent)).toEqual(["a.kif"]);
+    expect(selected).toEqual([screen.getByText("a.kif").closest(".node-box")]);
   });
 });

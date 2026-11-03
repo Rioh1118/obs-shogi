@@ -116,7 +116,7 @@ function DirectoryNode({
         }
       >
         <DirectoryToggleIcon isExpanded={isOpen} />
-        <FileIcon isOpen={isOpen} type={node.displayInfo.iconType} />
+        <FileIcon type="folder" isOpen={isOpen} />
         {isRenaming ? (
           <InlineNameEditor
             initialName={node.name}

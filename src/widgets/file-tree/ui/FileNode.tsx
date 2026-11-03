@@ -140,7 +140,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       {...attributes}
       {...listeners}
     >
-      <FileIcon type={node.displayInfo.iconType} />
+      <FileIcon type="kif-file" />
       {isRenaming ? (
         <InlineNameEditor
           initialName={node.name}

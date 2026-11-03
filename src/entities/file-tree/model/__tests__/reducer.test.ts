@@ -18,7 +18,6 @@ const ROOT: FileTreeNode = {
   path: "/root",
   isDirectory: true,
   children: [],
-  displayInfo: { iconType: "folder" },
 };
 
 const CHILD: FileTreeNode = {
@@ -26,7 +25,6 @@ const CHILD: FileTreeNode = {
   name: "a.kif",
   path: "/root/a.kif",
   isDirectory: false,
-  displayInfo: { iconType: "kif-file" },
 };
 
 /** 編集中・メニューを開いている最中の状態。 */

@@ -54,7 +54,6 @@ const file = (path: string) =>
     name: path,
     path,
     isDirectory: false,
-    displayInfo: { iconType: "kif-file" },
     kifuInfo: { format: "kif" },
   }) as FileTreeNode;
 const folder = (path: string, children: FileTreeNode[] = []) =>
@@ -63,7 +62,6 @@ const folder = (path: string, children: FileTreeNode[] = []) =>
     name: path,
     path,
     isDirectory: true,
-    displayInfo: { iconType: "folder" },
     children,
   }) as FileTreeNode;
 

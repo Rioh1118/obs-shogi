@@ -52,14 +52,12 @@ const A_NODE: {
   name: string;
   path: string;
   isDirectory: boolean;
-  displayInfo: { iconType: "kif-file" };
   kifuInfo: { format: "kif" | "csa" };
 } = {
   id: "a1",
   name: "a.kif",
   path: A_KIFU,
   isDirectory: false,
-  displayInfo: { iconType: "kif-file" as const },
   kifuInfo: { format: "kif" as const },
 };
 
@@ -68,7 +66,6 @@ const TREE = {
   name: "ws",
   path: WS,
   isDirectory: true,
-  displayInfo: { iconType: "folder" as const },
   children: [A_NODE],
 };
 

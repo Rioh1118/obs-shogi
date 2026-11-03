@@ -54,21 +54,18 @@ const TREE = {
   name: "ws",
   path: "/ws",
   isDirectory: true,
-  displayInfo: { iconType: "folder" as const },
   children: [
     {
       id: "a",
       name: "A",
       path: A_DIR,
       isDirectory: true,
-      displayInfo: { iconType: "folder" as const },
       children: [
         {
           id: "a1",
           name: "a.kif",
           path: "/ws/A/a.kif",
           isDirectory: false,
-          displayInfo: { iconType: "kif-file" as const },
           kifuInfo: { format: "kif" as const },
         },
       ],
@@ -78,7 +75,6 @@ const TREE = {
       name: "b.kif",
       path: B_KIFU,
       isDirectory: false,
-      displayInfo: { iconType: "kif-file" as const },
       kifuInfo: { format: "kif" as const },
     },
   ],
@@ -215,7 +211,6 @@ describe("IPC を跨いだあとの読み出し", () => {
             name: "new.kif",
             path: NEW_KIFU,
             isDirectory: false,
-            displayInfo: { iconType: "kif-file" as const },
             kifuInfo: { format: "kif" as const },
           },
         ],

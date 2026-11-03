@@ -33,7 +33,6 @@ const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTre
     path,
     isDirectory: true,
     children,
-    displayInfo: { iconType: "folder" },
   }) as FileTreeNode;
 
 let fileTree: FileTreeNode | null = dir("root", "/root");

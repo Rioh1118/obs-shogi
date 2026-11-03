@@ -18,7 +18,6 @@ export type FileTreeNode = {
   truncated?: boolean;
   lastModified?: Date;
   size?: number;
-  displayInfo: { iconType: "folder" | "kif-file" };
   kifuInfo?: { format: KifuFormat };
 };
 

@@ -22,7 +22,6 @@ function nodeOf(path: string, isDirectory: boolean, children?: FileTreeNode[]): 
     path,
     isDirectory,
     children,
-    displayInfo: { iconType: isDirectory ? "folder" : "kif-file" },
   } as FileTreeNode;
 }
 
