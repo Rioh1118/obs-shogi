@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { describeFsError, type CommitOutcome, type FsError } from "@/entities/file-tree";
 
 import "./InlineNameEditor.scss";
 
 /**
- * **描かれている＝編集中。** 呼び出し側は5経路とも `isRenaming` /
- * `showCreateRow` で分岐して unmount するので、「閉じている」という状態を
- * この component は持たない（`inline-name-editor.md` の E0）
+ * 改名と作成の名前の欄。描かれている間が編集中で、「閉じている」という状態は持たない。
+ * 呼び出し側は5経路とも `isRenaming` か `showCreateRow` で分岐して unmount する
+ * （`inline-name-editor.md` の E0）
  */
-type InlineRenameProps = {
+type InlineNameEditorProps = {
   initialName: string;
   /**
    * 確定の結果。**成功と「失敗したがここには出さない」を型で分ける**（`CommitOutcome`）。
@@ -22,7 +22,7 @@ type InlineRenameProps = {
   onCommit: (nextName: string) => Promise<CommitOutcome>;
   onCancel: () => void;
   /**
-   * 欄が **unmount されたあと**に失敗が返ったときの行き先。
+   * 欄が unmount されたあとに失敗が返ったときの行き先。
    *
    * 確定の最中に呼び出し側が編集行を畳むと（reducer の `case "error"` など）、
    * 返ってきた失敗を出す場所が無い。名前の失敗は provider が通知へ積まない
@@ -45,7 +45,7 @@ function InlineNameEditor({
   onUnshowable,
   className = "file-name__input",
   selectMode = "all",
-}: InlineRenameProps) {
+}: InlineNameEditorProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cancelRef = useRef(false);
   // 送信中と、直前に落ちた名前。blur でも確定するので、この2つが無いと
@@ -81,13 +81,13 @@ function InlineNameEditor({
    * **失敗しても閉じない。** 閉じると打った文字列ごと消え、「直すための入力欄が、
    * 直せという知らせに巻き込まれて消える」形になる（`isNameInputError` の TSDoc）。
    *
-   * **焦点も動かさない。** blur を起こしたのが「別の行をクリックした」なら、
+   * 焦点も動かさない。blur を起こしたのが「別の行をクリックした」なら、
    * 確定は click より前のマイクロタスクで返るので、`focus()` は利用者が移った先から
    * 焦点を奪い返す。押した行は開くのにキーボードはここに残り、この欄は `onKeyDown` を
    * 全て `stopPropagation()` するので Escape が他のハンドラにも届かなくなる。
    *
-   * 閉じるのは2つ。**送るものが無いとき**（空欄・`initialName` と同じ）と、
-   * **欄そのものが無くなったとき**（呼び出し側が畳んだ）。失敗では閉じない。
+   * 閉じるのは2つ。送るものが無いとき（空欄・`initialName` と同じ）と、
+   * 欄そのものが無くなったとき（呼び出し側が畳んだ）。失敗では閉じない。
    */
   const commit = async () => {
     const next = draft.trim();
@@ -124,6 +124,40 @@ function InlineNameEditor({
     }
   };
 
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setDraft(e.target.value);
+    setError(null);
+    rejectedRef.current = null;
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    if (e.key === "Enter") void commit();
+    if (e.key === "Escape") {
+      cancelRef.current = true;
+      onCancel();
+    }
+  };
+
+  const handleBlur = () => {
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      return;
+    }
+
+    // 送信中なら確定し直さない。`inFlightRef` が握り潰すだけ
+    if (inFlightRef.current) return;
+
+    // 落ちた名前のまま外へ出たら編集を閉じる。残すと、失敗の箱が
+    // 行の上に出たまま閉じる手段が無くなる（Escape は入力欄にしか届かない）
+    if (draft.trim() === rejectedRef.current) {
+      onCancel();
+      return;
+    }
+
+    void commit();
+  };
+
   return (
     <span className="inline-name-editor">
       <input
@@ -131,41 +165,13 @@ function InlineNameEditor({
         className={className}
         value={draft}
         aria-invalid={error ? true : undefined}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setError(null);
-          rejectedRef.current = null;
-        }}
+        onChange={handleChange}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          e.stopPropagation();
-          if (e.key === "Enter") void commit();
-          if (e.key === "Escape") {
-            cancelRef.current = true;
-            onCancel();
-          }
-        }}
-        onBlur={() => {
-          if (cancelRef.current) {
-            cancelRef.current = false;
-            return;
-          }
-
-          // 送信中なら確定し直さない。`inFlightRef` が握り潰すだけ
-          if (inFlightRef.current) return;
-
-          // 落ちた名前のまま外へ出たら編集を閉じる。残すと、失敗の箱が
-          // 行の上に出たまま閉じる手段が無くなる（Escape は入力欄にしか届かない）
-          if (draft.trim() === rejectedRef.current) {
-            onCancel();
-            return;
-          }
-
-          void commit();
-        }}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
       />
       {/* 行を押し広げて全文を出す。理由は docs/state-transitions/inline-name-editor.md */}
-      {/* **領域は常設する。** 中身と同時に DOM へ入れると、VoiceOver は
+      {/* 領域は常設する。中身と同時に DOM へ入れると、VoiceOver は
           live region の変化として読まない。焦点を戻さない形にした以上、
           キーボードだけの利用者へはここからしか伝わらない */}
       <span className="inline-name-editor__error" role="alert">

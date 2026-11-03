@@ -1,11 +1,11 @@
 import "./FileIcon.scss";
-import { Folder, FolderOpen, File } from "lucide-react";
+import { Folder, FolderOpen } from "lucide-react";
 import { SENTE_GLYPH } from "@/shared/lib/turn";
 
-interface FileIconProps {
-  type: "folder" | "document" | "kif-file";
+type FileIconProps = {
+  type: "folder" | "kif-file";
   isOpen?: boolean;
-}
+};
 
 export default function FileIcon({ type, isOpen }: FileIconProps) {
   function getIcon() {
@@ -15,8 +15,6 @@ export default function FileIcon({ type, isOpen }: FileIconProps) {
       case "kif-file":
         // 先手の意味ではなく、棋譜ファイルを表す将棋の駒として使う
         return SENTE_GLYPH;
-      default:
-        return <File size={14} />;
     }
   }
   return (

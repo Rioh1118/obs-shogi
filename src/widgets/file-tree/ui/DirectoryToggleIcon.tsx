@@ -2,7 +2,7 @@ import "./DirectoryToggleIcon.scss";
 
 function DirectoryToggleIcon({ isExpanded }: { isExpanded: boolean }) {
   return (
-    <span className={`chevron ${isExpanded ? "chevron--expanded" : "chevron--colapsed"}`}>
+    <span className={`chevron ${isExpanded ? "chevron--expanded" : "chevron--collapsed"}`}>
       &#8250;
     </span>
   );

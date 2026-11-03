@@ -3,14 +3,7 @@ import "./FileTree.scss";
 import ContextMenu from "./ContextMenu";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 import { useCallback, useMemo, useState } from "react";
-import {
-  buildNodeMap,
-  DROP_ID,
-  isDescendantDir,
-  normPath,
-  parentDir,
-  type DropData,
-} from "@/widgets/file-tree/lib/dnd";
+import { buildNodeMap, canMoveInto, DROP_ID, type DropData } from "@/widgets/file-tree/lib/dnd";
 import {
   closestCenter,
   DndContext,
@@ -43,7 +36,7 @@ const collisionDetection: CollisionDetection = (args) => {
 };
 
 /**
- * 見出しは「**何が落ちたか**」で決まる。
+ * 失敗の通知の見出し。何が落ちたかで決める。
  *
  * 「ファイル操作に失敗しました」を一律に出すと、通っている操作まで失敗したと読める。
  * ルート改名で設定だけ書けなかった場合、ディスク上の名前はもう変わっているので、
@@ -96,8 +89,8 @@ function FileTree() {
   // `isLoading` では代用できない。ツリーはファイル操作のたびに読み直され、
   // そのすべてで通知を出すことになる
   const [retriedFrom, setRetriedFrom] = useState<FileTreeFailure | null>(null);
-  // 再読み込みの引き金が操作の失敗だったか。読み直しが落ちると `error` は `reload` へ
-  // 化けるので、これを覚えていないと**失敗した操作を「完了しました」と断言する**。
+  // 読み直しの引き金が操作の失敗だったか。読み直しが落ちると `error` は `reload` へ
+  // 化けるので、これを覚えていないと失敗した操作を「完了しました」と断言する。
   // `retriedFrom` は読み直しが終わると捨てるので、そちらでは代用できない
   const [retriedFromOperation, setRetriedFromOperation] = useState(false);
 
@@ -117,10 +110,10 @@ function FileTree() {
   // 読み直しが終わって新しい失敗が来ていれば、そちらが今の状態
   const shownError = error ?? retriedFrom;
 
-  // 「操作は完了した」と言えるのは、**利用者の操作の直後**に読み直しが落ちたときだけ。
-  // 操作の失敗から「再読み込み」を押して、その読み直しも落ちた場合は
-  // `from` が `reload` に化けるので、そのまま出すと失敗した操作を
-  // 「完了しました」と断言することになる
+  // 「操作は完了した」と言えるのは、利用者の操作の直後に読み直しが落ちたときだけ。
+  // 操作の失敗から「もう一度読み込む」を押して、その読み直しも落ちた場合も
+  // `from` は `reload` になる。`retriedFromOperation` で外さないと、失敗した操作を
+  // 「完了しました」と断言する
   const operationCompleted = shownError?.from === "reload" && !retriedFromOperation;
 
   // 閉じるときは引き金にした失敗も落とす。clearError だけだと、読み直しの最中は
@@ -159,17 +152,7 @@ function FileTree() {
       if (!destDir) return;
 
       const node = nodeMap.get(srcPath);
-      if (!node) return;
-
-      const srcNorm = normPath(node.path);
-      const destNorm = normPath(destDir);
-
-      if (node.isDirectory && srcNorm === destNorm) return;
-
-      const currentParent = parentDir(node.path);
-      if (normPath(currentParent) === destNorm) return;
-
-      if (node.isDirectory && isDescendantDir(node.path, destDir)) return;
+      if (!node || !canMoveInto(node, destDir)) return;
 
       await moveNode(node, destDir); // async-result-ignored: 失敗は moveNode が通知へ積む
     } finally {

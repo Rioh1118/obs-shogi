@@ -3,23 +3,24 @@ import IconButton from "@/shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { getParentPath } from "@/shared/lib/path";
 import { useFileTree } from "@/entities/file-tree";
+import type { MouseEvent } from "react";
 
-interface TreeNodeActionsProps {
+type TreeNodeActionsProps = {
   nodePath: string;
   isDirectory: boolean;
-}
+};
 
 function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
   const { startCreateDirectory } = useFileTree();
   const { openModal } = useURLParams();
 
-  const handleCreateFile = (e: React.MouseEvent) => {
+  const handleCreateFile = (e: MouseEvent) => {
     e.stopPropagation();
     const targetDir = isDirectory ? nodePath : getParentPath(nodePath);
     openModal("create-file", { dir: targetDir }, { replace: false });
   };
 
-  const handleCreateDirectory = (e: React.MouseEvent) => {
+  const handleCreateDirectory = (e: MouseEvent) => {
     e.stopPropagation();
     const targetDir = isDirectory ? nodePath : getParentPath(nodePath);
     startCreateDirectory(targetDir);

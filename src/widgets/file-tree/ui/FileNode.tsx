@@ -5,8 +5,8 @@ import InlineNameEditor from "./InlineNameEditor";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { DROP_ID, parentDir, type DropData } from "@/widgets/file-tree/lib/dnd";
-import { useRef } from "react";
+import { DROP_ID, parentDir, type DragData, type DropData } from "@/widgets/file-tree/lib/dnd";
+import { useRef, type MouseEventHandler } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
 import { useLoadedKifuPath } from "@/entities/game";
@@ -26,15 +26,16 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   // **`useGame()` を読まない。** 行の数だけ盤の state を購読することになり、
   // 盤を1手動かすだけでツリーの全行が描き直される（ツリーは仮想化されていない）
   const loadedAbsPath = useLoadedKifuPath();
-  const isSelected = selectedNode?.id === node.id;
+  // `id` で比べない。走査のたびに振り直され、読み直しは `selectedNode` を張り替えない
+  const isSelected = selectedNode?.path === node.path;
   /**
    * 開き直しを省いてよいのは、**ツリーと盤の両方がこの棋譜を指しているとき**だけ。
    *
    * 2つはずれる（それぞれの意味は `activeKifuPath` と `loadedAbsPath` の doc）。
    * 片方だけで判定すると、ずれている間の押し直しが片側ずつ効かなくなる。
    *
-   * - **ツリーだけ**を見ると、載せられなかった棋譜が「開いている」ことになって押し直せない
-   * - **盤だけ**を見ると、その前に開いていた棋譜へ戻れない。盤は既にそれを出しているので
+   * - ツリーだけを見ると、載せられなかった棋譜が「開いている」ことになって押し直せない
+   * - 盤だけを見ると、その前に開いていた棋譜へ戻れない。盤は既にそれを出しているので
    *   戻れたように見えるが、`activeKifuPath` は載せられなかったほうを指したままなので、
    *   `persistIfPossible` の検査が以降の書き込みを全部止める
    */
@@ -50,7 +51,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     isDragging,
   } = useDraggable({
     id: node.path,
-    data: { kind: "tree-node", path: node.path, isDirectory: false },
+    data: { kind: "tree-node", path: node.path, isDirectory: false } satisfies DragData,
     disabled: isRenaming,
   });
 
@@ -68,7 +69,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     setDropRef(el);
   };
 
-  const showNativeTooltip = () => {
+  const showNameTooltip = () => {
     const el = nameRef.current;
     if (!el) return;
 
@@ -100,9 +101,14 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     pop.style.top = `${box.top}px`;
   };
 
-  const hideNativeTooltip = () => {
+  const hideNameTooltip = () => {
     const pop = document.getElementById("filetree-tooltip");
     pop?.hidePopover?.();
+  };
+
+  const handlePointerEnter = () => {
+    if (isDragging) return;
+    showNameTooltip();
   };
 
   const handleClick = () => {
@@ -116,7 +122,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     }
   };
 
-  const onContextMenu: React.MouseEventHandler<HTMLDivElement> = (e) => {
+  const handleContextMenu: MouseEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault();
     e.stopPropagation();
     openContextMenu(node, e.clientX, e.clientY);
@@ -129,9 +135,9 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
     <NodeBox
       ref={setNodeRef}
       level={level}
-      handleClick={handleClick}
+      onClick={handleClick}
       isSelected={isSelected}
-      onContextMenu={onContextMenu}
+      onContextMenu={handleContextMenu}
       className={`${isOver ? "node-box__droppable-over" : ""} ${isDragging ? "node-box--drag-source" : ""}`}
       style={{
         transform: CSS.Translate.toString(transform),
@@ -139,7 +145,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       {...attributes}
       {...listeners}
     >
-      <FileIcon type={node.displayInfo.iconType} />
+      <FileIcon type="kif-file" />
       {isRenaming ? (
         <InlineNameEditor
           initialName={node.name}
@@ -151,13 +157,10 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       ) : (
         <span
           ref={nameRef}
-          onPointerEnter={() => {
-            if (isDragging) return;
-            showNativeTooltip();
-          }}
-          onPointerLeave={hideNativeTooltip}
-          onFocus={showNativeTooltip}
-          onBlur={hideNativeTooltip}
+          onPointerEnter={handlePointerEnter}
+          onPointerLeave={hideNameTooltip}
+          onFocus={showNameTooltip}
+          onBlur={hideNameTooltip}
           className="file-name"
         >
           {node.name}

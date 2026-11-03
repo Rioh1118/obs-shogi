@@ -1,7 +1,5 @@
 import type { FileTreeNode } from "@/entities/file-tree";
-import { dirname, extname, relative, normalize } from "pathe";
-
-export const ALLOWED = new Set([".kif", ".ki2", ".csa", ".jkf"]);
+import { dirname, relative, normalize } from "pathe";
 
 export const DROP_ID = {
   blank: "drop:blank",
@@ -10,9 +8,12 @@ export const DROP_ID = {
   file: (filePath: string) => `drop:file:${filePath}`,
 } as const;
 
-export type DropData =
-  | { kind: "drop"; destDir: string }
-  | { kind: "drop"; destDir: string; via: "file" | "dir" | "root" | "blank" };
+/** 落とし先が `useDroppable` の `data` に載せる値。読むのは FileTree の `onDragEnd` で、見るのは `destDir` だけ */
+export type DropData = {
+  kind: "drop";
+  destDir: string;
+  via: "file" | "dir" | "root" | "blank";
+};
 
 export type DragData = {
   kind: "tree-node";
@@ -20,22 +21,8 @@ export type DragData = {
   isDirectory: boolean;
 };
 
-export function getExt(p: string) {
-  return extname(p).toLowerCase();
-}
-
-export function findDropDirAt(x: number, y: number): string | null {
-  const el = document.elementFromPoint(x, y) as HTMLElement | null;
-  const target = el?.closest?.("[data-drop-dir]") as HTMLElement | null;
-  return target?.dataset.dropDir ?? null;
-}
-
-export function normPath(p: string) {
-  return normalize(p);
-}
-
 export function parentDir(p: string) {
-  const d = dirname(normPath(p));
+  const d = dirname(normalize(p));
   return d === "." ? "" : d;
 }
 
@@ -48,6 +35,17 @@ export function isDescendantDir(srcDir: string, destDir: string) {
   const rel = relative(from, to);
 
   return rel !== "" && !rel.startsWith("..") && !rel.startsWith("/") && !/^[a-zA-Z]:/.test(rel);
+}
+
+/**
+ * 節を `destDir` へ移して何かが変わるか。
+ *
+ * 今いるフォルダへ落としても名前は変わらない。フォルダを自分自身か自分の下へ
+ * 落とすと、移す先が移すものの中にあるので移しようがない
+ */
+export function canMoveInto(node: FileTreeNode, destDir: string) {
+  if (normalize(parentDir(node.path)) === normalize(destDir)) return false;
+  return !(node.isDirectory && isDescendantDir(node.path, destDir));
 }
 
 export function buildNodeMap(root: FileTreeNode | null) {

@@ -18,7 +18,6 @@ const dir = (name: string, path: string): FileTreeNode => ({
   path,
   isDirectory: true,
   children: [],
-  displayInfo: { iconType: "folder" },
 });
 
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({

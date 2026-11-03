@@ -1,9 +1,10 @@
 import NodeBox from "./NodeBox";
 import FileIcon from "./FileIcon";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
-import { useState, type ReactNode } from "react";
+import { useState, type MouseEventHandler, type ReactNode } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import NewDirectoryRow from "./NewDirectoryRow";
 import TruncatedNotice from "./TruncatedNotice";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
@@ -16,12 +17,10 @@ import { commitName, useFileTree } from "@/entities/file-tree";
 function DirectoryNode({
   level,
   node,
-  externalHoverDir,
   renderChild,
 }: {
   level: number;
   node: FileTreeNode;
-  externalHoverDir?: string | null;
   /** 子ノードの描画。返す要素には key を付けること（ここでは付けない）。 */
   renderChild: (child: FileTreeNode, level: number) => ReactNode;
 }) {
@@ -30,12 +29,10 @@ function DirectoryNode({
     isNodeExpanded,
     openContextMenu,
     creatingDirParentPath,
-    cancelCreateDirectory,
     renamingNodeId,
     renameNode,
     cancelInlineRename,
     pushError,
-    createNewDirectory,
   } = useFileTree();
 
   const [isHovered, setIsHovered] = useState(false);
@@ -70,20 +67,12 @@ function DirectoryNode({
 
   const showCreateRow = isOpen && creatingDirParentPath === node.path && !isRenaming;
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
-
-  function handleClick() {
+  const handleClick = () => {
     if (isRenaming) return;
     toggleNode(node.path);
-  }
+  };
 
-  const onContextMenu: React.MouseEventHandler<HTMLDivElement> = (e) => {
+  const handleContextMenu: MouseEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault();
     e.stopPropagation();
     openContextMenu(node, e.clientX, e.clientY);
@@ -92,22 +81,16 @@ function DirectoryNode({
   const handleCommitRename = (nextName: string) =>
     commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
-  const handleCommitCreate = (nextName: string) =>
-    commitName(nextName, (name) => createNewDirectory(node.path, name), cancelCreateDirectory);
-
-  const isExternalOver = externalHoverDir && externalHoverDir === node.path;
-
   return (
     <>
       <NodeBox
         ref={setNodeRef}
         level={level}
-        handleClick={handleClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onContextMenu={onContextMenu}
-        data-drop-dir={node.path}
-        className={isOver || isExternalOver ? "node-box__droppable-over" : ""}
+        onClick={handleClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onContextMenu={handleContextMenu}
+        className={isOver ? "node-box__droppable-over" : ""}
         style={{
           transform: CSS.Translate.toString(transform),
           opacity: isDragging ? 0.5 : undefined,
@@ -121,7 +104,7 @@ function DirectoryNode({
         }
       >
         <DirectoryToggleIcon isExpanded={isOpen} />
-        <FileIcon isOpen={isOpen} type={node.displayInfo.iconType} />
+        <FileIcon type="folder" isOpen={isOpen} />
         {isRenaming ? (
           <InlineNameEditor
             initialName={node.name}
@@ -134,23 +117,10 @@ function DirectoryNode({
           <span>{node.name}</span>
         )}
       </NodeBox>
-      {!isOpen ? null : (
+      {isOpen && (
         <>
-          {showCreateRow && (
-            <NodeBox level={level + 1} handleClick={() => {}}>
-              <FileIcon type="folder" />
-              <InlineNameEditor
-                initialName=""
-                selectMode="all"
-                onCancel={cancelCreateDirectory}
-                onCommit={handleCommitCreate}
-                onUnshowable={pushError}
-              />
-            </NodeBox>
-          )}
-          {!node.children?.length
-            ? null
-            : node.children.map((child) => renderChild(child, level + 1))}
+          {showCreateRow && <NewDirectoryRow parentPath={node.path} level={level + 1} />}
+          {node.children?.map((child) => renderChild(child, level + 1))}
           {node.truncated && <TruncatedNotice level={level + 1} />}
         </>
       )}

@@ -17,14 +17,13 @@ import * as parse from "@/entities/kifu/api/parse";
 const createNewFile = vi.fn();
 const importKifuFile = vi.fn();
 
-/** 保存先の一覧に要る欄だけを持つツリー。描画に要る `displayInfo` は使わない */
+/** 保存先の一覧に要る欄だけを持つツリー */
 const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTreeNode =>
   ({
     name,
     path,
     isDirectory: true,
     children,
-    displayInfo: { iconType: "folder" },
   }) as FileTreeNode;
 
 /**

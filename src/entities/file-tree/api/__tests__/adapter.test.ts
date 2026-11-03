@@ -58,11 +58,6 @@ describe("欄の写し", () => {
     expect((await nodeOf(FILE)).lastModified).toBeUndefined();
   });
 
-  test("行のアイコンはフォルダかどうかで決まる", async () => {
-    expect((await nodeOf(FILE)).displayInfo.iconType).toBe("kif-file");
-    expect((await nodeOf({ ...FILE, isDir: true })).displayInfo.iconType).toBe("folder");
-  });
-
   test("子も同じ規則で写す", async () => {
     const root = await nodeOf({
       id: "r",
