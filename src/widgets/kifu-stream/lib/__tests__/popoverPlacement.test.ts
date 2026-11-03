@@ -79,9 +79,7 @@ describe("placeBelowOrAbove", () => {
   });
 
   test("上にも下にも入らなければ、下に置いて画面の内側へ寄せる", () => {
-    expect(placeBelowOrAbove(rect(300, 40, 20, 20), pop, { width: 800, height: 100 }).top).toBe(
-      32,
-    );
+    expect(placeBelowOrAbove(rect(300, 40, 20, 20), pop, { width: 800, height: 100 }).top).toBe(32);
   });
 
   test("左にはみ出すなら、画面の左端の余白へ寄せる", () => {

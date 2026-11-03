@@ -1,4 +1,12 @@
-import { memo, useCallback, useId, useMemo } from "react";
+import {
+  memo,
+  useCallback,
+  useId,
+  useMemo,
+  type KeyboardEvent,
+  type MouseEvent,
+  type RefObject,
+} from "react";
 import { GitBranch, MessageSquare } from "lucide-react";
 import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
@@ -15,7 +23,7 @@ type Props = {
   isForkMenuOpen: boolean;
   isCommentOpen: boolean;
   openForkAnchorEl: HTMLButtonElement | null;
-  forkMenuRef: React.RefObject<HTMLDivElement | null>;
+  forkMenuRef: RefObject<HTMLDivElement | null>;
   onRequestOpenMoveMenu: (te: number, anchorRect: DOMRect) => void;
 
   onClickRow: (te: number) => void;
@@ -73,7 +81,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
   const toggleId = useId();
 
   const onRowKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       if (busy) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
@@ -84,7 +92,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
   );
 
   const onClickForkToggle = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
+    (e: MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
       if (busy) return;
       onToggleForkMenu(row.te, e.currentTarget);
@@ -93,7 +101,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
   );
 
   const onClickComment = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
+    (e: MouseEvent<HTMLButtonElement>) => {
       e.stopPropagation();
       if (busy) return;
       onOpenComment(row, e.currentTarget);
@@ -114,19 +122,20 @@ const KifuMoveCard = memo(function KifuMoveCard({
 
   const commentTitle = row.commentCount > 0 ? "コメントを開く" : "コメントを追加";
 
+  const handleContextMenu = (e: MouseEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    onRequestOpenMoveMenu(row.te, e.currentTarget.getBoundingClientRect());
+  };
+
   return (
     <div
       id={kifuRowId(row.te)}
       className={rowClass}
       onClick={() => !busy && onClickRow(row.te)}
       onKeyDown={onRowKeyDown}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (busy) return;
-        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        onRequestOpenMoveMenu(row.te, r);
-      }}
+      onContextMenu={handleContextMenu}
       tabIndex={-1}
       title={row.te === 0 ? "開始局面へ" : `${row.te}手目へ`}
     >
@@ -137,7 +146,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
       </div>
 
       <div className="kifu-row__badges" onClick={(e) => e.stopPropagation()}>
-        {hasFork ? (
+        {hasFork && (
           <button
             id={toggleId}
             type="button"
@@ -153,11 +162,11 @@ const KifuMoveCard = memo(function KifuMoveCard({
           >
             <GitBranch className="kifu-badge__icon" size={14} />
             <span className="kifu-badge__count">{row.forkCount}</span>
-            {row.selectedForkIndex != null ? (
+            {row.selectedForkIndex != null && (
               <span className="kifu-badge__sub">{row.selectedForkIndex + 1}</span>
-            ) : null}
+            )}
           </button>
-        ) : null}
+        )}
 
         <button
           type="button"
@@ -175,13 +184,11 @@ const KifuMoveCard = memo(function KifuMoveCard({
           title={commentTitle}
         >
           <MessageSquare className="kifu-badge__icon" size={14} />
-          {row.commentCount > 0 ? (
-            <span className="kifu-badge__count">{row.commentCount}</span>
-          ) : null}
+          {row.commentCount > 0 && <span className="kifu-badge__count">{row.commentCount}</span>}
         </button>
       </div>
 
-      {hasFork && isForkMenuOpen && openForkAnchorEl ? (
+      {hasFork && isForkMenuOpen && openForkAnchorEl && (
         <KifuForkMenu
           te={row.te}
           mainText={row.mainText}
@@ -199,7 +206,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
             onDeleteBranch(row.te, row.branchForkPointers, branchIndex);
           }}
         />
-      ) : null}
+      )}
     </div>
   );
 });

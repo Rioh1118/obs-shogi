@@ -1,5 +1,4 @@
-import type React from "react";
-import { memo } from "react";
+import { memo, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { useBesidePlacement } from "./useBesidePlacement";
 import { Trash2 } from "lucide-react";
@@ -25,9 +24,15 @@ const KifuMoveActions = memo(function KifuMoveActions({
 }: Props) {
   const { selfRef, placement } = useBesidePlacement(open, anchorRect);
 
+  const handleDelete = () => {
+    if (busy || te === 0) return;
+    onDeleteFromHere(te);
+    onClose();
+  };
+
   if (!open || !anchorRect) return null;
 
-  const style: React.CSSProperties = placement
+  const style: CSSProperties = placement
     ? { top: placement.top, left: placement.left }
     : { top: -9999, left: -9999 };
 
@@ -47,11 +52,7 @@ const KifuMoveActions = memo(function KifuMoveActions({
         className="kifu-moveactions-pop__item kifu-moveactions-pop__item--danger"
         role="menuitem"
         disabled={busy || te === 0}
-        onClick={() => {
-          if (busy || te === 0) return;
-          onDeleteFromHere(te);
-          onClose();
-        }}
+        onClick={handleDelete}
       >
         <Trash2 size={16} className="kifu-moveactions-pop__icon" />
         <span className="kifu-moveactions-pop__label">削除</span>

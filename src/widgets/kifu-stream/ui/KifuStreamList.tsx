@@ -87,8 +87,7 @@ function describeDelete(pending: PendingDelete): string {
 }
 
 export default function KifuStreamList() {
-  const { state, view, goToIndex, getTotalMoves, applyCursor, deleteBranch, swapBranches } =
-    useGame();
+  const { state, view, goToIndex, applyCursor, deleteBranch, swapBranches } = useGame();
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const lastScrollAtRef = useRef<number>(0);
@@ -135,7 +134,7 @@ export default function KifuStreamList() {
     return buildStreamRowsFromCursor(buildPlayer(view.player.kifu, null), plannedCursor);
   }, [view.player, plannedCursor]);
 
-  const totalMoves = view.player ? getTotalMoves() : 0;
+  const totalMoves = view.player ? view.totalMoves : 0;
   const currentTesuu = state.cursor?.tesuu ?? 0;
 
   const closeCommentNote = useCallback(() => {
@@ -431,6 +430,16 @@ export default function KifuStreamList() {
     [plannedCursor, applyCursor, goToIndex, closeForkMenu],
   );
 
+  const handleDeleteFromHere = (te: number) => {
+    if (te <= 0) return;
+
+    const r = rows.find((x) => x.te === te);
+    if (!r) return;
+
+    const branchIndex = branchIndexFromRow(r);
+    onDeleteBranch(te, r.branchForkPointers, branchIndex);
+  };
+
   if (!view.player) {
     return (
       <div className="kifu">
@@ -453,15 +462,7 @@ export default function KifuStreamList() {
         te={openMoveMenu?.te ?? 0}
         anchorRect={openMoveMenu?.anchorRect ?? null}
         onClose={() => setOpenMoveMenu(null)}
-        onDeleteFromHere={(te) => {
-          if (te <= 0) return;
-
-          const r = rows.find((x) => x.te === te);
-          if (!r) return;
-
-          const branchIndex = branchIndexFromRow(r);
-          onDeleteBranch(te, r.branchForkPointers, branchIndex);
-        }}
+        onDeleteFromHere={handleDeleteFromHere}
       />
 
       <KifuCommentNote
@@ -492,6 +493,7 @@ export default function KifuStreamList() {
             openComment != null &&
             cursorKey(openComment.cursor) ===
               cursorKey(descendTo(plannedCursor, r.te, r.selectedForkIndex));
+          const forkAnchorEl = isForkOpen ? openFork?.anchorEl : null;
 
           return (
             <KifuMoveCard
@@ -500,7 +502,7 @@ export default function KifuStreamList() {
               busy={state.isLoading}
               isForkMenuOpen={isForkOpen}
               isCommentOpen={isCommentOpen}
-              openForkAnchorEl={isForkOpen ? openFork?.anchorEl : null}
+              openForkAnchorEl={forkAnchorEl}
               forkMenuRef={forkMenuRef}
               onClickRow={onClickRow}
               onToggleForkMenu={onToggleForkMenu}

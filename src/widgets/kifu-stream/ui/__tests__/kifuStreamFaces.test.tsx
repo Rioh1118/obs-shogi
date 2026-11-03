@@ -31,8 +31,7 @@ const game = {
     isLoading: false,
   },
   // 一覧は `view.player.kifu` から再生用の player を組み直す
-  view: { player: { kifu: jkf, shogi: {} } },
-  getTotalMoves: () => 2,
+  view: { player: { kifu: jkf, shogi: {} }, totalMoves: 2 },
   goToIndex: vi.fn(),
   applyCursor: vi.fn(),
   deleteBranch: vi.fn(),

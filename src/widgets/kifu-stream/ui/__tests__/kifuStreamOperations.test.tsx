@@ -38,7 +38,6 @@ const game = vi.hoisted(() => ({
     isLoading: false,
   },
   view: { player: null as unknown, totalMoves: 3 },
-  getTotalMoves: () => 3,
   goToIndex: vi.fn(),
   applyCursor: vi.fn(),
   deleteBranch: vi.fn<(q: DeleteQuery) => Promise<Result>>(),
