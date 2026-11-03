@@ -57,6 +57,7 @@ beforeEach(() => {
   openKifuNode.mockClear();
   selectNode.mockClear();
   tree.activeKifuPath = null;
+  tree.selectedNode = null;
   tree.jkfData = {};
   tree.kifuFormat = "kif";
   game.loadedAbsPath = null;
@@ -111,5 +112,37 @@ describe("棋譜のノードを押したとき", () => {
     clickNode();
 
     expect(openKifuNode).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * 節の `id` は Rust が走査のたびに振り直す（`generate_id`）。reducer の `tree_loaded` は
+ * `selectedNode` を張り替えないので、読み直した後の選択は前の走査の節のまま残る。
+ * 行が `id` で比べると、棋譜は開いたまま強調だけが消える。
+ */
+describe("読み直した後の選択", () => {
+  test("前の走査の節が選ばれていても、同じパスの行を強調する", () => {
+    tree.selectedNode = { ...NODE, id: "前の走査" };
+
+    render(<FileNode node={NODE} level={1} />);
+
+    expect(screen.getByText("a.kif").closest(".node-box")?.className).toContain(
+      "node-box__selected",
+    );
+  });
+
+  test("強調するのは選んだパスの行だけ", () => {
+    tree.selectedNode = { ...NODE, id: "前の走査" };
+    const other = { ...NODE, id: "n2", name: "b.kif", path: "/ws/b.kif" };
+
+    render(
+      <>
+        <FileNode node={NODE} level={1} />
+        <FileNode node={other} level={1} />
+      </>,
+    );
+
+    const selected = Array.from(document.querySelectorAll(".node-box__selected"));
+    expect(selected.map((el) => el.textContent)).toEqual(["a.kif"]);
   });
 });

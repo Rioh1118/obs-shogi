@@ -26,7 +26,8 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   // **`useGame()` を読まない。** 行の数だけ盤の state を購読することになり、
   // 盤を1手動かすだけでツリーの全行が描き直される（ツリーは仮想化されていない）
   const loadedAbsPath = useLoadedKifuPath();
-  const isSelected = selectedNode?.id === node.id;
+  // `id` で比べない。走査のたびに振り直され、読み直しは `selectedNode` を張り替えない
+  const isSelected = selectedNode?.path === node.path;
   /**
    * 開き直しを省いてよいのは、**ツリーと盤の両方がこの棋譜を指しているとき**だけ。
    *
