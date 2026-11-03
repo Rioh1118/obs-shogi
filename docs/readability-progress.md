@@ -59,7 +59,7 @@ ours 戦略のマージは使わない。
 | 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | マージ済み |
 | 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | マージ済み |
 | 25 | `refactor/tidy-features-position-editor` | `src/features/position-editor`（範囲14の第2段） | #693 | マージ済み |
-| 26 | `refactor/tidy-features-create-file` | `src/features` の `create-file`、`file-conflict`、`study-position-save`（範囲15の第1段）、保存先の欄の不具合 | — | レビュー待ち |
+| 26 | `refactor/tidy-features-create-file` | `src/features` の `create-file`、`file-conflict`、`study-position-save`（範囲15の第1段）、保存先の欄の不具合 | #694 | レビュー待ち |
 
 ## 語
 
