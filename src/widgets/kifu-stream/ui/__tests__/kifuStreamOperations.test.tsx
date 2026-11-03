@@ -26,13 +26,48 @@ const KIF = [
 
 const jkf = parseKifuContentToJKF(KIF, "kif");
 
+/**
+ * 変化の中にさらに変化がある棋譜。2手目の変化1を選ぶと、3手目の行は
+ * 変化1の線の手で、そこに変化が1本ぶら下がる
+ */
+const NESTED = parseKifuContentToJKF(
+  [
+    "手合割：平手",
+    "   1 ７六歩(77)",
+    "   2 ３四歩(33)",
+    "   3 ２六歩(27)",
+    "",
+    "変化：2手",
+    "   2 ８四歩(83)",
+    "   3 ２六歩(27)",
+    "",
+    "変化：3手",
+    "   3 ６八銀(79)",
+    "",
+  ].join("\n"),
+  "kif",
+);
+
+/** 1手目にコメントが1つある棋譜 */
+const COMMENTED = parseKifuContentToJKF(
+  ["手合割：平手", "   1 ７六歩(77)", "*角道を開ける", "   2 ３四歩(33)", ""].join("\n"),
+  "kif",
+);
+
+/** 2手目の変化1を選んだ計画 */
+const SECOND_MOVE_FORK = [{ te: 2, forkIndex: 0 }];
+
 type Result = { success: true; data: undefined } | { success: false; error: string };
 
 const game = vi.hoisted(() => ({
   state: {
     jkf: null as unknown,
-    cursor: { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" },
-    branchPlan: [],
+    cursor: { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" } as {
+      tesuu: number;
+      forkPointers: unknown[];
+      tesuuPointer: string;
+    },
+    branchPlan: [] as unknown[],
     loadedAbsPath: "/ws/a.kif",
     boardSeq: 1,
     isLoading: false,
@@ -43,6 +78,27 @@ const game = vi.hoisted(() => ({
   deleteBranch: vi.fn<(q: DeleteQuery) => Promise<Result>>(),
   swapBranches: vi.fn<(q: SwapQuery) => Promise<Result>>(),
 }));
+
+/** 分岐メニューが重なりの最上位か。Escape を受けるかを決める */
+const overlay = vi.hoisted(() => ({ isTop: true }));
+
+/** 一覧を流した記録。happy-dom は寸法が0なので、流す先の計算ではなく呼ばれ方を見る */
+const scroll = vi.hoisted(() => ({ calls: [] as { rowId: string; behavior: ScrollBehavior }[] }));
+
+/** `revealRow` が読む時計。続けて動いたかを決める */
+const clock = vi.hoisted(() => ({ now: 10_000 }));
+
+vi.mock("@/widgets/kifu-stream/lib/scrollToRowSafeZone", async (importActual) => {
+  const actual =
+    await importActual<typeof import("@/widgets/kifu-stream/lib/scrollToRowSafeZone")>();
+  const mocked = {
+    ...actual,
+    scrollToRowSafeZone: (_scroller: HTMLElement, rowEl: HTMLElement, behavior: ScrollBehavior) => {
+      scroll.calls.push({ rowId: rowEl.id, behavior });
+    },
+  };
+  return mocked satisfies typeof import("@/widgets/kifu-stream/lib/scrollToRowSafeZone");
+});
 
 vi.mock("@/entities/game", async (importActual) => {
   const actual = await importActual<typeof import("@/entities/game")>();
@@ -56,7 +112,7 @@ vi.mock("@/entities/game", async (importActual) => {
 vi.mock("@/shared/lib/overlayStack", async (importActual) => {
   const actual = await importActual<typeof import("@/shared/lib/overlayStack")>();
   // 返すのは「自分が最上位か」を答える関数。Escape は最上位の面だけが受ける
-  const mocked = { ...actual, useOverlayLayer: () => () => true };
+  const mocked = { ...actual, useOverlayLayer: () => () => overlay.isTop };
   return mocked satisfies typeof import("@/shared/lib/overlayStack");
 });
 
@@ -104,19 +160,25 @@ async function click(el: Element) {
   });
 }
 
-async function openForkMenu() {
-  await click(within(rowOf(2)).getByTitle("分岐を選択"));
-  return screen.getByRole("menu", { name: "2手目の分岐" });
+async function openForkMenu(te = 2) {
+  await click(within(rowOf(te)).getByTitle("分岐を選択"));
+  return screen.getByRole("menu", { name: `${te}手目の分岐` });
 }
 
 /** 分岐メニューの `nth` 番目（0 が本譜）の行の操作を開く */
-async function openForkActions(nth: number) {
-  const menu = await openForkMenu();
+async function openForkActions(nth: number, te = 2) {
+  const menu = await openForkMenu(te);
   await pressLeft(within(menu).getAllByRole("button", { name: "分岐の操作" })[nth]);
   return screen.getByRole("menu", { name: "分岐の操作" });
 }
 
 beforeEach(() => {
+  overlay.isTop = true;
+  scroll.calls = [];
+  clock.now = 10_000;
+  vi.spyOn(performance, "now").mockImplementation(() => clock.now);
+  game.state.cursor = { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" };
+  game.state.branchPlan = [];
   game.state.jkf = jkf;
   game.state.boardSeq = 1;
   game.state.isLoading = false;
@@ -127,7 +189,30 @@ beforeEach(() => {
   game.swapBranches.mockReset().mockResolvedValue(ok);
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+/** 棋譜と計画を差し替える。一覧は `view.player.kifu` から組み直す */
+function load(kifu: unknown, branchPlan: unknown[] = []) {
+  game.state.jkf = kifu;
+  game.state.branchPlan = branchPlan;
+  game.view.player = { kifu, shogi: {} };
+}
+
+async function redraw(view: ReturnType<typeof render>) {
+  await act(async () => {
+    view.rerender(app());
+  });
+}
+
+/** 次のフレームまで待つ。分岐メニューを閉じた後の焦点と位置合わせはそこで走る */
+async function nextFrame() {
+  await act(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+  });
+}
 
 describe("一覧", () => {
   test("手数と総手数を出す", async () => {
@@ -483,5 +568,295 @@ describe("開く面は1つだけ", () => {
         .getByTitle(/コメントを(開く|追加)/)
         .getAttribute("aria-pressed"),
     ).toBe("false");
+  });
+});
+
+describe("行", () => {
+  test("Enter でその手へ動く", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.keyDown(rowOf(2), { key: "Enter" });
+    });
+    expect(game.goToIndex).toHaveBeenCalledWith(2);
+  });
+
+  test("コメントのある行は数を出し、ボタンの題を「開く」にする", async () => {
+    load(COMMENTED);
+    await mount();
+
+    const withComment = within(rowOf(1)).getByTitle("コメントを開く");
+    expect(withComment.textContent).toBe("1");
+    expect(within(rowOf(2)).queryByTitle("コメントを追加")).not.toBeNull();
+  });
+});
+
+describe("行の操作", () => {
+  test("同じ行をもう一度右クリックすると閉じる", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).toBeNull();
+  });
+
+  test("行を押すと閉じる", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    await click(rowOf(1));
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).toBeNull();
+  });
+
+  test("面の外を押すと閉じる", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    await act(async () => {
+      fireEvent.pointerDown(document.body);
+    });
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).toBeNull();
+  });
+
+  test("書き込みの最中は右クリックで開かない", async () => {
+    game.state.isLoading = true;
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).toBeNull();
+  });
+});
+
+describe("分岐メニューの閉じ方", () => {
+  /** 押下で外側と見て閉じると、続くクリックが開き直してバッジで閉じられなくなる */
+  test("開いたバッジの押下からクリックまでで閉じる", async () => {
+    await mount();
+    await openForkMenu();
+    const badge = within(rowOf(2)).getByTitle("分岐を選択");
+
+    await pressLeft(badge);
+    await click(badge);
+
+    expect(screen.queryByRole("menu", { name: "2手目の分岐" })).toBeNull();
+  });
+
+  test("上に別の面が重なっている間は Escape を受けない", async () => {
+    await mount();
+    await openForkMenu();
+    overlay.isTop = false;
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+
+    expect(screen.queryByRole("menu", { name: "2手目の分岐" })).not.toBeNull();
+  });
+
+  test("Escape で閉じたらバッジへ焦点を戻す", async () => {
+    await mount();
+    await openForkMenu();
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    await nextFrame();
+
+    expect(document.activeElement).toBe(within(rowOf(2)).getByTitle("分岐を選択"));
+  });
+
+  test("書き込みが始まった後は選べない", async () => {
+    const view = await mount();
+    const menu = await openForkMenu();
+    game.state.isLoading = true;
+    await redraw(view);
+
+    await pressLeft(within(menu).getAllByRole("menuitemradio")[1]);
+
+    expect(game.applyCursor).not.toHaveBeenCalled();
+  });
+
+  test("書き込みが始まった後は、行の右クリックで操作を開かない", async () => {
+    const view = await mount();
+    const menu = await openForkMenu();
+    game.state.isLoading = true;
+    await redraw(view);
+
+    await act(async () => {
+      fireEvent.contextMenu(within(menu).getAllByRole("none")[1]);
+    });
+
+    expect(screen.queryByRole("menu", { name: "分岐の操作" })).toBeNull();
+  });
+
+  /** 操作の面は開いたときの行の横に置くので、流すと別の行の横に残る */
+  test("メニューを流すと操作の面を閉じる", async () => {
+    await mount();
+    await openForkActions(1);
+
+    await act(async () => {
+      fireEvent.scroll(screen.getByRole("menu", { name: "2手目の分岐" }));
+    });
+
+    expect(screen.queryByRole("menu", { name: "分岐の操作" })).toBeNull();
+  });
+});
+
+describe("計画で変化を選んでいるとき", () => {
+  test("バッジに選んだ変化の番号を出し、メニューで変化に印を付ける", async () => {
+    load(NESTED, SECOND_MOVE_FORK);
+    await mount();
+
+    expect(within(rowOf(2)).getByTitle("分岐を選択").textContent).toBe("11");
+    const items = within(await openForkMenu()).getAllByRole("menuitemradio");
+    expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual(["false", "true"]);
+  });
+
+  test("ノートは選んだ変化の手で開く", async () => {
+    load(NESTED, SECOND_MOVE_FORK);
+    await mount();
+
+    await click(within(rowOf(2)).getByTitle(/コメントを(開く|追加)/));
+
+    expect(
+      within(rowOf(2))
+        .getByTitle(/コメントを(開く|追加)/)
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  test("変化の先の手を入れ替えると、そこまでに選んだ変化を添えて渡す", async () => {
+    load(NESTED, SECOND_MOVE_FORK);
+    await mount();
+    const actions = await openForkActions(1, 3);
+
+    await click(within(actions).getByRole("menuitem", { name: "上へ" }));
+
+    expect(game.swapBranches).toHaveBeenCalledWith({
+      te: 3,
+      forkPointers: [{ te: 2, forkIndex: 0 }],
+      a: 1,
+      b: 0,
+    });
+  });
+
+  test("変化の先の手を消すと、そこまでに選んだ変化を添えて渡す", async () => {
+    load(NESTED, SECOND_MOVE_FORK);
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    await click(
+      within(screen.getByRole("menu", { name: "3手目の操作" })).getByRole("menuitem", {
+        name: "削除",
+      }),
+    );
+    await click(screen.getByRole("button", { name: "削除する" }));
+
+    expect(game.deleteBranch).toHaveBeenCalledWith({
+      te: 3,
+      forkPointers: [{ te: 2, forkIndex: 0 }],
+      target: 0,
+    });
+  });
+});
+
+describe("前の確認の削除が後から返ったとき", () => {
+  /** 2手目の変化1の確認で削除を始め、閉じてから3手目の確認を開く */
+  async function startThenOpenAnother() {
+    let settle!: (r: Result) => void;
+    game.deleteBranch.mockReturnValueOnce(new Promise((resolve) => (settle = resolve)));
+    await mount();
+    const actions = await openForkActions(1);
+    await click(within(actions).getByRole("menuitem", { name: "削除" }));
+    await click(screen.getByRole("button", { name: "削除する" }));
+    await click(screen.getByRole("button", { name: "閉じる" }));
+
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    const moveActions = screen.getByRole("menu", { name: "3手目の操作" });
+    await click(within(moveActions).getByRole("menuitem", { name: "削除" }));
+    return settle;
+  }
+
+  test("書けても、いま出ている確認は閉じない", async () => {
+    const settle = await startThenOpenAnother();
+
+    await act(async () => settle(ok));
+
+    expect(screen.queryByRole("dialog", { name: "3手目の本譜を削除しますか？" })).not.toBeNull();
+  });
+
+  test("失敗しても、いま出ている確認を押し退けない", async () => {
+    const settle = await startThenOpenAnother();
+
+    await act(async () => settle({ success: false, error: "書き込めません" }));
+
+    expect(screen.queryByRole("dialog", { name: "3手目の本譜を削除しますか？" })).not.toBeNull();
+    expect(screen.getByRole("alert").textContent).not.toContain("書き込めません");
+  });
+});
+
+describe("一覧の位置", () => {
+  const moveCursorTo = (tesuu: number) => {
+    game.state.cursor = { tesuu, forkPointers: [], tesuuPointer: `${tesuu},[]` };
+  };
+
+  test("カーソルが動いたら、その行を見える位置へ流す", async () => {
+    const view = await mount();
+    clock.now += 1000;
+    moveCursorTo(2);
+    await redraw(view);
+
+    expect(scroll.calls[scroll.calls.length - 1]).toEqual({
+      rowId: "kifu-row-2",
+      behavior: "smooth",
+    });
+  });
+
+  test("続けて動いたら smooth をやめて追従する", async () => {
+    const view = await mount();
+    clock.now += 50;
+    moveCursorTo(2);
+    await redraw(view);
+
+    expect(scroll.calls[scroll.calls.length - 1]).toEqual({
+      rowId: "kifu-row-2",
+      behavior: "auto",
+    });
+  });
+
+  test("Escape で閉じたら、分岐の行を見える位置へ戻す", async () => {
+    await mount();
+    await openForkMenu();
+    clock.now += 1000;
+    const before = scroll.calls.length;
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    await nextFrame();
+
+    expect(scroll.calls.slice(before)).toEqual([{ rowId: "kifu-row-2", behavior: "smooth" }]);
+  });
+
+  /** カーソル変化の effect が選んだ smooth を、開始直後に打ち切らない */
+  test("直前に流していたら、閉じた後の位置合わせは譲る", async () => {
+    await mount();
+    await openForkMenu();
+    clock.now += 50;
+    const before = scroll.calls.length;
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    await nextFrame();
+
+    expect(scroll.calls.slice(before)).toEqual([]);
   });
 });
