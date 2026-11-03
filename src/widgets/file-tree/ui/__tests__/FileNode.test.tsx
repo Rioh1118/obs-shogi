@@ -4,12 +4,12 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { FileTreeNode } from "@/entities/file-tree";
 
 /**
- * **「もう開いている」の判定は盤に訊く。**
+ * 棋譜の行を押したときに開き直すかの判定。「もう開いている」は盤にも訊く。
  *
  * ツリーの `activeKifuPath` は構文として読めた時点で進むので、そこから盤に
  * 載るまでの一段（`loadGame` の `buildPlayer`）で落ちた棋譜も「開いている」に
  * なる。その判定で2度目のクリックを捨てると、**復帰が別の棋譜を選ぶことだけに
- * なる**（#434 / `failure-surfacing.md` の F-31）。
+ * なる**（`failure-surfacing.md` の F-31）。
  */
 
 const openKifuNode = vi.fn(async () => ({ success: true as const, data: undefined }));
@@ -96,7 +96,7 @@ describe("棋譜のノードを押したとき", () => {
   });
 
   /**
-   * **E16 のあとに前の棋譜へ戻る経路。** 盤には載っているが、ツリーは別のファイルを
+   * E16 のあとに前の棋譜へ戻る経路。盤には載っているが、ツリーは別のファイルを
    * 掴んだままになっている。
    *
    * `canSkipReopen` を `loadedAbsPath` だけにすると、ここで押しても何も起きない。盤は既にこの棋譜を

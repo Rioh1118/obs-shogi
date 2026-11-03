@@ -4,9 +4,9 @@ import { describeFsError, type CommitOutcome, type FsError } from "@/entities/fi
 import "./InlineNameEditor.scss";
 
 /**
- * **描かれている＝編集中。** 呼び出し側は5経路とも `isRenaming` /
- * `showCreateRow` で分岐して unmount するので、「閉じている」という状態を
- * この component は持たない（`inline-name-editor.md` の E0）
+ * 改名と作成の名前の欄。描かれている間が編集中で、「閉じている」という状態は持たない。
+ * 呼び出し側は5経路とも `isRenaming` か `showCreateRow` で分岐して unmount する
+ * （`inline-name-editor.md` の E0）
  */
 type InlineRenameProps = {
   initialName: string;
@@ -22,7 +22,7 @@ type InlineRenameProps = {
   onCommit: (nextName: string) => Promise<CommitOutcome>;
   onCancel: () => void;
   /**
-   * 欄が **unmount されたあと**に失敗が返ったときの行き先。
+   * 欄が unmount されたあとに失敗が返ったときの行き先。
    *
    * 確定の最中に呼び出し側が編集行を畳むと（reducer の `case "error"` など）、
    * 返ってきた失敗を出す場所が無い。名前の失敗は provider が通知へ積まない
@@ -81,13 +81,13 @@ function InlineNameEditor({
    * **失敗しても閉じない。** 閉じると打った文字列ごと消え、「直すための入力欄が、
    * 直せという知らせに巻き込まれて消える」形になる（`isNameInputError` の TSDoc）。
    *
-   * **焦点も動かさない。** blur を起こしたのが「別の行をクリックした」なら、
+   * 焦点も動かさない。blur を起こしたのが「別の行をクリックした」なら、
    * 確定は click より前のマイクロタスクで返るので、`focus()` は利用者が移った先から
    * 焦点を奪い返す。押した行は開くのにキーボードはここに残り、この欄は `onKeyDown` を
    * 全て `stopPropagation()` するので Escape が他のハンドラにも届かなくなる。
    *
-   * 閉じるのは2つ。**送るものが無いとき**（空欄・`initialName` と同じ）と、
-   * **欄そのものが無くなったとき**（呼び出し側が畳んだ）。失敗では閉じない。
+   * 閉じるのは2つ。送るものが無いとき（空欄・`initialName` と同じ）と、
+   * 欄そのものが無くなったとき（呼び出し側が畳んだ）。失敗では閉じない。
    */
   const commit = async () => {
     const next = draft.trim();
@@ -165,7 +165,7 @@ function InlineNameEditor({
         }}
       />
       {/* 行を押し広げて全文を出す。理由は docs/state-transitions/inline-name-editor.md */}
-      {/* **領域は常設する。** 中身と同時に DOM へ入れると、VoiceOver は
+      {/* 領域は常設する。中身と同時に DOM へ入れると、VoiceOver は
           live region の変化として読まない。焦点を戻さない形にした以上、
           キーボードだけの利用者へはここからしか伝わらない */}
       <span className="inline-name-editor__error" role="alert">

@@ -159,7 +159,7 @@ describe("InlineNameEditor", () => {
   });
 
   /**
-   * `inline-name-editor.md` の E2 → blur。**焦点は動かさない。**
+   * `inline-name-editor.md` の E2 → blur。焦点は動かさない。
    *
    * 確定は click より前のマイクロタスクで返るので、ここで `focus()` を呼ぶと
    * 利用者が移った先から焦点を奪い返す。押した行は開くのにキーボードは
