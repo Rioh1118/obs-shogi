@@ -195,7 +195,7 @@ E2（`reset_state`）だけ**。`loadFailedSeq` はそのたびに1つ進み、*
   **画面には「保存済み」だけが出て本文が消える**。
   **楽観的更新の写しを `baseText` に入れないこと。** 走っている保存の最中に面を
   組み直すと、まだディスクに無い本文が入って同じ失われ方をする
-- `KifuStreamList` の `confirmDelete`：確認ダイアログの中に出す。
+- `useBranchDeleteConfirm`（`KifuStreamList` が使う）の `confirmDelete`：確認ダイアログの中に出す。
   **失敗したあとは実行ボタンを押せなくする**（押した時点の指定を撃ち直すので、
   失敗の間にメモリ側の棋譜が変わっていると別のものを指す）
 
