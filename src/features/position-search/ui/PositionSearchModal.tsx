@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import Modal from "@/shared/ui/Modal";
@@ -67,12 +67,12 @@ export default function PositionSearchModal() {
   // 旗をここで並べ直さない。順を持っているのは `indexHealth` 1つ
   const health = indexHealth(state.index);
 
-  const statusText = useMemo(() => {
+  const statusText = (() => {
     if (isSearching) return "検索中…";
     if (error) return "エラー";
     if (isDone) return "完了";
     return "待機中";
-  }, [isSearching, error, isDone]);
+  })();
 
   const previewData = useMemo(() => {
     if (!isOpen) return null;
@@ -151,7 +151,7 @@ export default function PositionSearchModal() {
   // 焦点は選択している行が持つ（`PositionHitItem`）ので、キーはそこから
   // ここまで上がってくる。この節自体は焦点を取らない。
   // Escape は `Modal` が扱う。ここで拾うとハンドラが2つになる
-  const onKeyDown = (e: React.KeyboardEvent) => {
+  const onKeyDown = (e: KeyboardEvent) => {
     // 検索中でも開ける。結果はチャンクで届くので `isSearching` は一覧が育っている間
     // ずっと真で、ここで弾くと全件届くまで何も押せなくなる。
     // 届いたヒットは行き先を決めるのに足りる情報を持っている

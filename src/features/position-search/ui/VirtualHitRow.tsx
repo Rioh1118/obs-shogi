@@ -1,8 +1,7 @@
-import type { CSSProperties } from "react";
 import type { PositionHit } from "@/entities/search";
 import { toRelPath } from "@/shared/lib/path";
 import { PositionHitItem } from "./PositionHitItem";
-import type { ListProps } from "react-window";
+import type { RowComponentProps } from "react-window";
 
 export type HitRowProps = {
   hits: PositionHit[];
@@ -23,17 +22,7 @@ function fileNameFromRel(rel: string) {
   return i >= 0 ? rel.slice(i + 1) : rel;
 }
 
-export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
-  props: {
-    ariaAttributes: {
-      "aria-posinset": number;
-      "aria-setsize": number;
-      role: "listitem";
-    };
-    index: number;
-    style: CSSProperties;
-  } & HitRowProps,
-) => {
+export function VirtualHitRow(props: RowComponentProps<HitRowProps>) {
   const { index, style, hits } = props;
 
   const hit = hits[index];
@@ -71,4 +60,4 @@ export const VirtualHitRow: ListProps<HitRowProps>["rowComponent"] = (
       onAccept={() => props.onAccept(hit)}
     />
   );
-};
+}
