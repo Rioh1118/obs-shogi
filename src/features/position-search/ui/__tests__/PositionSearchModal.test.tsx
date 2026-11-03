@@ -33,10 +33,13 @@ vi.mock("@/shared/lib/router/useURLParams", () => ({
   }),
 }));
 
+/** 盤の現在局面。`sfen=` が無いときの検索の対象 */
+const gameView: { player: null; currentSfen: string | null } = { player: null, currentSfen: null };
+
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
     state: { loadedAbsPath: "/root/a.kif" },
-    view: { player: null, currentSfen: null },
+    view: gameView,
   }),
 }));
 
@@ -45,6 +48,8 @@ vi.mock("@/entities/app-config", () => ({
 }));
 
 const REQUEST_ID = 1;
+/** 検索の途中で索引が動いたか。セッションの `stale` */
+const sessionFlags = { stale: false };
 const searchPosition = vi.fn();
 const cancelSearch = vi.fn();
 const clearSearch = vi.fn();
@@ -60,7 +65,7 @@ vi.mock("@/entities/search/model/usePositionSearch", () => ({
     searchPosition,
     cancelSearch,
     getSessionByRequestId: (rid: number | null) =>
-      rid == null ? null : { isDone: true, error: null, stale: false },
+      rid == null ? null : { isDone: true, error: null, stale: sessionFlags.stale },
     getHitsByRequestId: (rid: number | null) => (rid == null ? [] : hitsState.current),
     isSearchingRequest: () => false,
     resolveHitAbsPath,
@@ -95,9 +100,18 @@ vi.mock("@/shared/ui/Modal", () => ({
 vi.mock("@/entities/position/ui/PositionPreviewPane", () => ({ default: () => null }));
 /** 「いまどの行が選ばれているか」を、描かれた回ごとに記録する */
 const seenActiveHits: (PositionHit | null)[] = [];
+/** 先読みに渡された棋譜。描かれた回ごとに記録する */
+const seenPrefetch: (string | null)[] = [];
 vi.mock("../PositionSearchContinuation", () => ({
-  default: ({ activeHit }: { activeHit: PositionHit | null }) => {
+  default: ({
+    activeHit,
+    prefetchAbsPath,
+  }: {
+    activeHit: PositionHit | null;
+    prefetchAbsPath: string | null;
+  }) => {
     seenActiveHits.push(activeHit);
+    seenPrefetch.push(prefetchAbsPath);
     return null;
   },
 }));
@@ -139,6 +153,9 @@ beforeEach(() => {
   hitsState.current = HITS;
   hitKeyCalls.mockReset();
   seenActiveHits.length = 0;
+  seenPrefetch.length = 0;
+  sessionFlags.stale = false;
+  gameView.currentSfen = null;
   urlParams.modal = "position-search";
   urlParams.sfen = SFEN_A;
 });
@@ -558,5 +575,89 @@ describe("PositionSearchModal の検索の段と後始末", () => {
     const card = screen.getByLabelText("選択中の棋譜");
     expect(card.textContent).toContain("1.kif");
     expect(card.textContent).toContain("現在:a.kif");
+  });
+
+  test("閉じた後に畳まれても、同じ検索を2度は取り下げない", async () => {
+    const { rerender, unmount } = await renderWithHits();
+
+    urlParams.modal = "";
+    rerender(<PositionSearchModal />);
+    unmount();
+
+    expect(cancelSearch).toHaveBeenCalledTimes(1);
+    expect(clearSearch).toHaveBeenCalledTimes(1);
+  });
+
+  test("検索した後に局面が無くなったら、検索を立て直さない", async () => {
+    const { rerender } = await renderWithHits();
+    expect(searchPosition).toHaveBeenCalledTimes(1);
+
+    urlParams.sfen = undefined;
+    rerender(<PositionSearchModal />);
+    await act(async () => {});
+
+    expect(searchPosition).toHaveBeenCalledTimes(1);
+  });
+
+  test("局面を渡されたら、盤の現在局面より渡された局面を検索する", async () => {
+    gameView.currentSfen = SFEN_B;
+    await renderWithHits();
+
+    expect(searchPosition).toHaveBeenCalledWith(expect.objectContaining({ sfen: SFEN_A }));
+  });
+
+  test("局面を渡されなければ、盤の現在局面を検索する", async () => {
+    urlParams.sfen = undefined;
+    gameView.currentSfen = SFEN_B;
+    await renderWithHits();
+
+    expect(searchPosition).toHaveBeenCalledWith(expect.objectContaining({ sfen: SFEN_B }));
+  });
+
+  test("検索の途中で索引が動いたら、状況バーで言う", async () => {
+    sessionFlags.stale = true;
+    await renderWithHits();
+
+    expect(statusBar().textContent).toContain("検索中に索引が動きました");
+  });
+
+  test("選んだ行の実体が届き直して見失ったら、先頭の行を開く", async () => {
+    startNavigationToHit.mockReturnValue("started");
+    const { rerender } = await renderWithHits();
+    fireEvent.keyDown(screen.getByLabelText("局面検索"), { key: "ArrowDown" });
+
+    // 同じ中身の別の実体が届く。選んだ行は参照で追っているので見失う
+    hitsState.current = HITS.map((h) => ({ ...h }));
+    rerender(<PositionSearchModal />);
+    pressEnter();
+
+    expect(startNavigationToHit).toHaveBeenLastCalledWith("/root/1.kif", HITS[0].cursor);
+  });
+
+  test("先読みするのは直前に動いた向きの次の行", async () => {
+    hitsState.current = [hitAt(1, 20), hitAt(2, 30), hitAt(3, 40)];
+    await renderWithHits();
+    const section = screen.getByLabelText("局面検索");
+
+    // 既定は下向き
+    expect(seenPrefetch[seenPrefetch.length - 1]).toBe("/root/2.kif");
+
+    fireEvent.keyDown(section, { key: "ArrowDown" });
+    fireEvent.keyDown(section, { key: "ArrowDown" });
+    fireEvent.keyDown(section, { key: "ArrowUp" });
+
+    // 3行目から2行目へ上がったので、次に読むのは1行目
+    expect(seenPrefetch[seenPrefetch.length - 1]).toBe("/root/1.kif");
+  });
+
+  test("ツリーをまだ読めていなければ、警告の段で断る", async () => {
+    startNavigationToHit.mockReturnValue("tree-unavailable");
+    const { container } = await renderWithHits();
+
+    pressEnter();
+
+    expect(closeModal).not.toHaveBeenCalled();
+    expect(screen.getByText("ワークスペースの一覧をまだ読み込めていません")).toBeTruthy();
+    expect(container.querySelector(".notice--warning")).not.toBeNull();
   });
 });
