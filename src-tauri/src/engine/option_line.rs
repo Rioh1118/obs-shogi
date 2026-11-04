@@ -34,7 +34,7 @@ const TYPES: [&str; 6] = ["check", "spin", "combo", "button", "string", "filenam
 /// 型の綴りとして持つ語の長さ（文字）。エンジンが書いた語を理由に載せるので切る
 const MAX_KIND_CHARS: usize = 32;
 
-/// 解けなかった理由
+/// `option` 行を解けなかった理由
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionLineError {
     /// `option` で始まっていない
@@ -64,7 +64,7 @@ impl std::fmt::Display for OptionLineError {
     }
 }
 
-/// 解いた1行
+/// `option` 行1本から解いた定義と、上限で捨てた選択肢の数
 #[derive(Debug, Clone)]
 pub struct ParsedOption {
     pub option: EngineOption,

@@ -1,3 +1,7 @@
+//! 解析と対局が同じ形で使う2つの部品。`info` 行を読み筋へ畳むことと、ログに載せる文字列を作ること。
+//!
+//! どちらも `analyzer` と `game` の両方から呼ぶので、`tests/layering.rs` の段で両方より下のここに置く。
+
 use std::time::{Duration, Instant};
 use usi::{GuiCommand, InfoParams, ScoreKind};
 
@@ -7,6 +11,8 @@ use crate::engine::types::{AnalysisCandidate, AnalysisResult, Evaluation, Evalua
 ///
 /// 解析と対局で同じ形の読み筋を出す。**2箇所で別々に組み立てない。**
 /// 片方だけ直すと、同じエンジンの同じ出力が画面の場所によって違って見える。
+///
+/// `multipv` の無い行は rank 1 に入る。畳んだ後、`candidates` を rank の昇順に並べる。
 pub fn apply_info_params(info_params: &[InfoParams], result: &mut AnalysisResult) {
     let rank = extract_rank(info_params);
 
@@ -41,6 +47,7 @@ pub fn apply_info_params(info_params: &[InfoParams], result: &mut AnalysisResult
     result.candidates.sort_by_key(|c| c.rank);
 }
 
+/// `rank` の読み筋が最後に受けた深さを返す。その読み筋が無いか、深さを受けていなければ `None`
 pub fn get_depth_of_rank(result: &AnalysisResult, rank: u32) -> Option<u32> {
     result
         .candidates
@@ -49,6 +56,7 @@ pub fn get_depth_of_rank(result: &AnalysisResult, rank: u32) -> Option<u32> {
         .and_then(|c| c.depth)
 }
 
+/// `multipv` の番号を返す。無ければ 1
 pub fn extract_rank(info_params: &[InfoParams]) -> u32 {
     for info in info_params {
         if let InfoParams::MultiPv(r) = info {
@@ -58,6 +66,7 @@ pub fn extract_rank(info_params: &[InfoParams]) -> u32 {
     1
 }
 
+/// `rank` の読み筋を返す。無ければ空の読み筋を末尾に足して返す
 pub fn get_or_create_candidate(result: &mut AnalysisResult, rank: u32) -> &mut AnalysisCandidate {
     if let Some(idx) = result.candidates.iter().position(|c| c.rank == rank) {
         return &mut result.candidates[idx];
@@ -77,6 +86,7 @@ pub fn get_or_create_candidate(result: &mut AnalysisResult, rank: u32) -> &mut A
     &mut result.candidates[last]
 }
 
+/// `score` の値と種類を評価値にする。上界・下界の印は捨てる
 pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
     match kind {
         ScoreKind::CpExact | ScoreKind::CpLowerbound | ScoreKind::CpUpperbound => Evaluation {
@@ -92,8 +102,7 @@ pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
         }
 
         ScoreKind::MateSignOnly => {
-            // usi crate 側の value が +1/-1 か 0/+0 かは実装依存になりがちなので、
-            // 「0以上を+扱い」に寄せておくのが安全
+            // `usi` 0.6.2 は `mate +` を 1、`mate -` を -1 で渡す。0 は来ないが、来たら `+` に倒す
             let plus = value >= 0;
             Evaluation {
                 value: if plus { 1 } else { -1 },
@@ -110,37 +119,31 @@ pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
 /// 両方が使える段に置く。
 pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
-/// ログ・断り文句・**棋譜に残る値**に載せてよい写し。
-/// **制御文字を潰し、長さを切る。**
+/// ログ・断り文句・棋譜に残る値に載せてよい写しを返す。制御文字を潰し、`max` 文字で切る。
 ///
-/// **潰した結果はそのまま外へ出る。** 終局の説明（`GameResult::detail`）は
-/// これを通した値が `Over` イベントとスナップショットに載るので、
-/// 改行を含む文言を渡すと利用者の目に置換文字が見える。
-/// その断りは `endGameByRule` の TSDoc に書いてある。
-/// **見えるのはここに書いた2つ（切った印と制御文字）だけ**——
+/// 潰した結果はそのまま外へ出る。終局の説明（`GameResult::detail`）は、これを通した値が
+/// `over` のイベントとスナップショットに載るので、改行を含む文言を渡すと利用者の目に置換文字が見える。
+/// その断りは `endGameByRule` の TSDoc に書いてある。見えるのは、切った印と潰した制御文字の2つだけ。
 /// 全角空白や結合文字まで潰すと、化けた理由を調べる手掛かりがどこにも残らない。
 ///
-/// **潰すのは制御文字だけ。** 改行を通すと、その後ろに好きなログ行を作れる。
+/// 潰すのは制御文字だけ。改行を通すと、その後ろに好きなログ行を作れる。
 /// 潰した後は1文字あたり最大4バイト（UTF-8）で収まる。
 ///
-/// **`search/` は別の規約を持つ**（`search::message::for_screen`）。あちらは改行を通し
-/// （棋譜の引用を読める形で残すため）、上限を固定で持つ。**同じ判断ではないので
-/// 片方だけ読んで揃えないこと。** 実装を1本に寄せるには `tests/layering.rs` の
-/// 規則3（`engine/` は crate の他の枝を `use` しない）から動かすことになる。
+/// `search/` は別の規約を持つ（`search::message::for_screen`）。あちらは改行を通し
+/// （棋譜の引用を読める形で残すため）、上限を固定で持つ。同じ判断ではないので、片方だけ読んで
+/// 揃えないこと。実装を1本に寄せるには `tests/layering.rs` の規則3（`engine/` は crate の
+/// 他の枝を `use` しない）から動かすことになる。
 ///
-/// **`is_control()` は `Cc` だけ。** U+2028 / U+2029（行区切り）も
-/// 双方向制御（U+202A–U+202E / U+2066–U+2069）も BOM も**通す**。通すのは意図で、
-/// 根拠は上と同じ——棋譜と画面に出る値なので、化けた理由を調べる手掛かりを消さない。
-/// ログの行を偽造する力は無い（`tail` も `grep` も U+2028 で分割しない）。
-/// **産地が増えたら見直すこと**——いまの `detail` の出どころは自分のフロントだけで、
-/// 棋譜ファイル由来の文字列が流れ込む経路ができたら判断が変わる。
+/// `is_control()` が真になるのは `Cc` だけで、U+2028 / U+2029（行区切り）も、双方向制御
+/// （U+202A–U+202E / U+2066–U+2069）も、BOM も通す。通すのは意図で、根拠は上と同じく、
+/// 棋譜と画面に出る値なので化けた理由を調べる手掛かりを消さないため。ログの行を偽造する力は無い
+/// （`tail` も `grep` も U+2028 で分割しない）。産地が増えたら見直すこと。いまの `detail` の
+/// 出どころは自分のフロントだけで、棋譜ファイル由来の文字列が流れ込む経路ができたら判断が変わる。
 ///
-/// **通した値を `{:?}` で書かないこと。** `{:?}` は制御文字のほかに
-/// `Cf`（BOM）/ `Cn`（未割り当て）も `\u{XXXX}` へ展開するので、
-/// 1文字が10バイトに膨らんで上の見積もりが外れる。
-/// 潰してあるので `{}` で足りる。
+/// **通した値を `{:?}` で書かないこと。** `{:?}` は制御文字のほかに `Cf`（BOM）/ `Cn`（未割り当て）も
+/// `\u{XXXX}` へ展開するので、1文字が10バイトに膨らんで上の見積もりが外れる。潰してあるので `{}` で足りる。
 ///
-/// **文字数で切る。** バイト数で切ると多バイト文字の途中で割れる。
+/// 文字数で切る。バイト数で切ると多バイト文字の途中で割れる。
 pub fn shown(text: &str, max: usize) -> String {
     let mut out: String = text
         .chars()
@@ -153,24 +156,21 @@ pub fn shown(text: &str, max: usize) -> String {
     out
 }
 
-/// 外来のエラーを文字列にする。**原因の連鎖ごと出す。**
+/// 外来のエラーを、原因の連鎖ごと1本の文字列にする。
 ///
-/// `usi` crate の `Error` は `thiserror` で組んであり、`Display` は
-/// バリアントごとの定型文しか出さない——`EngineIo` は
-/// 「IO error occurred when communicating with the engine」で、
-/// 中の `std::io::Error` を**丸ごと捨てる**。
+/// `usi` crate の `Error` は `thiserror` で組んであり、`Display` はバリアントごとの定型文しか
+/// 出さない。`EngineIo` は「IO error occurred when communicating with the engine」で、
+/// 中の `std::io::Error` を丸ごと捨てる。
 ///
-/// 実行権限の無いファイルを選ぶと（zip から展開したエンジンで最も起きる形）、
-/// `canonicalize` も `is_file` も通って `Command::spawn` が EACCES で落ちるのに、
-/// 利用者に返るのもログに残るのもその定型文だけになる。
-/// 「権限が無い」「アーキテクチャが違う」の区別が付かず、
-/// **何を直せばいいかが導けない**。
+/// 実行権限の無いファイルを選ぶと（zip から展開したエンジンで最も起きる形）、`canonicalize` も
+/// `is_file` も通って `Command::spawn` が EACCES で落ちるのに、利用者に返るのもログに残るのも
+/// その定型文だけになる。「権限が無い」「アーキテクチャが違う」の区別が付かず、何を直せばいいかが導けない。
 ///
-/// **潰す必要が無いのは、いまここへ渡している型に限った話。** `usi::Error` と
-/// `io::Error` の連鎖はどちらも `Display` が短く、外来の文字列を含まない。
-/// webview 由来の文字列を運ぶ型（`setoption` の名前を抱えた `StartupFailed` など）を
-/// 渡すなら、返り値を `shown` に通すこと——素で `log::error!` へ流すと
-/// 1行8KB になり、`MAX_SUMMARY_LEN` が名指しで避けている状態になる。
+/// **返り値は制御文字を潰していない。** 潰さずに済むのは、いまここへ渡している型に限った話で、
+/// `usi::Error` と `io::Error` の連鎖はどちらも `Display` が短く、外来の文字列を含まない。
+/// webview 由来の文字列を運ぶ型（`setoption` の名前を抱えた `StartupFailed` など）を渡すなら、
+/// 返り値を `shown` に通すこと。素で `log::error!` へ流すと1行8KB になり、
+/// `MAX_SUMMARY_LEN` が名指しで避けている状態になる。
 pub fn with_cause(error: &dyn std::error::Error) -> String {
     let mut text = error.to_string();
     let mut source = error.source();
@@ -328,56 +328,54 @@ mod tests {
 
 /// ログの1行に載せる要約の上限（文字数）。
 ///
-/// **`setoption` の名前は webview から来る。** `MAX_WIRE_FIELD`（8KB）までは
-/// 通るので、素で載せると `write: failed cmd=…` の1行が8KBになる。
-/// 利用者がエンジンのパスを直そうとして「開始」を繰り返すと、
-/// **直そうとしている当のエラーの説明が消える**。
+/// `setoption` の名前は webview から来て、`MAX_WIRE_FIELD`（8KB）までは通る。素で載せると
+/// `write: failed cmd=…` の1行が8KBになる。利用者がエンジンのパスを直そうとして「開始」を
+/// 繰り返すと、ログが一周して、直そうとしている当のエラーの説明が消える。
 ///
-/// **エンジンの名乗り（`id name`）も同じ上限で切る**（`engine::registry` の
-/// `spawn_ok_line`）。そちらも `collect_engine_info` が長さを見ずに保持する。
+/// エンジンの名乗り（`id name`）も同じ上限で切る（`engine::registry` の `spawn_ok_line`）。
+/// そちらも `collect_engine_info` が長さを見ずに保持する。
 ///
-/// **縛っている式の数をここに書かない**（式が増えるたびにこの行だけが古くなる）。
-/// この上限を `LOG_FILE_BUDGET` と並べて表明しているテストが赤くなったら、
-/// **どれも一次で乗っている**——「関係の無いラチェット」と読まないこと。
-/// 測り方は経路ごとに違う（掃き出しは `PENDING_LIMIT` 件ぶん、起動と停止は1行ぶん）。
-/// **どちらも上限の不等式なので、縮める側は止まらない。**
+/// **この上限を `LOG_FILE_BUDGET` と並べて表明しているテストが赤くなったら、どれも一次で乗っている。**
+/// 「関係の無いラチェット」と読まないこと。縛っている式の数はここに書かない（式が増えるたびに
+/// この行だけが古くなる）。測り方は経路ごとに違う（掃き出しは `PENDING_LIMIT` 件ぶん、起動と停止は
+/// 1行ぶん）。どちらも上限の不等式なので、縮める側は止まらない。
 ///
-/// 実在する option 名（`USI_Hash` / `EvalDir` / `Threads`）はこの1/4も使わないが、
-/// **縮める根拠にはならない**——実在するエンジンの名乗り
-/// （`YaneuraOu NNUE 7.0.0 64ZEN2`）が収まる幅でもある。縮めるならそちらを測ること。
+/// 実在する option 名（`USI_Hash` / `EvalDir` / `Threads`）はこの1/4も使わないが、縮める根拠には
+/// ならない。実在するエンジンの名乗り（`YaneuraOu NNUE 7.0.0 64ZEN2`）が収まる幅でもある。
+/// 縮めるならそちらを測ること。
 pub const MAX_SUMMARY_LEN: usize = 64;
 
-/// ログファイル1本ぶんの予算。**`KeepOne` なので、一周すると前の記録は消える。**
+/// ログファイル1本ぶんの予算（バイト。`lib.rs` の `max_file_size`）。`KeepOne` なので、一周すると前の記録は消える。
 ///
-/// **これを根拠に決めた値が3つある。** 断りの行をどれだけ出してよいか
-/// （`engine::commands::game` の `MAX_TRACKED_GAMES`）、終局の説明の長さ
-/// （`engine::game::session` の `MAX_DETAIL_LEN`）、ログの1行に載せる要約の長さ
-/// （`MAX_SUMMARY_LEN`）。3つとも式で縛ってあるので、ここを動かすと落ちる。
+/// これを根拠に決めた値が3つある。3つとも式で縛ってあるので、ここを動かすと落ちる。
 ///
-/// **根拠は別だが、予算にも乗っている値が2つ。**
+/// - 断りの行をどれだけ出してよいか（`engine::commands::game` の `MAX_TRACKED_GAMES`）
+/// - 終局の説明の長さ（`engine::game::session` の `MAX_DETAIL_LEN`）
+/// - ログの1行に載せる要約の長さ（`MAX_SUMMARY_LEN`）
 ///
-/// - `GameId` の `MAX_ID_BYTES`（根拠は「本物の UUID が収まる」）。断りの1行は
-///   同じ ID を2回載せるので、`the_log_keeps_a_minimum_of_history_under_rejections`
-///   の式に一次で乗る。**動かすともう1つの表明も見る**——`Display` が上限まで
-///   埋まることを留める等式（`a_game_id_in_text_is_bounded_and_has_no_control_characters`）
-/// - `engine::registry` の `MAX_PATH_IN_LOG_LEN`（根拠は「実運用のパスが読める」）。
-///   上は `the_registry_lines_cannot_rotate_the_log_or_forge_a_line` が止める
+/// 根拠は別だが、予算にも乗っている値が2つある。
+///
+/// - `GameId` の `MAX_ID_BYTES`（根拠は「本物の UUID が収まる」）。断りの1行は同じ ID を2回載せるので、
+///   `the_log_keeps_a_minimum_of_history_under_rejections` の式に一次で乗る。動かすときは、`Display` が
+///   上限まで埋まることを留める等式（`a_game_id_in_text_is_bounded_and_has_no_control_characters`）も見る
+/// - `engine::registry` の `MAX_PATH_IN_LOG_LEN`（根拠は「実運用のパスが読める」）。上は
+///   `the_registry_lines_cannot_rotate_the_log_or_forge_a_line` が止める
 ///
 /// どちらが赤くなっても「関係の無いラチェット」と読まないこと。
 ///
-/// **ここから来ていないのは1つ。** `MAX_USI_MOVE_BYTES` は「一番長い指し手が
-/// 収まる」が根拠で、断り文句はこの上限を通った後の値しか載せない。
+/// `MAX_USI_MOVE_BYTES` はここから来ていない。根拠は「一番長い指し手が収まる」で、断り文句は
+/// この上限を通った後の値しか載せない。
 ///
-/// **数字を離れた場所へ写さない。** 写すと、ここを動かしたときに
-/// 逆算した側がまとめて静かに嘘になる。指すときはこの名前で指すこと。
+/// **数字を離れた場所へ写さない。** 写すと、ここを動かしたときに逆算した側がまとめて静かに嘘になる。
+/// 指すときはこの名前で指すこと。
 pub const LOG_FILE_BUDGET: u128 = 200_000;
 
-/// 同じ種類の1行を、`interval` に1度だけ通す枠。
+/// 同じ種類の1行を、`interval` に1度だけ通す枠
 ///
 /// **新しく作った枠の先頭は通る。** 呼び出し側の絞りはこれを前提に組んである
 /// （枠が無い＝その種類の1行がまだ出ていない、なので通す）。
 ///
-/// **例外は起動直後だけ。** `Instant` は単調時計でブートより前へ遡れないので、
+/// 例外は起動直後だけ。`Instant` は単調時計でブートより前へ遡れないので、
 /// 起動から `interval` 未満に作った枠は先頭が通らない。その間は
 /// `is_open` も偽を返すので、上限のある写像から落とされもしない。
 #[derive(Debug, Clone)]
@@ -430,12 +428,12 @@ impl LogThrottle {
     }
 }
 
+/// ログに載せる、送るコマンドの要約を返す。局面、探索の引数、`setoption` の値は載せない
 pub fn cmd_summary(cmd: &GuiCommand) -> String {
     match cmd {
         GuiCommand::Position(_) => "Position(<redacted>)".to_string(),
         GuiCommand::Go(_) => "Go(...)".to_string(),
-        // **名前は webview から来る。** `MAX_WIRE_FIELD`（8KB）までは通るので、
-        // 素で載せると1行8KBの `warn` になる。積み置きの掃き出しでは
+        // 名前は webview から来るので `MAX_SUMMARY_LEN` で切る。積み置きの掃き出しでは
         // `PENDING_LIMIT` 件まとめて出る
         GuiCommand::SetOption(name, _v) => {
             format!("SetOption({})", shown(name, MAX_SUMMARY_LEN))
