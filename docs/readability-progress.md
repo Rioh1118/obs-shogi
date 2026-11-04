@@ -66,7 +66,7 @@ ours 戦略のマージは使わない。
 | 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2段）、読み直した後の行の強調 | #698 | マージ済み |
 | 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3段） | #699 | マージ済み |
 | 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | マージ済み |
-| 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | — | レビュー待ち |
+| 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | #701 | レビュー待ち |
 
 ## 語
 
