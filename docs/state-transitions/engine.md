@@ -44,7 +44,7 @@
 
 | 記号    | イベント                                        | 発生源                                                   |
 | ------- | ----------------------------------------------- | -------------------------------------------------------- |
-| **E1**  | `desiredRuntime` が付く                         | プリセット選択（`EngineRuntimeBridge`）                  |
+| **E1**  | `desiredRuntime` が付く                         | プリセット選択（`EngineRuntimeGate`）                  |
 | **E2**  | `desiredRuntime` が外れる                       | プリセット未選択に戻す                                   |
 | **E3**  | `desiredRuntime` が**別の値に変わる**           | プリセット切替・プリセットの編集                         |
 | **E4**  | `desiredRuntime` が**同じ値のまま再設定される** | `selectedPresetVersion` の更新                           |

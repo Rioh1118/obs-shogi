@@ -45,11 +45,11 @@ vi.mock(
     }) satisfies typeof import("../gates/FileTreeRootGate"),
 );
 vi.mock(
-  "../bridges/GameSessionBridge",
+  "../bridges/GameSessionRulingGate",
   () =>
     ({
-      GameSessionBridge: layer("GameSessionBridge"),
-    }) satisfies typeof import("../bridges/GameSessionBridge"),
+      GameSessionRulingGate: layer("GameSessionRulingGate"),
+    }) satisfies typeof import("../bridges/GameSessionRulingGate"),
 );
 vi.mock(
   "../gates/GameMoveGate",
@@ -79,11 +79,11 @@ vi.mock(
     }) satisfies typeof import("../bridges/PresetsFileBridge"),
 );
 vi.mock(
-  "../bridges/EngineRuntimeBridge",
+  "../bridges/EngineRuntimeGate",
   () =>
     ({
-      EngineRuntimeBridge: layer("EngineRuntimeBridge"),
-    }) satisfies typeof import("../bridges/EngineRuntimeBridge"),
+      EngineRuntimeGate: layer("EngineRuntimeGate"),
+    }) satisfies typeof import("../bridges/EngineRuntimeGate"),
 );
 vi.mock(
   "../bridges/EngineFailureBridge",
@@ -107,11 +107,11 @@ vi.mock(
     }) satisfies typeof import("../gates/SearchRootGate"),
 );
 vi.mock(
-  "../bridges/AnalysisBridge",
+  "../bridges/AnalysisPositionSyncGate",
   () =>
     ({
-      AnalysisBridge: layer("AnalysisBridge"),
-    }) satisfies typeof import("../bridges/AnalysisBridge"),
+      AnalysisPositionSyncGate: layer("AnalysisPositionSyncGate"),
+    }) satisfies typeof import("../bridges/AnalysisPositionSyncGate"),
 );
 vi.mock(
   "../bridges/AnalysisRefusalBridge",
@@ -158,23 +158,23 @@ describe("RuntimeProviders の入れ子", () => {
 
     expect(layersAround("child")).toEqual([
       "FileTreeRootGate",
-      "GameSessionBridge",
+      "GameSessionRulingGate",
       "GameMoveGate",
       "StudyPositionsProvider",
       "EnginePresetsProvider",
-      "EngineRuntimeBridge",
+      "EngineRuntimeGate",
       "SearchRootGate",
-      "AnalysisBridge",
+      "AnalysisPositionSyncGate",
       "BookPositionGate",
     ]);
   });
 
   test.each([
     ["PresetsFileBridge", "EnginePresetsProvider"],
-    ["EngineFailureBridge", "EngineRuntimeBridge"],
-    ["EngineStartWarningBridge", "EngineRuntimeBridge"],
-    ["AnalysisRefusalBridge", "AnalysisBridge"],
-    ["BoardOrientationBridge", "AnalysisBridge"],
+    ["EngineFailureBridge", "EngineRuntimeGate"],
+    ["EngineStartWarningBridge", "EngineRuntimeGate"],
+    ["AnalysisRefusalBridge", "AnalysisPositionSyncGate"],
+    ["BoardOrientationBridge", "AnalysisPositionSyncGate"],
   ])("%s は %s のすぐ内側に載る", (name, parent) => {
     render(
       <RuntimeProviders>

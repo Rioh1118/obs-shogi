@@ -54,7 +54,7 @@
 - **`bridges` / `gates` の基準に合っていないファイルがある** — 基準そのものは
   `src/app/providers/RuntimeProviders.tsx` の doc にある（`gates/` は値を prop で渡す器、
   `bridges/` は effect で繋いで `null` を返す）。**合っていないのは
-  `AnalysisBridge` / `EngineRuntimeBridge` / `GameSessionBridge`** で、
+  `AnalysisPositionSyncGate` / `EngineRuntimeGate` / `GameSessionRulingGate`** で、
   どれも gate の形で `bridges/` に居る（**数は書かない。橋を1本足すたびに腐る**
   —— 現に「2つ」と書いてあるうちに3つ目が増えた）。**揃えるのは移動と改名で済む**
 - **`entities/` の公開境界が10スライス中2つ欠落** — 揃えるには3段階の順序が要る

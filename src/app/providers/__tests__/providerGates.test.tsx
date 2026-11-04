@@ -181,9 +181,9 @@ const { SearchRootGate } = await import("../gates/SearchRootGate");
 const { BookPositionGate } = await import("../gates/BookPositionGate");
 const { GamePersistenceGate } = await import("../gates/GamePersistenceGate");
 const { GameMoveGate } = await import("../gates/GameMoveGate");
-const { EngineRuntimeBridge } = await import("../bridges/EngineRuntimeBridge");
-const { AnalysisBridge } = await import("../bridges/AnalysisBridge");
-const { GameSessionBridge } = await import("../bridges/GameSessionBridge");
+const { EngineRuntimeGate } = await import("../bridges/EngineRuntimeGate");
+const { AnalysisPositionSyncGate } = await import("../bridges/AnalysisPositionSyncGate");
+const { GameSessionRulingGate } = await import("../bridges/GameSessionRulingGate");
 
 const child = <span data-testid="child" />;
 
@@ -302,7 +302,7 @@ describe("対局の着手を盤へ渡す器", () => {
 
 describe("プリセットをエンジンへ渡す器", () => {
   test("何も選んでいなければ、起動するものも未設定も無い", () => {
-    render(<EngineRuntimeBridge>{child}</EngineRuntimeBridge>);
+    render(<EngineRuntimeGate>{child}</EngineRuntimeGate>);
 
     expect(seen.EngineProvider).toEqual({ desiredRuntime: null, presetIncomplete: false });
   });
@@ -310,21 +310,21 @@ describe("プリセットをエンジンへ渡す器", () => {
   test("選んだプリセットが起動の形に組めていれば、それを渡す", () => {
     const runtimeConfig = { enginePath: "/e" };
     presets = { runtimeConfig, selectedPreset: { id: "p" } };
-    render(<EngineRuntimeBridge>{child}</EngineRuntimeBridge>);
+    render(<EngineRuntimeGate>{child}</EngineRuntimeGate>);
 
     expect(seen.EngineProvider).toEqual({ desiredRuntime: runtimeConfig, presetIncomplete: false });
   });
 
   test("選んだプリセットが組めていなければ、未設定と伝える", () => {
     presets = { runtimeConfig: null, selectedPreset: { id: "p" } };
-    render(<EngineRuntimeBridge>{child}</EngineRuntimeBridge>);
+    render(<EngineRuntimeGate>{child}</EngineRuntimeGate>);
 
     expect(seen.EngineProvider).toEqual({ desiredRuntime: null, presetIncomplete: true });
   });
 
   test("起動の形が undefined でも null に揃えて渡す", () => {
     presets = { runtimeConfig: undefined, selectedPreset: null };
-    render(<EngineRuntimeBridge>{child}</EngineRuntimeBridge>);
+    render(<EngineRuntimeGate>{child}</EngineRuntimeGate>);
 
     expect(seen.EngineProvider).toEqual({ desiredRuntime: null, presetIncomplete: false });
     expect(screen.getByTestId("EngineProvider").contains(screen.getByTestId("child"))).toBe(true);
@@ -333,14 +333,14 @@ describe("プリセットをエンジンへ渡す器", () => {
 
 describe("下の provider へ部品を注入する器", () => {
   test("局面の同期を検討へ渡す", () => {
-    render(<AnalysisBridge>{child}</AnalysisBridge>);
+    render(<AnalysisPositionSyncGate>{child}</AnalysisPositionSyncGate>);
 
     expect(seen.AnalysisProvider).toEqual({ positionSync });
     expect(screen.getByTestId("AnalysisProvider").contains(screen.getByTestId("child"))).toBe(true);
   });
 
   test("終局の裁定を対局へ渡す", () => {
-    render(<GameSessionBridge>{child}</GameSessionBridge>);
+    render(<GameSessionRulingGate>{child}</GameSessionRulingGate>);
 
     expect(seen.GameSessionProvider).toEqual({ ruling });
     expect(screen.getByTestId("GameSessionProvider").contains(screen.getByTestId("child"))).toBe(

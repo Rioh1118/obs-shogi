@@ -10,12 +10,12 @@ import type { ReactNode } from "react";
  * 型も通るしレンダも通る。起きるのは「棋譜を変えても向きが戻らない」
  * 「エンジンが起動できなくても画面に何も出ない」だけで、例外もエラー表示も出ない。
  *
- * 器の形をしている `EngineRuntimeBridge` / `AnalysisBridge` は対象外。
+ * 器の形をしている `EngineRuntimeGate` / `AnalysisPositionSyncGate` は対象外。
  * あちらは provider を張るので、外せば `useEngine` / `useAnalysis` が投げる。
  *
  * 見ているのは描かれることだけで、どこに載っているかではない。
  * `EngineFailureBridge` は `EngineProvider` の内側に居る必要があるが、
- * ここは `EngineRuntimeBridge` を素通しに差し替えているので、外へ動かしても緑になる。
+ * ここは `EngineRuntimeGate` を素通しに差し替えているので、外へ動かしても緑になる。
  *
  * 向きの橋が盤の中ではなくここに居る理由は
  * [BoardOrientationBridge](../bridges/BoardOrientationBridge.tsx) の doc にある。
@@ -40,10 +40,10 @@ vi.mock(
 vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
 // `GameMoveGate` を素通しにすると棋譜の器ごと消えるので、`useGame` を読む器は張れない
 vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));
-vi.mock("../bridges/EngineRuntimeBridge", () => passthrough("EngineRuntimeBridge"));
-vi.mock("../bridges/AnalysisBridge", () => passthrough("AnalysisBridge"));
+vi.mock("../bridges/EngineRuntimeGate", () => passthrough("EngineRuntimeGate"));
+vi.mock("../bridges/AnalysisPositionSyncGate", () => passthrough("AnalysisPositionSyncGate"));
 // 対局の進行も器の形。実物は mount した瞬間に Tauri の `listen` を呼ぶ
-vi.mock("../bridges/GameSessionBridge", () => passthrough("GameSessionBridge"));
+vi.mock("../bridges/GameSessionRulingGate", () => passthrough("GameSessionRulingGate"));
 vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePresetsProvider"));
 vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPositionsProvider"));
 
@@ -53,7 +53,7 @@ const presetsFileBridge = vi.fn();
 const engineStartWarningBridge = vi.fn();
 
 // **中身は差し替える。** 実物は `EngineProvider` の中に居る前提なのに、
-// この試験は `EngineRuntimeBridge` を素通しに差し替えている。
+// この試験は `EngineRuntimeGate` を素通しに差し替えている。
 // 実物のまま描くと器が無くて投げるので、載っているかだけを見る
 vi.mock(
   "../bridges/AnalysisRefusalBridge",

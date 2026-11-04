@@ -2,14 +2,14 @@ import type { ReactNode } from "react";
 import { FileTreeRootGate } from "./gates/FileTreeRootGate";
 import { GameMoveGate } from "./gates/GameMoveGate";
 import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
-import { EngineRuntimeBridge } from "./bridges/EngineRuntimeBridge";
+import { EngineRuntimeGate } from "./bridges/EngineRuntimeGate";
 import { EngineFailureBridge } from "./bridges/EngineFailureBridge";
 import { EngineStartWarningBridge } from "./bridges/EngineStartWarningBridge";
 import { PresetsFileBridge } from "./bridges/PresetsFileBridge";
 import { SearchRootGate } from "./gates/SearchRootGate";
-import { AnalysisBridge } from "./bridges/AnalysisBridge";
+import { AnalysisPositionSyncGate } from "./bridges/AnalysisPositionSyncGate";
 import { AnalysisRefusalBridge } from "./bridges/AnalysisRefusalBridge";
-import { GameSessionBridge } from "./bridges/GameSessionBridge";
+import { GameSessionRulingGate } from "./bridges/GameSessionRulingGate";
 import { BoardOrientationBridge } from "./bridges/BoardOrientationBridge";
 import { StudyPositionsProvider } from "@/entities/study-positions/model/provider";
 import { BookPositionGate } from "./gates/BookPositionGate";
@@ -21,7 +21,7 @@ import { BookPositionGate } from "./gates/BookPositionGate";
  * - `gates/` — 上位から取った値を、下位の provider に prop で渡す器。`children` を描く
  * - `bridges/` — 2つのスライスを effect で繋ぐ。`null` を返す
  *
- * `AnalysisBridge` `EngineRuntimeBridge` `GameSessionBridge` は gate の形
+ * `AnalysisPositionSyncGate` `EngineRuntimeGate` `GameSessionRulingGate` は gate の形
  * （値を prop で渡す器）だが `bridges/` に居る。基準に合っていないもので、
  * 動かすと import が広く変わるためここでは揃えていない。→ `docs/IDEAS.md`
  *
@@ -36,27 +36,27 @@ export function RuntimeProviders({ children }: { children: ReactNode }) {
         棋譜が入れ替わっても走り続ける。棋譜の有無で畳まれる位置に置くと、裁定を返す者が
         居なくなって `RULING_TIMEOUT` で対局が畳まれる（`GameSessionProvider` の doc）
       */}
-      <GameSessionBridge>
+      <GameSessionRulingGate>
         <GameMoveGate>
           <StudyPositionsProvider>
             <EnginePresetsProvider>
               <PresetsFileBridge />
-              <EngineRuntimeBridge>
+              <EngineRuntimeGate>
                 <EngineFailureBridge />
                 <EngineStartWarningBridge />
                 <SearchRootGate>
-                  <AnalysisBridge>
+                  <AnalysisPositionSyncGate>
                     <AnalysisRefusalBridge />
                     <BoardOrientationBridge />
                     {/* 置き場の理由は `BookPositionGate` の doc */}
                     <BookPositionGate>{children}</BookPositionGate>
-                  </AnalysisBridge>
+                  </AnalysisPositionSyncGate>
                 </SearchRootGate>
-              </EngineRuntimeBridge>
+              </EngineRuntimeGate>
             </EnginePresetsProvider>
           </StudyPositionsProvider>
         </GameMoveGate>
-      </GameSessionBridge>
+      </GameSessionRulingGate>
     </FileTreeRootGate>
   );
 }

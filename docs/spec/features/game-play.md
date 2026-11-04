@@ -76,8 +76,8 @@ Rust は将棋のルールを持たないので、手が決まると裁定待ち
 **進行の側から直に読めない** —— あちらが `Side` を `entities/game-session` から
 取っているので、読み返すと互いを読み合う組ができて
 `src/__tests__/crossSliceImports.test.ts` が落ちる。
-`GameSessionBridge` が `features/game-ruling` の裁定器を prop で渡す
-（`AnalysisBridge` が `features/engine-position-sync` を渡しているのと同じ形）。
+`GameSessionRulingGate` が `features/game-ruling` の裁定器を prop で渡す
+（`AnalysisPositionSyncGate` が `features/engine-position-sync` を渡しているのと同じ形）。
 **2つのスライスを束ねるので、置ける最下層が `features/`。**
 
 裁定器は**対局の間ずっと同じものを持ち回る**。`judgeGameOutcome` は呼ばれるたびに
@@ -186,7 +186,7 @@ Rust: 次の手番へ進む
 ### 宣言の可否を呼ぶ側が居ない（**issue は未起票**）
 
 裁定を返す側は入った —— `GameSessionProvider`（`entities/game-session/model/`）が
-`game-event` を購読し、`GameSessionBridge` が組んだ裁定器を通して
+`game-event` を購読し、`GameSessionRulingGate` が組んだ裁定器を通して
 `continue_game` / `end_game_by_rule` を返す（→ 上の「進行はドックのタブに置けない」）。
 
 **`judgeDeclaration` だけが呼ばれていない。** 入玉宣言は利用者の操作から呼ぶものなので、
