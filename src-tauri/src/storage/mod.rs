@@ -15,6 +15,8 @@
 //! **差し替えられないと失敗の側を踏めない。** 「`rename` が落ちて本体が無い状態で
 //! 終わる」はディスクの都合なので、テストからは起こせない。
 
+use std::path::PathBuf;
+
 mod codec;
 mod disk;
 #[cfg(test)]
@@ -31,13 +33,15 @@ pub use disk::DiskStore;
 /// `AppHandle` に触るのはここだけ。呼び手は [`BlobStore`] を受ける。
 pub fn app_cache(app: &tauri::AppHandle, area: &str) -> Result<DiskStore, StoreError> {
     use tauri::Manager;
-    let root = app
+    let app_cache_dir = app
         .path()
         .app_cache_dir()
-        .map_err(|e| StoreError::Io(e.to_string()))?
-        .join("obs-shogi")
-        .join(area);
-    Ok(DiskStore::new(root))
+        .map_err(|e| StoreError::Io(e.to_string()))?;
+    Ok(DiskStore::new(cache_root(app_cache_dir, area)))
+}
+
+fn cache_root(app_cache_dir: PathBuf, area: &str) -> PathBuf {
+    app_cache_dir.join("obs-shogi").join(area)
 }
 #[cfg(test)]
 pub use in_memory::InMemory;
