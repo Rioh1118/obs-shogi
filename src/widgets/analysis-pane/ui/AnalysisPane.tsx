@@ -1,10 +1,10 @@
-import { evaluationToPercentage } from "@/widgets/analysis-pane/lib/sfenConverter";
+import { evaluationToPercentage } from "@/widgets/analysis-pane/lib/evaluation";
 import { formatMoveSequence } from "@/shared/lib/shogi/moveText";
 import { useEffect, useMemo, type ReactNode } from "react";
 import CandidatesSection from "./CandidatesSection";
 import CandidateTable from "./CandidateTable";
 import EvaluationBar from "./EvaluationBar";
-import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/usi";
+import { convertCandidateToSenteView } from "@/widgets/analysis-pane/lib/senteView";
 import {
   buildCandidateRows,
   MAX_VISIBLE_CANDIDATES,

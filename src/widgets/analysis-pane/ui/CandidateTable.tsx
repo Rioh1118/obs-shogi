@@ -1,4 +1,4 @@
-import { formatEvaluation } from "@/widgets/analysis-pane/lib/sfenConverter";
+import { formatEvaluation } from "@/widgets/analysis-pane/lib/evaluation";
 import { useState } from "react";
 import { EMPTY_CANDIDATES } from "@/widgets/analysis-pane/lib/labels";
 import type { CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";

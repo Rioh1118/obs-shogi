@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import { Color } from "shogi.js";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 
-import { evaluationToPercentage, formatEvaluation } from "../sfenConverter";
-import { convertCandidateToSenteView } from "../usi";
+import { evaluationToPercentage, formatEvaluation } from "../evaluation";
+import { convertCandidateToSenteView } from "../senteView";
 
 /**
  * 評価値の書式と、先手視点への揃え方。
