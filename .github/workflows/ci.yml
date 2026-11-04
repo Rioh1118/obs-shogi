@@ -95,10 +95,12 @@ jobs:
         run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
       - name: Rust clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings
 
+      # `--workspace` が無いとルートの `app` しか選ばず、`crates/*` の試験が1本も走らない
+      # （`src/__tests__/cargoWorkspaceSelection.test.ts`）。clippy も同じで、crate の試験のコードを見ない。
       - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace
 
   # **`quality` の `cargo test` は Ubuntu でしか走らない。** `\\?\` の綴りのように
   # Windows でしか起きない振る舞いは、ビルドが通っても見えない。
