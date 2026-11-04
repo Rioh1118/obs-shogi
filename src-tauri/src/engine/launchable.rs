@@ -283,13 +283,62 @@ mod tests {
         fs::create_dir_all(dir.join("v1.so.2")).expect("作れない");
         write(&dir.join("libomp.dylib"), &MACH_O_64, 0o755);
         write(&dir.join("libfoo.so.1"), &ELF, 0o755);
+        write(&dir.join("libbar.so"), &ELF, 0o755);
+        write(&dir.join("LIBBAZ.DYLIB"), &MACH_O_64, 0o755);
         write(&dir.join("v1.so.2/engine"), &NATIVE, 0o755);
 
         assert_eq!(inspect(&dir.join("libomp.dylib")), Inspection::NotAProgram);
         assert_eq!(inspect(&dir.join("libfoo.so.1")), Inspection::NotAProgram);
+        assert_eq!(inspect(&dir.join("libbar.so")), Inspection::NotAProgram);
+        // 拡張子は大文字小文字を区別しない
+        assert_eq!(inspect(&dir.join("LIBBAZ.DYLIB")), Inspection::NotAProgram);
         assert_eq!(
             inspect(&dir.join("v1.so.2/engine")),
             program(Launchability::Ready)
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Mach-O の先頭は5つの形（32/64 ビット、両エンディアン、universal）のどれでも同じに扱う。
+    /// 配布物の macOS 版は universal が多く、1つでも漏れると候補から黙って消える
+    #[test]
+    fn every_mach_o_header_is_judged_alike() {
+        let expected = if cfg!(target_os = "macos") {
+            program(Launchability::Ready)
+        } else {
+            program(Launchability::WrongPlatform)
+        };
+        let dir = temp_dir("launchable-mach-o");
+        for (i, head) in [
+            [0xfe, 0xed, 0xfa, 0xce],
+            [0xfe, 0xed, 0xfa, 0xcf],
+            [0xce, 0xfa, 0xed, 0xfe],
+            [0xcf, 0xfa, 0xed, 0xfe],
+            [0xca, 0xfe, 0xba, 0xbe],
+        ]
+        .iter()
+        .enumerate()
+        {
+            let path = dir.join(format!("engine{i}"));
+            write(&path, head, 0o755);
+            assert_eq!(inspect(&path), expected, "{head:02x?}");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 辿れないパス（無い、リンク先が無い）は、実行ファイルでないと言わず読めないと言う
+    #[test]
+    fn a_path_that_cannot_be_followed_is_unreadable() {
+        let dir = temp_dir("launchable-dangling");
+        symlink(dir.join("gone"), dir.join("link")).expect("リンクを作れない");
+
+        assert_eq!(
+            inspect(&dir.join("link")),
+            program(Launchability::Unreadable)
+        );
+        assert_eq!(
+            inspect(&dir.join("missing")),
+            program(Launchability::Unreadable)
         );
         let _ = fs::remove_dir_all(&dir);
     }

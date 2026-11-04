@@ -357,6 +357,26 @@ mod tests {
             "時間切れでない失敗が目印を名乗っている: {other}"
         );
     }
+
+    /// 経過時間は秒と端数のナノ秒に分けて線へ出す
+    #[test]
+    fn a_duration_keeps_seconds_and_nanos() {
+        let wire = Duration::from(std::time::Duration::new(3, 250_000_000));
+        assert_eq!((wire.secs, wire.nanos), (3, 250_000_000));
+    }
+
+    /// 応答しない理由の綴りは線の名前。TS（`entities/engine` の `UnresponsiveReason`）が同じ綴りで読む
+    #[test]
+    fn unresponsive_reasons_are_spelled_for_the_wire() {
+        assert_eq!(
+            serde_json::to_value(UnresponsiveReason::NoAnswer).expect("書ける"),
+            "noAnswer"
+        );
+        assert_eq!(
+            serde_json::to_value(UnresponsiveReason::Unwritable).expect("書ける"),
+            "unwritable"
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
