@@ -22,6 +22,8 @@ mod in_memory;
 
 pub use codec::{load, save, Codec, Zstd};
 pub use disk::DiskStore;
+#[cfg(test)]
+pub use in_memory::InMemory;
 
 /// OS のキャッシュ置き場の下の `obs-shogi/<area>` に根を取った [`DiskStore`]。
 ///
@@ -42,8 +44,7 @@ pub fn app_cache(app: &tauri::AppHandle, area: &str) -> Result<DiskStore, StoreE
 fn cache_root(app_cache_dir: PathBuf, area: &str) -> PathBuf {
     app_cache_dir.join("obs-shogi").join(area)
 }
-#[cfg(test)]
-pub use in_memory::InMemory;
+
 /// 置けなかった、読めなかった理由
 #[derive(Debug)]
 pub enum StoreError {
