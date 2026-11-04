@@ -1,26 +1,24 @@
 //! 値1つとバイト列の相互変換。
 //!
-//! **置き場を知らない。** どこへ置くかは [`BlobStore`](super::BlobStore)。
-//! ここは「この値をどう並べるか」だけ。
+//! 置き場を知らない。どこへ置くかは [`BlobStore`](super::BlobStore) が決め、
+//! ここは値をどう並べるかだけを決める。
 //!
-//! **入れ子にできる。** 圧縮は符号化と直交するので、[`Zstd`] が中の
-//! [`Codec`] を包む。索引の並べ方を変えても圧縮の話は動かないし、逆も同じ。
+//! 圧縮は符号化と直交するので、[`Zstd`] が中の [`Codec`] を包む形で入れ子にする。
+//! 索引の並べ方を変えても圧縮は動かないし、逆も同じ。
 
 use super::{BlobStore, StoreError};
 
-/// 値1つとバイト列の相互変換。
+/// 値1つとバイト列の相互変換
 ///
-/// **入口と出口の型は違ってよい。** 詰めるのは生きている状態への借用で足りるが、
-/// 取り出すのは所有した値でないと使えない。1つの型にすると
-/// **詰めるたびに状態を丸ごと複製する**ことになる。
+/// 入口と出口の型は違ってよい。詰めるのは生きている状態への借用で足りるが、
+/// 取り出すのは所有した値でないと使えない。1つの型にすると、詰めるたびに状態を丸ごと複製する。
 ///
-/// **往復すること。** `decode(encode(v))` は `v` と同じ意味の値を返す。
-/// 同じにならない形（丸めや切り捨て）を入れるなら、それが意図であることを
-/// 実装側の doc に書くこと。
+/// `decode(encode(v))` は `v` と同じ意味の値を返す。同じにならない形（丸めや切り捨て）を
+/// 入れるなら、それが意図であることを実装側の doc に書くこと。
 pub trait Codec {
-    /// 詰めるもの。**借用でよい。**
+    /// 詰めるもの。借用でよい
     type Input<'a>;
-    /// 取り出すもの。**所有した値。**
+    /// 取り出すもの。所有した値
     type Output;
 
     fn encode(&self, value: Self::Input<'_>) -> Result<Vec<u8>, String>;
@@ -76,7 +74,7 @@ mod tests {
     use super::*;
     use crate::storage::InMemory;
 
-    /// 数を4バイトで並べるだけの codec。**入れ子の形を試すための題材。**
+    /// 数を4バイトで並べるだけの codec。入れ子の形を試すための題材
     struct U32Codec;
 
     impl Codec for U32Codec {
@@ -93,7 +91,7 @@ mod tests {
         }
     }
 
-    /// **置いて読み戻すと同じ値。**
+    /// 置いて読み戻すと同じ値が返る。
     #[test]
     fn a_value_survives_a_round_trip() {
         let store = InMemory::new();
@@ -101,7 +99,7 @@ mod tests {
         assert_eq!(load(&store, &U32Codec, "k").expect("読めない"), 42);
     }
 
-    /// **圧縮を挟んでも同じ値。**
+    /// 圧縮を挟んでも同じ値が返る。
     #[test]
     fn wrapping_in_zstd_does_not_change_the_value() {
         let store = InMemory::new();
@@ -110,9 +108,7 @@ mod tests {
         assert_eq!(load(&store, &codec, "k").expect("読めない"), 42);
     }
 
-    /// **圧縮した blob は、中の codec だけでは読めない。**
-    ///
-    /// 包み方を変えたのに読む側を直し忘れる形を、ここで落とす。
+    /// 圧縮した blob は、中の codec だけでは読めない。包み方を変えたのに読む側を直し忘れる形を落とす。
     #[test]
     fn a_compressed_blob_is_not_readable_by_the_inner_codec() {
         let store = InMemory::new();
@@ -120,14 +116,14 @@ mod tests {
         assert!(load(&store, &U32Codec, "k").is_err());
     }
 
-    /// **置いていないものは失敗。** 復元ではこれは正規の経路。
+    /// 置いていないものを読むと失敗する。復元では、初回の起動がこの経路を通る。
     #[test]
     fn loading_something_never_saved_fails() {
         let store = InMemory::new();
         assert!(load(&store, &U32Codec, "k").is_err());
     }
 
-    /// **置き場が落ちたら置くのも落ちる。**
+    /// 置き場が置けないと、値を置くのも失敗する。
     #[test]
     fn a_failing_store_makes_the_save_fail() {
         assert!(save(&InMemory::failing(), &U32Codec, "k", &42).is_err());
