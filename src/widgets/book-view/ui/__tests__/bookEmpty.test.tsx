@@ -36,6 +36,21 @@ describe("定跡を開いていない画面", () => {
     expect(onOpen).toHaveBeenCalledWith("/books/b.db");
   });
 
+  test("同じ束の中でも、押した行のパスを渡す", () => {
+    const onOpen = vi.fn();
+    render(
+      <BookEmpty
+        fromPreset={[]}
+        recent={[target("/books/a.db", "/books"), target("/books/b.db", "/books")]}
+        onOpen={onOpen}
+        onBrowse={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /b\.db/ }));
+    expect(onOpen).toHaveBeenCalledWith("/books/b.db");
+  });
+
   test("空の束は見出しごと出さない", () => {
     render(
       <BookEmpty

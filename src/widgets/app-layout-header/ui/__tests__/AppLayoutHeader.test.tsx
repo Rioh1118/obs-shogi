@@ -112,6 +112,20 @@ describe("ヘッダの中央", () => {
     );
   });
 
+  test("先手の名前が無ければ手番の名で埋める", () => {
+    mount({ ...LOADED, senteName: null, goteName: "後手B" });
+
+    expect(screen.getByLabelText("対局者").textContent).toBe(
+      `${SENTE_GLYPH}先手・${GOTE_GLYPH}後手B`,
+    );
+  });
+
+  test("見出しはファイル名で、パスは題にだけ出す", () => {
+    mount(LOADED);
+
+    expect(screen.getByTitle("/ws/a.kif").textContent).toBe("a");
+  });
+
   test("対局者が居なければ、対局者の欄の代わりに棋譜表示中と出す", () => {
     const { text } = mount({ ...LOADED, senteName: null, isPlayersShown: false });
 

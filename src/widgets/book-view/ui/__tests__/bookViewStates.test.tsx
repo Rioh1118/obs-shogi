@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { Ok } from "@/shared/lib/result";
 import type { BookContextType, BookFailure, BookRow, BookViewState } from "@/entities/book";
 
 /**
@@ -43,6 +44,13 @@ const presetsState = { presets: [] as unknown[], selectedPresetId: null as strin
 vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
   useEnginePresets: () => ({ state: presetsState }),
 }));
+
+const { pickBookFile } = vi.hoisted(() => ({ pickBookFile: vi.fn() }));
+vi.mock("@/shared/api/picker/pickBookFile", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/shared/api/picker/pickBookFile")>();
+  const mocked = { ...actual, pickBookFile };
+  return mocked satisfies typeof import("@/shared/api/picker/pickBookFile");
+});
 
 const { default: BookView } = await import("../BookView");
 
@@ -205,5 +213,81 @@ describe("定跡ビューの並べ替え", () => {
     };
 
     expect(show(view)).toContain("→ 6手目");
+  });
+});
+
+describe("定跡ビューの失敗の帯", () => {
+  const rows: BookViewState = {
+    kind: "rows",
+    rows: [
+      {
+        move: { usiMove: "7g7f", ponder: null, value: null, depth: null, count: null },
+        line: { state: "pending" },
+      },
+    ],
+  };
+
+  test("引くのに落ちたら、引けなかったと題に出す", () => {
+    const text = show(rows, failed("lookup"));
+
+    expect(text).toContain("この局面を引けませんでした");
+    expect(text).not.toContain("辿れませんでした");
+  });
+
+  /** 読み書きの失敗は押し直しで直りうるが、ファイルが無いのは直らない（ADR-0004） */
+  test("帯の段は失敗の種類から決まる", () => {
+    show(rows, failed("open"));
+    expect(screen.getByRole("status").textContent).toContain("open が落ちた");
+    cleanup();
+
+    show(rows, { origin: "open", error: { code: "not_found", message: "無い", path: null } });
+    expect(screen.getByRole("alert").textContent).toContain("無い");
+  });
+});
+
+describe("定跡ビューの空の画面の押下", () => {
+  const preset = (id: string, label: string, bookFilePath: string) => ({
+    id,
+    label,
+    bookFilePath,
+    bookEnabled: true,
+  });
+
+  test("選んでいるプリセットの定跡を勧め、押すとそのパスを開く", async () => {
+    presetsState.presets = [
+      preset("p1", "一番目", "/ai/one.db"),
+      preset("p2", "二番目", "/ai/two.db"),
+    ];
+    presetsState.selectedPresetId = "p2";
+    vi.mocked(book.openBook).mockResolvedValue(Ok(null));
+    try {
+      const text = show({ kind: "closed" });
+      expect(text).toContain("二番目 の定跡");
+      expect(text).not.toContain("一番目");
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /two\.db/ }));
+      });
+      expect(book.openBook).toHaveBeenCalledWith("/ai/two.db");
+    } finally {
+      presetsState.presets = [];
+      presetsState.selectedPresetId = null;
+      vi.mocked(book.openBook).mockReset();
+    }
+  });
+
+  test("別の定跡を開くはダイアログで選んだパスを開く", async () => {
+    pickBookFile.mockResolvedValue("/books/picked.db");
+    vi.mocked(book.openBook).mockResolvedValue(Ok(null));
+    try {
+      show({ kind: "closed" });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /別の定跡を開く/ }));
+      });
+      expect(book.openBook).toHaveBeenCalledWith("/books/picked.db");
+    } finally {
+      vi.mocked(book.openBook).mockReset();
+    }
   });
 });

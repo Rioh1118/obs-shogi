@@ -83,6 +83,18 @@ describe("ヘッダの手番と手数", () => {
     expect(seen.info!.fileTitle).toBe("/ws/研究/a.b.kif");
   });
 
+  test("拡張子の無い隠しファイルは、名前を落とさない", async () => {
+    const seen = await loaded(TWO_MOVES, "/ws/.kif");
+
+    expect(seen.info!.fileLabel).toBe(".kif");
+  });
+
+  test("パスの無い棋譜は「棋譜」と出す", async () => {
+    const seen = await loaded(TWO_MOVES, "");
+
+    expect(seen.info!.fileLabel).toBe("棋譜");
+  });
+
   test("片方の対局者しか無くても対局者を出し、欠けた側は不明と添える", async () => {
     const seen = await loaded(TWO_MOVES);
 

@@ -85,6 +85,19 @@ describe("定跡の表の欄", () => {
     expect(first[4]).toBe("—");
   });
 
+  test("評価値の欠けた欄は 0 と言わない", () => {
+    mount({ rows: [row("7g7f")] });
+
+    expect(bodyRows()[0][1]).toBe("—");
+  });
+
+  /** 列の「…」だけでは、待てば埋まるのか分からない */
+  test("この先の列の題は、列の綴りより詳しい理由を出す", () => {
+    mount({ rows: [{ ...row("7g7f"), line: { state: "pending" } }] });
+
+    expect(screen.getByTitle("定跡の先を辿っています").textContent).toBe("…");
+  });
+
   test("この先の列は現局面の手数を土台に絶対手数で出す", () => {
     mount();
 
