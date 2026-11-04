@@ -182,150 +182,6 @@ pub fn with_cause(error: &dyn std::error::Error) -> String {
     text
 }
 
-#[cfg(test)]
-mod tests {
-
-    /// 制御文字を潰し、文字の途中で割らないこと。
-    #[test]
-    fn a_shown_copy_is_bounded_and_readable() {
-        assert_eq!(shown("7g7f", 8), "7g7f");
-        assert!(!shown("a\nb", 8).contains('\n'), "改行を通している");
-
-        // 多バイト文字の途中で割らない
-        let trimmed = shown("あいうえお", 3);
-        assert!(
-            trimmed.starts_with("あいう"),
-            "文字の途中で割っている: {trimmed}"
-        );
-        assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
-    }
-
-    use super::*;
-
-    /// 原因の連鎖が残ること。
-    ///
-    /// `usi::Error` の `Display` はバリアントごとの定型文しか出さず、
-    /// 中の `io::Error` を丸ごと捨てる。捨てたままだと、実行権限の無い
-    /// エンジンを選んだ利用者に返るのも、対局中に stdin が壊れたときに
-    /// 棋譜へ残るのも「IO error occurred …」の1文だけになる。
-    #[test]
-    fn a_cause_survives_being_turned_into_text() {
-        // EACCES。zip から展開したエンジンで最も起きる形
-        let error = usi::Error::EngineIo(std::io::Error::from_raw_os_error(13));
-        let text = with_cause(&error);
-
-        assert!(
-            text.contains("os error") || text.contains("Permission denied"),
-            "OS が言った理由が消えている: {text}"
-        );
-        assert!(
-            text.len() > error.to_string().len(),
-            "連鎖が付いていない: {text}"
-        );
-    }
-
-    fn info(line: &str) -> Vec<InfoParams> {
-        match usi::EngineCommand::parse(line).expect("解ける") {
-            usi::EngineCommand::Info(params) => params,
-            other => panic!("info ではない: {other:?}"),
-        }
-    }
-
-    /// `info` 行を MultiPV の番号ごとに畳み、番号の昇順に並べる。
-    /// `multipv` の無い行は1本目に入り、行に無い欄は前の値を残す
-    #[test]
-    fn info_lines_fold_into_candidates_by_rank() {
-        let mut result = AnalysisResult::default();
-        apply_info_params(
-            &info("info multipv 2 depth 12 nodes 3456 time 1500 score mate -3 pv 2g2f 8c8d"),
-            &mut result,
-        );
-        apply_info_params(
-            &info("info depth 10 nodes 1234 time 980 score cp 85 pv 7g7f 3c3d 2g2f"),
-            &mut result,
-        );
-        apply_info_params(&info("info depth 11"), &mut result);
-
-        let ranks: Vec<u32> = result.candidates.iter().map(|c| c.rank).collect();
-        assert_eq!(ranks, [1, 2]);
-
-        let first = &result.candidates[0];
-        assert_eq!(first.depth, Some(11));
-        assert_eq!(first.nodes, Some(1234));
-        assert_eq!(first.time_ms, Some(980));
-        assert_eq!(first.pv_line, ["7g7f", "3c3d", "2g2f"]);
-        assert_eq!(first.first_move.as_deref(), Some("7g7f"));
-        assert!(matches!(
-            first.evaluation,
-            Some(Evaluation {
-                value: 85,
-                kind: EvaluationKind::Centipawn
-            })
-        ));
-
-        let second = &result.candidates[1];
-        assert_eq!(second.depth, Some(12));
-        assert!(matches!(
-            second.evaluation,
-            Some(Evaluation {
-                value: -3,
-                kind: EvaluationKind::MateInMoves(-3)
-            })
-        ));
-
-        assert_eq!(depth_of_rank(&result, 1), Some(11));
-        assert_eq!(depth_of_rank(&result, 2), Some(12));
-        assert_eq!(depth_of_rank(&result, 3), None);
-    }
-
-    /// 手数の分からない詰みは符号だけを持つ
-    #[test]
-    fn a_mate_without_a_distance_keeps_only_its_sign() {
-        let mut result = AnalysisResult::default();
-        apply_info_params(&info("info score mate - pv 8h2b+"), &mut result);
-        assert!(matches!(
-            result.candidates[0].evaluation,
-            Some(Evaluation {
-                value: -1,
-                kind: EvaluationKind::MateUnknown(false)
-            })
-        ));
-    }
-
-    /// ログの要約に局面と、webview から来た長い名前を素で載せない
-    #[test]
-    fn a_command_summary_hides_the_position_and_bounds_the_name() {
-        let sfen = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
-        let position = cmd_summary(&GuiCommand::Position(sfen.to_string()));
-        assert!(
-            !position.contains("lnsgkgsnl"),
-            "局面が載っている: {position}"
-        );
-
-        let name = "N".repeat(MAX_SUMMARY_LEN * 4);
-        let summary = cmd_summary(&GuiCommand::SetOption(name, Some("1".to_string())));
-        assert!(
-            summary.chars().count() <= MAX_SUMMARY_LEN + "SetOption(…)".chars().count(),
-            "名前を切っていない: {} 文字",
-            summary.chars().count()
-        );
-    }
-
-    /// 閉じた枠は `reset` で閉じたまま数え直し、`set_interval` で間隔だけが変わる。
-    /// 間隔は起動直後の例外（型の doc）に当たらない長さにする
-    #[test]
-    fn a_throttle_closes_on_reset_and_takes_a_new_interval() {
-        let mut throttle = LogThrottle::new(Duration::from_secs(60));
-        assert!(throttle.is_open());
-        throttle.reset();
-        assert!(!throttle.is_open(), "reset の後も空いている");
-        assert!(!throttle.allow());
-
-        throttle.set_interval(Duration::ZERO);
-        assert!(throttle.allow(), "間隔を差し替えても通らない");
-    }
-}
-
 /// ログの1行に載せる要約の上限（文字数）。
 ///
 /// `setoption` の名前は webview から来て、`MAX_WIRE_FIELD`（8KB）までは通る。素で載せると
@@ -448,5 +304,148 @@ pub fn cmd_summary(cmd: &GuiCommand) -> String {
         GuiCommand::GameOver(kind) => format!("GameOver({kind:?})"),
         GuiCommand::Ponderhit => "Ponderhit".to_string(),
         GuiCommand::Stop => "Stop".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 制御文字を潰し、文字の途中で割らないこと。
+    #[test]
+    fn a_shown_copy_is_bounded_and_readable() {
+        assert_eq!(shown("7g7f", 8), "7g7f");
+        assert!(!shown("a\nb", 8).contains('\n'), "改行を通している");
+
+        // 多バイト文字の途中で割らない
+        let trimmed = shown("あいうえお", 3);
+        assert!(
+            trimmed.starts_with("あいう"),
+            "文字の途中で割っている: {trimmed}"
+        );
+        assert!(trimmed.ends_with('…'), "切ったことが分からない: {trimmed}");
+    }
+
+    /// 原因の連鎖が残ること。
+    ///
+    /// `usi::Error` の `Display` はバリアントごとの定型文しか出さず、
+    /// 中の `io::Error` を丸ごと捨てる。捨てたままだと、実行権限の無い
+    /// エンジンを選んだ利用者に返るのも、対局中に stdin が壊れたときに
+    /// 棋譜へ残るのも「IO error occurred …」の1文だけになる。
+    #[test]
+    fn a_cause_survives_being_turned_into_text() {
+        // EACCES。zip から展開したエンジンで最も起きる形
+        let error = usi::Error::EngineIo(std::io::Error::from_raw_os_error(13));
+        let text = with_cause(&error);
+
+        assert!(
+            text.contains("os error") || text.contains("Permission denied"),
+            "OS が言った理由が消えている: {text}"
+        );
+        assert!(
+            text.len() > error.to_string().len(),
+            "連鎖が付いていない: {text}"
+        );
+    }
+
+    fn info(line: &str) -> Vec<InfoParams> {
+        match usi::EngineCommand::parse(line).expect("解ける") {
+            usi::EngineCommand::Info(params) => params,
+            other => panic!("info ではない: {other:?}"),
+        }
+    }
+
+    /// `info` 行を MultiPV の番号ごとに畳み、番号の昇順に並べる。
+    /// `multipv` の無い行は1本目に入り、行に無い欄は前の値を残す
+    #[test]
+    fn info_lines_fold_into_candidates_by_rank() {
+        let mut result = AnalysisResult::default();
+        apply_info_params(
+            &info("info multipv 2 depth 12 nodes 3456 time 1500 score mate -3 pv 2g2f 8c8d"),
+            &mut result,
+        );
+        apply_info_params(
+            &info("info depth 10 nodes 1234 time 980 score cp 85 pv 7g7f 3c3d 2g2f"),
+            &mut result,
+        );
+        apply_info_params(&info("info depth 11"), &mut result);
+
+        let ranks: Vec<u32> = result.candidates.iter().map(|c| c.rank).collect();
+        assert_eq!(ranks, [1, 2]);
+
+        let first = &result.candidates[0];
+        assert_eq!(first.depth, Some(11));
+        assert_eq!(first.nodes, Some(1234));
+        assert_eq!(first.time_ms, Some(980));
+        assert_eq!(first.pv_line, ["7g7f", "3c3d", "2g2f"]);
+        assert_eq!(first.first_move.as_deref(), Some("7g7f"));
+        assert!(matches!(
+            first.evaluation,
+            Some(Evaluation {
+                value: 85,
+                kind: EvaluationKind::Centipawn
+            })
+        ));
+
+        let second = &result.candidates[1];
+        assert_eq!(second.depth, Some(12));
+        assert!(matches!(
+            second.evaluation,
+            Some(Evaluation {
+                value: -3,
+                kind: EvaluationKind::MateInMoves(-3)
+            })
+        ));
+
+        assert_eq!(depth_of_rank(&result, 1), Some(11));
+        assert_eq!(depth_of_rank(&result, 2), Some(12));
+        assert_eq!(depth_of_rank(&result, 3), None);
+    }
+
+    /// 手数の分からない詰みは符号だけを持つ
+    #[test]
+    fn a_mate_without_a_distance_keeps_only_its_sign() {
+        let mut result = AnalysisResult::default();
+        apply_info_params(&info("info score mate - pv 8h2b+"), &mut result);
+        assert!(matches!(
+            result.candidates[0].evaluation,
+            Some(Evaluation {
+                value: -1,
+                kind: EvaluationKind::MateUnknown(false)
+            })
+        ));
+    }
+
+    /// ログの要約に局面と、webview から来た長い名前を素で載せない
+    #[test]
+    fn a_command_summary_hides_the_position_and_bounds_the_name() {
+        let sfen = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
+        let position = cmd_summary(&GuiCommand::Position(sfen.to_string()));
+        assert!(
+            !position.contains("lnsgkgsnl"),
+            "局面が載っている: {position}"
+        );
+
+        let name = "N".repeat(MAX_SUMMARY_LEN * 4);
+        let summary = cmd_summary(&GuiCommand::SetOption(name, Some("1".to_string())));
+        assert!(
+            summary.chars().count() <= MAX_SUMMARY_LEN + "SetOption(…)".chars().count(),
+            "名前を切っていない: {} 文字",
+            summary.chars().count()
+        );
+    }
+
+    /// 閉じた枠は `reset` で閉じたまま数え直し、`set_interval` で間隔だけが変わる。
+    /// 間隔は起動直後の例外（型の doc）に当たらない長さにする
+    #[test]
+    fn a_throttle_closes_on_reset_and_takes_a_new_interval() {
+        let mut throttle = LogThrottle::new(Duration::from_secs(60));
+        assert!(throttle.is_open());
+        throttle.reset();
+        assert!(!throttle.is_open(), "reset の後も空いている");
+        assert!(!throttle.allow());
+
+        throttle.set_interval(Duration::ZERO);
+        assert!(throttle.allow(), "間隔を差し替えても通らない");
     }
 }

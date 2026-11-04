@@ -337,54 +337,6 @@ pub enum EngineError {
     Cancelled(String),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// 時間切れの目印が、文字列にしたときも**先頭**に残ること。
-    ///
-    /// `Display` は `Operation timeout: …` を前置するので、素で文字列にすると
-    /// 目印が中へ潜る。潜ると、フロントは部分一致で見るしかなくなり、
-    /// 対局者の表示名や OS の文言（macOS の `ETIMEDOUT` は `Operation timed out`）に
-    /// 同じ綴りが入っただけで「遅かっただけ。設定は誤っていない」を名乗れる。
-    #[test]
-    fn a_timeout_keeps_the_marker_at_the_front() {
-        let text = engine_error_text(&EngineError::Timeout(format!(
-            "{TIMED_OUT} waiting for usiok"
-        )));
-        assert!(text.starts_with(TIMED_OUT), "目印が先頭に無い: {text}");
-
-        // 時間切れ以外は名乗らない
-        let other = engine_error_text(&EngineError::StartupFailed(
-            "engine_path must point to an existing file".to_string(),
-        ));
-        assert!(
-            !other.starts_with(TIMED_OUT),
-            "時間切れでない失敗が目印を名乗っている: {other}"
-        );
-    }
-
-    /// 経過時間は秒と端数のナノ秒に分けて線へ出す
-    #[test]
-    fn a_duration_keeps_seconds_and_nanos() {
-        let wire = Duration::from(std::time::Duration::new(3, 250_000_000));
-        assert_eq!((wire.secs, wire.nanos), (3, 250_000_000));
-    }
-
-    /// 応答しない理由の綴りは線の名前。TS（`entities/engine` の `UnresponsiveReason`）が同じ綴りで読む
-    #[test]
-    fn unresponsive_reasons_are_spelled_for_the_wire() {
-        assert_eq!(
-            serde_json::to_value(UnresponsiveReason::NoAnswer).expect("書ける"),
-            "noAnswer"
-        );
-        assert_eq!(
-            serde_json::to_value(UnresponsiveReason::Unwritable).expect("書ける"),
-            "unwritable"
-        );
-    }
-}
-
 /// 走っている解析1件の状態（`get_analysis_status`）。`elapsed_time` と `config` は埋める経路が無く、
 /// 常に `None`
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -592,4 +544,52 @@ pub enum EngineEnd {
     Exited,
     /// stdin を読まなくなった。**プロセスは残っている**
     Stalled,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 時間切れの目印が、文字列にしたときも**先頭**に残ること。
+    ///
+    /// `Display` は `Operation timeout: …` を前置するので、素で文字列にすると
+    /// 目印が中へ潜る。潜ると、フロントは部分一致で見るしかなくなり、
+    /// 対局者の表示名や OS の文言（macOS の `ETIMEDOUT` は `Operation timed out`）に
+    /// 同じ綴りが入っただけで「遅かっただけ。設定は誤っていない」を名乗れる。
+    #[test]
+    fn a_timeout_keeps_the_marker_at_the_front() {
+        let text = engine_error_text(&EngineError::Timeout(format!(
+            "{TIMED_OUT} waiting for usiok"
+        )));
+        assert!(text.starts_with(TIMED_OUT), "目印が先頭に無い: {text}");
+
+        // 時間切れ以外は名乗らない
+        let other = engine_error_text(&EngineError::StartupFailed(
+            "engine_path must point to an existing file".to_string(),
+        ));
+        assert!(
+            !other.starts_with(TIMED_OUT),
+            "時間切れでない失敗が目印を名乗っている: {other}"
+        );
+    }
+
+    /// 経過時間は秒と端数のナノ秒に分けて線へ出す
+    #[test]
+    fn a_duration_keeps_seconds_and_nanos() {
+        let wire = Duration::from(std::time::Duration::new(3, 250_000_000));
+        assert_eq!((wire.secs, wire.nanos), (3, 250_000_000));
+    }
+
+    /// 応答しない理由の綴りは線の名前。TS（`entities/engine` の `UnresponsiveReason`）が同じ綴りで読む
+    #[test]
+    fn unresponsive_reasons_are_spelled_for_the_wire() {
+        assert_eq!(
+            serde_json::to_value(UnresponsiveReason::NoAnswer).expect("書ける"),
+            "noAnswer"
+        );
+        assert_eq!(
+            serde_json::to_value(UnresponsiveReason::Unwritable).expect("書ける"),
+            "unwritable"
+        );
+    }
 }
