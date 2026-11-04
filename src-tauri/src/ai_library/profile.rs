@@ -188,3 +188,93 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec
     out.sort_by(|a, b| a.entry.cmp(&b.entry));
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_support::dir::temp_dir;
+
+    fn names(root: &Path) -> Vec<String> {
+        read_all(root)
+            .expect("読める")
+            .into_iter()
+            .map(|p| p.name)
+            .collect()
+    }
+
+    /// `eval` か `book` を持つフォルダだけを一覧に出す。engines/ は持っていても出さない。
+    /// 並びは綴りのバイト順で、大文字が先に来る（`read_dir` の順に任せない）
+    #[test]
+    fn only_folders_with_eval_or_book_are_listed() {
+        let root = temp_dir("ai-profile-listed");
+        fs::create_dir_all(root.join("b-eval/eval")).expect("作れない");
+        fs::create_dir_all(root.join("a-book/book")).expect("作れない");
+        fs::create_dir_all(root.join("Z-both/eval")).expect("作れない");
+        fs::create_dir_all(root.join("plain")).expect("作れない");
+        fs::create_dir_all(root.join(ENGINES_DIR).join("eval")).expect("作れない");
+
+        assert_eq!(names(&root), ["Z-both", "a-book", "b-eval"]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 除くのは綴りが `engines` のものだけ。`Engines` は正当な AI フォルダの名前
+    #[test]
+    fn a_differently_cased_engines_folder_is_still_listed() {
+        let root = temp_dir("ai-profile-cased");
+        fs::create_dir_all(root.join("Engines/eval")).expect("作れない");
+
+        assert_eq!(names(&root), ["Engines"]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 持っている下位フォルダを欄に写す。片方だけのフォルダで、無い方を在ると言わない
+    #[test]
+    fn each_subfolder_is_reported_on_its_own() {
+        let root = temp_dir("ai-profile-subs");
+        fs::create_dir_all(root.join("eval-only/eval")).expect("作れない");
+        fs::create_dir_all(root.join("book-only/book")).expect("作れない");
+
+        let found = read_all(&root).expect("読める");
+
+        let book_only = &found[0];
+        assert_eq!(book_only.name, "book-only");
+        assert!(!book_only.has_eval_dir && book_only.has_book_dir);
+        let eval_only = &found[1];
+        assert!(eval_only.has_eval_dir && !eval_only.has_book_dir);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// eval/ はファイルを全部、book/ は拡張子が `db` のもの（大文字も）だけを返す。フォルダは返さない
+    #[test]
+    fn files_are_listed_and_books_are_filtered_by_extension() {
+        let root = temp_dir("ai-profile-files");
+        let profile = root.join("suisho");
+        fs::create_dir_all(profile.join("eval/nested")).expect("作れない");
+        fs::create_dir_all(profile.join("book")).expect("作れない");
+        for file in [
+            "eval/nn.bin",
+            "eval/README.txt",
+            "book/a.db",
+            "book/B.DB",
+            "book/c.txt",
+        ] {
+            fs::write(profile.join(file), "").expect("書けない");
+        }
+
+        let found = read_all(&root).expect("読める");
+
+        let eval: Vec<_> = found[0]
+            .eval_files
+            .iter()
+            .map(|f| f.entry.as_str())
+            .collect();
+        assert_eq!(eval, ["README.txt", "nn.bin"]);
+        let books: Vec<_> = found[0]
+            .book_db_files
+            .iter()
+            .map(|f| f.entry.as_str())
+            .collect();
+        assert_eq!(books, ["B.DB", "a.db"]);
+        let _ = fs::remove_dir_all(&root);
+    }
+}

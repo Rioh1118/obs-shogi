@@ -55,3 +55,56 @@ pub fn index(ai_root: String) -> Result<AiRootIndex, String> {
         profiles,
     })
 }
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crate::ai_library::engines::tests::{write, NATIVE};
+    use std::fs;
+    use test_support::dir::temp_dir;
+
+    /// engines/ が在れば中を読み、AI フォルダも同じ1回で返す
+    #[test]
+    fn engines_and_profiles_are_read_together() {
+        let root = temp_dir("ai-scan-both");
+        write(&root.join(ENGINES_DIR).join("engine"), &NATIVE, 0o755);
+        fs::create_dir_all(root.join("suisho/eval")).expect("作れない");
+
+        let found = index(root.to_string_lossy().to_string()).expect("読める");
+
+        assert!(found.engines_dir.exists);
+        assert!(matches!(found.engines_dir.kind, FsKind::Dir));
+        let engines: Vec<_> = found.engines.iter().map(|c| c.entry.as_str()).collect();
+        assert_eq!(engines, ["engine"]);
+        let profiles: Vec<_> = found.profiles.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(profiles, ["suisho"]);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// engines/ が無ければ、無いと返して列挙を止めない
+    #[test]
+    fn a_missing_engines_folder_is_reported_as_missing() {
+        let root = temp_dir("ai-scan-missing");
+
+        let found = index(root.to_string_lossy().to_string()).expect("読める");
+
+        assert!(!found.engines_dir.exists);
+        assert!(matches!(found.engines_dir.kind, FsKind::Unknown));
+        assert!(found.engines.is_empty());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 切れたリンクの engines/ は「無い」と返す。TS の `classifyEnginesDir` はこれを `missing` に分ける
+    #[test]
+    fn a_broken_link_as_the_engines_folder_is_reported_as_missing() {
+        let root = temp_dir("ai-scan-broken");
+        std::os::unix::fs::symlink(root.join("gone"), root.join(ENGINES_DIR))
+            .expect("リンクを作れない");
+
+        let found = index(root.to_string_lossy().to_string()).expect("読める");
+
+        assert!(!found.engines_dir.exists);
+        assert!(matches!(found.engines_dir.kind, FsKind::Unknown));
+        let _ = fs::remove_dir_all(&root);
+    }
+}

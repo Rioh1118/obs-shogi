@@ -129,19 +129,19 @@ pub fn ensure(ai_root: &Path) -> Result<PathBuf, String> {
 }
 
 #[cfg(all(test, unix))]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use std::os::unix::fs::{symlink, PermissionsExt};
     use test_support::dir::temp_dir;
 
     /// この OS で動く実行形式の先頭（macOS は Mach-O、それ以外の Unix は ELF）
-    const NATIVE: [u8; 4] = if cfg!(target_os = "macos") {
+    pub(in crate::ai_library) const NATIVE: [u8; 4] = if cfg!(target_os = "macos") {
         [0xcf, 0xfa, 0xed, 0xfe]
     } else {
         [0x7f, b'E', b'L', b'F']
     };
 
-    fn write(path: &Path, head: &[u8], mode: u32) {
+    pub(in crate::ai_library) fn write(path: &Path, head: &[u8], mode: u32) {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("作れない");
         }
@@ -276,5 +276,38 @@ mod tests {
         assert!(matches!(find(&dir, "linked").kind, FsKind::Symlink));
         let _ = fs::remove_dir_all(&dir);
         let _ = fs::remove_dir_all(&outside);
+    }
+
+    /// 置き場が無いときだけ作る。在るフォルダはそのまま返す
+    #[test]
+    fn ensure_creates_the_folder_only_when_missing() {
+        let root = temp_dir("engines-ensure");
+
+        let made = ensure(&root).expect("作れる");
+        assert_eq!(made, root.join(ENGINES_DIR));
+        assert!(made.is_dir(), "フォルダが無い");
+        assert_eq!(ensure(&root).expect("在っても通す"), made);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 同じ名前のファイルが在ると断る。通すと、呼び手はフォルダが在ると思って中を開きに行く
+    #[test]
+    fn ensure_refuses_a_file_in_the_way() {
+        let root = temp_dir("engines-ensure-file");
+        fs::write(root.join(ENGINES_DIR), "").expect("書けない");
+
+        assert!(ensure(&root).is_err(), "ファイルをフォルダとして返している");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// 1段下のフォルダでも隠しファイルは候補にしない
+    #[test]
+    fn hidden_files_one_folder_down_are_not_listed() {
+        let dir = temp_dir("engines-hidden-child");
+        write(&dir.join("suisho5/.engine"), &NATIVE, 0o755);
+        write(&dir.join("suisho5/engine"), &NATIVE, 0o755);
+
+        assert_eq!(entries(&dir), ["suisho5/engine"]);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -223,4 +223,49 @@ mod tests {
 
         let _ = fs::remove_dir_all(&base);
     }
+
+    /// 作った AI フォルダのパスを返す。名前は前後の空白を落とした形で使う
+    #[test]
+    fn the_created_path_uses_the_trimmed_name() {
+        let (base, root) = temp_ai_root("trimmed");
+
+        let made = create(&root, " suisho ").expect("作れる");
+
+        assert_eq!(PathBuf::from(&made), root.join("suisho"));
+        assert!(root.join("suisho/eval").is_dir() && root.join("suisho/book").is_dir());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// 断った理由を code で分ける。TS は code で文言と、名前の欄に出すかを決める
+    #[test]
+    fn reserved_and_existing_names_carry_their_own_codes() {
+        let (base, root) = temp_ai_root("codes");
+
+        let reserved = create(&root, "Engines").expect_err("通している");
+        assert!(
+            matches!(reserved.code, FsErrorCode::InvalidNameReserved),
+            "{:?}",
+            reserved.code
+        );
+        create(&root, "suisho").expect("1つ目を作れない");
+        let existing = create(&root, "suisho").expect_err("通している");
+        assert!(
+            matches!(existing.code, FsErrorCode::AlreadyExists),
+            "{:?}",
+            existing.code
+        );
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// AI ルートが無いときは engines/ を作らずに断る。`create_dir_all` に任せると、
+    /// 消えた AI ルートを途中の段ごと作り直してしまう
+    #[test]
+    fn engines_are_not_placed_under_a_missing_ai_root() {
+        let (base, root) = temp_ai_root("ensure-missing");
+        let gone = root.join("gone");
+
+        assert!(ensure_engines_dir(gone.to_string_lossy().to_string()).is_err());
+        assert!(!gone.exists(), "AI ルートを作り直している");
+        let _ = fs::remove_dir_all(&base);
+    }
 }
