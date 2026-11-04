@@ -465,7 +465,7 @@ mod tests {
         assert_eq!(parse(&format!("option name {name} type check")).name, name);
     }
 
-    /// 既定値は型ごとに文字列にする。`<empty>` は型を問わず空文字
+    /// 既定値は型ごとに文字列にする。`combo` の `<empty>` は空文字
     #[test]
     fn default_values_are_spelled_as_text() {
         assert_eq!(

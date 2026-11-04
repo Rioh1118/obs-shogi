@@ -1,6 +1,8 @@
 //! 解析と対局が同じ形で使う2つの部品。`info` 行を読み筋へ畳むことと、ログに載せる文字列を作ること。
 //!
-//! どちらも `analyzer` と `game` の両方から呼ぶので、`tests/layering.rs` の段で両方より下のここに置く。
+//! 畳む関数は `analyzer` と `game` の両方から呼ぶ。ログの文字列の部品は、その2つより下の
+//! `protocol`、`registry`、`setup` からも呼ぶ。どちらも呼び手より下の段に要るので、
+//! `tests/layering.rs` の段で `types` の次のここに置く。
 
 use std::time::{Duration, Instant};
 use usi::{GuiCommand, InfoParams, ScoreKind};
