@@ -11,7 +11,7 @@ use shogi_kifu_converter_obsshogi::{
 };
 
 use ::fs::error::{FsError, FsErrorCode};
-use ::fs::path::{ensure_not_exists, get_file_extension};
+use ::fs::path::{ensure_not_exists, lowercase_extension};
 use kifu_text::decode_kifu;
 
 pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
@@ -81,7 +81,7 @@ pub fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Resul
         r.map_err(|e| FsError::new(FsErrorCode::KifuConversionFailed, e.to_string()))
     };
 
-    match get_file_extension(file_path).as_deref() {
+    match lowercase_extension(file_path).as_deref() {
         Some("kif") => to_fs_error(jkf_data.try_to_kif_owned()),
         Some("ki2") => to_fs_error(jkf_data.try_to_ki2_owned()),
         Some("csa") => to_fs_error(jkf_data.try_to_csa_owned()),

@@ -1,6 +1,10 @@
 use serde::Serialize;
 use std::io;
 
+/// ファイルの操作が断られた理由。
+///
+/// webview は snake_case の綴りで受け、利用者に見せる文と tier をこれで引く。
+/// 綴りは線の名前なので、変種の名前を変えると TS の `FsErrorCode` と食い違う
 #[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum FsErrorCode {
@@ -14,15 +18,16 @@ pub enum FsErrorCode {
     InvalidNameSeparator,
     /// NUL。OS によっては別のパスに化ける
     InvalidNameControl,
-    /// **その場所を扱えない。** 入るのは3つ。
+    /// その場所を扱えない。入るのは次のとき。
     ///
     /// - root の外（`validate_under_root`）
-    /// - 親や名前を解決できない（`mv.rs`）
+    /// - 親や名前を解決できない（`mv.rs`、`fs::path` の `canonicalize_for_compare`）
     /// - 設定そのものを読めない（`load_root_dir`）
+    /// - AI ルートが空か、無いか、フォルダでない（`create_ai_profile_dirs`）
     ///
-    /// 「**無い**」は入れない。それは `NotFound`。無いをここへ載せると tier が
-    /// `danger` になって「再読み込み」の導線が消える。ツリーが古いだけなのに、
-    /// 追いつくための操作が画面から消える
+    /// ワークスペースの中のパスが「無い」ときは `NotFound` に載せる。ここへ載せると
+    /// tier が `danger` になり、「再読み込み」の操作が画面から消える。
+    /// ツリーが古いだけなのに、追いつく手が無くなる
     InvalidPath,
     /// ファイルとディレクトリの取り違え。`is_file()` / `is_dir()` の判定にだけ使う
     InvalidType,
@@ -37,15 +42,19 @@ pub enum FsErrorCode {
     /// 棋譜を保存する形へ直せなかった。正規化と直列化の失敗をここへ載せる。
     /// InvalidType に載せると「ファイルとフォルダを取り違えています」と表示される
     KifuConversionFailed,
-    /// 棋譜を読めなかった。**いまはどの文字コードでも復号できなかったとき**
-    /// （ の `read_text_portable`）。
-    /// TS 側は同じ code を自分でも作る（tsshogi が断ったとき）
+    /// 棋譜を読めなかった。Rust が返すのは、どの文字コードでも復号できなかったときだけ
+    /// （`workspace::record` の `read_text_portable`）。
+    /// TS 側は tsshogi が断ったときに同じ code を自分で作る
     KifuParseFailed,
     PermissionDenied,
     Io,
     Unknown,
 }
 
+/// webview へ返すファイル操作の失敗。
+///
+/// 欄の綴り（camelCase）は TS の `FsError` が読む線の名前。`path` は失敗に関わるパス、
+/// `existing_path` は行き先にすでにあったもの（`ensure_not_exists` が載せる）
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FsError {
@@ -149,5 +158,46 @@ mod tests {
             let expected = format!("\"{}\"", serialized_name(code));
             assert_eq!(serde_json::to_string(code).unwrap(), expected);
         }
+    }
+
+    /// 欄の綴りは TS の `FsError` が読む。`existingPath` がずれると、
+    /// 衝突の対話（`ConflictMeta`）が衝突した相手を出せず、`path` へ落ちる
+    #[test]
+    fn serde_emits_the_field_names_the_webview_reads() {
+        let error = FsError::new(FsErrorCode::AlreadyExists, "exists")
+            .with_path("/r/a.kif")
+            .with_existing_path("/r/b.kif");
+
+        let json = serde_json::to_value(&error).unwrap();
+        assert_eq!(json["code"], "already_exists");
+        assert_eq!(json["message"], "exists");
+        assert_eq!(json["path"], "/r/a.kif");
+        assert_eq!(json["existingPath"], "/r/b.kif");
+    }
+
+    /// OS の失敗のうち、利用者のすることが違う3つは code を分ける。
+    /// ほかは `io` に丸め、OS の文を `message` に残す
+    #[test]
+    fn io_errors_keep_the_kinds_the_screen_tells_apart() {
+        let code_of = |kind: io::ErrorKind| FsError::from(io::Error::new(kind, "os says")).code;
+
+        assert!(matches!(
+            code_of(io::ErrorKind::AlreadyExists),
+            FsErrorCode::AlreadyExists
+        ));
+        assert!(matches!(
+            code_of(io::ErrorKind::NotFound),
+            FsErrorCode::NotFound
+        ));
+        assert!(matches!(
+            code_of(io::ErrorKind::PermissionDenied),
+            FsErrorCode::PermissionDenied
+        ));
+        assert!(matches!(code_of(io::ErrorKind::Other), FsErrorCode::Io));
+
+        let error = FsError::from(io::Error::other("os says"));
+        assert_eq!(error.message, "os says");
+        assert_eq!(error.path, None);
+        assert_eq!(error.existing_path, None);
     }
 }

@@ -66,7 +66,8 @@ ours 戦略のマージは使わない。
 | 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2段）、読み直した後の行の強調 | #698 | マージ済み |
 | 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3段） | #699 | マージ済み |
 | 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | マージ済み |
-| 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | #701 | レビュー待ち |
+| 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | #701 | マージ済み |
+| 34 | `refactor/tidy-rust-fs-kifu-text` | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（Rust の範囲1）、`fs` の試験のコンパイル | #702 | レビュー待ち |
 
 ## 語
 
@@ -125,7 +126,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 | 順 | 範囲                                                   | 行数  | 状態     |
 | -- | ------------------------------------------------------ | ----- | -------- |
-| 1  | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`   | 773   | 未着手   |
+| 1  | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`   | 773   | 済       |
 | 1b | `src-tauri/crates/settings`                            | 1405  | 未着手   |
 | 2  | `src-tauri/src/storage`                                | 474   | 読み合わせのみ |
 | 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1890  | 未着手   |
@@ -189,15 +190,21 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/kifu-stream/ui/KifuForkMenu.tsx` の `normalizeSelected` と、`KifuStreamList.tsx` の分岐メニューの外側押下の `menuEl` の判定 | どちらも外すと結果が変わらない。行の選択は `buildStreamRowsFromCursor` が実際に降りた添字しか返さず、メニューの中の押下は `KifuForkMenu` の `stopPropagation` で document まで届かない。分岐メニューの閉じ方を直す #278 と合わせて、消すかを決める |
 | `src/widgets/game-board/ui/useHandLayout.ts` の段の割り振り | 片側の持ち駒が21〜23枚と29枚以上のとき、1段の幅が駒台の 20em を超える（22枚で最後の段に10枚、29.3em。38枚で26枚）。仮に並べるときの上限 `10` で偏りの判定が1段4枚の配置に落ち、余りを最後の段に寄せるため。`useHandLayout` を単体で呼んで再現した。直すと並べ方が変わるので、何枚まで4段で収めるかと合わせて決める |
 | `src/widgets/game-board/ui/Board.tsx` の成りの選択肢の取り消し | 待っている間に局面が動いたかを `player.tesuu` だけで見るので、同じ手数の別の変化へ移ると選択肢が残る。選ぶと、押した時点の `selectSquare` の閉包で前の局面の手として指す筋がある。未再現 |
+| `src-tauri/src/ai_library/commands.rs` の `create_ai_profile_dirs` の `ai_root` の検査 | AI ルートが無いときも `invalid_path` で返し、同じファイルの `a_rejected_name_carries_a_code` がそれを固定している。`FsErrorCode` の doc は、ワークスペースの中で「無い」を `invalid_path` に載せると tier が `danger` になり「再読み込み」が消えると書く。AI ルートを Finder で消したときに同じ形になるかを、範囲4で `not_found` へ分けるかと合わせて決める |
+| `src-tauri/src/workspace/record.rs` の `strip_utf8_bom_str` | doc は「`encoding_rs` は UTF-8 の BOM を文字として残す」と書くが、`Encoding::decode` は UTF-8 の BOM も消費する。`decode_kifu` は BOM つきの `abc` を `"abc"` で返すことを実測した（範囲1で、`decode_kifu` が先頭の BOM を落とす変異が等価だった）。範囲3で、関数ごと消すかを決める |
+| `src-tauri/crates/fs/src/path.rs` の `is_move_into_itself` | 在る `src` は symlink まで解いて比べるので、フォルダへの symlink を、その指す先のフォルダの中へ動かすと「自分の中への移動」として断る。動くのはリンクそのもので、`rename` は通る。`mv_directory` の `src.is_dir()` はリンクの先を見るので、ツリーから選べる。未再現。断るのが望ましいか（自分を指すリンクの輪ができる）を、ツリーが symlink をどう出すかと合わせて決める |
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。次は Rust の範囲1。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で取った。次は Rust の範囲1b。
 
-範囲1: `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（773行。`fs` 481行、`kifu-text` 193行、
-`test-support` 99行）。`src-tauri/crates` 全体は2178行で2000行を超えるので2つに割る。
-`settings`（1405行）は `fs` と `test-support` を読むので、下の3つを先に取り、`settings` は範囲1b として次の段にする。
-行数はファイル内のテストを含む。取るときに数え直す。
+範囲1b: `src-tauri/crates/settings`（1405行。ファイル内のテストを含む）。取るときに数え直す。
+`fs` と `test-support` を読む。範囲1で `fs` の `get_file_extension` を `lowercase_extension` に改名したが、
+`settings` は読んでいない。
+
+`crates/*` の単体テストは `npm run verify:rust` でも CI でも走らない（#528）。範囲1では `crates/fs` の試験が
+コンパイルできない形だけを直した。`settings` の試験は `cargo test --manifest-path src-tauri/Cargo.toml -p settings` で個別に走らせる
+（範囲1の変異を当てたときに通った）。`verify:rust` と CI に crate の試験を載せるかは、`settings` の試験を見た後に決める。
 
 所見の表の `EngineState` の union は、範囲の表に載らない独立の段として残る。
 取るなら `entities/engine` の型と reducer から呼び手までを1段にし、整理の段とは分ける。
