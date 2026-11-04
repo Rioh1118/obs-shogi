@@ -74,8 +74,8 @@ function AnalysisPane() {
     [candidateCache, status, state, currentSfen, cacheKey],
   );
 
-  // 読み筋は盤の局面から組む。控えの鍵が別の局面を指していると（#568）、読み筋が
-  // 盤の局面で指せず、評価値だけの行になる
+  // 読み筋は盤の局面から組む。控えの鍵が別の局面を指していると（#568）、盤の局面では
+  // 指せない手の並びが出るか、手が組めずに評価値だけの行になる
   const pvBaseSfen = currentSfen;
 
   const rows = useMemo(() => {

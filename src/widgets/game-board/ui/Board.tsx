@@ -11,7 +11,8 @@ import { canPromote, mustPromote, useGame, type ShogiMove } from "@/entities/gam
 /**
  * 9×9の升。押下を選択と着手へ渡す。
  *
- * 成れる手では移動先の升に成りの選択肢を出し、答えを待ってから指す。
+ * 成るか選べる手では移動先の升に成りの選択肢を出し、答えを待ってから指す。
+ * 成るしかない手は聞かずに成る。
  */
 function Board() {
   const { state, view, selectSquare, clearSelection } = useGame();

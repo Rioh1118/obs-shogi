@@ -168,7 +168,8 @@ function rowConfigFor(pieces: readonly Kind[], layoutConfig: LayoutConfig): RowC
     };
   }
 
-  // `Hand` は駒の大きさを em で当てる。駒台の幅は 20em（`handGeometry.scss` の `$hand-w`）
+  // 単位は em（`Hand` は駒の大きさを em で当てる）。駒台の幅 20em（`handGeometry.scss` の
+  // `$hand-w`）から余白を見込んだ値で、18 の導出はコードに無い
   const containerWidth = 18;
   const maxWidth = containerWidth * 0.95;
   const totalPieceWidth = pieceCount * layoutConfig.pieceSize;
