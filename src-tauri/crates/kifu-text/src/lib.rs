@@ -190,4 +190,17 @@ mod tests {
             "化けた文字列を「読めた」として返した"
         );
     }
+
+    /// BOM とエスケープ `ESC $ B` だけを印として見る。
+    /// `ESC ( B` は ASCII へ戻す指示で、ASCII のファイルにも現れうる
+    #[test]
+    fn only_a_bom_or_a_switch_to_jis_x_0208_declares_an_encoding() {
+        assert_eq!(declared_encoding(b"\xEF\xBB\xBFabc"), Some(UTF_8));
+        assert_eq!(declared_encoding(b"\xFF\xFEa\x00"), Some(UTF_16LE));
+        assert_eq!(declared_encoding(b"\xFE\xFF\x00a"), Some(UTF_16BE));
+        assert_eq!(declared_encoding(b"abc\x1b$Bdef"), Some(ISO_2022_JP));
+
+        assert_eq!(declared_encoding(b"abc\x1b(Bdef"), None);
+        assert_eq!(declared_encoding(b"plain ascii"), None);
+    }
 }

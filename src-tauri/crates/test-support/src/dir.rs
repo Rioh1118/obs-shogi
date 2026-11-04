@@ -29,3 +29,23 @@ pub fn temp_dir(tag: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("一時ディレクトリ");
     dir
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 同じ `tag` を2度使っても、片方の後始末がもう片方を消さない
+    #[test]
+    fn the_same_tag_twice_gives_two_empty_directories() {
+        let first = temp_dir("twice");
+        std::fs::write(first.join("a"), "").unwrap();
+        let second = temp_dir("twice");
+
+        assert_ne!(first, second);
+        assert!(first.join("a").exists(), "先に作った方が消された");
+        assert_eq!(std::fs::read_dir(&second).unwrap().count(), 0);
+
+        let _ = std::fs::remove_dir_all(&first);
+        let _ = std::fs::remove_dir_all(&second);
+    }
+}

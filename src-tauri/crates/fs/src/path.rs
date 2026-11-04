@@ -277,5 +277,81 @@ mod tests {
             code("a\0b"),
             format!("{:?}", FsErrorCode::InvalidNameControl)
         );
+        assert_eq!(code("."), format!("{:?}", FsErrorCode::InvalidNameReserved));
+        // `Path` は末尾の `/` を成分に数えないので、成分の判定だけでは通る
+        assert_eq!(
+            code("a/"),
+            format!("{:?}", FsErrorCode::InvalidNameSeparator)
+        );
+    }
+
+    #[test]
+    fn kifu_files_are_told_by_the_four_extensions_in_any_case() {
+        for name in ["a.kif", "a.ki2", "a.jkf", "a.csa", "a.KIF", "a.Csa"] {
+            assert!(is_kifu_file(Path::new(name)), "{name} を棋譜と見ていない");
+        }
+        for name in ["a.txt", "a.kifu", "a", "kif"] {
+            assert!(!is_kifu_file(Path::new(name)), "{name} を棋譜と見た");
+        }
+    }
+
+    /// 衝突した相手のパスを `existing_path` に載せる。対話はそれを見せて上書きかを聞く
+    #[test]
+    fn an_existing_destination_is_reported_with_its_path() {
+        let tmp = std::env::temp_dir().join(format!("obs-shogi-exists-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).expect("作れない");
+        let taken = tmp.join("a.kif");
+        fs::write(&taken, "").expect("書けない");
+
+        let refused = ensure_not_exists(&taken).unwrap_err();
+        assert!(matches!(refused.code, FsErrorCode::AlreadyExists));
+        assert_eq!(
+            refused.existing_path.as_deref(),
+            Some(taken.to_string_lossy().as_ref())
+        );
+        assert!(ensure_not_exists(&tmp.join("b.kif")).is_ok());
+
+        let _ = fs::remove_dir_all(&tmp);
+    }
+
+    /// 無いパスは `not_found` のまま、どのパスの話かを載せて返す
+    #[test]
+    fn a_missing_parent_is_not_found_with_the_path() {
+        let missing = std::env::temp_dir()
+            .join(format!("obs-shogi-missing-{}", std::process::id()))
+            .join("x")
+            .join("a.kif");
+
+        let error = canonicalize_for_compare(&missing).unwrap_err();
+        assert!(
+            matches!(error.code, FsErrorCode::NotFound),
+            "{:?}",
+            error.code
+        );
+        assert_eq!(
+            error.path.as_deref(),
+            Some(missing.to_string_lossy().as_ref())
+        );
+
+        let no_parent = canonicalize_for_compare(Path::new("")).unwrap_err();
+        assert!(matches!(no_parent.code, FsErrorCode::InvalidPath));
+        assert_eq!(no_parent.path.as_deref(), Some(""));
+    }
+
+    /// 在るパスは symlink まで解く。親だけを解いて名前を足すと、
+    /// symlink そのものを渡されたときに行き先が分からない
+    #[cfg(unix)]
+    #[test]
+    fn an_existing_path_is_resolved_through_its_symlink() {
+        let tmp = std::env::temp_dir().join(format!("obs-shogi-canon-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(tmp.join("a")).expect("作れない");
+        std::os::unix::fs::symlink(tmp.join("a"), tmp.join("link")).expect("張れない");
+
+        let resolved = canonicalize_for_compare(&tmp.join("link")).expect("解けない");
+        assert_eq!(resolved, fs::canonicalize(tmp.join("a")).unwrap());
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 }

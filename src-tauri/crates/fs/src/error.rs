@@ -159,4 +159,45 @@ mod tests {
             assert_eq!(serde_json::to_string(code).unwrap(), expected);
         }
     }
+
+    /// 欄の綴りは TS の `FsError` が読む。`existingPath` がずれると、
+    /// 衝突の対話（`ConflictMeta`）が衝突した相手を出せず、`path` へ落ちる
+    #[test]
+    fn serde_emits_the_field_names_the_webview_reads() {
+        let error = FsError::new(FsErrorCode::AlreadyExists, "exists")
+            .with_path("/r/a.kif")
+            .with_existing_path("/r/b.kif");
+
+        let json = serde_json::to_value(&error).unwrap();
+        assert_eq!(json["code"], "already_exists");
+        assert_eq!(json["message"], "exists");
+        assert_eq!(json["path"], "/r/a.kif");
+        assert_eq!(json["existingPath"], "/r/b.kif");
+    }
+
+    /// OS の失敗のうち、利用者のすることが違う3つは code を分ける。
+    /// ほかは `io` に丸め、OS の文を `message` に残す
+    #[test]
+    fn io_errors_keep_the_kinds_the_screen_tells_apart() {
+        let code_of = |kind: io::ErrorKind| FsError::from(io::Error::new(kind, "os says")).code;
+
+        assert!(matches!(
+            code_of(io::ErrorKind::AlreadyExists),
+            FsErrorCode::AlreadyExists
+        ));
+        assert!(matches!(
+            code_of(io::ErrorKind::NotFound),
+            FsErrorCode::NotFound
+        ));
+        assert!(matches!(
+            code_of(io::ErrorKind::PermissionDenied),
+            FsErrorCode::PermissionDenied
+        ));
+        assert!(matches!(code_of(io::ErrorKind::Other), FsErrorCode::Io));
+
+        let error = FsError::from(io::Error::other("os says"));
+        assert_eq!(error.message, "os says");
+        assert_eq!(error.path, None);
+        assert_eq!(error.existing_path, None);
+    }
 }
