@@ -148,7 +148,8 @@ pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        // 待ち手のタスクごと捨てられたとき（ランタイムが畳まれたとき）にも残さない
+        // 待ち手のタスクごと捨てられたとき（ランタイムが畳まれたとき）にも直の子は残さない。
+        // `#!` のラッパーの孫まで届くのは、落とす頼みの経路（`signal_group`）だけ
         .kill_on_drop(true);
     #[cfg(unix)]
     command.process_group(0);
@@ -1020,7 +1021,7 @@ mod tests {
     #[test]
     fn a_kill_that_cannot_see_the_end_in_time_times_out() {
         // 終わりを見届けるタスクを、止めておける別の runtime に載せる。同じ runtime だと、
-        // 上限の刻み（1ms）の間に SIGKILL の終わりが見えて `Ended` が返ることがある
+        // 上限の内に SIGKILL の終わりが見えて `Ended` が返る
         let held = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
