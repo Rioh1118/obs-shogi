@@ -48,7 +48,7 @@ pub fn apply_info_params(info_params: &[InfoParams], result: &mut AnalysisResult
 }
 
 /// `rank` の読み筋が最後に受けた深さを返す。その読み筋が無いか、深さを受けていなければ `None`
-pub fn get_depth_of_rank(result: &AnalysisResult, rank: u32) -> Option<u32> {
+pub fn depth_of_rank(result: &AnalysisResult, rank: u32) -> Option<u32> {
     result
         .candidates
         .iter()
@@ -57,7 +57,7 @@ pub fn get_depth_of_rank(result: &AnalysisResult, rank: u32) -> Option<u32> {
 }
 
 /// `multipv` の番号を返す。無ければ 1
-pub fn extract_rank(info_params: &[InfoParams]) -> u32 {
+fn extract_rank(info_params: &[InfoParams]) -> u32 {
     for info in info_params {
         if let InfoParams::MultiPv(r) = info {
             return *r as u32;
@@ -67,7 +67,7 @@ pub fn extract_rank(info_params: &[InfoParams]) -> u32 {
 }
 
 /// `rank` の読み筋を返す。無ければ空の読み筋を末尾に足して返す
-pub fn get_or_create_candidate(result: &mut AnalysisResult, rank: u32) -> &mut AnalysisCandidate {
+fn get_or_create_candidate(result: &mut AnalysisResult, rank: u32) -> &mut AnalysisCandidate {
     if let Some(idx) = result.candidates.iter().position(|c| c.rank == rank) {
         return &mut result.candidates[idx];
     }
@@ -87,7 +87,7 @@ pub fn get_or_create_candidate(result: &mut AnalysisResult, rank: u32) -> &mut A
 }
 
 /// `score` の値と種類を評価値にする。上界・下界の印は捨てる
-pub fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
+fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
     match kind {
         ScoreKind::CpExact | ScoreKind::CpLowerbound | ScoreKind::CpUpperbound => Evaluation {
             value,
@@ -273,9 +273,9 @@ mod tests {
             })
         ));
 
-        assert_eq!(get_depth_of_rank(&result, 1), Some(11));
-        assert_eq!(get_depth_of_rank(&result, 2), Some(12));
-        assert_eq!(get_depth_of_rank(&result, 3), None);
+        assert_eq!(depth_of_rank(&result, 1), Some(11));
+        assert_eq!(depth_of_rank(&result, 2), Some(12));
+        assert_eq!(depth_of_rank(&result, 3), None);
     }
 
     /// 手数の分からない詰みは符号だけを持つ
