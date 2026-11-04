@@ -1,16 +1,16 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 /**
- * 盤の向きは `GameBoard` が自分で取る。**呼び出し側から prop で降ってこない。**
+ * 盤の向きは `GameBoard` が自分で取る。呼び出し側から prop で降ってこない。
  *
  * 対局者名を自力で取っている（`useGame`）のに向きだけ上から受け取るのは一貫していない。
- * prop で渡すと、渡し忘れても既定値で描けてしまい、**盤が回らなくなるだけで**
+ * prop で渡すと、渡し忘れても既定値で描けてしまい、盤が回らなくなるだけで
  * 型でもレンダでも落ちない。
  *
- * あわせて、`GameBoard` が向きを**落とす**側を持っていないことも見る（持たせると何が
+ * あわせて、`GameBoard` が向きを落とす側を持っていないことも見る（持たせると何が
  * 壊れるかは `BoardOrientationBridge` の doc）。
  * ここで動かせるのは `GameBoard` が読むもの（`useGame` の `state.jkf`）だけなので、
  * **見ているのは「盤が自分から `pov` を触らない」まで。** 合図（`loadedAbsPath`）で
@@ -48,6 +48,16 @@ describe("盤の向き（盤の側）", () => {
     const { container } = render(app(""));
 
     expect(container.querySelector(".game-board--rotated")).toBeNull();
+  });
+
+  test.each([
+    ["", "⛉", "☗"],
+    ["?pov=gote", "☖", "⛊"],
+  ])("`%s` では、手前の側に駒の印、向こうの側に回した印を出す", (search, gote, sente) => {
+    render(app(search));
+
+    expect(screen.getByLabelText("後手").textContent).toBe(gote);
+    expect(screen.getByLabelText("先手").textContent).toBe(sente);
   });
 
   test("描き直しても、盤は自分から `pov` を落とさない", () => {

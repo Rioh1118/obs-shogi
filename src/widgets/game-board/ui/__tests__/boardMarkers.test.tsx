@@ -8,16 +8,15 @@ import { INSIDE_BOARD_SELECTOR } from "@/features/clear-board-selection";
  *
  * 目印を落としても盤は同じに見える。壊れるのは**盤の外を押したときに選択が
  * 外れなくなる**ことだけで、例外もエラー表示も出ない。目印を読む側は
- * `features/clear-board-selection` が固定しているので、ここでは**付ける側**を見る。
+ * `features/clear-board-selection` が固定しているので、ここでは付ける側を見る。
  */
 
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    view: { player: null, legalMoves: [] },
+    view: { player: null, legalMoves: [], currentTurn: 0 },
     state: { selectedPosition: null },
     selectHand: vi.fn(),
     clearSelection: vi.fn(),
-    getCurrentTurn: () => 0,
   }),
 }));
 
@@ -29,7 +28,7 @@ afterEach(() => cleanup());
 describe("盤の内側の目印", () => {
   test("升が付ける", () => {
     const { container } = render(
-      <Square x={7} y={7} index={0}>
+      <Square x={7} y={7}>
         <span data-testid="駒" />
       </Square>,
     );

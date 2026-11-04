@@ -2,18 +2,34 @@ import { Color, type Kind } from "shogi.js";
 import PieceImage from "@/entities/position/ui/PieceImage";
 import { useHandLayout, type RowConfig } from "./useHandLayout";
 import "./Hand.scss";
-import { useEffect, useState } from "react";
+import { useState, type PointerEvent } from "react";
 import { useGame } from "@/entities/game";
 import { handAreaMarker } from "@/features/clear-board-selection";
 
-interface HandProps {
+type HandProps = {
   isSente: boolean;
-}
+};
 
+/** 駒台の段を上から並べる順。後手は先手と上下を逆にする */
+const SENTE_ROWS = ["row1", "row2", "row3", "row4"] as const;
+const GOTE_ROWS = ["row4", "row3", "row2", "row1"] as const;
+
+/**
+ * 片側の駒台。押した持ち駒を選び、手番でない側では選択を外すだけにする。
+ *
+ * 選択の state は種類までしか持たないので、同じ種類の何枚目を押したかはここで覚え、
+ * 印を押した1枚にだけ付ける。覚えた1枚は選択が外れても消さない。印を付けるかは
+ * `isMarked` がいまの選択と突き合わせて決め、押して選ぶたびに覚え直す。
+ */
 function Hand({ isSente }: HandProps) {
-  const { state, view, selectHand, clearSelection, getCurrentTurn } = useGame();
+  const { state, view, selectHand, clearSelection } = useGame();
+  const [markedPiece, setMarkedPiece] = useState<{
+    kind: Kind;
+    nth: number;
+  } | null>(null);
+
   const hands = view.player?.shogi.hands;
-  const currentTurn = getCurrentTurn();
+  const currentTurn = view.currentTurn;
   const selectedPosition = state.selectedPosition;
 
   const color = isSente ? Color.Black : Color.White;
@@ -23,52 +39,33 @@ function Hand({ isSente }: HandProps) {
   const { arrangedPieces, layoutConfig } = useHandLayout(handPiecesArray);
   const isCurrentTurn = color === currentTurn;
 
-  const [selectedHandUi, setSelectedHandUi] = useState<{
-    kind: string;
-    nth: number;
-  } | null>(null);
-
   const isThisHandSelected = selectedPosition?.type === "hand" && selectedPosition.color === color;
 
-  const isSelectedThisPiece = (pieceKind: string, nth: number) => {
+  const isMarked = (pieceKind: Kind, nth: number) => {
     return (
       isThisHandSelected &&
       selectedPosition.kind === pieceKind &&
-      selectedHandUi?.kind === pieceKind &&
-      selectedHandUi.nth === nth
+      markedPiece?.kind === pieceKind &&
+      markedPiece.nth === nth
     );
   };
 
-  useEffect(() => {
-    const isThisHandSelected =
-      selectedPosition?.type === "hand" && selectedPosition.color === color;
-
-    if (!isThisHandSelected) {
-      setSelectedHandUi(null);
-      return;
-    }
-
-    if (selectedHandUi && selectedHandUi.kind !== selectedPosition.kind) {
-      setSelectedHandUi(null);
-    }
-  }, [selectedPosition, color, selectedHandUi]);
-
-  const handlePieceClick = (pieceKind: string, nth: number) => {
+  const handlePieceClick = (pieceKind: Kind, nth: number) => {
     if (!isCurrentTurn) {
       clearSelection();
       return;
     }
 
-    if (isSelectedThisPiece(pieceKind, nth)) {
+    if (isMarked(pieceKind, nth)) {
       clearSelection();
       return;
     }
 
-    setSelectedHandUi({ kind: pieceKind, nth });
-    selectHand(color, pieceKind as Kind);
+    setMarkedPiece({ kind: pieceKind, nth });
+    selectHand(color, pieceKind);
   };
 
-  const handleHandAreaPointerDown = (e: React.PointerEvent) => {
+  const handleHandAreaPointerDown = (e: PointerEvent) => {
     if (!state.selectedPosition) return;
 
     const el = e.target as HTMLElement | null;
@@ -79,22 +76,21 @@ function Hand({ isSente }: HandProps) {
     clearSelection();
   };
 
-  const renderPiecesInRow = (pieces: string[], rowConfig: RowConfig, occ: Map<string, number>) => {
+  const renderPiecesInRow = (
+    pieces: readonly Kind[],
+    rowConfig: RowConfig,
+    seenOfKind: Map<Kind, number>,
+  ) => {
     return pieces.map((pieceKind) => {
-      const nth = occ.get(pieceKind) ?? 0;
-      occ.set(pieceKind, nth + 1);
+      const nth = seenOfKind.get(pieceKind) ?? 0;
+      seenOfKind.set(pieceKind, nth + 1);
 
-      const isSelectedUI =
-        selectedPosition?.type === "hand" &&
-        selectedPosition.color === color &&
-        selectedPosition.kind === pieceKind &&
-        selectedHandUi?.kind === pieceKind &&
-        selectedHandUi.nth === nth;
+      const marked = isMarked(pieceKind, nth);
 
       return (
         <div
           key={`${pieceKind}-${nth}`}
-          className={`hand-piece ${isSelectedUI ? "hand-piece--selected" : ""}`}
+          className={`hand-piece ${marked ? "hand-piece--selected" : ""}`}
           data-hand-piece="true"
           style={{
             width: `${rowConfig.pieceSize}em`,
@@ -111,7 +107,7 @@ function Hand({ isSente }: HandProps) {
     });
   };
 
-  const occ = new Map<string, number>();
+  const seenOfKind = new Map<Kind, number>();
 
   return (
     <div
@@ -120,25 +116,23 @@ function Hand({ isSente }: HandProps) {
       onPointerDown={handleHandAreaPointerDown}
     >
       <div className="hand-pieces">
-        {(isSente ? ["row1", "row2", "row3", "row4"] : ["row4", "row3", "row2", "row1"]).map(
-          (rowKey) => {
-            const pieces = arrangedPieces[rowKey as keyof typeof arrangedPieces];
-            const rowConfig = layoutConfig.getRowConfig(pieces);
+        {(isSente ? SENTE_ROWS : GOTE_ROWS).map((rowKey) => {
+          const pieces = arrangedPieces[rowKey];
+          const rowConfig = layoutConfig.getRowConfig(pieces);
 
-            return (
-              <div
-                key={rowKey}
-                className={`hand-row hand-${rowKey}`}
-                style={{
-                  gap: `${rowConfig.gap}em`,
-                  justifyContent: "center",
-                }}
-              >
-                {renderPiecesInRow(pieces, rowConfig, occ)}
-              </div>
-            );
-          },
-        )}
+          return (
+            <div
+              key={rowKey}
+              className={`hand-row hand-${rowKey}`}
+              style={{
+                gap: `${rowConfig.gap}em`,
+                justifyContent: "center",
+              }}
+            >
+              {renderPiecesInRow(pieces, rowConfig, seenOfKind)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -12,8 +12,9 @@ type Props = {
 };
 
 /**
- * 対局者名と同じく、盤の向きも自分でスライスから取る。呼び出し側は枠だけを渡す。
+ * 盤と2つの駒台と対局者名を並べ、後手が手前のときは全体を回す。
  *
+ * 盤の向きと対局者名は自分で取り、呼び手は区画の中身だけを渡す。
  * **対局者名は盤に載っている棋譜から取る**（`state.jkf`）。ツリーが開いたと言っている
  * 棋譜から取ると、盤に載せられなかったときに駒の並びと対局者名が別の棋譜になる。
  */
@@ -36,7 +37,6 @@ export default function GameBoard({ topLeft, center, bottomRight }: Props) {
             <HandHeader
               side="gote"
               name={goteName}
-              align="start"
               boardRotated={isGotePov}
               placement={gotePlacement}
             />
@@ -50,7 +50,6 @@ export default function GameBoard({ topLeft, center, bottomRight }: Props) {
             <HandHeader
               side="sente"
               name={senteName}
-              align="start"
               boardRotated={isGotePov}
               placement={sentePlacement}
             />

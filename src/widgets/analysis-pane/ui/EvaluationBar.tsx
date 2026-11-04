@@ -1,5 +1,6 @@
 import "./EvaluationBar.scss";
 
+/** 先手の側を左から `percentage` の幅で塗る帯。置き場と寸法は呼び手が持つ */
 function EvaluationBar({ percentage }: { percentage: number }) {
   const clampedPercentage = Math.max(0, Math.min(100, percentage));
 

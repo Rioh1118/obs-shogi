@@ -19,6 +19,14 @@ type Props = {
   onCancelStart: () => void;
 };
 
+function TextAction({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Button size="sm" motion={false} onClick={onClick}>
+      {label}
+    </Button>
+  );
+}
+
 /**
  * ▶ の位置に出る1つのボタン。**いまの状態の次の一手を出す**
  * （`docs/spec/features/engine-standardization.md` の「エンジンの状態」）。
@@ -62,13 +70,5 @@ export function EngineAction({
         <Play className="analysis-controls__icon" />
       )}
     </button>
-  );
-}
-
-function TextAction({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <Button size="sm" motion={false} onClick={onClick}>
-      {label}
-    </Button>
   );
 }

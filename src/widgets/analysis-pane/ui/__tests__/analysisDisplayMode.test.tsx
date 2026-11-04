@@ -9,8 +9,8 @@ import type { AnalysisCandidate } from "@/entities/engine";
 /**
  * 候補手の表示モード（`docs/state-transitions/dock-tabs.md` の D3）。
  *
- * 見るのは**設定の綴りから出る形が決まること**と、**どちらの見せ方でも最善手が
- * 別の箱に出ないこと**。選ばせる場所は設定「表示」にあり、そちらは
+ * 見るのは、設定の綴りから出る形が決まることと、どちらの見せ方でも最善手が
+ * 別の箱に出ないこと。選ばせる場所は設定「表示」にあり、そちらは
  * `features/settings/ui/tabs/__tests__/displayTab.test.tsx` が見る。
  *
  * 解析の実行状態を動かさないこと（不変条件1）は `analysisControlsLifetime.test.tsx` が見る。
@@ -60,9 +60,8 @@ vi.mock(
 );
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    getCurrentTurn: () => Color.Black,
     state: { cursor: { tesuuPointer: "0,[]" } },
-    view: { currentSfen: INITIAL_SFEN },
+    view: { currentSfen: INITIAL_SFEN, currentTurn: Color.Black },
   }),
 }));
 vi.mock("@/entities/file-tree", () => ({ useFileTree: () => ({ selectedNode: { id: "f" } }) }));
@@ -116,8 +115,8 @@ describe("候補手の表示モード", () => {
   });
 
   /**
-   * **最善手を別の箱にしない。** 箱にすると同じデータが2つの体系で並び、
-   * 表・詳細のモードと行の並びが揃わない。どのモードでも1行目に入る。
+   * 最善手を別の箱にしない。箱にすると同じデータが2つの体系で並び、
+   * 表と行のモードで並びが揃わない。どちらのモードでも1行目に入る。
    */
   test("どちらの見せ方でも最善手は一覧の1行目に入る", () => {
     saved.mode = "rows";

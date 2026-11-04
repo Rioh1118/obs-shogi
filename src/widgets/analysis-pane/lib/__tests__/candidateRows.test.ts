@@ -37,6 +37,14 @@ describe("候補手の行", () => {
     expect(rows.map((r) => r.isBest)).toEqual([false, true]);
   });
 
+  test("順位が1から始まらなくても、いちばん小さい順位を最善手とする", () => {
+    const raw = [candidate(3, cp(10)), candidate(2, cp(31))];
+
+    const rows = buildCandidateRows(raw, noMoves(2), [null, null]);
+
+    expect(rows.map((r) => r.isBest)).toEqual([false, true]);
+  });
+
   test("候補が無ければ行も無い", () => {
     expect(buildCandidateRows([], [], [])).toEqual([]);
   });

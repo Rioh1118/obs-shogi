@@ -1,12 +1,12 @@
-import { formatEvaluation } from "@/widgets/analysis-pane/lib/sfenConverter";
+import { formatEvaluation } from "@/widgets/analysis-pane/lib/evaluation";
 import type { FormattedMove } from "@/shared/lib/shogi/moveText";
 import "./MoveSequence.scss";
 import type { Evaluation } from "@/entities/engine";
 
-interface MoveSequenceProps {
-  moves: FormattedMove[];
+type MoveSequenceProps = {
+  moves: readonly FormattedMove[];
   evaluation?: Evaluation | null;
-}
+};
 
 function MoveSequence({ moves, evaluation }: MoveSequenceProps) {
   return (

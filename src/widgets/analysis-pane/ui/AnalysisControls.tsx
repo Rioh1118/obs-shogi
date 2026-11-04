@@ -12,7 +12,7 @@ import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 
 /**
- * 検討ビューの操作列。**ドックのタブ列の下の段に出る。**
+ * 検討ビューの操作列。ドックのタブ列の下の段に出る。
  *
  * 左が状態（語と経過秒）、右が操作。並びは
  * 盤と検討（向き・開始／中断）→ 局面の道具（ナビ・検索・課題局面）→ 設定。
@@ -20,7 +20,7 @@ import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
  * **候補手の見せ方はここに置かない。** 局面ごとに変える値ではなく好みなので、
  * 置き場は設定「表示」（ADR-0010 決定4 の改訂）。
  *
- * 記号は `lucide-react` から取る。**このリポジトリの図案はすべてそこ**なので、
+ * 記号は `lucide-react` から取る。このリポジトリの図案はすべてそこなので、
  * 新しい出どころを増やさない。
  */
 function AnalysisControls() {
@@ -36,7 +36,6 @@ function AnalysisControls() {
   const isBookmarked = !!findBySfen(currentSfen);
   const { isGotePov, toggle: handleTogglePov } = useBoardOrientation();
 
-  // 検討の開始／中断
   const handleToggleAnalysis = async () => {
     try {
       if (state.isAnalyzing || state.starting) {

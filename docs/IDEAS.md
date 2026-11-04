@@ -385,17 +385,6 @@ lint もテストもラチェットも赤くならない。
 0.25 / 0.35 / 0.4 / 0.45 / 0.5 / 0.52 / 0.55 / 0.6 / 0.66 の9通りに散っている。
 1つ選んでトークンにすれば、`scssScaleRatchet` と同じ形の件数ラチェットが張れる。
 
-## `sfenConverter.ts` から SFEN 変換が無くなったので改名する
-
-#95（定跡ビュー）のレビュー（architecture reviewer）。
-`formatMoveSequence` を `shared/lib/shogi/moveText.ts` へ下げた結果、
-`widgets/analysis-pane/lib/sfenConverter.ts` に残ったのは
-`formatEvaluation` と `evaluationToPercentage` だけになった。
-
-名前が中身と合っておらず、次に評価値の整形を探す人はこのファイルを開かない。
-`evaluation.ts` へ改名する（import 元は3ファイル）。
-ログのタグ `[SFEN_CONVERTER]` も、もうどのファイルも名乗っていない綴り。
-
 ## `pickBookFile` を `entities/book` へ移す
 
 #95（定跡ビュー）のレビュー（architecture reviewer）。

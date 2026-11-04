@@ -48,6 +48,17 @@ describe("操作列の語", () => {
 
     view.rerender(<EngineStatusLabel status="analyzing" currentSfen="P2" />);
     expect(statusText(view.container)).toBe("検討中0s");
+
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(statusText(view.container)).toBe("検討中1s");
+  });
+
+  test("1分を超えたら分と秒で出す", () => {
+    vi.useFakeTimers();
+    const view = render(<EngineStatusLabel status="analyzing" currentSfen="P1" />);
+    act(() => void vi.advanceTimersByTime(61_000));
+
+    expect(statusText(view.container)).toBe("検討中1m 1s");
   });
 
   test("検討完了は止まった時点の値で止まる", () => {
@@ -89,6 +100,26 @@ describe("語を押して出す文", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "設定を開く" }));
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("Escape で閉じる", () => {
+    render(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
+    fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  test("面の外を押すと閉じ、面の中を押しても閉じない", () => {
+    render(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
+    fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
+
+    fireEvent.mouseDown(screen.getByText("再起動してください。"));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    fireEvent.mouseDown(document.body);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -205,6 +236,14 @@ describe("▶ の位置のボタン", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "起動を中止" }));
     expect(on.onCancelStart).toHaveBeenCalledTimes(1);
+  });
+
+  test("起動が長引いた後でも、読み始めたら ■ に戻る", () => {
+    const on = { ...handlers(), slowStart: true };
+    render(<EngineAction status="analyzing" isAnalyzing stopping={false} canStart {...on} />);
+
+    expect(screen.queryByRole("button", { name: "起動を中止" })).toBeNull();
+    expect(screen.getByTitle("検討を中断")).toBeTruthy();
   });
 
   test("起動中は ▶ のままで、押すと ■ の意思が立つ", () => {

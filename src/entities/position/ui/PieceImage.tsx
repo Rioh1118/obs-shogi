@@ -26,7 +26,7 @@ const PIECE_LOOKS: Record<Kind, PieceLook> = {
 };
 
 type Props = {
-  /** 駒台と成りの選択は駒を素の文字列で運ぶので `string` で受ける。知らない駒は描かない */
+  /** 駒の種類。知らない綴りを受けたら何も描かない */
   kind: string;
   color: Color;
   onClick?: () => void;

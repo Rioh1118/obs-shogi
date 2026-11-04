@@ -19,6 +19,5 @@ export type {
   SetOptionValue,
   AnalysisCandidate,
   Evaluation,
-  EvaluationKind,
   UnresponsiveReason,
 } from "./api/rust-types";

@@ -1,18 +1,21 @@
-import type { AnalysisCandidate, Evaluation, EvaluationKind } from "@/entities/engine";
+import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import { Color } from "shogi.js";
 
-export function convertEvaluationToSenteView(
+/**
+ * 手番の側から見た評価値を、先手から見た値にする。
+ *
+ * エンジンは手番の側から見た値を返す。揃えないと、後手番の局面だけ符号が逆に読める。
+ */
+function convertEvaluationToSenteView(
   evaluation: Evaluation | null | undefined,
-  currentTurn: Color | null,
+  currentTurn: Color,
 ): Evaluation | null {
   if (!evaluation) return null;
-  if (currentTurn === null) return evaluation;
 
-  // 先手番ならそのまま、後手番なら符号反転
   const shouldFlip = currentTurn !== Color.Black;
   if (!shouldFlip) return evaluation;
 
-  const kind = evaluation.kind as EvaluationKind;
+  const kind = evaluation.kind;
 
   if (kind === "Centipawn") {
     return { ...evaluation, value: -evaluation.value };
@@ -30,7 +33,7 @@ export function convertEvaluationToSenteView(
       return {
         ...evaluation,
         value: -evaluation.value,
-        kind: { MateUnknown: !kind.MateUnknown }, // '+' <-> '-' を反転
+        kind: { MateUnknown: !kind.MateUnknown },
       };
     }
   }
@@ -38,9 +41,10 @@ export function convertEvaluationToSenteView(
   return { ...evaluation, value: -evaluation.value };
 }
 
+/** 候補手の評価値を先手から見た値にする。他の欄はそのまま */
 export function convertCandidateToSenteView(
   candidate: AnalysisCandidate,
-  currentTurn: Color | null,
+  currentTurn: Color,
 ): AnalysisCandidate {
   return {
     ...candidate,
