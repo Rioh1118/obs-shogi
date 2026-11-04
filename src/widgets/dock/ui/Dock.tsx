@@ -43,7 +43,7 @@ function Dock({ views }: { views: DockViewBindings }) {
    * 名乗った役が期待する操作を持たないと、支援技術は「1 / 3」と読み上げるのに
    * 矢印が効かない。選んでいないタブを Tab の順から外す（roving tabindex）のも同じ理由。
    */
-  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
     if (step === 0) return;
 
@@ -71,7 +71,7 @@ function Dock({ views }: { views: DockViewBindings }) {
   return (
     <section className="dock">
       {/* タブ列は器のもの。**ビューの境界の外**に置くので、ビューが落ちても残る */}
-      <div className="dock__tabs" role="tablist" aria-label="ドック" onKeyDown={onTabKeyDown}>
+      <div className="dock__tabs" role="tablist" aria-label="ドック" onKeyDown={handleTabKeyDown}>
         {tabs.map((key) => (
           <button
             key={key}

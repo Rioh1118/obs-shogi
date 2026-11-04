@@ -51,7 +51,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
   const sorted = sortBookRows(rows, sort);
   const barBase = maxCount(rows);
 
-  const header = ({ key, label }: { key: BookSortKey; label: string }) => {
+  const sortableHeader = ({ key, label }: { key: BookSortKey; label: string }) => {
     const active = sort.key === key;
     // 出現回数だけ見出しが4文字あり、中身も桁区切り付きで長い（`BookTable.scss`）
     const column = key === "count" ? "book-table__th--count" : "book-table__th--num";
@@ -87,7 +87,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
                 指し手
               </button>
             </th>
-            {SORTABLE.map(header)}
+            {SORTABLE.map(sortableHeader)}
             <th scope="col" className="book-table__th--ponder">
               応手
             </th>
