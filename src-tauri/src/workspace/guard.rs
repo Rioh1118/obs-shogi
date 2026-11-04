@@ -26,6 +26,10 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
         .map_err(|e| FsError::new(FsErrorCode::InvalidPath, e.to_string()))?
         // 置き場も借りる（理由は上）
         .join(settings::app::CONFIG_FILE);
+    read_root_dir(&cfg_path)
+}
+
+fn read_root_dir(cfg_path: &Path) -> Result<Option<PathBuf>, FsError> {
     if !cfg_path.exists() {
         return Ok(None);
     }
@@ -35,7 +39,7 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
     let named = |e: String| {
         FsError::new(FsErrorCode::InvalidPath, e).with_path(cfg_path.to_string_lossy().to_string())
     };
-    let data = fs::read_to_string(&cfg_path).map_err(|e| named(e.to_string()))?;
+    let data = fs::read_to_string(cfg_path).map_err(|e| named(e.to_string()))?;
     let cfg: settings::app::AppConfig =
         serde_json::from_str(&data).map_err(|e| named(e.to_string()))?;
     Ok(cfg.root_dir.map(PathBuf::from))
@@ -60,7 +64,11 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
 /// この検査は無効にできる。ここが止めているのは UI 側の取り違えと壊れたパスであって、
 /// webview を信用しない前提の防壁ではない → issue #215
 pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<(), FsError> {
-    let Some(root) = load_root_dir(app)? else {
+    check_under_root(load_root_dir(app)?, target)
+}
+
+fn check_under_root(root: Option<PathBuf>, target: &Path) -> Result<(), FsError> {
+    let Some(root) = root else {
         return Ok(());
     };
     let canonical_root = canonicalize_for_compare(&root)?;
@@ -80,7 +88,11 @@ pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Res
 /// root 自身の改名だけは行き先が root の**兄弟**になるので、
 /// `validate_under_root` では必ず落ちる。呼び出し側はこれで分岐する
 pub fn is_project_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<bool, FsError> {
-    let Some(root) = load_root_dir(app)? else {
+    is_root(load_root_dir(app)?, target)
+}
+
+fn is_root(root: Option<PathBuf>, target: &Path) -> Result<bool, FsError> {
+    let Some(root) = root else {
         return Ok(false);
     };
     Ok(canonicalize_for_compare(&root)? == canonicalize_for_compare(target)?)
