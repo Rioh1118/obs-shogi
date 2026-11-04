@@ -1,4 +1,4 @@
-import type { AnalysisCandidate, Evaluation, EvaluationKind } from "@/entities/engine";
+import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import { Color } from "shogi.js";
 
 /**
@@ -8,15 +8,14 @@ import { Color } from "shogi.js";
  */
 function convertEvaluationToSenteView(
   evaluation: Evaluation | null | undefined,
-  currentTurn: Color | null,
+  currentTurn: Color,
 ): Evaluation | null {
   if (!evaluation) return null;
-  if (currentTurn === null) return evaluation;
 
   const shouldFlip = currentTurn !== Color.Black;
   if (!shouldFlip) return evaluation;
 
-  const kind = evaluation.kind as EvaluationKind;
+  const kind = evaluation.kind;
 
   if (kind === "Centipawn") {
     return { ...evaluation, value: -evaluation.value };
@@ -45,7 +44,7 @@ function convertEvaluationToSenteView(
 /** 候補手の評価値を先手から見た値にする。他の欄はそのまま */
 export function convertCandidateToSenteView(
   candidate: AnalysisCandidate,
-  currentTurn: Color | null,
+  currentTurn: Color,
 ): AnalysisCandidate {
   return {
     ...candidate,

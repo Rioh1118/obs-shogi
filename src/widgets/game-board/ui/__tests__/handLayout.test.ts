@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { Piece } from "shogi.js";
+import { Piece, type Kind } from "shogi.js";
 
 import { useHandLayout } from "../useHandLayout";
 
@@ -83,16 +83,16 @@ describe("段ごとの駒の大きさ", () => {
   test("幅に収まる段は基準のまま、収まらない段は縮め、下限で止める", () => {
     const { layoutConfig } = layoutOf(...Array<string>(18).fill("FU"));
 
-    expect(layoutConfig.getRowConfig(Array<string>(5).fill("FU"))).toEqual({
+    expect(layoutConfig.getRowConfig(Array<Kind>(5).fill("FU"))).toEqual({
       pieceSize: 3.2,
       gap: 0.2,
     });
 
-    const crowded = layoutConfig.getRowConfig(Array<string>(6).fill("FU"));
+    const crowded = layoutConfig.getRowConfig(Array<Kind>(6).fill("FU"));
     expect(crowded.pieceSize).toBe(2.8);
     expect(crowded.gap).toBeCloseTo((0.2 * (18 * 0.95)) / (6 * 3.2 + 5 * 0.2));
 
-    const fits = layoutConfig.getRowConfig(Array<string>(4).fill("FU"));
+    const fits = layoutConfig.getRowConfig(Array<Kind>(4).fill("FU"));
     expect(fits).toEqual({ pieceSize: 3.2, gap: 0.2 });
   });
 

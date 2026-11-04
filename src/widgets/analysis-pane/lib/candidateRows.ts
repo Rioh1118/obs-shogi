@@ -1,4 +1,5 @@
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
+import type { FormattedMove } from "@/shared/lib/shogi/moveText";
 import { MULTIPV_MAX } from "@/entities/engine-presets/model/multiPv";
 
 /**
@@ -14,15 +15,12 @@ export type CandidateRow = {
   /** エンジンが付けた順位。1 が最善 */
   rank: number;
   /** 読み筋。盤の局面から指していく順の手 */
-  moves: readonly FormattedMoveLike[];
+  moves: readonly FormattedMove[];
   /** 先手視点の評価値（`convertCandidateToSenteView`） */
   evaluation: Evaluation | null;
   /** 最善手か（`rank` の最小値を持つ行） */
   isBest: boolean;
 };
-
-/** 読み筋の1手。`shared/lib/shogi/moveText` の `FormattedMove` と同じ形 */
-type FormattedMoveLike = { move: string; isBlack: boolean };
 
 /**
  * 候補手を画面の行に組む。
@@ -32,7 +30,7 @@ type FormattedMoveLike = { move: string; isBlack: boolean };
  */
 export function buildCandidateRows(
   raw: readonly AnalysisCandidate[],
-  senteMoves: readonly (readonly FormattedMoveLike[])[],
+  senteMoves: readonly (readonly FormattedMove[])[],
   senteEvaluations: readonly (Evaluation | null)[],
 ): CandidateRow[] {
   if (raw.length === 0) return [];

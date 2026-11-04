@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { Piece } from "shogi.js";
+import type { Kind, Piece } from "shogi.js";
 
 type HandPiece = {
-  kind: string;
+  kind: Kind;
   count: number;
 };
 
@@ -18,25 +18,25 @@ export type RowConfig = {
 };
 
 type ArrangedPieces = {
-  row1: string[];
-  row2: string[];
-  row3: string[];
-  row4: string[];
+  row1: Kind[];
+  row2: Kind[];
+  row3: Kind[];
+  row4: Kind[];
 };
 
 type ExtendedLayoutConfig = LayoutConfig & {
-  getRowConfig: (pieces: string[]) => RowConfig;
+  getRowConfig: (pieces: readonly Kind[]) => RowConfig;
 };
 
 /** 持ち駒を種類ごとの枚数にまとめる */
 function countByKind(pieces: Piece[]): HandPiece[] {
-  const pieceCount: { [key: string]: number } = {};
+  const pieceCount = new Map<Kind, number>();
 
   pieces.forEach((piece) => {
-    pieceCount[piece.kind] = (pieceCount[piece.kind] || 0) + 1;
+    pieceCount.set(piece.kind, (pieceCount.get(piece.kind) || 0) + 1);
   });
 
-  return Object.entries(pieceCount).map(([kind, count]) => ({
+  return [...pieceCount].map(([kind, count]) => ({
     kind,
     count,
   }));
@@ -92,9 +92,9 @@ function arrangeHandPieces(
 ): ArrangedPieces {
   const { maxPiecesPerRow } = layoutConfig;
 
-  const pieceOrder = ["HI", "KA", "KI", "GI", "KY", "KE", "FU"];
+  const pieceOrder: readonly Kind[] = ["HI", "KA", "KI", "GI", "KY", "KE", "FU"];
 
-  const allPieces: string[] = [];
+  const allPieces: Kind[] = [];
   pieceOrder.forEach((pieceType) => {
     const piece = organizedPieces.find((p) => p.kind === pieceType);
     if (piece) {
@@ -154,7 +154,7 @@ function arrangeHandPieces(
  *
  * 3枚までの段は1割大きくする。並べた幅が上限を超える段は縮め、駒は 2.8 より小さくしない。
  */
-function rowConfigFor(pieces: string[], layoutConfig: LayoutConfig): RowConfig {
+function rowConfigFor(pieces: readonly Kind[], layoutConfig: LayoutConfig): RowConfig {
   const pieceCount = pieces.length;
 
   if (pieceCount === 0) {
@@ -210,7 +210,7 @@ export function useHandLayout(handPieces: Piece[]) {
 
     const extendedLayoutConfig: ExtendedLayoutConfig = {
       ...layoutConfig,
-      getRowConfig: (pieces: string[]) => rowConfigFor(pieces, layoutConfig),
+      getRowConfig: (pieces: readonly Kind[]) => rowConfigFor(pieces, layoutConfig),
     };
 
     return {

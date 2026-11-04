@@ -118,7 +118,7 @@ export type StartFailure = {
   message: string;
 };
 
-export type EvaluationKind = "Centipawn" | { MateInMoves: number } | { MateUnknown: boolean };
+type EvaluationKind = "Centipawn" | { MateInMoves: number } | { MateUnknown: boolean };
 
 export type Evaluation = {
   value: number;

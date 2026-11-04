@@ -28,7 +28,7 @@ function CandidatesSection({ rows }: CandidatesSectionProps) {
   return (
     <section className="candidates-section">
       {rows.map((row) => (
-        <MoveSequence key={row.rank} moves={[...row.moves]} evaluation={row.evaluation} />
+        <MoveSequence key={row.rank} moves={row.moves} evaluation={row.evaluation} />
       ))}
       {rows.length === 0 && <p className="candidates-section__empty">{EMPTY_CANDIDATES}</p>}
     </section>

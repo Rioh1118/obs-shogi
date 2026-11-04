@@ -4,7 +4,7 @@ import "./MoveSequence.scss";
 import type { Evaluation } from "@/entities/engine";
 
 type MoveSequenceProps = {
-  moves: FormattedMove[];
+  moves: readonly FormattedMove[];
   evaluation?: Evaluation | null;
 };
 

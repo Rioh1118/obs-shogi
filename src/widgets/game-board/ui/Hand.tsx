@@ -10,6 +10,10 @@ type HandProps = {
   isSente: boolean;
 };
 
+/** 駒台の段を上から並べる順。後手は先手と上下を逆にする */
+const SENTE_ROWS = ["row1", "row2", "row3", "row4"] as const;
+const GOTE_ROWS = ["row4", "row3", "row2", "row1"] as const;
+
 /**
  * 片側の駒台。押した持ち駒を選び、手番でない側では選択を外すだけにする。
  *
@@ -19,7 +23,7 @@ type HandProps = {
 function Hand({ isSente }: HandProps) {
   const { state, view, selectHand, clearSelection } = useGame();
   const [markedPiece, setMarkedPiece] = useState<{
-    kind: string;
+    kind: Kind;
     nth: number;
   } | null>(null);
 
@@ -36,7 +40,7 @@ function Hand({ isSente }: HandProps) {
 
   const isThisHandSelected = selectedPosition?.type === "hand" && selectedPosition.color === color;
 
-  const isMarked = (pieceKind: string, nth: number) => {
+  const isMarked = (pieceKind: Kind, nth: number) => {
     return (
       isThisHandSelected &&
       selectedPosition.kind === pieceKind &&
@@ -45,7 +49,7 @@ function Hand({ isSente }: HandProps) {
     );
   };
 
-  const handlePieceClick = (pieceKind: string, nth: number) => {
+  const handlePieceClick = (pieceKind: Kind, nth: number) => {
     if (!isCurrentTurn) {
       clearSelection();
       return;
@@ -57,7 +61,7 @@ function Hand({ isSente }: HandProps) {
     }
 
     setMarkedPiece({ kind: pieceKind, nth });
-    selectHand(color, pieceKind as Kind);
+    selectHand(color, pieceKind);
   };
 
   const handleHandAreaPointerDown = (e: PointerEvent) => {
@@ -72,9 +76,9 @@ function Hand({ isSente }: HandProps) {
   };
 
   const renderPiecesInRow = (
-    pieces: string[],
+    pieces: readonly Kind[],
     rowConfig: RowConfig,
-    seenOfKind: Map<string, number>,
+    seenOfKind: Map<Kind, number>,
   ) => {
     return pieces.map((pieceKind) => {
       const nth = seenOfKind.get(pieceKind) ?? 0;
@@ -113,7 +117,7 @@ function Hand({ isSente }: HandProps) {
     }
   }, [isThisHandSelected, selectedPosition, markedPiece]);
 
-  const seenOfKind = new Map<string, number>();
+  const seenOfKind = new Map<Kind, number>();
 
   return (
     <div
@@ -122,25 +126,23 @@ function Hand({ isSente }: HandProps) {
       onPointerDown={handleHandAreaPointerDown}
     >
       <div className="hand-pieces">
-        {(isSente ? ["row1", "row2", "row3", "row4"] : ["row4", "row3", "row2", "row1"]).map(
-          (rowKey) => {
-            const pieces = arrangedPieces[rowKey as keyof typeof arrangedPieces];
-            const rowConfig = layoutConfig.getRowConfig(pieces);
+        {(isSente ? SENTE_ROWS : GOTE_ROWS).map((rowKey) => {
+          const pieces = arrangedPieces[rowKey];
+          const rowConfig = layoutConfig.getRowConfig(pieces);
 
-            return (
-              <div
-                key={rowKey}
-                className={`hand-row hand-${rowKey}`}
-                style={{
-                  gap: `${rowConfig.gap}em`,
-                  justifyContent: "center",
-                }}
-              >
-                {renderPiecesInRow(pieces, rowConfig, seenOfKind)}
-              </div>
-            );
-          },
-        )}
+          return (
+            <div
+              key={rowKey}
+              className={`hand-row hand-${rowKey}`}
+              style={{
+                gap: `${rowConfig.gap}em`,
+                justifyContent: "center",
+              }}
+            >
+              {renderPiecesInRow(pieces, rowConfig, seenOfKind)}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
