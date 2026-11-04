@@ -53,8 +53,7 @@ pub type EngineId = String;
 pub struct EngineProcess {
     pub id: EngineId,
     /// `canonicalize` を通した後の絶対パス。呼び出し側が渡した文字列ではない
-    pub engine_path: String,
-    pub work_dir: String,
+    engine_path: String,
     pub info: EngineInfo,
     protocol: Arc<UsiProtocol>,
 }
@@ -233,7 +232,7 @@ impl EngineRegistry {
                 log::error!(target: LOGT, "spawn: failed: {why}");
                 EngineError::StartupFailed(format!("Failed to spawn engine: {why}"))
             })?;
-            Ok((engine_path, work_dir, spawned))
+            Ok((engine_path, spawned))
         });
 
         // `spawn_blocking` は上限を効かせるための前提で、上限そのものではない。
@@ -249,7 +248,7 @@ impl EngineRegistry {
             tokio::spawn(dispose_late_spawn(started));
             return Err(cancelled_while_starting());
         };
-        let (engine_path, work_dir, spawned) = match waited {
+        let (engine_path, spawned) = match waited {
             Ok(Ok(Ok(started))) => started,
             Ok(Ok(Err(e))) => return Err(e),
             // 専用スレッドが落ちた。プロセスは起きていない
@@ -302,7 +301,6 @@ impl EngineRegistry {
         let process = Arc::new(EngineProcess {
             id: id.clone(),
             engine_path,
-            work_dir,
             info,
             protocol,
         });
@@ -372,9 +370,9 @@ fn disposing_line(path: &str) -> String {
 /// （→ `starting` の doc）、落とし手はこの1回きり。Drop に任せても落ちるが、
 /// それだと落とせたかがどこにも残らない。
 async fn dispose_late_spawn(
-    started: tokio::task::JoinHandle<Result<(String, String, EngineChild), EngineError>>,
+    started: tokio::task::JoinHandle<Result<(String, EngineChild), EngineError>>,
 ) {
-    let Ok(Ok((path, _, child))) = started.await else {
+    let Ok(Ok((path, child))) = started.await else {
         return;
     };
     log::warn!(target: LOGT, "{}", disposing_line(&path));
