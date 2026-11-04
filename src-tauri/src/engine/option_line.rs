@@ -89,6 +89,11 @@ const KEYWORDS: [&str; 4] = ["default", "min", "max", "var"];
 ///   後ろが空か `<empty>` なら空文字、`default` が無ければ `None`
 /// - 他の型の値は、次の区切りの語（`default` / `min` / `max` / `var`）の直前まで
 /// - 型の綴りは大文字小文字を区別しない
+///
+/// # エラー
+///
+/// 行の形が崩れていれば `OptionLineError` を返す。どの形で何を返すかは変種の doc。
+/// 名前か1つの値が `MAX_OPTION_VALUE` を超える行は解かずに `ValueTooLong` を返す。
 pub fn parse_option_line(line: &str) -> Result<ParsedOption, OptionLineError> {
     let words = tokens(line);
     let word = |i: usize| words.get(i).map(|(_, w)| *w);

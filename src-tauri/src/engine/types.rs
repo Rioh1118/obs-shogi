@@ -1,3 +1,8 @@
+//! `engine` の段が共に使う型と、webview へ出す線の形。判断は持たない（`tests/layering.rs` の段 `types`）。
+//!
+//! serde の欄と変種の綴りは線の名前で、TS の `rust-types.ts` が同じ綴りで読む。
+//! 片側だけ変えても型の検査では落ちず、フロントは欄を空として読む。
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -520,10 +525,17 @@ pub enum AnalysisEvent {
     EngineAnswered(EngineAnswered),
 }
 
-/// 解析の出来事の宛先。**実装は上の段（`commands::analysis`）に置く**——
-/// 下が `tauri` を知らない、を保つため（`GameEventSink` と同じ形）
+/// 解析の出来事の宛先。実装は上の段（`commands::analysis`）に置く。下が `tauri` を知らない、を
+/// 保つため（`GameEventSink` と同じ形）。
+///
+/// 実装が守る契約:
+///
+/// - `emit` は tokio のタスクから同期で呼ばれる。**待たずに返ること。** 止まると、同じワーカに
+///   載っている解析の進行が止まる
+/// - 宛先のロックを放してから呼ばれる（`EngineBridge::emit_to`）
+/// - 失敗しても解析を止めない。扱いは実装側が決める
 pub trait AnalysisEventSink: Send + Sync + 'static {
-    /// 1件流す。**失敗しても解析を止めない。** 扱いは実装側が決める
+    /// 1件流す
     fn emit(&self, event: AnalysisEvent);
 }
 
