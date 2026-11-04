@@ -216,7 +216,7 @@ describe("局面の移動", () => {
     act(() => game.current!.goToEnd());
     expect(game.current!.canGoBackward()).toBe(true);
     expect(game.current!.canGoForward()).toBe(false);
-    expect(game.current!.getTotalMoves()).toBe(3);
+    expect(game.current!.view.totalMoves).toBe(3);
   });
 
   test("移動すると駒の選択を解く", async () => {

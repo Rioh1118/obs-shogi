@@ -571,8 +571,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     return state.cursor?.tesuu ?? 0;
   }, [state.cursor]);
 
-  const getTotalMoves = useCallback(() => view.totalMoves, [view.totalMoves]);
-
   const applyCursor = useCallback(
     (cursor: CursorPath) => {
       if (!state.jkf) return;
@@ -623,7 +621,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       canGoForward,
       canGoBackward,
       getCurrentMoveIndex,
-      getTotalMoves,
       applyCursor,
     }),
     [
@@ -649,7 +646,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       canGoForward,
       canGoBackward,
       getCurrentMoveIndex,
-      getTotalMoves,
       applyCursor,
     ],
   );
