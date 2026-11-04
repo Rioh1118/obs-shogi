@@ -252,18 +252,18 @@ describe("盤の保存先を渡す器", () => {
   });
 
   test("開いている棋譜のパスと形式で書く", () => {
-    tree = { activeKifuPath: "/ws/a.kif", kifuFormat: "kif" };
+    tree = { activeKifuPath: "/ws/a.ki2", kifuFormat: "ki2" };
     render(<GamePersistenceGate>{child}</GamePersistenceGate>);
 
     const persistence = seen.GameProvider.persistence as {
       absPath: string;
       save: (jkf: JKFData) => unknown;
     };
-    expect(persistence.absPath).toBe("/ws/a.kif");
+    expect(persistence.absPath).toBe("/ws/a.ki2");
 
     const jkf = { header: {}, moves: [{}] } as JKFData;
     persistence.save(jkf);
-    expect(saveKifuToFile).toHaveBeenCalledWith(jkf, "/ws/a.kif", "kif");
+    expect(saveKifuToFile).toHaveBeenCalledWith(jkf, "/ws/a.ki2", "ki2");
   });
 
   test("パスと形式が変わらなければ、同じ保存先を渡し続ける", () => {
