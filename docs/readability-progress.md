@@ -72,7 +72,8 @@ ours 戦略のマージは使わない。
 | 36 | `refactor/tidy-rust-storage` | `src-tauri/src/storage`（Rust の範囲2）、`.` の後ろだけが違う key の取り違え | #705 | マージ済み |
 | 37 | `refactor/tidy-rust-kifu-workspace` | `src-tauri/src/kifu`、`src-tauri/src/workspace`（Rust の範囲3） | #706 | マージ済み |
 | 38 | `refactor/tidy-rust-ai-library` | `src-tauri/src/ai_library`（Rust の範囲4） | #707 | マージ済み |
-| 39 | `refactor/tidy-rust-engine-launchable` | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（Rust の範囲5） | #709 | レビュー待ち |
+| 39 | `refactor/tidy-rust-engine-launchable` | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（Rust の範囲5） | #709 | マージ済み |
+| 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | — | レビュー待ち |
 
 ## 語
 
@@ -137,7 +138,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1895  | 済       |
 | 4  | `src-tauri/src/ai_library`                             | 808   | 済       |
 | 5  | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line` | 1787 | 済 |
-| 5b | `src-tauri/src/engine` の `child`、`registry` | 1590 | 未着手 |
+| 5b | `src-tauri/src/engine` の `child`、`registry` | 1590 | 済 |
 | 5c | `src-tauri/src/engine/protocol.rs` | 2437 | 未着手 |
 | 6  | `src-tauri/src/engine` の `option_labels` から `start_failure` まで |  | 未着手 |
 | 7  | `src-tauri/src/engine/game`                            |       | 未着手   |
@@ -205,16 +206,19 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/crates/settings/src/app.rs` の `back_up_file` | 退避先の番号は `.broken.99` まで進むと、それが在るかを見ずに使うので、`app.json.broken` から `.broken.99` まで100個在ると、`.broken.99` を上書きする。未再現（範囲1bでパスを受ける関数に割ったので、テストで作れる）。100回壊れることはまず無いので、直すか（在れば `Err` を返す）を `app.json` の退避を次に触るときに決める |
 | `src-tauri/src/workspace/commands` と `kifu/commands.rs` の `write_kifu_to_file` の本体 | `AppHandle` を受けるので、crate のテストが届かない。範囲3では `guard.rs` の判定だけをパスで受ける関数へ割った。本体まで割ると、`tests/root_guard.rs` が `#[command]` の本体で読む検査の順が見えなくなる。ルートの走査が落とさなかった変異は2本: `rename_directory` の `is_project_root` の分岐を外す（ワークスペースそのものの改名が root の外として断られる）と、`create_kifu_file` の2本目の `validate_under_root` を外す（名前は `validate_basename` を通るので行き先は変わらない）。`tauri` の `test` の feature を dev-dependencies で有効にすれば `mock_app` で呼べるが、`Cargo.toml` は範囲3の外。mock の識別子は既定で空なので、`app_config_dir` が利用者のホームの下を指す。一時の名前を付けて呼ぶ |
 | `docs/spec/screens/file-tree.md` の「読み取れないサブフォルダが黙って消える → #179」 | #179 は「仕様上こうなっているで良い」で閉じたが、仕様は「いま満たしていないこと」に載せたまま。`workspace/tree.rs` の `build_file_tree_recursive` は、読めない行と root の外へ出る symlink を黙って落とす。範囲3では、コメントを仕様の文に合わせた。仕様の行を「できること」へ移すか、#179 を開き直すかを決める |
+| `src-tauri/src/engine/registry.rs` の `spawn_cancellable` を待つ future を捨てたとき | `usiok` を待つ間に future を捨てると、プロセスは起動中の置き場（`starting`）に残り、`shutdown_all` まで落ちない。範囲5bで使い捨てのテストを書いて確かめ、doc に書いた。取り消しは `cancel` で行う契約にしてある。呼び手は `analyzer` と `probe`（`spawn_cancellable`）と対局の `session.rs`（`spawn`）の3つで、どれかが future を捨てる経路を持つかは確かめていない。持つなら、置き場から外す Drop の見張りを足すかを決める。未再現 |
+| `src-tauri/src/engine/registry.rs` の `EngineProcess::protocol` が返す `Arc<UsiProtocol>` | 台帳と呼び手が同じ1本を共有する（R-RSM-7 の境界の漏れの grep に当たる）。台帳は落とすために、呼び手は送るために持つ。`UsiProtocol` の側で、送る面と落とす面を分けるかを範囲5cで決める |
+| `src-tauri/src/engine/registry.rs` の `EngineRegistry` の `Debug` | 欄の `UsiProtocol` が `Debug` を持たないので付けられない（R-RSA-3）。範囲5cで `UsiProtocol` に付けるときに合わせて付ける |
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で取った。次は Rust の範囲5b。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で取った。次は Rust の範囲5c。
 
-範囲5b: `src-tauri/src/engine` の `child`、`registry`（1590行。ファイル内のテストを含む。2026-11-04 に数えた）。
-その次の範囲5cは `protocol.rs`（2437行）。`protocol.rs` はテストを除くと1635行で、ファイル内のテストが802行ある。
+範囲5c: `src-tauri/src/engine/protocol.rs`（2437行。ファイル内のテストを含む）。テストを除くと1635行で、ファイル内のテストが802行ある。
 範囲5cを取るときに、テストを外へ出さずに取れるかを決める。
+所見の表の `Arc<UsiProtocol>` の共有と `EngineRegistry` の `Debug` の行は、範囲5cで決める。
 
-範囲5bの2つのファイルにも `#[command]` は無く、`AppHandle` も受けない。crate の中のテストから直接呼べる。
+`protocol.rs` にも `#[command]` は無く、`AppHandle` も受けない。crate の中のテストから直接呼べる。
 `tests/layering.rs` は `engine` の段の上下を
 ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。
 所見の表の `utils.rs` の役割の行は、割るなら独立した段にする。
