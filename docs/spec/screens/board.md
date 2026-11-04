@@ -48,7 +48,7 @@
 | P1   | 何も選んでいない | `selectedPosition === null`          | 局面だけ                     |
 | P2   | 盤の駒を選択中   | `selectedPosition.type === "square"` | 選択＋着手可能マスの強調     |
 | P3   | 持ち駒を選択中   | `selectedPosition.type === "hand"`   | 同上（打てるマスの強調）     |
-| P4   | 成りを聞いている | `promotionState !== null`            | 移動先のマスに成／不成の選択 |
+| P4   | 成りを聞いている | `pendingPromotion !== null`          | 移動先のマスに成／不成の選択 |
 
 ※ `Board` の中に「盤面を読み込み中...」を返す枝は在るが、**そこへは来ない。**
 `AppLayout` が同じ `view` の `hasKifu` で門番していて、`Board` が描かれた時点では
