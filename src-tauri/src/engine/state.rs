@@ -17,7 +17,7 @@ use super::registry::EngineRegistry;
 
 /// Tauri の `State` に載せる持ち物。
 ///
-/// **`registry` は1つを対局と解析で共有する。** 理由は `EngineRegistry::new`。
+/// **`registry` は1つを対局と解析で共有する。** 理由は `EngineRegistry` の doc。
 pub struct AppState {
     pub bridge: Arc<EngineBridge>,
     pub registry: Arc<EngineRegistry>,

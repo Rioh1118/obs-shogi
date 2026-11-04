@@ -1,16 +1,18 @@
 //! エンジンの子プロセスと、その標準入出力の持ち主。
 //!
+//! 隠すのは、OS のプロセスとパイプをどう持ち、どう読み書きして落とすか。
+//!
 //! **stdin・stdout・stderr・プロセスをそれぞれ別の持ち主にする。** 1つの構造体を
 //! 1つのロックの下に置くと、stdin への書き込みが詰まったときに同じロックを待つ
 //! kill が返らない。ここでは kill はチャンネルで待ち手のタスクへ頼むだけで、
-//! stdin のロックを**待たない**。
+//! stdin のロックを待たない。
 //!
-//! 書き手（`ChildWriter`）と読み手（`read_stdout`）は**1回きり**しか渡さない。
+//! 書き手（`ChildWriter`）と読み手（`read_stdout`）は1回きりしか渡さない。
 //! 2本目の書き手ができると、書き込みの列（`protocol::run_writer`）が守っている
 //! 「投入順＝ワイヤ上の順」を迂回できる。
 //!
 //! 行の解析は `usi` crate の `EngineCommand::parse` に任せる。任せないのは読み方で、
-//! 解けない行・UTF-8 でない行・長すぎる行があっても**読み取りを止めない**
+//! 解けない行・UTF-8 でない行・長すぎる行があっても読み取りを止めない
 //! （止めると以後の出力が全部消え、エンジンが生きたまま「出力が終わった」に見える）。
 
 use std::collections::VecDeque;
@@ -100,10 +102,17 @@ pub enum KillOutcome {
 ///
 /// **Drop するとプロセスも落ちる**（待ち手が kill の頼みのチャンネルが閉じたことで気付き、
 /// プロセスグループごと落とす）。落とし損ねてもパニックはしない。
+///
+/// 欄のロックはどれも、別のロックを握ったまま取らない。
 pub struct EngineChild {
+    /// 書き手と `close_stdin` が共有する stdin。`None` は閉じた後。書き手が書き込みの
+    /// `await` の間握るので tokio の `Mutex` にしてある
     stdin: Arc<Mutex<Option<ChildStdin>>>,
+    /// まだ渡していない書き手。`take_writer` で `None` になる
     writer: StdMutex<Option<ChildWriter>>,
+    /// まだ読み始めていない stdout。`read_stdout` で `None` になる
     stdout: StdMutex<Option<ChildStdout>>,
+    /// 待ち手のタスクへ落とすよう頼む送り手。頼んだら `None` になる
     kill: StdMutex<Option<oneshot::Sender<()>>>,
     diagnostics: ChildDiagnostics,
 }
@@ -117,6 +126,7 @@ pub struct EngineChild {
 pub struct ChildDiagnostics {
     exit: watch::Receiver<Option<Exit>>,
     stderr_done: watch::Receiver<bool>,
+    /// 直近の出力。stdout と stderr の読み手のタスクが足し、`recent_lines` が写して返す
     recent: Arc<StdMutex<VecDeque<(Source, String)>>>,
 }
 
@@ -136,6 +146,7 @@ pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        // 待ち手のタスクごと捨てられたとき（ランタイムが畳まれたとき）にも残さない
         .kill_on_drop(true);
     #[cfg(unix)]
     command.process_group(0);
@@ -248,6 +259,9 @@ impl EngineChild {
     /// 落とすのは待ち手のタスクに頼むだけで、stdin のロックを**待たない**。
     /// 書き込みが詰まっていても落とせる。`quit` は書かない（行儀よく終わらせたい呼び手は
     /// 先に `quit` を送る）。
+    ///
+    /// 待つのを途中でやめても、頼みは取り消されない。落とすのは待ち手のタスクで、
+    /// 終わりは `ChildDiagnostics::wait_exit` で見られる。
     pub async fn kill_and_wait(&self, limit: Duration) -> KillOutcome {
         self.close_stdin();
         if self.diagnostics.exit_now().is_some() {
@@ -343,7 +357,11 @@ impl ChildWriter {
     /// 1行を書く。改行はこちらで足す。
     ///
     /// 落とした後（stdin を閉じた後）は `NotConnected` を返す。相手が読む側を閉じた
-    /// `BrokenPipe` とは原因が違うので分ける
+    /// `BrokenPipe` とは原因が違うので分ける。
+    ///
+    /// 書いている途中で future を捨てると、行の前半だけがパイプに残り、エンジンは次の行と
+    /// 繋げて読む。呼び手（`protocol::run_writer`）は別のタスクに出し、待つのをやめても
+    /// 書き込みは取り消さない
     pub async fn write_line(&self, line: &str) -> std::io::Result<()> {
         let mut guard = self.stdin.lock().await;
         let Some(stdin) = guard.as_mut() else {
