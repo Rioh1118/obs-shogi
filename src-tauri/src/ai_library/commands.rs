@@ -49,14 +49,7 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, F
     // （`join("..")` は親へ抜ける。`create_dir_all` は途中の段も黙って作る）。
     let trimmed = validate_basename(&name)?;
 
-    // **作成を断る側は大文字小文字を無視する。** macOS の既定（APFS）は
-    // case-insensitive なので、`Engines` は Rust の `==` では別物でも
-    // ファイルシステムでは `engines` と同じ実体。通すと `eval` / `book` が
-    // エンジンの置き場の中に作られ、しかも `profile::read_all` は実際の名前
-    // （`engines`）を読んで除外するので、一覧には出ない。
-    //
-    // 除く側（`profile::read_all`）は逆に綴りで比べる。理由はあちらに書いてある
-    if trimmed.eq_ignore_ascii_case(ENGINES_DIR) {
+    if is_engines_dir_name(&trimmed) {
         return Err(FsError::new(
             FsErrorCode::InvalidNameReserved,
             format!("{ENGINES_DIR} is reserved for engine binaries"),
@@ -75,6 +68,19 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, F
 
     profile::create_dirs(&path)?;
     Ok(path.to_string_lossy().to_string())
+}
+
+/// AI フォルダの名前が engines/ と同じ実体を指すか。
+///
+/// **作成を断る側は大文字小文字を無視する。** macOS の既定（APFS）は
+/// case-insensitive なので、`Engines` は Rust の `==` では別物でも
+/// ファイルシステムでは `engines` と同じ実体。通すと `eval` / `book` が
+/// エンジンの置き場の中に作られ、しかも `profile::read_all` は実際の名前
+/// （`engines`）を読んで除外するので、一覧には出ない。
+///
+/// 除く側（`profile::read_all`）は逆に綴りで比べる。理由はあちらに書いてある
+fn is_engines_dir_name(name: &str) -> bool {
+    name.eq_ignore_ascii_case(ENGINES_DIR)
 }
 
 /// `<ai_root>/engines` を作り、そのパスを返す。在ればそのまま返す
