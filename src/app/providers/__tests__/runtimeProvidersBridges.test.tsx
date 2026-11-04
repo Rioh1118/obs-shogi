@@ -10,10 +10,10 @@ import type { ReactNode } from "react";
  * 型も通るしレンダも通る。起きるのは「棋譜を変えても向きが戻らない」
  * 「エンジンが起動できなくても画面に何も出ない」だけで、例外もエラー表示も出ない。
  *
- * **器の形をしている `EngineRuntimeBridge` / `AnalysisBridge` は対象外。**
+ * 器の形をしている `EngineRuntimeBridge` / `AnalysisBridge` は対象外。
  * あちらは provider を張るので、外せば `useEngine` / `useAnalysis` が投げる。
  *
- * **見ているのは描かれることだけで、どこに載っているかではない。**
+ * 見ているのは描かれることだけで、どこに載っているかではない。
  * `EngineFailureBridge` は `EngineProvider` の内側に居る必要があるが、
  * ここは `EngineRuntimeBridge` を素通しに差し替えているので、外へ動かしても緑になる。
  *
@@ -29,7 +29,7 @@ vi.mock("../gates/FileTreeRootGate", () => passthrough("FileTreeRootGate"));
 // 棋譜の器。**`GamePersistenceGate` はここでは差し替えない** —— 張るのは
 // この `GameMoveGate` の中なので、素通しにした時点で実物ごと描かれなくなる。
 // 実物は `GameSessionProvider` の内側でしか組めない。
-// **`passthrough` を使わない** —— 計算した鍵では、差し替える先の形と結び付かない
+// `passthrough` を使わない —— 計算した鍵では、差し替える先の形と結び付かない
 vi.mock(
   "../gates/GameMoveGate",
   () =>

@@ -12,7 +12,7 @@ function AppLoading() {
 
   if (isLoading) return <BootSplash />;
   if (error) {
-    // **行き止まりにしない。** 文だけを出すと、アプリを終了する以外に何もできない
+    // 行き止まりにしない。文だけを出すと、アプリを終了する以外に何もできない
     // 画面になる（次の起動でも同じ）。出口はワークスペースを選び直すことしかない。
     //
     // **`FolderSelect` は置けない。** あちらは `config.root_dir` があれば `/app` へ

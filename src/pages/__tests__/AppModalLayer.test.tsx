@@ -169,7 +169,7 @@ describe("衝突の解決", () => {
  * `.app-layout` は `grid-template-rows` が2段なので、**箱を作る fallback を出すと
  * 本体が暗黙の3段目へ押し出されて `overflow: hidden` に切られる。**
  *
- * 鍵は `location.key` と、URL を持たない2枚の入力。**`params.modal` で数え上げない** ——
+ * 鍵は `location.key` と、URL を持たない2枚の入力。`params.modal` で数え上げない ——
  * この層は `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べると足し忘れる。
  */
 describe("モーダル層の境界", () => {

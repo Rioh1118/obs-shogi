@@ -10,7 +10,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
  * `TitleBar` は `RuntimeShell` の中に居る。root まで例外が上がると枠ごと消えるので、
  * 画面には閉じるボタンもドラッグ領域も残らず、利用者に残るのは強制終了だけになる。
  *
- * 境界を1枚外しても**型でもレンダでも落ちない**（React は静かに root を unmount する）。
+ * 境界を1枚外しても型でもレンダでも落ちない（React は静かに root を unmount する）。
  * 実際に throw させて、枠が出ることをここで固定する。
  */
 

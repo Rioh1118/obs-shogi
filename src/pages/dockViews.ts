@@ -9,8 +9,8 @@ import type { DockViewBindings } from "@/widgets/dock/model/bindings";
 /**
  * ドックのタブの綴りから、実際の部品へ。
  *
- * **面を1枚足すときに触る場所の出典は `docs/spec/screens/app-layout.md` の
- * 「ドック」の表。** ここに件数を書かない（増える場所が変わったときに片方だけ腐る）。
+ * 面を1枚足すときに触る場所の出典は `docs/spec/screens/app-layout.md` の
+ * 「ドック」の表。ここに件数を書かない（増える場所が変わったときに片方だけ腐る）。
  *
  * 割り当てだけがここに在るのは、`widgets/dock` がビューのスライスを直に読むと
  * 「widgets に同層横断を1組も作らない」を破るため。

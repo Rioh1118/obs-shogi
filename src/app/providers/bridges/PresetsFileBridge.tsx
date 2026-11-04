@@ -26,7 +26,7 @@ const PRESETS_LOAD_FAILURE = "presets-load-failure";
  * 設定を開いていない。帯と通知はどの画面にも届く（ADR-0004）。
  *
  * 見せ方は種類ごとの表（`presetsLoadNoticeView` / `PRESETS_SAVE_NOTICES`）から組む。
- * **読み込むたびに出し直す**（`loadSeq`）——閉じた通知も、読み直して同じ状態なら戻る。
+ * 読み込むたびに出し直す（`loadSeq`）。閉じた通知も、読み直して同じ状態なら戻る。
  * Rust が返す理由の文字列（`reason` / `message`）は利用者の言葉ではないのでログへ回す。
  */
 export function PresetsFileBridge() {

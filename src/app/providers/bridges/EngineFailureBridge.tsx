@@ -4,8 +4,8 @@ import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 /**
- * 引っ込めるための取っ手。**帯は条件（`engineFailureNoticeOf` が文を返す間）と結び付いている**ので、
- * 抜けたときに指せる名前が要る（`NotificationActions`）。
+ * 起動の失敗の帯を引っ込めるための取っ手。帯は `engineFailureNoticeOf` が文を返す間だけ出るので、
+ * 条件を抜けたときに指せる名前が要る（`NotificationActions`）。
  *
  * **畳む鍵（`dedupeKey`）ではない。** この帯は条件から出ていて2枚目が積まれようが
  * ないので、畳む鍵にすると「1件」が出たまま動かない（`Notification.count`）。
@@ -16,18 +16,18 @@ const ENGINE_FAILURE = "engine-failure";
 const ENGINE_SLOW_START = "engine-slow-start";
 
 /**
- * エンジンを起動できなかったこと、起動に時間が掛かっていることを利用者へ届ける
+ * エンジンを起動できなかったこと、止まったこと、起動に時間が掛かっていることを帯で利用者へ届ける
  * （`failure-surfacing.md` の F-9。帯の段は種類ごと。`ENGINE_START_FAILURE_NOTICES`）。
  *
  * **エンジンの失敗の文を出すのはここだけ。** 操作列（`AnalysisControls`）は語とボタンだけを持ち、
  * 理由を言わない。ここが黙ると、理由も次の一手もどこにも出ない。
  * 帯にするのは、エンジンが要る画面（解析ペイン）と直せる画面（設定）が
- * 別なので、**どちらを開いていても届く必要がある**ため。
+ * 別なので、どちらを開いていても届く必要があるため。
  *
- * **見ているのは `phase` と失敗の種類（`state.error.kind`）。** 段・本文・「もう一度起動」を
- * 出すかは種類ごとの表（`ENGINE_START_FAILURE_NOTICES`。決め方はその doc）から組む。
+ * 段・本文・「もう一度起動」を出すかは `engineFailureNoticeOf` が `phase`、失敗の種類
+ * （`state.error.kind`）、応答しない理由、プリセットの未設定から決める。
  * `state.error.message` はエンジンの出力を含み利用者の言葉ではないので、画面に出さずログへ回す。
- * 状態としてのエラーを描かずに通知へ回すのは ADR-0004 決定6——
+ * 状態としてのエラーを描かずに通知へ回すのは ADR-0004 決定6。
  * 帯を閉じてもエンジンが起動していないことは変わらない。
  */
 export function EngineFailureBridge() {
@@ -36,8 +36,8 @@ export function EngineFailureBridge() {
   const { openModal } = useURLParams();
 
   // 押されるのは通知に積まれたあと。`openModal` は URL が変わるたびに別物になるので、
-  // 下の effect の依存に入れると**画面を動かすたびに cleanup → `notify` が走り、
-  // 利用者が閉じた帯が黙って戻る**
+  // 下の effect の依存に入れると、画面を動かすたびに cleanup → `notify` が走り、
+  // 利用者が閉じた帯が黙って戻る
   const openSettings = useRef(openModal);
   useEffect(() => {
     openSettings.current = openModal;
@@ -80,8 +80,8 @@ export function EngineFailureBridge() {
 
   const notice = engineFailureNoticeOf({ phase, error, unresponsiveReason, presetIncomplete });
 
-  // 文は `engineFailureNoticeOf` が操作列のポップオーバーと共有する。**動作はここで組む。**
-  // 段を抜けたら引っ込める——動いているエンジンの上に古い帯を残さない（帯はヘッダを覆う）
+  // 文は `engineFailureNoticeOf` が操作列のポップオーバーと共有し、動作はここで組む。
+  // 段を抜けたら引っ込める。動いているエンジンの上に古い帯を残さない（帯はヘッダを覆う）
   const tier = notice?.tier;
   const title = notice?.title;
   const body = notice?.body;
@@ -95,7 +95,7 @@ export function EngineFailureBridge() {
       label: "設定を開く",
       run: () => openSettings.current("settings", { tab: "engine" }),
       // 帯はヘッダを覆っているので、閉じるまで歯車には届かない。
-      // **タブまで書く**——歯車が開くのはワークスペースタブ
+      // 歯車が開くのはワークスペースタブなので、行き先のタブまで書く
       failureBody:
         "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
     };
@@ -110,7 +110,7 @@ export function EngineFailureBridge() {
       tier,
       title,
       body,
-      // **帯はヘッダを覆う**ので、閉じる以外にやることが無い帯は出せない
+      // 帯はヘッダを覆うので、閉じる以外にやることが無い帯は出せない
       //（`NotificationLayer.scss`）。「設定を開く」は全部に付ける
       presentation: "banner",
       dismissKey: ENGINE_FAILURE,

@@ -23,14 +23,14 @@ import StudyPositionsManagerModal from "@/features/study-positions-manager/ui/St
 /**
  * この層を包む境界に渡す鍵。
  *
- * **入力を param ごとに数え上げない。** ここに居る8枚は `modal` だけでなく
- * `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べる形は**足し忘れる規則**になる。
+ * 入力を param ごとに数え上げない。URL で開くモーダルは `modal` だけでなく
+ * `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べる形は足し忘れる規則になる。
  * `location.key` は遷移のたびに1つ変わるので、いま読んでいる param も、あとで増える param も、
  * 同じ URL へ開き直した操作もまとめて拾える。
  *
- * **URL を持たない2枚**（`FileConflictDialog` / `KifuReadErrorDialog`）だけは別に並べる。
+ * URL を持たない2枚（`FileConflictDialog` / `KifuReadErrorDialog`）の入力だけは別に並べる。
  * この2枚が落ちると、原因を消す関数（`clearKifuError` / `closeConflict`）も畳まれた側に居るので、
- * 鍵が動かなければ**そのセッションではどのモーダルも二度と出ない。**
+ * 鍵が動かなければそのセッションではどのモーダルも二度と出ない。
  *
  * **URL を持たない入力をここに足すときは、鍵にも足すこと。**
  */
@@ -46,9 +46,9 @@ function useModalLayerResetKeys(): readonly unknown[] {
  * 流れの中の箱で置き換えると `.app-layout` の grid の1段目を取り、本体が
  * 暗黙の3段目へ押し出されて `overflow: hidden` に切られる（`ModalLayerContent` の doc）。
  *
- * **立っている知らせを捨てる出口を持つのはここ。** 消す関数（`clearKifuError` /
+ * 立っている知らせを捨てる出口を持つのはここ。消す関数（`clearKifuError` /
  * `closeConflict`）は畳まれた側にしか無いので、境界の外に居るこの部品が呼ぶ。
- * 出口を押した結果を出す `dropped` も、押されるまで存在しない state なので**ここが持つ。**
+ * 出口を押した結果を出す `dropped` も、押されるまで存在しない state なのでここが持つ。
  */
 function ModalLayerErrorFallback(view: ErrorBoundaryView) {
   const { conflict, kifuError, closeConflict, clearKifuError } = useFileTree();
@@ -57,17 +57,17 @@ function ModalLayerErrorFallback(view: ErrorBoundaryView) {
   /**
    * まだ画面に出したい知らせが立っているか。
    *
-   * **立っている知らせそのものが落ちる原因のことがある。** そのときは鍵が動いても直らない
-   * —— 解けた瞬間に同じ値をもう一度描いて落ちるので、**別のモーダルを開く操作が、
+   * 立っている知らせそのものが落ちる原因のことがある。そのときは鍵が動いても直らない。
+   * 解けた瞬間に同じ値をもう一度描いて落ちるので、**別のモーダルを開く操作が、
    * そのまま行き止まりを踏む操作になる。**
    */
   const hasStandingNotice = conflict !== null || kifuError !== null;
 
   /**
-   * 出口が捨てるものは、知らせによって重さが違う。
+   * 出口のボタンの語。出口が捨てるものは、知らせによって重さが違う。
    *
-   * `kifuError` は**知らせるだけ**なので、捨てても失うのは説明だけ。
-   * `conflict` は**待っているファイル操作そのもの**（作成・取り込み・リネーム・移動の要求）で、
+   * `kifuError` は知らせるだけなので、捨てても失うのは説明だけ。
+   * `conflict` は待っているファイル操作そのもの（作成・取り込み・リネーム・移動の要求）で、
    * 捨てるとその操作は実行されずに消える。だから綴りで「待っている操作」を名指しする
    */
   const dropLabel = conflict !== null ? "待っている操作を取り消す" : "知らせを閉じる";
@@ -104,7 +104,7 @@ function ModalLayerErrorFallback(view: ErrorBoundaryView) {
 }
 
 /**
- * モーダルの層。**境界をここに持つ。**
+ * モーダルの層。境界をここに持つ。
  *
  * 包む側（`AppLayout`）に置くと、鍵を読むために作業面ぜんぶを描くコンポーネントが
  * `FileTreeContext` を購読することになり、ツリーの行を1つ選ぶだけで盤も解析も描き直す。
@@ -141,7 +141,7 @@ function ModalLayerContent() {
   /**
    * 衝突を別名で解決したら、発端のモーダルも閉じる。
    *
-   * 閉じないと、ファイルは作られたのに**入力がそのまま残ったフォーム**が下から
+   * 閉じないと、ファイルは作られたのに入力がそのまま残ったフォームが下から
    * 出てくる。成功も失敗も出ていないので作られたことに気づけず、もう一度押すと
    * 同じ棋譜の2本目ができる。
    */

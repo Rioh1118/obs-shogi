@@ -8,7 +8,7 @@ import ChooseWorkspaceButton from "@/features/choose-workspace/ui/ChooseWorkspac
 function FolderSelect() {
   const navigate = useNavigate();
   const { config } = useAppConfig();
-  // 初回マウント時にチェック
+  // 根が決まったら作業面へ移る。選んだ直後は `onChosen` も移すが、別の経路で根が入ったときもここで移る
   useEffect(() => {
     if (config?.root_dir) {
       navigate("/app", { replace: true });
