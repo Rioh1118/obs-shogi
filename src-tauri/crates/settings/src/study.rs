@@ -11,6 +11,8 @@ use ::fs::write::atomic_write;
 
 const STUDY_POSITIONS_FILE_NAME: &str = "study_positions.json";
 
+/// 研究局面の整理の状態。画面の語と並びは TS の `STUDY_POSITION_STATES`
+/// （`src/entities/study-positions/model/types.ts`）が持つ
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum StudyPositionState {
@@ -20,6 +22,7 @@ pub enum StudyPositionState {
     Done,
 }
 
+/// 研究局面1件。日時は TS が書いた綴りのまま持ち、Rust は読まない
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StudyPosition {
@@ -33,6 +36,7 @@ pub struct StudyPosition {
     pub updated_at: String,
 }
 
+/// `study_positions.json` の中身
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct StudyPositionsFile {
@@ -48,6 +52,7 @@ fn study_positions_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, Strin
     Ok(config_dir.join(STUDY_POSITIONS_FILE_NAME))
 }
 
+/// 無いファイルと空白だけのファイルは0件で読む。読めないか壊れていれば `Err`
 fn read_file_or_default(path: &Path) -> Result<StudyPositionsFile, String> {
     if !path.exists() {
         return Ok(StudyPositionsFile::default());
@@ -72,10 +77,12 @@ fn write_file(path: &Path, input: &StudyPositionsFile) -> Result<(), String> {
         .map_err(|e| format!("failed to write {}: {e}", path.display()))
 }
 
+/// 研究局面を読む。無ければ0件。壊れていれば `Err` で、画面は読めるまで書かない
 pub fn read_or_default<R: Runtime>(app: &AppHandle<R>) -> Result<StudyPositionsFile, String> {
     read_file_or_default(&study_positions_path(app)?)
 }
 
+/// 研究局面をファイルごと原子的に置き換える
 pub fn write<R: Runtime>(app: &AppHandle<R>, input: &StudyPositionsFile) -> Result<(), String> {
     write_file(&study_positions_path(app)?, input)
 }

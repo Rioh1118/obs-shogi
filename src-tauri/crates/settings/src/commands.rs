@@ -28,14 +28,14 @@ pub fn backup_broken_config(app_handle: AppHandle) -> Result<Option<String>, Str
     app::back_up_broken(&app_handle)
 }
 
-/// 読み込む。**古い版のファイルはここで移す**（`presets::load_from`）
+/// プリセットを読む。古い版のファイルは、読むときに今の版へ書き直す（`presets::load_from`）
 #[tauri::command]
 pub fn load_presets(app_handle: AppHandle) -> Result<LoadedPresets, String> {
     presets::load(&app_handle)
 }
 
-/// 書く。`expected_revision` は読み込みで受け取った印で、ファイルがその後に変わっていたら
-/// 書かずに断る。成功したら新しい印を返す
+/// プリセットを書き、新しい印を返す。`expected_revision` は読み込みか直前の保存で受け取った印で、
+/// ファイルがその後に変わっていたら書かずに断る
 #[tauri::command]
 pub fn save_presets(
     app_handle: AppHandle,

@@ -1,14 +1,14 @@
 //! エンジンのプリセットの形と置き場、読み込み時の移行。
 //!
 //! 判定表は `docs/state-transitions/presets-file.md`（「読み込み」「保存」の節。記号 F0〜F5 もそこ）。
-//! **判定の出典はこのファイル。** 画面の `writable` は操作を出さないための写しで、保存を断るのは
+//! 判定の出典はこのファイルで、画面の `writable` は操作を出さないための写し。保存を断るのは
 //! [`save_to`]。守っていること:
 //!
-//! 1. **読めなかったファイルを上書きしない。** 上書きする前に退避するか、書かない
-//! 2. **知らない欄と読めない件を落とさない。** 1件の中（`analysis` の中も）の知らない欄、最上位の
+//! 1. 読めなかったファイルを上書きしない。上書きする前に退避するか、書かない
+//! 2. 知らない欄と読めない件を落とさない。1件の中（`analysis` の中も）の知らない欄、最上位の
 //!    知らない欄、読めない件の生の値は、保存を通しても残る（値として。数の表記と欄の順は保たない）
-//! 3. **古い版の原本は完全な形で1つは残る**（`.bak` を書けなければ移さない）
-//! 4. **別の書き手の変更を黙って上書きしない**（`revision`）
+//! 3. 古い版の原本は、完全な形で1つは残る（`.bak` を書けなければ移さない）
+//! 4. 別の書き手の変更を黙って上書きしない（`revision`）
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -22,12 +22,13 @@ use tauri::{AppHandle, Manager};
 
 use ::fs::write::atomic_write;
 
+/// 置き場。`app_config_dir` の下
 const PRESETS_FILE: &str = "engine_presets.json";
 
 /// いま書く版。
 ///
-/// **版を上げるとき**（欄の形を変えるとき）に触るのは3つ: この定数、[`upgrade`] に1段足すこと、
-/// その段のテスト。古い版の原本は `engine_presets.v<元の版>.bak` に残る（[`back_up_original`]）。
+/// **版を上げるとき**（欄の形を変えるとき）は、この定数、`upgrade` に足す1段、その段のテストを
+/// 揃えて触る。古い版の原本は `engine_presets.v<元の版>.bak` に残る（`back_up_original`）。
 /// v2 の欄の形は v1 と同じ（v1 → v2 は版の欄を付けるだけ）
 pub const CURRENT_VERSION: u64 = 2;
 
@@ -267,7 +268,8 @@ fn split_entries(entries: Vec<Value>) -> (Vec<EnginePreset>, Vec<Value>) {
     (presets, unreadable)
 }
 
-/// 判定順は「版 → 最上位の形 → 各件」（[`VersionField`]）。UTF-8 の BOM は読み飛ばす
+/// ファイルの中身を [`Parsed`] に分ける。判定は版、最上位の形、各件の順（版を先に見る理由は
+/// [`VersionField`]）。先頭の UTF-8 の BOM は読み飛ばす
 fn parse(bytes: &[u8]) -> Parsed {
     let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
     let Ok(Value::Object(mut top)) = serde_json::from_slice::<Value>(bytes) else {
@@ -463,10 +465,11 @@ pub fn load_from(dir: &Path, now: SystemTime) -> LoadedPresets {
 
 /// 置き場 `dir` へ書く。判定表は `docs/state-transitions/presets-file.md` の「保存」。
 ///
-/// **書く直前にディスクを読み直す**——`expected_revision` と違えば `Conflict`。一致しても、
-/// ディスクが**今の版でなければ書かない**（`ReadOnly`）: 古い版は原本を残さずに上書きすることになり、
-/// 新しい版は知らない欄を落とす。読めない件の生の値と最上位の知らない欄は、読み直したファイルから
-/// 持ち回る。読み直しから書くまでの間に他が書いた分は見分けられない（ファイルの鍵は取らない）。
+/// 書く直前にディスクを読み直し、`expected_revision` と違えば `Conflict` で断る。一致しても、
+/// ディスクが**今の版でなければ書かない**（`ReadOnly`）。古い版は原本を残さずに上書きすることになり、
+/// 新しい版は知らない欄を落とし、壊れたファイルは移せなかった中身を失う。読めない件の生の値と
+/// 最上位の知らない欄は、読み直したファイルから持ち回る。読み直しから書くまでの間に他が書いた分は
+/// 見分けられない（ファイルの鍵は取らない）。成功したら書いた中身の印を返す。
 pub fn save_to(
     dir: &Path,
     presets: Vec<EnginePreset>,
@@ -951,8 +954,9 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// **保存を断るのは Rust。** まだ移していない古い版は、読んだ印が合っていても書かない——
-    /// 書くと原本を `.bak` に残さずに上書きする（原本を残せず読み取り専用で開いた回が、ここに来る）
+    /// まだ移していない古い版は、読んだ印が合っていても書かない。書くと原本を `.bak` に残さずに
+    /// 上書きする。原本を残せず読み取り専用で開いたとき（F1b）に、ここへ来る。保存を断るのは
+    /// 画面ではなく [`save_to`]
     #[test]
     fn an_unmigrated_file_is_never_overwritten() {
         let dir = dir("presets-unmigrated");
