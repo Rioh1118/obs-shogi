@@ -79,3 +79,70 @@ pub fn read_or_default<R: Runtime>(app: &AppHandle<R>) -> Result<StudyPositionsF
 pub fn write<R: Runtime>(app: &AppHandle<R>, input: &StudyPositionsFile) -> Result<(), String> {
     write_file(&study_positions_path(app)?, input)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dir(tag: &str) -> PathBuf {
+        test_support::dir::temp_dir(tag)
+    }
+
+    fn position(id: &str) -> StudyPosition {
+        StudyPosition {
+            id: id.to_string(),
+            sfen: "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1".to_string(),
+            label: "平手".to_string(),
+            description: String::new(),
+            state: StudyPositionState::Inbox,
+            tags: vec!["序盤".to_string()],
+            created_at: "2026-01-01T00:00:00Z".to_string(),
+            updated_at: "2026-01-02T00:00:00Z".to_string(),
+        }
+    }
+
+    /// 無いファイルと、空白だけのファイルは0件として読む。空白だけを JSON として読むと
+    /// parse に失敗し、画面は研究局面を1件も出せなくなる
+    #[test]
+    fn a_missing_or_blank_file_reads_as_empty() {
+        let dir = dir("study-empty");
+        let path = dir.join(STUDY_POSITIONS_FILE_NAME);
+        assert!(read_file_or_default(&path).unwrap().positions.is_empty());
+
+        fs::write(&path, " \n").unwrap();
+        assert!(read_file_or_default(&path).unwrap().positions.is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 壊れたファイルは `Err` を返す。既定値で返すと、次の保存で壊れたファイルの中身を書き潰す
+    #[test]
+    fn a_broken_file_is_an_error() {
+        let dir = dir("study-broken");
+        let path = dir.join(STUDY_POSITIONS_FILE_NAME);
+        fs::write(&path, r#"{"positions": ["#).unwrap();
+        assert!(read_file_or_default(&path).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 書いたものを読み直すと同じ件が出る。保存の形は camelCase の欄と小文字の状態で、
+    /// TS の型（`src/entities/study-positions`）がこの綴りで読む
+    #[test]
+    fn a_written_file_reads_back_in_the_wire_spelling() {
+        let dir = dir("study-round-trip");
+        let path = dir.join(STUDY_POSITIONS_FILE_NAME);
+        let input = StudyPositionsFile {
+            positions: vec![position("a")],
+        };
+
+        write_file(&path, &input).unwrap();
+
+        let written: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(written["positions"][0]["state"], "inbox");
+        assert_eq!(written["positions"][0]["createdAt"], "2026-01-01T00:00:00Z");
+        let read = read_file_or_default(&path).unwrap();
+        assert_eq!(read.positions.len(), 1);
+        assert_eq!(read.positions[0].updated_at, "2026-01-02T00:00:00Z");
+        assert_eq!(read.positions[0].tags, ["序盤"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

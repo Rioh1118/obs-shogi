@@ -42,10 +42,10 @@
 | **F3** | 壊れた         | JSON として読めない、最上位が object でない、`version` が数でない・負・小数、`presets` が配列でない | `engine_presets.unreadable-<時刻>.json` へ移してから空で始める              | ○      | `recovered`（warning）          | ✓      |
 | F3x    | 壊れて移せない | F3 で rename が失敗                                                                                 | 空                                                                          | ×      | `notRecovered`（danger）        | ✗      |
 | **F1** | 古い版         | `version` が無い・`null`・2 未満                                                                    | 原本を `.bak` へ → **書く直前に読み直し**、変わっていなければ v2 で書き戻す | ○      | `migrated`（info）              | ✓      |
-| F1b    | 原本を残せない | F1 で `.bak` を書けない                                                                             | 移さずに読む                                                                | ×      | `backupFailed`（danger）        | ✗      |
+| F1b    | 原本を残せない | F1 で `.bak` を書けない                                                                             | 移さずに読む                                                                | ×      | `backupFailed`（danger）        | ✓      |
 | F1w    | 書き戻せない   | F1 で v2 を書けない、または移している間にファイルが変わった                                         | 読む                                                                        | ×      | `migrationFailed`（danger）     | ✗      |
 | **F2** | 今の版         | `version == 2`（`2.0` も）                                                                          | 各件を読む                                                                  | ○      | —                               | ✓      |
-| **F5** | 読めない       | 入出力エラー（EACCES / EIO）                                                                        | 空                                                                          | ×      | `unreadable`（danger）          | ✗      |
+| **F5** | 読めない       | 入出力エラー（EACCES / EIO）                                                                        | 空                                                                          | ×      | `unreadable`（danger）          | ✓      |
 
 **読めない件**（F1 / F2 / F4 の中の1件。`id` が無い・欄の型が違う）: その件だけ除いて見せ、
 保存のときに Rust が生の値を**末尾に**書き戻す。件数は `unreadableCount` で、通知は warning のトースト。
