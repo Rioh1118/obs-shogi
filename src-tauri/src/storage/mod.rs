@@ -87,3 +87,17 @@ pub trait BlobStore {
     /// 次の [`Self::load`] で退避から戻ってこないため。
     fn delete(&self, key: &str) -> Result<(), StoreError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 根は `<app_cache_dir>/obs-shogi/<area>`。綴りが変わると、利用者のディスクにある前のキャッシュを読めなくなる。
+    #[test]
+    fn the_cache_root_is_under_the_app_name_and_the_area() {
+        assert_eq!(
+            cache_root(PathBuf::from("/cache"), "index"),
+            PathBuf::from("/cache/obs-shogi/index")
+        );
+    }
+}
