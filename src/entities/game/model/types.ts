@@ -356,7 +356,6 @@ export type GameContextType = {
   canGoForward: () => boolean;
   canGoBackward: () => boolean;
 
-  getCurrentTurn: () => Color;
   getCurrentMoveIndex: () => number;
   getTotalMoves: () => number;
 

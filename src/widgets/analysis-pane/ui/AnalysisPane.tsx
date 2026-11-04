@@ -47,7 +47,7 @@ function AnalysisPane() {
   const { state, candidateCache } = useAnalysis();
 
   const { config } = useAppConfig();
-  const { getCurrentTurn, state: gameState, view: gameView } = useGame();
+  const { state: gameState, view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
   const { selectedNode } = useFileTree();
   const { state: presetsState } = useEnginePresets();
@@ -58,7 +58,7 @@ function AnalysisPane() {
   const tesuuPointer = gameState.cursor?.tesuuPointer ?? null;
   const cacheKey = fileKey && tesuuPointer ? `${engineKey}${fileKey}:${tesuuPointer}` : null;
 
-  const currentTurn = getCurrentTurn();
+  const currentTurn = gameView.currentTurn;
 
   // **控える側（下の effect）より先に宣言する。** React は宣言順に effect を走らせる。
   // `scopeTo` は宣言された棋譜が前と同じなら何もしない（`candidateCache.ts` の早期 return）

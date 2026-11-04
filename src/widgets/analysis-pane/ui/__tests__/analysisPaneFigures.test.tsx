@@ -28,7 +28,6 @@ const analysis = {
   candidateCache: createCandidateCache(),
 };
 const game = {
-  getCurrentTurn: () => game.view.currentTurn,
   state: { cursor: { tesuuPointer: "1,[]" } },
   view: { currentSfen: AFTER_7G7F_SFEN as string | null, currentTurn: Color.White as Color },
 };

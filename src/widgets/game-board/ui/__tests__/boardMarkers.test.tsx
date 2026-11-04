@@ -13,11 +13,10 @@ import { INSIDE_BOARD_SELECTOR } from "@/features/clear-board-selection";
 
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    view: { player: null, legalMoves: [] },
+    view: { player: null, legalMoves: [], currentTurn: 0 },
     state: { selectedPosition: null },
     selectHand: vi.fn(),
     clearSelection: vi.fn(),
-    getCurrentTurn: () => 0,
   }),
 }));
 

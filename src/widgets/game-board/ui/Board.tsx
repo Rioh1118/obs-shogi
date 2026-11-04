@@ -3,7 +3,7 @@ import { indexToCoords } from "@/entities/position/lib/boardCoords";
 import { BOARD_SIZE } from "@/entities/position/model/board";
 import "./Board.scss";
 import PieceImage from "@/entities/position/ui/PieceImage";
-import { Color } from "shogi.js";
+import { Color, type Kind } from "shogi.js";
 import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
 import { canPromote, mustPromote, useGame, type ShogiMove } from "@/entities/game";
@@ -24,7 +24,7 @@ function Board() {
   const [pendingPromotion, setPendingPromotion] = useState<{
     x: number;
     y: number;
-    kind: string;
+    kind: Kind;
     color: Color;
     tesuu: number;
     resolve: (promote: boolean) => void;

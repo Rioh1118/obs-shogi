@@ -567,8 +567,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
     return (state.cursor?.tesuu ?? 0) > 0;
   }, [state.cursor]);
 
-  const getCurrentTurn = useCallback(() => view.currentTurn, [view.currentTurn]);
-
   const getCurrentMoveIndex = useCallback(() => {
     return state.cursor?.tesuu ?? 0;
   }, [state.cursor]);
@@ -624,7 +622,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       clearError,
       canGoForward,
       canGoBackward,
-      getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
       applyCursor,
@@ -651,7 +648,6 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       clearError,
       canGoForward,
       canGoBackward,
-      getCurrentTurn,
       getCurrentMoveIndex,
       getTotalMoves,
       applyCursor,

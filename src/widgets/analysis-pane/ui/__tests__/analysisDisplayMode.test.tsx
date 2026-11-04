@@ -60,9 +60,8 @@ vi.mock(
 );
 vi.mock("@/entities/game", () => ({
   useGame: () => ({
-    getCurrentTurn: () => Color.Black,
     state: { cursor: { tesuuPointer: "0,[]" } },
-    view: { currentSfen: INITIAL_SFEN },
+    view: { currentSfen: INITIAL_SFEN, currentTurn: Color.Black },
   }),
 }));
 vi.mock("@/entities/file-tree", () => ({ useFileTree: () => ({ selectedNode: { id: "f" } }) }));

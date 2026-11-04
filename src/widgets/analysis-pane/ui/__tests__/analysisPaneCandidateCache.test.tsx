@@ -44,9 +44,8 @@ const analysis = {
 };
 
 const game = {
-  getCurrentTurn: () => Color.Black,
   state: { cursor: { tesuuPointer: "0,[]" } as { tesuuPointer: string } | null },
-  view: { currentSfen: INITIAL_SFEN as string | null },
+  view: { currentSfen: INITIAL_SFEN as string | null, currentTurn: Color.Black },
 };
 
 const fileTree = { selectedNode: { id: "file-a" } as { id: string } | null };

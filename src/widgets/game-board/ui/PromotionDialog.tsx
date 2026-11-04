@@ -1,4 +1,5 @@
-import { Color } from "shogi.js";
+import { Color, type Kind } from "shogi.js";
+import { promotedKind } from "@/entities/position/lib/positionDraft";
 import PieceImage from "@/entities/position/ui/PieceImage";
 import "./PromotionDialog.scss";
 
@@ -8,19 +9,11 @@ function PromotionDialog({
   color,
   onChoose,
 }: {
-  kind: string;
+  kind: Kind;
   color: Color;
   onChoose: (promote: boolean) => void;
 }) {
-  const promotionMap: Record<string, string> = {
-    FU: "TO",
-    KY: "NY",
-    KE: "NK",
-    GI: "NG",
-    KA: "UM",
-    HI: "RY",
-  };
-
+  const promoted = promotedKind(kind);
   const isBlack = color === Color.Black;
 
   return (
@@ -29,7 +22,7 @@ function PromotionDialog({
     >
       <div className="promotion-choice__piece">
         <div className="promotion-choice__piece--promote" onClick={() => onChoose(true)}>
-          <PieceImage kind={promotionMap[kind]} color={color} />
+          {promoted !== null && <PieceImage kind={promoted} color={color} />}
         </div>
         <div className="promotion-choice__piece--not-promote" onClick={() => onChoose(false)}>
           <PieceImage kind={kind} color={color} />

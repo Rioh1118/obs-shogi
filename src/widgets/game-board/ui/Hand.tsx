@@ -17,9 +17,9 @@ interface HandProps {
  * 印を押した1枚にだけ付ける。
  */
 function Hand({ isSente }: HandProps) {
-  const { state, view, selectHand, clearSelection, getCurrentTurn } = useGame();
+  const { state, view, selectHand, clearSelection } = useGame();
   const hands = view.player?.shogi.hands;
-  const currentTurn = getCurrentTurn();
+  const currentTurn = view.currentTurn;
   const selectedPosition = state.selectedPosition;
 
   const color = isSente ? Color.Black : Color.White;
@@ -46,9 +46,6 @@ function Hand({ isSente }: HandProps) {
   };
 
   useEffect(() => {
-    const isThisHandSelected =
-      selectedPosition?.type === "hand" && selectedPosition.color === color;
-
     if (!isThisHandSelected) {
       setMarkedPiece(null);
       return;
@@ -57,7 +54,7 @@ function Hand({ isSente }: HandProps) {
     if (markedPiece && markedPiece.kind !== selectedPosition.kind) {
       setMarkedPiece(null);
     }
-  }, [selectedPosition, color, markedPiece]);
+  }, [isThisHandSelected, selectedPosition, markedPiece]);
 
   const handlePieceClick = (pieceKind: string, nth: number) => {
     if (!isCurrentTurn) {
@@ -94,12 +91,7 @@ function Hand({ isSente }: HandProps) {
       const nth = seenOfKind.get(pieceKind) ?? 0;
       seenOfKind.set(pieceKind, nth + 1);
 
-      const marked =
-        selectedPosition?.type === "hand" &&
-        selectedPosition.color === color &&
-        selectedPosition.kind === pieceKind &&
-        markedPiece?.kind === pieceKind &&
-        markedPiece.nth === nth;
+      const marked = isMarked(pieceKind, nth);
 
       return (
         <div
