@@ -1,4 +1,4 @@
-//! メモリの上に置く。**テスト用。**
+//! メモリの上に置く、試験用の置き場。
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -7,8 +7,7 @@ use super::{BlobStore, StoreError};
 
 /// 置いたものをそのまま持つ。
 ///
-/// **失敗を仕込める。** ディスクの失敗はテストから起こせないので、
-/// [`Self::failing`] で「置けない」置き場を作れる。
+/// 読み手の試験がディスクを使わずに置けない失敗を踏めるよう、[`Self::failing`] で置けない置き場を作れる。
 #[derive(Default)]
 pub struct InMemory {
     blobs: Mutex<HashMap<String, Vec<u8>>>,
