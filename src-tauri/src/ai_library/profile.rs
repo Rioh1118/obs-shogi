@@ -8,8 +8,14 @@ use ::fs::error::{FsError, FsErrorCode};
 use super::dir::{kind_of, FsKind};
 use super::engines::ENGINES_DIR;
 
+const EVAL_DIR: &str = "eval";
+const BOOK_DIR: &str = "book";
+
 /// AI フォルダが持つ下位フォルダ
-const PROFILE_SUBS: [&str; 2] = ["eval", "book"];
+const PROFILE_SUBS: [&str; 2] = [EVAL_DIR, BOOK_DIR];
+
+/// eval/ と book/ の1つから読む項目の上限。数え方は `list_file_candidates`
+const MAX_FILES_PER_DIR: usize = 200;
 
 /// eval/ や book/ の直下にある、選べるファイル1つ
 #[derive(Debug, Clone, Serialize)]
@@ -117,19 +123,19 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
             continue;
         }
 
-        let eval_dir = path.join("eval");
-        let book_dir = path.join("book");
+        let eval_dir = path.join(EVAL_DIR);
+        let book_dir = path.join(BOOK_DIR);
         let has_eval_dir = eval_dir.is_dir();
         let has_book_dir = book_dir.is_dir();
 
         let eval_files = if has_eval_dir {
-            list_file_candidates(&eval_dir, None, 200)
+            list_file_candidates(&eval_dir, None, MAX_FILES_PER_DIR)
         } else {
             vec![]
         };
 
         let book_db_files = if has_book_dir {
-            list_file_candidates(&book_dir, Some("db"), 200)
+            list_file_candidates(&book_dir, Some("db"), MAX_FILES_PER_DIR)
         } else {
             vec![]
         };

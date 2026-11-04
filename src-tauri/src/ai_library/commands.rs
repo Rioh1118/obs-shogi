@@ -96,13 +96,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::{Path, PathBuf};
-
-    fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("obs-shogi-ai-{tag}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("作れない");
-        dir
-    }
+    use test_support::dir::temp_dir;
 
     /// `ai_root` と、その**親**を返す。
     ///
@@ -110,7 +104,7 @@ mod tests {
     /// 検出したい退行が一度入ると `$TMPDIR/eval` が残り、直したあとも
     /// このテストは落ち続ける（開発者は assert を消す方へ行く）
     fn temp_ai_root(tag: &str) -> (PathBuf, PathBuf) {
-        let base = temp_root(tag);
+        let base = temp_dir(&format!("ai-{tag}"));
         let root = base.join("ai");
         fs::create_dir_all(&root).expect("作れない");
         (base, root)
