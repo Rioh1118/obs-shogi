@@ -67,7 +67,7 @@ ours 戦略のマージは使わない。
 | 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3段） | #699 | マージ済み |
 | 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | マージ済み |
 | 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | #701 | マージ済み |
-| 34 | `refactor/tidy-rust-fs-kifu-text` | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（Rust の範囲1）、`fs` の試験のコンパイル | — | レビュー待ち |
+| 34 | `refactor/tidy-rust-fs-kifu-text` | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（Rust の範囲1）、`fs` の試験のコンパイル | #702 | レビュー待ち |
 
 ## 語
 
