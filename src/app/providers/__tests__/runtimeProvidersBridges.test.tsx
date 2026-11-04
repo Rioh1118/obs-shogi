@@ -40,10 +40,10 @@ vi.mock(
 vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
 // `GameMoveGate` を素通しにすると棋譜の器ごと消えるので、`useGame` を読む器は張れない
 vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));
-vi.mock("../bridges/EngineRuntimeGate", () => passthrough("EngineRuntimeGate"));
-vi.mock("../bridges/AnalysisPositionSyncGate", () => passthrough("AnalysisPositionSyncGate"));
+vi.mock("../gates/EngineRuntimeGate", () => passthrough("EngineRuntimeGate"));
+vi.mock("../gates/AnalysisPositionSyncGate", () => passthrough("AnalysisPositionSyncGate"));
 // 対局の進行も器の形。実物は mount した瞬間に Tauri の `listen` を呼ぶ
-vi.mock("../bridges/GameSessionRulingGate", () => passthrough("GameSessionRulingGate"));
+vi.mock("../gates/GameSessionRulingGate", () => passthrough("GameSessionRulingGate"));
 vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePresetsProvider"));
 vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPositionsProvider"));
 

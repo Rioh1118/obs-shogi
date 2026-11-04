@@ -45,11 +45,11 @@ vi.mock(
     }) satisfies typeof import("../gates/FileTreeRootGate"),
 );
 vi.mock(
-  "../bridges/GameSessionRulingGate",
+  "../gates/GameSessionRulingGate",
   () =>
     ({
       GameSessionRulingGate: layer("GameSessionRulingGate"),
-    }) satisfies typeof import("../bridges/GameSessionRulingGate"),
+    }) satisfies typeof import("../gates/GameSessionRulingGate"),
 );
 vi.mock(
   "../gates/GameMoveGate",
@@ -79,11 +79,11 @@ vi.mock(
     }) satisfies typeof import("../bridges/PresetsFileBridge"),
 );
 vi.mock(
-  "../bridges/EngineRuntimeGate",
+  "../gates/EngineRuntimeGate",
   () =>
     ({
       EngineRuntimeGate: layer("EngineRuntimeGate"),
-    }) satisfies typeof import("../bridges/EngineRuntimeGate"),
+    }) satisfies typeof import("../gates/EngineRuntimeGate"),
 );
 vi.mock(
   "../bridges/EngineFailureBridge",
@@ -107,11 +107,11 @@ vi.mock(
     }) satisfies typeof import("../gates/SearchRootGate"),
 );
 vi.mock(
-  "../bridges/AnalysisPositionSyncGate",
+  "../gates/AnalysisPositionSyncGate",
   () =>
     ({
       AnalysisPositionSyncGate: layer("AnalysisPositionSyncGate"),
-    }) satisfies typeof import("../bridges/AnalysisPositionSyncGate"),
+    }) satisfies typeof import("../gates/AnalysisPositionSyncGate"),
 );
 vi.mock(
   "../bridges/AnalysisRefusalBridge",

@@ -181,9 +181,9 @@ const { SearchRootGate } = await import("../gates/SearchRootGate");
 const { BookPositionGate } = await import("../gates/BookPositionGate");
 const { GamePersistenceGate } = await import("../gates/GamePersistenceGate");
 const { GameMoveGate } = await import("../gates/GameMoveGate");
-const { EngineRuntimeGate } = await import("../bridges/EngineRuntimeGate");
-const { AnalysisPositionSyncGate } = await import("../bridges/AnalysisPositionSyncGate");
-const { GameSessionRulingGate } = await import("../bridges/GameSessionRulingGate");
+const { EngineRuntimeGate } = await import("../gates/EngineRuntimeGate");
+const { AnalysisPositionSyncGate } = await import("../gates/AnalysisPositionSyncGate");
+const { GameSessionRulingGate } = await import("../gates/GameSessionRulingGate");
 
 const child = <span data-testid="child" />;
 
