@@ -42,10 +42,10 @@
 | **F3** | 壊れた         | JSON として読めない、最上位が object でない、`version` が数でない・負・小数、`presets` が配列でない | `engine_presets.unreadable-<時刻>.json` へ移してから空で始める              | ○      | `recovered`（warning）          | ✓      |
 | F3x    | 壊れて移せない | F3 で rename が失敗                                                                                 | 空                                                                          | ×      | `notRecovered`（danger）        | ✗      |
 | **F1** | 古い版         | `version` が無い・`null`・2 未満                                                                    | 原本を `.bak` へ → **書く直前に読み直し**、変わっていなければ v2 で書き戻す | ○      | `migrated`（info）              | ✓      |
-| F1b    | 原本を残せない | F1 で `.bak` を書けない                                                                             | 移さずに読む                                                                | ×      | `backupFailed`（danger）        | ✗      |
+| F1b    | 原本を残せない | F1 で `.bak` を書けない                                                                             | 移さずに読む                                                                | ×      | `backupFailed`（danger）        | ✓      |
 | F1w    | 書き戻せない   | F1 で v2 を書けない、または移している間にファイルが変わった                                         | 読む                                                                        | ×      | `migrationFailed`（danger）     | ✗      |
 | **F2** | 今の版         | `version == 2`（`2.0` も）                                                                          | 各件を読む                                                                  | ○      | —                               | ✓      |
-| **F5** | 読めない       | 入出力エラー（EACCES / EIO）                                                                        | 空                                                                          | ×      | `unreadable`（danger）          | ✗      |
+| **F5** | 読めない       | 入出力エラー（EACCES / EIO）                                                                        | 空                                                                          | ×      | `unreadable`（danger）          | ✓      |
 
 **読めない件**（F1 / F2 / F4 の中の1件。`id` が無い・欄の型が違う）: その件だけ除いて見せ、
 保存のときに Rust が生の値を**末尾に**書き戻す。件数は `unreadableCount` で、通知は warning のトースト。
@@ -89,11 +89,14 @@ Rust は**書く直前にディスクを読み直し**、次の順で断る。�
 
 ## 埋まっていないセル
 
-- F1b / F1w / F3x / F5: 書き込みや読み込みを失敗させる手段（権限を落とした一時ディレクトリ）を
-  テストに持っていない。分岐はそれぞれ1箇所（`load_from` の `back_up_original` / 書き戻しの
-  読み直しと `atomic_write` / `fs::rename` / `fs::read` の `Err`）で、書けない状態になることは
-  コードで追えるが踏んでいない。F1b / F1w で開いた後の保存を `save_to` が断ることは、移していない
-  v1 への保存（`an_unmigrated_file_is_never_overwritten`）で踏んでいる
+- F1w / F3x: 書き戻しと rename を失敗させる手段（権限を落とした一時ディレクトリや、読み直しの前に
+  割り込む口）をテストに持っていない。分岐はそれぞれ1箇所（`load_from` の書き戻しの読み直しと
+  `atomic_write` / `fs::rename` の `Err`）で、書けない状態になることはコードで追えるが踏んでいない。
+  F1w で開いた後の保存を `save_to` が断ることは、移していない v1 への保存
+  （`an_unmigrated_file_is_never_overwritten`）で踏んでいる
+- F1b と F5 は、`.bak` やファイルの名前にフォルダを置いて読むのを失敗させて踏む
+  （`an_original_that_cannot_be_kept_is_not_migrated`、`an_unreadable_file_is_neither_treated_as_missing_nor_written`）。
+  `.bak` を読めないが書ける場合（`back_up_original` の `fs::read` の `Err` の枝）は、権限を落とさないと作れず踏んでいない
 
 テストは `presets.rs` の `tests`（Rust）、`engine-presets/model/__tests__/provider.test.tsx`
 （悲観更新・列・書けない状態）、`app/providers/bridges/__tests__/presetsFileBridge.test.tsx`（通知）、

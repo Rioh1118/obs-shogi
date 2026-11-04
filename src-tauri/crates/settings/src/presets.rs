@@ -1,14 +1,14 @@
 //! エンジンのプリセットの形と置き場、読み込み時の移行。
 //!
 //! 判定表は `docs/state-transitions/presets-file.md`（「読み込み」「保存」の節。記号 F0〜F5 もそこ）。
-//! **判定の出典はこのファイル。** 画面の `writable` は操作を出さないための写しで、保存を断るのは
+//! 判定の出典はこのファイルで、画面の `writable` は操作を出さないための写し。保存を断るのは
 //! [`save_to`]。守っていること:
 //!
-//! 1. **読めなかったファイルを上書きしない。** 上書きする前に退避するか、書かない
-//! 2. **知らない欄と読めない件を落とさない。** 1件の中（`analysis` の中も）の知らない欄、最上位の
+//! 1. 読めなかったファイルを上書きしない。上書きする前に退避するか、書かない
+//! 2. 知らない欄と読めない件を落とさない。1件の中（`analysis` の中も）の知らない欄、最上位の
 //!    知らない欄、読めない件の生の値は、保存を通しても残る（値として。数の表記と欄の順は保たない）
-//! 3. **古い版の原本は完全な形で1つは残る**（`.bak` を書けなければ移さない）
-//! 4. **別の書き手の変更を黙って上書きしない**（`revision`）
+//! 3. 古い版の原本は、完全な形で1つは残る（`.bak` を書けなければ移さない）
+//! 4. 別の書き手の変更を黙って上書きしない（`revision`）
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -22,12 +22,13 @@ use tauri::{AppHandle, Manager};
 
 use ::fs::write::atomic_write;
 
+/// 置き場。`app_config_dir` の下
 const PRESETS_FILE: &str = "engine_presets.json";
 
 /// いま書く版。
 ///
-/// **版を上げるとき**（欄の形を変えるとき）に触るのは3つ: この定数、[`upgrade`] に1段足すこと、
-/// その段のテスト。古い版の原本は `engine_presets.v<元の版>.bak` に残る（[`back_up_original`]）。
+/// **版を上げるとき**（欄の形を変えるとき）は、この定数、`upgrade` に足す1段、その段のテストを
+/// 揃えて触る。古い版の原本は `engine_presets.v<元の版>.bak` に残る（`back_up_original`）。
 /// v2 の欄の形は v1 と同じ（v1 → v2 は版の欄を付けるだけ）
 pub const CURRENT_VERSION: u64 = 2;
 
@@ -267,7 +268,8 @@ fn split_entries(entries: Vec<Value>) -> (Vec<EnginePreset>, Vec<Value>) {
     (presets, unreadable)
 }
 
-/// 判定順は「版 → 最上位の形 → 各件」（[`VersionField`]）。UTF-8 の BOM は読み飛ばす
+/// ファイルの中身を [`Parsed`] に分ける。判定は版、最上位の形、各件の順（版を先に見る理由は
+/// [`VersionField`]）。先頭の UTF-8 の BOM は読み飛ばす
 fn parse(bytes: &[u8]) -> Parsed {
     let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
     let Ok(Value::Object(mut top)) = serde_json::from_slice::<Value>(bytes) else {
@@ -463,10 +465,11 @@ pub fn load_from(dir: &Path, now: SystemTime) -> LoadedPresets {
 
 /// 置き場 `dir` へ書く。判定表は `docs/state-transitions/presets-file.md` の「保存」。
 ///
-/// **書く直前にディスクを読み直す**——`expected_revision` と違えば `Conflict`。一致しても、
-/// ディスクが**今の版でなければ書かない**（`ReadOnly`）: 古い版は原本を残さずに上書きすることになり、
-/// 新しい版は知らない欄を落とす。読めない件の生の値と最上位の知らない欄は、読み直したファイルから
-/// 持ち回る。読み直しから書くまでの間に他が書いた分は見分けられない（ファイルの鍵は取らない）。
+/// 書く直前にディスクを読み直し、`expected_revision` と違えば `Conflict` で断る。一致しても、
+/// ディスクが**今の版でなければ書かない**（`ReadOnly`）。古い版は原本を残さずに上書きすることになり、
+/// 新しい版は知らない欄を落とし、壊れたファイルは移せなかった中身を失う。読めない件の生の値と
+/// 最上位の知らない欄は、読み直したファイルから持ち回る。読み直しから書くまでの間に他が書いた分は
+/// 見分けられない（ファイルの鍵は取らない）。成功したら書いた中身の印を返す。
 pub fn save_to(
     dir: &Path,
     presets: Vec<EnginePreset>,
@@ -951,8 +954,9 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// **保存を断るのは Rust。** まだ移していない古い版は、読んだ印が合っていても書かない——
-    /// 書くと原本を `.bak` に残さずに上書きする（原本を残せず読み取り専用で開いた回が、ここに来る）
+    /// まだ移していない古い版は、読んだ印が合っていても書かない。書くと原本を `.bak` に残さずに
+    /// 上書きする。原本を残せず読み取り専用で開いたとき（F1b）に、ここへ来る。保存を断るのは
+    /// 画面ではなく [`save_to`]
     #[test]
     fn an_unmigrated_file_is_never_overwritten() {
         let dir = dir("presets-unmigrated");
@@ -990,5 +994,196 @@ mod tests {
         assert_eq!(revision_of(b"abc"), revision_of(b"abc"));
         assert_ne!(revision_of(b"abc"), revision_of(b"abd"));
         assert_eq!(revision_of(b""), "cbf29ce484222325-0");
+    }
+
+    /// F3 の移し先は `engine_presets.unreadable-<秒>.json` で、既に在る名前には番号を足して避ける。
+    /// 前に移したファイルを上書きすると、そちらの中身を失う。移した後は印を持たない（元の場所に
+    /// ファイルが無いので、次の保存は印なしで新しく作る）
+    #[test]
+    fn a_broken_file_moves_to_a_name_that_avoids_earlier_ones() {
+        let dir = dir("presets-broken-twice");
+        fs::write(dir.join("engine_presets.unreadable-42.json"), "first").unwrap();
+        fs::write(dir.join("engine_presets.unreadable-42-1.json"), "second").unwrap();
+        fs::write(file(&dir), "{").unwrap();
+
+        let loaded = load_from(&dir, at(42));
+        let Some(PresetsLoadNotice::Recovered { destination }) = &loaded.load_notice else {
+            panic!("移していない: {:?}", loaded.load_notice);
+        };
+        assert_eq!(
+            Path::new(destination),
+            dir.join("engine_presets.unreadable-42-2.json")
+        );
+        assert_eq!(
+            fs::read(dir.join("engine_presets.unreadable-42.json")).unwrap(),
+            b"first"
+        );
+        assert_eq!(
+            fs::read(dir.join("engine_presets.unreadable-42-1.json")).unwrap(),
+            b"second"
+        );
+        assert_eq!(loaded.revision, None);
+        save_to(&dir, Vec::new(), None).expect("移した後は印なしで書ける");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 整数でない版は壊れた扱い。`2.5` を `2` と読むと、先の版が付けた版を今の版と取り違える
+    #[test]
+    fn a_fractional_version_counts_as_broken() {
+        let dir = dir("presets-fractional");
+        fs::write(file(&dir), r#"{"version":2.5,"presets":[]}"#).unwrap();
+        let loaded = load_from(&dir, at(1));
+        assert!(
+            matches!(
+                loaded.load_notice,
+                Some(PresetsLoadNotice::Recovered { .. })
+            ),
+            "{:?}",
+            loaded.load_notice
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// `presets` の欄が無いファイルは0件として読み、書ける。壊れた扱いにすると、最上位の知らない
+    /// 欄ごと退避して空から始める
+    #[test]
+    fn a_file_without_presets_reads_as_empty() {
+        let dir = dir("presets-no-entries");
+        fs::write(file(&dir), r#"{"version":2,"theme":"dark"}"#).unwrap();
+
+        let loaded = load_from(&dir, at(1));
+        assert!(loaded.writable);
+        assert_eq!(loaded.load_notice, None);
+        assert!(loaded.presets.is_empty());
+
+        save_to(&dir, Vec::new(), loaded.revision.as_deref()).expect("書ける");
+        assert_eq!(read_json(&file(&dir))["theme"], "dark");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 空白だけの `id` は空の `id` と同じ扱い。読み込みでは読めない件になり、保存では断る
+    #[test]
+    fn a_blank_id_counts_as_empty() {
+        let dir = dir("presets-blank-id");
+        fs::write(
+            file(&dir),
+            r#"{"version":2,"presets":[{"id":"  ","label":"空白"},{"id":"a"}]}"#,
+        )
+        .unwrap();
+
+        let loaded = load_from(&dir, at(1));
+        assert_eq!(loaded.presets.len(), 1);
+        assert_eq!(loaded.unreadable_count, 1);
+
+        let blank = EnginePreset {
+            id: "  ".to_string(),
+            ..EnginePreset::default()
+        };
+        let refused =
+            save_to(&dir, vec![blank], loaded.revision.as_deref()).expect_err("通している");
+        assert_eq!(refused.kind, SaveFailureKind::Invalid);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 同じ中身の `.bak` が既に在れば、それを原本として返し、新しく書かない（開き直すたびに増やさない）
+    #[test]
+    fn the_same_original_reuses_the_existing_backup() {
+        let dir = dir("presets-v1-same");
+        fs::write(dir.join("engine_presets.v1.bak"), V1).unwrap();
+        fs::write(file(&dir), V1).unwrap();
+
+        let loaded = load_from(&dir, at(100));
+        let Some(PresetsLoadNotice::Migrated { backup, .. }) = &loaded.load_notice else {
+            panic!("移していない: {:?}", loaded.load_notice);
+        };
+        assert_eq!(Path::new(backup), dir.join("engine_presets.v1.bak"));
+        let backups = fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().contains(".bak"))
+            .count();
+        assert_eq!(backups, 1, "同じ原本の `.bak` を増やしている");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// F1b: 原本を `.bak` に残せなければ移さず、読み取り専用で開く。ファイルは1バイトも変わらない。
+    /// `.bak` の名前にフォルダを置いて、読むのも書くのも失敗させる
+    #[test]
+    fn an_original_that_cannot_be_kept_is_not_migrated() {
+        let dir = dir("presets-backup-failed");
+        fs::create_dir(dir.join("engine_presets.v1.bak")).unwrap();
+        fs::write(file(&dir), V1).unwrap();
+
+        let loaded = load_from(&dir, at(100));
+        assert!(!loaded.writable);
+        assert!(
+            matches!(
+                loaded.load_notice,
+                Some(PresetsLoadNotice::BackupFailed { .. })
+            ),
+            "{:?}",
+            loaded.load_notice
+        );
+        assert_eq!(loaded.presets.len(), 1);
+        assert_eq!(fs::read(file(&dir)).unwrap(), V1.as_bytes());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// F5: 読めないファイルを「無い」と扱わない。扱うと次の保存で上書きする。保存も `ReadOnly` で断る。
+    /// ファイルの名前にフォルダを置いて、読むのを失敗させる
+    #[test]
+    fn an_unreadable_file_is_neither_treated_as_missing_nor_written() {
+        let dir = dir("presets-unreadable");
+        fs::create_dir(file(&dir)).unwrap();
+
+        let loaded = load_from(&dir, at(1));
+        assert!(!loaded.writable);
+        assert_eq!(loaded.revision, None);
+        assert!(
+            matches!(
+                loaded.load_notice,
+                Some(PresetsLoadNotice::Unreadable { .. })
+            ),
+            "{:?}",
+            loaded.load_notice
+        );
+
+        let refused = save_to(&dir, Vec::new(), None).expect_err("読めないファイルへ書いている");
+        assert_eq!(refused.kind, SaveFailureKind::ReadOnly);
+        assert!(file(&dir).is_dir());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 読んだ後にファイルが消えていたら書かない。印が `None` に変わったのも、他の書き手の変更
+    #[test]
+    fn a_save_after_the_file_was_removed_is_refused() {
+        let dir = dir("presets-removed");
+        fs::write(
+            file(&dir),
+            r#"{"version":2,"presets":[{"id":"a","label":"x"}]}"#,
+        )
+        .unwrap();
+        let loaded = load_from(&dir, at(1));
+        fs::remove_file(file(&dir)).unwrap();
+
+        let refused = save_to(&dir, loaded.presets, loaded.revision.as_deref())
+            .expect_err("消えたファイルを作り直している");
+        assert_eq!(refused.kind, SaveFailureKind::Conflict);
+        assert!(!file(&dir).exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// F3x と同じ形: 壊れたファイルは、読んだ印が合っていても書かない。書くと、移せなかった中身を失う
+    #[test]
+    fn a_broken_file_is_never_overwritten() {
+        let dir = dir("presets-broken-kept");
+        let broken = br#"{"presets": [ {"id": "a", "#;
+        fs::write(file(&dir), broken).unwrap();
+
+        let refused = save_to(&dir, Vec::new(), Some(&revision_of(broken)))
+            .expect_err("壊れたファイルを上書きしている");
+        assert_eq!(refused.kind, SaveFailureKind::ReadOnly);
+        assert_eq!(fs::read(file(&dir)).unwrap(), broken);
+        let _ = fs::remove_dir_all(&dir);
     }
 }
