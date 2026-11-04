@@ -8,7 +8,7 @@ import { INSIDE_BOARD_SELECTOR } from "@/features/clear-board-selection";
  *
  * 目印を落としても盤は同じに見える。壊れるのは**盤の外を押したときに選択が
  * 外れなくなる**ことだけで、例外もエラー表示も出ない。目印を読む側は
- * `features/clear-board-selection` が固定しているので、ここでは**付ける側**を見る。
+ * `features/clear-board-selection` が固定しているので、ここでは付ける側を見る。
  */
 
 vi.mock("@/entities/game", () => ({

@@ -8,6 +8,11 @@ import { useEffect, useState } from "react";
 import PromotionDialog from "./PromotionDialog";
 import { canPromote, mustPromote, useGame, type ShogiMove } from "@/entities/game";
 
+/**
+ * 9×9の升。押下を選択と着手へ渡す。
+ *
+ * 成れる手では移動先の升に成りの選択肢を出し、答えを待ってから指す。
+ */
 function Board() {
   const { state, view, selectSquare, clearSelection } = useGame();
 
@@ -25,12 +30,11 @@ function Board() {
     resolve: (promote: boolean) => void;
   } | null>(null);
 
-  // 局面変化を監視してダイアログを自動で閉じる
+  // 待っている間に別の操作で局面が動いたら、選択肢と選択を畳む。見るのは手数だけ
   useEffect(() => {
     if (promotionState && shogi) {
       const currentMoveCount = view.player?.tesuu || 0;
 
-      // 手数が変わった = 他の操作で局面が変化した
       if (currentMoveCount !== promotionState.moveCount) {
         console.log("局面が変化したため成り選択をキャンセル");
         setPromotionState(null);
@@ -69,23 +73,18 @@ function Board() {
       return;
     }
 
-    // 駒が選択されていて、別のマスがクリックされた場合の移動処理
     if (selectedPosition?.type === "square") {
-      // 同じマスをクリックした場合は選択解除
       if (selectedPosition.x === x && selectedPosition.y === y) {
         clearSelection();
         return;
       }
 
-      // 合法手かどうかチェック
       const targetMove = legalMoves.find((move) => move.to.x === x && move.to.y === y);
 
       if (targetMove) {
-        // 移動元の駒情報を取得
         const fromPiece = shogi.get(selectedPosition.x, selectedPosition.y);
         if (!fromPiece) return;
 
-        // ShogiMove形式に変換
         const shogiMove: ShogiMove = {
           from: { x: selectedPosition.x, y: selectedPosition.y },
           to: { x, y },
@@ -96,7 +95,6 @@ function Board() {
         let promote: boolean | undefined = undefined;
 
         if (mustPromote(shogi, shogiMove)) {
-          // 強制成り
           promote = true;
         } else if (canPromote(shogi, shogiMove)) {
           promote = await new Promise((resolve) => {
@@ -111,7 +109,6 @@ function Board() {
           });
         }
 
-        // selectSquareを成りフラグ付きで呼び出し
         selectSquare(x, y, promote);
         return;
       }

@@ -4,7 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 /**
- * **解析ビューが畳まれても、解析は止まらない。**
+ * 解析ビューが畳まれても、解析は止まらない。
  *
  * `docs/state-transitions/dock-tabs.md` の不変条件1。ドックがタブの器になったので、
  * この面はタブを移るだけで unmount される。ここで停止を投げると、

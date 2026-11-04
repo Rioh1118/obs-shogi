@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { Color } from "shogi.js";
 
-// **barrel を通さない。** 控えを作る関数には**スライスの外から**の本番の呼び手が
+// **barrel を通さない。** 控えを作る関数にはスライスの外からの本番の呼び手が
 // 居ない（呼ぶのは `entities/analysis` の provider だけ）ので、載せると
 // `scripts/knip-ratchet.sh` の到達しない export が1つ増える。載せていない実体への
 // 深い import は `src/__tests__/sliceBarrels.test.ts` が許している。
@@ -11,7 +11,7 @@ import { createCandidateCache } from "@/entities/analysis/lib/candidateCache";
 import type { AnalysisCandidate } from "@/entities/engine";
 
 /**
- * **停止中に出る候補手の控えを、この画面は持たない。**
+ * 停止中に出る候補手の控えを、この画面は持たない。
  *
  * この画面はドックの `AppErrorBoundary` の内側にあり、そこからの復帰で作り直される
  * （タブ化（ADR-0010 / #562）を入れるとタブ切替でも作り直される。経路の一覧は
@@ -146,7 +146,7 @@ function analyzeThenStop() {
 
 describe("解析ペインの候補手の控え", () => {
   /**
-   * **控えを読んでいることを、`state.candidates` と別の値で固定する。**
+   * 控えを読んでいることを、`state.candidates` と別の値で固定する。
    * 停止しても `candidates` は残るので（`stop_analysis` は触らない）、戻ってきた局面の
    * 控えと、いま `state` に載っている候補手が別物になる場面を作る。
    * 停止中の枝を `state.candidates` に差し替える実装はここで落ちる。
@@ -222,7 +222,7 @@ describe("解析ペインの候補手の控え", () => {
   });
 
   /**
-   * **破棄そのものは見ていない。** 鍵に棋譜が入っているので、捨てても捨てなくても
+   * 破棄そのものは見ていない。鍵に棋譜が入っているので、捨てても捨てなくても
    * 別の棋譜の鍵は外れる（`scopeTo` を潰す変異でこの本は緑のまま通る）。
    * 破棄は `entities/analysis/lib/__tests__/candidateCache.test.ts` が見る。
    */

@@ -1,5 +1,6 @@
 import type { Evaluation, EvaluationKind } from "@/entities/engine";
 
+/** 評価値を表に出す文字にする。詰みは `Mate+7` のように手数を添える */
 export function formatEvaluation(e: Evaluation | null): string {
   if (!e) return "---";
 
@@ -24,8 +25,11 @@ export function formatEvaluation(e: Evaluation | null): string {
   return `${e.value}`;
 }
 
-// 評価値をパーセンテージに変換（評価バー用）
-// -3000〜+3000を0〜100%にマッピング、範囲外はクランプ
+/**
+ * 評価値バーの先手の側の幅（0〜100）。
+ *
+ * ±3000 を線形に写し、外は端で止める。詰みは勝つ側の端へ置く。
+ */
 export function evaluationToPercentage(e: Evaluation | null): number {
   if (!e) return 50;
 

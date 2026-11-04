@@ -30,7 +30,7 @@ import {
 } from "@/entities/analysis";
 
 /**
- * 見せ方から本体へ。**`Record` なので、綴りを足して本体を足さないと tsc が落ちる。**
+ * 見せ方ごとの本体。`Record` なので、綴りを足して本体を足さないと tsc が落ちる。
  *
  * `{mode === "table" && …}` を並べると、足し忘れた綴りではどの枝も偽になり、
  * **解析タブが真っ白になる。エラーは出ない。**
@@ -75,7 +75,7 @@ function AnalysisPane() {
     // エンジンが読んだ局面が盤と違うなら控えない。控えると、鍵が指す局面とは
     // 別の局面の候補手が、停止したあとその局面の結果として出る。
     //
-    // **`analyzedSfen` が無い回も閉じる。** いま `candidates` が空でない回は必ず
+    // `analyzedSfen` が null のときも控えない。いま `candidates` が空でないときは必ず
     // `start_analysis` を通っているので null にはならないが、`stop_analysis` で
     // null へ戻す整理を入れると、短絡で判定が通って古い候補手が別の鍵へ焼き付く。
     //
@@ -87,7 +87,7 @@ function AnalysisPane() {
 
   // 停止中に出すのは控え。**控えを書くのはコミット後の effect なので、読むこのレンダは
   // 書かれる前の控えを見る。** 控えの先は ref で、書いても再レンダは起きないので、
-  // ある鍵に初めて控えた回はその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
+  // ある鍵に初めて控えたときはその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
   const visibleCandidates: readonly AnalysisCandidate[] = useMemo(
     () =>
       visibleCandidatesOf({
@@ -99,7 +99,8 @@ function AnalysisPane() {
     [candidateCache, status, state, currentSfen, cacheKey],
   );
 
-  // 表に出る候補手はどれも盤の局面のもの（`visibleCandidatesOf`）なので、起点も盤の局面
+  // 読み筋は盤の局面から組む。控えの鍵が別の局面を指していると（#568）、読み筋が
+  // 盤の局面で指せず、評価値だけの行になる
   const pvBaseSfen = currentSfen;
 
   const rows = useMemo(() => {
@@ -123,8 +124,6 @@ function AnalysisPane() {
       (c) => c.evaluation ?? null,
     );
 
-    // 順位は**手番視点のまま**の候補（`shown`）から取る。`senteMoves` と
-    // `senteEvaluations` は添字で引くので、3つの並びが揃っていること
     return buildCandidateRows(shown, senteMoves, senteEvaluations);
   }, [pvBaseSfen, currentTurn, visibleCandidates]);
 
@@ -142,7 +141,7 @@ function AnalysisPane() {
   // 特定の行にぶら下げる置き場が無い。出すかどうかは設定（既定は出さない。ADR-0010 決定4）
   const bestEvaluation = rows.find((r) => r.isBest)?.evaluation ?? null;
 
-  // 候補手から導く値（評価値バー）も同じ扱い。今のもののように見せない
+  // 止まる前の候補手は、表も評価値バーも薄く出す。今の結果のように見せない
   const staleClass = candidatesAreStale(status) ? " analysis-pane--stale" : "";
 
   return (

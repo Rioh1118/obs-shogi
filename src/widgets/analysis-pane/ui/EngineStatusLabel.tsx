@@ -57,7 +57,7 @@ export function EngineStatusLabel({
   useEffect(() => {
     if (!searching) {
       startedAtRef.current = null;
-      // 時計を出さない状態に入ったら値を捨てる。捨てないと、同じ局面で読み直してすぐ終わった回は
+      // 時計を出さない状態に入ったら値を捨てる。捨てないと、同じ局面で読み直してすぐ終わったときは
       // `検討中` を1描画も通らないので、前に読んだ時間が `検討完了` に出る。`検討完了` の値は残す
       if (!showsTimer) setElapsed(0);
       return;

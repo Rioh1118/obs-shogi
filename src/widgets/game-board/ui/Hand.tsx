@@ -10,6 +10,12 @@ interface HandProps {
   isSente: boolean;
 }
 
+/**
+ * 片側の駒台。押した持ち駒を選び、手番でない側では選択を外すだけにする。
+ *
+ * 選択の state は種類までしか持たないので、同じ種類の何枚目を押したかはここで覚え、
+ * 印を押した1枚にだけ付ける。
+ */
 function Hand({ isSente }: HandProps) {
   const { state, view, selectHand, clearSelection, getCurrentTurn } = useGame();
   const hands = view.player?.shogi.hands;

@@ -2,6 +2,7 @@ import { Color } from "shogi.js";
 import PieceImage from "@/entities/position/ui/PieceImage";
 import "./PromotionDialog.scss";
 
+/** 移動先の升に重ねる成りの選択肢。成った駒と元の駒を並べ、押した方を返す */
 function PromotionDialog({
   jkfKind,
   color,

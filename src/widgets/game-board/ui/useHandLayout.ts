@@ -12,7 +12,6 @@ export interface LayoutConfig {
   gap: number;
 }
 
-// getDynamicRowConfigの戻り値の型を定義
 export interface RowConfig {
   pieceSize: number;
   gap: number;
@@ -25,12 +24,11 @@ interface ArrangedPieces {
   row4: string[];
 }
 
-// layoutConfigにgetRowConfigメソッドを追加した型
 interface ExtendedLayoutConfig extends LayoutConfig {
   getRowConfig: (pieces: string[]) => RowConfig;
 }
 
-// 持ち駒を種類別に整理
+/** 持ち駒を種類ごとの枚数にまとめる */
 function organizeHandPieces(pieces: Piece[]): HandPiece[] {
   const pieceCount: { [key: string]: number } = {};
 
@@ -44,7 +42,12 @@ function organizeHandPieces(pieces: Piece[]): HandPiece[] {
   }));
 }
 
-// スカスカ度合いを考慮したサイズ設定
+/**
+ * 1段の上限と駒の大きさを、駒の総数で決める。
+ *
+ * いちばん多い段の枚数が、均した枚数（総数÷4）に比べて大きく偏っているとき
+ * （比が 0.6 未満）は、6枚以下と同じ大きさにする。
+ */
 function getLayoutConfig(totalPieces: number, maxPiecesInAnyRow: number): LayoutConfig {
   const idealDensity = totalPieces / 4;
   const actualDensity = maxPiecesInAnyRow;
@@ -77,17 +80,20 @@ function getLayoutConfig(totalPieces: number, maxPiecesInAnyRow: number): Layout
   }
 }
 
-// 4段に適切に分散させる配置アルゴリズム
+/**
+ * 持ち駒を強い順に4段へ割り振る。
+ *
+ * 1段に収まるなら、いちばん強い駒の格の段（飛角、金銀、香桂、歩）に置く。
+ * 収まらなければ上の段から同じ枚数ずつ詰め、余りは最後の段に寄せる。
+ */
 function arrangeHandPieces(
   organizedPieces: HandPiece[],
   layoutConfig: LayoutConfig,
 ): ArrangedPieces {
   const { maxPiecesPerRow } = layoutConfig;
 
-  // 駒の序列順に配置
   const pieceOrder = ["HI", "KA", "KI", "GI", "KY", "KE", "FU"];
 
-  // 序列順に駒を配列に展開
   const allPieces: string[] = [];
   pieceOrder.forEach((pieceType) => {
     const piece = organizedPieces.find((p) => p.kind === pieceType);
@@ -108,7 +114,6 @@ function arrangeHandPieces(
   };
 
   if (totalPieces <= maxPiecesPerRow) {
-    // 1段に収まる場合は適切な段に配置
     const hasHighRank = organizedPieces.some((p) => ["HI", "KA"].includes(p.kind));
     const hasMidRank = organizedPieces.some((p) => ["KI", "GI"].includes(p.kind));
     const hasLowRank = organizedPieces.some((p) => ["KY", "KE"].includes(p.kind));
@@ -123,7 +128,6 @@ function arrangeHandPieces(
       result.row4 = allPieces;
     }
   } else {
-    // 複数段に分散
     const rows = ["row1", "row2", "row3", "row4"] as const;
     const idealPiecesPerRow = Math.ceil(totalPieces / 4);
     const targetDistribution = Math.min(idealPiecesPerRow, maxPiecesPerRow);
@@ -145,7 +149,11 @@ function arrangeHandPieces(
   return result;
 }
 
-// 各行の駒数をチェックして動的にサイズ調整
+/**
+ * 1段の駒の大きさと間隔。
+ *
+ * 3枚までの段は1割大きくする。並べた幅が上限を超える段は縮め、駒は 2.8 より小さくしない。
+ */
 function getDynamicRowConfig(pieces: string[], layoutConfig: LayoutConfig): RowConfig {
   const pieceCount = pieces.length;
 
@@ -160,7 +168,8 @@ function getDynamicRowConfig(pieces: string[], layoutConfig: LayoutConfig): RowC
     };
   }
 
-  const containerWidth = 18; // rem
+  // `Hand` は駒の大きさを em で当てる。駒台の幅は 20em（`handGeometry.scss` の `$hand-w`）
+  const containerWidth = 18;
   const maxWidth = containerWidth * 0.95;
   const totalPieceWidth = pieceCount * layoutConfig.pieceSize;
   const totalGapWidth = (pieceCount - 1) * layoutConfig.gap;
@@ -185,7 +194,8 @@ export function useHandLayout(handPieces: Piece[]) {
     const organizedPieces = organizeHandPieces(handPieces);
     const totalPieces = organizedPieces.reduce((sum, piece) => sum + piece.count, 0);
 
-    // 仮配置して最大行の駒数を計算
+    // 段の偏りは並べてみないと分からないので、仮の上限で一度並べ、
+    // いちばん多い段の枚数から上限を決め直す
     const tempLayoutConfig = getLayoutConfig(totalPieces, 10);
     const tempArranged = arrangeHandPieces(organizedPieces, tempLayoutConfig);
     const maxPiecesInAnyRow = Math.max(
@@ -195,7 +205,6 @@ export function useHandLayout(handPieces: Piece[]) {
       tempArranged.row4.length,
     );
 
-    // 実際のレイアウト設定
     const layoutConfig = getLayoutConfig(totalPieces, maxPiecesInAnyRow);
     const arrangedPieces = arrangeHandPieces(organizedPieces, layoutConfig);
 

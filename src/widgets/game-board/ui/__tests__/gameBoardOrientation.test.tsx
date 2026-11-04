@@ -4,13 +4,13 @@ import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 /**
- * 盤の向きは `GameBoard` が自分で取る。**呼び出し側から prop で降ってこない。**
+ * 盤の向きは `GameBoard` が自分で取る。呼び出し側から prop で降ってこない。
  *
  * 対局者名を自力で取っている（`useGame`）のに向きだけ上から受け取るのは一貫していない。
- * prop で渡すと、渡し忘れても既定値で描けてしまい、**盤が回らなくなるだけで**
+ * prop で渡すと、渡し忘れても既定値で描けてしまい、盤が回らなくなるだけで
  * 型でもレンダでも落ちない。
  *
- * あわせて、`GameBoard` が向きを**落とす**側を持っていないことも見る（持たせると何が
+ * あわせて、`GameBoard` が向きを落とす側を持っていないことも見る（持たせると何が
  * 壊れるかは `BoardOrientationBridge` の doc）。
  * ここで動かせるのは `GameBoard` が読むもの（`useGame` の `state.jkf`）だけなので、
  * **見ているのは「盤が自分から `pov` を触らない」まで。** 合図（`loadedAbsPath`）で

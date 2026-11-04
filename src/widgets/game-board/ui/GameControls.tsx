@@ -3,6 +3,7 @@ import { ChevronFirst, ChevronLeft, ChevronRight, ChevronLast } from "lucide-rea
 import "./GameControls.scss";
 import { useGame } from "@/entities/game";
 
+/** 棋譜の中の移動。最初、前の手、次の手、最後 */
 function GameControls() {
   const { goToStart, previousMove, nextMove, goToEnd, canGoBackward, canGoForward } = useGame();
 
