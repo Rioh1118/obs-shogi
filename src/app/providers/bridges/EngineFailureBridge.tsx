@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { engineFailureNoticeOf, useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
-import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
 /**
  * 起動の失敗の帯を引っ込めるための取っ手。帯は `engineFailureNoticeOf` が文を返す間だけ出るので、
@@ -33,15 +33,8 @@ const ENGINE_SLOW_START = "engine-slow-start";
 export function EngineFailureBridge() {
   const { state, initialize, cancelStart, presetIncomplete, slowStart } = useEngine();
   const { notify, dismissByKey } = useNotify();
-  const { openModal } = useURLParams();
+  const openSettings = useEngineSettingsAction();
 
-  // 押されるのは通知に積まれたあと。`openModal` は URL が変わるたびに別物になるので、
-  // 下の effect の依存に入れると、画面を動かすたびに cleanup → `notify` が走り、
-  // 利用者が閉じた帯が黙って戻る
-  const openSettings = useRef(openModal);
-  useEffect(() => {
-    openSettings.current = openModal;
-  }, [openModal]);
   // `initialize` は `desiredRuntime` が変わるたびに別物になる。下の effect の依存に入れると、
   // 設定を触るたびに cleanup → `notify` が走り、閉じた帯が出し直される。押したときに最新を掴む
   const startAgain = useRef(initialize);
@@ -65,18 +58,10 @@ export function EngineFailureBridge() {
       body:
         "評価関数の読み込みに時間が掛かるエンジンでは、このまま待てば使えるようになります。" +
         "中止するときは「起動を中止」を押してください。",
-      actions: [
-        { label: "起動を中止", run: () => stopStarting.current() },
-        {
-          label: "設定を開く",
-          run: () => openSettings.current("settings", { tab: "engine" }),
-          failureBody:
-            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
-        },
-      ],
+      actions: [{ label: "起動を中止", run: () => stopStarting.current() }, openSettings],
     });
     return () => dismissByKey(ENGINE_SLOW_START);
-  }, [slowStart, notify, dismissByKey]);
+  }, [slowStart, openSettings, notify, dismissByKey]);
 
   const notice = engineFailureNoticeOf({ phase, error, unresponsiveReason, presetIncomplete });
 
@@ -91,14 +76,6 @@ export function EngineFailureBridge() {
     if (!tier || !title || !body) return;
     if (error) console.error("[engine] 起動に失敗した", error.kind, error.message);
 
-    const openSettingsAction = {
-      label: "設定を開く",
-      run: () => openSettings.current("settings", { tab: "engine" }),
-      // 帯はヘッダを覆っているので、閉じるまで歯車には届かない。
-      // 歯車が開くのはワークスペースタブなので、行き先のタブまで書く
-      failureBody:
-        "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
-    };
     const startAgainAction = {
       label: startFailure ? "もう一度起動" : "再起動",
       run: async () => {
@@ -114,10 +91,10 @@ export function EngineFailureBridge() {
       //（`NotificationLayer.scss`）。「設定を開く」は全部に付ける
       presentation: "banner",
       dismissKey: ENGINE_FAILURE,
-      actions: retry ? [startAgainAction, openSettingsAction] : [openSettingsAction],
+      actions: retry ? [startAgainAction, openSettings] : [openSettings],
     });
     return () => dismissByKey(ENGINE_FAILURE);
-  }, [tier, title, body, retry, startFailure, error, notify, dismissByKey]);
+  }, [tier, title, body, retry, startFailure, error, openSettings, notify, dismissByKey]);
 
   return null;
 }

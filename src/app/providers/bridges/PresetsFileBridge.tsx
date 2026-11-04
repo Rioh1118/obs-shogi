@@ -1,14 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import type { NotifyRequest } from "@/shared/lib/notification/types";
+import type { NotifyAction, NotifyRequest } from "@/shared/lib/notification/types";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
-import { useURLParams } from "@/shared/lib/router/useURLParams";
 import {
   PRESETS_LOAD_FAILED,
   PRESETS_SAVE_NOTICES,
   presetsLoadNoticeView,
   type PresetsFileNoticeView,
+  type PresetsNoticeAction,
 } from "./presetsFileNotice";
+import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
 /** 読み込みで起きたことの取っ手。読み直すと出し直す（同じ取っ手で置き換える） */
 const PRESETS_LOAD_NOTICE = "presets-load-notice";
@@ -18,6 +19,34 @@ const PRESETS_UNREADABLE = "presets-unreadable";
 const PRESETS_SAVE_FAILURE = "presets-save-failure";
 /** 読み込みそのものが失敗したことの取っ手 */
 const PRESETS_LOAD_FAILURE = "presets-load-failure";
+
+/** 帯の動作の綴りごとに、押したときの動作 */
+type NoticeActions = Record<PresetsNoticeAction, NotifyAction>;
+
+/** 表の1枚を通知に組む。トーストは自分で消え、帯は表が選んだ動作を1つ持つ */
+function noticeRequest(
+  view: PresetsFileNoticeView,
+  dismissKey: string,
+  actions: NoticeActions,
+): NotifyRequest {
+  if (view.presentation === "toast") {
+    return {
+      tier: view.tier,
+      presentation: "toast",
+      autoDismiss: true,
+      title: view.title,
+      body: view.body,
+    };
+  }
+  return {
+    tier: view.tier,
+    presentation: "banner",
+    dismissKey,
+    title: view.title,
+    body: view.body,
+    actions: [actions[view.action]],
+  };
+}
 
 /**
  * プリセットのファイルで起きたこと（移した・読めなかった・書けない・保存を断られた）を利用者へ届ける。
@@ -32,34 +61,37 @@ const PRESETS_LOAD_FAILURE = "presets-load-failure";
 export function PresetsFileBridge() {
   const { state, reload } = useEnginePresets();
   const { notify, dismissByKey } = useNotify();
-  const { openModal } = useURLParams();
+  const openSettings = useEngineSettingsAction();
 
-  // どちらも render のたびに別物になりうる。effect の依存に入れると、画面を動かすたびに
+  // `reload` は render のたびに別物になりうる。effect の依存に入れると、画面を動かすたびに
   // cleanup → `notify` が走って閉じた通知が戻るので、押したときに最新を掴む
-  const openSettings = useRef(openModal);
-  useEffect(() => {
-    openSettings.current = openModal;
-  }, [openModal]);
   const readAgain = useRef(reload);
   useEffect(() => {
     readAgain.current = reload;
   }, [reload]);
+  const actions = useMemo<NoticeActions>(
+    () => ({
+      reload: { label: "もう一度読み込む", run: () => readAgain.current() },
+      settings: openSettings,
+    }),
+    [openSettings],
+  );
 
   const { loadNotice, loadSeq, unreadableCount, saveFailure, status } = state;
 
   useEffect(() => {
     if (!loadNotice) return;
     console.warn("[presets] 読み込みで起きたこと", loadNotice);
-    notify(request(presetsLoadNoticeView(loadNotice), PRESETS_LOAD_NOTICE));
+    notify(noticeRequest(presetsLoadNoticeView(loadNotice), PRESETS_LOAD_NOTICE, actions));
     return () => dismissByKey(PRESETS_LOAD_NOTICE);
     // `loadSeq` は読み込むたびに上がる。同じ値の通知でも出し直すために依存に入れる
-  }, [loadNotice, loadSeq, notify, dismissByKey]);
+  }, [loadNotice, loadSeq, actions, notify, dismissByKey]);
 
   useEffect(() => {
     if (status !== "error") return;
-    notify(request(PRESETS_LOAD_FAILED, PRESETS_LOAD_FAILURE));
+    notify(noticeRequest(PRESETS_LOAD_FAILED, PRESETS_LOAD_FAILURE, actions));
     return () => dismissByKey(PRESETS_LOAD_FAILURE);
-  }, [status, notify, dismissByKey]);
+  }, [status, actions, notify, dismissByKey]);
 
   useEffect(() => {
     if (unreadableCount === 0) return;
@@ -75,38 +107,9 @@ export function PresetsFileBridge() {
 
   useEffect(() => {
     if (!saveFailure) return;
-    notify(request(PRESETS_SAVE_NOTICES[saveFailure.kind], PRESETS_SAVE_FAILURE));
+    notify(noticeRequest(PRESETS_SAVE_NOTICES[saveFailure.kind], PRESETS_SAVE_FAILURE, actions));
     return () => dismissByKey(PRESETS_SAVE_FAILURE);
-  }, [saveFailure, notify, dismissByKey]);
+  }, [saveFailure, actions, notify, dismissByKey]);
 
   return null;
-
-  function request(view: PresetsFileNoticeView, dismissKey: string): NotifyRequest {
-    if (view.presentation === "toast") {
-      return {
-        tier: view.tier,
-        presentation: "toast",
-        autoDismiss: true,
-        title: view.title,
-        body: view.body,
-      };
-    }
-    return {
-      tier: view.tier,
-      presentation: "banner",
-      dismissKey,
-      title: view.title,
-      body: view.body,
-      actions: [
-        view.action === "reload"
-          ? { label: "もう一度読み込む", run: () => readAgain.current() }
-          : {
-              label: "設定を開く",
-              run: () => openSettings.current("settings", { tab: "engine" }),
-              failureBody:
-                "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
-            },
-      ],
-    };
-  }
 }
