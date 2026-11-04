@@ -86,3 +86,49 @@ fn write_file(path: &Path, state: &UpdaterState) -> Result<(), String> {
     let data = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
     atomic_write(path, data.as_bytes()).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dir(tag: &str) -> PathBuf {
+        test_support::dir::temp_dir(tag)
+    }
+
+    /// 無い、壊れた、読めない `updater.json` は、どれも既定値（何も飛ばしていない）で読む。
+    /// `Err` を返すと、更新の告知を出す側が止まる。読めないのは、ファイルの名前にフォルダを置いて作る
+    #[test]
+    fn a_missing_broken_or_unreadable_file_reads_as_default() {
+        let dir = dir("updater-read");
+        let path = dir.join(UPDATER_FILE);
+        assert_eq!(read_file_or_default(&path).unwrap().skipped_version, None);
+
+        fs::write(&path, r#"{"skippedVersion": "#).unwrap();
+        assert_eq!(read_file_or_default(&path).unwrap().skipped_version, None);
+
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).unwrap();
+        assert_eq!(read_file_or_default(&path).unwrap().skipped_version, None);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 書いたものを読み直せる。欄は camelCase で、TS（`src/entities/updater`）がこの綴りで読む
+    #[test]
+    fn a_written_file_reads_back_in_the_wire_spelling() {
+        let dir = dir("updater-round-trip");
+        let path = dir.join(UPDATER_FILE);
+        let state = UpdaterState {
+            skipped_version: Some("0.9.0".to_string()),
+            last_checked_ms: Some(1_700_000_000_000),
+        };
+
+        write_file(&path, &state).unwrap();
+
+        let written: serde_json::Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(written["skippedVersion"], "0.9.0");
+        let read = read_file_or_default(&path).unwrap();
+        assert_eq!(read.skipped_version.as_deref(), Some("0.9.0"));
+        assert_eq!(read.last_checked_ms, Some(1_700_000_000_000));
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

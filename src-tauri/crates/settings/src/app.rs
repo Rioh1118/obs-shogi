@@ -129,7 +129,7 @@ fn back_up_file(path: &Path) -> Result<Option<String>, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::AppConfig;
+    use super::*;
 
     /// 前の版が書いた `app.json` が読めること。
     ///
@@ -178,5 +178,62 @@ mod tests {
             written.contains("dock_footer_items"),
             "知らない欄が書き戻しで消えている: {written}"
         );
+    }
+
+    fn dir(tag: &str) -> PathBuf {
+        test_support::dir::temp_dir(tag)
+    }
+
+    /// 無い `app.json` は既定値で読む。壊れた `app.json` は `Err` で、既定値で返さない。
+    /// 既定値で返すと、画面は退避せずに書き直し、利用者が選んだ場所を失う
+    #[test]
+    fn a_missing_file_reads_as_default_and_a_broken_one_is_an_error() {
+        let dir = dir("app-config-read");
+        let path = dir.join(CONFIG_FILE);
+        assert_eq!(read_file_or_default(&path).unwrap().root_dir, None);
+
+        fs::write(&path, r#"{"root_dir": "/kifu""#).unwrap();
+        assert!(read_file_or_default(&path).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 書いたものを読み直すと、知っている欄も知らない欄も残る
+    #[test]
+    fn a_written_file_reads_back_with_the_fields_it_does_not_know() {
+        let dir = dir("app-config-round-trip");
+        let path = dir.join(CONFIG_FILE);
+        fs::write(&path, r#"{"root_dir":"/kifu","dock_footer_items":["nps"]}"#).unwrap();
+
+        let mut config = read_file_or_default(&path).unwrap();
+        config.last_preset_id = Some("p1".to_string());
+        write_file(&path, &config).unwrap();
+
+        let read = read_file_or_default(&path).unwrap();
+        assert_eq!(read.root_dir.as_deref(), Some("/kifu"));
+        assert_eq!(read.last_preset_id.as_deref(), Some("p1"));
+        assert!(read.extra.contains_key("dock_footer_items"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 退避は `app.json.broken` へ移し、前に退避したものは番号を足して避ける。中身は1バイトも
+    /// 変えない。ファイルが無ければ何もしない
+    #[test]
+    fn a_broken_file_is_moved_aside_without_overwriting_earlier_backups() {
+        let dir = dir("app-config-backup");
+        let path = dir.join(CONFIG_FILE);
+        assert_eq!(back_up_file(&path).unwrap(), None);
+
+        fs::write(&path, "first").unwrap();
+        let first = back_up_file(&path).unwrap().expect("退避していない");
+        assert_eq!(Path::new(&first), dir.join("app.json.broken"));
+
+        fs::write(&path, "second").unwrap();
+        let second = back_up_file(&path).unwrap().expect("退避していない");
+        assert_eq!(Path::new(&second), dir.join("app.json.broken.1"));
+
+        assert_eq!(fs::read(&first).unwrap(), b"first");
+        assert_eq!(fs::read(&second).unwrap(), b"second");
+        assert!(!path.exists(), "元の場所に残っている");
+        let _ = fs::remove_dir_all(&dir);
     }
 }
