@@ -10,8 +10,8 @@
 //! | [`DiskStore`] | 渡された根の下 | OS のキャッシュ置き場を渡せば消える |
 //! | `InMemory` | メモリの上（テスト用。`cfg(test)` なので doc に出ない）| プロセスと一緒に |
 //!
-//! 置き場を trait にするのは、置けない失敗を試験で踏むため。ディスクの失敗は試験から
-//! 起こせないので、`InMemory::failing` に差し替えて踏む。
+//! 置き場を trait にするのは、読み手の試験がディスクを使わずに置けない失敗を踏むため。
+//! 索引の試験（`search/cache/format.rs`）は `InMemory::failing` に差し替えて踏む。
 
 use std::path::PathBuf;
 
