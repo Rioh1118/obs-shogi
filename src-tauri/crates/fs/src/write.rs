@@ -4,8 +4,11 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-/// テンポラリファイル経由の atomic write
-/// 既存ファイルの上書きが途中で壊れないように、tmp に書いてから rename する
+/// `path` の中身を `data` に置き換える。書いている途中でプロセスが落ちても、
+/// `path` に書きかけの中身は残らない。
+///
+/// 隣の一時ファイル（`a.kif` なら `a.kif.tmp`）に書いてから rename する。
+/// 親のフォルダが無ければ作る。rename に失敗したら一時ファイルを消して、その失敗を返す。
 pub fn atomic_write(path: &Path, data: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {

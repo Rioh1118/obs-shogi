@@ -160,6 +160,7 @@ pub fn ensure_same_extension(src: &Path, dest: &Path) -> Result<(), FsError> {
     Ok(())
 }
 
+/// `path` に何も無ければ通す。あれば `AlreadyExists` を返し、`existing_path` に衝突した相手を載せる。
 // TODO(#215): dest が src と同じ実体かを見ていない。APFS では大文字小文字だけを
 // 変える改名が、自分自身を衝突相手として弾かれる
 pub fn ensure_not_exists(path: &Path) -> Result<(), FsError> {
