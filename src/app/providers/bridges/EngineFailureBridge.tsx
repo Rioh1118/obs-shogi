@@ -34,6 +34,7 @@ export function EngineFailureBridge() {
   const { state, initialize, cancelStart, presetIncomplete, slowStart } = useEngine();
   const { notify, dismissByKey } = useNotify();
   const openSettings = useEngineSettingsAction();
+  const { phase, error, unresponsiveReason } = state;
 
   // `initialize` は `desiredRuntime` が変わるたびに別物になる。下の effect の依存に入れると、
   // 設定を触るたびに cleanup → `notify` が走り、閉じた帯が出し直される。押したときに最新を掴む
@@ -41,11 +42,19 @@ export function EngineFailureBridge() {
   useEffect(() => {
     startAgain.current = initialize;
   }, [initialize]);
-  const { phase, error, unresponsiveReason } = state;
   const stopStarting = useRef(cancelStart);
   useEffect(() => {
     stopStarting.current = cancelStart;
   }, [cancelStart]);
+
+  const notice = engineFailureNoticeOf({ phase, error, unresponsiveReason, presetIncomplete });
+  // 下の effect の依存は欄の値で持つ。`notice` は描くたびに作り直すオブジェクトなので、
+  // そのまま依存に入れると描くたびに帯を出し直す
+  const tier = notice?.tier;
+  const title = notice?.title;
+  const body = notice?.body;
+  const retry = notice?.retry;
+  const startFailure = notice?.startFailure;
 
   // 起動中が長引いたら、止めるボタンを出す。段を抜けたら（起動できた・失敗した・止めた）引っ込める
   useEffect(() => {
@@ -63,15 +72,8 @@ export function EngineFailureBridge() {
     return () => dismissByKey(ENGINE_SLOW_START);
   }, [slowStart, openSettings, notify, dismissByKey]);
 
-  const notice = engineFailureNoticeOf({ phase, error, unresponsiveReason, presetIncomplete });
-
   // 文は `engineFailureNoticeOf` が操作列のポップオーバーと共有し、動作はここで組む。
   // 段を抜けたら引っ込める。動いているエンジンの上に古い帯を残さない（帯はヘッダを覆う）
-  const tier = notice?.tier;
-  const title = notice?.title;
-  const body = notice?.body;
-  const retry = notice?.retry;
-  const startFailure = notice?.startFailure;
   useEffect(() => {
     if (!tier || !title || !body) return;
     if (error) console.error("[engine] 起動に失敗した", error.kind, error.message);

@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from "react-router";
-import { RuntimeProviders } from "@/app/providers/RuntimeProviders";
-import { RequireRootDir } from "@/app/routing/guards/RequireRootDir";
+import { RuntimeProviders } from "../providers/RuntimeProviders";
+import { RequireRootDir } from "./guards/RequireRootDir";
 import TitleBar from "@/shared/ui/TitleBar";
 import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";

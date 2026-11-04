@@ -72,6 +72,16 @@ function ModalLayerErrorFallback(view: ErrorBoundaryView) {
    */
   const dropLabel = conflict !== null ? "待っている操作を取り消す" : "知らせを閉じる";
 
+  const handleDrop = () => {
+    setDropped(
+      conflict === null
+        ? "知らせを閉じました。"
+        : "待っていた操作を取り消しました。もう一度やり直してください。",
+    );
+    closeConflict();
+    clearKifuError();
+  };
+
   return (
     <FloatingErrorFallback
       {...view}
@@ -82,44 +92,13 @@ function ModalLayerErrorFallback(view: ErrorBoundaryView) {
       }
       extraActions={
         hasStandingNotice && (
-          <ErrorFallbackAction
-            secondary
-            onClick={() => {
-              setDropped(
-                conflict === null
-                  ? "知らせを閉じました。"
-                  : "待っていた操作を取り消しました。もう一度やり直してください。",
-              );
-              closeConflict();
-              clearKifuError();
-            }}
-          >
+          <ErrorFallbackAction secondary onClick={handleDrop}>
             {dropLabel}
           </ErrorFallbackAction>
         )
       }
       afterAction={dropped && <p className="error-fallback__hint">{dropped}</p>}
     />
-  );
-}
-
-/**
- * モーダルの層。境界をここに持つ。
- *
- * 包む側（`AppLayout`）に置くと、鍵を読むために作業面ぜんぶを描くコンポーネントが
- * `FileTreeContext` を購読することになり、ツリーの行を1つ選ぶだけで盤も解析も描き直す。
- */
-export default function AppModalLayer() {
-  const resetKeys = useModalLayerResetKeys();
-
-  return (
-    <AppErrorBoundary
-      label={BOUNDARY_LABELS.modal}
-      resetKeys={resetKeys}
-      fallback={(view) => <ModalLayerErrorFallback {...view} />}
-    >
-      <ModalLayerContent />
-    </AppErrorBoundary>
   );
 }
 
@@ -170,5 +149,25 @@ function ModalLayerContent() {
       />
       <KifuReadErrorDialog error={kifuError} onDismiss={clearKifuError} />
     </>
+  );
+}
+
+/**
+ * モーダルの層。境界をここに持つ。
+ *
+ * 包む側（`AppLayout`）に置くと、鍵を読むために作業面ぜんぶを描くコンポーネントが
+ * `FileTreeContext` を購読することになり、ツリーの行を1つ選ぶだけで盤も解析も描き直す。
+ */
+export default function AppModalLayer() {
+  const resetKeys = useModalLayerResetKeys();
+
+  return (
+    <AppErrorBoundary
+      label={BOUNDARY_LABELS.modal}
+      resetKeys={resetKeys}
+      fallback={(view) => <ModalLayerErrorFallback {...view} />}
+    >
+      <ModalLayerContent />
+    </AppErrorBoundary>
   );
 }

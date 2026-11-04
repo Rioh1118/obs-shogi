@@ -6,8 +6,8 @@ import Board from "@/widgets/game-board/ui/Board";
 import Hand from "@/widgets/game-board/ui/Hand";
 
 import "./AppLayout.scss";
-import WelcomeScreen from "@/pages/WelcomeScreen";
-import AppModalLayer from "@/pages/AppModalLayer";
+import WelcomeScreen from "./WelcomeScreen";
+import AppModalLayer from "./AppModalLayer";
 
 import Dock from "@/widgets/dock/ui/Dock";
 import { DOCK_VIEWS_BINDINGS } from "./dockViews";
@@ -19,7 +19,7 @@ import { useClearBoardSelection } from "@/features/clear-board-selection";
 import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 
-const AppLayout = () => {
+function AppLayout() {
   // 開閉は持ち越さない。起動のたびに開いた状態で始まるのが既定で、これは意匠。
   // どのパネルを出すかは URL（`panel/*`）が持つが、開閉はそちらへ揃えない
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -129,6 +129,6 @@ const AppLayout = () => {
       </div>
     </div>
   );
-};
+}
 
 export default AppLayout;
