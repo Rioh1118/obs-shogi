@@ -94,12 +94,15 @@ mod tests {
     #[test]
     fn a_missing_engines_folder_is_reported_as_missing() {
         let root = temp_dir("ai-scan-missing");
+        fs::create_dir_all(root.join("suisho/eval")).expect("作れない");
 
         let found = index(root.to_string_lossy().to_string()).expect("読める");
 
         assert!(!found.engines_dir.exists);
         assert!(matches!(found.engines_dir.kind, FsKind::Unknown));
         assert!(found.engines.is_empty());
+        let profiles: Vec<_> = found.profiles.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(profiles, ["suisho"], "AI フォルダが出ていない");
         let _ = fs::remove_dir_all(&root);
     }
 
