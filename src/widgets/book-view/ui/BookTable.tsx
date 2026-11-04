@@ -34,6 +34,22 @@ const SORTABLE: { key: BookSortKey; label: string }[] = [
   { key: "count", label: "出現回数" },
 ];
 
+/** 手番側から見た評価値の綴り。符号を付けないと、0 を跨いだ側が読めない */
+function formatValue(value: number | null): string {
+  if (value === null) return "—";
+  return value > 0 ? `+${value}` : `${value}`;
+}
+
+/** 出現回数の綴り。欄が欠けているのと 0 回は別のことなので、同じ綴りにしない */
+function formatCount(count: number | null): string {
+  return count === null ? "—" : count.toLocaleString();
+}
+
+function ariaSort(sort: BookSort, key: BookSortKey): "ascending" | "descending" | "none" {
+  if (sort.key !== key) return "none";
+  return sort.desc ? "descending" : "ascending";
+}
+
 /**
  * 現局面の候補手を列で揃えて出す。
  *
@@ -156,22 +172,6 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
       </table>
     </div>
   );
-}
-
-/** 手番側から見た評価値の綴り。符号を付けないと、0 を跨いだ側が読めない */
-function formatValue(value: number | null): string {
-  if (value === null) return "—";
-  return value > 0 ? `+${value}` : `${value}`;
-}
-
-/** 出現回数の綴り。欄が欠けているのと 0 回は別のことなので、同じ綴りにしない */
-function formatCount(count: number | null): string {
-  return count === null ? "—" : count.toLocaleString();
-}
-
-function ariaSort(sort: BookSort, key: BookSortKey): "ascending" | "descending" | "none" {
-  if (sort.key !== key) return "none";
-  return sort.desc ? "descending" : "ascending";
 }
 
 export default BookTable;

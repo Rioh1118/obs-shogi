@@ -5,7 +5,7 @@ import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 import { useAppConfig } from "@/entities/app-config";
 import { dockViewLabel, resolveDockTabs, resolveDockView } from "@/entities/dock";
-import type { DockViewBindings } from "@/widgets/dock/model/bindings";
+import type { DockViewBindings } from "../model/bindings";
 
 /**
  * ドック。タブの器で、中身は知らない。

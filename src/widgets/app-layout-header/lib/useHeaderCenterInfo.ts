@@ -4,16 +4,6 @@ import { turnGlyph, turnText as turnTextOf, type TurnGlyph } from "@/shared/lib/
 import { useGame } from "@/entities/game";
 import { playerNames } from "@/entities/kifu/lib/playerNames";
 
-function basename(path: string) {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] ?? path;
-}
-
-function stripExt(name: string) {
-  const i = name.lastIndexOf(".");
-  return i > 0 ? name.slice(0, i) : name;
-}
-
 export type HeaderCenterInfo = {
   /** 棋譜が盤に載っているか。ヘッダの表示はどれもこれで分岐する */
   hasKifu: boolean;
@@ -31,6 +21,16 @@ export type HeaderCenterInfo = {
 
   tooltip: string;
 };
+
+function basename(path: string) {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
+
+function stripExt(name: string) {
+  const i = name.lastIndexOf(".");
+  return i > 0 ? name.slice(0, i) : name;
+}
 
 /**
  * ヘッダ中央の表示を組む。

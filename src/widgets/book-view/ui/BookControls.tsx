@@ -4,6 +4,16 @@ import { useBookOpening } from "../model/useBookOpening";
 import "./BookControls.scss";
 
 /**
+ * 収録局面数の表示。
+ *
+ * 数えられない形式は `null` で来る。0 は本当に0局面なので、同じ綴りにすると
+ * 局面数の書かれていない定跡が空の定跡に見える。
+ */
+function positionCount(count: number | null): string {
+  return count === null ? "局面数は数えられない形式" : `${count.toLocaleString()} 局面`;
+}
+
+/**
  * 定跡ビューの操作列。ドックのタブ列の下の段に出る。
  *
  * 左が「いま何を開いているか」、右が開く／閉じる。
@@ -80,16 +90,6 @@ function BookControls() {
       </div>
     </div>
   );
-}
-
-/**
- * 収録局面数の表示。
- *
- * 数えられない形式は `null` で来る。0 は本当に0局面なので、同じ綴りにすると
- * 局面数の書かれていない定跡が空の定跡に見える。
- */
-function positionCount(count: number | null): string {
-  return count === null ? "局面数は数えられない形式" : `${count.toLocaleString()} 局面`;
 }
 
 export default BookControls;

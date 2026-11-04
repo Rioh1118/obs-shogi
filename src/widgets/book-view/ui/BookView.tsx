@@ -5,6 +5,7 @@ import {
   DEFAULT_BOOK_SORT,
   useBook,
   type BookFailure,
+  type BookRow,
   type BookSort,
   type BookViewState,
 } from "@/entities/book";
@@ -18,6 +19,22 @@ import { useBookOpening } from "../model/useBookOpening";
 import BookEmpty from "./BookEmpty";
 import BookTable from "./BookTable";
 import "./BookView.scss";
+
+/**
+ * 失敗の題。落ちた操作から引き、画面の状態からは引かない。
+ *
+ * 状態から引くと、行が並んでいるところで定跡を開き損ねたときに
+ * 「定跡の先を辿れませんでした」が付き、題と本文が1つの帯の中で食い違う。
+ *
+ * `Record` なので、`origin` に綴りを足して題を足さないと tsc が落ちる。
+ */
+const NOTICE_TITLES: Record<BookFailure["origin"], string> = {
+  open: "定跡を開けませんでした",
+  lookup: "この局面を引けませんでした",
+  // 引けてはいるので「読めませんでした」と言わない。落ちたのは先を辿る側だけ
+  walk: "定跡の先を辿れませんでした",
+  external: "定跡の操作を開始できませんでした",
+};
 
 /**
  * 定跡ビューの本体。ドックのタブの1枚（ADR-0010）。
@@ -48,7 +65,7 @@ function BookView() {
     openPath: info?.path ?? null,
   });
 
-  const table = (empty: string, rows: Parameters<typeof BookTable>[0]["rows"] = []) => (
+  const table = (empty: string, rows: readonly BookRow[] = []) => (
     <BookTable
       rows={rows}
       sfen={gameView.currentSfen}
@@ -126,21 +143,5 @@ function BookView() {
     </section>
   );
 }
-
-/**
- * 失敗の題。落ちた操作から引き、画面の状態からは引かない。
- *
- * 状態から引くと、行が並んでいるところで定跡を開き損ねたときに
- * 「定跡の先を辿れませんでした」が付き、題と本文が1つの帯の中で食い違う。
- *
- * `Record` なので、`origin` に綴りを足して題を足さないと tsc が落ちる。
- */
-const NOTICE_TITLES: Record<BookFailure["origin"], string> = {
-  open: "定跡を開けませんでした",
-  lookup: "この局面を引けませんでした",
-  // 引けてはいるので「読めませんでした」と言わない。落ちたのは先を辿る側だけ
-  walk: "定跡の先を辿れませんでした",
-  external: "定跡の操作を開始できませんでした",
-};
 
 export default BookView;
