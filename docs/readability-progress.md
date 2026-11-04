@@ -68,7 +68,8 @@ ours 戦略のマージは使わない。
 | 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | マージ済み |
 | 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | #701 | マージ済み |
 | 34 | `refactor/tidy-rust-fs-kifu-text` | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（Rust の範囲1）、`fs` の試験のコンパイル | #702 | マージ済み |
-| 35 | `refactor/tidy-rust-settings` | `src-tauri/crates/settings`（Rust の範囲1b）、`crates/*` の試験を `verify:rust` と CI に載せる | #704 | レビュー待ち |
+| 35 | `refactor/tidy-rust-settings` | `src-tauri/crates/settings`（Rust の範囲1b）、`crates/*` の試験を `verify:rust` と CI に載せる | #704 | マージ済み |
+| 36 | `refactor/tidy-rust-storage` | `src-tauri/src/storage`（Rust の範囲2）、`.` の後ろだけが違う key の取り違え | — | レビュー待ち |
 
 ## 語
 
@@ -129,8 +130,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | -- | ------------------------------------------------------ | ----- | -------- |
 | 1  | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`   | 773   | 済       |
 | 1b | `src-tauri/crates/settings`                            | 1405  | 済       |
-| 2  | `src-tauri/src/storage`                                | 474   | 読み合わせのみ |
-| 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1890  | 未着手   |
+| 2  | `src-tauri/src/storage`                                | 552   | 済       |
+| 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1895  | 未着手   |
 | 4  | `src-tauri/src/ai_library`                             | 808   | 未着手   |
 | 5  | `src-tauri/src/engine` の `launchable` から `registry` まで |  | 未着手 |
 | 6  | `src-tauri/src/engine` の `option_labels` から `start_failure` まで |  | 未着手 |
@@ -153,8 +154,9 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。盤の成りの選択肢（`PromotionDialog`）も範囲16の第3段から `promotedKind` を通る。`Piece.promote` へ寄せるかは、逆引きの `UNPROMOTED` と合わせて決める |
 | `src/entities/position/ui/PieceImage.tsx` の `kind: string` | 範囲16の第3段で、読み手は全部 `Kind` を渡すようになった（`Board`、`Hand`、`PromotionDialog`、`features/position-editor` の3つ、`BoardPreview`）。`Kind` で受けるなら、`isKnownKind` の検査と、知らない綴りを描かない `PieceImage.test.tsx` の3本を残すかを合わせて決める |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
-| `src-tauri/src/storage/disk.rs` の読み手 | 2つの rename の間で値があるのに `NotFound` を受ける筋がある。未再現 |
-| `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
+| `src-tauri/src/storage/disk.rs` の `load` | 本体が `NotFound` の後に `bak.exists()` を見るので、その間に置き直しが2つ目の rename と退避の削除を終えると、本体に値が在るのに `NotFound` を返す筋がある。範囲2で、置き直しを5000回続ける間に読み続ける試験を3回走らせ、1回も起きなかった（未再現）。起きても索引の復元が全件の構築へ落ちるだけ。直すなら、退避が読めなければ本体を読み直す。下の Windows の行で退避をやめるなら筋ごと消える |
+| `src-tauri/src/storage/disk.rs` の `paths` の doc | 退避を挟む理由を「Windows で上書きの rename が失敗するため」と書くが、`std::fs::rename` は Windows でも `MOVEFILE_REPLACE_EXISTING` で上書きする。失敗するのは、他のプロセスが削除の共有を許さずに開いているときに限られる。Windows で確かめてから、退避をやめるかを決める |
+| `src-tauri/src/storage/mod.rs` の `BlobStore::delete` | 本番の呼び手が0で、試験だけが呼ぶ。`search/cache/format.rs` の `CACHE_VERSION` の doc は、読めない旧版の blob がディスクに残り続けると書く。復元が版の違いで落ちたときに捨てるかを、索引のキャッシュを次に触るときに決める。捨てないなら trait から外す |
 | `src/entities/game/model/provider.tsx` の `getCurrentMoveIndex` | `state.cursor?.tesuu ?? 0` を返すだけの包み。`getCurrentTurn` は範囲16の第3段で、`getTotalMoves` は第4段で読み手が0になったので消した。残る読み手は `src/features` の `StudyPositionSaveModal` だけで、`src/features` の範囲は済んでいる。`features/study-position-save` を次に触るときに `state.cursor` を読む形へ寄せ、包みを消す |
 | `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
 | `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。範囲17でも送った。union にすると `entities/engine` の reducer（状態機械）と provider の `isReady`、`notReadyReasonOf` の入力が変わり、`entities` の公開の型が変わる。進め方の「`entities` の公開の名前を変えるなら、呼び手を含めて独立した段にする」に当たるので、整理の段に混ぜない。`src/app` で状態を読むのは `EngineFailureBridge`（`phase`、`error`、`unresponsiveReason`）と `EngineStartWarningBridge`（`phase`、`startWarnings`）の2つ。ほかの読み手は `features/engine-position-sync`、`entities/analysis` の provider、`src/widgets` の `AnalysisControls` と `useEngineStatus`。`engineFailureNoticeOf` は `exited`、`unresponsive`、`error`、未設定の順に見るので、union にしても判定の順は変わらない |
@@ -198,12 +200,13 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で取った。次は Rust の範囲2。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で取った。次は Rust の範囲3。
 
-範囲2: `src-tauri/src/storage`（474行。ファイル内のテストを含む。2026-11-04 に数えた）。表では「読み合わせのみ」で、
-整理と変異はまだ当てていない。取るときに数え直す。読み手は `src-tauri/src/search` の `build.rs`、`commands.rs`、
-`cache/format.rs`。所見の表の `disk.rs` の2行（rename の間の `NotFound`、load の doc）は読み手がこの範囲に居るので、
-取るときに直すか送るかを決める。
+範囲3: `src-tauri/src/kifu` と `src-tauri/src/workspace`（1895行。ファイル内のテストを含む。2026-11-04 に数えた。
+`kifu` 413、`workspace` 1482）。2000行に近いので、取るときに数え直して割るかを決める。所見の表の
+`workspace/record.rs` の `strip_utf8_bom_str`、`workspace/commands/kifu.rs` の `save_kifu_file`、
+`kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf`、`tests/root_guard.rs` の冒頭の doc は、
+読み手がこの範囲に居る。
 
 段35から、`npm run verify:rust` と CI の `cargo test` と `cargo clippy` は `--workspace` で `crates/*` も走らせる。
 crate の試験は `cargo test --manifest-path src-tauri/Cargo.toml -p <crate>` で個別にも走らせられる。
