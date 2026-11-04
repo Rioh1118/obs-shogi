@@ -53,7 +53,10 @@ mod tests {
         dir
     }
 
-    /// 書いた後に一時ファイルを残さない。残ると、ツリーに `.tmp` の行が増える
+    /// 書いた後に一時ファイルを残さない。
+    ///
+    /// 残ると、棋譜の隣に `.tmp` が溜まる。ツリーは棋譜の拡張子しか出さないので、
+    /// 利用者からは見えないまま残る
     #[test]
     fn replaces_the_contents_and_leaves_no_temporary_file() {
         let dir = temp_dir("replace");

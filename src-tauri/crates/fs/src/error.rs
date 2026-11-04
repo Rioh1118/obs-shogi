@@ -18,12 +18,12 @@ pub enum FsErrorCode {
     InvalidNameSeparator,
     /// NUL。OS によっては別のパスに化ける
     InvalidNameControl,
-    /// その場所を扱えない。入るのは次の4つ。
+    /// その場所を扱えない。入るのは次のとき。
     ///
     /// - root の外（`validate_under_root`）
-    /// - 親や名前を解決できない（`mv.rs`）
+    /// - 親や名前を解決できない（`mv.rs`、`fs::path` の `canonicalize_for_compare`）
     /// - 設定そのものを読めない（`load_root_dir`）
-    /// - AI フォルダが無いか、フォルダでない（`create_ai_profile_dirs`）
+    /// - AI ルートが空か、無いか、フォルダでない（`create_ai_profile_dirs`）
     ///
     /// ワークスペースの中のパスが「無い」ときは `NotFound` に載せる。ここへ載せると
     /// tier が `danger` になり、「再読み込み」の操作が画面から消える。

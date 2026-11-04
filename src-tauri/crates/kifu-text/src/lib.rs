@@ -1,7 +1,7 @@
 //! 棋譜のバイト列を文字列にする。
 //!
 //! 拡張子は文字コードを名乗らないので、棋譜を読む経路は必ずどこかで
-//! 「このバイト列を何として読むか」を決める。その判断の材料はここにだけ置く。
+//! 「このバイト列を何として読むか」を決める。その判断の材料の正本はここに置く。
 //! 2箇所にあると、同じファイルについて**索引と画面が違う文字列を見る**。
 //!
 //! 読む経路は2つある。
@@ -9,11 +9,13 @@
 //! | 経路 | 入口 | 使い道 |
 //! | --- | --- | --- |
 //! | 画面に開く | `workspace::record` の `read_text_portable` | webview に渡して `tsshogi` が読む |
-//! | 索引を組む | `search::read::encoding` の `read_portable` | Rust 側のクレートが読む |
+//! | 索引を組む | `search::read::encoding` の `read_portable`（CSA は `read_portable_bytes`） | Rust 側のクレートが読む |
 //!
 //! 画面側は [`decode_kifu`] を通る。索引側はこれを通らず、読めるまでパーサに掛けて、
 //! どの復号なら棋譜として通るかで決める。画面側にパーサは無いので、そこまでは真似できない。
-//! 両者が共有するのは、候補の一覧（[`KIFU_ENCODINGS`]）と印の読み方（[`declared_encoding`]）まで。
+//! 印の読み方（[`declared_encoding`]）は両者が呼ぶ。候補の一覧は [`KIFU_ENCODINGS`] が正本で、
+//! 索引側はそこから UTF-8 と Shift_JIS を除いた写し（`ENCODINGS_THE_CRATE_SKIPS`）を持つ。
+//! 写しとの一致は `kifu_reader` の試験が見るので、ここを変えたら写しも直す。
 //! 候補を試す順は画面側だけが使う。
 
 use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE, UTF_8};
