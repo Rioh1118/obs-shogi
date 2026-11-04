@@ -8,9 +8,9 @@ use ::fs::path::{generate_id, is_kifu_file, is_under, lowercase_extension, plain
 
 use super::types::FileTreeNode;
 
-/// 降りてよい深さの上限。**再帰のフレーム数を止める。**
+/// 降りてよい深さの上限。再帰のフレーム数を止める。
 ///
-/// `followed` は同じ実体を2度辿らないだけなので、**相異なる**ディレクトリを鎖状に
+/// `followed` は同じ実体を2度辿らないだけなので、相異なるディレクトリを鎖状に
 /// symlink で繋ぐと深さがディレクトリ数まで伸びる。走査は再帰なので、
 /// 深いほどスタックが積み上がる。Rust のスタックオーバーフローは `catch_unwind`
 /// できず、`get_file_tree` は `Err` すら返せないまま落ちる。
@@ -18,14 +18,14 @@ use super::types::FileTreeNode;
 /// 実体のディレクトリだけでこの深さに達する棋譜庫は無い
 const MAX_DEPTH: usize = 64;
 
-/// 作ってよいノード数の上限。**総数を止める。**
+/// 作ってよいノード数の上限。総数を止める。
 ///
 /// 深さの上限では足りない。`ws/a0..a7` の中で互いを指す symlink を張ると、
 /// 経路が順列に展開されて**深さ8のまま175万ノード**になる。深さの上限は
 /// 一度も効かない。1ノードごとに UUID とフルパスの String を持つので、
 /// 数百 MB の割り当てと直列化になり、`get_file_tree` は同期実行なので応答が返らない。
 ///
-/// **ファイルも数える。** ディレクトリの下降だけを止めると、1つのフォルダに
+/// ファイルも数える。ディレクトリの下降だけを止めると、1つのフォルダに
 /// 数十万の `.csa` を置いた形（floodgate の取り込み）で上限が効かない。
 ///
 /// 20万は、想定する最大の棋譜庫（年/月/日で切って数万局）の1桁上に置いた値。
@@ -34,12 +34,12 @@ const MAX_NODES: usize = 200_000;
 
 /// 走査の途中の状態。
 ///
-/// `followed` は**root と、いまの経路で辿った symlink の解決先**を積む。
+/// `followed` は、root と、いまの経路で辿った symlink の解決先を積む。
 /// root の中で閉じた symlink は一覧に出す（`ws/current -> ws/2026/08` は普通の
 /// 使い方）ので、これが無いと自分や祖先を指す1本で同じ部分木を積み直す。
 /// 深さは `MAX_DEPTH` が止めるが、そこまでの部分木が毎回複製される。
 ///
-/// **root を最初に入れておく。** 入れないと `ws/self -> .` が1段降りてから
+/// root を最初に入れておく。入れないと `ws/self -> .` が1段降りてから
 /// 初めて弾かれる。
 ///
 /// **経路ごとに持ち、`&mut` で回す。** 訪問済みの集合にすると、同じ実体を指す
@@ -48,13 +48,17 @@ struct Walk<'a> {
     canonical_root: &'a Path,
     followed: Vec<PathBuf>,
     depth: usize,
-    /// あと何ノード作ってよいか。**走査全体で1つ**を分け合う。
+    /// あと何ノード作ってよいか。走査全体で1つを分け合う。
     ///
     /// 0 になったところで、そのディレクトリを `truncated` にして以降の項目を積まない。
     /// 枝ごとに持たせると、枝の数だけ上限が掛け算になって上限にならない
     budget: usize,
 }
 
+/// `path` の1行を作り、フォルダなら下の行を積む。
+///
+/// 下の行が読めなくても、その行を落として残りを返す。
+/// `Err` を返すのは `path` 自身の属性か、フォルダの一覧を読めないとき。
 fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNode, FsError> {
     let metadata = fs::metadata(path).map_err(FsError::from)?;
     let is_dir = metadata.is_dir();
@@ -114,11 +118,11 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
 
             // **root の外へ出る symlink は落とす。** `Path::is_dir` は symlink を辿るので、
             // 素通しにすると一覧がホーム以下まで広がる。しかも辿った先は `read_file` の
-            // 検査が canonicalize して弾くので、**見えるのに開けない行**になる。
+            // 検査が canonicalize して弾くので、見えるのに開けない行になる。
             //
             // root の中で閉じている symlink（`ws/current -> ws/2026/08`）は普通の使い方で、
             // 中身も開けるので残す。無条件に落とすと、何も伝えないまま一覧から消える。
-            // 落とした行があることは利用者に出ない → issue #179
+            // 落とした行があることは利用者に出さない。読めないフォルダを落とすのと同じ扱いで、仕様として決めてある
             let Ok(file_type) = entry.file_type() else {
                 continue;
             };

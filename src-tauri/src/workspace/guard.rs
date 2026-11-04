@@ -1,6 +1,6 @@
-//! 設定された作業場所の外へ出ていないか。
+//! パスが設定上の root の外へ出ていないかを判定する。
 //!
-//! **ここだけが「どこが root か」を知る。** 名前とパスの判定そのものは
+//! パスの判定のために設定ファイルの `root_dir` を読むのはここだけ。名前とパスの判定そのものは
 //! `fs::path` にあり、そちらは設定を読まない。
 
 use std::fs;
@@ -10,9 +10,9 @@ use tauri::{AppHandle, Manager, Runtime};
 use ::fs::error::{FsError, FsErrorCode};
 use ::fs::path::{canonicalize_for_compare, is_under};
 
-/// AppConfig.root_dir を取得（未設定なら None）。
+/// 設定の置き場を解き、そこの設定ファイルの `root_dir` を返す。
 ///
-/// **`settings::app` から型もファイル名も借りる。写さない。**
+/// 型とファイル名は `settings::app` から借り、写さない。
 ///
 /// 写すと、あちらの変更がこちらに当たらない。`serde` は欠けたフィールドを黙って
 /// `None` にし、`exists()` は見つからないファイルに偽を返すので、どちらの場合も
@@ -29,6 +29,10 @@ fn load_root_dir<R: Runtime>(app: &AppHandle<R>) -> Result<Option<PathBuf>, FsEr
     read_root_dir(&cfg_path)
 }
 
+/// `cfg_path` の設定ファイルの `root_dir` を返す。
+///
+/// ファイルが無ければ `None` を返す。ワークスペースを選ぶ前の起動がそれに当たる。
+/// 読めない、解けないときは、設定ファイルを名指しした `InvalidPath` を返す。
 fn read_root_dir(cfg_path: &Path) -> Result<Option<PathBuf>, FsError> {
     if !cfg_path.exists() {
         return Ok(None);
@@ -45,14 +49,14 @@ fn read_root_dir(cfg_path: &Path) -> Result<Option<PathBuf>, FsError> {
     Ok(cfg.root_dir.map(PathBuf::from))
 }
 
-/// 与えられた target が AppConfig.root_dir 配下にあるか検証する。
+/// `target` が設定上の root の下に無ければ、`InvalidPath` を返す。
 ///
-/// **存在確認より先に呼ぶ。** 後ろに置くと、root 外のパスについて
+/// 呼び手は存在確認より先に呼ぶ。後ろに置くと、root 外のパスについて
 /// `is_file()` / `is_dir()` / `read_dir` の結果まで返してしまう。
 /// 先に置いても、失敗には `canonicalize_for_compare` が `path` を載せるので
 /// どのパスの話かは画面に残る。
 ///
-/// **その親の存否は隠せない。** 存在しないパスは親を canonicalize して組むので、
+/// その親の存否は隠せない。存在しないパスは親を canonicalize して組むので、
 /// root 外でも「親が在る（`invalid_path`）」と「親も無い（`not_found`）」は
 /// 返る code から読める。ここは webview を信用しない前提の防壁ではないので、
 /// それは範囲外とする（下記）。
@@ -62,11 +66,13 @@ fn read_root_dir(cfg_path: &Path) -> Result<Option<PathBuf>, FsError> {
 /// webview 側から `invoke` を直に呼べばどのパスでも通る。
 /// `save_config` も `root_dir` を無検証で受けるので、2回の `invoke` で
 /// この検査は無効にできる。ここが止めているのは UI 側の取り違えと壊れたパスであって、
-/// webview を信用しない前提の防壁ではない → issue #215
+/// webview を信用しない前提の防壁ではない。
+// TODO(#215): webview を信用しない前提の検査にするなら、`save_config` の側でも root を確かめる
 pub fn validate_under_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<(), FsError> {
     check_under_root(load_root_dir(app)?, target)
 }
 
+/// [`validate_under_root`] の判定。`root` が `None` なら通す
 fn check_under_root(root: Option<PathBuf>, target: &Path) -> Result<(), FsError> {
     let Some(root) = root else {
         return Ok(());
@@ -91,6 +97,7 @@ pub fn is_project_root<R: Runtime>(app: &AppHandle<R>, target: &Path) -> Result<
     is_root(load_root_dir(app)?, target)
 }
 
+/// [`is_project_root`] の判定。`root` が `None` なら偽
 fn is_root(root: Option<PathBuf>, target: &Path) -> Result<bool, FsError> {
     let Some(root) = root else {
         return Ok(false);

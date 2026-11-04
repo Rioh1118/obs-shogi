@@ -1,3 +1,5 @@
+//! ワークスペースの中で、棋譜ファイルとフォルダを改名し、動かすコマンド。
+
 use std::fs;
 use std::path::PathBuf;
 use tauri::{command, AppHandle, Runtime};
@@ -13,8 +15,9 @@ use ::fs::path::{
 // 区切り文字を弾くので、src が root の**配下**（root 自身を除く）なら行き先も root 配下。
 // root 自身の改名だけは行き先が root の兄弟になるので、`is_project_root` で分岐する。
 //
-// **検査はどれも存在確認より先に置く。** 理由は `validate_under_root` の doc に1回だけ書く
+// 検査はどれも存在確認より先に置く。理由は `validate_under_root` の doc に1回だけ書く
 
+/// 棋譜ファイルを同じフォルダの中で改名し、新しいパスを返す。拡張子は変えさせない
 #[command]
 pub fn rename_kifu_file<R: Runtime>(
     app: AppHandle<R>,
@@ -46,7 +49,6 @@ pub fn rename_kifu_file<R: Runtime>(
     })?;
     let dest = parent.join(&new_file_name);
 
-    // リネーム後も棋譜拡張子のみ許可
     if !is_kifu_file(&dest) {
         return Err(
             FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
@@ -62,6 +64,8 @@ pub fn rename_kifu_file<R: Runtime>(
     Ok(dest.to_string_lossy().to_string())
 }
 
+/// 棋譜ファイルを `dest_dir` へ動かし、新しいパスを返す。
+/// `new_file_name` を渡せば同時に改名する。拡張子は変えさせない
 #[command]
 pub fn mv_kifu_file<R: Runtime>(
     app: AppHandle<R>,
@@ -107,7 +111,6 @@ pub fn mv_kifu_file<R: Runtime>(
 
     let dest = dest_dir.join(&name);
 
-    // 移動後も棋譜拡張子のみ許可
     if !is_kifu_file(&dest) {
         return Err(
             FsError::new(FsErrorCode::InvalidExtension, "not a kifu file extension")
@@ -122,6 +125,7 @@ pub fn mv_kifu_file<R: Runtime>(
     Ok(dest.to_string_lossy().to_string())
 }
 
+/// フォルダを同じ親の中で改名し、新しいパスを返す。ワークスペースそのものも改名できる
 #[command]
 pub fn rename_directory<R: Runtime>(
     app: AppHandle<R>,
@@ -164,6 +168,8 @@ pub fn rename_directory<R: Runtime>(
     Ok(dest.to_string_lossy().to_string())
 }
 
+/// フォルダを `dest_parent_dir` の下へ動かし、新しいパスを返す。
+/// `new_dir_name` を渡せば同時に改名する。自分の中へは動かさない
 #[command]
 pub fn mv_directory<R: Runtime>(
     app: AppHandle<R>,

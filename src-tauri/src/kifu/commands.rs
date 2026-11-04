@@ -9,6 +9,7 @@ use crate::kifu::convert::{convert_jkf_to_string_internal, write_kifu_file_inter
 use crate::workspace::guard::validate_under_root;
 use ::fs::path::is_kifu_file;
 
+/// `write_kifu_to_file` が webview から受ける要求。`format` は `kif` / `ki2` / `csa` / `jkf`（`json` も同じ）
 #[derive(Serialize, Deserialize)]
 pub struct WriteKifuRequest {
     pub jkf: JsonKifuFormat,
@@ -16,20 +17,24 @@ pub struct WriteKifuRequest {
     pub format: String,
 }
 
+/// `write_kifu_to_file` の結果。失敗しても `Err` にせず、`success` と `error` で返す
 #[derive(Serialize, Deserialize)]
 pub struct WriteKifuResponse {
     pub success: bool,
     pub file_path: Option<String>,
+    /// 書いた JKF。名前に反して正規化していない。書き出しは受けた JKF をそのまま綴る
     pub normalized_jkf: Option<JsonKifuFormat>,
     pub error: Option<String>,
 }
 
+/// `convert_jkf_to_format` が受ける要求。`format` の綴りは [`WriteKifuRequest`] と同じ
 #[derive(Serialize, Deserialize)]
 pub struct ConvertKifuRequest {
     pub jkf: JsonKifuFormat,
     pub format: String,
 }
 
+/// `convert_jkf_to_format` と `normalize_jkf` の結果。`normalize_jkf` は `content` を返さない
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct ConvertKifuResponse {
     pub success: bool,
@@ -40,6 +45,9 @@ pub struct ConvertKifuResponse {
 
 // TODO(#215): この経路は FsError の外にあり、io::Error の生の英文がそのまま画面に出る。
 // 整えた save_kifu_file の方は呼び出し元が1つも無い
+/// JKF を `format` の形式に綴り、`file_path` へ書く。正規化しない。
+///
+/// 棋譜の拡張子でないパスと root の外のパスには書かない。
 #[command]
 pub async fn write_kifu_to_file<R: Runtime>(
     app: AppHandle<R>,
@@ -48,7 +56,6 @@ pub async fn write_kifu_to_file<R: Runtime>(
     let jkf = request.jkf;
     let target = Path::new(&request.file_path);
 
-    // 棋譜ファイル拡張子に限定
     if !is_kifu_file(target) {
         return WriteKifuResponse {
             success: false,
@@ -57,7 +64,6 @@ pub async fn write_kifu_to_file<R: Runtime>(
             error: Some("棋譜ファイルではありません".to_string()),
         };
     }
-    // root_dir 配下にあるか
     if let Err(e) = validate_under_root(&app, target) {
         return WriteKifuResponse {
             success: false,
@@ -83,6 +89,7 @@ pub async fn write_kifu_to_file<R: Runtime>(
     }
 }
 
+/// JKF を正規化してから `format` の形式に綴り、本文と正規化した JKF を返す。ファイルには書かない
 #[command]
 pub async fn convert_jkf_to_format(request: ConvertKifuRequest) -> ConvertKifuResponse {
     let mut jkf = request.jkf;
@@ -103,7 +110,7 @@ pub async fn convert_jkf_to_format(request: ConvertKifuRequest) -> ConvertKifuRe
     }
 }
 
-/// JKFデータのみを正規化する関数
+/// JKF を正規化して返す。綴らない
 #[command]
 pub async fn normalize_jkf(mut jkf: JsonKifuFormat) -> ConvertKifuResponse {
     match jkf.normalize() {

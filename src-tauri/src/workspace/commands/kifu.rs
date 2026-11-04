@@ -11,6 +11,7 @@ use ::fs::error::{FsError, FsErrorCode};
 use ::fs::path::{is_kifu_file, validate_basename};
 use ::fs::write::atomic_write;
 
+/// 棋譜ファイルを読み、復号した文字列を返す。棋譜の拡張子でないファイルは読まない
 #[command]
 pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<String, FsError> {
     let path = PathBuf::from(&file_path);
@@ -25,7 +26,6 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
             .with_path(path.to_string_lossy().to_string()));
     }
 
-    // 棋譜ファイルのみ読み込み許可
     if !is_kifu_file(&path) {
         return Err(
             FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
@@ -36,6 +36,8 @@ pub fn read_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<Str
     read_text_portable(&path)
 }
 
+/// 新規作成の JKF を正規化し、`parent_dir` の下の `file_name` へ、拡張子が指す形式で書く。
+/// 書いたパスを返す。在る名前には書かない
 #[command]
 pub fn create_kifu_file<R: Runtime>(
     app: AppHandle<R>,
@@ -68,7 +70,7 @@ pub fn create_kifu_file<R: Runtime>(
 
     // ここに来る JKF は webview 側が組んだもので、パーサ由来ではない。
     // `parse_*` の戻り値なら正規化済みだが、この経路はそうではないので呼ぶ。
-    // なお `import_kifu_file` と `write_kifu_to_file` は呼ばない（#322）
+    // 取り込みの `import_kifu_file` と、保存し直しの `write_kifu_to_file` は呼ばない
     jkf_data.normalize().map_err(|e| {
         FsError::new(
             FsErrorCode::KifuConversionFailed,
@@ -83,6 +85,8 @@ pub fn create_kifu_file<R: Runtime>(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+/// 取り込んだ JKF を、`parent_dir` の下の `file_name` へ拡張子が指す形式で書く。
+/// 正規化しない。書いたパスを返す。在る名前には書かない
 #[command]
 pub fn import_kifu_file<R: Runtime>(
     app: AppHandle<R>,
@@ -120,6 +124,8 @@ pub fn import_kifu_file<R: Runtime>(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+/// 綴り終えた本文を、`parent_dir` の下の `file_name` へ書く。在る名前なら置き換える。
+/// 書いたパスを返す
 #[command]
 pub fn save_kifu_file<R: Runtime>(
     app: AppHandle<R>,

@@ -13,7 +13,7 @@
 //! 見ているのは3つ。検査を呼んでいるか、その**順序**（存在確認より前か）、
 //! コマンド固有の追加の検査（`EXTRA_GUARDS`）。
 //! 検査そのものは `root_dir` が未設定のときに無条件で通す
-//! （`utils.rs` の `validate_under_root`）。
+//! （`workspace/guard.rs` の `validate_under_root`）。
 
 mod roots;
 mod scanning;
