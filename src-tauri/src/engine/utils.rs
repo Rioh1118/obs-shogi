@@ -435,17 +435,19 @@ mod tests {
         );
     }
 
-    /// 閉じた枠は `reset` で閉じたまま数え直し、`set_interval` で間隔だけが変わる。
-    /// 間隔は起動直後の例外（型の doc）に当たらない長さにする
+    /// `reset` は通さずに枠を閉じる。`set_interval` は枠を閉じた時刻を動かさず、間隔だけを替える。
+    /// 最初の間隔は起動直後の例外（型の doc）に当たらない長さにする
     #[test]
-    fn a_throttle_closes_on_reset_and_takes_a_new_interval() {
+    fn a_throttle_closes_on_reset_and_keeps_its_time_on_a_new_interval() {
         let mut throttle = LogThrottle::new(Duration::from_secs(60));
         assert!(throttle.is_open());
         throttle.reset();
         assert!(!throttle.is_open(), "reset の後も空いている");
         assert!(!throttle.allow());
 
-        throttle.set_interval(Duration::ZERO);
-        assert!(throttle.allow(), "間隔を差し替えても通らない");
+        std::thread::sleep(Duration::from_millis(20));
+        throttle.set_interval(Duration::from_millis(10));
+        assert!(throttle.is_open(), "間隔を替えたときに閉じた時刻が動いた");
+        assert!(throttle.allow());
     }
 }
