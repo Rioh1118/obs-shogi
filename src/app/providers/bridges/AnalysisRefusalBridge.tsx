@@ -20,7 +20,8 @@ export function AnalysisRefusalBridge() {
   const openSettings = useEngineSettingsAction();
   const { error } = state;
 
-  // 押されるのは通知に積まれたあと。依存に入れると、閉じた帯が画面を動かすたびに戻る
+  // 押されるのは通知に積まれたあと。`initialize` は `desiredRuntime` が変わるたびに別物になるので、
+  // 依存に入れると、設定を触るたびに閉じた帯が戻る
   const startAgain = useRef(initialize);
   useEffect(() => {
     startAgain.current = initialize;

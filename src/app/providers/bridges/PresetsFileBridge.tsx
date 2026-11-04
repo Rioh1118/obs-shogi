@@ -63,7 +63,8 @@ export function PresetsFileBridge() {
   const { notify, dismissByKey } = useNotify();
   const openSettings = useEngineSettingsAction();
 
-  // `reload` は render のたびに別物になりうる。effect の依存に入れると、画面を動かすたびに
+  // `reload` は `useCallback` の依存（`adopt`、`enqueue` など）が作り直されるたびに別物になる。
+  // effect の依存に入れると、そのたびに
   // cleanup → `notify` が走って閉じた通知が戻るので、押したときに最新を掴む
   const readAgain = useRef(reload);
   useEffect(() => {

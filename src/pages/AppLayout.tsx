@@ -5,7 +5,7 @@ import GameBoard from "@/widgets/game-board/ui/GameBoard";
 import Board from "@/widgets/game-board/ui/Board";
 import Hand from "@/widgets/game-board/ui/Hand";
 
-// widget の import より前に読む。最後へ移すと、出力の CSS で `AppLayout` の規則が widget の規則の後ろへ動く
+// 下の `Dock` 以降の import より前に置く。最後へ移すと、出力の CSS で `AppLayout` の規則が widget の規則の後ろへ動く
 import "./AppLayout.scss";
 import WelcomeScreen from "./WelcomeScreen";
 import AppModalLayer from "./AppModalLayer";
