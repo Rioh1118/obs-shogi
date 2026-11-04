@@ -29,7 +29,7 @@ interface ExtendedLayoutConfig extends LayoutConfig {
 }
 
 /** 持ち駒を種類ごとの枚数にまとめる */
-function organizeHandPieces(pieces: Piece[]): HandPiece[] {
+function countByKind(pieces: Piece[]): HandPiece[] {
   const pieceCount: { [key: string]: number } = {};
 
   pieces.forEach((piece) => {
@@ -154,7 +154,7 @@ function arrangeHandPieces(
  *
  * 3枚までの段は1割大きくする。並べた幅が上限を超える段は縮め、駒は 2.8 より小さくしない。
  */
-function getDynamicRowConfig(pieces: string[], layoutConfig: LayoutConfig): RowConfig {
+function rowConfigFor(pieces: string[], layoutConfig: LayoutConfig): RowConfig {
   const pieceCount = pieces.length;
 
   if (pieceCount === 0) {
@@ -191,18 +191,18 @@ function getDynamicRowConfig(pieces: string[], layoutConfig: LayoutConfig): RowC
 
 export function useHandLayout(handPieces: Piece[]) {
   return useMemo(() => {
-    const organizedPieces = organizeHandPieces(handPieces);
+    const organizedPieces = countByKind(handPieces);
     const totalPieces = organizedPieces.reduce((sum, piece) => sum + piece.count, 0);
 
     // 段の偏りは並べてみないと分からないので、仮の上限で一度並べ、
     // いちばん多い段の枚数から上限を決め直す
-    const tempLayoutConfig = getLayoutConfig(totalPieces, 10);
-    const tempArranged = arrangeHandPieces(organizedPieces, tempLayoutConfig);
+    const trialConfig = getLayoutConfig(totalPieces, 10);
+    const trialArranged = arrangeHandPieces(organizedPieces, trialConfig);
     const maxPiecesInAnyRow = Math.max(
-      tempArranged.row1.length,
-      tempArranged.row2.length,
-      tempArranged.row3.length,
-      tempArranged.row4.length,
+      trialArranged.row1.length,
+      trialArranged.row2.length,
+      trialArranged.row3.length,
+      trialArranged.row4.length,
     );
 
     const layoutConfig = getLayoutConfig(totalPieces, maxPiecesInAnyRow);
@@ -210,7 +210,7 @@ export function useHandLayout(handPieces: Piece[]) {
 
     const extendedLayoutConfig: ExtendedLayoutConfig = {
       ...layoutConfig,
-      getRowConfig: (pieces: string[]) => getDynamicRowConfig(pieces, layoutConfig),
+      getRowConfig: (pieces: string[]) => rowConfigFor(pieces, layoutConfig),
     };
 
     return {

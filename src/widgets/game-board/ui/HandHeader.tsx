@@ -15,7 +15,7 @@ const SIDE_UI: Record<HandSide, { label: string; symbol: { top: string; bottom: 
   gote: { label: "後手", symbol: { bottom: GOTE_GLYPH, top: "⛉" } },
 };
 
-function clampTo15Chars(s: string) {
+function truncateName(s: string) {
   const chars = Array.from(s);
   if (chars.length <= 15) return s;
   return chars.slice(0, 14).join("") + "…";
@@ -25,7 +25,7 @@ export default function HandHeader({ side, name, boardRotated = false, placement
   const ui = SIDE_UI[side];
   // 欠けているかは `playerNames` が `null` で決めている。ここで trim し直さない
   const raw = name ?? "";
-  const displayName = raw ? clampTo15Chars(raw) : "—";
+  const displayName = raw ? truncateName(raw) : "—";
   const symbol = ui.symbol[placement];
 
   return (

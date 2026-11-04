@@ -21,32 +21,32 @@ function Board() {
   const legalMoves = view.legalMoves;
   const lastMove = view.lastMove;
 
-  const [promotionState, setPromotionState] = useState<{
+  const [pendingPromotion, setPendingPromotion] = useState<{
     x: number;
     y: number;
-    jkfKind: string;
+    kind: string;
     color: Color;
-    moveCount: number;
+    tesuu: number;
     resolve: (promote: boolean) => void;
   } | null>(null);
 
   // 待っている間に別の操作で局面が動いたら、選択肢と選択を畳む。見るのは手数だけ
   useEffect(() => {
-    if (promotionState && shogi) {
-      const currentMoveCount = view.player?.tesuu || 0;
+    if (pendingPromotion && shogi) {
+      const currentTesuu = view.player?.tesuu || 0;
 
-      if (currentMoveCount !== promotionState.moveCount) {
-        setPromotionState(null);
+      if (currentTesuu !== pendingPromotion.tesuu) {
+        setPendingPromotion(null);
         clearSelection();
       }
     }
-  }, [promotionState, view.player?.tesuu, shogi, clearSelection]);
+  }, [pendingPromotion, view.player?.tesuu, shogi, clearSelection]);
 
   if (!shogi) {
     return <div className="board-loading">盤面を読み込み中…</div>;
   }
 
-  const isSquareHighlighted = (x: number, y: number) => {
+  const isReachable = (x: number, y: number) => {
     return legalMoves.some((move) => move.to.x === x && move.to.y === y);
   };
 
@@ -61,7 +61,7 @@ function Board() {
   const handleSquareClick = async (x: number, y: number) => {
     if (!view.player) return;
 
-    if (promotionState) {
+    if (pendingPromotion) {
       return;
     }
 
@@ -90,12 +90,12 @@ function Board() {
           promote = true;
         } else if (canPromote(shogi, shogiMove)) {
           promote = await new Promise((resolve) => {
-            setPromotionState({
+            setPendingPromotion({
               x,
               y,
-              jkfKind: fromPiece.kind,
+              kind: fromPiece.kind,
               color: fromPiece.color,
-              moveCount: view.player?.tesuu || 0,
+              tesuu: view.player?.tesuu || 0,
               resolve,
             });
           });
@@ -108,11 +108,16 @@ function Board() {
     selectSquare(x, y);
   };
 
+  const handleChoosePromotion = (promote: boolean) => {
+    pendingPromotion?.resolve(promote);
+    setTimeout(() => setPendingPromotion(null), 0);
+  };
+
   const squares = Array.from({ length: BOARD_SIZE.TOTAL_SQUARES }, (_, index) => {
     const { x, y } = indexToCoords(index);
     const piece = shogi.get(x, y);
     const isPromotionSquare =
-      promotionState !== null && promotionState.x === x && promotionState.y === y;
+      pendingPromotion !== null && pendingPromotion.x === x && pendingPromotion.y === y;
 
     return (
       <Square
@@ -120,19 +125,16 @@ function Board() {
         x={x}
         y={y}
         isSelected={isSelectedSquare(x, y)}
-        isHighlighted={isSquareHighlighted(x, y)}
+        isReachable={isReachable(x, y)}
         isLastMove={isLastMove(x, y)}
         onClick={() => handleSquareClick(x, y)}
       >
         {piece && <PieceImage kind={piece.kind} color={piece.color} />}
         {isPromotionSquare && (
           <PromotionDialog
-            jkfKind={promotionState.jkfKind}
-            color={promotionState.color}
-            setPromote={(promote) => {
-              promotionState.resolve(promote);
-              setTimeout(() => setPromotionState(null), 0);
-            }}
+            kind={pendingPromotion.kind}
+            color={pendingPromotion.color}
+            onChoose={handleChoosePromotion}
           />
         )}
       </Square>

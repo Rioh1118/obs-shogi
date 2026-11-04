@@ -29,19 +29,19 @@ function Hand({ isSente }: HandProps) {
   const { arrangedPieces, layoutConfig } = useHandLayout(handPiecesArray);
   const isCurrentTurn = color === currentTurn;
 
-  const [selectedHandUi, setSelectedHandUi] = useState<{
+  const [markedPiece, setMarkedPiece] = useState<{
     kind: string;
     nth: number;
   } | null>(null);
 
   const isThisHandSelected = selectedPosition?.type === "hand" && selectedPosition.color === color;
 
-  const isSelectedThisPiece = (pieceKind: string, nth: number) => {
+  const isMarked = (pieceKind: string, nth: number) => {
     return (
       isThisHandSelected &&
       selectedPosition.kind === pieceKind &&
-      selectedHandUi?.kind === pieceKind &&
-      selectedHandUi.nth === nth
+      markedPiece?.kind === pieceKind &&
+      markedPiece.nth === nth
     );
   };
 
@@ -50,14 +50,14 @@ function Hand({ isSente }: HandProps) {
       selectedPosition?.type === "hand" && selectedPosition.color === color;
 
     if (!isThisHandSelected) {
-      setSelectedHandUi(null);
+      setMarkedPiece(null);
       return;
     }
 
-    if (selectedHandUi && selectedHandUi.kind !== selectedPosition.kind) {
-      setSelectedHandUi(null);
+    if (markedPiece && markedPiece.kind !== selectedPosition.kind) {
+      setMarkedPiece(null);
     }
-  }, [selectedPosition, color, selectedHandUi]);
+  }, [selectedPosition, color, markedPiece]);
 
   const handlePieceClick = (pieceKind: string, nth: number) => {
     if (!isCurrentTurn) {
@@ -65,12 +65,12 @@ function Hand({ isSente }: HandProps) {
       return;
     }
 
-    if (isSelectedThisPiece(pieceKind, nth)) {
+    if (isMarked(pieceKind, nth)) {
       clearSelection();
       return;
     }
 
-    setSelectedHandUi({ kind: pieceKind, nth });
+    setMarkedPiece({ kind: pieceKind, nth });
     selectHand(color, pieceKind as Kind);
   };
 
@@ -85,22 +85,26 @@ function Hand({ isSente }: HandProps) {
     clearSelection();
   };
 
-  const renderPiecesInRow = (pieces: string[], rowConfig: RowConfig, occ: Map<string, number>) => {
+  const renderPiecesInRow = (
+    pieces: string[],
+    rowConfig: RowConfig,
+    seenOfKind: Map<string, number>,
+  ) => {
     return pieces.map((pieceKind) => {
-      const nth = occ.get(pieceKind) ?? 0;
-      occ.set(pieceKind, nth + 1);
+      const nth = seenOfKind.get(pieceKind) ?? 0;
+      seenOfKind.set(pieceKind, nth + 1);
 
-      const isSelectedUI =
+      const marked =
         selectedPosition?.type === "hand" &&
         selectedPosition.color === color &&
         selectedPosition.kind === pieceKind &&
-        selectedHandUi?.kind === pieceKind &&
-        selectedHandUi.nth === nth;
+        markedPiece?.kind === pieceKind &&
+        markedPiece.nth === nth;
 
       return (
         <div
           key={`${pieceKind}-${nth}`}
-          className={`hand-piece ${isSelectedUI ? "hand-piece--selected" : ""}`}
+          className={`hand-piece ${marked ? "hand-piece--selected" : ""}`}
           data-hand-piece="true"
           style={{
             width: `${rowConfig.pieceSize}em`,
@@ -117,7 +121,7 @@ function Hand({ isSente }: HandProps) {
     });
   };
 
-  const occ = new Map<string, number>();
+  const seenOfKind = new Map<string, number>();
 
   return (
     <div
@@ -140,7 +144,7 @@ function Hand({ isSente }: HandProps) {
                   justifyContent: "center",
                 }}
               >
-                {renderPiecesInRow(pieces, rowConfig, occ)}
+                {renderPiecesInRow(pieces, rowConfig, seenOfKind)}
               </div>
             );
           },

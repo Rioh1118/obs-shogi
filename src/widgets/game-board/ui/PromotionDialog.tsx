@@ -4,13 +4,13 @@ import "./PromotionDialog.scss";
 
 /** 移動先の升に重ねる成りの選択肢。成った駒と元の駒を並べ、押した方を返す */
 function PromotionDialog({
-  jkfKind,
+  kind,
   color,
-  setPromote,
+  onChoose,
 }: {
-  jkfKind: string;
+  kind: string;
   color: Color;
-  setPromote: (promote: boolean) => void;
+  onChoose: (promote: boolean) => void;
 }) {
   const promotionMap: Record<string, string> = {
     FU: "TO",
@@ -28,11 +28,11 @@ function PromotionDialog({
       className={`promotion-choice ${isBlack ? "promotion-choice__black" : "promotion-choice__white"}`}
     >
       <div className="promotion-choice__piece">
-        <div className="promotion-choice__piece--promote" onClick={() => setPromote(true)}>
-          <PieceImage kind={promotionMap[jkfKind]} color={color} />
+        <div className="promotion-choice__piece--promote" onClick={() => onChoose(true)}>
+          <PieceImage kind={promotionMap[kind]} color={color} />
         </div>
-        <div className="promotion-choice__piece--not-promote" onClick={() => setPromote(false)}>
-          <PieceImage kind={jkfKind} color={color} />
+        <div className="promotion-choice__piece--not-promote" onClick={() => onChoose(false)}>
+          <PieceImage kind={kind} color={color} />
         </div>
       </div>
     </div>
