@@ -64,6 +64,8 @@ impl std::fmt::Display for OptionLineError {
     }
 }
 
+impl std::error::Error for OptionLineError {}
+
 /// `option` 行1本から解いた定義と、上限で捨てた選択肢の数
 #[derive(Debug, Clone)]
 pub struct ParsedOption {

@@ -529,6 +529,7 @@ pub trait AnalysisEventSink: Send + Sync + 'static {
 
 /// どこへも流さない宛先。`EngineBridge` の既定（`Option` にすると、宛先が無いことを
 /// 進行のコードが知ることになる）
+#[derive(Debug)]
 pub struct DiscardAnalysisEvents;
 
 impl AnalysisEventSink for DiscardAnalysisEvents {
