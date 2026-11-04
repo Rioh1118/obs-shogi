@@ -1,9 +1,9 @@
-import "./FolderSelect.scss";
 import Title from "@/shared/ui/Title";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppConfig } from "@/entities/app-config";
 import ChooseWorkspaceButton from "@/features/choose-workspace/ui/ChooseWorkspaceButton";
+import "./FolderSelect.scss";
 
 function FolderSelect() {
   const navigate = useNavigate();

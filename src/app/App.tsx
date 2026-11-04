@@ -1,5 +1,6 @@
 import { BrowserRouter } from "react-router";
-// リセットと基準文字サイズ。App.scss より前に読む
+// リセットと基準文字サイズ。App.scss より前に読む。
+// どちらも部品の import より前に置く。最後へ移すと、出力の CSS で部品の規則より後ろへ動く
 import "./styles/global.scss";
 import "./App.scss";
 import { BootstrapProviders } from "./providers/BootstrapProviders";

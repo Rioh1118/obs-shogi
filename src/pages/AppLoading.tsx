@@ -1,10 +1,10 @@
 import FolderSelect from "./FolderSelect";
-import "./FolderSelect.scss";
 import { Navigate, useNavigate } from "react-router";
 import { useAppConfig } from "@/entities/app-config";
 import BootSplash from "@/widgets/boot-splash/ui/BootSplash";
 import Title from "@/shared/ui/Title";
 import ChooseWorkspaceButton from "@/features/choose-workspace/ui/ChooseWorkspaceButton";
+import "./FolderSelect.scss";
 
 function AppLoading() {
   const { config, isLoading, error } = useAppConfig();
