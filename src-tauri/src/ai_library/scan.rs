@@ -32,7 +32,8 @@ pub struct DirInfo {
 
 /// engines/ と AI フォルダを読む。
 ///
-/// `Err` になるのは AI ルートか engines/ を開けないとき。engines/ が無いのは失敗ではない
+/// `Err` になるのは AI ルートか engines/ を開けないときと、AI ルートの中の1件を読めないとき。
+/// engines/ が無いのは失敗ではない
 pub fn index(ai_root: String) -> Result<AiRootIndex, String> {
     let root = Path::new(&ai_root);
 

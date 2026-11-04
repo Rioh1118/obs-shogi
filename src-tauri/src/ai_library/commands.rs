@@ -208,7 +208,8 @@ mod tests {
     }
 
     /// `create_dir_all` は同名のファイルがあると EEXIST で落ちる。OS の失敗を
-    /// そのまま返すと `io` になり、利用者には「読み書きに失敗しました」としか出ない
+    /// そのまま返すと `already_exists` になり、利用者には「同じ名前のものが既にあります」と出る。
+    /// 邪魔しているのがファイルだとは読めない
     #[test]
     fn a_blocking_file_is_named_as_such() {
         let (base, root) = temp_ai_root("blocked");

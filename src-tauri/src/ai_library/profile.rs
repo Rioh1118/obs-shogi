@@ -80,8 +80,8 @@ pub fn create_dirs(profile: &Path) -> Result<(), FsError> {
     for sub in PROFILE_SUBS {
         let dir = profile.join(sub);
 
-        // 同名のファイルがあると `create_dir_all` は EEXIST で落ち、`io` に丸まる。
-        // 何が邪魔しているかを利用者に言えるよう、パスを付けて先に断る
+        // 同名のファイルがあると `create_dir_all` は EEXIST で落ち、`already_exists` に写る。
+        // AI フォルダがもう在るように読めるので、邪魔しているファイルのパスを付けて先に断る
         if dir.exists() && !dir.is_dir() {
             return Err(FsError::new(
                 FsErrorCode::InvalidType,
