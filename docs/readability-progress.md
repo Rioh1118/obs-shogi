@@ -73,7 +73,7 @@ ours 戦略のマージは使わない。
 | 37 | `refactor/tidy-rust-kifu-workspace` | `src-tauri/src/kifu`、`src-tauri/src/workspace`（Rust の範囲3） | #706 | マージ済み |
 | 38 | `refactor/tidy-rust-ai-library` | `src-tauri/src/ai_library`（Rust の範囲4） | #707 | マージ済み |
 | 39 | `refactor/tidy-rust-engine-launchable` | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（Rust の範囲5） | #709 | マージ済み |
-| 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | — | レビュー待ち |
+| 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | #710 | レビュー待ち |
 
 ## 語
 
