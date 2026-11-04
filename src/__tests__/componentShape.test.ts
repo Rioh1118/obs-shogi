@@ -17,13 +17,13 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
  */
 
 const BASELINE = {
-  arrowComponent: 1,
+  arrowComponent: 0,
   typeInterface: 0,
-  reactNamespace: 2,
+  reactNamespace: 0,
   conditionalNull: 0,
-  inlineHandlerBlock: 1,
+  inlineHandlerBlock: 0,
   stateAfterEffect: 0,
-  helperAfterComponent: 1,
+  helperAfterComponent: 0,
   forwardRef: 0,
 };
 
@@ -386,11 +386,11 @@ describe("走査の部品", () => {
 describe("部品の形と書き方", () => {
   const { byShape, files, components } = scan();
 
+  // 該当が0件の形もある。走査が空振りしていないかは次の試験が見る
   it("求められたら該当の全行を書き出す", () => {
     const destination = process.env.SHAPE_REPORT;
-    if (destination)
-      writeFileSync(destination, JSON.stringify(Object.fromEntries(byShape), null, 2));
-    expect(byShape.size).toBeGreaterThan(0);
+    if (!destination) return;
+    writeFileSync(destination, JSON.stringify(Object.fromEntries(byShape), null, 2));
   });
 
   it("走査が空振りしていない", () => {

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { refusalNeedsRestart, useAnalysis } from "@/entities/analysis";
 import { useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
-import { useURLParams } from "@/shared/lib/router/useURLParams";
+import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
 /** 帯の取っ手。断りが消えたら引っ込める */
 const ANALYSIS_REFUSAL = "analysis-refusal";
@@ -17,14 +17,11 @@ export function AnalysisRefusalBridge() {
   const { state } = useAnalysis();
   const { initialize } = useEngine();
   const { notify, dismissByKey } = useNotify();
-  const { openModal } = useURLParams();
+  const openSettings = useEngineSettingsAction();
   const { error } = state;
 
-  // 押されるのは通知に積まれたあと。依存に入れると、閉じた帯が画面を動かすたびに戻る
-  const openSettings = useRef(openModal);
-  useEffect(() => {
-    openSettings.current = openModal;
-  }, [openModal]);
+  // 押されるのは通知に積まれたあと。`initialize` は `desiredRuntime` が変わるたびに別物になるので、
+  // 依存に入れると、設定を触るたびに閉じた帯が戻る
   const startAgain = useRef(initialize);
   useEffect(() => {
     startAgain.current = initialize;
@@ -40,12 +37,7 @@ export function AnalysisRefusalBridge() {
             await startAgain.current();
           },
         }
-      : {
-          label: "設定を開く",
-          run: () => openSettings.current("settings", { tab: "engine" }),
-          failureBody:
-            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
-        };
+      : openSettings;
     notify({
       tier: "warning",
       presentation: "banner",
@@ -55,7 +47,7 @@ export function AnalysisRefusalBridge() {
       actions: [action],
     });
     return () => dismissByKey(ANALYSIS_REFUSAL);
-  }, [error, notify, dismissByKey]);
+  }, [error, openSettings, notify, dismissByKey]);
 
   return null;
 }

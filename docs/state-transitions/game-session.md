@@ -33,7 +33,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 `AwaitingRuling` で止まり、フロントの裁定（`continue_game` / `end_by_rule`）を待つ。
 
 **裁定を返すのは `GameSessionProvider`**（`src/entities/game-session/model/provider.tsx`）。
-判定を組むのは `GameSessionBridge` で、`judgeGameOutcome` を注入で受けている。
+判定を組むのは `GameSessionRulingGate` で、`judgeGameOutcome` を注入で受けている。
 画面の側は `docs/spec/features/game-play.md`（**対局の画面はいま1枚も無い**）。
 
 **指し手列の権威はフロント。** Rust の `Runner.moves` は `go` を組むための写しで、

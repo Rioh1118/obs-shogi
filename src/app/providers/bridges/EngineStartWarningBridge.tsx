@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
-import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { startWarningBody } from "./startWarningNotice";
+import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
 /** 起動で送らなかった設定があることの取っ手。次の起動で置き換える */
 const ENGINE_START_WARNINGS = "engine-start-warnings";
@@ -18,14 +18,7 @@ const ENGINE_START_WARNINGS = "engine-start-warnings";
 export function EngineStartWarningBridge() {
   const { state } = useEngine();
   const { notify, dismissByKey } = useNotify();
-  const { openModal } = useURLParams();
-
-  // `openModal` は URL が変わるたびに別物になる。依存に入れると画面を動かすたびに出し直すので、
-  // 押したときに最新を掴む
-  const openSettings = useRef(openModal);
-  useEffect(() => {
-    openSettings.current = openModal;
-  }, [openModal]);
+  const openSettings = useEngineSettingsAction();
 
   const { phase, startWarnings } = state;
 
@@ -40,17 +33,10 @@ export function EngineStartWarningBridge() {
       dismissKey: ENGINE_START_WARNINGS,
       title: "保存した設定の一部を、そのままでは送っていません",
       body,
-      actions: [
-        {
-          label: "設定を開く",
-          run: () => openSettings.current("settings", { tab: "engine" }),
-          failureBody:
-            "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
-        },
-      ],
+      actions: [openSettings],
     });
     return () => dismissByKey(ENGINE_START_WARNINGS);
-  }, [phase, startWarnings, notify, dismissByKey]);
+  }, [phase, startWarnings, openSettings, notify, dismissByKey]);
 
   return null;
 }

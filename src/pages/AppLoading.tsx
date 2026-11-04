@@ -1,10 +1,10 @@
 import FolderSelect from "./FolderSelect";
-import "./FolderSelect.scss";
 import { Navigate, useNavigate } from "react-router";
 import { useAppConfig } from "@/entities/app-config";
 import BootSplash from "@/widgets/boot-splash/ui/BootSplash";
 import Title from "@/shared/ui/Title";
 import ChooseWorkspaceButton from "@/features/choose-workspace/ui/ChooseWorkspaceButton";
+import "./FolderSelect.scss";
 
 function AppLoading() {
   const { config, isLoading, error } = useAppConfig();
@@ -12,7 +12,7 @@ function AppLoading() {
 
   if (isLoading) return <BootSplash />;
   if (error) {
-    // **行き止まりにしない。** 文だけを出すと、アプリを終了する以外に何もできない
+    // 行き止まりにしない。文だけを出すと、アプリを終了する以外に何もできない
     // 画面になる（次の起動でも同じ）。出口はワークスペースを選び直すことしかない。
     //
     // **`FolderSelect` は置けない。** あちらは `config.root_dir` があれば `/app` へ

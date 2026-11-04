@@ -23,7 +23,8 @@ export type PresetsFileNoticeView =
 /** 書けない状態で開いた種類の結び */
 const OPENED_READ_ONLY = "変更できない状態で開いています。";
 /** 直すのがアプリの外（フォルダの権限）の種類の結び */
-const CHECK_FOLDER = "設定のフォルダに書き込めるかを確認して、「もう一度読み込む」を押してください。";
+const CHECK_FOLDER =
+  "設定のフォルダに書き込めるかを確認して、「もう一度読み込む」を押してください。";
 
 type LoadNoticeBuilders = {
   [K in PresetsLoadNotice["kind"]]: (
@@ -32,14 +33,16 @@ type LoadNoticeBuilders = {
 };
 
 /**
- * 読み込みで起きたことの見せ方。**全種類を書かせる**（種類が Rust から届いていることは
+ * 読み込みで起きたことの見せ方。型が全種類を書かせる（種類が Rust から届いていることは
  * `presetsWire.test.ts` が見る）。
  *
- * 段（ADR-0004）: 何もしなくてよいものは `info`。**このまま使うと変更が保存されず、直すのが
- * アプリの中か利用者のフォルダの権限**の種類は `danger`。**新しい版は `warning`**——書けない状態で
- * 開くが、直す手段はアプリの更新で、フォルダや設定に問題があるわけではない。
+ * 段（ADR-0004）は次のとおり。
+ * - 何もしなくてよいものは `info`
+ * - このまま使うと変更が保存されず、直すのがアプリの中か利用者のフォルダの権限の種類は `danger`
+ * - 新しい版は `warning`。書けない状態で開くが、直す手段はアプリの更新で、
+ *   フォルダや設定に問題があるわけではない
  *
- * **Rust が返す理由の文字列（`reason`）は出さない**（利用者の言葉ではない）。ファイル名は出す——
+ * **Rust が返す理由の文字列（`reason`）は出さない**（利用者の言葉ではない）。ファイル名は出す。
  * 残したファイルを利用者が探して戻せるように
  */
 const LOAD_NOTICE_BUILDERS: LoadNoticeBuilders = {
@@ -115,7 +118,7 @@ export function presetsLoadNoticeView(notice: PresetsLoadNotice): PresetsFileNot
 }
 
 /**
- * 保存を断られたことの見せ方。**どの種類でも変更は保存していない**（悲観更新）ことを本文で言う
+ * 保存を断られたことの見せ方。どの種類でも変更は保存していない（悲観更新）ことを本文で言う
  */
 export const PRESETS_SAVE_NOTICES: Record<SaveFailure["kind"], PresetsFileNoticeView> = {
   conflict: {

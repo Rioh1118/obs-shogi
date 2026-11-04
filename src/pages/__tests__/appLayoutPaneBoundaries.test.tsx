@@ -10,7 +10,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
  * ——**作業面がまるごと「作業画面を表示できませんでした。」に置き換わる**だけになる。
  * 見ているものが全部消えるので、何が落ちたのかも分からない。
  *
- * 境界を1枚外しても型でもレンダでも落ちない。**受けた境界の名乗り**と
+ * 境界を1枚外しても型でもレンダでも落ちない。受けた境界の名乗りと
  * 畳まれる範囲の両方をここで固定する。名乗りを見ないと、内側の1枚を外しても
  * 外側が同じ形で受けるので緑のまま通る。
  */
@@ -24,7 +24,7 @@ vi.mock("@/entities/game", () => ({
 }));
 
 /** どのペインを落とすか。テストごとに1つだけ真にする */
-const throwing = { board: false, analysis: false };
+const throwing = { board: false, analysis: false, kifu: false };
 
 function mockThrowing(name: keyof typeof throwing, testId: string) {
   return {
@@ -48,9 +48,7 @@ vi.mock("@/widgets/analysis-pane/ui/AnalysisControls", () => empty);
 vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({ config: null, setDisplayConfig: vi.fn() }),
 }));
-vi.mock("@/widgets/kifu-stream/ui/KifuStreamList", () => ({
-  default: () => <div data-testid="kifu" />,
-}));
+vi.mock("@/widgets/kifu-stream/ui/KifuStreamList", () => mockThrowing("kifu", "kifu"));
 vi.mock("@/widgets/game-board/ui/Board", () => empty);
 vi.mock("@/widgets/game-board/ui/GameBoard", () => mockThrowing("board", "board"));
 vi.mock("@/widgets/analysis-pane/ui/AnalysisPane", () => mockThrowing("analysis", "analysis"));
@@ -75,6 +73,7 @@ beforeEach(() => {
 afterEach(() => {
   throwing.board = false;
   throwing.analysis = false;
+  throwing.kifu = false;
   cleanup();
   vi.restoreAllMocks();
 });
@@ -102,6 +101,15 @@ describe("ペインごとの境界", () => {
     expect(container.querySelector('[data-testid="board"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="analysis"]')).toBeNull();
+  });
+
+  test("棋譜一覧が落ちても、盤と解析ペインは残る", () => {
+    throwing.kifu = true;
+    const { container } = mount();
+
+    expect(screen.getByText("棋譜一覧を表示できませんでした。")).toBeTruthy();
+    expect(container.querySelector('[data-testid="board"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="analysis"]')).not.toBeNull();
   });
 
   // 畳まれる範囲がドックの本体で止まること。タブ列まで畳むと、落ちた面から

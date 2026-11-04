@@ -13,14 +13,14 @@ import { RequireRootDir } from "../guards/RequireRootDir";
  * `error` を見て `/` へ送り、`/` のページは `config.root_dir` を見て `/app` へ
  * 送る。この2つが同時に成り立つと往復が止まらず、React は
  * 「Maximum update depth exceeded」でツリーごと投げる。`RequireRootDir` は
- * `RuntimeShell` の境界より**上**なので、受けるのは root の境界（`App.tsx`）で、
- * 出るのは `RootErrorFallback`。窓は閉じられるが、**ワークスペースを選び直す導線は消える**
+ * `RuntimeShell` の境界より上なので、受けるのは root の境界（`App.tsx`）で、
+ * 出るのは `RootErrorFallback`。窓は閉じられるが、ワークスペースを選び直す導線は消える
  * ので、往復そのものを止める必要がある。
  *
  * `Navigate` は effect の中で `navigate()` を呼ぶので、この往復は型でも
  * レンダでも捕まらない。通った pathname を数えるしかない。
  *
- * **`error` と `config` は同時に立つ。** `configReducer` の `error` は `config` を
+ * `error` と `config` は同時に立つ。`configReducer` の `error` は `config` を
  * 残すので、更新の失敗（→ TODO(#249)）でこの組み合わせになる。
  */
 

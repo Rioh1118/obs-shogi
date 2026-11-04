@@ -5,9 +5,10 @@ import GameBoard from "@/widgets/game-board/ui/GameBoard";
 import Board from "@/widgets/game-board/ui/Board";
 import Hand from "@/widgets/game-board/ui/Hand";
 
+// 下の `Dock` 以降の import より前に置く。最後へ移すと、出力の CSS で `AppLayout` の規則が widget の規則の後ろへ動く
 import "./AppLayout.scss";
-import WelcomeScreen from "@/pages/WelcomeScreen";
-import AppModalLayer from "@/pages/AppModalLayer";
+import WelcomeScreen from "./WelcomeScreen";
+import AppModalLayer from "./AppModalLayer";
 
 import Dock from "@/widgets/dock/ui/Dock";
 import { DOCK_VIEWS_BINDINGS } from "./dockViews";
@@ -19,8 +20,8 @@ import { useClearBoardSelection } from "@/features/clear-board-selection";
 import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 
-const AppLayout = () => {
-  // 開閉は持ち越さない。**起動のたびに開いた状態で始まる**のが既定で、これは意匠。
+function AppLayout() {
+  // 開閉は持ち越さない。起動のたびに開いた状態で始まるのが既定で、これは意匠。
   // どのパネルを出すかは URL（`panel/*`）が持つが、開閉はそちらへ揃えない
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { view: gameView } = useGame();
@@ -28,7 +29,7 @@ const AppLayout = () => {
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
 
   // 「棋譜が無ければ WelcomeScreen、あれば作業面」は画面全体の切り替えなので、
-  // 判断はここに置く。**何をもって「ある」とするかは game が決める**
+  // 判断はここに置く。何をもって「ある」とするかは game が決める
   const { hasKifu } = gameView;
 
   // 「盤の外」は盤より広い範囲を見ないと判定できないので、捕まえるのはここ。
@@ -41,7 +42,7 @@ const AppLayout = () => {
       onPointerDownCapture={onPointerDownCapture}
     >
       {/*
-        モーダル1枚の事故で本体まで unmount させない。**境界は `AppModalLayer` の中にある**
+        モーダル1枚の事故で本体まで unmount させない。境界は `AppModalLayer` の中にある
         （鍵を読むために、ここが `FileTreeContext` を購読しないため）。
 
         **`.app-layout` は `grid-template-rows` が2段で、ヘッダと本体でちょうど埋まっている。**
@@ -116,7 +117,7 @@ const AppLayout = () => {
 
                 <section className="workspace__dock">
                   {/*
-                    **どのビューが入るかはここでは決めない。** 名簿は `entities/dock`、
+                    どのビューが入るかはここでは決めない。名簿は `entities/dock`、
                     部品の割り当ては `./dockViews.ts`（`widgets/dock` に置くと同層横断になる）。
                     境界もドックの中にあるので、ビューが落ちてもタブ列は残る
                   */}
@@ -129,6 +130,6 @@ const AppLayout = () => {
       </div>
     </div>
   );
-};
+}
 
 export default AppLayout;

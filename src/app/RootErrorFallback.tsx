@@ -9,7 +9,7 @@ import {
 import "./RootErrorFallback.scss";
 
 /**
- * 本文が要るものはそのまま本文へ通す。**出口だけをこの画面が足す。**
+ * 本文に渡す値。本文が要るものはそのまま通し、出口だけをこの画面が足す
  *
  * `afterAction` を受けないのは、この画面が自分で埋めるため（`closeFailed`）。
  * 外から渡せる形にすると、押した結果の知らせが2つ並びうる。
@@ -17,12 +17,12 @@ import "./RootErrorFallback.scss";
 type Props = Omit<ErrorFallbackBodyProps, "extraActions" | "afterAction">;
 
 /**
- * root の境界が最後に出す画面。
+ * root の境界が最後に出す画面。ウィンドウを動かす帯と閉じるボタンを自分で持つ。
  *
- * **ここが出ているとき、`TitleBar` は一緒に消えている。** ウィンドウ枠は自前で描いていて
+ * この画面が出ているとき、`TitleBar` は一緒に消えている。ウィンドウ枠は自前で描いていて
  * （`src-tauri/tauri.conf.json` の `decorations: false`）、その `TitleBar` は
  * `RuntimeShell` の中に居るので、例外が root まで上がった時点で落ちている。
- * ドラッグ領域と閉じるボタンをこの画面が**自分で**持たないと、利用者に残るのは強制終了だけになる。
+ * ドラッグ領域と閉じるボタンをこの画面が持たないと、利用者に残るのは強制終了だけになる。
  *
  * **`TitleBar` を再利用しない。** 枠そのものが落ちて root まで来た場合に、同じものを
  * 描き直せば同じ例外でこの画面も落ち、境界の外へ抜けて白い窓に戻る。同じ理由で
@@ -31,18 +31,18 @@ type Props = Omit<ErrorFallbackBodyProps, "extraActions" | "afterAction">;
  *
  * 帯の高さ・閉じるボタンの大きさ・色・帯の塗りは `TitleBar` と同じトークンから取る。落ちた瞬間に
  * 掴める領域が伸び縮みしたり赤の色味が変わったりすると、同じ窓の同じボタンだと分からなくなる。
- * **避けているのは部品の再利用であって、スタイルの共有ではない** —— スタイルは
- * `App.tsx` と同じ塊に載るので、この画面が描けている時点で読めていることが確定している。
+ * 避けているのは部品の再利用で、スタイルは共有する。スタイルは `App.tsx` と同じ塊に載るので、
+ * この画面が描けている時点で読めている。
  *
- * **共有し切れていないものが1つある。** アイコンの `lucide-react` は `TitleBar` と同じものを
+ * 共有し切れていないものが1つある。アイコンの `lucide-react` は `TitleBar` と同じものを
  * import しているので、そこが原因で root まで上がった場合はこの画面も同じ例外で落ちる。
  *
- * **閉じられなかったことは `shared/lib/notification` を通さない。** あの土台は
- * `BootstrapProviders` の `NotificationLayer` が描くので、root の境界が受けている間は
- * 一緒に畳まれていて出てこない。**この画面が自分で描くしかない。**
+ * 閉じられなかったことは `shared/lib/notification` を通さず、この画面が自分で描く。
+ * 通知は `BootstrapProviders` の `NotificationLayer` が描くので、root の境界が受けている間は
+ * 一緒に畳まれていて出てこない。
  */
 export function RootErrorFallback(view: Props) {
-  // **握って黙ると「押しても何も起きないボタン」になる。** この画面は他に手段が無いときの
+  // 握って黙ると「押しても何も起きないボタン」になる。この画面は他に手段が無いときの
   // 最後の1つなので、閉じられなかったことは画面に出す
   const [closeFailed, setCloseFailed] = useState(false);
 
@@ -75,8 +75,8 @@ export function RootErrorFallback(view: Props) {
           {...view}
           extraActions={
             /*
-              **帯の丸だけに頼らない。** この画面が出る理由は「閉じられない」を直すことなのに、
-              12px の色の丸は失敗の直後にいちばん見つけにくい。文字のボタンを本文に並べる
+              帯の丸だけに頼らず、文字のボタンを本文に並べる。この画面が出る理由は
+              「閉じられない」を直すことなのに、12px の色の丸は失敗の直後にいちばん見つけにくい
             */
             <ErrorFallbackAction onClick={close} secondary>
               ウィンドウを閉じる

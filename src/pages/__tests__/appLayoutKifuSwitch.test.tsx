@@ -8,7 +8,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
  *
  * 何をもって「ある」とするかは game が `hasKifu` で答える。ページが
  * `player?.shogi` を組み立て直すと、`player !== null` で縮めた人と混ざって
- * **同じ問いに2つの答え**ができる。
+ * 同じ問いに2つの答えができる。
  *
  * 狂っても例外は出ない——棋譜があるのに WelcomeScreen が出るか、
  * 棋譜が無いのに空の盤面が出るだけ。ここで切り替えを固定する。

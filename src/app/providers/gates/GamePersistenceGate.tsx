@@ -1,18 +1,16 @@
-import type { ReactNode } from "react";
-import { useMemo } from "react";
-import { GameProvider, type GamePersistence } from "@/entities/game";
-import { saveKifuToFile } from "@/entities/kifu/api/write";
-import { type JKFData } from "@/entities/kifu/model/jkf";
-import { GameFileTreeBridge } from "../bridges/GameFileTreeBridge";
+import { useMemo, type ReactNode } from "react";
 import { useFileTree } from "@/entities/file-tree";
-import type { MoveGate } from "@/entities/game";
+import { GameProvider, type GamePersistence, type MoveGate } from "@/entities/game";
+import { saveKifuToFile } from "@/entities/kifu/api/write";
+import type { JKFData } from "@/entities/kifu/model/jkf";
+import { GameFileTreeBridge } from "../bridges/GameFileTreeBridge";
 
 /**
  * 盤の保存先を渡す器。
  *
- * **対局中の着手を通す `MoveGate` は受け取るだけ。** ここで組むと、この gate が
- * `GameSessionProvider` の内側にしか置けなくなり、**盤だけを試す場所から
- * 対局ごと持ち込むことになる**（`moveGate` を渡さなければ盤は素通しで指せる）。
+ * 対局中の着手を通す `MoveGate` は受け取るだけ。ここで組むと、この gate が
+ * `GameSessionProvider` の内側にしか置けなくなり、盤だけを試す場所へ
+ * 対局ごと持ち込むことになる（`moveGate` を渡さなければ盤は素通しで指せる）。
  */
 export function GamePersistenceGate({
   children,

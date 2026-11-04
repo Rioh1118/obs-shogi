@@ -11,7 +11,7 @@ import type { PositionSyncAdapter } from "@/entities/analysis";
  * entities/game・entities/engine・entities/engine-presets の3スライスを束ねるので、
  * FSD 上これを置ける最下層は features になる。
  *
- * **アプリ全体で1箇所だけがマウントすること（`AnalysisBridge`）。** 送信の直列化は
+ * **アプリ全体で1箇所だけがマウントすること（`AnalysisPositionSyncGate`）。** 送信の直列化は
  * このフックのインスタンスが持つキューで行っているが、送り先のエンジンはプロセス1本なので、
  * 2箇所でマウントすると互いのキューを知らないまま同じエンジンへ書き込む。
  *
