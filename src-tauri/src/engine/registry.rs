@@ -684,4 +684,224 @@ mod tests {
             "断る理由が変わっている: {error}"
         );
     }
+
+    /// `work_dir` はディレクトリであることを要求する。在るファイルも断る
+    #[tokio::test]
+    async fn spawn_refuses_a_work_dir_that_is_a_file() {
+        let quick = Duration::from_millis(200);
+        let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+        let error = EngineRegistry::new()
+            .spawn(manifest, Some(manifest), quick, quick)
+            .await
+            .expect_err("ファイルを work_dir として通している");
+        assert!(
+            format!("{error}").contains("work_dir must point to an existing directory"),
+            "断る理由が変わっている: {error}"
+        );
+    }
+
+    /// 実プロセスで、起動から台帳と起動中の置き場への出入りまでを確かめる
+    #[cfg(unix)]
+    mod processes {
+        use super::*;
+        use crate::engine::registry::script::place_script;
+        use std::path::{Path, PathBuf};
+        use test_support::dir::temp_dir;
+        use tokio_util::sync::CancellationToken;
+
+        /// `usi` に、cwd を名乗って答える台本
+        const NAMES_ITS_CWD: &str = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name %s\nusiok\n' "$(pwd -P)" ;;
+  esac
+done"#;
+
+        /// `usi` に答えない台本
+        const SILENT: &str = "exec sleep 30";
+
+        fn engine(path: &Path) -> &str {
+            path.to_str().expect("パス")
+        }
+
+        /// 自分の PID を `pid_file` に書き、`usi` に答え、`quit` でも stdin の EOF でも終わらない台本
+        fn stubborn(pid_file: &Path) -> String {
+            format!(
+                r#"echo $$ > '{}'
+while read line; do
+  case "$line" in
+    usi) printf 'id name Stubborn\nusiok\n' ;;
+  esac
+done
+exec sleep 30"#,
+                pid_file.display()
+            )
+        }
+
+        /// シグナル0を送って確かめる。`kill -0` を起こさないのは、子プロセスを作ってよいのが `child` だけだから（`tests/layering.rs`）
+        fn is_alive(pid_file: &Path) -> bool {
+            let pid = std::fs::read_to_string(pid_file).expect("PID が書かれている");
+            let pid = pid.trim().parse().expect("PID は数");
+            rustix::process::Pid::from_raw(pid)
+                .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
+        }
+
+        async fn wait_until_starting(registry: &EngineRegistry) {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while registry.starting.read().await.is_empty() {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("起動中の置き場に載らない");
+        }
+
+        /// `work_dir` を渡さなければ、cwd はシンボリックリンクを辿った先の実行ファイルのフォルダ。
+        /// 載せた後は起動中の置き場に残さない
+        #[tokio::test]
+        async fn the_default_cwd_is_the_folder_of_the_resolved_executable() {
+            let dir = temp_dir("registry-cwd");
+            let real = dir.join("real");
+            let linked = dir.join("linked");
+            std::fs::create_dir_all(&real).expect("フォルダを作れる");
+            std::fs::create_dir_all(&linked).expect("フォルダを作れる");
+            let path = place_script(&real, "engine.sh", NAMES_ITS_CWD).await;
+            let link = linked.join("engine.sh");
+            std::os::unix::fs::symlink(&path, &link).expect("リンクを張れる");
+
+            let registry = EngineRegistry::new();
+            let process = registry
+                .spawn(engine(&link), None, SPAWN_TIMEOUT, Duration::from_secs(10))
+                .await
+                .expect("起動できる");
+
+            let expected: PathBuf = std::fs::canonicalize(&real).expect("解決できる");
+            assert_eq!(process.info.name, expected.to_string_lossy());
+            assert!(registry.starting.read().await.is_empty());
+            registry.kill(&process.id).await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `shutdown` も `kill` も `shutdown_all` も、`quit` に答えないエンジンを落としてから返る
+        #[tokio::test]
+        async fn every_way_of_ending_ends_an_engine_that_ignores_quit() {
+            let dir = temp_dir("registry-stubborn");
+            let registry = EngineRegistry::new();
+
+            for (i, end) in ["shutdown", "kill", "shutdown_all"].into_iter().enumerate() {
+                let pid_file = dir.join(format!("{i}.pid"));
+                let path = place_script(&dir, &format!("{i}.sh"), &stubborn(&pid_file)).await;
+                let process = registry
+                    .spawn(engine(&path), None, SPAWN_TIMEOUT, Duration::from_secs(10))
+                    .await
+                    .expect("起動できる");
+                assert!(is_alive(&pid_file), "{end}: 起きていない");
+
+                match end {
+                    "shutdown" => registry.shutdown(&process.id).await,
+                    "kill" => registry.kill(&process.id).await,
+                    _ => registry.shutdown_all().await,
+                }
+                assert!(!is_alive(&pid_file), "{end}: 返った後も生きている");
+                assert!(
+                    registry.get(&process.id).await.is_none(),
+                    "{end}: 台帳に残っている"
+                );
+            }
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `shutdown` は落とす前に `quit` を送り、エンジンが自分で畳む間を待つ
+        #[tokio::test]
+        async fn shutdown_sends_quit_before_ending_the_engine() {
+            let dir = temp_dir("registry-quit");
+            let said_bye = dir.join("bye");
+            let body = format!(
+                r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Polite\nusiok\n' ;;
+    quit) echo bye > '{}'; exit 0 ;;
+  esac
+done"#,
+                said_bye.display()
+            );
+            let path = place_script(&dir, "engine.sh", &body).await;
+            let registry = EngineRegistry::new();
+            let process = registry
+                .spawn(engine(&path), None, SPAWN_TIMEOUT, Duration::from_secs(10))
+                .await
+                .expect("起動できる");
+
+            registry.shutdown(&process.id).await;
+            assert!(said_bye.exists(), "`quit` を受け取っていない");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `usiok` を待っている間の `shutdown_all` は、起動中のプロセスも落とす。起動は待ち切らずに失敗で返る
+        #[tokio::test]
+        async fn shutdown_all_ends_an_engine_that_is_still_starting() {
+            let dir = temp_dir("registry-shutdown-starting");
+            let path = place_script(&dir, "engine.sh", SILENT).await;
+            let registry = Arc::new(EngineRegistry::new());
+
+            let starting = tokio::spawn({
+                let registry = Arc::clone(&registry);
+                let path = engine(&path).to_string();
+                async move {
+                    registry
+                        .spawn(&path, None, SPAWN_TIMEOUT, Duration::from_secs(60))
+                        .await
+                }
+            });
+            wait_until_starting(&registry).await;
+            registry.shutdown_all().await;
+
+            let started = tokio::time::timeout(Duration::from_secs(10), starting)
+                .await
+                .expect("落とした後も `usiok` を待ち続けている")
+                .expect("起動のタスクが落ちた");
+            let Err(_) = started else {
+                panic!("落としたのに起動が成功している");
+            };
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `usiok` を待っている間に取り消すと、`Cancelled` で返り、起動中の置き場にも残さない
+        #[tokio::test]
+        async fn cancelling_while_waiting_for_usiok_leaves_nothing_starting() {
+            let dir = temp_dir("registry-cancel-starting");
+            let path = place_script(&dir, "engine.sh", SILENT).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let cancel = CancellationToken::new();
+
+            let starting = tokio::spawn({
+                let registry = Arc::clone(&registry);
+                let path = engine(&path).to_string();
+                let cancel = cancel.clone();
+                async move {
+                    registry
+                        .spawn_cancellable(
+                            &path,
+                            None,
+                            SPAWN_TIMEOUT,
+                            Duration::from_secs(60),
+                            &cancel,
+                        )
+                        .await
+                }
+            });
+            wait_until_starting(&registry).await;
+            cancel.cancel();
+
+            let started = tokio::time::timeout(Duration::from_secs(10), starting)
+                .await
+                .expect("取り消した後も `usiok` を待ち続けている")
+                .expect("起動のタスクが落ちた");
+            assert!(
+                matches!(started, Err(EngineError::Cancelled(_))),
+                "{started:?}"
+            );
+            assert!(registry.starting.read().await.is_empty());
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
 }

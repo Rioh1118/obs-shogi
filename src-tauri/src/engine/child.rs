@@ -567,6 +567,63 @@ mod reading_tests {
             }
         ));
     }
+
+    /// stdout の行は直近の出力に stdout として残る。`hook` が `false` を返したら、
+    /// その後の行を読まず、`Eof` も渡さない
+    #[tokio::test]
+    async fn stdout_lines_are_kept_and_a_false_hook_stops_reading() {
+        let recent = Arc::new(StdMutex::new(VecDeque::new()));
+        let mut found = Vec::new();
+        read_stdout(
+            reader(b"id name T\nusiok\n", 2),
+            Arc::clone(&recent),
+            |event| {
+                found.push(event);
+                false
+            },
+        )
+        .await;
+
+        assert!(
+            matches!(found.as_slice(), [ReadEvent::Line { raw, .. }] if raw == "id name T"),
+            "{found:?}"
+        );
+        assert_eq!(
+            lock(&recent).iter().cloned().collect::<Vec<_>>(),
+            [(Source::Stdout, "id name T".to_string())]
+        );
+    }
+
+    /// stderr の行は `\r` を落として stderr として残す。空白だけの行は捨てる
+    #[tokio::test]
+    async fn stderr_lines_are_kept_without_blank_lines() {
+        let recent = Arc::new(StdMutex::new(VecDeque::new()));
+        read_stderr(reader(b"first\r\n\n  \r\nsecond\n", 2), Arc::clone(&recent)).await;
+
+        assert_eq!(
+            lock(&recent).iter().cloned().collect::<Vec<_>>(),
+            [
+                (Source::Stderr, "first".to_string()),
+                (Source::Stderr, "second".to_string())
+            ]
+        );
+    }
+
+    /// 直近の出力は新しい `RECENT_LINES` 行だけを持ち、1行を `RECENT_LINE_CHARS` 文字で切る
+    #[test]
+    fn recent_output_keeps_the_newest_lines_cut_to_a_length() {
+        let recent = StdMutex::new(VecDeque::new());
+        for i in 0..RECENT_LINES + 3 {
+            remember(&recent, Source::Stdout, &i.to_string());
+        }
+        let long = "あ".repeat(RECENT_LINE_CHARS + 1);
+        remember(&recent, Source::Stderr, &long);
+
+        let kept = lock(&recent);
+        assert_eq!(kept.len(), RECENT_LINES);
+        assert_eq!(kept[0], (Source::Stdout, "4".to_string()));
+        assert_eq!(kept[RECENT_LINES - 1].1.chars().count(), RECENT_LINE_CHARS);
+    }
 }
 
 /// 実プロセスのテストが台本を置いて起こす関数。`child` と `protocol` のテストが共有する。
@@ -880,6 +937,89 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         assert!(!is_alive(&grandchild), "孫が孤児として残っている");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 孫が TERM を無視しても落ちる（グループへ送るのは KILL）
+    #[tokio::test]
+    async fn a_grandchild_that_ignores_term_still_ends() {
+        let dir = temp_dir("child-grandchild-term");
+        let pid_file = dir.join("grandchild.pid");
+        let child = spawn_script(
+            &dir,
+            &format!(
+                r#"sh -c 'trap "" TERM; echo $$ > "{}"; exec sleep 30' & wait"#,
+                pid_file.display()
+            ),
+        )
+        .await;
+        let mut grandchild = String::new();
+        for _ in 0..1000 {
+            if let Ok(pid) = std::fs::read_to_string(&pid_file) {
+                if !pid.trim().is_empty() {
+                    grandchild = pid;
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(is_alive(&grandchild), "孫が起きていない");
+
+        assert!(matches!(
+            child.kill_and_wait(KILL_TIMEOUT).await,
+            KillOutcome::Ended(_)
+        ));
+        // 回数で区切ると、`kill -0` を起こす時間が積もって孫の `sleep` が自分で終わる
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while is_alive(&grandchild) && std::time::Instant::now() < deadline {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(!is_alive(&grandchild), "TERM を無視する孫が残っている");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 先の呼び手が終わりを待っている間の2つ目は、頼み直さずに `AlreadyRequested` で返る。
+    ///
+    /// テストのランタイムは1本のスレッドなので、2つを同じ `join!` で回すと、待ち手のタスクが
+    /// 終わりを見る前に2つ目が頼みのチャンネルを見る
+    #[tokio::test]
+    async fn a_second_kill_while_the_first_waits_is_already_requested() {
+        let dir = temp_dir("child-kill-twice");
+        let child = spawn_script(&dir, "exec sleep 30").await;
+
+        let (first, second) = tokio::join!(
+            child.kill_and_wait(KILL_TIMEOUT),
+            child.kill_and_wait(KILL_TIMEOUT)
+        );
+        assert!(matches!(first, KillOutcome::Ended(_)), "{first:?}");
+        assert_eq!(second, KillOutcome::AlreadyRequested);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 上限内に終わりを見られなければ `TimedOut` で返る。頼みは取り消さないので、後から終わる
+    #[test]
+    fn a_kill_that_cannot_see_the_end_in_time_times_out() {
+        // 終わりを見届けるタスクを、止めておける別の runtime に載せる。同じ runtime だと、
+        // 上限の刻み（1ms）の間に SIGKILL の終わりが見えて `Ended` が返ることがある
+        let held = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime を作れる");
+        let caller = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime を作れる");
+        let dir = temp_dir("child-kill-timeout");
+        let child = held.block_on(spawn_script(&dir, "exec sleep 30"));
+
+        assert_eq!(
+            caller.block_on(child.kill_and_wait(Duration::from_millis(100))),
+            KillOutcome::TimedOut
+        );
+        assert!(matches!(
+            held.block_on(child.diagnostics().wait_exit(Duration::from_secs(10))),
+            Waited::Ended(_)
+        ));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
