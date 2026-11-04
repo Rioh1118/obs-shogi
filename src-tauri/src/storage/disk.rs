@@ -184,6 +184,70 @@ mod tests {
         );
     }
 
+    /// 別の `key` に置いたものは、互いを上書きしない。
+    #[test]
+    fn two_keys_do_not_share_a_file() {
+        let store = DiskStore::new(tmp_root("two-keys"));
+        store.save("a", b"for a").expect("置けない");
+        store.save("b", b"for b").expect("置けない");
+
+        assert_eq!(store.load("a").expect("読めない"), b"for a");
+        assert_eq!(store.load("b").expect("読めない"), b"for b");
+    }
+
+    /// 根がまだ無くても置ける。OS のキャッシュ置き場の下は、初回の起動では空。
+    #[test]
+    fn saving_creates_the_root() {
+        let root = tmp_root("no-root").join("obs-shogi").join("index");
+        let store = DiskStore::new(root);
+
+        store.save("k", b"x").expect("根が無いと置けない");
+        assert_eq!(store.load("k").expect("読めない"), b"x");
+    }
+
+    /// 置き直し終えたら、退避も作業中のファイルも残らない。残ると、読まない値が根の下を占め続ける。
+    #[test]
+    fn saving_again_leaves_no_fallback_behind() {
+        let root = tmp_root("no-bak");
+        let store = DiskStore::new(root.clone());
+        store.save("k", b"first").expect("置けない");
+        store.save("k", b"second").expect("置き直せない");
+
+        assert!(!root.join("k.bak").exists(), "退避が残っている");
+        assert!(!root.join("k.tmp").exists(), "作業中のファイルが残っている");
+    }
+
+    /// 捨てると、書きかけで残った作業中のファイルも消える。
+    #[test]
+    fn deleting_also_drops_a_leftover_temporary() {
+        let root = tmp_root("delete-tmp");
+        let store = DiskStore::new(root.clone());
+        fs::write(root.join("k.tmp"), b"half").expect("作業中のファイルを作れない");
+
+        store.delete("k").expect("捨てられない");
+
+        assert!(!root.join("k.tmp").exists(), "作業中のファイルが残っている");
+    }
+
+    /// 無いこと以外の読めない理由は `NotFound` にしない。`NotFound` は「作り直せばよい」と読まれる。
+    ///
+    /// 本体の場所にフォルダを置くと、読むのも消すのも OS が断る。
+    #[test]
+    fn a_blob_that_cannot_be_read_is_not_reported_as_missing() {
+        let root = tmp_root("unreadable");
+        fs::create_dir_all(root.join("k.blob")).expect("フォルダを作れない");
+        let store = DiskStore::new(root);
+
+        assert!(
+            matches!(store.load("k"), Err(StoreError::Io(_))),
+            "読めないのに無いと答えた"
+        );
+        assert!(
+            matches!(store.delete("k"), Err(StoreError::Io(_))),
+            "消せないのに成功と答えた"
+        );
+    }
+
     /// **失敗する置き場は、置くと落ちる。**
     ///
     /// ディスクの失敗はテストから起こせないので、仕込める置き場で踏む。
