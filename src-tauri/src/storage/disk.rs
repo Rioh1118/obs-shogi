@@ -25,12 +25,8 @@ impl DiskStore {
     /// **退避が要るのは Windows で上書き rename が失敗するため。**
     /// 本体を退避へ動かしてから置くので、**読む側は本体 → 退避の順に2回試す**。
     fn paths(&self, key: &str) -> (PathBuf, PathBuf, PathBuf) {
-        let base = self.root.join(key);
-        (
-            base.with_extension("blob"),
-            base.with_extension("bak"),
-            base.with_extension("tmp"),
-        )
+        let path = |extension: &str| self.root.join(format!("{key}.{extension}"));
+        (path("blob"), path("bak"), path("tmp"))
     }
 }
 
@@ -193,6 +189,19 @@ mod tests {
 
         assert_eq!(store.load("a").expect("読めない"), b"for a");
         assert_eq!(store.load("b").expect("読めない"), b"for b");
+    }
+
+    /// `.` を含む `key` も、`.` の後ろまで含めて別の名前として扱う。
+    ///
+    /// 拡張子を付け替える形だと、`x.1` と `x.2` が同じ `x.blob` を使い、後に置いた方が前を消す。
+    #[test]
+    fn keys_that_differ_after_a_dot_do_not_share_a_file() {
+        let store = DiskStore::new(tmp_root("dotted-keys"));
+        store.save("x.1", b"one").expect("置けない");
+        store.save("x.2", b"two").expect("置けない");
+
+        assert_eq!(store.load("x.1").expect("読めない"), b"one");
+        assert_eq!(store.load("x.2").expect("読めない"), b"two");
     }
 
     /// 根がまだ無くても置ける。OS のキャッシュ置き場の下は、初回の起動では空。
