@@ -97,15 +97,12 @@ pub fn parse_option_line(line: &str) -> Result<ParsedOption, OptionLineError> {
         return Err(OptionLineError::MissingName);
     }
 
+    let is_kind =
+        |i: usize| word(i).is_some_and(|k| TYPES.contains(&k.to_ascii_lowercase().as_str()));
     // 型の欄の `type` は、次の語が型の綴りであるもの。名前に `type` を含む行があるので、
     // 最初の `type` を型の欄と決めつけない
-    let type_at = (3..words.len()).find(|&i| {
-        word(i) == Some("type")
-            && word(i + 1).is_some_and(|k| TYPES.contains(&k.to_ascii_lowercase().as_str()))
-    });
+    let type_at = (3..words.len()).find(|&i| word(i) == Some("type") && is_kind(i + 1));
     let Some(type_at) = type_at else {
-        let is_kind =
-            |i: usize| word(i).is_some_and(|k| TYPES.contains(&k.to_ascii_lowercase().as_str()));
         // `name` の直後が型の欄なら、型は正しく名前が空（`option name type spin`）
         if word(2) == Some("type") && is_kind(3) {
             return Err(OptionLineError::MissingName);
