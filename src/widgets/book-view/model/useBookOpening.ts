@@ -4,10 +4,10 @@ import { useAppConfig } from "@/entities/app-config";
 import { pickBookFile } from "@/shared/api/picker/pickBookFile";
 
 /**
- * 定跡を開く導線。**操作列と空の画面の両方が押す**ので、ここに1つ置く。
+ * 定跡を開く操作を返す。操作列と空の画面の両方が使うので、ここに1つ置く。
  *
- * 控えるのは**開けたパスだけ。** 開けなかったものを「最近開いた定跡」に並べると、
- * 押すたびに同じ失敗が出る一覧ができる。
+ * 最近開いた定跡に控えるのは、開けたパスだけ。開けなかったものを並べると、
+ * 押すたびに同じ失敗が出る一覧ができる。中止した定跡も、`openBook` が `null` を返すので控えない。
  */
 export function useBookOpening() {
   const { openBook, reportError } = useBook();
@@ -27,9 +27,9 @@ export function useBookOpening() {
   /**
    * ダイアログで選ばせてから開く。取り消したら何も起きない。
    *
-   * **ダイアログが開けなかった回を黙って落とさない。** `invoke` なので
-   * 権限の設定漏れやプラグインの初期化失敗で reject しうる。捕まえないと
-   * 「📂 を押しても反応しない」画面になり、押し続ける以外にできることが無くなる。
+   * ダイアログを開けなかったときは失敗の帯へ渡す。ダイアログは `invoke` を通るので、
+   * 権限の設定漏れやプラグインの初期化失敗で reject しうる。捕まえないと、
+   * 📂 を押しても反応しない画面になり、押し続ける以外にできることが無くなる。
    */
   const browse = useCallback(async (): Promise<void> => {
     let picked: string | null;

@@ -1,15 +1,16 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
-import type { BookContextType, BookFailure, BookViewState } from "@/entities/book";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { Ok } from "@/shared/lib/result";
+import type { BookContextType, BookFailure, BookRow, BookViewState } from "@/entities/book";
 
 /**
- * 定跡ビューが、状態ごとに**1つのことだけ**を言うこと
+ * 定跡ビューが、状態ごとに1つのことだけを言うこと
  * （`docs/state-transitions/book-view.md` の不変条件2）。
  *
- * **文言そのものを固定する。** 引けなかった回に「この局面はこの定跡に
- * ありません」と出す形が実際に在り、それはこの画面でいちばん誤解が高くつく ——
- * 利用者は*定跡の中身についての事実*として読み、自分の定跡を誤って判断する。
+ * 文言そのものを固定する。引けなかったときに「この局面はこの定跡にありません」と出す形が
+ * 実際に在り、それはこの画面でいちばん誤解が高くつく。利用者は定跡の中身についての事実
+ * として読み、自分の定跡を誤って判断する。
  * 状態の綴りだけを見ると、割り当てを入れ替える変異が緑で通る。
  *
  * 状態そのものの遷移は `entities/book/model/__tests__/provider.test.tsx`。
@@ -43,6 +44,13 @@ const presetsState = { presets: [] as unknown[], selectedPresetId: null as strin
 vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
   useEnginePresets: () => ({ state: presetsState }),
 }));
+
+const { pickBookFile } = vi.hoisted(() => ({ pickBookFile: vi.fn() }));
+vi.mock("@/shared/api/picker/pickBookFile", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/shared/api/picker/pickBookFile")>();
+  const mocked = { ...actual, pickBookFile };
+  return mocked satisfies typeof import("@/shared/api/picker/pickBookFile");
+});
 
 const { default: BookView } = await import("../BookView");
 
@@ -93,7 +101,7 @@ describe("定跡ビューの状態と文言", () => {
   });
 
   /**
-   * **ここが取り違えのいちばん高くつくところ。**
+   * 取り違えのいちばん高くつくところ。
    *
    * 割り当てを入れ替える変異（`unavailable` に `absent` の文言を割り当てる）は
    * ここで落ちる。
@@ -118,7 +126,7 @@ describe("定跡ビューの状態と文言", () => {
   });
 
   /**
-   * **行が並んでいるのに「読めませんでした」と言わない。**
+   * 行が並んでいるのに「読めませんでした」と言わない。
    * 行が出ているのは引けたということなので、落ちたのは先を辿る側だけ。
    */
   test("失敗の題は、落ちた操作から出る", () => {
@@ -154,5 +162,132 @@ describe("定跡ビューの状態と文言", () => {
     const pending = show({ kind: "rows", rows: [{ move, line: { state: "pending" } }] });
 
     expect(failed).not.toBe(pending);
+  });
+
+  test("失敗の本文にパスがあれば添える", () => {
+    const withPath: BookFailure = {
+      origin: "open",
+      error: { code: "io", message: "読めない", path: "/books/a.db" },
+    };
+
+    expect(show({ kind: "closed" }, withPath)).toContain("読めない（/books/a.db）");
+    cleanup();
+    expect(show({ kind: "closed" }, failed("open"))).not.toContain("（");
+  });
+});
+
+describe("定跡ビューの並べ替え", () => {
+  const rows: BookRow[] = [
+    {
+      move: { usiMove: "2g2f", ponder: null, value: -5, depth: null, count: null },
+      line: { state: "pending" },
+    },
+    {
+      move: { usiMove: "7g7f", ponder: null, value: 42, depth: null, count: null },
+      line: { state: "pending" },
+    },
+  ];
+  const rowsView: BookViewState = { kind: "rows", rows };
+
+  /** 並べ替えはこの画面が持つ。表へ返した並びが次の描画に効かないと、見出しを押しても動かない */
+  test("見出しを押すと表の並びが変わる", () => {
+    book.view = rowsView;
+    book.failure = null;
+    const { container } = render(<BookView />);
+    const firstMove = () => container.querySelector("tbody td")?.textContent;
+
+    expect(firstMove()).toBe("☗２六歩");
+    fireEvent.click(screen.getByRole("button", { name: /評価/ }));
+    expect(firstMove()).toBe("☗７六歩");
+  });
+
+  test("この先の列は盤の手数を土台にする", () => {
+    const view: BookViewState = {
+      kind: "rows",
+      rows: [
+        {
+          ...rows[0],
+          line: { state: "walked", line: { usiMove: "2g2f", plies: 2, stopped: "outOfBook" } },
+        },
+      ],
+    };
+
+    expect(show(view)).toContain("→ 6手目");
+  });
+});
+
+describe("定跡ビューの失敗の帯", () => {
+  const rows: BookViewState = {
+    kind: "rows",
+    rows: [
+      {
+        move: { usiMove: "7g7f", ponder: null, value: null, depth: null, count: null },
+        line: { state: "pending" },
+      },
+    ],
+  };
+
+  test("引くのに落ちたら、引けなかったと題に出す", () => {
+    const text = show(rows, failed("lookup"));
+
+    expect(text).toContain("この局面を引けませんでした");
+    expect(text).not.toContain("辿れませんでした");
+  });
+
+  /** 読み書きの失敗は押し直しで直りうるが、ファイルが無いのは直らない（ADR-0004） */
+  test("帯の段は失敗の種類から決まる", () => {
+    show(rows, failed("open"));
+    expect(screen.getByRole("status").textContent).toContain("open が落ちた");
+    cleanup();
+
+    show(rows, { origin: "open", error: { code: "not_found", message: "無い", path: null } });
+    expect(screen.getByRole("alert").textContent).toContain("無い");
+  });
+});
+
+describe("定跡ビューの空の画面の押下", () => {
+  const preset = (id: string, label: string, bookFilePath: string) => ({
+    id,
+    label,
+    bookFilePath,
+    bookEnabled: true,
+  });
+
+  test("選んでいるプリセットの定跡を勧め、押すとそのパスを開く", async () => {
+    presetsState.presets = [
+      preset("p1", "一番目", "/ai/one.db"),
+      preset("p2", "二番目", "/ai/two.db"),
+    ];
+    presetsState.selectedPresetId = "p2";
+    vi.mocked(book.openBook).mockResolvedValue(Ok(null));
+    try {
+      const text = show({ kind: "closed" });
+      expect(text).toContain("二番目 の定跡");
+      expect(text).not.toContain("一番目");
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /two\.db/ }));
+      });
+      expect(book.openBook).toHaveBeenCalledWith("/ai/two.db");
+    } finally {
+      presetsState.presets = [];
+      presetsState.selectedPresetId = null;
+      vi.mocked(book.openBook).mockReset();
+    }
+  });
+
+  test("別の定跡を開くはダイアログで選んだパスを開く", async () => {
+    pickBookFile.mockResolvedValue("/books/picked.db");
+    vi.mocked(book.openBook).mockResolvedValue(Ok(null));
+    try {
+      show({ kind: "closed" });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /別の定跡を開く/ }));
+      });
+      expect(book.openBook).toHaveBeenCalledWith("/books/picked.db");
+    } finally {
+      vi.mocked(book.openBook).mockReset();
+    }
   });
 });

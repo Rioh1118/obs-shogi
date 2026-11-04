@@ -3,9 +3,9 @@ import IconButton from "@/shared/ui/IconButton";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 import { GOTE_GLYPH, SENTE_GLYPH } from "@/shared/lib/turn";
-import "./AppLayoutHeader.scss";
 import Title from "@/shared/ui/Title";
-import { useHeaderCenterInfo } from "@/widgets/app-layout-header/lib/useHeaderCenterInfo";
+import { useHeaderCenterInfo } from "../lib/useHeaderCenterInfo";
+import "./AppLayoutHeader.scss";
 
 type Props = {
   toggleSidebar: () => void;

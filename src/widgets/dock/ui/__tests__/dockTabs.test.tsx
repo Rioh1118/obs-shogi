@@ -1,20 +1,19 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 import { BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import type { DockViewBindings } from "@/widgets/dock/model/bindings";
 
 /**
  * ドックのタブ切替。表は `docs/state-transitions/dock-tabs.md`。
  *
- * ここが踏むのは **D1（別のタブを選ぶ）** と **D2（見ているタブを一覧から外す）** の行。
- * 解析そのものの遷移は `analysis.md` 側が持つ。**畳まれても解析を止めないこと**は
- * ビューの側の検査（`analysisControlsLifetime.test.tsx`）が見る——器はそもそも
- * 解析を知らないので、ここに置くと何も見ていない検査になる。
+ * ここが踏むのは D1（別のタブを選ぶ）と D2（見ているタブを一覧から外す）の行。
+ * 解析そのものの遷移は `analysis.md` 側が持つ。畳まれても解析を止めないことは
+ * ビューの側の検査（`analysisControlsLifetime.test.tsx`）が見る。器は解析を知らないので、
+ * ここに置くと何も見ていない検査になる。
  *
- * **名簿を差し替える。** 実在するビューは解析1枚なので、本物のままだと
- * タブ切替そのものが踏めない。
+ * 名簿は差し替える。外せないタブと外せるタブを1枚ずつ、本物の名簿に依らずに置くため。
  */
 const FAKE = vi.hoisted(() => [
   { key: "analysis", label: "検討", removable: false, defaultVisible: true },
@@ -205,5 +204,76 @@ describe("ドックのタブ", () => {
     fireEvent.click(tab("検討"));
 
     expect(screen.getByTestId("analysis-body")).toBeTruthy();
+  });
+});
+
+describe("ドックのタブの細部", () => {
+  const seen = { search: "", navigation: "" };
+
+  function RouteProbe() {
+    seen.search = useLocation().search;
+    seen.navigation = useNavigationType();
+    return null;
+  }
+
+  function mountWithProbe(url = "/app") {
+    return render(
+      <MemoryRouter initialEntries={[url]}>
+        <Dock views={VIEWS} />
+        <RouteProbe />
+      </MemoryRouter>,
+    );
+  }
+
+  /** 積むと、戻るボタンが局面やモーダルの移動ではなくタブの往復を巻き戻す */
+  test("タブを選ぶと URL を履歴に積まずに書き換える", () => {
+    mountWithProbe();
+
+    fireEvent.click(tab("定跡"));
+
+    expect(new URLSearchParams(seen.search).get("dock")).toBe("book");
+    expect(seen.navigation).toBe("REPLACE");
+  });
+
+  test("見ているタブを押し直しても設定へ書かない", () => {
+    mount();
+
+    fireEvent.click(tab("検討"));
+
+    expect(config.setDisplayConfig).not.toHaveBeenCalled();
+  });
+
+  test("選んでいないタブは選ばれていないと名乗る", () => {
+    mount();
+
+    expect(tab("検討").getAttribute("aria-selected")).toBe("true");
+    expect(tab("定跡").getAttribute("aria-selected")).toBe("false");
+  });
+
+  test("矢印は既定の動きを止めて、移した先のタブへフォーカスを渡す", () => {
+    mount();
+
+    const notPrevented = fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+
+    expect(notPrevented).toBe(false);
+    expect(document.activeElement).toBe(tab("定跡"));
+  });
+
+  /** 止めると、Tab でタブ列から出られなくなる */
+  test("矢印でないキーはタブを動かさず、既定の動きも止めない", () => {
+    mount();
+
+    const notPrevented = fireEvent.keyDown(screen.getByRole("tablist"), { key: "Tab" });
+
+    expect(notPrevented).toBe(true);
+    expect(tab("検討").getAttribute("aria-selected")).toBe("true");
+  });
+
+  test("ビューが落ちたら、そのビューの次の一手を案内に出す", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.book = true;
+    mount("/app?dock=book");
+
+    expect(screen.getByText("定跡の案内")).toBeTruthy();
   });
 });

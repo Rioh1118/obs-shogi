@@ -16,43 +16,39 @@ type Sources = {
   presetName: string | null;
   /** 設定に残っている「最近開いた定跡」 */
   recents: readonly string[] | null | undefined;
-  /** いま開いている定跡。**一覧から外す**（押しても何も起きない行になる） */
-  openPath: string | null;
 };
 
 /**
  * 空の画面に出す一覧を組む。
  *
- * **2つの束に分けるのは、探し方が違うから。** プリセットの定跡は「いま選んでいるプリセットに
- * 結び付けた定跡」で、いちばん見たい1件。
- * 最近開いたものは「さっき見ていたもの」。
+ * 束を2つに分けるのは、探し方が違うから。プリセットの定跡は、いま選んでいるプリセットに
+ * 結び付けた定跡で、いちばん見たい1件。最近開いたものは、さっき見ていたもの。
  *
- * **AI ライブラリを列挙しない。** そちらは*エンジンに食わせる*定跡を選ぶ場所で、
- * ビューが覗くのは任意のパス（→ `docs/spec/features/book.md`）。
- * 一覧を混ぜると、プリセットの設定欄とビューが見ている定跡が同じものに見える
- * —— 用途が別なので UI で混ぜない（#96）。
+ * AI ライブラリは列挙しない。あちらはエンジンに渡す定跡を選ぶ場所で、ビューが開くのは
+ * 任意のパス（`docs/spec/features/book.md`）。一覧を混ぜると、プリセットの設定欄と
+ * ビューが見ている定跡が同じものに見える。
  *
- * 同じパスが2つの束に居たら**プリセット側だけに残す**（勧める理由が強いほうを出す）。
+ * 同じパスが2つの束に居たら、勧める理由が強いプリセット側だけに残す。
+ * 開いている定跡は外さない。一覧を出すのは、定跡を開いていない画面だけ（`BookView` の `closed`）。
  */
 export function bookOpenTargets(sources: Sources): {
   fromPreset: BookOpenTarget[];
   recent: BookOpenTarget[];
 } {
-  const { presetBookPath, presetName, recents, openPath } = sources;
+  const { presetBookPath, presetName, recents } = sources;
 
-  const fromPreset =
-    presetBookPath && presetBookPath !== openPath
-      ? [
-          {
-            path: presetBookPath,
-            name: bookFileName(presetBookPath),
-            note: presetName ? `${presetName} の定跡` : "選んでいるプリセットの定跡",
-          },
-        ]
-      : [];
+  const fromPreset = presetBookPath
+    ? [
+        {
+          path: presetBookPath,
+          name: bookFileName(presetBookPath),
+          note: presetName ? `${presetName} の定跡` : "選んでいるプリセットの定跡",
+        },
+      ]
+    : [];
 
   const recent = readRecentBooks(recents)
-    .filter((path) => path !== openPath && path !== presetBookPath)
+    .filter((path) => path !== presetBookPath)
     .map((path) => ({
       path,
       name: bookFileName(path),

@@ -357,7 +357,6 @@ export type GameContextType = {
   canGoBackward: () => boolean;
 
   getCurrentMoveIndex: () => number;
-  getTotalMoves: () => number;
 
   /**
    * 指定の位置へ盤を移す。

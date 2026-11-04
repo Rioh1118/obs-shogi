@@ -4,15 +4,24 @@ import { useBookOpening } from "../model/useBookOpening";
 import "./BookControls.scss";
 
 /**
- * 定跡ビューの操作列。**ドックのタブ列の下の段に出る。**
+ * 収録局面数の表示。
+ *
+ * 数えられない形式は `null` で来る。0 は本当に0局面なので、同じ綴りにすると
+ * 局面数の書かれていない定跡が空の定跡に見える。
+ */
+function positionCount(count: number | null): string {
+  return count === null ? "局面数は数えられない形式" : `${count.toLocaleString()} 局面`;
+}
+
+/**
+ * 定跡ビューの操作列。ドックのタブ列の下の段に出る。
  *
  * 左が「いま何を開いているか」、右が開く／閉じる。
  *
- * **収録局面数に「全部」と読ませない。** 出しているのは*定跡が持っている局面の数*で、
- * *この局面の候補手の数*でも*読み切った数*でもない
- * （→ `docs/state-transitions/book-view.md` 不変条件4）。
+ * 収録局面数に「全部」と読ませない。出しているのは定跡が持っている局面の数で、
+ * この局面の候補手の数でも、読み切った数でもない（`docs/state-transitions/book-view.md` の不変条件5）。
  *
- * 記号は `lucide-react` から取る（このリポジトリの図案はすべてそこ）。
+ * 記号は、リポジトリの他の図案と同じく `lucide-react` から取る。
  */
 function BookControls() {
   const { info, view, close } = useBook();
@@ -23,12 +32,12 @@ function BookControls() {
     <div className="book-controls">
       <div className="book-controls__status">
         {/*
-          **開いている最中を「開いていません」と言わない。** `open_book` は上限も
-          進捗も中断も持たない（#197）ので、GB 級では数分このままになる。
+          開いている最中を「開いていません」と言わない。`open_book` は上限も
+          進捗も中断も持たないので、GB 級では数分このままになる。
           その間ずっと事実でない一文を出していると、押し損ねたと読まれる。
 
-          **一文と `role="status"` は本体の側だけ**（`BookView` の `__busy`）。
-          両方に置くと同じ文が上下に並び、live region が2つ同じ段に居ることになる。
+          一文と `role="status"` は本体の側（`BookView` の `__busy`）だけに置く。
+          両方に置くと同じ文が上下に並び、live region が同じ段に2つ居ることになる。
           ここは他の状態と同じく「いま何を開いているか」だけを出す
         */}
         {view.kind === "opening" ? (
@@ -44,8 +53,8 @@ function BookControls() {
             </span>
             <span className="book-controls__count">{positionCount(info.positionCount)}</span>
             {/*
-              **読み損ねた欄があることを言い続ける。** 0 でないなら、表の
-              評価値・深さ・出現回数の `—` は「もともと無い」ではなく「読み損ねた」
+              読み損ねた欄があることを言い続ける。0 でないなら、表の応手、評価、
+              深さ、出現回数の `—` は、もともと無いのでなく読み損ねたものかもしれない
             */}
             {info.droppedFields !== null && info.droppedFields > 0 && (
               <span
@@ -81,16 +90,6 @@ function BookControls() {
       </div>
     </div>
   );
-}
-
-/**
- * 収録局面数の表示。
- *
- * **数えられない形式は `null`。** 0 は「本当に0局面」なので、同じ綴りにすると
- * 局面数の書かれていない定跡が「空の定跡」に見える。
- */
-function positionCount(count: number | null): string {
-  return count === null ? "局面数は数えられない形式" : `${count.toLocaleString()} 局面`;
 }
 
 export default BookControls;

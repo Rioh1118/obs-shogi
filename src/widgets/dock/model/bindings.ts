@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import type { DockViewType } from "@/shared/lib/router/useURLParams";
 import type { BoundaryLabel } from "@/shared/ui/AppErrorBoundary";
 
-/** ビュー1枚の部品。**素性（見出し・既定）は `entities/dock` が持つ。** */
+/** ビュー1枚の部品。素性（見出し、外せるか、既定で出すか）は `entities/dock` が持つ */
 export type DockViewBinding = {
   /** ドックの本体に出るもの */
   Body: ComponentType;
@@ -19,9 +19,9 @@ export type DockViewBinding = {
 };
 
 /**
- * 綴りからビューの部品へ。**`Record` なので、綴りを足して部品を足さないと tsc が落ちる。**
+ * 綴りからビューの部品へ。`Record` なので、綴りを足して部品を足さないと tsc が落ちる。
  *
- * **中身をここで決めない。** 決めると `widgets/dock` が全部のビューのスライスを読むことになり、
+ * 中身はここで決めない。決めると `widgets/dock` が全部のビューのスライスを読むことになり、
  * 「widgets に同層横断を1組も作らない」（`src/__tests__/crossSliceImports.test.ts`）を破る。
  * 割り当ての現物は `src/pages/dockViews.ts` が持ち、`Dock` へ渡す。
  */

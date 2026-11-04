@@ -9,7 +9,7 @@ import "./Sidebar.scss";
  */
 function Sidebar({ isOpen, children }: { isOpen: boolean; children: ReactNode }) {
   if (!isOpen) return null;
-  return <div className={"sidebar"}>{children}</div>;
+  return <div className="sidebar">{children}</div>;
 }
 
 export default Sidebar;

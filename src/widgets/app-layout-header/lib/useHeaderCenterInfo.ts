@@ -4,16 +4,6 @@ import { turnGlyph, turnText as turnTextOf, type TurnGlyph } from "@/shared/lib/
 import { useGame } from "@/entities/game";
 import { playerNames } from "@/entities/kifu/lib/playerNames";
 
-function basename(path: string) {
-  const parts = path.split(/[\\/]/).filter(Boolean);
-  return parts[parts.length - 1] ?? path;
-}
-
-function stripExt(name: string) {
-  const i = name.lastIndexOf(".");
-  return i > 0 ? name.slice(0, i) : name;
-}
-
 export type HeaderCenterInfo = {
   /** 棋譜が盤に載っているか。ヘッダの表示はどれもこれで分岐する */
   hasKifu: boolean;
@@ -32,18 +22,28 @@ export type HeaderCenterInfo = {
   tooltip: string;
 };
 
+function basename(path: string) {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] ?? path;
+}
+
+function stripExt(name: string) {
+  const i = name.lastIndexOf(".");
+  return i > 0 ? name.slice(0, i) : name;
+}
+
 /**
  * ヘッダ中央の表示を組む。
  *
- * **棋譜が載っているかは自分で game に訊く。** 呼び出し側から真偽値で受け取ると、
+ * 棋譜が載っているかは、呼び手から受けずに自分で game に訊く。真偽値で受け取ると、
  * 同じ問いに `hasKifu` と prop の2つの綴りができる。
  *
- * **出どころは全部 game で、ツリーの選択は見ない**（2つの違いは `loadedAbsPath` の doc）。
+ * 出どころは全部 game で、ツリーの選択は見ない（2つの違いは `loadedAbsPath` の doc）。
  * ツリー側を出どころにすると、盤に載せられなかった棋譜でも見出しだけが入れ替わり、
  * 盤には前の棋譜が残ったまま「新しい棋譜を見ている」と読める画面になる。
  */
 export function useHeaderCenterInfo(): HeaderCenterInfo {
-  const { state, view, getTotalMoves } = useGame();
+  const { state, view } = useGame();
   const hasKifu = view.hasKifu;
   const loadedAbsPath = state.loadedAbsPath;
   const jkf = state.jkf;
@@ -61,21 +61,9 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
     const { sente: senteName, gote: goteName } = playerNames(jkf);
     const isPlayersShown = hasKifu && Boolean(senteName || goteName);
 
-    // バッジ（手番・手数）
-
-    let turn = Color.Black;
-    let tesuu = 0;
-
-    if (hasKifu && view.player) {
-      try {
-        turn = view.player.shogi.turn;
-      } catch {
-        turn = Color.Black;
-      }
-      tesuu = state.cursor?.tesuu ?? view.player.tesuu ?? 0;
-    }
-
-    const total = hasKifu ? getTotalMoves() : 0;
+    const turn = hasKifu ? view.currentTurn : Color.Black;
+    const tesuu = hasKifu && view.player ? (state.cursor?.tesuu ?? view.player.tesuu) : 0;
+    const total = hasKifu ? view.totalMoves : 0;
 
     const glyph = turnGlyph(turn);
     const turnLine = turnTextOf(turn);
@@ -105,5 +93,5 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
       totalText,
       tooltip,
     };
-  }, [hasKifu, loadedAbsPath, jkf, view.player, state.cursor, getTotalMoves]);
+  }, [hasKifu, loadedAbsPath, jkf, view.player, view.currentTurn, view.totalMoves, state.cursor]);
 }

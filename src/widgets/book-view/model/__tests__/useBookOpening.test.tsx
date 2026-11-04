@@ -4,13 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ReactNode } from "react";
 import { BookProvider, useBook, type BookContextType } from "@/entities/book";
-import { Ok } from "@/shared/lib/result";
+import { Err, Ok } from "@/shared/lib/result";
 import { useBookOpening } from "../useBookOpening";
 
-const { openBookFile, setDisplayConfig } = vi.hoisted(() => ({
+const { openBookFile, setDisplayConfig, pickBookFile } = vi.hoisted(() => ({
   openBookFile: vi.fn(),
   setDisplayConfig: vi.fn(),
+  pickBookFile: vi.fn(),
 }));
+
+vi.mock("@/shared/api/picker/pickBookFile", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/shared/api/picker/pickBookFile")>();
+  const mocked = { ...actual, pickBookFile };
+  return mocked satisfies typeof import("@/shared/api/picker/pickBookFile");
+});
 
 vi.mock(
   "@/entities/book/api/commands",
@@ -58,11 +65,12 @@ function renderOpening() {
     },
     { wrapper },
   );
-  return { result, close: () => book.close() };
+  return { result, close: () => book.close(), failure: () => book.failure };
 }
 
 beforeEach(() => {
   openBookFile.mockReset();
+  pickBookFile.mockReset();
   setDisplayConfig.mockReset().mockResolvedValue(Ok(undefined));
 });
 
@@ -99,5 +107,58 @@ describe("最近開いた定跡への控え", () => {
     });
 
     expect(setDisplayConfig).not.toHaveBeenCalled();
+  });
+
+  it("開けなかった定跡は控えない", async () => {
+    openBookFile.mockResolvedValue(Err({ code: "io", message: "読めない", path: "/books/a.db" }));
+    const { result } = renderOpening();
+
+    await act(async () => {
+      await result.current.open("/books/a.db");
+    });
+
+    expect(setDisplayConfig).not.toHaveBeenCalled();
+  });
+});
+
+describe("ダイアログで選んで開く", () => {
+  it("選んだ定跡を開いて控える", async () => {
+    pickBookFile.mockResolvedValue("/books/a.db");
+    openBookFile.mockResolvedValue(Ok(info(1, "/books/a.db")));
+    const { result } = renderOpening();
+
+    await act(async () => {
+      await result.current.browse();
+    });
+
+    expect(openBookFile).toHaveBeenCalledWith("/books/a.db");
+    expect(setDisplayConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it("取り消したら何も開かない", async () => {
+    pickBookFile.mockResolvedValue(null);
+    const { result, failure } = renderOpening();
+
+    await act(async () => {
+      await result.current.browse();
+    });
+
+    expect(openBookFile).not.toHaveBeenCalled();
+    expect(failure()).toBeNull();
+  });
+
+  /** 黙って落とすと、📂 を押しても反応しない画面になる */
+  it("ダイアログが開けなければ、失敗の帯へ渡す", async () => {
+    pickBookFile.mockRejectedValue(new Error("権限が無い"));
+    const { result, failure } = renderOpening();
+
+    await act(async () => {
+      await result.current.browse();
+    });
+
+    expect(openBookFile).not.toHaveBeenCalled();
+    expect(failure()?.origin).toBe("external");
+    expect(failure()?.error.message).toContain("定跡を選択する画面を開けませんでした");
+    expect(failure()?.error.message).toContain("権限が無い");
   });
 });
