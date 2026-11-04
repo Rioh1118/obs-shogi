@@ -56,7 +56,7 @@ function ariaSort(sort: BookSort, key: BookSortKey): "ascending" | "descending" 
  * 盤を持たない。その手を指した先も定跡にあるかは、盤ではなく「この先」列で出す
  * （ADR-0010、`docs/spec/features/book.md`）。
  *
- * 行は押せない。押した先に出すものが無い（詳細ペインは ADR-0010 の決定2で消した）。
+ * 行は押せない。押した先に出すものが無い（詳細ペインを持たない。判断は ADR-0010 の決定2）。
  * ホバーで付く下線は読む位置の手掛かりで、押せることの合図ではない
  * （`BookTable.scss` の `&__row:hover`）。
  *
