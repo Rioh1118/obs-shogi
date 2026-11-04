@@ -14,7 +14,10 @@
 //! 手当ては持たない。
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tauri::{AppHandle, Manager, Runtime};
 
 use ::fs::write::atomic_write;
@@ -61,11 +64,14 @@ fn updater_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 /// 利用者に見せる意味が無い。既定値は「何も飛ばしていない」なので、壊れたときに倒れる先は
 /// **告知が出る**側になる。
 pub fn read_or_default<R: Runtime>(app: &AppHandle<R>) -> Result<UpdaterState, String> {
-    let path = updater_path(app)?;
+    read_file_or_default(&updater_path(app)?)
+}
+
+fn read_file_or_default(path: &Path) -> Result<UpdaterState, String> {
     if !path.exists() {
         return Ok(UpdaterState::default());
     }
-    let Ok(data) = fs::read_to_string(&path) else {
+    let Ok(data) = fs::read_to_string(path) else {
         return Ok(UpdaterState::default());
     };
     Ok(serde_json::from_str(&data).unwrap_or_default())
@@ -73,7 +79,10 @@ pub fn read_or_default<R: Runtime>(app: &AppHandle<R>) -> Result<UpdaterState, S
 
 /// `updater.json` をファイルごと原子的に置き換える
 pub fn write<R: Runtime>(app: &AppHandle<R>, state: &UpdaterState) -> Result<(), String> {
-    let path = updater_path(app)?;
+    write_file(&updater_path(app)?, state)
+}
+
+fn write_file(path: &Path, state: &UpdaterState) -> Result<(), String> {
     let data = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
-    atomic_write(&path, data.as_bytes()).map_err(|e| e.to_string())
+    atomic_write(path, data.as_bytes()).map_err(|e| e.to_string())
 }

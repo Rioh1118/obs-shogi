@@ -1,7 +1,10 @@
 //! `app.json` の形と置き場。
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use tauri::{AppHandle, Manager};
 
 use ::fs::write::atomic_write;
@@ -74,7 +77,10 @@ pub fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
 /// `app.json` を読む。無ければ既定値。読めないか JSON として壊れていれば `Err` で、
 /// 呼び手は書き直す前に [`back_up_broken`] で退避する
 pub fn read_or_default(app: &AppHandle) -> Result<AppConfig, String> {
-    let path = config_path(app)?;
+    read_file_or_default(&config_path(app)?)
+}
+
+fn read_file_or_default(path: &Path) -> Result<AppConfig, String> {
     if path.exists() {
         let data = fs::read_to_string(path).map_err(|e| e.to_string())?;
         serde_json::from_str(&data).map_err(|e| e.to_string())
@@ -85,9 +91,12 @@ pub fn read_or_default(app: &AppHandle) -> Result<AppConfig, String> {
 
 /// `app.json` をファイルごと原子的に置き換える
 pub fn write(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
-    let path = config_path(app)?;
+    write_file(&config_path(app)?, config)
+}
+
+fn write_file(path: &Path, config: &AppConfig) -> Result<(), String> {
     let data = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    atomic_write(&path, data.as_bytes()).map_err(|e| e.to_string())
+    atomic_write(path, data.as_bytes()).map_err(|e| e.to_string())
 }
 
 /// 読めなかった `app.json` を `app.json.broken` へ移し、移した先を返す。ファイルが無ければ `None`。
@@ -96,7 +105,10 @@ pub fn write(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
 /// 呼び手が組み立てた値を書くと、読めていない欄は `null` で書き潰される。壊れた JSON でも、
 /// 中の文字列は利用者が選んだ場所そのものなので、**捨てる前に取っておく**。
 pub fn back_up_broken(app: &AppHandle) -> Result<Option<String>, String> {
-    let path = config_path(app)?;
+    back_up_file(&config_path(app)?)
+}
+
+fn back_up_file(path: &Path) -> Result<Option<String>, String> {
     if !path.exists() {
         return Ok(None);
     }
@@ -111,7 +123,7 @@ pub fn back_up_broken(app: &AppHandle) -> Result<Option<String>, String> {
         backup = path.with_extension(format!("json.broken.{n}"));
     }
 
-    fs::rename(&path, &backup).map_err(|e| e.to_string())?;
+    fs::rename(path, &backup).map_err(|e| e.to_string())?;
     Ok(Some(backup.to_string_lossy().to_string()))
 }
 
