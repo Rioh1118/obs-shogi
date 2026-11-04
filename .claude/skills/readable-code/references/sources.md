@@ -20,6 +20,14 @@
 | [A Philosophy of Software Design 公式ページ](https://web.stanford.edu/~ouster/cgi-bin/book.php) | 書籍の位置づけだけ。**本体は読んでいない** |
 | [文化審議会「公用文作成の考え方」(2022)](https://www.bunka.go.jp/seisaku/bunkashingikai/kokugo/hokoku/pdf/93651301_01.pdf) | 一文を短く（50〜60字で意識する）、一文の論点は1つ、結論を早めに、指示語を近くに、二重否定を避ける |
 | [JTF 標準スタイルガイド](https://www.jtf.jp/tips/styleguide) | 敬体か常体に統一する。句読点は「、」「。」（文の組み立ての本文 PDF は読めなかった） |
+| [Parnas 1972（ACM 再掲）](https://www.cs.lafayette.edu/~gexia/cs301/resources/parnas.html) | モジュールは変わりうる判断を1つ隠す。処理の段の順で割らない（R-RES-6）。PDF は読めず HTML の再掲を読んだ |
+| [Parse, don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/) | 境界で検証済みの型に変える（R-RES-7） |
+| [Microsoft Pragmatic Rust Guidelines](https://microsoft.github.io/rust-guidelines/agents/all.txt) | `M-` の ID で `rust.md` に引いた項目。全文を読んだ |
+| [Effective Rust](https://effective-rust.com/) | 項目4（エラー）、12（`dyn`）、17（ロック）、28（マクロ） |
+| [matklad: Push ifs up and fors down](https://matklad.github.io/2023/11/15/push-ifs-up-and-fors-down.html) | 分岐を呼び手へ上げる（R-CHG-5） |
+| [matklad: pub calls pub](https://matklad.github.io/2026/10/29/pub-calls-pub.html) | 公開関数どうしで呼び合わない（R-RSA-14） |
+| [matklad: Inline in Rust](https://matklad.github.io/2021/07/09/inline-in-rust.html) | 総称の公開関数を薄くする（R-RST-7） |
+| [Rust Design Patterns: Compose structs](https://rust-unofficial.github.io/patterns/patterns/structural/compose-structs.html) | 借用のための `clone` は構造体を割る合図（R-RSM-8） |
 | [『リーダブルコード』目次](https://www.oreilly.co.jp/books/9784873115658/) | 名前、コメント、制御、再構成の章立てを見る項目の順の参考にした。**本文は読んでいない**。読み手の理解を基準に置く考え方は `docs/rules/` と同じ |
 | [React: Passing Props to a Component](https://react.dev/learn/passing-props-to-a-component) | `children` は親が埋める穴。カードやパネルのような包む部品で使う。`props` の展開は控えめにする |
 | [React: Passing Data Deeply with Context](https://react.dev/learn/passing-data-deeply-with-context) | Context の前に `props` と `children` を試す。何段か渡すだけでは Context にする理由にならない |
@@ -36,7 +44,8 @@
 ## 読めなかったもの
 
 - Oracle「How to Write Doc Comments」: HTTP 403
-- `yomiyasu` という skill: `~/.claude`、`~/dev`、公開情報のいずれにも見つからず、外した
+- Rust Design Patterns の anti-pattern の一覧: 目次に一覧が無かった
+- 公開されている AI 向けの Rust の skill: 再輸出と prelude を勧めるものが多く、ADR-0009 決定4 と逆なので採らなかった
 
 ## 出典が割れる点と、ここでの決定
 
@@ -46,3 +55,6 @@
 | 全ての宣言に doc を書くか | Swift は全宣言、Go と rustdoc は公開だけ | 公開だけ。非公開は名前で足りないときに書く。`CONTRIBUTING.md` の既存の規則と同じ |
 | 例を必ず書くか | Rust だけが強い | 求めない。アプリの内部 API で、呼び手がリポジトリの中に居る |
 | `interface` か `type` か | Handbook と typescript-eslint は `interface` | `type`。リポジトリの形を標準より先に見る基準で決めた（ADR-0014） |
+| 見出しの言語 | rustdoc の慣習は `# Errors` などの英語 | 日本語の `# エラー` `# パニック` `# 安全性`。本文が日本語で、見出しを lint に読ませない |
+| アプリでの `anyhow` | Microsoft と Effective Rust はアプリなら良いとする | 採らない。フロントと crate の呼び手が失敗の種類で分岐する（R-ERR-4） |
+| 受け皿のモジュール | matklad は未分類の置き場を勧める | 採らない。`LAYERS` に1文で載らない（ADR-0008 決定1、R-DUP-5） |
