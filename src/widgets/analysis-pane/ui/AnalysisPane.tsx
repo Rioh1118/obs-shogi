@@ -42,7 +42,7 @@ const BODY: Record<AnalysisDisplayMode, (props: { rows: readonly CandidateRow[] 
 
 function AnalysisPane() {
   // **控えの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
-  // 保存場所を持たない。持つと、この画面が作り直された回だけ停止中の候補手が消える
+  // 保存場所を持たない。持つと、この画面が作り直されたときだけ停止中の候補手が消える
   // （理由は `entities/analysis/lib/candidateCache.ts`）。
   const { state, candidateCache } = useAnalysis();
 
@@ -59,31 +59,6 @@ function AnalysisPane() {
   const cacheKey = fileKey && tesuuPointer ? `${engineKey}${fileKey}:${tesuuPointer}` : null;
 
   const currentTurn = gameView.currentTurn;
-
-  // **控える側（下の effect）より先に宣言する。** React は宣言順に effect を走らせる。
-  // `scopeTo` は宣言された棋譜が前と同じなら何もしない（`candidateCache.ts` の早期 return）
-  // ので、順序が効くのは `fileKey` が前の宣言と食い違うレンダだけ。そこで控える側が
-  // 先に走ると、新しい棋譜の控えを書いた直後にそれを捨てる。
-  useEffect(() => {
-    candidateCache.scopeTo(fileKey);
-  }, [candidateCache, fileKey]);
-
-  useEffect(() => {
-    if (!cacheKey) return;
-    if (!currentSfen) return;
-    if (state.candidates.length === 0) return;
-    // エンジンが読んだ局面が盤と違うなら控えない。控えると、鍵が指す局面とは
-    // 別の局面の候補手が、停止したあとその局面の結果として出る。
-    //
-    // `analyzedSfen` が null のときも控えない。いま `candidates` が空でないときは必ず
-    // `start_analysis` を通っているので null にはならないが、`stop_analysis` で
-    // null へ戻す整理を入れると、短絡で判定が通って古い候補手が別の鍵へ焼き付く。
-    //
-    // **突き合わせるのは局面だけ。** 鍵が指す棋譜とエンジンの側は誰も見ていない → #568
-    if (state.analyzedSfen !== currentSfen) return;
-
-    candidateCache.remember(cacheKey, state.candidates);
-  }, [candidateCache, cacheKey, currentSfen, state.candidates, state.analyzedSfen]);
 
   // 停止中に出すのは控え。**控えを書くのはコミット後の effect なので、読むこのレンダは
   // 書かれる前の控えを見る。** 控えの先は ref で、書いても再レンダは起きないので、
@@ -143,6 +118,31 @@ function AnalysisPane() {
 
   // 止まる前の候補手は、表も評価値バーも薄く出す。今の結果のように見せない
   const staleClass = candidatesAreStale(status) ? " analysis-pane--stale" : "";
+
+  // **控える側（下の effect）より先に宣言する。** React は宣言順に effect を走らせる。
+  // `scopeTo` は宣言された棋譜が前と同じなら何もしない（`candidateCache.ts` の早期 return）
+  // ので、順序が効くのは `fileKey` が前の宣言と食い違うレンダだけ。そこで控える側が
+  // 先に走ると、新しい棋譜の控えを書いた直後にそれを捨てる。
+  useEffect(() => {
+    candidateCache.scopeTo(fileKey);
+  }, [candidateCache, fileKey]);
+
+  useEffect(() => {
+    if (!cacheKey) return;
+    if (!currentSfen) return;
+    if (state.candidates.length === 0) return;
+    // エンジンが読んだ局面が盤と違うなら控えない。控えると、鍵が指す局面とは
+    // 別の局面の候補手が、停止したあとその局面の結果として出る。
+    //
+    // `analyzedSfen` が null のときも控えない。いま `candidates` が空でないときは必ず
+    // `start_analysis` を通っているので null にはならないが、`stop_analysis` で
+    // null へ戻す整理を入れると、短絡で判定が通って古い候補手が別の鍵へ焼き付く。
+    //
+    // **突き合わせるのは局面だけ。** 鍵が指す棋譜とエンジンの側は誰も見ていない → #568
+    if (state.analyzedSfen !== currentSfen) return;
+
+    candidateCache.remember(cacheKey, state.candidates);
+  }, [candidateCache, cacheKey, currentSfen, state.candidates, state.analyzedSfen]);
 
   return (
     <section className="analysis-pane">

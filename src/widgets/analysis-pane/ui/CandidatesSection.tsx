@@ -3,7 +3,7 @@ import MoveSequence from "./MoveSequence";
 import type { CandidateRow } from "@/widgets/analysis-pane/lib/candidateRows";
 import { EMPTY_CANDIDATES } from "@/widgets/analysis-pane/lib/labels";
 
-interface CandidatesSectionProps {
+type CandidatesSectionProps = {
   /**
    * 出す候補。**最善手も1行目としてここに入る。**
    *
@@ -12,7 +12,7 @@ interface CandidatesSectionProps {
    * 画面が出せる数が独立に決まる。
    */
   rows: readonly CandidateRow[];
-}
+};
 
 /**
  * 候補手を1手1行で詰めて出す（表示モード「行」）。

@@ -2,13 +2,13 @@ import { Color, type Kind } from "shogi.js";
 import PieceImage from "@/entities/position/ui/PieceImage";
 import { useHandLayout, type RowConfig } from "./useHandLayout";
 import "./Hand.scss";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type PointerEvent } from "react";
 import { useGame } from "@/entities/game";
 import { handAreaMarker } from "@/features/clear-board-selection";
 
-interface HandProps {
+type HandProps = {
   isSente: boolean;
-}
+};
 
 /**
  * 片側の駒台。押した持ち駒を選び、手番でない側では選択を外すだけにする。
@@ -18,6 +18,11 @@ interface HandProps {
  */
 function Hand({ isSente }: HandProps) {
   const { state, view, selectHand, clearSelection } = useGame();
+  const [markedPiece, setMarkedPiece] = useState<{
+    kind: string;
+    nth: number;
+  } | null>(null);
+
   const hands = view.player?.shogi.hands;
   const currentTurn = view.currentTurn;
   const selectedPosition = state.selectedPosition;
@@ -29,11 +34,6 @@ function Hand({ isSente }: HandProps) {
   const { arrangedPieces, layoutConfig } = useHandLayout(handPiecesArray);
   const isCurrentTurn = color === currentTurn;
 
-  const [markedPiece, setMarkedPiece] = useState<{
-    kind: string;
-    nth: number;
-  } | null>(null);
-
   const isThisHandSelected = selectedPosition?.type === "hand" && selectedPosition.color === color;
 
   const isMarked = (pieceKind: string, nth: number) => {
@@ -44,17 +44,6 @@ function Hand({ isSente }: HandProps) {
       markedPiece.nth === nth
     );
   };
-
-  useEffect(() => {
-    if (!isThisHandSelected) {
-      setMarkedPiece(null);
-      return;
-    }
-
-    if (markedPiece && markedPiece.kind !== selectedPosition.kind) {
-      setMarkedPiece(null);
-    }
-  }, [isThisHandSelected, selectedPosition, markedPiece]);
 
   const handlePieceClick = (pieceKind: string, nth: number) => {
     if (!isCurrentTurn) {
@@ -71,7 +60,7 @@ function Hand({ isSente }: HandProps) {
     selectHand(color, pieceKind as Kind);
   };
 
-  const handleHandAreaPointerDown = (e: React.PointerEvent) => {
+  const handleHandAreaPointerDown = (e: PointerEvent) => {
     if (!state.selectedPosition) return;
 
     const el = e.target as HTMLElement | null;
@@ -112,6 +101,17 @@ function Hand({ isSente }: HandProps) {
       );
     });
   };
+
+  useEffect(() => {
+    if (!isThisHandSelected) {
+      setMarkedPiece(null);
+      return;
+    }
+
+    if (markedPiece && markedPiece.kind !== selectedPosition.kind) {
+      setMarkedPiece(null);
+    }
+  }, [isThisHandSelected, selectedPosition, markedPiece]);
 
   const seenOfKind = new Map<string, number>();
 

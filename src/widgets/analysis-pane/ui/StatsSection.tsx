@@ -1,12 +1,12 @@
 import "./StatsSection.scss";
 
-interface StatsSectionProps {
+type StatsSectionProps = {
   searchStats: {
     depth?: number | null;
     nodes?: number | null;
     time_ms?: number | null;
   } | null;
-}
+};
 
 /** 数の無い欄。**行ごと消さない** —— 欄が増減すると隣の欄の位置が動く */
 const UNKNOWN = "—";

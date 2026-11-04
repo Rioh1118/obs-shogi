@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import "./Square.scss";
 import { boardSquareMarker } from "@/features/clear-board-selection";
 
-interface SquareProps {
+type SquareProps = {
   x: number;
   y: number;
   children?: ReactNode;
@@ -10,7 +10,7 @@ interface SquareProps {
   isLastMove?: boolean;
   isSelected?: boolean;
   onClick?: () => void;
-}
+};
 
 function Square({
   x,

@@ -1,32 +1,32 @@
 import { useMemo } from "react";
 import { Piece } from "shogi.js";
 
-interface HandPiece {
+type HandPiece = {
   kind: string;
   count: number;
-}
+};
 
-interface LayoutConfig {
+type LayoutConfig = {
   maxPiecesPerRow: number;
   pieceSize: number;
   gap: number;
-}
+};
 
-export interface RowConfig {
+export type RowConfig = {
   pieceSize: number;
   gap: number;
-}
+};
 
-interface ArrangedPieces {
+type ArrangedPieces = {
   row1: string[];
   row2: string[];
   row3: string[];
   row4: string[];
-}
+};
 
-interface ExtendedLayoutConfig extends LayoutConfig {
+type ExtendedLayoutConfig = LayoutConfig & {
   getRowConfig: (pieces: string[]) => RowConfig;
-}
+};
 
 /** 持ち駒を種類ごとの枚数にまとめる */
 function countByKind(pieces: Piece[]): HandPiece[] {
