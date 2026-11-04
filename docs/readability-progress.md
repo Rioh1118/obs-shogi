@@ -65,7 +65,8 @@ ours 戦略のマージは使わない。
 | 29 | `refactor/tidy-widgets-kifu-stream` | `src/widgets/kifu-stream`（範囲16の第1段） | #697 | マージ済み |
 | 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2段）、読み直した後の行の強調 | #698 | マージ済み |
 | 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3段） | #699 | マージ済み |
-| 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | レビュー待ち |
+| 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | マージ済み |
+| 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | — | レビュー待ち |
 
 ## 語
 
@@ -114,7 +115,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 16b | `src/widgets/file-tree`                                 | 1395 | 済     | 済     |
 | 16c | `src/widgets` の `analysis-pane`、`game-board`          | 1754 | 済     | 済     |
 | 16d | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar` | 1034 | 済 | 済 |
-| 17 | `src/pages`、`src/app`                                   | 1682 | 未着手 | 未着手 |
+| 17 | `src/pages`、`src/app`                                   | 1682 | 済     | 済     |
 
 2000行を超える範囲は、取るときに更に割る。
 
@@ -124,7 +125,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 | 順 | 範囲                                                   | 行数  | 状態     |
 | -- | ------------------------------------------------------ | ----- | -------- |
-| 1  | `src-tauri/crates`（fs、kifu-text、settings、test-support） | 2145 | 未着手 |
+| 1  | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`   | 773   | 未着手   |
+| 1b | `src-tauri/crates/settings`                            | 1405  | 未着手   |
 | 2  | `src-tauri/src/storage`                                | 474   | 読み合わせのみ |
 | 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1890  | 未着手   |
 | 4  | `src-tauri/src/ai_library`                             | 808   | 未着手   |
@@ -153,7 +155,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
 | `src/entities/game/model/provider.tsx` の `getCurrentMoveIndex` | `state.cursor?.tesuu ?? 0` を返すだけの包み。`getCurrentTurn` は範囲16の第3段で、`getTotalMoves` は第4段で読み手が0になったので消した。残る読み手は `src/features` の `StudyPositionSaveModal` だけで、`src/features` の範囲は済んでいる。`features/study-position-save` を次に触るときに `state.cursor` を読む形へ寄せ、包みを消す |
 | `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
-| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める。範囲16の第3段では送った。読み手は `src/app` の3つの bridge、`features/engine-position-sync`、`entities/analysis` の provider、`src/widgets` の `AnalysisControls` と `useEngineStatus` で、範囲17で決める。`engineStatusOf` は `engine.error?.kind ?? null` を `failureKind` で受けており、union にすれば `useEngineStatus` の変換と `failureKind` の null の説明も消える。判定の順は変わらない |
+| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。範囲17でも送った。union にすると `entities/engine` の reducer（状態機械）と provider の `isReady`、`notReadyReasonOf` の入力が変わり、`entities` の公開の型が変わる。進め方の「`entities` の公開の名前を変えるなら、呼び手を含めて独立した段にする」に当たるので、整理の段に混ぜない。`src/app` で状態を読むのは `EngineFailureBridge`（`phase`、`error`、`unresponsiveReason`）と `EngineStartWarningBridge`（`phase`、`startWarnings`）の2つ。ほかの読み手は `features/engine-position-sync`、`entities/analysis` の provider、`src/widgets` の `AnalysisControls` と `useEngineStatus`。`engineFailureNoticeOf` は `exited`、`unresponsive`、`error`、未設定の順に見るので、union にしても判定の順は変わらない |
+| `src/__tests__/crossSliceImports.ts` の `scanCrossSliceImports` | 層の直下のディレクトリを全部スライスとして歩くので、`src/pages/__tests__` が `pages/__tests__` というスライスに数えられる。doc は「`__tests__` は外す」と書くが、外れるのはスライスの中の `__tests__` だけ。範囲17では、試験の `satisfies typeof import` を相対パスで書いて避けた。層の直下の `__tests__` を歩かないように直すかを決める |
 | `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
 | `src/entities/game-session/model/provider.tsx` の `start` の `void closeGame(gameId)` | 手放した対局を畳む呼び出しの断りを誰も受けない。本番の呼び手が `closeSession` しか無いので、対局の面を戻すときに決める |
 | `src-tauri/src/workspace/commands/kifu.rs` の `save_kifu_file` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
@@ -189,11 +192,15 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-範囲17: `src/pages`、`src/app`（1682行。内訳は `src/pages` 463行、`src/app/providers` 948行、
-`src/app/routing` 92行、`src/app` の直下 179行）。2000行以内なので1段で取れるが、取るときに行数を数え直す。
+TypeScript の表は範囲17で全部「済」になった。次は Rust の範囲1。
 
-所見の表のうち、`EngineState` の union は読み手の `src/app/providers` の3つの bridge がこの範囲にある。
-union にすると動作が変わりうるコミットが大きくなるので、そうなるなら `src/app/providers` を別の段に割る。
+範囲1: `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（773行。`fs` 481行、`kifu-text` 193行、
+`test-support` 99行）。`src-tauri/crates` 全体は2178行で2000行を超えるので2つに割る。
+`settings`（1405行）は `fs` と `test-support` を読むので、下の3つを先に取り、`settings` は範囲1b として次の段にする。
+行数はファイル内のテストを含む。取るときに数え直す。
+
+所見の表の `EngineState` の union は、範囲の表に載らない独立の段として残る。
+取るなら `entities/engine` の型と reducer から呼び手までを1段にし、整理の段とは分ける。
 
 `docs/IDEAS.md` の「feature の SCSS が shared の部品の内部クラスを掴んでいる」は、
 外すのに `shared/ui/Form` の手が要るので、範囲15では閉じない。
