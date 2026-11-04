@@ -49,14 +49,7 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, F
     // （`join("..")` は親へ抜ける。`create_dir_all` は途中の段も黙って作る）。
     let trimmed = validate_basename(&name)?;
 
-    // **作成を断る側は大文字小文字を無視する。** macOS の既定（APFS）は
-    // case-insensitive なので、`Engines` は Rust の `==` では別物でも
-    // ファイルシステムでは `engines` と同じ実体。通すと `eval` / `book` が
-    // **エンジンの置き場の中に**作られ、しかも `profile::read_all` は実際の名前
-    // （`engines`）を読んで除外するので、一覧には出ない。
-    //
-    // 除く側（`profile::read_all`）は逆に綴りで比べる。理由はあちらに書いてある
-    if trimmed.eq_ignore_ascii_case(ENGINES_DIR) {
+    if is_engines_dir_name(&trimmed) {
         return Err(FsError::new(
             FsErrorCode::InvalidNameReserved,
             format!("{ENGINES_DIR} is reserved for engine binaries"),
@@ -77,6 +70,20 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, F
     Ok(path.to_string_lossy().to_string())
 }
 
+/// AI フォルダの名前が engines/ と同じ実体を指すか。
+///
+/// **作成を断る側は大文字小文字を無視する。** macOS の既定（APFS）は
+/// case-insensitive なので、`Engines` は Rust の `==` では別物でも
+/// ファイルシステムでは `engines` と同じ実体。通すと `eval` / `book` が
+/// エンジンの置き場の中に作られ、しかも `profile::read_all` は実際の名前
+/// （`engines`）を読んで除外するので、一覧には出ない。
+///
+/// 除く側（`profile::read_all`）は逆に綴りで比べる。理由はあちらに書いてある
+fn is_engines_dir_name(name: &str) -> bool {
+    name.eq_ignore_ascii_case(ENGINES_DIR)
+}
+
+/// `<ai_root>/engines` を作り、そのパスを返す。在ればそのまま返す
 #[command]
 pub fn ensure_engines_dir(ai_root: String) -> Result<String, String> {
     validate_dir("ai_root", &ai_root)?;
@@ -89,13 +96,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::{Path, PathBuf};
-
-    fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("obs-shogi-ai-{tag}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("作れない");
-        dir
-    }
+    use test_support::dir::temp_dir;
 
     /// `ai_root` と、その**親**を返す。
     ///
@@ -103,7 +104,7 @@ mod tests {
     /// 検出したい退行が一度入ると `$TMPDIR/eval` が残り、直したあとも
     /// このテストは落ち続ける（開発者は assert を消す方へ行く）
     fn temp_ai_root(tag: &str) -> (PathBuf, PathBuf) {
-        let base = temp_root(tag);
+        let base = temp_dir(&format!("ai-{tag}"));
         let root = base.join("ai");
         fs::create_dir_all(&root).expect("作れない");
         (base, root)
@@ -139,7 +140,7 @@ mod tests {
             error.code
         );
 
-        // AI ルートが無いのは名前の失敗ではない。同じ箱に混ぜない
+        // AI ルートが無いのは名前の失敗ではない。名前の code に混ぜない
         let gone = create(Path::new("/nope/missing"), "suisho").expect_err("通している");
         assert!(
             matches!(gone.code, FsErrorCode::InvalidPath),
@@ -207,7 +208,8 @@ mod tests {
     }
 
     /// `create_dir_all` は同名のファイルがあると EEXIST で落ちる。OS の失敗を
-    /// そのまま返すと `io` になり、利用者には「読み書きに失敗しました」としか出ない
+    /// そのまま返すと `already_exists` になり、利用者には「同じ名前のものが既にあります」と出る。
+    /// 邪魔しているのがファイルだとは読めない
     #[test]
     fn a_blocking_file_is_named_as_such() {
         let (base, root) = temp_ai_root("blocked");
@@ -221,6 +223,51 @@ mod tests {
             error.code
         );
 
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// 作った AI フォルダのパスを返す。名前は前後の空白を落とした形で使う
+    #[test]
+    fn the_created_path_uses_the_trimmed_name() {
+        let (base, root) = temp_ai_root("trimmed");
+
+        let made = create(&root, " suisho ").expect("作れる");
+
+        assert_eq!(PathBuf::from(&made), root.join("suisho"));
+        assert!(root.join("suisho/eval").is_dir() && root.join("suisho/book").is_dir());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// 断った理由を code で分ける。TS は code で文言と、名前の欄に出すかを決める
+    #[test]
+    fn reserved_and_existing_names_carry_their_own_codes() {
+        let (base, root) = temp_ai_root("codes");
+
+        let reserved = create(&root, "Engines").expect_err("通している");
+        assert!(
+            matches!(reserved.code, FsErrorCode::InvalidNameReserved),
+            "{:?}",
+            reserved.code
+        );
+        create(&root, "suisho").expect("1つ目を作れない");
+        let existing = create(&root, "suisho").expect_err("通している");
+        assert!(
+            matches!(existing.code, FsErrorCode::AlreadyExists),
+            "{:?}",
+            existing.code
+        );
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// AI ルートが無いときは engines/ を作らずに断る。`create_dir_all` に任せると、
+    /// 消えた AI ルートを途中の段ごと作り直してしまう
+    #[test]
+    fn engines_are_not_placed_under_a_missing_ai_root() {
+        let (base, root) = temp_ai_root("ensure-missing");
+        let gone = root.join("gone");
+
+        assert!(ensure_engines_dir(gone.to_string_lossy().to_string()).is_err());
+        assert!(!gone.exists(), "AI ルートを作り直している");
         let _ = fs::remove_dir_all(&base);
     }
 }

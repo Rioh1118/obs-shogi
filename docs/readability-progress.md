@@ -70,7 +70,8 @@ ours 戦略のマージは使わない。
 | 34 | `refactor/tidy-rust-fs-kifu-text` | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（Rust の範囲1）、`fs` の試験のコンパイル | #702 | マージ済み |
 | 35 | `refactor/tidy-rust-settings` | `src-tauri/crates/settings`（Rust の範囲1b）、`crates/*` の試験を `verify:rust` と CI に載せる | #704 | マージ済み |
 | 36 | `refactor/tidy-rust-storage` | `src-tauri/src/storage`（Rust の範囲2）、`.` の後ろだけが違う key の取り違え | #705 | マージ済み |
-| 37 | `refactor/tidy-rust-kifu-workspace` | `src-tauri/src/kifu`、`src-tauri/src/workspace`（Rust の範囲3） | #706 | レビュー待ち |
+| 37 | `refactor/tidy-rust-kifu-workspace` | `src-tauri/src/kifu`、`src-tauri/src/workspace`（Rust の範囲3） | #706 | マージ済み |
+| 38 | `refactor/tidy-rust-ai-library` | `src-tauri/src/ai_library`（Rust の範囲4） | #707 | レビュー待ち |
 
 ## 語
 
@@ -133,8 +134,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 1b | `src-tauri/crates/settings`                            | 1405  | 済       |
 | 2  | `src-tauri/src/storage`                                | 552   | 済       |
 | 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1895  | 済       |
-| 4  | `src-tauri/src/ai_library`                             | 808   | 未着手   |
-| 5  | `src-tauri/src/engine` の `launchable` から `registry` まで |  | 未着手 |
+| 4  | `src-tauri/src/ai_library`                             | 808   | 済       |
+| 5  | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line` | 1787 | 未着手 |
+| 5b | `src-tauri/src/engine` の `child`、`registry` | 1590 | 未着手 |
+| 5c | `src-tauri/src/engine/protocol.rs` | 2437 | 未着手 |
 | 6  | `src-tauri/src/engine` の `option_labels` から `start_failure` まで |  | 未着手 |
 | 7  | `src-tauri/src/engine/game`                            |       | 未着手   |
 | 8  | `src-tauri/src/engine` の `analyzer` から `commands` まで |    | 未着手   |
@@ -193,7 +196,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/kifu-stream/ui/KifuForkMenu.tsx` の `normalizeSelected` と、`KifuStreamList.tsx` の分岐メニューの外側押下の `menuEl` の判定 | どちらも外すと結果が変わらない。行の選択は `buildStreamRowsFromCursor` が実際に降りた添字しか返さず、メニューの中の押下は `KifuForkMenu` の `stopPropagation` で document まで届かない。分岐メニューの閉じ方を直す #278 と合わせて、消すかを決める |
 | `src/widgets/game-board/ui/useHandLayout.ts` の段の割り振り | 片側の持ち駒が21〜23枚と29枚以上のとき、1段の幅が駒台の 20em を超える（22枚で最後の段に10枚、29.3em。38枚で26枚）。仮に並べるときの上限 `10` で偏りの判定が1段4枚の配置に落ち、余りを最後の段に寄せるため。`useHandLayout` を単体で呼んで再現した。直すと並べ方が変わるので、何枚まで4段で収めるかと合わせて決める |
 | `src/widgets/game-board/ui/Board.tsx` の成りの選択肢の取り消し | 待っている間に局面が動いたかを `player.tesuu` だけで見るので、同じ手数の別の変化へ移ると選択肢が残る。選ぶと、押した時点の `selectSquare` の閉包で前の局面の手として指す筋がある。未再現 |
-| `src-tauri/src/ai_library/commands.rs` の `create_ai_profile_dirs` の `ai_root` の検査 | AI ルートが無いときも `invalid_path` で返し、同じファイルの `a_rejected_name_carries_a_code` がそれを固定している。`FsErrorCode` の doc は、ワークスペースの中で「無い」を `invalid_path` に載せると tier が `danger` になり「再読み込み」が消えると書く。AI ルートを Finder で消したときに同じ形になるかを、範囲4で `not_found` へ分けるかと合わせて決める |
+| `src-tauri/src/ai_library/commands.rs` の `create_ai_profile_dirs` の `ai_root` の検査 | AI ルートが無いときも `invalid_path` で返す。範囲4で、`FsErrorCode` の doc が書く形（tier が `danger` になり「再読み込み」が消える）はここでは起きないと確かめた。AI ライブラリのタブは tier を読まず、`useAiLibrary` の `createAiFolder` が `describeFsError` の一文を `failKeepingIndex` で読み取りの失敗として積み、`SetupHero` が「フォルダを確認できませんでした」と「もう一度読み込む」を出す。違いは一文だけで、`not_found` なら「見つかりません。ほかで移動または削除された可能性があります」になる。分けると `crates/fs` の `InvalidPath` の doc（「AI ルートが空か、無いか、フォルダでない」）も直すことになり、範囲4の外へ出る。同じタブの `scan_ai_root` と `ensure_engines_dir` は失敗を英文の `String` で返し、画面にそのまま出る。AI ライブラリのコマンドの失敗を `FsError` へ揃えるときに、無いときの code を合わせて決める |
 | `src-tauri/crates/fs/src/path.rs` の `is_move_into_itself` | 在る `src` は symlink まで解いて比べるので、フォルダへの symlink を、その指す先のフォルダの中へ動かすと「自分の中への移動」として断る。動くのはリンクそのもので、`rename` は通る。`mv_directory` の `src.is_dir()` はリンクの先を見るので、ツリーから選べる。未再現。断るのが望ましいか（自分を指すリンクの輪ができる）を、ツリーが symlink をどう出すかと合わせて決める |
 | `src-tauri/crates/settings/src/app.rs` の `back_up_file` | 退避先の番号は `.broken.99` まで進むと、それが在るかを見ずに使うので、`app.json.broken` から `.broken.99` まで100個在ると、`.broken.99` を上書きする。未再現（範囲1bでパスを受ける関数に割ったので、試験で作れる）。100回壊れることはまず無いので、直すか（在れば `Err` を返す）を `app.json` の退避を次に触るときに決める |
 | `src-tauri/src/workspace/commands` と `kifu/commands.rs` の `write_kifu_to_file` の本体 | `AppHandle` を受けるので、crate の試験が届かない。範囲3では `guard.rs` の判定だけをパスで受ける関数へ割った。本体まで割ると、`tests/root_guard.rs` が `#[command]` の本体で読む検査の順が見えなくなる。ルートの走査が落とさなかった変異は2本: `rename_directory` の `is_project_root` の分岐を外す（ワークスペースそのものの改名が root の外として断られる）と、`create_kifu_file` の2本目の `validate_under_root` を外す（名前は `validate_basename` を通るので行き先は変わらない）。`tauri` の `test` の feature を dev-dependencies で有効にすれば `mock_app` で呼べるが、`Cargo.toml` は範囲3の外。mock の識別子は既定で空なので、`app_config_dir` が利用者のホームの下を指す。一時の名前を付けて呼ぶ |
@@ -201,15 +204,16 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で取った。次は Rust の範囲4。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で取った。次は Rust の範囲5。
 
-範囲4: `src-tauri/src/ai_library`（808行。ファイル内のテストを含む。2026-11-04 に数えた）。
-ファイル内の試験があるのは `commands.rs` だけ。所見の表の `ai_library/commands.rs` の
-`create_ai_profile_dirs` の行は、読み手がこの範囲に居る。
+範囲5: `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（1787行。ファイル内のテストを含む。2026-11-04 に数えた）。
+`LAYERS` の `launchable` から `registry` までは5814行あり、2000行を超えるので3つに割った。
+`child` と `registry` は範囲5b（1590行）、`protocol.rs` は範囲5c（2437行）。`protocol.rs` は
+テストを除くと1635行で、ファイル内のテストが802行ある。範囲5cを取るときに、テストを外へ出さずに取れるかを決める。
 
-範囲3では、`AppHandle` を受けるコマンドの本体に crate の試験が届かなかった（所見の表の
-`workspace/commands` の行）。範囲4のコマンドも `AppHandle` を受けるなら、本体を割る前に
-`tests/root_guard.rs` が `#[command]` の本体の何を読むかを確かめる。
+範囲4のコマンドは `AppHandle` を受けないので、crate の中の試験から本体を直接呼べた。
+範囲5の4つのファイルには `#[command]` が無い。`tests/layering.rs` は `engine` の段の上下を
+ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。
 
 段35から、`npm run verify:rust` と CI の `cargo test` と `cargo clippy` は `--workspace` で `crates/*` も走らせる。
 crate の試験は `cargo test --manifest-path src-tauri/Cargo.toml -p <crate>` で個別にも走らせられる。
