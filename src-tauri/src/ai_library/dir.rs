@@ -3,6 +3,9 @@
 use serde::Serialize;
 use std::{fs, path::Path};
 
+/// パスの先にある1件の種類。symlink は辿らずに `Symlink` と答える
+///
+/// `Unknown` は、`stat` できないものと、ファイルでもフォルダでもないもの（ソケットなど）
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum FsKind {
@@ -12,6 +15,10 @@ pub enum FsKind {
     Unknown,
 }
 
+/// `value` が在るフォルダを指すかを確かめる。symlink は辿る。
+///
+/// 失敗の文は `label` を主語にした英文。`scan_ai_root` と `ensure_engines_dir` はそれを返し、
+/// AI ライブラリのタブがそのまま出す
 pub fn validate_dir(label: &str, value: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         return Err(format!("{label} must not be empty"));
@@ -26,6 +33,7 @@ pub fn validate_dir(label: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// `path` そのものの種類を返す。symlink は指す先を見ない
 pub fn kind_of(path: &Path) -> FsKind {
     match fs::symlink_metadata(path) {
         Ok(md) => {

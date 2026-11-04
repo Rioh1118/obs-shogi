@@ -8,6 +8,7 @@ use super::engines::{EngineCandidate, ENGINES_DIR};
 use super::profile::ProfileCandidate;
 use super::{engines, profile};
 
+/// AI ルートを1回読んだ結果。欄の綴りは TS の `AiRootIndex` が読む
 #[derive(Debug, Clone, Serialize)]
 pub struct AiRootIndex {
     pub ai_root: String,
@@ -18,6 +19,10 @@ pub struct AiRootIndex {
     pub profiles: Vec<ProfileCandidate>,
 }
 
+/// engines/ が何として在るか
+///
+/// `exists` は symlink を辿り、`kind` は辿らない。フォルダを指すリンクは
+/// `exists: true` と `kind: Symlink` の組になる。切れたリンクは `exists: false` と `kind: Unknown`
 #[derive(Debug, Clone, Serialize)]
 pub struct DirInfo {
     pub path: String,
@@ -25,6 +30,9 @@ pub struct DirInfo {
     pub kind: FsKind,
 }
 
+/// engines/ と AI フォルダを読む。
+///
+/// `Err` になるのは AI ルートか engines/ を開けないとき。engines/ が無いのは失敗ではない
 pub fn index(ai_root: String) -> Result<AiRootIndex, String> {
     let root = Path::new(&ai_root);
 

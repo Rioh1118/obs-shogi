@@ -11,27 +11,29 @@ use super::engines::ENGINES_DIR;
 /// AI フォルダが持つ下位フォルダ
 const PROFILE_SUBS: [&str; 2] = ["eval", "book"];
 
-/// eval/ や book/ のファイル候補
+/// eval/ や book/ の直下にある、選べるファイル1つ
 #[derive(Debug, Clone, Serialize)]
 pub struct FileCandidate {
-    pub entry: String, // ファイル名
-    pub path: String,  // フルパス
+    /// ファイル名
+    pub entry: String,
+    pub path: String,
+    /// `File` か `Symlink`。symlink は指す先を確かめずに候補にする
     pub kind: FsKind,
 }
 
+/// 一覧に出る AI フォルダ1つ。`eval` と `book` の少なくとも一方を持つ
 #[derive(Debug, Clone, Serialize)]
 pub struct ProfileCandidate {
-    /// ai_root 直下のディレクトリ名（= profile 名）
+    /// AI ルート直下のフォルダ名
     pub name: String,
-    /// profile ディレクトリのフルパス
     pub path: String,
 
     pub has_eval_dir: bool,
     pub has_book_dir: bool,
 
-    /// eval/ 配下のファイル候補（フルパス）
+    /// eval/ の直下のファイル
     pub eval_files: Vec<FileCandidate>,
-    /// book/ 配下の .db ファイル候補（フルパス）
+    /// book/ の直下の、拡張子が `db` のファイル（大文字小文字を問わない）
     pub book_db_files: Vec<FileCandidate>,
 }
 
@@ -65,13 +67,15 @@ pub fn already_made(profile: &Path) -> bool {
     complete || (is_listed(profile) && has_any_content(profile))
 }
 
-/// 下位フォルダを作る。
+/// `eval` と `book` を作る。在るものはそのまま残す。
+///
+/// 同じ名前のファイルが邪魔していれば `InvalidType` で返す
 pub fn create_dirs(profile: &Path) -> Result<(), FsError> {
     for sub in PROFILE_SUBS {
         let dir = profile.join(sub);
 
-        // 同名のファイルがあると `create_dir_all` は EEXIST で落ちる。
-        // 名前を変える以外に直しようが無いので、名前の失敗として返す
+        // 同名のファイルがあると `create_dir_all` は EEXIST で落ち、`io` に丸まる。
+        // 何が邪魔しているかを利用者に言えるよう、パスを付けて先に断る
         if dir.exists() && !dir.is_dir() {
             return Err(FsError::new(
                 FsErrorCode::InvalidType,
@@ -86,6 +90,9 @@ pub fn create_dirs(profile: &Path) -> Result<(), FsError> {
     Ok(())
 }
 
+/// AI ルートの直下から、一覧に出る AI フォルダを名前の順に返す。
+///
+/// `Err` になるのは AI ルートを開けないときと、中の1件を読めないとき
 pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
     let mut out = vec![];
 
@@ -141,8 +148,10 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
     Ok(out)
 }
 
-/// dir 内のファイル候補を列挙（フルパス）。
-/// ext_filter: Some("db") なら拡張子 db のみ
+/// `dir` の直下のファイルと symlink を名前の順に返す。`ext_filter` があれば、その拡張子だけ。
+///
+/// 見るのは `read_dir` が返す先頭の `max` 件で、絞り込みより前に数える。
+/// 多いフォルダでは、どれが入るかは `read_dir` の順で決まる
 fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec<FileCandidate> {
     let mut out: Vec<FileCandidate> = vec![];
 

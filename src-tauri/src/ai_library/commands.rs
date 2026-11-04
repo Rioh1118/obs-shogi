@@ -52,7 +52,7 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, F
     // **作成を断る側は大文字小文字を無視する。** macOS の既定（APFS）は
     // case-insensitive なので、`Engines` は Rust の `==` では別物でも
     // ファイルシステムでは `engines` と同じ実体。通すと `eval` / `book` が
-    // **エンジンの置き場の中に**作られ、しかも `profile::read_all` は実際の名前
+    // エンジンの置き場の中に作られ、しかも `profile::read_all` は実際の名前
     // （`engines`）を読んで除外するので、一覧には出ない。
     //
     // 除く側（`profile::read_all`）は逆に綴りで比べる。理由はあちらに書いてある
@@ -77,6 +77,7 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, F
     Ok(path.to_string_lossy().to_string())
 }
 
+/// `<ai_root>/engines` を作り、そのパスを返す。在ればそのまま返す
 #[command]
 pub fn ensure_engines_dir(ai_root: String) -> Result<String, String> {
     validate_dir("ai_root", &ai_root)?;
@@ -139,7 +140,7 @@ mod tests {
             error.code
         );
 
-        // AI ルートが無いのは名前の失敗ではない。同じ箱に混ぜない
+        // AI ルートが無いのは名前の失敗ではない。名前の code に混ぜない
         let gone = create(Path::new("/nope/missing"), "suisho").expect_err("通している");
         assert!(
             matches!(gone.code, FsErrorCode::InvalidPath),

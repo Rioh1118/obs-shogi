@@ -27,8 +27,9 @@ pub struct EngineCandidate {
     /// 直下のファイルは `<ファイル>`、1段下は `<フォルダ>/<ファイル>`、
     /// 開けなかったフォルダは `<フォルダ>/`（`kind: Dir`、`launchability: Unreadable`）
     pub entry: String,
-    /// フルパス
+    /// engines/ に `entry` を繋いだパス
     pub path: String,
+    /// symlink を辿らない種類（`kind_of`）。リンクで置いたエンジンは `Symlink`
     pub kind: FsKind,
     pub launchability: Launchability,
 }
