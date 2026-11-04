@@ -503,4 +503,163 @@ mod tests {
 
         let _ = fs::remove_dir_all(&tmp);
     }
+
+    fn walk_at(dir: &Path, depth: usize) -> FileTreeNode {
+        let root = fs::canonicalize(dir).expect("解決できない");
+        let mut walk = Walk {
+            canonical_root: &root,
+            followed: vec![root.clone()],
+            depth,
+            budget: MAX_NODES,
+        };
+        build_file_tree_recursive(&root, &mut walk).expect("走査できない")
+    }
+
+    /// 深さの上限に着いたフォルダは、降りずに打ち切りの印を付ける。
+    /// 1段降りるごとに深さを数えるので、上限の1段手前から降りた子で止まる
+    #[test]
+    fn the_depth_limit_stops_the_descent() {
+        let ws = temp_dir("depth");
+        fs::create_dir_all(ws.join("sub")).expect("作れない");
+        fs::write(ws.join("sub/a.kif"), "").expect("書けない");
+
+        let at_limit = walk_at(&ws, MAX_DEPTH);
+        assert!(at_limit.truncated, "上限で打ち切っていない");
+        assert!(at_limit.children.is_none(), "上限を超えて降りた");
+
+        let before_limit = walk_at(&ws, MAX_DEPTH - 1);
+        let sub = &before_limit.children.as_deref().expect("子が無い")[0];
+        assert!(sub.truncated, "降りた先で深さを数えていない");
+        assert!(sub.children.is_none(), "上限を超えて降りた");
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    /// フォルダを先に、同じ種類の中は名前の順に並べる。中身の無いフォルダは子を持たない
+    #[test]
+    fn folders_come_first_and_an_empty_folder_has_no_children() {
+        let ws = temp_dir("order");
+        fs::create_dir_all(ws.join("b")).expect("作れない");
+        fs::write(ws.join("a.kif"), "").expect("書けない");
+        fs::write(ws.join("c.kif"), "").expect("書けない");
+
+        let children = walk_children(&ws);
+        let names: Vec<_> = children.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["b", "a.kif", "c.kif"]);
+        assert!(children[0].children.is_none(), "空のフォルダに子の欄がある");
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    /// ファイルの行は大きさと小文字の拡張子と更新時刻を持つ。フォルダの行は、名前に `.` があっても大きさと拡張子を持たない
+    #[test]
+    fn a_file_row_carries_its_size_extension_and_time() {
+        let ws = temp_dir("attrs");
+        fs::create_dir_all(ws.join("2026.08")).expect("作れない");
+        fs::write(ws.join("A.KIF"), "12345").expect("書けない");
+
+        let children = walk_children(&ws);
+        let sub = children
+            .iter()
+            .find(|c| c.name == "2026.08")
+            .expect("フォルダが無い");
+        let file = children
+            .iter()
+            .find(|c| c.name == "A.KIF")
+            .expect("ファイルが無い");
+
+        assert_eq!(file.size, Some(5));
+        assert_eq!(file.extension.as_deref(), Some("kif"));
+        assert!(
+            file.last_modified.is_some_and(|t| t > 0),
+            "{:?}",
+            file.last_modified
+        );
+        assert_eq!(sub.size, None);
+        assert_eq!(sub.extension, None);
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    /// 同じフォルダを指す2本の symlink は、どちらも一覧に出る。
+    /// 辿った解決先は経路を戻るときに外すので、兄弟の行には効かない
+    #[test]
+    fn two_symlinks_to_the_same_folder_both_appear() {
+        let ws = temp_dir("twin-links");
+        fs::create_dir_all(ws.join("real")).expect("作れない");
+        if !symlink_dir(&ws.join("real"), &ws.join("l1"))
+            || !symlink_dir(&ws.join("real"), &ws.join("l2"))
+        {
+            return; // symlink を張れない環境（Windows の既定）
+        }
+
+        let names: Vec<_> = walk_children(&ws).into_iter().map(|c| c.name).collect();
+        assert_eq!(names, ["l1", "l2", "real"]);
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    /// 一覧に出さない symlink の解決先は、後に続く行の判定に残らない。
+    ///
+    /// `x -> a.kif` は名前が棋譜でないので出さない。その解決先を外し忘れると、
+    /// 同じ棋譜を指す `y.kif` が「辿った先」と見なされて消える
+    #[cfg(unix)]
+    #[test]
+    fn a_hidden_symlink_does_not_hide_a_later_one() {
+        let ws = temp_dir("hidden-link");
+        fs::create_dir_all(&ws).expect("作れない");
+        fs::write(ws.join("a.kif"), "").expect("書けない");
+        std::os::unix::fs::symlink(ws.join("a.kif"), ws.join("x")).expect("張れない");
+        std::os::unix::fs::symlink(ws.join("a.kif"), ws.join("y.kif")).expect("張れない");
+
+        let names: Vec<_> = walk_children(&ws).into_iter().map(|c| c.name).collect();
+        assert_eq!(names, ["a.kif", "y.kif"]);
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    /// 読めないフォルダが1つあっても、残りの一覧は返す
+    #[cfg(unix)]
+    #[test]
+    fn an_unreadable_folder_does_not_take_the_tree_down() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let ws = temp_dir("locked");
+        fs::create_dir_all(ws.join("locked")).expect("作れない");
+        fs::write(ws.join("a.kif"), "").expect("書けない");
+        fs::set_permissions(ws.join("locked"), fs::Permissions::from_mode(0o000))
+            .expect("変えられない");
+
+        let names: Vec<_> = walk_children(&ws).into_iter().map(|c| c.name).collect();
+        fs::set_permissions(ws.join("locked"), fs::Permissions::from_mode(0o755))
+            .expect("戻せない");
+
+        assert!(
+            names.contains(&"a.kif".to_string()),
+            "一覧ごと失った: {names:?}"
+        );
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    /// `walk_from` は root を辿った先に数えてから歩くので、自分を指す symlink を1段も降りない
+    #[test]
+    fn walking_from_the_root_skips_a_link_to_itself() {
+        let ws = temp_dir("walk-self");
+        fs::create_dir_all(ws.join("2026")).expect("作れない");
+        if !symlink_dir(&ws, &ws.join("self")) {
+            return; // symlink を張れない環境（Windows の既定）
+        }
+
+        let tree = walk_from(&ws).expect("走査できない");
+        let names: Vec<_> = tree
+            .children
+            .unwrap_or_default()
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
+        assert_eq!(names, ["2026"]);
+
+        let _ = fs::remove_dir_all(&ws);
+    }
 }

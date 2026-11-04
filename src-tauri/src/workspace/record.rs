@@ -322,4 +322,59 @@ mod tests {
             err.message
         );
     }
+
+    /// 新しいファイルへ本文を書き、在る名前には書かない。
+    ///
+    /// 断るときは衝突した相手を `existing_path` に載せる。名前の衝突を出す画面は
+    /// この欄で相手を名指しするので、`create_new` の `AlreadyExists` だけに任せると相手が消える。
+    #[test]
+    fn a_new_file_gets_the_content_and_an_existing_one_is_left_alone() {
+        let dir = test_support::dir::temp_dir("write-new");
+        let path = dir.join("a.kif");
+
+        write_new_file(&path, "本文").expect("書けること");
+        assert_eq!(fs::read_to_string(&path).expect("読めること"), "本文");
+
+        let err = write_new_file(&path, "上書き").expect_err("在るファイルに書いた");
+        assert!(
+            matches!(err.code, FsErrorCode::AlreadyExists),
+            "{:?}",
+            err.code
+        );
+        assert_eq!(err.existing_path, Some(path.to_string_lossy().to_string()));
+        assert_eq!(fs::read_to_string(&path).expect("読めること"), "本文");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// BOM が2つ続くファイルも、先頭に `U+FEFF` を残さずに開く。
+    ///
+    /// `Encoding::decode` が消費する BOM は先頭の1つだけ。残った `U+FEFF` を `tsshogi` に渡すと、
+    /// 1行目がどの行パターンにも当たらない。
+    #[test]
+    fn a_second_bom_is_not_left_at_the_head() {
+        let dir = test_support::dir::temp_dir("double-bom");
+        let path = dir.join("a.csa");
+        let kifu = "V2.2\nPI\n+\n+7776FU\n";
+        let mut bytes = b"\xEF\xBB\xBF\xEF\xBB\xBF".to_vec();
+        bytes.extend_from_slice(kifu.as_bytes());
+        fs::write(&path, bytes).expect("書けない");
+
+        assert_eq!(read_text_portable(&path).expect("読めること"), kifu);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 読めなかった棋譜の失敗は、そのファイルを名指しする。
+    #[test]
+    fn an_unreadable_kifu_is_named_in_the_error() {
+        let dir = test_support::dir::temp_dir("unreadable");
+        let path = dir.join("broken.csa");
+        fs::write(&path, [0x81u8, 0xFF, 0xFE, 0x81, 0xFF]).expect("書けない");
+
+        let err = read_text_portable(&path).expect_err("化けた文字列を返した");
+        assert_eq!(err.path, Some(path.to_string_lossy().to_string()));
+
+        fs::remove_dir_all(&dir).ok();
+    }
 }

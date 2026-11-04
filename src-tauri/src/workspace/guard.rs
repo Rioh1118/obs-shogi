@@ -97,3 +97,84 @@ fn is_root(root: Option<PathBuf>, target: &Path) -> Result<bool, FsError> {
     };
     Ok(canonicalize_for_compare(&root)? == canonicalize_for_compare(target)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_support::dir::temp_dir;
+
+    /// 設定ファイルが無ければ root は未設定で、在れば `root_dir` を返す。
+    ///
+    /// 無いのを失敗にすると、ワークスペースを選ぶ前の起動でパスを受ける全コマンドが落ちる。
+    #[test]
+    fn the_root_comes_from_the_config_file_and_is_unset_without_one() {
+        let dir = temp_dir("guard-config");
+        let cfg = dir.join(settings::app::CONFIG_FILE);
+        assert_eq!(read_root_dir(&cfg).expect("無いのは失敗でない"), None);
+
+        fs::write(&cfg, r#"{"root_dir":"/ws"}"#).expect("書けない");
+        assert_eq!(
+            read_root_dir(&cfg).expect("読めること"),
+            Some(PathBuf::from("/ws"))
+        );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 壊れた設定ファイルの失敗は、利用者が触ったパスでなく設定ファイルを名指しする。
+    #[test]
+    fn a_broken_config_names_the_config_file() {
+        let dir = temp_dir("guard-broken");
+        let cfg = dir.join(settings::app::CONFIG_FILE);
+        fs::write(&cfg, "{").expect("書けない");
+
+        let err = read_root_dir(&cfg).expect_err("壊れた設定を読めたことにした");
+        assert!(
+            matches!(err.code, FsErrorCode::InvalidPath),
+            "{:?}",
+            err.code
+        );
+        assert_eq!(err.path, Some(cfg.to_string_lossy().to_string()));
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// root の下は通し、外は断る。断るときは断ったパスを名指しする。
+    /// root が未設定なら、どのパスも通す。
+    #[test]
+    fn only_paths_under_the_root_pass() {
+        let base = temp_dir("guard-under");
+        let ws = base.join("ws");
+        fs::create_dir_all(&ws).expect("作れない");
+        fs::create_dir_all(base.join("outside")).expect("作れない");
+
+        check_under_root(Some(ws.clone()), &ws).expect("root 自身は通す");
+        check_under_root(Some(ws.clone()), &ws.join("新規.kif")).expect("まだ無いパスも通す");
+
+        let outside = base.join("outside").join("a.kif");
+        let err = check_under_root(Some(ws.clone()), &outside).expect_err("外を通した");
+        assert!(
+            matches!(err.code, FsErrorCode::InvalidPath),
+            "{:?}",
+            err.code
+        );
+        assert_eq!(err.path, Some(outside.to_string_lossy().to_string()));
+
+        check_under_root(None, &outside).expect("未設定なら通す");
+
+        fs::remove_dir_all(&base).ok();
+    }
+
+    /// root そのものだけが root で、下のフォルダは root ではない。未設定なら何も root ではない。
+    #[test]
+    fn only_the_root_itself_is_the_root() {
+        let ws = temp_dir("guard-root");
+        fs::create_dir_all(ws.join("sub")).expect("作れない");
+
+        assert!(is_root(Some(ws.clone()), &ws).expect("判定できる"));
+        assert!(!is_root(Some(ws.clone()), &ws.join("sub")).expect("判定できる"));
+        assert!(!is_root(None, &ws).expect("判定できる"));
+
+        fs::remove_dir_all(&ws).ok();
+    }
+}

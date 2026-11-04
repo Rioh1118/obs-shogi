@@ -283,4 +283,23 @@ mod tests {
 
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    /// 形式の綴りは大文字でも読み、`json` は `jkf` と同じに書く。書けなかったことは隠さない
+    #[test]
+    fn the_format_name_is_read_loosely_and_a_failed_write_is_reported() {
+        let dir = temp_dir("write-loose");
+        let source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
+
+        let path = dir.join("gote.jkf");
+        write_kifu_file_internal(&source, &path, "JSON").expect("JSON は jkf と同じ");
+        let written = std::fs::read_to_string(&path).expect("読み取り");
+        parse_jkf_str(&written).expect("JKF として読めること");
+
+        // 行き先にフォルダが在ると書けない。書けなかったのに `Ok` を返すと、保存できたように見える
+        let occupied = dir.join("gote.kif");
+        std::fs::create_dir(&occupied).expect("フォルダを置けない");
+        write_kifu_file_internal(&source, &occupied, "kif").expect_err("書けなかったのに Ok");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

@@ -121,3 +121,56 @@ pub async fn normalize_jkf(mut jkf: JsonKifuFormat) -> ConvertKifuResponse {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shogi_kifu_converter_obsshogi::jkf::PlaceFormat;
+    use shogi_kifu_converter_obsshogi::parser::parse_kif_str;
+    use tauri::async_runtime::block_on;
+    use test_support::kifu::one_move_kif;
+
+    fn one_move() -> JsonKifuFormat {
+        parse_kif_str(&one_move_kif("平手")).expect("題材の KIF が読めること")
+    }
+
+    /// 変換は、綴った本文と正規化した JKF の両方を返す。
+    #[test]
+    fn conversion_returns_the_text_and_the_jkf() {
+        let response = block_on(convert_jkf_to_format(ConvertKifuRequest {
+            jkf: one_move(),
+            format: "kif".to_string(),
+        }));
+
+        assert!(response.success, "{:?}", response.error);
+        assert!(
+            response.content.is_some_and(|text| text.contains("手合割")),
+            "綴った本文を返していない"
+        );
+        assert!(response.normalized_jkf.is_some(), "JKF を返していない");
+    }
+
+    /// 正規化は、できれば JKF を返し、できなければ正規化の失敗だと名乗る。
+    #[test]
+    fn normalizing_returns_the_jkf_or_says_it_failed() {
+        let normalized = block_on(normalize_jkf(one_move()));
+        assert!(normalized.success, "{:?}", normalized.error);
+        assert!(normalized.normalized_jkf.is_some(), "JKF を返していない");
+
+        // 駒の無い升から動かす手は、局面を辿れないので正規化できない
+        let mut broken = one_move();
+        let mv = broken.moves[1].move_.as_mut().expect("指し手が無い");
+        mv.from = Some(PlaceFormat { x: 5, y: 5 });
+
+        let failed = block_on(normalize_jkf(broken));
+        assert!(!failed.success, "正規化できない手を通した");
+        assert!(
+            failed
+                .error
+                .as_deref()
+                .is_some_and(|e| e.starts_with("正規化エラー")),
+            "{:?}",
+            failed.error
+        );
+    }
+}
