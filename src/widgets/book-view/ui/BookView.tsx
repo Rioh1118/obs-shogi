@@ -116,6 +116,12 @@ function BookView() {
 
       case "rows":
         return table("", state.rows);
+
+      default: {
+        // 戻り値が `ReactNode` なので、これが無いと状態を足しても tsc が落ちず、本体が空になる
+        const unhandled: never = state;
+        return unhandled;
+      }
     }
   };
 
