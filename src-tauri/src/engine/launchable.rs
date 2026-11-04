@@ -1,15 +1,14 @@
-//! OS がこのファイルをエンジンとして起動させるか。**起動する前に分かる範囲だけ**を見る。
+//! OS がこのファイルをエンジンとして起動させるかを、起動する前に分かる範囲だけで判定する。
 //!
-//! いまの使い手は候補の一覧（`ai_library::engines`）だけ。起動に失敗したときの理由
-//! （`registry::spawn` の `StartupFailed`）はまだこれを通しておらず、一覧が
-//! `NotExecutable` と言うものは、起動では OS のエラー文言のまま失敗する。
-// TODO(#523): 起動失敗の理由の分類もここを通し、一覧と同じ言葉で説明する
+//! 使い手は2つ。候補の一覧（`ai_library::engines`）は、どの理由も利用者に見せる。
+//! 起動の失敗の分類（`start_failure::describe`）は、出力が終わった失敗のときに `Quarantined` かだけを見る。
+//! 実行権限が無い、別の OS 向け、といった理由は、起動では `SpawnFailed` になり、OS のエラー文言のまま残る。
 
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
 
-/// 起動できる見込み。**候補から外す理由ではなく、利用者に見せる理由。**
+/// 起動できる見込み。候補から外す理由ではなく、利用者に見せる理由
 ///
 /// 外してしまうと「置いたのに出てこない」になり、直し方（実行権限を付ける、
 /// macOS で開くのを許可する、読み取り権限を付ける）に辿り着けない。
@@ -35,18 +34,21 @@ pub enum Launchability {
     WrongPlatform,
 }
 
-/// `inspect` の答え。
+/// 1つのファイルが実行ファイルか、実行ファイルならどこまで起動できる見込みか
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Inspection {
     /// 実行ファイルではない（評価関数、説明書、共有ライブラリ）。候補に出さない
     NotAProgram,
+    /// 実行ファイル。起動を止めるものがあれば、その理由を持つ
     Program(Launchability),
 }
 
-/// 1つのファイルを調べる。**symlink はリンク先を見る**（起動するのはリンク先なので）。
+/// 1つのファイルが実行ファイルかと、起動できる見込みを返す。symlink はリンク先を見る
+/// （起動するのはリンク先なので）。
 ///
-/// 実行権限・先頭のバイト・隔離属性の3つを、**全部同じ実体**から読む。
+/// Unix では実行権限・先頭のバイト・隔離属性の3つを、**全部同じ実体から読む。**
 /// 1つでもリンク自身から読むと、リンク先が起動できないのに `Ready` を返す。
+/// パスを辿れない（無い、リンク先が無い）ときは `Unreadable` を返す。
 pub fn inspect(path: &Path) -> Inspection {
     let Ok(resolved) = fs::canonicalize(path) else {
         return Inspection::Program(Launchability::Unreadable);
@@ -67,6 +69,7 @@ pub fn inspect(path: &Path) -> Inspection {
     }
 }
 
+/// 先頭のバイト（Windows では拡張子）から分かる、ファイルの種類
 enum Kind {
     Native,
     OtherPlatform,
@@ -144,6 +147,7 @@ fn header_kind(head: [u8; 4]) -> Kind {
     }
 }
 
+/// Unix の実行形式。どちらを起動できるかは OS で決まる（`native_format`）
 #[cfg_attr(windows, allow(dead_code))]
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Format {
@@ -283,13 +287,62 @@ mod tests {
         fs::create_dir_all(dir.join("v1.so.2")).expect("作れない");
         write(&dir.join("libomp.dylib"), &MACH_O_64, 0o755);
         write(&dir.join("libfoo.so.1"), &ELF, 0o755);
+        write(&dir.join("libbar.so"), &ELF, 0o755);
+        write(&dir.join("LIBBAZ.DYLIB"), &MACH_O_64, 0o755);
         write(&dir.join("v1.so.2/engine"), &NATIVE, 0o755);
 
         assert_eq!(inspect(&dir.join("libomp.dylib")), Inspection::NotAProgram);
         assert_eq!(inspect(&dir.join("libfoo.so.1")), Inspection::NotAProgram);
+        assert_eq!(inspect(&dir.join("libbar.so")), Inspection::NotAProgram);
+        // 拡張子は大文字小文字を区別しない
+        assert_eq!(inspect(&dir.join("LIBBAZ.DYLIB")), Inspection::NotAProgram);
         assert_eq!(
             inspect(&dir.join("v1.so.2/engine")),
             program(Launchability::Ready)
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Mach-O の先頭は5つの形（32/64 ビット、両エンディアン、universal）のどれでも同じに扱う。
+    /// 配布物の macOS 版は universal が多く、1つでも漏れると候補から黙って消える
+    #[test]
+    fn every_mach_o_header_is_judged_alike() {
+        let expected = if cfg!(target_os = "macos") {
+            program(Launchability::Ready)
+        } else {
+            program(Launchability::WrongPlatform)
+        };
+        let dir = temp_dir("launchable-mach-o");
+        for (i, head) in [
+            [0xfe, 0xed, 0xfa, 0xce],
+            [0xfe, 0xed, 0xfa, 0xcf],
+            [0xce, 0xfa, 0xed, 0xfe],
+            [0xcf, 0xfa, 0xed, 0xfe],
+            [0xca, 0xfe, 0xba, 0xbe],
+        ]
+        .iter()
+        .enumerate()
+        {
+            let path = dir.join(format!("engine{i}"));
+            write(&path, head, 0o755);
+            assert_eq!(inspect(&path), expected, "{head:02x?}");
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// 辿れないパス（無い、リンク先が無い）は、実行ファイルでないと言わず読めないと言う
+    #[test]
+    fn a_path_that_cannot_be_followed_is_unreadable() {
+        let dir = temp_dir("launchable-dangling");
+        symlink(dir.join("gone"), dir.join("link")).expect("リンクを作れない");
+
+        assert_eq!(
+            inspect(&dir.join("link")),
+            program(Launchability::Unreadable)
+        );
+        assert_eq!(
+            inspect(&dir.join("missing")),
+            program(Launchability::Unreadable)
         );
         let _ = fs::remove_dir_all(&dir);
     }

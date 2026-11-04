@@ -1,6 +1,12 @@
+//! `engine` の段が共に使う型と、webview へ出す線の形。判断は持たない（`tests/layering.rs` の段 `types`）。
+//!
+//! serde の欄と変種の綴りは線の名前で、TS の `rust-types.ts` が同じ綴りで読む。
+//! 片側だけ変えても型の検査では落ちず、フロントは欄を空として読む。
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// エンジンが `usi` の応答で名乗った名前と作者、宣言した option の定義
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineInfo {
     pub name: String,
@@ -8,14 +14,18 @@ pub struct EngineInfo {
     pub options: Vec<EngineOption>,
 }
 
+/// エンジンが `usi` の応答で宣言した option 1件の定義。組むのは `option_line::parse_option_line` だけ
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineOption {
     pub name: String,
     pub option_type: EngineOptionType,
+    /// 宣言の既定値を文字列にしたもの。`default` の語が無い行と、型に合わない値では `None`
     pub default_value: Option<String>,
+    /// 埋める経路が無く、常に `None`
     pub current_value: Option<String>,
 }
 
+/// option の型と、型ごとの既定値・範囲。線には外部タグ（`{"Spin": {..}}`）で出る
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EngineOptionType {
     Check {
@@ -41,32 +51,29 @@ pub enum EngineOptionType {
     },
 }
 
-/// 時間切れの目印。**先頭に置く。**
+/// 時間切れの目印。`EngineError::Timeout` の文の先頭に置く。
 ///
-/// **先頭にあれば「遅かっただけ」。** 起動段の失敗のうち、再試行で通るものを
-/// フロントが見分けられるようにする（→ `failure-surfacing.md` の F-27）。
+/// 先頭にあれば「遅かっただけ」と読める。起動段の失敗のうち、再試行で通るものを
+/// フロントが見分けられるようにする（`docs/state-transitions/failure-surfacing.md` の F-27）。
 /// 返るのはフラットな文字列なので、目印を綴りで持つしかない。
 ///
-/// **部分一致で見ない。** 文字列のどこかに在ることを条件にすると、
-/// 外から同じ綴りを持ち込める——対局者の表示名（`failed to start {name}: …` に
-/// 素で載る）でも、OS の文言（macOS の `ETIMEDOUT` は `Operation timed out`）でも、
-/// 「遅かっただけ。設定は誤っていない」を名乗れてしまう。
+/// **部分一致で見ない。** 文字列のどこかに在ることを条件にすると、外から同じ綴りを持ち込める。
+/// 対局者の表示名（`failed to start {name}: …` に素で載る）でも、OS の文言（macOS の
+/// `ETIMEDOUT` は `Operation timed out`）でも、「遅かっただけ。設定は誤っていない」を名乗れてしまう。
 /// そうなると、パスを直す導線（F-27 の唯一の導線）が出ない。
 ///
-/// **片側だけの保証。** 先頭に無ければ設定の誤り、とは言えない——
-/// 内部の取り落とし（ブロッキングタスクが落ちた、通知の経路が閉じた）も
-/// 目印を持たずに届く。断言しているのは `startGame` の TSDoc ではなく
-/// ここだけ、という状態にしないこと。
+/// 保証は片側だけ。先頭に無くても設定の誤りとは言えない。内部の取り落とし（ブロッキングタスクが
+/// 落ちた、通知の経路が閉じた）も目印を持たずに届く。同じ断りを `startGame` の TSDoc にも
+/// 書いてあるので、片方だけを直さないこと。
 ///
-/// `tests/timeout_marker.rs` が `EngineError::Timeout(` の実引数を走査して、
-/// **書式の先頭にあること**を要求する。
-/// **実引数に直接置くこと**——変数へ括り出すと、目印が入っていても落ちる。
+/// `tests/timeout_marker.rs` が `EngineError::Timeout(` の実引数を走査して、書式の先頭にあることを
+/// 要求する。目印は実引数に直接置く。変数へ括り出すと、目印が入っていても落ちる。
 pub const TIMED_OUT: &str = "timed out";
 
-/// `setoption` で送る値1件。**並べた順にそのまま送る**（`setup::send_setup`）。
+/// `setoption` で送る名前と値1件。並べた順にそのまま送る（`setup::send_setup`）。
 ///
 /// **`EngineOption` とは別物。** あちらはエンジンが `usi` の応答で宣言してくる option の
-/// **定義**（型・既定値・現在値）で、向きが逆。同じ綴りにすると、コメントや報告書で
+/// 定義（型・既定値・現在値）で、向きが逆。同じ綴りにすると、コメントや報告書で
 /// 名前を書いた瞬間にどちらか分からなくなる。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -125,7 +132,7 @@ pub enum StartWarning {
     InvalidType { name: String, value: String },
 }
 
-/// プリセットに**保存する**オプションの定義1件。画面に欄を出すためだけに使う（送るときは起動のたびの
+/// プリセットに保存するオプションの定義1件。画面に欄を出すためだけに使う（送るときは起動のたびの
 /// 申告を見る。`binding::bind`）。
 ///
 /// **線の形（`EngineOption`）とは別に持つ。** あちらの形（外部タグ・snake_case）をそのままファイルに
@@ -278,8 +285,10 @@ pub enum StartFailureKind {
     Other,
 }
 
-/// エンジンを起動できなかったこと。`message` はログにだけ使う（画面の文言は `kind` から組む）
-/// （エンジンの出力を含むことがある。長さと制御文字は落としてある）
+/// エンジンを起動できなかったこと。画面の文言は `kind` から組み、`message` はログにだけ使う。
+///
+/// `message` と `last_output` はエンジンの出力を含みうるので、長さを切り、制御文字を潰してある
+/// （`start_failure::classify`）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartFailure {
@@ -308,6 +317,8 @@ pub fn engine_error_text(error: &EngineError) -> String {
     }
 }
 
+/// エンジンの起動とやりとりの失敗。`Display` は種類ごとの定型文を前置する
+/// （時間切れだけは前置を外して返す。`engine_error_text`）
 #[derive(Error, Debug)]
 pub enum EngineError {
     #[error("Engine not initialized: {0}")]
@@ -331,34 +342,8 @@ pub enum EngineError {
     Cancelled(String),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// 時間切れの目印が、文字列にしたときも**先頭**に残ること。
-    ///
-    /// `Display` は `Operation timeout: …` を前置するので、素で文字列にすると
-    /// 目印が中へ潜る。潜ると、フロントは部分一致で見るしかなくなり、
-    /// 対局者の表示名や OS の文言（macOS の `ETIMEDOUT` は `Operation timed out`）に
-    /// 同じ綴りが入っただけで「遅かっただけ。設定は誤っていない」を名乗れる。
-    #[test]
-    fn a_timeout_keeps_the_marker_at_the_front() {
-        let text = engine_error_text(&EngineError::Timeout(format!(
-            "{TIMED_OUT} waiting for usiok"
-        )));
-        assert!(text.starts_with(TIMED_OUT), "目印が先頭に無い: {text}");
-
-        // 時間切れ以外は名乗らない
-        let other = engine_error_text(&EngineError::StartupFailed(
-            "engine_path must point to an existing file".to_string(),
-        ));
-        assert!(
-            !other.starts_with(TIMED_OUT),
-            "時間切れでない失敗が目印を名乗っている: {other}"
-        );
-    }
-}
-
+/// 走っている解析1件の状態（`get_analysis_status`）。`elapsed_time` と `config` は埋める経路が無く、
+/// 常に `None`
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisStatus {
     pub is_analyzing: bool,
@@ -368,7 +353,7 @@ pub struct AnalysisStatus {
     pub analysis_count: u64,
 }
 
-// 分析設定
+/// 解析の打ち切りの設定。組む経路が無い（`AnalysisStatus::config` は常に `None`）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisConfig {
     pub time_limit: Option<Duration>,
@@ -378,7 +363,7 @@ pub struct AnalysisConfig {
     pub multi_pv: Option<u32>,
 }
 
-/// 線に出す経過時間。**`std::time::Duration` とは別物。**
+/// 線に出す経過時間。`std::time::Duration` とは別物
 ///
 /// 同名なのは、TypeScript 側に `{ secs, nanos }` として出る形をそのまま
 /// 名前にしているため。
@@ -401,56 +386,56 @@ impl From<std::time::Duration> for Duration {
     }
 }
 
+/// 読み筋1本の評価値。`value` の読み方は `kind` で変わる
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evaluation {
     pub value: i32,
     pub kind: EvaluationKind,
 }
 
+/// 評価値の読み方。上界・下界の印（`lowerbound` / `upperbound`）は区別しない
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EvaluationKind {
-    /// score cp <value>
+    /// `score cp`。`value` は centipawn
     Centipawn,
 
-    /// score mate <n> / mate lowerbound/upperbound の数値が取れるケース
-    /// value は engine が返した整数をそのまま入れる（符号含む）
+    /// `score mate <n>`。`value` と中身は、エンジンが書いた手数を符号ごとそのまま持つ
     MateInMoves(i32),
 
-    /// score mate + / score mate - のように距離が不明なケース
-    /// true = '+', false = '-'
+    /// `score mate +` / `score mate -`。手数が分からない詰み。真が `+` で、`value` は 1 か -1
     MateUnknown(bool),
 }
 
-/// 解析結果
+/// 1回の探索の読み筋。`candidates` は `rank` の昇順（`utils::apply_info_params` が並べる）
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
     pub candidates: Vec<AnalysisCandidate>,
 
-    /// go mate を使った時に engine が checkmate コマンドで返す詰み手順
-    /// score mate とは別物
+    /// `go mate` にエンジンが `checkmate` で答えた詰み手順。詰まない、調べられなかった答えは空。
+    /// `score mate` とは別物
     pub mate_sequence: Option<Vec<String>>,
 }
 
+/// MultiPV の読み筋1本。欄はどれも、その `rank` の `info` で最後に受けた値
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnalysisCandidate {
+    /// MultiPV の番号。`multipv` の無い `info` は 1 に入る
     pub rank: u32,
 
-    /// PVの先頭（あれば便利）: pv_line[0]
+    /// `pv_line` の先頭
     pub first_move: Option<String>,
 
-    /// PV全体（USI move文字列の配列）
+    /// 読み筋（USI の指し手の綴り）
     pub pv_line: Vec<String>,
 
-    /// cp/mate を統一表現
     pub evaluation: Option<Evaluation>,
 
-    /// depth/seldepth 等を入れたいなら拡張しやすい形
+    /// `depth`。`seldepth` は捨てる
     pub depth: Option<u32>,
 
-    /// nodes は rankごとに異なる場合もあるが、まずは入れておく
     pub nodes: Option<u64>,
 
-    /// time は info time を受けるたび更新される
+    /// `time`（ミリ秒）
     pub time_ms: Option<u64>,
 }
 
@@ -540,15 +525,23 @@ pub enum AnalysisEvent {
     EngineAnswered(EngineAnswered),
 }
 
-/// 解析の出来事の宛先。**実装は上の段（`commands::analysis`）に置く**——
-/// 下が `tauri` を知らない、を保つため（`GameEventSink` と同じ形）
+/// 解析の出来事の宛先。実装は上の段（`commands::analysis`）に置く。下が `tauri` を知らない、を
+/// 保つため（`GameEventSink` と同じ形）。
+///
+/// 実装が守る契約:
+///
+/// - `emit` は tokio のタスクから同期で呼ばれる。**待たずに返ること。** 止まると、同じワーカに
+///   載っている解析の進行が止まる
+/// - 宛先のロックを放してから呼ばれる（`EngineBridge::emit_to`）
+/// - 失敗しても解析を止めない。扱いは実装側が決める
 pub trait AnalysisEventSink: Send + Sync + 'static {
-    /// 1件流す。**失敗しても解析を止めない。** 扱いは実装側が決める
+    /// 1件流す
     fn emit(&self, event: AnalysisEvent);
 }
 
 /// どこへも流さない宛先。`EngineBridge` の既定（`Option` にすると、宛先が無いことを
 /// 進行のコードが知ることになる）
+#[derive(Debug)]
 pub struct DiscardAnalysisEvents;
 
 impl AnalysisEventSink for DiscardAnalysisEvents {
@@ -564,4 +557,52 @@ pub enum EngineEnd {
     Exited,
     /// stdin を読まなくなった。**プロセスは残っている**
     Stalled,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 時間切れの目印が、文字列にしたときも**先頭**に残ること。
+    ///
+    /// `Display` は `Operation timeout: …` を前置するので、素で文字列にすると
+    /// 目印が中へ潜る。潜ると、フロントは部分一致で見るしかなくなり、
+    /// 対局者の表示名や OS の文言（macOS の `ETIMEDOUT` は `Operation timed out`）に
+    /// 同じ綴りが入っただけで「遅かっただけ。設定は誤っていない」を名乗れる。
+    #[test]
+    fn a_timeout_keeps_the_marker_at_the_front() {
+        let text = engine_error_text(&EngineError::Timeout(format!(
+            "{TIMED_OUT} waiting for usiok"
+        )));
+        assert!(text.starts_with(TIMED_OUT), "目印が先頭に無い: {text}");
+
+        // 時間切れ以外は名乗らない
+        let other = engine_error_text(&EngineError::StartupFailed(
+            "engine_path must point to an existing file".to_string(),
+        ));
+        assert!(
+            !other.starts_with(TIMED_OUT),
+            "時間切れでない失敗が目印を名乗っている: {other}"
+        );
+    }
+
+    /// 経過時間は秒と端数のナノ秒に分けて線へ出す
+    #[test]
+    fn a_duration_keeps_seconds_and_nanos() {
+        let wire = Duration::from(std::time::Duration::new(3, 250_000_000));
+        assert_eq!((wire.secs, wire.nanos), (3, 250_000_000));
+    }
+
+    /// 応答しない理由の綴りは線の名前。TS（`entities/engine` の `UnresponsiveReason`）が同じ綴りで読む
+    #[test]
+    fn unresponsive_reasons_are_spelled_for_the_wire() {
+        assert_eq!(
+            serde_json::to_value(UnresponsiveReason::NoAnswer).expect("書ける"),
+            "noAnswer"
+        );
+        assert_eq!(
+            serde_json::to_value(UnresponsiveReason::Unwritable).expect("書ける"),
+            "unwritable"
+        );
+    }
 }

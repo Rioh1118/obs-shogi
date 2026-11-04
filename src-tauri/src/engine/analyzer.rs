@@ -1,4 +1,4 @@
-use crate::engine::utils::{apply_info_params, get_depth_of_rank};
+use crate::engine::utils::{apply_info_params, depth_of_rank};
 
 use serde::Serialize;
 
@@ -183,7 +183,7 @@ fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
     let Some(target) = target else {
         return false;
     };
-    get_depth_of_rank(result, 1).is_some_and(|depth| depth >= target)
+    depth_of_rank(result, 1).is_some_and(|depth| depth >= target)
 }
 
 /// 将棋エンジン分析層 - 純粋な分析機能のみ提供
@@ -798,7 +798,7 @@ impl EngineAnalyzer {
             state.analysis_count += 1;
         }
 
-        let deepest = get_depth_of_rank(&analysis_result, 1);
+        let deepest = depth_of_rank(&analysis_result, 1);
         Ok(DepthOutcome {
             reached: reached_depth(&analysis_result, Some(depth_limit)),
             deepest,

@@ -34,7 +34,7 @@ const TYPES: [&str; 6] = ["check", "spin", "combo", "button", "string", "filenam
 /// 型の綴りとして持つ語の長さ（文字）。エンジンが書いた語を理由に載せるので切る
 const MAX_KIND_CHARS: usize = 32;
 
-/// 解けなかった理由
+/// `option` 行を解けなかった理由
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptionLineError {
     /// `option` で始まっていない
@@ -64,7 +64,9 @@ impl std::fmt::Display for OptionLineError {
     }
 }
 
-/// 解いた1行
+impl std::error::Error for OptionLineError {}
+
+/// `option` 行1本から解いた定義と、上限で捨てた選択肢の数
 #[derive(Debug, Clone)]
 pub struct ParsedOption {
     pub option: EngineOption,
@@ -87,6 +89,11 @@ const KEYWORDS: [&str; 4] = ["default", "min", "max", "var"];
 ///   後ろが空か `<empty>` なら空文字、`default` が無ければ `None`
 /// - 他の型の値は、次の区切りの語（`default` / `min` / `max` / `var`）の直前まで
 /// - 型の綴りは大文字小文字を区別しない
+///
+/// # エラー
+///
+/// 行の形が崩れていれば `OptionLineError` を返す。どの形で何を返すかは変種の doc。
+/// 名前か1つの値が `MAX_OPTION_VALUE` を超える行は解かずに `ValueTooLong` を返す。
 pub fn parse_option_line(line: &str) -> Result<ParsedOption, OptionLineError> {
     let words = tokens(line);
     let word = |i: usize| words.get(i).map(|(_, w)| *w);
@@ -97,15 +104,12 @@ pub fn parse_option_line(line: &str) -> Result<ParsedOption, OptionLineError> {
         return Err(OptionLineError::MissingName);
     }
 
+    let is_kind =
+        |i: usize| word(i).is_some_and(|k| TYPES.contains(&k.to_ascii_lowercase().as_str()));
     // 型の欄の `type` は、次の語が型の綴りであるもの。名前に `type` を含む行があるので、
     // 最初の `type` を型の欄と決めつけない
-    let type_at = (3..words.len()).find(|&i| {
-        word(i) == Some("type")
-            && word(i + 1).is_some_and(|k| TYPES.contains(&k.to_ascii_lowercase().as_str()))
-    });
+    let type_at = (3..words.len()).find(|&i| word(i) == Some("type") && is_kind(i + 1));
     let Some(type_at) = type_at else {
-        let is_kind =
-            |i: usize| word(i).is_some_and(|k| TYPES.contains(&k.to_ascii_lowercase().as_str()));
         // `name` の直後が型の欄なら、型は正しく名前が空（`option name type spin`）
         if word(2) == Some("type") && is_kind(3) {
             return Err(OptionLineError::MissingName);
@@ -440,6 +444,8 @@ mod tests {
             error("option name Threads spin"),
             OptionLineError::MissingType
         );
+        assert_eq!(error("option name X"), OptionLineError::MissingType);
+        assert_eq!(error("option name X type"), OptionLineError::MissingType);
         assert_eq!(
             error("option name X type slider default 1"),
             OptionLineError::UnknownType("slider".to_string())
@@ -454,6 +460,53 @@ mod tests {
             "a".repeat(MAX_OPTION_VALUE + 1)
         );
         assert_eq!(error(&long_name), OptionLineError::ValueTooLong);
+        let long_combo = format!(
+            "option name X type combo default {} var a",
+            "a".repeat(MAX_OPTION_VALUE + 1)
+        );
+        assert_eq!(error(&long_combo), OptionLineError::ValueTooLong);
+        // 上限ちょうどの名前は解く
+        let name = "a".repeat(MAX_OPTION_VALUE);
+        assert_eq!(parse(&format!("option name {name} type check")).name, name);
+    }
+
+    /// 既定値は型ごとに文字列にする。`combo` の `<empty>` は空文字
+    #[test]
+    fn default_values_are_spelled_as_text() {
+        assert_eq!(
+            parse("option name Threads type spin default 4 min 1 max 512")
+                .default_value
+                .as_deref(),
+            Some("4")
+        );
+        assert_eq!(
+            parse("option name Book type combo default <empty> var <empty> var a")
+                .default_value
+                .as_deref(),
+            Some("")
+        );
+        let button = parse("option name Clear type button default x");
+        assert!(matches!(
+            button.option_type,
+            EngineOptionType::Button { default: Some(ref d) } if d == "x"
+        ));
+    }
+
+    /// `string` の既定値は最初の `default` の後ろから取り、行末の空白と `\r` を落とす
+    #[test]
+    fn a_string_default_starts_at_the_first_default_and_drops_trailing_space() {
+        assert_eq!(
+            parse("option name X type string default a default b")
+                .default_value
+                .as_deref(),
+            Some("a default b")
+        );
+        assert_eq!(
+            parse("option name X type string default a \r")
+                .default_value
+                .as_deref(),
+            Some("a")
+        );
     }
 
     /// 知らない型の語はエンジンが書いたものなので、長さを切って持つ

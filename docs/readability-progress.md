@@ -71,7 +71,8 @@ ours 戦略のマージは使わない。
 | 35 | `refactor/tidy-rust-settings` | `src-tauri/crates/settings`（Rust の範囲1b）、`crates/*` の試験を `verify:rust` と CI に載せる | #704 | マージ済み |
 | 36 | `refactor/tidy-rust-storage` | `src-tauri/src/storage`（Rust の範囲2）、`.` の後ろだけが違う key の取り違え | #705 | マージ済み |
 | 37 | `refactor/tidy-rust-kifu-workspace` | `src-tauri/src/kifu`、`src-tauri/src/workspace`（Rust の範囲3） | #706 | マージ済み |
-| 38 | `refactor/tidy-rust-ai-library` | `src-tauri/src/ai_library`（Rust の範囲4） | #707 | レビュー待ち |
+| 38 | `refactor/tidy-rust-ai-library` | `src-tauri/src/ai_library`（Rust の範囲4） | #707 | マージ済み |
+| 39 | `refactor/tidy-rust-engine-launchable` | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（Rust の範囲5） | #709 | レビュー待ち |
 
 ## 語
 
@@ -135,7 +136,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 2  | `src-tauri/src/storage`                                | 552   | 済       |
 | 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1895  | 済       |
 | 4  | `src-tauri/src/ai_library`                             | 808   | 済       |
-| 5  | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line` | 1787 | 未着手 |
+| 5  | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line` | 1787 | 済 |
 | 5b | `src-tauri/src/engine` の `child`、`registry` | 1590 | 未着手 |
 | 5c | `src-tauri/src/engine/protocol.rs` | 2437 | 未着手 |
 | 6  | `src-tauri/src/engine` の `option_labels` から `start_failure` まで |  | 未着手 |
@@ -161,7 +162,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/storage/disk.rs` の `paths` の doc | 退避を挟む理由を「Windows で上書きの rename が失敗するため」と書くが、`std::fs::rename` は Windows でも `MOVEFILE_REPLACE_EXISTING` で上書きする。失敗するのは、他のプロセスが削除の共有を許さずに開いているときに限られる。Windows で確かめてから、退避をやめるかを決める |
 | `src-tauri/src/storage/mod.rs` の `BlobStore::delete` | 本番の呼び手が0で、試験だけが呼ぶ。`search/cache/format.rs` の `CACHE_VERSION` の doc は、読めない旧版の blob がディスクに残り続けると書く。復元が版の違いで落ちたときに捨てるかを、索引のキャッシュを次に触るときに決める。捨てないなら trait から外す |
 | `src/entities/game/model/provider.tsx` の `getCurrentMoveIndex` | `state.cursor?.tesuu ?? 0` を返すだけの包み。`getCurrentTurn` は範囲16の第3段で、`getTotalMoves` は第4段で読み手が0になったので消した。残る読み手は `src/features` の `StudyPositionSaveModal` だけで、`src/features` の範囲は済んでいる。`features/study-position-save` を次に触るときに `state.cursor` を読む形へ寄せ、包みを消す |
-| `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
+| `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める。範囲5で、`get_analysis_status` が返す `AnalysisStatus` の `elapsed_time` と `config` は組む経路が無く常に `None` で、`AnalysisConfig` はどこでも組まれないと確かめた（`engine/types.rs` の doc に書いた）。コマンドを消すなら2つの型も消える |
+| `src-tauri/src/engine/launchable.rs` の分類を起動の失敗で使う範囲 | 起動の失敗の分類（`start_failure::describe`）は `inspect` の答えのうち `Quarantined` だけを見る。実行権限が無い、別の OS 向け、読めないファイルは `SpawnFailed` になり、画面は候補の一覧と違う言葉で説明する。範囲5まではファイルの冒頭に `TODO(#523)` があったが、#523（帯を閉じると起動に失敗した理由が残らない）は閉じていて、この作業を含んでいなかった。TODO を外してこの行へ移した。`StartFailureKind` に種類を足すと線の値と画面の文言が増えるので、整理の段では入れない |
+| `src-tauri/src/engine/utils.rs` の役割 | 隠す判断を1つに言えない（R-RES-6）。名前も R-DUP-5 が概念の無い印とする `util` に当たる。2つの役割を持つ。`info` 行を読み筋へ畳む関数（`apply_info_params` ほか）と、ログに載せる文字列の部品（`shown`、`with_cause`、`LogThrottle`、`cmd_summary`、上限の定数）。`tests/layering.rs` の段の名前が `utils` なので、割ると `LAYERS` と段の検査の期待値（`["types", "utils"]`）を書き直す。範囲5では、触ってよい範囲の外なので割らなかった。割るなら、範囲6以降の段を取る前に独立した段にする |
+| `src-tauri/src/engine/types.rs` の `EngineOption` の `current_value` | 組むのは `option_line::parse_option_line` だけで、常に `None`。TS（`entities/engine/api/rust-types.ts`）も型に持つだけで読まない。線の欄なので、消すかを `EngineInfo` の線の形と合わせて決める |
 | `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。範囲17でも送った。union にすると `entities/engine` の reducer（状態機械）と provider の `isReady`、`notReadyReasonOf` の入力が変わり、`entities` の公開の型が変わる。進め方の「`entities` の公開の名前を変えるなら、呼び手を含めて独立した段にする」に当たるので、整理の段に混ぜない。`src/app` で状態を読むのは `EngineFailureBridge`（`phase`、`error`、`unresponsiveReason`）と `EngineStartWarningBridge`（`phase`、`startWarnings`）の2つ。ほかの読み手は `features/engine-position-sync`、`entities/analysis` の provider、`src/widgets` の `AnalysisControls` と `useEngineStatus`。`engineFailureNoticeOf` は `exited`、`unresponsive`、`error`、未設定の順に見るので、union にしても判定の順は変わらない |
 | `src/__tests__/crossSliceImports.ts` の `scanCrossSliceImports` | 層の直下のディレクトリを全部スライスとして歩くので、`src/pages/__tests__` が `pages/__tests__` というスライスに数えられる。doc は「`__tests__` は外す」と書くが、外れるのはスライスの中の `__tests__` だけ。範囲17では、試験の `satisfies typeof import` を相対パスで書いて避けた。層の直下の `__tests__` を歩かないように直すかを決める |
 | `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
@@ -204,16 +208,16 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で取った。次は Rust の範囲5。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で取った。次は Rust の範囲5b。
 
-範囲5: `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（1787行。ファイル内のテストを含む。2026-11-04 に数えた）。
-`LAYERS` の `launchable` から `registry` までは5814行あり、2000行を超えるので3つに割った。
-`child` と `registry` は範囲5b（1590行）、`protocol.rs` は範囲5c（2437行）。`protocol.rs` は
-テストを除くと1635行で、ファイル内のテストが802行ある。範囲5cを取るときに、テストを外へ出さずに取れるかを決める。
+範囲5b: `src-tauri/src/engine` の `child`、`registry`（1590行。ファイル内のテストを含む。2026-11-04 に数えた）。
+その次の範囲5cは `protocol.rs`（2437行）。`protocol.rs` はテストを除くと1635行で、ファイル内のテストが802行ある。
+範囲5cを取るときに、テストを外へ出さずに取れるかを決める。
 
-範囲4のコマンドは `AppHandle` を受けないので、crate の中の試験から本体を直接呼べた。
-範囲5の4つのファイルには `#[command]` が無い。`tests/layering.rs` は `engine` の段の上下を
+範囲5bの2つのファイルにも `#[command]` は無く、`AppHandle` も受けない。crate の中の試験から直接呼べる。
+`tests/layering.rs` は `engine` の段の上下を
 ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。
+所見の表の `utils.rs` の役割の行は、割るなら独立した段にする。
 
 段35から、`npm run verify:rust` と CI の `cargo test` と `cargo clippy` は `--workspace` で `crates/*` も走らせる。
 crate の試験は `cargo test --manifest-path src-tauri/Cargo.toml -p <crate>` で個別にも走らせられる。
