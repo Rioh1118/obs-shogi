@@ -65,6 +65,7 @@ ours 戦略のマージは使わない。
 | 29 | `refactor/tidy-widgets-kifu-stream` | `src/widgets/kifu-stream`（範囲16の第1段） | #697 | マージ済み |
 | 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2段）、読み直した後の行の強調 | #698 | マージ済み |
 | 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3段） | #699 | マージ済み |
+| 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | — | レビュー待ち |
 
 ## 語
 
@@ -112,7 +113,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 16 | `src/widgets/kifu-stream`                                | 1472 | 済     | 済     |
 | 16b | `src/widgets/file-tree`                                 | 1395 | 済     | 済     |
 | 16c | `src/widgets` の `analysis-pane`、`game-board`          | 1754 | 済     | 済     |
-| 16d | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar` | 1034 | 未着手 | 未着手 |
+| 16d | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar` | 1034 | 済 | 済 |
 | 17 | `src/pages`、`src/app`                                   | 1682 | 未着手 | 未着手 |
 
 2000行を超える範囲は、取るときに更に割る。
@@ -150,7 +151,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
 | `src-tauri/src/storage/disk.rs` の読み手 | 2つの rename の間で値があるのに `NotFound` を受ける筋がある。未再現 |
 | `src-tauri/src/storage/disk.rs` の load の doc | この save では起きない破損を理由に挙げている疑いがある。未確認 |
-| `src/entities/game/model/provider.tsx` の `getCurrentMoveIndex`、`getTotalMoves` | `view` と `state.cursor` の値を返すだけの包み。`getCurrentTurn` は範囲16の第3段で読み手が0になったので消した。残る読み手は `src/widgets` の `useHeaderCenterInfo`（16d）と、`src/features` の `StudyPositionSaveModal`。`src/widgets` の残りの段で寄せ、読み手が0になったら包みを消す |
+| `src/entities/game/model/provider.tsx` の `getCurrentMoveIndex` | `state.cursor?.tesuu ?? 0` を返すだけの包み。`getCurrentTurn` は範囲16の第3段で、`getTotalMoves` は第4段で読み手が0になったので消した。残る読み手は `src/features` の `StudyPositionSaveModal` だけで、`src/features` の範囲は済んでいる。`features/study-position-save` を次に触るときに `state.cursor` を読む形へ寄せ、包みを消す |
 | `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
 | `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。読み手が `src/app` と `src/widgets` に広がるので、その範囲で決める。範囲16の第3段では送った。読み手は `src/app` の3つの bridge、`features/engine-position-sync`、`entities/analysis` の provider、`src/widgets` の `AnalysisControls` と `useEngineStatus` で、範囲17で決める。`engineStatusOf` は `engine.error?.kind ?? null` を `failureKind` で受けており、union にすれば `useEngineStatus` の変換と `failureKind` の null の説明も消える。判定の順は変わらない |
 | `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
@@ -160,8 +161,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/file-tree/ui/TreeNodeActions.tsx` の `isDirectory` | 呼び手はルートとフォルダの行だけで、常に真。消すと `shared/lib/path.ts` の `getParentPath` の読み手が0になるので、`shared` の範囲と合わせて消す |
 | `src/widgets/file-tree/ui/DirectoryToggleIcon.scss` の `transition: transform 0.15 ease` | 時間に単位が無く、宣言ごと無効になっている。フォルダの矢印は回らずに切り替わる。直すと見た目が変わるので、画面の動きの棚卸しで決める |
 | `src/entities/kifu/api/parse.ts` の `parseKifuContentToJKF` | 形式を拡張子だけで決めるので、Finder で変えたファイルは本文と形式がずれたまま0手で載り、次の保存で本文を失う筋がある。未再現。指し手が0で本文が空でないときに開くのを断るかを、#210 と合わせて決める |
-| `src/widgets/book-view/ui/BookView.tsx` の `body` の `switch` | 戻り値が `ReactNode` で `default` も無いので、`BookViewState` に `kind` を足しても tsc が落ちず、本体が空になる。`src/widgets` の範囲で `never` の網羅を足す |
-| `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。中止で前の定跡へ戻すかを `src/widgets` の範囲で決める |
+| `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。範囲16の第4段で再現し、今の動きを `bookControls.test.tsx` に固定した。直すと `entities/book` の状態と画面の動きが変わるので送った。中止で前の定跡へ戻すか、題を「閉じる」に揃えるかを決める |
 | `src/entities/book/model/provider.tsx` の辿る失敗の枝 | `invalid_handle` を引く枝でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
 | `src-tauri/src/book/commands.rs` の `open_book` と `list_books` | 開いている間に webview が作り直されると、登録が新しい `list_books` より後になり、ハンドルが次の読み直しまで残る筋がある。未再現 |
 | `src/entities/updater/model/provider.tsx` の `persist` | 記憶を読み終える前に `checkNow` が通ると、`skippedVersion: null` で `updater.json` を書く。provider の単体では再現した。読み込みの応答より前に設定を開く必要があり、失うものは告知1回。手順では未再現 |
@@ -189,11 +189,11 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-範囲16d: `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（1034行）。範囲16の第4段で、`src/widgets` の最後の段。
-スライスどうしは import し合わないので、段の間で同じファイルを触らない。
+範囲17: `src/pages`、`src/app`（1682行。内訳は `src/pages` 463行、`src/app/providers` 948行、
+`src/app/routing` 92行、`src/app` の直下 179行）。2000行以内なので1段で取れるが、取るときに行数を数え直す。
 
-所見の表のうち、`getTotalMoves` の読み手の `useHeaderCenterInfo`、`BookView.tsx` の `body` の `switch`、
-`BookControls.tsx` の ✕ と `BookProvider` の `close` がこの段にかかる。
+所見の表のうち、`EngineState` の union は読み手の `src/app/providers` の3つの bridge がこの範囲にある。
+union にすると動作が変わりうるコミットが大きくなるので、そうなるなら `src/app/providers` を別の段に割る。
 
 `docs/IDEAS.md` の「feature の SCSS が shared の部品の内部クラスを掴んでいる」は、
 外すのに `shared/ui/Form` の手が要るので、範囲15では閉じない。
