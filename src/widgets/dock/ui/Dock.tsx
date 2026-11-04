@@ -8,13 +8,13 @@ import { dockViewLabel, resolveDockTabs, resolveDockView } from "@/entities/dock
 import type { DockViewBindings } from "@/widgets/dock/model/bindings";
 
 /**
- * ドック。**タブの器で、中身は知らない。**
+ * ドック。タブの器で、中身は知らない。
  *
  * 面を1枚足すときに触る場所は `docs/spec/screens/app-layout.md` の「ドック」の表が持つ。
- * **`AppLayout.tsx` も、このファイルも動かない。**
+ * `AppLayout.tsx` も、このファイルも動かない。
  *
  * - どのタブを出すかは設定（`AppConfig.dock_tabs`）
- * - どのタブを見ているかは URL（`dock=`）。**リロードで戻る**
+ * - どのタブを見ているかは URL（`dock=`）。リロードで戻る
  * - 選んだタブは設定にも控える（起動時に「前回のもの」を開くため）
  *
  * 決定は ADR-0010、遷移は `docs/state-transitions/dock-tabs.md`。
@@ -38,7 +38,7 @@ function Dock({ views }: { views: DockViewBindings }) {
   const { Body, Controls } = binding;
 
   /**
-   * タブ列の中を矢印で移す。**`role="tablist"` を名乗る以上、これが要る。**
+   * タブ列の中を矢印で移す。`role="tablist"` を名乗る以上、これが要る。
    *
    * 名乗った役が期待する操作を持たないと、支援技術は「1 / 3」と読み上げるのに
    * 矢印が効かない。選んでいないタブを Tab の順から外す（roving tabindex）のも同じ理由。
@@ -56,7 +56,7 @@ function Dock({ views }: { views: DockViewBindings }) {
 
   const selectTab = (key: DockViewType) => {
     // 同じタブを押しただけなら設定へ書きに行かない。書くと `config` が別物になり、
-    // `useAppConfig` を購読している側（ツリーの根に居る `FileTreeRootGate`を含む）が押すたびに描き直される
+    // `useAppConfig` を購読している側（ツリーの根に居る `FileTreeRootGate` を含む）が押すたびに描き直される
     if (key === active) return;
 
     // タブの移動は履歴に積まない。積むと、戻るボタンが局面やモーダルの移動ではなく

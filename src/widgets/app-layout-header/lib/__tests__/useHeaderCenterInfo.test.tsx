@@ -11,8 +11,8 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 /**
  * ヘッダの出どころを固定する。
  *
- * **ツリーを混ぜないこと自体が仕様。** ここが `useFileTree` を読むようになると、
- * 盤に載せられなかった棋譜でも見出しだけが入れ替わる（#434）。この test は
+ * ツリーを混ぜないこと自体が仕様。ここが `useFileTree` を読むようになると、
+ * 盤に載せられなかった棋譜でも見出しだけが入れ替わる。この test は
  * `GameProvider` しか置いていないので、ツリーを読み直した瞬間に落ちる。
  */
 function mount() {
@@ -65,7 +65,7 @@ describe("ヘッダ中央の出どころ", () => {
   });
 
   /**
-   * **盤に載せられない棋譜を開いても、見出しは前の棋譜のまま**（`failure-surfacing.md` の F-31）。
+   * 盤に載せられない棋譜を開いても、見出しは前の棋譜のまま（`failure-surfacing.md` の F-31）。
    *
    * 出どころを `useFileTree` の `selectedNode` / `jkfData` に戻すと、ここだけが
    * `b` と `先手B` に動き、盤と棋譜一覧は `a.kif` のまま残る。

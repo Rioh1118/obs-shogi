@@ -14,17 +14,20 @@ import "./BookTable.scss";
 
 type Props = {
   rows: readonly BookRow[];
-  /** 行を組む土台の局面。**指し手を日本語にするのに要る** */
+  /** 行を組む土台の局面。指し手を日本語にするのに使う */
   sfen: string | null;
   /** 現局面までに指された手数。「この先」列の絶対手数の土台 */
   baseTesuu: number;
   sort: BookSort;
   onSort: (sort: BookSort) => void;
-  /** 1行も無いときの文言。**引いている最中と、定跡に無いのとで違う** */
+  /** 1行も無いときの文言。引いている最中と、定跡に無いのとで違う */
   empty: string;
 };
 
-/** 押せる見出し。**並べ替えられる列だけがこれになる** */
+/**
+ * 向きを持つ並べ替えの見出し。指し手の見出しも押せるが、定跡に書かれている順へ
+ * 戻すだけで向きを持たないので、ここには入れない
+ */
 const SORTABLE: { key: BookSortKey; label: string }[] = [
   { key: "value", label: "評価" },
   { key: "depth", label: "深さ" },
@@ -34,16 +37,15 @@ const SORTABLE: { key: BookSortKey; label: string }[] = [
 /**
  * 現局面の候補手を列で揃えて出す。
  *
- * **盤を持たない。**「その手を指した先も定跡にあるか」は盤ではなく「この先」列で出す
- * （ADR-0010／`docs/spec/features/book.md`）。
+ * 盤を持たない。その手を指した先も定跡にあるかは、盤ではなく「この先」列で出す
+ * （ADR-0010、`docs/spec/features/book.md`）。
  *
- * **行は押せない。** 押した先に出すものが無い（詳細ペインを持たない。
- * 判断は ADR-0010 決定2）。ホバーで下線が付くのは読む位置の手掛かりで、
- * 押せることの合図ではない（`BookTable.scss` の `&__row:hover`）。
+ * 行は押せない。押した先に出すものが無い（詳細ペインは ADR-0010 の決定2で消した）。
+ * ホバーで付く下線は読む位置の手掛かりで、押せることの合図ではない
+ * （`BookTable.scss` の `&__row:hover`）。
  *
- * 並べ替えの既定は**定跡ファイルに書かれている順**。辿る先を決めているのも
- * その順なので（Rust の `walk_line`）、既定を評価値にすると「この先」列の根拠と
- * 画面の並びが食い違う。
+ * 並べ替えの既定は、定跡ファイルに書かれている順。辿る先を決めているのもその順なので
+ * （Rust の `walk_line`）、既定を評価値にすると「この先」列の根拠と画面の並びが食い違う。
  */
 function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
   const sorted = sortBookRows(rows, sort);
@@ -61,7 +63,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
           onClick={() => onSort(nextBookSort(sort, key))}
         >
           {label}
-          {/* **向きは記号で出す。** 色だけだと、押せることと押した結果が同じ手掛かりになる */}
+          {/* 向きは記号で出す。色だけだと、押せることと押した結果が同じ手掛かりになる */}
           <span aria-hidden="true" className="book-table__caret">
             {active ? (sort.desc ? "▾" : "▴") : ""}
           </span>
@@ -96,7 +98,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
         </thead>
         <tbody>
           {/*
-            **空でも見出しは残す。** 器ごと消すと、候補手が届いた瞬間に見出しが生えて
+            空でも見出しは残す。器ごと消すと、候補手が届いた瞬間に見出しが生えて
             下の行が押し下がる（`CandidateTable` と同じ理由）
           */}
           {sorted.length === 0 && (
@@ -113,7 +115,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
             return (
               <tr key={row.move.usiMove} className="book-table__row">
                 {/*
-                  **切れた先へ届く手段を置く。** 日本語1手は全角4〜6字あり、
+                  切れた先へ届く手段を置く。日本語1手は全角4〜6字あり、
                   幅の足りない窓では成・不成や右・左・引が落ちる。落ちたぶんは
                   別の手として読めてしまうので、`title` で全文を出す
                 */}
@@ -125,7 +127,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
                 <td className="book-table__count" title={formatCount(row.move.count)}>
                   <span className="book-table__count-num">{formatCount(row.move.count)}</span>
                   {/*
-                    **一覧の最大値を 1 とする相対の長さ。** 回数の桁は定跡によって違うので、
+                    一覧の最大値を 1 とする相対の長さ。回数の桁は定跡によって違うので、
                     絶対値では比べられない。比べたいのは「この局面の中でどれが多いか」
                   */}
                   <span
@@ -156,13 +158,13 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
   );
 }
 
-/** 手番側から見た評価値。**符号を付ける** —— 付けないと 0 を跨いだ側が読めない */
+/** 手番側から見た評価値の綴り。符号を付けないと、0 を跨いだ側が読めない */
 function formatValue(value: number | null): string {
   if (value === null) return "—";
   return value > 0 ? `+${value}` : `${value}`;
 }
 
-/** 出現回数。**欄が欠けているのと 0 回は別物**なので、同じ綴りにしない */
+/** 出現回数の綴り。欄が欠けているのと 0 回は別のことなので、同じ綴りにしない */
 function formatCount(count: number | null): string {
   return count === null ? "—" : count.toLocaleString();
 }

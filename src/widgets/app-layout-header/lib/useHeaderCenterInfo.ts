@@ -35,10 +35,10 @@ export type HeaderCenterInfo = {
 /**
  * ヘッダ中央の表示を組む。
  *
- * **棋譜が載っているかは自分で game に訊く。** 呼び出し側から真偽値で受け取ると、
+ * 棋譜が載っているかは、呼び手から受けずに自分で game に訊く。真偽値で受け取ると、
  * 同じ問いに `hasKifu` と prop の2つの綴りができる。
  *
- * **出どころは全部 game で、ツリーの選択は見ない**（2つの違いは `loadedAbsPath` の doc）。
+ * 出どころは全部 game で、ツリーの選択は見ない（2つの違いは `loadedAbsPath` の doc）。
  * ツリー側を出どころにすると、盤に載せられなかった棋譜でも見出しだけが入れ替わり、
  * 盤には前の棋譜が残ったまま「新しい棋譜を見ている」と読める画面になる。
  */
@@ -60,8 +60,6 @@ export function useHeaderCenterInfo(): HeaderCenterInfo {
     // 対局者。欄名と欠けの判定は `playerNames` が持つ
     const { sente: senteName, gote: goteName } = playerNames(jkf);
     const isPlayersShown = hasKifu && Boolean(senteName || goteName);
-
-    // バッジ（手番・手数）
 
     let turn = Color.Black;
     let tesuu = 0;

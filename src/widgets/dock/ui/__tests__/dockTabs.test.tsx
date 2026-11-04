@@ -8,13 +8,12 @@ import type { DockViewBindings } from "@/widgets/dock/model/bindings";
 /**
  * ドックのタブ切替。表は `docs/state-transitions/dock-tabs.md`。
  *
- * ここが踏むのは **D1（別のタブを選ぶ）** と **D2（見ているタブを一覧から外す）** の行。
- * 解析そのものの遷移は `analysis.md` 側が持つ。**畳まれても解析を止めないこと**は
- * ビューの側の検査（`analysisControlsLifetime.test.tsx`）が見る——器はそもそも
- * 解析を知らないので、ここに置くと何も見ていない検査になる。
+ * ここが踏むのは D1（別のタブを選ぶ）と D2（見ているタブを一覧から外す）の行。
+ * 解析そのものの遷移は `analysis.md` 側が持つ。畳まれても解析を止めないことは
+ * ビューの側の検査（`analysisControlsLifetime.test.tsx`）が見る。器は解析を知らないので、
+ * ここに置くと何も見ていない検査になる。
  *
- * **名簿を差し替える。** 実在するビューは解析1枚なので、本物のままだと
- * タブ切替そのものが踏めない。
+ * 名簿は差し替える。外せないタブと外せるタブを1枚ずつ、本物の名簿に依らずに置くため。
  */
 const FAKE = vi.hoisted(() => [
   { key: "analysis", label: "検討", removable: false, defaultVisible: true },
