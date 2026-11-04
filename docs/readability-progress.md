@@ -69,7 +69,8 @@ ours 戦略のマージは使わない。
 | 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | #701 | マージ済み |
 | 34 | `refactor/tidy-rust-fs-kifu-text` | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（Rust の範囲1）、`fs` の試験のコンパイル | #702 | マージ済み |
 | 35 | `refactor/tidy-rust-settings` | `src-tauri/crates/settings`（Rust の範囲1b）、`crates/*` の試験を `verify:rust` と CI に載せる | #704 | マージ済み |
-| 36 | `refactor/tidy-rust-storage` | `src-tauri/src/storage`（Rust の範囲2）、`.` の後ろだけが違う key の取り違え | #705 | レビュー待ち |
+| 36 | `refactor/tidy-rust-storage` | `src-tauri/src/storage`（Rust の範囲2）、`.` の後ろだけが違う key の取り違え | #705 | マージ済み |
+| 37 | `refactor/tidy-rust-kifu-workspace` | `src-tauri/src/kifu`、`src-tauri/src/workspace`（Rust の範囲3） | | レビュー待ち |
 
 ## 語
 
@@ -131,7 +132,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 1  | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`   | 773   | 済       |
 | 1b | `src-tauri/crates/settings`                            | 1405  | 済       |
 | 2  | `src-tauri/src/storage`                                | 552   | 済       |
-| 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1895  | 未着手   |
+| 3  | `src-tauri/src/kifu`、`src-tauri/src/workspace`        | 1895  | 済       |
 | 4  | `src-tauri/src/ai_library`                             | 808   | 未着手   |
 | 5  | `src-tauri/src/engine` の `launchable` から `registry` まで |  | 未着手 |
 | 6  | `src-tauri/src/engine` の `option_labels` から `start_failure` まで |  | 未着手 |
@@ -146,9 +147,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 | 場所 | 食い違い |
 | ---- | -------- |
-| `src-tauri/tests/root_guard.rs` の冒頭の doc | `validate_under_root` の場所を `utils.rs` と書くが、実体は `src-tauri/src/workspace/guard.rs` |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `usedExisting` と `createdNew` | 本番の読み手が0。テストだけが読んでいる |
-| `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
+| `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手は0。範囲3では消さなかった。`docs/spec/features/special-moves.md` が往復を確かめる経路として名指ししており、消すと仕様の文と `lib.rs` の登録まで範囲の外へ広がる。正規化をどの経路へ揃えるか（#322 を吸収した epic #349）で変換の経路が残るかが決まるので、そこで消すかを決める。`WriteKifuResponse` の `normalized_jkf` は正規化していない JKF を返し、範囲3で doc にそう書いた |
 | `src/entities/analysis/model/provider.tsx` の hook の順 | ref の宣言が effect の後ろに散り、R-TSW-4 の順と違う。自動再開の状態機械を割る Issue #489 で動くので、そこで揃える |
 | `docs/state-transitions/analysis.md` の E11 の列、※1、不変条件1、3 の「席は握ったまま」 | ■ の停止が届かないと `reportUnreachable` で `isReady` が落ち、`onEngineGone` が欄を空ける。表の「握ったまま」は `isReady` を動かさない `provider.test.tsx` の mock でしか起きない。表とテストの mock を合わせて直す |
 | `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。盤の成りの選択肢（`PromotionDialog`）も範囲16の第3段から `promotedKind` を通る。`Piece.promote` へ寄せるかは、逆引きの `UNPROMOTED` と合わせて決める |
@@ -163,7 +163,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/__tests__/crossSliceImports.ts` の `scanCrossSliceImports` | 層の直下のディレクトリを全部スライスとして歩くので、`src/pages/__tests__` が `pages/__tests__` というスライスに数えられる。doc は「`__tests__` は外す」と書くが、外れるのはスライスの中の `__tests__` だけ。範囲17では、試験の `satisfies typeof import` を相対パスで書いて避けた。層の直下の `__tests__` を歩かないように直すかを決める |
 | `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
 | `src/entities/game-session/model/provider.tsx` の `start` の `void closeGame(gameId)` | 手放した対局を畳む呼び出しの断りを誰も受けない。本番の呼び手が `closeSession` しか無いので、対局の面を戻すときに決める |
-| `src-tauri/src/workspace/commands/kifu.rs` の `save_kifu_file` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める |
+| `src-tauri/src/workspace/commands/kifu.rs` の `save_kifu_file` | TS の呼び手は0。範囲3では消さなかった。保存し直しの `write_kifu_to_file` は失敗を `FsError` の外で生の英文のまま返す（`kifu/commands.rs` の `TODO(#215)`）。綴り終えた本文を `FsError` で書くコマンドはこれだけなので、保存を `FsError` へ寄せるときに、これを使うか消すかを #215 で決める |
 | `src/widgets/file-tree/ui/TreeNode.tsx` の `key={child.id}` と、`renamingNodeId` | どちらも走査のたびに振り直す `id` で同一性を見るので、読み直すとフォルダの下の行が作り直され、改名の欄が打った文字ごと畳まれる。行の強調はパスで比べる形へ直した（範囲16の第2段）。`renamingNodeId` を `path` にするのは `entities/file-tree` の state の変更で、改名と移動の張り替えと合わせて決める |
 | `src/widgets/file-tree/ui/TreeNodeActions.tsx` の `isDirectory` | 呼び手はルートとフォルダの行だけで、常に真。消すと `shared/lib/path.ts` の `getParentPath` の読み手が0になるので、`shared` の範囲と合わせて消す |
 | `src/widgets/file-tree/ui/DirectoryToggleIcon.scss` の `transition: transform 0.15 ease` | 時間に単位が無く、宣言ごと無効になっている。フォルダの矢印は回らずに切り替わる。直すと見た目が変わるので、画面の動きの棚卸しで決める |
@@ -194,19 +194,21 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/widgets/game-board/ui/useHandLayout.ts` の段の割り振り | 片側の持ち駒が21〜23枚と29枚以上のとき、1段の幅が駒台の 20em を超える（22枚で最後の段に10枚、29.3em。38枚で26枚）。仮に並べるときの上限 `10` で偏りの判定が1段4枚の配置に落ち、余りを最後の段に寄せるため。`useHandLayout` を単体で呼んで再現した。直すと並べ方が変わるので、何枚まで4段で収めるかと合わせて決める |
 | `src/widgets/game-board/ui/Board.tsx` の成りの選択肢の取り消し | 待っている間に局面が動いたかを `player.tesuu` だけで見るので、同じ手数の別の変化へ移ると選択肢が残る。選ぶと、押した時点の `selectSquare` の閉包で前の局面の手として指す筋がある。未再現 |
 | `src-tauri/src/ai_library/commands.rs` の `create_ai_profile_dirs` の `ai_root` の検査 | AI ルートが無いときも `invalid_path` で返し、同じファイルの `a_rejected_name_carries_a_code` がそれを固定している。`FsErrorCode` の doc は、ワークスペースの中で「無い」を `invalid_path` に載せると tier が `danger` になり「再読み込み」が消えると書く。AI ルートを Finder で消したときに同じ形になるかを、範囲4で `not_found` へ分けるかと合わせて決める |
-| `src-tauri/src/workspace/record.rs` の `strip_utf8_bom_str` | doc は「`encoding_rs` は UTF-8 の BOM を文字として残す」と書くが、`Encoding::decode` は UTF-8 の BOM も消費する。`decode_kifu` は BOM つきの `abc` を `"abc"` で返すことを実測した（範囲1で、`decode_kifu` が先頭の BOM を落とす変異が等価だった）。範囲3で、関数ごと消すかを決める |
 | `src-tauri/crates/fs/src/path.rs` の `is_move_into_itself` | 在る `src` は symlink まで解いて比べるので、フォルダへの symlink を、その指す先のフォルダの中へ動かすと「自分の中への移動」として断る。動くのはリンクそのもので、`rename` は通る。`mv_directory` の `src.is_dir()` はリンクの先を見るので、ツリーから選べる。未再現。断るのが望ましいか（自分を指すリンクの輪ができる）を、ツリーが symlink をどう出すかと合わせて決める |
 | `src-tauri/crates/settings/src/app.rs` の `back_up_file` | 退避先の番号は `.broken.99` まで進むと、それが在るかを見ずに使うので、`app.json.broken` から `.broken.99` まで100個在ると、`.broken.99` を上書きする。未再現（範囲1bでパスを受ける関数に割ったので、試験で作れる）。100回壊れることはまず無いので、直すか（在れば `Err` を返す）を `app.json` の退避を次に触るときに決める |
+| `src-tauri/src/workspace/commands` と `kifu/commands.rs` の `write_kifu_to_file` の本体 | `AppHandle` を受けるので、crate の試験が届かない。範囲3では `guard.rs` の判定だけをパスで受ける関数へ割った。本体まで割ると、`tests/root_guard.rs` が `#[command]` の本体で読む検査の順が見えなくなる。ルートの走査が落とさなかった変異は2本: `rename_directory` の `is_project_root` の分岐を外す（ワークスペースそのものの改名が root の外として断られる）と、`create_kifu_file` の2本目の `validate_under_root` を外す（名前は `validate_basename` を通るので行き先は変わらない）。`tauri` の `test` の feature を dev-dependencies で有効にすれば `mock_app` で呼べるが、`Cargo.toml` は範囲3の外。mock の識別子は既定で空なので、`app_config_dir` が利用者のホームの下を指す。一時の名前を付けて呼ぶ |
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で取った。次は Rust の範囲3。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で取った。次は Rust の範囲4。
 
-範囲3: `src-tauri/src/kifu` と `src-tauri/src/workspace`（1895行。ファイル内のテストを含む。2026-11-04 に数えた。
-`kifu` 413、`workspace` 1482）。2000行に近いので、取るときに数え直して割るかを決める。所見の表の
-`workspace/record.rs` の `strip_utf8_bom_str`、`workspace/commands/kifu.rs` の `save_kifu_file`、
-`kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf`、`tests/root_guard.rs` の冒頭の doc は、
-読み手がこの範囲に居る。
+範囲4: `src-tauri/src/ai_library`（808行。ファイル内のテストを含む。2026-11-04 に数えた）。
+ファイル内の試験があるのは `commands.rs` だけ。所見の表の `ai_library/commands.rs` の
+`create_ai_profile_dirs` の行は、読み手がこの範囲に居る。
+
+範囲3では、`AppHandle` を受けるコマンドの本体に crate の試験が届かなかった（所見の表の
+`workspace/commands` の行）。範囲4のコマンドも `AppHandle` を受けるなら、本体を割る前に
+`tests/root_guard.rs` が `#[command]` の本体の何を読むかを確かめる。
 
 段35から、`npm run verify:rust` と CI の `cargo test` と `cargo clippy` は `--workspace` で `crates/*` も走らせる。
 crate の試験は `cargo test --manifest-path src-tauri/Cargo.toml -p <crate>` で個別にも走らせられる。
