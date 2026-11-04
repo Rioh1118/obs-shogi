@@ -8,6 +8,7 @@ use crate::workspace::guard::{is_project_root, validate_under_root};
 use ::fs::error::{FsError, FsErrorCode};
 use ::fs::path::{ensure_not_exists, is_kifu_file, validate_basename};
 
+/// `parent_dir` の下に `dir_name` のフォルダを作り、そのパスを返す
 #[command]
 pub fn create_directory<R: Runtime>(
     app: AppHandle<R>,
@@ -35,6 +36,7 @@ pub fn create_directory<R: Runtime>(
     Ok(new_dir_path.to_string_lossy().to_string())
 }
 
+/// 棋譜ファイルを消す。棋譜の拡張子でないファイルとフォルダは消さない
 #[command]
 pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&file_path);
@@ -49,7 +51,6 @@ pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(
             .with_path(path.to_string_lossy().to_string()));
     }
 
-    // 棋譜ファイルのみ削除許可
     if !is_kifu_file(&path) {
         return Err(
             FsError::new(FsErrorCode::InvalidExtension, "not a kifu file")
@@ -60,6 +61,7 @@ pub fn delete_file<R: Runtime>(app: AppHandle<R>, file_path: String) -> Result<(
     fs::remove_file(path).map_err(FsError::from)
 }
 
+/// フォルダを中身ごと消す。ワークスペースそのものは消さない
 #[command]
 pub fn delete_directory<R: Runtime>(app: AppHandle<R>, dir_path: String) -> Result<(), FsError> {
     let path = PathBuf::from(&dir_path);

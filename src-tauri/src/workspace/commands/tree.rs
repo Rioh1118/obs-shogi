@@ -8,7 +8,9 @@ use crate::workspace::tree::walk_from;
 use crate::workspace::types::FileTreeNode;
 use ::fs::error::{FsError, FsErrorCode};
 
-/// ツリーの取得。**`root_dir` は呼び出し側から来るので、設定値と突き合わせる。**
+/// `root_dir` から歩いたツリーを返す。
+///
+/// **`root_dir` は呼び出し側から来るので、設定値と突き合わせる。**
 ///
 /// 突き合わせないと `invoke("get_file_tree", { rootDir: "/Users/x" })` で
 /// ホーム以下の全ディレクトリ名・棋譜のフルパス・サイズ・更新時刻が返る。

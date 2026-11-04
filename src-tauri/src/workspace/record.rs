@@ -14,6 +14,11 @@ use ::fs::error::{FsError, FsErrorCode};
 use ::fs::path::{ensure_not_exists, lowercase_extension};
 use kifu_text::decode_kifu;
 
+/// `path` に新しいファイルを作り、`content` を書く。
+///
+/// 名前が在る項目に当たれば、書かずに `AlreadyExists` を返し、`existing_path` に `path` を載せる。
+/// 名前の衝突を出す画面は、その欄で衝突した相手を名指しする。行き先の無い symlink と、
+/// 確かめた後に別の手で作られた場合は、`create_new` が断るので `existing_path` が空になる。
 pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
     ensure_not_exists(path)?;
 
@@ -26,23 +31,22 @@ pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
     file.write_all(content.as_bytes()).map_err(FsError::from)
 }
 
-/// 棋譜を画面に開くために読む。
+/// 画面に開く棋譜を読み、復号した文字列を返す。
 ///
-/// **文字コードの判断は [`crate::kifu_text`] が持つ。** ここで別に決めると、
+/// 文字コードの判断は [`kifu_text::decode_kifu`] が持つ。ここで別に決めると、
 /// 索引（`search::read::kifu_reader`）と**同じファイルについて違う文字列を見る**。
 ///
 /// # 化けた文字列を返さない
 ///
 /// 誤りを無視して復号すると、返るのは化けた文字列でも `Ok`。それを webview へ渡すと
-/// `tsshogi` のインポータは **`Error` ではなく0手の棋譜**を返す
+/// `tsshogi` のインポータは `Error` ではなく0手の棋譜を返す
 /// （`entities/kifu/api/parse.ts` の doc が明記している）ので、
 /// 利用者には「開いたのに中身が無い」としか見えず、原因に辿り着けない。
 /// 読めないなら読めないと言う。
 pub fn read_text_portable(path: &Path) -> Result<String, FsError> {
     let bytes = fs::read(path).map_err(FsError::from)?;
 
-    // BOM は復号のあとに落とす。落としてから渡すと、
-    // `declared_encoding` が BOM を見られなくなって UTF-16 を名乗れない
+    // BOM はバイト列からは落とさない。`declared_encoding` は BOM を見て UTF-16 を名乗る
     match decode_kifu(&bytes) {
         Some(decoded) => Ok(strip_utf8_bom_str(&decoded.text).to_owned()),
         None => Err(FsError::new(
@@ -53,19 +57,19 @@ pub fn read_text_portable(path: &Path) -> Result<String, FsError> {
     }
 }
 
-/// 復号後の文字列の先頭に残る BOM（`U+FEFF`）を落とす。
+/// 復号後の文字列の先頭に残る BOM（`U+FEFF`）を1つ落とす。
 ///
-/// `encoding_rs` は UTF-16 の BOM を消費するが、**UTF-8 の BOM は文字として残す**。
+/// `Encoding::decode` は、UTF-8 でも UTF-16 でも先頭の BOM を1つ消費する。
+/// 文字として残るのは、BOM が2つ続くファイルの2つ目。
 /// 残したまま `tsshogi` に渡すと1行目がどの行パターンにも当たらない
 fn strip_utf8_bom_str(text: &str) -> &str {
     text.strip_prefix('\u{feff}').unwrap_or(text)
 }
 
-/// JKF を、拡張子が指す形式の文字列に綴る。
+/// JKF を、`file_path` の拡張子が指す形式の文字列に綴る。正規化しない。
 ///
-/// **`kifu.rs` の `convert_jkf_to_format` とは別物。** あちらは Tauri コマンドで、
-/// 形式名を文字列で受け取り `normalize()` を呼ぶ。同じ名前にしていると、
-/// #322（どの経路が正規化するか）のコメントがどちらを指すか決められない。
+/// 形式名を文字列で受け、正規化してから綴るのは
+/// `kifu::convert` の `convert_jkf_to_string_internal`。
 ///
 /// **0バイトにはならない。** 綴りは4形式とも開始局面を名乗る
 /// （KIF / KI2 は `手合割`、CSA は `PI`、JKF は JSON の器）ので、
@@ -103,7 +107,7 @@ mod tests {
     };
     use test_support::kifu::one_move_kif;
 
-    /// **画面に開く経路が、化けた文字列を返さない。**
+    /// 画面に開く経路が、化けた文字列を返さない。
     ///
     /// 誤りを無視して復号すると、返るのは化けた文字列でも `Ok`。webview へ渡すと
     /// `tsshogi` は `Error` ではなく0手の棋譜を返すので、利用者には
@@ -185,14 +189,14 @@ mod tests {
     /// 0バイトのファイルを作らない。
     ///
     /// 新規作成フォームはファイル名以外すべて任意なので、何も入れずに作ると
-    /// 「平手・ヘッダ空・0手」の JKF が来る。**既定の操作でここに当たる。**
+    /// 「平手・ヘッダ空・0手」の JKF が来る。既定の操作でここに当たる。
     ///
     /// 0バイトで書いてしまうと `Ok` が返って作成は成功に見えるのに、次に開くと
     /// 「空の棋譜です。」で行き止まりになる。そのダイアログは再読み込みも出さないので、
     /// **アプリの中で中身を入れる手段が無い**（削除して作り直すしかない）。
     /// 索引側は中身の無い記録を黙って通すので、警告もどこにも出ない。
     ///
-    /// **どの形式も開始局面を名乗る**ので、4形式とも骨組みを書く。
+    /// どの形式も開始局面を名乗るので、4形式とも骨組みを書く。
     /// KI2 が `手合割：平手` を書くのはそのため。
     #[test]
     fn no_format_spells_a_blank_record_as_nothing() {
@@ -220,15 +224,15 @@ mod tests {
         );
     }
 
-    /// **組んだ局面が、4形式のどれでも欠けずに往復する。**
+    /// 組んだ局面が、4形式のどれでも欠けずに往復する。
     ///
-    /// 盤に駒を並べて作る経路（#113）の出口は `PresetOther` + 盤面データで、
-    /// **手合割13のどれにも当たらない**。ここが落ちると、作成は成功したように見えて
-    /// 次に開いた盤が別の局面になる —— しかも壊れるのは**組んだ人の手元だけ**で、
+    /// 盤に駒を並べて作る経路の出口は `PresetOther` + 盤面データで、
+    /// 手合割13のどれにも当たらない。ここが落ちると、作成は成功したように見えて
+    /// 次に開いた盤が別の局面になる。しかも壊れるのは**組んだ人の手元だけ**で、
     /// 平手から作った棋譜は無事なので気づくのが遅れる。
     ///
     /// 題材は3手詰（駒が3枚、持ち駒あり、手番は後手）。手合割のどれとも一致せず、
-    /// **盤・持ち駒・手番の3つを同時に見られる**最小の形。
+    /// 盤・持ち駒・手番の3つを同時に見られる最小の形。
     ///
     /// 見るのは往復の一致だけで、綴りの中身は見ない。形式ごとの書き方は
     /// クレートの担当で、ここが持つのは「渡したものが返ること」。
@@ -321,5 +325,61 @@ mod tests {
             "クレートの名指しが消えている: {}",
             err.message
         );
+    }
+
+    /// 新しいファイルへ本文を書き、在る名前には書かない。
+    ///
+    /// 断るときは衝突した相手を `existing_path` に載せる。名前の衝突を出す画面は
+    /// この欄で相手を名指しするので、`create_new` の `AlreadyExists` だけに任せると相手が消える。
+    #[test]
+    fn a_new_file_gets_the_content_and_an_existing_one_is_left_alone() {
+        let dir = test_support::dir::temp_dir("write-new");
+        let path = dir.join("a.kif");
+
+        write_new_file(&path, "本文").expect("書けること");
+        assert_eq!(fs::read_to_string(&path).expect("読めること"), "本文");
+
+        let err = write_new_file(&path, "上書き").expect_err("在るファイルに書いた");
+        assert!(
+            matches!(err.code, FsErrorCode::AlreadyExists),
+            "{:?}",
+            err.code
+        );
+        assert_eq!(err.existing_path, Some(path.to_string_lossy().to_string()));
+        assert_eq!(fs::read_to_string(&path).expect("読めること"), "本文");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// BOM が2つ続くファイルも、先頭に `U+FEFF` を残さずに開く。
+    ///
+    /// `Encoding::decode` が消費する BOM は先頭の1つだけ。残った `U+FEFF` を `tsshogi` に渡すと、
+    /// 1行目がどの行パターンにも当たらない。
+    #[test]
+    fn a_second_bom_is_not_left_at_the_head() {
+        let dir = test_support::dir::temp_dir("double-bom");
+        let path = dir.join("a.csa");
+        let kifu = "V2.2\nPI\n+\n+7776FU\n";
+        let mut bytes = b"\xEF\xBB\xBF\xEF\xBB\xBF".to_vec();
+        bytes.extend_from_slice(kifu.as_bytes());
+        fs::write(&path, bytes).expect("書けない");
+
+        assert_eq!(read_text_portable(&path).expect("読めること"), kifu);
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 復号できなかった棋譜の失敗は、そのファイルを名指しする。
+    /// `fs::read` が落ちたときは `path` を載せない（`FsError::from` は付けない）。
+    #[test]
+    fn an_unreadable_kifu_is_named_in_the_error() {
+        let dir = test_support::dir::temp_dir("unreadable");
+        let path = dir.join("broken.csa");
+        fs::write(&path, [0x81u8, 0xFF, 0xFE, 0x81, 0xFF]).expect("書けない");
+
+        let err = read_text_portable(&path).expect_err("化けた文字列を返した");
+        assert_eq!(err.path, Some(path.to_string_lossy().to_string()));
+
+        fs::remove_dir_all(&dir).ok();
     }
 }

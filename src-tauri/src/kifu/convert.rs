@@ -8,10 +8,10 @@ use std::path::Path;
 
 use ::fs::write::atomic_write;
 
-/// JKF を指定の形式でファイルへ書き出す。
+/// JKF を `format` の形式に綴り、`file_path` へ書き出す。
 ///
-/// **`jkf` を書き換えない**（`&` で受けているのがその印）。
-/// `normalize()` を呼ぶ `convert_jkf_to_string_internal` との違いはそこにある（#322）。
+/// **正規化しない。** `jkf` を `&` で受けるのはそのため。正規化してから綴るのは
+/// [`convert_jkf_to_string_internal`]。知らない形式は書かずに失敗する。
 pub fn write_kifu_file_internal<P: AsRef<Path>>(
     jkf: &JsonKifuFormat,
     file_path: P,
@@ -29,17 +29,17 @@ pub fn write_kifu_file_internal<P: AsRef<Path>>(
     Ok(())
 }
 
-/// JsonKifuFormatを指定された形式の文字列に変換
+/// JKF を正規化してから `format` の形式の文字列に綴る。正規化した結果は `jkf` に残る
 pub fn convert_jkf_to_string_internal(
     jkf: &mut JsonKifuFormat,
     format: &str,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // ここに来る JKF はパーサではなく webview 側が組んだもの。
-    // **呼び直しかどうかは確かめていない。** 外すと書き出しがどう変わるかも
-    // 測っていないので外さない。どちらへ揃えるかは #322。
+    // ここに来る JKF はパーサではなく webview が組んだもので、局面から計算する欄が
+    // 揃っているかは確かめていない。外すと綴りがどう変わるかも測っていない。
     //
-    // 呼んでも `promote` は守られない。`normalize()` は `same` を局面から
-    // 復元するが、`promote` は復元せず `Some(false)` を書く（#331）。
+    // 正規化しても `promote` は戻らない。`normalize()` は `same` を局面から復元するが、
+    // 欠けた `promote` には `Some(false)` を書く。これは実測した値で、試験では固定していない
+    // （`a_dropped_promotion_changes_the_move_that_is_written` が見るのは書き出しの側だけ）。
     jkf.normalize().map_err(|e| format!("正規化エラー: {e}"))?;
 
     let content = match format.to_lowercase().as_str() {
@@ -136,23 +136,23 @@ mod tests {
     /// ディスクへ書く経路は正規化しない。書いたものにそれが出る。
     ///
     /// `write_kifu_file_internal` は `convert_jkf_to_string_internal` と違って
-    /// `normalize()` を呼ばない（#322）。
+    /// `normalize()` を呼ばない。
     ///
-    /// **欄によって、落としたときの見え方が違う。**
+    /// 欄によって、落としたときの見え方が違う。
     ///
     /// | 欄 | KIF | KI2 | CSA |
     /// | --- | --- | --- | --- |
     /// | `same` | 変わる（`同　` が座標に戻る） | 変わる | 変わらない（座標しか書かない） |
-    /// | `promote` | 変わる（`成` が消える＝**別の手**） | 変わる | 変わる（`UM` が `KA` に） |
+    /// | `promote` | 変わる（`成` が消える＝別の手） | 変わる | 変わる（`UM` が `KA` に） |
     /// | `capture` | 変わらない（どの形式も読まない） | 変わらない | 変わらない |
-    /// | `relative` | 変わらない（書かない） | **局面を失うと変わる**（下） | 変わらない（書かない） |
+    /// | `relative` | 変わらない（書かない） | 局面を失うと変わる（下） | 変わらない（書かない） |
     ///
-    /// KI2 の `relative` は普段は局面から作り直されるが、**局面を組めない棋譜や、
-    /// 不正な手より後ろでは欄をそのまま読む**（クレートの `converter/ki2.rs`。
+    /// KI2 の `relative` は普段は局面から作り直されるが、局面を組めない棋譜や、
+    /// 不正な手より後ろでは欄をそのまま読む（クレートの `converter/ki2.rs`。
     /// 不正な手を記録した棋譜は R-RULE-002 で正当な入力）。そこで `relative` が
-    /// 欠けていると `△４二銀左` が `△４二銀` になり、**読み戻せない KI2** が書かれる（#331）。
+    /// 欠けていると `△４二銀左` が `△４二銀` になり、**読み戻せない KI2** が書かれる。
     ///
-    /// ここで見るのは `capture`。**どの形式も読まない**ので、
+    /// ここで見るのは `capture`。どの形式も読まないので、
     /// 落としたことが出るのは `jkf` 形式だけ（受け取った JKF をそのまま JSON にする）。
     /// `promote` を落とした場合は
     /// `a_dropped_promotion_changes_the_move_that_is_written` が見る。
@@ -201,14 +201,14 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// `promote` が欠けた JKF を渡すと、**書かれる手が変わる**。
+    /// `promote` が欠けた JKF を渡すと、書かれる手が変わる。
     ///
     /// KIF / KI2 / CSA の書き出しは `promote` を局面から作り直さず、
     /// JKF の欄をそのまま読む。落ちていれば `成` を書かない。
     /// **`normalize()` を呼んでも直らない。** 実測すると `normalize()` は
     /// `same` は局面から復元するが、`promote` は復元せず `Some(false)` を書く。
     /// つまり書き込み経路（呼ばない）でも変換経路（呼ぶ）でも、
-    /// 欠けた成りは黙って不成として確定する（#331）。
+    /// 欠けた成りは黙って不成として確定する。
     ///
     /// 届く JKF に `promote` が入っているかは webview 側しだいで、まだ測っていない。
     /// ここは欠けた場合に何が起きるかを固定する。
@@ -280,6 +280,25 @@ mod tests {
         let path = dir.join("gote.xxx");
         write_kifu_file_internal(&source, &path, "xxx").expect_err("未対応の形式は失敗すること");
         assert!(!path.exists(), "失敗したのにファイルができている");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 形式の綴りは大文字でも読み、`JSON` でも JKF として読めるものを書く。書けなかったことは隠さない
+    #[test]
+    fn the_format_name_is_read_loosely_and_a_failed_write_is_reported() {
+        let dir = temp_dir("write-loose");
+        let source = parse_kif_str(GOTE_START_KIF).expect("後手番の KIF が読めること");
+
+        let path = dir.join("gote.jkf");
+        write_kifu_file_internal(&source, &path, "JSON").expect("JSON は jkf と同じ");
+        let written = std::fs::read_to_string(&path).expect("読み取り");
+        parse_jkf_str(&written).expect("JKF として読めること");
+
+        // 行き先にフォルダが在ると書けない。書けなかったのに `Ok` を返すと、保存できたように見える
+        let occupied = dir.join("gote.kif");
+        std::fs::create_dir(&occupied).expect("フォルダを置けない");
+        write_kifu_file_internal(&source, &occupied, "kif").expect_err("書けなかったのに Ok");
 
         std::fs::remove_dir_all(&dir).ok();
     }
