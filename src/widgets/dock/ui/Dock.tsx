@@ -1,11 +1,11 @@
 import { useMemo, type KeyboardEvent } from "react";
-import "./Dock.scss";
 import { useURLParams, type DockViewType } from "@/shared/lib/router/useURLParams";
 import { AppErrorBoundary } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 import { useAppConfig } from "@/entities/app-config";
 import { dockViewLabel, resolveDockTabs, resolveDockView } from "@/entities/dock";
 import type { DockViewBindings } from "../model/bindings";
+import "./Dock.scss";
 
 /**
  * ドック。タブの器で、中身は知らない。
