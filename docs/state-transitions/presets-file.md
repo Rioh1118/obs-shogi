@@ -89,11 +89,14 @@ Rust は**書く直前にディスクを読み直し**、次の順で断る。�
 
 ## 埋まっていないセル
 
-- F1b / F1w / F3x / F5: 書き込みや読み込みを失敗させる手段（権限を落とした一時ディレクトリ）を
-  テストに持っていない。分岐はそれぞれ1箇所（`load_from` の `back_up_original` / 書き戻しの
-  読み直しと `atomic_write` / `fs::rename` / `fs::read` の `Err`）で、書けない状態になることは
-  コードで追えるが踏んでいない。F1b / F1w で開いた後の保存を `save_to` が断ることは、移していない
-  v1 への保存（`an_unmigrated_file_is_never_overwritten`）で踏んでいる
+- F1w / F3x: 書き戻しと rename を失敗させる手段（権限を落とした一時ディレクトリや、読み直しの前に
+  割り込む口）をテストに持っていない。分岐はそれぞれ1箇所（`load_from` の書き戻しの読み直しと
+  `atomic_write` / `fs::rename` の `Err`）で、書けない状態になることはコードで追えるが踏んでいない。
+  F1w で開いた後の保存を `save_to` が断ることは、移していない v1 への保存
+  （`an_unmigrated_file_is_never_overwritten`）で踏んでいる
+- F1b と F5 は、`.bak` やファイルの名前にフォルダを置いて読むのを失敗させて踏む
+  （`an_original_that_cannot_be_kept_is_not_migrated`、`an_unreadable_file_is_neither_treated_as_missing_nor_written`）。
+  `.bak` を読めないが書ける場合（`back_up_original` の `fs::read` の `Err` の枝）は、権限を落とさないと作れず踏んでいない
 
 テストは `presets.rs` の `tests`（Rust）、`engine-presets/model/__tests__/provider.test.tsx`
 （悲観更新・列・書けない状態）、`app/providers/bridges/__tests__/presetsFileBridge.test.tsx`（通知）、
