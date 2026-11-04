@@ -65,7 +65,7 @@ ours 戦略のマージは使わない。
 | 29 | `refactor/tidy-widgets-kifu-stream` | `src/widgets/kifu-stream`（範囲16の第1段） | #697 | マージ済み |
 | 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2段）、読み直した後の行の強調 | #698 | マージ済み |
 | 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3段） | #699 | マージ済み |
-| 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | — | レビュー待ち |
+| 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | レビュー待ち |
 
 ## 語
 
