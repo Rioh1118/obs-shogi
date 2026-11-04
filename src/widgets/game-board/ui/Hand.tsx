@@ -2,7 +2,7 @@ import { Color, type Kind } from "shogi.js";
 import PieceImage from "@/entities/position/ui/PieceImage";
 import { useHandLayout, type RowConfig } from "./useHandLayout";
 import "./Hand.scss";
-import { useEffect, useState, type PointerEvent } from "react";
+import { useState, type PointerEvent } from "react";
 import { useGame } from "@/entities/game";
 import { handAreaMarker } from "@/features/clear-board-selection";
 
@@ -18,7 +18,8 @@ const GOTE_ROWS = ["row4", "row3", "row2", "row1"] as const;
  * 片側の駒台。押した持ち駒を選び、手番でない側では選択を外すだけにする。
  *
  * 選択の state は種類までしか持たないので、同じ種類の何枚目を押したかはここで覚え、
- * 印を押した1枚にだけ付ける。
+ * 印を押した1枚にだけ付ける。覚えた1枚は選択が外れても消さない。印を付けるかは
+ * `isMarked` がいまの選択と突き合わせて決め、押して選ぶたびに覚え直す。
  */
 function Hand({ isSente }: HandProps) {
   const { state, view, selectHand, clearSelection } = useGame();
@@ -105,17 +106,6 @@ function Hand({ isSente }: HandProps) {
       );
     });
   };
-
-  useEffect(() => {
-    if (!isThisHandSelected) {
-      setMarkedPiece(null);
-      return;
-    }
-
-    if (markedPiece && markedPiece.kind !== selectedPosition.kind) {
-      setMarkedPiece(null);
-    }
-  }, [isThisHandSelected, selectedPosition, markedPiece]);
 
   const seenOfKind = new Map<Kind, number>();
 
