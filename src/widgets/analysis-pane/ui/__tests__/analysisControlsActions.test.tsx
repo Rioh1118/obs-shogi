@@ -103,6 +103,7 @@ beforeEach(() => {
   engine.initialize.mockClear();
   engine.cancelStart.mockClear();
   engine.slowStart = false;
+  engine.presetIncomplete = false;
   game.view.currentSfen = "P1";
   status.value = "standing-by";
   bookmarked.value = false;
@@ -178,6 +179,31 @@ describe("▶ と ■", () => {
     await press(screen.getByRole("button", { name: "起動を中止" }));
 
     expect(engine.cancelStart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("起動の失敗のボタン", () => {
+  test("同じ設定で直る見込みの無い失敗では、設定を開くボタンが設定のエンジンのタブを開く", async () => {
+    engine.state = {
+      phase: "error",
+      error: { kind: "invalidValue", lastOutput: null },
+      lastOutput: null,
+    };
+    status.value = "failed";
+    const { params } = mount();
+
+    expect(screen.queryByRole("button", { name: "もう一度起動" })).toBeNull();
+    await press(screen.getAllByRole("button", { name: "設定を開く" })[0]);
+
+    expect(params().get("tab")).toBe("engine");
+  });
+
+  test("プリセットの設定が足りなければ、語を押して理由を読める", () => {
+    engine.presetIncomplete = true;
+    status.value = "failed";
+    mount();
+
+    expect(screen.getByRole("button", { name: "起動失敗" })).toBeTruthy();
   });
 });
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 /**
@@ -48,6 +48,16 @@ describe("盤の向き（盤の側）", () => {
     const { container } = render(app(""));
 
     expect(container.querySelector(".game-board--rotated")).toBeNull();
+  });
+
+  test.each([
+    ["", "⛉", "☗"],
+    ["?pov=gote", "☖", "⛊"],
+  ])("`%s` では、手前の側に駒の印、向こうの側に回した印を出す", (search, gote, sente) => {
+    render(app(search));
+
+    expect(screen.getByLabelText("後手").textContent).toBe(gote);
+    expect(screen.getByLabelText("先手").textContent).toBe(sente);
   });
 
   test("描き直しても、盤は自分から `pov` を落とさない", () => {

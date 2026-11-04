@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Color } from "shogi.js";
 
 import { GameProvider, useGame, type GameContextType } from "@/entities/game";
 import type { JKFData } from "@/entities/kifu/model/jkf";
-import { Ok } from "@/shared/lib/result";
+import { Err, Ok } from "@/shared/lib/result";
 import Board from "../Board";
 import GameControls from "../GameControls";
 import Hand from "../Hand";
@@ -48,7 +48,25 @@ function jkfOf(
   } as unknown as JKFData;
 }
 
-async function mount() {
+/** 後手の歩が3六に居る局面。手番は後手で、3七へ進めると成れる */
+const GOTE_TO_PROMOTE: JKFData = jkfOf(
+  [
+    { x: 9, y: 1, color: Color.White, kind: "OU" },
+    { x: 9, y: 9, color: Color.Black, kind: "OU" },
+    { x: 3, y: 6, color: Color.White, kind: "FU" },
+  ],
+  [{}, {}],
+  [{}],
+);
+(GOTE_TO_PROMOTE.initial as { data: { color: Color } }).data.color = Color.White;
+
+type MountOptions = {
+  position?: JKFData;
+  /** 棋譜ファイルへの書き込みが落ちるか */
+  saveFails?: boolean;
+};
+
+async function mount({ position = POSITION, saveFails = false }: MountOptions = {}) {
   const game: { current: GameContextType | null } = { current: null };
 
   function Probe() {
@@ -57,7 +75,12 @@ async function mount() {
   }
 
   const { container } = render(
-    <GameProvider persistence={{ absPath: "/w/a.kif", save: async () => Ok(undefined) }}>
+    <GameProvider
+      persistence={{
+        absPath: "/w/a.kif",
+        save: async () => (saveFails ? Err("disk full") : Ok(undefined)),
+      }}
+    >
       <Probe />
       <Hand isSente={false} />
       <Board />
@@ -66,7 +89,7 @@ async function mount() {
     </GameProvider>,
   );
   await act(async () => {
-    expect((await game.current!.loadGame(POSITION, "/w/a.kif")).success).toBe(true);
+    expect((await game.current!.loadGame(position, "/w/a.kif")).success).toBe(true);
   });
 
   const square = (x: number, y: number) =>
@@ -168,6 +191,38 @@ describe("盤の押下", () => {
   });
 });
 
+describe("成りの選択肢", () => {
+  test("後手の手では、選択肢の駒を後手の向きで出す", async () => {
+    const { container, pressSquare } = await mount({ position: GOTE_TO_PROMOTE });
+
+    await pressSquare(3, 6);
+    await pressSquare(3, 7);
+
+    const choice = container.querySelector(".promotion-choice__white")!;
+    expect(choice).not.toBeNull();
+    const colors = [...choice.querySelectorAll("[data-piece]")].map((piece) =>
+      piece.getAttribute("data-color"),
+    );
+    expect(colors).toEqual([String(Color.White), String(Color.White)]);
+  });
+
+  test("選んだ手が棋譜に書けずに戻っても、選択肢は畳む", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { game, press, pressSquare } = await mount({ saveFails: true });
+
+    await pressSquare(3, 4);
+    await pressSquare(3, 3);
+    await press(screen.getByAltText("と"));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(game.current!.state.cursor?.tesuu).toBe(0);
+    expect(screen.queryByAltText("と")).toBeNull();
+    error.mockRestore();
+  });
+});
+
 describe("駒台の押下", () => {
   test("手番の駒台の駒を押すと、その種類の持ち駒を選ぶ", async () => {
     const { game, container, press } = await mount();
@@ -244,6 +299,15 @@ describe("駒台の押下", () => {
 
     await pointerDown(senteHand(container));
     expect(game.current!.state.selectedPosition).toBeNull();
+  });
+
+  test("駒の高さは幅の1.1倍", async () => {
+    const { container } = await mount();
+    const [gold] = piecesIn(senteHand(container), "金");
+    const piece = gold.closest<HTMLElement>(".hand-piece")!;
+
+    const width = parseFloat(piece.style.width);
+    expect(parseFloat(piece.style.height)).toBeCloseTo(width * 1.1);
   });
 
   test("先手の駒台は上の段から、後手の駒台は下の段から並べる", async () => {

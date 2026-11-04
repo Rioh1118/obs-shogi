@@ -271,6 +271,27 @@ describe("解析ペインの候補手の控え", () => {
     expect(shownCandidates(view.container)).toBe(2);
   });
 
+  test("プリセットを替えると、前のエンジンの控えは出ない", () => {
+    const view = analyzeThenStop();
+
+    presets.state.selectedPresetId = "preset-b";
+    view.rerender(<AnalysisPane />);
+
+    expect(shownCandidates(view.container)).toBe(0);
+  });
+
+  test("同じ局面で読み直して、候補手が届く前に止めても、前の控えが残る", () => {
+    const view = analyzeThenStop();
+
+    analysis.state.isAnalyzing = true;
+    analysis.state.candidates = [];
+    view.rerender(<AnalysisPane />);
+    analysis.state.isAnalyzing = false;
+    view.rerender(<AnalysisPane />);
+
+    expect(shownCandidates(view.container)).toBe(2);
+  });
+
   test("局面を動かすと、その局面の控えだけを出す", () => {
     const view = analyzeThenStop();
 

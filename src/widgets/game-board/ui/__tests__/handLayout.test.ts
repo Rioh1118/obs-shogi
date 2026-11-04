@@ -59,6 +59,17 @@ describe("駒台の段", () => {
     expect(layoutConfig).toMatchObject({ maxPiecesPerRow: 7, pieceSize: 3.2, gap: 0.2 });
   });
 
+  test.each([
+    [10, 5],
+    [11, 6],
+    [15, 6],
+    [16, 7],
+  ])("%d枚では1段の上限が %d", (count, maxPiecesPerRow) => {
+    const { layoutConfig } = layoutOf(...Array<string>(count).fill("FU"));
+
+    expect(layoutConfig.maxPiecesPerRow).toBe(maxPiecesPerRow);
+  });
+
   test("11枚から15枚は1段の上限が6になる", () => {
     const { layoutConfig } = layoutOf(...Array<string>(12).fill("FU"));
 

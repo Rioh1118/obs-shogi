@@ -173,6 +173,23 @@ describe("候補手の表", () => {
   });
 });
 
+describe("候補手の行", () => {
+  test("行のモードでも、評価値を先手視点で出す", () => {
+    config.analysis_display_mode = "rows";
+    analysis.state.candidates = [
+      {
+        rank: 1,
+        first_move: "8c8d",
+        pv_line: ["8c8d"],
+        evaluation: { value: 120, kind: "Centipawn" },
+      },
+    ];
+    render(<AnalysisPane />);
+
+    expect(screen.getByText("-120")).toBeTruthy();
+  });
+});
+
 describe("評価値バー", () => {
   test("最善手の評価値を先手視点で置く", () => {
     analysis.state.candidates = [
@@ -189,6 +206,27 @@ describe("評価値バー", () => {
     const white = container.querySelector<HTMLElement>(".evaluation-bar__side--white")!;
     expect(black.style.width).toBe("25%");
     expect(white.style.width).toBe("75%");
+  });
+
+  test("バーに置くのは1行目ではなく最善手の評価値", () => {
+    analysis.state.candidates = [
+      {
+        rank: 1,
+        first_move: "8c8d",
+        pv_line: ["8c8d"],
+        evaluation: { value: 1500, kind: "Centipawn" },
+      },
+      {
+        rank: 2,
+        first_move: "3c3d",
+        pv_line: ["3c3d"],
+        evaluation: { value: -1500, kind: "Centipawn" },
+      },
+    ];
+    const { container } = render(<AnalysisPane />);
+
+    const black = container.querySelector<HTMLElement>(".evaluation-bar__side--black")!;
+    expect(black.style.width).toBe("25%");
   });
 
   test("エンジンが止まった後の候補手から導いたバーは、古いものとして出す", () => {
@@ -228,6 +266,16 @@ describe("脚注", () => {
     const { container } = render(<AnalysisPane />);
 
     expect(values(container)).toEqual(["深さ20", "ノード数1.2M", "NPS493.8K", "時間2.5s"]);
+  });
+
+  test("最善手が先頭に無くても、最善手の数を出す", () => {
+    analysis.state.candidates = [
+      { rank: 1, first_move: "8c8d", pv_line: ["8c8d"], depth: 20, nodes: 1000, time_ms: 1000 },
+      { rank: 2, first_move: "3c3d", pv_line: ["3c3d"], depth: 1, nodes: 1, time_ms: 1 },
+    ];
+    const { container } = render(<AnalysisPane />);
+
+    expect(values(container)[0]).toBe("深さ20");
   });
 
   test.each([
