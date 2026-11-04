@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
-import type { BookContextType, BookFailure, BookViewState } from "@/entities/book";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { BookContextType, BookFailure, BookRow, BookViewState } from "@/entities/book";
 
 /**
  * 定跡ビューが、状態ごとに**1つのことだけ**を言うこと
@@ -154,5 +154,56 @@ describe("定跡ビューの状態と文言", () => {
     const pending = show({ kind: "rows", rows: [{ move, line: { state: "pending" } }] });
 
     expect(failed).not.toBe(pending);
+  });
+
+  test("失敗の本文にパスがあれば添える", () => {
+    const withPath: BookFailure = {
+      origin: "open",
+      error: { code: "io", message: "読めない", path: "/books/a.db" },
+    };
+
+    expect(show({ kind: "closed" }, withPath)).toContain("読めない（/books/a.db）");
+    cleanup();
+    expect(show({ kind: "closed" }, failed("open"))).not.toContain("（");
+  });
+});
+
+describe("定跡ビューの並べ替え", () => {
+  const rows: BookRow[] = [
+    {
+      move: { usiMove: "2g2f", ponder: null, value: -5, depth: null, count: null },
+      line: { state: "pending" },
+    },
+    {
+      move: { usiMove: "7g7f", ponder: null, value: 42, depth: null, count: null },
+      line: { state: "pending" },
+    },
+  ];
+  const rowsView: BookViewState = { kind: "rows", rows };
+
+  /** 並べ替えはこの画面が持つ。表へ返した並びが次の描画に効かないと、見出しを押しても動かない */
+  test("見出しを押すと表の並びが変わる", () => {
+    book.view = rowsView;
+    book.failure = null;
+    const { container } = render(<BookView />);
+    const firstMove = () => container.querySelector("tbody td")?.textContent;
+
+    expect(firstMove()).toBe("☗２六歩");
+    fireEvent.click(screen.getByRole("button", { name: /評価/ }));
+    expect(firstMove()).toBe("☗７六歩");
+  });
+
+  test("この先の列は盤の手数を土台にする", () => {
+    const view: BookViewState = {
+      kind: "rows",
+      rows: [
+        {
+          ...rows[0],
+          line: { state: "walked", line: { usiMove: "2g2f", plies: 2, stopped: "outOfBook" } },
+        },
+      ],
+    };
+
+    expect(show(view)).toContain("→ 6手目");
   });
 });
