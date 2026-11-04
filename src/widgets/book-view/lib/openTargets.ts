@@ -16,8 +16,6 @@ type Sources = {
   presetName: string | null;
   /** 設定に残っている「最近開いた定跡」 */
   recents: readonly string[] | null | undefined;
-  /** いま開いている定跡。押しても何も起きない行になるので、一覧から外す */
-  openPath: string | null;
 };
 
 /**
@@ -31,26 +29,26 @@ type Sources = {
  * ビューが見ている定跡が同じものに見える。
  *
  * 同じパスが2つの束に居たら、勧める理由が強いプリセット側だけに残す。
+ * 開いている定跡は外さない。一覧を出すのは、定跡を開いていない画面だけ（`BookView` の `closed`）。
  */
 export function bookOpenTargets(sources: Sources): {
   fromPreset: BookOpenTarget[];
   recent: BookOpenTarget[];
 } {
-  const { presetBookPath, presetName, recents, openPath } = sources;
+  const { presetBookPath, presetName, recents } = sources;
 
-  const fromPreset =
-    presetBookPath && presetBookPath !== openPath
-      ? [
-          {
-            path: presetBookPath,
-            name: bookFileName(presetBookPath),
-            note: presetName ? `${presetName} の定跡` : "選んでいるプリセットの定跡",
-          },
-        ]
-      : [];
+  const fromPreset = presetBookPath
+    ? [
+        {
+          path: presetBookPath,
+          name: bookFileName(presetBookPath),
+          note: presetName ? `${presetName} の定跡` : "選んでいるプリセットの定跡",
+        },
+      ]
+    : [];
 
   const recent = readRecentBooks(recents)
-    .filter((path) => path !== openPath && path !== presetBookPath)
+    .filter((path) => path !== presetBookPath)
     .map((path) => ({
       path,
       name: bookFileName(path),

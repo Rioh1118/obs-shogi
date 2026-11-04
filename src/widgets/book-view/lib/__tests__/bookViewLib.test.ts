@@ -52,14 +52,13 @@ describe("bookMoveTexts", () => {
 });
 
 /**
- * 空の画面の一覧。同じ定跡を2つ並べず、開いている定跡は押せる行にしない。
+ * 空の画面の一覧。同じ定跡を2つ並べない。
  */
 describe("bookOpenTargets", () => {
   const base = {
     presetBookPath: null,
     presetName: null,
     recents: [] as string[],
-    openPath: null,
   };
 
   test("プリセットの定跡にはプリセットの名前を添える", () => {
@@ -98,22 +97,5 @@ describe("bookOpenTargets", () => {
 
     expect(fromPreset.map((t) => t.path)).toEqual(["/books/x.db"]);
     expect(recent.map((t) => t.path)).toEqual(["/old/y.db"]);
-  });
-
-  test("開いている定跡はどちらの束にも出さない", () => {
-    const { fromPreset, recent } = bookOpenTargets({
-      ...base,
-      presetBookPath: "/books/x.db",
-      recents: ["/books/x.db", "/old/y.db"],
-      openPath: "/books/x.db",
-    });
-
-    expect(fromPreset).toEqual([]);
-    expect(recent.map((t) => t.path)).toEqual(["/old/y.db"]);
-
-    expect(
-      bookOpenTargets({ ...base, recents: ["/books/x.db", "/old/y.db"], openPath: "/old/y.db" })
-        .recent,
-    ).toHaveLength(1);
   });
 });

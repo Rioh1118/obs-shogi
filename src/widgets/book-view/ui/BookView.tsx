@@ -46,7 +46,7 @@ const NOTICE_TITLES: Record<BookFailure["origin"], string> = {
  * `app/providers/gates/BookPositionGate.tsx` の doc。
  */
 function BookView() {
-  const { info, view, failure } = useBook();
+  const { view, failure } = useBook();
   const { view: gameView, state: gameState } = useGame();
   const { config } = useAppConfig();
   const { state: presetsState } = useEnginePresets();
@@ -62,7 +62,6 @@ function BookView() {
     presetBookPath: preset && bookInUse(preset) ? preset.bookFilePath : null,
     presetName: preset?.label ?? null,
     recents: config?.book_recent_paths,
-    openPath: info?.path ?? null,
   });
 
   const table = (empty: string, rows: readonly BookRow[] = []) => (
