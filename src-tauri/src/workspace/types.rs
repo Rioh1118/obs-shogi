@@ -22,7 +22,7 @@ pub struct FileTreeNode {
     /// `TruncatedNotice`（`src/__tests__/fileTreeWire.test.ts` が写し忘れを止める）
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub truncated: bool,
-    /// 更新時刻。Unix 時間の秒で、OS が返さなければ `None`
+    /// 更新時刻。Unix 時間の秒で、OS が返さないか1970年より前なら `None`
     #[serde(rename = "lastModified", skip_serializing_if = "Option::is_none")]
     pub last_modified: Option<i64>,
     /// バイト数。フォルダは `None`

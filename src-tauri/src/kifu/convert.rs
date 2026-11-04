@@ -38,8 +38,8 @@ pub fn convert_jkf_to_string_internal(
     // 揃っているかは確かめていない。外すと綴りがどう変わるかも測っていない。
     //
     // 正規化しても `promote` は戻らない。`normalize()` は `same` を局面から復元するが、
-    // 欠けた `promote` には `Some(false)` を書く
-    // （`a_dropped_promotion_changes_the_move_that_is_written` が固定している）。
+    // 欠けた `promote` には `Some(false)` を書く。これは実測した値で、試験では固定していない
+    // （`a_dropped_promotion_changes_the_move_that_is_written` が見るのは書き出しの側だけ）。
     jkf.normalize().map_err(|e| format!("正規化エラー: {e}"))?;
 
     let content = match format.to_lowercase().as_str() {
@@ -284,7 +284,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// 形式の綴りは大文字でも読み、`json` は `jkf` と同じに書く。書けなかったことは隠さない
+    /// 形式の綴りは大文字でも読み、`JSON` でも JKF として読めるものを書く。書けなかったことは隠さない
     #[test]
     fn the_format_name_is_read_loosely_and_a_failed_write_is_reported() {
         let dir = temp_dir("write-loose");

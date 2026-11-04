@@ -16,8 +16,9 @@ use kifu_text::decode_kifu;
 
 /// `path` に新しいファイルを作り、`content` を書く。
 ///
-/// 在れば書かずに `AlreadyExists` を返し、`existing_path` に `path` を載せる。
-/// 名前の衝突を出す画面は、その欄で衝突した相手を名指しする。
+/// 名前が在る項目に当たれば、書かずに `AlreadyExists` を返し、`existing_path` に `path` を載せる。
+/// 名前の衝突を出す画面は、その欄で衝突した相手を名指しする。行き先の無い symlink と、
+/// 確かめた後に別の手で作られた場合は、`create_new` が断るので `existing_path` が空になる。
 pub fn write_new_file(path: &Path, content: &str) -> Result<(), FsError> {
     ensure_not_exists(path)?;
 
@@ -368,7 +369,8 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 読めなかった棋譜の失敗は、そのファイルを名指しする。
+    /// 復号できなかった棋譜の失敗は、そのファイルを名指しする。
+    /// `fs::read` が落ちたときは `path` を載せない（`FsError::from` は付けない）。
     #[test]
     fn an_unreadable_kifu_is_named_in_the_error() {
         let dir = test_support::dir::temp_dir("unreadable");

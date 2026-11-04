@@ -122,7 +122,8 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
             //
             // root の中で閉じている symlink（`ws/current -> ws/2026/08`）は普通の使い方で、
             // 中身も開けるので残す。無条件に落とすと、何も伝えないまま一覧から消える。
-            // 落とした行があることは利用者に出さない。読めないフォルダを落とすのと同じ扱いで、仕様として決めてある
+            // 落とした行があることは利用者に出ない。読めないフォルダを落とすのと同じで、
+            // `docs/spec/screens/file-tree.md` はそちらを「いま満たしていないこと」に載せている
             let Ok(file_type) = entry.file_type() else {
                 continue;
             };
