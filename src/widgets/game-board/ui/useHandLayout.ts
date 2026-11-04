@@ -6,7 +6,7 @@ interface HandPiece {
   count: number;
 }
 
-export interface LayoutConfig {
+interface LayoutConfig {
   maxPiecesPerRow: number;
   pieceSize: number;
   gap: number;

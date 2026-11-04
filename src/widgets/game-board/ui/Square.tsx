@@ -5,7 +5,6 @@ import { boardSquareMarker } from "@/features/clear-board-selection";
 interface SquareProps {
   x: number;
   y: number;
-  index: number;
   children?: ReactNode;
   isHighlighted?: boolean;
   isLastMove?: boolean;
@@ -16,7 +15,6 @@ interface SquareProps {
 function Square({
   x,
   y,
-  index,
   children,
   isSelected = false,
   isHighlighted = false,
@@ -29,7 +27,6 @@ function Square({
       {...boardSquareMarker}
       data-x={x}
       data-y={y}
-      data-index={index}
       onClick={onClick}
     >
       {children}

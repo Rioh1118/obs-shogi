@@ -37,7 +37,6 @@ export default function GameBoard({ topLeft, center, bottomRight }: Props) {
             <HandHeader
               side="gote"
               name={goteName}
-              align="start"
               boardRotated={isGotePov}
               placement={gotePlacement}
             />
@@ -51,7 +50,6 @@ export default function GameBoard({ topLeft, center, bottomRight }: Props) {
             <HandHeader
               side="sente"
               name={senteName}
-              align="start"
               boardRotated={isGotePov}
               placement={sentePlacement}
             />

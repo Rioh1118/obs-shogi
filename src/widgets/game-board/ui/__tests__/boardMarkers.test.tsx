@@ -29,7 +29,7 @@ afterEach(() => cleanup());
 describe("盤の内側の目印", () => {
   test("升が付ける", () => {
     const { container } = render(
-      <Square x={7} y={7} index={0}>
+      <Square x={7} y={7}>
         <span data-testid="駒" />
       </Square>,
     );

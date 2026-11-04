@@ -1,17 +1,12 @@
 import "./HandHeader.scss";
 import { GOTE_GLYPH, SENTE_GLYPH } from "@/shared/lib/turn";
 
-export type HandSide = "sente" | "gote";
-export type HandAlign = "start" | "end";
-export type HandPlacement = "top" | "bottom";
+type HandSide = "sente" | "gote";
+type HandPlacement = "top" | "bottom";
 
-export type HandHeaderMeta = {
+type Props = {
   side: HandSide;
   name?: string | null;
-  align?: HandAlign;
-};
-
-type Props = HandHeaderMeta & {
   boardRotated?: boolean;
   placement: HandPlacement;
 };
@@ -26,13 +21,7 @@ function clampTo15Chars(s: string) {
   return chars.slice(0, 14).join("") + "…";
 }
 
-export default function HandHeader({
-  side,
-  name,
-  align = "start",
-  boardRotated = false,
-  placement,
-}: Props) {
+export default function HandHeader({ side, name, boardRotated = false, placement }: Props) {
   const ui = SIDE_UI[side];
   // 欠けているかは `playerNames` が `null` で決めている。ここで trim し直さない
   const raw = name ?? "";
@@ -43,7 +32,7 @@ export default function HandHeader({
     <div
       className={[
         "hand-header",
-        `hand-header--${align}`,
+        "hand-header--start",
         boardRotated ? "hand-header--counterRotate" : "",
       ].join(" ")}
     >

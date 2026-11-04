@@ -36,19 +36,11 @@ function Board() {
       const currentMoveCount = view.player?.tesuu || 0;
 
       if (currentMoveCount !== promotionState.moveCount) {
-        console.log("局面が変化したため成り選択をキャンセル");
         setPromotionState(null);
         clearSelection();
       }
     }
   }, [promotionState, view.player?.tesuu, shogi, clearSelection]);
-
-  // 選択位置の変化を監視
-  useEffect(() => {
-    if (promotionState) {
-      return;
-    }
-  }, [promotionState, selectedPosition]);
 
   if (!shogi) {
     return <div className="board-loading">盤面を読み込み中…</div>;
@@ -127,19 +119,12 @@ function Board() {
         key={index}
         x={x}
         y={y}
-        index={index}
         isSelected={isSelectedSquare(x, y)}
         isHighlighted={isSquareHighlighted(x, y)}
         isLastMove={isLastMove(x, y)}
         onClick={() => handleSquareClick(x, y)}
       >
-        {piece && (
-          <PieceImage
-            kind={piece.kind}
-            color={piece.color}
-            onClick={() => console.log(`Piece clicked: ${piece.kind} at ${x}${y}`)}
-          />
-        )}
+        {piece && <PieceImage kind={piece.kind} color={piece.color} />}
         {isPromotionSquare && (
           <PromotionDialog
             jkfKind={promotionState.jkfKind}

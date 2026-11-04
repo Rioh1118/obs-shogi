@@ -27,7 +27,6 @@ function PromotionDialog({
     <div
       className={`promotion-choice ${isBlack ? "promotion-choice__black" : "promotion-choice__white"}`}
     >
-      {/* <p className="promotion-choice__text">成りますか?</p> */}
       <div className="promotion-choice__piece">
         <div className="promotion-choice__piece--promote" onClick={() => setPromote(true)}>
           <PieceImage kind={promotionMap[jkfKind]} color={color} />

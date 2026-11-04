@@ -6,7 +6,7 @@ import { Color } from "shogi.js";
  *
  * エンジンは手番の側から見た値を返す。揃えないと、後手番の局面だけ符号が逆に読める。
  */
-export function convertEvaluationToSenteView(
+function convertEvaluationToSenteView(
   evaluation: Evaluation | null | undefined,
   currentTurn: Color | null,
 ): Evaluation | null {
