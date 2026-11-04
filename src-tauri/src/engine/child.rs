@@ -104,6 +104,7 @@ pub enum KillOutcome {
 /// プロセスグループごと落とす）。落とし損ねてもパニックはしない。
 ///
 /// 欄のロックはどれも、別のロックを握ったまま取らない。
+#[derive(Debug)]
 pub struct EngineChild {
     /// 書き手と `close_stdin` が共有する stdin。`None` は閉じた後。書き手が書き込みの
     /// `await` の間握るので tokio の `Mutex` にしてある
@@ -122,7 +123,7 @@ pub struct EngineChild {
 /// 読み取りの後始末など、プロセスより長く生きうるタスクにはこちらを渡す。
 /// `EngineChild` そのものを渡すと、そのタスクが生きている間 Drop が起きず、
 /// 「捨てればプロセスも落ちる」が効かなくなる。
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ChildDiagnostics {
     exit: watch::Receiver<Option<Exit>>,
     stderr_done: watch::Receiver<bool>,
@@ -131,6 +132,7 @@ pub struct ChildDiagnostics {
 }
 
 /// stdin の書き手。**`EngineChild::take_writer` から1回だけ取れる。**
+#[derive(Debug)]
 pub struct ChildWriter {
     stdin: Arc<Mutex<Option<ChildStdin>>>,
 }
