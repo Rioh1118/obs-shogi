@@ -45,7 +45,7 @@ function boardAt(count: number, at: number): JKFPlayer {
  * ▲2六歩 △3四歩 ▲7六歩。同じ3手でも順が違う別の線。
  *
  * **手数は対局の1手前にそろえてある。** そろえないと、手数で見ている実装でも
- * 別の理由で止まってしまい、この試験が線を見ていることを確かめられない。
+ * 別の理由で止まってしまい、このテストが線を見ていることを確かめられない。
  */
 function otherLine(): JKFPlayer {
   const player = new JKFPlayer({
@@ -85,7 +85,7 @@ vi.mock(
 
 /**
  * `useGame` の差し替え。橋が読むのは3つだけなので、それ以外は埋めない
- * （埋めると盤の器を丸ごと組むことになり、この試験が見たい「積む条件」から離れる）。
+ * （埋めると盤の器を丸ごと組むことになり、このテストが見たい「積む条件」から離れる）。
  *
  * 戻り値は `as unknown as` で絞るので、型は見ていない。`satisfies` が落とすのは
  * `useGame` が実物から消えたか改名されたときだけ。実物の export は `importActual` を
@@ -107,7 +107,7 @@ vi.mock(
 
 const { GameMoveBridge } = await import("../GameMoveBridge");
 
-/** 4手進んだ対局。盤がどこに居るかは各試験が決める */
+/** 4手進んだ対局。盤がどこに居るかは各テストが決める */
 function liveView(usiMoves: string[]): GameSessionView {
   return {
     kind: "live",

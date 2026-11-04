@@ -16,7 +16,7 @@ import PositionSearchHitList from "../PositionSearchHitList";
  * 高さを決め打つと `react-window` が行に `height` を書き込むので、そこは観測できる。
  */
 
-/** ワークスペースのルート。試験の側から差し替える */
+/** ワークスペースのルート。テストの側から差し替える */
 const appConfig = { root_dir: "/root" };
 
 vi.mock("@/entities/app-config", () => ({

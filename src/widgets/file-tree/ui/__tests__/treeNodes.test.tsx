@@ -9,7 +9,7 @@ import type { FileTreeNode } from "@/entities/file-tree";
  * 行から呼ぶファイル操作の条件と引数。
  *
  * 改名とフォルダの作成はファイルシステムへ書くので、どの行で、どの名前で、
- * 何を渡すかを固定する。名前の検査そのものは `commitName` の試験が持つ。
+ * 何を渡すかを固定する。名前の検査そのものは `commitName` のテストが持つ。
  */
 
 const ok = { success: true as const, data: undefined };

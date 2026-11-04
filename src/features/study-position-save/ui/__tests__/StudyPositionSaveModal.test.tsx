@@ -47,7 +47,7 @@ const deletePosition = vi.fn();
 let saved: StudyPosition | null = null;
 /**
  * provider の `findBySfen` は一覧を ref から読むので、同一性が動かない。
- * 毎回作り直すと、一覧が届いたことを `findBySfen` の同一性で拾う形でも試験が通る
+ * 毎回作り直すと、一覧が届いたことを `findBySfen` の同一性で拾う形でもテストが通る
  */
 const findBySfen = () => saved;
 

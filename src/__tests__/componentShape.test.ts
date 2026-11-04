@@ -386,7 +386,7 @@ describe("走査の部品", () => {
 describe("部品の形と書き方", () => {
   const { byShape, files, components } = scan();
 
-  // 該当が0件の形もある。走査が空振りしていないかは次の試験が見る
+  // 該当が0件の形もある。走査が空振りしていないかは次のテストが見る
   it("求められたら該当の全行を書き出す", () => {
     const destination = process.env.SHAPE_REPORT;
     if (!destination) return;

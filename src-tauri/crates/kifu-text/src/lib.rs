@@ -15,7 +15,7 @@
 //! どの復号なら棋譜として通るかで決める。画面側にパーサは無いので、そこまでは真似できない。
 //! 印の読み方（[`declared_encoding`]）は両者が呼ぶ。候補の一覧は [`KIFU_ENCODINGS`] が正本で、
 //! 索引側はそこから UTF-8 と Shift_JIS を除いた写し（`ENCODINGS_THE_CRATE_SKIPS`）を持つ。
-//! 写しとの一致は `kifu_reader` の試験が見るので、ここを変えたら写しも直す。
+//! 写しとの一致は `kifu_reader` のテストが見るので、ここを変えたら写しも直す。
 //! 候補を試す順は画面側だけが使う。
 
 use encoding_rs::{Encoding, EUC_JP, ISO_2022_JP, SHIFT_JIS, UTF_16BE, UTF_16LE, UTF_8};

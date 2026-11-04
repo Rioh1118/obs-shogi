@@ -10,8 +10,8 @@
 //! | [`DiskStore`] | 渡された根の下 | OS のキャッシュ置き場を渡せば消える |
 //! | `InMemory` | メモリの上（テスト用。`cfg(test)` なので doc に出ない）| プロセスと一緒に |
 //!
-//! 置き場を trait にするのは、読み手の試験がディスクを使わずに置けない失敗を踏むため。
-//! 索引の試験（`search/cache/format.rs`）は `InMemory::failing` に差し替えて踏む。
+//! 置き場を trait にするのは、読み手のテストがディスクを使わずに置けない失敗を踏むため。
+//! 索引のテスト（`search/cache/format.rs`）は `InMemory::failing` に差し替えて踏む。
 
 use std::path::PathBuf;
 
@@ -30,7 +30,7 @@ pub use in_memory::InMemory;
 /// OS に消されうるので、消えても作り直せるものだけを置く。
 ///
 /// `AppHandle` に触るのはここだけ。読み書きする関数（`search/cache/format.rs`）は
-/// [`BlobStore`] を受けるので、試験では `InMemory` を渡せる。
+/// [`BlobStore`] を受けるので、テストでは `InMemory` を渡せる。
 pub fn app_cache(app: &tauri::AppHandle, area: &str) -> Result<DiskStore, StoreError> {
     use tauri::Manager;
     let app_cache_dir = app
