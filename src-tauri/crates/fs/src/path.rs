@@ -13,7 +13,7 @@ pub fn generate_id() -> String {
     Uuid::new_v4().to_string()
 }
 
-pub fn get_file_extension(path: &Path) -> Option<String> {
+pub fn lowercase_extension(path: &Path) -> Option<String> {
     path.extension()
         .and_then(|ext| ext.to_str())
         .map(|s| s.to_lowercase())
@@ -21,7 +21,7 @@ pub fn get_file_extension(path: &Path) -> Option<String> {
 
 pub fn is_kifu_file(path: &Path) -> bool {
     matches!(
-        get_file_extension(path).as_deref(),
+        lowercase_extension(path).as_deref(),
         Some("kif") | Some("ki2") | Some("jkf") | Some("csa")
     )
 }
@@ -150,7 +150,7 @@ pub fn is_move_into_itself(src: &Path, dest: &Path) -> Result<bool, FsError> {
 /// 本文は拡張子の形式で書かれている。KIF、KI2、CSA へ変えると次に開いたときに0手の棋譜として
 /// 読まれ、次の保存でディスクの棋譜が空になる。JKF へ変えると開けなくなる。
 pub fn ensure_same_extension(src: &Path, dest: &Path) -> Result<(), FsError> {
-    if get_file_extension(src) != get_file_extension(dest) {
+    if lowercase_extension(src) != lowercase_extension(dest) {
         return Err(FsError::new(
             FsErrorCode::ExtensionChanged,
             "cannot change the kifu extension",
@@ -182,7 +182,7 @@ mod tests {
         let same = |src: &str, dest: &str| ensure_same_extension(Path::new(src), Path::new(dest));
 
         assert!(same("/r/a.kif", "/r/b.kif").is_ok());
-        // 形式は変わらない。`get_file_extension` は小文字へ揃える
+        // 形式は変わらない。`lowercase_extension` は小文字へ揃える
         assert!(same("/r/a.KIF", "/r/a.kif").is_ok());
 
         let refused = same("/r/a.kif", "/r/a.csa").unwrap_err();

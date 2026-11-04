@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use ::fs::error::FsError;
-use ::fs::path::{generate_id, get_file_extension, is_kifu_file, is_under, plain_spelling};
+use ::fs::path::{generate_id, is_kifu_file, is_under, lowercase_extension, plain_spelling};
 
 use super::types::FileTreeNode;
 
@@ -83,7 +83,7 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
         extension: if is_dir {
             None
         } else {
-            get_file_extension(path)
+            lowercase_extension(path)
         },
     };
 
