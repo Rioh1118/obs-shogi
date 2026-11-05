@@ -1,8 +1,12 @@
+//! 検討の席を配る。席は同時に1つだけで、走っている探索1本の持ち分を表す。
+//!
+//! 開始と停止を1本ずつ通し（`search_turn`）、探索の結果と出来事を `AnalysisEventSink` へ流す。
+//! エンジンを起こすことと探索を回すことは `analyzer` が持ち、ここは誰がいつ読ませるかだけを決める。
+
 use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 
-use super::analyzer::{
-    AnalysisStreamItem, DepthOutcome, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME,
-};
+use super::analysis_events::{AnalysisEvent, AnalysisEventSink, DiscardAnalysisEvents};
+use super::analyzer::{AnalysisStreamItem, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;
@@ -14,7 +18,7 @@ use tokio::sync::{mpsc, Mutex, RwLock};
 
 const LOGT: &str = "obs_shogi::engine::bridge";
 
-/// Tauriコマンドとエンジン機能の橋渡し
+/// 検討の席の持ち主。Tauri のコマンドは `commands::analysis` を通ってここへ来る
 pub struct EngineBridge {
     analyzer: EngineAnalyzer,
     active_sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,

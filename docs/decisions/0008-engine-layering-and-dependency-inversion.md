@@ -65,7 +65,8 @@
 `use` で書かず、`app: tauri::AppHandle` と型の位置に完全修飾で置くので、
 `use` だけを見る検査は実際に書かれる形を1つも見ないことになる。
 
-`bridge` には掛けていない（`EngineBridge` はまだ `AppHandle` を持つ）。
+2つ目の適用が `AnalysisEventSink`（`engine/analysis_events.rs`）で、実装（`TauriAnalysisEvents`）は
+`commands::analysis` に置く。`bridge` と `analysis_events` にも `forbids` に `tauri` を挙げてある。
 `forbids` は許可制ではなく、**逆転させた境界を戻させない**ためだけに挙げる。
 
 適用する条件は「境界をまたぐ具象依存があること」。同じ段の中の具象は
@@ -99,8 +100,7 @@
 - モジュールを足すときに段を決めることになる。「置き場の都合」で足せなくなる
 - `game` にテストの継ぎ目ができた。状態遷移表が「テストあり」の印を付けながら
   実体を持てなかったセルを、実際に埋められる
-- `AppState` を受け取るのは `commands` だけ。**`game` は Tauri を知らない**
-  （`bridge` はまだ知っている——下の「まだ逆転していない境界」を見ること）
+- `AppState` を受け取るのは `commands` だけ。**`game` も `bridge` も Tauri を知らない**
 
 ### 引き受けるコスト
 
@@ -110,10 +110,6 @@
   **境界をまたぐときだけ**に限るのはこのため
 
 ## まだ逆転していない境界
-
-- `EngineBridge` が `tauri::AppHandle` を持つ（解析の emit 経路）。
-  `GameEventSink` と同じ形で逆転できる。実装は `commands::analysis` に置く。
-  **踏める経路はある**（解析はフロントが使っている）ので、次に効くのはここ
 
 **逆転しないと決めたぶんは、ここに残さない。** 宿題として並べておくと、
 読んだ人が「まだ手を付けていないもの」として着手してしまう。

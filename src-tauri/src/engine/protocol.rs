@@ -1,3 +1,5 @@
+//! 起動した1本のエンジンへ何を送れるかを決める。書き込みの列、`readyok` の待ち、読んだ行の配り先を持つ。
+
 use std::collections::VecDeque;
 use std::time::Duration;
 use tokio::task::JoinHandle;
