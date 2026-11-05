@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 
 import type { AiRootIndex, EngineCandidate } from "@/entities/ai-library/api/aiLibrary";
 import type { ProbeOutcome } from "@/entities/engine";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
 /**
  * プリセット編集の画面が何を出し、保存で何を書くか。下書きと読み込みの判定は `presetDialogProbe.test.tsx`、

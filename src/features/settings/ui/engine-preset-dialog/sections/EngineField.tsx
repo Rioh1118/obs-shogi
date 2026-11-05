@@ -1,5 +1,4 @@
-import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import type { EnginePreset } from "@/entities/engine-presets/model/types";
+import { type EnginePreset, hasCurrentDefinitions } from "@/entities/engine-presets";
 import { probeStatusText, type ProbeFailure } from "@/features/settings/lib/probeStatus";
 import {
   keepCurrentEngine,

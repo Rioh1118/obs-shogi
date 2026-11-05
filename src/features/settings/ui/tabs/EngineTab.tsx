@@ -8,8 +8,7 @@ import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import PresetCard from "../engine-tab/PresetCard";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import { type EnginePreset, type PresetId, useEnginePresets } from "@/entities/engine-presets";
 
 /** 適用中を先頭にして、残りは名前順に並べる */
 function sortForList(presets: EnginePreset[], selectedId: PresetId | null) {

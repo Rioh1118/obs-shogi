@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 import type { AiRootIndex } from "@/entities/ai-library/api/aiLibrary";
 import type { ProbeOutcome } from "@/entities/engine";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
 /**
  * プリセット編集（使うもの／解析／エンジンの設定）。エンジンは選べば裏で読み込み、うまくいけば何も言わない。

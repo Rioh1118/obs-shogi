@@ -54,6 +54,13 @@ function publicModules(): Map<string, string[]> {
   return found;
 }
 
+/** `source` が `moduleName` を `vi.mock` で差し替えているか */
+function mocks(source: string, moduleName: string): boolean {
+  return source
+    .split("vi.mock(")
+    .some((after, i) => i > 0 && after.trimStart().startsWith(`"${moduleName}"`));
+}
+
 // TODO(#216): 制約が掛かるのは barrel（`index.ts`）を持つスライスだけ。
 // 持たないスライスは何も制約されず、逆に barrel を1つ足すとその瞬間に
 // 既存の深い import が違反になる。境界を足すコストを検査が引き上げている
@@ -77,8 +84,9 @@ describe("スライスの公開境界", () => {
 
         for (const moduleName of modules) {
           if (!source.includes(`"${moduleName}"`)) continue;
-          // 差し替えは実体の側でなければ効かないので、モックは通す
-          if (source.includes(`vi.mock("${moduleName}"`)) continue;
+          // 差し替えは実体の側でなければ効かないので、モックは通す。整形で `vi.mock(` の後に
+          // 改行が入る形もあるので、括弧と引用符の間の空白を許す
+          if (mocks(source, moduleName)) continue;
           offenders.push(`${name}  ${moduleName}  → "${slice}"`);
         }
       }

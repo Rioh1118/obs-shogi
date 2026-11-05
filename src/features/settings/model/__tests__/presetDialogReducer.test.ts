@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { ProbeOutcome } from "@/entities/engine";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 import {
   initialPresetDialogState,
   presetDialogReducer,

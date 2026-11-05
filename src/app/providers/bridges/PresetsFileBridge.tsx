@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { useEnginePresets } from "@/entities/engine-presets";
 import type { NotifyAction, NotifyRequest } from "@/shared/lib/notification/types";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import {

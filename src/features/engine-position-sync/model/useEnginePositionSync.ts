@@ -1,5 +1,5 @@
 import { useEngine } from "@/entities/engine";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { useEnginePresets } from "@/entities/engine-presets";
 import { useGame } from "@/entities/game";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setPositionFromSfen, type PositionSyncAdapter } from "@/entities/analysis";

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { MULTIPV_MAX } from "@/entities/engine-presets/model/multiPv";
+import { MULTIPV_MAX } from "@/entities/engine-presets";
 import { engineDefaultLabel, engineDefaultOf, multiPvMax, savedInt } from "../presetOptionValues";
 
 describe("savedInt", () => {

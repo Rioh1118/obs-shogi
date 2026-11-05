@@ -10,8 +10,7 @@ import {
   type BookViewState,
 } from "@/entities/book";
 import { useAppConfig } from "@/entities/app-config";
-import { bookInUse } from "@/entities/engine-presets/model/types";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { bookInUse, useEnginePresets } from "@/entities/engine-presets";
 import { useGame } from "@/entities/game";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import { bookOpenTargets } from "../lib/openTargets";

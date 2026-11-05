@@ -1,6 +1,6 @@
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import type { FormattedMove } from "@/shared/lib/shogi/moveText";
-import { MULTIPV_MAX } from "@/entities/engine-presets/model/multiPv";
+import { MULTIPV_MAX } from "@/entities/engine-presets";
 
 /**
  * 画面に出す候補手の上限。`MULTIPV_MAX` から導く。

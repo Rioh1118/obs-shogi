@@ -1,6 +1,5 @@
 import type { EngineStartFailureKind } from "@/entities/engine";
-import { hasCurrentDefinitions, probePathOf } from "@/entities/engine-presets/lib/withDefinitions";
-import type { EnginePreset } from "@/entities/engine-presets/model/types";
+import { type EnginePreset, hasCurrentDefinitions, probePathOf } from "@/entities/engine-presets";
 
 /** 取得の失敗。どのパスの取得かを持ち、選び直した後に前の失敗を出さない */
 export type ProbeFailure = {

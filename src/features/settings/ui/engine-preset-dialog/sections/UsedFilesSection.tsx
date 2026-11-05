@@ -1,4 +1,4 @@
-import { bookInUse, type EnginePreset } from "@/entities/engine-presets/model/types";
+import { bookInUse, type EnginePreset } from "@/entities/engine-presets";
 import { bookChoices, evalChoices } from "@/features/settings/lib/fileChoices";
 import type { ProbeFailure } from "@/features/settings/lib/probeStatus";
 import type { AiRootIndexState } from "@/features/settings/model/useAiRootIndex";

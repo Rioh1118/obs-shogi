@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 
 import type { EngineStartFailure, StartWarning } from "@/entities/engine";
 import { initialState as presetsInitialState } from "@/entities/engine-presets/model/reducer";
-import type { EnginePresetsState } from "@/entities/engine-presets/model/types";
+import type { EnginePresetsState } from "@/entities/engine-presets";
 import type { NotifyAction, NotifyRequest } from "@/shared/lib/notification/types";
 import { startWarningBody } from "../startWarningNotice";
 

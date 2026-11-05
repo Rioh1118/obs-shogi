@@ -1,5 +1,5 @@
 import type { UsiOptionDef } from "@/entities/engine";
-import { fitSpin } from "@/entities/engine-presets/lib/fitValues";
+import { fitSpin } from "@/entities/engine-presets";
 
 export type SpinDef = Extract<UsiOptionDef, { type: "spin" }>;
 

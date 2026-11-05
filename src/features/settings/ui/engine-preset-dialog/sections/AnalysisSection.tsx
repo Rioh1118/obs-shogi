@@ -8,12 +8,7 @@ import {
   engineDefaultOf,
   savedInt,
 } from "@/features/settings/lib/presetOptionValues";
-import {
-  MULTIPV_MIN,
-  MULTIPV_OPTION,
-  QUICK_MULTIPV,
-} from "@/entities/engine-presets/model/multiPv";
-import type { AnalysisDefaults, EnginePreset } from "@/entities/engine-presets/model/types";
+import { type AnalysisDefaults, type EnginePreset, MULTIPV_MIN, MULTIPV_OPTION, QUICK_MULTIPV } from "@/entities/engine-presets";
 import "./AnalysisSection.scss";
 
 function parseIntOr(text: string, fallback: number): number {
