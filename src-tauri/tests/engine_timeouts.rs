@@ -7,14 +7,11 @@
 //! 同じ段の中で閉じる関係は `session.rs` の `the_watchdogs_are_ordered` にある。
 //! **散文で「どちらも同じ長さ」と書かない**——書くと、片方を動かしたときに何も落ちない。
 
-use app_lib::engine::child::KILL_TIMEOUT;
-use app_lib::engine::game::session::{
-    CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
+// `engine` は crate の外へ出ないので、定数は crate の根の再輸出から読む（`lib.rs`）
+use app_lib::{
+    CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, CLOSE_TIMEOUT, HARD_TURN_LIMIT, KILL_TIMEOUT,
+    READY_TIMEOUT, SPAWN_TIMEOUT, START_TIMEOUT, SWEEP_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT,
 };
-use app_lib::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT};
-use app_lib::engine::registry::SPAWN_TIMEOUT;
-
-use app_lib::{CLOSE_TIMEOUT, SWEEP_TIMEOUT};
 
 /// 対局で1手に待ちうる猶予が、終了時の予算より**長い**こと。
 ///
