@@ -76,7 +76,7 @@ ours 戦略のマージは使わない。
 | 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | #710 | マージ済み |
 | 41 | `refactor/engine-crate-visibility` | `src-tauri/src/lib.rs` の `pub mod engine` と呼び手の無い `pub`（Rust の範囲「公開」）、5c を設計の段にする | #712 | マージ済み |
 | 42 | `docs/engine-usi-design` | USI のやりとりの作り直しの設計（Rust の範囲5c）。ADR-0016、`engine.md` と `analysis.md` の目標の形 | #713 | マージ済み |
-| 43 | `test/usi-u0-baseline` | 作り直しの段 U0。載せ替えの前に要るテスト T1〜T10 と性能の基準線 M1〜M3。製品のコードは変えない | — | レビュー待ち |
+| 43 | `test/usi-u0-baseline` | 作り直しの段 U0。載せ替えの前に要るテスト T1〜T10 と性能の基準線 M1〜M3。製品のコードは変えない | #714 | レビュー待ち |
 
 ## 語
 
