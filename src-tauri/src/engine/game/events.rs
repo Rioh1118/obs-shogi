@@ -22,13 +22,15 @@ pub trait GameEventSink: Send + Sync + 'static {
     fn emit(&self, event: GameEvent);
 }
 
-/// どこへも流さない宛先。
+/// どこへも流さない宛先。テストの既定。
 ///
-/// テストの既定。`Option<Sink>` にしないのは、`None` の分岐が
+/// `Option<Sink>` にしないのは、`None` の分岐が
 /// 呼び出し側に出るのを避けるため（出ると「宛先が無いこともある」を
 /// 進行のコードが知ることになる）。
+#[cfg(test)]
 pub struct DiscardEvents;
 
+#[cfg(test)]
 impl GameEventSink for DiscardEvents {
     fn emit(&self, _event: GameEvent) {}
 }
@@ -37,21 +39,22 @@ impl GameEventSink for DiscardEvents {
 ///
 /// これが無いと、対局が何を出したかを確かめられない。
 ///
-/// **`DiscardEvents` と同じく `cfg` で切らない。** 切ると
-/// `src-tauri/tests/` の結合テストから使えず、継ぎ目がユニットテストの中だけに
-/// 閉じる。宛先を trait にしたのは状態遷移表のセルを埋めるためなので、
-/// 埋める場所を狭めない。
+/// **`cfg(test)` で切る。** 使うのはユニットテストだけで、`engine` は crate の外へ
+/// 出ないので `src-tauri/tests/` の結合テストからも届かない（`lib.rs` の `pub(crate) mod engine`）。
+#[cfg(test)]
 #[derive(Default)]
 pub struct RecordedEvents {
     events: std::sync::Mutex<Vec<GameEvent>>,
 }
 
+#[cfg(test)]
 impl RecordedEvents {
     pub fn take(&self) -> Vec<GameEvent> {
         std::mem::take(&mut self.events.lock().expect("宛先の記録が毒されている"))
     }
 }
 
+#[cfg(test)]
 impl GameEventSink for RecordedEvents {
     fn emit(&self, event: GameEvent) {
         self.events

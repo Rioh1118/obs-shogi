@@ -23,10 +23,10 @@ pub const MAX_OPTIONS: usize = 512;
 pub const MAX_DECLARED_BYTES: usize = 1024 * 1024;
 
 /// 名前・1つの値の長さの上限（バイト）。これを超える行は解かない
-pub const MAX_OPTION_VALUE: usize = 4 * 1024;
+const MAX_OPTION_VALUE: usize = 4 * 1024;
 
 /// 1つの `combo` が持てる選択肢の数。これを超えた分は捨て、数を返す（`ParsedOption`）
-pub const MAX_COMBO_VARS: usize = 256;
+const MAX_COMBO_VARS: usize = 256;
 
 /// 型の綴り（小文字）。`type` の次の語がこのどれかなら、その `type` が型の欄
 const TYPES: [&str; 6] = ["check", "spin", "combo", "button", "string", "filename"];

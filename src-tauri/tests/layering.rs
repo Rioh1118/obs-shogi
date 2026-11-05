@@ -721,8 +721,8 @@ fn the_engine_does_not_reach_out_of_itself() {
 /// ADR-0009 決定3（`commands` より下は `AppState` を受け取らない）を外から迂回できる。
 /// 同じ crate の中なので Cargo も止めない。
 ///
-/// crate の根（`lib.rs`）は数えない。コマンドの登録と `AppState` の再輸出を持つ
-/// 組み立ての場所で、`engine` の段を外へ見せるのがそこの仕事。
+/// crate の根（`lib.rs`）は数えない。コマンドを登録し `AppState` を組む場所で、
+/// `engine` の段を外へ見せるのがそこの仕事。
 ///
 /// いま在る1本は、候補の一覧が「起動できるか」の答えを起動の側と共有するため
 /// （`engine/launchable.rs` の冒頭）。

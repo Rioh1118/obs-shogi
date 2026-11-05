@@ -1,16 +1,29 @@
 pub mod ai_library;
 pub mod book;
-pub mod engine;
+pub(crate) mod engine;
 pub mod kifu;
 pub mod search;
 pub mod storage;
 pub mod workspace;
 
-pub use crate::engine::state::AppState;
 pub use book::session::BookState;
 pub use search::state::SearchState;
 pub use search::store::index_store::IndexStore;
 
+// **`engine` は crate の外へ出さない。** `pub mod` にすると `engine` の `pub` が全部 crate の
+// 公開 API に数えられ、呼び手の無い `pub` を rustc の `dead_code` が拾わない。
+//
+// 外へ出すのは、`src-tauri/tests/engine_timeouts.rs` が段を跨ぐ上限どうしの関係を
+// 式で固定するのに読む定数だけ。`CLOSE_TIMEOUT` と並べて比べるので、段の中の
+// `#[cfg(test)]` からは見られない（理由はそのファイルの冒頭）。
+pub use engine::child::KILL_TIMEOUT;
+pub use engine::game::session::{
+    CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
+};
+pub use engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT};
+pub use engine::registry::SPAWN_TIMEOUT;
+
+use crate::engine::state::AppState;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::Manager;

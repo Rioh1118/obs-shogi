@@ -310,8 +310,6 @@ pub fn engine_error_text(error: &EngineError) -> String {
         | EngineError::StartupFailed(_)
         | EngineError::CommunicationFailed(_)
         | EngineError::InvalidState(_)
-        | EngineError::ProtocolViolation(_)
-        | EngineError::AnalysisFailed(_)
         | EngineError::AlreadyListening(_)
         | EngineError::Cancelled(_) => error.to_string(),
     }
@@ -329,12 +327,8 @@ pub enum EngineError {
     CommunicationFailed(String),
     #[error("Invalid engine state: {0}")]
     InvalidState(String),
-    #[error("USI protocol violation: {0}")]
-    ProtocolViolation(String),
     #[error("Operation timeout: {0}")]
     Timeout(String),
-    #[error("Analysis failed: {0}")]
-    AnalysisFailed(String),
     #[error("Already listening: {0}")]
     AlreadyListening(String),
     /// こちらが止めた。起動中の取り消しや、待っている最中の kill
