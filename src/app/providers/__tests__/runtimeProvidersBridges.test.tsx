@@ -53,7 +53,7 @@ const presetsFileBridge = vi.fn();
 const engineStartWarningBridge = vi.fn();
 
 // **中身は差し替える。** 実物は `EngineProvider` の中に居る前提なのに、
-// この試験は `EngineRuntimeGate` を素通しに差し替えている。
+// このテストは `EngineRuntimeGate` を素通しに差し替えている。
 // 実物のまま描くと器が無くて投げるので、載っているかだけを見る
 vi.mock(
   "../bridges/AnalysisRefusalBridge",

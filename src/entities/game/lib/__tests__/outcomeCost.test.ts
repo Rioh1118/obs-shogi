@@ -53,7 +53,7 @@ function longGame(plies: number): string[] {
 /**
  * `run` の間に `Shogi` へ局面を写した回数。上限を超えたら写すのをやめる。
  *
- * 数え方を本番の側に持たせない。試験用のカウンタを `moveValidation.ts` に置くと、
+ * 数え方を本番の側に持たせない。テスト用のカウンタを `moveValidation.ts` に置くと、
  * それ自体が公開面になって「誰が読むのか」を説明し続けることになる。
  * shogi.js の `initializeFromSFENString` を覆えば、`wouldBeInCheckAfterMove` も
  * `isUchifudume` も同じ1本で数えられる。

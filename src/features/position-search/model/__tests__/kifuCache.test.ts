@@ -28,7 +28,7 @@ const okOf = (bytes: number) => ({
   data: "x".repeat(Math.ceil(bytes / BYTES_PER_SOURCE_CHAR)),
 });
 
-/** 解決を試験の側から握る */
+/** 解決をテストの側から握る */
 function pending() {
   let settle!: (v: unknown) => void;
   const promise = new Promise((resolve) => (settle = resolve));

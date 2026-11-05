@@ -10,7 +10,7 @@ import {
 } from "../gameOutcome";
 import { DEFAULT_GAME_RULES, type GameRules } from "../gameRules";
 
-/** 上限を見ない設定。最大手数だけを見たい試験は個別に `maxMoves` を入れる */
+/** 上限を見ない設定。最大手数だけを見たいテストは個別に `maxMoves` を入れる */
 const NO_LIMIT: GameRules = { jishogiRule: "none", maxMoves: 0 };
 
 const HIRATE = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";

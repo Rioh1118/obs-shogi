@@ -18,7 +18,7 @@ const resolveHitAbsPath = vi.fn();
 const SFEN_A = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL b - 1";
 const SFEN_B = "lnsgkgsnl/9/ppppppppp/9/9/9/PPPPPPPPP/9/LNSGKGSNL w - 2";
 
-/** 検索する局面を試験の側から差し替える。撃ち直しの経路はこれでしか作れない */
+/** 検索する局面をテストの側から差し替える。撃ち直しの経路はこれでしか作れない */
 const urlParams: { modal: string; sfen: string | undefined } = {
   modal: "position-search",
   sfen: SFEN_A,

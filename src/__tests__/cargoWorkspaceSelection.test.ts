@@ -4,17 +4,17 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, workflowFiles } from "./walk";
 
 /**
- * `crates/*` の試験が `npm run verify:rust` と CI で走ること。
+ * `crates/*` のテストが `npm run verify:rust` と CI で走ること。
  *
  * `src-tauri/Cargo.toml` はルートの package を兼ねる workspace なので、`cargo test` と
- * `cargo clippy` は `--workspace` が無いと `app` だけを選ぶ。そのとき crate の試験は
- * 1本も走らず、壊しても緑で通る。`test_count_ratchet`（Rust）は `crates/` の試験も
- * 数えるので、走っていない試験が本数の床に入る。
+ * `cargo clippy` は `--workspace` が無いと `app` だけを選ぶ。そのとき crate のテストは
+ * 1本も走らず、壊しても緑で通る。`test_count_ratchet`（Rust）は `crates/` のテストも
+ * 数えるので、走っていないテストが本数の床に入る。
  *
  * 見るのは2つ。
  *
  * 1. `package.json` の script とワークフローにある `cargo test` と `cargo clippy` の呼び出しが、
- *    `--workspace` を持つか、走らせる試験を `--lib <名前>` で名指しする
+ *    `--workspace` を持つか、走らせるテストを `--lib <名前>` で名指しする
  * 2. `src-tauri/crates/` の下で `Cargo.toml` を持つディレクトリが、全部 `[workspace]` の
  *    `members` の綴りに当たる。外れても、ほかの crate が path で読んでいれば cargo が members に
  *    足すが、まだ誰も読んでいない crate は足されず、`--workspace` でも選ばれない
@@ -78,8 +78,8 @@ function matchesMember(path: string, member: string): boolean {
   return path === member;
 }
 
-describe("crate の試験が実行から漏れない", () => {
-  it("cargo test と cargo clippy の呼び出しは --workspace を持つか、試験を名指しする", () => {
+describe("crate のテストが実行から漏れない", () => {
+  it("cargo test と cargo clippy の呼び出しは --workspace を持つか、テストを名指しする", () => {
     const fromPackage = packageCalls();
     const fromWorkflows = workflowCalls();
 
@@ -97,7 +97,7 @@ describe("crate の試験が実行から漏れない", () => {
       .filter(({ text }) => !SELECTS_WORKSPACE.test(text) && !NAMES_TESTS.test(text))
       .map(({ where, text }) => `${where}: ${text}`);
 
-    expect(leaking, "--workspace が無いと app の試験しか選ばない").toEqual([]);
+    expect(leaking, "--workspace が無いと app のテストしか選ばない").toEqual([]);
   });
 
   it("crates/ の下の crate は全部 workspace の members に当たる", () => {

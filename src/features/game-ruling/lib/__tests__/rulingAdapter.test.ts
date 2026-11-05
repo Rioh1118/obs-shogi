@@ -4,7 +4,7 @@ import type { GameRules } from "@/entities/game";
 import { createRulingAdapter } from "../rulingAdapter";
 
 /**
- * 実物の裁定器。対局の進行の試験は偽物を差し替えているので、
+ * 実物の裁定器。対局の進行のテストは偽物を差し替えているので、
  * 判定の答えを終局の説明の綴りへどう写すかを見るのはここだけ。
  *
  * 綴りそのものを固定するのは、`endGameByRule` に渡した `detail` が、Rust の返す

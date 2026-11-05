@@ -31,7 +31,7 @@ const list = (...keys: string[]) => keys.map(view);
 
 /**
  * 差し替えた名簿の顔ぶれ。**既定はこれを渡す** ——
- * 渡さない（＝知らなかった）形は、それだけを見る試験で扱う。
+ * 渡さない（＝知らなかった）形は、それだけを見るテストで扱う。
  */
 const KNOWN = ["analysis", "book", "engineLog"];
 

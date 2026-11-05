@@ -523,8 +523,8 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = test_support::dir::temp_dir("scan-carry");
-        std::fs::create_dir_all(dir.join("closed")).expect("試験用のディレクトリ");
-        std::fs::create_dir_all(dir.join("open")).expect("試験用のディレクトリ");
+        std::fs::create_dir_all(dir.join("closed")).expect("テスト用のディレクトリ");
+        std::fs::create_dir_all(dir.join("open")).expect("テスト用のディレクトリ");
         // **2件置く。** 1件だと「鍵を返す」変異でも `carried.len() == 1` になり、
         // 場所を返しているのか鍵を返しているのか区別が付かない
         std::fs::write(dir.join("closed/a.kif"), b"x").expect("下ごしらえ");
@@ -596,7 +596,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = test_support::dir::temp_dir("scan-stat");
-        std::fs::create_dir_all(dir.join("sub")).expect("試験用のディレクトリ");
+        std::fs::create_dir_all(dir.join("sub")).expect("テスト用のディレクトリ");
         std::fs::write(dir.join("sub/a.kif"), b"x").expect("下ごしらえ");
 
         std::fs::set_permissions(dir.join("sub"), std::fs::Permissions::from_mode(0o444))

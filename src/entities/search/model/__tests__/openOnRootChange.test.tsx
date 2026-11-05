@@ -17,7 +17,7 @@ const openProjectApi = vi.fn();
 
 type Handlers = { onIndexWarn: (p: IndexWarnPayload) => void };
 
-/** 購読が張り終わる時点を試験の側から決める。既定は即時 */
+/** 購読が張り終わる時点をテストの側から決める。既定は即時 */
 let listenImpl: (handlers: Handlers) => Promise<() => void> = () => Promise.resolve(() => {});
 
 vi.mock("../../api/tauri", () => ({

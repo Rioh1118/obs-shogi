@@ -1,8 +1,11 @@
 //! 起動済みのエンジンプロセスを ID で引ける台帳。
 //!
-//! 対局は先手・後手で別々のプロセスを同時に持つ。解析もそのうちの1つとして扱う。
-//! プロセスを起動する経路をこのファイルの `spawn` 1本に絞ってあるのは、
-//! 実行ファイルの検査を通らない起動経路を後から足せないようにするため。
+//! 隠すのは、どのエンジンのプロセスが生きているか。`usiok` を待っている起動中のものも数え、
+//! 落とすときに漏らさない。どちらの台帳にも居ない区間は `EngineRegistry` の `starting` の doc。
+//!
+//! 対局は先手・後手で別々のプロセスを同時に持ち、解析のプロセスも同じ台帳に載る。
+//! プロセスを起動する経路をこのファイルの `spawn_cancellable`（`spawn` もここを通る）
+//! 1本に絞ってあるのは、実行ファイルの検査を通らない起動経路を後から足せないようにするため。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -19,12 +22,10 @@ use crate::engine::utils::{shown, with_cause, MAX_SUMMARY_LEN};
 
 const LOGT: &str = "obs_shogi::engine::registry";
 
-/// プロセスが起き上がるまでに待つ上限。
+/// プロセスが起き上がるまでに待つ上限。`usiok` を待つ上限（`info_timeout`）とは別。
 ///
-/// **`usiok` を待つ上限（`info_timeout`）とは別。** こちらはパスの解決と
-/// `fork`/`exec` だけで、応答しないネットワークボリューム上の `engine_path` に
-/// 対する `canonicalize` は割り込み不能でブロックする。
-///
+/// こちらが縛るのはパスの解決と `fork`/`exec` だけで、応答しないネットワークボリューム上の
+/// `engine_path` に対する `canonicalize` は割り込み不能でブロックする。
 /// 包まないと `start_game` の future が返らず、フロントの `invoke` は永久に
 /// 解決しない（押しても何も起きず、ログにも何も出ない）。
 ///
@@ -32,7 +33,8 @@ const LOGT: &str = "obs_shogi::engine::registry";
 /// 取り消せないので、そのぶんワーカが1本減ったままになる。
 ///
 /// **超えた後の子プロセスはどの台帳にも居ない。** 唯一の参照は
-/// `dispose_late_spawn` のタスクで、`shutdown_all` はそれを見つけられない → #381。
+/// `dispose_late_spawn` のタスクで、`shutdown_all` はそれを見つけられない。
+/// TODO(#381): 上限を超えた起動も、終了の掃除から見えるようにする。
 pub const SPAWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// `quit` を送ってからプロセスを落とすまでの猶予。
@@ -51,15 +53,14 @@ pub type EngineId = String;
 pub struct EngineProcess {
     pub id: EngineId,
     /// `canonicalize` を通した後の絶対パス。呼び出し側が渡した文字列ではない
-    pub engine_path: String,
-    pub work_dir: String,
+    engine_path: String,
     pub info: EngineInfo,
     protocol: Arc<UsiProtocol>,
 }
 
 impl EngineProcess {
-    /// このプロセスへ送る `UsiProtocol`。**`Arc` を複製して返す**——`EngineProcess` を
-    /// 握ったままにすると台帳から外せなくなる。
+    /// このプロセスへ送る `UsiProtocol`。台帳と呼び手が同じ1本を共有する
+    /// （台帳は落とすために、呼び手は送るために持つ）。
     pub fn protocol(&self) -> Arc<UsiProtocol> {
         Arc::clone(&self.protocol)
     }
@@ -75,49 +76,63 @@ impl std::fmt::Debug for EngineProcess {
     }
 }
 
+/// エンジンのプロセスの台帳。アプリに1つで、`AppState` が持ち、対局と解析で共有する。
+///
+/// 1つにするのは終了時の掃除の宛先を1つに保つため。分けると
+/// `lib.rs` の終了フックが両方を呼ばなければならず、片方を呼び忘れた
+/// ぶんのプロセスはアプリを閉じても残る。
+///
+/// **重複排除ではない。** `spawn` はパスを見ずに毎回新しいプロセスを起こす
+/// ので、同じ実行ファイルで解析と対局を同時に走らせれば2本立つ。
+/// `get` で既存のプロセスを引き当てられる前提で書かないこと。
+///
+/// 2つの欄のロックは同時に握らない。起動は `processes` に載せてから `starting` を外し、
+/// `shutdown_all` は `starting` を掃いてから `processes` を掃く。どちらも1つずつ取って放す。
 #[derive(Default)]
 pub struct EngineRegistry {
+    /// `usiok` まで済んだプロセス
     processes: RwLock<HashMap<EngineId, Arc<EngineProcess>>>,
 
     /// 起動したが、まだ `usiok` を取り切っていないもの。
     ///
     /// **子プロセスは既に走っている。** ここに載ってから `processes` への
-    /// 登録まで `USI_OK_TIMEOUT` の窓があり、その間ここに居ないと
+    /// 登録まで `info_timeout` の窓があり、その間ここに居ないと
     /// 終了時の掃除から見えない（起動を待たずにアプリを閉じると孤児になる）。
     ///
-    /// **窓はここより手前から開いている。** 載せるのは `spawn_blocking` が
+    /// 窓はここより手前から開いている。載せるのは `spawn_blocking` が
     /// 解けた後で、子プロセスが走り出すのはその中。そこから載るまでの区間と、
     /// `SPAWN_TIMEOUT` を超えて `dispose_late_spawn` へ渡した後は、
-    /// **どちらの台帳にも居ない** → #368 / #381。
+    /// どちらの台帳にも居ない。
+    /// TODO(#368): 掃除の後に載った起動を落とす。
+    /// TODO(#381): 上限を超えた起動も、終了の掃除から見えるようにする。
     starting: RwLock<Vec<Arc<UsiProtocol>>>,
 }
 
 impl EngineRegistry {
-    /// 空の台帳。**アプリに1つ**（`AppState` が持ち、対局と解析で共有する）。
-    ///
-    /// **重複排除ではない。** `spawn` はパスを見ずに毎回新しいプロセスを起こす
-    /// ので、同じ実行ファイルで解析と対局を同時に走らせれば2本立つ。
-    /// `get` で既存のプロセスを引き当てられる前提で書かないこと。
-    ///
-    /// 1つにするのは**終了時の掃除の宛先を1つに保つ**ため。分けると
-    /// `lib.rs` の終了フックが両方を呼ばなければならず、片方を呼び忘れた
-    /// ぶんのプロセスはアプリを閉じても残る。
+    /// 空の台帳
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// 実行ファイルを起動し、`usiok` まで済ませて台帳に載せる。
+    /// 実行ファイルを起動し、`usiok` まで済ませて台帳に載せる。返す値は台帳と呼び手が共有する。
     ///
     /// `engine_path` は絶対パスに解決できる既存ファイルであることを要求する。
     /// `/bin/sh` のような任意バイナリを起動させる経路を塞ぐ最低限のガード。
     ///
-    /// `work_dir` が `None` なら、cwd は**解決した後の**実行ファイルのフォルダ
+    /// `work_dir` が `None` なら、cwd は解決した後の実行ファイルのフォルダ
     /// （シンボリックリンクなら指す先のフォルダ）。
     ///
     /// `spawn_timeout` はプロセスが立ち上がるまで、`info_timeout` はそこから
     /// `usiok` まで。**順に使う**ので、締切で縮めるなら引き算すること——
     /// 対局は全体の締切（`START_TIMEOUT`）を持つので、段ごとの上限をそのまま
-    /// 渡すと**締切の外で待つ時間**ができる。
+    /// 渡すと締切の外で待つ時間ができる。
+    ///
+    /// # エラー
+    ///
+    /// - `StartupFailed`: `engine_path` が在るファイルでない、`work_dir` が在るディレクトリでない、
+    ///   OS が起こせなかった、起こす専用スレッドが落ちた
+    /// - `Timeout`: `spawn_timeout` の内にプロセスが起き上がらなかった
+    /// - `usiok` までの失敗は `UsiProtocol::get_engine_info` の答えをそのまま返す
     pub async fn spawn(
         &self,
         engine_path: &str,
@@ -144,6 +159,13 @@ impl EngineRegistry {
     /// **`usiok` を受け取った後に立った取り消しは見ない。** 返った `EngineProcess` は
     /// 本台帳に居るので、呼び手が ID で落とす。起こす段（専用スレッドの fork/exec）の
     /// 最中に立ったら、起き上がるのを待たずに返り、遅れて起きた子は別のタスクが落とす。
+    ///
+    /// 取り消しは `cancel` で行う。`usiok` を待つ間に future を捨てると、プロセスは
+    /// 起動中の置き場に残り、`shutdown_all` まで落ちない。
+    ///
+    /// # エラー
+    ///
+    /// `spawn` の失敗に加えて、`cancel` が立ったら `Cancelled`。
     pub async fn spawn_cancellable(
         &self,
         engine_path: &str,
@@ -176,11 +198,9 @@ impl EngineRegistry {
             }
 
             let engine_path = resolved.to_string_lossy().to_string();
-            // **`work_dir` も解決する。** 素通しにすると、`Command::current_dir` は
-            // 存在しないディレクトリを渡されたときにだけ失敗し、それ以外——
-            // 途中に `..` を挟んだ経路、シンボリックリンクの先——は黙って通る。
-            // 子プロセスの cwd は、相対パスで書かれた設定（`EvalDir` など）が
-            // 解決される基点になるので、どこを指しているかを解決してから渡す
+            // `work_dir` が在るディレクトリであることを、起こす前に確かめる。
+            // `Command::current_dir` に任せると、失敗は起こす段の OS の失敗になり、
+            // どの引数が悪いのかが断り文句に出ない
             let work_dir = match dir_for_task {
                 Some(dir) => {
                     let resolved = std::fs::canonicalize(&dir).map_err(|e| {
@@ -212,17 +232,11 @@ impl EngineRegistry {
                 log::error!(target: LOGT, "spawn: failed: {why}");
                 EngineError::StartupFailed(format!("Failed to spawn engine: {why}"))
             })?;
-            Ok((engine_path, work_dir, spawned))
+            Ok((engine_path, spawned))
         });
 
-        // **上限を掛ける。** `spawn_blocking` は上限を効かせるための前提で、
-        // 上限そのものではない。
-        // 応答しないネットワークボリューム上の `engine_path` に対する
-        // `canonicalize` は割り込み不能でブロックするので、包まないと
-        // `start_game` の future が返らず、フロントの `invoke` は永久に解決しない。
-        //
-        // 超えてもブロッキングのスレッドは残る（`timeout` は取り消せない）。
-        // そのぶんワーカが1本減ったままになる。
+        // `spawn_blocking` は上限を効かせるための前提で、上限そのものではない。
+        // 上限を掛ける理由と、超えた後に残るものは `SPAWN_TIMEOUT` の doc
         let mut started = started;
         let waited = tokio::select! {
             biased;
@@ -234,7 +248,7 @@ impl EngineRegistry {
             tokio::spawn(dispose_late_spawn(started));
             return Err(cancelled_while_starting());
         };
-        let (engine_path, work_dir, spawned) = match waited {
+        let (engine_path, spawned) = match waited {
             Ok(Ok(Ok(started))) => started,
             Ok(Ok(Err(e))) => return Err(e),
             // 専用スレッドが落ちた。プロセスは起きていない
@@ -256,7 +270,7 @@ impl EngineRegistry {
         };
 
         if cancel.is_cancelled() {
-            // 起き上がる前に止められた。捨てれば落ちる（`EngineChild` の Drop）
+            // 起き上がった後、`usiok` を待つ前に止められた。捨てれば落ちる（`EngineChild` の Drop）
             drop(spawned);
             return Err(cancelled_while_starting());
         }
@@ -287,7 +301,6 @@ impl EngineRegistry {
         let process = Arc::new(EngineProcess {
             id: id.clone(),
             engine_path,
-            work_dir,
             info,
             protocol,
         });
@@ -314,7 +327,7 @@ fn cancelled_while_starting() -> EngineError {
 
 /// 起動できたことを記録する1行。
 ///
-/// **名乗りはエンジンが決める。** `collect_engine_info` は `id name` の行を
+/// 名乗りはエンジンが決める。`collect_engine_info` は `id name` の行を
 /// 長さも中身も見ずに保持するので、素で載せると長い行を返す実行ファイル
 /// ひとつでログの予算（`LOG_FILE_BUDGET`）を一周させられる。
 ///
@@ -324,23 +337,21 @@ fn spawn_ok_line(id: &EngineId, name: &str) -> String {
     format!("spawn: ok id={id} name='{}'", shown(name, MAX_SUMMARY_LEN))
 }
 
-/// ログに載せるパスの上限。**文字数**（`shown` の第2引数）。
+/// ログに載せるパスの上限。文字数で数える（`shown` の第2引数）。
 ///
-/// **`MAX_SUMMARY_LEN` では足りない。** 実運用のパスは要約の上限を普通に超えるので、
+/// `MAX_SUMMARY_LEN` では足りない。実運用のパスは要約の上限を普通に超えるので、
 /// そちらで切ると毎回 `…` で終わって、どの実行ファイルを起こしたのかが読めない。
 ///
-/// **長さは元から頭打ち。** `canonicalize` を通った値なので PATH_MAX で止まり、
-/// これ1行で予算を一周させることはできない。**潰したいのは制御文字のほう**——
-/// `canonicalize` も `is_file` も改行を含むファイル名を通すので、素で載せると
-/// `eng\n2026-09-03 ERROR ...` という名前の実行ファイル1つで**偽のログ行を作れる**。
+/// 長さは元から頭打ちで、`canonicalize` を通った値なので PATH_MAX で止まる。
+/// **潰したいのは制御文字のほう。** `canonicalize` も `is_file` も改行を含むファイル名を
+/// 通すので、素で載せると `eng\n2026-09-03 ERROR ...` という名前の実行ファイル1つで
+/// 偽のログ行を作れる。
 ///
-/// **上は予算の式が止める**（`the_registry_lines_cannot_rotate_the_log_or_forge_a_line`）。
-/// 下は同じテストが「実運用の長さのパスが `…` で終わらないこと」で押さえる
-/// ——縮めると、この doc が名指しで避けた状態（毎回 `…` で終わって
-/// どの実行ファイルを起こしたのか読めない）にそのまま戻る。
+/// 上の側は予算の式が、下の側は「実運用の長さのパスが `…` で終わらないこと」が止める
+/// （どちらも `the_registry_lines_cannot_rotate_the_log_or_forge_a_line`）。
 const MAX_PATH_IN_LOG_LEN: usize = 256;
 
-/// 起動を始めたことを記録する1行。**成功しても失敗してもここを通る。**
+/// 起動を始めたことを記録する1行。パスの検査を通った後、起こす前に書く。
 fn spawn_start_line(path: &str) -> String {
     format!("spawn: start path='{}'", shown(path, MAX_PATH_IN_LOG_LEN))
 }
@@ -356,12 +367,12 @@ fn disposing_line(path: &str) -> String {
 /// 上限を超えた後に起き上がったプロセスを畳む。
 ///
 /// **落とせなかったことは記録する。** ここへ来る子はどの台帳にも居ないので
-/// （→ `starting` の doc、#381）、落とし手はこの1回きり。Drop に任せても落ちるが、
+/// （→ `starting` の doc）、落とし手はこの1回きり。Drop に任せても落ちるが、
 /// それだと落とせたかがどこにも残らない。
 async fn dispose_late_spawn(
-    started: tokio::task::JoinHandle<Result<(String, String, EngineChild), EngineError>>,
+    started: tokio::task::JoinHandle<Result<(String, EngineChild), EngineError>>,
 ) {
-    let Ok(Ok((path, _, child))) = started.await else {
+    let Ok(Ok((path, child))) = started.await else {
         return;
     };
     log::warn!(target: LOGT, "{}", disposing_line(&path));
@@ -487,13 +498,13 @@ mod tests {
 
     /// 台帳が書く3つの1行が、外から来た文字列でログを壊せないこと。
     ///
-    /// **産地が2つある。** `id name` はエンジンが名乗った値、`path` は
+    /// 産地は2つある。`id name` はエンジンが名乗った値、`path` は
     /// webview が選んだ値。どちらも台帳は長さも中身も見ずに保持する。
     ///
-    /// 見るのは3つ。**予算を一周させられないこと**（素で載せると1行で診断の
-    /// 履歴が全部飛ぶ）、**改行を通さないこと**（`canonicalize` も `is_file` も
+    /// 見るのは3つ。予算を一周させられないこと（素で載せると1行で診断の
+    /// 履歴が全部飛ぶ）、改行を通さないこと（`canonicalize` も `is_file` も
     /// 改行を含むファイル名を通すので、素で載せると偽のログ行を1本作れる）、
-    /// **実運用の長さのパスが `…` で終わらないこと**（＝上限の下側。
+    /// 実運用の長さのパスが `…` で終わらないこと（上限の下側。
     /// 縮めると、どの実行ファイルを起こしたのかが読めなくなる）。
     #[test]
     fn the_registry_lines_cannot_rotate_the_log_or_forge_a_line() {
@@ -522,11 +533,11 @@ mod tests {
             );
         }
 
-        // **実運用の長さのパスが `…` で終わらないこと。** 上限を縮めると、
+        // 実運用の長さのパスが `…` で終わらないこと。上限を縮めると、
         // 定数の doc が名指しで避けた状態（どの実行ファイルを起こしたのか
         // 読めない）に戻る。
         //
-        // 代表的な深さは**固定で持つ**——走っているマシンの実行ファイルだけに
+        // **代表的な深さは固定で持つ。** 走っているマシンの実行ファイルだけに
         // すると、浅い場所へビルドしたときに下限が下がる。実行ファイルは
         // 取れれば併せて見る
         let representative =
@@ -564,7 +575,7 @@ mod tests {
 
     /// 起こせなかった理由が、OS の言葉まで残ること。
     ///
-    /// **`usi::Error` の `Display` はバリアントごとの定型文しか出さない。**
+    /// `usi::Error` の `Display` はバリアントごとの定型文しか出さない。
     /// `EngineIo` は中の `std::io::Error` を丸ごと捨てるので、素で文字列にすると
     /// 利用者に返るのもログに残るのも
     /// 「IO error occurred when communicating with the engine」だけになる。
@@ -598,7 +609,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 起動できて `usi` に答えない実行ファイルが、**時間切れを名乗らないこと。**
+    /// 起動できて `usi` に答えない実行ファイルが、時間切れを名乗らないこと。
     ///
     /// `/bin/cat` は入口の検査を全部通る（`canonicalize` も `is_file` も
     /// `Command::spawn` も成功する）が、`usi` を送っても `usiok` は来ない。
@@ -606,12 +617,12 @@ mod tests {
     ///
     /// **ここが `Timeout` を名乗ると F-27 の導線が消える。** 時間切れ側は
     /// 「遅かっただけで設定は正しい」の意味に使われるので、受け手は再試行を出す。
-    /// 待ち直しても同じ上限を使って同じ結果になり、**パスを直す案内は一度も出ない。**
+    /// 待ち直しても同じ上限を使って同じ結果になり、パスを直す案内は一度も出ない。
     ///
-    /// **どれだけ待ったのかも文言から読めること。** この文言は利用者にそのまま
+    /// どれだけ待ったのかも文言から読めること。この文言は利用者にそのまま
     /// 見せる契約（F-27）なので、秒で切り捨てると「0秒しか待っていないのに
     /// ファイルのせいにしている」行が画面に出る。締切で上限を削られた側の呼び方
-    /// （`game/session.rs` の `prepare_engine`）では**1秒未満が実際に起きる**。
+    /// （`game/session.rs` の `prepare_engine`）では1秒未満が実際に起きる。
     #[cfg(unix)]
     #[tokio::test]
     async fn a_file_that_is_not_a_usi_engine_does_not_claim_the_retry_marker() {
@@ -641,9 +652,9 @@ mod tests {
         );
     }
 
-    /// `engine_path` が**実在するファイル**であることを要求すること。
+    /// `engine_path` が実在するファイルであることを要求すること。
     ///
-    /// **`start_game` を root 配下の検査から免除する理由がこの検査。**
+    /// `start_game` を root 配下の検査から免除する理由がこの検査。
     /// `root_guard.rs` の `EXEMPT` は「起こしてよいかは `EngineRegistry::spawn` の
     /// canonicalize + is_file が見る」と書いているので、ここが抜けると
     /// **免除の根拠ごと消える**——`engine_path` はフロントから来る任意の文字列で、
@@ -683,5 +694,225 @@ mod tests {
             format!("{error}").contains("work_dir"),
             "断る理由が変わっている: {error}"
         );
+    }
+
+    /// `work_dir` はディレクトリであることを要求する。在るファイルも断る
+    #[tokio::test]
+    async fn spawn_refuses_a_work_dir_that_is_a_file() {
+        let quick = Duration::from_millis(200);
+        let manifest = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+        let error = EngineRegistry::new()
+            .spawn(manifest, Some(manifest), quick, quick)
+            .await
+            .expect_err("ファイルを work_dir として通している");
+        assert!(
+            format!("{error}").contains("work_dir must point to an existing directory"),
+            "断る理由が変わっている: {error}"
+        );
+    }
+
+    /// 実プロセスで、起動から台帳と起動中の置き場への出入りまでを確かめる
+    #[cfg(unix)]
+    mod processes {
+        use super::*;
+        use crate::engine::registry::script::place_script;
+        use std::path::{Path, PathBuf};
+        use test_support::dir::temp_dir;
+        use tokio_util::sync::CancellationToken;
+
+        /// `usi` に、cwd を名乗って答える台本
+        const NAMES_ITS_CWD: &str = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name %s\nusiok\n' "$(pwd -P)" ;;
+  esac
+done"#;
+
+        /// `usi` に答えない台本
+        const SILENT: &str = "exec sleep 30";
+
+        fn engine(path: &Path) -> &str {
+            path.to_str().expect("パス")
+        }
+
+        /// 自分の PID を `pid_file` に書き、`usi` に答え、`quit` でも stdin の EOF でも終わらない台本
+        fn stubborn(pid_file: &Path) -> String {
+            format!(
+                r#"echo $$ > '{}'
+while read line; do
+  case "$line" in
+    usi) printf 'id name Stubborn\nusiok\n' ;;
+  esac
+done
+exec sleep 30"#,
+                pid_file.display()
+            )
+        }
+
+        /// シグナル0を送って確かめる。`kill -0` を起こさないのは、子プロセスを作ってよいのが `child` だけだから（`tests/layering.rs`）
+        fn is_alive(pid_file: &Path) -> bool {
+            let pid = std::fs::read_to_string(pid_file).expect("PID が書かれている");
+            let pid = pid.trim().parse().expect("PID は数");
+            rustix::process::Pid::from_raw(pid)
+                .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
+        }
+
+        async fn wait_until_starting(registry: &EngineRegistry) {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while registry.starting.read().await.is_empty() {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("起動中の置き場に載らない");
+        }
+
+        /// `work_dir` を渡さなければ、cwd はシンボリックリンクを辿った先の実行ファイルのフォルダ。
+        /// 載せた後は起動中の置き場に残さない
+        #[tokio::test]
+        async fn the_default_cwd_is_the_folder_of_the_resolved_executable() {
+            let dir = temp_dir("registry-cwd");
+            let real = dir.join("real");
+            let linked = dir.join("linked");
+            std::fs::create_dir_all(&real).expect("フォルダを作れる");
+            std::fs::create_dir_all(&linked).expect("フォルダを作れる");
+            let path = place_script(&real, "engine.sh", NAMES_ITS_CWD).await;
+            let link = linked.join("engine.sh");
+            std::os::unix::fs::symlink(&path, &link).expect("リンクを張れる");
+
+            let registry = EngineRegistry::new();
+            let process = registry
+                .spawn(engine(&link), None, SPAWN_TIMEOUT, Duration::from_secs(10))
+                .await
+                .expect("起動できる");
+
+            let expected: PathBuf = std::fs::canonicalize(&real).expect("解決できる");
+            assert_eq!(process.info.name, expected.to_string_lossy());
+            assert!(registry.starting.read().await.is_empty());
+            registry.kill(&process.id).await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `shutdown` も `kill` も `shutdown_all` も、`quit` に答えないエンジンを落としてから返る
+        #[tokio::test]
+        async fn every_way_of_ending_ends_an_engine_that_ignores_quit() {
+            let dir = temp_dir("registry-stubborn");
+            let registry = EngineRegistry::new();
+
+            for (i, end) in ["shutdown", "kill", "shutdown_all"].into_iter().enumerate() {
+                let pid_file = dir.join(format!("{i}.pid"));
+                let path = place_script(&dir, &format!("{i}.sh"), &stubborn(&pid_file)).await;
+                let process = registry
+                    .spawn(engine(&path), None, SPAWN_TIMEOUT, Duration::from_secs(10))
+                    .await
+                    .expect("起動できる");
+                assert!(is_alive(&pid_file), "{end}: 起きていない");
+
+                match end {
+                    "shutdown" => registry.shutdown(&process.id).await,
+                    "kill" => registry.kill(&process.id).await,
+                    _ => registry.shutdown_all().await,
+                }
+                assert!(!is_alive(&pid_file), "{end}: 返った後も生きている");
+                assert!(
+                    registry.get(&process.id).await.is_none(),
+                    "{end}: 台帳に残っている"
+                );
+            }
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `shutdown` は落とす前に `quit` を送り、エンジンが自分で畳む間を待つ
+        #[tokio::test]
+        async fn shutdown_sends_quit_before_ending_the_engine() {
+            let dir = temp_dir("registry-quit");
+            let said_bye = dir.join("bye");
+            let body = format!(
+                r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Polite\nusiok\n' ;;
+    quit) echo bye > '{}'; exit 0 ;;
+  esac
+done"#,
+                said_bye.display()
+            );
+            let path = place_script(&dir, "engine.sh", &body).await;
+            let registry = EngineRegistry::new();
+            let process = registry
+                .spawn(engine(&path), None, SPAWN_TIMEOUT, Duration::from_secs(10))
+                .await
+                .expect("起動できる");
+
+            registry.shutdown(&process.id).await;
+            assert!(said_bye.exists(), "`quit` を受け取っていない");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `usiok` を待っている間の `shutdown_all` は、起動中のプロセスも落とす。起動は待ち切らずに失敗で返る
+        #[tokio::test]
+        async fn shutdown_all_ends_an_engine_that_is_still_starting() {
+            let dir = temp_dir("registry-shutdown-starting");
+            let path = place_script(&dir, "engine.sh", SILENT).await;
+            let registry = Arc::new(EngineRegistry::new());
+
+            let starting = tokio::spawn({
+                let registry = Arc::clone(&registry);
+                let path = engine(&path).to_string();
+                async move {
+                    registry
+                        .spawn(&path, None, SPAWN_TIMEOUT, Duration::from_secs(60))
+                        .await
+                }
+            });
+            wait_until_starting(&registry).await;
+            registry.shutdown_all().await;
+
+            let started = tokio::time::timeout(Duration::from_secs(10), starting)
+                .await
+                .expect("落とした後も `usiok` を待ち続けている")
+                .expect("起動のタスクが落ちた");
+            let Err(_) = started else {
+                panic!("落としたのに起動が成功している");
+            };
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `usiok` を待っている間に取り消すと、`Cancelled` で返り、起動中の置き場にも残さない
+        #[tokio::test]
+        async fn cancelling_while_waiting_for_usiok_leaves_nothing_starting() {
+            let dir = temp_dir("registry-cancel-starting");
+            let path = place_script(&dir, "engine.sh", SILENT).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let cancel = CancellationToken::new();
+
+            let starting = tokio::spawn({
+                let registry = Arc::clone(&registry);
+                let path = engine(&path).to_string();
+                let cancel = cancel.clone();
+                async move {
+                    registry
+                        .spawn_cancellable(
+                            &path,
+                            None,
+                            SPAWN_TIMEOUT,
+                            Duration::from_secs(60),
+                            &cancel,
+                        )
+                        .await
+                }
+            });
+            wait_until_starting(&registry).await;
+            cancel.cancel();
+
+            let started = tokio::time::timeout(Duration::from_secs(10), starting)
+                .await
+                .expect("取り消した後も `usiok` を待ち続けている")
+                .expect("起動のタスクが落ちた");
+            assert!(
+                matches!(started, Err(EngineError::Cancelled(_))),
+                "{started:?}"
+            );
+            assert!(registry.starting.read().await.is_empty());
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }

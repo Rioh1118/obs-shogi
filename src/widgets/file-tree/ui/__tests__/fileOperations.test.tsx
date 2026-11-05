@@ -73,7 +73,7 @@ vi.mock("@dnd-kit/core", async () => {
   return mocked satisfies typeof import("@dnd-kit/core");
 });
 
-// 行の描き方はこの試験の外。ツリーが描かれたことだけ分かればよい
+// 行の描き方はこのテストの外。ツリーが描かれたことだけ分かればよい
 vi.mock("../RootNode", () => {
   const mocked = { default: () => <div>ツリー</div> };
   return mocked satisfies typeof import("../RootNode");

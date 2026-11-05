@@ -97,8 +97,8 @@ jobs:
       - name: Rust clippy
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings
 
-      # `--workspace` が無いとルートの `app` しか選ばず、`crates/*` の試験が1本も走らない
-      # （`src/__tests__/cargoWorkspaceSelection.test.ts`）。clippy も同じで、crate の試験のコードを見ない。
+      # `--workspace` が無いとルートの `app` しか選ばず、`crates/*` のテストが1本も走らない
+      # （`src/__tests__/cargoWorkspaceSelection.test.ts`）。clippy も同じで、crate のテストのコードを見ない。
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace
 

@@ -38,7 +38,7 @@ pub fn convert_jkf_to_string_internal(
     // 揃っているかは確かめていない。外すと綴りがどう変わるかも測っていない。
     //
     // 正規化しても `promote` は戻らない。`normalize()` は `same` を局面から復元するが、
-    // 欠けた `promote` には `Some(false)` を書く。これは実測した値で、試験では固定していない
+    // 欠けた `promote` には `Some(false)` を書く。これは実測した値で、テストでは固定していない
     // （`a_dropped_promotion_changes_the_move_that_is_written` が見るのは書き出しの側だけ）。
     jkf.normalize().map_err(|e| format!("正規化エラー: {e}"))?;
 

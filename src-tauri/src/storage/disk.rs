@@ -255,7 +255,7 @@ mod tests {
         );
     }
 
-    /// 失敗を仕込んだ置き場は、置くと落ちる。読み手の試験はこの置き場で置けない失敗を踏む。
+    /// 失敗を仕込んだ置き場は、置くと落ちる。読み手のテストはこの置き場で置けない失敗を踏む。
     #[test]
     fn a_failing_store_reports_the_failure() {
         assert!(matches!(
