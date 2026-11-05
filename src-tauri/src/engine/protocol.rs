@@ -2424,5 +2424,93 @@ mod tests {
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }
+
+        /// (Q0, L3): `usiok` までに `id name` が無いエンジンは `NO_ID_NAME` で断る。
+        ///
+        /// **出力が終わった回（`usiok` の前に終わった）と分ける。** 名乗らないエンジンは
+        /// 設定の誤り（USI エンジンではないファイル）で、終わったエンジンは起動の失敗。
+        /// 呼び手は綴りの先頭で種類を分ける（`start_failure`）
+        #[tokio::test]
+        async fn an_engine_without_a_name_is_refused_with_no_id_name() {
+            let dir = test_support::dir::temp_dir("protocol-no-id-name");
+            let protocol =
+                protocol_for(&dir, "printf 'id author Nobody\\nusiok\\n'; exec sleep 30").await;
+
+            let error = protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect_err("名乗らないエンジンを通している");
+            assert!(
+                matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_ID_NAME)),
+                "`NO_ID_NAME` で断っていない: {error}"
+            );
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (Q3, R8): 探索中に `UsiProtocol` を全部捨てても、プロセスは落ちる。
+        ///
+        /// **台本は探索中に stdin を読まない。** 読んでいると、捨てたときに閉じた stdin で
+        /// 台本が自分から終わり、こちらが落としたかどうかを見ないまま通る
+        /// （`dropping_the_protocol_ends_the_process` の `cat` はそちらで終わる）。
+        /// 探索の受け手（`register_listener`）を張ったまま捨てるのは、対局の探索タスクが
+        /// 途中で畳まれたときの形
+        #[tokio::test]
+        async fn dropping_the_protocol_during_a_search_ends_the_process() {
+            let dir = test_support::dir::temp_dir("protocol-drop-searching");
+            let protocol = protocol_for(
+                &dir,
+                r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Drop\nusiok\n' ;;
+    isready) echo readyok ;;
+    go*) echo 'info depth 1 score cp 0 pv 7g7f'; exec sleep 30 ;;
+  esac
+done"#,
+            )
+            .await;
+            protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("名乗る");
+            protocol
+                .become_ready(Some(Duration::from_secs(10)))
+                .await
+                .expect("準備できる");
+            let (tx, mut rx) = mpsc::unbounded_channel();
+            protocol
+                .register_listener("search".to_string(), tx)
+                .await
+                .expect("受け手を張れる");
+            protocol
+                .send_command(&GuiCommand::Position("startpos".to_string()))
+                .await
+                .expect("position を送れる");
+            protocol
+                .send_command(&GuiCommand::Go(usi::ThinkParams::new().infinite()))
+                .await
+                .expect("go を送れる");
+            // `info` が届けば、台本は `go` を読んで探索（stdin を読まない形）に入っている
+            loop {
+                let line = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+                    .await
+                    .expect("go の後の info が来ない")
+                    .expect("info の前に受け手が閉じた");
+                if matches!(line, EngineCommand::Info(_)) {
+                    break;
+                }
+            }
+            let diagnostics = protocol.child.diagnostics();
+            drop(protocol);
+
+            assert!(
+                matches!(
+                    diagnostics.wait_exit(Duration::from_secs(10)).await,
+                    crate::engine::child::Waited::Ended(_)
+                ),
+                "探索中に捨てた protocol のプロセスが残っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }
