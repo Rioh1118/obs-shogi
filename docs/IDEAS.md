@@ -213,24 +213,20 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 **ここに並べたものは issue にしない**（`docs/OPERATING-MODEL.md`）。着手すると決めた
 時点で昇格すること。
 
-## `entities/engine` の公開面が barrel と deep import に割れている
+## `entities/ai-library` の `api/` を barrel に載せるか
 
-`.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
+`.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）で、`entities/engine` の
+`api/` が barrel を通さずに読まれていると出た。エンジン横断の棚卸し（`docs/audits/2026-11-engine.md`）で、
+読まれていたもののうち `aiLibrary` は `entities/ai-library` へ、`setPositionFromSfen` は `entities/analysis` へ移し、
+`probeEngine` は `entities/engine` の barrel から出した。`entities/engine` へ深く入る import はもう無い。
 
-`entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
-**barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で本物の import が8本。内訳は `aiLibrary` 6 / `tauri` 2。ほかに `vi.mock` の行が1つ——`features/engine-position-sync` のテスト）。
-`sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
-**公開しない限り深く読める**。
+残るのは `entities/ai-library` で、barrel を持たず `features/settings` が深く読む。`sliceBarrels` は
+barrel を持つスライスしか縛らないので、いまは何も検査されていない。
 
 **判断: 6週間以内に着手しない。** 利用者に見える不具合ではない。
-どちらへ寄せるかは `entities/engine` の公開面をまとめて決める作業で、
-どちらを選んでも `features/settings` と `features/engine-position-sync` に波及する。
 
 - **(a) `api/` を境界として認めて barrel に載せる。** 載せたモジュールの deep import が
-  その瞬間に `sliceBarrels` の違反になる（`vi.mock` を含むファイルは免除）。
-  `api/tauri` だけなら2ファイル（`features/engine-position-sync` と `features/settings`）、
-  `api/aiLibrary` まで広げると `features/settings` の6ファイル
+  その瞬間に `sliceBarrels` の違反になる（`vi.mock` を含むファイルは免除）
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
 
