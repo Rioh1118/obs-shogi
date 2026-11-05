@@ -73,8 +73,9 @@ ours 戦略のマージは使わない。
 | 37 | `refactor/tidy-rust-kifu-workspace` | `src-tauri/src/kifu`、`src-tauri/src/workspace`（Rust の範囲3） | #706 | マージ済み |
 | 38 | `refactor/tidy-rust-ai-library` | `src-tauri/src/ai_library`（Rust の範囲4） | #707 | マージ済み |
 | 39 | `refactor/tidy-rust-engine-launchable` | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（Rust の範囲5） | #709 | マージ済み |
-| 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | #710 | レビュー待ち |
-| 41 | `refactor/engine-crate-visibility` | `src-tauri/src/lib.rs` の `pub mod engine` と呼び手の無い `pub`（Rust の範囲「公開」）、5c を設計の段にする | #712 | レビュー待ち |
+| 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | #710 | マージ済み |
+| 41 | `refactor/engine-crate-visibility` | `src-tauri/src/lib.rs` の `pub mod engine` と呼び手の無い `pub`（Rust の範囲「公開」）、5c を設計の段にする | #712 | マージ済み |
+| 42 | `docs/engine-usi-design` | USI のやりとりの作り直しの設計（Rust の範囲5c）。ADR-0016、`engine.md` と `analysis.md` の目標の形 | #PR | レビュー待ち |
 
 ## 語
 
@@ -132,9 +133,10 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 `src-tauri/tests/layering.rs` の `LAYERS` の下の段から取る。行数は範囲5bまではファイル内のテストを含み、
 6 から 8b はテストを除く（切り方は `docs/audits/2026-11-engine.md` の「残りの範囲の切り方」）。
 
-**5c は整理ではなく設計の段にする**（利用者の決定）。`protocol.rs` をいまの形のまま磨くと、作り直しで書き直す行を磨くことになる。
-目指す形と、いまの形の事実は `docs/proposals/engine-usi-rebuild.md` に置いた。設計の段では実装しない。
-**7a から 8b は作り直しの影響を受ける。** 作り直しの後に、その形で切り直す。
+**5c は整理ではなく設計の段にした**（利用者の決定）。`protocol.rs` をいまの形のまま磨くと、作り直しで書き直す行を磨くことになる。
+設計は ADR-0016（`docs/decisions/0016-usi-machine-shell-procedures.md`）。作り直しの段 U0〜U4 を、整理の範囲 6〜8b と交互に並べた
+（触るファイルが重ならない順。理由は ADR-0016 決定10）。**下の表の順に取る。** U の段は整理ではなく作り直しで、行数の上限（2000行）は
+整理の範囲にだけ掛ける。`protocol.rs` の整理の範囲は無い——作り直しで書き直す行は、書くときに `/readable-code` に揃える。
 
 | 順 | 範囲                                                   | 行数  | 状態     |
 | -- | ------------------------------------------------------ | ----- | -------- |
@@ -146,12 +148,18 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 5  | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line` | 1787 | 済 |
 | 5b | `src-tauri/src/engine` の `child`、`registry` | 1590 | 済 |
 | 公開 | `src-tauri/src/lib.rs` の `pub mod engine` を `pub(crate)` にし、呼び手の無い `pub` を消す | 小 | 済 |
-| 5c | USI のやりとりの作り直しの設計（`engine/protocol.rs` が中心） | — | 設計の段 |
-| 6  | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure` | 825 | 未着手 |
+| 5c | USI のやりとりの作り直しの設計（ADR-0016） | — | 済 |
+| U0 | 載せ替えの前に要るテスト（`docs/state-transitions/engine.md` の T1〜T10）と性能の基準線（ADR-0016 の M1〜M3）。製品のコードは変えない | — | 未着手 |
+| U1 | 手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry`、`setup`、`probe` を手順へ移す | — | 未着手 |
+| 6  | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure` | U1 の後に数える | 未着手 |
+| U2a | `analyzer` を手順へ移す | — | 未着手 |
+| 8a | `src-tauri/src/engine/analyzer.rs` | U2a の後に数える | 未着手 |
 | 7a | `src-tauri/src/engine/game/session.rs` を4つのファイルに割る。割るだけ | 2208 | 未着手 |
-| 7b | `src-tauri/src/engine/game` の残りと `engine/commands/game.rs` | 約 1850 | 未着手 |
-| 8a | `src-tauri/src/engine/analyzer.rs` | 1159 | 未着手 |
-| 8b | `src-tauri/src/engine` の `bridge`、`analysis_events`、`probe`、`state`、`commands`（`game.rs` を除く） | 約 1090 | 未着手 |
+| U2b | `game` を手順へ移す | — | 未着手 |
+| U3 | 状態機械を新しい段 `usi_machine` に作る。受け手の表と積み置きを消す | — | 未着手 |
+| U4 | 殻（タスク1本）。送る面と落とす面を分ける | — | 未着手 |
+| 7b | `src-tauri/src/engine/game` の残りと `engine/commands/game.rs` | U2b の後に数える | 未着手 |
+| 8b | `src-tauri/src/engine` の `bridge`、`analysis_events`、`probe`、`state`、`commands`（`game.rs` を除く） | U4 の後に数える | 未着手 |
 | 9  | `src-tauri/src/book`                                   | 7044  | 未着手   |
 | 10 | `src-tauri/src/search`                                 | 14346 | 未着手   |
 
@@ -216,19 +224,25 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/workspace/commands` と `kifu/commands.rs` の `write_kifu_to_file` の本体 | `AppHandle` を受けるので、crate のテストが届かない。範囲3では `guard.rs` の判定だけをパスで受ける関数へ割った。本体まで割ると、`tests/root_guard.rs` が `#[command]` の本体で読む検査の順が見えなくなる。ルートの走査が落とさなかった変異は2本: `rename_directory` の `is_project_root` の分岐を外す（ワークスペースそのものの改名が root の外として断られる）と、`create_kifu_file` の2本目の `validate_under_root` を外す（名前は `validate_basename` を通るので行き先は変わらない）。`tauri` の `test` の feature を dev-dependencies で有効にすれば `mock_app` で呼べるが、`Cargo.toml` は範囲3の外。mock の識別子は既定で空なので、`app_config_dir` が利用者のホームの下を指す。一時の名前を付けて呼ぶ |
 | `docs/spec/screens/file-tree.md` の「読み取れないサブフォルダが黙って消える → #179」 | #179 は「仕様上こうなっているで良い」で閉じたが、仕様は「いま満たしていないこと」に載せたまま。`workspace/tree.rs` の `build_file_tree_recursive` は、読めない行と root の外へ出る symlink を黙って落とす。範囲3では、コメントを仕様の文に合わせた。仕様の行を「できること」へ移すか、#179 を開き直すかを決める |
 | `src-tauri/src/engine/registry.rs` の `spawn_cancellable` を待つ future を捨てたとき | `usiok` を待つ間に future を捨てると、プロセスは起動中の置き場（`starting`）に残り、`shutdown_all` まで落ちない。範囲5bで使い捨てのテストを書いて確かめ、doc に書いた。取り消しは `cancel` で行う契約にしてある。呼び手は `analyzer` と `probe`（`spawn_cancellable`）と対局の `session.rs`（`spawn`）の3つで、どれかが future を捨てる経路を持つかは確かめていない。持つなら、置き場から外す Drop の見張りを足すかを決める。未再現 |
-| `src-tauri/src/engine/registry.rs` の `EngineProcess::protocol` が返す `Arc<UsiProtocol>` | 台帳と呼び手が同じ1本を共有する（R-RSM-7 の境界の漏れの grep に当たる）。台帳は落とすために、呼び手は送るために持つ。`UsiProtocol` の側で、送る面と落とす面を分けるかを、範囲5cの設計で作り直しの形と合わせて決める |
-| `src-tauri/src/engine/registry.rs` の `EngineRegistry` の `Debug` | 欄の `UsiProtocol` が `Debug` を持たないので付けられない（R-RSA-3）。`UsiProtocol` に付けるときに合わせて付ける。作り直しのどの段で付けるかを範囲5cの設計で決める |
+| `src-tauri/src/engine/registry.rs` の `EngineProcess::protocol` が返す `Arc<UsiProtocol>` | 台帳と呼び手が同じ1本を共有する（R-RSM-7 の境界の漏れの grep に当たる）。台帳は落とすために、呼び手は送るために持つ。範囲5cで、U4 で送る面と落とす面の2つの型に分けると決めた（ADR-0016 決定6） |
+| `src-tauri/src/engine/registry.rs` の `EngineRegistry` の `Debug` | 欄の `UsiProtocol` が `Debug` を持たないので付けられない（R-RSA-3）。U4 で取っ手がチャネルの送り手を包むだけになり、`Debug` を持てる。そこで付ける（ADR-0016 決定6） |
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で取った。次は Rust の範囲5c（設計の段）。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で取った。次は作り直しの最初の段 U0。
 
 範囲「公開」から、`engine` は crate の外へ出ない。外へ出すのは `tests/engine_timeouts.rs` が読む上限の定数だけで、
 `lib.rs` が再輸出する。`engine` の中で呼び手の無い `pub` は rustc の `dead_code` が拾うので、以後の範囲では grep で数えなくてよい。
 
-範囲5c: USI のやりとりを、IO を持たない状態機械と手順の関数へ作り直す設計。入力は `docs/proposals/engine-usi-rebuild.md`。
-出すものは、目標の形で引き直した `docs/state-transitions/engine.md` と `analysis.md`、段階の順、作り直しの後の 7 と 8 の切り方。
-所見の表の `Arc<UsiProtocol>` の共有と `EngineRegistry` の `Debug` の行は、作り直しのどの段で閉じるかを 5c で決める。
+U0: 載せ替えの前に要るテストと、性能の基準線。**製品のコードは変えない。**
+
+- テストは `docs/state-transitions/engine.md` の「載せ替えの前に要るテスト」の T1〜T10。T1〜T6 は対局のエンジンを台本で起こす最初のテストで、
+  `registry` の `script` を対局のテストから使う（テストだけの辺は `tests/layering.rs` のテストの表に足す）
+- 足したテストは、守っている判定を壊す変異で落ちることを確かめる
+- 性能は ADR-0016 決定9 の M1〜M3。値は `research/engines/usi-measurements.md` に、日付と基点のハッシュを付けて足す
+- 表の「新」の印のセルは固定しない（作り直しで振る舞いを変えると決めたセル）
+
+U0 の後は上の表の順に U1、範囲6、U2a と進む。各段の範囲と固定のしかたは ADR-0016 の決定8。
 
 `tests/layering.rs` は `engine` の段の上下を
 ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。
