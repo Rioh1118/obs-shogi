@@ -8,6 +8,9 @@ export type { AnalysisState, PositionSyncAdapter } from "./model/types";
 // 次に触る人がその名前を正しい入口だと読む。
 export { pickTopCandidate } from "./lib/candidates";
 
+// 局面を Rust へ渡す。読み手は局面の同期（`features/engine-position-sync`）
+export { setPositionFromSfen } from "./api/tauri";
+
 // 操作列の語。エンジンと検討の両方を読むので、エンジンより上のこのスライスに置く
 export { engineStatusOf } from "./lib/engineStatus";
 export type { EngineStatus } from "./lib/engineStatus";

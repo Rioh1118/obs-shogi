@@ -14,7 +14,7 @@ const gameStub = { cursor: null as unknown, currentSfen: null as string | null }
 const engineStub = { isReady: true };
 const presetsStub = { selectedPresetId: "A" as string | null, selectedPresetVersion: 1 };
 
-vi.mock("@/entities/engine/api/tauri", () => ({
+vi.mock("@/entities/analysis/api/tauri", () => ({
   setPositionFromSfen: (sfen: string) => setPositionFromSfen(sfen),
 }));
 vi.mock("@/entities/game", () => ({

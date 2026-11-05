@@ -55,7 +55,3 @@ export function probeEngine(enginePath: string): { token: number; outcome: Promi
 export async function shutdownEngine(request: EngineRequest): Promise<void> {
   return await invoke("shutdown_engine", { request });
 }
-
-export async function setPositionFromSfen(sfen: string): Promise<void> {
-  return await invoke("set_position", { position: sfen });
-}
