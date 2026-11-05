@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useAppConfig } from "@/entities/app-config";
-import { ensureEnginesDir, scanAiRoot } from "@/entities/engine/api/aiLibrary";
+import { ensureEnginesDir, scanAiRoot } from "@/entities/ai-library/api/aiLibrary";
 import {
   failKeepingIndex,
   indexOfRoot,

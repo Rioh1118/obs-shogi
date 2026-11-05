@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Bot, Database, FolderOpen, Wrench } from "lucide-react";
 
-import type { EnginesDir } from "@/entities/engine/lib/enginesDir";
+import type { EnginesDir } from "@/entities/ai-library/lib/enginesDir";
 import type { AiLibraryContents } from "@/features/settings/lib/aiLibraryContents";
 
 /** カードに出す状態の名前。網羅の理由は `EnginesDir` の doc */

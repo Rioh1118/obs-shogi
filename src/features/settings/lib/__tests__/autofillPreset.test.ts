@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { EngineCandidate, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
+import type { EngineCandidate, ProfileCandidate } from "@/entities/ai-library/api/aiLibrary";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { autofillPreset } from "../autofillPreset";
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { asStartFailure } from "@/entities/engine";
-import type { AiRootIndex } from "@/entities/engine/api/aiLibrary";
+import type { AiRootIndex } from "@/entities/ai-library/api/aiLibrary";
 import { probeEngine } from "@/entities/engine/api/tauri";
 import { probePathOf } from "@/entities/engine-presets/lib/withDefinitions";
 import type { AnalysisDefaults, PresetId } from "@/entities/engine-presets/model/types";

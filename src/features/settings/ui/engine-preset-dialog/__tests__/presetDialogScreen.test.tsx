@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-import type { AiRootIndex, EngineCandidate } from "@/entities/engine/api/aiLibrary";
+import type { AiRootIndex, EngineCandidate } from "@/entities/ai-library/api/aiLibrary";
 import type { ProbeOutcome } from "@/entities/engine";
 import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
 
@@ -128,13 +128,13 @@ vi.mock(
 );
 
 vi.mock(
-  "@/entities/engine/api/aiLibrary",
+  "@/entities/ai-library/api/aiLibrary",
   async (importActual) =>
     ({
-      ...(await importActual<typeof import("@/entities/engine/api/aiLibrary")>()),
+      ...(await importActual<typeof import("@/entities/ai-library/api/aiLibrary")>()),
       scanAiRoot: (root: string) => scanAiRoot(root),
       ensureEnginesDir: (root: string) => ensureEnginesDir(root),
-    }) satisfies typeof import("@/entities/engine/api/aiLibrary"),
+    }) satisfies typeof import("@/entities/ai-library/api/aiLibrary"),
 );
 
 const { default: EnginePresetEditDialogPanel } = await import("../EnginePresetEditDialogPanel");

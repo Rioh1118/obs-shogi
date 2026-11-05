@@ -1,4 +1,4 @@
-import { canListEnginesDir, type EnginesDir } from "@/entities/engine/lib/enginesDir";
+import { canListEnginesDir, type EnginesDir } from "@/entities/ai-library/lib/enginesDir";
 
 import type { AiFolderSummary } from "@/features/settings/lib/aiLibraryContents";
 

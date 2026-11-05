@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { EngineCandidate } from "@/entities/engine/api/aiLibrary";
+import type { EngineCandidate } from "@/entities/ai-library/api/aiLibrary";
 import { presetEngineOptions } from "../presetEngineOptions";
 
 function candidate(entry: string): EngineCandidate {

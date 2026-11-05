@@ -27,8 +27,8 @@ const LAYERS = ["pages", "widgets", "features", "entities"] as const;
  * 「型を読みたいから」は理由にならない —— 共有したい型は共有できる位置まで下げる。
  */
 export const CROSS_SLICE_INVENTORY: readonly string[] = [
+  "entities/ai-library -> entities/file-tree",
   "entities/analysis -> entities/engine",
-  "entities/engine -> entities/file-tree",
   "entities/engine-presets -> entities/app-config",
   "entities/engine-presets -> entities/engine",
   "entities/file-tree -> entities/app-config",

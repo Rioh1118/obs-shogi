@@ -1,10 +1,10 @@
-import type { AiRootIndex, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
-import { isEngineForThisMachine } from "@/entities/engine/lib/engineCandidate";
+import type { AiRootIndex, ProfileCandidate } from "@/entities/ai-library/api/aiLibrary";
+import { isEngineForThisMachine } from "@/entities/ai-library/lib/engineCandidate";
 import {
   canListEnginesDir,
   classifyEnginesDir,
   type EnginesDir,
-} from "@/entities/engine/lib/enginesDir";
+} from "@/entities/ai-library/lib/enginesDir";
 
 /** 手順書に出す AI フォルダ。`hasBook` が偽でも使える（定跡は任意） */
 export type AiFolderSummary = {

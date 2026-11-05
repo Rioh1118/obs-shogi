@@ -1,4 +1,4 @@
-import type { AiRootIndex } from "@/entities/engine/api/aiLibrary";
+import type { AiRootIndex } from "@/entities/ai-library/api/aiLibrary";
 
 /**
  * 読めた索引と、読んだルート

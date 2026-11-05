@@ -2,7 +2,7 @@ import type {
   EngineCandidate,
   FileCandidate,
   ProfileCandidate,
-} from "@/entities/engine/api/aiLibrary";
+} from "@/entities/ai-library/api/aiLibrary";
 import type { EnginePreset } from "@/entities/engine-presets/model/types";
 import { isSelectableEngine } from "@/features/settings/lib/presetEngineOptions";
 

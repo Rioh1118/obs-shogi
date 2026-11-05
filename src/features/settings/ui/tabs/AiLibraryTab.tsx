@@ -2,7 +2,7 @@ import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
 import Button from "@/shared/ui/Button/Button";
 import { SField, SInput, SSection } from "../kit";
-import { canCreateEnginesDir, canRevealEnginesDir } from "@/entities/engine/lib/enginesDir";
+import { canCreateEnginesDir, canRevealEnginesDir } from "@/entities/ai-library/lib/enginesDir";
 import type { ScanState } from "@/features/settings/lib/aiRootScan";
 import { useAiLibrary } from "@/features/settings/model/useAiLibrary";
 import { copyText } from "@/shared/api/clipboard/copyText";

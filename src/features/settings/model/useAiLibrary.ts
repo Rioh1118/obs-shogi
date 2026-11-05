@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAppConfig } from "@/entities/app-config";
-import { createAiProfileDirs, ensureEnginesDir, scanAiRoot } from "@/entities/engine/api/aiLibrary";
+import { createAiProfileDirs, ensureEnginesDir, scanAiRoot } from "@/entities/ai-library/api/aiLibrary";
 import { describeFsError, isNameInputError, type FsError } from "@/entities/file-tree";
 import { revealInFileManager } from "@/shared/api/shell/revealInFileManager";
 import { useNotify } from "@/shared/lib/notification/useNotifications";

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-import type { AiRootIndex, FsKind } from "@/entities/engine/api/aiLibrary";
+import type { AiRootIndex, FsKind } from "@/entities/ai-library/api/aiLibrary";
 import type { NotifyRequest } from "@/shared/lib/notification/types";
 
 /**
@@ -46,7 +46,7 @@ vi.mock("@/entities/app-config/model/useAppConfig", () => ({
   useAppConfig: () => ({ config: { ai_root: aiRootValue.current }, chooseAiRoot }),
 }));
 
-vi.mock("@/entities/engine/api/aiLibrary", () => ({
+vi.mock("@/entities/ai-library/api/aiLibrary", () => ({
   scanAiRoot: (root: string) => scanAiRoot(root),
   ensureEnginesDir: (root: string) => ensureEnginesDir(root),
   createAiProfileDirs: (root: string, name: string) => createAiProfileDirs(root, name),
