@@ -7,7 +7,7 @@
 //! 片方を差し替えるともう片方が壊れる。テストの継ぎ目も作れない
 //! （下の層だけを組んで回す、ができない）。
 //!
-//! ここで見るのは7つ。
+//! ここで見るのは8つ。
 //!
 //! 1. モジュール間に環が無いこと
 //! 2. 決めた段より上のものを、下の段が `use` していないこと
@@ -16,6 +16,7 @@
 //! 5. 子プロセスを作る綴りが `engine/child.rs` の外に無いこと（`SPAWNING`）
 //! 6. `engine/` の外から入る `use` が控えと一致すること（`ENGINE_ENTRIES_FROM_OUTSIDE`）
 //! 7. エンジンのオプションの定義を組み立てるのが `engine/option_line.rs` だけであること
+//! 8. 段とファイルが役割を言わない名前（`utils` など）を名乗らないこと（`NAMES_WITHOUT_A_ROLE`）
 //!
 //! ## 走査の限界
 //!
@@ -99,9 +100,15 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
-        name: "utils",
-        decides: "`info` 行を解析結果へ畳む変換と、ログの間引き・伏字",
+        name: "candidates",
+        decides: "`info` 行を候補手の一覧へ畳む（検討と対局で同じ形）",
         may_use: &["types"],
+        forbids: &[],
+    },
+    Layer {
+        name: "logging",
+        decides: "ログに載せる文字列の長さ・伏字・間引き（ログファイルの予算から決める）",
+        may_use: &[],
         forbids: &[],
     },
     Layer {
@@ -119,13 +126,13 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "protocol",
         decides: "1本のプロセスへ何を送れるか",
-        may_use: &["types", "utils", "child", "option_line"],
+        may_use: &["types", "logging", "child", "option_line"],
         forbids: &[],
     },
     Layer {
         name: "registry",
         decides: "どのプロセスが生きているか",
-        may_use: &["types", "utils", "child", "protocol"],
+        may_use: &["types", "logging", "child", "protocol"],
         forbids: &[],
     },
     Layer {
@@ -143,32 +150,46 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "setup",
         decides: "起動したエンジンへ設定を送り、使える状態にする手順",
-        may_use: &["types", "utils", "protocol"],
+        may_use: &["types", "logging", "protocol"],
         forbids: &[],
     },
     Layer {
         name: "start_failure",
         decides: "起動の失敗を、利用者が取れる行動の種類に分ける",
-        may_use: &["types", "utils", "protocol", "launchable"],
+        may_use: &["types", "logging", "protocol", "launchable"],
         forbids: &[],
     },
     // `game` と `analyzer` は同位。互いを知らない
     Layer {
         name: "game",
         decides: "対局の状態機械と持ち時間",
-        may_use: &["types", "utils", "protocol", "registry", "setup"],
+        may_use: &[
+            "types",
+            "candidates",
+            "logging",
+            "protocol",
+            "registry",
+            "setup",
+        ],
         forbids: &["tauri"],
     },
     Layer {
         name: "analyzer",
         decides: "解析の探索1回ぶん",
-        may_use: &["types", "utils", "protocol", "registry", "setup", "binding"],
+        may_use: &[
+            "types",
+            "candidates",
+            "protocol",
+            "registry",
+            "setup",
+            "binding",
+        ],
         forbids: &[],
     },
     Layer {
         name: "bridge",
         decides: "解析のファサード",
-        may_use: &["types", "utils", "registry", "analyzer", "start_failure"],
+        may_use: &["types", "logging", "registry", "analyzer", "start_failure"],
         forbids: &["tauri"],
     },
     Layer {
@@ -193,7 +214,7 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "commands",
         decides: "Tauri コマンドの入口",
-        may_use: &["types", "utils", "game", "analyzer", "probe", "state"],
+        may_use: &["types", "logging", "game", "analyzer", "probe", "state"],
         forbids: &[],
     },
 ];
@@ -260,7 +281,7 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
         return found;
     };
 
-    // `use crate::engine::{types::*, utils::cmd_summary};`
+    // `use crate::engine::{types::*, logging::cmd_summary};`
     // 入れ子の波括弧はこの repo に無いので、深さは数えない。
     // 出たら `every_module_is_placed_on_a_layer` が拾えない名前として現れる
     let inner = inner.trim_end_matches([';', '}']);
@@ -544,11 +565,11 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     // 1行に収まる波括弧
     let (edges, _) = scan_file(
-        "use crate::engine::{types::*, utils::cmd_summary};\n",
+        "use crate::engine::{types::*, logging::cmd_summary};\n",
         "engine",
         1,
     );
-    assert_eq!(edges, ["types", "utils"].map(String::from).into());
+    assert_eq!(edges, ["logging", "types"].map(String::from).into());
 
     // **可視性が付いた形。** `pub use` を特別扱いする以上、その兄弟も要る。
     // `pub(crate) use` は `"use "` でも `"pub use "` でも始まらないので、
@@ -1182,6 +1203,41 @@ fn every_module_is_placed_on_a_layer() {
     assert!(
         stray.is_empty(),
         "段に載っていないモジュールがある。`LAYERS` に「何を決める場所か」を書くこと: {stray:?}"
+    );
+}
+
+/// 役割を言わない名前（`docs/rules/common.md` の R-DUP-5）。
+///
+/// こう名乗る段は `decides` が「と」で繋がり、呼び手の違う2つの判断が同居する。
+/// 片方の呼び手が増えるたびに段の `may_use` が太り、もう片方の判断まで下の段から見えるようになる。
+const NAMES_WITHOUT_A_ROLE: [&str; 6] = ["utils", "util", "common", "misc", "helpers", "helper"];
+
+/// `engine/` のモジュールとファイルが、役割を言わない名前を名乗らないこと。
+///
+/// 段の中のファイル（`game/` の中）も見る。段を割らない場所でも、名前が役割を言わないと
+/// 次に足す判断の置き場として選ばれる。
+#[test]
+fn no_module_is_named_after_no_role() {
+    let dir = engine_dir();
+    let mut named: Vec<String> = LAYERS.iter().map(|l| l.name.to_string()).collect();
+    for path in rust_files(&dir) {
+        let relative = path.strip_prefix(&dir).expect("engine の下");
+        named.extend(relative.components().map(|c| {
+            c.as_os_str()
+                .to_string_lossy()
+                .trim_end_matches(".rs")
+                .to_string()
+        }));
+    }
+    assert!(named.len() > LAYERS.len(), "ファイルを1つも歩いていない");
+
+    let found: BTreeSet<&String> = named
+        .iter()
+        .filter(|n| NAMES_WITHOUT_A_ROLE.contains(&n.as_str()))
+        .collect();
+    assert!(
+        found.is_empty(),
+        "役割を言わない名前の段かファイルがある。何を決める場所かで名付けること: {found:?}"
     );
 }
 

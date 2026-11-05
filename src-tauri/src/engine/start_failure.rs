@@ -9,10 +9,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::engine::launchable::{self, Inspection, Launchability};
+use crate::engine::logging::shown;
 use crate::engine::protocol::LAST_OUTPUT_PREFIX;
 use crate::engine::protocol::{NO_ID_NAME, NO_USIOK};
 use crate::engine::types::{EngineError, StartFailure, StartFailureKind};
-use crate::engine::utils::shown;
 
 /// `StartFailure::message` に載せる長さ（文字）。エンジンの出力を含むので切る
 const MAX_FAILURE_MESSAGE: usize = 512;

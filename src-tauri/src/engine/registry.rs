@@ -16,9 +16,9 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::engine::child::{self, EngineChild, KillOutcome, KILL_TIMEOUT};
+use crate::engine::logging::{shown, with_cause, MAX_SUMMARY_LEN};
 use crate::engine::protocol::UsiProtocol;
 use crate::engine::types::{EngineError, EngineInfo, TIMED_OUT};
-use crate::engine::utils::{shown, with_cause, MAX_SUMMARY_LEN};
 
 const LOGT: &str = "obs_shogi::engine::registry";
 
@@ -492,9 +492,9 @@ pub(crate) mod script {
 mod tests {
     use super::*;
 
+    use crate::engine::logging::LOG_FILE_BUDGET;
     use crate::engine::protocol::NO_USIOK;
     use crate::engine::types::engine_error_text;
-    use crate::engine::utils::LOG_FILE_BUDGET;
 
     /// 台帳が書く3つの1行が、外から来た文字列でログを壊せないこと。
     ///

@@ -80,7 +80,7 @@
   **強制も1本**（`check_writable` が書き込みの列へ入る唯一の口で見る）。
   入口ごとの検証は残してよいが、それだけだと5箇所目を足した人が素通りする
 - 「届かなくなった理由の文言」→ `cannot_reach_text` 1本
-- 「宛先へ流せなかったことを記録する間隔」→ `utils::EMIT_WARN_INTERVAL` 1本
+- 「宛先へ流せなかったことを記録する間隔」→ `logging::EMIT_WARN_INTERVAL` 1本
 - 「断ったことを記録するか」→ `commands::game::log_rejection` 1本
 
 一覧が要るときは**宣言から生やす**（`Kind::ALL` / `ReadyState::ALL`）。

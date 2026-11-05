@@ -1,4 +1,4 @@
-use crate::engine::utils::{apply_info_params, depth_of_rank};
+use crate::engine::candidates::{apply_info_params, depth_of_rank};
 
 use serde::Serialize;
 

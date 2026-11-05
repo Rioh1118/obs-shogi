@@ -406,7 +406,7 @@ pub enum EvaluationKind {
     MateUnknown(bool),
 }
 
-/// 1回の探索の読み筋。`candidates` は `rank` の昇順（`utils::apply_info_params` が並べる）
+/// 1回の探索の読み筋。`candidates` は `rank` の昇順（`candidates::apply_info_params` が並べる）
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct AnalysisResult {
     pub candidates: Vec<AnalysisCandidate>,

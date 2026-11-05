@@ -10,9 +10,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use usi::{EngineCommand, GuiCommand, InfoParams};
 
+use crate::engine::logging::shown;
 use crate::engine::protocol::{contains_usi_breaking_char, UsiProtocol};
 use crate::engine::types::{BookPathSupport, EngineError, SetOptionValue, TIMED_OUT};
-use crate::engine::utils::shown;
 
 /// 線に出る1行の欄（`setoption` の名前・値、対局の開始局面）の長さの上限（バイト）。
 ///

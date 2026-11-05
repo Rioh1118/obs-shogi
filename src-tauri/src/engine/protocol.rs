@@ -6,9 +6,9 @@ use tokio_util::sync::CancellationToken;
 use crate::engine::child::{
     ChildDiagnostics, ChildWriter, EngineChild, KillOutcome, ReadEvent, Source, KILL_TIMEOUT,
 };
+use crate::engine::logging::{shown, LogThrottle, MAX_SUMMARY_LEN};
 use crate::engine::option_line::{parse_option_line, MAX_DECLARED_BYTES, MAX_OPTIONS};
-use crate::engine::utils::{shown, LogThrottle, MAX_SUMMARY_LEN};
-use crate::engine::{types::*, utils::cmd_summary, utils::with_cause};
+use crate::engine::{logging::cmd_summary, logging::with_cause, types::*};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
@@ -1649,7 +1649,7 @@ pub(crate) mod script {
 mod tests {
     use super::*;
 
-    use crate::engine::utils::{LOG_FILE_BUDGET, MAX_SUMMARY_LEN};
+    use crate::engine::logging::{LOG_FILE_BUDGET, MAX_SUMMARY_LEN};
 
     /// 線に出る直前の検査が、`contains_usi_breaking_char` とずれないこと。
     ///

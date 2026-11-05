@@ -1,4 +1,4 @@
-use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
+use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 
 use super::analyzer::{
     AnalysisStreamItem, DepthOutcome, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME,
@@ -682,7 +682,7 @@ impl EngineBridge {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::utils::LOG_FILE_BUDGET;
+    use crate::engine::logging::LOG_FILE_BUDGET;
 
     /// セッションの出し入れだけを見る。**エンジンのプロセスは要らない。**
     ///
