@@ -2,9 +2,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import type { AiRootIndex } from "@/entities/engine/api/aiLibrary";
+import type { AiRootIndex } from "@/entities/ai-library/api/aiLibrary";
 import type { ProbeOutcome } from "@/entities/engine";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
 /**
  * プリセット編集（使うもの／解析／エンジンの設定）。エンジンは選べば裏で読み込み、うまくいけば何も言わない。
@@ -127,13 +127,13 @@ vi.mock(
 );
 
 vi.mock(
-  "@/entities/engine/api/aiLibrary",
+  "@/entities/ai-library/api/aiLibrary",
   async (importActual) =>
     ({
-      ...(await importActual<typeof import("@/entities/engine/api/aiLibrary")>()),
+      ...(await importActual<typeof import("@/entities/ai-library/api/aiLibrary")>()),
       scanAiRoot: () => Promise.resolve(INDEX),
       ensureEnginesDir: () => Promise.resolve(""),
-    }) satisfies typeof import("@/entities/engine/api/aiLibrary"),
+    }) satisfies typeof import("@/entities/ai-library/api/aiLibrary"),
 );
 
 const { default: EnginePresetEditDialogPanel } = await import("../EnginePresetEditDialogPanel");

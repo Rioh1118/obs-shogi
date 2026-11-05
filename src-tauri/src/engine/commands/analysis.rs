@@ -7,10 +7,11 @@
 //! ここがやるのは `AppState` から持ち物を取り出して渡すことだけ。
 //! **判断を書かない**——書くと、同じ判断が `EngineBridge` 側にもできる。
 
-use crate::engine::analyzer::{DepthOutcome, Request, StartInput};
+use crate::engine::analysis_events::{AnalysisEvent, AnalysisEventSink};
+use crate::engine::analyzer::{Request, StartInput};
+use crate::engine::logging::{LogThrottle, EMIT_WARN_INTERVAL};
 use crate::engine::state::AppState;
 use crate::engine::types::*;
-use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
 use std::sync::Mutex;
 use tauri::Emitter;
 

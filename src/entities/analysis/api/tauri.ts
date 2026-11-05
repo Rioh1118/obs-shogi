@@ -19,6 +19,16 @@ type DepthOutcome = {
 };
 
 /**
+ * 次の探索で読ませる局面を Rust へ渡す。Rust は覚えるだけで、エンジンへ送るのは次に読ませる直前。
+ *
+ * 検討の席と同じスライスに置くのは、局面を揃えてから読ませる順序を決めるのが検討の側だから
+ * （`PositionSyncAdapter`）。エンジンのプロセスの起動と停止（`entities/engine`）は局面を知らない
+ */
+export async function setPositionFromSfen(sfen: string): Promise<void> {
+  return await invoke("set_position", { position: sfen });
+}
+
+/**
  * 無限解析を始め、Rust が作った席の識別子を返す。
  *
  * 席は応答が返るより先に埋まる。Rust は `take_session` で席を取ってから `go` を待つ（`bridge.rs`）ので、

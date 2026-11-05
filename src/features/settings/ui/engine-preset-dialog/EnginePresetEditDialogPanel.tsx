@@ -1,4 +1,4 @@
-import type { PresetId } from "@/entities/engine-presets/model/types";
+import type { PresetId } from "@/entities/engine-presets";
 import { multiPvMax } from "@/features/settings/lib/presetOptionValues";
 import { useAiRootIndex } from "@/features/settings/model/useAiRootIndex";
 import { usePresetDialog } from "@/features/settings/model/usePresetDialog";

@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
-import { asStartFailure } from "@/entities/engine";
-import type { AiRootIndex } from "@/entities/engine/api/aiLibrary";
-import { probeEngine } from "@/entities/engine/api/tauri";
-import { probePathOf } from "@/entities/engine-presets/lib/withDefinitions";
-import type { AnalysisDefaults, PresetId } from "@/entities/engine-presets/model/types";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { asStartFailure, probeEngine } from "@/entities/engine";
+import type { AiRootIndex } from "@/entities/ai-library/api/aiLibrary";
+import { type AnalysisDefaults, type PresetId, probePathOf, useEnginePresets } from "@/entities/engine-presets";
 import { autofillPreset } from "@/features/settings/lib/autofillPreset";
 import {
   presetFieldErrors,

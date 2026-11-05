@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import Button from "@/shared/ui/Button/Button";
-import { canCreateEnginesDir, canListEnginesDir } from "@/entities/engine/lib/enginesDir";
+import { canCreateEnginesDir, canListEnginesDir } from "@/entities/ai-library/lib/enginesDir";
 import type { AiLibraryContents } from "@/features/settings/lib/aiLibraryContents";
 import type { ScanState } from "@/features/settings/lib/aiRootScan";
 import type { AiLibraryActions } from "@/features/settings/model/useAiLibrary";

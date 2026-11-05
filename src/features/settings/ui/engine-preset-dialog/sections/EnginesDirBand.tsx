@@ -2,7 +2,7 @@ import {
   canCreateEnginesDir,
   classifyEnginesDir,
   type EnginesDir,
-} from "@/entities/engine/lib/enginesDir";
+} from "@/entities/ai-library/lib/enginesDir";
 import type { AiRootIndexState } from "@/features/settings/model/useAiRootIndex";
 import Button from "@/shared/ui/Button/Button";
 import RescanButton from "./RescanButton";

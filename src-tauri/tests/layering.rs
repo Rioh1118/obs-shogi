@@ -7,7 +7,7 @@
 //! 片方を差し替えるともう片方が壊れる。テストの継ぎ目も作れない
 //! （下の層だけを組んで回す、ができない）。
 //!
-//! ここで見るのは7つ。
+//! ここで見るのは11個。
 //!
 //! 1. モジュール間に環が無いこと
 //! 2. 決めた段より上のものを、下の段が `use` していないこと
@@ -16,6 +16,10 @@
 //! 5. 子プロセスを作る綴りが `engine/child.rs` の外に無いこと（`SPAWNING`）
 //! 6. `engine/` の外から入る `use` が控えと一致すること（`ENGINE_ENTRIES_FROM_OUTSIDE`）
 //! 7. エンジンのオプションの定義を組み立てるのが `engine/option_line.rs` だけであること
+//! 8. 段とファイルが役割を言わない名前（`utils` など）を名乗らないこと（`NAMES_WITHOUT_A_ROLE`）
+//! 9. `types` の段が trait を宣言しないこと
+//! 10. 線に出す形（serde の derive）が決めたファイルの外に無いこと（`WIRE_SHAPE_FILES`）
+//! 11. `engine/` の全部のファイルが冒頭に `//!` を持つこと
 //!
 //! ## 走査の限界
 //!
@@ -99,9 +103,15 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
-        name: "utils",
-        decides: "`info` 行を解析結果へ畳む変換と、ログの間引き・伏字",
+        name: "candidates",
+        decides: "`info` 行を候補手の一覧へ畳む（検討と対局で同じ形）",
         may_use: &["types"],
+        forbids: &[],
+    },
+    Layer {
+        name: "logging",
+        decides: "ログに載せる文字列の伏字・切り詰め・間引きと、ログファイルの予算",
+        may_use: &[],
         forbids: &[],
     },
     Layer {
@@ -119,13 +129,13 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "protocol",
         decides: "1本のプロセスへ何を送れるか",
-        may_use: &["types", "utils", "child", "option_line"],
+        may_use: &["types", "logging", "child", "option_line"],
         forbids: &[],
     },
     Layer {
         name: "registry",
         decides: "どのプロセスが生きているか",
-        may_use: &["types", "utils", "child", "protocol"],
+        may_use: &["types", "logging", "child", "protocol"],
         forbids: &[],
     },
     Layer {
@@ -143,32 +153,59 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "setup",
         decides: "起動したエンジンへ設定を送り、使える状態にする手順",
-        may_use: &["types", "utils", "protocol"],
+        may_use: &["types", "logging", "protocol"],
         forbids: &[],
     },
     Layer {
         name: "start_failure",
         decides: "起動の失敗を、利用者が取れる行動の種類に分ける",
-        may_use: &["types", "utils", "protocol", "launchable"],
+        may_use: &["types", "logging", "protocol", "launchable"],
         forbids: &[],
+    },
+    Layer {
+        name: "analysis_events",
+        decides: "検討の出来事をどこへ流すか（宛先の trait。実装は `commands` が持つ）",
+        may_use: &["types"],
+        forbids: &["tauri"],
     },
     // `game` と `analyzer` は同位。互いを知らない
     Layer {
         name: "game",
         decides: "対局の状態機械と持ち時間",
-        may_use: &["types", "utils", "protocol", "registry", "setup"],
+        may_use: &[
+            "types",
+            "candidates",
+            "logging",
+            "protocol",
+            "registry",
+            "setup",
+        ],
         forbids: &["tauri"],
     },
     Layer {
         name: "analyzer",
-        decides: "解析の探索1回ぶん",
-        may_use: &["types", "utils", "protocol", "registry", "setup", "binding"],
+        decides: "検討に使うエンジン1本の起動と、その上の探索",
+        may_use: &[
+            "types",
+            "candidates",
+            "protocol",
+            "registry",
+            "setup",
+            "binding",
+        ],
         forbids: &[],
     },
     Layer {
         name: "bridge",
-        decides: "解析のファサード",
-        may_use: &["types", "utils", "registry", "analyzer", "start_failure"],
+        decides: "検討の席を配り、開始と停止を1本ずつ通す",
+        may_use: &[
+            "types",
+            "logging",
+            "registry",
+            "analyzer",
+            "start_failure",
+            "analysis_events",
+        ],
         forbids: &["tauri"],
     },
     Layer {
@@ -193,7 +230,15 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "commands",
         decides: "Tauri コマンドの入口",
-        may_use: &["types", "utils", "game", "analyzer", "probe", "state"],
+        may_use: &[
+            "types",
+            "logging",
+            "game",
+            "analyzer",
+            "probe",
+            "state",
+            "analysis_events",
+        ],
         forbids: &[],
     },
 ];
@@ -260,7 +305,7 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
         return found;
     };
 
-    // `use crate::engine::{types::*, utils::cmd_summary};`
+    // `use crate::engine::{types::*, logging::cmd_summary};`
     // 入れ子の波括弧はこの repo に無いので、深さは数えない。
     // 出たら `every_module_is_placed_on_a_layer` が拾えない名前として現れる
     let inner = inner.trim_end_matches([';', '}']);
@@ -544,11 +589,11 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     // 1行に収まる波括弧
     let (edges, _) = scan_file(
-        "use crate::engine::{types::*, utils::cmd_summary};\n",
+        "use crate::engine::{types::*, logging::cmd_summary};\n",
         "engine",
         1,
     );
-    assert_eq!(edges, ["types", "utils"].map(String::from).into());
+    assert_eq!(edges, ["logging", "types"].map(String::from).into());
 
     // **可視性が付いた形。** `pub use` を特別扱いする以上、その兄弟も要る。
     // `pub(crate) use` は `"use "` でも `"pub use "` でも始まらないので、
@@ -1158,6 +1203,26 @@ fn the_engine_root_only_declares_modules() {
     );
 }
 
+/// `engine/` の全部のファイルが冒頭に `//!` を持つこと（ADR-0009 決定5）。
+///
+/// 段の `decides` は段の単位で、ファイルが何を隠すかまでは言わない。冒頭が無いファイルは、
+/// 中身の型の doc がファイルを作った時点の役割を語るだけになり、実態とずれても誰も気づかない。
+#[test]
+fn every_engine_file_says_what_it_hides() {
+    let files = rust_files(&engine_dir());
+    assert!(files.len() > LAYERS.len(), "ファイルを1つも歩いていない");
+
+    let missing: Vec<String> = files
+        .iter()
+        .filter(|path| !says_what_it_hides(&fs::read_to_string(path).unwrap_or_default()))
+        .map(|path| path.display().to_string())
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "冒頭に `//!` の無いファイルがある。何を隠すかを1文で書くこと: {missing:?}"
+    );
+}
+
 /// 段に載っていないモジュールを残さない。
 ///
 /// **載せ忘れは素通りする**ので、ここで拾う。新しいモジュールを足した人は、
@@ -1182,6 +1247,217 @@ fn every_module_is_placed_on_a_layer() {
     assert!(
         stray.is_empty(),
         "段に載っていないモジュールがある。`LAYERS` に「何を決める場所か」を書くこと: {stray:?}"
+    );
+}
+
+/// `types` の段が trait を宣言しないこと。
+///
+/// `types` は「何も決めない」段で、全段が `use` してよい。そこに trait を置くと、その契約
+/// （いつ呼ばれ、何を待ってはいけないか）まで全段から見え、どの段の判断なのかが言えなくなる。
+/// trait は、それを呼ぶ段のすぐ下に置く（`analysis_events`、`game::events`）。
+#[test]
+fn the_types_layer_declares_no_trait() {
+    let path = engine_dir().join("types.rs");
+    let source = fs::read_to_string(&path).expect("types.rs を読める");
+    let code = blank_out_noncode(&strip_test_modules(&source, &path));
+    let found = trait_declarations(&code);
+    assert!(
+        !code.trim().is_empty() && found.is_empty(),
+        "`types.rs` が trait を宣言している。呼ぶ段のすぐ下へ段を足して置くこと: {found:?}"
+    );
+}
+
+/// 線に出す形（serde の derive）を置いてよいファイル。`engine/` からの相対。
+///
+/// 線の欄は TS の `rust-types.ts` が同じ綴りで写す。置き場が散ると、写しを直すときに
+/// Rust の側の正本を探し回ることになり、片側だけ変わった欄をフロントが空として読む。
+///
+/// - `types.rs`: 検討と起動の線の形
+/// - `game/types.rs`: 対局の線の形（`game` の段の内側に閉じる）
+/// - `launchable.rs`: 起動できるかの答え。`ai_library` が線へ載せる（`ENGINE_ENTRIES_FROM_OUTSIDE`）
+const WIRE_SHAPE_FILES: [&str; 3] = ["types.rs", "game/types.rs", "launchable.rs"];
+
+/// serde の derive が `WIRE_SHAPE_FILES` の外に無いこと。
+#[test]
+fn wire_shapes_live_in_the_wire_shape_files() {
+    let dir = engine_dir();
+    let files = rust_files(&dir);
+    assert!(files.len() > LAYERS.len(), "ファイルを1つも歩いていない");
+
+    let mut stray = Vec::new();
+    for path in files {
+        let relative = path
+            .strip_prefix(&dir)
+            .expect("engine の下")
+            .to_string_lossy()
+            .replace('\\', "/");
+        if WIRE_SHAPE_FILES.contains(&relative.as_str()) {
+            continue;
+        }
+        let source = fs::read_to_string(&path).expect("読める");
+        let code = blank_out_noncode(&strip_test_modules(&source, &path));
+        for line in serde_derive_lines(&code) {
+            stray.push(format!("{relative}:{line}"));
+        }
+    }
+    assert!(
+        stray.is_empty(),
+        "線に出す形が `WIRE_SHAPE_FILES` の外にある。`types.rs` へ移すこと: {stray:?}"
+    );
+}
+
+/// 役割を言わない名前（`docs/rules/common.md` の R-DUP-5）。
+///
+/// こう名乗る段は `decides` が「と」で繋がり、呼び手の違う2つの判断が同居する。
+/// 片方の呼び手が増えるたびに段の `may_use` が太り、もう片方の判断まで下の段から見えるようになる。
+const NAMES_WITHOUT_A_ROLE: [&str; 6] = ["utils", "util", "common", "misc", "helpers", "helper"];
+
+/// `engine/` の段、ファイル、ファイルの中の `mod x { … }` が、役割を言わない名前を名乗らないこと。
+///
+/// 段の中のファイル（`game/` の中）も見る。段を割らない場所でも、名前が役割を言わないと
+/// 次に足す判断の置き場として選ばれる。
+#[test]
+fn no_module_is_named_after_no_role() {
+    let dir = engine_dir();
+    let mut named: Vec<String> = LAYERS.iter().map(|l| l.name.to_string()).collect();
+    for path in rust_files(&dir) {
+        let relative = path.strip_prefix(&dir).expect("engine の下");
+        let source = fs::read_to_string(&path).expect("読める");
+        named.extend(inline_module_names(&blank_out_noncode(
+            &strip_test_modules(&source, &path),
+        )));
+        named.extend(relative.components().map(|c| {
+            c.as_os_str()
+                .to_string_lossy()
+                .trim_end_matches(".rs")
+                .to_string()
+        }));
+    }
+    assert!(named.len() > LAYERS.len(), "ファイルを1つも歩いていない");
+
+    let found: BTreeSet<&String> = named
+        .iter()
+        .filter(|n| NAMES_WITHOUT_A_ROLE.contains(&n.as_str()))
+        .collect();
+    assert!(
+        found.is_empty(),
+        "役割を言わない名前の段かファイルかモジュールがある。何を決める場所かで名付けること: {found:?}"
+    );
+}
+
+/// 冒頭の `//!` が中身のある1文で始まるか
+fn says_what_it_hides(source: &str) -> bool {
+    source
+        .trim_start()
+        .lines()
+        .next()
+        .and_then(|line| line.strip_prefix("//!"))
+        .is_some_and(|text| !text.trim().is_empty())
+}
+
+/// 可視性（`pub`、`pub(crate)`、`pub(in …)`）を外した残り
+fn without_visibility(line: &str) -> &str {
+    let Some(rest) = line.strip_prefix("pub") else {
+        return line;
+    };
+    match rest.strip_prefix('(') {
+        Some(inner) => inner
+            .split_once(')')
+            .map_or(line, |(_, after)| after.trim_start()),
+        None if rest.starts_with(' ') => rest.trim_start(),
+        None => line,
+    }
+}
+
+/// trait の宣言の行。可視性と `unsafe` を外してから見る
+fn trait_declarations(code: &str) -> Vec<&str> {
+    code.lines()
+        .filter(|line| {
+            let rest = without_visibility(line.trim_start());
+            let rest = rest.strip_prefix("unsafe ").unwrap_or(rest);
+            rest.starts_with("trait ")
+        })
+        .collect()
+}
+
+/// serde の derive が始まる行（1始まり）。**rustfmt は100桁を超えた derive を1トレイト1行に折る**ので、
+/// `]` で終わる行までつないでから見る（`tests/serde_naming.rs` と同じ読み方）
+fn serde_derive_lines(code: &str) -> Vec<usize> {
+    let lines: Vec<&str> = code.lines().collect();
+    let mut found = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        if !lines[i].trim_start().starts_with("#[derive") {
+            i += 1;
+            continue;
+        }
+        let end = lines[i..]
+            .iter()
+            .position(|l| l.trim_end().ends_with(']'))
+            .map_or(i, |at| i + at);
+        let derive = lines[i..=end].join(" ");
+        if derive.contains("Serialize") || derive.contains("Deserialize") {
+            found.push(i + 1);
+        }
+        i = end + 1;
+    }
+    found
+}
+
+/// ファイルの中で `mod x { … }` と開いたモジュールの名前
+fn inline_module_names(code: &str) -> Vec<String> {
+    code.lines()
+        .filter_map(|line| {
+            let rest = without_visibility(line.trim_start()).strip_prefix("mod ")?;
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            rest[name.len()..]
+                .trim_start()
+                .starts_with('{')
+                .then_some(name)
+        })
+        .collect()
+}
+
+/// 上の4つの読み方が、書き方を変えても同じものを拾うこと
+#[test]
+fn the_shape_scanners_read_every_spelling() {
+    assert!(says_what_it_hides("//! 席を配る。\nuse x;"));
+    assert!(
+        !says_what_it_hides("//!\nuse x;"),
+        "中身の無い `//!` を通した"
+    );
+    assert!(!says_what_it_hides("use x;\n//! 後ろ"));
+
+    for spelling in [
+        "trait A {}",
+        "pub trait A {}",
+        "pub(crate) trait A {}",
+        "pub(in crate::engine) trait A {}",
+        "unsafe trait A {}",
+        "pub(super) unsafe trait A {}",
+    ] {
+        assert_eq!(trait_declarations(spelling).len(), 1, "{spelling}");
+    }
+    assert!(trait_declarations("impl A for B {}\nfn trait_like() {}").is_empty());
+
+    let folded = "#[derive(\n    Debug,\n    Clone,\n    serde::Serialize,\n)]\nstruct A;\n";
+    assert_eq!(
+        serde_derive_lines(folded),
+        [1],
+        "折った derive を見落とした"
+    );
+    assert_eq!(
+        serde_derive_lines("#[derive(Debug, Deserialize)]\nstruct A;"),
+        [1]
+    );
+    assert!(serde_derive_lines("#[derive(Debug, Clone)]\nstruct A;").is_empty());
+
+    assert_eq!(
+        inline_module_names("mod helpers {\n}\npub(crate) mod utils {}\nmod declared;\n"),
+        ["helpers", "utils"]
     );
 }
 

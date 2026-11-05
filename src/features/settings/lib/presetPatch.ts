@@ -1,5 +1,4 @@
-import { storedDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import { bookInUse, type EnginePreset } from "@/entities/engine-presets/model/types";
+import { bookInUse, type EnginePreset, storedDefinitions } from "@/entities/engine-presets";
 
 /** 欄ごとの入力の誤り。無い欄は誤りが無い */
 export type PresetFieldErrors = { label?: string; enginePath?: string };

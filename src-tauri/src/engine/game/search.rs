@@ -15,9 +15,9 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use usi::{BestMoveParams, EngineCommand, GuiCommand, ThinkParams};
 
+use crate::engine::candidates::apply_info_params;
 use crate::engine::protocol::{StopEffect, UsiProtocol};
 use crate::engine::types::{AnalysisResult, EngineError};
-use crate::engine::utils::apply_info_params;
 
 use super::types::Side;
 

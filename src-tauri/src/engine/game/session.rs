@@ -37,14 +37,14 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use usi::{GameOverKind, GuiCommand};
 
+use crate::engine::logging::LogThrottle;
+use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 use crate::engine::protocol::UsiProtocol;
 use crate::engine::protocol::{NO_USIOK, READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::setup::{self, MAX_WIRE_FIELD};
 use crate::engine::types::{engine_error_text, AnalysisResult, EngineError, TIMED_OUT};
-use crate::engine::utils::LogThrottle;
-use crate::engine::utils::{shown, MAX_SUMMARY_LEN};
 
 use super::clock::{ClockOutcome, GameClocks};
 use super::events::GameEventSink;
@@ -2211,7 +2211,7 @@ mod tests {
     use super::*;
     use crate::engine::setup::MAX_SENT_OPTIONS;
 
-    use crate::engine::utils::LOG_FILE_BUDGET;
+    use crate::engine::logging::LOG_FILE_BUDGET;
 
     /// 平手。`GuiCommand::Position` が `position sfen` を前置するので、
     /// `startpos` ではなく完全な SFEN を持つ

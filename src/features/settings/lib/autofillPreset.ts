@@ -2,8 +2,8 @@ import type {
   EngineCandidate,
   FileCandidate,
   ProfileCandidate,
-} from "@/entities/engine/api/aiLibrary";
-import type { EnginePreset } from "@/entities/engine-presets/model/types";
+} from "@/entities/ai-library/api/aiLibrary";
+import type { EnginePreset } from "@/entities/engine-presets";
 import { isSelectableEngine } from "@/features/settings/lib/presetEngineOptions";
 
 function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | null {

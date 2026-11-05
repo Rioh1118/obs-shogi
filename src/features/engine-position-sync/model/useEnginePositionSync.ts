@@ -1,9 +1,8 @@
 import { useEngine } from "@/entities/engine";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { useEnginePresets } from "@/entities/engine-presets";
 import { useGame } from "@/entities/game";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { setPositionFromSfen } from "@/entities/engine/api/tauri";
-import type { PositionSyncAdapter } from "@/entities/analysis";
+import { setPositionFromSfen, type PositionSyncAdapter } from "@/entities/analysis";
 
 /**
  * 盤の現在局面を Rust に覚えさせ続ける。線に書くのは `go` の直前だけ（`analyzer.rs`）。

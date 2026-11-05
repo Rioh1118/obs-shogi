@@ -1,6 +1,9 @@
-use crate::engine::utils::{apply_info_params, depth_of_rank};
+//! 検討に使うエンジン1本を起こし、その上で探索を回す。
+//!
+//! 起動は要求の番号（`Request`）で順序を持ち、新しい要求が来たら前の起動を取り消す。
+//! 探索の結果をどこへ流すかと、席を誰に配るかは知らない（`bridge`）。
 
-use serde::Serialize;
+use crate::engine::candidates::{apply_info_params, depth_of_rank};
 
 use super::binding::{self, BindingInput, EvalTarget};
 use super::protocol::USI_OK_TIMEOUT;
@@ -61,23 +64,6 @@ fn now_nanos() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos()
-}
-
-/// 深度指定の解析が返すもの。
-///
-/// **`AnalysisResult` だけを返さない。** 返すと「届かなかった」が消え、
-/// 深度22の結果が深度40の解析として読まれる。呼び出し側に見分ける手段が要る。
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DepthOutcome {
-    pub result: AnalysisResult,
-    /// 要求した深度
-    pub requested: u32,
-    /// 実際に届いた深度（`info depth` の最善手のもの）。`info` が1行も
-    /// 来なければ `None`
-    pub deepest: Option<u32>,
-    /// `requested` に届いたか
-    pub reached: bool,
 }
 
 /// 無限解析のストリームが流すもの。
@@ -186,7 +172,7 @@ fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
     depth_of_rank(result, 1).is_some_and(|depth| depth >= target)
 }
 
-/// 将棋エンジン分析層 - 純粋な分析機能のみ提供
+/// 検討に使うエンジン1本の起動と探索
 ///
 /// 解析が使うエンジンは、対局が使うものと同じ台帳（`EngineRegistry`）に載る。
 /// ここが持つのは「そのうちどれが解析用か」だけ。
@@ -924,19 +910,19 @@ impl EngineAnalyzer {
         true
     }
 
-    /// 最後の分析結果取得
+    /// 最後に受けた検討の結果を返す
     pub async fn get_last_result(&self) -> Option<AnalysisResult> {
         self.state.read().await.last_result.clone()
     }
 
-    /// 分析統計取得
+    /// これまでに回した検討の数を返す
     pub async fn get_analysis_stats(&self) -> u64 {
         self.state.read().await.analysis_count
     }
 
     // === 内部ヘルパーメソッド ===
 
-    /// 分析ストリーム処理（無限解析用）
+    /// 無限の検討で届いた行を、結果の列へ読み替える
     async fn process_analysis_stream(
         mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
         result_tx: mpsc::UnboundedSender<AnalysisStreamItem>,

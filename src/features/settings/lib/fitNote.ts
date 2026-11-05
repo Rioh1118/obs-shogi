@@ -1,9 +1,4 @@
-import type {
-  ClampedValue,
-  DroppedValue,
-  FittedValues,
-} from "@/entities/engine-presets/lib/fitValues";
-import { probePathOf } from "@/entities/engine-presets/lib/withDefinitions";
+import { type ClampedValue, type DroppedValue, type FittedValues, probePathOf } from "@/entities/engine-presets";
 
 /** 取得した定義に当てて変えた値と、どのエンジンの定義で当てたか */
 export type FitNote = Pick<FittedValues, "clamped" | "dropped"> & { enginePath: string };

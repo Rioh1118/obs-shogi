@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
 /**
  * 設定「エンジン管理」のカード。1枚に出すのはエンジンと評価関数（「フォルダ / ファイル」）と、

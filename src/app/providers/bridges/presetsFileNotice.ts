@@ -1,4 +1,4 @@
-import type { PresetsLoadNotice, SaveFailure } from "@/entities/engine-presets/model/types";
+import type { PresetsLoadNotice, SaveFailure } from "@/entities/engine-presets";
 import type { NotifyTier } from "@/shared/lib/notification/types";
 import { getBaseName } from "@/shared/lib/path";
 

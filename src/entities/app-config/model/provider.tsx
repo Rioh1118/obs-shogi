@@ -10,7 +10,6 @@ import {
   chooseRootDir as chooseRootDirApi,
   setRootDir as setRootDirApi,
 } from "../api/directories";
-import type { PresetId } from "@/entities/engine-presets/model/types";
 import { Err, Ok, type AsyncResult } from "@/shared/lib/result";
 import { createSerialQueue } from "@/shared/lib/serialQueue";
 
@@ -97,7 +96,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function setLastPresetId(presetId: PresetId | null) {
+  async function setLastPresetId(presetId: string | null) {
     dispatch({ type: "loading" });
     try {
       await writeFields({ last_preset_id: presetId });

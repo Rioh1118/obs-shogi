@@ -1,7 +1,6 @@
 import { useState } from "react";
 
-import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import { bookInUse, type EnginePreset } from "@/entities/engine-presets/model/types";
+import { bookInUse, type EnginePreset, hasCurrentDefinitions } from "@/entities/engine-presets";
 import { fitNoteLines, type FitNote } from "@/features/settings/lib/fitNote";
 import { optionRows } from "@/features/settings/lib/optionRows";
 import { SInput, SSection } from "@/features/settings/ui/kit";

@@ -1,7 +1,4 @@
-import { MULTIPV_MAX, MULTIPV_MIN, MULTIPV_OPTION } from "@/entities/engine-presets/model/multiPv";
-import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import { parseSpinValue } from "@/entities/engine-presets/lib/fitValues";
-import type { EnginePreset, UsiOptionMap } from "@/entities/engine-presets/model/types";
+import { type EnginePreset, hasCurrentDefinitions, MULTIPV_MAX, MULTIPV_MIN, MULTIPV_OPTION, parseSpinValue, type UsiOptionMap } from "@/entities/engine-presets";
 
 /** 保存した値を整数で読む。値が無い（エンジン既定）・整数でないなら `null` */
 export function savedInt(options: UsiOptionMap, name: string): number | null {

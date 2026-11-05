@@ -1,5 +1,5 @@
-import type { EngineCandidate, Launchability } from "@/entities/engine/api/aiLibrary";
-import { isEngineForThisMachine } from "@/entities/engine/lib/engineCandidate";
+import type { EngineCandidate, Launchability } from "@/entities/ai-library/api/aiLibrary";
+import { isEngineForThisMachine } from "@/entities/ai-library/lib/engineCandidate";
 import { isFileKind } from "@/features/settings/lib/fileChoices";
 import { getBaseName } from "@/shared/lib/path";
 

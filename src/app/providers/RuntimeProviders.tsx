@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { FileTreeRootGate } from "./gates/FileTreeRootGate";
 import { GameMoveGate } from "./gates/GameMoveGate";
-import { EnginePresetsProvider } from "@/entities/engine-presets/model/provider";
+import { EnginePresetsProvider } from "@/entities/engine-presets";
 import { EngineRuntimeGate } from "./gates/EngineRuntimeGate";
 import { EngineFailureBridge } from "./bridges/EngineFailureBridge";
 import { EngineStartWarningBridge } from "./bridges/EngineStartWarningBridge";

@@ -20,7 +20,7 @@ import StatsSection from "./StatsSection";
 import { useAppConfig } from "@/entities/app-config";
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
-import { useEnginePresets } from "@/entities/engine-presets/model/useEnginePresets";
+import { useEnginePresets } from "@/entities/engine-presets";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import {
   pickTopCandidate,

@@ -53,7 +53,6 @@
   書いているが**該当0件**。実在するのは生成側の重複。記述を直すこと
 - **`entities/` の公開境界が10スライス中2つ欠落** — 揃えるには3段階の順序が要る
 - **`ModalType` union が上位層のスライス名簿を持っている** — 下位層が上位層の一覧を知っている
-- **`app-config` ⇄ `engine-presets` の双方向依存** — `PresetId` を branded type にすると切れる
 - **Rust `open_project` にコマンド層・ドメイン・IO が同居**（144行）
 
 **状態遷移表を他のモジュールに広げるかは未決。** いまは非同期・並行・外部プロセスが絡む箇所に
@@ -214,36 +213,39 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 **ここに並べたものは issue にしない**（`docs/OPERATING-MODEL.md`）。着手すると決めた
 時点で昇格すること。
 
-## `entities/engine` の公開面が barrel と deep import に割れている
+## `entities/ai-library` の `api/` を barrel に載せるか
 
-`.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）。
+`.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）で、`entities/engine` の
+`api/` が barrel を通さずに読まれていると出た。エンジン横断の棚卸し（`docs/audits/2026-11-engine.md`）で、
+読まれていたもののうち `aiLibrary` は `entities/ai-library` へ、`setPositionFromSfen` は `entities/analysis` へ移し、
+`probeEngine` は `entities/engine` の barrel から出した。`entities/engine` へ深く入る import はもう無い。
 
-`entities/engine/index.ts` は provider と型しか公開していないが、`api/` は
-**barrel を通さずに読まれている**（`rg -n '@/entities/engine/api/' src --glob '!src/entities/engine/**'`
-で本物の import が8本。内訳は `aiLibrary` 6 / `tauri` 2。ほかに `vi.mock` の行が1つ——`features/engine-position-sync` のテスト）。
-`sliceBarrels` はこれを見ない——禁止するのは barrel が実際に公開しているモジュールだけなので、
-**公開しない限り深く読める**。
+残るのは `entities/ai-library` で、barrel を持たず `features/settings` が深く読む。`sliceBarrels` は
+barrel を持つスライスしか縛らないので、いまは何も検査されていない。
 
 **判断: 6週間以内に着手しない。** 利用者に見える不具合ではない。
-どちらへ寄せるかは `entities/engine` の公開面をまとめて決める作業で、
-どちらを選んでも `features/settings` と `features/engine-position-sync` に波及する。
 
 - **(a) `api/` を境界として認めて barrel に載せる。** 載せたモジュールの deep import が
-  その瞬間に `sliceBarrels` の違反になる（`vi.mock` を含むファイルは免除）。
-  `api/tauri` だけなら2ファイル（`features/engine-position-sync` と `features/settings`）、
-  `api/aiLibrary` まで広げると `features/settings` の6ファイル
+  その瞬間に `sliceBarrels` の違反になる（`vi.mock` を含むファイルは免除）
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
 
-## `entities/app-config` と `entities/engine-presets` が互いを読んでいる
+## エンジン横断の棚卸しで送った、振る舞いの変わる直し
 
-#113 で同層横断の走査（`src/__tests__/crossSliceImports.test.ts`）を入れたときに出た。
-`import/no-cycle` は**輪になるまで黙っている**ので、往復しているだけでは落ちない。
-輪でなくても、2スライスが互いを読む形は「どちらが器か」を消してしまう。
+`docs/audits/2026-11-engine.md`（基点 20b74095）で見つけ、振る舞いか画面の文言か線の文言が変わるので、
+構造の整理の PR に混ぜなかったもの。根拠と場所は ID でそちらを引く。**判断: 6週間以内に着手しない。**
+第3範囲（オプションの部品）を始めるなら、R-15 だけは先に取る。
 
-走査には `KNOWN_MUTUAL` として1組だけ控えてある。**新しく増えたら赤くなる**ので、
-放置しても悪化はしない。直すなら片方の向きを消す（控えを伸ばすのは直し方ではない）。
-どちらを器にするかは、エンジンの設定をどちらが所有するかの判断になる。
+- **B-9** 対局の失敗の文（`GameResult.detail`、`start_game` の `Err`）に USI の語が乗って線を越える。故障の種類を型にする
+- **B-14** 検討の停止の `by` を Rust が任意の文字列で受ける。serde の列挙にし、知らない値を断る
+- **B-15** TS の呼び手が0の検討のコマンド3つ（`get_analysis_result` ほか）と、それが読む欄。線の名前なので消すかを決める
+- **R-15** TS が USI の名前（`MultiPV` の写し、`Threads`、`USI_Hash`）を綴る。カードの見出しを Rust の辞書に揃える
+- **R-12 / R-13 / R-14** 「中止」の判定、中止の文、ボタンの語が `entities/engine` と `entities/analysis` と widget に割れる
+- **R-16 / R-17** 候補手の数の欄が `fitSpin` を通らない。帯の「設定を開く」が `useOpenSettings` を通らない
+- **D-4 / D-5** 評価関数の優先の規則と、保存するプリセットの正しい形が2か所にある
+- **W-7 / W-8 / W-9** 同じ種類を2語で言う文言、画面に出る英語の `New Preset` と `(copy)`、カードの英語の見出し
+- **C-2 / C-5 / C-6** `EngineAction` の部品と型の同名、`startInfiniteAnalysis` の同名、`engineKey` の2つの値
+- **P-5** `isPresetConfigured` と `bookInUse` が `entities/engine-presets` の型のファイル（`model/types.ts`）にある
 
 ## 貼った棋譜を打鍵のたびに読み直している
 

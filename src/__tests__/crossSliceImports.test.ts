@@ -3,7 +3,7 @@ import {
   CROSS_SLICE_INVENTORY,
   aliasSpecifiersIn,
   crossSliceEdgesIn,
-  newMutualEdges,
+  mutualEdges,
   scanCrossSliceImports,
   sliceOf,
   upwardScssEdges,
@@ -47,13 +47,13 @@ describe("同層横断の import", () => {
     expect([...edges.values()].reduce((a, b) => a + b, 0)).toBeGreaterThan(30);
   });
 
-  test("互いを読み合う組が新しく増えていない", () => {
+  test("互いを読み合う組が無い", () => {
     // 往復は `import/no-cycle` が拾わない（**輪になるまで黙っている**）。
     // 輪でなくても「どちらが器か」が消える
     const { edges } = scanCrossSliceImports();
     expect(
-      newMutualEdges(new Set(edges.keys())),
-      "互いを読み合う組が増えた。片方の向きを消すこと（控えを伸ばすのは直し方ではない）",
+      mutualEdges(new Set(edges.keys())),
+      "互いを読み合う組がある。片方の向きを消すこと",
     ).toEqual([]);
   });
 
@@ -73,23 +73,15 @@ describe("同層横断の import", () => {
   });
 });
 
-describe("newMutualEdges", () => {
+describe("mutualEdges", () => {
   test("片方向だけなら何も返さない", () => {
-    expect(newMutualEdges(new Set(["features/a -> features/b"]))).toEqual([]);
+    expect(mutualEdges(new Set(["features/a -> features/b"]))).toEqual([]);
   });
 
   test("互いを読み合っていれば両方返す", () => {
     expect(
-      newMutualEdges(new Set(["features/a -> features/b", "features/b -> features/a"])),
+      mutualEdges(new Set(["features/a -> features/b", "features/b -> features/a"])),
     ).toEqual(["features/a -> features/b", "features/b -> features/a"]);
-  });
-
-  test("控えにある組は返さない", () => {
-    const known = new Set([
-      "entities/app-config -> entities/engine-presets",
-      "entities/engine-presets -> entities/app-config",
-    ]);
-    expect(newMutualEdges(known)).toEqual([]);
   });
 });
 

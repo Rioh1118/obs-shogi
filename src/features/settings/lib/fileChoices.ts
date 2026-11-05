@@ -1,4 +1,4 @@
-import type { FsKind, ProfileCandidate } from "@/entities/engine/api/aiLibrary";
+import type { FsKind, ProfileCandidate } from "@/entities/ai-library/api/aiLibrary";
 
 type FileChoice = {
   value: string;

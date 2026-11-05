@@ -2,7 +2,7 @@ import {
   canCreateEnginesDir,
   canListEnginesDir,
   type EnginesDir,
-} from "@/entities/engine/lib/enginesDir";
+} from "@/entities/ai-library/lib/enginesDir";
 
 export type StepState = "done" | "active" | "warn" | "locked";
 

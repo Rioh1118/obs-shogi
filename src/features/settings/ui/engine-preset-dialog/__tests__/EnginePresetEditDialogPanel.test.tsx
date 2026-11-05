@@ -2,8 +2,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-import type { AiRootIndex } from "@/entities/engine/api/aiLibrary";
-import type { EnginePreset, PresetId } from "@/entities/engine-presets/model/types";
+import type { AiRootIndex } from "@/entities/ai-library/api/aiLibrary";
+import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
 /**
  * 帯（`engines` の状態）が、**いつの索引を映すか**。
@@ -42,7 +42,7 @@ vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
   }),
 }));
 
-vi.mock("@/entities/engine/api/aiLibrary", () => ({
+vi.mock("@/entities/ai-library/api/aiLibrary", () => ({
   scanAiRoot: (root: string) => scanAiRoot(root),
   ensureEnginesDir: (root: string) => ensureEnginesDir(root),
 }));

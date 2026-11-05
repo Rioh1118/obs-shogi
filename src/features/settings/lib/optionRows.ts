@@ -1,7 +1,5 @@
 import type { UsiOptionDef } from "@/entities/engine";
-import { hasCurrentDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import type { EnginePreset } from "@/entities/engine-presets/model/types";
-import { MULTIPV_OPTION } from "@/entities/engine-presets/model/multiPv";
+import { type EnginePreset, hasCurrentDefinitions, MULTIPV_OPTION } from "@/entities/engine-presets";
 
 /**
  * 「検討」の節に置く名前。エンジンのオプションとして送るが、利用者から見ると検討の結果の出し方なので、

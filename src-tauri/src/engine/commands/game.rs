@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
-use crate::engine::utils::{LogThrottle, EMIT_WARN_INTERVAL};
+use crate::engine::logging::{LogThrottle, EMIT_WARN_INTERVAL};
 
 use tauri::Emitter;
 
@@ -389,7 +389,7 @@ mod tests {
     use std::time::Instant;
 
     use crate::engine::game::types::worst_game_id;
-    use crate::engine::utils::LOG_FILE_BUDGET;
+    use crate::engine::logging::LOG_FILE_BUDGET;
 
     fn id(value: &str) -> GameId {
         GameId::new(value.to_string())

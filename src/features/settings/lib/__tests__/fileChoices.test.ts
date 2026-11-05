@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { ProfileCandidate } from "@/entities/engine/api/aiLibrary";
+import type { ProfileCandidate } from "@/entities/ai-library/api/aiLibrary";
 import { bookChoices, evalChoices, fileLabel, isFileKind } from "../fileChoices";
 
 const profile = (name: string, evals: string[], books: string[]): ProfileCandidate => ({

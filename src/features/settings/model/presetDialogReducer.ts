@@ -1,7 +1,5 @@
 import type { ProbeOutcome } from "@/entities/engine";
-import { fitValues } from "@/entities/engine-presets/lib/fitValues";
-import { withDefinitions } from "@/entities/engine-presets/lib/withDefinitions";
-import type { EnginePreset, UsiOptionMap } from "@/entities/engine-presets/model/types";
+import { type EnginePreset, fitValues, type UsiOptionMap, withDefinitions } from "@/entities/engine-presets";
 import type { FitNote } from "@/features/settings/lib/fitNote";
 import type { ProbeFailure } from "@/features/settings/lib/probeStatus";
 
