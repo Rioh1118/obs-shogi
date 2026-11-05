@@ -230,6 +230,23 @@ barrel を持つスライスしか縛らないので、いまは何も検査さ�
 - **(b) `api/` を非公開のままにする。** スライスを跨ぐ語彙は
   跨がせず、呼び手側が自分で持つ。IPC の境界の型が緩む
 
+## エンジン横断の棚卸しで送った、振る舞いの変わる直し
+
+`docs/audits/2026-11-engine.md`（基点 20b74095）で見つけ、振る舞いか画面の文言か線の文言が変わるので、
+構造の整理の PR に混ぜなかったもの。根拠と場所は ID でそちらを引く。**判断: 6週間以内に着手しない。**
+第3範囲（オプションの部品）を始めるなら、R-15 だけは先に取る。
+
+- **B-9** 対局の失敗の文（`GameResult.detail`、`start_game` の `Err`）に USI の語が乗って線を越える。故障の種類を型にする
+- **B-14** 検討の停止の `by` を Rust が任意の文字列で受ける。serde の列挙にし、知らない値を断る
+- **B-15** TS の呼び手が0の検討のコマンド3つ（`get_analysis_result` ほか）と、それが読む欄。線の名前なので消すかを決める
+- **R-15** TS が USI の名前（`MultiPV` の写し、`Threads`、`USI_Hash`）を綴る。カードの見出しを Rust の辞書に揃える
+- **R-12 / R-13 / R-14** 「中止」の判定、中止の文、ボタンの語が `entities/engine` と `entities/analysis` と widget に割れる
+- **R-16 / R-17** 候補手の数の欄が `fitSpin` を通らない。帯の「設定を開く」が `useOpenSettings` を通らない
+- **D-4 / D-5** 評価関数の優先の規則と、保存するプリセットの正しい形が2か所にある
+- **W-7 / W-8 / W-9** 同じ種類を2語で言う文言、画面に出る英語の `New Preset` と `(copy)`、カードの英語の見出し
+- **C-2 / C-5 / C-6** `EngineAction` の部品と型の同名、`startInfiniteAnalysis` の同名、`engineKey` の2つの値
+- **P-5** `isPresetConfigured` と `bookInUse` が `entities/engine-presets` の型のファイル（`model/types.ts`）にある
+
 ## 貼った棋譜を打鍵のたびに読み直している
 
 `fix/create-file-import-face` のレビュー（perf reviewer）。`useKifuImportDraft` は
