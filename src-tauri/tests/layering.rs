@@ -1206,7 +1206,7 @@ fn the_engine_root_only_declares_modules() {
 /// `engine/` の全部のファイルが冒頭に `//!` を持つこと（ADR-0009 決定5）。
 ///
 /// 段の `decides` は段の単位で、ファイルが何を隠すかまでは言わない。冒頭が無いファイルは、
-/// 中身の型の doc が名前の由来（「橋渡し」「分析層」）を語るだけになり、実態とずれても誰も気づかない。
+/// 中身の型の doc がファイルを作った時点の役割を語るだけになり、実態とずれても誰も気づかない。
 #[test]
 fn every_engine_file_says_what_it_hides() {
     let files = rust_files(&engine_dir());

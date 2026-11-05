@@ -6,7 +6,7 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 
 /**
  * コメントを第三者が読めること（`CONTRIBUTING.md` の「コメントの書き方」）のうち、
- * 字面で判定できる6つを見る。意味の判定は `/readable-code` の手順が本文を読んで行う。
+ * 字面で判定できる7つを見る。意味の判定は `/readable-code` の手順が本文を読んで行う。
  *
  * 1. `TODO` と `FIXME` は `TODO(#123)` の形で issue 番号を持つ
  * 2. 説明は要約で始める。強調で始まる塊は要約を持たない
@@ -14,8 +14,9 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
  * 4. issue 番号で理由を指さない。読み手は番号から本文を辿れるとは限らない
  * 5. `CONTEXT.md` の「使わない語」を書かない
  * 6. 比喩の語を書かない（`METAPHOR`）
+ * 7. 減らしていく語（`SHRINKING_TERMS`）を増やさない
  *
- * 1 と 6 は違反0なので `-D` で張る。2〜5 は入れた時点で既存があるので件数ラチェット。
+ * 1 と 6 は違反0なので `-D` で張る。2〜5 と 7 は入れた時点で既存があるので件数ラチェット。
  * **基準を動かしてよい向きは下げる方だけ。** 片付けたら `BASELINE` を下げる。
  *
  * 環境変数 `COMMENT_REPORT` にパスを渡すと、該当の全行を JSON で書き出す。
@@ -27,6 +28,7 @@ const BASELINE = {
   manyEmphases: 760,
   issueReference: 67,
   retiredTerm: 0,
+  shrinkingTerm: 215,
 };
 
 /**
@@ -50,6 +52,21 @@ const EMPHASIS = /\*\*[^*]+?\*\*/g;
  * 同じ字を含む一般の語を巻き込まないよう、前の1字で除く
  */
 const METAPHOR = /(?<![入窓出人閉手利糸河火]|切り)口|(?<![専部名入])門/;
+
+/**
+ * コメントから減らしていく語。いまは数が多くて一度に替えられないので、件数のラチェットで止めて
+ * 範囲ごとの整理で下げる。0 になったら `CONTEXT.md` の「使わない語」へ移して `-D` にする。
+ *
+ * 「解析」は棋譜解析のために取っておく語で、エンジンに読ませ続ける機能は「検討」と書く
+ * （ADR-0012、ADR-0015）。「棋譜解析」と書いた箇所は数えない
+ */
+const SHRINKING_TERMS = ["解析"];
+
+/** 減らしていく語を含むか。正しい使い方の「棋譜解析」は除いてから見る */
+function hasShrinkingTerm(text: string): boolean {
+  const rest = text.split("棋譜解析").join("");
+  return SHRINKING_TERMS.some((term) => rest.includes(term));
+}
 
 /** 表の見出しの綴り。この列が無い表は語の表ではない */
 const RETIRED_COLUMN = "使わない語";
@@ -85,8 +102,11 @@ function retiredTermsIn(markdown: string): string[] {
       continue;
     }
     const cell = column >= 0 ? cells[column] : undefined;
-    if (!cell || cell === "—" || /^-+$/.test(cell) || cell.includes("（画面で）")) continue;
-    terms.add(cell);
+    if (!cell || cell === "—" || /^-+$/.test(cell)) continue;
+    // 1つの欄に語を「、」で並べられる。「（画面で）」の印は語ごとに付くので、欄ごとに捨てない
+    for (const term of cell.split("、").map((t) => t.trim())) {
+      if (term && !term.includes("（画面で）")) terms.add(term);
+    }
   }
   return [...terms].sort();
 }
@@ -103,6 +123,7 @@ function scan(terms: string[]) {
     manyEmphases: [] as string[],
     issueReference: [] as string[],
     retiredTerm: [] as string[],
+    shrinkingTerm: [] as string[],
     metaphor: [] as string[],
   };
   let files = 0;
@@ -128,6 +149,7 @@ function scan(terms: string[]) {
         if (terms.some((term) => block.text.includes(term))) {
           found.retiredTerm.push(report(name, block));
         }
+        if (hasShrinkingTerm(block.text)) found.shrinkingTerm.push(report(name, block));
         if (METAPHOR.test(block.text)) found.metaphor.push(report(name, block));
       }
     }
@@ -186,19 +208,26 @@ describe("走査の部品", () => {
     }
   });
 
+  it("減らしていく語を拾い、棋譜解析は数えない", () => {
+    expect(hasShrinkingTerm("解析の席を取る")).toBe(true);
+    expect(hasShrinkingTerm("棋譜解析の結果")).toBe(false);
+    expect(hasShrinkingTerm("棋譜解析と解析")).toBe(true);
+    expect(hasShrinkingTerm("検討の席を取る")).toBe(false);
+  });
+
   it("使わない語を表の列から読み、画面だけの語を外す", () => {
     const table = [
       "| UI の表記 | 使わない語 |",
       "| --- | --- |",
       "| 定跡 | ブック |",
-      "| 検討 | 解析（画面で） |",
+      "| 検討 | 解析（画面で）、分析 |",
       "| 棋譜 | — |",
       "",
       "| 語 | 注意 |",
       "| --- | --- |",
       "| 閉じる | 列が無い表 |",
     ].join("\n");
-    expect(retiredTermsIn(table)).toEqual(["ブック"]);
+    expect(retiredTermsIn(table)).toEqual(["ブック", "分析"]);
   });
 });
 
@@ -232,6 +261,7 @@ describe("コメントを第三者が読める", () => {
     ["manyEmphases", "強調は1つの塊に1か所まで。読み落とすと壊れる1文だけに使う"],
     ["issueReference", "番号でなく理由を書く。追跡が要るなら TODO の形にする"],
     ["retiredTerm", "CONTEXT.md の正の語へ揃える"],
+    ["shrinkingTerm", "エンジンに読ませ続ける機能は「検討」と書く（ADR-0015）"],
   ] as const)("%s が基準を超えない", (key, advice) => {
     expect(found[key].length, `${advice}\n${found[key].join("\n")}`).toBeLessThanOrEqual(
       BASELINE[key],

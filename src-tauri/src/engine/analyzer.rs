@@ -910,19 +910,19 @@ impl EngineAnalyzer {
         true
     }
 
-    /// 最後の分析結果取得
+    /// 最後に受けた検討の結果を返す
     pub async fn get_last_result(&self) -> Option<AnalysisResult> {
         self.state.read().await.last_result.clone()
     }
 
-    /// 分析統計取得
+    /// これまでに回した検討の数を返す
     pub async fn get_analysis_stats(&self) -> u64 {
         self.state.read().await.analysis_count
     }
 
     // === 内部ヘルパーメソッド ===
 
-    /// 分析ストリーム処理（無限解析用）
+    /// 無限の検討で届いた行を、結果の列へ読み替える
     async fn process_analysis_stream(
         mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
         result_tx: mpsc::UnboundedSender<AnalysisStreamItem>,
