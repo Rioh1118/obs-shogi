@@ -1262,12 +1262,6 @@ impl UsiProtocol {
         Ok((name, author))
     }
 
-    /// `readyok` を受け取り済みか
-    pub fn is_ready(&self) -> bool {
-        let state: ReadyState = *self.link.ready.borrow();
-        state == ReadyState::Ready
-    }
-
     /// `isready` を**必ず**送り、`readyok` が返るまで待つ。`limit` が `None` なら上限なし。
     ///
     /// 準備済みでも送る。`setoption` を送った後は、評価関数や定跡を読み直させるために
@@ -1330,11 +1324,6 @@ impl UsiProtocol {
         }
 
         Ok(())
-    }
-
-    /// 現在のリスナー数取得（デバッグ用）
-    pub async fn listener_count(&self) -> usize {
-        self.link.listeners.read().await.len()
     }
 
     async fn abort_init(&self) {

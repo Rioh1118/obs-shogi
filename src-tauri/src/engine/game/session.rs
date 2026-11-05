@@ -344,8 +344,8 @@ const CLOSE_POLL: Duration = Duration::from_millis(50);
 // ===== 外から呼ぶ関数 =====
 
 /// 起動中の対局1つ。
-pub struct GameSession {
-    pub id: GameId,
+pub(super) struct GameSession {
+    pub(super) id: GameId,
     tx: mpsc::UnboundedSender<Command>,
     /// この対局のために起動したエンジン。`close` で落とす
     engine_ids: Vec<EngineId>,
@@ -373,7 +373,7 @@ impl GameSession {
     /// **待たせる長さは `START_TIMEOUT` で決まる。** 2体ぶんの段ごとの上限を
     /// 足した値ではない。取り消す経路は無いので、ここが唯一の歯止め。
     /// 段に入る前に残りを見る作りなので、跨いだ段のぶんは少し超える。
-    pub async fn start(
+    pub(super) async fn start(
         registry: &EngineRegistry,
         events: Arc<dyn GameEventSink>,
         settings: GameSettings,
@@ -427,7 +427,7 @@ impl GameSession {
     /// 受け付けた後は `MoveDecided` が出て `AwaitingRuling` で止まる。
     /// **エンジンの手と同じ裁定を通す。** 分けると、詰みの判定が
     /// 「人が指したとき」と「エンジンが指したとき」で別経路になる。
-    pub async fn submit_move(&self, side: Side, usi_move: String) -> Result<(), String> {
+    pub(super) async fn submit_move(&self, side: Side, usi_move: String) -> Result<(), String> {
         self.request(|reply| Command::SubmitMove {
             side,
             usi_move,
@@ -440,7 +440,7 @@ impl GameSession {
     ///
     /// **`Ok` は「次の手番が始まった」とは限らない。** 手数が `MAX_PLIES` を
     /// 超えていたら終局にして `Ok` を返す（理由は `MAX_PLIES` の doc）。
-    pub async fn continue_game(&self, moves: Vec<String>) -> Result<(), String> {
+    pub(super) async fn continue_game(&self, moves: Vec<String>) -> Result<(), String> {
         self.request(|reply| Command::Continue { moves, reply })
             .await
     }
@@ -450,7 +450,7 @@ impl GameSession {
     /// **終局済みなら `Err(ALREADY_OVER)`**（投了・中断と同じ形）。
     /// 説明が長すぎるのは断らずに切る——断ると `RULING_TIMEOUT` が
     /// 別の結末で畳み、勝敗が消える
-    pub async fn end_by_rule(
+    pub(super) async fn end_by_rule(
         &self,
         winner: Option<Side>,
         detail: Option<String>,
@@ -467,21 +467,21 @@ impl GameSession {
     ///
     /// 押したのと時間切れが同じ拍に入ると起きる。結末の権威は `Over` イベントで、
     /// `Ok` は「投了として記録された」を意味しない
-    pub async fn resign(&self, side: Side) -> Result<(), String> {
+    pub(super) async fn resign(&self, side: Side) -> Result<(), String> {
         self.request(|reply| Command::Resign { side, reply }).await
     }
 
     /// 勝敗を付けずに終局にする。**終局済みなら `Err(ALREADY_OVER)`。**
     ///
     /// 投了・裁定と同じ形。`Ok` を「中断が成立した」として扱わないこと
-    pub async fn abort(&self) -> Result<(), String> {
+    pub(super) async fn abort(&self) -> Result<(), String> {
         self.request(|reply| Command::Abort { reply }).await
     }
 
     /// いまの状態の写し。**`Err` は `ENDED` だけ**——タスクが既に畳まれていて、
     /// この対局はもう進まない。上の3つと違い、終局済みでも `Ok` を返す
     /// （`Phase::Over` を載せて返る）。
-    pub async fn snapshot(&self) -> Result<GameSnapshot, String> {
+    pub(super) async fn snapshot(&self) -> Result<GameSnapshot, String> {
         let (reply, rx) = oneshot::channel();
         self.tx
             .send(Command::Snapshot { reply })
@@ -542,7 +542,7 @@ impl GameSession {
     /// **終局しただけではプロセスは落ちない。** `gameover` の後に
     /// `usinewgame` で指し直せるようにしてある（USI がそういう作りのため）。
     /// 呼ばないとプロセスが残る。
-    pub async fn close(self, registry: &EngineRegistry) {
+    pub(super) async fn close(self, registry: &EngineRegistry) {
         // 「止める → 畳まれるのを**待つ** → 落とす」の順。
         // 待つ理由と上限の理由はどちらも `CLOSE_IDLE_TIMEOUT` に書いてある
         self.abort_within_budget().await;

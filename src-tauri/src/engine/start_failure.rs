@@ -56,10 +56,9 @@ pub fn classify(error: &EngineError, quarantined: bool) -> StartFailure {
         EngineError::StartupFailed(_) => StartFailureKind::SpawnFailed,
         EngineError::CommunicationFailed(_) if quarantined => StartFailureKind::Quarantined,
         EngineError::CommunicationFailed(_) => StartFailureKind::ExitedEarly,
-        EngineError::NotInitialized(_)
-        | EngineError::ProtocolViolation(_)
-        | EngineError::AnalysisFailed(_)
-        | EngineError::AlreadyListening(_) => StartFailureKind::Other,
+        EngineError::NotInitialized(_) | EngineError::AlreadyListening(_) => {
+            StartFailureKind::Other
+        }
     };
     let message = error.to_string();
     StartFailure {

@@ -34,10 +34,6 @@ impl GameId {
         Self(value)
     }
 
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
     /// 静的な写像の鍵として持ってよいか。
     ///
     /// 中身は webview から来る無検証の文字列で、長い値をそのまま持つと
@@ -70,7 +66,7 @@ const MAX_ID_BYTES: usize = 48;
 /// （`LOG_FILE_BUDGET` ＋ `KeepOne`）を一周させられる——**壊れた理由を
 /// 説明していた行が全部消える**。改行を通せば、その後ろに好きなログ行も作れる。
 ///
-/// 台帳を引く側は `as_str` を使うので、切り詰めが照合に効くことはない。
+/// 台帳は `GameId` そのもの（`Hash` と `Eq`）で引くので、切り詰めが照合に効くことはない。
 impl std::fmt::Display for GameId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // **数えるのは出す側のバイト数。** 制御文字は1バイトの入力が3バイトの
@@ -576,9 +572,9 @@ mod tests {
         let shown = sneaky.to_string();
         assert!(!shown.contains('\n'), "改行をそのまま通している: {shown:?}");
 
-        // 本物は必ず収まる。切り詰めが照合に効かないことは `as_str` が保証する
+        // 本物は必ず収まる
         let real = GameId::new(uuid::Uuid::new_v4().to_string());
-        assert_eq!(real.to_string(), real.as_str());
+        assert_eq!(real.to_string(), real.0);
     }
 
     /// 境界に出る JSON の形を固定する。

@@ -454,6 +454,8 @@ impl EngineRegistry {
     /// あちらは「閉じ忘れを拾う」ための関数で、こちらは「いま握手が済んでいるプロセス」。
     ///
     /// 起動の途中で終了フックが走ったときにどう拾うかは `starting` の doc。
+    /// 本番の読み手は無く、テストが台帳の中身を確かめるのに使う。
+    #[cfg(test)]
     pub async fn ids(&self) -> Vec<EngineId> {
         self.processes.read().await.keys().cloned().collect()
     }

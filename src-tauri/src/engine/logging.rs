@@ -165,18 +165,6 @@ impl LogThrottle {
     pub fn is_open(&self) -> bool {
         self.last.elapsed() >= self.interval
     }
-
-    /// 通さずに枠を閉じる。**通したことにしたくないが、間隔は数えたいとき**に使う
-    #[inline]
-    pub fn reset(&mut self) {
-        self.last = Instant::now();
-    }
-
-    /// 間隔を差し替える。**閉じている枠はそのまま**（`last` を動かさない）
-    #[inline]
-    pub fn set_interval(&mut self, interval: Duration) {
-        self.interval = interval;
-    }
 }
 
 /// ログに載せる、送るコマンドの要約を返す。局面、探索の引数、`setoption` の値は載せない
@@ -260,21 +248,5 @@ mod tests {
             "名前を切っていない: {} 文字",
             summary.chars().count()
         );
-    }
-
-    /// `reset` は通さずに枠を閉じる。`set_interval` は枠を閉じた時刻を動かさず、間隔だけを替える。
-    /// 最初の間隔は起動直後の例外（型の doc）に当たらない長さにする
-    #[test]
-    fn a_throttle_closes_on_reset_and_keeps_its_time_on_a_new_interval() {
-        let mut throttle = LogThrottle::new(Duration::from_secs(60));
-        assert!(throttle.is_open());
-        throttle.reset();
-        assert!(!throttle.is_open(), "reset の後も空いている");
-        assert!(!throttle.allow());
-
-        std::thread::sleep(Duration::from_millis(20));
-        throttle.set_interval(Duration::from_millis(10));
-        assert!(throttle.is_open(), "間隔を替えたときに閉じた時刻が動いた");
-        assert!(throttle.allow());
     }
 }

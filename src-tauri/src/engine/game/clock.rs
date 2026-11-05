@@ -45,14 +45,6 @@ impl SideClock {
         }
     }
 
-    pub fn remaining_ms(&self) -> u64 {
-        self.remaining_ms
-    }
-
-    pub fn byoyomi_ms(&self) -> u64 {
-        self.limit.byoyomi_ms
-    }
-
     /// この手に使い切れる上限。持ち時間の残り＋秒読み。
     ///
     /// 加算（フィッシャー）は**着手できてから**足すので、ここには入らない。
@@ -310,11 +302,11 @@ mod tests {
         let mut clock = SideClock::new(byoyomi(10_000, 30_000));
 
         assert_eq!(clock.consume(4_000), ClockOutcome::Ok);
-        assert_eq!(clock.remaining_ms(), 6_000);
+        assert_eq!(clock.remaining_ms, 6_000);
 
         // 残り 6 秒に対して 20 秒使った。超過 14 秒は秒読み 30 秒で賄える
         assert_eq!(clock.consume(20_000), ClockOutcome::Ok);
-        assert_eq!(clock.remaining_ms(), 0);
+        assert_eq!(clock.remaining_ms, 0);
 
         // 以降は毎手 30 秒まで
         assert_eq!(clock.consume(29_000), ClockOutcome::Ok);
@@ -330,7 +322,7 @@ mod tests {
         assert_eq!(clock.consume(30_000), ClockOutcome::Ok);
         // 余らせても持ち越さない
         assert_eq!(clock.consume(1_000), ClockOutcome::Ok);
-        assert_eq!(clock.remaining_ms(), 0);
+        assert_eq!(clock.remaining_ms, 0);
         // 31 秒目で切れる
         assert_eq!(clock.consume(30_001), ClockOutcome::Expired);
     }
@@ -339,7 +331,7 @@ mod tests {
     fn sudden_death_expires_when_main_time_runs_out() {
         let mut clock = SideClock::new(sudden_death(5_000));
         assert_eq!(clock.consume(5_000), ClockOutcome::Ok);
-        assert_eq!(clock.remaining_ms(), 0);
+        assert_eq!(clock.remaining_ms, 0);
         assert_eq!(clock.consume(1), ClockOutcome::Expired);
     }
 
@@ -350,7 +342,7 @@ mod tests {
     #[test]
     fn a_fischer_game_without_main_time_can_play_its_first_move() {
         let clock = SideClock::new(fischer(0, 10_000));
-        assert_eq!(clock.remaining_ms(), 10_000);
+        assert_eq!(clock.remaining_ms, 10_000);
         assert!(!clock.has_expired(100), "開始直後に時間切れになっている");
         assert!(clock.has_expired(10_001));
     }
@@ -359,10 +351,10 @@ mod tests {
     fn increment_is_added_only_after_a_move_lands() {
         // 開始時は持ち時間＋初手ぶんの加算
         let mut clock = SideClock::new(fischer(10_000, 3_000));
-        assert_eq!(clock.remaining_ms(), 13_000);
+        assert_eq!(clock.remaining_ms, 13_000);
 
         assert_eq!(clock.consume(4_000), ClockOutcome::Ok);
-        assert_eq!(clock.remaining_ms(), 12_000);
+        assert_eq!(clock.remaining_ms, 12_000);
 
         // 使い切ると加算する前に切れる。**その手の加算では延命できない**
         assert_eq!(clock.consume(12_001), ClockOutcome::Expired);
@@ -375,10 +367,10 @@ mod tests {
     #[test]
     fn charging_a_move_that_never_landed_does_not_pay_the_increment() {
         let mut clock = SideClock::new(fischer(10_000, 3_000));
-        assert_eq!(clock.remaining_ms(), 13_000);
+        assert_eq!(clock.remaining_ms, 13_000);
 
         clock.charge(4_000);
-        assert_eq!(clock.remaining_ms(), 9_000, "加算が足されている");
+        assert_eq!(clock.remaining_ms, 9_000, "加算が足されている");
     }
 
     /// 使い切っていても 0 で止まること。
@@ -389,7 +381,7 @@ mod tests {
     fn charging_more_than_what_is_left_settles_at_zero() {
         let mut clock = SideClock::new(minutes_ms(1));
         clock.charge(90_000);
-        assert_eq!(clock.remaining_ms(), 0);
+        assert_eq!(clock.remaining_ms, 0);
     }
 
     /// 動いている側は「尽きる時刻」で出す。持ち時間が残っている間は

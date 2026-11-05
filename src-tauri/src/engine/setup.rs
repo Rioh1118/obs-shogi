@@ -165,7 +165,7 @@ pub async fn accepts_path_in(
 }
 
 /// `info string` の行が「選択肢に無い値」を言っているか（やねうら王 V9.00 の綴りを大小を問わずに）
-pub fn says_value_not_in_vars(text: &str) -> bool {
+fn says_value_not_in_vars(text: &str) -> bool {
     text.to_ascii_lowercase().contains("value not found")
 }
 

@@ -1076,20 +1076,6 @@ impl EngineAnalyzer {
     }
 }
 
-impl Clone for EngineAnalyzer {
-    fn clone(&self) -> Self {
-        Self {
-            registry: Arc::clone(&self.registry),
-            engine_id: Arc::clone(&self.engine_id),
-            state: Arc::clone(&self.state),
-            infinite_listener: Arc::clone(&self.infinite_listener),
-            infinite_settled: Arc::clone(&self.infinite_settled),
-            unanswered: Arc::clone(&self.unanswered),
-            startup: Arc::clone(&self.startup),
-        }
-    }
-}
-
 /// 要求が、既に受けたより新しい要求に追い越されていた（`Request`）
 fn superseded_request() -> EngineError {
     EngineError::Cancelled("a newer request was already received".to_string())
