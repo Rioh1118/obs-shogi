@@ -14,7 +14,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppConfigProvider } from "../provider";
 import { useAppConfig } from "../useAppConfig";
 import type { AppConfig } from "../types";
-import type { PresetId } from "@/entities/engine-presets/model/types";
 
 let disk: AppConfig = { root_dir: "/old", ai_root: null };
 const loadConfig = vi.fn();
@@ -100,7 +99,7 @@ function StalePresetProbe() {
     <button
       data-testid="preset"
       onClick={() => {
-        void captured.current?.("preset-1" as PresetId);
+        void captured.current?.("preset-1");
       }}
     >
       preset
@@ -460,7 +459,7 @@ describe("成否の返し方", () => {
     const view = await mounted();
 
     await act(async () => {
-      await view.result.current.setLastPresetId("preset-1" as PresetId);
+      await view.result.current.setLastPresetId("preset-1");
     });
 
     expect(disk.last_preset_id).toBe("preset-1");
@@ -474,7 +473,7 @@ describe("成否の返し方", () => {
     loadConfig.mockRejectedValue("壊れている");
 
     await act(async () => {
-      await view.result.current.setLastPresetId("preset-1" as PresetId);
+      await view.result.current.setLastPresetId("preset-1");
     });
 
     expect(saveConfig).not.toHaveBeenCalled();
@@ -486,7 +485,7 @@ describe("成否の返し方", () => {
     saveConfig.mockRejectedValue("書けない");
 
     await act(async () => {
-      await view.result.current.setLastPresetId("preset-1" as PresetId);
+      await view.result.current.setLastPresetId("preset-1");
     });
 
     expect(view.result.current.error).toContain("書けない");

@@ -1,10 +1,15 @@
-import type { PresetId } from "@/entities/engine-presets/model/types";
 import type { AsyncResult } from "@/shared/lib/result";
 
 export type AppConfig = {
   root_dir: string | null;
   ai_root: string | null;
-  last_preset_id?: PresetId | null;
+  /**
+   * 最後に選んでいたプリセットの ID。意味を持つのは `entities/engine-presets` で、ここは保存するだけ。
+   *
+   * 型を `entities/engine-presets` の `PresetId` から借りない。借りると、あちらが `useAppConfig` を
+   * 読む向きと合わせて2スライスが互いを読む（`src/__tests__/crossSliceImports.ts`）。
+   */
+  last_preset_id?: string | null;
 
   /**
    * ドックに出すタブの綴りを、出す順に並べたもの。まだ選んでいなければ欠ける。
@@ -103,7 +108,7 @@ export type AppConfigContextType = ConfigState & {
    * 「ディスクは新しい名前、設定は古い名前」で固定される
    */
   setRootDir: (rootDir: string) => AsyncResult<void, string>;
-  setLastPresetId: (presetId: PresetId | null) => Promise<void>;
+  setLastPresetId: (presetId: string | null) => Promise<void>;
   /**
    * 表示の設定のうち、渡した欄だけを差し替える。
    *

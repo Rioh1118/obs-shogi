@@ -28,7 +28,6 @@ const LAYERS = ["pages", "widgets", "features", "entities"] as const;
  */
 export const CROSS_SLICE_INVENTORY: readonly string[] = [
   "entities/analysis -> entities/engine",
-  "entities/app-config -> entities/engine-presets",
   "entities/engine -> entities/file-tree",
   "entities/engine-presets -> entities/app-config",
   "entities/engine-presets -> entities/engine",
@@ -47,27 +46,17 @@ export const CROSS_SLICE_INVENTORY: readonly string[] = [
 ];
 
 /**
- * 互いを読み合っている組。**増やさないための控え。**
+ * 互いを読み合っている組。**1組も認めない。**
  *
  * 往復は `import/no-cycle` が拾わない（**輪になるまで黙っている**）。輪でなくても、
- * 2スライスが互いを読む形は「どちらが器か」を消してしまう。
- *
- * ここに1組だけ残っているのは範囲外のため（→ `docs/IDEAS.md`）。
- * **足さないこと。** 片方の向きを消すのが直し方で、控えを伸ばすのは直し方ではない。
+ * 2スライスが互いを読む形は「どちらが器か」を消してしまう。片方の向きを消すのが直し方。
  */
-const KNOWN_MUTUAL: readonly string[] = [
-  "entities/app-config -> entities/engine-presets",
-  "entities/engine-presets -> entities/app-config",
-];
-
-/** 互いを読み合っている組のうち、まだ控えに無いもの */
-export function newMutualEdges(edges: ReadonlySet<string>): string[] {
+export function mutualEdges(edges: ReadonlySet<string>): string[] {
   return [...edges]
     .filter((edge) => {
       const [from, to] = edge.split(" -> ");
       return edges.has(`${to} -> ${from}`);
     })
-    .filter((edge) => !KNOWN_MUTUAL.includes(edge))
     .sort();
 }
 
