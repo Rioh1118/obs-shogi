@@ -260,12 +260,17 @@ P との関係: P2 と P3 の間、プロセスは Q2〜Q4 のどれか。P3（�
 | T4 | (Q4, R9) (Q3, R9) | `stop` に答えないエンジンは `StopTimedOut` で終局し、`gameover` を書かない。止めの上限（5秒）を実際に待つ | `game/session.rs` |
 | T5 | (Q3, L8) (Q3p, L8) | 探索中に終わったエンジンで、対局が `engineFailure` で終わる | `game/session.rs` |
 | T6 | (Q2, R9) | 終局したら、探索していないエンジンへ `gameover` を書く | `game/session.rs` |
-| T7 | (Q3, L7) | 時間を決めた検討が `bestmove` で結果を返し、前の探索の遅れた行を採らない（`drain_stale`） | `analyzer.rs` |
+| T7 | (Q3, L7) | 時間を決めた検討が、上限を待たずにその探索の `bestmove` で結果を返す。前の探索の遅れた行を捨てる `drain_stale` は台本では踏めない（下） | `analyzer.rs` |
 | T8 | (Q3, L5) (Q3, R7) | 深度を決めた検討が、目標に届いたら `stop` を書いて結果を返す | `analyzer.rs` |
 | T9 | (Q0, L3) | `usiok` の前に `id name` が無いエンジンを `NO_ID_NAME` で断る | `protocol.rs` |
 | T10 | (Q3, R8) | 探索中に取っ手を全部捨てると、プロセスが落ちる。いまは `dropping_the_protocol_while_waiting_for_readyok_ends_the_process` が Q1 だけを踏む | `protocol.rs` |
 
 kill（R11）と値の確認（Q2c）は、いまのテストで足りている（表の「いま」）。U4 の後に同じテストが通ることを見る。
+
+**`drain_stale` は実プロセスで踏めない。** 捨てるのは、受け手を張ってから `go` を書き終えるまでに届いた行だけで、
+その窓は `analyze_with_time` の中で続けて走る2つの await の間しか無い。台本の側から、その窓に行を落とす手立てが無い。
+窓の後に届いた前の探索の行は、`collect_until_bestmove` が区別せずに採る（コードを読んだ範囲。再現はしていない）。守っているのは純関数の `stale_output_is_dropped_before_collecting` だけ。
+**作り直しで、`bestmove` を探索に結び付ける（不変条件2）ことでこの窓ごと無くなる。**
 
 T4 は5秒を待つが `#[ignore]` にしない。載せ替えの番人なので、毎回走らないと意味が無い。
 
