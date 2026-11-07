@@ -739,8 +739,10 @@ impl UsiProtocol {
         }
     }
 
-    /// リスナー登録
-    pub async fn register_listener(
+    /// リスナー登録。**呼べるのはこの段の中だけ**（手順「探索」などの手順の関数）。
+    /// 外の呼び手は手順を通す。外で登録すると、どの探索の `bestmove` かを決める判断が
+    /// 呼び手ごとに写される（ADR-0016 の D-1）
+    async fn register_listener(
         &self,
         name: String,
         sender: mpsc::UnboundedSender<EngineCommand>,
@@ -784,8 +786,8 @@ impl UsiProtocol {
         Ok(())
     }
 
-    /// リスナー削除
-    pub async fn remove_listener(&self, name: &str) {
+    /// リスナー削除。登録と同じく、この段の中だけ
+    async fn remove_listener(&self, name: &str) {
         self.link.remove_listener(name).await;
     }
 
