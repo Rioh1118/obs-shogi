@@ -44,7 +44,7 @@ pub enum StopAnswer {
     ///
     /// 書き込みの上限（`WRITE_TIMEOUT`）を超えたときも `EngineError::Timeout` を持ってここへ来る。
     /// その時点で後続の書き込みは全部断られる（`fail_writes`）ので、そのプロセスへはもう届かない。
-    /// 検討（`verdict_of_stop`）は同じく失敗と読むが、対局（`outcome_of_stop`）は「止めに答えない」と
+    /// 検討（`analyzer` の `result_of_stop`）は同じく失敗と読むが、対局（`outcome_of_stop`）は「止めに答えない」と
     /// 読んで `Activity::Unresponsive` へ移す。どちらへ揃えるかは対局が移る U2b で決める
     Unreachable(EngineError),
 }

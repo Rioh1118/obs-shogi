@@ -359,6 +359,6 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | 席の開始と停止を1本ずつ通す | `bridge` の `search_turn` | 同じ。整理は範囲 8b |
 | 1本のプロセスへ書く行の順 | 書き込みの列と、積み置きの世代と `draining` | 殻のタスク1本（engine.md の不変条件1） |
 | 止めに答えるまで次の `go` を出さない | `analyzer` の `unanswered` | 状態機械の Q4 |
-| どの探索の `bestmove` か | 呼び手（受け手を外す時機、`drain_stale`、対局の `req`） | 状態機械（engine.md の不変条件2） |
+| どの探索の `bestmove` か | 検討は `Search` の探索の枠（U2a）。対局は呼び手（受け手を外す時機と `req`） | 状態機械（engine.md の不変条件2） |
 
 `bridge` と `analyzer` の2つの直列化は、作り直しでも残る。消えるのは下の3行で、どれも1本のプロセスの中の順序。
