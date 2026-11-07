@@ -80,7 +80,7 @@ ours 戦略のマージは使わない。
 | 44 | `refactor/usi-u1-procedures` | 作り直しの段 U1。手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry` と `setup` を手順へ移し、B-10 と D-1 の置き場を入れる | #715 | マージ済み |
 | 45 | `refactor/readability-range6` | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure`（Rust の範囲6）。C-4、R-10、範囲内の W-1 を閉じ、`setup` の関数名を手順の語に揃える | #716 | マージ済み |
 | 46 | `refactor/usi-u2a-analyzer` | 作り直しの段 U2a。`analyzer` を手順「探索」と `Search` へ移し、検討の側から受け手の登録をなくす。D-1 の検討の写しを消す | #717 | マージ済み |
-| 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順を段 `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` に畳み、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | — | レビュー待ち |
+| 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順を段 `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` に畳み、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | #718 | レビュー待ち |
 
 ## 語
 
