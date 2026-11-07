@@ -170,6 +170,9 @@ struct Startup {
     cancel: Option<CancellationToken>,
     /// これまでに受けた起動・停止の要求のうち最も新しい番号（`Request`）
     latest_request: Request,
+    /// `engine_id` に載せたプロセスを起動した要求の番号。止めに答えない知らせに載せる
+    /// （`EngineAnalyzer::started_by`）。**載せるのと同じロックの下で書く**（`publish`）
+    started_by: Request,
 }
 
 impl Startup {
@@ -252,7 +255,7 @@ impl EngineAnalyzer {
             }
             Err(e) => return Err(e),
         };
-        let info = self.publish(generation, process).await?;
+        let info = self.publish(generation, request, process).await?;
         Ok(StartOutcome { info, warnings })
     }
 
@@ -296,6 +299,7 @@ impl EngineAnalyzer {
     async fn publish(
         &self,
         generation: u64,
+        request: Request,
         process: Arc<EngineProcess>,
     ) -> Result<EngineInfo, EngineError> {
         let mut startup = self.startup.lock().await;
@@ -305,6 +309,7 @@ impl EngineAnalyzer {
             return Err(cancelled_start());
         }
         startup.cancel = None;
+        startup.started_by = request;
         *self.engine_id.write().await = Some(process.id.clone());
         Ok(process.info.clone())
     }
@@ -368,6 +373,14 @@ impl EngineAnalyzer {
     /// 同じロックの下で決める）
     pub async fn is_superseded(&self, request: Request) -> bool {
         self.startup.lock().await.is_superseded(request)
+    }
+
+    /// 最後に起動を終えたプロセスを起動した要求の番号。まだ1度も起動していなければ 0。
+    ///
+    /// 落とした後も前の番号のまま残る。読み手（`bridge` の停止）が知らせに載せるのは
+    /// 止めに答えなかったときだけで、それは起動したプロセスがあるときに限る
+    pub async fn started_by(&self) -> Request {
+        self.startup.lock().await.started_by
     }
 
     /// 読む局面を覚える。**線には書かない。**
@@ -1032,6 +1045,36 @@ done"#;
 
             analyzer.shutdown(6).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 載せたプロセスを起動した要求の番号を返す（`started_by`）。世代でも、最後に受けた要求でもない
+        #[tokio::test]
+        async fn started_by_names_the_request_that_started_the_running_engine() {
+            let dir = test_support::dir::temp_dir("analyzer-started-by");
+            let path = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            for request in [5, 9] {
+                analyzer
+                    .start_engine(engine(&path), &StartInput::default(), request)
+                    .await
+                    .expect("起動できる");
+                assert_eq!(analyzer.started_by().await, request);
+            }
+
+            let stale = analyzer
+                .start_engine(engine(&path), &StartInput::default(), 7)
+                .await;
+            assert!(matches!(stale, Err(EngineError::Cancelled(_))), "{stale:?}");
+            assert_eq!(
+                analyzer.started_by().await,
+                9,
+                "断った要求の番号を名乗っている"
+            );
+
+            analyzer.shutdown(10).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
         }
 
