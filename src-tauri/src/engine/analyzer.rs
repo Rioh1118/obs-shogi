@@ -1,17 +1,15 @@
-//! 検討に使うエンジン1本を起こし、その上で探索を回す。
+//! 検討に使うエンジン1本がどれかを決め、その上で探索を回す。
 //!
 //! 起動は要求の番号（`Request`）で順序を持ち、新しい要求が来たら前の起動を取り消す。
+//! 起こして設定を送る手順そのものは `analysis_start` が持つ。
 //! 探索の結果をどこへ流すかと、席を誰に配るかは知らない（`bridge`）。
 
 use crate::engine::candidates::{apply_info_params, depth_of_rank};
 
-use super::binding::{self, BindingInput, EvalTarget};
+use super::analysis_start::{self, cancelled_start, validate_input, StartInput};
 use super::protocol::search::{LateAnswer, Search, SearchLine, StopAnswer};
-use super::protocol::USI_OK_TIMEOUT;
 use super::protocol::{contains_usi_breaking_char, EngineEndWatch, UsiProtocol};
-use super::registry::SPAWN_TIMEOUT;
 use super::registry::{EngineId, EngineProcess, EngineRegistry};
-use super::setup;
 use super::types::*;
 use std::sync::Arc;
 use std::time::Duration;
@@ -40,7 +38,7 @@ const BESTMOVE_GRACE: Duration = Duration::from_secs(3);
 /// `the_watchdogs_are_ordered` に固定してある。こちらは誰とも突き合わせていない。
 const ANALYSIS_STOP_GRACE: Duration = Duration::from_secs(3);
 
-/// 深度指定の解析に掛ける考慮時間。
+/// 深度を決めた検討に掛ける考慮時間。
 ///
 /// **`go depth` は送っていない。** `usi 0.6` の `ThinkParams` が組めるのは
 /// `ponder` / `btime` / `wtime` / `byoyomi` / `binc` / `winc` / `infinite` / `mate` で、
@@ -51,16 +49,16 @@ const ANALYSIS_STOP_GRACE: Duration = Duration::from_secs(3);
 /// ここに当たることがある**ので、届いたかは呼び出し側へ返す（→ `DepthOutcome`）。
 const DEPTH_ANALYSIS_BUDGET: Duration = Duration::from_secs(60);
 
-/// 1回の解析に許す考慮時間の上限。
+/// 1回の検討に許す考慮時間の上限。
 ///
 /// 上限が無いと、`analyze_with_time` は席を握ったまま何時間でも戻らない。
-/// 席が空かない間は**解析の入口が全部断られる**（→ `bridge::take_session`）。
+/// 席が空かない間は**検討の入口が全部断られる**（→ `bridge::take_session`）。
 ///
 /// 対局は止まらない。あちらは `GameManager` が別のプロセスを起こすので、
-/// 解析の席を一度も見ない。
+/// 検討の席を一度も見ない。
 pub const MAX_THINK_TIME: Duration = Duration::from_secs(600);
 
-/// 無限解析のストリームが流すもの。
+/// 無限の検討のストリームが流すもの。
 ///
 /// **結果と終わり方を1本の列で運ぶ。** 終わり方を別の経路で知らせると、最後の結果との
 /// 順序を2本で揃えることになる。列が `Finished` を流さずに閉じたら、止められたか
@@ -126,8 +124,8 @@ async fn wait_for_late_answer(late: LateAnswer, unanswered: Arc<watch::Sender<bo
 
 /// 目標深度に届いたか。
 ///
-/// `None`（時間だけで打ち切る解析）では**常に偽**。ここが真を返すと `stop` が飛ぶので、
-/// 深度を指定していない解析まで途中で畳んでしまう。
+/// `None`（時間だけで打ち切る検討）では**常に偽**。ここが真を返すと `stop` が飛ぶので、
+/// 深度を指定していない検討まで途中で畳んでしまう。
 fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
     let Some(target) = target else {
         return false;
@@ -137,15 +135,15 @@ fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
 
 /// 検討に使うエンジン1本の起動と探索
 ///
-/// 解析が使うエンジンは、対局が使うものと同じ台帳（`EngineRegistry`）に載る。
-/// ここが持つのは「そのうちどれが解析用か」だけ。
+/// 検討が使うエンジンは、対局が使うものと同じ台帳（`EngineRegistry`）に載る。
+/// ここが持つのは「そのうちどれが検討用か」だけ。
 pub struct EngineAnalyzer {
     registry: Arc<EngineRegistry>,
     engine_id: Arc<RwLock<Option<EngineId>>>,
     state: Arc<RwLock<AnalyzerState>>,
     /// 走っている探索（無限・時間・深度のどれでも）へ、止める頼みを渡すチャネルの送り手。
     ///
-    /// **探索（`Search`）を持つのは探索を回す側**（`process_analysis_stream` と
+    /// **探索（`Search`）を持つのは探索を回す側**（`run_infinite_search` と
     /// `collect_until_bestmove`）で、ここは頼みを渡すだけ。**`Some` は「走っている」を意味しない。**
     /// 探索が自分で終わっても送り手は残り、終わった探索への頼みは送れずに返る（止めるものが無かったと読む）
     search_stop: Mutex<Option<oneshot::Sender<StopReply>>>,
@@ -172,6 +170,16 @@ struct Startup {
     cancel: Option<CancellationToken>,
     /// これまでに受けた起動・停止の要求のうち最も新しい番号（`Request`）
     latest_request: Request,
+    /// `engine_id` に載せたプロセスを起動した要求の番号。止めに答えない知らせに載せる
+    /// （`EngineAnalyzer::started_by`）。**載せるのと同じロックの下で書く**（`publish`）
+    started_by: Request,
+}
+
+impl Startup {
+    /// `request` が既に受けた要求より古いか。**同じ番号は古くない**（`Request`）
+    fn is_superseded(&self, request: Request) -> bool {
+        request < self.latest_request
+    }
 }
 
 /// フロントが起動・停止を撃つたびに上げる番号（`provider.tsx` の `seqRef`）。
@@ -180,7 +188,11 @@ struct Startup {
 /// `startup` のロックに着く前に別の `await` を挟む（`bridge.rs` の `release_sessions` /
 /// `stop_all_sessions`）。後から撃った要求が先にロックを取ると、Rust の世代の順が逆転し、
 /// フロントが捨てた古い起動が `engine_id` に載って、新しい要求のほうが取り消される。
-/// 番号が最新より古い要求は、何もせずに断る
+/// 番号が最新より古い要求は、何もせずに断る。
+///
+/// **同じ番号は断らない。** 申告の取得の番号（`probe::ProbeRequest`）は同じ番号も断るが、
+/// あちらは後始末で番号を見て自分を見分けるため。こちらの後始末は Rust の世代
+/// （`Startup::generation`）で見分けるので、同じ番号が2度来ても前の起動の欄を外さない
 pub type Request = u64;
 
 /// 止める頼みへの答えを返す送り手（`EngineAnalyzer::stop_analysis` が待つ）
@@ -205,7 +217,7 @@ impl EngineAnalyzer {
         }
     }
 
-    /// 解析用のエンジンを起動し、設定を送って `readyok` まで待つ。**1つの呼び出しで通す。**
+    /// 検討用のエンジンを起動し、設定を送って `readyok` まで待つ。**1つの呼び出しで通す。**
     ///
     /// 前の起動が進行中なら取り消し、起動済みのエンジンは落としてから始める。
     /// 待っている間に `shutdown` か次の `start_engine` が来たら、起動中の
@@ -235,7 +247,7 @@ impl EngineAnalyzer {
             return Err(e);
         }
 
-        let started = self.start_engine_steps(engine_path, input, &cancel).await;
+        let started = analysis_start::start(&self.registry, engine_path, input, &cancel).await;
         let (process, warnings) = match started {
             Ok(process) => process,
             // **取り消された後の失敗は取り消しとして返す。** 取り消しは待ちとしか競わないので、
@@ -247,130 +259,41 @@ impl EngineAnalyzer {
             }
             Err(e) => return Err(e),
         };
-        let info = self.publish(generation, process).await?;
+        let info = self.publish(generation, request, process).await?;
         Ok(StartOutcome { info, warnings })
     }
 
-    /// 世代を上げ、進行中の起動を取り消し、起動済みのエンジンを落とす。
-    /// `request` が既に受けた要求より古ければ何もせず `None`
+    /// 新しい起動を始める（`take_over`）。返すのはその起動の世代と取り消しの欄
     async fn begin_start(&self, request: Request) -> Option<(u64, CancellationToken)> {
-        let (generation, cancel, previous) = {
+        let cancel = CancellationToken::new();
+        let generation = self.take_over(request, Some(cancel.clone())).await?;
+        Some((generation, cancel))
+    }
+
+    /// 要求を受け、いまのプロセスを手放す。**起動と `shutdown` はどちらもここを通す。**
+    ///
+    /// 世代を上げ、進行中の起動を取り消して `next` に置き換え、覚えた局面を消し、
+    /// `engine_id` から外したプロセスを落とす。`request` が既に受けた要求より古ければ何もせず `None`
+    async fn take_over(&self, request: Request, next: Option<CancellationToken>) -> Option<u64> {
+        let (generation, previous) = {
             let mut startup = self.startup.lock().await;
-            if request < startup.latest_request {
+            if startup.is_superseded(request) {
                 return None;
             }
             startup.latest_request = request;
             startup.generation += 1;
-            if let Some(previous) = startup.cancel.take() {
+            if let Some(previous) = std::mem::replace(&mut startup.cancel, next) {
                 previous.cancel();
             }
-            let cancel = CancellationToken::new();
-            startup.cancel = Some(cancel.clone());
             // **前のプロセスの局面を次へ持ち越さない。** ロックの外で消すと、前のプロセスを
             // 落とす間に追い越した起動が覚えた局面を消す
             self.state.write().await.current_position = None;
-            (
-                startup.generation,
-                cancel,
-                self.engine_id.write().await.take(),
-            )
+            (startup.generation, self.engine_id.write().await.take())
         };
         if let Some(previous) = previous {
             self.drop_engine(&previous).await;
         }
-        Some((generation, cancel))
-    }
-
-    /// 起こし、**その回の申告から**送る設定を決め（`binding::bind`）、送って `usinewgame` まで通す。
-    /// 失敗したら起こしたプロセスを落とす。cwd は実行ファイルのフォルダ（`spawn_cancellable` の
-    /// 作業フォルダに `None` を渡す）——相対パスを cwd 基準で解くエンジンがあり、AI フォルダを cwd に
-    /// すると同じ設定が AI フォルダごとに違うファイルを指す
-    async fn start_engine_steps(
-        &self,
-        engine_path: &str,
-        input: &StartInput,
-        cancel: &CancellationToken,
-    ) -> Result<(Arc<EngineProcess>, Vec<StartWarning>), EngineError> {
-        // **評価関数を見るのは起こす前。** ディスクを見る待ちは取り消しと上限の外に出さない——
-        // 起こした後で待つと、応答しないボリュームで握手を済ませたプロセスが残る
-        let eval = match &input.eval_path {
-            Some(path) => Some(tokio::select! {
-                biased;
-                _ = cancel.cancelled() => return Err(cancelled_start()),
-                target = eval_target(path) => target,
-            }),
-            None => None,
-        };
-        let process = self
-            .registry
-            .spawn_cancellable(engine_path, None, SPAWN_TIMEOUT, USI_OK_TIMEOUT, cancel)
-            .await?;
-        let protocol = process.protocol();
-
-        // 選んだ定跡の名前が選択肢に無いときだけ、パスを受けるかをこのプロセスに確かめる
-        // （保存した結果を使うと、同じパスに別の版を置いたときに食い違う）
-        let book_path_support = match binding::book_path_check_name(
-            &process.info.options,
-            input.book.as_ref(),
-        ) {
-            Some(name) => {
-                let checked = tokio::select! {
-                    biased;
-                    _ = cancel.cancelled() => Err(cancelled_start()),
-                    checked = setup::check_book_path_support(&protocol, &name, BOOK_PATH_CHECK_LIMIT) => checked,
-                };
-                match checked {
-                    Ok(BookPathSupport::NoAnswer) => {
-                        log::warn!(
-                            target: LOGT,
-                            "start_engine: {} did not answer whether `{name}` accepts a path in {BOOK_PATH_CHECK_LIMIT:?}",
-                            process.info.name
-                        );
-                        BookPathSupport::NoAnswer
-                    }
-                    Ok(support) => support,
-                    Err(e) => {
-                        self.registry.shutdown(&process.id).await;
-                        return Err(e);
-                    }
-                }
-            }
-            None => BookPathSupport::Unchecked,
-        };
-
-        let binding_input = BindingInput {
-            values: input.values.clone(),
-            eval,
-            book: input.book.clone(),
-            fixed: analysis_fixed_values(),
-            book_path_support,
-        };
-        let bound = binding::bind(&process.info.options, &binding_input);
-        let mut warnings = bound.warnings;
-
-        // `biased`: 取り消しと失敗が同時に揃ったら取り消しを採る
-        let prepared = tokio::select! {
-            biased;
-            _ = cancel.cancelled() => Err(cancelled_start()),
-            prepared = setup::checked_prepare(&protocol, &bound.options, None, None) => prepared,
-        };
-        // 定跡をパスで送った回は、`readyok` までの `info string` で読めたかを確かめる
-        // （`binding::book_load_warning`）。「断らなかった」だけでは、黙って捨てたエンジンを通してしまう
-        if let (Ok(texts), Some(sent)) = (&prepared, &bound.book_path_sent) {
-            warnings.extend(binding::book_load_warning(texts, sent));
-        }
-        for warning in &warnings {
-            log::info!(target: LOGT, "start_engine: not sent as saved: {warning:?}");
-        }
-        let prepared = match prepared {
-            Ok(_) => protocol.new_game().await,
-            Err(e) => Err(e),
-        };
-        if let Err(e) = prepared {
-            self.registry.shutdown(&process.id).await;
-            return Err(e);
-        }
-        Ok((process, warnings))
+        Some(generation)
     }
 
     /// 起動を終えたプロセスを `engine_id` に載せる。世代が古ければ落として `Cancelled`。
@@ -380,6 +303,7 @@ impl EngineAnalyzer {
     async fn publish(
         &self,
         generation: u64,
+        request: Request,
         process: Arc<EngineProcess>,
     ) -> Result<EngineInfo, EngineError> {
         let mut startup = self.startup.lock().await;
@@ -389,11 +313,12 @@ impl EngineAnalyzer {
             return Err(cancelled_start());
         }
         startup.cancel = None;
+        startup.started_by = request;
         *self.engine_id.write().await = Some(process.id.clone());
         Ok(process.info.clone())
     }
 
-    /// 解析用エンジンのプロトコル層。起動していなければ `NotInitialized`。
+    /// 検討用エンジンのプロトコル層。起動していなければ `NotInitialized`。
     async fn protocol(&self) -> Result<Arc<UsiProtocol>, EngineError> {
         let id = self
             .engine_id
@@ -410,26 +335,13 @@ impl EngineAnalyzer {
         Ok(process.protocol())
     }
 
-    /// 解析用のエンジンを落とす。起動中のものも止める。
+    /// 検討用のエンジンを落とす。起動中のものも止める。
     ///
     /// `request` が既に受けた要求より古ければ何もしない——後から撃たれた起動を落とさない。
     /// 世代を上げるので、後から終わった起動は `engine_id` へ書かない
     pub async fn shutdown(&self, request: Request) -> Result<(), EngineError> {
-        let id = {
-            let mut startup = self.startup.lock().await;
-            if request < startup.latest_request {
-                log::debug!(target: LOGT, "shutdown: superseded by a newer request");
-                return Ok(());
-            }
-            startup.latest_request = request;
-            startup.generation += 1;
-            if let Some(cancel) = startup.cancel.take() {
-                cancel.cancel();
-            }
-            self.engine_id.write().await.take()
-        };
-        if let Some(id) = id {
-            self.drop_engine(&id).await;
+        if self.take_over(request, None).await.is_none() {
+            log::debug!(target: LOGT, "shutdown: superseded by a newer request");
         }
         Ok(())
     }
@@ -464,7 +376,15 @@ impl EngineAnalyzer {
     /// `request` が既に受けた要求より古いか（読むだけ。確定は `start_engine` / `shutdown` が
     /// 同じロックの下で決める）
     pub async fn is_superseded(&self, request: Request) -> bool {
-        request < self.startup.lock().await.latest_request
+        self.startup.lock().await.is_superseded(request)
+    }
+
+    /// 最後に起動を終えたプロセスを起動した要求の番号。まだ1度も起動していなければ 0。
+    ///
+    /// 落とした後も前の番号のまま残る。読み手（`bridge` の停止）が知らせに載せるのは
+    /// 止めに答えなかったときだけで、それは起動したプロセスがあるときに限る
+    pub async fn started_by(&self) -> Request {
+        self.startup.lock().await.started_by
     }
 
     /// 読む局面を覚える。**線には書かない。**
@@ -507,12 +427,12 @@ impl EngineAnalyzer {
         Ok((search, stop_rx))
     }
 
-    /// 解析用エンジンが最後に出した行
+    /// 検討用エンジンが最後に出した行
     pub async fn last_output(&self) -> Option<String> {
         self.protocol().await.ok()?.last_output()
     }
 
-    /// 解析用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
+    /// 検討用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
     pub async fn end_watch(&self) -> Option<EngineEndWatch> {
         Some(self.protocol().await.ok()?.end_watch())
     }
@@ -525,7 +445,7 @@ impl EngineAnalyzer {
         let (search, stop_rx) = self.start_search(ThinkParams::new().infinite()).await?;
 
         let (result_tx, result_rx) = mpsc::unbounded_channel();
-        tokio::spawn(Self::process_analysis_stream(
+        tokio::spawn(Self::run_infinite_search(
             search,
             stop_rx,
             result_tx,
@@ -536,7 +456,7 @@ impl EngineAnalyzer {
         Ok(result_rx)
     }
 
-    /// 固定時間解析
+    /// 時間を決めた検討
     pub async fn analyze_with_time(
         &self,
         time_limit: Duration,
@@ -551,11 +471,11 @@ impl EngineAnalyzer {
         Ok(analysis_result)
     }
 
-    /// 深度指定の解析。
+    /// 深度を決めた検討。
     ///
     /// **目標に届かなくても結果は返る。** 届いたかは `DepthOutcome::reached` を見ること。
     /// 届かない理由は `DEPTH_ANALYSIS_BUDGET` に当たったときで、
-    /// 深度22の結果を深度40の解析として読ませないためにこの欄がある。
+    /// 深度22の結果を深度40の検討として読ませないためにこの欄がある。
     pub async fn analyze_with_depth(&self, depth_limit: u32) -> Result<DepthOutcome, EngineError> {
         // 深度は載せられないので、時間だけを渡して `info depth` を見張る
         let (search, stop_rx) = self
@@ -587,14 +507,14 @@ impl EngineAnalyzer {
         state.analysis_count += 1;
     }
 
-    /// 解析停止。
+    /// 検討を止める。
     ///
     /// **エンジンが既に居なくても、届かなくても成功にする。** 要求は「止まっていること」で、
     /// 落ちているならその要求は満たせている。届かない理由（書けない、終わった）は終わりの見張り
     /// （`bridge` の `watch_engine_end`）が別に知らせる。`Err` を返すと、後片付けの途中に
     /// 置かれた呼び出し（`stop_all_sessions`）が `?` で折れて、その先の台帳の掃除まで走らなくなる。
     ///
-    /// 止めるのは探索を回す側（`process_analysis_stream` と `collect_until_bestmove`）で、
+    /// 止めるのは探索を回す側（`run_infinite_search` と `collect_until_bestmove`）で、
     /// ここは頼んで答えを待つだけ。**答えは `bestmove` を待ってから返る**（`stop_search`）。
     /// `stop` を書けただけでは探索は終わっておらず、ここで返すと、呼び出し側は次の `go` をその前に出す。
     /// 上限までに答えが来なければ `Unanswered`
@@ -631,10 +551,8 @@ impl EngineAnalyzer {
         self.state.read().await.analysis_count
     }
 
-    // === 内部ヘルパーメソッド ===
-
     /// 無限の検討の探索を1本持ち、届いた行を結果の列へ読み替える。止める頼みが来たら止めて答える
-    async fn process_analysis_stream(
+    async fn run_infinite_search(
         mut search: Search,
         mut stop_requested: oneshot::Receiver<StopReply>,
         result_tx: mpsc::UnboundedSender<AnalysisStreamItem>,
@@ -721,7 +639,7 @@ impl EngineAnalyzer {
     /// `bestmove` が返るまで応答を集める。
     ///
     /// **締切で黙って抜けない。** 抜けるだけだとエンジンの探索は走ったままで、
-    /// こちらは席を返す。席は空くので**次の解析は始まってしまい**、
+    /// こちらは席を返す。席は空くので**次の検討は始まってしまい**、
     /// 同じエンジンへ2本目の `go` が出る（→ #365）。締切に当たったら止め（`Search::stop`）、
     /// `bestmove` を `ANALYSIS_STOP_GRACE` まで待つ。
     ///
@@ -794,67 +712,6 @@ fn superseded_request() -> EngineError {
     EngineError::Cancelled("a newer request was already received".to_string())
 }
 
-/// 解析の起動で渡すもの。**USI の名前は含まない**——どの名前で送るかは `binding::bind` が
-/// その回の申告から決める
-#[derive(Debug, Clone, Default)]
-pub struct StartInput {
-    /// 利用者の値（プリセットの `options`）
-    pub values: Vec<SetOptionValue>,
-    /// 選んだ評価関数（絶対パス。ファイルでもフォルダでもよい）
-    pub eval_path: Option<String>,
-    pub book: Option<BookChoice>,
-}
-
-/// ディスクを見に行く上限。応答しないボリュームで起動ごと止めない
-const EVAL_STAT_TIMEOUT: Duration = Duration::from_secs(2);
-
-/// 評価関数のパスがフォルダかファイルか。**読めなければファイル扱い**——そのまま送れば、無いパスは
-/// エンジンが読み込みの失敗として返す。フォルダ扱いにすると、ファイルを受けるエンジンに
-/// 「フォルダを選んでいる」（`EvalNeedsFile`）という事実と違う警告が出る
-async fn eval_target(path: &str) -> EvalTarget {
-    match tokio::time::timeout(EVAL_STAT_TIMEOUT, tokio::fs::metadata(path)).await {
-        Ok(Ok(meta)) if meta.is_dir() => EvalTarget::Dir(path.to_string()),
-        _ => EvalTarget::File(path.to_string()),
-    }
-}
-
-/// 定跡をパスで受けるかを確かめる（`setup::check_book_path_support`）ときに、2回目の `usiok` を待つ上限。
-/// 来なければ `NoAnswer` として定跡を切り、`BookPathCheckTimedOut` で知らせる（別の定跡で動くより安全）
-const BOOK_PATH_CHECK_LIMIT: Duration = Duration::from_secs(5);
-
-/// 解析の方針として送る値（申告にある名前だけが送られる）: 検討モードを入れ、先読みを切る
-pub fn analysis_fixed_values() -> Vec<SetOptionValue> {
-    [("ConsiderationMode", "true"), ("USI_Ponder", "false")]
-        .into_iter()
-        .map(|(name, value)| SetOptionValue {
-            name: name.to_string(),
-            value: value.to_string(),
-        })
-        .collect()
-}
-
-/// 値だけで断れる入力を、起こす前に断る。利用者の値に加えて、**評価関数と定跡のパスも**
-/// （`setoption` の値として送るので、改行や長さの制約は同じ）
-fn validate_input(input: &StartInput) -> Result<(), EngineError> {
-    let mut all = input.values.clone();
-    let path = |name: &str, value: &str| SetOptionValue {
-        name: name.to_string(),
-        value: value.to_string(),
-    };
-    if let Some(eval) = &input.eval_path {
-        all.push(path("(evaluation)", eval));
-    }
-    if let Some(book) = &input.book {
-        all.push(path("(book)", &book.path));
-    }
-    setup::validate_options(&all)
-}
-
-/// 起動が取り消されたこと（`shutdown` か、より新しい起動が来た）
-fn cancelled_start() -> EngineError {
-    EngineError::Cancelled("the engine start was cancelled".to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -874,9 +731,9 @@ mod tests {
         }
     }
 
-    /// 深度を指定していない解析を、深度で止めないこと。
+    /// 深度を指定していない検討を、深度で止めないこと。
     ///
-    /// **`None` で真を返すと `stop` が飛ぶ。** 時間だけで打ち切るはずの解析が、
+    /// **`None` で真を返すと `stop` が飛ぶ。** 時間だけで打ち切るはずの検討が、
     /// エンジンが最初の `info depth` を出した時点で畳まれる
     #[test]
     fn a_time_only_analysis_is_never_cut_short_by_depth() {
@@ -920,6 +777,7 @@ mod tests {
     #[cfg(unix)]
     mod starting {
         use super::*;
+        use crate::engine::protocol::USI_OK_TIMEOUT;
         use crate::engine::registry::script::place_script as place;
         use std::path::Path;
 
@@ -1189,6 +1047,36 @@ done"#;
 
             analyzer.shutdown(6).await.expect("落とせる");
             assert!(registry.ids().await.is_empty());
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 載せたプロセスを起動した要求の番号を返す（`started_by`）。世代でも、最後に受けた要求でもない
+        #[tokio::test]
+        async fn started_by_names_the_request_that_started_the_running_engine() {
+            let dir = test_support::dir::temp_dir("analyzer-started-by");
+            let path = place(&dir, "ready.sh", READY).await;
+            let registry = Arc::new(EngineRegistry::new());
+            let analyzer = EngineAnalyzer::new(Arc::clone(&registry));
+
+            for request in [5, 9] {
+                analyzer
+                    .start_engine(engine(&path), &StartInput::default(), request)
+                    .await
+                    .expect("起動できる");
+                assert_eq!(analyzer.started_by().await, request);
+            }
+
+            let stale = analyzer
+                .start_engine(engine(&path), &StartInput::default(), 7)
+                .await;
+            assert!(matches!(stale, Err(EngineError::Cancelled(_))), "{stale:?}");
+            assert_eq!(
+                analyzer.started_by().await,
+                9,
+                "断った要求の番号を名乗っている"
+            );
+
+            analyzer.shutdown(10).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
         }
 

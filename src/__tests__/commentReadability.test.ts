@@ -28,7 +28,7 @@ const BASELINE = {
   manyEmphases: 760,
   issueReference: 67,
   retiredTerm: 0,
-  shrinkingTerm: 205,
+  shrinkingTerm: 174,
 };
 
 /**

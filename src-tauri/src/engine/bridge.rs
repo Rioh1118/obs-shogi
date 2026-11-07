@@ -6,12 +6,12 @@
 use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 
 use super::analysis_events::{AnalysisEvent, AnalysisEventSink, DiscardAnalysisEvents};
-use super::analyzer::{AnalysisStreamItem, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME};
+use super::analysis_start::StartInput;
+use super::analyzer::{AnalysisStreamItem, EngineAnalyzer, Request, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, RwLock};
@@ -23,8 +23,6 @@ pub struct EngineBridge {
     analyzer: EngineAnalyzer,
     active_sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
     events: Arc<RwLock<Arc<dyn AnalysisEventSink>>>,
-    /// いま動いているプロセスを起動した要求の番号。`stop` の通知に載せる
-    started_by: AtomicU64,
     /// 開始と停止を1本ずつ通す。**開始の途中（席を取ってから `go` が線に出るまで）に停止が
     /// 割り込むと、席だけ消えてエンジンが読み続ける。** 順序をフロントの握手に頼らない
     search_turn: Mutex<()>,
@@ -99,7 +97,6 @@ impl EngineBridge {
             analyzer: EngineAnalyzer::new(registry),
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
             events: Arc::new(RwLock::new(Arc::new(DiscardAnalysisEvents))),
-            started_by: AtomicU64::new(0),
             search_turn: Mutex::new(()),
         }
     }
@@ -174,7 +171,6 @@ impl EngineBridge {
                     "start_analysis_engine: ok ({} warning(s))",
                     outcome.warnings.len()
                 );
-                self.started_by.store(request, Ordering::Relaxed);
                 self.watch_engine_end(request).await;
                 Ok(outcome)
             }
@@ -376,7 +372,7 @@ impl EngineBridge {
     /// 解析の結果をフロントへ流す。
     ///
     /// **席が消えたら流さない。** 消えた席の結果は誰の席でもない。受け取りは続ける——
-    /// `receiver` を落としても `process_analysis_stream` が配り先を失うだけで、得るものが無い
+    /// `receiver` を落としても `run_infinite_search` が配り先を失うだけで、得るものが無い
     async fn forward_results_to_ui(
         events: Arc<RwLock<Arc<dyn AnalysisEventSink>>>,
         sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,
@@ -624,7 +620,7 @@ impl EngineBridge {
             }
         }
 
-        let request = self.started_by.load(Ordering::Relaxed);
+        let request = self.analyzer.started_by().await;
         let outcome = self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(target: LOGT, "stop_session: analyzer stop failed: {e}");
             format!("Failed to stop analysis: {e}")
@@ -666,7 +662,7 @@ impl EngineBridge {
             cleared
         );
 
-        let request = self.started_by.load(Ordering::Relaxed);
+        let request = self.analyzer.started_by().await;
         let outcome = self.analyzer.stop_analysis().await.map_err(|e| {
             log::error!(
                 target: LOGT,
