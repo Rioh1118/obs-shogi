@@ -81,7 +81,7 @@ ours 戦略のマージは使わない。
 | 45 | `refactor/readability-range6` | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure`（Rust の範囲6）。C-4、R-10、範囲内の W-1 を閉じ、`setup` の関数名を手順の語に揃える | #716 | マージ済み |
 | 46 | `refactor/usi-u2a-analyzer` | 作り直しの段 U2a。`analyzer` を手順「探索」と `Search` へ移し、検討の側から受け手の登録をなくす。D-1 の検討の写しを消す | #717 | マージ済み |
 | 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順を段 `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` に畳み、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | #718 | マージ済み |
-| 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | — | レビュー待ち |
+| 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | レビュー待ち |
 
 ## 語
 
