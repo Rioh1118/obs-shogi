@@ -101,7 +101,7 @@ const LABELS: &[(&str, &str, Option<OptionGroup>)] = &[
 ];
 
 /// 定義に画面の名前と分類を添える。辞書に無い名前はそのまま（`label` も `group` も `None`）
-pub fn describe(mut def: UsiOptionDef) -> UsiOptionDef {
+pub fn labeled(mut def: UsiOptionDef) -> UsiOptionDef {
     if let Some((_, label, group)) = LABELS.iter().find(|(name, _, _)| *name == def.name) {
         def.label = Some((*label).to_string());
         def.group = *group;
@@ -140,7 +140,7 @@ mod tests {
             .iter()
             // 解けない行を黙って捨てると「全部」の確認が素通りする
             .map(|line| parse_option_line(line).expect("option 行を解ける"))
-            .map(|parsed| describe(UsiOptionDef::from(&parsed.option)))
+            .map(|parsed| labeled(UsiOptionDef::from(&parsed.option)))
             .filter(|d| d.label.is_none())
             .map(|d| d.name)
             .collect();
@@ -149,9 +149,9 @@ mod tests {
 
     #[test]
     fn a_name_not_in_the_dictionary_keeps_no_label() {
-        let described = describe(def("EvalShareMode"));
-        assert_eq!(described.label, None);
-        assert_eq!(described.group, None);
+        let labeled_def = labeled(def("EvalShareMode"));
+        assert_eq!(labeled_def.label, None);
+        assert_eq!(labeled_def.group, None);
     }
 
     /// 定跡の項目は定跡の分類を持つ（表示側が、定跡を使うかで出し分けるための印）
@@ -163,9 +163,9 @@ mod tests {
             "FlippedBook",
             "ConsiderBookMoveCount",
         ] {
-            assert_eq!(describe(def(name)).group, Some(OptionGroup::Book), "{name}");
+            assert_eq!(labeled(def(name)).group, Some(OptionGroup::Book), "{name}");
         }
-        assert_eq!(describe(def("Threads")).group, None);
+        assert_eq!(labeled(def("Threads")).group, None);
     }
 
     #[test]

@@ -1328,7 +1328,7 @@ impl UsiProtocol {
     ///
     /// **`isready` を使わない。** 評価関数の読み込みが走る。`usi` への答えはオプションの宣言を
     /// 伴うが、宣言は作り直さない（名乗りで覚えたものを使う）。値の解釈は呼び手が行う
-    /// （`setup::accepts_path_in`）。`readyok` の前に呼ぶ
+    /// （`setup::check_book_path_support`）。`readyok` の前に呼ぶ
     pub async fn check_value(
         &self,
         name: &str,

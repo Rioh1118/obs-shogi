@@ -31,7 +31,7 @@ pub struct BindingInput {
     /// 呼び手の方針として決めた値（検討の `ConsiderationMode=true` など）。**申告にある名前だけ送る**
     pub fixed: Vec<SetOptionValue>,
     /// 選択肢で申告した `BookFile` / `Book_File` が、選択肢に無い値をパスとして受けるか
-    /// （`setup::accepts_path_in` でその回のプロセスに確かめた結果）。確かめていなければ `Unchecked`
+    /// （`setup::check_book_path_support` でその回のプロセスに確かめた結果）。確かめていなければ `Unchecked`
     pub book_path_support: BookPathSupport,
 }
 
@@ -290,8 +290,8 @@ pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Ve
 ///
 /// 判定表の B1（`BookDir` と選択肢の `BookFile`）で、検討で使う定跡のファイル名が選択肢に（大小を
 /// 無視しても）無いときだけ。それ以外は確かめても結果を使わない（選択肢にあれば名前で、B2 ならパスで
-/// 送る）。確かめるのは呼び手（`setup::accepts_path_in`）で、この段は起こしたプロセスに触らない
-pub fn book_path_probe_name(
+/// 送る）。確かめるのは呼び手（`setup::check_book_path_support`）で、この段は起こしたプロセスに触らない
+pub fn book_path_check_name(
     declared: &[EngineOption],
     book: Option<&BookChoice>,
 ) -> Option<String> {
@@ -1011,23 +1011,23 @@ mod tests {
     fn the_path_check_is_asked_only_for_a_name_outside_the_vars() {
         let v900 = declared(V900);
         assert_eq!(
-            book_path_probe_name(&v900, book("/ai/li/book/mybook.db", true).as_ref()).as_deref(),
+            book_path_check_name(&v900, book("/ai/li/book/mybook.db", true).as_ref()).as_deref(),
             Some("BookFile")
         );
         // 選択肢にある（大小を無視しても）
         assert_eq!(
-            book_path_probe_name(&v900, book("/ai/li/book/USER_BOOK1.db", true).as_ref()),
+            book_path_check_name(&v900, book("/ai/li/book/USER_BOOK1.db", true).as_ref()),
             None
         );
         // 検討で使わない・選んでいない
         assert_eq!(
-            book_path_probe_name(&v900, book("/ai/li/book/mybook.db", false).as_ref()),
+            book_path_check_name(&v900, book("/ai/li/book/mybook.db", false).as_ref()),
             None
         );
-        assert_eq!(book_path_probe_name(&v900, None), None);
+        assert_eq!(book_path_check_name(&v900, None), None);
         // B1 の形でない（zermelo は定跡を申告しない）
         assert_eq!(
-            book_path_probe_name(
+            book_path_check_name(
                 &declared(ZERMELO),
                 book("/ai/z/book/mybook.db", true).as_ref()
             ),
@@ -1122,7 +1122,7 @@ mod tests {
     }
 
     /// V8.30 と V9.00 は**定跡の申告が同じ**なので、申告からはパスを受けるかを見分けられない。
-    /// 崩れたら、確かめ（`setup::accepts_path_in`）を申告の見分けに置き換えられるかを見直す
+    /// 崩れたら、確かめ（`setup::check_book_path_support`）を申告の見分けに置き換えられるかを見直す
     #[test]
     fn v830_and_v900_declare_the_book_the_same_way() {
         let book_lines = |text: &str| -> Vec<String> {

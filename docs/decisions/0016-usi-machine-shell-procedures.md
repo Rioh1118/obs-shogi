@@ -53,7 +53,7 @@
 | --- | --- | --- | --- |
 | 名乗り | `usi` | `usiok`。2回目以降は覚えた名乗りを返す | `EngineInfo` |
 | 準備 | `setoption` を並べて `isready` | `readyok` | 途中の `info string`（定跡を読めたかの判定に使う） |
-| 値の確認 | `setoption` と `usi` | `usiok` | 途中の `info string`（`accepts_path_in` の判定に使う）。宣言は作り直さない |
+| 値の確認 | `setoption` と `usi` | `usiok` | 途中の `info string`（`check_book_path_support` の判定に使う）。宣言は作り直さない |
 | 新しい対局 | `usinewgame` | 書けたこと | `()` |
 | 探索 | `position` と `go`（`go ponder` を含む） | 書けたこと | `Search` |
 | 終局 | `gameover` | 書けたこと | `()` |

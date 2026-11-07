@@ -32,7 +32,7 @@ pub const MAX_SENT_OPTIONS: usize = 128;
 
 /// 送る前に断れるものを断る（件数・長さ・制御文字）。値だけで決まる。
 ///
-/// **起動を始める前に呼ぶ。** `send_setup` も制御文字を見るが、そこで断るのは
+/// **起動を始める前に呼ぶ。** `checked_prepare` も制御文字を見るが、そこで断るのは
 /// プロセスを起こした後——検討なら動いていたエンジンを落とした後になる。
 pub fn validate_options(options: &[SetOptionValue]) -> Result<(), EngineError> {
     if options.len() > MAX_SENT_OPTIONS {
@@ -68,7 +68,7 @@ pub fn validate_options(options: &[SetOptionValue]) -> Result<(), EngineError> {
 ///
 /// **並べ替えない。** 値の解釈が前の `setoption` に依存するエンジンがあるので、順は呼び手が決める。
 /// `usinewgame` は送らない（締切の見直し方が呼び手ごとに違う）。
-pub async fn send_setup(
+pub async fn checked_prepare(
     protocol: &UsiProtocol,
     options: &[SetOptionValue],
     deadline: Option<Instant>,
@@ -88,7 +88,7 @@ pub async fn send_setup(
 /// **`Accepts` は「断らなかった」でしかない。** 黙って捨てるエンジンもここを通るので、送った後に読んだかを
 /// 確かめる（`binding::book_load_warning`）。確かめに送ったパスは実在しないので、後から本物の値で上書き
 /// されなくても（`no_book` の無いエンジン）、読める定跡は無い。`readyok` の前に呼ぶ
-pub async fn accepts_path_in(
+pub async fn check_book_path_support(
     protocol: &UsiProtocol,
     name: &str,
     limit: Duration,
@@ -184,10 +184,10 @@ done"#;
         async fn options_go_in_order_and_isready_is_sent_every_time() {
             let dir = test_support::dir::temp_dir("setup-order");
             let protocol = spawn(&dir, ANSWERS).await;
-            send_setup(&protocol, &[option("B", "1"), option("A", "2")], None, None)
+            checked_prepare(&protocol, &[option("B", "1"), option("A", "2")], None, None)
                 .await
                 .expect("readyok まで通る");
-            send_setup(&protocol, &[option("C", "3")], None, None)
+            checked_prepare(&protocol, &[option("C", "3")], None, None)
                 .await
                 .expect("2度目も readyok まで通る");
 
@@ -221,7 +221,7 @@ done"#,
             )
             .await;
 
-            let texts = send_setup(&protocol, &[option("BookFile", "a.db")], None, None)
+            let texts = checked_prepare(&protocol, &[option("BookFile", "a.db")], None, None)
                 .await
                 .expect("readyok まで通る");
             assert_eq!(texts, ["reading book", "book loaded"]);
@@ -244,7 +244,7 @@ done"#,
             )
             .await;
 
-            let error = send_setup(&protocol, &[], None, None)
+            let error = checked_prepare(&protocol, &[], None, None)
                 .await
                 .expect_err("readyok を返さずに終わったのに通っている");
             let EngineError::CommunicationFailed(why) = &error else {
@@ -272,7 +272,7 @@ done"#,
             }
             assert!(refused, "落ちたエンジンへの送信が断られない");
 
-            let error = send_setup(&protocol, &[option("Threads", "1")], None, None)
+            let error = checked_prepare(&protocol, &[option("Threads", "1")], None, None)
                 .await
                 .expect_err("落ちたのに通っている");
             let EngineError::CommunicationFailed(why) = &error else {
@@ -300,7 +300,7 @@ done"#,
 
             let waiting = {
                 let protocol = std::sync::Arc::clone(&protocol);
-                tokio::spawn(async move { send_setup(&protocol, &[], None, None).await })
+                tokio::spawn(async move { checked_prepare(&protocol, &[], None, None).await })
             };
             tokio::time::sleep(Duration::from_millis(100)).await;
             protocol.kill_engine().await;
@@ -323,7 +323,7 @@ done"#,
         async fn a_spent_deadline_is_a_timeout_before_sending() {
             let dir = test_support::dir::temp_dir("setup-deadline");
             let protocol = spawn(&dir, ANSWERS).await;
-            let error = send_setup(&protocol, &[option("A", "1")], Some(Instant::now()), None)
+            let error = checked_prepare(&protocol, &[option("A", "1")], Some(Instant::now()), None)
                 .await
                 .expect_err("締切を過ぎているのに送っている");
             let EngineError::Timeout(why) = &error else {

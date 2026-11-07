@@ -992,8 +992,8 @@ fn only_the_procedures_build_set_option() {
     assert_eq!(
         builders,
         ["engine/protocol.rs", "engine/protocol.rs"],
-        "`setoption` を手順「準備」と「値の確認」の外で組んでいる。`setup::send_setup` か \
-         `setup::accepts_path_in` を通すこと"
+        "`setoption` を手順「準備」と「値の確認」の外で組んでいる。`setup::checked_prepare` か \
+         `setup::check_book_path_support` を通すこと"
     );
 }
 

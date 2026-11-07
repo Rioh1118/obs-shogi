@@ -361,7 +361,7 @@ impl EngineAnalyzer {
 
         // 選んだ定跡の名前が選択肢に無いときだけ、パスを受けるかをこのプロセスに確かめる
         // （保存した結果を使うと、同じパスに別の版を置いたときに食い違う）
-        let book_path_support = match binding::book_path_probe_name(
+        let book_path_support = match binding::book_path_check_name(
             &process.info.options,
             input.book.as_ref(),
         ) {
@@ -369,7 +369,7 @@ impl EngineAnalyzer {
                 let checked = tokio::select! {
                     biased;
                     _ = cancel.cancelled() => Err(cancelled_start()),
-                    checked = setup::accepts_path_in(&protocol, &name, BOOK_PATH_CHECK_LIMIT) => checked,
+                    checked = setup::check_book_path_support(&protocol, &name, BOOK_PATH_CHECK_LIMIT) => checked,
                 };
                 match checked {
                     Ok(BookPathSupport::NoAnswer) => {
@@ -404,7 +404,7 @@ impl EngineAnalyzer {
         let prepared = tokio::select! {
             biased;
             _ = cancel.cancelled() => Err(cancelled_start()),
-            prepared = setup::send_setup(&protocol, &bound.options, None, None) => prepared,
+            prepared = setup::checked_prepare(&protocol, &bound.options, None, None) => prepared,
         };
         // 定跡をパスで送った回は、`readyok` までの `info string` で読めたかを確かめる
         // （`binding::book_load_warning`）。「断らなかった」だけでは、黙って捨てたエンジンを通してしまう
@@ -1079,7 +1079,7 @@ async fn eval_target(path: &str) -> EvalTarget {
     }
 }
 
-/// 定跡をパスで受けるかを確かめる（`setup::accepts_path_in`）ときに、2回目の `usiok` を待つ上限。
+/// 定跡をパスで受けるかを確かめる（`setup::check_book_path_support`）ときに、2回目の `usiok` を待つ上限。
 /// 来なければ `NoAnswer` として定跡を切り、`BookPathCheckTimedOut` で知らせる（別の定跡で動くより安全）
 const BOOK_PATH_CHECK_LIMIT: Duration = Duration::from_secs(5);
 

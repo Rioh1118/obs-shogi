@@ -1909,7 +1909,7 @@ async fn prepare_engine(
 
 /// `setoption` を送って `readyok` を待ち、`usinewgame` を出す。
 ///
-/// 送って待つところは `setup::send_setup`（解析の `EngineAnalyzer::start_engine` と同じ段）を通す。
+/// 送って待つところは `setup::checked_prepare`（解析の `EngineAnalyzer::start_engine` と同じ段）を通す。
 /// **締切を引き直しながら進む**
 /// （`setoption` の件数はフロントから来るので、1件あたり `WRITE_TIMEOUT` が積まれる）。
 async fn send_game_setup(
@@ -1918,7 +1918,7 @@ async fn send_game_setup(
     deadline: Instant,
 ) -> Result<(), String> {
     let protocol = process.protocol();
-    setup::send_setup(&protocol, options, Some(deadline), Some(READY_TIMEOUT))
+    setup::checked_prepare(&protocol, options, Some(deadline), Some(READY_TIMEOUT))
         .await
         .map_err(|e| engine_error_text(&e))?;
 
@@ -1994,7 +1994,7 @@ pub(super) fn validate_settings(settings: &GameSettings) -> Result<(), String> {
         let PlayerSpec::Engine { options, .. } = settings.spec(side) else {
             continue;
         };
-        // **入口で断る**（`setup::validate_options`）。`setup::send_setup` も同じことを見るが、
+        // **入口で断る**（`setup::validate_options`）。`setup::checked_prepare` も同じことを見るが、
         // そちらはプロセスを起こした後に断ることになる。`start_sfen` の長さと制御文字も入口で見る。
         // 同じ1行を伸ばせる経路は、手数（`MAX_PLIES`）・`setoption`（ここ）・`start_sfen` の3つ
         setup::validate_options(options).map_err(|e| format!("{side:?}: {e}"))?;
@@ -2346,7 +2346,7 @@ mod tests {
         settings.black = engine(vec![option("x".repeat(MAX_WIRE_FIELD + 1))]);
         validate_settings(&settings).expect_err("長すぎる option の値を通している");
 
-        // **制御文字も入口で断る。** `setup::send_setup` も見るが、そちらは
+        // **制御文字も入口で断る。** `setup::checked_prepare` も見るが、そちらは
         // プロセスを起こした後——起こしてから断ることになる
         let mut settings = two_humans(vec![]);
         settings.black = engine(vec![option("/eval\ninjected".to_string())]);

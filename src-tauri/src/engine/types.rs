@@ -70,7 +70,7 @@ pub enum EngineOptionType {
 /// 要求する。目印は実引数に直接置く。変数へ括り出すと、目印が入っていても落ちる。
 pub const TIMED_OUT: &str = "timed out";
 
-/// `setoption` で送る名前と値1件。並べた順にそのまま送る（`setup::send_setup`）。
+/// `setoption` で送る名前と値1件。並べた順にそのまま送る（`setup::checked_prepare`）。
 ///
 /// **`EngineOption` とは別物。** あちらはエンジンが `usi` の応答で宣言してくる option の
 /// 定義（型・既定値・現在値）で、向きが逆。同じ綴りにすると、コメントや報告書で
@@ -239,7 +239,7 @@ pub struct ProbeOutcome {
 }
 
 /// 選択肢（combo）で申告した定跡の名前が、選択肢に無い値をパスとして受けるか。**起こしたプロセスに
-/// 確かめた結果**（`setup::accepts_path_in`）。申告からは分からない——やねうら王 V8.30 と V9.00 は定跡の
+/// 確かめた結果**（`setup::check_book_path_support`）。申告からは分からない——やねうら王 V8.30 と V9.00 は定跡の
 /// 申告が同じで、V8.30 はパスを読み、V9.00 は捨てて既定の定跡に落ちる
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BookPathSupport {
