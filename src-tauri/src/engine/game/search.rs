@@ -346,7 +346,9 @@ mod tests {
         ));
 
         // 送る先が無い。**探索中とは限らないので `StopTimedOut` にしない**
-        let refused = Err(EngineError::CommunicationFailed("closed".to_string()));
+        let refused = Err(EngineError::CommunicationFailed(
+            "closed".to_string().into(),
+        ));
         assert!(matches!(
             outcome_of_stop(&refused),
             Some(SearchOutcome::Failed(_))

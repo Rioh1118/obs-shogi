@@ -371,21 +371,6 @@ pub const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 /// `isready` の側に来る。長く取る理由が無い。
 pub const USI_OK_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// `usi` に `usiok` で答えなかったときの断り文句の頭。
-///
-/// **呼び出し側が分類し直せるように定数で持つ。** 待てた長さが
-/// `USI_OK_TIMEOUT` 満額でないなら、答えなかったのは「そのファイルが USI では
-/// ない」ではなく「待てる時間が残っていない」——上限を締切で削る側は、
-/// この綴りを目印にして断り文句を差し替える。
-pub const NO_USIOK: &str = "the engine did not answer `usi` with `usiok`";
-
-/// `usiok` までに `id name` が無かったときの断り文句の頭。
-///
-/// 答えはしたが名乗らなかった——USI の応答が足りないので、分類は `NO_USIOK` と同じ側
-/// （そのファイルは使える USI エンジンではない）。出力が終わった失敗と同じ変種にすると、
-/// 評価関数や共有ライブラリの失敗と見分けられない
-pub const NO_ID_NAME: &str = "the engine did not send `id name` before `usiok`";
-
 /// `isready` を送ってから `readyok` を待つ上限。
 ///
 /// `usiok` より桁で長いのは、評価関数やハッシュの確保がここで走るため。
@@ -422,7 +407,9 @@ async fn run_writer(writer: Option<ChildWriter>, mut jobs: mpsc::UnboundedReceiv
         let summary = cmd_summary(&command);
 
         if stalled {
-            let _ = reply.send(Err(EngineError::CommunicationFailed(STALLED.to_string())));
+            let _ = reply.send(Err(EngineError::CommunicationFailed(
+                STALLED.to_string().into(),
+            )));
             log::warn!(target: LOGT, "write: refused after a stall cmd={summary}");
             continue;
         }
@@ -439,16 +426,16 @@ async fn run_writer(writer: Option<ChildWriter>, mut jobs: mpsc::UnboundedReceiv
                 Err(e) if e.kind() == std::io::ErrorKind::NotConnected => {
                     Err(EngineError::NotInitialized(GONE.to_string()))
                 }
-                Err(e) => Err(EngineError::CommunicationFailed(with_cause(&e))),
+                Err(e) => Err(EngineError::CommunicationFailed(with_cause(&e).into())),
             }
         });
 
         // **上限はここ。** 待っている側で包むと、前のジョブの処理時間が入る
         let written = match tokio::time::timeout(WRITE_TIMEOUT, write).await {
             Ok(Ok(result)) => result,
-            Ok(Err(e)) => Err(EngineError::CommunicationFailed(format!(
-                "write task failed: {e}"
-            ))),
+            Ok(Err(e)) => Err(EngineError::CommunicationFailed(
+                format!("write task failed: {e}").into(),
+            )),
             Err(_) => {
                 stalled = true;
                 Err(EngineError::Timeout(format!(
@@ -572,9 +559,9 @@ fn push_pending(pending: &mut Pending, command: &GuiCommand) -> Result<(), Engin
         } else {
             "the engine has not returned readyok"
         };
-        return Err(EngineError::CommunicationFailed(format!(
-            "{why}; {PENDING_LIMIT} commands are already queued"
-        )));
+        return Err(EngineError::CommunicationFailed(
+            format!("{why}; {PENDING_LIMIT} commands are already queued").into(),
+        ));
     }
     pending.queue.push_back(command.clone());
     log::debug!(
@@ -661,7 +648,7 @@ impl Link {
             Ok(result) => result,
             // 列のタスクが落ちた
             Err(_) => Err(EngineError::CommunicationFailed(
-                "the writer stopped".to_string(),
+                "the writer stopped".to_string().into(),
             )),
         };
 
@@ -991,7 +978,8 @@ impl UsiProtocol {
 
         EngineError::CommunicationFailed(
             cannot_reach_text(self.killed.load(Relaxed), self.link.stalled.load(Relaxed))
-                .to_string(),
+                .to_string()
+                .into(),
         )
     }
 
@@ -1199,9 +1187,9 @@ impl UsiProtocol {
         let collected = match sent {
             Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
                 .await
-                .unwrap_or(Err(EngineError::StartupFailed(format!(
-                    "{NO_USIOK} in {timeout:?}; the file may not be a USI engine"
-                )))),
+                .unwrap_or(Err(EngineError::StartupFailed(
+                    StartupReason::NoUsiOk { waited: timeout }.into(),
+                ))),
             Err(e) => Err(e),
         };
 
@@ -1253,9 +1241,9 @@ impl UsiProtocol {
             // 出力が終わったのか、`usiok` までに `id name` が無かったのかで
             // 呼び出し側の対処が違う。潰さない
             return Err(if saw_usiok {
-                EngineError::StartupFailed(NO_ID_NAME.to_string())
+                EngineError::StartupFailed(StartupReason::NoIdName.into())
             } else {
-                EngineError::CommunicationFailed("engine output ended before `usiok`".to_string())
+                EngineError::CommunicationFailed("engine output ended before `usiok`".into())
             });
         }
 
@@ -1301,11 +1289,11 @@ impl UsiProtocol {
                     .await
                     .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
                     .map_err(|_| {
-                        EngineError::CommunicationFailed("ready channel closed".to_string())
+                        EngineError::CommunicationFailed("ready channel closed".to_string().into())
                     })?
             }
             None => *wait.await.map_err(|_| {
-                EngineError::CommunicationFailed("ready channel closed".to_string())
+                EngineError::CommunicationFailed("ready channel closed".to_string().into())
             })?,
         };
 
@@ -1318,7 +1306,7 @@ impl UsiProtocol {
             }
             return Err(self
                 .with_recent_output(EngineError::CommunicationFailed(
-                    "engine exited before it became ready".to_string(),
+                    "engine exited before it became ready".to_string().into(),
                 ))
                 .await);
         }
@@ -1432,14 +1420,16 @@ impl UsiProtocol {
         }
     }
 
-    /// 起動の失敗に直近の出力を添える。**頭は変えない**（`NO_USIOK` のように
-    /// 頭の綴りで分類し直す呼び手がいる）。添えるのは `StartupFailed` と
-    /// `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で始まる）には添えない
-    pub(crate) async fn with_recent_output(&self, error: EngineError) -> EngineError {
-        if !matches!(
-            error,
-            EngineError::StartupFailed(_) | EngineError::CommunicationFailed(_)
-        ) {
+    /// 起動の失敗に直近の出力を添える（`FailureDetail::last_output`）。理由の欄は変えない。
+    /// 添えるのは `StartupFailed` と `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で
+    /// 始まる）には添えない。**既に添えてあれば添え直さない**——先に添えたほうが失敗に近い
+    pub(crate) async fn with_recent_output(&self, mut error: EngineError) -> EngineError {
+        let slot = match &mut error {
+            EngineError::StartupFailed(detail) => &mut detail.last_output,
+            EngineError::CommunicationFailed(detail) => &mut detail.last_output,
+            _ => return error,
+        };
+        if slot.is_some() {
             return error;
         }
         let diagnostics = self.child.diagnostics();
@@ -1450,18 +1440,8 @@ impl UsiProtocol {
         if ended {
             diagnostics.settle_output(SETTLE_OUTPUT).await;
         }
-        let Some(output) = summarize_recent(&diagnostics.recent_lines()) else {
-            return error;
-        };
-        match error {
-            EngineError::StartupFailed(why) => {
-                EngineError::StartupFailed(format!("{why}{LAST_OUTPUT_PREFIX}{output})"))
-            }
-            EngineError::CommunicationFailed(why) => {
-                EngineError::CommunicationFailed(format!("{why}{LAST_OUTPUT_PREFIX}{output})"))
-            }
-            other => other,
-        }
+        *slot = summarize_recent(&diagnostics.recent_lines());
+        error
     }
 }
 
@@ -1481,9 +1461,6 @@ async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> S
         summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
     )
 }
-
-/// 失敗の文へ直近の出力を添える綴り。起動の失敗を分類する側がここで切り出す
-pub const LAST_OUTPUT_PREFIX: &str = " (last output: ";
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
 ///
@@ -2441,7 +2418,7 @@ mod tests {
                 .await
                 .expect_err("名乗らないエンジンを通している");
             assert!(
-                matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_ID_NAME)),
+                matches!(&error, EngineError::StartupFailed(detail) if detail.reason == StartupReason::NoIdName),
                 "`NO_ID_NAME` で断っていない: {error}"
             );
             protocol.kill_engine().await;

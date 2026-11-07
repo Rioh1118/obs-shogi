@@ -40,11 +40,13 @@ use usi::{GameOverKind, GuiCommand};
 use crate::engine::logging::LogThrottle;
 use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 use crate::engine::protocol::UsiProtocol;
-use crate::engine::protocol::{NO_USIOK, READY_TIMEOUT, USI_OK_TIMEOUT};
+use crate::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::setup::{self, MAX_WIRE_FIELD};
-use crate::engine::types::{engine_error_text, AnalysisResult, EngineError, TIMED_OUT};
+use crate::engine::types::{
+    engine_error_text, AnalysisResult, EngineError, StartupReason, TIMED_OUT,
+};
 
 use super::clock::{ClockOutcome, GameClocks};
 use super::events::GameEventSink;
@@ -1858,10 +1860,9 @@ async fn spawn_players(
 /// 分けないと、締切の食い潰しが「設定の誤り」として届き、受け手は正常なエンジンの
 /// パスを疑う——押し直せば通ったはずの起動をそこで捨てる（F-27）。
 fn usiok_refusal(error: EngineError, for_usiok: Duration) -> String {
-    // **綴りは変種の中の先頭で見る。** 文字列全体に対する部分一致にすると、
-    // OS の文言やパスに同じ綴りを持ち込まれたときに分類が動く
+    // **理由の欄で見る。** 文で見ると、OS の文言やパスに同じ綴りを持ち込まれたときに分類が動く
     let starved = for_usiok < USI_OK_TIMEOUT
-        && matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_USIOK));
+        && matches!(&error, EngineError::StartupFailed(detail) if matches!(detail.reason, StartupReason::NoUsiOk { .. }));
     if starved {
         format!("{TIMED_OUT} before the engine said usiok")
     } else {
@@ -2210,6 +2211,7 @@ mod tests {
     use super::super::events::{DiscardEvents, RecordedEvents};
     use super::*;
     use crate::engine::setup::MAX_SENT_OPTIONS;
+    use crate::engine::types::NO_USIOK;
 
     use crate::engine::logging::LOG_FILE_BUDGET;
 
@@ -2473,10 +2475,17 @@ mod tests {
     /// 押し直せば通ったはずの起動をそこで捨てる（F-27）。
     ///
     /// 実プロセスは要らない——分けているのは `usiok_refusal` の中だけなので、
-    /// 4通り（満額 × 綴りの有無）を直に当てる。
+    /// 4通り（満額 × 理由が `NoUsiOk` か）を直に当てる。
     #[test]
     fn a_budget_starved_start_is_not_blamed_on_the_engine() {
-        let no_usiok = || EngineError::StartupFailed(format!("{NO_USIOK} in 1ms; …"));
+        let no_usiok = || {
+            EngineError::StartupFailed(
+                StartupReason::NoUsiOk {
+                    waited: Duration::from_millis(1),
+                }
+                .into(),
+            )
+        };
 
         // 削られた取り分 × `usiok` が来ない → 時間切れとして返す
         assert!(
@@ -2494,16 +2503,17 @@ mod tests {
 
         // 削られた取り分 × `usiok` 以外の失敗 → 書き換えない。
         // **実行権限が無いファイルを「遅かっただけ」にすると、直すものが消える**
-        let denied = EngineError::StartupFailed("Failed to spawn engine: …os error 13".to_string());
+        let denied =
+            EngineError::StartupFailed("Failed to spawn engine: …os error 13".to_string().into());
         let text = usiok_refusal(denied, Duration::from_millis(1));
         assert!(
             !text.starts_with(TIMED_OUT) && text.contains("os error 13"),
             "`usiok` と無関係な失敗まで時間切れにしている: {text}"
         );
 
-        // 削られた取り分 × 綴りが途中にあるだけ → 書き換えない
+        // 削られた取り分 × 文に綴りがあるだけ → 書き換えない
         let smuggled =
-            EngineError::StartupFailed(format!("Failed to spawn engine: /x/{NO_USIOK}/eng"));
+            EngineError::StartupFailed(format!("Failed to spawn engine: /x/{NO_USIOK}/eng").into());
         assert!(
             !usiok_refusal(smuggled, Duration::from_millis(1)).starts_with(TIMED_OUT),
             "外から持ち込んだ綴りで分類が動いている"

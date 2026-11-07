@@ -186,9 +186,9 @@ async fn rejected_before_usiok(
             _ => {}
         }
     }
-    Err(EngineError::CommunicationFailed(format!(
-        "engine output ended while checking whether `{name}` accepts a path"
-    )))
+    Err(EngineError::CommunicationFailed(
+        format!("engine output ended while checking whether `{name}` accepts a path").into(),
+    ))
 }
 
 /// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
@@ -306,7 +306,7 @@ done"#,
             let EngineError::CommunicationFailed(why) = &error else {
                 panic!("出力が終わった失敗になっていない: {error}");
             };
-            assert!(why.contains("failed to read nn.bin"), "{why}");
+            assert!(why.to_string().contains("failed to read nn.bin"), "{why}");
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }
@@ -334,7 +334,7 @@ done"#,
             let EngineError::CommunicationFailed(why) = &error else {
                 panic!("出力が終わった失敗になっていない: {error}");
             };
-            assert!(why.contains("bad option Threads"), "{why}");
+            assert!(why.to_string().contains("bad option Threads"), "{why}");
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }

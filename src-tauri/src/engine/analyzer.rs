@@ -556,7 +556,9 @@ impl EngineAnalyzer {
         // USI プロトコルは行指向なので、position 文字列への改行注入を拒否する
         if contains_usi_breaking_char(position) {
             return Err(EngineError::CommunicationFailed(
-                "position string contains forbidden control character".to_string(),
+                "position string contains forbidden control character"
+                    .to_string()
+                    .into(),
             ));
         }
 
@@ -1321,7 +1323,9 @@ mod tests {
             StopVerdict::Failed(EngineError::Timeout(_))
         ));
         assert!(matches!(
-            verdict_of_stop(Err(EngineError::CommunicationFailed("gone".to_string()))),
+            verdict_of_stop(Err(EngineError::CommunicationFailed(
+                "gone".to_string().into()
+            ))),
             StopVerdict::Failed(EngineError::CommunicationFailed(_))
         ));
     }
@@ -1370,7 +1374,7 @@ mod tests {
             "blocked".to_string()
         ))));
         assert!(!should_wait_for_bestmove(&Err(
-            EngineError::CommunicationFailed("gone".to_string())
+            EngineError::CommunicationFailed("gone".to_string().into())
         )));
     }
 

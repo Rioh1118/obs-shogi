@@ -159,7 +159,7 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "start_failure",
         decides: "起動の失敗を、利用者が取れる行動の種類に分ける",
-        may_use: &["types", "logging", "protocol", "launchable"],
+        may_use: &["types", "logging", "launchable"],
         forbids: &[],
     },
     Layer {
