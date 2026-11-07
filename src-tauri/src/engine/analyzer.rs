@@ -6,18 +6,18 @@
 use crate::engine::candidates::{apply_info_params, depth_of_rank};
 
 use super::binding::{self, BindingInput, EvalTarget};
-use super::protocol::search::{Search, SearchLine, StopAnswer};
+use super::protocol::search::{LateAnswer, Search, SearchLine, StopAnswer};
 use super::protocol::USI_OK_TIMEOUT;
-use super::protocol::{contains_usi_breaking_char, EngineEndWatch, StopEffect, UsiProtocol};
+use super::protocol::{contains_usi_breaking_char, EngineEndWatch, UsiProtocol};
 use super::registry::SPAWN_TIMEOUT;
 use super::registry::{EngineId, EngineProcess, EngineRegistry};
 use super::setup;
 use super::types::*;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, watch, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
-use usi::{EngineCommand, GuiCommand, ThinkParams};
+use usi::ThinkParams;
 
 const LOGT: &str = "obs_shogi::engine::analyzer";
 
@@ -69,17 +69,9 @@ pub const MAX_THINK_TIME: Duration = Duration::from_secs(600);
 pub enum AnalysisStreamItem {
     /// 途中経過
     Update(AnalysisResult),
-    /// `bestmove` が来た。**`stop` の答えか、エンジンが自分で終えたかは席で分かれる**
-    /// （`stop` は席を消してから送る。`bridge::forward_results_to_ui`）
+    /// エンジンが自分で `bestmove` を返した。止めた探索の `bestmove` は流れない
+    /// （`Search::stop` が受けて捨てる）
     Finished(AnalysisResult),
-}
-
-/// `stop` の後に `bestmove` を待つべきか。
-///
-/// 送れなかったときと、まだ書いていない `go` を落としたときは待たない——エンジンは
-/// `stop` を受け取っていないか、探索を始めていない
-fn should_wait_for_bestmove(stopped: &Result<StopEffect, EngineError>) -> bool {
-    matches!(stopped, Ok(StopEffect::Written))
 }
 
 /// `go` が1度も書かれなかったときの失敗。
@@ -93,22 +85,43 @@ fn not_searching() -> EngineError {
     )
 }
 
-/// 時間か深度を決めた検討で、途中で止めた答えを結果にする。
-///
-/// **上限まで答えなければ失敗にする。** 遅れた答えは待たない（`LateAnswer` を捨てる）。
-/// 無限の検討と違い、`unanswered` も立てない（フロントに呼び手が無い）
-fn result_of_stop(
-    answer: StopAnswer,
+/// 時間か深度を決めた検討で、止めた後の結果。**上限まで答えなければ失敗にする**
+fn result_after_stop(
+    stopped: Result<StopOutcome, EngineError>,
     result: AnalysisResult,
 ) -> Result<AnalysisResult, EngineError> {
-    match answer {
-        StopAnswer::Answered => Ok(result),
-        StopAnswer::NothingToStop => Err(not_searching()),
-        StopAnswer::Unanswered(_) => Err(EngineError::Timeout(format!(
+    match stopped {
+        Ok(StopOutcome::Stopped) => Ok(result),
+        Ok(StopOutcome::Unanswered) => Err(EngineError::Timeout(format!(
             "{TIMED_OUT} waiting for a bestmove after stop"
         ))),
-        StopAnswer::Unreachable(e) => Err(e),
+        Err(e) => Err(e),
     }
+}
+
+/// 止める頼みへ答える。止めるものが無かった回と、届かなかった回は「止まった」と答える
+/// （`EngineAnalyzer::stop_analysis` の doc）。頼んだ者が居なければ何もしない
+fn answer_stop_request(reply: Option<StopReply>, stopped: &Result<StopOutcome, EngineError>) {
+    let outcome = match stopped {
+        Ok(outcome) => *outcome,
+        Err(e) => {
+            log::debug!(target: LOGT, "stop: answered as stopped: {e}");
+            StopOutcome::Stopped
+        }
+    };
+    if let Some(reply) = reply {
+        let _ = reply.send(outcome);
+    }
+}
+
+/// 止めに上限まで答えなかった探索の、遅れた答えを待ってから `unanswered` を下ろす。
+/// 出力が終わった回も下ろす（落としたプロセスには、もう次の `go` を書かない）
+async fn wait_for_late_answer(late: LateAnswer, unanswered: Arc<watch::Sender<bool>>) {
+    match late.wait().await {
+        Ok(()) => log::info!(target: LOGT, "stop: the engine answered late"),
+        Err(e) => log::debug!(target: LOGT, "stop: ended before a late answer: {e}"),
+    }
+    unanswered.send_replace(false);
 }
 
 /// 目標深度に届いたか。
@@ -130,35 +143,18 @@ pub struct EngineAnalyzer {
     registry: Arc<EngineRegistry>,
     engine_id: Arc<RwLock<Option<EngineId>>>,
     state: Arc<RwLock<AnalyzerState>>,
-    /// 無限解析のストリームを外から畳むための名前。
+    /// 走っている探索（無限・時間・深度のどれでも）へ、止める頼みを渡すチャネルの送り手。
     ///
-    /// **`Some` は「走っている」を意味しない。** ストリームが自分で終わったときも
-    /// 名前は残る（外す側が誰かを増やすと、取り合いになる）。
-    /// 「解析中か」の判定にこれを使わないこと。
-    ///
-    /// 要るのは、`bestmove` が来ない経路があるため。積み置きの `go` は
-    /// 複数の経路で落ちる（`stop` の取り消し、`isready` のやり直し、破棄、
-    /// flush の失敗、`readyok` が来なかった場合）ので、
-    /// `process_analysis_stream` が自分では抜けられないことがある
-    infinite_listener: Arc<Mutex<Option<String>>>,
-
-    /// 探索が畳まれたかを見る `watch` の受信側（`true` で畳まれた）。
-    ///
-    /// **`stop` を書けただけでは畳まれていない。** エンジンは `stop` を受け取ってから
-    /// `bestmove` を書くまでの間、`info` を吐き続ける。次の `go` をその前に出すと、
-    /// 古い `info` が新しいセッションのリスナーへ配られる
-    /// （`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
-    ///
-    /// **`watch` にして状態で持つ。** 待ち手が何本いても全員に見え、畳まれた後に待ち始めても
-    /// 取りこぼさない。
-    infinite_settled: Arc<Mutex<Option<watch::Receiver<bool>>>>,
+    /// **探索（`Search`）を持つのは探索を回す側**（`process_analysis_stream` と
+    /// `collect_until_bestmove`）で、ここは頼みを渡すだけ。**`Some` は「走っている」を意味しない。**
+    /// 探索が自分で終わっても送り手は残り、終わった探索への頼みは送れずに返る（止めるものが無かったと読む）
+    search_stop: Mutex<Option<oneshot::Sender<StopReply>>>,
 
     /// `stop` の答えが上限までに来なかった。**立っている間は `position` と `go` を通さない。**
     ///
-    /// 下ろすのは遅れて来た `bestmove`（ストリームの終わり）と、プロセスを落としたとき。
+    /// 立てるのは止める手順（`stop_search`）で、下ろすのはそれが起こしたタスクが遅れた答え
+    /// （`LateAnswer`）を待ち終えたときと、プロセスを落としたとき。
     /// `Sender` なのは、`watch_answered` が答えを待つため。
-    /// `analyze_with_time` / `analyze_with_depth` の締切切れはここを立てない
-    /// （フロントに呼び手が無く、`stop` の答えを待つ経路も持たない）
     unanswered: Arc<watch::Sender<bool>>,
 
     /// 進行中の起動（`start_engine`）の世代と取り消しの欄。
@@ -187,6 +183,9 @@ struct Startup {
 /// 番号が最新より古い要求は、何もせずに断る
 pub type Request = u64;
 
+/// 止める頼みへの答えを返す送り手（`EngineAnalyzer::stop_analysis` が待つ）
+type StopReply = oneshot::Sender<StopOutcome>;
+
 #[derive(Debug, Clone, Default)]
 struct AnalyzerState {
     current_position: Option<String>,
@@ -200,8 +199,7 @@ impl EngineAnalyzer {
             registry,
             engine_id: Arc::new(RwLock::new(None)),
             state: Arc::new(RwLock::new(AnalyzerState::default())),
-            infinite_listener: Arc::new(Mutex::new(None)),
-            infinite_settled: Arc::new(Mutex::new(None)),
+            search_stop: Mutex::new(None),
             unanswered: Arc::new(watch::channel(false).0),
             startup: Arc::new(Mutex::new(Startup::default())),
         }
@@ -471,7 +469,7 @@ impl EngineAnalyzer {
 
     /// 読む局面を覚える。**線には書かない。**
     ///
-    /// `position` を書くのは `go` の直前だけ（`write_position`）。盤が動くたびに書くと、
+    /// `position` を書くのは `go` の直前だけ（`start_search`）。盤が動くたびに書くと、
     /// 探索中のエンジンへ `position` が届く（USI は認めない）。順序をここ1か所で持つので、
     /// 呼び手が `stop` を待つ必要は無い
     pub async fn set_position(&self, position: &str) -> Result<(), EngineError> {
@@ -489,21 +487,12 @@ impl EngineAnalyzer {
         Ok(())
     }
 
-    /// `go` の前に通す。**`position` と `go` を送る経路は全部ここを通す。**
-    /// 答えていないエンジンには何も書かない
-    async fn write_position(&self, protocol: &UsiProtocol) -> Result<(), EngineError> {
-        self.refuse_if_unanswered()?;
-        // **局面が無いなら `go` も出さない。** エンジンの中の前の局面か初期局面を読んで、
-        // 盤と違う候補手が黙って出る
-        let position = self.state.read().await.current_position.clone();
-        let position = position.ok_or_else(|| {
-            EngineError::InvalidState("no position has been set for this engine".to_string())
-        })?;
-        protocol.send_command(&GuiCommand::Position(position)).await
-    }
-
-    /// 覚えた局面で探索を始める（手順「探索」）。答えていないエンジンには何も書かない
-    async fn start_search(&self, params: ThinkParams) -> Result<Search, EngineError> {
+    /// 覚えた局面で探索を始める（手順「探索」）。**`position` と `go` を送る経路は全部ここを通す。**
+    /// 答えていないエンジンには何も書かない。返すのは探索と、それへの止める頼みを受ける側
+    async fn start_search(
+        &self,
+        params: ThinkParams,
+    ) -> Result<(Search, oneshot::Receiver<StopReply>), EngineError> {
         let protocol = self.protocol().await?;
         self.refuse_if_unanswered()?;
         // **局面が無いなら `go` も出さない。** エンジンの中の前の局面か初期局面を読んで、
@@ -512,7 +501,10 @@ impl EngineAnalyzer {
         let position = position.ok_or_else(|| {
             EngineError::InvalidState("no position has been set for this engine".to_string())
         })?;
-        protocol.search(position, params).await
+        let search = protocol.search(position, params).await?;
+        let (stop_tx, stop_rx) = oneshot::channel();
+        *self.search_stop.lock().await = Some(stop_tx);
+        Ok((search, stop_rx))
     }
 
     /// 解析用エンジンが最後に出した行
@@ -525,107 +517,22 @@ impl EngineAnalyzer {
         Some(self.protocol().await.ok()?.end_watch())
     }
 
-    /// 無限解析開始
+    /// 無限の検討を始め、途中経過と終わりを流す列を返す
     pub async fn start_infinite_analysis(
         &self,
     ) -> Result<mpsc::UnboundedReceiver<AnalysisStreamItem>, EngineError> {
         log::debug!(target: LOGT, "analysis.infinite.start: requested");
+        let (search, stop_rx) = self.start_search(ThinkParams::new().infinite()).await?;
 
-        let protocol = self.protocol().await?;
-        self.write_position(&protocol).await?;
-
-        // channel
         let (result_tx, result_rx) = mpsc::unbounded_channel();
-        let (raw_tx, raw_rx) = mpsc::unbounded_channel();
-
-        // 壁時計に依存しない。一意でありさえすればよい
-        let listener_id = format!("infinite_analysis_{}", uuid::Uuid::new_v4());
-
-        *self.infinite_listener.lock().await = Some(listener_id.clone());
-
-        log::debug!(
-            target: LOGT,
-            "analysis.infinite: register_listener id={}",
-            listener_id
-        );
-
-        if let Err(e) = protocol
-            .register_listener(listener_id.clone(), raw_tx)
-            .await
-        {
-            log::error!(
-                target: LOGT,
-                "analysis.infinite: register_listener failed: {:?}",
-                e
-            );
-            return Err(e);
-        }
-
-        log::debug!(target: LOGT, "analysis.infinite: send_command go=infinite");
-        let go_command = GuiCommand::Go(ThinkParams::new().infinite());
-
-        if let Err(e) = protocol.send_command(&go_command).await {
-            log::error!(
-                target: LOGT,
-                "analysis.infinite: send_command failed: {:?}",
-                e
-            );
-            let _ = protocol.remove_listener(&listener_id).await;
-            return Err(e);
-        }
-
-        // **積まれた行を捨てない。** 前の無限解析が畳まれるまで `go` は出ないので、ここに積まれて
-        // いるのはこの `go` への応答だけ。捨てると、即答した `bestmove` を失って検討中のまま残る
-        // 結果処理タスク開始前にログ
-        log::info!(
-            target: LOGT,
-            "analysis.infinite.started listener_id={}",
-            listener_id
-        );
-
-        // **合図を立てるのは、鳴らす者を起こす直前。** ここより前に立てると、
-        // `protocol()` / `register_listener` / `send_command` が落ちた回に
-        // **誰も鳴らさない合図**が欄に残る。残ると、以後の停止が
-        // `ANALYSIS_STOP_GRACE` を待ち切って事実でない warn を出し、
-        // しかも `wait_until_settled` は諦めた回に空けないので**停止では二度と外せない**。
-        // `send_command` は線が健全なままでも落ちうる（積み置きが満杯の回）。
-        let (settled, settled_rx) = watch::channel(false);
-        *self.infinite_settled.lock().await = Some(settled_rx);
-
-        // 結果処理タスク
-        let state_clone = Arc::clone(&self.state);
-        let protocol_for_task = protocol.clone();
-        let listener_id_for_task = listener_id.clone();
-        let unanswered = Arc::clone(&self.unanswered);
-
-        tokio::spawn(async move {
-            log::debug!(
-                target: LOGT,
-                "analysis.infinite.stream: start listener_id={}",
-                listener_id_for_task
-            );
-            Self::process_analysis_stream(raw_rx, result_tx, state_clone).await;
-
-            protocol_for_task
-                .remove_listener(&listener_id_for_task)
-                .await;
-
-            // **抜けたことを知らせる。** 待っている `stop_analysis` はこれを見て
-            // 次の `go` を出してよいと判断する。抜ける理由は `bestmove` を受けたか、
-            // チャンネルが閉じたか、外からリスナーを外されたか——どれでも
-            // 「このリスナーにはもう配られない」なので、待ち手にとっては同じ
-            //
-            // **畳まれたことを先に書いてから下ろす。** 上限切れと重なった回は、`mark_unanswered`
-            // が印を立てた後に畳まれていないかを見直す。逆順だと、見直しに掛からないまま印が残る
-            settled.send_replace(true);
-            unanswered.send_replace(false);
-            log::debug!(
-                target: LOGT,
-                "analysis.infinite.stream: end listener_id={}",
-                listener_id_for_task
-            );
-        });
-
+        tokio::spawn(Self::process_analysis_stream(
+            search,
+            stop_rx,
+            result_tx,
+            Arc::clone(&self.state),
+            Arc::clone(&self.unanswered),
+        ));
+        log::info!(target: LOGT, "analysis.infinite.started");
         Ok(result_rx)
     }
 
@@ -634,10 +541,12 @@ impl EngineAnalyzer {
         &self,
         time_limit: Duration,
     ) -> Result<AnalysisResult, EngineError> {
-        let search = self
+        let (search, stop_rx) = self
             .start_search(ThinkParams::new().byoyomi(time_limit))
             .await?;
-        let analysis_result = Self::collect_until_bestmove(search, time_limit, None).await?;
+        let analysis_result =
+            Self::collect_until_bestmove(search, stop_rx, &self.unanswered, time_limit, None)
+                .await?;
         self.keep_result(&analysis_result).await;
         Ok(analysis_result)
     }
@@ -649,11 +558,17 @@ impl EngineAnalyzer {
     /// 深度22の結果を深度40の解析として読ませないためにこの欄がある。
     pub async fn analyze_with_depth(&self, depth_limit: u32) -> Result<DepthOutcome, EngineError> {
         // 深度は載せられないので、時間だけを渡して `info depth` を見張る
-        let search = self
+        let (search, stop_rx) = self
             .start_search(ThinkParams::new().byoyomi(DEPTH_ANALYSIS_BUDGET))
             .await?;
-        let analysis_result =
-            Self::collect_until_bestmove(search, DEPTH_ANALYSIS_BUDGET, Some(depth_limit)).await?;
+        let analysis_result = Self::collect_until_bestmove(
+            search,
+            stop_rx,
+            &self.unanswered,
+            DEPTH_ANALYSIS_BUDGET,
+            Some(depth_limit),
+        )
+        .await?;
         self.keep_result(&analysis_result).await;
 
         let deepest = depth_of_rank(&analysis_result, 1);
@@ -674,119 +589,36 @@ impl EngineAnalyzer {
 
     /// 解析停止。
     ///
-    /// **エンジンが既に居なくても成功にする。** 要求は「止まっていること」で、
-    /// 落ちているならその要求は満たせている。`Err` を返すと、後片付けの途中に
-    /// 置かれた呼び出し（`stop_all_sessions`）が `?` で折れて、
-    /// その先の台帳の掃除まで走らなくなる。
+    /// **エンジンが既に居なくても、届かなくても成功にする。** 要求は「止まっていること」で、
+    /// 落ちているならその要求は満たせている。届かない理由（書けない、終わった）は終わりの見張り
+    /// （`bridge` の `watch_engine_end`）が別に知らせる。`Err` を返すと、後片付けの途中に
+    /// 置かれた呼び出し（`stop_all_sessions`）が `?` で折れて、その先の台帳の掃除まで走らなくなる。
     ///
-    /// 上限までに答えが来なければ `Unanswered`。**ストリームは外さない**——外すと遅れて来た
-    /// `bestmove` を見る者が居なくなり、`unanswered` が下りない
+    /// 止めるのは探索を回す側（`process_analysis_stream` と `collect_until_bestmove`）で、
+    /// ここは頼んで答えを待つだけ。**答えは `bestmove` を待ってから返る**（`stop_search`）。
+    /// `stop` を書けただけでは探索は終わっておらず、ここで返すと、呼び出し側は次の `go` をその前に出す。
+    /// 上限までに答えが来なければ `Unanswered`
     pub async fn stop_analysis(&self) -> Result<StopOutcome, EngineError> {
-        let id = self.engine_id.read().await.clone();
-        let protocol = match self.protocol().await {
-            Ok(protocol) => protocol,
-            Err(EngineError::NotInitialized(reason)) => {
-                log::debug!(target: LOGT, "stop_analysis: nothing to stop ({reason})");
-                return Ok(StopOutcome::Stopped);
-            }
-            Err(e) => return Err(e),
-        };
+        if let Err(e) = self.protocol().await {
+            log::debug!(target: LOGT, "stop_analysis: nothing to stop ({e})");
+            return Ok(StopOutcome::Stopped);
+        }
 
         // 既に待ち切った探索へ撃ち直しても、同じ上限を待つだけ
         if *self.unanswered.borrow() {
             return Ok(StopOutcome::Unanswered);
         }
 
-        // **`stop` の結果を待たずに外す。** `?` を先に置くと、
-        // `Refuse` と書き込みの詰まりの経路でリスナーが残る。
-        // `fail_writes` が `Closed` を立てるので、`Refuse` は例外的な経路ではない。
-        //
-        // 「`bestmove` が来たら畳む」を条件にしないのは、来ない経路が複数あるため
-        // （`stop` の取り消し、`isready` のやり直し、破棄、flush の失敗、
-        // `readyok` が来なかった場合）。数え上げると必ず1つ漏れる。
-        //
-        // 外すと `process_analysis_stream` の `raw_rx.recv()` が `None` を返して
-        // 抜け、`result_tx` の drop が `forward_results_to_ui` を終わらせる。
-        // 正常に止めた場合も同じ場所で終わるので、外して困らない。
-        // `remove_listener` は冪等
-        let stopped = protocol.stop().await;
-
-        // **畳まれるまで待つ。** `stop` を書けただけでは探索は終わっていない。
-        // エンジンは `stop` を受け取ってから `bestmove` を書くまでの間 `info` を
-        // 吐き続ける。ここで待たずに返すと、呼び出し側は次の `go` をその前に出し、
-        // **古い局面の `info` が新しいセッションのリスナーへ配られる**
-        // （`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
-        // 利用者には、前の局面の評価値と読み筋が現在の盤面の解析結果として見える。
-        //
-        // 待つのは書けたときだけ。積み置きを落としたのなら探索は始まっていないし、
-        // 送れなかったのなら待っても畳まれない（→ `should_wait_for_bestmove`）。
-        if should_wait_for_bestmove(&stopped) && !self.wait_until_settled(&id).await {
-            return Ok(StopOutcome::Unanswered);
-        }
-
-        if let Some(id) = self.infinite_listener.lock().await.take() {
-            log::debug!(target: LOGT, "stop_analysis: closing stream id={id}");
-            protocol.remove_listener(&id).await;
-        }
-
-        stopped?;
-        Ok(StopOutcome::Stopped)
-    }
-
-    /// 探索が畳まれるのを待つ。**上限つき。** 畳まれたら `true`。`id` は待ち始めたプロセス。
-    ///
-    /// 上限を超えたら `unanswered` を立てて `false`。ここで返らないと `stop_analysis` が返らず、
-    /// 停止ボタンも棋譜を閉じる操作も固まる。
-    ///
-    /// **畳まれたと分かった回は受信側を空ける**（自分が待った1本に限る。待っている間に
-    /// 次の解析が別の受信側を立てている）。したがって1本の探索に対して待つのは1回きりで、
-    /// 2回目は即座に返る。**上限に当たった回は残す**——まだ畳まれていない。
-    async fn wait_until_settled(&self, id: &Option<EngineId>) -> bool {
-        let Some(mut settled) = self.infinite_settled.lock().await.clone() else {
-            return true;
+        let Some(stop) = self.search_stop.lock().await.take() else {
+            return Ok(StopOutcome::Stopped);
         };
-
-        let gave_up =
-            match tokio::time::timeout(ANALYSIS_STOP_GRACE, settled.wait_for(|done| *done)).await {
-                Ok(Ok(_)) => false,
-                // 書き手が消えた。ストリームのタスクが抜けた後で、畳まれたのと同じ
-                Ok(Err(_)) => false,
-                Err(_) => true,
-            };
-        if gave_up {
-            // **待っている間に落とされたプロセスの印を、次のプロセスへ立てない**
-            if *self.engine_id.read().await != *id {
-                return true;
-            }
-            if self.mark_unanswered(&settled) {
-                log::warn!(
-                    target: LOGT,
-                    "stop_analysis: no bestmove within {ANALYSIS_STOP_GRACE:?}; refusing the next position and go"
-                );
-                return false;
-            }
+        let (reply, answer) = oneshot::channel();
+        if stop.send(reply).is_err() {
+            log::debug!(target: LOGT, "stop_analysis: the search had already ended");
+            return Ok(StopOutcome::Stopped);
         }
-
-        // 空けないと、畳まれた後の停止まで上限いっぱい待つ——起こし直し
-        // （設定でオプションを変えて保存）は必ずこの経路を通るので毎回そのぶん固まる。
-        let mut current = self.infinite_settled.lock().await;
-        if current.as_ref().is_some_and(|c| c.same_channel(&settled)) {
-            *current = None;
-        }
-        true
-    }
-
-    /// 答えを待ち切った印を立てる。立ったままなら `true`。
-    ///
-    /// **立てた後で見直す。** 上限切れと答えが重なると、答えを見る者はもう印を下ろした後で、
-    /// 見直さないと生きているエンジンが `応答なし` のまま戻らない
-    fn mark_unanswered(&self, settled: &watch::Receiver<bool>) -> bool {
-        self.unanswered.send_replace(true);
-        if *settled.borrow() {
-            self.unanswered.send_replace(false);
-            return false;
-        }
-        true
+        // 答えずに抜けたなら、探索はもう持たれていない
+        Ok(answer.await.unwrap_or(StopOutcome::Stopped))
     }
 
     /// 最後に受けた検討の結果を返す
@@ -801,24 +633,36 @@ impl EngineAnalyzer {
 
     // === 内部ヘルパーメソッド ===
 
-    /// 無限の検討で届いた行を、結果の列へ読み替える
+    /// 無限の検討の探索を1本持ち、届いた行を結果の列へ読み替える。止める頼みが来たら止めて答える
     async fn process_analysis_stream(
-        mut raw_rx: mpsc::UnboundedReceiver<EngineCommand>,
+        mut search: Search,
+        mut stop_requested: oneshot::Receiver<StopReply>,
         result_tx: mpsc::UnboundedSender<AnalysisStreamItem>,
         state: Arc<RwLock<AnalyzerState>>,
+        unanswered: Arc<watch::Sender<bool>>,
     ) {
         log::debug!(target: LOGT, "stream: start");
 
         let mut current_result = AnalysisResult::default();
         let mut processed: u64 = 0;
 
-        while let Some(cmd) = raw_rx.recv().await {
+        loop {
+            let line = tokio::select! {
+                biased;
+                // 送り手が捨てられた（次の探索が置き換えたか、検討の持ち主が消えた）回も止める。
+                // 答える先が無いだけ
+                request = &mut stop_requested => {
+                    let stopped = Self::stop_search(search, &unanswered).await;
+                    answer_stop_request(request.ok(), &stopped);
+                    break;
+                }
+                line = search.next_line() => line,
+            };
             processed += 1;
 
-            match cmd {
-                EngineCommand::Info(info_params) => {
+            match line {
+                Ok(Some(SearchLine::Info(info_params))) => {
                     apply_info_params(&info_params, &mut current_result);
-                    // 更新された結果を送信
                     if result_tx
                         .send(AnalysisStreamItem::Update(current_result.clone()))
                         .is_err()
@@ -827,18 +671,17 @@ impl EngineAnalyzer {
                         break;
                     }
                 }
-                EngineCommand::Checkmate(checkmate_params) => {
+                Ok(Some(SearchLine::Checkmate(checkmate_params))) => {
                     Self::process_checkmate(&checkmate_params, &mut current_result);
-
                     log::info!(target: LOGT, "stream: checkmate received");
                     let _ = result_tx.send(AnalysisStreamItem::Update(current_result.clone()));
                 }
-
-                EngineCommand::BestMove(_) => {
+                Ok(Some(SearchLine::BestMove(_))) => {
                     let _ = result_tx.send(AnalysisStreamItem::Finished(current_result.clone()));
                     break;
                 }
-                _ => {}
+                // 出力が終わった。知らせるのは終わりの見張り（`bridge` の `watch_engine_end`）
+                Ok(None) | Err(_) => break,
             }
         }
         {
@@ -846,8 +689,33 @@ impl EngineAnalyzer {
             st.last_result = Some(current_result);
             st.analysis_count = st.analysis_count.wrapping_add(1);
         }
-
         log::debug!(target: LOGT, "stream: end processed={}", processed);
+    }
+
+    /// 探索を止める（`Search::stop`）。上限まで答えなければ `unanswered` を立て、
+    /// 遅れた答えを待って下ろすタスクを起こす。
+    ///
+    /// **立ててから返す。** 返してから立てると、呼び手が次の `go` を通す窓ができる。
+    /// 待つ間は `LateAnswer` が探索の枠を握るので、このプロセスで次の探索は始まらない。
+    /// 止めるものが無かった回は `not_searching`、届かない回はその理由で断る
+    async fn stop_search(
+        search: Search,
+        unanswered: &Arc<watch::Sender<bool>>,
+    ) -> Result<StopOutcome, EngineError> {
+        match search.stop(ANALYSIS_STOP_GRACE).await {
+            StopAnswer::Answered => Ok(StopOutcome::Stopped),
+            StopAnswer::NothingToStop => Err(not_searching()),
+            StopAnswer::Unreachable(e) => Err(e),
+            StopAnswer::Unanswered(late) => {
+                unanswered.send_replace(true);
+                log::warn!(
+                    target: LOGT,
+                    "stop: no bestmove within {ANALYSIS_STOP_GRACE:?}; refusing the next position and go"
+                );
+                tokio::spawn(wait_for_late_answer(late, Arc::clone(unanswered)));
+                Ok(StopOutcome::Unanswered)
+            }
+        }
     }
 
     /// `bestmove` が返るまで応答を集める。
@@ -859,8 +727,12 @@ impl EngineAnalyzer {
     ///
     /// `target_depth` を渡すと、その深度に届いた時点でも止める。
     /// 深度と時間で入口は分かれるが、**待ち方と後始末は同じ**なのでここに畳んである。
+    ///
+    /// 止める頼み（`EngineAnalyzer::stop_analysis`）が来たら、止めてそこへ答え、ここまでの結果を返す
     async fn collect_until_bestmove(
         mut search: Search,
+        mut stop_requested: oneshot::Receiver<StopReply>,
+        unanswered: &Arc<watch::Sender<bool>>,
         budget: Duration,
         target_depth: Option<u32>,
     ) -> Result<AnalysisResult, EngineError> {
@@ -868,19 +740,25 @@ impl EngineAnalyzer {
         let deadline = tokio::time::Instant::now() + budget + BESTMOVE_GRACE;
 
         loop {
-            let line = match tokio::time::timeout_at(deadline, search.next_line()).await {
-                Ok(line) => line?,
-                Err(_) => {
-                    let answer = search.stop(ANALYSIS_STOP_GRACE).await;
-                    return result_of_stop(answer, result);
+            let line = tokio::select! {
+                biased;
+                request = &mut stop_requested => {
+                    let stopped = Self::stop_search(search, unanswered).await;
+                    answer_stop_request(request.ok(), &stopped);
+                    return result_after_stop(stopped, result);
                 }
+                _ = tokio::time::sleep_until(deadline) => {
+                    let stopped = Self::stop_search(search, unanswered).await;
+                    return result_after_stop(stopped, result);
+                }
+                line = search.next_line() => line?,
             };
             match line {
                 Some(SearchLine::Info(info_params)) => {
                     apply_info_params(&info_params, &mut result);
                     if reached_depth(&result, target_depth) {
-                        let answer = search.stop(ANALYSIS_STOP_GRACE).await;
-                        return result_of_stop(answer, result);
+                        let stopped = Self::stop_search(search, unanswered).await;
+                        return result_after_stop(stopped, result);
                     }
                 }
                 Some(SearchLine::Checkmate(checkmate_params)) => {
@@ -981,114 +859,6 @@ fn cancelled_start() -> EngineError {
 mod tests {
     use super::*;
 
-    /// 諦めた回は受信側を残すこと。
-    ///
-    /// **上限に当たったのは「まだ畳まれていない」の意味。** そこで空けると、
-    /// 遅れて来た答えを見る相手を失う。
-    ///
-    /// **時計を止めて走らせる。** `ANALYSIS_STOP_GRACE` を実時間で待つと、
-    /// 上限を伸ばすたびにこのテストだけが比例して遅くなる。
-    #[tokio::test(start_paused = true)]
-    async fn giving_up_keeps_the_handle_for_the_next_stop() {
-        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
-
-        let (_settled, rx) = watch::channel(false);
-        *analyzer.infinite_settled.lock().await = Some(rx);
-
-        // 誰も書かないので上限まで待って諦める。
-        assert!(!analyzer.wait_until_settled(&None).await);
-        assert!(
-            *analyzer.unanswered.borrow(),
-            "諦めたのに次の `position` と `go` を止めていない"
-        );
-        assert!(
-            analyzer.infinite_settled.lock().await.is_some(),
-            "諦めた（＝まだ畳まれていない）のに受信側を捨てている"
-        );
-    }
-
-    /// 待っている間にプロセスが替わったら、次のプロセスに印を立てない。
-    ///
-    /// 立てると、動いている新しいエンジンへ局面が届かないまま `応答なし` になる
-    #[tokio::test(start_paused = true)]
-    async fn giving_up_on_a_replaced_process_marks_nothing() {
-        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
-
-        let (_settled, rx) = watch::channel(false);
-        *analyzer.infinite_settled.lock().await = Some(rx);
-
-        assert!(analyzer.wait_until_settled(&Some("old".to_string())).await);
-        assert!(!*analyzer.unanswered.borrow());
-    }
-
-    /// 上限切れと答えが重なった回は、印を残さない
-    #[tokio::test]
-    async fn an_answer_that_lands_at_the_deadline_leaves_no_mark() {
-        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
-
-        let (settled, rx) = watch::channel(false);
-        assert!(
-            analyzer.mark_unanswered(&rx),
-            "畳まれていないのに印が残らない"
-        );
-
-        settled.send_replace(true);
-        analyzer.unanswered.send_replace(false);
-        assert!(!analyzer.mark_unanswered(&rx), "畳まれた後に印が残っている");
-        assert!(!*analyzer.unanswered.borrow());
-    }
-
-    /// 待っている間に次の解析が立てた受信側を、前の停止が空けないこと。
-    ///
-    /// 開始の途中に割り込んだ停止が、**まだ始まっていない解析の受信側を持ち去る**のを止める。
-    /// **入れ替えは待ちに入った後でなければならない。** 呼ぶ前に差し替えると
-    /// 最初から2本目を読み、諦めの枝を通る——この関数が見たい枝を1行も通らない。
-    #[tokio::test]
-    async fn settling_only_clears_the_handle_it_waited_on() {
-        let analyzer = Arc::new(EngineAnalyzer::new(Arc::new(EngineRegistry::new())));
-
-        let (first, first_rx) = watch::channel(false);
-        *analyzer.infinite_settled.lock().await = Some(first_rx);
-
-        let waiting = {
-            let analyzer = Arc::clone(&analyzer);
-            tokio::spawn(async move { analyzer.wait_until_settled(&None).await })
-        };
-        // 1本目を読み終えて待ちに入るまで進める
-        tokio::task::yield_now().await;
-
-        // 待っている間に、次の解析が別の受信側を立てる。
-        let (_second, second_rx) = watch::channel(false);
-        *analyzer.infinite_settled.lock().await = Some(second_rx.clone());
-
-        first.send_replace(true);
-        assert!(waiting.await.expect("待ちが落ちた"));
-
-        let current = analyzer.infinite_settled.lock().await;
-        assert!(
-            current.as_ref().is_some_and(|c| c.same_channel(&second_rx)),
-            "前の停止が、次の解析の待ち相手を消している"
-        );
-    }
-
-    /// 畳んだ後の停止が、変わる当てのない受信側を待たないこと。
-    ///
-    /// **エンジンのプロセスは要らない。** 見たいのは欄の出し入れだけ。
-    /// 空けないと、1本目の無限解析を畳んだ後の停止が全部
-    /// `ANALYSIS_STOP_GRACE` を待ち切る——起こし直し（設定でオプションを変えて
-    /// 保存）は必ずこの経路を通るので、**毎回そのぶん固まる**。
-    #[tokio::test]
-    async fn waiting_for_the_search_to_settle_happens_once_per_analysis() {
-        let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
-
-        let (settled, rx) = watch::channel(false);
-        *analyzer.infinite_settled.lock().await = Some(rx);
-
-        settled.send_replace(true);
-        assert!(analyzer.wait_until_settled(&None).await);
-        assert!(analyzer.infinite_settled.lock().await.is_none());
-    }
-
     fn result_with_depth(depth: u32) -> AnalysisResult {
         AnalysisResult {
             candidates: vec![AnalysisCandidate {
@@ -1144,27 +914,6 @@ mod tests {
             EngineError::Timeout(format!("{TIMED_OUT} waiting for a bestmove after stop"))
                 .to_string()
         );
-    }
-
-    /// `stop` を書けたときだけ `bestmove` を待つこと。
-    ///
-    /// **待たずに返すと、次の `go` が古い探索の途中で出る。** エンジンは
-    /// `stop` を受け取ってから `bestmove` を書くまで `info` を吐き続けるので、
-    /// その `info` が新しいセッションのリスナーへ配られる。利用者には
-    /// 前の局面の評価値と読み筋が現在の盤面の解析結果として見える。
-    ///
-    /// 逆に、積み置きを落としたときや送れなかったときに待つと、
-    /// 来ない `bestmove` を `ANALYSIS_STOP_GRACE` ぶん待って停止が遅れる。
-    #[test]
-    fn only_a_written_stop_is_worth_waiting_for() {
-        assert!(should_wait_for_bestmove(&Ok(StopEffect::Written)));
-        assert!(!should_wait_for_bestmove(&Ok(StopEffect::CancelledQueued)));
-        assert!(!should_wait_for_bestmove(&Err(EngineError::Timeout(
-            "blocked".to_string()
-        ))));
-        assert!(!should_wait_for_bestmove(&Err(
-            EngineError::CommunicationFailed("gone".to_string().into())
-        )));
     }
 
     /// 起動（`start_engine`）を実プロセスで確かめる
@@ -1825,6 +1574,35 @@ done"#
             assert!(
                 emitted < stop,
                 "目標の深度に届く前に `stop` を書いている: {seen}"
+            );
+            analyzer.shutdown(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 時間を決めた検討の止めに上限まで答えなければ、遅れた答えが来るまで次の `go` を通さない。
+        ///
+        /// 通すと、遅れた `bestmove` が次の探索の答えとして読まれる
+        #[tokio::test]
+        async fn a_timed_analysis_unanswered_at_its_stop_holds_back_the_next_go() {
+            let body = script(":", "(sleep 4; echo 'bestmove 2g2f') &");
+            let (analyzer, dir) = started("analyzer-timed-late", &body).await;
+
+            let timed = analyzer.analyze_with_time(Duration::from_secs(1)).await;
+            assert!(matches!(timed, Err(EngineError::Timeout(_))), "{timed:?}");
+            assert!(
+                analyzer.start_infinite_analysis().await.is_err(),
+                "止めに答えていないエンジンへ `go` を通している"
+            );
+
+            let answered =
+                tokio::time::timeout(Duration::from_secs(10), analyzer.watch_answered()).await;
+            // 中身は `()` なので、上限で切れたかだけを見る
+            let Ok(()) = answered else {
+                panic!("遅れた答えの後も印が下りない: {}", seen(&dir));
+            };
+            assert!(
+                analyzer.start_infinite_analysis().await.is_ok(),
+                "答えがあったのに次を読ませない"
             );
             analyzer.shutdown(2).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);

@@ -3,10 +3,6 @@
 //! どの探索の `bestmove` かを決める判断のうち、止めた後に待つか・待った結果をどう読むかを
 //! ここ1か所に置く（`answer_without_waiting` と `Search::stop`）。
 //! 中身は、いまの受け手の登録と `send_command` の上に載せてある（ADR-0016 決定8 の U1）。
-//!
-//! **本番の呼び手はまだ無い。** 検討（`analyzer`）は U2a、対局（`game`）は U2b でここへ移る。
-//! それまで `dead_code` を許す。移った段で、この属性を外す。
-#![cfg_attr(not(test), allow(dead_code))]
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,8 +18,9 @@ use crate::engine::types::EngineError;
 pub enum SearchLine {
     Info(Vec<InfoParams>),
     Checkmate(CheckmateParams),
-    /// 最後の行。この後 `next_line` は何も返さない
-    BestMove(BestMoveParams),
+    /// 最後の行。この後 `next_line` は何も返さない。
+    /// 手を本番で読むのは、対局が移る U2b から（検討は手を使わない）
+    BestMove(#[cfg_attr(not(test), allow(dead_code))] BestMoveParams),
 }
 
 /// 止めたときの答え。**`stop` の後に何が起きたかを、ここで1つの値にする。**
@@ -44,7 +41,8 @@ pub enum StopAnswer {
     ///
     /// 書き込みの上限（`WRITE_TIMEOUT`）を超えたときも `EngineError::Timeout` を持ってここへ来る。
     /// その時点で後続の書き込みは全部断られる（`fail_writes`）ので、そのプロセスへはもう届かない。
-    /// 検討（`analyzer` の `result_of_stop`）は同じく失敗と読むが、対局（`outcome_of_stop`）は「止めに答えない」と
+    /// 検討（`analyzer` の `stop_search`）は失敗と読み、止める頼みには「止まった」と答える
+    /// （届かない理由は終わりの見張りが知らせる）。対局（`outcome_of_stop`）は「止めに答えない」と
     /// 読んで `Activity::Unresponsive` へ移す。どちらへ揃えるかは対局が移る U2b で決める
     Unreachable(EngineError),
 }
@@ -179,7 +177,10 @@ impl Search {
         }
     }
 
-    /// 先読みを本番にする（`ponderhit` を書く）。先読みでない探索と、既に答えた探索では断る
+    /// 先読みを本番にする（`ponderhit` を書く）。先読みでない探索と、既に答えた探索では断る。
+    ///
+    /// 本番の呼び手は、対局が移る U2b まで無い（検討は先読みをしない）
+    #[cfg_attr(not(test), allow(dead_code))]
     pub async fn ponderhit(&mut self) -> Result<(), EngineError> {
         if !self.pondering || self.answered {
             return Err(EngineError::InvalidState(
