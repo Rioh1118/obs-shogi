@@ -32,6 +32,20 @@
 | AI ライブラリ  | `ai_root` / `entities/ai-library`  | エンジン・評価関数・定跡を置くフォルダ                      | AI_ROOT（画面で） |
 | —              | `EngineSeat` / `AnalysisSessionId` | 席。Rust の `active_sessions` の1エントリで、走っている探索1本の持ち分 | —                 |
 
+## USI のやりとり
+
+1本のエンジンのプロセスへ頼むことの単位（ADR-0016 決定1）。名前は `UsiProtocol` のメソッド。
+
+| UI の表記 | コードの名前 | 意味 | 使わない語 |
+| --------- | ------------ | ---- | ---------- |
+| — | `identify` / `USI: usi` | 名乗り。`usi` を送り `usiok` までの名と宣言を受ける。2回目以降は覚えた答えを返す | `get_engine_info` |
+| — | `prepare` / `USI: isready` | 準備。`setoption` を並べて `isready` を送り、`readyok` を待つ | — |
+| — | `check_value` | 値の確認。`setoption` と `usi` を送り、`usiok` までの `info string` を受ける | — |
+| — | `new_game` / `USI: usinewgame` | 新しい対局 | — |
+| — | `search` / `Search` / `USI: go` | 探索と、探索1本の持ち分。`Search` は行を受け、先読みを本番にし、止め、捨てる | — |
+| — | `StopAnswer` | 止めの答え。答えた／止めるものが無かった／上限まで答えない／届かない | `StopOutcome`（検討の停止の結果で別物） |
+| — | `game_over` / `USI: gameover` | 終局 | — |
+
 ## 操作の結果
 
 | UI の表記 | コードの名前 | 意味                                                 | 使わない語 |

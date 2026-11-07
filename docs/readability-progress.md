@@ -76,7 +76,8 @@ ours 戦略のマージは使わない。
 | 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | #710 | マージ済み |
 | 41 | `refactor/engine-crate-visibility` | `src-tauri/src/lib.rs` の `pub mod engine` と呼び手の無い `pub`（Rust の範囲「公開」）、5c を設計の段にする | #712 | マージ済み |
 | 42 | `docs/engine-usi-design` | USI のやりとりの作り直しの設計（Rust の範囲5c）。ADR-0016、`engine.md` と `analysis.md` の目標の形 | #713 | マージ済み |
-| 43 | `test/usi-u0-baseline` | 作り直しの段 U0。載せ替えの前に要るテスト T1〜T10 と性能の基準線 M1〜M3。製品のコードは変えない | #714 | レビュー待ち |
+| 43 | `test/usi-u0-baseline` | 作り直しの段 U0。載せ替えの前に要るテスト T1〜T10 と性能の基準線 M1〜M3。製品のコードは変えない | #714 | マージ済み |
+| 44 | `refactor/usi-u1-procedures` | 作り直しの段 U1。手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry` と `setup` を手順へ移し、B-10 と D-1 の置き場を入れる | — | レビュー待ち |
 
 ## 語
 
@@ -151,8 +152,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 公開 | `src-tauri/src/lib.rs` の `pub mod engine` を `pub(crate)` にし、呼び手の無い `pub` を消す | 小 | 済 |
 | 5c | USI のやりとりの作り直しの設計（ADR-0016） | — | 済 |
 | U0 | 載せ替えの前に要るテスト（`docs/state-transitions/engine.md` の T1〜T10）と性能の基準線（ADR-0016 の M1〜M3）。製品のコードは変えない | — | 済 |
-| U1 | 手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry`、`setup`、`probe` を手順へ移す | — | 未着手 |
-| 6  | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure` | U1 の後に数える | 未着手 |
+| U1 | 手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry`、`setup`、`probe` を手順へ移す | — | 済 |
+| 6  | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure` | 732 | 未着手 |
 | U2a | `analyzer` を手順へ移す | — | 未着手 |
 | 8a | `src-tauri/src/engine/analyzer.rs` | U2a の後に数える | 未着手 |
 | 7a | `src-tauri/src/engine/game/session.rs` を4つのファイルに割る。割るだけ | 2208 | 未着手 |
@@ -230,19 +231,20 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で取った。次は U1。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で取った。次は範囲6。
 
 範囲「公開」から、`engine` は crate の外へ出ない。外へ出すのは `tests/engine_timeouts.rs` が読む上限の定数だけで、
 `lib.rs` が再輸出する。`engine` の中で呼び手の無い `pub` は rustc の `dead_code` が拾うので、以後の範囲では grep で数えなくてよい。
+**例外は `engine/protocol/search.rs`** で、U1 では本番の呼び手が無いので `dead_code` を許してある。U2a・U2b で呼び手が移ったら外す。
 
-U1: 手順の関数と `Search` を、**いまの** `UsiProtocol` の上に置く。中身は今の受け手の登録と `send_command` のまま。
+範囲6: `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure`（テストを除いて732行）。整理の段で、動作は変えない。
 
-- `registry`、`setup`、`probe` を手順へ移す。B-10 の `protocol` の側（起動の失敗の理由を列挙で持ち、直近の出力を別の欄で持つ。`Display` の綴りは変えない）も入る
-- 振る舞いは U0 のテスト（`docs/state-transitions/engine.md` の T1〜T10）と既存の台本のテストで固定する。`StopAnswer` への写像は純関数で全通り
-- 性能は合否に使わない（ADR-0016 決定9）。基準線は `research/engines/usi-measurements.md` の「取り次ぎの基準線」
-- 表の「新」の印のセルは U1 でも変えない（U3 で入れる）
+- 所見は C-4（`describe` の同名異処理）、R-10、W-1。**B-10 は U1 で閉じた**——`EngineError` の中身を
+  `FailureDetail` にしたら、綴りで切り出していた `classify` と `usiok_refusal` は型の検査で落ちたので、同じ差分で欄を読むようにした
+- `setup` は U1 で縮んだ。送って待つのは `UsiProtocol::prepare` と `check_value` で、`setup` に残るのは送る前の値の検査と返った行の読み方
+- 手順の名前は U1 で決めた（`CONTEXT.md` の「USI のやりとり」）。範囲6で `setup` の関数名を手順の語に揃えるかは、そこで決める
 
-U1 の後は上の表の順に範囲6、U2a と進む。各段の範囲と固定のしかたは ADR-0016 の決定8。
+範囲6の後は上の表の順に U2a と進む。各段の範囲と固定のしかたは ADR-0016 の決定8。
 
 `tests/layering.rs` は `engine` の段の上下を
 ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。

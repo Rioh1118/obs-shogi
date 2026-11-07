@@ -168,6 +168,11 @@ Rust の側の順序（古い番号の要求を断る）は `analyzer.rs` の `t
 いまの実装では、この表の判定は `protocol.rs` の `ReadyState` と積み置き、呼び手の受け手の登録、
 検討の `unanswered`、対局の `Activity` に散っている。各セルの「いま」の欄は、同じ振る舞いをどこが守っているかを書く。
 
+入力の R1〜R9 は、U1 から `UsiProtocol` の手順として在る（名乗り `identify`、準備 `prepare`、値の確認 `check_value`、
+新しい対局 `new_game`、探索 `search`、終局 `game_over`。R6〜R8 は `Search` の `ponderhit`、`stop`、`Drop`）。
+中身はまだ上の散った判定の上に載っていて、検討と対局の探索は U2a・U2b まで手順を通らない。
+R7 の答え（`StopAnswer`）は `protocol/search.rs` の2つの純関数が決め、全通りをテストが固定する。
+
 ### 状態
 
 | 記号 | 状態 | 判定（作り直しの後の欄） |
