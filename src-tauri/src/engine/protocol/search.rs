@@ -11,7 +11,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, OwnedSemaphorePermit};
 use usi::{BestMoveParams, CheckmateParams, EngineCommand, GuiCommand, InfoParams, ThinkParams};
 
 use super::{StopEffect, UsiProtocol, LOGT};
@@ -42,7 +42,9 @@ pub enum StopAnswer {
     /// 届かない。`stop` を書けなかったか、待つ間に出力が終わった。
     ///
     /// 書き込みの上限（`WRITE_TIMEOUT`）を超えたときも `EngineError::Timeout` を持ってここへ来る。
-    /// その時点で後続の書き込みは全部断られる（`fail_writes`）ので、そのプロセスへはもう届かない
+    /// その時点で後続の書き込みは全部断られる（`fail_writes`）ので、そのプロセスへはもう届かない。
+    /// 検討（`verdict_of_stop`）は同じく失敗と読むが、対局（`outcome_of_stop`）は「止めに答えない」と
+    /// 読んで `Activity::Unresponsive` へ移す。どちらへ揃えるかは対局が移る U2b で決める
     Unreachable(EngineError),
 }
 
@@ -79,22 +81,36 @@ fn answer_after_waiting(waited: Waited) -> StopAnswer {
     }
 }
 
+/// 止めずに捨てた探索の `bestmove` を待つ上限。対局の止めの上限（5秒）と同じ長さに取る。
+///
+/// 待つ間は次の探索を始めさせない（`UsiProtocol::search_slot`）。待たずに受け手を外すと、
+/// 捨てた探索の `bestmove` が次の探索の受け手へ届き、次の探索の答えとして読まれる
+const DROPPED_SEARCH_LIMIT: Duration = Duration::from_secs(5);
+
 /// 探索1本の持ち分。手順「探索」（`UsiProtocol::search`）が返す。
 ///
 /// できるのは4つだけ: 行を受ける（`next_line`）、先読みを本番にする（`ponderhit`）、
-/// 止める（`stop`）、捨てる（`Drop`）。**止めずに捨てたら `stop` だけを書く**（待たない）。
-/// 捨てたのに探索が走り続けると、次の探索の受け手が前の探索の行を受ける。
+/// 止める（`stop`）、捨てる（`Drop`）。**止めずに捨てたら `stop` を書き、`bestmove` を
+/// 上限まで受けてから枠を返す。** 次の探索は枠が返るまで始まらないので、前の探索の行を受けない。
+///
+/// 上限まで答えなかった探索（`StopAnswer::Unanswered` と、捨てた後に上限を過ぎたもの）の枠も返す。
+/// その後に遅れて来た `bestmove` は次の探索へ届きうる。止め待ちのエンジンに次の探索を頼まないのは、
+/// いまは呼び手が守る（検討の `unanswered`、対局の `Activity::Unresponsive`）
 pub struct Search {
     protocol: Arc<UsiProtocol>,
     /// 受け手の登録名。`Drop` で外す
     listener: String,
     lines: mpsc::UnboundedReceiver<EngineCommand>,
+    /// 1本のプロセスで探索を1本に保つ枠。受け手を外した後に返す
+    slot: Option<OwnedSemaphorePermit>,
     /// `go ponder` で始めて、まだ `ponderhit` を書いていない
     pondering: bool,
     /// `bestmove` を受けた。以後は止めるものが無い
     answered: bool,
-    /// `stop` を頼み終えたか、そもそも `go` を書けなかった。`Drop` で `stop` を書かない
-    settled: bool,
+    /// `stop` を書き終えた（または書けないと分かった）。`Drop` で書き直さない
+    stop_sent: bool,
+    /// 答えが決まった（`stop` が返った）か、`go` を書けなかった。`Drop` で待たない
+    finished: bool,
 }
 
 impl std::fmt::Debug for Search {
@@ -103,7 +119,8 @@ impl std::fmt::Debug for Search {
             .field("listener", &self.listener)
             .field("pondering", &self.pondering)
             .field("answered", &self.answered)
-            .field("settled", &self.settled)
+            .field("stop_sent", &self.stop_sent)
+            .field("finished", &self.finished)
             .finish_non_exhaustive()
     }
 }
@@ -112,10 +129,10 @@ impl UsiProtocol {
     /// 手順「探索」。`position` と `go`（`go ponder` を含む）を書き、探索1本の持ち分を返す。
     /// 待つのは書けたことだけ。
     ///
-    /// **受け手は書く前に張る。** 後に張ると、すぐ答えるエンジンの `bestmove` を取りこぼす。
-    /// `position` か `go` を書けなかったら、`stop` を書かずに受け手を外して断る。
-    ///
-    /// 探索中に呼ばない（2本目の探索）。いまは呼び手が守る（検討の席、対局の `Activity`）
+    /// **前の探索の枠が返るまで書かない。** 捨てた探索が `bestmove` を返すまで待つ
+    /// （`DROPPED_SEARCH_LIMIT`）。前の `Search` を握ったまま呼ぶと上限の後に断る。
+    /// 受け手は書く前に張る。後に張ると、すぐ答えるエンジンの `bestmove` を取りこぼす。
+    /// `position` か `go` を書けなかったら、`stop` を書かずに受け手を外して断る
     pub async fn search(
         self: &Arc<Self>,
         position: String,
@@ -125,6 +142,17 @@ impl UsiProtocol {
         // 先読みかどうかは `ThinkParams` から読めない（欄が非公開）。線に出る1行で見る
         let pondering = go.to_string().starts_with("go ponder");
 
+        let waited = tokio::time::timeout(
+            DROPPED_SEARCH_LIMIT * 2,
+            Arc::clone(&self.search_slot).acquire_owned(),
+        )
+        .await;
+        let Ok(Ok(slot)) = waited else {
+            return Err(EngineError::InvalidState(
+                "the previous search on this engine has not ended".to_string(),
+            ));
+        };
+
         let (tx, lines) = mpsc::unbounded_channel();
         let listener = format!("search_{}", uuid::Uuid::new_v4());
         self.register_listener(listener.clone(), tx).await?;
@@ -132,9 +160,11 @@ impl UsiProtocol {
             protocol: Arc::clone(self),
             listener,
             lines,
+            slot: Some(slot),
             pondering,
             answered: false,
-            settled: false,
+            stop_sent: false,
+            finished: false,
         };
 
         let sent = match self.send_command(&GuiCommand::Position(position)).await {
@@ -142,7 +172,7 @@ impl UsiProtocol {
             Err(e) => Err(e),
         };
         if let Err(e) = sent {
-            search.settled = true;
+            search.finished = true;
             return Err(e);
         }
         Ok(search)
@@ -158,18 +188,13 @@ impl Search {
         if self.answered {
             return Ok(None);
         }
-        loop {
-            let line = match self.lines.recv().await {
-                Some(EngineCommand::Info(params)) => SearchLine::Info(params),
-                Some(EngineCommand::Checkmate(params)) => SearchLine::Checkmate(params),
-                Some(EngineCommand::BestMove(params)) => {
-                    self.answered = true;
-                    SearchLine::BestMove(params)
-                }
-                Some(_) => continue,
-                None => return Err(self.protocol.cannot_reach()),
-            };
-            return Ok(Some(line));
+        let line = next_search_line(&mut self.lines).await;
+        match line {
+            Some(line) => {
+                self.answered = matches!(line, SearchLine::BestMove(_));
+                Ok(Some(line))
+            }
+            None => Err(self.protocol.cannot_reach()),
         }
     }
 
@@ -188,15 +213,20 @@ impl Search {
     /// 止める。`stop` を書き、`bestmove` を `limit` まで待って答えを返す（`StopAnswer`）。
     ///
     /// **上限は呼び手が渡す**（検討と対局で違う）。上限まで待っても答えなければ `Unanswered` を返し、
-    /// エンジンは止め待ちのまま残る。止めた探索の `info` は捨てる
+    /// エンジンは止め待ちのまま残る。止めた探索の `info` は捨てる。
+    ///
+    /// 途中で future を捨てても探索は残らない。`stop` を書く前なら `Drop` が書き、書いた後なら
+    /// `Drop` が `bestmove` を待つ
     pub async fn stop(mut self, limit: Duration) -> StopAnswer {
-        self.settled = true;
         if self.answered {
+            self.finished = true;
             return StopAnswer::Answered;
         }
         let sent = self.protocol.stop().await;
+        self.stop_sent = true;
         log::debug!(target: LOGT, "search: stop -> {sent:?}");
         if let Some(answer) = answer_without_waiting(sent) {
+            self.finished = true;
             return answer;
         }
         let waited = match tokio::time::timeout(limit, self.until_bestmove()).await {
@@ -204,6 +234,7 @@ impl Search {
             Ok(Err(e)) => Waited::Ended(e),
             Err(_) => Waited::TimedOut,
         };
+        self.finished = true;
         answer_after_waiting(waited)
     }
 
@@ -217,21 +248,54 @@ impl Search {
     }
 }
 
+/// 探索の行だけを取り出す。出力が終わったら `None`
+async fn next_search_line(
+    lines: &mut mpsc::UnboundedReceiver<EngineCommand>,
+) -> Option<SearchLine> {
+    loop {
+        match lines.recv().await? {
+            EngineCommand::Info(params) => return Some(SearchLine::Info(params)),
+            EngineCommand::Checkmate(params) => return Some(SearchLine::Checkmate(params)),
+            EngineCommand::BestMove(params) => return Some(SearchLine::BestMove(params)),
+            _ => continue,
+        }
+    }
+}
+
 impl Drop for Search {
-    /// 受け手を外す。止めずに捨てたなら、その前に `stop` を書く（待たない）。
-    /// どちらも await が要るので、取っ手の持つ実行環境へ渡す
+    /// 答えの決まっていない探索なら、`stop` を書き（まだなら）、`bestmove` を上限まで受ける。
+    /// その後で受け手を外し、枠を返す。どれも await が要るので、取っ手の持つ実行環境へ渡す
     fn drop(&mut self) {
         let protocol = Arc::clone(&self.protocol);
         let listener = std::mem::take(&mut self.listener);
-        let write_stop = !self.settled && !self.answered;
+        let (_, closed) = mpsc::unbounded_channel();
+        let mut lines = std::mem::replace(&mut self.lines, closed);
+        let slot = self.slot.take();
+        let unsettled = !self.finished && !self.answered;
+        let write_stop = unsettled && !self.stop_sent;
         let runtime = protocol.runtime_handle.clone();
         runtime.spawn(async move {
+            let mut wait = unsettled;
             if write_stop {
-                if let Err(e) = protocol.stop().await {
-                    log::debug!(target: LOGT, "search: dropped; could not stop: {e}");
+                let sent = protocol.stop().await;
+                log::debug!(target: LOGT, "search: dropped; stop -> {sent:?}");
+                wait = answer_without_waiting(sent).is_none();
+            }
+            if wait {
+                let answered = tokio::time::timeout(DROPPED_SEARCH_LIMIT, async {
+                    while let Some(line) = next_search_line(&mut lines).await {
+                        if matches!(line, SearchLine::BestMove(_)) {
+                            return;
+                        }
+                    }
+                })
+                .await;
+                if answered.is_err() {
+                    log::warn!(target: LOGT, "search: dropped; no bestmove within the limit");
                 }
             }
             protocol.remove_listener(&listener).await;
+            drop(slot);
         });
     }
 }
@@ -482,6 +546,53 @@ done"#;
                 .expect("書ける");
             drop(search);
             assert!(wait_logged(&dir, "stop").await, "{:?}", logged(&dir));
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 捨てた探索の `bestmove` は、直後に始めた探索へ届かない。次の探索の `position` は
+        /// 捨てた探索の `stop` より後に書く（探索中のエンジンへ `position` を送らない）
+        #[tokio::test]
+        async fn a_search_started_after_a_dropped_one_does_not_take_its_bestmove() {
+            let dir = test_support::dir::temp_dir("search-drop-then-search");
+            let protocol = ready(&dir, ANSWERS_STOP).await;
+            let first = protocol
+                .search(startpos(), ThinkParams::new().infinite())
+                .await
+                .expect("書ける");
+            drop(first);
+
+            let mut second = protocol
+                .search(startpos(), ThinkParams::new().infinite())
+                .await
+                .expect("書ける");
+            // 台本は `go` に `info` を1行出して黙る。`bestmove` は自分で止めるまで来ない
+            assert!(matches!(
+                second.next_line().await,
+                Ok(Some(SearchLine::Info(_)))
+            ));
+            let next = tokio::time::timeout(Duration::from_millis(300), second.next_line()).await;
+            // 上限で切れることだけを見る。内側が何であれ、行が来たら誤り
+            if let Ok(line) = next {
+                panic!("止めていない探索が答えを受けた: {line:?}");
+            }
+
+            let position = format!("position sfen {}", startpos());
+            assert_eq!(
+                logged(&dir),
+                [
+                    "isready",
+                    position.as_str(),
+                    "go infinite",
+                    "stop",
+                    position.as_str(),
+                    "go infinite"
+                ]
+            );
+            assert!(matches!(
+                second.stop(Duration::from_secs(5)).await,
+                StopAnswer::Answered
+            ));
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }

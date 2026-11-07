@@ -244,6 +244,9 @@ TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は�
 - `setup` は U1 で縮んだ。送って待つのは `UsiProtocol::prepare` と `check_value` で、`setup` に残るのは送る前の値の検査と返った行の読み方
 - 手順の名前は U1 で決めた（`CONTEXT.md` の「USI のやりとり」）。範囲6で `setup` の関数名を手順の語に揃えるかは、そこで決める
 
+U2b で対局を `Search` へ移すとき、`StopAnswer::Unreachable(EngineError::Timeout)`（`stop` の書き込みが上限を超えた）の
+行き先を決める。いまの対局は `StopTimedOut`（止めに答えない）と読み、検討は失敗と読む。写像を純関数にして、この1通りをテストで固定する。
+
 範囲6の後は上の表の順に U2a と進む。各段の範囲と固定のしかたは ADR-0016 の決定8。
 
 `tests/layering.rs` は `engine` の段の上下を

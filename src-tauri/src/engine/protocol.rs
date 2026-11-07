@@ -98,6 +98,11 @@ pub struct UsiProtocol {
     runtime_handle: tokio::runtime::Handle,
     init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     init_cancel: Arc<Mutex<Option<CancellationToken>>>,
+
+    /// 探索の枠（許可は1つ）。`Search` が握り、捨てた探索の `bestmove` を受け終えてから返す
+    /// （`protocol/search.rs` の `DROPPED_SEARCH_LIMIT`）。返る前に次の探索の受け手を張ると、
+    /// 前の探索の `bestmove` を次の探索の答えとして受ける
+    search_slot: Arc<tokio::sync::Semaphore>,
 }
 
 /// プロセスの終わりを待つ取っ手。**子プロセスを持たない**ので、
@@ -730,6 +735,7 @@ impl UsiProtocol {
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
             init_cancel: Arc::new(Mutex::new(None)),
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
         }
     }
 
