@@ -1077,6 +1077,42 @@ fn only_the_child_layer_spawns_processes() {
     );
 }
 
+/// 1本のプロセスとのやりとり（`engine/protocol.rs` と `engine/protocol/`）は、ロックを持たない
+/// （ADR-0016 決定9 の M3 が 0）。状態機械を持つのは殻のタスク1本（`run_shell`）で、取っ手は列で頼む。
+/// ロックを足すと、殻を通らずに状態へ触る経路ができ、書く行の順（不変条件1）を殻だけで決められなくなる。
+///
+/// 本番のコードだけを見る（テストの台本が `Mutex` を使うのは構わない）。コメントと文字列は潰してから見る
+#[test]
+fn the_usi_shell_holds_no_lock() {
+    let dir = engine_dir();
+    let files: Vec<PathBuf> = rust_files(&dir)
+        .into_iter()
+        .filter(|path| {
+            let relative = path.strip_prefix(&dir).unwrap_or(path);
+            relative == Path::new("protocol.rs") || relative.starts_with("protocol")
+        })
+        .collect();
+    assert!(
+        files.len() >= 2,
+        "`protocol.rs` と `protocol/` が見つからない。走査の場所を直すこと: {files:?}"
+    );
+
+    let mut locks = Vec::new();
+    for path in files {
+        let source = fs::read_to_string(&path).unwrap_or_default();
+        let code = blank_out_noncode(&strip_test_modules(&source, &path));
+        for (at, line) in code.lines().enumerate() {
+            if line.contains("Mutex") || line.contains("RwLock") {
+                locks.push(format!("{}:{}", path.display(), at + 1));
+            }
+        }
+    }
+    assert!(
+        locks.is_empty(),
+        "1本のプロセスのためにロックを持っている。状態は殻（`run_shell`）に頼んで変えること: {locks:?}"
+    );
+}
+
 /// 綴りの判定そのものを、文字列を直に食わせて確かめる。
 ///
 /// **現物を食わせて違反0、では判定が壊れても緑になる。**
