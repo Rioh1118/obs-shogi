@@ -132,7 +132,7 @@ impl EngineRegistry {
     /// - `StartupFailed`: `engine_path` が在るファイルでない、`work_dir` が在るディレクトリでない、
     ///   OS が起こせなかった、起こす専用スレッドが落ちた
     /// - `Timeout`: `spawn_timeout` の内にプロセスが起き上がらなかった
-    /// - `usiok` までの失敗は `UsiProtocol::get_engine_info` の答えをそのまま返す
+    /// - `usiok` までの失敗は `UsiProtocol::identify` の答えをそのまま返す
     pub async fn spawn(
         &self,
         engine_path: &str,
@@ -292,7 +292,7 @@ impl EngineRegistry {
         let answered = tokio::select! {
             biased;
             _ = cancel.cancelled() => Err(cancelled_while_starting()),
-            answered = protocol.get_engine_info(info_timeout) => answered,
+            answered = protocol.identify(info_timeout) => answered,
         };
         let info = match answered {
             Ok(info) => info,

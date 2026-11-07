@@ -78,12 +78,12 @@ pub struct UsiProtocol {
 
     /// 読み取りが解いた `option` 行（`option_line::parse_option_line`）。
     ///
-    /// **溜めるのは `usi` への応答の `option` 行だけ。** `get_engine_info` が読み取りを始める前に
+    /// **溜めるのは `usi` への応答の `option` 行だけ。** `identify` が読み取りを始める前に
     /// 開き、読み取りの hook が `usiok` の行を見たところで閉じる。読み取りは1本のタスクが
     /// 行を順に処理するので、境界は行の順序で決まる（`usiok` より前の行は入り終え、後の行は入らない）
     declared: Arc<std::sync::Mutex<DeclaredOptions>>,
 
-    /// `get_engine_info` を1本ずつ通す。2本が同時に `usi` を送ると、1つの `declared` を
+    /// `identify` を1本ずつ通す。2本が同時に `usi` を送ると、1つの `declared` を
     /// 取り合って片方の定義が空になる
     info_gate: Arc<Mutex<()>>,
 
@@ -1151,7 +1151,9 @@ impl UsiProtocol {
         Ok(())
     }
 
-    /// `usi` を送り `usiok` までを読み取る。2回目以降はキャッシュを返す。
+    /// 手順「名乗り」。`usi` を送り `usiok` までを読み取る。2回目以降はキャッシュを返す。
+    ///
+    /// 名前に取得の接頭辞を付けないのは、覚えた値を返すだけでなく、初回はエンジンと往復するため。
     ///
     /// `usiok` を返さないエンジンでここが返らないと、呼び出し元の起動処理ごと
     /// 止まったまま利用者に何も出ない。`timeout` はそのための打ち切り。
@@ -1163,7 +1165,7 @@ impl UsiProtocol {
     ///
     /// **同時に呼ぶと1本ずつ通す**（`info_gate`）。後の呼び手は先の呼び手が返るまで待ち、
     /// その待ちは `timeout` に含まれない。先の呼び手が成功していれば、後の呼び手はキャッシュを返す。
-    pub async fn get_engine_info(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
+    pub async fn identify(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
         // 1本ずつ通す（`info_gate` の doc）。ゲートを取ってからキャッシュを見直す
         let _gate = self.info_gate.lock().await;
         {
@@ -2172,7 +2174,7 @@ mod tests {
             .await;
 
             let error = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect_err("起動が成功している");
 
@@ -2197,7 +2199,7 @@ mod tests {
             .await;
 
             let info = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("usiok まで読めていない");
             assert_eq!(info.name, "Overflow");
@@ -2213,7 +2215,7 @@ mod tests {
             let dir = test_support::dir::temp_dir("protocol-drop");
             let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat").await;
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("読み取りまで始まる");
             let diagnostics = protocol.child.diagnostics();
@@ -2238,7 +2240,7 @@ mod tests {
             // `isready` を読んでも `readyok` を返さない（`cat` は受けた行をそのまま返す）
             let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat").await;
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("読み取りまで始まる");
             protocol
@@ -2300,7 +2302,7 @@ mod tests {
             let protocol = protocol_for(&dir, "read _; cat usi.txt; exec sleep 30").await;
 
             let info = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("usiok まで読める");
 
@@ -2345,7 +2347,7 @@ mod tests {
             .await;
 
             let info = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("読める");
             assert_eq!(info.options.len(), 39);
@@ -2357,7 +2359,7 @@ mod tests {
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// `get_engine_info` を同時に2本呼んでも、どちらも（その後のキャッシュも）全部の定義を持つ
+        /// `identify` を同時に2本呼んでも、どちらも（その後のキャッシュも）全部の定義を持つ
         #[tokio::test]
         async fn concurrent_engine_info_requests_share_every_option() {
             let dir = test_support::dir::temp_dir("protocol-options-join");
@@ -2369,10 +2371,10 @@ mod tests {
             let protocol = protocol_for(&dir, "read _; cat usi.txt; exec sleep 30").await;
 
             let (a, b) = tokio::join!(
-                protocol.get_engine_info(Duration::from_secs(10)),
-                protocol.get_engine_info(Duration::from_secs(10)),
+                protocol.identify(Duration::from_secs(10)),
+                protocol.identify(Duration::from_secs(10)),
             );
-            let cached = protocol.get_engine_info(Duration::from_secs(10)).await;
+            let cached = protocol.identify(Duration::from_secs(10)).await;
             for info in [a, b, cached] {
                 assert_eq!(info.expect("読める").options.len(), 39);
             }
@@ -2414,7 +2416,7 @@ mod tests {
                 protocol_for(&dir, "printf 'id author Nobody\\nusiok\\n'; exec sleep 30").await;
 
             let error = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect_err("名乗らないエンジンを通している");
             assert!(
@@ -2447,7 +2449,7 @@ done"#,
             )
             .await;
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("名乗る");
             protocol
@@ -2535,7 +2537,7 @@ done"#;
 
             let protocol = UsiProtocol::new(spawn_script(dir, BODY).await);
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("名乗る");
             protocol
