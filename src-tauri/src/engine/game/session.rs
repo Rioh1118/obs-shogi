@@ -40,11 +40,13 @@ use usi::{GameOverKind, GuiCommand};
 use crate::engine::logging::LogThrottle;
 use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 use crate::engine::protocol::UsiProtocol;
-use crate::engine::protocol::{NO_USIOK, READY_TIMEOUT, USI_OK_TIMEOUT};
+use crate::engine::protocol::{self, READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::setup::{self, MAX_WIRE_FIELD};
-use crate::engine::types::{engine_error_text, AnalysisResult, EngineError, TIMED_OUT};
+use crate::engine::types::{
+    engine_error_text, AnalysisResult, EngineError, StartupReason, TIMED_OUT,
+};
 
 use super::clock::{ClockOutcome, GameClocks};
 use super::events::GameEventSink;
@@ -1649,7 +1651,7 @@ impl Runner {
             Some(winner) if winner == side => GameOverKind::Win,
             Some(_) => GameOverKind::Lose,
         };
-        if let Err(e) = protocol.send_command(&GuiCommand::GameOver(kind)).await {
+        if let Err(e) = protocol.game_over(kind).await {
             log::warn!(target: LOGT, "gameover failed side={side:?}: {e}");
         }
     }
@@ -1785,7 +1787,7 @@ impl Runner {
 
 /// 締切までの残り（`setup::remaining`）を、対局の断り文句の形で返す。
 fn remaining(deadline: Instant, what: &str) -> Result<Duration, String> {
-    setup::remaining(deadline, what).map_err(|e| engine_error_text(&e))
+    protocol::remaining(deadline, what).map_err(|e| engine_error_text(&e))
 }
 
 /// エンジン側の対局者を全部起動する。
@@ -1846,7 +1848,7 @@ async fn spawn_players(
 
 /// 起動の失敗を文字列にする。**`usiok` が来なかったときだけ、待った長さで分ける。**
 ///
-/// `get_engine_info` は「答えなかった＝そのファイルは USI エンジンではない」と
+/// `identify` は「答えなかった＝そのファイルは USI エンジンではない」と
 /// 断る（`NO_USIOK`）。それが正しいのは**満額の `USI_OK_TIMEOUT` を渡したとき**
 /// だけで、締切で取り分を削ったときは、満額なら答えていた可能性が残る。
 ///
@@ -1858,10 +1860,9 @@ async fn spawn_players(
 /// 分けないと、締切の食い潰しが「設定の誤り」として届き、受け手は正常なエンジンの
 /// パスを疑う——押し直せば通ったはずの起動をそこで捨てる（F-27）。
 fn usiok_refusal(error: EngineError, for_usiok: Duration) -> String {
-    // **綴りは変種の中の先頭で見る。** 文字列全体に対する部分一致にすると、
-    // OS の文言やパスに同じ綴りを持ち込まれたときに分類が動く
+    // **理由の欄で見る。** 文で見ると、OS の文言やパスに同じ綴りを持ち込まれたときに分類が動く
     let starved = for_usiok < USI_OK_TIMEOUT
-        && matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_USIOK));
+        && matches!(&error, EngineError::StartupFailed(detail) if matches!(detail.reason, StartupReason::NoUsiOk { .. }));
     if starved {
         format!("{TIMED_OUT} before the engine said usiok")
     } else {
@@ -1926,7 +1927,7 @@ async fn send_game_setup(
     // `prepare_engine` が締切で断って**落とすエンジン**へ送っていることがある
     remaining(deadline, "usinewgame was sent")?;
     protocol
-        .send_command(&GuiCommand::UsiNewGame)
+        .new_game()
         .await
         .map_err(|e| engine_error_text(&e))?;
 
@@ -2210,6 +2211,7 @@ mod tests {
     use super::super::events::{DiscardEvents, RecordedEvents};
     use super::*;
     use crate::engine::setup::MAX_SENT_OPTIONS;
+    use crate::engine::types::NO_USIOK;
 
     use crate::engine::logging::LOG_FILE_BUDGET;
 
@@ -2466,17 +2468,24 @@ mod tests {
     ///
     /// `a_thin_budget_never_starts_an_engine_it_cannot_wait_for` が守るのは
     /// **厳密に 0 のときだけ**。1ミリ秒は `is_zero()` の判定を通り、そこで答えが来なければ
-    /// `get_engine_info` は「そのファイルは USI エンジンではない」と断る。
+    /// `identify` は「そのファイルは USI エンジンではない」と断る。
     ///
     /// **その断り方は満額を渡したときにしか正しくない。** 締切の食い潰しが
     /// 「設定の誤り」として届くと、受け手は正常なエンジンのパスを疑い、
     /// 押し直せば通ったはずの起動をそこで捨てる（F-27）。
     ///
     /// 実プロセスは要らない——分けているのは `usiok_refusal` の中だけなので、
-    /// 4通り（満額 × 綴りの有無）を直に当てる。
+    /// 4通り（満額 × 理由が `NoUsiOk` か）を直に当てる。
     #[test]
     fn a_budget_starved_start_is_not_blamed_on_the_engine() {
-        let no_usiok = || EngineError::StartupFailed(format!("{NO_USIOK} in 1ms; …"));
+        let no_usiok = || {
+            EngineError::StartupFailed(
+                StartupReason::NoUsiOk {
+                    waited: Duration::from_millis(1),
+                }
+                .into(),
+            )
+        };
 
         // 削られた取り分 × `usiok` が来ない → 時間切れとして返す
         assert!(
@@ -2494,16 +2503,17 @@ mod tests {
 
         // 削られた取り分 × `usiok` 以外の失敗 → 書き換えない。
         // **実行権限が無いファイルを「遅かっただけ」にすると、直すものが消える**
-        let denied = EngineError::StartupFailed("Failed to spawn engine: …os error 13".to_string());
+        let denied =
+            EngineError::StartupFailed("Failed to spawn engine: …os error 13".to_string().into());
         let text = usiok_refusal(denied, Duration::from_millis(1));
         assert!(
             !text.starts_with(TIMED_OUT) && text.contains("os error 13"),
             "`usiok` と無関係な失敗まで時間切れにしている: {text}"
         );
 
-        // 削られた取り分 × 綴りが途中にあるだけ → 書き換えない
+        // 削られた取り分 × 文に綴りがあるだけ → 書き換えない
         let smuggled =
-            EngineError::StartupFailed(format!("Failed to spawn engine: /x/{NO_USIOK}/eng"));
+            EngineError::StartupFailed(format!("Failed to spawn engine: /x/{NO_USIOK}/eng").into());
         assert!(
             !usiok_refusal(smuggled, Duration::from_millis(1)).starts_with(TIMED_OUT),
             "外から持ち込んだ綴りで分類が動いている"

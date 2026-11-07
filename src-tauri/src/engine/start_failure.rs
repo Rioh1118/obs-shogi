@@ -2,7 +2,7 @@
 //!
 //! **画面の文言は種類から組む**ので、解析の起動（`start_analysis_engine`）の分類はここに置く。
 //! 対局の起動は文字列で返し、締切で削った `usiok` の待ちを時間切れとして読み直す
-//! （`game/session.rs` の `usiok_refusal`）。ここはその前提を持たない——`NO_USIOK` を
+//! （`game/session.rs` の `usiok_refusal`）。ここはその前提を持たない——`StartupReason::NoUsiOk` を
 //! `NotUsi` とするのは、呼び手が `USI_OK_TIMEOUT` を満額渡したときだけ正しい。
 
 use std::path::PathBuf;
@@ -10,9 +10,7 @@ use std::time::Duration;
 
 use crate::engine::launchable::{self, Inspection, Launchability};
 use crate::engine::logging::shown;
-use crate::engine::protocol::LAST_OUTPUT_PREFIX;
-use crate::engine::protocol::{NO_ID_NAME, NO_USIOK};
-use crate::engine::types::{EngineError, StartFailure, StartFailureKind};
+use crate::engine::types::{EngineError, StartFailure, StartFailureKind, StartupReason};
 
 /// `StartFailure::message` に載せる長さ（文字）。エンジンの出力を含むので切る
 const MAX_FAILURE_MESSAGE: usize = 512;
@@ -46,37 +44,33 @@ pub fn classify(error: &EngineError, quarantined: bool) -> StartFailure {
         EngineError::Cancelled(_) => StartFailureKind::Cancelled,
         EngineError::Timeout(_) => StartFailureKind::TimedOut,
         EngineError::InvalidState(_) => StartFailureKind::InvalidValue,
-        // **綴りは変種の中の先頭で見る。** 部分一致にすると、OS の文言やパスに同じ綴りを
-        // 持ち込まれたときに分類が動く
-        EngineError::StartupFailed(why)
-            if why.starts_with(NO_USIOK) || why.starts_with(NO_ID_NAME) =>
-        {
-            StartFailureKind::NotUsi
-        }
-        EngineError::StartupFailed(_) => StartFailureKind::SpawnFailed,
+        // **理由の欄で見る。** 文で見ると、OS の文言やパスに同じ綴りを持ち込まれたときに分類が動く
+        EngineError::StartupFailed(detail) => match detail.reason {
+            StartupReason::NoUsiOk { .. } | StartupReason::NoIdName => StartFailureKind::NotUsi,
+            StartupReason::Other(_) => StartFailureKind::SpawnFailed,
+        },
         EngineError::CommunicationFailed(_) if quarantined => StartFailureKind::Quarantined,
         EngineError::CommunicationFailed(_) => StartFailureKind::ExitedEarly,
         EngineError::NotInitialized(_) | EngineError::AlreadyListening(_) => {
             StartFailureKind::Other
         }
     };
-    let message = error.to_string();
+    let last_output = match error {
+        EngineError::StartupFailed(detail) => detail.last_output.as_deref(),
+        EngineError::CommunicationFailed(detail) => detail.last_output.as_deref(),
+        _ => None,
+    };
     StartFailure {
         kind,
-        last_output: message.rsplit_once(LAST_OUTPUT_PREFIX).map(|(_, output)| {
-            shown(
-                output.strip_suffix(')').unwrap_or(output),
-                MAX_FAILURE_MESSAGE,
-            )
-        }),
-        message: shown(&message, MAX_FAILURE_MESSAGE),
+        last_output: last_output.map(|output| shown(output, MAX_FAILURE_MESSAGE)),
+        message: shown(&error.to_string(), MAX_FAILURE_MESSAGE),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::types::TIMED_OUT;
+    use crate::engine::types::{FailureDetail, NO_ID_NAME, TIMED_OUT};
 
     fn kind(error: EngineError) -> StartFailureKind {
         classify(&error, false).kind
@@ -93,7 +87,12 @@ mod tests {
             StartFailureKind::TimedOut
         );
         assert_eq!(
-            kind(EngineError::StartupFailed(format!("{NO_USIOK} in 30s"))),
+            kind(EngineError::StartupFailed(
+                StartupReason::NoUsiOk {
+                    waited: Duration::from_secs(30)
+                }
+                .into()
+            )),
             StartFailureKind::NotUsi
         );
         assert_eq!(
@@ -118,12 +117,12 @@ mod tests {
     #[test]
     fn an_engine_without_a_name_is_not_a_usable_usi_engine() {
         assert_eq!(
-            kind(EngineError::StartupFailed(NO_ID_NAME.to_string())),
+            kind(EngineError::StartupFailed(StartupReason::NoIdName.into())),
             StartFailureKind::NotUsi
         );
-        // 綴りは先頭だけで見る。途中にあっても起こせなかった失敗のまま
+        // 綴りでは見ない。文に同じ綴りがあっても起こせなかった失敗のまま
         assert_eq!(
-            kind(EngineError::StartupFailed(format!("spawn: {NO_ID_NAME}"))),
+            kind(EngineError::StartupFailed(NO_ID_NAME.into())),
             StartFailureKind::SpawnFailed
         );
     }
@@ -149,7 +148,9 @@ mod tests {
     #[test]
     fn the_message_is_bounded_and_has_no_control_characters() {
         let failure = classify(
-            &EngineError::CommunicationFailed(format!("x\n\u{1b}[31m{}", "y".repeat(10_000))),
+            &EngineError::CommunicationFailed(
+                format!("x\n\u{1b}[31m{}", "y".repeat(10_000)).into(),
+            ),
             false,
         );
         assert!(failure.message.chars().count() <= MAX_FAILURE_MESSAGE + 1);
@@ -239,17 +240,23 @@ mod tests {
         assert_eq!(failure.kind, StartFailureKind::ExitedEarly);
     }
 
-    /// 添えた閉じ括弧だけを外す。**エンジンの行の `)` まで削らない**
+    /// 直近の出力は欄からそのまま取る。**エンジンの行の `)` まで削らない**
     #[test]
     fn the_engine_output_keeps_its_own_closing_parenthesis() {
-        let error = EngineError::CommunicationFailed(format!(
-            "gone{}failed to load nn.bin (code 2))",
-            crate::engine::protocol::LAST_OUTPUT_PREFIX
-        ));
+        let error = EngineError::CommunicationFailed(FailureDetail {
+            reason: "gone".to_string(),
+            last_output: Some("failed to load nn.bin (code 2)".to_string()),
+        });
 
+        let failure = classify(&error, false);
         assert_eq!(
-            classify(&error, false).last_output.as_deref(),
+            failure.last_output.as_deref(),
             Some("failed to load nn.bin (code 2)")
+        );
+        // 文は繋いだ綴りのまま（線に出る文は変えない）
+        assert_eq!(
+            failure.message,
+            "Communication failed: gone (last output: failed to load nn.bin (code 2))"
         );
     }
 }

@@ -400,50 +400,22 @@ impl EngineAnalyzer {
         let bound = binding::bind(&process.info.options, &binding_input);
         let mut warnings = bound.warnings;
 
-        // 定跡をパスで送った回は、`readyok` までの出力を聞いて、読めたかを確かめる
-        // （`binding::book_load_warning`）。「断らなかった」だけでは、黙って捨てたエンジンを通してしまう
-        let book_watch = match &bound.book_path_sent {
-            Some(_) => {
-                let (tx, rx) = mpsc::unbounded_channel();
-                let name = format!("book_load_{}", uuid::Uuid::new_v4());
-                match protocol.register_listener(name.clone(), tx).await {
-                    Ok(()) => Some((name, rx)),
-                    Err(e) => {
-                        self.registry.shutdown(&process.id).await;
-                        return Err(e);
-                    }
-                }
-            }
-            None => None,
-        };
-
         // `biased`: 取り消しと失敗が同時に揃ったら取り消しを採る
         let prepared = tokio::select! {
             biased;
             _ = cancel.cancelled() => Err(cancelled_start()),
             prepared = setup::send_setup(&protocol, &bound.options, None, None) => prepared,
         };
-        if let Some((name, mut rx)) = book_watch {
-            protocol.remove_listener(&name).await;
-            // `readyok` より前の行は、`readyok` を配る前に同じ配り手が配り終えている
-            let mut lines = Vec::new();
-            while let Ok(command) = rx.try_recv() {
-                if let EngineCommand::Info(params) = command {
-                    lines.extend(params.into_iter().filter_map(|p| match p {
-                        usi::InfoParams::Text(text) => Some(text),
-                        _ => None,
-                    }));
-                }
-            }
-            if let (Ok(()), Some(sent)) = (&prepared, &bound.book_path_sent) {
-                warnings.extend(binding::book_load_warning(&lines, sent));
-            }
+        // 定跡をパスで送った回は、`readyok` までの `info string` で読めたかを確かめる
+        // （`binding::book_load_warning`）。「断らなかった」だけでは、黙って捨てたエンジンを通してしまう
+        if let (Ok(texts), Some(sent)) = (&prepared, &bound.book_path_sent) {
+            warnings.extend(binding::book_load_warning(texts, sent));
         }
         for warning in &warnings {
             log::info!(target: LOGT, "start_engine: not sent as saved: {warning:?}");
         }
         let prepared = match prepared {
-            Ok(()) => protocol.send_command(&GuiCommand::UsiNewGame).await,
+            Ok(_) => protocol.new_game().await,
             Err(e) => Err(e),
         };
         if let Err(e) = prepared {
@@ -556,7 +528,9 @@ impl EngineAnalyzer {
         // USI プロトコルは行指向なので、position 文字列への改行注入を拒否する
         if contains_usi_breaking_char(position) {
             return Err(EngineError::CommunicationFailed(
-                "position string contains forbidden control character".to_string(),
+                "position string contains forbidden control character"
+                    .to_string()
+                    .into(),
             ));
         }
 
@@ -1321,7 +1295,9 @@ mod tests {
             StopVerdict::Failed(EngineError::Timeout(_))
         ));
         assert!(matches!(
-            verdict_of_stop(Err(EngineError::CommunicationFailed("gone".to_string()))),
+            verdict_of_stop(Err(EngineError::CommunicationFailed(
+                "gone".to_string().into()
+            ))),
             StopVerdict::Failed(EngineError::CommunicationFailed(_))
         ));
     }
@@ -1370,7 +1346,7 @@ mod tests {
             "blocked".to_string()
         ))));
         assert!(!should_wait_for_bestmove(&Err(
-            EngineError::CommunicationFailed("gone".to_string())
+            EngineError::CommunicationFailed("gone".to_string().into())
         )));
     }
 

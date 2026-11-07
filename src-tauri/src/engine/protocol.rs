@@ -14,9 +14,11 @@ use crate::engine::{logging::cmd_summary, logging::with_cause, types::*};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
-use usi::{EngineCommand, GuiCommand, IdParams};
+use usi::{EngineCommand, GameOverKind, GuiCommand, IdParams, InfoParams};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
+
+pub mod search;
 
 /// USI の行を壊す文字を含むか。
 ///
@@ -78,12 +80,12 @@ pub struct UsiProtocol {
 
     /// 読み取りが解いた `option` 行（`option_line::parse_option_line`）。
     ///
-    /// **溜めるのは `usi` への応答の `option` 行だけ。** `get_engine_info` が読み取りを始める前に
+    /// **溜めるのは `usi` への応答の `option` 行だけ。** `identify` が読み取りを始める前に
     /// 開き、読み取りの hook が `usiok` の行を見たところで閉じる。読み取りは1本のタスクが
     /// 行を順に処理するので、境界は行の順序で決まる（`usiok` より前の行は入り終え、後の行は入らない）
     declared: Arc<std::sync::Mutex<DeclaredOptions>>,
 
-    /// `get_engine_info` を1本ずつ通す。2本が同時に `usi` を送ると、1つの `declared` を
+    /// `identify` を1本ずつ通す。2本が同時に `usi` を送ると、1つの `declared` を
     /// 取り合って片方の定義が空になる
     info_gate: Arc<Mutex<()>>,
 
@@ -96,6 +98,11 @@ pub struct UsiProtocol {
     runtime_handle: tokio::runtime::Handle,
     init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
     init_cancel: Arc<Mutex<Option<CancellationToken>>>,
+
+    /// 探索の枠（許可は1つ）。`Search` が握り、捨てた探索の `bestmove` を受け終えてから返す
+    /// （`protocol/search.rs` の `DROPPED_SEARCH_LIMIT`）。返る前に次の探索の受け手を張ると、
+    /// 前の探索の `bestmove` を次の探索の答えとして受ける
+    search_slot: Arc<tokio::sync::Semaphore>,
 }
 
 /// プロセスの終わりを待つ取っ手。**子プロセスを持たない**ので、
@@ -371,21 +378,6 @@ pub const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 /// `isready` の側に来る。長く取る理由が無い。
 pub const USI_OK_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// `usi` に `usiok` で答えなかったときの断り文句の頭。
-///
-/// **呼び出し側が分類し直せるように定数で持つ。** 待てた長さが
-/// `USI_OK_TIMEOUT` 満額でないなら、答えなかったのは「そのファイルが USI では
-/// ない」ではなく「待てる時間が残っていない」——上限を締切で削る側は、
-/// この綴りを目印にして断り文句を差し替える。
-pub const NO_USIOK: &str = "the engine did not answer `usi` with `usiok`";
-
-/// `usiok` までに `id name` が無かったときの断り文句の頭。
-///
-/// 答えはしたが名乗らなかった——USI の応答が足りないので、分類は `NO_USIOK` と同じ側
-/// （そのファイルは使える USI エンジンではない）。出力が終わった失敗と同じ変種にすると、
-/// 評価関数や共有ライブラリの失敗と見分けられない
-pub const NO_ID_NAME: &str = "the engine did not send `id name` before `usiok`";
-
 /// `isready` を送ってから `readyok` を待つ上限。
 ///
 /// `usiok` より桁で長いのは、評価関数やハッシュの確保がここで走るため。
@@ -422,7 +414,9 @@ async fn run_writer(writer: Option<ChildWriter>, mut jobs: mpsc::UnboundedReceiv
         let summary = cmd_summary(&command);
 
         if stalled {
-            let _ = reply.send(Err(EngineError::CommunicationFailed(STALLED.to_string())));
+            let _ = reply.send(Err(EngineError::CommunicationFailed(
+                STALLED.to_string().into(),
+            )));
             log::warn!(target: LOGT, "write: refused after a stall cmd={summary}");
             continue;
         }
@@ -439,16 +433,16 @@ async fn run_writer(writer: Option<ChildWriter>, mut jobs: mpsc::UnboundedReceiv
                 Err(e) if e.kind() == std::io::ErrorKind::NotConnected => {
                     Err(EngineError::NotInitialized(GONE.to_string()))
                 }
-                Err(e) => Err(EngineError::CommunicationFailed(with_cause(&e))),
+                Err(e) => Err(EngineError::CommunicationFailed(with_cause(&e).into())),
             }
         });
 
         // **上限はここ。** 待っている側で包むと、前のジョブの処理時間が入る
         let written = match tokio::time::timeout(WRITE_TIMEOUT, write).await {
             Ok(Ok(result)) => result,
-            Ok(Err(e)) => Err(EngineError::CommunicationFailed(format!(
-                "write task failed: {e}"
-            ))),
+            Ok(Err(e)) => Err(EngineError::CommunicationFailed(
+                format!("write task failed: {e}").into(),
+            )),
             Err(_) => {
                 stalled = true;
                 Err(EngineError::Timeout(format!(
@@ -572,9 +566,9 @@ fn push_pending(pending: &mut Pending, command: &GuiCommand) -> Result<(), Engin
         } else {
             "the engine has not returned readyok"
         };
-        return Err(EngineError::CommunicationFailed(format!(
-            "{why}; {PENDING_LIMIT} commands are already queued"
-        )));
+        return Err(EngineError::CommunicationFailed(
+            format!("{why}; {PENDING_LIMIT} commands are already queued").into(),
+        ));
     }
     pending.queue.push_back(command.clone());
     log::debug!(
@@ -661,7 +655,7 @@ impl Link {
             Ok(result) => result,
             // 列のタスクが落ちた
             Err(_) => Err(EngineError::CommunicationFailed(
-                "the writer stopped".to_string(),
+                "the writer stopped".to_string().into(),
             )),
         };
 
@@ -741,6 +735,7 @@ impl UsiProtocol {
             runtime_handle: tokio::runtime::Handle::current(),
             init_task: Arc::new(Mutex::new(None)),
             init_cancel: Arc::new(Mutex::new(None)),
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
         }
     }
 
@@ -991,7 +986,8 @@ impl UsiProtocol {
 
         EngineError::CommunicationFailed(
             cannot_reach_text(self.killed.load(Relaxed), self.link.stalled.load(Relaxed))
-                .to_string(),
+                .to_string()
+                .into(),
         )
     }
 
@@ -1163,7 +1159,9 @@ impl UsiProtocol {
         Ok(())
     }
 
-    /// `usi` を送り `usiok` までを読み取る。2回目以降はキャッシュを返す。
+    /// 手順「名乗り」。`usi` を送り `usiok` までを読み取る。2回目以降はキャッシュを返す。
+    ///
+    /// 名前に取得の接頭辞を付けないのは、覚えた値を返すだけでなく、初回はエンジンと往復するため。
     ///
     /// `usiok` を返さないエンジンでここが返らないと、呼び出し元の起動処理ごと
     /// 止まったまま利用者に何も出ない。`timeout` はそのための打ち切り。
@@ -1175,7 +1173,7 @@ impl UsiProtocol {
     ///
     /// **同時に呼ぶと1本ずつ通す**（`info_gate`）。後の呼び手は先の呼び手が返るまで待ち、
     /// その待ちは `timeout` に含まれない。先の呼び手が成功していれば、後の呼び手はキャッシュを返す。
-    pub async fn get_engine_info(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
+    pub async fn identify(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
         // 1本ずつ通す（`info_gate` の doc）。ゲートを取ってからキャッシュを見直す
         let _gate = self.info_gate.lock().await;
         {
@@ -1199,9 +1197,9 @@ impl UsiProtocol {
         let collected = match sent {
             Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
                 .await
-                .unwrap_or(Err(EngineError::StartupFailed(format!(
-                    "{NO_USIOK} in {timeout:?}; the file may not be a USI engine"
-                )))),
+                .unwrap_or(Err(EngineError::StartupFailed(
+                    StartupReason::NoUsiOk { waited: timeout }.into(),
+                ))),
             Err(e) => Err(e),
         };
 
@@ -1253,13 +1251,129 @@ impl UsiProtocol {
             // 出力が終わったのか、`usiok` までに `id name` が無かったのかで
             // 呼び出し側の対処が違う。潰さない
             return Err(if saw_usiok {
-                EngineError::StartupFailed(NO_ID_NAME.to_string())
+                EngineError::StartupFailed(StartupReason::NoIdName.into())
             } else {
-                EngineError::CommunicationFailed("engine output ended before `usiok`".to_string())
+                EngineError::CommunicationFailed("engine output ended before `usiok`".into())
             });
         }
 
         Ok((name, author))
+    }
+
+    /// 手順「準備」。`setoption` を並べた順に送り、`isready` を必ず送って `readyok` を待つ。
+    /// 返すのは、その間にエンジンが出した `info string` の文（定跡を読めたかを
+    /// `binding::book_load_warning` が判定する）。
+    ///
+    /// - `deadline`: 全体の締切。`setoption` を1件送るごとに残りを見る。`None` なら締切なし
+    /// - `ready_limit`: `readyok` を待つ上限。締切の残りと小さいほうを使う。`None` なら上限なし
+    ///   （検討は、DNN 系の初回の読み込みに上限を置けないので `None` を渡す）
+    ///
+    /// **並べ替えない。** 値の解釈が前の `setoption` に依存するエンジンがあるので、順は呼び手が決める。
+    /// 値の検査（件数・長さ・行を壊す文字）は呼び手の段（`setup::validate_options`）が先に済ませる。
+    /// 送る途中や `readyok` の前にエンジンが落ちたら、直近の出力を添えて返す。
+    ///
+    /// 途中で future を捨てても状態は残らない。張った受け手は、受け側が落ちたことを
+    /// 次の行を配るときに見て外れる（`broadcast_to_listeners`）
+    pub async fn prepare(
+        &self,
+        options: &[SetOptionValue],
+        deadline: Option<std::time::Instant>,
+        ready_limit: Option<Duration>,
+    ) -> Result<Vec<String>, EngineError> {
+        // 送る前に張る。`setoption` に答えて出す行も、`readyok` までの行も取りこぼさない
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let listener = format!("prepare_{}", uuid::Uuid::new_v4());
+        if let Err(e) = self.register_listener(listener.clone(), tx).await {
+            return Err(self.with_recent_output(e).await);
+        }
+        let ready = self
+            .send_options_and_wait(options, deadline, ready_limit)
+            .await;
+        self.remove_listener(&listener).await;
+        ready?;
+        // `readyok` より前の行は、`readyok` を配る前に同じ配り手が配り終えている
+        Ok(info_strings_received(&mut rx))
+    }
+
+    async fn send_options_and_wait(
+        &self,
+        options: &[SetOptionValue],
+        deadline: Option<std::time::Instant>,
+        ready_limit: Option<Duration>,
+    ) -> Result<(), EngineError> {
+        for SetOptionValue { name, value } in options {
+            if let Some(deadline) = deadline {
+                remaining(deadline, "the options were sent")?;
+            }
+            let sent = self
+                .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
+                .await;
+            if let Err(e) = sent {
+                return Err(self.with_recent_output(e).await);
+            }
+        }
+        let limit = match deadline {
+            Some(deadline) => {
+                let left = remaining(deadline, "the engine said readyok")?;
+                Some(ready_limit.map_or(left, |limit| limit.min(left)))
+            }
+            None => ready_limit,
+        };
+        self.become_ready(limit).await
+    }
+
+    /// 手順「値の確認」。`setoption` を1つ送り、続けて `usi` を送って `usiok` を待つ。
+    /// 返すのは、その間にエンジンが出した `info string` の文で、`limit` までに `usiok` が
+    /// 来なければ `None`。
+    ///
+    /// **`isready` を使わない。** 評価関数の読み込みが走る。`usi` への答えはオプションの宣言を
+    /// 伴うが、宣言は作り直さない（名乗りで覚えたものを使う）。値の解釈は呼び手が行う
+    /// （`setup::accepts_path_in`）。`readyok` の前に呼ぶ
+    pub async fn check_value(
+        &self,
+        name: &str,
+        value: &str,
+        limit: Duration,
+    ) -> Result<Option<Vec<String>>, EngineError> {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let listener = format!("check_value_{}", uuid::Uuid::new_v4());
+        self.register_listener(listener.clone(), tx).await?;
+        let sent = async {
+            self.send_command(&GuiCommand::SetOption(
+                name.to_string(),
+                Some(value.to_string()),
+            ))
+            .await?;
+            self.send_command(&GuiCommand::Usi).await
+        }
+        .await;
+        let answer = match sent {
+            Ok(()) => tokio::time::timeout(limit, info_strings_before_usiok(rx, name))
+                .await
+                .ok()
+                .transpose(),
+            Err(e) => Err(e),
+        };
+        self.remove_listener(&listener).await;
+        // 落ちたら直近の出力を添える（起動の他の段と同じ。原因は stderr にある）
+        match answer {
+            Ok(answer) => Ok(answer),
+            Err(e) => Err(self.with_recent_output(e).await),
+        }
+    }
+
+    /// 手順「新しい対局」。`usinewgame` を書く。待つのは書けたことだけ（USI は答えを持たない）。
+    /// 準備（`prepare`）の後に呼ぶ
+    pub async fn new_game(&self) -> Result<(), EngineError> {
+        self.send_command(&GuiCommand::UsiNewGame).await
+    }
+
+    /// 手順「終局」。`gameover` を書く。待つのは書けたことだけ（USI は答えを持たない）。
+    ///
+    /// **探索していないエンジンへ呼ぶ。** 探索中の `gameover` は USI が認めない。
+    /// いまは呼び手が守る（対局の `Activity`）
+    pub async fn game_over(&self, kind: GameOverKind) -> Result<(), EngineError> {
+        self.send_command(&GuiCommand::GameOver(kind)).await
     }
 
     /// `isready` を**必ず**送り、`readyok` が返るまで待つ。`limit` が `None` なら上限なし。
@@ -1276,7 +1390,7 @@ impl UsiProtocol {
     /// 足される（→ `WRITE_TIMEOUT`）。覆うのは「書き込みを渡してから `readyok` を待ち終わるまで」。
     ///
     /// 待っている最中に `kill_engine` されたら `Cancelled` で返る。
-    pub async fn become_ready(&self, limit: Option<Duration>) -> Result<(), EngineError> {
+    async fn become_ready(&self, limit: Option<Duration>) -> Result<(), EngineError> {
         let deadline = limit.map(|limit| tokio::time::Instant::now() + limit);
         // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
         // 出力が終わった場合に `Closed` を見落として上限まで待つ
@@ -1301,11 +1415,11 @@ impl UsiProtocol {
                     .await
                     .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
                     .map_err(|_| {
-                        EngineError::CommunicationFailed("ready channel closed".to_string())
+                        EngineError::CommunicationFailed("ready channel closed".to_string().into())
                     })?
             }
             None => *wait.await.map_err(|_| {
-                EngineError::CommunicationFailed("ready channel closed".to_string())
+                EngineError::CommunicationFailed("ready channel closed".to_string().into())
             })?,
         };
 
@@ -1318,7 +1432,7 @@ impl UsiProtocol {
             }
             return Err(self
                 .with_recent_output(EngineError::CommunicationFailed(
-                    "engine exited before it became ready".to_string(),
+                    "engine exited before it became ready".to_string().into(),
                 ))
                 .await);
         }
@@ -1432,14 +1546,16 @@ impl UsiProtocol {
         }
     }
 
-    /// 起動の失敗に直近の出力を添える。**頭は変えない**（`NO_USIOK` のように
-    /// 頭の綴りで分類し直す呼び手がいる）。添えるのは `StartupFailed` と
-    /// `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で始まる）には添えない
-    pub(crate) async fn with_recent_output(&self, error: EngineError) -> EngineError {
-        if !matches!(
-            error,
-            EngineError::StartupFailed(_) | EngineError::CommunicationFailed(_)
-        ) {
+    /// 起動の失敗に直近の出力を添える（`FailureDetail::last_output`）。理由の欄は変えない。
+    /// 添えるのは `StartupFailed` と `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で
+    /// 始まる）には添えない。**既に添えてあれば添え直さない**——先に添えたほうが失敗に近い
+    pub(crate) async fn with_recent_output(&self, mut error: EngineError) -> EngineError {
+        let slot = match &mut error {
+            EngineError::StartupFailed(detail) => &mut detail.last_output,
+            EngineError::CommunicationFailed(detail) => &mut detail.last_output,
+            _ => return error,
+        };
+        if slot.is_some() {
             return error;
         }
         let diagnostics = self.child.diagnostics();
@@ -1450,18 +1566,8 @@ impl UsiProtocol {
         if ended {
             diagnostics.settle_output(SETTLE_OUTPUT).await;
         }
-        let Some(output) = summarize_recent(&diagnostics.recent_lines()) else {
-            return error;
-        };
-        match error {
-            EngineError::StartupFailed(why) => {
-                EngineError::StartupFailed(format!("{why}{LAST_OUTPUT_PREFIX}{output})"))
-            }
-            EngineError::CommunicationFailed(why) => {
-                EngineError::CommunicationFailed(format!("{why}{LAST_OUTPUT_PREFIX}{output})"))
-            }
-            other => other,
-        }
+        *slot = summarize_recent(&diagnostics.recent_lines());
+        error
     }
 }
 
@@ -1482,8 +1588,54 @@ async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> S
     )
 }
 
-/// 失敗の文へ直近の出力を添える綴り。起動の失敗を分類する側がここで切り出す
-pub const LAST_OUTPUT_PREFIX: &str = " (last output: ";
+/// 受け手に届き済みの行のうち、`info string` の文だけを着いた順に取り出す。待たない
+fn info_strings_received(rx: &mut mpsc::UnboundedReceiver<EngineCommand>) -> Vec<String> {
+    let mut texts = Vec::new();
+    while let Ok(command) = rx.try_recv() {
+        if let EngineCommand::Info(params) = command {
+            texts.extend(info_strings(params));
+        }
+    }
+    texts
+}
+
+/// `usiok` までに届いた `info string` の文。`usiok` の前に出力が終わったら `CommunicationFailed`
+async fn info_strings_before_usiok(
+    mut rx: mpsc::UnboundedReceiver<EngineCommand>,
+    name: &str,
+) -> Result<Vec<String>, EngineError> {
+    let mut texts = Vec::new();
+    while let Some(command) = rx.recv().await {
+        match command {
+            EngineCommand::Info(params) => texts.extend(info_strings(params)),
+            EngineCommand::UsiOk => return Ok(texts),
+            _ => {}
+        }
+    }
+    Err(EngineError::CommunicationFailed(
+        format!("engine output ended while checking the value of `{name}`").into(),
+    ))
+}
+
+fn info_strings(params: Vec<InfoParams>) -> impl Iterator<Item = String> {
+    params.into_iter().filter_map(|p| match p {
+        InfoParams::Text(text) => Some(text),
+        _ => None,
+    })
+}
+
+/// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
+///
+/// **`timeout` で包ませず、残りを渡して各段に自分で締めさせる。** 包むと、上限に当たったときに
+/// 中の future ごと落ちる——`registry.spawn` が返した直後だと、台帳に載ったプロセスの ID を
+/// 誰も知らないまま消える。
+pub fn remaining(deadline: std::time::Instant, what: &str) -> Result<Duration, EngineError> {
+    let left = deadline.saturating_duration_since(std::time::Instant::now());
+    if left.is_zero() {
+        return Err(EngineError::Timeout(format!("{TIMED_OUT} before {what}")));
+    }
+    Ok(left)
+}
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。
 ///
@@ -2150,6 +2302,52 @@ mod tests {
             UsiProtocol::new(spawn_script(dir, body).await)
         }
 
+        /// 受けた行を `log` に書き、`usi` と `isready` に答える台本
+        const LOGS_AND_ANSWERS: &str = r#"while read line; do
+  echo "$line" >> log
+  case "$line" in
+    usi) printf 'id name Logs\nusiok\n' ;;
+    isready) echo readyok ;;
+  esac
+done"#;
+
+        /// `log` が `count` 行になるまで待って返す
+        async fn logged_lines(dir: &Path, count: usize) -> Vec<String> {
+            for _ in 0..500 {
+                let lines: Vec<String> = std::fs::read_to_string(dir.join("log"))
+                    .unwrap_or_default()
+                    .lines()
+                    .map(str::to_string)
+                    .collect();
+                if lines.len() >= count {
+                    return lines;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            panic!("{count} 行が書かれない");
+        }
+
+        /// 名乗り・準備・新しい対局・終局の手順は、それぞれ自分の行を書く
+        #[tokio::test]
+        async fn each_procedure_writes_its_own_line() {
+            let dir = test_support::dir::temp_dir("protocol-procedures");
+            let protocol = protocol_for(&dir, LOGS_AND_ANSWERS).await;
+            protocol
+                .identify(Duration::from_secs(10))
+                .await
+                .expect("名乗る");
+            protocol.prepare(&[], None, None).await.expect("準備できる");
+            protocol.new_game().await.expect("書ける");
+            protocol.game_over(GameOverKind::Win).await.expect("書ける");
+
+            assert_eq!(
+                logged_lines(&dir, 4).await,
+                ["usi", "isready", "usinewgame", "gameover win"]
+            );
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
         /// 書き込みが詰まっていても落とせる。**`KILL_TIMEOUT` の内に返る。**
         /// 書き込みと kill が同じロックを取り合う形にすると、詰まったときに kill も返らない
         #[tokio::test]
@@ -2195,7 +2393,7 @@ mod tests {
             .await;
 
             let error = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect_err("起動が成功している");
 
@@ -2220,7 +2418,7 @@ mod tests {
             .await;
 
             let info = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("usiok まで読めていない");
             assert_eq!(info.name, "Overflow");
@@ -2236,7 +2434,7 @@ mod tests {
             let dir = test_support::dir::temp_dir("protocol-drop");
             let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat").await;
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("読み取りまで始まる");
             let diagnostics = protocol.child.diagnostics();
@@ -2261,7 +2459,7 @@ mod tests {
             // `isready` を読んでも `readyok` を返さない（`cat` は受けた行をそのまま返す）
             let protocol = protocol_for(&dir, "printf 'id name Drop\\nusiok\\n'; exec cat").await;
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("読み取りまで始まる");
             protocol
@@ -2323,7 +2521,7 @@ mod tests {
             let protocol = protocol_for(&dir, "read _; cat usi.txt; exec sleep 30").await;
 
             let info = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("usiok まで読める");
 
@@ -2368,7 +2566,7 @@ mod tests {
             .await;
 
             let info = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("読める");
             assert_eq!(info.options.len(), 39);
@@ -2380,7 +2578,7 @@ mod tests {
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// `get_engine_info` を同時に2本呼んでも、どちらも（その後のキャッシュも）全部の定義を持つ
+        /// `identify` を同時に2本呼んでも、どちらも（その後のキャッシュも）全部の定義を持つ
         #[tokio::test]
         async fn concurrent_engine_info_requests_share_every_option() {
             let dir = test_support::dir::temp_dir("protocol-options-join");
@@ -2392,10 +2590,10 @@ mod tests {
             let protocol = protocol_for(&dir, "read _; cat usi.txt; exec sleep 30").await;
 
             let (a, b) = tokio::join!(
-                protocol.get_engine_info(Duration::from_secs(10)),
-                protocol.get_engine_info(Duration::from_secs(10)),
+                protocol.identify(Duration::from_secs(10)),
+                protocol.identify(Duration::from_secs(10)),
             );
-            let cached = protocol.get_engine_info(Duration::from_secs(10)).await;
+            let cached = protocol.identify(Duration::from_secs(10)).await;
             for info in [a, b, cached] {
                 assert_eq!(info.expect("読める").options.len(), 39);
             }
@@ -2437,11 +2635,11 @@ mod tests {
                 protocol_for(&dir, "printf 'id author Nobody\\nusiok\\n'; exec sleep 30").await;
 
             let error = protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect_err("名乗らないエンジンを通している");
             assert!(
-                matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_ID_NAME)),
+                matches!(&error, EngineError::StartupFailed(detail) if detail.reason == StartupReason::NoIdName),
                 "`NO_ID_NAME` で断っていない: {error}"
             );
             protocol.kill_engine().await;
@@ -2470,7 +2668,7 @@ done"#,
             )
             .await;
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("名乗る");
             protocol
@@ -2558,7 +2756,7 @@ done"#;
 
             let protocol = UsiProtocol::new(spawn_script(dir, BODY).await);
             protocol
-                .get_engine_info(Duration::from_secs(10))
+                .identify(Duration::from_secs(10))
                 .await
                 .expect("名乗る");
             protocol

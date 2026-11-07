@@ -322,9 +322,9 @@ pub enum EngineError {
     #[error("Engine not initialized: {0}")]
     NotInitialized(String),
     #[error("Engine startup failed: {0}")]
-    StartupFailed(String),
+    StartupFailed(FailureDetail<StartupReason>),
     #[error("Communication failed: {0}")]
-    CommunicationFailed(String),
+    CommunicationFailed(FailureDetail<String>),
     #[error("Invalid engine state: {0}")]
     InvalidState(String),
     #[error("Operation timeout: {0}")]
@@ -334,6 +334,90 @@ pub enum EngineError {
     /// こちらが止めた。起動中の取り消しや、待っている最中の kill
     #[error("Cancelled: {0}")]
     Cancelled(String),
+}
+
+/// `usi` に `usiok` で答えなかったときの断り文句の頭（`StartupReason::NoUsiOk` の綴り）
+pub const NO_USIOK: &str = "the engine did not answer `usi` with `usiok`";
+
+/// `usiok` までに `id name` が無かったときの断り文句（`StartupReason::NoIdName` の綴り）
+pub const NO_ID_NAME: &str = "the engine did not send `id name` before `usiok`";
+
+/// 失敗の文へ直近の出力を添える綴り（`FailureDetail` の `Display`）
+pub const LAST_OUTPUT_PREFIX: &str = " (last output: ";
+
+/// 失敗の理由と、そのときエンジンが最後に出した行。
+///
+/// **2つを別の欄で持つ。** 1本の文字列に繋ぐと、分類する側（`start_failure::classify`）は
+/// 綴りで切り出し直すしかなく、文言を変えても型の検査では落ちずに分類だけが変わる。
+/// `Display` は繋いだ綴り（`{理由} (last output: {出力})`）で、フロントへ出る文はこれまでと同じ
+#[derive(Debug)]
+pub struct FailureDetail<R> {
+    pub reason: R,
+    /// エンジンが最後に出した行を1行に畳んだもの。添えるのは `UsiProtocol::with_recent_output` だけ
+    pub last_output: Option<String>,
+}
+
+impl<R: std::fmt::Display> std::fmt::Display for FailureDetail<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.reason)?;
+        if let Some(output) = &self.last_output {
+            write!(f, "{LAST_OUTPUT_PREFIX}{output})")?;
+        }
+        Ok(())
+    }
+}
+
+impl<R> From<R> for FailureDetail<R> {
+    fn from(reason: R) -> Self {
+        Self {
+            reason,
+            last_output: None,
+        }
+    }
+}
+
+impl From<String> for FailureDetail<StartupReason> {
+    fn from(text: String) -> Self {
+        StartupReason::Other(text).into()
+    }
+}
+
+impl From<&str> for FailureDetail<StartupReason> {
+    fn from(text: &str) -> Self {
+        text.to_string().into()
+    }
+}
+
+impl From<&str> for FailureDetail<String> {
+    fn from(text: &str) -> Self {
+        text.to_string().into()
+    }
+}
+
+/// 起動の失敗の理由。**利用者の次の手が変わるものだけを変種にする。**
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartupReason {
+    /// `usi` に `waited` の間 `usiok` で答えなかった。満額の `USI_OK_TIMEOUT` を待った回なら、
+    /// そのファイルは USI エンジンではない。削った上限で待った回は「待つ時間が残っていない」
+    /// （読み直すのは呼び手。`game/session.rs` の `usiok_refusal`）
+    NoUsiOk { waited: std::time::Duration },
+    /// 答えはしたが `usiok` までに名乗らなかった。分類は `NoUsiOk` と同じ側
+    NoIdName,
+    /// 起こせなかった（パス、権限、起動のタスク）。文はそのまま見せる
+    Other(String),
+}
+
+impl std::fmt::Display for StartupReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoUsiOk { waited } => write!(
+                f,
+                "{NO_USIOK} in {waited:?}; the file may not be a USI engine"
+            ),
+            Self::NoIdName => f.write_str(NO_ID_NAME),
+            Self::Other(text) => f.write_str(text),
+        }
+    }
 }
 
 /// 走っている解析1件の状態（`get_analysis_status`）。`elapsed_time` と `config` は埋める経路が無く、
@@ -551,11 +635,49 @@ mod tests {
 
         // 時間切れ以外は名乗らない
         let other = engine_error_text(&EngineError::StartupFailed(
-            "engine_path must point to an existing file".to_string(),
+            "engine_path must point to an existing file"
+                .to_string()
+                .into(),
         ));
         assert!(
             !other.starts_with(TIMED_OUT),
             "時間切れでない失敗が目印を名乗っている: {other}"
+        );
+    }
+
+    /// 理由と直近の出力を別の欄で持っても、`Display` の綴りは1本の文字列だったときと同じ。
+    /// フロントへ出る文（`engine_error_text`）と、ログを読む人が探す綴りを変えない
+    #[test]
+    fn a_failure_detail_reads_as_the_old_single_string() {
+        let text = |error: EngineError| engine_error_text(&error);
+        assert_eq!(
+            text(EngineError::StartupFailed(
+                StartupReason::NoUsiOk {
+                    waited: std::time::Duration::from_secs(30)
+                }
+                .into()
+            )),
+            format!("Engine startup failed: {NO_USIOK} in 30s; the file may not be a USI engine")
+        );
+        assert_eq!(
+            text(EngineError::StartupFailed(FailureDetail {
+                reason: StartupReason::NoIdName,
+                last_output: Some("stderr: boom".to_string()),
+            })),
+            format!("Engine startup failed: {NO_ID_NAME} (last output: stderr: boom)")
+        );
+        assert_eq!(
+            text(EngineError::StartupFailed(
+                "Failed to spawn engine: denied".into()
+            )),
+            "Engine startup failed: Failed to spawn engine: denied"
+        );
+        assert_eq!(
+            text(EngineError::CommunicationFailed(FailureDetail {
+                reason: "engine exited before it became ready".to_string(),
+                last_output: Some("info string bye".to_string()),
+            })),
+            "Communication failed: engine exited before it became ready (last output: info string bye)"
         );
     }
 

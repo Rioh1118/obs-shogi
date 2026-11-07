@@ -132,7 +132,7 @@ impl EngineRegistry {
     /// - `StartupFailed`: `engine_path` が在るファイルでない、`work_dir` が在るディレクトリでない、
     ///   OS が起こせなかった、起こす専用スレッドが落ちた
     /// - `Timeout`: `spawn_timeout` の内にプロセスが起き上がらなかった
-    /// - `usiok` までの失敗は `UsiProtocol::get_engine_info` の答えをそのまま返す
+    /// - `usiok` までの失敗は `UsiProtocol::identify` の答えをそのまま返す
     pub async fn spawn(
         &self,
         engine_path: &str,
@@ -189,11 +189,15 @@ impl EngineRegistry {
         let dir_for_task = work_dir.map(|d| d.to_string());
         let started = tokio::task::spawn_blocking(move || {
             let resolved = std::fs::canonicalize(&path_for_task).map_err(|e| {
-                EngineError::StartupFailed(format!("engine_path is not a valid existing path: {e}"))
+                EngineError::StartupFailed(
+                    format!("engine_path is not a valid existing path: {e}").into(),
+                )
             })?;
             if !resolved.is_file() {
                 return Err(EngineError::StartupFailed(
-                    "engine_path must point to an existing file".to_string(),
+                    "engine_path must point to an existing file"
+                        .to_string()
+                        .into(),
                 ));
             }
 
@@ -204,13 +208,15 @@ impl EngineRegistry {
             let work_dir = match dir_for_task {
                 Some(dir) => {
                     let resolved = std::fs::canonicalize(&dir).map_err(|e| {
-                        EngineError::StartupFailed(format!(
-                            "work_dir is not a valid existing path: {e}"
-                        ))
+                        EngineError::StartupFailed(
+                            format!("work_dir is not a valid existing path: {e}").into(),
+                        )
                     })?;
                     if !resolved.is_dir() {
                         return Err(EngineError::StartupFailed(
-                            "work_dir must point to an existing directory".to_string(),
+                            "work_dir must point to an existing directory"
+                                .to_string()
+                                .into(),
                         ));
                     }
                     resolved.to_string_lossy().to_string()
@@ -230,7 +236,7 @@ impl EngineRegistry {
             .map_err(|e| {
                 let why = with_cause(&e);
                 log::error!(target: LOGT, "spawn: failed: {why}");
-                EngineError::StartupFailed(format!("Failed to spawn engine: {why}"))
+                EngineError::StartupFailed(format!("Failed to spawn engine: {why}").into())
             })?;
             Ok((engine_path, spawned))
         });
@@ -253,9 +259,9 @@ impl EngineRegistry {
             Ok(Ok(Err(e))) => return Err(e),
             // 専用スレッドが落ちた。プロセスは起きていない
             Ok(Err(e)) => {
-                return Err(EngineError::StartupFailed(format!(
-                    "failed to run the spawn task: {e}"
-                )))
+                return Err(EngineError::StartupFailed(
+                    format!("failed to run the spawn task: {e}").into(),
+                ))
             }
             Err(_) => {
                 log::error!(target: LOGT, "spawn: timed out before the process started");
@@ -286,7 +292,7 @@ impl EngineRegistry {
         let answered = tokio::select! {
             biased;
             _ = cancel.cancelled() => Err(cancelled_while_starting()),
-            answered = protocol.get_engine_info(info_timeout) => answered,
+            answered = protocol.identify(info_timeout) => answered,
         };
         let info = match answered {
             Ok(info) => info,
@@ -495,8 +501,7 @@ mod tests {
     use super::*;
 
     use crate::engine::logging::LOG_FILE_BUDGET;
-    use crate::engine::protocol::NO_USIOK;
-    use crate::engine::types::engine_error_text;
+    use crate::engine::types::{engine_error_text, StartupReason};
 
     /// 台帳が書く3つの1行が、外から来た文字列でログを壊せないこと。
     ///
@@ -645,7 +650,7 @@ mod tests {
         // **綴りは変種の中で先頭に置く。** `prepare_engine` はこれを目印に
         // 分類し直すので、途中に在ることを条件にすると外から持ち込める
         assert!(
-            matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_USIOK)),
+            matches!(&error, EngineError::StartupFailed(detail) if matches!(detail.reason, StartupReason::NoUsiOk { .. })),
             "何に答えなかったのかが断り文句から読めない: {text}"
         );
         assert!(
