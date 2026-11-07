@@ -83,7 +83,7 @@ ours 戦略のマージは使わない。
 | 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順を段 `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` に畳み、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | #718 | マージ済み |
 | 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | マージ済み |
 | 49 | `refactor/usi-u2b-game` | 作り直しの段 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` の段に閉じる | #720 | マージ済み |
-| 50 | `refactor/usi-u3-machine` | 作り直しの段 U3。1本のプロセスの USI の状態と判定を、新しい段 `usi_machine` の状態機械（純関数）へ移す。`UsiProtocol` は std の `Mutex` 1つの下でそれを持ち、受け手の表と積み置きを消す。`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（ADR-0016 決定3）。M3 は 8 から 1 | — | レビュー待ち |
+| 50 | `refactor/usi-u3-machine` | 作り直しの段 U3。1本のプロセスの USI の状態と判定を、新しい段 `usi_machine` の状態機械（純関数）へ移す。`UsiProtocol` は std の `Mutex` 1つの下でそれを持ち、受け手の表と積み置きを消す。`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（ADR-0016 決定3）。M3 は 8 から 1 | #721 | レビュー待ち |
 
 ## 語
 
