@@ -1,6 +1,6 @@
 //! 起動したエンジンへ設定を送り、使える状態（`readyok`）にする段。
 //!
-//! 通るのは対局（`game/session.rs` の `prepare_engine`）と解析（`EngineAnalyzer::start_engine`）。
+//! 通るのは対局（`game/session.rs` の `prepare_engine`）と検討（`EngineAnalyzer::start_engine`）。
 //! 手順を別々に書くと片方にだけ直しが入り（`readyok` を待つ／待たない、順序を保つ／保たない）、
 //! 食い違いはエンジンを起こしてからしか出ない。
 //! 送って待つのは手順「準備」と「値の確認」（`UsiProtocol::prepare` と `check_value`）で、
@@ -33,7 +33,7 @@ pub const MAX_SENT_OPTIONS: usize = 128;
 /// 送る前に断れるものを断る（件数・長さ・制御文字）。値だけで決まる。
 ///
 /// **起動を始める前に呼ぶ。** `send_setup` も制御文字を見るが、そこで断るのは
-/// プロセスを起こした後——解析なら動いていたエンジンを落とした後になる。
+/// プロセスを起こした後——検討なら動いていたエンジンを落とした後になる。
 pub fn validate_options(options: &[SetOptionValue]) -> Result<(), EngineError> {
     if options.len() > MAX_SENT_OPTIONS {
         return Err(EngineError::InvalidState(format!(
@@ -339,8 +339,9 @@ done"#,
         }
     }
 
-    /// やねうら王 V9.00 の実機の行（`tests/fixtures/usi/yaneuraou-book-lines.txt` の1行目）が、読み取りの
-    /// 解析を通って「選択肢に無い」と読めること。**読めないと「断らなかった」になり、パスを送る**
+    /// やねうら王 V9.00 の実機の行（`tests/fixtures/usi/yaneuraou-book-lines.txt` の1行目）が、
+    /// 行の読み取り（`EngineCommand::parse`）を通って「選択肢に無い」と読めること。
+    /// **読めないと「断らなかった」になり、パスを送る**
     #[test]
     fn the_real_v900_rejection_line_is_read_as_a_rejection() {
         let lines: Vec<&str> = include_str!("../../tests/fixtures/usi/yaneuraou-book-lines.txt")

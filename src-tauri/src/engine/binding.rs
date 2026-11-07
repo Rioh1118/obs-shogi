@@ -4,7 +4,7 @@
 //! 持つ別のエンジン、名前を変えたエンジンで食い違う。見るのは申告された `option` の名前と型だけ。
 //!
 //! 画面（TS）は USI の名前を組まない。選んだ評価関数・定跡のパスと利用者の値を渡すだけで、
-//! どの名前で送るかはここが決める。**解析か対局かは知らない**——呼び手の方針（解析の固定値）は
+//! どの名前で送るかはここが決める。**検討か対局かは知らない**——呼び手の方針（検討の固定値）は
 //! 入力の `fixed` で受ける。
 
 use std::collections::{HashMap, HashSet};
@@ -28,7 +28,7 @@ pub struct BindingInput {
     pub values: Vec<SetOptionValue>,
     pub eval: Option<EvalTarget>,
     pub book: Option<BookChoice>,
-    /// 呼び手の方針として決めた値（解析の `ConsiderationMode=true` など）。**申告にある名前だけ送る**
+    /// 呼び手の方針として決めた値（検討の `ConsiderationMode=true` など）。**申告にある名前だけ送る**
     pub fixed: Vec<SetOptionValue>,
     /// 選択肢で申告した `BookFile` / `Book_File` が、選択肢に無い値をパスとして受けるか
     /// （`setup::accepts_path_in` でその回のプロセスに確かめた結果）。確かめていなければ `Unchecked`
@@ -288,7 +288,7 @@ pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Ve
 /// 定跡を**パスとして受けるかを確かめる必要がある**とき、確かめる相手の名前（`BookFile` / `Book_File`）。
 /// 確かめた結果ではない（結果は `BookPathSupport`）。
 ///
-/// 判定表の B1（`BookDir` と選択肢の `BookFile`）で、解析で使う定跡のファイル名が選択肢に（大小を
+/// 判定表の B1（`BookDir` と選択肢の `BookFile`）で、検討で使う定跡のファイル名が選択肢に（大小を
 /// 無視しても）無いときだけ。それ以外は確かめても結果を使わない（選択肢にあれば名前で、B2 ならパスで
 /// 送る）。確かめるのは呼び手（`setup::accepts_path_in`）で、この段は起こしたプロセスに触らない
 pub fn book_path_probe_name(
@@ -663,7 +663,7 @@ mod tests {
         assert_eq!(lookup(&bound, "OwnBook"), Some("false"));
     }
 
-    /// 定跡を解析で使わない: 切るオプション（`USI_OwnBook`）を切り、`no_book` があればそれを送る
+    /// 定跡を検討で使わない（`use_in_analysis` が偽）: 切るオプション（`USI_OwnBook`）を切り、`no_book` があればそれを送る
     #[test]
     fn a_book_not_used_in_analysis_is_switched_off() {
         for choice in [book("/ai/b/standard_book.db", false), None] {
@@ -1019,7 +1019,7 @@ mod tests {
             book_path_probe_name(&v900, book("/ai/li/book/USER_BOOK1.db", true).as_ref()),
             None
         );
-        // 解析で使わない・選んでいない
+        // 検討で使わない・選んでいない
         assert_eq!(
             book_path_probe_name(&v900, book("/ai/li/book/mybook.db", false).as_ref()),
             None
