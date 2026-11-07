@@ -166,7 +166,7 @@ U3 と U4 を分けるのは、判定の置き場の変更と並行性の変更�
 | 所見 | 閉じる段 |
 | --- | --- |
 | C-3（`last_output` が2つの意味） | U4。待たないほうと、stderr の読み切りを待つほうを別の名前にする |
-| D-1（`stop` の後に待つかの写し） | U1 で `Search` の止める手順に1つ置く。写しは U2a（`verdict_of_stop` `should_wait_for_bestmove`）と U2b（`outcome_of_stop`）で消える |
+| D-1（`stop` の後に待つかの写し） | U1 で `Search` の止める手順に1つ置く。写しは U2a（`verdict_of_stop` `should_wait_for_bestmove`）と U2b（`outcome_of_stop`）で消える。**済**: U2a で検討の写しが、U2b で対局の写しが消えた。止めた後に待つかの判断は `Search::stop` だけにあり、対局は答え（`StopAnswer`）を終わり方へ写すだけ（`game/search.rs` の `outcome_after_stop`） |
 | B-10 | `protocol` の側は U1、分類の側（`classify` が欄を読む）は範囲 6 |
 | W-1（コメントの「解析」） | `protocol` の行は U1・U3・U4 で書き直すときに。ほかは各範囲 |
 | `Arc<UsiProtocol>` の共有（進捗の所見の表） | U4（決定6） |
