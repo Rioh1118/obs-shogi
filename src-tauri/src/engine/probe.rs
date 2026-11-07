@@ -65,9 +65,9 @@ impl EngineProber {
         }
     }
 
-    /// `engine_path` を起こして申告を取り、落とす。cwd は実行ファイルのフォルダ（解析の起動と同じ）。
+    /// `engine_path` を起こして申告を取り、落とす。cwd は実行ファイルのフォルダ（検討の起動と同じ）。
     ///
-    /// `fixed` は起動で呼び手が決める値（解析なら `analysis_fixed_values`）。その名前は
+    /// `fixed` は起動で呼び手が決める値（検討なら `analysis_fixed_values`）。その名前は
     /// `reserved` に入る
     async fn probe_steps(
         &self,

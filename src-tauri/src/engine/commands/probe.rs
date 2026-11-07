@@ -7,7 +7,7 @@ use crate::engine::types::{ProbeOutcome, StartFailure};
 
 /// エンジンを起こして申告だけを取り、落とす。プリセット編集が、取った定義をプリセットに残すのに使う。
 ///
-/// `reserved` は解析で起動したときに評価関数・定跡・固定値が持つ名前
+/// `reserved` は検討で起動したときに評価関数・定跡・固定値が持つ名前
 #[tauri::command]
 pub async fn probe_engine(
     state: tauri::State<'_, AppState>,

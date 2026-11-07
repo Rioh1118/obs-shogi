@@ -38,7 +38,7 @@ const BESTMOVE_GRACE: Duration = Duration::from_secs(3);
 /// `the_watchdogs_are_ordered` に固定してある。こちらは誰とも突き合わせていない。
 const ANALYSIS_STOP_GRACE: Duration = Duration::from_secs(3);
 
-/// 深度指定の解析に掛ける考慮時間。
+/// 深度を決めた検討に掛ける考慮時間。
 ///
 /// **`go depth` は送っていない。** `usi 0.6` の `ThinkParams` が組めるのは
 /// `ponder` / `btime` / `wtime` / `byoyomi` / `binc` / `winc` / `infinite` / `mate` で、
@@ -49,16 +49,16 @@ const ANALYSIS_STOP_GRACE: Duration = Duration::from_secs(3);
 /// ここに当たることがある**ので、届いたかは呼び出し側へ返す（→ `DepthOutcome`）。
 const DEPTH_ANALYSIS_BUDGET: Duration = Duration::from_secs(60);
 
-/// 1回の解析に許す考慮時間の上限。
+/// 1回の検討に許す考慮時間の上限。
 ///
 /// 上限が無いと、`analyze_with_time` は席を握ったまま何時間でも戻らない。
-/// 席が空かない間は**解析の入口が全部断られる**（→ `bridge::take_session`）。
+/// 席が空かない間は**検討の入口が全部断られる**（→ `bridge::take_session`）。
 ///
 /// 対局は止まらない。あちらは `GameManager` が別のプロセスを起こすので、
-/// 解析の席を一度も見ない。
+/// 検討の席を一度も見ない。
 pub const MAX_THINK_TIME: Duration = Duration::from_secs(600);
 
-/// 無限解析のストリームが流すもの。
+/// 無限の検討のストリームが流すもの。
 ///
 /// **結果と終わり方を1本の列で運ぶ。** 終わり方を別の経路で知らせると、最後の結果との
 /// 順序を2本で揃えることになる。列が `Finished` を流さずに閉じたら、止められたか
@@ -124,8 +124,8 @@ async fn wait_for_late_answer(late: LateAnswer, unanswered: Arc<watch::Sender<bo
 
 /// 目標深度に届いたか。
 ///
-/// `None`（時間だけで打ち切る解析）では**常に偽**。ここが真を返すと `stop` が飛ぶので、
-/// 深度を指定していない解析まで途中で畳んでしまう。
+/// `None`（時間だけで打ち切る検討）では**常に偽**。ここが真を返すと `stop` が飛ぶので、
+/// 深度を指定していない検討まで途中で畳んでしまう。
 fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
     let Some(target) = target else {
         return false;
@@ -135,8 +135,8 @@ fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
 
 /// 検討に使うエンジン1本の起動と探索
 ///
-/// 解析が使うエンジンは、対局が使うものと同じ台帳（`EngineRegistry`）に載る。
-/// ここが持つのは「そのうちどれが解析用か」だけ。
+/// 検討が使うエンジンは、対局が使うものと同じ台帳（`EngineRegistry`）に載る。
+/// ここが持つのは「そのうちどれが検討用か」だけ。
 pub struct EngineAnalyzer {
     registry: Arc<EngineRegistry>,
     engine_id: Arc<RwLock<Option<EngineId>>>,
@@ -217,7 +217,7 @@ impl EngineAnalyzer {
         }
     }
 
-    /// 解析用のエンジンを起動し、設定を送って `readyok` まで待つ。**1つの呼び出しで通す。**
+    /// 検討用のエンジンを起動し、設定を送って `readyok` まで待つ。**1つの呼び出しで通す。**
     ///
     /// 前の起動が進行中なら取り消し、起動済みのエンジンは落としてから始める。
     /// 待っている間に `shutdown` か次の `start_engine` が来たら、起動中の
@@ -318,7 +318,7 @@ impl EngineAnalyzer {
         Ok(process.info.clone())
     }
 
-    /// 解析用エンジンのプロトコル層。起動していなければ `NotInitialized`。
+    /// 検討用エンジンのプロトコル層。起動していなければ `NotInitialized`。
     async fn protocol(&self) -> Result<Arc<UsiProtocol>, EngineError> {
         let id = self
             .engine_id
@@ -335,7 +335,7 @@ impl EngineAnalyzer {
         Ok(process.protocol())
     }
 
-    /// 解析用のエンジンを落とす。起動中のものも止める。
+    /// 検討用のエンジンを落とす。起動中のものも止める。
     ///
     /// `request` が既に受けた要求より古ければ何もしない——後から撃たれた起動を落とさない。
     /// 世代を上げるので、後から終わった起動は `engine_id` へ書かない
@@ -427,12 +427,12 @@ impl EngineAnalyzer {
         Ok((search, stop_rx))
     }
 
-    /// 解析用エンジンが最後に出した行
+    /// 検討用エンジンが最後に出した行
     pub async fn last_output(&self) -> Option<String> {
         self.protocol().await.ok()?.last_output()
     }
 
-    /// 解析用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
+    /// 検討用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
     pub async fn end_watch(&self) -> Option<EngineEndWatch> {
         Some(self.protocol().await.ok()?.end_watch())
     }
@@ -456,7 +456,7 @@ impl EngineAnalyzer {
         Ok(result_rx)
     }
 
-    /// 固定時間解析
+    /// 時間を決めた検討
     pub async fn analyze_with_time(
         &self,
         time_limit: Duration,
@@ -471,11 +471,11 @@ impl EngineAnalyzer {
         Ok(analysis_result)
     }
 
-    /// 深度指定の解析。
+    /// 深度を決めた検討。
     ///
     /// **目標に届かなくても結果は返る。** 届いたかは `DepthOutcome::reached` を見ること。
     /// 届かない理由は `DEPTH_ANALYSIS_BUDGET` に当たったときで、
-    /// 深度22の結果を深度40の解析として読ませないためにこの欄がある。
+    /// 深度22の結果を深度40の検討として読ませないためにこの欄がある。
     pub async fn analyze_with_depth(&self, depth_limit: u32) -> Result<DepthOutcome, EngineError> {
         // 深度は載せられないので、時間だけを渡して `info depth` を見張る
         let (search, stop_rx) = self
@@ -507,7 +507,7 @@ impl EngineAnalyzer {
         state.analysis_count += 1;
     }
 
-    /// 解析停止。
+    /// 検討を止める。
     ///
     /// **エンジンが既に居なくても、届かなくても成功にする。** 要求は「止まっていること」で、
     /// 落ちているならその要求は満たせている。届かない理由（書けない、終わった）は終わりの見張り
@@ -550,8 +550,6 @@ impl EngineAnalyzer {
     pub async fn get_analysis_stats(&self) -> u64 {
         self.state.read().await.analysis_count
     }
-
-    // === 内部ヘルパーメソッド ===
 
     /// 無限の検討の探索を1本持ち、届いた行を結果の列へ読み替える。止める頼みが来たら止めて答える
     async fn run_infinite_search(
@@ -641,7 +639,7 @@ impl EngineAnalyzer {
     /// `bestmove` が返るまで応答を集める。
     ///
     /// **締切で黙って抜けない。** 抜けるだけだとエンジンの探索は走ったままで、
-    /// こちらは席を返す。席は空くので**次の解析は始まってしまい**、
+    /// こちらは席を返す。席は空くので**次の検討は始まってしまい**、
     /// 同じエンジンへ2本目の `go` が出る（→ #365）。締切に当たったら止め（`Search::stop`）、
     /// `bestmove` を `ANALYSIS_STOP_GRACE` まで待つ。
     ///
@@ -733,9 +731,9 @@ mod tests {
         }
     }
 
-    /// 深度を指定していない解析を、深度で止めないこと。
+    /// 深度を指定していない検討を、深度で止めないこと。
     ///
-    /// **`None` で真を返すと `stop` が飛ぶ。** 時間だけで打ち切るはずの解析が、
+    /// **`None` で真を返すと `stop` が飛ぶ。** 時間だけで打ち切るはずの検討が、
     /// エンジンが最初の `info depth` を出した時点で畳まれる
     #[test]
     fn a_time_only_analysis_is_never_cut_short_by_depth() {

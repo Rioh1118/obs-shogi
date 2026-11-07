@@ -16,7 +16,7 @@ use super::types::*;
 
 const LOGT: &str = "obs_shogi::engine::analysis_start";
 
-/// 解析の起動で渡すもの。**USI の名前は含まない**——どの名前で送るかは `binding::bind` が
+/// 検討の起動で渡すもの。**USI の名前は含まない**——どの名前で送るかは `binding::bind` が
 /// その回の申告から決める
 #[derive(Debug, Clone, Default)]
 pub struct StartInput {
@@ -135,7 +135,7 @@ async fn eval_target(path: &str) -> EvalTarget {
 /// 来なければ `NoAnswer` として定跡を切り、`BookPathCheckTimedOut` で知らせる（別の定跡で動くより安全）
 const BOOK_PATH_CHECK_LIMIT: Duration = Duration::from_secs(5);
 
-/// 解析の方針として送る値（申告にある名前だけが送られる）: 検討モードを入れ、先読みを切る
+/// 検討の方針として送る値（申告にある名前だけが送られる）: 検討モードを入れ、先読みを切る
 pub fn analysis_fixed_values() -> Vec<SetOptionValue> {
     [("ConsiderationMode", "true"), ("USI_Ponder", "false")]
         .into_iter()

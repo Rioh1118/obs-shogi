@@ -5,12 +5,12 @@ import { codeOf } from "./sourceText";
 import { REPO_ROOT, SRC, rustFile, tsFiles } from "./walk";
 
 /**
- * **TS は評価関数・定跡・解析の固定値の USI の名前を組まない。** どの名前で送るかは Rust が
+ * **TS は評価関数・定跡・検討の固定値の USI の名前を組まない。** どの名前で送るかは Rust が
  * 起動のたびの申告から決める（`src-tauri/src/engine/binding.rs`）。TS が `EvalDir` などを組むと、
  * 申告しないエンジン（`EvalFile` を受ける zermelo）に届かない名前を送る形に戻る。
  *
  * **名前の一覧は Rust から引く**（写しにしない）: `binding.rs` の本番のコードと、`analysis_start.rs` の
- * 解析の固定値（`analysis_fixed_values`）の文字列。見るのは TS の**文字列リテラルの中**だけで、
+ * 検討の固定値（`analysis_fixed_values`）の文字列。見るのは TS の**文字列リテラルの中**だけで、
  * コメントで名前を挙げて説明するのは構わない。
  */
 
