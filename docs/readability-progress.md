@@ -84,7 +84,7 @@ ours 戦略のマージは使わない。
 | 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | マージ済み |
 | 49 | `refactor/usi-u2b-game` | 作り直しの段 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` の段に閉じる | #720 | マージ済み |
 | 50 | `refactor/usi-u3-machine` | 作り直しの段 U3。1本のプロセスの USI の状態と判定を、新しい段 `usi_machine` の状態機械（純関数）へ移す。`UsiProtocol` は std の `Mutex` 1つの下でそれを持ち、受け手の表と積み置きを消す。`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（ADR-0016 決定3）。M3 は 8 から 1 | #721 | マージ済み |
-| 51 | `refactor/usi-u4-shell` | 作り直しの段 U4。状態機械を殻のタスク1本（`run_shell`）に持たせ、`Mutex` と読んだ行を渡すタスクを消す。取っ手を送る面 `UsiProtocol` と落とす面 `EngineShutdown` に分け、落とす面は台帳だけが持つ。`EngineRegistry` に `Debug` を付ける。C-3 を閉じる。M3 は 1 から 0 | — | レビュー待ち |
+| 51 | `refactor/usi-u4-shell` | 作り直しの段 U4。状態機械を殻のタスク1本（`run_shell`）に持たせ、`Mutex` と読んだ行を渡すタスクを消す。取っ手を送る面 `UsiProtocol` と落とす面 `EngineShutdown` に分け、落とす面は台帳だけが持つ。`EngineRegistry` に `Debug` を付ける。C-3 を閉じる。M3 は 1 から 0 | #722 | レビュー待ち |
 
 ## 語
 
