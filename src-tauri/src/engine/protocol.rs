@@ -14,7 +14,7 @@ use crate::engine::{logging::cmd_summary, logging::with_cause, types::*};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
-use usi::{EngineCommand, GuiCommand, IdParams};
+use usi::{EngineCommand, GuiCommand, IdParams, InfoParams};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
@@ -1252,6 +1252,108 @@ impl UsiProtocol {
         Ok((name, author))
     }
 
+    /// 手順「準備」。`setoption` を**並べた順に**送り、`isready` を必ず送って `readyok` を待つ。
+    /// 返すのは、その間にエンジンが出した `info string` の文（定跡を読めたかを
+    /// `binding::book_load_warning` が判定する）。
+    ///
+    /// - `deadline`: 全体の締切。`setoption` を1件送るごとに残りを見る。`None` なら締切なし
+    /// - `ready_limit`: `readyok` を待つ上限。締切の残りと小さいほうを使う。`None` なら上限なし
+    ///   （検討は、DNN 系の初回の読み込みに上限を置けないので `None` を渡す）
+    ///
+    /// **並べ替えない。** 値の解釈が前の `setoption` に依存するエンジンがあるので、順は呼び手が決める。
+    /// 値の検査（件数・長さ・行を壊す文字）は呼び手の段（`setup::validate_options`）が先に済ませる。
+    /// 送る途中や `readyok` の前にエンジンが落ちたら、直近の出力を添えて返す。
+    ///
+    /// **途中で future を捨てても状態は残らない。** 張った受け手は、受け側が落ちたことを
+    /// 次の行を配るときに見て外れる（`broadcast_to_listeners`）
+    pub async fn prepare(
+        &self,
+        options: &[SetOptionValue],
+        deadline: Option<std::time::Instant>,
+        ready_limit: Option<Duration>,
+    ) -> Result<Vec<String>, EngineError> {
+        // 送る前に張る。`setoption` に答えて出す行も、`readyok` までの行も取りこぼさない
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let listener = format!("prepare_{}", uuid::Uuid::new_v4());
+        if let Err(e) = self.register_listener(listener.clone(), tx).await {
+            return Err(self.with_recent_output(e).await);
+        }
+        let ready = self
+            .send_options_and_wait(options, deadline, ready_limit)
+            .await;
+        self.remove_listener(&listener).await;
+        ready?;
+        // `readyok` より前の行は、`readyok` を配る前に同じ配り手が配り終えている
+        Ok(info_strings_received(&mut rx))
+    }
+
+    async fn send_options_and_wait(
+        &self,
+        options: &[SetOptionValue],
+        deadline: Option<std::time::Instant>,
+        ready_limit: Option<Duration>,
+    ) -> Result<(), EngineError> {
+        for SetOptionValue { name, value } in options {
+            if let Some(deadline) = deadline {
+                remaining(deadline, "the options were sent")?;
+            }
+            let sent = self
+                .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
+                .await;
+            if let Err(e) = sent {
+                return Err(self.with_recent_output(e).await);
+            }
+        }
+        let limit = match deadline {
+            Some(deadline) => {
+                let left = remaining(deadline, "the engine said readyok")?;
+                Some(ready_limit.map_or(left, |limit| limit.min(left)))
+            }
+            None => ready_limit,
+        };
+        self.become_ready(limit).await
+    }
+
+    /// 手順「値の確認」。`setoption` を1つ送り、続けて `usi` を送って `usiok` を待つ。
+    /// 返すのは、その間にエンジンが出した `info string` の文で、`limit` までに `usiok` が
+    /// 来なければ `None`。
+    ///
+    /// **`isready` を使わない。** 評価関数の読み込みが走る。`usi` への答えはオプションの宣言を
+    /// 伴うが、宣言は作り直さない（名乗りで覚えたものを使う）。値の解釈は呼び手が行う
+    /// （`setup::accepts_path_in`）。`readyok` の前に呼ぶ
+    pub async fn check_value(
+        &self,
+        name: &str,
+        value: &str,
+        limit: Duration,
+    ) -> Result<Option<Vec<String>>, EngineError> {
+        let (tx, rx) = mpsc::unbounded_channel();
+        let listener = format!("check_value_{}", uuid::Uuid::new_v4());
+        self.register_listener(listener.clone(), tx).await?;
+        let sent = async {
+            self.send_command(&GuiCommand::SetOption(
+                name.to_string(),
+                Some(value.to_string()),
+            ))
+            .await?;
+            self.send_command(&GuiCommand::Usi).await
+        }
+        .await;
+        let answer = match sent {
+            Ok(()) => tokio::time::timeout(limit, info_strings_before_usiok(rx, name))
+                .await
+                .ok()
+                .transpose(),
+            Err(e) => Err(e),
+        };
+        self.remove_listener(&listener).await;
+        // 落ちたら直近の出力を添える（起動の他の段と同じ。原因は stderr にある）
+        match answer {
+            Ok(answer) => Ok(answer),
+            Err(e) => Err(self.with_recent_output(e).await),
+        }
+    }
+
     /// `isready` を**必ず**送り、`readyok` が返るまで待つ。`limit` が `None` なら上限なし。
     ///
     /// 準備済みでも送る。`setoption` を送った後は、評価関数や定跡を読み直させるために
@@ -1266,7 +1368,7 @@ impl UsiProtocol {
     /// 足される（→ `WRITE_TIMEOUT`）。覆うのは「書き込みを渡してから `readyok` を待ち終わるまで」。
     ///
     /// 待っている最中に `kill_engine` されたら `Cancelled` で返る。
-    pub async fn become_ready(&self, limit: Option<Duration>) -> Result<(), EngineError> {
+    async fn become_ready(&self, limit: Option<Duration>) -> Result<(), EngineError> {
         let deadline = limit.map(|limit| tokio::time::Instant::now() + limit);
         // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
         // 出力が終わった場合に `Closed` を見落として上限まで待つ
@@ -1462,6 +1564,55 @@ async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> S
         "listen: engine output ended exit={exit:?} last={}",
         summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
     )
+}
+
+/// 受け手に届き済みの行のうち、`info string` の文だけを着いた順に取り出す。待たない
+fn info_strings_received(rx: &mut mpsc::UnboundedReceiver<EngineCommand>) -> Vec<String> {
+    let mut texts = Vec::new();
+    while let Ok(command) = rx.try_recv() {
+        if let EngineCommand::Info(params) = command {
+            texts.extend(info_strings(params));
+        }
+    }
+    texts
+}
+
+/// `usiok` までに届いた `info string` の文。`usiok` の前に出力が終わったら `CommunicationFailed`
+async fn info_strings_before_usiok(
+    mut rx: mpsc::UnboundedReceiver<EngineCommand>,
+    name: &str,
+) -> Result<Vec<String>, EngineError> {
+    let mut texts = Vec::new();
+    while let Some(command) = rx.recv().await {
+        match command {
+            EngineCommand::Info(params) => texts.extend(info_strings(params)),
+            EngineCommand::UsiOk => return Ok(texts),
+            _ => {}
+        }
+    }
+    Err(EngineError::CommunicationFailed(
+        format!("engine output ended while checking the value of `{name}`").into(),
+    ))
+}
+
+fn info_strings(params: Vec<InfoParams>) -> impl Iterator<Item = String> {
+    params.into_iter().filter_map(|p| match p {
+        InfoParams::Text(text) => Some(text),
+        _ => None,
+    })
+}
+
+/// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
+///
+/// **`timeout` で包ませず、残りを渡して各段に自分で締めさせる。** 包むと、上限に当たったときに
+/// 中の future ごと落ちる——`registry.spawn` が返した直後だと、台帳に載ったプロセスの ID を
+/// 誰も知らないまま消える。
+pub fn remaining(deadline: std::time::Instant, what: &str) -> Result<Duration, EngineError> {
+    let left = deadline.saturating_duration_since(std::time::Instant::now());
+    if left.is_zero() {
+        return Err(EngineError::Timeout(format!("{TIMED_OUT} before {what}")));
+    }
+    Ok(left)
 }
 
 /// 直近の出力を1行に畳む。失敗の理由とログに添える。

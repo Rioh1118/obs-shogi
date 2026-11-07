@@ -3,16 +3,15 @@
 //! 通るのは対局（`game/session.rs` の `prepare_engine`）と解析（`EngineAnalyzer::start_engine`）。
 //! 手順を別々に書くと片方にだけ直しが入り（`readyok` を待つ／待たない、順序を保つ／保たない）、
 //! 食い違いはエンジンを起こしてからしか出ない。
-//! `setoption` を組むのがこのファイルだけであることは `tests/layering.rs` が見る。
+//! 送って待つのは手順「準備」と「値の確認」（`UsiProtocol::prepare` と `check_value`）で、
+//! `setoption` を組むのがその2つだけであることは `tests/layering.rs` が見る。ここに残るのは、
+//! 送る前に値で断ること（`validate_options`）と、返った行の読み方。
 
 use std::time::{Duration, Instant};
 
-use tokio::sync::mpsc;
-use usi::{EngineCommand, GuiCommand, InfoParams};
-
 use crate::engine::logging::shown;
 use crate::engine::protocol::{contains_usi_breaking_char, UsiProtocol};
-use crate::engine::types::{BookPathSupport, EngineError, SetOptionValue, TIMED_OUT};
+use crate::engine::types::{BookPathSupport, EngineError, SetOptionValue};
 
 /// 線に出る1行の欄（`setoption` の名前・値、対局の開始局面）の長さの上限（バイト）。
 ///
@@ -60,11 +59,12 @@ pub fn validate_options(options: &[SetOptionValue]) -> Result<(), EngineError> {
     Ok(())
 }
 
-/// `setoption` を**並べた順に**送り、`isready` を必ず送って `readyok` を待つ。
+/// 値を検査してから、手順「準備」（`UsiProtocol::prepare`）を通す。返すのは `readyok` までの
+/// `info string` の文。
 ///
-/// - `deadline`: 全体の締切。`setoption` を1件送るごとに残りを見る。`None` なら締切なし
-/// - `ready_limit`: `readyok` を待つ上限。締切の残りと小さいほうを使う。`None` なら上限なし
-///   （解析は、DNN 系の初回の読み込みに上限を置けないので `None` を渡す）
+/// - `deadline`: 全体の締切。`None` なら締切なし
+/// - `ready_limit`: `readyok` を待つ上限。`None` なら上限なし（検討は、DNN 系の初回の読み込みに
+///   上限を置けないので `None` を渡す）
 ///
 /// **並べ替えない。** 値の解釈が前の `setoption` に依存するエンジンがあるので、順は呼び手が決める。
 /// `usinewgame` は送らない（締切の見直し方が呼び手ごとに違う）。
@@ -73,45 +73,15 @@ pub async fn send_setup(
     options: &[SetOptionValue],
     deadline: Option<Instant>,
     ready_limit: Option<Duration>,
-) -> Result<(), EngineError> {
-    send_options(protocol, options, deadline).await?;
-
-    let limit = match deadline {
-        Some(deadline) => {
-            let left = remaining(deadline, "the engine said readyok")?;
-            Some(ready_limit.map_or(left, |limit| limit.min(left)))
-        }
-        None => ready_limit,
-    };
-    protocol.become_ready(limit).await
-}
-
-/// `setoption` を並べた順に送る。送る途中でエンジンが落ちたら、`readyok` の前に落ちたときと
-/// 同じく直近の出力を添えて返す。
-async fn send_options(
-    protocol: &UsiProtocol,
-    options: &[SetOptionValue],
-    deadline: Option<Instant>,
-) -> Result<(), EngineError> {
+) -> Result<Vec<String>, EngineError> {
     validate_options(options)?;
-    for SetOptionValue { name, value } in options {
-        if let Some(deadline) = deadline {
-            remaining(deadline, "the options were sent")?;
-        }
-        let sent = protocol
-            .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
-            .await;
-        if let Err(e) = sent {
-            return Err(protocol.with_recent_output(e).await);
-        }
-    }
-    Ok(())
+    protocol.prepare(options, deadline, ready_limit).await
 }
 
 /// 選択肢（combo）で申告した名前が、**選択肢に無い値をパスとして受けるか**を、送って確かめる。
 ///
-/// 実在しないパスを1つ送り、続けて `usi` を送って `usiok` を待つ（`isready` を使わない——評価関数の
-/// 読み込みが走る）。その間に選択肢に無いという行（`value not found`。大小を問わない。やねうら王 V9.00 は
+/// 実在しないパスを1つ送り、手順「値の確認」（`UsiProtocol::check_value`）で `usiok` を待つ。
+/// その間に選択肢に無いという行（`value not found`。大小を問わない。やねうら王 V9.00 は
 /// `info string Error! : combo value not found, …`）が出れば `Rejects`、出なければ `Accepts`、`limit` までに
 /// `usiok` が来なければ `NoAnswer`。
 ///
@@ -137,31 +107,14 @@ pub async fn accepts_path_in(
         value: probe_path.clone(),
     }])?;
 
-    let (tx, rx) = mpsc::unbounded_channel();
-    let listener = format!("book_path_probe_{}", uuid::Uuid::new_v4());
-    protocol.register_listener(listener.clone(), tx).await?;
-    let sent = async {
-        protocol
-            .send_command(&GuiCommand::SetOption(name.to_string(), Some(probe_path)))
-            .await?;
-        protocol.send_command(&GuiCommand::Usi).await
-    }
-    .await;
-    let verdict = match sent {
-        Ok(()) => match tokio::time::timeout(limit, rejected_before_usiok(rx, name)).await {
-            Ok(Ok(true)) => Ok(BookPathSupport::Rejects),
-            Ok(Ok(false)) => Ok(BookPathSupport::Accepts),
-            Ok(Err(e)) => Err(e),
-            Err(_) => Ok(BookPathSupport::NoAnswer),
-        },
-        Err(e) => Err(e),
+    let support = match protocol.check_value(name, &probe_path, limit).await? {
+        Some(texts) if texts.iter().any(|text| says_value_not_in_vars(text)) => {
+            BookPathSupport::Rejects
+        }
+        Some(_) => BookPathSupport::Accepts,
+        None => BookPathSupport::NoAnswer,
     };
-    protocol.remove_listener(&listener).await;
-    // 落ちたら直近の出力を添える（起動の他の段と同じ。原因は stderr にある）
-    match verdict {
-        Ok(v) => Ok(v),
-        Err(e) => Err(protocol.with_recent_output(e).await),
-    }
+    Ok(support)
 }
 
 /// `info string` の行が「選択肢に無い値」を言っているか（やねうら王 V9.00 の綴りを大小を問わずに）
@@ -169,44 +122,11 @@ fn says_value_not_in_vars(text: &str) -> bool {
     text.to_ascii_lowercase().contains("value not found")
 }
 
-/// `usiok` までに選択肢に無いという行が出たか。出力が終わったら `CommunicationFailed`
-async fn rejected_before_usiok(
-    mut rx: mpsc::UnboundedReceiver<EngineCommand>,
-    name: &str,
-) -> Result<bool, EngineError> {
-    let mut rejected = false;
-    while let Some(command) = rx.recv().await {
-        match command {
-            EngineCommand::Info(params) => {
-                rejected |= params
-                    .iter()
-                    .any(|p| matches!(p, InfoParams::Text(text) if says_value_not_in_vars(text)));
-            }
-            EngineCommand::UsiOk => return Ok(rejected),
-            _ => {}
-        }
-    }
-    Err(EngineError::CommunicationFailed(
-        format!("engine output ended while checking whether `{name}` accepts a path").into(),
-    ))
-}
-
-/// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
-///
-/// **`timeout` で包ませず、残りを渡して各段に自分で締めさせる。** 包むと、上限に当たったときに
-/// 中の future ごと落ちる——`registry.spawn` が返した直後だと、台帳に載ったプロセスの ID を
-/// 誰も知らないまま消える。
-pub fn remaining(deadline: Instant, what: &str) -> Result<Duration, EngineError> {
-    let left = deadline.saturating_duration_since(Instant::now());
-    if left.is_zero() {
-        return Err(EngineError::Timeout(format!("{TIMED_OUT} before {what}")));
-    }
-    Ok(left)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::types::TIMED_OUT;
+    use usi::{GuiCommand, InfoParams};
 
     fn option(name: &str, value: &str) -> SetOptionValue {
         SetOptionValue {
@@ -281,6 +201,30 @@ done"#;
                     "isready",
                 ]
             );
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 準備は `readyok` までの `info string` の文を、着いた順に返す（定跡を読めたかの判定に使う）。
+        /// `info string` でない行と、読み筋の `info` は返さない
+        #[tokio::test]
+        async fn the_info_strings_before_readyok_are_returned() {
+            let dir = test_support::dir::temp_dir("setup-info-strings");
+            let protocol = spawn(
+                &dir,
+                r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Talks\nusiok\n' ;;
+    isready) printf 'info string reading book\ninfo depth 1 score cp 0 pv 7g7f\ninfo string book loaded\nreadyok\n' ;;
+  esac
+done"#,
+            )
+            .await;
+
+            let texts = send_setup(&protocol, &[option("BookFile", "a.db")], None, None)
+                .await
+                .expect("readyok まで通る");
+            assert_eq!(texts, ["reading book", "book loaded"]);
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }

@@ -40,7 +40,7 @@ use usi::{GameOverKind, GuiCommand};
 use crate::engine::logging::LogThrottle;
 use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 use crate::engine::protocol::UsiProtocol;
-use crate::engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT};
+use crate::engine::protocol::{self, READY_TIMEOUT, USI_OK_TIMEOUT};
 use crate::engine::registry::SPAWN_TIMEOUT;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
 use crate::engine::setup::{self, MAX_WIRE_FIELD};
@@ -1787,7 +1787,7 @@ impl Runner {
 
 /// 締切までの残り（`setup::remaining`）を、対局の断り文句の形で返す。
 fn remaining(deadline: Instant, what: &str) -> Result<Duration, String> {
-    setup::remaining(deadline, what).map_err(|e| engine_error_text(&e))
+    protocol::remaining(deadline, what).map_err(|e| engine_error_text(&e))
 }
 
 /// エンジン側の対局者を全部起動する。

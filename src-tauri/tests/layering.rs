@@ -926,7 +926,8 @@ fn only_the_option_line_parser_builds_engine_options() {
     );
 }
 
-/// `setoption` を組む綴り。**組むのは `engine/setup.rs` だけ**（本番のコード）。
+/// `setoption` を組む綴り。**組むのは `engine/protocol.rs` の手順「準備」と「値の確認」の2か所だけ**
+/// （本番のコード。`UsiProtocol::prepare` と `check_value`）。
 ///
 /// 送る手順（並べた順、`isready` を必ず送り `readyok` を待つ）を別の場所に書くと、片方にだけ
 /// 直しが入る。食い違いはエンジンを起こしてからしか出ない（`setup.rs` の `//!`）。
@@ -965,7 +966,7 @@ fn the_set_option_scanner_tells_a_build_from_a_match_arm() {
 }
 
 #[test]
-fn only_the_setup_stage_builds_set_option() {
+fn only_the_procedures_build_set_option() {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let files = rust_files(&src);
     assert!(
@@ -985,12 +986,14 @@ fn only_the_setup_stage_builds_set_option() {
     }
 
     assert!(
-        builders.iter().any(|at| at == "engine/setup.rs"),
-        "`setup.rs` の組み立ても見つからない。走査の綴りを直すこと"
+        builders.iter().any(|at| at == "engine/protocol.rs"),
+        "`protocol.rs` の組み立ても見つからない。走査の綴りを直すこと"
     );
-    assert!(
-        builders.iter().all(|at| at == "engine/setup.rs"),
-        "`setoption` を `engine/setup.rs` の外で組んでいる。`setup::send_setup` を通すこと: {builders:?}"
+    assert_eq!(
+        builders,
+        ["engine/protocol.rs", "engine/protocol.rs"],
+        "`setoption` を手順「準備」と「値の確認」の外で組んでいる。`setup::send_setup` か \
+         `setup::accepts_path_in` を通すこと"
     );
 }
 
