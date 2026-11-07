@@ -172,6 +172,13 @@ struct Startup {
     latest_request: Request,
 }
 
+impl Startup {
+    /// `request` が既に受けた要求より古いか。**同じ番号は古くない**（`Request`）
+    fn is_superseded(&self, request: Request) -> bool {
+        request < self.latest_request
+    }
+}
+
 /// フロントが起動・停止を撃つたびに上げる番号（`provider.tsx` の `seqRef`）。
 ///
 /// **順序の出典はフロントの1箇所にする。** Tauri の async コマンドは別々のタスクで走り、
@@ -249,34 +256,37 @@ impl EngineAnalyzer {
         Ok(StartOutcome { info, warnings })
     }
 
-    /// 世代を上げ、進行中の起動を取り消し、起動済みのエンジンを落とす。
-    /// `request` が既に受けた要求より古ければ何もせず `None`
+    /// 新しい起動を始める（`take_over`）。返すのはその起動の世代と取り消しの欄
     async fn begin_start(&self, request: Request) -> Option<(u64, CancellationToken)> {
-        let (generation, cancel, previous) = {
+        let cancel = CancellationToken::new();
+        let generation = self.take_over(request, Some(cancel.clone())).await?;
+        Some((generation, cancel))
+    }
+
+    /// 要求を受け、いまのプロセスを手放す。**起動と `shutdown` はどちらもここを通す。**
+    ///
+    /// 世代を上げ、進行中の起動を取り消して `next` に置き換え、覚えた局面を消し、
+    /// `engine_id` から外したプロセスを落とす。`request` が既に受けた要求より古ければ何もせず `None`
+    async fn take_over(&self, request: Request, next: Option<CancellationToken>) -> Option<u64> {
+        let (generation, previous) = {
             let mut startup = self.startup.lock().await;
-            if request < startup.latest_request {
+            if startup.is_superseded(request) {
                 return None;
             }
             startup.latest_request = request;
             startup.generation += 1;
-            if let Some(previous) = startup.cancel.take() {
+            if let Some(previous) = std::mem::replace(&mut startup.cancel, next) {
                 previous.cancel();
             }
-            let cancel = CancellationToken::new();
-            startup.cancel = Some(cancel.clone());
             // **前のプロセスの局面を次へ持ち越さない。** ロックの外で消すと、前のプロセスを
             // 落とす間に追い越した起動が覚えた局面を消す
             self.state.write().await.current_position = None;
-            (
-                startup.generation,
-                cancel,
-                self.engine_id.write().await.take(),
-            )
+            (startup.generation, self.engine_id.write().await.take())
         };
         if let Some(previous) = previous {
             self.drop_engine(&previous).await;
         }
-        Some((generation, cancel))
+        Some(generation)
     }
 
     /// 起動を終えたプロセスを `engine_id` に載せる。世代が古ければ落として `Cancelled`。
@@ -321,21 +331,8 @@ impl EngineAnalyzer {
     /// `request` が既に受けた要求より古ければ何もしない——後から撃たれた起動を落とさない。
     /// 世代を上げるので、後から終わった起動は `engine_id` へ書かない
     pub async fn shutdown(&self, request: Request) -> Result<(), EngineError> {
-        let id = {
-            let mut startup = self.startup.lock().await;
-            if request < startup.latest_request {
-                log::debug!(target: LOGT, "shutdown: superseded by a newer request");
-                return Ok(());
-            }
-            startup.latest_request = request;
-            startup.generation += 1;
-            if let Some(cancel) = startup.cancel.take() {
-                cancel.cancel();
-            }
-            self.engine_id.write().await.take()
-        };
-        if let Some(id) = id {
-            self.drop_engine(&id).await;
+        if self.take_over(request, None).await.is_none() {
+            log::debug!(target: LOGT, "shutdown: superseded by a newer request");
         }
         Ok(())
     }
@@ -370,7 +367,7 @@ impl EngineAnalyzer {
     /// `request` が既に受けた要求より古いか（読むだけ。確定は `start_engine` / `shutdown` が
     /// 同じロックの下で決める）
     pub async fn is_superseded(&self, request: Request) -> bool {
-        request < self.startup.lock().await.latest_request
+        self.startup.lock().await.is_superseded(request)
     }
 
     /// 読む局面を覚える。**線には書かない。**
