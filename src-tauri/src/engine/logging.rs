@@ -84,12 +84,11 @@ pub fn with_cause(error: &dyn std::error::Error) -> String {
 /// 繰り返すと、ログが一周して、直そうとしている当のエラーの説明が消える。
 ///
 /// エンジンの名乗り（`id name`）も同じ上限で切る（`engine::registry` の `spawn_ok_line`）。
-/// そちらも `collect_engine_info` が長さを見ずに保持する。
+/// そちらも名乗り（`usi_machine.rs` の `finish_naming`）が長さを見ずに保持する。
 ///
 /// **この上限を `LOG_FILE_BUDGET` と並べて表明しているテストが赤くなったら、どれも一次で乗っている。**
 /// 「関係の無いラチェット」と読まないこと。縛っている式の数はここに書かない（式が増えるたびに
-/// この行だけが古くなる）。測り方は経路ごとに違う（掃き出しは `PENDING_LIMIT` 件ぶん、起動と停止は
-/// 1行ぶん）。どちらも上限の不等式なので、縮める側は止まらない。
+/// この行だけが古くなる）。測るのは1行ぶん（起動と停止）で、上限の不等式なので、縮める側は止まらない。
 ///
 /// 実在する option 名（`USI_Hash` / `EvalDir` / `Threads`）はこの1/4も使わないが、縮める根拠には
 /// ならない。実在するエンジンの名乗り（`YaneuraOu NNUE 7.0.0 64ZEN2`）が収まる幅でもある。
@@ -172,8 +171,7 @@ pub fn cmd_summary(cmd: &GuiCommand) -> String {
     match cmd {
         GuiCommand::Position(_) => "Position(<redacted>)".to_string(),
         GuiCommand::Go(_) => "Go(...)".to_string(),
-        // 名前は webview から来るので `MAX_SUMMARY_LEN` で切る。積み置きの掃き出しでは
-        // `PENDING_LIMIT` 件まとめて出る
+        // 名前は webview から来るので `MAX_SUMMARY_LEN` で切る
         GuiCommand::SetOption(name, _v) => {
             format!("SetOption({})", shown(name, MAX_SUMMARY_LEN))
         }

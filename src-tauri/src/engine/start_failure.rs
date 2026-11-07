@@ -51,9 +51,7 @@ pub fn classify(error: &EngineError, quarantined: bool) -> StartFailure {
         },
         EngineError::CommunicationFailed(_) if quarantined => StartFailureKind::Quarantined,
         EngineError::CommunicationFailed(_) => StartFailureKind::ExitedEarly,
-        EngineError::NotInitialized(_) | EngineError::AlreadyListening(_) => {
-            StartFailureKind::Other
-        }
+        EngineError::NotInitialized(_) => StartFailureKind::Other,
     };
     let last_output = match error {
         EngineError::StartupFailed(detail) => detail.last_output.as_deref(),

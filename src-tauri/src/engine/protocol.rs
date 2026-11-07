@@ -1,20 +1,22 @@
-//! 起動した1本のエンジンへ何を送れるかを決める。書き込みの列、`readyok` の待ち、読んだ行の配り先を持つ。
+//! 起動した1本のエンジンへ手順を通す。何を書いてよいか、読んだ行をどこへ流すかは状態機械（`usi_machine`）が
+//! 決め、ここはそれを1つのロックの下に持って、出たことを順に行う（書き込みの列へ入れる、札の答えを渡す、
+//! 探索へ行を流す）。待つ上限は手順が持つ（ADR-0016 決定2）。
 
-use std::collections::VecDeque;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
-use tokio::task::JoinHandle;
-use tokio_util::sync::CancellationToken;
+
+use tokio::sync::{mpsc, oneshot, watch};
+use usi::{EngineCommand, GameOverKind, GuiCommand};
 
 use crate::engine::child::{
     ChildDiagnostics, ChildWriter, EngineChild, KillOutcome, ReadEvent, Source, KILL_TIMEOUT,
 };
 use crate::engine::logging::{shown, LogThrottle, MAX_SUMMARY_LEN};
-use crate::engine::option_line::{parse_option_line, MAX_DECLARED_BYTES, MAX_OPTIONS};
+use crate::engine::usi_machine::{
+    Asked, Effect, SearchId, SearchLine, Ticket, UsiMachine, GONE, STALLED,
+};
 use crate::engine::{logging::cmd_summary, logging::with_cause, types::*};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
-use usi::{EngineCommand, GameOverKind, GuiCommand, IdParams, InfoParams};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
@@ -44,6 +46,19 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
     Ok(())
 }
 
+/// 線に出る1行の欄が、行を壊す文字を含めば断る。手順が状態機械へ頼む前に呼ぶ。
+///
+/// 頼んだ後に書き込みの列（`check_writable`）で断ると、同じ頼みの後ろの書き込み
+/// （`position` の後の `go`、`setoption` の後の `isready`）は列へ入り、状態機械も書いたつもりで進む
+fn refuse_breaking_field(what: &str, text: &str) -> Result<(), EngineError> {
+    if contains_usi_breaking_char(text) {
+        return Err(EngineError::InvalidState(format!(
+            "refusing {what} that breaks the USI line format"
+        )));
+    }
+    Ok(())
+}
+
 /// 出力が終わった、または起動に失敗したエンジンの stderr を読み切るのを待つ上限。
 /// stdout と stderr の EOF は別々に着く（`ChildDiagnostics::settle_output`）。失敗の理由に
 /// stderr の最後の行を載せるための待ちで、人が待たされていると感じない長さに留める。
@@ -55,308 +70,9 @@ const SETTLE_OUTPUT: Duration = Duration::from_millis(200);
 /// （`LOG_FILE_BUDGET`）を数分で一周させる
 const SKIPPED_LINE_LOG_INTERVAL: Duration = Duration::from_secs(10);
 
-/// プロセスを落とした後に送ろうとしたときの文言
-const GONE: &str = "engine process has been shut down";
-/// 出力が終わったプロセスへ送ろうとしたときの文言
-const CLOSED: &str = "engine output has ended; the process cannot be reached";
-/// 書き込みが詰まったプロセスへ送ろうとしたときの文言。
-/// **`CLOSED` と分ける。** あちらは読み取りが終わった状態で、こちらは
-/// 出力は続いているのに stdin を読まなくなった状態。原因も直し方も違う
-const STALLED: &str = "the engine stopped reading stdin; the process cannot be reached";
-/// USI プロトコル処理層
-///
-/// **子プロセスの持ち主はこれ1つにする。** `Clone` を持たせず、`EngineChild` を `Arc` に
-/// 包まない。`&self` から持ち主を増やせると、それをタスクへ渡した瞬間に「捨てればプロセスも
-/// 落ちる」がそのタスクの寿命に縛られる（`readyok` を返さないエンジンでは、待つタスクが
-/// 抜けないままプロセスが残る）。共有は `Arc<UsiProtocol>` で、プロセスより長く生きうる
-/// タスクへは子プロセスを持たない `Link` か `ChildDiagnostics` を渡す。
-pub struct UsiProtocol {
-    /// 子プロセスと標準入出力。**書き込み・読み取り・落とす経路がそれぞれ別の持ち主**
-    /// なので、書き込みが詰まっても落とせる（`engine/child.rs`）。
-    child: EngineChild,
-    link: Link,
-    state: Arc<RwLock<ProtocolState>>,
-    listen_active: Arc<Mutex<bool>>,
-
-    /// 読み取りが解いた `option` 行（`option_line::parse_option_line`）。
-    ///
-    /// **溜めるのは `usi` への応答の `option` 行だけ。** `identify` が読み取りを始める前に
-    /// 開き、読み取りの hook が `usiok` の行を見たところで閉じる。読み取りは1本のタスクが
-    /// 行を順に処理するので、境界は行の順序で決まる（`usiok` より前の行は入り終え、後の行は入らない）
-    declared: Arc<std::sync::Mutex<DeclaredOptions>>,
-
-    /// `identify` を1本ずつ通す。2本が同時に `usi` を送ると、1つの `declared` を
-    /// 取り合って片方の定義が空になる
-    info_gate: Arc<Mutex<()>>,
-
-    /// こちらが落としたか。**`quit` を送った時点で立つ。**
-    ///
-    /// `kill_engine` も `Closed` を立てるので、印が無いと
-    /// **こちらが落としたのに「エンジンの出力が終わった」と説明する**。
-    killed: Arc<std::sync::atomic::AtomicBool>,
-
-    runtime_handle: tokio::runtime::Handle,
-    init_task: Arc<Mutex<Option<JoinHandle<()>>>>,
-    init_cancel: Arc<Mutex<Option<CancellationToken>>>,
-
-    /// 探索の枠（許可は1つ）。`Search` が握り、捨てた探索の `bestmove` を受け終えてから返す
-    /// （`protocol/search.rs` の `DROPPED_SEARCH_LIMIT`）。返る前に次の探索の受け手を張ると、
-    /// 前の探索の `bestmove` を次の探索の答えとして受ける
-    search_slot: Arc<tokio::sync::Semaphore>,
-}
-
-/// プロセスの終わりを待つ取っ手。**子プロセスを持たない**ので、
-/// 待っている間もプロセスの寿命を延ばさない（`UsiProtocol` の doc）
-pub struct EngineEndWatch {
-    diagnostics: ChildDiagnostics,
-    ready: watch::Receiver<ReadyState>,
-    killed: Arc<std::sync::atomic::AtomicBool>,
-    stalled: Arc<std::sync::atomic::AtomicBool>,
-}
-
-impl EngineEndWatch {
-    /// `Closed` が立つまで待ち、理由を返す。**既に立っていればすぐ返る**（`watch` は今の値から見る）
-    pub async fn wait(&mut self) -> EngineEnd {
-        use std::sync::atomic::Ordering::Relaxed;
-
-        let closed = self
-            .ready
-            .wait_for(|state| *state == ReadyState::Closed)
-            .await
-            .is_ok();
-        // `Err` は送り手が消えた後で、`UsiProtocol` ごと捨てられたとき。こちらが手放している
-        if !closed || self.killed.load(Relaxed) {
-            return EngineEnd::Requested;
-        }
-        if self.stalled.load(Relaxed) {
-            return EngineEnd::Stalled;
-        }
-        EngineEnd::Exited
-    }
-
-    /// エンジンが最後に出した行。stderr の読み切りを `SETTLE_OUTPUT` まで待つ
-    pub async fn last_output(&self) -> Option<String> {
-        self.diagnostics.settle_output(SETTLE_OUTPUT).await;
-        summarize_recent(&self.diagnostics.recent_lines())
-    }
-}
-
-/// エンジンとの繋がりのうち、**子プロセスを持たない側**。書き込みの列と、送れるかを決める状態。
-///
-/// `readyok` を待つタスク（`start_ready_watch_and_send`）には `UsiProtocol` ではなくこれを渡す。
-/// そのタスクは `readyok` か出力の終わりかキャンセルでしか抜けないので、`EngineChild` を
-/// 握らせると、`readyok` を返さないまま stdout を開けているエンジンでは `UsiProtocol` を
-/// 全部捨てても Drop が起きず、プロセスが落ちない（`EngineChild` の doc）。
-#[derive(Clone)]
-struct Link {
-    listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
-
-    /// 書き込みが詰まったか。
-    ///
-    /// `ReadyState::Closed` は「もう届かない」を1つの値で表すが、**理由が分かれる**。
-    /// 読み取りが終わった（EOF）のと、stdin を読まなくなったのとでは、
-    /// 利用者にとっての意味も次の手も違う。`Refuse` を返すときに文言を選ぶのに使う。
-    stalled: Arc<std::sync::atomic::AtomicBool>,
-
-    /// `isready` に対してエンジンがどう応じたか。
-    ///
-    /// **3値であることが要る。** `bool` だと「まだ返っていない」と
-    /// 「もう返らない（プロセスが終わった）」が同じ値になる。
-    /// 前者は待てば来るが、後者は `READY_TIMEOUT` を使い切るまで待つだけで、
-    /// その間 `start_game` は返らない（評価関数を読めずに即死するエンジンで踏む）。
-    /// 書き込み側の分岐も3値を見る（`dispatch_for`）。
-    ///
-    /// watch なのは、**待つ側がポーリングしないで済む**ため。
-    ready: Arc<watch::Sender<ReadyState>>,
-
-    pending: Arc<Mutex<Pending>>,
-
-    /// 書き込みの列。**投入順がそのままワイヤ上の順になる**
-    writer: mpsc::UnboundedSender<WriteJob>,
-}
-
-/// 順番待ちのコマンドと、その世代。
-///
-/// 積まれる理由は2つ。`readyok` をまだ待っている（`requires_ready`）のと、
-/// 掃いている最中に来た（`draining`）の。
-///
-/// **世代とキューを同じロックの下に置く。** 別々に持つと、世代を読んでから
-/// 積むまでの間に次の `isready` が挟まり、**消された直後の世代へ入れる**ことになる。
-/// そこに入ったコマンドを掃く者はいないので、呼び出し側に `Ok` を返したまま消える。
-///
-/// 1つにまとめたので、積む側は世代を読む必要が無い。キューは常に現在の世代のもの。
-struct Pending {
-    generation: u64,
-    queue: VecDeque<GuiCommand>,
-    /// 積み置きを掃いている最中か。
-    ///
-    /// **立っている間は、`Ready` でも直書きさせずに積ませる。** flush は
-    /// 1件ごとに書き込みの返事を待つので、その隙に直書きが列へ入ると
-    /// `position(旧) → position(新) → go(旧)` の順でエンジンへ届く。
-    /// エンジンは新しい局面に対して古い `go` を受け取る。
-    draining: bool,
-}
-
-/// 積み置きの上限。
-///
-/// `readyok` を返さないエンジンでは、`position` と `go` が来るたびに積み続ける。
-/// 上限を超えたら断る側に倒す。**積んで `Ok` を返すより、断ったほうが呼び出し側が気付ける。**
-/// 32 は「1局面ぶんの `position` + `go` が十数回入っても足りる」から。
-/// 正常な流れでこの数に届くことはない
-const PENDING_LIMIT: usize = 32;
-
-/// 積み置きを捨てたことを記録する1行。
-///
-/// **理由ごとに書式を分けない。** 掃き出しはここを `PENDING_LIMIT` 回まとめて
-/// 通るので、1行の大きさがそのまま予算に効く。書式が2つあると、テストは片方しか
-/// 測らないまま「式で縛った」と読める——**長いほうが予算を超えても緑で通る**。
-///
-/// **捨てる経路は全部ここを通す**（`begin_generation` / `discard_pending` も）。
-/// どれも `std::mem::take` で最大 `PENDING_LIMIT` 件をまとめて出す、
-/// 測る側とまったく同じ形の突発。
-///
-/// 理由（`why`）は分けたまま持つ。「`readyok` が来なかった」と「flush が折れた」は
-/// 後から届きうるかが違う。取りうる値は `DropReason`。
-fn dropped_line(cmd: &GuiCommand, why: DropReason) -> String {
-    format!(
-        "ready: dropping queued cmd={} ({})",
-        cmd_summary(cmd),
-        why.text()
-    )
-}
-
-#[derive(Debug, Clone)]
-struct ProtocolState {
-    engine_info: Option<EngineInfo>,
-    last_command: Option<String>,
-}
-
-/// バリアントと全一覧を1回だけ書く。
-///
-/// 一覧を手で並べると、バリアントを足したときに片方だけ直せる。逆に
-/// 一覧から落とすと、回す側は静かに回数が減るだけで**何も落ちない**。
-/// 「全部回している」と読める検査が、実際には一部しか回していない形になる。
-macro_rules! closed_set_enum {
-    (
-        $(#[$enum_meta:meta])*
-        enum $name:ident { $($(#[$meta:meta])* $variant:ident),* $(,)? }
-    ) => {
-        $(#[$enum_meta])*
-        enum $name { $($(#[$meta])* $variant),* }
-
-        impl $name {
-            /// 全バリアント。**手で書かない。** 宣言から生える。
-            ///
-            /// 使うのは「全部の状態を回す」検査だけなので `cfg(test)` に置く。
-            /// `#[allow(dead_code)]` で通さないこと——本番で誰かが使い始めたら、
-            /// そのときに属性を外して意図を書くほうが読める。
-            #[cfg(test)]
-            const ALL: &'static [$name] = &[$($name::$variant),*];
-        }
-    };
-}
-
-closed_set_enum! {
-/// `isready` に対する応答の状態。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ReadyState {
-    /// `readyok` が返っていない。
-    ///
-    /// **生成直後もこれ。** `isready` を1度も送っていない状態と、送って
-    /// 待っている状態を区別しない。どちらでも `position` / `go` を積む、で扱いが同じ。
-    ///
-    /// `isready` 自身は `dispatch_for` を**通る**（`Closed` なら断られる）。
-    /// 素通りするのは `draining` の腕だけで、それが `bypasses_draining` の意味。
-    Waiting,
-    Ready,
-    /// エンジンの出力が終わった。**もう `readyok` は返らない**
-    ///
-    /// **ここから戻る道は無い。** stdout の読み取りは1回きり（`EngineChild::read_stdout`）で、
-    /// 二度と始まらない。復帰の手段はプロセスの再起動しかない。
-    Closed,
-}
-}
-
-closed_set_enum! {
-/// 積み置きを捨てた理由。**文言を素の文字列で渡させない。**
-///
-/// 理由ごとに書式を分けると、予算を測るテストは片方しか測らないまま
-/// 「式で縛った」と読める——長いほうが予算を超えても緑で通る。
-/// 型にしておくと、理由を増やす人は `ALL` を通って測る側に載る。
-#[derive(Debug, Clone, Copy)]
-enum DropReason {
-    /// `readyok` を待たずにエンジンの出力が終わった。**もう届かない**
-    NoReadyok,
-    /// 掃き出しの途中で書き込みが失敗した。**届いたかは分からない**
-    /// （`Timeout` は「上限内に書き終わらなかった」で、後から届きうる）
-    FlushBroke,
-    /// 新しい `isready` が始まった。積んでいたのは前の世代のもの
-    NewIsready,
-    /// エンジンが stdin を読まなくなった
-    StdinStalled,
-    /// `readyok` を待つのをやめた
-    ReadyWaitAborted,
-}
-}
-
-impl DropReason {
-    fn text(self) -> &'static str {
-        match self {
-            DropReason::NoReadyok => "readyok never came",
-            DropReason::FlushBroke => "the flush could not continue",
-            DropReason::NewIsready => "a new isready started",
-            DropReason::StdinStalled => "the engine stopped reading stdin",
-            DropReason::ReadyWaitAborted => "the ready wait was aborted",
-        }
-    }
-}
-
-/// `ready` の次の値を決める。**`Closed` は吸収状態。**
-///
-/// 書き込み側（`dispatch_for` の `Refuse`）と `register_listener` の拒否は、
-/// どちらも `Closed` を見て断っている。戻す経路があると、`isready` を1本送るだけで
-/// 両方が同時に無効になり、`position` も `go` も `Queue` に落ちて `Ok` が返る。
-/// 待っている側は永久に返らない。
-fn next_ready_state(current: ReadyState, requested: ReadyState) -> ReadyState {
-    match current {
-        ReadyState::Closed => ReadyState::Closed,
-        _ => requested,
-    }
-}
-
-/// 届かなくなった理由の文言を選ぶ。**印の優先順はここだけ。**
-///
-/// こちらが落としたことを最優先で見る。両方立つのは**詰まったプロセスを利用者が
-/// 後から終了させたとき**で、そのとき見せるべきは自分の操作の結果のほう。
-/// 「自分で終了させた」と「エンジンが応じなくなった」では次の手が違う。
-///
-/// 逆順（落としてから詰まる）も起きうる。`kill_engine` が `killed` を立ててから SIGKILL が
-/// 効くまでの間に、先に詰まっていた書き込みが `WRITE_TIMEOUT` に達する回。そのときも
-/// `killed` を先に見るので、見せるのは `GONE`。
-fn cannot_reach_text(killed: bool, stalled: bool) -> &'static str {
-    if killed {
-        GONE
-    } else if stalled {
-        STALLED
-    } else {
-        CLOSED
-    }
-}
-
-/// flush が途中で折れたときに、書けたか分からないぶんを残す。
-///
-/// `failed` も挙げるのは、**届いたか分からない**ため（`Timeout` は
-/// 「上限内に書き終わらなかった」で、後から届きうる）。
-/// 落ちた1件だけ黙ると、flush が最後まで通ったように読める
-fn report_dropped(failed: &GuiCommand, rest: &VecDeque<GuiCommand>) {
-    for cmd in std::iter::once(failed).chain(rest.iter()) {
-        log::warn!(target: LOGT, "{}", dropped_line(cmd, DropReason::FlushBroke));
-    }
-}
-
 /// 書き込み1回に置く上限。
 ///
-/// **1件の書き込みに掛かる。** `send_command` が返るまでの実時間ではない
+/// **1件の書き込みに掛かる。** 手順が返るまでの実時間ではない
 /// （列に先客が居ればその処理時間が足される）。呼び出し側に上限を書かせると
 /// 包み忘れた呼び出しが上限なしで残るので、置き場はここ1つ。
 ///
@@ -384,6 +100,94 @@ pub const USI_OK_TIMEOUT: Duration = Duration::from_secs(30);
 /// 短く切ると、重い設定のエンジンが起動できないという形で出る。
 pub const READY_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// USI プロトコル処理層。手順（`identify`、`prepare`、`check_value`、`new_game`、`search`、`game_over`）と、
+/// 終わらせる操作（`quit`、`kill_engine`）を持つ。
+///
+/// **子プロセスの持ち主はこれ1つにする。** `Clone` を持たせず、`EngineChild` を `Arc` に
+/// 包まない。`&self` から持ち主を増やせると、それをタスクへ渡した瞬間に「捨てればプロセスも
+/// 落ちる」がそのタスクの寿命に縛られる。共有は `Arc<UsiProtocol>` で、プロセスより長く生きうる
+/// タスク（読んだ行を状態機械へ渡すタスク、捨てた探索の `stop` を書き終えるタスク）へは、
+/// 子プロセスを持たない `Shared` か `ChildDiagnostics` を渡す。
+pub struct UsiProtocol {
+    /// 子プロセスと標準入出力。**書き込み・読み取り・落とす経路がそれぞれ別の持ち主**
+    /// なので、書き込みが詰まっても落とせる（`engine/child.rs`）。
+    child: EngineChild,
+    shared: Arc<Shared>,
+    runtime_handle: tokio::runtime::Handle,
+}
+
+/// エンジンとの繋がりのうち、**子プロセスを持たない側**。状態機械と、書き込みの列と、状態の写し。
+struct Shared {
+    /// 状態機械と、その答えを待つ者。**ロックはこれ1つで、await を跨いで握らない**（`step`）。
+    /// 状態機械が出した書き込みを列へ入れるのもこの中で行うので、出た順がそのまま線の順になる
+    /// （`docs/state-transitions/engine.md` の不変条件1）
+    core: Mutex<Core>,
+
+    /// 書き込みの列。**投入順がそのままワイヤ上の順になる**（`run_writer`）
+    writer: mpsc::UnboundedSender<WriteJob>,
+
+    /// 閉じたか・探索中かの写し。待つ者（終わりの見張り、前の探索の終わりを待つ手順「探索」）が
+    /// ロックを取らずに待てるように置く。書くのは `step` だけ
+    status: watch::Sender<Status>,
+}
+
+struct Core {
+    machine: UsiMachine,
+    /// 札ごとの答えの送り先。答えを渡したら外す。待つ者が諦めていれば、送っても黙って捨てられる
+    waiters: HashMap<Ticket, Waiter>,
+    /// 走っている探索へ行を流す先。状態機械が走らせる探索は高々1本（不変条件2）
+    search: Option<(SearchId, mpsc::UnboundedSender<SearchLine>)>,
+}
+
+/// 札で待つ者。手順ごとに答えの型が違うので、送り先を型ごとに持つ
+enum Waiter {
+    Named(oneshot::Sender<Result<EngineInfo, EngineError>>),
+    Prepared(oneshot::Sender<Result<Vec<String>, EngineError>>),
+    Checked(oneshot::Sender<Result<Vec<String>, EngineError>>),
+    Stopped(oneshot::Sender<Result<(), EngineError>>),
+}
+
+/// 状態機械の写し（`Shared::status`）
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Status {
+    end: Option<EngineEnd>,
+    searching: bool,
+}
+
+/// 1回の `step` で書き込みの列へ入れたもの。書けたかを待つのは、頼んだ手順（`Shared::finish`）
+#[must_use]
+#[derive(Default)]
+struct Written {
+    replies: Vec<Result<oneshot::Receiver<Result<(), EngineError>>, EngineError>>,
+    /// 状態機械が落とす指示を出した
+    kill: bool,
+}
+
+/// プロセスの終わりを待つ取っ手。**子プロセスを持たない**ので、
+/// 待っている間もプロセスの寿命を延ばさない（`UsiProtocol` の doc）
+pub struct EngineEndWatch {
+    diagnostics: ChildDiagnostics,
+    status: watch::Receiver<Status>,
+}
+
+impl EngineEndWatch {
+    /// 閉じるまで待ち、理由を返す。**既に閉じていればすぐ返る**（`watch` は今の値から見る）
+    pub async fn wait(&mut self) -> EngineEnd {
+        let end = match self.status.wait_for(|status| status.end.is_some()).await {
+            Ok(status) => status.end,
+            Err(_) => None,
+        };
+        // 送り手が消えた（`Err`）のは、`UsiProtocol` ごと捨てられたとき。こちらが手放している
+        end.unwrap_or(EngineEnd::Requested)
+    }
+
+    /// エンジンが最後に出した行。stderr の読み切りを `SETTLE_OUTPUT` まで待つ
+    pub async fn last_output(&self) -> Option<String> {
+        self.diagnostics.settle_output(SETTLE_OUTPUT).await;
+        summarize_recent(&self.diagnostics.recent_lines())
+    }
+}
+
 /// 書き込みの列に流す1件。
 struct WriteJob {
     command: GuiCommand,
@@ -394,8 +198,7 @@ struct WriteJob {
 ///
 /// **投入順＝ワイヤ上の順**であることを、この列だけで保証する。
 /// 呼び出しごとにタスクを投げると、どのタスクが先に stdin のロックを取るかは
-/// **投入順と無関係**になる。`stop` が `go` を追い越す／flush が直書きに追い越される、
-/// が両方そこから出る。
+/// **投入順と無関係**になり、`stop` が `go` を追い越す。
 ///
 /// 1件の書き込みは別のタスクに出し、その完了を上限つきで待つ。**待つのをやめても
 /// 書き込みは取り消さない**——途中で取り消すと行の半分だけがワイヤに残り、
@@ -407,7 +210,7 @@ async fn run_writer(writer: Option<ChildWriter>, mut jobs: mpsc::UnboundedReceiv
     // 詰まっているジョブは取り消さない（取り消すと行の半分がワイヤに残る）。後ろを
     // 通すと、「送れなかった」と判断した側が出した `gameover` が、その `go` の
     // 後ろに並ぶ（探索中のエンジンへ `gameover`＝不変条件3 の違反）。
-    // `Closed` を立てるだけでは、**既に列にあるジョブ**は止まらない。
+    // 状態機械を閉じるだけでは、**既に列にあるジョブ**は止まらない。
     let mut stalled = false;
 
     while let Some(WriteJob { command, reply }) = jobs.recv().await {
@@ -458,364 +261,199 @@ async fn run_writer(writer: Option<ChildWriter>, mut jobs: mpsc::UnboundedReceiv
     }
 }
 
-/// `ready` への書き込みはここ1本を通す。返すのは実際に落ち着いた値。
-fn set_ready_state(ready: &watch::Sender<ReadyState>, requested: ReadyState) -> ReadyState {
-    let mut settled = requested;
-    ready.send_if_modified(|current| {
-        settled = next_ready_state(*current, requested);
-        if settled == *current {
-            false
-        } else {
-            *current = settled;
-            true
+/// 毒の入ったロックもそのまま取る。`step` は状態機械を1回動かして出たことを行うだけで、
+/// 途中で panic して残りうるのは「答えを渡していない札」か「入れていない書き込み」。
+/// 待つ者は上限か出力の終わりで抜けるので、ロックを取れなくして全部の手順を止めるより害が小さい
+fn lock(core: &Mutex<Core>) -> MutexGuard<'_, Core> {
+    core.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+impl Shared {
+    /// 状態機械を1回動かし、出たことを出た順に行う。**同期。await 点を持たない。**
+    ///
+    /// `input` は札を出したら、同じロックの中で送り先を `waiters` に置くこと。外で置くと、
+    /// その間に読んだ行が答えを出したときに送り先が無く、答えが黙って消える
+    fn step<R>(&self, input: impl FnOnce(&mut Core) -> R) -> (R, Written) {
+        let mut core = lock(&self.core);
+        let result = input(&mut core);
+        let mut written = Written::default();
+        for effect in core.machine.take_effects() {
+            match effect {
+                Effect::Write(command) => written.replies.push(self.enqueue_write(command)),
+                Effect::Named(ticket, answer) => {
+                    if let Some(Waiter::Named(tx)) = core.waiters.remove(&ticket) {
+                        let _ = tx.send(answer);
+                    }
+                }
+                Effect::Prepared(ticket, answer) => {
+                    if let Some(Waiter::Prepared(tx)) = core.waiters.remove(&ticket) {
+                        let _ = tx.send(answer);
+                    }
+                }
+                Effect::Checked(ticket, answer) => {
+                    if let Some(Waiter::Checked(tx)) = core.waiters.remove(&ticket) {
+                        let _ = tx.send(answer);
+                    }
+                }
+                Effect::Stopped(ticket, answer) => {
+                    if let Some(Waiter::Stopped(tx)) = core.waiters.remove(&ticket) {
+                        let _ = tx.send(answer);
+                    }
+                }
+                Effect::ToSearch(id, line) => {
+                    if let Some((current, tx)) = &core.search {
+                        if *current == id {
+                            let _ = tx.send(line);
+                        }
+                    }
+                }
+                Effect::SearchEnded(id) => {
+                    if core
+                        .search
+                        .as_ref()
+                        .is_some_and(|(current, _)| *current == id)
+                    {
+                        core.search = None;
+                    }
+                }
+                Effect::Kill => written.kill = true,
+                Effect::Note(text) => log::warn!(target: LOGT, "{text}"),
+            }
         }
-    });
-    settled
-}
-
-/// `readyok` が返るまで送れないコマンド。
-///
-/// USI は `isready` の返事より前の `usinewgame` / `position` / `go` を認めない。
-/// 送っても評価関数の読み込み中に握り潰される。
-fn requires_ready(cmd: &GuiCommand) -> bool {
-    matches!(
-        cmd,
-        GuiCommand::UsiNewGame | GuiCommand::Go(_) | GuiCommand::Position(_)
-    )
-}
-
-/// 積み置きを掃いている最中でも列の後ろへ回さないコマンド。
-///
-/// - `Stop`: 止めるのに列の後ろへ並ばせては意味が無い
-/// - `IsReady`: 掃く側は書き込みの列を直に使うので、積むと
-///   `start_ready_watch_and_send` の後処理（世代の更新、`readyok` の購読）が飛ぶ。
-///   **通すと、掃いている最中の積み置きが捨てられる。** `begin_generation` が
-///   世代を上げ、掃きループは世代違いで抜けるので、残りは `Ok` を返したまま消える
-///   （落ちたぶんは `report_dropped` がログに残す）
-/// - `Quit`: 積むと直後の `kill_engine` が捨てる。落とす前に1行も書かれない
-///
-/// どれも `position` / `go` の順序には関わらない。
-fn bypasses_draining(cmd: &GuiCommand) -> bool {
-    matches!(
-        cmd,
-        GuiCommand::Stop | GuiCommand::IsReady | GuiCommand::Quit
-    )
-}
-
-/// 送ろうとしているコマンドをどう扱うか。
-#[derive(Debug, PartialEq, Eq)]
-enum Dispatch {
-    /// そのまま書く
-    Send,
-    /// 列の後ろへ回す。**掃かれるのは `readyok` の後か、掃きが終わった後。**
-    Queue,
-    /// 断る。出力が終わっているので、書いても待っても何も返らない
-    Refuse,
-}
-
-/// `send_command` の入口で、送る／積む／断るを決める。
-///
-/// **入口の判断はこれで全部。** ただし断る箇所はここだけではない。
-/// 書き込みの列が詰まった後は `run_writer` が `STALLED` で断り、
-/// 列そのものが閉じていれば `write` が `NotInitialized` を返す。
-///
-/// 早期 return を使わず1つの `match` にしてあるのは、
-/// **どの枝も他の枝に隠れていないことを目で数えられるようにする**ため。
-///
-/// - `Closed` を `Waiting` と同じ扱いにしない。積み置きは「まだ `readyok` が
-///   来ていない」ための仕組みで、「**もう来ない**」ときの置き場ではない。
-///   積むと呼び出し側へ `Ok` が返り、待つ側は永久に返らない
-/// - `draining`（積み置きを掃いている最中）は `Ready` でも積む。掃きは1件ごとに
-///   書き込みの返事を待つので、直書きが入るとその隙に追い越す。
-///   例外は `bypasses_draining` の3つ
-fn dispatch_for(state: ReadyState, draining: bool, cmd: &GuiCommand) -> Dispatch {
-    match (state, draining) {
-        (ReadyState::Closed, _) => Dispatch::Refuse,
-        (_, true) if !bypasses_draining(cmd) => Dispatch::Queue,
-        (ReadyState::Ready, _) => Dispatch::Send,
-        (ReadyState::Waiting, _) if requires_ready(cmd) => Dispatch::Queue,
-        (ReadyState::Waiting, _) => Dispatch::Send,
-    }
-}
-
-/// `stop` が何をしたか。**待ち手の次の動きが変わるので潰さない。**
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StopEffect {
-    /// エンジンへ `stop` を書いた。この後 `bestmove` が来る
-    Written,
-    /// まだ書いていない `go` を落とした。**`bestmove` は来ない**
-    CancelledQueued,
-}
-
-/// 積み置きへ1件入れる。**積む判断はここ1本を通す。**
-///
-/// 上限を超えたら断る側に倒す。積んで `Ok` を返すより、断ったほうが
-/// 呼び出し側が気付ける。
-fn push_pending(pending: &mut Pending, command: &GuiCommand) -> Result<(), EngineError> {
-    if pending.queue.len() >= PENDING_LIMIT {
-        log::warn!(
-            target: LOGT,
-            "send_command: pending queue is full cmd={} gen={}",
-            cmd_summary(command),
-            pending.generation
-        );
-        // **理由で文言を分ける。** `readyok` が既に返っているのに
-        // 「まだ返っていない」と言うと、原因を誤って説明することになる
-        let why = if pending.draining {
-            "the engine is still catching up on queued commands"
-        } else {
-            "the engine has not returned readyok"
+        let status = Status {
+            end: core.machine.end(),
+            searching: core.machine.is_searching(),
         };
-        return Err(EngineError::CommunicationFailed(
-            format!("{why}; {PENDING_LIMIT} commands are already queued").into(),
-        ));
-    }
-    pending.queue.push_back(command.clone());
-    log::debug!(
-        target: LOGT,
-        "send_command: queued cmd={} gen={} qlen={} draining={}",
-        cmd_summary(command),
-        pending.generation,
-        pending.queue.len(),
-        pending.draining
-    );
-    Ok(())
-}
-
-/// 積み置きから `go` を落とす。落とした数を返す。
-///
-/// **`stop` は積まれないのに `go` は積まれる**ので、`readyok` を待っている間は
-/// 順序が入れ替わる。そのまま書くと `stop` が先にエンジンへ届き、まだ探索して
-/// いないので何も起きず、後から flush された `go` で**利用者が止めたはずの探索が
-/// 始まる**。画面は「停止」のままエンジンだけが回り続ける。
-///
-/// `position` は落とさない。局面を送っただけでは何も起きないうえ、
-/// 次の `go` の前提になる。
-fn cancel_queued_go(queue: &mut VecDeque<GuiCommand>) -> usize {
-    let before = queue.len();
-    queue.retain(|cmd| !matches!(cmd, GuiCommand::Go(_)));
-    before - queue.len()
-}
-
-impl Link {
-    /// 書き込みの列へ入れて、書けたかを待つ。
-    ///
-    /// **待つだけ。** 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
-    /// 超えたときに返るのは `Timeout` で、
-    /// 「送る先が無い」（`NotInitialized` / `CommunicationFailed`）とは別物。
-    /// 前者はエンジンが stdin を読んでいない、後者は届く先が無い。
-    /// 次に何ができるかが違うので潰さない。
-    async fn write(&self, command: GuiCommand) -> Result<(), EngineError> {
-        let rx = self.enqueue_write(command)?;
-        self.await_write(rx).await
+        // 写しもロックの中で書く。外で書くと、2つの `step` の写しが入れ替わって古い値が残りうる
+        self.status.send_if_modified(|current| {
+            let changed = *current != status;
+            *current = status;
+            changed
+        });
+        (result, written)
     }
 
-    /// 書き込みの列へ入れる。**同期。await 点を持たない。**
-    ///
-    /// 入れた順がそのままワイヤ上の順になる（→ `run_writer`）。順番を守る責任が
-    /// ある側——積み置きの掃き出し——は、**キューのロックを握ったまま**ここを呼ぶ。
-    /// `write` しか無いと、ロックを離してから列へ入るまでの隙に
-    /// 別の書き込みが割り込めるかどうかが `write` の内側の作りに依存する。
-    /// 同期の関数に分けてあれば、依存するのは型のほうになる。
+    /// 書き込みの列へ入れる。**同期。await 点を持たない**（`step` のロックの中で呼ぶ）
     fn enqueue_write(
         &self,
         command: GuiCommand,
     ) -> Result<oneshot::Receiver<Result<(), EngineError>>, EngineError> {
-        // **最後の砦。** 呼び出し側でも弾いているが、そちらは入口ごとに書く
-        // 検証なので、5箇所目を足した人が素通りするのを止めるものが無い。
-        // ここは書き込みの列へ入る唯一の経路。
-        //
-        // **組み立てた1行を見る。** 列が線に出すのは `Display` の
-        // 結果そのもの（`command.to_string()` に改行を足したもの）なので、バリアントや
-        // フィールドが増えても検査は追随する。フィールドを数え上げると増えない
+        // **最後の砦。** 手順も状態機械へ頼む前に弾いている（ここで断ると、同じ `step` の後ろの
+        // 書き込みは列へ入る）が、そちらは入口ごとに書く検証なので、入口を足した人が素通りするのを
+        // 止めるものが無い。ここは書き込みの列へ入る唯一の経路
         check_writable(&command)?;
 
         let (reply, rx) = oneshot::channel();
-        let job = WriteJob { command, reply };
-        if self.writer.send(job).is_err() {
+        if self.writer.send(WriteJob { command, reply }).is_err() {
             return Err(EngineError::NotInitialized(GONE.to_string()));
         }
         Ok(rx)
     }
 
-    /// 列に入れた1件が書けたかを待つ。
+    /// `step` で列へ入れた書き込みが書けたかを、入れた順に待つ。最初の失敗を返す。
     ///
-    /// 上限は `run_writer` が1件の書き込みに掛ける（→ `WRITE_TIMEOUT`）。
-    ///
-    /// **待つだけではない。** 上限に当たったら `fail_writes` を撃つ——
-    /// `Closed` が立ち、積み置きが捨てられ、以後この `UsiProtocol` へは
-    /// 何も送れなくなる。戻り値を捨ててもこの副作用は起きる。
-    /// 掃き出しループが1件ごとにここを通るので、flush の途中で1件が
-    /// 上限に当たると残りは `report_dropped` を通らずに消える。
-    async fn await_write(
-        &self,
-        rx: oneshot::Receiver<Result<(), EngineError>>,
-    ) -> Result<(), EngineError> {
-        let result = match rx.await {
-            Ok(result) => result,
-            // 列のタスクが落ちた
-            Err(_) => Err(EngineError::CommunicationFailed(
-                "the writer stopped".to_string().into(),
-            )),
-        };
-
-        if matches!(result, Err(EngineError::Timeout(_))) {
-            self.fail_writes().await;
+    /// **待つだけではない。** 上限に当たったら `fail_writes` を撃つ——状態機械が閉じ、
+    /// 以後この `UsiProtocol` へは何も送れなくなる。戻り値を捨ててもこの副作用は起きる
+    async fn finish(&self, written: Written) -> Result<(), EngineError> {
+        for reply in written.replies {
+            let result = match reply?.await {
+                Ok(result) => result,
+                // 列のタスクが落ちた
+                Err(_) => Err(EngineError::CommunicationFailed(
+                    "the writer stopped".to_string().into(),
+                )),
+            };
+            if matches!(result, Err(EngineError::Timeout(_))) {
+                self.fail_writes();
+            }
+            result?;
         }
-        result
+        Ok(())
     }
 
-    /// 書き込みが詰まった後の後始末。
+    /// 書き込みが詰まった後の後始末（表の W1）。
     ///
     /// 断る箇所は2つに分かれる。**既に列にあるジョブ**は `run_writer` の `stalled` が、
-    /// **これから `send_command` に入る呼び出し**はここで立てる `Closed` が断る。
-    ///
-    /// やることは、詰まった印を立てる・`Closed` を立てる・積み置きを捨てるの3つ。
+    /// **これから手順に入る呼び出し**はここで閉じた状態機械が断る。
     ///
     /// **このプロセスには二度と書けない。** 詰まった書き込みのタスクが stdin の
     /// ロックを握ったままになる。落とすことはできる（`kill_engine` は stdin の
     /// ロックを待たない）ので、復帰は落として新しいプロセスを起動し直すこと。
-    async fn fail_writes(&self) {
-        self.stalled
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        set_ready_state(&self.ready, ReadyState::Closed);
+    fn fail_writes(&self) {
+        let ((), _nothing_written) = self.step(|core| core.machine.on_write_stalled());
         log::error!(
             target: LOGT,
             "write: stalled; refusing every later write on this process (→ F-26)"
         );
-        self.discard_pending(DropReason::StdinStalled).await;
     }
 
-    /// 積み置きを捨てる。**捨てるものがあったら必ず1行残す。**
-    ///
-    /// 積んだ時点で呼び出し側には `Ok` が返っているので、ここで黙ると
-    /// 「送ったつもりのコマンドがどこにも書かれない」が痕跡なしに起きる
-    async fn discard_pending(&self, why: DropReason) {
-        let dropped = {
-            let mut pending = self.pending.lock().await;
-            pending.draining = false;
-            std::mem::take(&mut pending.queue)
+    /// 届かなくなった理由（`usi_machine` の `GONE` / `CLOSED` / `STALLED`）
+    fn cannot_reach(&self) -> EngineError {
+        lock(&self.core).machine.cannot_reach()
+    }
+
+    /// 書き込みの列へ入れて、書けたかを待つ。状態機械を通さない（詰まりを作るテストだけが使う）
+    #[cfg(test)]
+    async fn write(&self, command: GuiCommand) -> Result<(), EngineError> {
+        let written = Written {
+            replies: vec![self.enqueue_write(command)],
+            kill: false,
         };
-        for cmd in &dropped {
-            log::warn!(target: LOGT, "{}", dropped_line(cmd, why));
-        }
-    }
-
-    async fn remove_listener(&self, name: &str) {
-        self.listeners.write().await.remove(name);
+        self.finish(written).await
     }
 }
 
-impl UsiProtocol {
-    pub fn new(child: EngineChild) -> Self {
-        let (writer, jobs) = mpsc::unbounded_channel();
-        tokio::spawn(run_writer(child.take_writer(), jobs));
-
-        Self {
-            child,
-            link: Link {
-                listeners: Arc::new(RwLock::new(HashMap::new())),
-                stalled: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-                ready: Arc::new(watch::channel(ReadyState::Waiting).0),
-                pending: Arc::new(Mutex::new(Pending {
-                    generation: 0,
-                    queue: VecDeque::new(),
-                    draining: false,
-                })),
-                writer,
-            },
-            state: Arc::new(RwLock::new(ProtocolState {
-                engine_info: None,
-                last_command: None,
-            })),
-            listen_active: Arc::new(Mutex::new(false)),
-            declared: Arc::new(std::sync::Mutex::new(DeclaredOptions::default())),
-            info_gate: Arc::new(Mutex::new(())),
-            killed: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            runtime_handle: tokio::runtime::Handle::current(),
-            init_task: Arc::new(Mutex::new(None)),
-            init_cancel: Arc::new(Mutex::new(None)),
-            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
-        }
+impl Core {
+    fn wait_named(&mut self, ticket: Ticket) -> oneshot::Receiver<Result<EngineInfo, EngineError>> {
+        let (tx, rx) = oneshot::channel();
+        self.waiters.insert(ticket, Waiter::Named(tx));
+        rx
     }
 
-    /// リスナー登録。**呼べるのはこの段の中だけ**（手順「探索」などの手順の関数）。
-    /// 外の呼び手は手順を通す。外で登録すると、どの探索の `bestmove` かを決める判断が
-    /// 呼び手ごとに写される（ADR-0016 の D-1）
-    async fn register_listener(
-        &self,
-        name: String,
-        sender: mpsc::UnboundedSender<EngineCommand>,
-    ) -> Result<(), EngineError> {
-        // 出力が終わったプロセスには登録させない。
-        //
-        // `listen_active` は `true` のまま戻らず、読み取りは二度と始まらない
-        // （`EngineChild::read_stdout` は1回きり）。
-        // 入れても誰も配らないので、`raw_rx.recv()` が永久に返らない待ちができる
-        let state: ReadyState = *self.link.ready.borrow();
-        if state == ReadyState::Closed {
-            return Err(self.cannot_reach());
-        }
-
-        self.link
-            .listeners
-            .write()
-            .await
-            .insert(name.clone(), sender);
-
-        // await をまたがないように「必要かどうか」だけ決める
-        let need_start = {
-            let mut g = self.listen_active.lock().await;
-            if *g {
-                false
-            } else {
-                *g = true;
-                true
-            }
-        };
-
-        if need_start {
-            if let Err(e) = self.start_listening().await {
-                // start_listening が失敗したらフラグを戻す
-                let mut g = self.listen_active.lock().await;
-                *g = false;
-                return Err(e);
-            }
-        }
-
-        Ok(())
+    fn wait_prepared(
+        &mut self,
+        ticket: Ticket,
+    ) -> oneshot::Receiver<Result<Vec<String>, EngineError>> {
+        let (tx, rx) = oneshot::channel();
+        self.waiters.insert(ticket, Waiter::Prepared(tx));
+        rx
     }
 
-    /// リスナー削除。登録と同じく、この段の中だけ
-    async fn remove_listener(&self, name: &str) {
-        self.link.remove_listener(name).await;
+    fn wait_checked(
+        &mut self,
+        ticket: Ticket,
+    ) -> oneshot::Receiver<Result<Vec<String>, EngineError>> {
+        let (tx, rx) = oneshot::channel();
+        self.waiters.insert(ticket, Waiter::Checked(tx));
+        rx
     }
 
-    /// リスニング開始(内部用)
-    async fn start_listening(&self) -> Result<(), EngineError> {
-        log::debug!(target: LOGT, "start_listening: begin");
+    fn wait_stopped(&mut self, ticket: Ticket) -> oneshot::Receiver<Result<(), EngineError>> {
+        let (tx, rx) = oneshot::channel();
+        self.waiters.insert(ticket, Waiter::Stopped(tx));
+        rx
+    }
+}
 
-        // 読み取りのタスクと配布の間をチャンネル1本で繋ぐ。
-        //
-        // 行ごとに `spawn` して配ると、**どのタスクが先に `send` するかが
-        // ランタイム任せ**になる。`id name` と `usiok` が入れ替わると
-        // `collect_engine_info` が `usiok` で抜けて名前が空になり、
-        // エンジンの起動が偶発的に失敗する。
-        //
-        // 読み取り側は `send` するだけで、`unbounded` なので詰まらない。
-        // ロックを待つのは配る側の1本に閉じる。
-        let (line_tx, mut line_rx) = mpsc::unbounded_channel::<EngineCommand>();
+/// 読み取りを始め、読んだ行を状態機械へ渡すタスクを起こす。
+///
+/// 読み取りのタスクと状態機械の間をチャンネル1本で繋ぐ。**行ごとに `spawn` しない**——
+/// どのタスクが先に状態機械へ渡すかがランタイム任せになり、`id name` と `usiok` が
+/// 入れ替わると名前の無い名乗りになる。読み取り側は `send` するだけで、`unbounded` なので詰まらない。
+///
+/// 渡すタスクは子プロセスを持たない `Shared` と `ChildDiagnostics` だけを握る。`EngineChild` を
+/// 渡すと、stdout が開いている間 Drop が起きず、捨てたプロセスが落ちない
+fn start_reading(child: &EngineChild, shared: &Arc<Shared>) {
+    let (line_tx, mut line_rx) = mpsc::unbounded_channel::<(String, Option<EngineCommand>)>();
 
-        // 解けなかった行は配らない（受け手は `EngineCommand` しか読まない）。
-        // **読み取りは止めない**——止めると、エンジンが生きたまま以後の出力が全部消える
-        let mut skipped = 0u64;
-        let mut throttle = LogThrottle::new(SKIPPED_LINE_LOG_INTERVAL);
-        // 下の転送タスクへ流す。解けなかった行はログを間引いて捨てる
-        let mut forward = move |event: ReadEvent| match event {
-            ReadEvent::Line {
-                parsed: Some(cmd), ..
-            } => line_tx.send(cmd).is_ok(),
-            ReadEvent::Line { parsed: None, raw } => {
+    // 解けなかった行も状態機械へ渡す（`option` 行は解けなくても宣言に入る）。
+    // **読み取りは止めない**——止めると、エンジンが生きたまま以後の出力が全部消える。
+    // 解けなかった数の記録は時計が要るので、状態機械ではなくここで間引く
+    let mut skipped = 0u64;
+    let mut throttle = LogThrottle::new(SKIPPED_LINE_LOG_INTERVAL);
+    let started = child.read_stdout(move |event| match event {
+        ReadEvent::Line { parsed, raw } => {
+            if parsed.is_none() {
                 skipped += 1;
                 if throttle.allow() {
                     log::debug!(
@@ -825,343 +463,87 @@ impl UsiProtocol {
                     );
                     skipped = 0;
                 }
-                true
             }
-            // 読み手が抜けると `line_tx` が落ち、下の転送タスクが後始末をする
-            ReadEvent::Eof => false,
-        };
-        let declared = Arc::clone(&self.declared);
-        let started = self.child.read_stdout(move |event| {
-            // `option` 行は `usi` crate の解析の成否に関係なくここで解く（理由は
-            // `option_line.rs` の冒頭）。判定はパーサの入口と同じ（語の区切りはタブも含む）
-            if let ReadEvent::Line { raw, .. } = &event {
-                lock_declared(&declared).note(raw);
-            }
-            forward(event)
-        });
-
-        // **始められなかったら転送タスクを立てない。** 立てると、落ちた `line_tx` を
-        // 「出力が終わった」と読んで生きているエンジンを `Closed` にする
-        if !started {
-            log::debug!(target: LOGT, "start_listening: already listening");
-            return Err(EngineError::AlreadyListening(
-                "the engine output is already being read".to_string(),
-            ));
+            line_tx.send((raw, parsed)).is_ok()
         }
+        // 読み手が抜けると `line_tx` が落ち、下のタスクが後始末をする
+        ReadEvent::Eof => false,
+    });
 
-        let listeners = Arc::clone(&self.link.listeners);
-        let ready = Arc::clone(&self.link.ready);
-        // 落とす関数を持たない取っ手を渡す。`EngineChild` を渡すと、このタスクが生きている
-        // 間（stdout が開いている間ずっと）Drop が起きず、捨てたプロセスが落ちない
-        let diagnostics = self.child.diagnostics();
-        let killed = Arc::clone(&self.killed);
-        self.runtime_handle.spawn(async move {
-            while let Some(cmd) = line_rx.recv().await {
-                Self::broadcast_to_listeners(Arc::clone(&listeners), cmd).await;
-            }
-
-            // 読み取りが終わった。**溜まっていた行を配り切ってから**
-            // 「もう来ない」を届ける。落とさないと `raw_rx.recv()` が永久に
-            // 返らず、対局は手番のまま無音で止まる。
-            //
-            // 読み取りの終わり方は1つではない（stdout の EOF、読み取り自体の失敗、
-            // 受け手が居なくなった）。**どの終わり方でも `line_tx` は落ちる**ので、
-            // ここに置けば終わり方を数え上げずに済む。
-            //
-            // hook の中で落とすと、まだ配っていない行を捨てることになる。
-            // `bestmove` を書いた直後に終了するエンジンでは、その手が
-            // 誰にも届かないまま「応答しない」と判定される。
-            listeners.write().await.clear();
-
-            // `readyok` を待っている側にも届ける。listeners を落とすだけでは
-            // `become_ready` は watch を見ているので気付かず、上限まで待つ
-            set_ready_state(&ready, ReadyState::Closed);
-
-            if killed.load(std::sync::atomic::Ordering::Relaxed) {
-                log::debug!(target: LOGT, "listen: engine output ended after the kill");
-                return;
-            }
-            // **原因を残す。** 解析や対局の途中で落ちたエンジンの手掛かりは、
-            // 直近の出力（assert の文言は stderr に出る）と終わり方しか無い
-            log::warn!(
-                target: LOGT,
-                "{}",
-                listen_ended_line(&diagnostics, SETTLE_OUTPUT).await
-            );
-        });
-
-        Ok(())
+    let shared = Arc::clone(shared);
+    if !started {
+        // 読み取りを始めるのはここだけなので起きない。起きたら、待つ者が上限まで待たないように閉じる
+        log::error!(target: LOGT, "listen: the engine output was already being read");
+        let ((), _nothing_written) = shared.step(|core| core.machine.on_output_end());
+        return;
     }
 
-    /// エンジンの出力1行を、購読している全員へ配る。
-    ///
-    /// 送れなかった相手は表から外す。`UnboundedSender::send` が失敗するのは
-    /// 受け手が落ちたときだけなので、外して困ることはない。
-    async fn broadcast_to_listeners(
-        listeners: Arc<RwLock<HashMap<String, mpsc::UnboundedSender<EngineCommand>>>>,
-        cmd: EngineCommand,
-    ) {
-        // **読み取りロックを握ったまま配る。** ループの中は同期の `send` だけで
-        // await 点が無く、手放す理由が無い。手放すために表を写すと、
-        // **エンジンの出力1行ごと**に表を丸ごと clone することになる
-        // （深い読み筋を吐くエンジンでは毎秒数十回）
-        let mut gone = Vec::new();
-        {
-            let guard = listeners.read().await;
-            for (name, sender) in guard.iter() {
-                if sender.send(cmd.clone()).is_err() {
-                    gone.push(name.clone());
-                }
-            }
+    let diagnostics = child.diagnostics();
+    tokio::spawn(async move {
+        while let Some((raw, parsed)) = line_rx.recv().await {
+            let ((), _nothing_written) = shared.step(|core| core.machine.on_line(&raw, parsed));
         }
 
-        if gone.is_empty() {
+        // 読み取りが終わった。**溜まっていた行を渡し切ってから**「もう来ない」を渡す。
+        // 読み取りの終わり方は1つではない（stdout の EOF、読み取り自体の失敗）が、
+        // **どの終わり方でも `line_tx` は落ちる**ので、ここに置けば終わり方を数え上げずに済む。
+        // hook の中で渡すと、まだ渡していない行（`bestmove` を書いた直後に終わるエンジンの手）を捨てる
+        let (end, _nothing_written) = shared.step(|core| {
+            core.machine.on_output_end();
+            core.machine.end()
+        });
+
+        if end == Some(EngineEnd::Requested) {
+            log::debug!(target: LOGT, "listen: engine output ended after the kill");
             return;
         }
-        let mut guard = listeners.write().await;
-        for name in gone {
-            guard.remove(&name);
+        // **原因を残す。** 解析や対局の途中で落ちたエンジンの手掛かりは、
+        // 直近の出力（assert の文言は stderr に出る）と終わり方しか無い
+        log::warn!(
+            target: LOGT,
+            "{}",
+            listen_ended_line(&diagnostics, SETTLE_OUTPUT).await
+        );
+    });
+}
+
+impl UsiProtocol {
+    /// 起こしたプロセスを載せ、書き込みの列と読み取りを始める（状態機械は Q0）
+    pub fn new(child: EngineChild) -> Self {
+        let (writer, jobs) = mpsc::unbounded_channel();
+        tokio::spawn(run_writer(child.take_writer(), jobs));
+
+        let shared = Arc::new(Shared {
+            core: Mutex::new(Core {
+                machine: UsiMachine::new(),
+                waiters: HashMap::new(),
+                search: None,
+            }),
+            writer,
+            status: watch::channel(Status {
+                end: None,
+                searching: false,
+            })
+            .0,
+        });
+        start_reading(&child, &shared);
+
+        Self {
+            child,
+            shared,
+            runtime_handle: tokio::runtime::Handle::current(),
         }
-    }
-
-    /// コマンドを送る。
-    ///
-    /// **`Ok` は受理であって「書けた」ではない。** `readyok` 待ちや掃きの最中は
-    /// 積むだけで返る。積んだぶんは、次の `isready` / `kill_engine` / 掃きの失敗で
-    /// 1行も書かれずに消えることがある（そのときログに1行ずつ残る）。
-    ///
-    /// # エラー
-    ///
-    /// 呼び出し側の次の手が違うので、`EngineError` のどれが返るかを挙げる。
-    /// **数は書かない**（`isready` の経路が増えるたびにずれる）。
-    ///
-    /// - `CommunicationFailed`: **2つの意味がある。** 届く先が無い（出力が終わったか、
-    ///   書き込みが詰まった。文言で分かれる → `cannot_reach`）ならプロセスを
-    ///   起動し直すしかない。積み置きが上限（`PENDING_LIMIT`）に達したのなら
-    ///   プロセスは生きていて `readyok` を待っているだけで、**やり直せる**。
-    ///   文言で見分けること
-    /// - `Timeout`: 上限内に書き終わらなかった。**後から届く可能性がある**。
-    ///   ただしこの時点で `fail_writes` が走っているので、後続は全部断られる
-    /// - `NotInitialized`: 送る先が無い。列が消えたか、`kill_engine` が
-    ///   stdin を閉じた後に書き込みが列を抜けた
-    /// - `AlreadyListening`: `isready` のときだけ。読み取りが二重に始まった。
-    ///   プロセスは生きているので落とさないこと
-    pub async fn send_command(&self, command: &GuiCommand) -> Result<(), EngineError> {
-        // コマンド履歴更新
-        self.state.write().await.last_command = Some(cmd_summary(command));
-
-        // **判断は `dispatch_for` が全部持つ。** 本文で条件を足すと、
-        // 足したぶんだけ写像のテストが当たらない範囲が増える。
-        //
-        // `pending` のロックを取ってから引くのは、`draining` と `ReadyState` を
-        // **同じ瞬間の値**で見るため。別々に読むと、取るまでの間に
-        // `readyok` が着地して flush が掃き終わり、もう誰も掃かないキューへ
-        // 積んで `Ok` を返すことになる。
-        //
-        // `IsReady` もここを通す。手前で分岐すると `Refuse` を誰も聞かない
-        {
-            let mut pending = self.link.pending.lock().await;
-            // `watch::Ref` を `match` のスクルーティニに置かない。
-            // 置くと全アームの間じゅう読み取りロックを握り、`set_ready_state` が待つ
-            let state: ReadyState = *self.link.ready.borrow();
-            match dispatch_for(state, pending.draining, command) {
-                Dispatch::Refuse => return Err(self.cannot_reach()),
-                Dispatch::Queue => return push_pending(&mut pending, command),
-                Dispatch::Send => {}
-            }
-        }
-
-        if matches!(command, GuiCommand::IsReady) {
-            return self.start_ready_watch_and_send().await;
-        }
-
-        self.link.write(command.clone()).await
     }
 
     /// 届かなくなった理由を文言にする。
     ///
-    /// **`Closed` は複数の理由で立つ**（`set_ready_state(_, Closed)` の呼び出しを見ること）。
-    /// 読み取りが終わった、書き込みが詰まった、こちらが落とした。
-    /// 利用者に見せる説明も次の手も違うので、`Closed` の一語に潰さない。
+    /// **閉じる理由は1つではない**（読み取りが終わった、書き込みが詰まった、こちらが落とした）。
+    /// 利用者に見せる説明も次の手も違うので、1つの文言に潰さない（`usi_machine` の `closed_error`）
     pub(crate) fn cannot_reach(&self) -> EngineError {
-        use std::sync::atomic::Ordering::Relaxed;
-
-        EngineError::CommunicationFailed(
-            cannot_reach_text(self.killed.load(Relaxed), self.link.stalled.load(Relaxed))
-                .to_string()
-                .into(),
-        )
+        self.shared.cannot_reach()
     }
 
-    /// 探索を止める。**「書いた」と「書く必要が無かった」を分けて返す。**
-    ///
-    /// `readyok` を待っている間は `go` が積まれて `stop` は素通りするので、
-    /// そのまま書くと順序が入れ替わる（`stop` が先に届き、まだ探索していない
-    /// エンジンがそれを無視し、後から flush された `go` で
-    /// **利用者が止めたはずの探索が始まる**）。
-    ///
-    /// 積み置きの `go` を落とせたときに `Ok(())` を返すと、待ち手が
-    /// 「この後 `bestmove` が来る」と読んで永久に待つ。だから戻り値で分ける。
-    pub async fn stop(&self) -> Result<StopEffect, EngineError> {
-        let state: ReadyState = *self.link.ready.borrow();
-        let draining = self.link.pending.lock().await.draining;
-        if dispatch_for(state, draining, &GuiCommand::Stop) == Dispatch::Refuse {
-            return Err(self.cannot_reach());
-        }
-
-        let cancelled = {
-            let mut pending = self.link.pending.lock().await;
-            cancel_queued_go(&mut pending.queue)
-        };
-        if cancelled > 0 {
-            log::info!(target: LOGT, "stop: cancelled {cancelled} queued go");
-            return Ok(StopEffect::CancelledQueued);
-        }
-
-        self.send_command(&GuiCommand::Stop).await?;
-        Ok(StopEffect::Written)
-    }
-
-    async fn start_ready_watch_and_send(&self) -> Result<(), EngineError> {
-        self.abort_init().await;
-
-        let gen = self.begin_generation().await;
-
-        // `send_command` も `dispatch_for` で断っているが、**判定をここにも置く。**
-        // 呼び出し側の順序に依存させない。手前に分岐が1つ増えるだけで穴が開く
-        if set_ready_state(&self.link.ready, ReadyState::Waiting) == ReadyState::Closed {
-            return Err(self.cannot_reach());
-        }
-
-        let cancel = CancellationToken::new();
-        *self.init_cancel.lock().await = Some(cancel.clone());
-
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let listener_name = format!("ready_wait_{}_{}", gen, uuid::Uuid::new_v4());
-        self.register_listener(listener_name.clone(), tx).await?;
-
-        self.link.write(GuiCommand::IsReady).await?;
-
-        // 非ブロッキングに readyok 待ち。**子プロセスを持たない `Link` だけを渡す**
-        // （このタスクは `readyok` を返さないエンジンでは抜けない → `Link` の doc）
-        let link = self.link.clone();
-        let handle = tokio::spawn(async move {
-            let mut ready = false;
-
-            loop {
-                tokio::select! {
-                    _ = cancel.cancelled() => {
-                        // キャンセルされた
-                        break;
-                    }
-                    msg = rx.recv() => {
-                        match msg {
-                            Some(EngineCommand::ReadyOk) => { ready = true; break; }
-                            Some(_) => {}
-                            None => { break; }
-                        }
-                    }
-                }
-            }
-
-            link.remove_listener(&listener_name).await;
-
-            // **世代の確認と `Ready` の書き込みを同じロック区間に入れる。**
-            // 確認だけして手放すと、その隙に次の `isready` が世代を上げて
-            // `Waiting` に落とせる。`abort()` は次の await 点までしか効かないので、
-            // 確認を通過済みのこのタスクは構わず `Ready` を書く。
-            // 結果、`readyok` が返っていないエンジンに対して `become_ready` が
-            // 即 `Ok` を返し、まだ評価関数を読んでいる相手へ `position` / `go` が流れる
-            let mut pending = link.pending.lock().await;
-            if pending.generation != gen {
-                return;
-            }
-
-            if ready {
-                set_ready_state(&link.ready, ReadyState::Ready);
-                log::info!(target: LOGT, "ready: ok gen={}", gen);
-
-                // **掃き始めから掃き終わりまで印を立てる。** 立てないと、
-                // 1件書くごとの待ちの隙に直書きが列へ入り、
-                // `position(旧) → position(新) → go(旧)` の順で届く
-                pending.draining = true;
-                drop(pending);
-
-                // **キューをローカルへ移さない。** 移すと、書いている途中に
-                // `abort_init` が入ったときに `pending.queue` が空なので
-                // `discard_pending` が何も見つけられず、まだ書いていないぶんが
-                // 1行も残さずに消える（積んだ側には `Ok` が返っている）。
-                // 1件ずつ取り出して、残りは常に `pending` の側に置いておく
-                loop {
-                    // **キューから引くのと書き込みの列へ入れるのを、同じロック区間で。**
-                    // 離すと、その隙に走った `stop` が `cancel_queued_go` で
-                    // 空のキューを見て 0 を返し、取り出し済みの `go` を追い越して
-                    // ワイヤへ出る。`enqueue_write` は await 点を持たないので、
-                    // ロックを握ったまま呼べる
-                    let next = {
-                        let mut pending = link.pending.lock().await;
-                        if pending.generation != gen {
-                            // 次の `isready` が来た。残りは `begin_generation` が残す。
-                            // 印はそちらが降ろす
-                            break;
-                        }
-                        match pending.queue.pop_front() {
-                            Some(cmd) => Some((cmd.clone(), link.enqueue_write(cmd))),
-                            None => {
-                                // 掃き終わり。**印を降ろすのは列が空になった瞬間**で、
-                                // 同じロック区間でないと最後の1件を追い越される
-                                pending.draining = false;
-                                None
-                            }
-                        }
-                    };
-                    let Some((cmd, enqueued)) = next else { break };
-
-                    let written = match enqueued {
-                        Ok(rx) => link.await_write(rx).await,
-                        Err(e) => Err(e),
-                    };
-
-                    if let Err(e) = written {
-                        log::warn!(
-                            target: LOGT,
-                            "ready: flush failed cmd={} err={}",
-                            cmd_summary(&cmd),
-                            e
-                        );
-                        let rest = {
-                            let mut pending = link.pending.lock().await;
-                            // **自分の世代のキューしか触らない。** 世代が
-                            // 変わっていたら、そこにあるのは次の世代の積み置き
-                            if pending.generation != gen {
-                                break;
-                            }
-                            pending.draining = false;
-                            std::mem::take(&mut pending.queue)
-                        };
-                        report_dropped(&cmd, &rest);
-                        break;
-                    }
-                }
-            } else {
-                log::warn!(target: LOGT, "ready: ended without readyok gen={}", gen);
-                let q = std::mem::take(&mut pending.queue);
-                drop(pending);
-                for cmd in &q {
-                    log::warn!(
-                        target: LOGT,
-                        "{}",
-                        dropped_line(cmd, DropReason::NoReadyok)
-                    );
-                }
-            }
-        });
-
-        *self.init_task.lock().await = Some(handle);
-        Ok(())
-    }
-
-    /// 手順「名乗り」。`usi` を送り `usiok` までを読み取る。2回目以降はキャッシュを返す。
+    /// 手順「名乗り」。`usi` を送り `usiok` までを読み取る。2回目以降は覚えた答えを返す。
     ///
     /// 名前に取得の接頭辞を付けないのは、覚えた値を返すだけでなく、初回はエンジンと往復するため。
     ///
@@ -1173,145 +555,64 @@ impl UsiProtocol {
     /// `TIMED_OUT`（`engine/types.rs`）で始まる文言は「遅かっただけで設定は正しい」
     /// という意味に受け手が使う（F-27）ので、ここが名乗ると**パスを直す導線が出ない**。
     ///
-    /// **同時に呼ぶと1本ずつ通す**（`info_gate`）。後の呼び手は先の呼び手が返るまで待ち、
-    /// その待ちは `timeout` に含まれない。先の呼び手が成功していれば、後の呼び手はキャッシュを返す。
+    /// **同時に呼ぶと、後の呼び手は `usi` を書き直さずに同じ答えを待つ**（状態機械の (Q0, R1)）。
+    /// 上限はそれぞれの呼び手が自分の `timeout` で持つ
     pub async fn identify(&self, timeout: Duration) -> Result<EngineInfo, EngineError> {
-        // 1本ずつ通す（`info_gate` の doc）。ゲートを取ってからキャッシュを見直す
-        let _gate = self.info_gate.lock().await;
-        {
-            let state = self.state.read().await;
-            if let Some(info) = &state.engine_info {
-                return Ok(info.clone());
-            }
-        }
-
-        let (tx, rx) = mpsc::unbounded_channel();
-        let listener_name = format!("info_collection_{}", uuid::Uuid::new_v4());
-
-        // 読み取りを始める（`register_listener`）前に開く。後に開くと、`usi` を待たずに
-        // 出力するエンジンの `option` 行を、開く前に読んで捨てることがある
-        lock_declared(&self.declared).begin();
-        if let Err(e) = self.register_listener(listener_name.clone(), tx).await {
-            lock_declared(&self.declared).finish();
-            return Err(e);
-        }
-        let sent = self.send_command(&GuiCommand::Usi).await;
-        let collected = match sent {
-            Ok(()) => tokio::time::timeout(timeout, Self::collect_engine_info(rx))
-                .await
-                .unwrap_or(Err(EngineError::StartupFailed(
-                    StartupReason::NoUsiOk { waited: timeout }.into(),
-                ))),
-            Err(e) => Err(e),
-        };
-
-        // 打ち切ったときもリスナーを外す。残すと、以降の `info` が
-        // 誰も読まないチャンネルへ配られ続ける。
-        self.remove_listener(&listener_name).await;
-        // 取り出して閉じる。`usiok` が来なかった回（失敗した回）も閉じないと、
-        // 以後の出力の `option` 行を溜め続ける
-        let declared = lock_declared(&self.declared).finish();
-
-        let (name, author) = match collected {
-            Ok(id) => id,
+        let (asked, written) = self.shared.step(|core| {
+            Ok::<_, EngineError>(match core.machine.identify()? {
+                Asked::Done(info) => Asked::Done(info),
+                Asked::Waiting(ticket) => Asked::Waiting(core.wait_named(ticket)),
+            })
+        });
+        let answer = match asked {
+            Ok(Asked::Done(info)) => return Ok(info),
+            Ok(Asked::Waiting(answer)) => answer,
             Err(e) => return Err(self.with_recent_output(e).await),
         };
-        declared.log_problems();
-        let engine_info = EngineInfo {
-            name,
-            author,
-            options: declared.options,
+        if let Err(e) = self.shared.finish(written).await {
+            return Err(self.with_recent_output(e).await);
+        }
+        let answered = match tokio::time::timeout(timeout, answer).await {
+            Ok(Ok(answered)) => answered,
+            Ok(Err(_)) => Err(self.cannot_reach()),
+            Err(_) => Err(EngineError::StartupFailed(
+                StartupReason::NoUsiOk { waited: timeout }.into(),
+            )),
         };
-        self.state.write().await.engine_info = Some(engine_info.clone());
-
-        Ok(engine_info)
-    }
-
-    /// `usiok` までの `id name` / `id author` を集める。オプションの定義は、読み取りの hook
-    /// （`start_listening` の `read_stdout` に渡すもの）が `declared` に溜める。
-    /// 解き方は `option_line::parse_option_line`
-    async fn collect_engine_info(
-        mut rx: mpsc::UnboundedReceiver<EngineCommand>,
-    ) -> Result<(String, String), EngineError> {
-        let mut name = String::new();
-        let mut author = String::new();
-        let mut saw_usiok = false;
-
-        while let Some(cmd) = rx.recv().await {
-            match cmd {
-                EngineCommand::Id(IdParams::Name(n)) => name = n,
-                EngineCommand::Id(IdParams::Author(a)) => author = a,
-                EngineCommand::UsiOk => {
-                    saw_usiok = true;
-                    break;
-                }
-                _ => {} // 他のコマンドは無視（高頻度でくる可能性）
-            }
+        match answered {
+            Ok(info) => Ok(info),
+            Err(e) => Err(self.with_recent_output(e).await),
         }
-
-        if name.is_empty() {
-            // 出力が終わったのか、`usiok` までに `id name` が無かったのかで
-            // 呼び出し側の対処が違う。潰さない
-            return Err(if saw_usiok {
-                EngineError::StartupFailed(StartupReason::NoIdName.into())
-            } else {
-                EngineError::CommunicationFailed("engine output ended before `usiok`".into())
-            });
-        }
-
-        Ok((name, author))
     }
 
     /// 手順「準備」。`setoption` を並べた順に送り、`isready` を必ず送って `readyok` を待つ。
     /// 返すのは、その間にエンジンが出した `info string` の文（定跡を読めたかを
     /// `binding::book_load_warning` が判定する）。
     ///
-    /// - `deadline`: 全体の締切。`setoption` を1件送るごとに残りを見る。`None` なら締切なし
+    /// 準備済みでも `isready` を送る。`setoption` を送った後は、評価関数や定跡を読み直させるために
+    /// `isready` が要る（やねうら王はそこで読む）。準備済みを理由に飛ばすと、送った設定が効かない。
+    ///
+    /// - `deadline`: 全体の締切。`setoption` を送る前と `readyok` を待つ前に残りを見る。`None` なら締切なし
     /// - `ready_limit`: `readyok` を待つ上限。締切の残りと小さいほうを使う。`None` なら上限なし
-    ///   （検討は、DNN 系の初回の読み込みに上限を置けないので `None` を渡す）
+    ///   （検討は、DNN 系の初回の読み込みに上限を置けないので `None` を渡す）。
+    ///   **上限は書き込みを渡してから数える。** 締切から時間を借りて呼ぶ側（対局の `START_TIMEOUT`）で、
+    ///   書き込みぶんが締切の外に出ないように
     ///
     /// **並べ替えない。** 値の解釈が前の `setoption` に依存するエンジンがあるので、順は呼び手が決める。
     /// 値の検査（件数・長さ・行を壊す文字）は呼び手の段（`setup::validate_options`）が先に済ませる。
     /// 送る途中や `readyok` の前にエンジンが落ちたら、直近の出力を添えて返す。
+    /// 待っている最中に `kill_engine` されたら `Cancelled` で返る。
     ///
-    /// 途中で future を捨てても状態は残らない。張った受け手は、受け側が落ちたことを
-    /// 次の行を配るときに見て外れる（`broadcast_to_listeners`）
+    /// 途中で future を捨てても、状態機械は `readyok` を待ったまま残る（状態機械の (Q1, L4) で待機へ移る）
     pub async fn prepare(
         &self,
         options: &[SetOptionValue],
         deadline: Option<std::time::Instant>,
         ready_limit: Option<Duration>,
     ) -> Result<Vec<String>, EngineError> {
-        // 送る前に張る。`setoption` に答えて出す行も、`readyok` までの行も取りこぼさない
-        let (tx, mut rx) = mpsc::unbounded_channel();
-        let listener = format!("prepare_{}", uuid::Uuid::new_v4());
-        if let Err(e) = self.register_listener(listener.clone(), tx).await {
-            return Err(self.with_recent_output(e).await);
-        }
-        let ready = self
-            .send_options_and_wait(options, deadline, ready_limit)
-            .await;
-        self.remove_listener(&listener).await;
-        ready?;
-        // `readyok` より前の行は、`readyok` を配る前に同じ配り手が配り終えている
-        Ok(info_strings_received(&mut rx))
-    }
-
-    async fn send_options_and_wait(
-        &self,
-        options: &[SetOptionValue],
-        deadline: Option<std::time::Instant>,
-        ready_limit: Option<Duration>,
-    ) -> Result<(), EngineError> {
-        for SetOptionValue { name, value } in options {
-            if let Some(deadline) = deadline {
+        if let Some(deadline) = deadline {
+            if !options.is_empty() {
                 remaining(deadline, "the options were sent")?;
-            }
-            let sent = self
-                .send_command(&GuiCommand::SetOption(name.clone(), Some(value.clone())))
-                .await;
-            if let Err(e) = sent {
-                return Err(self.with_recent_output(e).await);
             }
         }
         let limit = match deadline {
@@ -1321,7 +622,57 @@ impl UsiProtocol {
             }
             None => ready_limit,
         };
-        self.become_ready(limit).await
+        let ready_deadline = limit.map(|limit| tokio::time::Instant::now() + limit);
+        // 線を壊す値は、状態機械へ頼む前に断る。頼んでから書き込みの列で断ると、
+        // 後ろの `setoption` と `isready` だけが線に出る
+        for SetOptionValue { name, value } in options {
+            refuse_breaking_field("an option name", name)?;
+            refuse_breaking_field("an option value", value)?;
+        }
+
+        let (asked, written) = self.shared.step(|core| {
+            let ticket = core.machine.prepare(options)?;
+            Ok::<_, EngineError>(core.wait_prepared(ticket))
+        });
+        let answer = match asked {
+            Ok(answer) => answer,
+            Err(e) => return Err(self.with_recent_output(e).await),
+        };
+        if let Err(e) = self.shared.finish(written).await {
+            return Err(self.with_recent_output(e).await);
+        }
+
+        let answered = match ready_deadline {
+            None => answer.await,
+            Some(ready_deadline) => {
+                // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
+                // 内側を1回 poll してから `Elapsed` を返すので、そのまま渡すと
+                // 「エンジンが `readyok` を返さなかった」で返る——**そのエンジンには
+                // 1ナノ秒も与えていない**のに、利用者は評価関数のパスを疑うことになる
+                let left = ready_deadline.saturating_duration_since(tokio::time::Instant::now());
+                if left.is_zero() {
+                    return Err(EngineError::Timeout(format!(
+                        "{TIMED_OUT} before waiting for readyok"
+                    )));
+                }
+                match tokio::time::timeout(left, answer).await {
+                    Ok(answered) => answered,
+                    Err(_) => {
+                        return Err(EngineError::Timeout(format!(
+                            "{TIMED_OUT} waiting for readyok"
+                        )))
+                    }
+                }
+            }
+        };
+        let texts = match answered {
+            Ok(texts) => texts,
+            Err(_) => Err(self.cannot_reach()),
+        };
+        match texts {
+            Ok(texts) => Ok(texts),
+            Err(e) => Err(self.with_recent_output(e).await),
+        }
     }
 
     /// 手順「値の確認」。`setoption` を1つ送り、続けて `usi` を送って `usiok` を待つ。
@@ -1330,149 +681,57 @@ impl UsiProtocol {
     ///
     /// **`isready` を使わない。** 評価関数の読み込みが走る。`usi` への答えはオプションの宣言を
     /// 伴うが、宣言は作り直さない（名乗りで覚えたものを使う）。値の解釈は呼び手が行う
-    /// （`setup::check_book_path_support`）。`readyok` の前に呼ぶ
+    /// （`setup::check_book_path_support`）。`readyok` の前に呼ぶ。
+    ///
+    /// `limit` までに答えなくても、状態機械は `usiok` を待ったまま残る。続けて準備（`prepare`）を
+    /// 頼めば、確認を諦めて準備へ進む（状態機械の (Q2c, R2)）
     pub async fn check_value(
         &self,
         name: &str,
         value: &str,
         limit: Duration,
     ) -> Result<Option<Vec<String>>, EngineError> {
-        let (tx, rx) = mpsc::unbounded_channel();
-        let listener = format!("check_value_{}", uuid::Uuid::new_v4());
-        self.register_listener(listener.clone(), tx).await?;
-        let sent = async {
-            self.send_command(&GuiCommand::SetOption(
-                name.to_string(),
-                Some(value.to_string()),
-            ))
-            .await?;
-            self.send_command(&GuiCommand::Usi).await
-        }
-        .await;
-        let answer = match sent {
-            Ok(()) => tokio::time::timeout(limit, info_strings_before_usiok(rx, name))
-                .await
-                .ok()
-                .transpose(),
-            Err(e) => Err(e),
+        // 線を壊す値は、状態機械へ頼む前に断る（`prepare` と同じ）
+        refuse_breaking_field("an option name", name)?;
+        refuse_breaking_field("an option value", value)?;
+        let (asked, written) = self.shared.step(|core| {
+            let ticket = core.machine.check_value(name, value)?;
+            Ok::<_, EngineError>(core.wait_checked(ticket))
+        });
+        let answer = match asked {
+            Ok(answer) => answer,
+            Err(e) => return Err(self.with_recent_output(e).await),
         };
-        self.remove_listener(&listener).await;
+        if let Err(e) = self.shared.finish(written).await {
+            return Err(self.with_recent_output(e).await);
+        }
+        let answered = match tokio::time::timeout(limit, answer).await {
+            Ok(Ok(answered)) => answered.map(Some),
+            Ok(Err(_)) => Err(self.cannot_reach()),
+            Err(_) => Ok(None),
+        };
         // 落ちたら直近の出力を添える（起動の他の段と同じ。原因は stderr にある）
-        match answer {
+        match answered {
             Ok(answer) => Ok(answer),
             Err(e) => Err(self.with_recent_output(e).await),
         }
     }
 
     /// 手順「新しい対局」。`usinewgame` を書く。待つのは書けたことだけ（USI は答えを持たない）。
-    /// 準備（`prepare`）の後に呼ぶ
+    /// 準備（`prepare`）の後に呼ぶ。`readyok` の前は積まずに断る（ADR-0016 決定3）
     pub async fn new_game(&self) -> Result<(), EngineError> {
-        self.send_command(&GuiCommand::UsiNewGame).await
+        let (asked, written) = self.shared.step(|core| core.machine.new_game());
+        asked?;
+        self.shared.finish(written).await
     }
 
     /// 手順「終局」。`gameover` を書く。待つのは書けたことだけ（USI は答えを持たない）。
     ///
-    /// **探索していないエンジンへ呼ぶ。** 探索中の `gameover` は USI が認めない。
-    /// いまは呼び手が守る（対局の `Activity`）
+    /// **探索していないエンジンへ呼ぶ。** 探索中・止め待ちの `gameover` は USI が認めないので、状態機械が断る
     pub async fn game_over(&self, kind: GameOverKind) -> Result<(), EngineError> {
-        self.send_command(&GuiCommand::GameOver(kind)).await
-    }
-
-    /// `isready` を**必ず**送り、`readyok` が返るまで待つ。`limit` が `None` なら上限なし。
-    ///
-    /// 準備済みでも送る。`setoption` を送った後は、評価関数や定跡を読み直させるために
-    /// `isready` が要る（やねうら王はそこで読む）。準備済みを理由に飛ばすと、送った設定が効かない。
-    ///
-    /// 待たずに `position` / `go` を送っても `send_command` が ready まで積むが、
-    /// **積まれたまま返ってこないことを呼び出し側が知れない。** だから待つ関数を持つ。
-    ///
-    /// **`limit` は待ちだけでなく `isready` の書き込みも含む。** 待ちにしか掛けないと、
-    /// 締切から時間を借りて呼ぶ側（対局の `START_TIMEOUT`）で書き込みぶんが締切の外に出る。
-    /// **上限として使えるとは書かない。** 書き込みは列に入るので、先客が居ればその処理時間が
-    /// 足される（→ `WRITE_TIMEOUT`）。覆うのは「書き込みを渡してから `readyok` を待ち終わるまで」。
-    ///
-    /// 待っている最中に `kill_engine` されたら `Cancelled` で返る。
-    async fn become_ready(&self, limit: Option<Duration>) -> Result<(), EngineError> {
-        let deadline = limit.map(|limit| tokio::time::Instant::now() + limit);
-        // **`subscribe` は送る前に取る。** 後に回すと、送ってから購読するまでの間に
-        // 出力が終わった場合に `Closed` を見落として上限まで待つ
-        let mut rx = self.link.ready.subscribe();
-        self.send_command(&GuiCommand::IsReady).await?;
-
-        let wait = rx.wait_for(|state| *state != ReadyState::Waiting);
-        // `Ref` はこの式の中で読み捨てる。束ねたまま下の await を跨ぐと `Send` でなくなる
-        let settled: ReadyState = match deadline {
-            Some(deadline) => {
-                // **残りが尽きたら、待たずに締切として断る。** `timeout(ZERO, _)` は
-                // 内側を1回 poll してから `Elapsed` を返すので、そのまま渡すと
-                // 「エンジンが `readyok` を返さなかった」で返る——**そのエンジンには
-                // 1ナノ秒も与えていない**のに、利用者は評価関数のパスを疑うことになる
-                let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-                if left.is_zero() {
-                    return Err(EngineError::Timeout(format!(
-                        "{TIMED_OUT} before waiting for readyok"
-                    )));
-                }
-                *tokio::time::timeout(left, wait)
-                    .await
-                    .map_err(|_| EngineError::Timeout(format!("{TIMED_OUT} waiting for readyok")))?
-                    .map_err(|_| {
-                        EngineError::CommunicationFailed("ready channel closed".to_string().into())
-                    })?
-            }
-            None => *wait.await.map_err(|_| {
-                EngineError::CommunicationFailed("ready channel closed".to_string().into())
-            })?,
-        };
-
-        // **上限まで待たずに返る。** 出力が終わっているなら `readyok` は来ない
-        if settled == ReadyState::Closed {
-            if self.killed.load(std::sync::atomic::Ordering::Relaxed) {
-                return Err(EngineError::Cancelled(
-                    "the engine was stopped before it became ready".to_string(),
-                ));
-            }
-            return Err(self
-                .with_recent_output(EngineError::CommunicationFailed(
-                    "engine exited before it became ready".to_string().into(),
-                ))
-                .await);
-        }
-
-        Ok(())
-    }
-
-    async fn abort_init(&self) {
-        // cancel token
-        if let Some(tok) = self.init_cancel.lock().await.take() {
-            tok.cancel();
-        }
-        // join handle
-        if let Some(h) = self.init_task.lock().await.take() {
-            h.abort();
-        }
-
-        self.link
-            .discard_pending(DropReason::ReadyWaitAborted)
-            .await;
-    }
-
-    /// 世代を上げ、前の世代の積み置きを捨てる。**同じロックの中で行う。**
-    ///
-    /// 別々にすると、上げてから捨てるまでの間に積まれたぶんが、
-    /// 新しい世代のキューに前の世代のコマンドとして残る
-    async fn begin_generation(&self) -> u64 {
-        let mut pending = self.link.pending.lock().await;
-        pending.generation += 1;
-        pending.draining = false;
-        let gen = pending.generation;
-        let dropped = std::mem::take(&mut pending.queue);
-        drop(pending);
-
-        for cmd in &dropped {
-            log::warn!(target: LOGT, "{}", dropped_line(cmd, DropReason::NewIsready));
-        }
-        gen
+        let (asked, written) = self.shared.step(|core| core.machine.game_over(kind));
+        asked?;
+        self.shared.finish(written).await
     }
 
     /// エンジンが最後に出した行
@@ -1484,9 +743,7 @@ impl UsiProtocol {
     pub fn end_watch(&self) -> EngineEndWatch {
         EngineEndWatch {
             diagnostics: self.child.diagnostics(),
-            ready: self.link.ready.subscribe(),
-            killed: Arc::clone(&self.killed),
-            stalled: Arc::clone(&self.link.stalled),
+            status: self.shared.status.subscribe(),
         }
     }
 
@@ -1495,17 +752,17 @@ impl UsiProtocol {
     /// 戻り値を持たないのは、これが礼儀であって保証ではないため。
     /// 落とすことの保証は `kill_engine` の側にある。
     ///
-    /// **送る前に `killed` を立てる。** `quit` に答えて終わるエンジンは `kill_engine` より先に
+    /// **送る前に印を立てる**（状態機械の R10）。`quit` に答えて終わるエンジンは `kill_engine` より先に
     /// 出力を閉じるので、立てないと「自分で終わった」に見える（`EngineEndWatch`）
     pub async fn quit(&self) {
         log::debug!(target: LOGT, "quit: sending");
-        self.killed
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        let _ = self.send_command(&GuiCommand::Quit).await;
+        let ((), written) = self.shared.step(|core| core.machine.quit());
+        let _ = self.shared.finish(written).await;
     }
 
     /// プロセスを落とす。2度目以降は何もしない。
     ///
+    /// 先に状態機械を閉じ（理由は `Requested`）、待っている手順に答えを渡してから落とす。
     /// 落とすのは待ち手のタスクに頼むだけで（`EngineChild::kill_and_wait`）、stdin のロックも
     /// 書き込みの列も通らない。**書き込みが詰まっていても落とせる。**
     /// 待つのはプロセスが畳まれるのを見届けるところだけで、上限は `KILL_TIMEOUT`。
@@ -1514,18 +771,10 @@ impl UsiProtocol {
     /// （`EngineRegistry::terminate`）。
     pub async fn kill_engine(&self) {
         log::info!(target: LOGT, "kill_engine: start");
-
-        // **落とす前に `Closed` を立てる。** 立てないと、落とした後も `ready` が
-        // `Waiting` のまま残り、死んだプロセス向けに `position` / `go` が積める
-        // （`Ok` が返り、掃く者は永久に来ない）。
-        //
-        // 印も一緒に立てる。立てないと、以後の `Refuse` が
-        // 「エンジンの出力が終わった」と説明する（落としたのはこちら）
-        self.killed
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        set_ready_state(&self.link.ready, ReadyState::Closed);
-
-        self.abort_init().await;
+        let ((), written) = self.shared.step(|core| core.machine.kill());
+        if !written.kill {
+            return;
+        }
 
         match self.child.kill_and_wait(KILL_TIMEOUT).await {
             KillOutcome::Ended(exit) => {
@@ -1561,10 +810,9 @@ impl UsiProtocol {
             return error;
         }
         let diagnostics = self.child.diagnostics();
-        // stderr の読み切りを待つのは、出力が終わったかプロセスが終わった回だけ。
+        // stderr の読み切りを待つのは、閉じたかプロセスが終わった回だけ。
         // 生きているプロセスの stderr は待っても閉じず、待ちが起動の締切の外に出る
-        let ended =
-            *self.link.ready.borrow() == ReadyState::Closed || diagnostics.exit_now().is_some();
+        let ended = self.shared.status.borrow().end.is_some() || diagnostics.exit_now().is_some();
         if ended {
             diagnostics.settle_output(SETTLE_OUTPUT).await;
         }
@@ -1588,42 +836,6 @@ async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> S
         "listen: engine output ended exit={exit:?} last={}",
         summarize_recent(&diagnostics.recent_lines()).unwrap_or_default()
     )
-}
-
-/// 受け手に届き済みの行のうち、`info string` の文だけを着いた順に取り出す。待たない
-fn info_strings_received(rx: &mut mpsc::UnboundedReceiver<EngineCommand>) -> Vec<String> {
-    let mut texts = Vec::new();
-    while let Ok(command) = rx.try_recv() {
-        if let EngineCommand::Info(params) = command {
-            texts.extend(info_strings(params));
-        }
-    }
-    texts
-}
-
-/// `usiok` までに届いた `info string` の文。`usiok` の前に出力が終わったら `CommunicationFailed`
-async fn info_strings_before_usiok(
-    mut rx: mpsc::UnboundedReceiver<EngineCommand>,
-    name: &str,
-) -> Result<Vec<String>, EngineError> {
-    let mut texts = Vec::new();
-    while let Some(command) = rx.recv().await {
-        match command {
-            EngineCommand::Info(params) => texts.extend(info_strings(params)),
-            EngineCommand::UsiOk => return Ok(texts),
-            _ => {}
-        }
-    }
-    Err(EngineError::CommunicationFailed(
-        format!("engine output ended while checking the value of `{name}`").into(),
-    ))
-}
-
-fn info_strings(params: Vec<InfoParams>) -> impl Iterator<Item = String> {
-    params.into_iter().filter_map(|p| match p {
-        InfoParams::Text(text) => Some(text),
-        _ => None,
-    })
 }
 
 /// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
@@ -1672,108 +884,6 @@ fn summarize_recent(lines: &[(Source, String)]) -> Option<String> {
 /// 起動の失敗の理由に添える直近の行数。多いと理由の本文が読めなくなる
 const RECENT_IN_REASON: usize = 3;
 
-/// 読み取りが解いた `option` 行と、解けなかった行の記録。
-///
-/// **開いている間だけ溜める**（`begin` から、`usiok` の行を見た `close` か `finish` まで）。
-/// 閉じた後の `option` 行（`usiok` の後も吐き続けるエンジン）は誰も取り出さないので、溜めずに捨てる
-#[derive(Default)]
-struct DeclaredOptions {
-    open: bool,
-    options: Vec<crate::engine::types::EngineOption>,
-    /// 溜めた行の合計（バイト）。足すと `MAX_DECLARED_BYTES` を超える行は捨てる
-    /// （その後の短い行は入りうる）
-    bytes: usize,
-    /// 解けなかった行の数。上限なしで数える
-    rejected: usize,
-    /// 解けなかった最初の行と理由。エンジンが書いた文字列を含むので、理由ごと `shown` を通す
-    first_rejected: Option<String>,
-    /// 定義の数（`MAX_OPTIONS`）か合計の大きさ（`MAX_DECLARED_BYTES`）を超えて捨てた行の数
-    beyond_limit: usize,
-    /// `combo` の選択肢の上限を超えて捨てた数
-    dropped_vars: usize,
-}
-
-impl DeclaredOptions {
-    fn begin(&mut self) {
-        *self = Self {
-            open: true,
-            ..Self::default()
-        };
-    }
-
-    /// 読み取りの hook が1行ごとに渡す。`option` 行を溜め、`usiok` の行で閉じる
-    /// （後に続く `option` 行は `usi` への応答ではない）。判定はパーサの入口と同じで、
-    /// 語の区切りにタブも含む
-    fn note(&mut self, raw: &str) {
-        match raw.split_whitespace().next() {
-            Some("option") => self.record(raw),
-            Some("usiok") => self.close(),
-            _ => {}
-        }
-    }
-
-    /// 以後の行を溜めない。溜めたものは `finish` で取り出すまで残す
-    fn close(&mut self) {
-        self.open = false;
-    }
-
-    /// 溜めたものを取り出して閉じる
-    fn finish(&mut self) -> Self {
-        std::mem::take(self)
-    }
-
-    fn record(&mut self, raw: &str) {
-        if !self.open {
-            return;
-        }
-        if self.options.len() >= MAX_OPTIONS || self.bytes + raw.len() > MAX_DECLARED_BYTES {
-            self.beyond_limit += 1;
-            return;
-        }
-        match parse_option_line(raw) {
-            Ok(parsed) => {
-                self.bytes += raw.len();
-                self.dropped_vars += parsed.dropped_vars;
-                self.options.push(parsed.option);
-            }
-            Err(e) => {
-                if self.first_rejected.is_none() {
-                    let reason = shown(&format!("{e}: {raw}"), MAX_SUMMARY_LEN * 2);
-                    self.first_rejected = Some(reason);
-                }
-                self.rejected += 1;
-            }
-        }
-    }
-
-    /// 捨てたものがあれば1行残す。**利用者の画面には、捨てた定義が黙って欠ける**ので、
-    /// 開発者が気付ける手掛かりはここしか無い
-    fn log_problems(&self) {
-        if self.rejected == 0 && self.beyond_limit == 0 && self.dropped_vars == 0 {
-            return;
-        }
-        log::warn!(
-            target: LOGT,
-            "usi: dropped option lines: {} unreadable, {} beyond the limits, {} combo values; first: {}",
-            self.rejected,
-            self.beyond_limit,
-            self.dropped_vars,
-            self.first_rejected.as_deref().unwrap_or("")
-        );
-    }
-}
-
-/// 毒の入ったロックもそのまま取る。`record` の途中で panic して残りうるのは欄どうしの数の
-/// 食い違い（`bytes` だけ増えて `options` に無い、など）で、影響は `log_problems` の1行の
-/// 数字と、以後の予算の見積りに留まる。定義そのもの（`options` の各要素）が半端になることは無い
-fn lock_declared(
-    declared: &std::sync::Mutex<DeclaredOptions>,
-) -> std::sync::MutexGuard<'_, DeclaredOptions> {
-    declared
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
 /// 実プロセスで確かめるテストの台本（`child::script`）を、プロトコル層に包んで起こす関数。
 ///
 /// 上の段のテストはここを通す。`child` を直に使うと、テストのためだけに
@@ -1793,8 +903,6 @@ pub(crate) mod script {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::engine::logging::{LOG_FILE_BUDGET, MAX_SUMMARY_LEN};
 
     /// 線に出る直前の検査が、`contains_usi_breaking_char` とずれないこと。
     ///
@@ -1840,316 +948,6 @@ mod tests {
                 cmd_summary(&command)
             );
         }
-    }
-
-    /// コマンドの種類を**1回だけ**書く。
-    ///
-    /// 種類の一覧が手書きの写しだと、バリアントを足したときに片方だけ直せる。
-    /// 数が揃ってしまえば緑で通るので、忘れたことに誰も気付かない。
-    /// ここで宣言すれば `Kind::ALL` は列から生えるので、写しにならない。
-    macro_rules! kinds {
-        ($($name:ident),* $(,)?) => {
-            #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-            enum Kind { $($name),* }
-
-            impl Kind {
-                /// **手で書かない。** 上の列から生える
-                const ALL: &'static [Kind] = &[$(Kind::$name),*];
-            }
-        };
-    }
-
-    kinds! {
-        Usi,
-        IsReady,
-        SetOption,
-        UsiNewGame,
-        Position,
-        Go,
-        Stop,
-        Ponderhit,
-        GameOver,
-        Quit,
-    }
-
-    /// `GuiCommand` の全バリアントを `Kind` へ写す。
-    ///
-    /// **`_` を足さないこと。** `usi` crate がバリアントを増やしたら、
-    /// この `match` がコンパイルで落ちる。そこから `kinds!` の列へ辿り着く。
-    fn kind_of(cmd: &GuiCommand) -> Kind {
-        match cmd {
-            GuiCommand::Usi => Kind::Usi,
-            GuiCommand::IsReady => Kind::IsReady,
-            GuiCommand::SetOption(..) => Kind::SetOption,
-            GuiCommand::UsiNewGame => Kind::UsiNewGame,
-            GuiCommand::Position(_) => Kind::Position,
-            GuiCommand::Go(_) => Kind::Go,
-            GuiCommand::Stop => Kind::Stop,
-            GuiCommand::Ponderhit => Kind::Ponderhit,
-            GuiCommand::GameOver(_) => Kind::GameOver,
-            GuiCommand::Quit => Kind::Quit,
-        }
-    }
-
-    /// 写像のループが回すコマンド。**`GuiCommand` の全バリアントを1つずつ。**
-    ///
-    /// 述語（`requires_ready` / `bypasses_draining`）にバリアントを足したとき、
-    /// ここに無いと写像のループがその組み合わせを試さない。
-    /// 全部あることは `commands_covers_every_gui_command` が見る。
-    fn commands() -> Vec<GuiCommand> {
-        vec![
-            GuiCommand::Usi,
-            GuiCommand::IsReady,
-            GuiCommand::SetOption("name".to_string(), None),
-            GuiCommand::UsiNewGame,
-            GuiCommand::Position("sfen".to_string()),
-            GuiCommand::Go(usi::ThinkParams::new()),
-            GuiCommand::Stop,
-            GuiCommand::Ponderhit,
-            GuiCommand::GameOver(usi::GameOverKind::Win),
-            GuiCommand::Quit,
-        ]
-    }
-
-    /// `commands()` が `GuiCommand` の全バリアントを持つこと。
-    ///
-    /// 突き合わせる相手は `Kind::ALL`。**手書きの写しではない**ので、
-    /// `usi` crate のバリアントが増えたときは
-    /// 「`kind_of` がコンパイルで落ちる → `kinds!` に足す →
-    /// `Kind::ALL` が伸びる → ここが落ちる → `commands()` に足す」の順に辿れる。
-    ///
-    /// **辿れるのは、新しいバリアントを新しい `Kind` へ写したときだけ。**
-    /// 既存の `Kind` へ写すとコンパイルも通り、3つとも数が変わらず緑になる。
-    /// そこは型では止まらないので、`kind_of` が単射であること
-    /// （2つの `GuiCommand` が同じ `Kind` を指さないこと）を下で見る。
-    #[test]
-    fn commands_covers_every_gui_command() {
-        let mut kinds: Vec<Kind> = commands().iter().map(kind_of).collect();
-        kinds.sort_unstable();
-        let before = kinds.len();
-        kinds.dedup();
-
-        // `commands()` の各要素が別々の種類であること。同じ `Kind` へ2つ写ると、
-        // 片方の組み合わせが写像のループから静かに落ちる
-        assert_eq!(before, kinds.len(), "`commands()` に同じ種類が2つある");
-
-        let mut all = Kind::ALL.to_vec();
-        all.sort_unstable();
-
-        assert_eq!(kinds, all, "`commands()` が `GuiCommand` を網羅していない");
-    }
-
-    /// 写像の全域を回す。**行を手で選ばない。**
-    ///
-    /// 手書きの表にすると、書いた人が選んだ組み合わせしか当たらない。
-    /// `ReadyState` にバリアントを足したときも、`commands()` に足したときも、
-    /// このループが自動で広がる。
-    ///
-    /// 期待値は `expected_dispatch` が別の書き方で作る。**同じ式を写さない**
-    /// （写すと `dispatch_for` を壊しても両方が同じように壊れる）。
-    #[test]
-    fn the_dispatch_map_is_total() {
-        for &state in ReadyState::ALL {
-            for draining in [false, true] {
-                for cmd in commands() {
-                    assert_eq!(
-                        dispatch_for(state, draining, &cmd),
-                        expected_dispatch(state, draining, &cmd),
-                        "({state:?}, draining={draining}, {cmd})"
-                    );
-                }
-            }
-        }
-    }
-
-    /// `dispatch_for` と**独立に**期待値を組む。
-    ///
-    /// **述語（`requires_ready` / `bypasses_draining`）を呼ばない。** 呼ぶと、
-    /// 述語の中身を変えたときに両辺が同じだけ動いて絶対に落ちない。
-    /// ここではコマンドを `kind_of` の名前で数え上げる——
-    /// 述語にバリアントを足す変異は、この列挙と食い違って落ちる。
-    fn expected_dispatch(state: ReadyState, draining: bool, cmd: &GuiCommand) -> Dispatch {
-        if state == ReadyState::Closed {
-            return Dispatch::Refuse;
-        }
-
-        let kind = kind_of(cmd);
-
-        // 掃きの最中でも列の後ろへ回さないもの
-        if draining && !matches!(kind, Kind::Stop | Kind::IsReady | Kind::Quit) {
-            return Dispatch::Queue;
-        }
-        // `readyok` が返るまで送れないもの
-        if state == ReadyState::Waiting
-            && matches!(kind, Kind::UsiNewGame | Kind::Position | Kind::Go)
-        {
-            return Dispatch::Queue;
-        }
-        Dispatch::Send
-    }
-
-    /// 届かない理由を、印の組み合わせ4通り全部で確かめる。
-    ///
-    /// **`killed` と `stalled` が両方立つ組み合わせを外さないこと。**
-    /// 落としたプロセスは書き込みも詰まるので、この組み合わせは実際に起きる。
-    /// ここで `STALLED` が出ると、利用者が終了させた直後に
-    /// 「エンジンが stdin を読まなくなった」と説明することになる。
-    #[test]
-    fn who_stopped_the_engine_is_not_flattened_into_one_message() {
-        assert_eq!(cannot_reach_text(false, false), CLOSED);
-        assert_eq!(cannot_reach_text(false, true), STALLED);
-        assert_eq!(cannot_reach_text(true, false), GONE);
-        assert_eq!(cannot_reach_text(true, true), GONE);
-
-        // 3つとも別の文言であること。同じなら上の突き合わせは何も見ていない
-        let mut texts = [CLOSED, STALLED, GONE];
-        texts.sort_unstable();
-        let before = texts.len();
-        let mut unique = texts.to_vec();
-        unique.dedup();
-        assert_eq!(before, unique.len(), "届かない理由の文言が重なっている");
-    }
-
-    /// `Closed` から戻す経路を作らないこと。
-    ///
-    /// 戻せると `dispatch_for` の `Refuse` も `register_listener` の拒否も、
-    /// `isready` 1本で同時に無効になる。
-    #[test]
-    fn closed_absorbs_every_later_transition() {
-        for &requested in ReadyState::ALL {
-            assert_eq!(
-                next_ready_state(ReadyState::Closed, requested),
-                ReadyState::Closed,
-                "Closed から {requested:?} へ戻している"
-            );
-        }
-
-        // `Closed` 以外は要求どおりに動く
-        for &current in ReadyState::ALL {
-            if current == ReadyState::Closed {
-                continue;
-            }
-            for &requested in ReadyState::ALL {
-                assert_eq!(next_ready_state(current, requested), requested);
-            }
-        }
-    }
-
-    /// `stop` が積み置きの `go` を取り消すこと。
-    ///
-    /// `stop` は積まれないのに `go` は積まれるので、`readyok` を待っている間は
-    /// 順序が入れ替わる。取り消さないと、**利用者が止めた後に探索が始まる**
-    #[test]
-    fn a_stop_cancels_queued_go() {
-        let mut queue = VecDeque::from(vec![
-            GuiCommand::UsiNewGame,
-            GuiCommand::Position("sfen".to_string()),
-            GuiCommand::Go(usi::ThinkParams::new()),
-        ]);
-
-        assert_eq!(cancel_queued_go(&mut queue), 1);
-
-        // `position` は残す。送っただけでは何も起きず、次の `go` の前提になる
-        assert_eq!(queue.len(), 2);
-        assert!(matches!(queue[0], GuiCommand::UsiNewGame));
-        assert!(matches!(queue[1], GuiCommand::Position(_)));
-
-        // 2度目は何も落とさない
-        assert_eq!(cancel_queued_go(&mut queue), 0);
-    }
-
-    fn empty_pending() -> Pending {
-        Pending {
-            generation: 1,
-            queue: VecDeque::new(),
-            draining: false,
-        }
-    }
-
-    /// 積み置きが上限で断られること。**積んで `Ok` を返さない。**
-    ///
-    /// 積み続けると、`readyok` を返さないエンジン相手に無限に伸びる。
-    /// 断れば呼び出し側が気付ける
-    #[test]
-    fn a_full_pending_queue_is_refused() {
-        let mut pending = empty_pending();
-        let position = GuiCommand::Position("sfen".to_string());
-
-        for i in 0..PENDING_LIMIT {
-            assert!(
-                push_pending(&mut pending, &position).is_ok(),
-                "{i} 件目で断られた"
-            );
-        }
-        assert!(push_pending(&mut pending, &position).is_err());
-        assert_eq!(pending.queue.len(), PENDING_LIMIT);
-    }
-
-    /// 積み置きの掃き出しが、ログの予算を一周させられないこと。
-    ///
-    /// **`MAX_SUMMARY_LEN` はここから決まる。** 上限があるだけでは足りない
-    /// ——上限を大きくしても「上限を超える名前は切られる」テストは通るので、
-    /// 予算との関係を式で持つ。
-    ///
-    /// **1行ではなく掃き出し1回で測る。** `readyok` が来なかったときは
-    /// `PENDING_LIMIT` 件がまとめて出るので、1行だけを見るとその倍数ぶん見落とす。
-    ///
-    /// **見積もらずに、最悪の入力で実際の1行を組んで測る。**
-    ///
-    /// **測る側を小さくする間違いは、この形の表明では落ちない。**
-    /// 上限の不等式なので、`PENDING_LIMIT` を掛け忘れても左辺が小さくなるだけで
-    /// 通ってしまう（どんな `SHARE` を選んでも同じ）。掛ける数を増やすなら、
-    /// 緩む側に倒れるのを承知で増やす必要がある。
-    #[test]
-    fn flushing_the_queue_cannot_rotate_the_log() {
-        /// 掃き出し1回が予算のうち占めてよい割合の逆数
-        const SHARE: u128 = 10;
-
-        // `setoption` の名前は webview から来る。潰されず（制御文字ではない）、
-        // UTF-8 でいちばん重い4バイト文字を上限の倍だけ詰める
-        let name = "\u{10ffff}".repeat(MAX_SUMMARY_LEN * 2);
-        let cmd = GuiCommand::SetOption(name, Some("1".to_string()));
-
-        // **理由を全部回して長いほうで測る。** 1つだけ測ると、もう片方の書式が
-        // 予算を超えても緑で通る
-        let line = DropReason::ALL
-            .iter()
-            .map(|why| dropped_line(&cmd, *why))
-            .max_by_key(String::len)
-            .expect("理由が1つも無い");
-        assert!(
-            line.chars().filter(|c| c.len_utf8() == 4).count() >= MAX_SUMMARY_LEN,
-            "最悪の文字が入口で潰されている。詰める文字を選び直すこと"
-        );
-
-        let burst = PENDING_LIMIT as u128 * line.len() as u128;
-        assert!(
-            burst * SHARE <= LOG_FILE_BUDGET,
-            "積み置きの掃き出しが予算の1/{SHARE} を超える\
-             （{PENDING_LIMIT} 行 × {} バイト = {burst} バイト）",
-            line.len()
-        );
-    }
-
-    /// 落ち着いた値を返すこと。呼び出し側はこれを見て「戻せなかった」を知る
-    #[test]
-    fn set_ready_state_reports_what_it_settled_on() {
-        let ready = watch::channel(ReadyState::Waiting).0;
-
-        assert_eq!(
-            set_ready_state(&ready, ReadyState::Ready),
-            ReadyState::Ready
-        );
-        assert_eq!(
-            set_ready_state(&ready, ReadyState::Closed),
-            ReadyState::Closed
-        );
-        assert_eq!(
-            set_ready_state(&ready, ReadyState::Waiting),
-            ReadyState::Closed,
-            "Closed の後に Waiting を通している"
-        );
-        assert_eq!(*ready.borrow(), ReadyState::Closed);
     }
 
     fn recent(lines: &[(Source, &str)]) -> Vec<(Source, String)> {
@@ -2200,97 +998,6 @@ mod tests {
         assert_eq!(summarize_recent(&stdout_only).as_deref(), Some("b / c / d"));
 
         assert_eq!(summarize_recent(&[]), None);
-    }
-
-    /// 閉じた後の `option` 行は溜めない（`usiok` の後も吐き続けるエンジン）
-    #[test]
-    fn declared_options_are_kept_only_while_open() {
-        let mut declared = DeclaredOptions::default();
-        declared.record("option name Before type check default true");
-        declared.begin();
-        declared.record("option name During type check default true");
-        let taken = declared.finish();
-        declared.record("option name After type check default true");
-
-        let names: Vec<_> = taken.options.iter().map(|o| o.name.as_str()).collect();
-        assert_eq!(names, ["During"]);
-        assert!(declared.options.is_empty(), "閉じた後も溜めている");
-    }
-
-    /// `usiok` の行で閉じた後は溜めない。溜めたものは `finish` まで残る。
-    /// タブ区切りの `option` 行も拾う
-    #[test]
-    fn declared_options_stop_at_usiok() {
-        let mut declared = DeclaredOptions::default();
-        declared.begin();
-        declared.note("id name X");
-        declared.note("option\tname During type check default true");
-        declared.note("usiok");
-        declared.note("option name After type check default true");
-        let names: Vec<_> = declared
-            .finish()
-            .options
-            .into_iter()
-            .map(|o| o.name)
-            .collect();
-        assert_eq!(names, ["During"]);
-    }
-
-    /// 予算に入らない長い行を捨てても、その後の短い行は入る
-    #[test]
-    fn a_line_beyond_the_byte_budget_is_dropped_but_later_short_ones_are_kept() {
-        let mut declared = DeclaredOptions::default();
-        declared.begin();
-        declared.bytes = MAX_DECLARED_BYTES - 100;
-        declared.record(&format!(
-            "option name Long type string default {}",
-            "a".repeat(200)
-        ));
-        declared.record("option name Short type check default true");
-        assert_eq!(declared.beyond_limit, 1);
-        let names: Vec<_> = declared.options.iter().map(|o| o.name.as_str()).collect();
-        assert_eq!(names, ["Short"]);
-    }
-
-    /// 上限を超えた行も、解けなかった行も数える。解けなかった行は上限なしで数える
-    #[test]
-    fn declared_options_count_what_they_drop() {
-        let mut declared = DeclaredOptions::default();
-        declared.begin();
-        for i in 0..MAX_OPTIONS + 1 {
-            declared.record(&format!("option name O{i} type check default true"));
-        }
-        for _ in 0..MAX_OPTIONS + 1 {
-            declared.record("option name X type slider");
-        }
-        assert_eq!(declared.options.len(), MAX_OPTIONS);
-        // 上限に達した後は、解けない行も上限の側で数える
-        assert_eq!(declared.beyond_limit, MAX_OPTIONS + 2);
-
-        let mut unreadable = DeclaredOptions::default();
-        unreadable.begin();
-        for _ in 0..MAX_OPTIONS + 1 {
-            unreadable.record("option name X type slider");
-        }
-        assert_eq!(unreadable.rejected, MAX_OPTIONS + 1);
-    }
-
-    /// 解けなかった理由は、エンジンが書いた語ごと長さと制御文字を落として持つ
-    #[test]
-    fn a_rejected_line_is_kept_short_and_without_control_characters() {
-        let mut declared = DeclaredOptions::default();
-        declared.begin();
-        declared.record(&format!(
-            "option name X type \u{1b}]{}",
-            "z".repeat(100_000)
-        ));
-        let first = declared.first_rejected.expect("理由が残っていない");
-        assert!(
-            first.chars().count() <= MAX_SUMMARY_LEN * 2 + 1,
-            "{}",
-            first.len()
-        );
-        assert!(!first.chars().any(char::is_control), "{first:?}");
     }
 
     /// 実プロセスで確かめる。`#!/bin/sh` の台本を置いて起こす
@@ -2359,9 +1066,9 @@ done"#;
             let protocol = protocol_for(&dir, "exec sleep 30").await;
             let big = "x".repeat(4 * 1024 * 1024);
             let writing = {
-                let link = protocol.link.clone();
+                let shared = Arc::clone(&protocol.shared);
                 tokio::spawn(async move {
-                    let _ = link
+                    let _ = shared
                         .write(GuiCommand::SetOption("Big".to_string(), Some(big)))
                         .await;
                 })
@@ -2464,10 +1171,15 @@ done"#;
                 .identify(Duration::from_secs(10))
                 .await
                 .expect("読み取りまで始まる");
-            protocol
-                .send_command(&GuiCommand::IsReady)
-                .await
-                .expect("isready を送れる");
+            // `isready` を書いて `readyok` を待っているところまで進める（待ちは上限で諦める）
+            let waited = tokio::time::timeout(
+                Duration::from_millis(200),
+                protocol.prepare(&[], None, None),
+            )
+            .await;
+            let Err(_) = waited else {
+                panic!("readyok を返さないのに準備が返った");
+            };
             let diagnostics = protocol.child.diagnostics();
             drop(protocol);
 
@@ -2603,28 +1315,6 @@ done"#;
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// 読み取りを2度始めると `AlreadyListening`。**プロセスは生きている**ので
-        /// 落とさなくてよい、という区別を呼び手が読む（`send_command` の doc）
-        #[tokio::test]
-        async fn a_second_listen_is_told_apart() {
-            let dir = test_support::dir::temp_dir("protocol-double-listen");
-            let protocol = protocol_for(&dir, "exec sleep 30").await;
-
-            protocol.start_listening().await.expect("1度目は始められる");
-            let error = protocol
-                .start_listening()
-                .await
-                .expect_err("2度目も始めている");
-            assert!(matches!(error, EngineError::AlreadyListening(_)), "{error}");
-            assert_ne!(
-                *protocol.link.ready.borrow(),
-                ReadyState::Closed,
-                "始められなかった2度目が、生きているエンジンを閉じている"
-            );
-            protocol.kill_engine().await;
-            let _ = std::fs::remove_dir_all(&dir);
-        }
-
         /// (Q0, L3): `usiok` までに `id name` が無いエンジンは `NO_ID_NAME` で断る。
         ///
         /// **出力が終わった回（`usiok` の前に終わった）と分ける。** 名乗らないエンジンは
@@ -2648,13 +1338,12 @@ done"#;
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// (Q3, R8): 探索中に `UsiProtocol` を全部捨てても、プロセスは落ちる。
+        /// (Q3, R8): 探索中に取っ手（`UsiProtocol` と `Search`）を全部捨てても、プロセスは落ちる。
         ///
         /// **台本は探索中に stdin を読まない。** 読んでいると、捨てたときに閉じた stdin で
         /// 台本が自分から終わり、こちらが落としたかどうかを見ないまま通る
         /// （`dropping_the_protocol_ends_the_process` の `cat` はそちらで終わる）。
-        /// 探索の受け手（`register_listener`）を張ったまま捨てるのは、対局の探索タスクが
-        /// 途中で畳まれたときの形
+        /// `Search` を捨てると `stop` を書き終えるタスクが残るが、そのタスクは子プロセスを持たない
         #[tokio::test]
         async fn dropping_the_protocol_during_a_search_ends_the_process() {
             let dir = test_support::dir::temp_dir("protocol-drop-searching");
@@ -2674,33 +1363,24 @@ done"#,
                 .await
                 .expect("名乗る");
             protocol
-                .become_ready(Some(Duration::from_secs(10)))
+                .prepare(&[], None, Some(Duration::from_secs(10)))
                 .await
                 .expect("準備できる");
-            let (tx, mut rx) = mpsc::unbounded_channel();
-            protocol
-                .register_listener("search".to_string(), tx)
+            let protocol = Arc::new(protocol);
+            let mut search = protocol
+                .search("startpos".to_string(), usi::ThinkParams::new().infinite())
                 .await
-                .expect("受け手を張れる");
-            protocol
-                .send_command(&GuiCommand::Position("startpos".to_string()))
-                .await
-                .expect("position を送れる");
-            protocol
-                .send_command(&GuiCommand::Go(usi::ThinkParams::new().infinite()))
-                .await
-                .expect("go を送れる");
+                .expect("探索を始められる");
             // `info` が届けば、台本は `go` を読んで探索（stdin を読まない形）に入っている
-            loop {
-                let line = tokio::time::timeout(Duration::from_secs(10), rx.recv())
-                    .await
-                    .expect("go の後の info が来ない")
-                    .expect("info の前に受け手が閉じた");
-                if matches!(line, EngineCommand::Info(_)) {
-                    break;
-                }
-            }
+            let line = tokio::time::timeout(Duration::from_secs(10), search.next_line())
+                .await
+                .expect("go の後の info が来ない");
+            assert!(
+                matches!(line, Ok(Some(SearchLine::Info(_)))),
+                "info の前に探索が終わった: {line:?}"
+            );
             let diagnostics = protocol.child.diagnostics();
+            drop(search);
             drop(protocol);
 
             assert!(
@@ -2740,7 +1420,7 @@ done"#,
   esac
 done"#;
 
-        async fn ready(dir: &std::path::Path) -> UsiProtocol {
+        async fn ready(dir: &std::path::Path) -> Arc<UsiProtocol> {
             let mut go = String::new();
             for i in 0..INFO_LINES {
                 go.push_str(&format!(
@@ -2762,20 +1442,21 @@ done"#;
                 .await
                 .expect("名乗る");
             protocol
-                .become_ready(Some(Duration::from_secs(10)))
+                .prepare(&[], None, Some(Duration::from_secs(10)))
                 .await
                 .expect("準備できる");
-            protocol
+            Arc::new(protocol)
         }
 
-        /// `rx` に `bestmove` が来るまで待つ
-        async fn until_bestmove(rx: &mut mpsc::UnboundedReceiver<EngineCommand>) {
+        /// `search` に `bestmove` が来るまで待つ
+        async fn until_bestmove(search: &mut search::Search) {
             loop {
-                let line = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+                let line = tokio::time::timeout(Duration::from_secs(10), search.next_line())
                     .await
                     .expect("`bestmove` が来ない")
-                    .expect("`bestmove` の前に受け手が閉じた");
-                if matches!(line, EngineCommand::BestMove(_)) {
+                    .expect("`bestmove` の前に探索が閉じた")
+                    .expect("`bestmove` の後に待っている");
+                if matches!(line, SearchLine::BestMove(_)) {
                     return;
                 }
             }
@@ -2794,34 +1475,24 @@ done"#;
             );
         }
 
-        /// M1: `go` を書いてから、`info` 2000行の後の `bestmove` を呼び手が受け取るまで。5回
+        /// M1: 手順「探索」を呼んでから（`position` と `go` を書く）、`info` 2000行の後の `bestmove` を呼び手が受け取るまで。5回
         #[tokio::test(flavor = "multi_thread")]
         #[ignore = "性能の基準線。CI の時間に入れない"]
         async fn m1_info_stream_latency() {
             let dir = test_support::dir::temp_dir("baseline-m1");
             let protocol = ready(&dir).await;
             let mut samples = Vec::new();
-            for round in 0..5 {
-                let (tx, mut rx) = mpsc::unbounded_channel();
-                let name = format!("m1-{round}");
-                protocol
-                    .register_listener(name.clone(), tx)
-                    .await
-                    .expect("受け手を張れる");
-                protocol
-                    .send_command(&GuiCommand::Position("startpos".to_string()))
-                    .await
-                    .expect("position を送れる");
+            for _ in 0..5 {
                 let started = Instant::now();
-                protocol
-                    .send_command(&GuiCommand::Go(
+                let mut search = protocol
+                    .search(
+                        "startpos".to_string(),
                         usi::ThinkParams::new().byoyomi(Duration::from_secs(1)),
-                    ))
+                    )
                     .await
-                    .expect("go を送れる");
-                until_bestmove(&mut rx).await;
+                    .expect("探索を始められる");
+                until_bestmove(&mut search).await;
                 samples.push(started.elapsed());
-                protocol.remove_listener(&name).await;
             }
             report("M1", samples);
             protocol.kill_engine().await;
@@ -2835,27 +1506,15 @@ done"#;
             let dir = test_support::dir::temp_dir("baseline-m2");
             let protocol = ready(&dir).await;
             let mut samples = Vec::new();
-            for round in 0..20 {
-                let (tx, mut rx) = mpsc::unbounded_channel();
-                let name = format!("m2-{round}");
-                protocol
-                    .register_listener(name.clone(), tx)
+            for _ in 0..20 {
+                let search = protocol
+                    .search("startpos".to_string(), usi::ThinkParams::new().infinite())
                     .await
-                    .expect("受け手を張れる");
-                protocol
-                    .send_command(&GuiCommand::Position("startpos".to_string()))
-                    .await
-                    .expect("position を送れる");
-                protocol
-                    .send_command(&GuiCommand::Go(usi::ThinkParams::new().infinite()))
-                    .await
-                    .expect("go を送れる");
+                    .expect("探索を始められる");
                 let started = Instant::now();
-                let stopped = protocol.stop().await.expect("stop を書ける");
-                assert_eq!(stopped, StopEffect::Written);
-                until_bestmove(&mut rx).await;
+                let answer = search.stop(Duration::from_secs(10)).await;
+                assert!(matches!(answer, search::StopAnswer::Answered), "{answer:?}");
                 samples.push(started.elapsed());
-                protocol.remove_listener(&name).await;
             }
             report("M2", samples);
             protocol.kill_engine().await;

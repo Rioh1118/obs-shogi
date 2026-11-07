@@ -82,7 +82,8 @@ ours 戦略のマージは使わない。
 | 46 | `refactor/usi-u2a-analyzer` | 作り直しの段 U2a。`analyzer` を手順「探索」と `Search` へ移し、検討の側から受け手の登録をなくす。D-1 の検討の写しを消す | #717 | マージ済み |
 | 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順を段 `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` に畳み、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | #718 | マージ済み |
 | 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | マージ済み |
-| 49 | `refactor/usi-u2b-game` | 作り直しの段 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` の段に閉じる | #720 | レビュー待ち |
+| 49 | `refactor/usi-u2b-game` | 作り直しの段 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` の段に閉じる | #720 | マージ済み |
+| 50 | `refactor/usi-u3-machine` | 作り直しの段 U3。1本のプロセスの USI の状態と判定を、新しい段 `usi_machine` の状態機械（純関数）へ移す。`UsiProtocol` は std の `Mutex` 1つの下でそれを持ち、受け手の表と積み置きを消す。`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（ADR-0016 決定3）。M3 は 8 から 1 | #721 | レビュー待ち |
 
 ## 語
 
@@ -163,7 +164,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 8a | `src-tauri/src/engine/analyzer.rs` | 828 | 済 |
 | 7a | `src-tauri/src/engine/game/session.rs` を4つのファイルに割る。割るだけ | 2208 | 済 |
 | U2b | `game` を手順へ移す | — | 済 |
-| U3 | 状態機械を新しい段 `usi_machine` に作る。受け手の表と積み置きを消す | — | 未着手 |
+| U3 | 状態機械を新しい段 `usi_machine` に作る。受け手の表と積み置きを消す | — | 済 |
 | U4 | 殻（タスク1本）。送る面と落とす面を分ける | — | 未着手 |
 | 7b | `src-tauri/src/engine/game` の残りと `engine/commands/game.rs` | U2b の後に数える | 未着手 |
 | 8b | `src-tauri/src/engine` の `bridge`、`analysis_events`、`probe`、`state`、`commands`（`game.rs` を除く） | U4 の後に数える | 未着手 |
@@ -236,7 +237,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で、範囲6は段45で、U2a は段46で、範囲8aは段47で、範囲7aは段48で、U2b は段49で取った。次は U3。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で、範囲6は段45で、U2a は段46で、範囲8aは段47で、範囲7aは段48で、U2b は段49で、U3 は段50で取った。次は U4。
 
 範囲「公開」から、`engine` は crate の外へ出ない。外へ出すのは `tests/engine_timeouts.rs` が読む上限の定数だけで、
 `lib.rs` が再輸出する。`engine` の中で呼び手の無い `pub` は rustc の `dead_code` が拾うので、以後の範囲では grep で数えなくてよい。
@@ -257,15 +258,24 @@ U2b で対局が `Search` へ移り、`engine/protocol/search.rs` の `Search::p
 `superseded_request` の重複（D-3）は 8b で取る。
 
 U2b で対局は `Search` を回すだけになった（`game/search.rs` の `run_search`）。`ponderhit` は探索のタスクが握る
-`Search` に書いてもらう（`PonderHit`）。受け手の登録（`register_listener`）は `protocol` の段の中からしか呼べない。
+`Search` に書いてもらう（`PonderHit`）。
 `StopAnswer::Unreachable(EngineError::Timeout)`（`stop` の書き込みが上限を超えた）は、対局では `StopTimedOut`
 （止めに答えない。`gameover` を書かずに畳む）に写し、`a_stop_that_could_not_be_written_in_time_is_an_unanswered_stop` が固定する。
 検討は同じ答えを失敗と読むまま残る。
 7b で取るもの: `Player::ponderhit` は `activity` と別の欄で、止めた後も古い値が残る。
 `Activity::Searching` か `SearchKind::Ponder` に持たせると型で止まる（U2b では既存のテストの形を変えないために見送った）。
 
-次は U3: 状態機械を段 `usi_machine` に作り、受け手の表と積み置きを消す。範囲と固定のしかたは ADR-0016 の決定8。
-U3 の後は U4、その後に 7b（`game` の残り）と 8b を取る。
+U3 で、1本のプロセスの USI の状態と判定は段 `usi_machine` の状態機械 `UsiMachine` に移った（時計も IO も持たない。
+`tokio` を使うと `no_layer_uses_a_crate_it_must_not` が落ちる）。表（`docs/state-transitions/engine.md` の「1本のプロセスの USI の状態」）の
+全セルは、列ごとに1本の純関数のテストが固定する。`UsiProtocol` は std の `Mutex` 1つ（`Shared` の `core`）の下で状態機械を持ち、
+出たこと（`Effect`）を同じロックの中で順に行う。受け手の表、積み置き、世代、`draining`、探索の枠のセマフォは消えた。
+`readyok` の待ちのタスクも、積み置きを掃く役が無くなったので消えた。読んだ行を状態機械へ渡すタスク（`start_reading`）は残る。
+M3（ロックの数）は 8 から 1（`research/engines/usi-measurements.md` の「U3 の後」）。
+`StopAnswer::NothingToStop` は起きなくなったので消した（走っていない探索は答え済み）。`Unreachable(Timeout)` の読み方は、
+検討（失敗）と対局（`StopTimedOut`）で分かれたまま残る（PR の確認事項）。
+
+次は U4: 殻をタスク1本にし、読んだ行を渡すタスクと `Mutex` を消す。送る面と落とす面を分ける（ADR-0016 決定6）。C-3。
+範囲と固定のしかたは ADR-0016 の決定8。U4 の後に 7b（`game` の残り）と 8b を取る。
 
 `tests/layering.rs` は `engine` の段の上下を
 ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。

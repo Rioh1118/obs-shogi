@@ -89,7 +89,7 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 /// 「エンジンが応答しない」というログが毎回出て、本物の故障と区別が付かなくなる。
 ///
 /// **上限を置く**理由: `abort` も `searches_idle` も `run_loop` が1件ずつ
-/// 処理し、その中で `send_command` を待つ。エンジンが stdin を読まなくなると
+/// 処理し、その中で手順の書き込み（`Search::stop` や `game_over`）を待つ。エンジンが stdin を読まなくなると
 /// パイプが埋まって書き込みが止まり、応答が返らない。上限が無いと
 /// `close_game` が無期限に返らなくなる。
 ///
@@ -1409,7 +1409,7 @@ impl Runner {
         };
         self.stop_ticks.cancel();
 
-        // **`gameover` より先に知らせる。** `send_command` は1件あたり
+        // **`gameover` より先に知らせる。** `game_over` は1件あたり
         // `WRITE_TIMEOUT` ＋ 列の待ちなので、後に回すと終局からイベント到着まで
         // 数秒空く。その間フロントは減り続ける時計を描いたままになる
         self.emit(GameEvent::Over {
@@ -2405,7 +2405,7 @@ mod tests {
 
         // 畳み待ちの番人は、`stop` の書き込み1件ぶんと `bestmove` の猶予を
         // 足したより長い。**これは下限でしかない。** `WRITE_TIMEOUT` は列の
-        // 1件に掛かる上限で、`send_command` が返るまでの実時間ではない
+        // 1件に掛かる上限で、手順が返るまでの実時間ではない
         // （列に先客が居れば、その処理時間が足される）。
         // 下限を割ると、正常に畳んでいる最中のエンジンを必ず故障と呼ぶ
         assert!(

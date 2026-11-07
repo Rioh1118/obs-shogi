@@ -127,9 +127,15 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
+        name: "usi_machine",
+        decides: "1本のプロセスとの USI の状態と、行と頼みをどう扱うか（時計も IO も持たない）",
+        may_use: &["types", "logging", "option_line"],
+        forbids: &["tokio", "tokio_util"],
+    },
+    Layer {
         name: "protocol",
-        decides: "1本のプロセスへ何を送れるか",
-        may_use: &["types", "logging", "child", "option_line"],
+        decides: "1本のプロセスへ手順を通す（状態機械を持ち、出たことを順に行う）",
+        may_use: &["types", "logging", "child", "usi_machine"],
         forbids: &[],
     },
     Layer {
@@ -933,8 +939,8 @@ fn only_the_option_line_parser_builds_engine_options() {
     );
 }
 
-/// `setoption` を組む綴り。**組むのは `engine/protocol.rs` の手順「準備」と「値の確認」の2か所だけ**
-/// （本番のコード。`UsiProtocol::prepare` と `check_value`）。
+/// `setoption` を組む綴り。**組むのは状態機械（`engine/usi_machine.rs`）の「準備」と「値の確認」の2か所だけ**
+/// （本番のコード。`UsiMachine::prepare` と `check_value`。手順 `UsiProtocol::prepare` と `check_value` が頼む）。
 ///
 /// 送る手順（並べた順、`isready` を必ず送り `readyok` を待つ）を別の場所に書くと、片方にだけ
 /// 直しが入る。食い違いはエンジンを起こしてからしか出ない（`setup.rs` の `//!`）。
@@ -993,12 +999,12 @@ fn only_the_procedures_build_set_option() {
     }
 
     assert!(
-        builders.iter().any(|at| at == "engine/protocol.rs"),
-        "`protocol.rs` の組み立ても見つからない。走査の綴りを直すこと"
+        builders.iter().any(|at| at == "engine/usi_machine.rs"),
+        "`usi_machine.rs` の組み立ても見つからない。走査の綴りを直すこと"
     );
     assert_eq!(
         builders,
-        ["engine/protocol.rs", "engine/protocol.rs"],
+        ["engine/usi_machine.rs", "engine/usi_machine.rs"],
         "`setoption` を手順「準備」と「値の確認」の外で組んでいる。`setup::checked_prepare` か \
          `setup::check_book_path_support` を通すこと"
     );

@@ -110,12 +110,12 @@ fn the_scanner_still_sees_production_code() {
     );
 
     // **塊を持たない `#[cfg(test)]` の後ろが飲まれていないこと。**
-    // 総文字数では落ちない（`protocol.rs` の26行が消えても10万文字は残る）ので、
+    // 総文字数では落ちない（数十行が消えても全体の文字数はほとんど変わらない）ので、
     // 消えたら落ちる綴りを名指しで置く
-    let protocol = production_code(&anchor("engine/protocol.rs"));
+    let storage = production_code(&anchor("storage/mod.rs"));
     assert!(
-        protocol.contains("enum ReadyState"),
-        "`#[cfg(test)] const ALL` の後ろにある本番の宣言まで落としている"
+        storage.contains("pub fn app_cache"),
+        "`#[cfg(test)] pub use` の後ろにある本番の宣言まで落としている"
     );
     let root = production_code(&anchor("lib.rs"));
     assert!(

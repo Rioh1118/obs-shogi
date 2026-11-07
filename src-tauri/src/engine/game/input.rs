@@ -15,8 +15,7 @@ use super::types::*;
 ///
 /// **入口で弾く側の防御。** 溢れはしないが、線に出る1行の長さがここで決まる。
 /// `position` は指し手を1行に並べるので、10万手なら1行が 900KB を超え、
-/// 組み立てで写しが2本（`check_writable` の `to_string` と `push_pending` の
-/// `clone`）作られ、積み置きは `PENDING_LIMIT` 件まで滞留しうる。
+/// 組み立てで写しが作られ（`check_writable` の `to_string`）、
 /// 書き込みは `WRITE_TIMEOUT` で切れて `fail_writes` が走り、
 /// **そのエンジンは以後何も受け付けなくなる**——出るのは
 /// 「stdin を読まなくなった」で、長すぎたことは分からない。
@@ -234,8 +233,8 @@ mod tests {
     /// 線に出る1行を伸ばせる経路を、入口で全部見ていること。
     ///
     /// **手数だけ見ても足りない。** 同じ1行は `start_sfen` の盤面欄からも
-    /// `setoption` の値からも伸ばせる。どれも `check_writable` の `to_string` と
-    /// `push_pending` の `clone` を通り、`WRITE_TIMEOUT` で切れて `fail_writes` が
+    /// `setoption` の値からも伸ばせる。どれも `check_writable` の `to_string` を通り、
+    /// `WRITE_TIMEOUT` で切れて `fail_writes` が
     /// 走ると**そのエンジンは以後何も受け付けなくなる**——出るのは
     /// 「stdin を読まなくなった」で、長すぎたことは分からない。
     #[test]

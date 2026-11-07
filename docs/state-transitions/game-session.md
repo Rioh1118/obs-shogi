@@ -198,9 +198,8 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 
 エンジンへの書き込みは**1本の列**を通る（`protocol.rs` の `run_writer`）。
 投入順がそのままワイヤ上の順になり、上限（`WRITE_TIMEOUT`）もそこ1箇所。
-**掛かるのは列へ入ったものだけ。** `readyok` 待ちや掃きの最中に積まれたコマンド
-（`dispatch_for` の `Queue`）はまだ列に入っていないので、この上限の外にある。
-そちらを見張るのは `READY_TIMEOUT` と `on_tick` の見張り。
+`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（`usi_machine.rs` の状態機械。ADR-0016 決定3）ので、
+列の外で待つコマンドは無い。`readyok` そのものを待つ上限は `READY_TIMEOUT`。
 
 **これらの上限が効くのは、書き込みが非同期だから**（`ChildWriter::write_line`）。
 同期の write を async のタスクの中で直に呼ぶと `poll` が返らず、
@@ -268,13 +267,11 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 相手の手番中の先読みが画面に出る（世代は `info_from_a_stopped_search_is_not_shown`
 が見る）。**間引きは1段も無い** → 埋まっていないセル。
 
-※9 E10 の発生源は `protocol.rs::start_listening` の転送タスク。
-`line_tx` が落ちた時点で `listeners` を全部落とし、待っている側へ「もう来ない」を
-届ける。**読み取りの終わり方は1つではない**（EOF は hook が拾うが、
-読み取り自体の `Err`＝非 UTF-8 の行や数値のパース失敗では `usi` crate が
-hook を呼ばずにスレッドを抜ける）。どの終わり方でも `line_tx` は落ちるので、
-そこ1箇所で全部を拾う。同じ場所で `ready` にも `Closed` を立てる
-（そうしないと `UsiProtocol::become_ready` が `READY_TIMEOUT` まで待つ）。
+※9 E10 の発生源は `protocol.rs::start_reading` の、読んだ行を状態機械へ渡すタスク。
+`line_tx` が落ちた時点で状態機械に出力の終わりを渡し（`on_output_end`）、状態機械が
+探索を閉じて、待っている手順へ「もう来ない」を答える。**読み取りの終わり方は1つではない**
+（stdout の EOF と、読み取り自体の失敗）。どの終わり方でも `line_tx` は落ちるので、
+そこ1箇所で全部を拾う（拾わないと、準備の手順が `READY_TIMEOUT` まで待つ）。
 
 ※10 **踏めているのは先後とも人間の1局と、`Runner` を直に組んだ単体のみ。**
 `spawn_players` は人間側を飛ばすので、その設定なら**エンジンを1つも起動せずに
@@ -375,7 +372,6 @@ E1 / E4 の「エンジン側を人間として撃つ」枝は
 | `StopAnswer`                 | 意味                                   | `SearchOutcome`  |
 | ---------------------------- | -------------------------------------- | ---------------- |
 | `Answered`                   | 打ち切りに応じた                       | `StoppedCleanly` |
-| `NothingToStop`              | **まだ書かれていない `go` を落とした** | `StoppedCleanly` |
 | `Unanswered`                 | **まだ探索中**                         | `StopTimedOut`   |
 | `Unreachable`（`Timeout`）   | **stdin を読んでいない**               | `StopTimedOut`   |
 | `Unreachable`（その他）      | **送る先が無いか、プロセスが落ちた**   | `Failed`         |
@@ -444,10 +440,9 @@ ClocksView {
    1. **`A3` の結果を採らない**（`on_search_outcome` の `accept`）
    2. **捨てる `bestmove` を受け取れなかったら、次の `go` を出さずに終局する**（E12）
 
-   **「`Search` が `go` ごとだから古いものは届かない」は根拠にならない。**
-   止めに答えなかった探索の枠は、止め待ちの残り（`LateAnswer`）を捨てると返るので、
-   遅れて届いた `bestmove` は**次の探索**が受け取り、`req` も一致する。
-   届いた先の世代照合だけでも防げない。
+   遅れて届いた `bestmove` が**次の探索**に流れることは無い。止めに答えなかったエンジンは
+   状態機械の止め待ち（`engine.md` の Q4）に残り、遅れた `bestmove` が来るまで次の探索を断る
+   （`engine.md` の不変条件2）。
 
 3. **`G2` に入ったら、全エンジンに `gameover` が届く。ただし `A4` を除く。**
    探索中だったエンジンには `bestmove` が返ってから送る（※6）。

@@ -310,7 +310,6 @@ pub fn engine_error_text(error: &EngineError) -> String {
         | EngineError::StartupFailed(_)
         | EngineError::CommunicationFailed(_)
         | EngineError::InvalidState(_)
-        | EngineError::AlreadyListening(_)
         | EngineError::Cancelled(_) => error.to_string(),
     }
 }
@@ -329,8 +328,6 @@ pub enum EngineError {
     InvalidState(String),
     #[error("Operation timeout: {0}")]
     Timeout(String),
-    #[error("Already listening: {0}")]
-    AlreadyListening(String),
     /// こちらが止めた。起動中の取り消しや、待っている最中の kill
     #[error("Cancelled: {0}")]
     Cancelled(String),
@@ -519,8 +516,7 @@ pub struct AnalysisCandidate {
 
 /// 解析の結果の通知。**`session_id` を載せるのは、受け手が自分のものか照合するため。**
 ///
-/// 前の探索が畳まりきる前に次の `go` が出ると、古い `info` が新しい
-/// リスナーへ配られる（`broadcast_to_listeners` は誰の `go` に対する行かを見ない）。
+/// 前の解析の通知は、次の解析を始めた後にも着きうる（通知は解析のタスクから非同期に出る）。
 /// 照合しないと、前の局面の読み筋が現在の盤面の解析結果として画面に出る。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

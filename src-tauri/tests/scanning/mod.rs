@@ -224,8 +224,8 @@ pub fn doc_above(lines: &[&str], at: usize) -> Vec<(usize, String)> {
 ///
 /// **塊とは限らない。** `#[cfg(test)] use ...;` `#[cfg(test)] const ...;` は
 /// 波括弧を持たない。「次の `{` から釣り合うまで」で落とすと、**その先にある
-/// 本番コードを丸ごと飲む**——`protocol.rs` の `#[cfg(test)] const ALL` の直後には
-/// 本番の `enum ReadyState` がある。飲まれた範囲に `.unwrap()` を書いても緑で通る。
+/// 本番コードを丸ごと飲む**——`storage/mod.rs` の `#[cfg(test)] pub use` の直後には
+/// 本番の `fn app_cache` がある。飲まれた範囲に `.unwrap()` を書いても緑で通る。
 ///
 /// 落とした行は改行に置き換える。**行番号を保つため**——詰めると、
 /// 塊より後ろで見つかった違反の `path:line` が現物とずれ、開いても何も無い。
