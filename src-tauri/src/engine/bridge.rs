@@ -372,7 +372,7 @@ impl EngineBridge {
     /// 解析の結果をフロントへ流す。
     ///
     /// **席が消えたら流さない。** 消えた席の結果は誰の席でもない。受け取りは続ける——
-    /// `receiver` を落としても `process_analysis_stream` が配り先を失うだけで、得るものが無い
+    /// `receiver` を落としても `run_infinite_search` が配り先を失うだけで、得るものが無い
     async fn forward_results_to_ui(
         events: Arc<RwLock<Arc<dyn AnalysisEventSink>>>,
         sessions: Arc<RwLock<HashMap<String, AnalysisSession>>>,

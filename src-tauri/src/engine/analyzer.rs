@@ -143,7 +143,7 @@ pub struct EngineAnalyzer {
     state: Arc<RwLock<AnalyzerState>>,
     /// 走っている探索（無限・時間・深度のどれでも）へ、止める頼みを渡すチャネルの送り手。
     ///
-    /// **探索（`Search`）を持つのは探索を回す側**（`process_analysis_stream` と
+    /// **探索（`Search`）を持つのは探索を回す側**（`run_infinite_search` と
     /// `collect_until_bestmove`）で、ここは頼みを渡すだけ。**`Some` は「走っている」を意味しない。**
     /// 探索が自分で終わっても送り手は残り、終わった探索への頼みは送れずに返る（止めるものが無かったと読む）
     search_stop: Mutex<Option<oneshot::Sender<StopReply>>>,
@@ -445,7 +445,7 @@ impl EngineAnalyzer {
         let (search, stop_rx) = self.start_search(ThinkParams::new().infinite()).await?;
 
         let (result_tx, result_rx) = mpsc::unbounded_channel();
-        tokio::spawn(Self::process_analysis_stream(
+        tokio::spawn(Self::run_infinite_search(
             search,
             stop_rx,
             result_tx,
@@ -514,7 +514,7 @@ impl EngineAnalyzer {
     /// （`bridge` の `watch_engine_end`）が別に知らせる。`Err` を返すと、後片付けの途中に
     /// 置かれた呼び出し（`stop_all_sessions`）が `?` で折れて、その先の台帳の掃除まで走らなくなる。
     ///
-    /// 止めるのは探索を回す側（`process_analysis_stream` と `collect_until_bestmove`）で、
+    /// 止めるのは探索を回す側（`run_infinite_search` と `collect_until_bestmove`）で、
     /// ここは頼んで答えを待つだけ。**答えは `bestmove` を待ってから返る**（`stop_search`）。
     /// `stop` を書けただけでは探索は終わっておらず、ここで返すと、呼び出し側は次の `go` をその前に出す。
     /// 上限までに答えが来なければ `Unanswered`
@@ -554,7 +554,7 @@ impl EngineAnalyzer {
     // === 内部ヘルパーメソッド ===
 
     /// 無限の検討の探索を1本持ち、届いた行を結果の列へ読み替える。止める頼みが来たら止めて答える
-    async fn process_analysis_stream(
+    async fn run_infinite_search(
         mut search: Search,
         mut stop_requested: oneshot::Receiver<StopReply>,
         result_tx: mpsc::UnboundedSender<AnalysisStreamItem>,
