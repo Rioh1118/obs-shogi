@@ -72,17 +72,6 @@ pub enum AnalysisStreamItem {
     Finished(AnalysisResult),
 }
 
-/// `go` が1度も書かれなかったときの失敗。
-///
-/// `Timeout` と分ける。あちらは「エンジンが答えない」で、こちらは
-/// 「エンジンはまだ何も聞いていない」。次の手が違う（前者は再起動、
-/// 後者は `isready` を待ってからやり直す）。
-fn not_searching() -> EngineError {
-    EngineError::InvalidState(
-        "the engine never received the go command; it was still getting ready".to_string(),
-    )
-}
-
 /// 時間か深度を決めた検討で、止めた後の結果。**上限まで答えなければ失敗にする**
 fn result_after_stop(
     stopped: Result<StopOutcome, EngineError>,
@@ -614,15 +603,14 @@ impl EngineAnalyzer {
     /// 遅れた答えを待って下ろすタスクを起こす。
     ///
     /// **立ててから返す。** 返してから立てると、呼び手が次の `go` を通す窓ができる。
-    /// 待つ間は `LateAnswer` が探索の枠を握るので、このプロセスで次の探索は始まらない。
-    /// 止めるものが無かった回は `not_searching`、届かない回はその理由で断る
+    /// 遅れた `bestmove` が来るまで状態機械が止め待ちに残り、このプロセスで次の探索を断る。
+    /// 届かない回はその理由で断る
     async fn stop_search(
         search: Search,
         unanswered: &Arc<watch::Sender<bool>>,
     ) -> Result<StopOutcome, EngineError> {
         match search.stop(ANALYSIS_STOP_GRACE).await {
             StopAnswer::Answered => Ok(StopOutcome::Stopped),
-            StopAnswer::NothingToStop => Err(not_searching()),
             StopAnswer::Unreachable(e) => Err(e),
             StopAnswer::Unanswered(late) => {
                 unanswered.send_replace(true);
@@ -760,17 +748,6 @@ mod tests {
     #[test]
     fn nothing_is_reached_before_the_first_info() {
         assert!(!reached_depth(&AnalysisResult::default(), Some(1)));
-    }
-
-    /// `go` が書かれなかった失敗と、答えが返らなかった失敗を分けること
-    #[test]
-    fn never_sent_is_not_the_same_as_never_answered() {
-        assert!(matches!(not_searching(), EngineError::InvalidState(_)));
-        assert_ne!(
-            not_searching().to_string(),
-            EngineError::Timeout(format!("{TIMED_OUT} waiting for a bestmove after stop"))
-                .to_string()
-        );
     }
 
     /// 起動（`start_engine`）を実プロセスで確かめる

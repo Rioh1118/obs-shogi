@@ -49,7 +49,7 @@ pub struct GameManager {
 /// 外れ、呼び出し側は呼び直さずにプロセスを残す。
 ///
 /// 網羅の `match` を通すので、理由を1つ増やせば `Display` で数え直させられる
-/// （→ ADR-0008 決定3。`cannot_reach_text` と `Stall::detail` が同じ形）。
+/// （→ ADR-0008 決定3。`usi_machine.rs` の `closed_error` と `Stall::detail` が同じ形）。
 ///
 /// **線の向こうまでは型で割っていない。** フロントへ渡るのは `Display` の文字列だけで、
 /// 呼び出し側（`closeGame`）はそれを文言で分類する。ここが持てるのは

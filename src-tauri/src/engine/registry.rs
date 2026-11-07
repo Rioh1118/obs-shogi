@@ -333,7 +333,7 @@ fn cancelled_while_starting() -> EngineError {
 
 /// 起動できたことを記録する1行。
 ///
-/// 名乗りはエンジンが決める。`collect_engine_info` は `id name` の行を
+/// 名乗りはエンジンが決める。名乗り（`usi_machine.rs` の `finish_naming`）は `id name` の行を
 /// 長さも中身も見ずに保持するので、素で載せると長い行を返す実行ファイル
 /// ひとつでログの予算（`LOG_FILE_BUDGET`）を一周させられる。
 ///

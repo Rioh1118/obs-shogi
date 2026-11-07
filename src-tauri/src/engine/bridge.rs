@@ -333,8 +333,7 @@ impl EngineBridge {
                 );
                 self.release_session(&session_id).await;
                 return Err(StartRefusal {
-                    // 線に届かなかった回。積み置きが満杯の回も `CommunicationFailed` で来るが、
-                    // エンジンが答えていないことに変わりはない
+                    // 線に届かなかった回。エンジンが答えていない
                     unreachable: matches!(
                         e,
                         EngineError::CommunicationFailed(_) | EngineError::Timeout(_)
@@ -1358,7 +1357,7 @@ done"#;
         }
 
         /// 時間を決めた検討も `stop_analysis_impl` で止まる。**止めないと、席が消えた後もエンジンが読み続け、
-        /// 探索の枠を握ったまま次の開始を待たせる**
+        /// 止め待ちのまま次の開始を待たせる**
         #[tokio::test]
         async fn stopping_a_timed_analysis_writes_stop() {
             let (bridge, _, dir) = started("bridge-stop-timed", ":", ":", 1).await;

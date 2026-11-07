@@ -48,9 +48,8 @@ pub enum SearchOutcome {
     StoppedCleanly,
     /// **`stop` を送っても `bestmove` が返らなかった。**
     ///
-    /// エンジンはまだ探索中で、次の `go` は受け付けられない。しかも遅れて
-    /// 届く `bestmove` は**前の局面に対する答え**なのに、次の探索の答えとして
-    /// 読まれうる（止め待ちの残り `LateAnswer` を捨てると探索の枠が返る）。話し続けてはいけない。
+    /// エンジンはまだ探索中で、遅れた `bestmove` が来るまで次の探索は断られる
+    /// （状態機械の止め待ち）。話し続けてはいけない。
     ///
     /// `stop` の書き込みが上限を超えたときもここ（`outcome_after_stop`）
     StopTimedOut,
@@ -150,10 +149,9 @@ pub enum SearchMessage {
 /// **戻り値を持たない。** 起きたことは全部 `SearchMessage` として `tx` に出る
 /// （`Info` を0回以上、最後に `Outcome` を1回）。`tx` の受け手が消えていれば黙って捨てられる。
 ///
-/// **`Idle` の側にだけ呼ぶこと。** 前の探索がまだ `Search` を握っている間に重ねると、
-/// `UsiProtocol::search` が探索の枠を上限まで待ってから断り、`Failed` で対局が終わる。
-/// 止めに答えなかった探索（`outcome_after_stop` が `LateAnswer` を捨てるので枠はすぐ返る）に
-/// 重ねると、遅れた `bestmove` が次の `req` の答えとして読まれる。
+/// **`Idle` の側にだけ呼ぶこと。** 前の探索が終わる前に重ねると、`UsiProtocol::search` が
+/// 前の探索の終わりを上限まで待ってから断り、`Failed` で対局が終わる。止めに答えなかった探索
+/// （`outcome_after_stop` が `LateAnswer` を捨てる）に重ねても、遅れた `bestmove` が来るまで同じく断られる。
 /// 呼ぶ箇所を `GameSession::spawn_search` の1本に絞ってあるのはそのため。
 ///
 /// 取り消しは `request.cancel`。**落とすのではなく止める**（`Search::stop`）ので、
@@ -257,8 +255,6 @@ fn outcome_after_stop(answer: StopAnswer) -> SearchOutcome {
     match answer {
         // 止めに答えた。止める前に答えていた探索もここ
         StopAnswer::Answered => SearchOutcome::StoppedCleanly,
-        // まだ書いていない `go` を落とした。エンジンは考え始めていない
-        StopAnswer::NothingToStop => SearchOutcome::StoppedCleanly,
         // 上限まで答えなかった。エンジンは探索中とみなす
         StopAnswer::Unanswered(_) => SearchOutcome::StopTimedOut,
         StopAnswer::Unreachable(EngineError::Timeout(_)) => SearchOutcome::StopTimedOut,
@@ -290,17 +286,23 @@ mod tests {
             outcome_after_stop(StopAnswer::Answered),
             SearchOutcome::StoppedCleanly
         ));
-        // まだ書いていない `go` を落とした。正常に止まったのと同じ
-        assert!(matches!(
-            outcome_after_stop(StopAnswer::NothingToStop),
-            SearchOutcome::StoppedCleanly
-        ));
         // 送る先が無いか、出力が終わった。**探索中とは限らないので `StopTimedOut` にしない**
         let closed = EngineError::CommunicationFailed("closed".to_string().into());
         assert!(matches!(
             outcome_after_stop(StopAnswer::Unreachable(closed)),
             SearchOutcome::Failed(_)
         ));
+    }
+
+    /// 手順「探索」が前の探索の終わりを待つ上限は、対局の止めの上限の倍以上。
+    /// 短いと、止めに答えるのが遅いだけのエンジンで次の探索が断られ、対局が `Failed` で終わる
+    #[test]
+    fn waiting_for_the_previous_search_outlasts_a_stop() {
+        use crate::engine::protocol::search::PREVIOUS_SEARCH_LIMIT;
+        assert!(
+            PREVIOUS_SEARCH_LIMIT >= SEARCH_STOP_GRACE * 2,
+            "前の探索を待つ上限({PREVIOUS_SEARCH_LIMIT:?})が止めの上限({SEARCH_STOP_GRACE:?})の倍より短い"
+        );
     }
 
     /// `stop` の書き込みが上限を超えたら、対局は「止めに答えない」と読む。

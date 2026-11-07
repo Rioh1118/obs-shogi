@@ -15,8 +15,7 @@ use crate::engine::types::{BookPathSupport, EngineError, SetOptionValue};
 
 /// 線に出る1行の欄（`setoption` の名前・値、対局の開始局面）の長さの上限（バイト）。
 ///
-/// 長さを見ないと、`check_writable` の `to_string` で写しが1本、`push_pending` の `clone` で
-/// もう1本作られ、積み置きは `PENDING_LIMIT` 件まで滞留する。書き込みは `WRITE_TIMEOUT` で
+/// 長さを見ないと、`check_writable` の `to_string` で写しが作られ、書き込みは `WRITE_TIMEOUT` で
 /// 切れて `fail_writes` が走り、**そのエンジンは以後何も受け付けなくなる**——出るのは
 /// 「stdin を読まなくなった」で、長すぎたことは分からない。
 ///
@@ -126,7 +125,7 @@ fn says_value_not_in_vars(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::engine::types::TIMED_OUT;
-    use usi::{GuiCommand, InfoParams};
+    use usi::InfoParams;
 
     fn option(name: &str, value: &str) -> SetOptionValue {
         SetOptionValue {
@@ -262,15 +261,11 @@ done"#,
             let dir = test_support::dir::temp_dir("setup-dead-before-option");
             let protocol = spawn(&dir, "echo 'Error! : bad option Threads' >&2; exit 1").await;
             // 出力が終わったと見えるまで待つ（見えた後の送信は書く前に断られる）
-            let mut refused = false;
-            for _ in 0..500 {
-                if protocol.send_command(&GuiCommand::Usi).await.is_err() {
-                    refused = true;
-                    break;
-                }
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            }
-            assert!(refused, "落ちたエンジンへの送信が断られない");
+            let ended =
+                tokio::time::timeout(Duration::from_secs(5), protocol.end_watch().wait()).await;
+            let Ok(_) = ended else {
+                panic!("落ちたエンジンの出力の終わりが見えない");
+            };
 
             let error = checked_prepare(&protocol, &[option("Threads", "1")], None, None)
                 .await
