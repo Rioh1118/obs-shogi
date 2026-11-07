@@ -629,7 +629,7 @@ mod tests {
     /// どれだけ待ったのかも文言から読めること。この文言は利用者にそのまま
     /// 見せる契約（F-27）なので、秒で切り捨てると「0秒しか待っていないのに
     /// ファイルのせいにしている」行が画面に出る。締切で上限を削られた側の呼び方
-    /// （`game/session.rs` の `prepare_engine`）では1秒未満が実際に起きる。
+    /// （`game/start.rs` の `prepare_engine`）では1秒未満が実際に起きる。
     #[cfg(unix)]
     #[tokio::test]
     async fn a_file_that_is_not_a_usi_engine_does_not_claim_the_retry_marker() {

@@ -1,6 +1,6 @@
 //! 起動したエンジンへ設定を送り、使える状態（`readyok`）にする段。
 //!
-//! 通るのは対局（`game/session.rs` の `prepare_engine`）と検討（`EngineAnalyzer::start_engine`）。
+//! 通るのは対局（`game/start.rs` の `prepare_engine`）と検討（`EngineAnalyzer::start_engine`）。
 //! 手順を別々に書くと片方にだけ直しが入り（`readyok` を待つ／待たない、順序を保つ／保たない）、
 //! 食い違いはエンジンを起こしてからしか出ない。
 //! 送って待つのは手順「準備」と「値の確認」（`UsiProtocol::prepare` と `check_value`）で、

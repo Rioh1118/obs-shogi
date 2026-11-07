@@ -132,6 +132,12 @@ impl Side {
     }
 }
 
+/// 先後。
+///
+/// **数を式に直書きしない。** 「`gameover` を最大2回通す」のような
+/// 見積もりを散文だけに置くと、番人の上限を式で書くときに数え直せない。
+pub(super) const SIDES: [Side; 2] = [Side::Black, Side::White];
+
 pub use crate::engine::types::SetOptionValue;
 
 /// 対局者。
@@ -225,7 +231,7 @@ impl TimeLimit {
     /// （`if` を1つ足すたびに、離れたところが嘘になる）。
     ///
     /// **片側の中しか見ない。** 先後で流儀が違う組み合わせは
-    /// `validate_settings`（`session.rs`）が弾く。
+    /// `validate_settings`（`input.rs`）が弾く。
     pub fn validate(&self) -> Result<(), String> {
         // 秒読みとフィッシャーを両方送ると、どちらを優先するかがエンジンごとに割れる。
         // GUI 側で決め打つと「設定した通りに指さない」という形で出るので、入口で断る。
@@ -275,6 +281,15 @@ pub struct GameSettings {
     /// `enableEngineTimeout` も既定 false）。人間の時間切れは常に成立する。
     #[serde(default)]
     pub enforce_engine_timeout: bool,
+}
+
+impl GameSettings {
+    pub(super) fn spec(&self, side: Side) -> &PlayerSpec {
+        match side {
+            Side::Black => &self.black,
+            Side::White => &self.white,
+        }
+    }
 }
 
 /// 終局の理由。

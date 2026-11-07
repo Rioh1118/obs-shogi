@@ -17,9 +17,9 @@ pub use search::store::index_store::IndexStore;
 // 式で固定するのに読む定数だけ。`CLOSE_TIMEOUT` と並べて比べるので、段の中の
 // `#[cfg(test)]` からは見られない（理由はそのファイルの冒頭）。
 pub use engine::child::KILL_TIMEOUT;
-pub use engine::game::session::{
-    CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT, HARD_TURN_LIMIT, START_TIMEOUT,
-};
+pub use engine::game::session::{CLOSE_ABORT_TIMEOUT, CLOSE_IDLE_TIMEOUT};
+pub use engine::game::stall::HARD_TURN_LIMIT;
+pub use engine::game::start::START_TIMEOUT;
 pub use engine::protocol::{READY_TIMEOUT, USI_OK_TIMEOUT, WRITE_TIMEOUT};
 pub use engine::registry::SPAWN_TIMEOUT;
 

@@ -2,7 +2,7 @@
 //!
 //! **画面の文言は種類から組む**ので、検討の起動（`start_analysis_engine`）の分類はここに置く。
 //! 対局の起動は文字列で返し、締切で削った `usiok` の待ちを時間切れとして読み直す
-//! （`game/session.rs` の `usiok_refusal`）。ここはその前提を持たない——`StartupReason::NoUsiOk` を
+//! （`game/start.rs` の `usiok_refusal`）。ここはその前提を持たない——`StartupReason::NoUsiOk` を
 //! `NotUsi` とするのは、呼び手が `USI_OK_TIMEOUT` を満額渡したときだけ正しい。
 
 use std::path::PathBuf;
