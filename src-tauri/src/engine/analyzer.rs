@@ -416,9 +416,9 @@ impl EngineAnalyzer {
         Ok((search, stop_rx))
     }
 
-    /// 検討用エンジンが最後に出した行
-    pub async fn last_output(&self) -> Option<String> {
-        self.protocol().await.ok()?.last_output()
+    /// 検討用エンジンが直近に出した行。待たない（`UsiProtocol::recent_output`）
+    pub async fn recent_output(&self) -> Option<String> {
+        self.protocol().await.ok()?.recent_output()
     }
 
     /// 検討用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）

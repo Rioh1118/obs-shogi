@@ -339,8 +339,8 @@ impl EngineEndWatch {
     }
 
     /// 終わったエンジンが最後に出した行。**stderr の読み切りを `SETTLE_OUTPUT` まで待つ**
-    /// （待たないのは `UsiProtocol::last_output`）
-    pub async fn last_output(&self) -> Option<String> {
+    /// （待たないのは `UsiProtocol::recent_output`）
+    pub async fn final_output(&self) -> Option<String> {
         self.diagnostics.settle_output(SETTLE_OUTPUT).await;
         summarize_recent(&self.diagnostics.recent_lines())
     }
@@ -815,7 +815,7 @@ impl Handle {
     /// 起動の失敗に直近の出力を添える（`FailureDetail::last_output`）。理由の欄は変えない。
     /// 添えるのは `StartupFailed` と `CommunicationFailed` だけで、時間切れ（`TIMED_OUT` で
     /// 始まる）には添えない。**既に添えてあれば添え直さない**——先に添えたほうが失敗に近い
-    async fn with_last_output(&self, mut error: EngineError) -> EngineError {
+    async fn with_recent_output(&self, mut error: EngineError) -> EngineError {
         let slot = match &mut error {
             EngineError::StartupFailed(detail) => &mut detail.last_output,
             EngineError::CommunicationFailed(detail) => &mut detail.last_output,
@@ -867,10 +867,10 @@ impl UsiProtocol {
         let written = match asked {
             Ok((Asked::Done(info), _nothing_written)) => return Ok(info),
             Ok((Asked::Waiting(()), written)) => written,
-            Err(e) => return Err(self.handle.with_last_output(e).await),
+            Err(e) => return Err(self.handle.with_recent_output(e).await),
         };
         if let Err(e) = self.handle.finish(written).await {
-            return Err(self.handle.with_last_output(e).await);
+            return Err(self.handle.with_recent_output(e).await);
         }
         let answered = match tokio::time::timeout(timeout, answered).await {
             Ok(Ok(answered)) => answered,
@@ -881,7 +881,7 @@ impl UsiProtocol {
         };
         match answered {
             Ok(info) => Ok(info),
-            Err(e) => Err(self.handle.with_last_output(e).await),
+            Err(e) => Err(self.handle.with_recent_output(e).await),
         }
     }
 
@@ -941,10 +941,10 @@ impl UsiProtocol {
             .await;
         let written = match asked {
             Ok(((), written)) => written,
-            Err(e) => return Err(self.handle.with_last_output(e).await),
+            Err(e) => return Err(self.handle.with_recent_output(e).await),
         };
         if let Err(e) = self.handle.finish(written).await {
-            return Err(self.handle.with_last_output(e).await);
+            return Err(self.handle.with_recent_output(e).await);
         }
 
         let answered = match ready_deadline {
@@ -976,7 +976,7 @@ impl UsiProtocol {
         };
         match texts {
             Ok(texts) => Ok(texts),
-            Err(e) => Err(self.handle.with_last_output(e).await),
+            Err(e) => Err(self.handle.with_recent_output(e).await),
         }
     }
 
@@ -1011,10 +1011,10 @@ impl UsiProtocol {
             .await;
         let written = match asked {
             Ok(((), written)) => written,
-            Err(e) => return Err(self.handle.with_last_output(e).await),
+            Err(e) => return Err(self.handle.with_recent_output(e).await),
         };
         if let Err(e) = self.handle.finish(written).await {
-            return Err(self.handle.with_last_output(e).await);
+            return Err(self.handle.with_recent_output(e).await);
         }
         let answered = match tokio::time::timeout(limit, answered).await {
             Ok(Ok(answered)) => answered.map(Some),
@@ -1024,7 +1024,7 @@ impl UsiProtocol {
         // 落ちたら直近の出力を添える（起動の他の段と同じ。原因は stderr にある）
         match answered {
             Ok(answer) => Ok(answer),
-            Err(e) => Err(self.handle.with_last_output(e).await),
+            Err(e) => Err(self.handle.with_recent_output(e).await),
         }
     }
 
@@ -1047,8 +1047,8 @@ impl UsiProtocol {
     }
 
     /// エンジンが直近に出した行。**待たない**（生きているエンジンの stderr は閉じないので、読み切りを待つと
-    /// 上限まで待つことになる）。終わったエンジンの最後の行は `EngineEndWatch::last_output`
-    pub fn last_output(&self) -> Option<String> {
+    /// 上限まで待つことになる）。終わったエンジンの最後の行は `EngineEndWatch::final_output`
+    pub fn recent_output(&self) -> Option<String> {
         summarize_recent(&self.handle.diagnostics.recent_lines())
     }
 

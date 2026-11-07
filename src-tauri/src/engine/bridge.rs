@@ -212,7 +212,7 @@ impl EngineBridge {
                         &events,
                         AnalysisEvent::EngineExited(EngineExited {
                             request,
-                            last_output: watch.last_output().await,
+                            last_output: watch.final_output().await,
                         }),
                     )
                     .await;
@@ -222,7 +222,7 @@ impl EngineBridge {
                     let unresponsive = EngineUnresponsive {
                         request,
                         reason: UnresponsiveReason::Unwritable,
-                        last_output: watch.last_output().await,
+                        last_output: watch.final_output().await,
                     };
                     Self::emit_to(&events, AnalysisEvent::EngineUnresponsive(unresponsive)).await;
                 }
@@ -437,7 +437,7 @@ impl EngineBridge {
         let unresponsive = EngineUnresponsive {
             request,
             reason: UnresponsiveReason::NoAnswer,
-            last_output: self.analyzer.last_output().await,
+            last_output: self.analyzer.recent_output().await,
         };
         Self::emit_to(
             &self.events,
