@@ -115,7 +115,7 @@ impl EngineProber {
             definitions: info
                 .options
                 .iter()
-                .map(|o| option_labels::describe(UsiOptionDef::from(o)))
+                .map(|o| option_labels::labeled(UsiOptionDef::from(o)))
                 .collect(),
             name: info.name,
             author: info.author,
