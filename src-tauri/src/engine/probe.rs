@@ -20,15 +20,18 @@ use crate::engine::types::{EngineError, ProbeOutcome, SetOptionValue, StartFailu
 
 const LOGT: &str = "obs_shogi::engine::probe";
 
-/// 画面が取得を撃つたびに上げる番号。**既に受けた番号以下の取得は何もせずに断る**——Tauri の async
-/// コマンドは別々のタスクで走るので、後から撃った取得が先にロックを取ることがある。**同じ番号も断る**:
-/// 通すと、取り消された前の取得の後始末（`latest == token` を見て取り消しの欄を外す）が、後の取得の
-/// 取り消しの欄を外してしまい、次の取得がそれを取り消せない
-pub type ProbeToken = u64;
+/// 画面が取得を撃つたびに上げる番号（線の名前は `token`）。**既に受けた番号以下の取得は何もせずに
+/// 断る**——Tauri の async コマンドは別々のタスクで走るので、後から撃った取得が先にロックを取ることがある。
+///
+/// **同じ番号も断る。** 検討の起動の番号（`analyzer::Request`）は同じ番号を通すが、こちらは通せない。
+/// 取得の後始末は番号で自分を見分ける（`latest_request == request` を見て取り消しの欄を外す）ので、
+/// 同じ番号を通すと、取り消された前の取得の後始末が後の取得の取り消しの欄を外してしまい、
+/// 次の取得がそれを取り消せない
+pub type ProbeRequest = u64;
 
 #[derive(Default)]
 struct InFlight {
-    latest: ProbeToken,
+    latest_request: ProbeRequest,
     cancel: Option<CancellationToken>,
 }
 
@@ -49,10 +52,10 @@ impl EngineProber {
     pub async fn probe(
         &self,
         engine_path: &str,
-        token: ProbeToken,
+        request: ProbeRequest,
         fixed: &[SetOptionValue],
     ) -> Result<ProbeOutcome, StartFailure> {
-        match self.probe_steps(engine_path, token, fixed).await {
+        match self.probe_steps(engine_path, request, fixed).await {
             Ok(outcome) => Ok(outcome),
             Err(e) => {
                 let failure = start_failure::describe(&e, engine_path).await;
@@ -69,15 +72,15 @@ impl EngineProber {
     async fn probe_steps(
         &self,
         engine_path: &str,
-        token: ProbeToken,
+        request: ProbeRequest,
         fixed: &[SetOptionValue],
     ) -> Result<ProbeOutcome, EngineError> {
         let cancel = {
             let mut in_flight = self.in_flight.lock().await;
-            if token <= in_flight.latest {
-                return Err(superseded());
+            if request <= in_flight.latest_request {
+                return Err(superseded_request());
             }
-            in_flight.latest = token;
+            in_flight.latest_request = request;
             if let Some(previous) = in_flight.cancel.take() {
                 previous.cancel();
             }
@@ -92,13 +95,13 @@ impl EngineProber {
             .await;
         {
             let mut in_flight = self.in_flight.lock().await;
-            if in_flight.latest == token {
+            if in_flight.latest_request == request {
                 in_flight.cancel = None;
             }
         }
         let process = spawned?;
         // **申告を写してから落とす。** 落とすのを待つ間に次の取得が来ても、この結果は返す
-        // （捨てるかは画面が `token` で決める）
+        // （捨てるかは画面が番号で決める）
         let info = process.info.clone();
         self.registry.shutdown(&process.id).await;
         log::info!(
@@ -109,7 +112,7 @@ impl EngineProber {
         );
 
         Ok(ProbeOutcome {
-            token,
+            token: request,
             engine_path: engine_path.to_string(),
             reserved: binding::reserved_names(&info.options, fixed),
             definitions: info
@@ -123,7 +126,8 @@ impl EngineProber {
     }
 }
 
-fn superseded() -> EngineError {
+/// 取得が、既に受けた番号以上の取得に追い越されていた（`ProbeRequest`）
+fn superseded_request() -> EngineError {
     EngineError::Cancelled("a newer probe was already requested".to_string())
 }
 

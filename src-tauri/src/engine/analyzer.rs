@@ -188,7 +188,11 @@ impl Startup {
 /// `startup` のロックに着く前に別の `await` を挟む（`bridge.rs` の `release_sessions` /
 /// `stop_all_sessions`）。後から撃った要求が先にロックを取ると、Rust の世代の順が逆転し、
 /// フロントが捨てた古い起動が `engine_id` に載って、新しい要求のほうが取り消される。
-/// 番号が最新より古い要求は、何もせずに断る
+/// 番号が最新より古い要求は、何もせずに断る。
+///
+/// **同じ番号は断らない。** 申告の取得の番号（`probe::ProbeRequest`）は同じ番号も断るが、
+/// あちらは後始末で番号を見て自分を見分けるため。こちらの後始末は Rust の世代
+/// （`Startup::generation`）で見分けるので、同じ番号が2度来ても前の起動の欄を外さない
 pub type Request = u64;
 
 /// 止める頼みへの答えを返す送り手（`EngineAnalyzer::stop_analysis` が待つ）

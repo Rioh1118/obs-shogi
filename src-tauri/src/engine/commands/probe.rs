@@ -1,7 +1,7 @@
 //! Tauri コマンドの入口（申告の取得）。
 
 use crate::engine::analysis_start::analysis_fixed_values;
-use crate::engine::probe::ProbeToken;
+use crate::engine::probe::ProbeRequest;
 use crate::engine::state::AppState;
 use crate::engine::types::{ProbeOutcome, StartFailure};
 
@@ -12,7 +12,7 @@ use crate::engine::types::{ProbeOutcome, StartFailure};
 pub async fn probe_engine(
     state: tauri::State<'_, AppState>,
     engine_path: String,
-    token: ProbeToken,
+    token: ProbeRequest,
 ) -> Result<ProbeOutcome, StartFailure> {
     state
         .prober
