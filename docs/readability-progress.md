@@ -78,7 +78,8 @@ ours 戦略のマージは使わない。
 | 42 | `docs/engine-usi-design` | USI のやりとりの作り直しの設計（Rust の範囲5c）。ADR-0016、`engine.md` と `analysis.md` の目標の形 | #713 | マージ済み |
 | 43 | `test/usi-u0-baseline` | 作り直しの段 U0。載せ替えの前に要るテスト T1〜T10 と性能の基準線 M1〜M3。製品のコードは変えない | #714 | マージ済み |
 | 44 | `refactor/usi-u1-procedures` | 作り直しの段 U1。手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry` と `setup` を手順へ移し、B-10 と D-1 の置き場を入れる | #715 | マージ済み |
-| 45 | `refactor/readability-range6` | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure`（Rust の範囲6）。C-4、R-10、範囲内の W-1 を閉じ、`setup` の関数名を手順の語に揃える | #716 | レビュー待ち |
+| 45 | `refactor/readability-range6` | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure`（Rust の範囲6）。C-4、R-10、範囲内の W-1 を閉じ、`setup` の関数名を手順の語に揃える | #716 | マージ済み |
+| 46 | `refactor/usi-u2a-analyzer` | 作り直しの段 U2a。`analyzer` を手順「探索」と `Search` へ移し、検討の側から受け手の登録をなくす。D-1 の検討の写しを消す | — | レビュー待ち |
 
 ## 語
 
@@ -155,8 +156,8 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | U0 | 載せ替えの前に要るテスト（`docs/state-transitions/engine.md` の T1〜T10）と性能の基準線（ADR-0016 の M1〜M3）。製品のコードは変えない | — | 済 |
 | U1 | 手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry`、`setup`、`probe` を手順へ移す | — | 済 |
 | 6  | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure` | 732 | 済 |
-| U2a | `analyzer` を手順へ移す | — | 未着手 |
-| 8a | `src-tauri/src/engine/analyzer.rs` | U2a の後に数える | 未着手 |
+| U2a | `analyzer` を手順へ移す | — | 済 |
+| 8a | `src-tauri/src/engine/analyzer.rs` | 828 | 未着手 |
 | 7a | `src-tauri/src/engine/game/session.rs` を4つのファイルに割る。割るだけ | 2208 | 未着手 |
 | U2b | `game` を手順へ移す | — | 未着手 |
 | U3 | 状態機械を新しい段 `usi_machine` に作る。受け手の表と積み置きを消す | — | 未着手 |
@@ -232,21 +233,21 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で、範囲6は段45で取った。次は U2a。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で、範囲6は段45で、U2a は段46で取った。次は範囲8a。
 
 範囲「公開」から、`engine` は crate の外へ出ない。外へ出すのは `tests/engine_timeouts.rs` が読む上限の定数だけで、
 `lib.rs` が再輸出する。`engine` の中で呼び手の無い `pub` は rustc の `dead_code` が拾うので、以後の範囲では grep で数えなくてよい。
-**例外は `engine/protocol/search.rs`** で、U1 では本番の呼び手が無いので `dead_code` を許してある。U2a・U2b で呼び手が移ったら外す。
+**例外は `engine/protocol/search.rs`** の `Search::ponderhit` と `SearchLine::BestMove` の手の欄で、本番で使うのは対局だけなので `dead_code` を許してある。U2b で対局が移ったら外す。
 
-U2a: `analyzer` を手順へ移す（作り直しの段）。`collect_until_bestmove` の止め方、`drain_stale`、`StopVerdict`、`infinite_listener` を消し、D-1 の写し（`verdict_of_stop`、`should_wait_for_bestmove`）を `Search` の止める手順へ寄せる。固定するテストは ADR-0016 の決定8の表の行。
+範囲8a: `analyzer.rs` の整理（テストを除いて828行）。U2a で探索の手順が抜け、`analyzer` が持つのは起動の世代（`startup`）、局面、無限の検討の流れ（`process_analysis_stream`）、止めに答えない印（`unanswered`）になった。
 
-- 範囲6で `setup` の関数名を手順の語に揃えた。`analyzer` が呼ぶのは `setup::checked_prepare`（値の検査と手順「準備」）と `setup::check_book_path_support`（手順「値の確認」で定跡のパスを受けるかを確かめる）
-- U2a の後に範囲8a（`analyzer.rs` の整理）を数える
+- U2a は探索の手順を抜くことに絞ったので、関数の名前とコメントの「解析」（W-1）は手を付けていない。`process_analysis_stream` は `Search` を持って止める頼みにも答えるので、名前が中身より狭い
+- R-8（起動の世代と `latest_request` の持ち方）は、`docs/state-transitions/analysis.md` の「順序の持ち主」が範囲8a を指している
 
 U2b で対局を `Search` へ移すとき、`StopAnswer::Unreachable(EngineError::Timeout)`（`stop` の書き込みが上限を超えた）の
 行き先を決める。いまの対局は `StopTimedOut`（止めに答えない）と読み、検討は失敗と読む。写像を純関数にして、この1通りをテストで固定する。
 
-U2a の後は上の表の順に 8a、7a と進む。各段の範囲と固定のしかたは ADR-0016 の決定8。
+8a の後は上の表の順に 7a、U2b と進む。各段の範囲と固定のしかたは ADR-0016 の決定8。
 
 `tests/layering.rs` は `engine` の段の上下を
 ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。

@@ -143,22 +143,6 @@
 
 - 局面検索の「1つの検索」という単位が `entities/search` に無い。rid・撃ち直しの重複除け・取り下げ・破棄は `features/position-search/model/useSearchSession.ts` にまとまったので、`entities/search` に2つ目の呼び手が出たらそのまま下げられる
 
-## 解析の停止が、ロックを握ったまま別のロックを待つ
-
-`.claude/reviews/2026-09-07-441-unmount-session-r2.md` の r2-21（rust reviewer）。
-
-`EngineAnalyzer::stop_analysis` の
-`if let Some(id) = self.infinite_listener.lock().await.take()` は、
-`if let` のスクルーティニに置いたガードが本体の終わりまで生きるので、
-**`infinite_listener` を握ったまま `protocol.remove_listener(&id).await`**
-（`listeners` の write ロック待ち）に入る。同時に走る `start_infinite_analysis` は
-そこで詰まる。
-
-**判断: 6週間以内に着手しない。** いま環は無い（取得順は両者とも
-`infinite_listener` → `listeners`）ので、利用者に見える症状も無い。`listeners` を握る側が `infinite_listener` を触る日が来ると環になる。
-**文を分けて `await` の前にガードを落とすだけ**で消える。
-clippy の `significant_drop_in_scrutinee`（nursery）が同じ形を拾う。
-
 ## 公開リポジトリとしての体裁が、配布物とドキュメントで揃っていない
 
 `.claude/reviews/2026-09-07-441-unmount-session-r6.md` の所見（oss-hygiene）。
@@ -302,21 +286,6 @@ lint もテストもラチェットも赤くならない。
 落とすのは危ない（差が無いことを示せていないだけで、無いことの証明ではない）が、
 「効いている」と読める根拠も無い。**#489 で自動再開の8本の ref を切り出す回に、
 機構ごと見直す対象として拾うこと。**
-
-## 畳まれたかの合図を `Notify` から `CancellationToken` に替える
-
-`.claude/reviews/2026-09-09-441-unmount-session-r33.md`（rust reviewer）。
-`EngineAnalyzer::infinite_settled` は `Arc<Notify>` で、`notify_one` が
-**待ち手が居なければ permit を1つ貯める**という性質に乗っている。
-停止が2本同時に来ると片方が permit を取り、もう片方は上限まで待って諦める——
-どちらも「畳まれた」を見たはずなのに、結末が呼ぶ順で変わる。
-
-`CancellationToken` なら「一度倒れたら、以後の待ち手は全員すぐ通る」ので、
-何本来ても同じ結末になる。`tokio-util` は既に依存に在る（`Cargo.toml`）ので
-足すものは無い。
-
-替えるかは**合図の型の設計判断**なので、#441 の PR には混ぜない。
-現状でも実害は出ていない（停止を2本同時に撃つ口が無い）が、口が増えたら踏む。
 
 ## `useEngineSeat` から、席を返す枠の管理を割る
 

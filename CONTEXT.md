@@ -43,7 +43,7 @@
 | — | `check_value` | 値の確認。`setoption` と `usi` を送り、`usiok` までの `info string` を受ける | — |
 | — | `new_game` / `USI: usinewgame` | 新しい対局 | — |
 | — | `search` / `Search` / `USI: go` | 探索と、探索1本の持ち分。`Search` は行を受け、先読みを本番にし、止め、捨てる | — |
-| — | `StopAnswer` | 止めの答え。答えた／止めるものが無かった／上限まで答えない／届かない | `StopOutcome`（検討の停止の結果で別物） |
+| — | `StopAnswer` / `LateAnswer` | 止めの答え。答えた／止めるものが無かった／上限まで答えない／届かない。上限まで答えない探索は `LateAnswer` で遅れた答えを待て、持つ間は次の探索を始めさせない | `StopOutcome`（検討の停止の結果で別物） |
 | — | `game_over` / `USI: gameover` | 終局 | — |
 
 ## 操作の結果
