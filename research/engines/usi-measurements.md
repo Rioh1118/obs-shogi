@@ -110,3 +110,61 @@ zermelo には候補手の数という概念自体が無い。
 **幅が狭くても段が意味を持つとは限らない。** `DeclarationBigPiecePoints` の範囲 0〜1000 に対して既定は 5、
 `SlowMover` は 1〜1000 に対して 100。線形のつまみでは既定の近くを刻めない。
 `BookIgnoreRate`（0〜100、百分率）だけが線形の範囲を丸ごと使う形。
+
+# 取り次ぎの基準線（2026-11-06）
+
+ADR-0016 決定9 の M1〜M3 を、作り直しの前の実装で測った。**基点は `408d1959`**（`origin/main`、#713 の後）。
+台本のエンジン（`/bin/sh`）を相手に、呼び手（`UsiProtocol`）から見た時間を測る。台本は答えをファイルから `cat` で流すので、
+書く速さは作り直しの前後で変わらない。測る口は `src-tauri/src/engine/protocol.rs` の `tests::baseline`（`#[ignore]`）。
+
+```bash
+cd src-tauri
+cargo test --lib engine::protocol::tests::baseline -- --ignored --nocapture --test-threads=1
+cargo test --release --lib engine::protocol::tests::baseline -- --ignored --nocapture --test-threads=1
+```
+
+環境: Apple M1 Pro、macOS 26.5、rustc 1.98.0。他の作業を止めずに測った。値はミリ秒。
+
+## M1: `info` の流れの遅れ
+
+`go` を書いてから、`info` 2000行の後の `bestmove` を呼び手が受け取るまで。1回の走行で5回測る。
+
+| ビルド | 走行 | 中央値 | 最小 | 最大 |
+| ------ | ---- | ------ | ---- | ---- |
+| test（既定） | 1 | 40.04 | 36.19 | 42.99 |
+| test（既定） | 2 | 43.59 | 32.09 | 59.89 |
+| test（既定） | 3 | 46.12 | 35.82 | 64.12 |
+| release | 1 | 16.63 | 11.43 | 17.87 |
+| release | 2 | 14.85 | 10.50 | 18.58 |
+| release | 3 | 11.45 | 10.93 | 49.04 |
+
+## M2: 停止から `bestmove` までの時間
+
+`go infinite` の後に `stop`（`UsiProtocol::stop`）を呼んでから、答えの `bestmove` を呼び手が受け取るまで。
+台本は `stop` に即 `bestmove` で答える。1回の走行で20回測る。
+
+| ビルド | 走行 | 中央値 | 最小 | 最大 |
+| ------ | ---- | ------ | ---- | ---- |
+| test（既定） | 1 | 7.93 | 4.23 | 11.08 |
+| test（既定） | 2 | 6.62 | 4.59 | 20.18 |
+| test（既定） | 3 | 6.43 | 3.29 | 11.08 |
+| release | 1 | 4.73 | 3.32 | 6.51 |
+| release | 2 | 5.95 | 4.18 | 12.03 |
+| release | 3 | 5.58 | 2.52 | 31.61 |
+
+## M3: 1本のプロセスのために持つロックの数
+
+`protocol.rs` の構造体の欄のうち、型が `Arc<Mutex<…>>` か `Arc<RwLock<…>>`（tokio と std の両方）のもの。**8**。
+
+| 構造体 | 欄 |
+| ------ | -- |
+| `UsiProtocol` | `state`（`RwLock`）、`listen_active`、`declared`（std の `Mutex`）、`info_gate`、`init_task`、`init_cancel` |
+| `Link` | `listeners`（`RwLock`）、`pending` |
+
+関数の引数の `Arc<RwLock<…>>`（`listeners` を受ける1か所）は数えない。`Arc<AtomicBool>` と `Arc<watch::Sender>` もロックではないので数えない。
+
+## 読み方
+
+- **走行ごとの揺れが大きい。** 最大は走行によって中央値の数倍になる（M2 の release の3回目）。U4 で比べるときは同じ機械で同じ回数を走らせ、
+  決定9の条件（U4 の中央値が基準線の最小より小さい）は**ビルドを揃えて**見る
+- test と release で M1 は約3倍違う。差は取り次ぎの側（台本は同じ）なので、M1 は最適化の効く経路が主に効いている

@@ -4747,4 +4747,544 @@ mod tests {
             );
         }
     }
+    /// 台本のエンジン（実プロセス）を対局者にして、対局の探索の経路を踏む
+    /// （`docs/state-transitions/engine.md` の T1〜T6）。
+    ///
+    /// **上のテストはどれもエンジンを起こさない**（人間どうしか、`Runner` を直に組む）。
+    /// ここは `GameSession::start` から `registry` を通して台本を起こし、`run_search` が
+    /// 実際に書いた行（台本の `seen.log`）と、対局が出した出来事の両方を見る。
+    ///
+    /// 対局者は先手が台本のエンジン、後手が人間。人間の手は `submit_move` で指し、
+    /// 裁定は `continue_game` で返す（フロントの役）
+    #[cfg(unix)]
+    mod with_an_engine {
+        use super::*;
+        use crate::engine::game::search::SEARCH_STOP_GRACE;
+        use crate::engine::registry::script::place_script;
+        use std::path::{Path, PathBuf};
+
+        /// 出来事を待つ上限。T4 は止めの上限（`SEARCH_STOP_GRACE`）を実際に待つので、それより長く取る
+        const WAIT: Duration = Duration::from_secs(20);
+        const POLL: Duration = Duration::from_millis(10);
+        /// 少し待っても起きないことを見る幅
+        const QUIET: Duration = Duration::from_millis(300);
+
+        /// 台本の答え。どれも `sh` の文で、`$pos` で直前の `position` 行を読める
+        struct Answers {
+            on_go: &'static str,
+            on_ponder: &'static str,
+            on_stop: &'static str,
+            on_ponderhit: &'static str,
+        }
+
+        impl Default for Answers {
+            fn default() -> Self {
+                Self {
+                    on_go: "echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'; echo 'bestmove 7g7f ponder 3c3d'",
+                    on_ponder: ":",
+                    on_stop: ":",
+                    on_ponderhit: ":",
+                }
+            }
+        }
+
+        /// 受けた行を `seen.log` に残す台本（cwd は実行ファイルのフォルダ）
+        fn script(answers: &Answers) -> String {
+            let Answers {
+                on_go,
+                on_ponder,
+                on_stop,
+                on_ponderhit,
+            } = answers;
+            format!(
+                r#"while read line; do
+  echo "$line" >> seen.log
+  case "$line" in
+    usi) printf 'id name Player\nusiok\n' ;;
+    isready) echo readyok ;;
+    position*) pos="$line" ;;
+    'go ponder'*) {on_ponder} ;;
+    go*) {on_go} ;;
+    stop) {on_stop} ;;
+    ponderhit) {on_ponderhit} ;;
+    quit) exit 0 ;;
+  esac
+done"#
+            )
+        }
+
+        /// 先手が台本のエンジン、後手が人間の対局
+        fn engine_against_human(path: &Path, ponder: bool) -> GameSettings {
+            GameSettings {
+                black: PlayerSpec::Engine {
+                    name: "台本".to_string(),
+                    engine_path: path.to_str().expect("パス").to_string(),
+                    work_dir: None,
+                    options: Vec::new(),
+                    ponder,
+                },
+                ..two_humans(vec![])
+            }
+        }
+
+        struct Game {
+            session: GameSession,
+            registry: EngineRegistry,
+            recorded: Arc<RecordedEvents>,
+            /// `recorded` から取り出した出来事。`take` は抜くので、ここに積んで見る
+            events: Vec<GameEvent>,
+            dir: PathBuf,
+        }
+
+        impl Game {
+            async fn start(name: &str, answers: &Answers, ponder: bool) -> Game {
+                let dir = test_support::dir::temp_dir(name);
+                let path = place_script(&dir, "engine.sh", &script(answers)).await;
+                let registry = EngineRegistry::new();
+                let recorded = Arc::new(RecordedEvents::default());
+                let session = GameSession::start(
+                    &registry,
+                    Arc::clone(&recorded) as Arc<dyn GameEventSink>,
+                    engine_against_human(&path, ponder),
+                )
+                .await
+                .expect("台本のエンジンで対局を始められる");
+                Game {
+                    session,
+                    registry,
+                    recorded,
+                    events: Vec::new(),
+                    dir,
+                }
+            }
+
+            /// `matches` に当たる出来事が出るまで待ち、その出来事を返す
+            async fn wait_for(
+                &mut self,
+                what: &str,
+                matches: impl Fn(&GameEvent) -> bool,
+            ) -> GameEvent {
+                let deadline = Instant::now() + WAIT;
+                loop {
+                    self.events.extend(self.recorded.take());
+                    if let Some(found) = self.events.iter().find(|e| matches(e)) {
+                        return found.clone();
+                    }
+                    assert!(Instant::now() < deadline, "上限内に出ない: {what}");
+                    tokio::time::sleep(POLL).await;
+                }
+            }
+
+            async fn wait_for_move(&mut self, side: Side) -> String {
+                let event = self
+                    .wait_for(
+                        "手が決まる",
+                        |e| matches!(e, GameEvent::MoveDecided { side: s, .. } if *s == side),
+                    )
+                    .await;
+                let GameEvent::MoveDecided { usi_move, .. } = event else {
+                    unreachable!("`wait_for` が当てたのは `MoveDecided`")
+                };
+                // 次の `wait_for_move` が同じ出来事を当てないように、見た分を捨てる
+                self.events.clear();
+                usi_move
+            }
+
+            async fn wait_for_over(&mut self) -> GameResult {
+                let event = self
+                    .wait_for("終局", |e| matches!(e, GameEvent::Over { .. }))
+                    .await;
+                let GameEvent::Over { result, .. } = event else {
+                    unreachable!("`wait_for` が当てたのは `Over`")
+                };
+                result
+            }
+
+            /// 台本が受けた行
+            fn seen(&self) -> Vec<String> {
+                std::fs::read_to_string(self.dir.join("seen.log"))
+                    .unwrap_or_default()
+                    .lines()
+                    .map(String::from)
+                    .collect()
+            }
+
+            /// 台本が `line` で始まる行を受けるまで待つ
+            async fn wait_until_seen(&self, line: &str) {
+                let deadline = Instant::now() + WAIT;
+                while !self.seen().iter().any(|l| l.starts_with(line)) {
+                    assert!(
+                        Instant::now() < deadline,
+                        "上限内に `{line}` を書かない: {:?}",
+                        self.seen()
+                    );
+                    tokio::time::sleep(POLL).await;
+                }
+            }
+
+            /// 決まった手に「続く」の裁定を返す（フロントの役）
+            async fn continue_with(&self, moves: &[&str]) {
+                self.session
+                    .continue_game(moves.iter().map(|m| m.to_string()).collect())
+                    .await
+                    .expect("裁定が通る");
+            }
+
+            async fn close(self) {
+                self.session.close(&self.registry).await;
+                let _ = std::fs::remove_dir_all(&self.dir);
+            }
+        }
+
+        fn is_go(line: &str) -> bool {
+            line == "go" || line.starts_with("go ")
+        }
+
+        /// T1 — (Q2, R5) (Q3, L5) (Q3, L7): エンジンの手番に `position` と `go` を書き、
+        /// その探索の `info` を読み筋として流し、`bestmove` を着手にして裁定待ちで止まる
+        #[tokio::test]
+        async fn an_engine_bestmove_becomes_the_move_and_waits_for_the_ruling() {
+            let mut game = Game::start("game-engine-move", &Answers::default(), false).await;
+
+            game.wait_for("手番側の読み筋", |e| {
+                matches!(
+                    e,
+                    GameEvent::SearchInfo {
+                        side: Side::Black,
+                        ..
+                    }
+                )
+            })
+            .await;
+            assert_eq!(game.wait_for_move(Side::Black).await, "7g7f");
+
+            let snapshot = game.session.snapshot().await.expect("写しが取れる");
+            assert!(
+                matches!(
+                    phase_of(&snapshot),
+                    GamePhaseView::AwaitingRuling { last_mover: Side::Black, usi_move }
+                        if usi_move == "7g7f"
+                ),
+                "裁定待ちで止まっていない: {:?}",
+                phase_of(&snapshot)
+            );
+            let seen = game.seen();
+            let position = seen
+                .iter()
+                .position(|l| l == &format!("position sfen {HIRATE}"))
+                .unwrap_or_else(|| panic!("初期局面の `position` を書いていない: {seen:?}"));
+            assert!(
+                seen.get(position + 1).is_some_and(|l| is_go(l)),
+                "`position` の直後に `go` を書いていない: {seen:?}"
+            );
+            game.close().await;
+        }
+
+        /// T2 — (Q3p, R7) (Q4, L7): 外れた先読みは `stop` で止め、その答えの `bestmove` を
+        /// 着手に採らず、指された手の局面で本番の `go` を出し直す。
+        ///
+        /// 捨てる手は台本でしか出ない綴り（`9i9h`）にして、採ったらそれと分かるようにする
+        #[tokio::test]
+        async fn a_missed_ponder_is_stopped_and_its_bestmove_is_not_taken() {
+            let answers = Answers {
+                // 外れた後の本番の `go` には別の手で答える
+                on_go: r#"case "$pos" in
+      *8c8d) echo 'bestmove 2g2f' ;;
+      *) echo 'bestmove 7g7f ponder 3c3d' ;;
+    esac"#,
+                on_ponder: "echo 'info depth 1 multipv 1 score cp 5 pv 2g2f'",
+                // 答える前に印を残す。次の局面がこの印より後なら、答えを待ってから書いている
+                on_stop: "sleep 0.3; echo answered >> seen.log; echo 'bestmove 9i9h'",
+                ..Answers::default()
+            };
+            let mut game = Game::start("game-ponder-miss", &answers, true).await;
+
+            assert_eq!(game.wait_for_move(Side::Black).await, "7g7f");
+            game.continue_with(&["7g7f"]).await;
+            game.wait_until_seen("go ponder").await;
+
+            game.session
+                .submit_move(Side::White, "8c8d".to_string())
+                .await
+                .expect("人間の手を受ける");
+            assert_eq!(game.wait_for_move(Side::White).await, "8c8d");
+            game.continue_with(&["7g7f", "8c8d"]).await;
+
+            assert_eq!(
+                game.wait_for_move(Side::Black).await,
+                "2g2f",
+                "止めた先読みの `bestmove` を着手に採っている"
+            );
+            let seen = game.seen();
+            let ponder = seen
+                .iter()
+                .position(|l| l.starts_with("go ponder"))
+                .expect("先読みの `go ponder` を書いていない");
+            let stop = seen
+                .iter()
+                .position(|l| l == "stop")
+                .unwrap_or_else(|| panic!("外れた先読みを止めていない: {seen:?}"));
+            let answered = seen
+                .iter()
+                .position(|l| l == "answered")
+                .unwrap_or_else(|| panic!("台本が `stop` に答えていない: {seen:?}"));
+            let restarted = seen
+                .iter()
+                .position(|l| l == &format!("position sfen {HIRATE} moves 7g7f 8c8d"))
+                .unwrap_or_else(|| panic!("指された手の局面を書いていない: {seen:?}"));
+            assert!(
+                ponder < stop && stop < restarted,
+                "外れた先読みを止める前に次の局面を書いている: {seen:?}"
+            );
+            assert!(
+                answered < restarted,
+                "`stop` の答えを待たずに次の局面を書いている: {seen:?}"
+            );
+            assert!(
+                seen.get(restarted + 1).is_some_and(|l| is_go(l)),
+                "外れた後に本番の `go` を出していない: {seen:?}"
+            );
+            assert!(
+                !seen.iter().any(|l| l == "ponderhit"),
+                "外れたのに `ponderhit` を書いている: {seen:?}"
+            );
+            game.close().await;
+        }
+
+        /// T3 — (Q3p, R6) (Q3p, L7): 当たった先読みには `ponderhit` を書き、止めずに
+        /// その探索の `bestmove` を着手に採る
+        #[tokio::test]
+        async fn a_ponder_hit_sends_ponderhit_and_takes_that_bestmove() {
+            let answers = Answers {
+                on_ponder: "echo 'info depth 1 multipv 1 score cp 5 pv 2g2f'",
+                on_ponderhit: "echo 'bestmove 2g2f'",
+                ..Answers::default()
+            };
+            let mut game = Game::start("game-ponder-hit", &answers, true).await;
+
+            assert_eq!(game.wait_for_move(Side::Black).await, "7g7f");
+            game.continue_with(&["7g7f"]).await;
+            game.wait_until_seen("go ponder").await;
+
+            game.session
+                .submit_move(Side::White, "3c3d".to_string())
+                .await
+                .expect("人間の手を受ける");
+            assert_eq!(game.wait_for_move(Side::White).await, "3c3d");
+            game.continue_with(&["7g7f", "3c3d"]).await;
+
+            assert_eq!(
+                game.wait_for_move(Side::Black).await,
+                "2g2f",
+                "当たった先読みの `bestmove` を着手に採っていない"
+            );
+            let seen = game.seen();
+            let ponder = seen
+                .iter()
+                .position(|l| l.starts_with("go ponder"))
+                .expect("先読みの `go ponder` を書いていない");
+            assert!(
+                seen.get(ponder + 1).is_some_and(|l| l == "ponderhit"),
+                "当たった先読みの次に `ponderhit` を書いていない: {seen:?}"
+            );
+            assert!(
+                !seen.iter().any(|l| l == "stop"),
+                "当たった先読みを止めている: {seen:?}"
+            );
+            game.close().await;
+        }
+
+        /// T4 — (Q3p, R7) から (Q4, R9): 外れた先読みの `stop` に答えないエンジンは、止めの上限
+        /// （`SEARCH_STOP_GRACE`）の後に `StopTimedOut` で負けになり、`gameover` は書かない。
+        ///
+        /// **上限を実際に待つ。** 載せ替えの番人なので `#[ignore]` にしない
+        #[tokio::test]
+        async fn an_engine_that_ignores_stop_loses_and_gets_no_gameover() {
+            let answers = Answers {
+                on_ponder: "echo 'info depth 1 multipv 1 score cp 5 pv 2g2f'",
+                ..Answers::default()
+            };
+            let mut game = Game::start("game-stop-ignored", &answers, true).await;
+
+            assert_eq!(game.wait_for_move(Side::Black).await, "7g7f");
+            game.continue_with(&["7g7f"]).await;
+            game.wait_until_seen("go ponder").await;
+            game.session
+                .submit_move(Side::White, "8c8d".to_string())
+                .await
+                .expect("人間の手を受ける");
+            assert_eq!(game.wait_for_move(Side::White).await, "8c8d");
+            let stopping_from = Instant::now();
+            game.continue_with(&["7g7f", "8c8d"]).await;
+
+            let result = game.wait_for_over().await;
+            assert!(
+                stopping_from.elapsed() >= SEARCH_STOP_GRACE,
+                "止めの上限より前に終局している（{:?}）",
+                stopping_from.elapsed()
+            );
+            assert_eq!(result.winner, Some(Side::White));
+            assert!(matches!(result.reason, GameOverReason::EngineFailure));
+            assert_eq!(
+                result.detail.as_deref(),
+                Some(Stall::NotStopping.detail()),
+                "`stop` に応じなかったと言っていない"
+            );
+            tokio::time::sleep(QUIET).await;
+            let seen = game.seen();
+            assert!(seen.iter().any(|l| l == "stop"), "止めていない: {seen:?}");
+            assert!(
+                !seen.iter().any(|l| l.starts_with("gameover")),
+                "探索中のエンジンへ `gameover` を書いている: {seen:?}"
+            );
+            game.close().await;
+        }
+
+        /// T4 — (Q3, R9) から (Q4, R9): 本番の探索中に対局を終えても、`stop` に答えない
+        /// エンジンには、止めの上限を過ぎても `gameover` を書かない。
+        /// 答えるエンジンの側は `ending_the_game_during_a_search_writes_gameover_after_the_stop`
+        #[tokio::test]
+        async fn ending_the_game_during_a_search_that_ignores_stop_writes_no_gameover() {
+            let answers = Answers {
+                on_go: "echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'",
+                ..Answers::default()
+            };
+            let mut game = Game::start("game-abort-searching", &answers, false).await;
+            game.wait_for("手番側の読み筋", |e| {
+                matches!(
+                    e,
+                    GameEvent::SearchInfo {
+                        side: Side::Black,
+                        ..
+                    }
+                )
+            })
+            .await;
+
+            game.session.abort().await.expect("中断できる");
+            let result = game.wait_for_over().await;
+            assert!(matches!(result.reason, GameOverReason::Aborted));
+            game.wait_until_seen("stop").await;
+
+            // 止めの上限を過ぎ、探索の結果（`StopTimedOut`）が対局に届くまで待つ
+            tokio::time::sleep(SEARCH_STOP_GRACE + QUIET).await;
+            let seen = game.seen();
+            assert!(
+                !seen.iter().any(|l| l.starts_with("gameover")),
+                "探索中のエンジンへ `gameover` を書いている: {seen:?}"
+            );
+            game.close().await;
+        }
+
+        /// T4 の対 — (Q3, R9): 本番の探索中に対局を終えたら、`gameover` は `stop` の答えの
+        /// `bestmove` が来てから書く（探索中の `gameover` は USI 違反）
+        #[tokio::test]
+        async fn ending_the_game_during_a_search_writes_gameover_after_the_stop() {
+            let answers = Answers {
+                on_go: "echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'",
+                // 答える前に印を残す。`gameover` がこの印より後なら、答えを待ってから書いている
+                on_stop: "sleep 0.3; echo answered >> seen.log; echo 'bestmove 7g7f'",
+                ..Answers::default()
+            };
+            let mut game = Game::start("game-abort-answering", &answers, false).await;
+            game.wait_for("手番側の読み筋", |e| {
+                matches!(
+                    e,
+                    GameEvent::SearchInfo {
+                        side: Side::Black,
+                        ..
+                    }
+                )
+            })
+            .await;
+
+            game.session.abort().await.expect("中断できる");
+            game.wait_for_over().await;
+            game.wait_until_seen("gameover").await;
+            let seen = game.seen();
+            let answered = seen
+                .iter()
+                .position(|l| l == "answered")
+                .unwrap_or_else(|| panic!("台本が `stop` に答えていない: {seen:?}"));
+            let gameover = seen
+                .iter()
+                .position(|l| l.starts_with("gameover"))
+                .expect("上で待った");
+            assert!(
+                answered < gameover,
+                "探索が止まる前に `gameover` を書いている: {seen:?}"
+            );
+            assert_eq!(
+                seen[gameover], "gameover draw",
+                "中断は引き分けとして伝える"
+            );
+            game.close().await;
+        }
+
+        /// T5 — (Q3, L8) (Q3p, L8): 探索中か先読み中に出力が終わったエンジンで、
+        /// 対局は `engineFailure` で終わり、相手の勝ちになる
+        #[tokio::test]
+        async fn an_engine_that_exits_while_searching_ends_the_game() {
+            // 本番の探索中に終わる
+            let answers = Answers {
+                on_go: "echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'; exit 0",
+                ..Answers::default()
+            };
+            let mut game = Game::start("game-exit-searching", &answers, false).await;
+            let result = game.wait_for_over().await;
+            assert_eq!(result.winner, Some(Side::White), "探索中: {result:?}");
+            assert!(
+                matches!(result.reason, GameOverReason::EngineFailure),
+                "探索中: {result:?}"
+            );
+            game.close().await;
+
+            // 先読み中に終わる。手番は人間の側にある
+            let answers = Answers {
+                on_ponder: "exit 0",
+                ..Answers::default()
+            };
+            let mut game = Game::start("game-exit-pondering", &answers, true).await;
+            assert_eq!(game.wait_for_move(Side::Black).await, "7g7f");
+            game.continue_with(&["7g7f"]).await;
+            let result = game.wait_for_over().await;
+            assert_eq!(result.winner, Some(Side::White), "先読み中: {result:?}");
+            assert!(
+                matches!(result.reason, GameOverReason::EngineFailure),
+                "先読み中: {result:?}"
+            );
+            game.close().await;
+        }
+
+        /// T6 — (Q2, R9): 探索していないエンジンには、終局したら `gameover` を書く。
+        /// 勝ち負けはそのエンジン（先手）の側から見た向きで、勝ち・負け・引き分けの3通りを見る
+        #[tokio::test]
+        async fn an_idle_engine_gets_gameover_when_the_game_ends() {
+            for (winner, expected) in [
+                (Some(Side::Black), "gameover win"),
+                (Some(Side::White), "gameover lose"),
+                (None, "gameover draw"),
+            ] {
+                let answers = Answers {
+                    on_go: "echo 'bestmove 7g7f'",
+                    ..Answers::default()
+                };
+                let mut game = Game::start("game-gameover-idle", &answers, false).await;
+                assert_eq!(game.wait_for_move(Side::Black).await, "7g7f");
+
+                game.session
+                    .end_by_rule(winner, Some("裁定".to_string()))
+                    .await
+                    .expect("裁定で終局できる");
+                game.wait_for_over().await;
+                game.wait_until_seen("gameover").await;
+                let seen = game.seen();
+                assert!(
+                    seen.iter().any(|l| l == expected),
+                    "勝者 {winner:?} で `{expected}` を書いていない: {seen:?}"
+                );
+                game.close().await;
+            }
+        }
+    }
 }

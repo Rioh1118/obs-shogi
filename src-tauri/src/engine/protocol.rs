@@ -2424,5 +2424,242 @@ mod tests {
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }
+
+        /// (Q0, L3): `usiok` までに `id name` が無いエンジンは `NO_ID_NAME` で断る。
+        ///
+        /// **出力が終わった回（`usiok` の前に終わった）と分ける。** 名乗らないエンジンは
+        /// 設定の誤り（USI エンジンではないファイル）で、終わったエンジンは起動の失敗。
+        /// 呼び手は綴りの先頭で種類を分ける（`start_failure`）
+        #[tokio::test]
+        async fn an_engine_without_a_name_is_refused_with_no_id_name() {
+            let dir = test_support::dir::temp_dir("protocol-no-id-name");
+            let protocol =
+                protocol_for(&dir, "printf 'id author Nobody\\nusiok\\n'; exec sleep 30").await;
+
+            let error = protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect_err("名乗らないエンジンを通している");
+            assert!(
+                matches!(&error, EngineError::StartupFailed(why) if why.starts_with(NO_ID_NAME)),
+                "`NO_ID_NAME` で断っていない: {error}"
+            );
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (Q3, R8): 探索中に `UsiProtocol` を全部捨てても、プロセスは落ちる。
+        ///
+        /// **台本は探索中に stdin を読まない。** 読んでいると、捨てたときに閉じた stdin で
+        /// 台本が自分から終わり、こちらが落としたかどうかを見ないまま通る
+        /// （`dropping_the_protocol_ends_the_process` の `cat` はそちらで終わる）。
+        /// 探索の受け手（`register_listener`）を張ったまま捨てるのは、対局の探索タスクが
+        /// 途中で畳まれたときの形
+        #[tokio::test]
+        async fn dropping_the_protocol_during_a_search_ends_the_process() {
+            let dir = test_support::dir::temp_dir("protocol-drop-searching");
+            let protocol = protocol_for(
+                &dir,
+                r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Drop\nusiok\n' ;;
+    isready) echo readyok ;;
+    go*) echo 'info depth 1 score cp 0 pv 7g7f'; exec sleep 30 ;;
+  esac
+done"#,
+            )
+            .await;
+            protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("名乗る");
+            protocol
+                .become_ready(Some(Duration::from_secs(10)))
+                .await
+                .expect("準備できる");
+            let (tx, mut rx) = mpsc::unbounded_channel();
+            protocol
+                .register_listener("search".to_string(), tx)
+                .await
+                .expect("受け手を張れる");
+            protocol
+                .send_command(&GuiCommand::Position("startpos".to_string()))
+                .await
+                .expect("position を送れる");
+            protocol
+                .send_command(&GuiCommand::Go(usi::ThinkParams::new().infinite()))
+                .await
+                .expect("go を送れる");
+            // `info` が届けば、台本は `go` を読んで探索（stdin を読まない形）に入っている
+            loop {
+                let line = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+                    .await
+                    .expect("go の後の info が来ない")
+                    .expect("info の前に受け手が閉じた");
+                if matches!(line, EngineCommand::Info(_)) {
+                    break;
+                }
+            }
+            let diagnostics = protocol.child.diagnostics();
+            drop(protocol);
+
+            assert!(
+                matches!(
+                    diagnostics.wait_exit(Duration::from_secs(10)).await,
+                    crate::engine::child::Waited::Ended(_)
+                ),
+                "探索中に捨てた protocol のプロセスが残っている"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+    /// 性能の基準線（ADR-0016 決定9 の M1・M2）。**合否は見ない。** 測って印字するだけ。
+    ///
+    /// `cargo test --lib engine::protocol::tests::baseline -- --ignored --nocapture` で走らせ、
+    /// 値は `research/engines/usi-measurements.md` に足す。CI の時間に入れないので `#[ignore]`。
+    ///
+    /// 測るのは呼び手から見た時間。台本は答えをファイルから `cat` で流すので、書く速さは
+    /// 作り直しの前後で変わらず、差は取り次ぎの側に出る
+    #[cfg(unix)]
+    mod baseline {
+        use super::*;
+        use crate::engine::child::script::spawn_script;
+        use std::time::Instant;
+
+        /// M1 の `info` の行数
+        const INFO_LINES: usize = 2000;
+
+        /// `go` を受けたら `go.txt` を、`stop` を受けたら `stop.txt` を流す台本
+        const BODY: &str = r#"while read line; do
+  case "$line" in
+    usi) printf 'id name Baseline\nusiok\n' ;;
+    isready) echo readyok ;;
+    'go infinite') ;;
+    go*) cat go.txt ;;
+    stop) cat stop.txt ;;
+  esac
+done"#;
+
+        async fn ready(dir: &std::path::Path) -> UsiProtocol {
+            let mut go = String::new();
+            for i in 0..INFO_LINES {
+                go.push_str(&format!(
+                    "info depth {} seldepth {} multipv 1 score cp {} nodes {} nps 1000000 time {} pv 7g7f 3c3d 2g2f 8c8d\n",
+                    i % 30 + 1,
+                    i % 30 + 3,
+                    i % 200,
+                    i * 1000,
+                    i
+                ));
+            }
+            go.push_str("bestmove 7g7f ponder 3c3d\n");
+            std::fs::write(dir.join("go.txt"), go).expect("書けない");
+            std::fs::write(dir.join("stop.txt"), "bestmove 7g7f\n").expect("書けない");
+
+            let protocol = UsiProtocol::new(spawn_script(dir, BODY).await);
+            protocol
+                .get_engine_info(Duration::from_secs(10))
+                .await
+                .expect("名乗る");
+            protocol
+                .become_ready(Some(Duration::from_secs(10)))
+                .await
+                .expect("準備できる");
+            protocol
+        }
+
+        /// `rx` に `bestmove` が来るまで待つ
+        async fn until_bestmove(rx: &mut mpsc::UnboundedReceiver<EngineCommand>) {
+            loop {
+                let line = tokio::time::timeout(Duration::from_secs(10), rx.recv())
+                    .await
+                    .expect("`bestmove` が来ない")
+                    .expect("`bestmove` の前に受け手が閉じた");
+                if matches!(line, EngineCommand::BestMove(_)) {
+                    return;
+                }
+            }
+        }
+
+        /// 中央値・最小・最大をミリ秒で印字する
+        fn report(name: &str, mut samples: Vec<Duration>) {
+            samples.sort();
+            let ms = |d: Duration| d.as_secs_f64() * 1000.0;
+            println!(
+                "{name}: n={} median={:.2}ms min={:.2}ms max={:.2}ms",
+                samples.len(),
+                ms(samples[samples.len() / 2]),
+                ms(samples[0]),
+                ms(samples[samples.len() - 1])
+            );
+        }
+
+        /// M1: `go` を書いてから、`info` 2000行の後の `bestmove` を呼び手が受け取るまで。5回
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "性能の基準線。CI の時間に入れない"]
+        async fn m1_info_stream_latency() {
+            let dir = test_support::dir::temp_dir("baseline-m1");
+            let protocol = ready(&dir).await;
+            let mut samples = Vec::new();
+            for round in 0..5 {
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let name = format!("m1-{round}");
+                protocol
+                    .register_listener(name.clone(), tx)
+                    .await
+                    .expect("受け手を張れる");
+                protocol
+                    .send_command(&GuiCommand::Position("startpos".to_string()))
+                    .await
+                    .expect("position を送れる");
+                let started = Instant::now();
+                protocol
+                    .send_command(&GuiCommand::Go(
+                        usi::ThinkParams::new().byoyomi(Duration::from_secs(1)),
+                    ))
+                    .await
+                    .expect("go を送れる");
+                until_bestmove(&mut rx).await;
+                samples.push(started.elapsed());
+                protocol.remove_listener(&name).await;
+            }
+            report("M1", samples);
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// M2: 探索中に止める手順（`stop`）を呼んでから、答えの `bestmove` を呼び手が受け取るまで。20回
+        #[tokio::test(flavor = "multi_thread")]
+        #[ignore = "性能の基準線。CI の時間に入れない"]
+        async fn m2_stop_to_bestmove_latency() {
+            let dir = test_support::dir::temp_dir("baseline-m2");
+            let protocol = ready(&dir).await;
+            let mut samples = Vec::new();
+            for round in 0..20 {
+                let (tx, mut rx) = mpsc::unbounded_channel();
+                let name = format!("m2-{round}");
+                protocol
+                    .register_listener(name.clone(), tx)
+                    .await
+                    .expect("受け手を張れる");
+                protocol
+                    .send_command(&GuiCommand::Position("startpos".to_string()))
+                    .await
+                    .expect("position を送れる");
+                protocol
+                    .send_command(&GuiCommand::Go(usi::ThinkParams::new().infinite()))
+                    .await
+                    .expect("go を送れる");
+                let started = Instant::now();
+                let stopped = protocol.stop().await.expect("stop を書ける");
+                assert_eq!(stopped, StopEffect::Written);
+                until_bestmove(&mut rx).await;
+                samples.push(started.elapsed());
+                protocol.remove_listener(&name).await;
+            }
+            report("M2", samples);
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }

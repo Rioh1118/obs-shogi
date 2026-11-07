@@ -1926,4 +1926,131 @@ done"#
             panic!("上限内に条件が満たされない");
         }
     }
+    /// 時間と深度を決めた検討を実プロセスで確かめる（`docs/state-transitions/engine.md` の T7・T8）
+    #[cfg(unix)]
+    mod searching {
+        use super::*;
+        use crate::engine::registry::script::place_script as place;
+
+        /// 受けた行を `seen.log` に残し、`go` と `stop` の答えを差し替える台本
+        fn script(on_go: &str, on_stop: &str) -> String {
+            format!(
+                r#"while read line; do
+  echo "$line" >> seen.log
+  case "$line" in
+    usi) printf 'id name Searching\nusiok\n' ;;
+    isready) echo readyok ;;
+    go*) {on_go} ;;
+    stop) {on_stop} ;;
+  esac
+done"#
+            )
+        }
+
+        async fn started(name: &str, body: &str) -> (EngineAnalyzer, std::path::PathBuf) {
+            let dir = test_support::dir::temp_dir(name);
+            let path = place(&dir, "engine.sh", body).await;
+            let analyzer = EngineAnalyzer::new(Arc::new(EngineRegistry::new()));
+            analyzer
+                .start_engine(path.to_str().expect("パス"), &StartInput::default(), 1)
+                .await
+                .expect("起動できる");
+            analyzer
+                .set_position("startpos")
+                .await
+                .expect("局面を覚える");
+            (analyzer, dir)
+        }
+
+        fn seen(dir: &std::path::Path) -> String {
+            std::fs::read_to_string(dir.join("seen.log")).unwrap_or_default()
+        }
+
+        /// (Q3, L7): 時間を決めた検討は、その探索の `bestmove` で結果を返す。
+        ///
+        /// **上限を待たずに返ることを見る。** 検討の上限（30秒）より外側の上限（10秒）を短く
+        /// 取ってあるので、`bestmove` で抜けずに上限まで待つ実装は外側の上限で落ちる。
+        /// `stop` の断言は別のことを見る: `bestmove` を受けた後に要らない `stop` を書かないこと
+        #[tokio::test]
+        async fn a_timed_analysis_returns_at_its_bestmove() {
+            let body = script(
+                "echo 'info depth 5 multipv 1 score cp 42 pv 2g2f 8c8d'; echo 'bestmove 2g2f ponder 8c8d'",
+                ":",
+            );
+            let (analyzer, dir) = started("analyzer-timed", &body).await;
+
+            let result = tokio::time::timeout(
+                Duration::from_secs(10),
+                analyzer.analyze_with_time(Duration::from_secs(30)),
+            )
+            .await
+            .expect("`bestmove` を受けても返らない")
+            .expect("結果が返る");
+
+            let best = result.candidates.first().expect("候補手が無い");
+            assert_eq!(best.first_move.as_deref(), Some("2g2f"));
+            assert_eq!(best.depth, Some(5));
+            assert!(
+                !seen(&dir).lines().any(|l| l == "stop"),
+                "`bestmove` を待たずに止めている: {}",
+                seen(&dir)
+            );
+            analyzer.shutdown(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (Q3, L5) (Q3, R7): 深度を決めた検討は、目標の深度の `info` を受けたら `stop` を書き、
+        /// その答えの `bestmove` で結果を返す。
+        ///
+        /// **台本は `stop` を受けるまで `bestmove` を書かない。** 書くと、深度を見て止めたのか
+        /// エンジンが自分で終えたのかが分からない。止めないと時間の上限（`DEPTH_ANALYSIS_BUDGET`）まで
+        /// 返らないので、外側の上限で落ちる
+        #[tokio::test]
+        async fn a_depth_analysis_stops_when_the_depth_is_reached() {
+            // 探索は後ろで走らせ、`go` の後も行を読み続ける。前で書き切ると、早く書かれた
+            // `stop` もパイプに溜まって深さ3の後に読まれ、深さを見て止めたのかが分からない。
+            // 深さ3を書く直前に印（`emitted3`）を残し、`stop` がその後に来たことを見る
+            let body = script(
+                "{ echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'; \
+                   echo 'info depth 2 multipv 1 score cp 20 pv 7g7f 3c3d'; \
+                   sleep 0.3; echo emitted3 >> seen.log; \
+                   echo 'info depth 3 multipv 1 score cp 30 pv 2g2f 8c8d 2f2e'; } &",
+                "wait; echo 'bestmove 2g2f'",
+            );
+            let (analyzer, dir) = started("analyzer-depth", &body).await;
+
+            let outcome =
+                tokio::time::timeout(Duration::from_secs(10), analyzer.analyze_with_depth(3))
+                    .await
+                    .expect("目標の深度に届いても止めていない")
+                    .expect("結果が返る");
+
+            assert!(outcome.reached, "届いたのに届いていないと言う");
+            assert_eq!(outcome.deepest, Some(3));
+            assert_eq!(
+                outcome
+                    .result
+                    .candidates
+                    .first()
+                    .and_then(|c| c.first_move.as_deref()),
+                Some("2g2f")
+            );
+            let seen = seen(&dir);
+            let lines: Vec<&str> = seen.lines().collect();
+            let emitted = lines
+                .iter()
+                .position(|l| *l == "emitted3")
+                .unwrap_or_else(|| panic!("台本が深さ3を書いていない: {seen}"));
+            let stop = lines
+                .iter()
+                .position(|l| *l == "stop")
+                .unwrap_or_else(|| panic!("`stop` を書いていない: {seen}"));
+            assert!(
+                emitted < stop,
+                "目標の深度に届く前に `stop` を書いている: {seen}"
+            );
+            analyzer.shutdown(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
 }
