@@ -132,9 +132,29 @@ fn bind_eval(
     }
 }
 
-/// 定跡を使うかを切り替える名前（判定表の B4）
+/// 定跡のファイルを受ける名前（判定表の B1・B2）。両方を申告していれば前を取る
+const BOOK_FILE_NAMES: [&str; 2] = ["BookFile", "Book_File"];
+
+/// 定跡のフォルダを受ける名前（判定表の B1）
+const BOOK_DIR_NAME: &str = "BookDir";
+
+/// 定跡を使うかを切り替える名前（判定表の B4）。両方を申告していれば前を取る
+const OWN_BOOK_NAMES: [&str; 2] = ["USI_OwnBook", "OwnBook"];
+
+/// 定跡のファイルを受ける申告（`BOOK_FILE_NAMES` の前から最初に当たったもの）
+fn book_file_option(declared: &[EngineOption]) -> Option<&EngineOption> {
+    BOOK_FILE_NAMES
+        .into_iter()
+        .find_map(|name| declared.iter().find(|o| o.name == name))
+}
+
+fn declares_book_dir(declared: &[EngineOption]) -> bool {
+    declared.iter().any(|o| o.name == BOOK_DIR_NAME)
+}
+
+/// 定跡を使うかを切り替える名前（`OWN_BOOK_NAMES` の前から最初に当たったもの）
 fn own_book_option(declared: &[EngineOption]) -> Option<&str> {
-    ["USI_OwnBook", "OwnBook"]
+    OWN_BOOK_NAMES
         .into_iter()
         .find(|name| declared.iter().any(|o| o.name == *name))
 }
@@ -175,8 +195,7 @@ fn bind_book(
     out: &mut Vec<SetOptionValue>,
     warnings: &mut Vec<StartWarning>,
 ) -> Option<SentBookPath> {
-    let find = |name: &str| declared.iter().find(|o| o.name == name);
-    let book_file = find("BookFile").or_else(|| find("Book_File"));
+    let book_file = book_file_option(declared);
 
     let Some(book) = book.filter(|b| b.use_in_analysis) else {
         switch_book_off(declared, book_file, out, warnings);
@@ -184,7 +203,7 @@ fn bind_book(
     };
     let mut path_sent = None;
 
-    let has_book_dir = find("BookDir").is_some();
+    let has_book_dir = declares_book_dir(declared);
     let sent = match book_file.map(|o| (o.name.as_str(), &o.option_type)) {
         // B1: 選択肢にある名前ならその綴りで送る（まず大小も一致するもの、無ければ大小を無視して）。
         // 無ければ、パスを受けると確かめたエンジン（`book_path_support`）にだけパスで送る——確かめずに
@@ -197,12 +216,12 @@ fn bind_book(
                 .or_else(|| vars.iter().find(|v| v.eq_ignore_ascii_case(&file)));
             match var {
                 Some(var) => {
-                    out.push(set("BookDir", parent_of(&book.path)));
+                    out.push(set(BOOK_DIR_NAME, parent_of(&book.path)));
                     out.push(set(name, var.clone()));
                     true
                 }
                 None if book_path_support == BookPathSupport::Accepts => {
-                    out.push(set("BookDir", parent_of(&book.path)));
+                    out.push(set(BOOK_DIR_NAME, parent_of(&book.path)));
                     out.push(set(name, book.path.clone()));
                     path_sent = Some(SentBookPath {
                         path: book.path.clone(),
@@ -278,7 +297,9 @@ pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Ve
         .map(|o| o.name.as_str())
         .filter(|name| {
             Some(*name) == eval
-                || ["BookFile", "Book_File", "BookDir", "USI_OwnBook", "OwnBook"].contains(name)
+                || BOOK_FILE_NAMES.contains(name)
+                || *name == BOOK_DIR_NAME
+                || OWN_BOOK_NAMES.contains(name)
                 || fixed.iter().any(|f| f.name == *name)
         })
         .map(str::to_string)
@@ -296,9 +317,10 @@ pub fn book_path_check_name(
     book: Option<&BookChoice>,
 ) -> Option<String> {
     let book = book.filter(|b| b.use_in_analysis)?;
-    let find = |name: &str| declared.iter().find(|o| o.name == name);
-    find("BookDir")?;
-    let option = find("BookFile").or_else(|| find("Book_File"))?;
+    if !declares_book_dir(declared) {
+        return None;
+    }
+    let option = book_file_option(declared)?;
     let EngineOptionType::Combo { vars, .. } = &option.option_type else {
         return None;
     };
