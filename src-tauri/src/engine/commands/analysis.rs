@@ -8,7 +8,8 @@
 //! **判断を書かない**——書くと、同じ判断が `EngineBridge` 側にもできる。
 
 use crate::engine::analysis_events::{AnalysisEvent, AnalysisEventSink};
-use crate::engine::analyzer::{Request, StartInput};
+use crate::engine::analysis_start::StartInput;
+use crate::engine::analyzer::Request;
 use crate::engine::logging::{LogThrottle, EMIT_WARN_INTERVAL};
 use crate::engine::state::AppState;
 use crate::engine::types::*;

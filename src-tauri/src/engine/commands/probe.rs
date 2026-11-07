@@ -1,6 +1,6 @@
 //! Tauri コマンドの入口（申告の取得）。
 
-use crate::engine::analyzer::analysis_fixed_values;
+use crate::engine::analysis_start::analysis_fixed_values;
 use crate::engine::probe::ProbeToken;
 use crate::engine::state::AppState;
 use crate::engine::types::{ProbeOutcome, StartFailure};

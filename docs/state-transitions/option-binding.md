@@ -1,7 +1,7 @@
 # 判定表: 評価関数・定跡の流し先（束縛）
 
 対象: `src-tauri/src/engine/binding.rs`（`bind`）。呼ぶのは解析の起動
-（`src-tauri/src/engine/analyzer.rs` の `start_engine_steps`）。
+（`src-tauri/src/engine/analysis_start.rs` の `start`）。
 
 **入力はその回の申告**（`usi` への応答の `option` 行）と、画面が渡すパスと利用者の値、呼び手の方針
 （固定値）だけ。**実行ファイル名は見ない**——同じ名前の別のエンジン、名前を変えたエンジンで食い違う。
@@ -51,7 +51,7 @@ E1 / E2 にフォルダを選んでいれば、送らずに警告 `evalNeedsFile
 ## 固定値
 
 呼び手の方針として `fixed` で受ける（解析は `ConsiderationMode = true`、`USI_Ponder = false`。
-`analyzer.rs` の `analysis_fixed_values`）。**申告にあるときだけ送る。** ✓
+`analysis_start.rs` の `analysis_fixed_values`）。**申告にあるときだけ送る。** ✓
 
 ## 送り方の規則
 
@@ -65,7 +65,7 @@ E1 / E2 にフォルダを選んでいれば、送らずに警告 `evalNeedsFile
 | R6  | 名前は完全一致（大小を区別するエンジンがある）。例外は B1 のファイル名の照合                                                                                                                                                                                                                                                                                | —      |
 
 警告は起動を止めない。画面は1枚のトーストで伝える（`EngineStartWarningBridge`）。
-改行を含む・長すぎる値とパスは、起こす前に断る（`invalidValue`。`analyzer.rs` の `validate_input`）。✓
+改行を含む・長すぎる値とパスは、起こす前に断る（`invalidValue`。`analysis_start.rs` の `validate_input`）。✓
 
 ## 範囲外
 

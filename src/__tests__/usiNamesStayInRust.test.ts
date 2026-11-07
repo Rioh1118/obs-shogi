@@ -9,7 +9,7 @@ import { REPO_ROOT, SRC, rustFile, tsFiles } from "./walk";
  * 起動のたびの申告から決める（`src-tauri/src/engine/binding.rs`）。TS が `EvalDir` などを組むと、
  * 申告しないエンジン（`EvalFile` を受ける zermelo）に届かない名前を送る形に戻る。
  *
- * **名前の一覧は Rust から引く**（写しにしない）: `binding.rs` の本番のコードと、`analyzer.rs` の
+ * **名前の一覧は Rust から引く**（写しにしない）: `binding.rs` の本番のコードと、`analysis_start.rs` の
  * 解析の固定値（`analysis_fixed_values`）の文字列。見るのは TS の**文字列リテラルの中**だけで、
  * コメントで名前を挙げて説明するのは構わない。
  */
@@ -24,12 +24,12 @@ function rustNames(file: string, from = 0, to?: number): string[] {
 
 function ownedNames(): Set<string> {
   const binding = rustNames(rustFile("engine", "binding.rs"));
-  const analyzer = readFileSync(rustFile("engine", "analyzer.rs"), "utf8");
-  const start = analyzer.indexOf("fn analysis_fixed_values()");
+  const analysisStart = readFileSync(rustFile("engine", "analysis_start.rs"), "utf8");
+  const start = analysisStart.indexOf("fn analysis_fixed_values()");
   const fixed = rustNames(
-    rustFile("engine", "analyzer.rs"),
+    rustFile("engine", "analysis_start.rs"),
     start,
-    analyzer.indexOf("\n}\n", start),
+    analysisStart.indexOf("\n}\n", start),
   );
   return new Set([...binding, ...fixed]);
 }

@@ -168,6 +168,12 @@ const LAYERS: &[Layer] = &[
         may_use: &["types"],
         forbids: &["tauri"],
     },
+    Layer {
+        name: "analysis_start",
+        decides: "検討のエンジンを起こし、その回の申告から設定を決めて送る手順",
+        may_use: &["types", "protocol", "registry", "setup", "binding"],
+        forbids: &[],
+    },
     // `game` と `analyzer` は同位。互いを知らない
     Layer {
         name: "game",
@@ -184,14 +190,13 @@ const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "analyzer",
-        decides: "検討に使うエンジン1本の起動と、その上の探索",
+        decides: "どのプロセスが検討のものか（起動の順序と取り消し）と、その上の探索",
         may_use: &[
             "types",
             "candidates",
             "protocol",
             "registry",
-            "setup",
-            "binding",
+            "analysis_start",
         ],
         forbids: &[],
     },
@@ -202,6 +207,7 @@ const LAYERS: &[Layer] = &[
             "types",
             "logging",
             "registry",
+            "analysis_start",
             "analyzer",
             "start_failure",
             "analysis_events",
@@ -234,6 +240,7 @@ const LAYERS: &[Layer] = &[
             "types",
             "logging",
             "game",
+            "analysis_start",
             "analyzer",
             "probe",
             "state",

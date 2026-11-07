@@ -6,7 +6,8 @@
 use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 
 use super::analysis_events::{AnalysisEvent, AnalysisEventSink, DiscardAnalysisEvents};
-use super::analyzer::{AnalysisStreamItem, EngineAnalyzer, Request, StartInput, MAX_THINK_TIME};
+use super::analysis_start::StartInput;
+use super::analyzer::{AnalysisStreamItem, EngineAnalyzer, Request, MAX_THINK_TIME};
 use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;

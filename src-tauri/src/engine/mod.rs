@@ -1,6 +1,7 @@
 //! エンジンの段の宣言だけを置く。段ごとに何を決めるかは `tests/layering.rs` の `LAYERS` が持つ。
 
 pub mod analysis_events; // 検討の出来事の宛先の trait
+pub mod analysis_start; // 検討のエンジンを起こして設定を送る手順
 pub mod analyzer; // 検討のエンジンの起動と探索
 pub mod binding; // 評価関数・定跡の流し先を申告から決める
 pub mod bridge; // 検討の席

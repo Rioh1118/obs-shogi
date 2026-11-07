@@ -165,7 +165,7 @@ pub enum PlayerSpec {
         ///
         /// **評価関数・定跡はこの並びに組まないこと。** 解析の起動はパスで受け、どの名前で送るかを
         /// その回の申告から決める（`binding::bind`）。対局の面を戻すときは、この形も
-        /// `analyzer::StartInput` と同じ形（利用者の値・評価関数・定跡）に寄せて `bind` を通す
+        /// `analysis_start::StartInput` と同じ形（利用者の値・評価関数・定跡）に寄せて `bind` を通す
         #[serde(default)]
         options: Vec<SetOptionValue>,
         /// 相手の手番の間も読ませるか
