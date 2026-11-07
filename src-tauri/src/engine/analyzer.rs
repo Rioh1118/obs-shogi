@@ -308,7 +308,7 @@ impl EngineAnalyzer {
     }
 
     /// 検討用エンジンのプロトコル層。起動していなければ `NotInitialized`。
-    async fn protocol(&self) -> Result<Arc<UsiProtocol>, EngineError> {
+    async fn protocol(&self) -> Result<UsiProtocol, EngineError> {
         let id = self
             .engine_id
             .read()

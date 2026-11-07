@@ -1447,7 +1447,7 @@ impl Runner {
         &mut self.players[side.index()]
     }
 
-    fn protocol(&self, side: Side) -> Option<Arc<UsiProtocol>> {
+    fn protocol(&self, side: Side) -> Option<UsiProtocol> {
         self.player(side).engine.as_ref().map(|e| e.protocol())
     }
 

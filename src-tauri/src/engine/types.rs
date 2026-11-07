@@ -350,7 +350,7 @@ pub const LAST_OUTPUT_PREFIX: &str = " (last output: ";
 #[derive(Debug)]
 pub struct FailureDetail<R> {
     pub reason: R,
-    /// エンジンが最後に出した行を1行に畳んだもの。添えるのは `UsiProtocol::with_recent_output` だけ
+    /// エンジンが最後に出した行を1行に畳んだもの。添えるのは `protocol.rs` の `Handle::with_recent_output` だけ
     pub last_output: Option<String>,
 }
 

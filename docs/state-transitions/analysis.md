@@ -357,7 +357,7 @@ StrictMode の setup → cleanup → setup では握っていないので撃た�
 | ---- | ---- | ---- |
 | どのプロセスが検討のものか（起動、取り消し、落とす） | `analyzer` の `startup`（世代、`latest_request`、`started_by`。起動と `shutdown` はどちらも `take_over` を通る） | 同じ |
 | 席の開始と停止を1本ずつ通す | `bridge` の `search_turn` | 同じ。整理は範囲 8b |
-| 1本のプロセスへ書く行の順 | 書き込みの列。状態機械が出した書き込みを、1つのロックの中で列へ入れる（U3） | 殻のタスク1本（engine.md の不変条件1） |
+| 1本のプロセスへ書く行の順 | 書き込みの列。殻のタスク1本が、状態機械が出した書き込みを出た順に列へ入れる（U4） | 殻のタスク1本（engine.md の不変条件1） |
 | 止めに答えるまで次の `go` を出さない | 状態機械の Q4（U3）。`analyzer` の `unanswered` も残る | 状態機械の Q4 |
 | どの探索の `bestmove` か | 状態機械（engine.md の不変条件2。U3） | 状態機械（engine.md の不変条件2） |
 

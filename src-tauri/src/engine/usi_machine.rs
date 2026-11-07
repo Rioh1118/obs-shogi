@@ -193,12 +193,17 @@ impl UsiMachine {
 
     /// 届かない理由。閉じる前に呼ばれたら（探索の行が途切れた回など）、いまの印で選ぶ
     pub fn cannot_reach(&self) -> EngineError {
-        let end = match self.end() {
+        closed_error(self.unreachable_end())
+    }
+
+    /// 届かない理由を選ぶ終わり方（`cannot_reach` の文言の元）。閉じていればその理由で、閉じる前なら
+    /// `quit` を書いたかで選ぶ。持ち主は状態の写しに載せ、状態機械に触れずに文言を組む（`closed_error`）
+    pub fn unreachable_end(&self) -> EngineEnd {
+        match self.end() {
             Some(end) => end,
             None if self.quit_sent => EngineEnd::Requested,
             None => EngineEnd::Exited,
-        };
-        closed_error(end)
+        }
     }
 
     // --- 読み取り（L1〜L9）と書き込み（W1） ---
@@ -666,7 +671,7 @@ impl Back {
 
 /// 届かない理由の文言。**理由ごとに分ける**（`Requested` / `Exited` / `Stalled`）。
 /// 利用者に見せる説明も次の手も違うので、1つの文に潰さない
-fn closed_error(end: EngineEnd) -> EngineError {
+pub fn closed_error(end: EngineEnd) -> EngineError {
     let text = match end {
         EngineEnd::Requested => GONE,
         EngineEnd::Exited => CLOSED,
