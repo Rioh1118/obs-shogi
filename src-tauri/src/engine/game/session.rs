@@ -35,20 +35,22 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc::WeakUnboundedSender;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
-use usi::{GameOverKind, GuiCommand};
+use usi::GameOverKind;
 
 use crate::engine::logging::shown;
 use crate::engine::logging::LogThrottle;
 use crate::engine::protocol::UsiProtocol;
 use crate::engine::registry::{EngineId, EngineProcess, EngineRegistry};
-use crate::engine::types::AnalysisResult;
+use crate::engine::types::{AnalysisResult, EngineError};
 
 use super::clock::{ClockOutcome, GameClocks};
 use super::events::GameEventSink;
 use super::input::{
     derive_side_after, position_argument, validate_settings, validate_usi_move, MAX_PLIES,
 };
-use super::search::{run_search, SearchKind, SearchMessage, SearchOutcome, SearchRequest};
+use super::search::{
+    run_search, PonderHit, SearchKind, SearchMessage, SearchOutcome, SearchRequest,
+};
 use super::stall::{stalled_turn, HasSpoken, IsEngine, Stall, TurnClock};
 use super::start::{spawn_players, START_TIMEOUT};
 use super::types::*;
@@ -429,6 +431,11 @@ struct Player {
     /// 人間なら `None`
     engine: Option<Arc<EngineProcess>>,
     activity: Activity,
+    /// いまの先読みの探索へ `ponderhit` を頼む取っ手。`spawn_search` が探索ごとに置き直す。
+    /// 意味を持つのは `activity` が `Searching { kind: Ponder }` の間だけで、止めた後や答えた後も
+    /// 古い値が残る（書き換えるのは `spawn_search` と `hand_turn_to` の `take` だけ）。
+    /// `activity` を見ずに使わないこと。`PonderHit::send` は終わった探索へ頼んでも `Ok` を返す
+    ponderhit: Option<PonderHit>,
     /// このエンジンが `info` を1行でも出したことがあるか。**局を通じて残る。**
     ///
     /// **沈黙を信号として使ってよいかの判定に要る。** USI は `info` を義務に
@@ -444,6 +451,7 @@ impl Player {
             spec,
             engine,
             activity: Activity::Idle,
+            ponderhit: None,
             has_spoken: false,
         }
     }
@@ -1187,9 +1195,12 @@ impl Runner {
         match handover {
             // 読み当たり。エンジンはそのまま考え続ける。ここから時計が動く
             Handover::PonderHit => {
-                let sent = match self.protocol(side) {
-                    Some(protocol) => protocol.send_command(&GuiCommand::Ponderhit).await,
-                    None => Ok(()),
+                let sent = match (self.protocol(side), self.player_mut(side).ponderhit.take()) {
+                    (Some(_), Some(ponderhit)) => ponderhit.send().await,
+                    (Some(_), None) => Err(EngineError::InvalidState(
+                        "a ponder search has no way to ask for ponderhit".to_string(),
+                    )),
+                    (None, _) => Ok(()),
                 };
                 match sent {
                     Ok(()) => {
@@ -1291,9 +1302,13 @@ impl Runner {
         };
 
         let mut params = self.clocks.think_params(side);
-        if ponder {
+        let (ponderhit, ponderhit_asks) = if ponder {
             params = params.ponder();
-        }
+            let (ponderhit, asks) = PonderHit::pair();
+            (Some(ponderhit), Some(asks))
+        } else {
+            (None, None)
+        };
 
         let request = SearchRequest {
             protocol: self
@@ -1304,6 +1319,7 @@ impl Runner {
             position: position_argument(&self.settings.start_sfen, &moves),
             params,
             cancel: cancel.clone(),
+            ponderhit: ponderhit_asks,
         };
 
         // **`Idle` の側にだけ呼ぶ。** 走っているものの上から始めると、
@@ -1337,7 +1353,9 @@ impl Runner {
             let _ = forward.await;
         });
 
-        self.player_mut(side).activity = Activity::Searching { req, kind, cancel };
+        let player = self.player_mut(side);
+        player.activity = Activity::Searching { req, kind, cancel };
+        player.ponderhit = ponderhit;
     }
 
     async fn finish(&mut self, mut result: GameResult) {
