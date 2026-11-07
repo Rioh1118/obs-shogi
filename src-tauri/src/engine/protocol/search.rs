@@ -3,16 +3,17 @@
 //! どの行をどの探索へ流すか、止めた後に何を待つかは状態機械（`usi_machine`）が決める。
 //! ここは、その答えを `Search` と `StopAnswer` の形で呼び手へ渡す。
 
-use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 use usi::ThinkParams;
 
-use super::{refuse_breaking_field, Shared, UsiProtocol, LOGT};
+use super::{refuse_breaking_field, Input, Request, Status, UsiProtocol, LOGT};
 use crate::engine::types::EngineError;
 pub use crate::engine::usi_machine::SearchLine;
-use crate::engine::usi_machine::{Asked, SearchId};
+#[cfg(test)]
+use crate::engine::usi_machine::GONE;
+use crate::engine::usi_machine::{closed_error, Asked, SearchId};
 
 /// 止めたときの答え。**`stop` の後に何が起きたかを、ここで1つの値にする。**
 ///
@@ -48,9 +49,11 @@ pub const PREVIOUS_SEARCH_LIMIT: Duration = Duration::from_secs(10);
 /// できるのは4つだけ: 行を受ける（`next_line`）、先読みを本番にする（`ponderhit`）、
 /// 止める（`stop`）、捨てる（`Drop`）。**止めずに捨てたら `stop` だけを書く。** 捨てた探索の
 /// `bestmove` が来るまで状態機械は止め待ちに残るので、次の探索はその後でしか始まらず、
-/// 前の探索の行を受けない
+/// 前の探索の行を受けない。
+///
+/// 送る面（`UsiProtocol`）を持つので、持っている間は殻と子プロセスが生きる
 pub struct Search {
-    protocol: Arc<UsiProtocol>,
+    protocol: UsiProtocol,
     id: SearchId,
     lines: mpsc::UnboundedReceiver<SearchLine>,
     /// `bestmove` を受けた。以後は止めるものが無い
@@ -66,6 +69,22 @@ impl std::fmt::Debug for Search {
     }
 }
 
+impl Search {
+    /// 殻が、状態機械へ探索を頼んだ直後に作る（`Shell::start_search`）
+    pub(super) fn new(
+        protocol: UsiProtocol,
+        id: SearchId,
+        lines: mpsc::UnboundedReceiver<SearchLine>,
+    ) -> Self {
+        Self {
+            protocol,
+            id,
+            lines,
+            answered: false,
+        }
+    }
+}
+
 impl UsiProtocol {
     /// 手順「探索」。`position` と `go`（`go ponder` を含む）を書き、探索1本の持ち分を返す。
     /// 待つのは書けたことだけ。
@@ -74,20 +93,20 @@ impl UsiProtocol {
     /// （`PREVIOUS_SEARCH_LIMIT`）、過ぎたら状態機械が断る。`readyok` の前も断る（ADR-0016 決定3）。
     /// 線を壊す局面（改行入り）は、状態機械へ頼む前に断る（頼んでから断ると `go` だけが線に出る）。
     ///
-    /// **`Search` は状態機械へ頼んだ直後に作る。** 書けたかを待つ間に future を捨てても、`Search` の
-    /// `Drop` が `stop` を書くので、走り始めた探索が誰にも持たれずに残らない。書けなかったときも同じ
-    /// `Drop` を通る。詰まった回（W1）と落とした後は状態機械が閉じているので何も書かず、それ以外
-    /// （書き込みが失敗したがまだ出力が終わっていない回）は `stop` を書いて止め待ちになる
+    /// **`Search` は殻が状態機械へ頼んだ直後に作る**（`Shell::start_search`）。答えを受け取る前や、書けたかを
+    /// 待つ間に future を捨てても、`Search` の `Drop` が `stop` を書くので、走り始めた探索が誰にも持たれずに
+    /// 残らない。書けなかったときも同じ `Drop` を通る。詰まった回（W1）と落とした後は状態機械が閉じているので
+    /// 何も書かず、それ以外（書き込みが失敗したがまだ出力が終わっていない回）は `stop` を書いて止め待ちになる
     pub async fn search(
-        self: &Arc<Self>,
+        &self,
         position: String,
         params: ThinkParams,
     ) -> Result<Search, EngineError> {
-        let mut status = self.shared.status.subscribe();
+        let mut status = self.handle.status.clone();
         let previous_ended = status.wait_for(|status| !status.searching || status.end.is_some());
         // 過ぎても待つのをやめるだけ。断るかは状態機械が決める
         match tokio::time::timeout(PREVIOUS_SEARCH_LIMIT, previous_ended).await {
-            // 終わったか、写しの送り手が消えた（`UsiProtocol` ごと捨てられている）
+            // 終わったか、写しの送り手が消えた（殻ごと抜けている）
             Ok(_) => {}
             Err(_) => log::warn!(
                 target: LOGT,
@@ -96,27 +115,22 @@ impl UsiProtocol {
         }
 
         refuse_breaking_field("a position", &position)?;
-        let (asked, written) = self.shared.step(|core| {
-            let id = core.machine.search(position, params)?;
-            let (tx, lines) = mpsc::unbounded_channel();
-            core.search = Some((id, tx));
-            Ok::<_, EngineError>((id, lines))
-        });
-        let (id, lines) = asked?;
-        let search = Search {
-            protocol: Arc::clone(self),
-            id,
-            lines,
-            answered: false,
-        };
-        self.shared.finish(written).await?;
+        let (search, written) = self
+            .handle
+            .ask(|reply| Request::Search {
+                position,
+                params,
+                reply,
+            })
+            .await?;
+        self.handle.finish(written).await?;
         Ok(search)
     }
 }
 
 impl Search {
     /// 次の行を待つ。`bestmove` を返した後は `Ok(None)`。
-    /// `bestmove` の前に出力が終わったら、届かない理由（`UsiProtocol::cannot_reach`）で断る。
+    /// `bestmove` の前に閉じたら、閉じた写しを見てから届かない理由（`UsiProtocol::cannot_reach`）で断る。
     ///
     /// 取り消してよい（`select!` に置ける）。受けていない行は失われない
     pub async fn next_line(&mut self) -> Result<Option<SearchLine>, EngineError> {
@@ -128,16 +142,17 @@ impl Search {
                 self.answered = matches!(line, SearchLine::BestMove(_));
                 Ok(Some(line))
             }
-            None => Err(self.protocol.cannot_reach()),
+            // 送り手が落ちるのは閉じたときだけ（`bestmove` の後は上で返る）。理由は閉じた写しから組む
+            None => Err(self.protocol.handle.closed_reason().await),
         }
     }
 
     /// 先読みを本番にする（`ponderhit` を書く）。先読み中でない探索と、既に答えた探索では断る
     pub async fn ponderhit(&mut self) -> Result<(), EngineError> {
         let id = self.id;
-        let (asked, written) = self.protocol.shared.step(|core| core.machine.ponderhit(id));
-        asked?;
-        self.protocol.shared.finish(written).await
+        let handle = &self.protocol.handle;
+        let ((), written) = handle.ask(|reply| Request::Ponderhit { id, reply }).await?;
+        handle.finish(written).await
     }
 
     /// 止める。`stop` を書き、`bestmove` を `limit` まで待って答えを返す（`StopAnswer`）。
@@ -155,28 +170,29 @@ impl Search {
             return StopAnswer::Answered;
         }
         let id = self.id;
-        let shared = Arc::clone(&self.protocol.shared);
-        let (asked, written) = shared.step(|core| {
-            Ok::<_, EngineError>(match core.machine.stop(id)? {
-                Asked::Done(()) => None,
-                Asked::Waiting(ticket) => Some(core.wait_stopped(ticket)),
-            })
-        });
-        let mut answer = match asked {
-            Ok(Some(answer)) => answer,
-            Ok(None) => return StopAnswer::Answered,
+        let handle = &self.protocol.handle;
+        let (answer, mut answered) = oneshot::channel();
+        let written = match handle
+            .ask(|reply| Request::Stop { id, answer, reply })
+            .await
+        {
+            Ok((Asked::Waiting(()), written)) => written,
+            Ok((Asked::Done(()), _nothing_written)) => return StopAnswer::Answered,
             Err(e) => return StopAnswer::Unreachable(e),
         };
-        let sent = shared.finish(written).await;
+        let sent = handle.finish(written).await;
         log::debug!(target: LOGT, "search: stop -> {sent:?}");
         if let Err(e) = sent {
             return StopAnswer::Unreachable(e);
         }
-        match tokio::time::timeout(limit, &mut answer).await {
+        match tokio::time::timeout(limit, &mut answered).await {
             Ok(Ok(Ok(()))) => StopAnswer::Answered,
             Ok(Ok(Err(e))) => StopAnswer::Unreachable(e),
-            Ok(Err(_)) => StopAnswer::Unreachable(shared.cannot_reach()),
-            Err(_) => StopAnswer::Unanswered(LateAnswer { answer, shared }),
+            Ok(Err(_)) => StopAnswer::Unreachable(handle.cannot_reach()),
+            Err(_) => StopAnswer::Unanswered(LateAnswer {
+                answer: answered,
+                status: handle.status.clone(),
+            }),
         }
     }
 }
@@ -184,10 +200,11 @@ impl Search {
 /// 止めに上限まで答えなかった探索の残り（`StopAnswer::Unanswered`）。
 ///
 /// 答えを待っているのは状態機械で、持っている間も捨てた後も、遅れた `bestmove` が来るまで
-/// このプロセスで次の探索は始まらない（止め待ちの状態機械が断る）。これは答えを受け取る札だけを持つ
+/// このプロセスで次の探索は始まらない（止め待ちの状態機械が断る）。これは答えを受け取る札と状態の写しだけを
+/// 持ち、**殻への送り手を持たない**（持っている間も、取っ手を全部捨てればプロセスは落ちる）
 pub struct LateAnswer {
     answer: oneshot::Receiver<Result<(), EngineError>>,
-    shared: Arc<Shared>,
+    status: watch::Receiver<Status>,
 }
 
 impl std::fmt::Debug for LateAnswer {
@@ -202,25 +219,25 @@ impl LateAnswer {
     pub async fn wait(self) -> Result<(), EngineError> {
         match self.answer.await {
             Ok(answered) => answered,
-            Err(_) => Err(self.shared.cannot_reach()),
+            Err(_) => Err(closed_error(self.status.borrow().unreachable)),
         }
     }
 }
 
 impl Drop for Search {
-    /// 答えの決まっていない探索なら `stop` だけを書く（状態機械の R8。走っていなければ何もしない）。
-    /// 書けたかを待つのは await が要るので、子プロセスを持たない `Shared` だけを別のタスクへ渡す
+    /// 答えの決まっていない探索なら `stop` だけを書くよう殻へ頼む（状態機械の R8。走っていなければ何もしない）。
+    /// 送るだけで待たない。書けたかを待つ者は居ない（書けなければ書き込みの列が記録する）
     fn drop(&mut self) {
-        let id = self.id;
-        let shared = Arc::clone(&self.protocol.shared);
-        let ((), written) = shared.step(|core| core.machine.drop_search(id));
-        if written.replies.is_empty() {
+        if self.answered {
             return;
         }
-        self.protocol.runtime_handle.spawn(async move {
-            let sent = shared.finish(written).await;
-            log::debug!(target: LOGT, "search: dropped; stop -> {sent:?}");
-        });
+        let id = self.id;
+        // 殻が抜けていれば、プロセスごと落ちている
+        let _ = self
+            .protocol
+            .handle
+            .inputs
+            .send(Input::Ask(Request::DropSearch { id }));
     }
 }
 
@@ -235,6 +252,7 @@ mod tests {
         use super::*;
         use crate::engine::protocol::script::spawn_protocol;
         use std::path::Path;
+        use std::sync::Arc;
 
         /// 受けた行を `log` に書く。`go` には `info` を1行出して黙り、`stop` に `bestmove` で答える。
         /// `go byoyomi` にはすぐ答える
@@ -607,6 +625,31 @@ done"#;
             );
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (Q3, R11): 探索中に落とすと、行を待つ `Search` は落とした理由（`GONE`）で返る。
+        /// 殻は探索の送り手を落とすのと閉じた写しを書くのを別々に行うので、写しを先に読むと
+        /// 「出力が終わった」（`CLOSED`）で返りうる。**競合なので回数を取り、複数のスレッドで走らせる**
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn a_search_cut_by_the_kill_says_we_stopped_it() {
+            for round in 0..20 {
+                let dir = test_support::dir::temp_dir("search-killed");
+                let protocol = ready(&dir, ANSWERS_STOP).await;
+                let mut search = protocol
+                    .search(startpos(), ThinkParams::new().infinite())
+                    .await
+                    .expect("書ける");
+                assert!(matches!(
+                    search.next_line().await,
+                    Ok(Some(SearchLine::Info(_)))
+                ));
+                let (next, ()) = tokio::join!(search.next_line(), protocol.kill_engine());
+                assert!(
+                    matches!(&next, Err(EngineError::CommunicationFailed(detail)) if detail.to_string().contains(GONE)),
+                    "{round} 回目: 落とした理由で返っていない: {next:?}"
+                );
+                let _ = std::fs::remove_dir_all(&dir);
+            }
         }
 
         /// (Q3p, R6) (Q3, R6): `ponderhit` を書けるのは先読みの探索だけ。書いた後は本番の探索

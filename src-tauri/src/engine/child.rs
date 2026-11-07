@@ -266,23 +266,31 @@ impl EngineChild {
     /// 待つのを途中でやめても、頼みは取り消されない。落とすのは待ち手のタスクで、
     /// 終わりは `ChildDiagnostics::wait_exit` で見られる。
     pub async fn kill_and_wait(&self, limit: Duration) -> KillOutcome {
+        match self.start_kill() {
+            Ok(()) => self.diagnostics.wait_killed(limit).await,
+            Err(answered) => answered,
+        }
+    }
+
+    /// 落とすよう待ち手のタスクへ頼む。**待たない。** 頼んだら `Ok` で、終わりを見届けるのは
+    /// `ChildDiagnostics::wait_killed`。頼むまでもなかったら、その答え（`AlreadyExited` か `AlreadyRequested`）を
+    /// `Err` で返す。
+    ///
+    /// 頼むことと見届けることを分けるのは、`EngineChild` を持つ者（`protocol.rs` の殻）が、`KILL_TIMEOUT` を
+    /// 待つ間も他の入力に答え続けられるようにするため
+    pub fn start_kill(&self) -> Result<(), KillOutcome> {
         self.close_stdin();
         if self.diagnostics.exit_now().is_some() {
-            return KillOutcome::AlreadyExited;
+            return Err(KillOutcome::AlreadyExited);
         }
         let Some(tx) = lock(&self.kill).take() else {
-            return KillOutcome::AlreadyRequested;
+            return Err(KillOutcome::AlreadyRequested);
         };
         // 受け手が居ないのは、待ち手が終了を見届けて抜けた後だけ
         if tx.send(()).is_err() {
-            return KillOutcome::AlreadyExited;
+            return Err(KillOutcome::AlreadyExited);
         }
-
-        match self.diagnostics.wait_exit(limit).await {
-            Waited::Ended(exit) => KillOutcome::Ended(exit),
-            Waited::WatcherGone => KillOutcome::WatcherGone,
-            Waited::TimedOut => KillOutcome::TimedOut,
-        }
+        Ok(())
     }
 
     /// stdin を閉じる。書き込みがロックを握っているとき（詰まっているとき）は、
@@ -331,6 +339,15 @@ impl ChildDiagnostics {
             Ok(Ok(Some(exit))) => Waited::Ended(exit),
             Ok(Ok(None)) | Ok(Err(_)) => Waited::WatcherGone,
             Err(_) => Waited::TimedOut,
+        }
+    }
+
+    /// 落とすよう頼んだ（`EngineChild::start_kill` が `Ok` を返した）プロセスが終わるのを `limit` まで見届ける
+    pub async fn wait_killed(&self, limit: Duration) -> KillOutcome {
+        match self.wait_exit(limit).await {
+            Waited::Ended(exit) => KillOutcome::Ended(exit),
+            Waited::WatcherGone => KillOutcome::WatcherGone,
+            Waited::TimedOut => KillOutcome::TimedOut,
         }
     }
 

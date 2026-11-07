@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::engine::child::{self, EngineChild, KillOutcome, KILL_TIMEOUT};
 use crate::engine::logging::{shown, with_cause, MAX_SUMMARY_LEN};
-use crate::engine::protocol::UsiProtocol;
+use crate::engine::protocol::{self, EngineShutdown, UsiProtocol};
 use crate::engine::types::{EngineError, EngineInfo, TIMED_OUT};
 
 const LOGT: &str = "obs_shogi::engine::registry";
@@ -55,14 +55,15 @@ pub struct EngineProcess {
     /// `canonicalize` を通した後の絶対パス。呼び出し側が渡した文字列ではない
     engine_path: String,
     pub info: EngineInfo,
-    protocol: Arc<UsiProtocol>,
+    protocol: UsiProtocol,
+    /// 落とす面。**台帳の外へ出さない**——呼び手は送る面だけを受け取り、落とせない（ADR-0016 決定6）
+    shutdown: EngineShutdown,
 }
 
 impl EngineProcess {
-    /// このプロセスへ送る `UsiProtocol`。台帳と呼び手が同じ1本を共有する
-    /// （台帳は落とすために、呼び手は送るために持つ）。
-    pub fn protocol(&self) -> Arc<UsiProtocol> {
-        Arc::clone(&self.protocol)
+    /// このプロセスへ送る面。呼び手（検討、対局、申告の取得）はこれだけを持つ。落とすのは台帳
+    pub fn protocol(&self) -> UsiProtocol {
+        self.protocol.clone()
     }
 }
 
@@ -88,7 +89,7 @@ impl std::fmt::Debug for EngineProcess {
 ///
 /// 2つの欄のロックは同時に握らない。起動は `processes` に載せてから `starting` を外し、
 /// `shutdown_all` は `starting` を掃いてから `processes` を掃く。どちらも1つずつ取って放す。
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct EngineRegistry {
     /// `usiok` まで済んだプロセス
     processes: RwLock<HashMap<EngineId, Arc<EngineProcess>>>,
@@ -105,7 +106,7 @@ pub struct EngineRegistry {
     /// どちらの台帳にも居ない。
     /// TODO(#368): 掃除の後に載った起動を落とす。
     /// TODO(#381): 上限を超えた起動も、終了の掃除から見えるようにする。
-    starting: RwLock<Vec<Arc<UsiProtocol>>>,
+    starting: RwLock<Vec<EngineShutdown>>,
 }
 
 impl EngineRegistry {
@@ -280,11 +281,11 @@ impl EngineRegistry {
             drop(spawned);
             return Err(cancelled_while_starting());
         }
-        let protocol = Arc::new(UsiProtocol::new(spawned));
+        let (protocol, shutdown) = protocol::attach(spawned);
 
         // **起動中の置き場へ先に載せる。** `usiok` を待つ間に終了されると、
         // ここに居ないプロセスは掃除から見えず孤児になる
-        self.starting.write().await.push(Arc::clone(&protocol));
+        self.starting.write().await.push(shutdown.clone());
 
         // `usiok` を取り切るまでは本台帳に載せない。載せてから失敗すると、
         // 誰も参照していないプロセスが残る。
@@ -297,8 +298,8 @@ impl EngineRegistry {
         let info = match answered {
             Ok(info) => info,
             Err(e) => {
-                self.forget_starting(&protocol).await;
-                protocol.kill_engine().await;
+                self.forget_starting(&shutdown).await;
+                shutdown.kill_engine().await;
                 return Err(e);
             }
         };
@@ -309,6 +310,7 @@ impl EngineRegistry {
             engine_path,
             info,
             protocol,
+            shutdown,
         });
 
         // **本台帳へ載せてから起動中の置き場を外す。** 逆にすると、
@@ -320,7 +322,7 @@ impl EngineRegistry {
             .write()
             .await
             .insert(id.clone(), Arc::clone(&process));
-        self.forget_starting(&process.protocol).await;
+        self.forget_starting(&process.shutdown).await;
 
         log::info!(target: LOGT, "{}", spawn_ok_line(&id, &process.info.name));
         Ok(process)
@@ -418,7 +420,7 @@ impl EngineRegistry {
     pub async fn kill(&self, id: &str) {
         let process = self.processes.write().await.remove(id);
         if let Some(process) = process {
-            process.protocol().kill_engine().await;
+            process.shutdown.kill_engine().await;
         }
     }
 
@@ -427,10 +429,10 @@ impl EngineRegistry {
     /// 起動中のぶんを忘れると、`usiok` を待っている最中に終了されたプロセスが
     /// 孤児として残る。対局の開始は数十秒かかるので、待ち切れずに閉じるのは普通の操作。
     pub async fn shutdown_all(&self) {
-        let starting: Vec<Arc<UsiProtocol>> = self.starting.write().await.drain(..).collect();
-        for protocol in starting {
+        let starting: Vec<EngineShutdown> = self.starting.write().await.drain(..).collect();
+        for shutdown in starting {
             log::info!(target: LOGT, "shutdown: killing an engine that was still starting");
-            protocol.kill_engine().await;
+            shutdown.kill_engine().await;
         }
 
         let processes: Vec<Arc<EngineProcess>> = self
@@ -446,11 +448,11 @@ impl EngineRegistry {
     }
 
     /// 起動中の置き場から外す。**成否に関わらず通す。**
-    async fn forget_starting(&self, protocol: &Arc<UsiProtocol>) {
+    async fn forget_starting(&self, shutdown: &EngineShutdown) {
         self.starting
             .write()
             .await
-            .retain(|p| !Arc::ptr_eq(p, protocol));
+            .retain(|starting| !starting.same_process(shutdown));
     }
 
     /// 台帳に載っているプロセスの ID。
@@ -476,15 +478,14 @@ impl EngineRegistry {
     /// 「もう終わっていた」と返るだけで、stdin だけ閉じて走り続けるエンジンも落ちる。
     async fn terminate(process: &EngineProcess) {
         log::info!(target: LOGT, "shutdown: id={}", process.id);
-        let protocol = process.protocol();
 
         // 戻り値は見ない。既に死んでいれば書けなくて当然で、
         // 目的は「死んでいること」。失敗の記録は `run_writer` が残す
-        protocol.quit().await;
+        process.shutdown.quit().await;
 
         tokio::time::sleep(QUIT_GRACE).await;
 
-        protocol.kill_engine().await;
+        process.shutdown.kill_engine().await;
     }
 }
 

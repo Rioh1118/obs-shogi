@@ -7,7 +7,6 @@
 //! 止めた探索の `bestmove` を着手に採らないのは `session.rs` の `Activity::Stopping` と、
 //! 下の `StopTimedOut`。
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::{mpsc, oneshot};
@@ -79,7 +78,7 @@ pub enum SearchKind {
 /// `req` は同じ側の何本目かで、**古い探索の結果を捨てるための鍵**。
 /// 局面と `go` のパラメータは組んだ時点の値で、走り出した後は変わらない。
 pub struct SearchRequest {
-    pub protocol: Arc<UsiProtocol>,
+    pub protocol: UsiProtocol,
     pub side: Side,
     pub req: u64,
     /// `position sfen` の後ろに続ける文字列
