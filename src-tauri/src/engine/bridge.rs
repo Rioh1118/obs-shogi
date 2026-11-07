@@ -1361,6 +1361,52 @@ done"#;
             let _ = std::fs::remove_dir_all(&dir);
         }
 
+        /// 時間を決めた検討も `stop_analysis_impl` で止まる。**止めないと、席が消えた後もエンジンが読み続け、
+        /// 探索の枠を握ったまま次の開始を待たせる**
+        #[tokio::test]
+        async fn stopping_a_timed_analysis_writes_stop() {
+            let (bridge, _, dir) = started("bridge-stop-timed", ":", ":", 1).await;
+            let bridge = Arc::new(bridge);
+            let timed = {
+                let bridge = Arc::clone(&bridge);
+                tokio::spawn(async move { bridge.analyze_with_time_impl(60).await })
+            };
+            wait_until("`go` が書かれる", || seen(&dir).contains("go")).await;
+
+            assert_eq!(
+                bridge.stop_analysis_impl(None, None).await,
+                Ok(StopOutcome::Stopped)
+            );
+            match tokio::time::timeout(Duration::from_secs(5), timed).await {
+                Ok(Ok(Ok(_))) => {}
+                Ok(Ok(Err(e))) => panic!("止めた時間の検討が失敗した: {e}"),
+                Ok(Err(e)) => panic!("検討のタスクが落ちた: {e}"),
+                Err(_) => panic!("止めても時間を決めた検討が返らない: {}", seen(&dir)),
+            }
+            assert!(seen(&dir).contains("stop"), "`stop` を書いていない");
+
+            bridge.shutdown_engine_impl(2).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// `stop` を受けて終わるエンジンは、止まったと答える。**失敗にすると、フロントの再開が
+        /// `catch` に落ちる。** 終わったことは終わりの見張りが別に知らせる
+        #[tokio::test]
+        async fn an_engine_that_exits_on_stop_is_stopped() {
+            let body = script_with(":", ":", "exit 0", "exit 0");
+            let (bridge, recorded, dir) = started_as("bridge-exit-on-stop", &body, 5).await;
+
+            let id = bridge.start_infinite_analysis_impl().await.expect("始まる");
+            assert_eq!(
+                bridge.stop_analysis_impl(Some(id), None).await,
+                Ok(StopOutcome::Stopped)
+            );
+            wait_until("終了の知らせ", || !recorded.exits().is_empty()).await;
+
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
         /// 即答の `bestmove` を失わない。**`go` の後で積まれた行を捨てると検討中のまま残る**
         #[tokio::test]
         async fn an_instant_bestmove_is_not_lost() {

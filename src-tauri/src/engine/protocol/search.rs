@@ -1,12 +1,8 @@
 //! 手順「探索」（`UsiProtocol::search`）と、探索1本の持ち分 `Search`。
 //!
 //! どの探索の `bestmove` かを決める判断のうち、止めた後に待つか・待った結果をどう読むかを
-//! ここ1か所に置く（`answer_without_waiting` と `answer_after_waiting`）。
+//! ここ1か所に置く（`answer_without_waiting` と `Search::stop`）。
 //! 中身は、いまの受け手の登録と `send_command` の上に載せてある（ADR-0016 決定8 の U1）。
-//!
-//! **本番の呼び手はまだ無い。** 検討（`analyzer`）は U2a、対局（`game`）は U2b でここへ移る。
-//! それまで `dead_code` を許す。移った段で、この属性を外す。
-#![cfg_attr(not(test), allow(dead_code))]
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,8 +18,9 @@ use crate::engine::types::EngineError;
 pub enum SearchLine {
     Info(Vec<InfoParams>),
     Checkmate(CheckmateParams),
-    /// 最後の行。この後 `next_line` は何も返さない
-    BestMove(BestMoveParams),
+    /// 最後の行。この後 `next_line` は何も返さない。
+    /// 手を本番で読むのは、対局が移る U2b から（検討は手を使わない）
+    BestMove(#[cfg_attr(not(test), allow(dead_code))] BestMoveParams),
 }
 
 /// 止めたときの答え。**`stop` の後に何が起きたかを、ここで1つの値にする。**
@@ -37,24 +34,17 @@ pub enum StopAnswer {
     /// 止めるものが無かった。まだ書いていない `go` を落とした（`StopEffect::CancelledQueued`）。
     /// エンジンは探索を始めていない
     NothingToStop,
-    /// 上限まで `bestmove` が来なかった。エンジンは止め待ちのまま残っている
-    Unanswered,
+    /// 上限まで `bestmove` が来なかった。エンジンは止め待ちのまま残っている。
+    /// 遅れて来る答えは中の `LateAnswer` で待てる
+    Unanswered(LateAnswer),
     /// 届かない。`stop` を書けなかったか、待つ間に出力が終わった。
     ///
     /// 書き込みの上限（`WRITE_TIMEOUT`）を超えたときも `EngineError::Timeout` を持ってここへ来る。
     /// その時点で後続の書き込みは全部断られる（`fail_writes`）ので、そのプロセスへはもう届かない。
-    /// 検討（`verdict_of_stop`）は同じく失敗と読むが、対局（`outcome_of_stop`）は「止めに答えない」と
+    /// 検討（`analyzer` の `stop_search`）は失敗と読み、止める頼みには「止まった」と答える
+    /// （届かない理由は終わりの見張りが知らせる）。対局（`outcome_of_stop`）は「止めに答えない」と
     /// 読んで `Activity::Unresponsive` へ移す。どちらへ揃えるかは対局が移る U2b で決める
     Unreachable(EngineError),
-}
-
-/// `stop` を書いた後に `bestmove` を待った結果
-#[derive(Debug)]
-enum Waited {
-    BestMove,
-    /// 待つ間に出力が終わった。中身は `UsiProtocol::cannot_reach` の答え
-    Ended(EngineError),
-    TimedOut,
 }
 
 /// `stop` を頼んだ結果から、待たずに答えが決まるか。`None` なら書けたので `bestmove` を待つ。
@@ -66,18 +56,6 @@ fn answer_without_waiting(sent: Result<StopEffect, EngineError>) -> Option<StopA
         Ok(StopEffect::Written) => None,
         Ok(StopEffect::CancelledQueued) => Some(StopAnswer::NothingToStop),
         Err(e) => Some(StopAnswer::Unreachable(e)),
-    }
-}
-
-/// `bestmove` を待った結果を答えにする。
-///
-/// **出力の終わりを「答えない」に潰さない。** 潰すと、落ちたエンジンに
-/// 「`stop` に答えなかった」という説明が付き、次の手（起こし直す）が出ない。
-fn answer_after_waiting(waited: Waited) -> StopAnswer {
-    match waited {
-        Waited::BestMove => StopAnswer::Answered,
-        Waited::Ended(e) => StopAnswer::Unreachable(e),
-        Waited::TimedOut => StopAnswer::Unanswered,
     }
 }
 
@@ -93,8 +71,9 @@ const DROPPED_SEARCH_LIMIT: Duration = Duration::from_secs(5);
 /// 止める（`stop`）、捨てる（`Drop`）。**止めずに捨てたら `stop` を書き、`bestmove` を
 /// 上限まで受けてから枠を返す。** 次の探索は枠が返るまで始まらないので、前の探索の行を受けない。
 ///
-/// 上限まで答えなかった探索（`StopAnswer::Unanswered` と、捨てた後に上限を過ぎたもの）の枠も返す。
-/// その後に遅れて来た `bestmove` は次の探索へ届きうる。止め待ちのエンジンに次の探索を頼まないのは、
+/// 止めに上限まで答えなかった探索の枠は、`LateAnswer` を持っている間は返さない。
+/// `LateAnswer` を捨てたときと、捨てた探索が上限を過ぎたときは返すので、その後に遅れて来た
+/// `bestmove` は次の探索へ届きうる。止め待ちのエンジンに次の探索を頼まないのは、
 /// いまは呼び手が守る（検討の `unanswered`、対局の `Activity::Unresponsive`）
 pub struct Search {
     protocol: Arc<UsiProtocol>,
@@ -198,7 +177,10 @@ impl Search {
         }
     }
 
-    /// 先読みを本番にする（`ponderhit` を書く）。先読みでない探索と、既に答えた探索では断る
+    /// 先読みを本番にする（`ponderhit` を書く）。先読みでない探索と、既に答えた探索では断る。
+    ///
+    /// 本番の呼び手は、対局が移る U2b まで無い（検討は先読みをしない）
+    #[cfg_attr(not(test), allow(dead_code))]
     pub async fn ponderhit(&mut self) -> Result<(), EngineError> {
         if !self.pondering || self.answered {
             return Err(EngineError::InvalidState(
@@ -215,6 +197,9 @@ impl Search {
     /// **上限は呼び手が渡す**（検討と対局で違う）。上限まで待っても答えなければ `Unanswered` を返し、
     /// エンジンは止め待ちのまま残る。止めた探索の `info` は捨てる。
     ///
+    /// **出力の終わりを「答えない」に潰さない。** 潰すと、落ちたエンジンに
+    /// 「`stop` に答えなかった」という説明が付き、次の手（起こし直す）が出ない。
+    ///
     /// 途中で future を捨てても探索は残らない。`stop` を書く前なら `Drop` が書き、書いた後なら
     /// `Drop` が `bestmove` を待つ
     pub async fn stop(mut self, limit: Duration) -> StopAnswer {
@@ -229,13 +214,13 @@ impl Search {
             self.finished = true;
             return answer;
         }
-        let waited = match tokio::time::timeout(limit, self.until_bestmove()).await {
-            Ok(Ok(())) => Waited::BestMove,
-            Ok(Err(e)) => Waited::Ended(e),
-            Err(_) => Waited::TimedOut,
-        };
+        let waited = tokio::time::timeout(limit, self.until_bestmove()).await;
         self.finished = true;
-        answer_after_waiting(waited)
+        match waited {
+            Ok(Ok(())) => StopAnswer::Answered,
+            Ok(Err(e)) => StopAnswer::Unreachable(e),
+            Err(_) => StopAnswer::Unanswered(LateAnswer(self)),
+        }
     }
 
     async fn until_bestmove(&mut self) -> Result<(), EngineError> {
@@ -245,6 +230,21 @@ impl Search {
             }
         }
         Ok(())
+    }
+}
+
+/// 止めに上限まで答えなかった探索の残り（`StopAnswer::Unanswered`）。
+///
+/// **持っている間は、このプロセスで次の探索を始めさせない**（探索の枠を握る）。
+/// 遅れた `bestmove` の前に次の `go` を書くと、その `bestmove` が次の探索の答えとして読まれる
+#[derive(Debug)]
+pub struct LateAnswer(Search);
+
+impl LateAnswer {
+    /// 遅れて来る `bestmove` を待つ。来たら `Ok`。その前に出力が終わったら、届かない理由
+    /// （`UsiProtocol::cannot_reach`）で断る。上限は持たない（落とせば出力が終わる）
+    pub async fn wait(mut self) -> Result<(), EngineError> {
+        self.0.until_bestmove().await
     }
 }
 
@@ -354,6 +354,15 @@ done"#;
   echo "$line" >> log
   case "$line" in
     isready) echo readyok ;;
+  esac
+done"#;
+
+        /// `stop` に1秒遅れて答える。答える直前に `log` へ `late` を残す
+        const ANSWERS_STOP_LATE: &str = r#"while read line; do
+  echo "$line" >> log
+  case "$line" in
+    isready) echo readyok ;;
+    stop) (sleep 1; echo late >> log; echo 'bestmove 2g2f') & ;;
   esac
 done"#;
 
@@ -508,7 +517,51 @@ done"#;
             )
             .await
             .expect("上限で返らない");
-            assert!(matches!(answer, StopAnswer::Unanswered), "{answer:?}");
+            assert!(matches!(answer, StopAnswer::Unanswered(_)), "{answer:?}");
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// (Q4, L7): 上限の後に来た答えを `LateAnswer` で待てる。待つ間は次の探索を始めない。
+        ///
+        /// 始めると、遅れた `bestmove` が次の探索の答えとして読まれる
+        #[tokio::test]
+        async fn a_late_answer_can_be_waited_for_and_holds_back_the_next_search() {
+            let dir = test_support::dir::temp_dir("search-late");
+            let protocol = ready(&dir, ANSWERS_STOP_LATE).await;
+            let search = protocol
+                .search(startpos(), ThinkParams::new().infinite())
+                .await
+                .expect("書ける");
+            let StopAnswer::Unanswered(late) = search.stop(Duration::from_millis(100)).await else {
+                panic!("上限の前に答えたことになっている");
+            };
+
+            let next = tokio::time::timeout(
+                Duration::from_millis(300),
+                protocol.search(startpos(), ThinkParams::new().infinite()),
+            )
+            .await;
+            // 上限で切れることだけを見る。内側が何であれ、返ったら誤り
+            if let Ok(next) = next {
+                panic!("遅れた答えを待つ間に次の探索を始めた: {next:?}");
+            }
+
+            tokio::time::timeout(Duration::from_secs(5), late.wait())
+                .await
+                .expect("遅れた答えで返らない")
+                .expect("答えが来る");
+            assert!(
+                logged(&dir).iter().any(|l| l == "late"),
+                "答えが来る前に返った: {:?}",
+                logged(&dir)
+            );
+
+            let next = protocol
+                .search(startpos(), ThinkParams::new().infinite())
+                .await
+                .expect("遅れた答えの後は次の探索を始められる");
+            drop(next);
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }
@@ -628,22 +681,5 @@ done"#;
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
         }
-    }
-
-    /// 待った結果の全通り。出力の終わりを「答えない」に潰さない
-    #[test]
-    fn a_wait_for_bestmove_keeps_its_endings_apart() {
-        assert!(matches!(
-            answer_after_waiting(Waited::BestMove),
-            StopAnswer::Answered
-        ));
-        assert!(matches!(
-            answer_after_waiting(Waited::Ended(closed())),
-            StopAnswer::Unreachable(EngineError::CommunicationFailed(_))
-        ));
-        assert!(matches!(
-            answer_after_waiting(Waited::TimedOut),
-            StopAnswer::Unanswered
-        ));
     }
 }
