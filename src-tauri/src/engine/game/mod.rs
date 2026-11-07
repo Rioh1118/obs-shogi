@@ -6,7 +6,12 @@
 
 mod clock;
 pub mod events;
+#[cfg(test)]
+mod fixtures;
+mod input;
 pub mod manager;
 mod search;
 pub mod session;
+pub mod stall;
+pub mod start;
 pub mod types;

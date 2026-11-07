@@ -101,7 +101,7 @@ fn the_scanner_still_sees_production_code() {
     // これが残るなら、塊を落とせていない
     let session = production_code(&anchor("engine/game/session.rs"));
     assert!(
-        !session.contains("fn two_humans"),
+        !session.contains("fn test_runner"),
         "`#[cfg(test)]` の中を落とせていない"
     );
     assert!(

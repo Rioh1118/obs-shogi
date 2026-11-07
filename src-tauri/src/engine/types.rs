@@ -399,7 +399,7 @@ impl From<&str> for FailureDetail<String> {
 pub enum StartupReason {
     /// `usi` に `waited` の間 `usiok` で答えなかった。満額の `USI_OK_TIMEOUT` を待った回なら、
     /// そのファイルは USI エンジンではない。削った上限で待った回は「待つ時間が残っていない」
-    /// （読み直すのは呼び手。`game/session.rs` の `usiok_refusal`）
+    /// （読み直すのは呼び手。`game/start.rs` の `usiok_refusal`）
     NoUsiOk { waited: std::time::Duration },
     /// 答えはしたが `usiok` までに名乗らなかった。分類は `NoUsiOk` と同じ側
     NoIdName,

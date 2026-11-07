@@ -166,7 +166,7 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
     //
     // **黙ったエンジンの番人はここに置かない。** このタスクは起動時の値を
     // 握ったまま走るので、`ponderhit` で先読みから本番へ昇格したことを
-    // 観測できない。見張るのは `session.rs` の `on_tick`（`stalled_turn`）で、
+    // 観測できない。見張るのは `session.rs` の `on_tick`（判定は `stall.rs` の `stalled_turn`）で、
     // 打ち切りは `cancel` を通ってここへ届く。
     let mut settled: Option<SearchOutcome> = None;
     let mut result = AnalysisResult::default();

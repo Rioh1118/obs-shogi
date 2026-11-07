@@ -82,5 +82,5 @@
 | 語                      | 場所                    | 直す先        |
 | ----------------------- | ----------------------- | ------------- |
 | 解析（検討の意味のコメント） | Rust の `engine/`、TS の `entities/analysis` ほか | 検討。範囲ごとの整理で下げる（ADR-0015） |
-| 畳む（`close_game` 以外の意味） | `src-tauri/src/engine/game/session.rs` | 止め終わり待ち・終局させる・タスクが終わる。範囲7a（`docs/audits/2026-11-engine.md` の W-3） |
+| 畳む（`close_game` 以外の意味） | `src-tauri/src/engine/game/session.rs`、`stall.rs`、`input.rs` | 止め終わり待ち・終局させる・タスクが終わる。範囲7b（`docs/audits/2026-11-engine.md` の W-3） |
 | 解析ビュー、解析ペイン、解析タブ | TS のコメント | 検討ビュー |

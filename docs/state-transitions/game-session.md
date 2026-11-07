@@ -1,6 +1,7 @@
 # 状態遷移表: game-session（L1）
 
-対象: `src-tauri/src/engine/game/session.rs`（状態機械）、`search.rs`（1回の `go`）、
+対象: `src-tauri/src/engine/game/session.rs`（状態機械）、`stall.rs`（手番が止まったことの番人）、
+`start.rs`（起動の段取りと締切）、`input.rs`（入口の書式）、`search.rs`（1回の `go`）、
 `clock.rs`（持ち時間）、`manager.rs`（台帳）、`events.rs`（出来事の宛先）、
 `src-tauri/src/engine/commands/game.rs`（Tauri コマンド）。
 エンジンの出力を読む側は `src-tauri/src/engine/protocol.rs`。
@@ -509,6 +510,9 @@ ClocksView {
 ## 実装との対応
 
 - 状態機械: `src-tauri/src/engine/game/session.rs`
+- 手番が止まったことの番人: `src-tauri/src/engine/game/stall.rs`
+- 起動の段取りと締切: `src-tauri/src/engine/game/start.rs`
+- 入口の書式: `src-tauri/src/engine/game/input.rs`
 - 1回の `go`: `src-tauri/src/engine/game/search.rs`
 - 持ち時間: `src-tauri/src/engine/game/clock.rs`
 - 走っている対局の台帳: `src-tauri/src/engine/game/manager.rs`
