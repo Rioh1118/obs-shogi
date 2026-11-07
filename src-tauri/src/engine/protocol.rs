@@ -18,6 +18,8 @@ use usi::{EngineCommand, GameOverKind, GuiCommand, IdParams, InfoParams};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
+pub mod search;
+
 /// USI の行を壊す文字を含むか。
 ///
 /// **判断はここ1本。** USI は行指向なので、改行を混ぜられると別のコマンドを
@@ -1252,7 +1254,7 @@ impl UsiProtocol {
         Ok((name, author))
     }
 
-    /// 手順「準備」。`setoption` を**並べた順に**送り、`isready` を必ず送って `readyok` を待つ。
+    /// 手順「準備」。`setoption` を並べた順に送り、`isready` を必ず送って `readyok` を待つ。
     /// 返すのは、その間にエンジンが出した `info string` の文（定跡を読めたかを
     /// `binding::book_load_warning` が判定する）。
     ///
@@ -1264,7 +1266,7 @@ impl UsiProtocol {
     /// 値の検査（件数・長さ・行を壊す文字）は呼び手の段（`setup::validate_options`）が先に済ませる。
     /// 送る途中や `readyok` の前にエンジンが落ちたら、直近の出力を添えて返す。
     ///
-    /// **途中で future を捨てても状態は残らない。** 張った受け手は、受け側が落ちたことを
+    /// 途中で future を捨てても状態は残らない。張った受け手は、受け側が落ちたことを
     /// 次の行を配るときに見て外れる（`broadcast_to_listeners`）
     pub async fn prepare(
         &self,
