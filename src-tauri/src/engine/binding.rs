@@ -1033,6 +1033,42 @@ mod tests {
             ),
             None
         );
+        // 選択肢の `BookFile` はあるが `BookDir` が無い（B3。確かめても送らない）
+        assert_eq!(
+            book_path_check_name(
+                &[one(
+                    "option name BookFile type combo default no_book var no_book var standard_book.db"
+                )],
+                book("/ai/li/book/mybook.db", true).as_ref()
+            ),
+            None
+        );
+    }
+
+    /// 同じ役の名前を2つとも申告したエンジンには、前の名前（`BookFile`、`USI_OwnBook`）で送る。
+    /// 申告の順には依らない
+    #[test]
+    fn of_two_names_for_the_same_role_the_first_one_is_used() {
+        let decl = [
+            one("option name Book_File type string default book.db"),
+            one("option name BookFile type string default book.db"),
+            one("option name OwnBook type check default false"),
+            one("option name USI_OwnBook type check default false"),
+        ];
+        let bound = bind(
+            &decl,
+            &BindingInput {
+                book: book("/ai/b/mybook.db", true),
+                ..BindingInput::default()
+            },
+        );
+        assert_eq!(
+            sent(&bound),
+            [
+                ("BookFile".to_string(), "/ai/b/mybook.db".to_string()),
+                ("USI_OwnBook".to_string(), "true".to_string()),
+            ]
+        );
     }
 
     /// パスを受けるエンジン（V8.30）には、選択肢に無い名前でもパスで送り、定跡を使う
