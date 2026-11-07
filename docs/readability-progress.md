@@ -81,7 +81,8 @@ ours 戦略のマージは使わない。
 | 45 | `refactor/readability-range6` | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure`（Rust の範囲6）。C-4、R-10、範囲内の W-1 を閉じ、`setup` の関数名を手順の語に揃える | #716 | マージ済み |
 | 46 | `refactor/usi-u2a-analyzer` | 作り直しの段 U2a。`analyzer` を手順「探索」と `Search` へ移し、検討の側から受け手の登録をなくす。D-1 の検討の写しを消す | #717 | マージ済み |
 | 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順を段 `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` に畳み、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | #718 | マージ済み |
-| 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | レビュー待ち |
+| 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | マージ済み |
+| 49 | `refactor/usi-u2b-game` | 作り直しの段 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` の段に閉じる | #720 | レビュー待ち |
 
 ## 語
 
@@ -161,7 +162,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | U2a | `analyzer` を手順へ移す | — | 済 |
 | 8a | `src-tauri/src/engine/analyzer.rs` | 828 | 済 |
 | 7a | `src-tauri/src/engine/game/session.rs` を4つのファイルに割る。割るだけ | 2208 | 済 |
-| U2b | `game` を手順へ移す | — | 未着手 |
+| U2b | `game` を手順へ移す | — | 済 |
 | U3 | 状態機械を新しい段 `usi_machine` に作る。受け手の表と積み置きを消す | — | 未着手 |
 | U4 | 殻（タスク1本）。送る面と落とす面を分ける | — | 未着手 |
 | 7b | `src-tauri/src/engine/game` の残りと `engine/commands/game.rs` | U2b の後に数える | 未着手 |
@@ -235,11 +236,11 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で、範囲6は段45で、U2a は段46で、範囲8aは段47で、範囲7aは段48で取った。次は U2b。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で、範囲6は段45で、U2a は段46で、範囲8aは段47で、範囲7aは段48で、U2b は段49で取った。次は U3。
 
 範囲「公開」から、`engine` は crate の外へ出ない。外へ出すのは `tests/engine_timeouts.rs` が読む上限の定数だけで、
 `lib.rs` が再輸出する。`engine` の中で呼び手の無い `pub` は rustc の `dead_code` が拾うので、以後の範囲では grep で数えなくてよい。
-**例外は `engine/protocol/search.rs`** の `Search::ponderhit` と `SearchLine::BestMove` の手の欄で、本番で使うのは対局だけなので `dead_code` を許してある。U2b で対局が移ったら外す。
+U2b で対局が `Search` へ移り、`engine/protocol/search.rs` の `Search::ponderhit` と `SearchLine::BestMove` の手の欄に置いていた `dead_code` の許可は外した。
 
 範囲7a: `game/session.rs` を4つのファイルに割る（本体 2208 行）。割るだけで、整理は 7b に回す。
 監査の行き先が 7a の所見は R-2、R-5、R-6、W-3（`docs/audits/2026-11-engine.md`）。
@@ -255,10 +256,16 @@ TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は�
 起こして設定を送る手順は段 `analysis_start` にある。`bridge` が組む断りの文と
 `superseded_request` の重複（D-3）は 8b で取る。
 
-U2b で対局を `Search` へ移すとき、`StopAnswer::Unreachable(EngineError::Timeout)`（`stop` の書き込みが上限を超えた）の
-行き先を決める。いまの対局は `StopTimedOut`（止めに答えない）と読み、検討は失敗と読む。写像を純関数にして、この1通りをテストで固定する。
+U2b で対局は `Search` を回すだけになった（`game/search.rs` の `run_search`）。`ponderhit` は探索のタスクが握る
+`Search` に書いてもらう（`PonderHit`）。受け手の登録（`register_listener`）は `protocol` の段の中からしか呼べない。
+`StopAnswer::Unreachable(EngineError::Timeout)`（`stop` の書き込みが上限を超えた）は、対局では `StopTimedOut`
+（止めに答えない。`gameover` を書かずに畳む）に写し、`a_stop_that_could_not_be_written_in_time_is_an_unanswered_stop` が固定する。
+検討は同じ答えを失敗と読むまま残る。
+7b で取るもの: `Player::ponderhit` は `activity` と別の欄で、止めた後も古い値が残る。
+`Activity::Searching` か `SearchKind::Ponder` に持たせると型で止まる（U2b では既存のテストの形を変えないために見送った）。
 
-7a の後は上の表の順に U2b、U3 と進む。各段の範囲と固定のしかたは ADR-0016 の決定8。
+次は U3: 状態機械を段 `usi_machine` に作り、受け手の表と積み置きを消す。範囲と固定のしかたは ADR-0016 の決定8。
+U3 の後は U4、その後に 7b（`game` の残り）と 8b を取る。
 
 `tests/layering.rs` は `engine` の段の上下を
 ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。

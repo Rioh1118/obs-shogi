@@ -362,32 +362,25 @@ E1 / E4 の「エンジン側を人間として撃つ」枝は
 
 ## 1回の `go`（`search.rs`）
 
-`go` **ごとに**リスナーを作り、終わったら外す。使い回すと、打ち切った探索の
-`bestmove` が次の探索のものとして届く。
+探索は手順「探索」（`UsiProtocol::search`）が返す `Search` で回す。受け手の登録は `protocol` の中だけにある。
 
 | 相  | 何をしているか                                                                   |
 | --- | -------------------------------------------------------------------------------- |
-| 1   | `position` → `go` を送り、`bestmove` か打ち切りのどちらかを待つ                  |
-| 2   | 打ち切られたなら `stop` を送り、捨てる `bestmove` を `SEARCH_STOP_GRACE`まで待つ |
+| 1   | `position` → `go` を書き、`bestmove` か打ち切りのどちらかを待つ。先読みが当たったら `PonderHit` の頼みを受けて `ponderhit` を書く |
+| 2   | 打ち切られたなら止め（`Search::stop`）、捨てる `bestmove` を `SEARCH_STOP_GRACE`まで待つ |
 
-第2相の終わり方は、`stop` で返る**3つ**と、書けた後の**3つ**。
-潰すと、落ちたエンジンに「stop に応じなかった」という説明が付く。
+第2相で待つか・待った結果がどれかは `Search::stop` が決め、`StopAnswer` で返す。
+対局はそれを終わり方へ写すだけ（`outcome_after_stop`）。潰すと、落ちたエンジンに「stop に応じなかった」という説明が付く。
 
-`stop` の側（`outcome_of_stop`）。ここで返ると `bestmove` を待たない。
+| `StopAnswer`                 | 意味                                   | `SearchOutcome`  |
+| ---------------------------- | -------------------------------------- | ---------------- |
+| `Answered`                   | 打ち切りに応じた                       | `StoppedCleanly` |
+| `NothingToStop`              | **まだ書かれていない `go` を落とした** | `StoppedCleanly` |
+| `Unanswered`                 | **まだ探索中**                         | `StopTimedOut`   |
+| `Unreachable`（`Timeout`）   | **stdin を読んでいない**               | `StopTimedOut`   |
+| `Unreachable`（その他）      | **送る先が無いか、プロセスが落ちた**   | `Failed`         |
 
-| `stop` の結果     | 意味                                   | `SearchOutcome`  |
-| ----------------- | -------------------------------------- | ---------------- |
-| `CancelledQueued` | **まだ書かれていない `go` を落とした** | `StoppedCleanly` |
-| `Timeout`         | **stdin を読んでいない**               | `StopTimedOut`   |
-| その他の `Err`    | **送る口が無い**                       | `Failed`         |
-
-書けたら（`Written`）待ちへ進み、その終わり方が3つ（`outcome_after_stop`）。
-
-| 待ちの結果          | 意味                 | `SearchOutcome`  |
-| ------------------- | -------------------- | ---------------- |
-| `bestmove` を受けた | 打ち切りに応じた     | `StoppedCleanly` |
-| チャンネルが閉じた  | **プロセスが落ちた** | `Failed`         |
-| 待ち切れなかった    | **まだ探索中**       | `StopTimedOut`   |
+`Unreachable`（`Timeout`）は、検討（`analyzer`）では失敗と読む。対局は `gameover` を書かずに畳む側へ倒す（`Activity::Unresponsive`）。
 
 ## 時計
 
@@ -451,9 +444,9 @@ ClocksView {
    1. **`A3` の結果を採らない**（`on_search_outcome` の `accept`）
    2. **捨てる `bestmove` を受け取れなかったら、次の `go` を出さずに終局する**（E12）
 
-   **「リスナーが `go` ごとだから古いものは届かない」は根拠にならない。**
-   `run_search` は戻る直前にリスナーを外すので、遅れて届いた `bestmove` は
-   **次の探索のリスナー**が受け取り、`req` も一致する。窓を狭めるだけで閉じない。
+   **「`Search` が `go` ごとだから古いものは届かない」は根拠にならない。**
+   止めに答えなかった探索の枠は、止め待ちの残り（`LateAnswer`）を捨てると返るので、
+   遅れて届いた `bestmove` は**次の探索**が受け取り、`req` も一致する。
    届いた先の世代照合だけでも防げない。
 
 3. **`G2` に入ったら、全エンジンに `gameover` が届く。ただし `A4` を除く。**

@@ -1,22 +1,22 @@
 //! 1回の `go` を最後まで見届けるタスク。
 //!
-//! **`go` ごとにリスナーを作って、終わったら外す。** 使い回すと、打ち切った
-//! 探索の `info` が次の探索のものとして届く。
+//! 探索は手順「探索」（`UsiProtocol::search`）が返す `Search` で回し、受け手の登録は持たない。
+//! 止めた後に待つか・待った結果をどう読むかは `Search::stop` が決めて `StopAnswer` で返し、
+//! ここはそれを対局の終わり方（`SearchOutcome`）へ写すだけ（`outcome_after_stop`）。
 //!
-//! **ただし窓を狭めるだけで閉じない。** リスナーを外すのは戻る直前なので、
-//! `stop` の後に遅れて届いた `bestmove` は**次の探索のリスナー**が受け取り、
-//! `req` も一致する。それを採らないのは `session.rs` の `Activity::Stopping`
-//! と、下の `StopTimedOut`。
+//! 止めた探索の `bestmove` を着手に採らないのは `session.rs` の `Activity::Stopping` と、
+//! 下の `StopTimedOut`。
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
-use usi::{BestMoveParams, EngineCommand, GuiCommand, ThinkParams};
+use usi::{BestMoveParams, ThinkParams};
 
 use crate::engine::candidates::apply_info_params;
-use crate::engine::protocol::{StopEffect, UsiProtocol};
+use crate::engine::protocol::search::{SearchLine, StopAnswer};
+use crate::engine::protocol::UsiProtocol;
 use crate::engine::types::{AnalysisResult, EngineError};
 
 use super::types::Side;
@@ -49,14 +49,17 @@ pub enum SearchOutcome {
     /// **`stop` を送っても `bestmove` が返らなかった。**
     ///
     /// エンジンはまだ探索中で、次の `go` は受け付けられない。しかも遅れて
-    /// 届く `bestmove` は**前の局面に対する答え**なのに、そのとき登録されている
-    /// リスナー（＝次の探索のもの）が受け取ってしまう。話し続けてはいけない
+    /// 届く `bestmove` は**前の局面に対する答え**なのに、次の探索の答えとして
+    /// 読まれうる（止め待ちの残り `LateAnswer` を捨てると探索の枠が返る）。話し続けてはいけない。
+    ///
+    /// `stop` の書き込みが上限を超えたときもここ（`outcome_after_stop`）
     StopTimedOut,
     /// **探索が終わったか、そもそも始められなかったか。**
     ///
-    /// 産地は5つ——`listen` の失敗、`position` / `go` の送信失敗、出力の終わり、
-    /// `stop` の送信失敗、通知の経路が閉じたとき。**「プロセスが死んだ」ではない**
-    /// （送信が `WRITE_TIMEOUT` で切れた場合、その手は後から届きうる）。
+    /// 産地は3つ——探索を始められなかった（`UsiProtocol::search` の断り）、
+    /// `bestmove` の前に出力が終わった、`stop` が届かなかった。
+    /// **「プロセスが死んだ」ではない**（`position` / `go` の送信が `WRITE_TIMEOUT` で
+    /// 切れた場合、その手は後から届きうる）。
     ///
     /// `String` は外来（`EngineError` の文言）。`finish` が `MAX_DETAIL_LEN` で
     /// 切るまで無検査で、切った後は `Over` イベントと棋譜に残る。
@@ -88,6 +91,39 @@ pub struct SearchRequest {
     /// 片方だけ古いままになる（このタスクは起動時の値を握って走る）。
     pub params: ThinkParams,
     pub cancel: CancellationToken,
+    /// 先読みの探索にだけ渡す、`ponderhit` の頼みの受け取り側。頼む側は `PonderHit`
+    pub ponderhit: Option<PonderHitAsks>,
+}
+
+/// `ponderhit` を書いた結果の送り手。探索のタスクが答える
+type PonderHitReply = oneshot::Sender<Result<(), EngineError>>;
+
+/// 先読みの探索が受ける `ponderhit` の頼み。1本の探索につき高々1回
+pub type PonderHitAsks = oneshot::Receiver<PonderHitReply>;
+
+/// 先読みの探索へ「当たった」と伝える取っ手。**`Search` は探索のタスクが握っているので、
+/// `ponderhit` はタスクに書いてもらう。** 1本の探索につき1回だけ使える（`self` を消費する）。
+pub struct PonderHit(oneshot::Sender<PonderHitReply>);
+
+impl PonderHit {
+    /// 頼む側と受け取り側の組を作る。受け取り側は `SearchRequest::ponderhit` に渡す
+    pub fn pair() -> (Self, PonderHitAsks) {
+        let (ask, asks) = oneshot::channel();
+        (Self(ask), asks)
+    }
+
+    /// `ponderhit` を書いてもらい、書けたかを返す。
+    ///
+    /// **探索のタスクが既に居なければ `Ok` を返す。** タスクが戻るのは答え（`bestmove`）か
+    /// 失敗を `SearchMessage::Outcome` に出した後なので、その答えは同じ `req` で後から届く。
+    /// 断りにすると、先読みのまま答えた手（当たった局面の手）を捨てて考え直させることになる
+    pub async fn send(self) -> Result<(), EngineError> {
+        let (reply, answer) = oneshot::channel();
+        if self.0.send(reply).is_err() {
+            return Ok(());
+        }
+        answer.await.unwrap_or(Ok(()))
+    }
 }
 
 /// 探索タスクからセッションへ返す出来事。
@@ -112,14 +148,16 @@ pub enum SearchMessage {
 /// `position` と `go` を送り、`bestmove` まで見届けて `tx` へ流す。
 ///
 /// **戻り値を持たない。** 起きたことは全部 `SearchMessage` として `tx` に出る
-/// （`Started` → `Outcome`）。`tx` の受け手が消えていれば黙って捨てられる。
+/// （`Info` を0回以上、最後に `Outcome` を1回）。`tx` の受け手が消えていれば黙って捨てられる。
 ///
-/// **`Idle` の側にだけ呼ぶこと。** 同じ側の探索が走っている状態で重ねると、
-/// 先に走っているほうの `bestmove` が新しい `req` の結果として読まれる。
+/// **`Idle` の側にだけ呼ぶこと。** 前の探索がまだ `Search` を握っている間に重ねると、
+/// `UsiProtocol::search` が探索の枠を上限まで待ってから断り、`Failed` で対局が終わる。
+/// 止めに答えなかった探索（`outcome_after_stop` が `LateAnswer` を捨てるので枠はすぐ返る）に
+/// 重ねると、遅れた `bestmove` が次の `req` の答えとして読まれる。
 /// 呼ぶ箇所を `GameSession::spawn_search` の1本に絞ってあるのはそのため。
 ///
-/// 取り消しは `request.cancel`。**落とすのではなく `stop` を送る**ので、
-/// エンジンが `bestmove` を返すまでこの関数は返らない。
+/// 取り消しは `request.cancel`。**落とすのではなく止める**（`Search::stop`）ので、
+/// 捨てる `bestmove` を `SEARCH_STOP_GRACE` まで待つ間はこの関数は返らない。
 pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<SearchMessage>) {
     let SearchRequest {
         protocol,
@@ -128,54 +166,35 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
         position,
         params,
         cancel,
+        mut ponderhit,
     } = request;
-
-    let listener = format!("game_search_{:?}_{}", side, req);
-    let (raw_tx, mut raw_rx) = mpsc::unbounded_channel();
-
-    if let Err(e) = protocol.register_listener(listener.clone(), raw_tx).await {
-        let _ = tx.send(SearchMessage::Outcome {
-            side,
-            req,
-            outcome: SearchOutcome::Failed(format!("failed to listen to engine: {e}")),
-        });
-        return;
-    }
-
-    // **どちらで折れたかを分けて言う。** まとめると `position` の失敗が
-    // `go` の名前で説明され、ログを読んだ人が詰まった側を見ない
-    let sent = match protocol.send_command(&GuiCommand::Position(position)).await {
-        Err(e) => Err(format!("failed to send position: {e}")),
-        Ok(()) => protocol
-            .send_command(&GuiCommand::Go(params))
-            .await
-            .map_err(|e| format!("failed to send go: {e}")),
+    let report = |outcome: SearchOutcome| {
+        let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
     };
 
-    if let Err(message) = sent {
-        protocol.remove_listener(&listener).await;
-        let _ = tx.send(SearchMessage::Outcome {
-            side,
-            req,
-            outcome: SearchOutcome::Failed(message),
-        });
-        return;
-    }
+    let mut search = match protocol.search(position, params).await {
+        Ok(search) => search,
+        Err(e) => {
+            report(SearchOutcome::Failed(format!(
+                "failed to start the search: {e}"
+            )));
+            return;
+        }
+    };
 
-    // 第1相: `bestmove` が来るか、打ち切られるかのどちらか。
-    //
     // **黙ったエンジンの番人はここに置かない。** このタスクは起動時の値を
     // 握ったまま走るので、`ponderhit` で先読みから本番へ昇格したことを
     // 観測できない。見張るのは `session.rs` の `on_tick`（判定は `stall.rs` の `stalled_turn`）で、
     // 打ち切りは `cancel` を通ってここへ届く。
-    let mut settled: Option<SearchOutcome> = None;
     let mut result = AnalysisResult::default();
-
     loop {
         tokio::select! {
             _ = cancel.cancelled() => break,
-            command = raw_rx.recv() => match command {
-                Some(EngineCommand::Info(params)) => {
+            reply = next_ponderhit(&mut ponderhit) => {
+                let _ = reply.send(search.ponderhit().await);
+            }
+            line = search.next_line() => match line {
+                Ok(Some(SearchLine::Info(params))) => {
                     apply_info_params(&params, &mut result);
                     // **ここで間引かない。** このタスクは起動時の `ponder` を握ったまま
                     // 走るので、`ponderhit` で本番へ昇格しても先読み扱いのまま。
@@ -188,112 +207,65 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
                         result: result.clone(),
                     });
                 }
-                Some(EngineCommand::BestMove(params)) => {
-                    settled = Some(outcome_of(params));
-                    break;
+                Ok(Some(SearchLine::BestMove(params))) => {
+                    report(outcome_of(params));
+                    return;
                 }
-                Some(_) => {}
-                None => {
-                    settled = Some(SearchOutcome::Failed(
-                        "engine stopped responding".to_string(),
-                    ));
-                    break;
+                Ok(Some(SearchLine::Checkmate(_))) => {}
+                // `bestmove` の後にしか `None` は来ない。上の腕で戻っているので、来たら出力の終わりと同じに読む
+                Ok(None) | Err(_) => {
+                    report(SearchOutcome::Failed("engine stopped responding".to_string()));
+                    return;
                 }
             },
         }
     }
 
-    // 第2相: 打ち切られたなら `stop` を送り、捨てる `bestmove` を待ってから戻る。
-    let outcome = match settled {
-        Some(outcome) => outcome,
-        None => {
-            // 書き込みが終わらなかった／失敗した／そもそも書く必要が無かったら、
-            // 返事を待つ意味は無い。上限は `stop` の中（`WRITE_TIMEOUT`）
-            let stopped = protocol.stop().await;
+    let answer = search.stop(SEARCH_STOP_GRACE).await;
+    if let StopAnswer::Unanswered(_) = &answer {
+        log::warn!(target: LOGT, "stop: no bestmove within grace side={side:?} req={req}");
+    } else {
+        log::debug!(target: LOGT, "stop: side={side:?} req={req} answer={answer:?}");
+    }
+    report(outcome_after_stop(answer));
+}
 
-            if let Some(outcome) = outcome_of_stop(&stopped) {
-                log::debug!(
-                    target: LOGT,
-                    "stop: not waiting side={:?} req={} reason={}",
-                    side,
-                    req,
-                    stop_reason(&stopped)
-                );
-                protocol.remove_listener(&listener).await;
-                let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
-                return;
-            }
-
-            let drained = tokio::time::timeout(SEARCH_STOP_GRACE, async {
-                while let Some(command) = raw_rx.recv().await {
-                    if matches!(command, EngineCommand::BestMove(_)) {
-                        return true;
-                    }
-                }
-                // チャンネルが閉じた。エンジンの出力が終わっている
-                false
-            })
-            .await
-            .ok();
-
-            if drained.is_none() {
-                log::warn!(
-                    target: LOGT,
-                    "stop: no bestmove within grace side={:?} req={}",
-                    side,
-                    req
-                );
-            }
-            outcome_after_stop(drained)
+/// 次の `ponderhit` の頼みを待つ。受け取り側が無いか、`PonderHit` が捨てられたら返らない
+async fn next_ponderhit(asks: &mut Option<PonderHitAsks>) -> PonderHitReply {
+    if let Some(waiting) = asks.as_mut() {
+        let asked = waiting.await;
+        *asks = None;
+        if let Ok(reply) = asked {
+            return reply;
         }
-    };
-
-    protocol.remove_listener(&listener).await;
-    let _ = tx.send(SearchMessage::Outcome { side, req, outcome });
+    }
+    std::future::pending().await
 }
 
-/// `stop` がどう終わったかを、探索の結果へ写す。
+/// 止めた答えを、探索の終わり方へ写す。止めた後に待つか・待った結果がどれかは読まない
+/// （それは `Search::stop` が決める。写しを持つと、検討と対局で判断が2つになる）。
 ///
-/// `Some` を返したら `bestmove` を待たずに戻る。`None` なら書けたので待ちへ進む。
+/// 止めに答えた・まだ探索中・届かない、の3つは、次にできることが違うので同じ値にしない。
+/// とくに出力の終わりを `StopTimedOut` に潰すと、落ちたエンジンに「stop に応じなかった」という
+/// 説明が付く。
 ///
-/// **「待たなくてよい」を「書けた」に潰さない。** 潰すと `SEARCH_STOP_GRACE` を待ち、
-/// 来ない `bestmove` の後に「エンジンが `stop` に応じなかった」という説明が
-/// 棋譜と画面に残る。理由は4つあり、エンジンの状態が全部違う。
-fn outcome_of_stop(stopped: &Result<StopEffect, EngineError>) -> Option<SearchOutcome> {
-    match stopped {
-        // 書けた。この後 `bestmove` が来る
-        Ok(StopEffect::Written) => None,
+/// **`stop` の書き込みが上限を超えた（`Unreachable(EngineError::Timeout)`）は `StopTimedOut`。**
+/// stdin を読んでいないエンジンは探索中とみなし、`gameover` を書かずに畳む（`Activity::Unresponsive`）。
+/// 検討は同じ答えを失敗と読むが、対局は「止めに答えない」と説明する。その後の書き込みは全部断られる
+/// （`fail_writes`）ので、`Failed` にして `gameover` を書きに行っても届かない
+fn outcome_after_stop(answer: StopAnswer) -> SearchOutcome {
+    match answer {
+        // 止めに答えた。止める前に答えていた探索もここ
+        StopAnswer::Answered => SearchOutcome::StoppedCleanly,
         // まだ書いていない `go` を落とした。エンジンは考え始めていない
-        Ok(StopEffect::CancelledQueued) => Some(SearchOutcome::StoppedCleanly),
-        // 上限まで返らなかった。エンジンは探索中とみなす
-        Err(EngineError::Timeout(_)) => Some(SearchOutcome::StopTimedOut),
-        // 送る先が無い。探索中とは限らない
-        Err(e) => Some(SearchOutcome::Failed(format!("could not send stop: {e}"))),
-    }
-}
-
-/// ログに出す理由。`outcome_of_stop` と同じ分岐を1箇所で言葉にする
-fn stop_reason(stopped: &Result<StopEffect, EngineError>) -> String {
-    match stopped {
-        Ok(effect) => format!("{effect:?}"),
-        Err(e) => e.to_string(),
-    }
-}
-
-/// `stop` の後始末がどう終わったかを、探索の結果へ写す。
-///
-/// **3つを潰さない。** 打ち切りに応じたのか、まだ探索中なのか、プロセスが
-/// 落ちたのかで、次にできることが違う。とくに `None`（＝チャンネルが閉じた）を
-/// `StopTimedOut` に潰すと、**落ちたエンジンに「stop に応じなかった」という
-/// 説明が付く**。第1相は同じ死因を `Failed` と呼ぶので、相によって説明が変わる。
-///
-/// `drained` は `None` が打ち切りの待ちのタイムアウト、`Some(true)` が
-/// 捨てる `bestmove` を受け取れたこと、`Some(false)` がチャンネルの閉塞。
-fn outcome_after_stop(drained: Option<bool>) -> SearchOutcome {
-    match drained {
-        Some(true) => SearchOutcome::StoppedCleanly,
-        Some(false) => SearchOutcome::Failed("engine stopped responding".to_string()),
-        None => SearchOutcome::StopTimedOut,
+        StopAnswer::NothingToStop => SearchOutcome::StoppedCleanly,
+        // 上限まで答えなかった。エンジンは探索中とみなす
+        StopAnswer::Unanswered(_) => SearchOutcome::StopTimedOut,
+        StopAnswer::Unreachable(EngineError::Timeout(_)) => SearchOutcome::StopTimedOut,
+        // 送る先が無いか、待つ間に出力が終わった。探索中とは限らない
+        StopAnswer::Unreachable(e) => {
+            SearchOutcome::Failed(format!("could not stop the search: {e}"))
+        }
     }
 }
 
@@ -309,56 +281,38 @@ fn outcome_of(params: BestMoveParams) -> SearchOutcome {
 mod tests {
     use super::*;
 
+    /// 止めた答えの写し方。**待ちの上限切れ（`Unanswered`）は `LateAnswer` を作るのに
+    /// 実プロセスが要るので、`session.rs` の `an_engine_that_ignores_stop_loses_and_gets_no_gameover`（T4）が持つ**
     #[test]
-    fn waiting_for_bestmove_does_not_collapse_its_endings() {
-        // 打ち切りに応じた。エンジンは idle に戻っている
+    fn a_stop_answer_does_not_collapse_its_endings() {
+        // 止めに答えた。エンジンは待機に戻っている
         assert!(matches!(
-            outcome_after_stop(Some(true)),
+            outcome_after_stop(StopAnswer::Answered),
             SearchOutcome::StoppedCleanly
         ));
-        // チャンネルが閉じた＝プロセスが落ちた。**「stop に応じない」ではない**
+        // まだ書いていない `go` を落とした。正常に止まったのと同じ
         assert!(matches!(
-            outcome_after_stop(Some(false)),
-            SearchOutcome::Failed(_)
+            outcome_after_stop(StopAnswer::NothingToStop),
+            SearchOutcome::StoppedCleanly
         ));
-        // 待ち切れなかった。エンジンはまだ探索中
+        // 送る先が無いか、出力が終わった。**探索中とは限らないので `StopTimedOut` にしない**
+        let closed = EngineError::CommunicationFailed("closed".to_string().into());
         assert!(matches!(
-            outcome_after_stop(None),
-            SearchOutcome::StopTimedOut
+            outcome_after_stop(StopAnswer::Unreachable(closed)),
+            SearchOutcome::Failed(_)
         ));
     }
 
-    /// `stop` を**送る**側の分かれ方。上の関数の対。
+    /// `stop` の書き込みが上限を超えたら、対局は「止めに答えない」と読む。
     ///
-    /// **潰すと、送れていない失敗に「エンジンが `stop` に応じなかった」という
-    /// 説明が付く。** 上限は `protocol.rs` の `WRITE_TIMEOUT` にあり、
-    /// ここへは `EngineError::Timeout` として届く
+    /// **`Failed` にすると `Activity::Idle` に戻り、`finish` が stdin を読まないエンジンへ
+    /// `gameover` を書きに行く。** 説明も「止めに答えない」から送信の失敗の文言に変わる
     #[test]
-    fn sending_stop_does_not_collapse_its_outcomes() {
-        // 書けた。待ちへ進む
-        assert!(outcome_of_stop(&Ok(StopEffect::Written)).is_none());
-
-        // 積み置きを落とした。**`bestmove` は来ないので待たない。**
-        // エンジンは `go` を受け取っていないので、正常に止まったのと同じ
+    fn a_stop_that_could_not_be_written_in_time_is_an_unanswered_stop() {
+        let blocked = EngineError::Timeout("blocked".to_string());
         assert!(matches!(
-            outcome_of_stop(&Ok(StopEffect::CancelledQueued)),
-            Some(SearchOutcome::StoppedCleanly)
-        ));
-
-        // 送る先が無い。**探索中とは限らないので `StopTimedOut` にしない**
-        let refused = Err(EngineError::CommunicationFailed(
-            "closed".to_string().into(),
-        ));
-        assert!(matches!(
-            outcome_of_stop(&refused),
-            Some(SearchOutcome::Failed(_))
-        ));
-
-        // 上限まで返らなかった。エンジンは探索中とみなす
-        let blocked = Err(EngineError::Timeout("blocked".to_string()));
-        assert!(matches!(
-            outcome_of_stop(&blocked),
-            Some(SearchOutcome::StopTimedOut)
+            outcome_after_stop(StopAnswer::Unreachable(blocked)),
+            SearchOutcome::StopTimedOut
         ));
     }
 }
