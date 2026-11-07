@@ -1651,7 +1651,7 @@ impl Runner {
             Some(winner) if winner == side => GameOverKind::Win,
             Some(_) => GameOverKind::Lose,
         };
-        if let Err(e) = protocol.send_command(&GuiCommand::GameOver(kind)).await {
+        if let Err(e) = protocol.game_over(kind).await {
             log::warn!(target: LOGT, "gameover failed side={side:?}: {e}");
         }
     }
@@ -1927,7 +1927,7 @@ async fn send_game_setup(
     // `prepare_engine` が締切で断って**落とすエンジン**へ送っていることがある
     remaining(deadline, "usinewgame was sent")?;
     protocol
-        .send_command(&GuiCommand::UsiNewGame)
+        .new_game()
         .await
         .map_err(|e| engine_error_text(&e))?;
 

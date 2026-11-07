@@ -415,7 +415,7 @@ impl EngineAnalyzer {
             log::info!(target: LOGT, "start_engine: not sent as saved: {warning:?}");
         }
         let prepared = match prepared {
-            Ok(_) => protocol.send_command(&GuiCommand::UsiNewGame).await,
+            Ok(_) => protocol.new_game().await,
             Err(e) => Err(e),
         };
         if let Err(e) = prepared {

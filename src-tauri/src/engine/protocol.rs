@@ -14,7 +14,7 @@ use crate::engine::{logging::cmd_summary, logging::with_cause, types::*};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch, Mutex, RwLock};
-use usi::{EngineCommand, GuiCommand, IdParams, InfoParams};
+use usi::{EngineCommand, GameOverKind, GuiCommand, IdParams, InfoParams};
 
 const LOGT: &str = "obs_shogi::engine::protocol";
 
@@ -1354,6 +1354,20 @@ impl UsiProtocol {
         }
     }
 
+    /// 手順「新しい対局」。`usinewgame` を書く。待つのは書けたことだけ（USI は答えを持たない）。
+    /// 準備（`prepare`）の後に呼ぶ
+    pub async fn new_game(&self) -> Result<(), EngineError> {
+        self.send_command(&GuiCommand::UsiNewGame).await
+    }
+
+    /// 手順「終局」。`gameover` を書く。待つのは書けたことだけ（USI は答えを持たない）。
+    ///
+    /// **探索していないエンジンへ呼ぶ。** 探索中の `gameover` は USI が認めない。
+    /// いまは呼び手が守る（対局の `Activity`）
+    pub async fn game_over(&self, kind: GameOverKind) -> Result<(), EngineError> {
+        self.send_command(&GuiCommand::GameOver(kind)).await
+    }
+
     /// `isready` を**必ず**送り、`readyok` が返るまで待つ。`limit` が `None` なら上限なし。
     ///
     /// 準備済みでも送る。`setoption` を送った後は、評価関数や定跡を読み直させるために
@@ -2278,6 +2292,52 @@ mod tests {
 
         async fn protocol_for(dir: &Path, body: &str) -> UsiProtocol {
             UsiProtocol::new(spawn_script(dir, body).await)
+        }
+
+        /// 受けた行を `log` に書き、`usi` と `isready` に答える台本
+        const LOGS_AND_ANSWERS: &str = r#"while read line; do
+  echo "$line" >> log
+  case "$line" in
+    usi) printf 'id name Logs\nusiok\n' ;;
+    isready) echo readyok ;;
+  esac
+done"#;
+
+        /// `log` が `count` 行になるまで待って返す
+        async fn logged_lines(dir: &Path, count: usize) -> Vec<String> {
+            for _ in 0..500 {
+                let lines: Vec<String> = std::fs::read_to_string(dir.join("log"))
+                    .unwrap_or_default()
+                    .lines()
+                    .map(str::to_string)
+                    .collect();
+                if lines.len() >= count {
+                    return lines;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            panic!("{count} 行が書かれない");
+        }
+
+        /// 名乗り・準備・新しい対局・終局の手順は、それぞれ自分の行を書く
+        #[tokio::test]
+        async fn each_procedure_writes_its_own_line() {
+            let dir = test_support::dir::temp_dir("protocol-procedures");
+            let protocol = protocol_for(&dir, LOGS_AND_ANSWERS).await;
+            protocol
+                .identify(Duration::from_secs(10))
+                .await
+                .expect("名乗る");
+            protocol.prepare(&[], None, None).await.expect("準備できる");
+            protocol.new_game().await.expect("書ける");
+            protocol.game_over(GameOverKind::Win).await.expect("書ける");
+
+            assert_eq!(
+                logged_lines(&dir, 4).await,
+                ["usi", "isready", "usinewgame", "gameover win"]
+            );
+            protocol.kill_engine().await;
+            let _ = std::fs::remove_dir_all(&dir);
         }
 
         /// 書き込みが詰まっていても落とせる。**`KILL_TIMEOUT` の内に返る。**
