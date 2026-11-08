@@ -412,6 +412,13 @@ gate_kinds_for_path() {
   case "$path" in
     scripts/*.sh) kinds="$kinds ts rust" ;;
   esac
+  # デザインシステムは自前の検査（`ds:check`）を持つ。トークン・コントラスト・
+  # 生成物の更新漏れ・文書の制約を見る。**拡張子では拾えない**——正本の大半は
+  # `.tokens.json` と `.md` で、上のどの綴りにも当たらないので、分類しないと
+  # 値を変えたコミットが検査を1本も通らない。
+  case "$path" in
+    design-system/*) kinds="$kinds ds" ;;
+  esac
 
   printf '%s' "${kinds# }"
 }
@@ -571,6 +578,7 @@ cd "$project_dir" || deny "検証ゲート: 対象のツリーへ移動できな
 needs_ts=0
 needs_rust=0
 needs_hooks=0
+needs_ds=0
 while IFS= read -r -d '' record; do
   status=${record:0:2}
   paths=${record:3}
@@ -590,6 +598,7 @@ $original"
         ts) needs_ts=1 ;;
         rust) needs_rust=1 ;;
         hooks) needs_hooks=1 ;;
+        ds) needs_ds=1 ;;
       esac
     done
   done <<EOF
@@ -602,9 +611,10 @@ if gate_is_teardown "$command"; then
   needs_ts=0
   needs_rust=0
   needs_hooks=0
+  needs_ds=0
 fi
 
-if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ] && [ "$needs_hooks" -eq 0 ]; then
+if [ "$needs_ts" -eq 0 ] && [ "$needs_rust" -eq 0 ] && [ "$needs_hooks" -eq 0 ] && [ "$needs_ds" -eq 0 ]; then
   exit 0
 fi
 
@@ -628,5 +638,6 @@ $(printf '%s' "$out" | tail -40)
 # 守っている不変条件（判定表と許可リストの正しさ）は**門番を触ったときしか動かない**。
 # だからここでだけ走らせる。CI にも控えを置いてある。
 [ "$needs_hooks" -eq 1 ] && run_gate "npm run test:hooks" npm run test:hooks
+[ "$needs_ds" -eq 1 ] && run_gate "npm run verify:ds" npm run verify:ds
 
 exit 0

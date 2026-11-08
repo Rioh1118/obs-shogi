@@ -17,6 +17,34 @@ permissions:
   contents: read
 
 jobs:
+  # `design-system/` は自前の依存と検査を持つ。ローカルでは commit ゲートが種類 `ds` で
+  # 走らせるが、ゲートを迂回して push された分をここで拾う。
+  # axe を Chromium で当てるので、ブラウザを入れる。
+  design-system:
+    name: Design system (ds:check)
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: design-system
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (LTS)
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: design-system/package-lock.json
+
+      - name: Install design system deps
+        run: npm ci
+
+      - name: Install Chromium for axe
+        run: npx playwright install --with-deps chromium
+
+      - name: ds:check
+        run: npm run ds:check
+
   quality:
     name: Quality (typecheck/lint/test/fmt/clippy)
     runs-on: ubuntu-22.04

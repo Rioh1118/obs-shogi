@@ -4,8 +4,8 @@
 obs-shogi はそれを使う側になる。移した後、今の見た目を材料にして画面ごとに洗練させる。
 
 - 基準: `origin/main` 0be56281（2026-11-08）
-- デザインシステム: `~/dev/obs-shogi-ds`（`~/dev/lumen-ds` を複製。スキル名 `obs-shogi-design-system`）
-- 今の画面の撮影と一覧: `~/dev/obs-shogi-ds/references/current-screens-2026-11-08/README.md`
+- デザインシステム: `design-system/`（`~/dev/lumen-ds` を複製し、`git subtree` で取り込んだ。スキル名 `obs-shogi-design-system`）
+- 今の画面の撮影と一覧: `design-system/references/current-screens-2026-11-08/README.md`
 - 状態: 案。工程1（brief）に入っている。合意した工程は ADR に起こし、この文書からは消す（`docs/OPERATING-MODEL.md` §1）
 
 ## 利用者が決めたこと（2026-11-08）
@@ -181,3 +181,4 @@ SCSS を許す形に複製側で書き換える。部品の見本実装（`imple
 | `design-language.md` の行き先 | 工程3で残りを `docs/archive/` へ                                                                                                 | 消さずに残す運用（`docs/OPERATING-MODEL.md` §1）                                                                                  | `docs/spec/` へ戻す                                                                      |
 | 製品の SCSS                   | 残し、値だけ DS の CSS 変数へ。却下: 素の CSS へ書き換える                                                                       | 一括で書き換えない（利用者の前提）。見た目が変わらない工程3を小さく保つ（R-DEC-5、R-DEC-7）                                       | 部品ごとに素の CSS へ移す                                                                |
 | 検討のドックと候補手のパネル  | 見直しの対象から外し、DS の基準の出典にする。却下: 他の画面と同列に見直す                                                        | 利用者の明示（2026-11-08）。表より上にある                                                                                        | 利用者が見直しを求めたら一覧の対象に戻す                                                 |
+| DS の置き場 | 製品のリポジトリの `design-system/` へ `git subtree` で履歴ごと取り込む。却下: 別のリポジトリ `~/dev/obs-shogi-ds` のまま | 利用者の判断（2026-11-08「obs-shogi のデザインシステムなんだから obs-shogi/ に移すのが妥当」）。製品と DS の変更が同じ PR に乗り、検証ゲートも効く（R-DEC-2、R-DEC-5）。代わりに upstream の改善は手で当て、撮影の画像（約7MB）も製品のリポジトリに入る（上の「撮影の置き場」の理由の後半は失効） | `git subtree split --prefix=design-system` で別のリポジトリへ戻す |

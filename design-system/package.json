@@ -1,0 +1,42 @@
+{
+  "name": "obs-shogi-ds",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Design system source of truth + Claude Code skill (structure only; values are provisional)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22"
+  },
+  "exports": {
+    "./tokens.css": "./dist/css/tokens.css",
+    "./react/Button": "./dist/react/Button/index.js",
+    "./react/Button.css": "./dist/react/Button/Button.css"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "ds:build": "node scripts/build.mjs",
+    "ds:check": "node scripts/check.mjs",
+    "ds:shot": "playwright test",
+    "ds:shot:update": "playwright test --update-snapshots",
+    "ds:eval": "node scripts/run-evals.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@google/design.md": "0.4.0",
+    "@playwright/test": "1.65.0",
+    "colorjs.io": "0.7.1",
+    "esbuild": "0.28.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "style-dictionary": "5.8.0",
+    "stylelint": "17.16.0",
+    "yaml": "2.9.1"
+  }
+}

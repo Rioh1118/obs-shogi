@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: pricing-page
+expected_outcome: |
+  スキルを使い、既存の Button を import し、色・余白・角丸・文字サイズはトークンの CSS 変数だけで書いた料金ページ。Tailwind や色の直書きがない。3プランの違いが一目で分かる。
+context:
+  scaffold_script: place-files.sh

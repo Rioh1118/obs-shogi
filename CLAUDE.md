@@ -8,6 +8,7 @@ Tauri v2 デスクトップアプリ（React 19 + TypeScript + SCSS / Rust）。
 npm run verify          # tsc -b + lint + vitest + ratchet:knip
 npm run verify:rust     # cargo fmt + clippy + test + ratchet:rustdoc
 npm run test:hooks      # 検証ゲート自身の検査。verify には入っていない（下記）
+npm run verify:ds       # デザインシステム（design-system/）の ds:check。初回は design-system で npm ci
 ```
 
 **所要時間をここに書かない。** 書いた瞬間から実測と離れる（`verify` は

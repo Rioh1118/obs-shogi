@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: misfire-sql
+expected_outcome: |
+  デザインシステムのスキルを起動せず、GROUP BY name を補った SQL を返す。
+context:
+  scaffold_script: place-files.sh

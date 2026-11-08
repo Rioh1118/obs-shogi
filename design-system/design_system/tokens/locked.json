@@ -1,0 +1,32 @@
+{
+  "$comment": "固定値の正本。ここにある値と規則は brief やモード B でも変えない。変えるには ADR とユーザーの明示的な承認が要る。製品に合わせて変えた経緯は decisions/0003。",
+  "values": {
+    "focus.ring.color": "{base.color.copperText}",
+    "focus.ring.width": "2px",
+    "focus.ring.offset": "2px"
+  },
+  "rules": [
+    {
+      "id": "body-font-size-min",
+      "token": "font.size.body",
+      "min": "13px",
+      "source": "製品の本文（decisions/0003）。密度の高いデスクトップの研究アプリ"
+    },
+    {
+      "id": "all-font-size-min",
+      "group": "font.size",
+      "min": "11px",
+      "source": "製品の注記・件数（decisions/0003）"
+    },
+    {
+      "id": "contrast-text",
+      "ratio": 4.5,
+      "source": "WCAG 2.2 SC 1.4.3 (AA)"
+    },
+    {
+      "id": "contrast-non-text",
+      "ratio": 3,
+      "source": "WCAG 2.2 SC 1.4.11 (AA)"
+    }
+  ]
+}

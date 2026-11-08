@@ -13,6 +13,7 @@
     "test:watch": "vp test watch",
     "verify": "npm run typecheck && npm run lint && npm test && npm run ratchet:knip && npm run ratchet:notices",
     "test:hooks": "bash .claude/hooks/verify-gate.test.sh",
+    "verify:ds": "npm --prefix design-system run ds:check",
     "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace && npm run ratchet:rustdoc && npm run ratchet:notices",
     "ratchet:rustdoc": "bash scripts/rustdoc-ratchet.sh",
     "preview": "vp preview",

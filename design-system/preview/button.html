@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Button — ObsShogi preview</title>
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/Button.css">
+<style>
+body { margin: 0; font-family: var(--lm-font-family-sans); font-size: var(--lm-font-size-body); line-height: var(--lm-font-line-height-body); background: var(--lm-color-background-default); color: var(--lm-color-text-default); }
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: var(--lm-font-size-display); }
+h2 { font-size: var(--lm-font-size-title); margin-top: 32px; }
+a { color: inherit; }
+.pv-note { color: var(--lm-color-text-subtle); }
+.pv-themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.pv-theme { padding: 16px; border: 1px solid var(--lm-color-border-default); background: var(--lm-color-background-default); color: var(--lm-color-text-default); }
+.pv-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+table { border-collapse: collapse; width: 100%; font-size: var(--lm-font-size-aux); }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--lm-color-border-default); vertical-align: middle; }
+.pv-swatch { display: inline-block; width: 32px; height: 20px; border: 1px solid var(--lm-color-border-default); vertical-align: middle; }
+.pv-bar { display: inline-block; height: 12px; background: var(--lm-color-text-subtle); vertical-align: middle; }
+code { font-size: var(--lm-font-size-aux); }
+</style>
+</head>
+<body>
+<main>
+<p class="pv-note">生成物（npm run ds:build）。値はすべて仮。 <a href="index.html">トークン</a> · <a href="button.html">Button</a> · <a href="examples.html">良い例</a></p>
+<h1>Button</h1><p>文書：design_system/components/button.md</p><div class="pv-themes">
+<section class="pv-theme" data-theme="light" aria-label="light テーマ"><h2>light</h2><div class="pv-row"><button type="button" class="lm-button lm-button--primary">主要な操作</button><button type="button" class="lm-button lm-button--secondary">その他の操作</button><button type="button" class="lm-button lm-button--primary" disabled="">無効</button></div></section>
+<section class="pv-theme" data-theme="dark" aria-label="dark テーマ"><h2>dark</h2><div class="pv-row"><button type="button" class="lm-button lm-button--primary">主要な操作</button><button type="button" class="lm-button lm-button--secondary">その他の操作</button><button type="button" class="lm-button lm-button--primary" disabled="">無効</button></div></section>
+</div>
+</main>
+</body>
+</html>
