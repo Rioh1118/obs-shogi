@@ -1,0 +1,136 @@
+/**
+ * design tokens（案） — 生成物。手で編集しない（npm run ds:build）。
+ * 正本: design_system/tokens/*.tokens.json（DTCG 2025.10）
+ * 「仮」と書かれた値は暫定。
+ */
+:root {
+  --lm-base-color-black: #121819; /** 緑黒。いちばん深い面（$color-primary-black） */
+  --lm-base-color-dark: #1b2325; /** 緑黒。本文の背景（$color-primary-dark） */
+  --lm-base-color-light: #253033; /** 緑黒を持ち上げた面（$color-primary-light） */
+  --lm-base-color-sand: #d8dbd3; /** 砂色。本文の文字と確定のボタン（$color-secondary-light / $color-text-primary） */
+  --lm-base-color-sand-hover: #e6e8e2; /** 砂色のホバー（$color-commit-solid-hover） */
+  --lm-base-color-copper: #a8805f; /** 銅。選択の棒とアクセント（$color-secondary-dark） */
+  --lm-base-color-copper-solid: #8f6b4e; /** 背景に敷く銅。白文字 4.79:1（$color-secondary-solid） */
+  --lm-base-color-copper-solid-hover: #866549; /** 背景に敷く銅のホバー。白文字 5.29:1。白文字なので暗くする（$color-secondary-solid-hover） */
+  --lm-base-color-copper-text: #c8a07c; /** 暗い背景に載せる銅の文字。#1c2325 で 6.22:1（$color-accent-text） */
+  --lm-base-color-ink: #0b0e0e; /** 明るい背景に載せる暗い文字（$color-text-dark-1） */
+  --lm-base-color-white: #ffffff; /** 白（$color-white） */
+  --lm-base-color-info: #7d93a3; /** 伝えるだけ（$color-info） */
+  --lm-base-color-warning: #c8955a; /** 再試行で直る（$color-warning） */
+  --lm-base-color-danger: #b5645c; /** 別の操作が要る。危険な操作の確認も（$color-danger） */
+  --lm-base-color-fatal: #8c4a44; /** アプリ再起動（$color-fatal） */
+  --lm-base-color-danger-solid: #b96d66; /** 背景に敷く危険色。暗い文字 4.92:1（$color-danger-solid） */
+  --lm-base-color-danger-solid-hover: #c3817b; /** 背景に敷く危険色のホバー。暗い文字 6.10:1。暗い文字なので明るくする（$color-danger-solid-hover） */
+  --lm-base-color-danger-text: #c98a83; /** 暗い背景に載せる危険色の文字。#1c2325 で 5.66:1（$color-danger-text） */
+  --lm-base-color-fatal-text: #c18580; /** 暗い背景に載せる fatal の文字。#1c2325 で 5.27:1（$color-fatal-text） */
+  --lm-focus-ring-width: 2px; /** 固定値 */
+  --lm-focus-ring-offset: 2px; /** 固定値。枠の中で切れる部品は外側のコンテナに出す */
+  --lm-space-1: 2px; /** 製品の $space-1 */
+  --lm-space-2: 4px; /** 製品の $space-2 */
+  --lm-space-3: 6px; /** 製品の $space-3 */
+  --lm-space-4: 8px; /** 製品の $space-4 */
+  --lm-space-5: 10px; /** 製品の $space-5 */
+  --lm-space-6: 12px; /** 製品の $space-6 */
+  --lm-space-7: 14px; /** 製品の $space-7 */
+  --lm-space-8: 16px; /** 製品の $space-8 */
+  --lm-space-9: 18px; /** 製品の $space-9 */
+  --lm-space-10: 20px; /** 製品の $space-10 */
+  --lm-space-11: 22px; /** 製品の $space-11 */
+  --lm-space-12: 24px; /** 製品の $space-12 */
+  --lm-radius-1: 2px; /** 製品の $radius-1 */
+  --lm-radius-2: 4px; /** 製品の $radius-2 */
+  --lm-radius-3: 6px; /** 製品の $radius-3 */
+  --lm-radius-4: 8px; /** 製品の $radius-4 */
+  --lm-radius-5: 10px; /** 製品の $radius-5 */
+  --lm-radius-6: 12px; /** 製品の $radius-6 */
+  --lm-radius-7: 14px; /** 製品の $radius-7 */
+  --lm-radius-8: 16px; /** 製品の $radius-8 */
+  --lm-radius-9: 18px; /** 製品の $radius-9 */
+  --lm-radius-pill: 999px; /** 進捗の棒、丸ボタン列 */
+  --lm-font-family-sans: system-ui, 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif; /** 本文 */
+  --lm-font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace; /** 読み筋と綴り */
+  --lm-font-family-heading: system-ui, 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif; /** ダイアログとペインの題、画面の主題 */
+  --lm-font-family-label: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Courier New', monospace; /** 表の見出し、欄の名前、状態の注記 */
+  --lm-font-weight-regular: 400; /** 本文 */
+  --lm-font-weight-medium: 500; /** 欄の名前、タブ */
+  --lm-font-weight-strong: 600; /** 小見出し、ボタン、選ばれた行 */
+  --lm-font-weight-title: 700; /** ダイアログとペインの題 */
+  --lm-font-size-hint: 11px; /** 注記、件数、バッジ */
+  --lm-font-size-aux: 12px; /** 説明文、副題、パス */
+  --lm-font-size-body: 13px; /** 本文とフォームのコントロール */
+  --lm-font-size-lead: 14px; /** リード文、強調した本文、入力欄 */
+  --lm-font-size-section: 16px; /** 小見出し、カードの題 */
+  --lm-font-size-title: 18px; /** ダイアログ・ペインの題 */
+  --lm-font-size-display: 24px; /** 画面の主題 */
+  --lm-font-size-hero: 40px; /** ガイド画面の導入 */
+  --lm-font-line-height-body: 1.5; /** 長い文（説明文、ノート）。表と一覧は詰めるので当てない（製品は行間を指定していない。decisions/0003） */
+  --lm-duration-1: 0.08s; /** 製品の $duration-1 */
+  --lm-duration-2: 0.1s; /** 製品の $duration-2 */
+  --lm-duration-3: 0.12s; /** 製品の $duration-3 */
+  --lm-duration-4: 0.14s; /** 製品の $duration-4 */
+  --lm-duration-5: 0.15s; /** 製品の $duration-5 */
+  --lm-duration-6: 0.16s; /** 製品の $duration-6 */
+  --lm-duration-7: 0.2s; /** 製品の $duration-7 */
+  --lm-easing-default: cubic-bezier(0.25, 0.1, 0.25, 1); /** CSS の ease と同じ曲線 */
+  --lm-z-status-detail: 5000; /** 状態の詳細 */
+  --lm-z-titlebar: 9999; /** タイトルバー */
+  --lm-z-modal: 9999; /** モーダル */
+  --lm-z-notification: 10000; /** 通知。下にすると overlay にぼかされ、クリックがモーダルを閉じる */
+  --lm-z-error-fallback: 10001; /** 描画の失敗の箱 */
+  --lm-shadow-panel: 0px 0px 0px 0px rgb(0% 0% 0% / 0); /** パネル・カード */
+  --lm-shadow-overlay: 0px 6px 16px 0px rgb(0% 0% 0% / 0.45); /** ポップオーバー・メニュー */
+  --lm-shadow-press: inset 0px 2px 6px 0px rgb(0% 0% 0% / 0.28); /** 押下 */
+  --lm-shadow-control: 0px 0px 0px 0px rgb(0% 0% 0% / 0); /** 押せるもの。ホバーで浮かせる */
+  --lm-shadow-control-press: 0px 0px 0px 0px rgb(0% 0% 0% / 0); /** 押せるもの。押下で落とす */
+  --lm-focus-ring-color: var(--lm-base-color-copper-text); /** フォーカスの銅のリング。全ての面で 3:1 以上（固定値。decisions/0003） */
+  --lm-radius-row: var(--lm-radius-1); /** 行（ツリー、一覧、メニューの項目）、バッジ、チップ */
+  --lm-radius-control: var(--lm-radius-2); /** 押す・打つもの */
+  --lm-radius-surface: var(--lm-radius-2); /** ドック、カード、ポップオーバー、メニュー */
+  --lm-radius-modal: var(--lm-radius-3); /** モーダル */
+}
+
+:root, [data-theme] {
+  --lm-color-background-stage: #0f1415; /** 盤と駒台を置く面。素材を引き立てる */
+  --lm-color-surface-raised: #333839; /** 暗い背景を1段階持ち上げた面。意味色を持たず「いま触れない」を示す（$surface-raised） */
+  --lm-color-surface-field: rgba(0, 0, 0, 0.18); /** 打つ欄の背景。半透明なのは載る背景の明るさを保つため（$surface-field） */
+  --lm-color-surface-overlay: rgba(18, 24, 25, 0.88); /** ツールチップ。半透明なので文字との比は走査で測れない（$surface-overlay） */
+  --lm-color-text-subtle: #b2b6b0; /** 名前の添え書き・説明。本文の背景で 6.16:1。不透明に混ぜる（$color-text-muted） */
+  --lm-color-text-faint: #969b96; /** 無効・範囲の注記。本文の背景で 4.64:1。surface.raised の上には載せない（$color-text-faint） */
+  --lm-color-border-weak: rgba(255, 255, 255, 0.06); /** 弱い区切り（$stroke-weak） */
+  --lm-color-border-default: rgba(255, 255, 255, 0.1); /** 枠。打つ欄と中立のボタン（$stroke） */
+  --lm-color-border-strong: rgba(255, 255, 255, 0.16); /** 強い枠（$stroke-strong） */
+  --lm-color-feedback-info-surface: #181f21; /** 失敗を伝える箱の背景。不透明（$surface-info） */
+  --lm-color-feedback-warning-surface: #1d201d; /** 失敗を伝える箱の背景。不透明（$surface-warning） */
+  --lm-color-feedback-danger-surface: #1c1d1d; /** 失敗を伝える箱の背景。不透明（$surface-danger） */
+  --lm-color-feedback-fatal-surface: #191b1c; /** 失敗を伝える箱の背景。不透明（$surface-fatal） */
+  --lm-button-color-border-secondary: var(--lm-color-border-default); /** 中立の枠 */
+  --lm-button-space-inline: var(--lm-space-6); /** 仮 */
+  --lm-button-space-block: var(--lm-space-3); /** 仮 */
+  --lm-button-font-size: var(--lm-font-size-aux); /** 押すものは aux */
+  --lm-button-font-weight: var(--lm-font-weight-strong); /** 押すものは strong */
+  --lm-color-background-sunken: var(--lm-base-color-black); /** いちばん深い面。サイドバー、暗いカード */
+  --lm-color-background-default: var(--lm-base-color-dark); /** 本文の背景。ドック、ヘッダ、読むペイン */
+  --lm-color-background-canvas: var(--lm-base-color-light); /** 盤と棋譜を置く面 */
+  --lm-color-text-default: var(--lm-base-color-sand); /** 本文 */
+  --lm-color-text-inverse: var(--lm-base-color-ink); /** 明るい背景（確定・危険のボタン）に載せる文字 */
+  --lm-color-text-accent: var(--lm-base-color-copper-text); /** 進めるボタンの銅の文字 */
+  --lm-color-text-on-solid: var(--lm-base-color-white); /** 背景に敷いた銅に載せる白文字 */
+  --lm-color-accent-default: var(--lm-base-color-copper); /** 選択の棒、つまみの満たした側、目印の帯 */
+  --lm-color-accent-solid: var(--lm-base-color-copper-solid); /** 背景に敷く銅 */
+  --lm-color-accent-solid-hover: var(--lm-base-color-copper-solid-hover); /** 背景に敷く銅のホバー（暗くする） */
+  --lm-color-commit-solid: var(--lm-base-color-sand); /** 確定のボタンの背景。暗い文字を載せる */
+  --lm-color-commit-solid-hover: var(--lm-base-color-sand-hover); /** 確定のボタンのホバー（明るくする） */
+  --lm-color-feedback-info-default: var(--lm-base-color-info); /** 伝えるだけ（$color-info） */
+  --lm-color-feedback-warning-default: var(--lm-base-color-warning); /** 再試行で直る（$color-warning） */
+  --lm-color-feedback-danger-default: var(--lm-base-color-danger); /** 別の操作が要る。危険な操作の確認も（$color-danger） */
+  --lm-color-feedback-danger-solid: var(--lm-base-color-danger-solid); /** 背景に敷く危険色。暗い文字 4.92:1（$color-danger-solid） */
+  --lm-color-feedback-danger-solid-hover: var(--lm-base-color-danger-solid-hover); /** 背景に敷く危険色のホバー。暗い文字 6.10:1。暗い文字なので明るくする（$color-danger-solid-hover） */
+  --lm-color-feedback-danger-text: var(--lm-base-color-danger-text); /** 暗い背景に載せる危険色の文字。#1c2325 で 5.66:1（$color-danger-text） */
+  --lm-color-feedback-fatal-default: var(--lm-base-color-fatal); /** アプリ再起動（$color-fatal） */
+  --lm-color-feedback-fatal-text: var(--lm-base-color-fatal-text); /** 暗い背景に載せる fatal の文字。#1c2325 で 5.27:1（$color-fatal-text） */
+  --lm-button-color-background-primary: var(--lm-color-commit-solid); /** 確定（primary）。砂色の背景 */
+  --lm-button-color-background-secondary: var(--lm-color-background-default); /** 中立（neutral）。仮：製品は背景を敷かない枠のボタン */
+  --lm-button-color-text-primary: var(--lm-color-text-inverse); /** 確定の文字 */
+  --lm-button-color-text-secondary: var(--lm-color-text-default); /** 中立の文字 */
+  --lm-button-radius: var(--lm-radius-control); /** 押す・打つもの */
+}

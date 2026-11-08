@@ -101,6 +101,47 @@
         "color.background.canvas"
       ],
       "kind": "non-text"
+    },
+    {
+      "fg": [
+        "color.text.default",
+        "color.text.subtle"
+      ],
+      "bg": [
+        "color.background.stage",
+        "color.background.canvas",
+        "color.background.sunken"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.feedback.danger.text"
+      ],
+      "bg": [
+        "color.background.default"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.default"
+      ],
+      "bg": [
+        "color.feedback.warning.surface",
+        "color.feedback.info.surface",
+        "color.feedback.danger.surface"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "focus.ring.color"
+      ],
+      "bg": [
+        "color.background.stage"
+      ],
+      "kind": "non-text"
     }
   ]
 }

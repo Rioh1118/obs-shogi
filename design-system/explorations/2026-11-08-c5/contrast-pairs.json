@@ -1,0 +1,136 @@
+{
+  "$comment": "コントラスト検査の対象ペア。全テーマで検査する。kind=text は 4.5:1、non-text は 3:1（locked.json の rules）。anyOf は fg のどれか1つが基準を満たせば合格（二重リング用）。装飾だけの境界線はここに入れない。",
+  "pairs": [
+    {
+      "fg": [
+        "color.text.default"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.sunken",
+        "color.background.canvas"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.subtle",
+        "color.text.faint"
+      ],
+      "bg": [
+        "color.background.default"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.accent"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.sunken"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.inverse"
+      ],
+      "bg": [
+        "color.commit.solid",
+        "color.commit.solid-hover",
+        "color.feedback.danger.solid",
+        "color.feedback.danger.solid-hover"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.on-solid"
+      ],
+      "bg": [
+        "color.accent.solid",
+        "color.accent.solid-hover"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.feedback.danger.text",
+        "color.feedback.fatal.text"
+      ],
+      "bg": [
+        "color.background.sunken"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.feedback.fatal.text"
+      ],
+      "bg": [
+        "color.feedback.fatal.surface"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "button.color.text.primary"
+      ],
+      "bg": [
+        "button.color.background.primary"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "button.color.text.secondary"
+      ],
+      "bg": [
+        "button.color.background.secondary"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "focus.ring.color"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.sunken",
+        "color.background.canvas"
+      ],
+      "kind": "non-text"
+    },
+    {
+      "fg": [
+        "color.text.default",
+        "color.text.subtle"
+      ],
+      "bg": [
+        "color.background.stage",
+        "color.background.canvas",
+        "color.background.sunken"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.default"
+      ],
+      "bg": [
+        "color.feedback.warning.surface"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "focus.ring.color"
+      ],
+      "bg": [
+        "color.background.stage"
+      ],
+      "kind": "non-text"
+    }
+  ]
+}

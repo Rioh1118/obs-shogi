@@ -1,77 +1,77 @@
 {
   "base": {
-    "$description": "基礎の値。直接使わない。製品の src/index.scss（2026-11-08、origin/main 0be56281）の値をそのまま写した基準線",
+    "$description": "基礎の値。直接使わない。0.2.1 で洗練の方向 C4（decisions/0004）の値にした。製品の旧い名前は括弧内",
     "color": {
       "$type": "color",
       "black": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.1098,
-            0.1373,
-            0.1451
+            0.0706,
+            0.0941,
+            0.098
           ],
-          "hex": "#1c2325"
+          "hex": "#121819"
         },
-        "$description": "緑黒。いちばん深い面（$color-primary-black）"
+        "$description": "深く冷たい緑黒。いちばん深い面（製品の $color-primary-black）"
       },
       "dark": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.1725,
-            0.2118,
-            0.2235
+            0.1059,
+            0.1373,
+            0.1451
           ],
-          "hex": "#2c3639"
+          "hex": "#1b2325"
         },
-        "$description": "緑黒。本文の背景（$color-primary-dark）"
+        "$description": "冷たい緑黒。本文の背景、ペインの面（$color-primary-dark）"
       },
       "light": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.2471,
-            0.3059,
-            0.3098
+            0.1451,
+            0.1882,
+            0.2
           ],
-          "hex": "#3f4e4f"
+          "hex": "#253033"
         },
-        "$description": "緑黒を持ち上げた面（$color-primary-light）"
+        "$description": "緑黒を持ち上げた面。選ばれた行の濃淡（$color-primary-light）"
       },
       "sand": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.8627,
-            0.8431,
-            0.7882
+            0.8471,
+            0.8588,
+            0.8275
           ],
-          "hex": "#dcd7c9"
+          "hex": "#d8dbd3"
         },
-        "$description": "砂色。本文の文字と確定のボタン（$color-secondary-light / $color-text-primary）"
+        "$description": "冷たい砂。本文の文字と確定のボタン（$color-secondary-light / $color-text-primary）"
       },
       "sandHover": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
+            0.902,
             0.9098,
-            0.8941,
-            0.851
+            0.8863
           ],
-          "hex": "#e8e4d9"
+          "hex": "#e6e8e2"
         },
-        "$description": "砂色のホバー（$color-commit-solid-hover）"
+        "$description": "砂のホバー（$color-commit-solid-hover）。明るくする"
       },
       "copper": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.6353,
-            0.4824,
-            0.3608
+            0.6588,
+            0.502,
+            0.3725
           ],
-          "hex": "#a27b5c"
+          "hex": "#a8805f"
         },
         "$description": "銅。選択の棒とアクセント（$color-secondary-dark）"
       },
@@ -103,23 +103,23 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.7608,
-            0.6039,
-            0.4706
+            0.7843,
+            0.6275,
+            0.4863
           ],
-          "hex": "#c29a78"
+          "hex": "#c8a07c"
         },
-        "$description": "暗い背景に載せる銅の文字。#1c2325 で 6.22:1（$color-accent-text）"
+        "$description": "暗い背景に載せる銅の文字。フォーカスのリングも同じ色（$color-accent-text）"
       },
       "ink": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
+            0.0431,
             0.0549,
-            0.0667,
-            0.0627
+            0.0549
           ],
-          "hex": "#0e1110"
+          "hex": "#0b0e0e"
         },
         "$description": "明るい背景に載せる暗い文字（$color-text-dark-1）"
       },
@@ -217,7 +217,7 @@
           ],
           "hex": "#c98a83"
         },
-        "$description": "暗い背景に載せる危険色の文字。#1c2325 で 5.66:1（$color-danger-text）"
+        "$description": "暗い背景に載せる危険色の文字（$color-danger-text）"
       },
       "fatalText": {
         "$value": {
@@ -229,7 +229,7 @@
           ],
           "hex": "#c18580"
         },
-        "$description": "暗い背景に載せる fatal の文字。#1c2325 で 5.27:1（$color-fatal-text）"
+        "$description": "暗い背景に載せる fatal の文字（$color-fatal-text）"
       }
     }
   }
