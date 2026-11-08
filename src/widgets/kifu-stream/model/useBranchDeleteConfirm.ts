@@ -5,7 +5,7 @@ import type { AsyncResult } from "@/shared/lib/result";
 /**
  * 削除の確認に出すもの。
  *
- * クエリをそのまま持つ。確認のあとで組み直すと、押した行と実際に消える枝が
+ * クエリをそのまま持つ。確認のあとで組み直すと、押した行と実際に消える変化が
  * 食い違いうる（間に棋譜が変わる）。
  */
 export type PendingDelete = {
@@ -29,11 +29,11 @@ export type PendingDelete = {
 };
 
 /**
- * 枝の削除を、確認を挟んでから書き込む流れを持つ。
+ * 変化の削除を、確認を挟んでから書き込む流れを持つ。
  *
  * 確認を出すのは `requestDelete`、消すのは `confirmDelete` で、確認の後にだけ
  * `deleteBranch` を呼ぶ。盤の中身が入れ替わったら（`boardSeq` が動いたら）確認を閉じる。
- * 確認を出したまま棋譜が変わると、押した瞬間に別のファイルの枝が消える。
+ * 確認を出したまま棋譜が変わると、押した瞬間に別のファイルの変化が消える。
  */
 export function useBranchDeleteConfirm(
   deleteBranch: (query: DeleteQuery) => AsyncResult<void, string>,
@@ -46,10 +46,10 @@ export function useBranchDeleteConfirm(
    * `state.isLoading` は使わない。あれは「棋譜への書き込みが1つ以上走っている」で、
    * 誰の書き込みかを区別しない。コメントの自動保存が並行して終わると
    * 「削除中…」が解け、まだ書いている最中に「削除する」を押し直せる。
-   * そのとき候補列は既に1つ減っているので、**確認していない枝が消える。**
+   * そのとき候補列は既に1つ減っているので、**確認していない変化が消える。**
    *
    * 真偽値1つでも足りない。実行中でも確認は閉じられる（塞ぐと出口ゼロの
-   * 行き止まりになる）ので、閉じてから別の枝の確認を開ける。
+   * 行き止まりになる）ので、閉じてから別の変化の確認を開ける。
    * 誰の書き込みかを持たないと、その新しい確認が最初から「削除中…」で出る。
    */
   const [deleting, setDeleting] = useState<DeleteQuery | null>(null);
@@ -67,7 +67,7 @@ export function useBranchDeleteConfirm(
   const cancelDelete = useCallback(() => setPendingDelete(null), []);
 
   // **閉じるのは書けたときだけ。** 先に閉じると `isLoading` も「削除中…」も
-  // 一度も描かれず、失敗しても画面からは枝が消えたように見える（ファイルには残る）。
+  // 一度も描かれず、失敗しても画面からは変化が消えたように見える（ファイルには残る）。
   // 確認文で「棋譜ファイルもすぐ書き換わります」と断言している以上、破れたら伝える。
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
@@ -86,13 +86,13 @@ export function useBranchDeleteConfirm(
     // 開き直しても危険ではない。`error` があるとき実行ボタンは押せないので、
     // 「利用者が閉じた確認が復活して、古いクエリのまま再実行される」形にはならない。
     // ただし**棋譜が変わっていたら開き直さない**。別のファイルを見ている画面に、
-    // 前のファイルの枝についての確認を出しても読めない。
+    // 前のファイルの変化についての確認を出しても読めない。
     if (!res.success) {
       const stillHere = pendingDelete.boardSeq === boardSeqRef.current;
       setPendingDelete((prev) => {
         if (prev?.query === query) return { ...prev, error: res.error };
         // **別の確認が開いていたら、そちらを押し退けない。** 押し退けると、
-        // 利用者がいま読んでいる確認が、閉じたはずの別の枝の確認に黙って化ける。
+        // 利用者がいま読んでいる確認が、閉じたはずの別の変化の確認に黙って化ける。
         if (prev) return prev;
         return stillHere ? { ...pendingDelete, error: res.error } : prev;
       });

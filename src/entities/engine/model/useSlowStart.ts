@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { SLOW_START_MS } from "../lib/engineNotices";
 
-/** `起動中…` が `SLOW_START_MS` を越えたか。段を抜けたら倒れる */
+/** `起動中…` が `SLOW_START_MS` を越えたか。起動中の状態を抜けたら倒れる */
 export function useSlowStart(starting: boolean): boolean {
   const [slow, setSlow] = useState(false);
 

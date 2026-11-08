@@ -19,7 +19,7 @@ import type { GameProgressView, GameRuling, RulingAdapter } from "@/entities/gam
  *
  * 判定が落ちたときに「続く」を返さないのは、落ち方が**その局面に固定されている**ため。
  * 指し手列が組み立てられないなら次の手でも同じ結果になり、詰みも千日手も
- * 二度と立たない。続けると誰も終われないまま Rust の手数上限まで走るので、終局として畳む。
+ * 二度と立たない。続けると誰も終われないまま Rust の手数上限まで走るので、終局にする。
  */
 export function createRulingAdapter(rules: GameRules): RulingAdapter {
   const judge = createOutcomeJudge();

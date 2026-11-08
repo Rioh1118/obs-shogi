@@ -12,7 +12,7 @@ import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 
 /**
- * 検討ビューの操作列。ドックのタブ列の下の段に出る。
+ * 検討ビューの操作列。ドックのタブ列の下の行に出る。
  *
  * 左が状態（語と経過秒）、右が操作。並びは
  * 盤と検討（向き・開始／中断）→ 局面の道具（ナビ・検索・課題局面）→ 設定。

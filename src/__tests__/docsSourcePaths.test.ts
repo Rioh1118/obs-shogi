@@ -52,7 +52,7 @@ describe("走査対象の doc が指すソースのパス", () => {
  * 実在を要求できない）。**行番号のほうは絞る理由が無い。** 自リポジトリを
  * 行番号で指せば、どこに書いてあっても無言でずれる。
  *
- * ADR も同じ。`decisions/0004-notification-taxonomy.md` は「どの失敗がどの段か」の
+ * ADR も同じ。`decisions/0004-notification-taxonomy.md` は「どの失敗がどの tier か」の
  * 唯一の持ち主で、`failure-surfacing.md` がそこへ委譲している。状態遷移表だけを
  * 見ると、委譲した先が腐っていても誰も気付かない。
  *
@@ -225,8 +225,8 @@ describe("lineNumberRefsIn（版を固定した文書）", () => {
     ["`README.md#L10`", "起点直下のファイル"],
     ["`vite.config.ts:88`", "起点直下の設定"],
     ["`src/entities/kifu/model/cursor.ts:42`", "起点から書いたパス"],
-    // **`LAYER` の枝を突く。** 実在しないので `resolvable` では拾えない ——
-    // この行が無いと、枝を「冗長」と読んで落としても緑のまま通る
+    // **`LAYER` の分岐を突く。** 実在しないので `resolvable` では拾えない ——
+    // この行が無いと、分岐を「冗長」と読んで落としても緑のまま通る
     ["`entities/kifu/model/GONE.ts:42`", "実在しないレイヤ相対のパス"],
   ])("%s は宣言があっても拾う（%s）", (markdown) => {
     expect(lineNumberRefsIn(PIN + markdown)).toHaveLength(1);

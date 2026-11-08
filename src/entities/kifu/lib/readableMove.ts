@@ -10,7 +10,7 @@ import type { IMoveFormat } from "json-kifu-format/dist/src/Formats";
  * すべて揃っているため。棋譜ストリーム側は `JKFPlayer.getReadableKifu()` 経由で同じ関数に
  * 行き着くので、両方の一覧で同じ手が同じ文字列になる。
  *
- * 投了・中断（`special`）も同じ関数が扱う。手も special も無い入力（手数0の枠など）は
+ * 投了・中断（`special`）も同じ関数が扱う。手も special も無い入力（手数0の要素など）は
  * 空文字を返すので、呼び出し側で代替の文言を出すこと。
  *
  * **正規化を通した手を渡すこと。** 手番（`color`）も「同」も相対表記も、手そのものではなく

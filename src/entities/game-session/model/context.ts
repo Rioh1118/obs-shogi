@@ -43,13 +43,13 @@ export type GameSessionContextValue = {
   /** 勝敗を付けずに終局する */
   abort: () => AsyncResult<void>;
   /**
-   * 対局を手放す。エンジンが残っていれば `closeGame` で畳んでから手放す。
+   * 対局を手放す。エンジンが残っていれば `closeGame` で閉じてから手放す。
    *
    * 断られたら対局は `view` に残るので呼び直せる。先に手放すと、エンジンが
-   * 残ったまま `view` だけが `idle` に戻る。走っている対局は、Rust が畳む前に中断を
+   * 残ったまま `view` だけが `idle` に戻る。走っている対局は、Rust がエンジンを落とす前に中断を
    * 通すので `over` へ移ることがある。
    *
-   * `startGame` の解決を待っている間に呼ぶと、手放した対局は解決した時点で畳む。
+   * `startGame` の解決を待っている間に呼ぶと、手放した対局は解決した時点で閉じる。
    */
   closeSession: () => AsyncResult<void>;
 };

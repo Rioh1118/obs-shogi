@@ -4,7 +4,7 @@ import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 /**
- * 棋譜が無ければ `WelcomeScreen`、あれば作業面。**判断はページが持つ。**
+ * 棋譜が無ければ `WelcomeScreen`、あれば作業画面。**判断はページが持つ。**
  *
  * 何をもって「ある」とするかは game が `hasKifu` で答える。ページが
  * `player?.shogi` を組み立て直すと、`player !== null` で縮めた人と混ざって
@@ -24,7 +24,7 @@ vi.mock("@/entities/game", () => ({
   }),
 }));
 
-// 中身はこの検査の対象外。どちらの枝が選ばれたかだけを見る
+// 中身はこの検査の対象外。どちらの分岐が選ばれたかだけを見る
 const empty = { default: () => null };
 vi.mock("@/pages/AppModalLayer", () => empty);
 vi.mock("@/pages/WelcomeScreen", () => ({ default: () => <div data-testid="welcome" /> }));
@@ -61,7 +61,7 @@ describe("棋譜の有無で画面を切り替える", () => {
     expect(container.querySelector(".workspace")).toBeNull();
   });
 
-  test("棋譜があれば作業面", () => {
+  test("棋譜があれば作業画面", () => {
     game.hasKifu = true;
     const { container } = mount();
 

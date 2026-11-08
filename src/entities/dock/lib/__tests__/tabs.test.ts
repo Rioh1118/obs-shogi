@@ -111,7 +111,7 @@ describe("いま出すビュー", () => {
   });
 
   // 一覧から外したタブが URL や設定に残っているだけで、タブ列に無いものが本体に出る
-  test("一覧に無い綴りは、どの段でも飛ばす", () => {
+  test("一覧に無い綴りは、URL・起動時・前回のどれから来ても飛ばす", () => {
     const only = list("analysis");
 
     expect(resolveDockView(only, { fromUrl: "book", startupTab: "book", lastTab: "book" })).toBe(

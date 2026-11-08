@@ -14,7 +14,7 @@ import { RequireRootDir } from "../guards/RequireRootDir";
  * 送る。この2つが同時に成り立つと往復が止まらず、React は
  * 「Maximum update depth exceeded」でツリーごと投げる。`RequireRootDir` は
  * `RuntimeShell` の境界より上なので、受けるのは root の境界（`App.tsx`）で、
- * 出るのは `RootErrorFallback`。窓は閉じられるが、ワークスペースを選び直す導線は消える
+ * 出るのは `RootErrorFallback`。ウィンドウは閉じられるが、ワークスペースを選び直す導線は消える
  * ので、往復そのものを止める必要がある。
  *
  * `Navigate` は effect の中で `navigate()` を呼ぶので、この往復は型でも

@@ -3,7 +3,7 @@ import type { EngineStatus } from "@/entities/analysis";
 import type { EngineFailureNotice } from "@/entities/engine";
 import { EngineStatusDetail } from "./EngineStatusDetail";
 
-/** 状態ごとの語と印。**経過時間を添えるのは読んでいる間と読み終えた後だけ** */
+/** 状態ごとの語と記号。**経過時間を添えるのは読んでいる間と読み終えた後だけ** */
 const STATUS_VIEW: Record<EngineStatus, { word: string; mark: string; timer: boolean }> = {
   "no-engine": { word: "エンジンなし", mark: "idle", timer: false },
   starting: { word: "起動中…", mark: "idle", timer: false },

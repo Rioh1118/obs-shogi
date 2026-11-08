@@ -4,7 +4,7 @@ import type { KifuCreationOptions } from "@/entities/kifu/model/kifu";
 /**
  * 対局の情報と開始局面から、手の無い棋譜を作る
  *
- * `moves[0]` は JKF で開始局面の枠なので、手が無くても空のオブジェクトを1つ置く。
+ * `moves[0]` は JKF で開始局面の要素なので、手が無くても空のオブジェクトを1つ置く。
  */
 export function createInitialJKFData(options: KifuCreationOptions): JKFData {
   const header: Record<string, string> = {};

@@ -79,7 +79,7 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
     const card = cardRefs.current[selectedIndex];
     if (!container || !card) return;
 
-    // 札の位置は、スクロールする中身の中の offset で取る。`.branch-selector` が
+    // カードの位置は、スクロールする中身の中の offset で取る。`.branch-selector` が
     // `position: relative` なので、スクロールしても値が動かない
     const y = card.offsetTop;
     const h = card.offsetHeight;
@@ -94,7 +94,7 @@ export default function BranchList({ branches, selectedIndex, onSelectIndex }: P
     const cardTopInView = y - viewTop;
     const cardBottomInView = cardTopInView + h;
 
-    // 札が中央の帯（上下22%〜78%）の外に出たときだけ、札を中央へ寄せる。
+    // カードが中央の帯（上下22%〜78%）の外に出たときだけ、カードを中央へ寄せる。
     // 毎回寄せると、j / k を押すたびに一覧が動く
     const safeTop = viewH * 0.22;
     const safeBottom = viewH * 0.78;

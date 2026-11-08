@@ -102,10 +102,10 @@ export function BookProvider({ children, currentSfen }: Props) {
     })();
 
     return () => {
-      // 番号を進めて、畳まれた後に返ってくるハンドルを捨てる側へ回す
+      // 番号を進めて、unmount された後に返ってくるハンドルを捨てる側へ回す
       openSeqRef.current += 1;
       const open = infoRef.current;
-      if (open) void closeBook(open.handle); // async-result-ignored: 畳まれた後に出す場所が無い
+      if (open) void closeBook(open.handle); // async-result-ignored: unmount された後に出す場所が無い
     };
   }, []);
 

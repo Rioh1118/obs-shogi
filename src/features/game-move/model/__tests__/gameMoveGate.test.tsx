@@ -11,7 +11,7 @@ import { Err, Ok } from "@/shared/lib/result";
  *
  * 守るのは1つ。対局中は、Rust が採った手しか棋譜へ積まない。
  * 積んでしまうと、Rust の写しと食い違った指し手列で裁定を返すことになり、
- * 断られたまま `RULING_TIMEOUT` で対局が畳まれる。
+ * 断られたまま `RULING_TIMEOUT` で対局が終わる。
  */
 
 /**

@@ -38,7 +38,7 @@ type Props = {
 /**
  * 次にやることと、主と副のボタンを決める。
  *
- * アプリの外での作業を指示する段には、読み直しのボタンを必ず置く。無いと、作業を終えて戻った人に
+ * アプリの外での作業を指示する段階には、読み直しのボタンを必ず置く。無いと、作業を終えて戻った人に
  * 古い画面が出て、消えたパスへの「開く」しか押せない。
  */
 function nextActionOf({ hasRoot, scan, contents, actions, onFocusAiName }: Props): NextAction {

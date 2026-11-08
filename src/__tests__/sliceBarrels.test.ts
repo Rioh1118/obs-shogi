@@ -23,7 +23,7 @@ const LAYERS_WITH_SLICES = ["entities", "features", "widgets"];
  * `export type { X } from "./model/types"`。
  *
  * **`type` を落とさない。** 落とすと、型だけを再エクスポートしているモジュールが
- * 公開面から外れ、barrel に載せたのに深い import が禁じられないままになる
+ * 公開 API から外れ、barrel に載せたのに深い import が禁じられないままになる
  */
 const REEXPORT = /export\s+(?:type\s+)?(?:\*|\{[^}]*\})\s+from\s+["']\.\/([\w./-]+)["']/g;
 

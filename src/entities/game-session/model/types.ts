@@ -33,7 +33,7 @@ export type RulingAdapter = {
   judge: (progress: GameProgressView) => GameRuling;
 };
 
-/** Rust の台帳に載った対局が `live` でも `over` でも持つ欄 */
+/** Rust の `GameManager` に載った対局が `live` でも `over` でも持つ欄 */
 type StartedGame = {
   gameId: GameId;
   kifuPath: string | null;
@@ -74,7 +74,7 @@ export type GameSessionView =
    * `startGame` がまだ解決していない。数十秒続くことがある（`api/tauri.ts` の `startGame`）。
    *
    * Rust に取り消すコマンドは無い。`closeSession` で手放しても、起動は解決まで走り、
-   * 解決してから畳む。
+   * 解決してから閉じる。
    */
   | { kind: "starting"; kifuPath: string | null }
   /** 対局中。手番と時計は Rust が決める */
@@ -111,7 +111,7 @@ export type GameSessionView =
       closeFailure: string | null;
     })
   /**
-   * 始められなかった。Rust は起動に失敗した対局を台帳に載せないので、畳むものが無く、
+   * 始められなかった。Rust は起動に失敗した対局を`GameManager` に載せないので、閉じるものが無く、
    * このまま `start` をやり直せる。
    *
    * 設定の誤りと内部の取り落としが同じ形で届くので、原因を断言しない

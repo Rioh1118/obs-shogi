@@ -10,7 +10,7 @@ import { INDEX_HTML, SRC, TAURI_CONF } from "./walk";
  * 起動の1枚目（`index.html` の `.boot-static`）が、React の `BootSplash` と
  * 同じ絵を出していることの検査。
  *
- * **写しは3箇所ある。** 面の色は `src/index.scss` のトークン・`index.html` の
+ * **写しは3箇所ある。** 背景の色は `src/index.scss` のトークン・`index.html` の
  * インライン `<style>`・`tauri.conf.json` の `backgroundColor` に居て、
  * 絵の寸法は `BootSplash.scss` と `index.html` に居る。**どれも片方だけ動かせる。**
  * `scssScaleRatchet` も `modalOverlayTitlebar` も `src/**\/*.scss` しか歩かないので、
@@ -78,7 +78,7 @@ const MIRRORED = [
 /**
  * 静的側にだけ在ってよいプロパティ。
  *
- * `position` / `inset` は器の作り方が違うため（`BootSplash` は `height: 100vh` の
+ * `position` / `inset` はコンテナの作り方が違うため（`BootSplash` は `height: 100vh` の
  * ブロックだが、静的側は `body` の UA 既定 margin を無関係にするために浮かせる）。
  * `font-family` は綴りが同じでも SCSS 側がトークン越しなので、実効値で比べる。
  */
@@ -123,14 +123,14 @@ describe("起動の1枚目が BootSplash と同じ絵を出す", () => {
   }
 
   /**
-   * 器のルールを `html` / `body` / `#root` / `*` に置かない。
+   * コンテナのルールを `html` / `body` / `#root` / `*` に置かない。
    *
    * それらは React が置き換えた後も効き続ける。`.app-root`（`src/app/App.scss`）は
-   * 面を持たず親の配分に依存するので、`#root` に `display: grid` を足すと
+   * 背景を持たず親の配分に依存するので、`#root` に `display: grid` を足すと
    * 本体のレイアウトが変わる。**SCSS 側の検査は `index.html` を歩かない**ので、
    * ここで止めないと誰も気づかない。
    */
-  it("器のルールが起動の1枚目の外へ漏れていない", () => {
+  it("コンテナのルールが起動の1枚目の外へ漏れていない", () => {
     const leaked = [...boot.keys()].filter((selector) =>
       /(^|[\s>+~])(html|body|\*|#root)([\s.:[]|$)/.test(selector),
     );
@@ -138,18 +138,18 @@ describe("起動の1枚目が BootSplash と同じ絵を出す", () => {
   });
 
   /**
-   * 窓の初期色。**ここが合っていないと、窓が出てから HTML が描かれるまでの間に
+   * ウィンドウの初期色。**ここが合っていないと、ウィンドウが出てから HTML が描かれるまでの間に
    * 別の色が1枚挟まる** —— 白を消すために足した指定なので、ずれたら意味が無い。
    */
-  it("窓の初期色が面の色と同じ", () => {
+  it("ウィンドウの初期色が背景の色と同じ", () => {
     const conf = JSON.parse(readFileSync(TAURI_CONF, "utf8")) as {
       app?: { windows?: { backgroundColor?: string }[] };
     };
     const windows = conf.app?.windows ?? [];
-    expect(windows.length, "tauri.conf.json に窓が無い").toBeGreaterThan(0);
+    expect(windows.length, "tauri.conf.json にウィンドウが無い").toBeGreaterThan(0);
 
     const surface = splash.get(".loading__container")?.get("background-color");
-    expect(surface, "BootSplash.scss に面の色が無い").toBeDefined();
+    expect(surface, "BootSplash.scss に背景の色が無い").toBeDefined();
 
     for (const window of windows) {
       expect(window.backgroundColor?.toLowerCase()).toBe(surface?.toLowerCase());

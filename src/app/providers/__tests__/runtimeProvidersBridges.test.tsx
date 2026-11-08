@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
  * 型も通るしレンダも通る。起きるのは「棋譜を変えても向きが戻らない」
  * 「エンジンが起動できなくても画面に何も出ない」だけで、例外もエラー表示も出ない。
  *
- * 器の形をしている `EngineRuntimeGate` / `AnalysisPositionSyncGate` は対象外。
+ * ラッパーの形をしている `EngineRuntimeGate` / `AnalysisPositionSyncGate` は対象外。
  * あちらは provider を張るので、外せば `useEngine` / `useAnalysis` が投げる。
  *
  * 見ているのは描かれることだけで、どこに載っているかではない。
@@ -26,7 +26,7 @@ const passthrough = (name: string) => ({
 });
 
 vi.mock("../gates/FileTreeRootGate", () => passthrough("FileTreeRootGate"));
-// 棋譜の器。**`GamePersistenceGate` はここでは差し替えない** —— 張るのは
+// 棋譜のラッパー。**`GamePersistenceGate` はここでは差し替えない** —— 張るのは
 // この `GameMoveGate` の中なので、素通しにした時点で実物ごと描かれなくなる。
 // 実物は `GameSessionProvider` の内側でしか組めない。
 // `passthrough` を使わない —— 計算した鍵では、差し替える先の形と結び付かない
@@ -38,11 +38,11 @@ vi.mock(
     }) satisfies typeof import("../gates/GameMoveGate"),
 );
 vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
-// `GameMoveGate` を素通しにすると棋譜の器ごと消えるので、`useGame` を読む器は張れない
+// `GameMoveGate` を素通しにすると棋譜のラッパーごと消えるので、`useGame` を読むラッパーは張れない
 vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));
 vi.mock("../gates/EngineRuntimeGate", () => passthrough("EngineRuntimeGate"));
 vi.mock("../gates/AnalysisPositionSyncGate", () => passthrough("AnalysisPositionSyncGate"));
-// 対局の進行も器の形。実物は mount した瞬間に Tauri の `listen` を呼ぶ
+// 対局の進行もラッパーの形。実物は mount した瞬間に Tauri の `listen` を呼ぶ
 vi.mock("../gates/GameSessionRulingGate", () => passthrough("GameSessionRulingGate"));
 vi.mock("@/entities/engine-presets/model/provider", () => passthrough("EnginePresetsProvider"));
 vi.mock("@/entities/study-positions/model/provider", () => passthrough("StudyPositionsProvider"));
@@ -54,7 +54,7 @@ const engineStartWarningBridge = vi.fn();
 
 // **中身は差し替える。** 実物は `EngineProvider` の中に居る前提なのに、
 // このテストは `EngineRuntimeGate` を素通しに差し替えている。
-// 実物のまま描くと器が無くて投げるので、載っているかだけを見る
+// 実物のまま描くとprovider が無くて投げるので、載っているかだけを見る
 vi.mock(
   "../bridges/AnalysisRefusalBridge",
   () =>

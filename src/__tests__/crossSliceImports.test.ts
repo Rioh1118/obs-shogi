@@ -20,15 +20,15 @@ import {
 const AT = "@" + "/";
 
 describe("同層横断の import", () => {
-  test("控えと現物が一致している", () => {
+  test("期待値と現物が一致している", () => {
     const { edges } = scanCrossSliceImports();
     const found = [...edges.keys()].sort();
 
     expect(
       found,
       [
-        "同じ層の別スライスを読む組が控えと違う:",
-        `  控え: ${CROSS_SLICE_INVENTORY.length} 組`,
+        "同じ層の別スライスを読む組が期待値と違う:",
+        `  期待値: ${CROSS_SLICE_INVENTORY.length} 組`,
         `  現物: ${found.length} 組`,
         `  増えた: ${found.filter((e) => !CROSS_SLICE_INVENTORY.includes(e)).join(" / ") || "無し"}`,
         `  減った: ${CROSS_SLICE_INVENTORY.filter((e) => !found.includes(e)).join(" / ") || "無し"}`,
@@ -39,7 +39,7 @@ describe("同層横断の import", () => {
     ).toEqual([...CROSS_SLICE_INVENTORY].sort());
   });
 
-  // 走査が壊れて0件を返しても控えが空なら緑になる。「見つけた件数が0」と
+  // 走査が壊れて0件を返しても期待値が空なら緑になる。「見つけた件数が0」と
   // 「見たファイルが0」を区別する
   test("走査が実際にファイルを歩いている", () => {
     const { edges, files } = scanCrossSliceImports();
@@ -49,7 +49,7 @@ describe("同層横断の import", () => {
 
   test("互いを読み合う組が無い", () => {
     // 往復は `import/no-cycle` が拾わない（**輪になるまで黙っている**）。
-    // 輪でなくても「どちらが器か」が消える
+    // 輪でなくても「どちらが依存される側か」が消える
     const { edges } = scanCrossSliceImports();
     expect(
       mutualEdges(new Set(edges.keys())),
@@ -118,7 +118,7 @@ describe("aliasSpecifiersIn", () => {
   });
 
   test("束縛の無い import は `from` を持たないので、別に拾う必要がある", () => {
-    // これを落とすと、束縛を持たない読み込みで控えを迂回できる
+    // これを落とすと、束縛を持たない読み込みで期待値との突き合わせを迂回できる
     expect(aliasSpecifiersIn(`import "${AT}features/settings/ui/kit/SSelect";`)).toEqual([
       `${AT}features/settings/ui/kit/SSelect`,
     ]);
@@ -130,7 +130,7 @@ describe("aliasSpecifiersIn", () => {
 });
 
 describe("sliceOf", () => {
-  test("層とスライスに畳む", () => {
+  test("層とスライスに寄せる", () => {
     expect(sliceOf(`${AT}entities/kifu/model/jkf`)).toBe("entities/kifu");
     expect(sliceOf(`${AT}features/settings/ui/X`)).toBe("features/settings");
   });

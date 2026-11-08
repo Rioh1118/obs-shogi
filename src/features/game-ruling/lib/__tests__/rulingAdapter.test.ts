@@ -71,7 +71,7 @@ describe("裁定器", () => {
    * 「続く」を返さない。落ち方はその局面に固定されているので、
    * 次の手でも同じ結果になり、詰みも千日手も二度と立たない。
    */
-  test("開始局面を読めなければ終局として畳む", () => {
+  test("開始局面を読めなければ終局させる", () => {
     const ruling = createRulingAdapter(RULES);
 
     expect(ruling.judge({ startSfen: "こわれた sfen", usiMoves: [] })).toEqual({
@@ -81,7 +81,7 @@ describe("裁定器", () => {
     });
   });
 
-  test("指せない手があれば、何手目かを残して畳む", () => {
+  test("指せない手があれば、何手目かを残して終局にする", () => {
     const ruling = createRulingAdapter(RULES);
 
     expect(ruling.judge({ startSfen: HIRATE, usiMoves: ["7g7f", "9i9z"] })).toEqual({

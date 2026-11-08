@@ -7,7 +7,7 @@ import { KIFU_FORMAT_OPTIONS } from "@/entities/kifu/model/kifu";
 import WelcomeScreen from "../WelcomeScreen";
 
 /**
- * 棋譜を開いていないときの面。作る入口が作るモーダルを開くことと、
+ * 棋譜を開いていないときの画面。作る入口が作るモーダルを開くことと、
  * 並べる形式が作るフォームと同じ一覧から出ていること。
  */
 
@@ -31,7 +31,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe("棋譜を開いていないときの面", () => {
+describe("棋譜を開いていないときの画面", () => {
   test("「棋譜を作成」は保存先を決めずに作るモーダルを開く", () => {
     mount();
 

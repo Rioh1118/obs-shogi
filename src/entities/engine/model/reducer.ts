@@ -43,7 +43,7 @@ export function reducer(state: EngineState, action: EngineAction): EngineState {
         unresponsiveReason: null,
       };
 
-    // 起動済みの段だけで効く。他の段に居るなら、そのプロセスはもう見ていない
+    // 起動済みの状態だけで効く。他の状態に居るなら、そのプロセスはもう見ていない
     case "engine_exited":
       if (state.phase !== "ready" && state.phase !== "unresponsive") return state;
       return {

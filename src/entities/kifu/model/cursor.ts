@@ -82,7 +82,7 @@ type KifuCursorFields = {
 export type KifuCursor = KifuCursorFields & { readonly [kifuCursorBrand]: true };
 
 /**
- * 欄を揃えた組に印を付ける。`KifuCursor` はこの関数を通して作る。
+ * 欄を揃えた組にブランドを付ける。`KifuCursor` はこの関数を通して作る。
  *
  * 引数を `KifuCursorFields` で受けるので、欄の型は tsc が突き合わせる。
  * 作る側に `as unknown as KifuCursor` を書くと、`tesuu` に文字列を入れても通る。
@@ -114,11 +114,11 @@ declare const branchPlanBrand: unique symbol;
 export type BranchPlan = ForkPointer[] & { readonly [branchPlanBrand]: true };
 
 /**
- * 分岐計画として確定した配列に印を付ける。
+ * 分岐計画として確定した配列にブランドを付ける。
  *
  * 付けてよいのは**計画を作る側**だけ。`mergeBranchPlan`（`te > tesuu` を持ち越す唯一の
  * 関数）、初期状態の空配列、そして棋譜が変わって計画を意図的に捨てる書き込み経路。
- * 「捨てる」の印を呼び出し側に書かせているのは、捨てた場所を数えられるようにするため。
+ * 「捨てる」ときも `asBranchPlan` を呼び出し側に書かせているのは、捨てた場所を数えられるようにするため。
  * テストは実物と同じ組み立てを再現するために通す。
  */
 export const asBranchPlan = (forkPointers: ForkPointer[]) => forkPointers as BranchPlan;
@@ -200,7 +200,7 @@ export function normalizeForkPointers(forkPointers: ForkPointer[], tesuu?: numbe
  * `normalizeForkPointers` の境界は `te <= 第2引数` なので1引く。この `- 1` を
  * 呼び出し側で手書きすると、書き忘れた側が `te` の分岐そのものを降りてしまい、
  * **選び直す対象の分岐点ではなく、そのうちの1本の中**を指す。例外は出ないまま
- * 削除・入れ替えが別の階層の枝に当たる。
+ * 削除・入れ替えが別の階層の変化に当たる。
  *
  * `truncateFrom` は絞るだけで並べ替えない。整列が要るならこちら。
  */
@@ -241,8 +241,8 @@ export function mergeBranchPlan(
  *
  * 使う側は3つ。
  *
- * - 計画を書き換える側: `te` の選択を変えたら先の計画は別の枝の値になるので捨てる
- * - 分岐編集で退避する側: 消える枝より先の選択を落とす
+ * - 計画を書き換える側: `te` の選択を変えたら先の計画は別の変化の値になるので捨てる
+ * - 分岐編集で退避する側: 消える変化より先の選択を落とす
  * - `BranchPointRef.forkPointers` を組む側（`buildStreamRows`）: `te` の分岐を選び直す prefix にする
  *
  * 並べ替えはしない。順序も揃えるなら `normalizeBefore`。
@@ -301,7 +301,7 @@ export function makeKifuCursor(
 /**
  * `te` の選択を選び直して、そこへ移るカーソルを組む。
  *
- * `te` 以降の選択は落とす。その先は別の枝に対して作られた値で、残すと利用者が見ていない変化に盤が入る。
+ * `te` 以降の選択は落とす。その先は別の変化に対して作られた値で、残すと利用者が見ていない変化に盤が入る。
  * 落ちるのはこの戻り値の中だけで、`state.branchPlan` に残っている分は `mergeBranchPlan` が復活させる。
  *
  * `path` が `null` を取るのは、行を描く側が `PlannedCursor | null` を持つため（`KifuStreamList`）。

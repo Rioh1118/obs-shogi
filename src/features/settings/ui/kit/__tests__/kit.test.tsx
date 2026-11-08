@@ -111,7 +111,7 @@ describe("SInput", () => {
     expect(input.className).toBe("sui-input extra");
   });
 
-  test("不正の印を付ける", () => {
+  test("不正の属性を付ける", () => {
     const { rerender } = render(<SInput aria-label="欄" invalid />);
     const input = () => screen.getByRole("textbox", { name: "欄" });
 
@@ -131,7 +131,7 @@ describe("SSelect", () => {
     { value: "b", label: "乙", disabled: true },
   ];
 
-  test("選択肢を並べ、無効の印を写す", () => {
+  test("選択肢を並べ、無効の属性を写す", () => {
     render(<SSelect aria-label="欄" value="a" onChange={() => {}} options={options} />);
 
     const items = screen.getAllByRole<HTMLOptionElement>("option");
@@ -172,7 +172,7 @@ describe("SSelect", () => {
     expect(screen.getByRole<HTMLSelectElement>("combobox", { name: "欄" }).value).toBe("");
   });
 
-  test("不正の印を付け、選ぶと呼ぶ", () => {
+  test("不正の属性を付け、選ぶと呼ぶ", () => {
     const onChange = vi.fn();
     const { container } = render(
       <SSelect aria-label="欄" value="a" onChange={onChange} options={options} invalid />,
@@ -248,7 +248,7 @@ describe("SRadioGroup", () => {
 });
 
 describe("SettingsBadge", () => {
-  test("既定は控えめな札", () => {
+  test("既定は控えめなバッジ", () => {
     render(<SettingsBadge>札</SettingsBadge>);
 
     expect(screen.getByText("札").className).toBe("sbadge sbadge--muted sbadge--badge");

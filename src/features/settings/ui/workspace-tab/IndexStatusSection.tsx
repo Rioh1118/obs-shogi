@@ -16,9 +16,9 @@ type IndexBadge = {
 };
 
 /**
- * 索引の段の語。どれを出すかは `indexHealth` が決める。
+ * 索引の状態の語。どれを出すかは `indexHealth` が決める。
  *
- * 表で書くのは、段が増えたときに tsc で止めるため。`default:` のある `switch` は別の語を
+ * 表で書くのは、状態が増えたときに tsc で止めるため。`default:` のある `switch` は別の語を
  * 黙って出す（`entities/search/lib/indexState.ts` も同じ理由で表にしてある）。
  * `label:` の形は `src/__tests__/screenSpecCoverage.test.ts` が拾う形で、素の値にすると
  * 仕様書との突き合わせから外れる。
@@ -178,7 +178,7 @@ export default function IndexStatusSection() {
   const idx = search.index;
   const warns = search.warns;
 
-  // 進捗バーもこの具合で決める。`state` を並べ直すと、段が増えたときにバーだけ出なくなる
+  // 進捗バーもこの具合で決める。`state` を並べ直すと、状態が増えたときにバーだけ出なくなる
   const health = indexHealth(idx);
   const badge = badgeForIndex(idx, health);
 

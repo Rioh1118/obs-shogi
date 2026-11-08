@@ -8,7 +8,7 @@
 type AnalysisWaits = {
   /** 同期が追いつくのを見に行く間隔。1フレームぶん */
   syncPollMs: number;
-  /** 盤が動いてから再開を始めるまでの猶予。連打を1本に畳む */
+  /** 盤が動いてから再開を始めるまでの猶予。連打を1本にまとめる */
   restartDebounceMs: number;
   /**
    * エンジンが position を受け付けるまで待つ上限。超えたら送信できていないと見なし、
@@ -16,7 +16,7 @@ type AnalysisWaits = {
    * 根拠は実測ではないので、重い評価関数の初期化で足りなければ引き上げてよい
    */
   positionSyncTimeoutMs: number;
-  /** 結果を画面へ反映する間引き。`info` は数十 ms 間隔で届くので、1周期に1回へ畳む */
+  /** 結果を画面へ反映する間引き。`info` は数十 ms 間隔で届くので、1周期に1回へまとめる */
   resultFlushMs: number;
 };
 

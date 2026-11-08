@@ -196,7 +196,7 @@ describe("続けて棋譜を開いたとき", () => {
   });
 
   it("先にクリックした棋譜のパース失敗も、後から返ったなら断りに出さない", async () => {
-    // 読み取りの失敗と別の枝（catch）を通る。読み出しを捨てる判定が try の前にあることを固定する
+    // 読み取りの失敗と別の分岐（catch）を通る。読み出しを捨てる判定が try の前にあることを固定する
     const resolveRead = deferReadKifu();
     parseKifu.mockImplementation((content: string) => {
       if (content === "a") throw new Error("壊れている");
@@ -231,7 +231,7 @@ describe("続けて棋譜を開いたとき", () => {
   });
 
   it("捨てた要求の失敗は、新しい要求が返るまでの間も断りに出さない", async () => {
-    // 古い方が先に、しかも失敗して返る窓。ここで断りを出すと、
+    // 古い方が先に、しかも失敗して返る区間。ここで断りを出すと、
     // 利用者が選び直した B の読み込み中に A の「開けません」が割り込む
     const resolveRead = deferReadKifu();
     await renderTree();

@@ -102,7 +102,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const readinessRef = useRef<EngineReadiness>(readiness);
 
-  // `useMemo` は覚えた値を捨てうる。捨てられると控えが空に戻り、読み手より長生きするという
+  // `useMemo` は覚えた値を捨てうる。捨てられるとキャッシュが空に戻り、読み手より長生きするという
   // 置き場の目的（`lib/candidateCache.ts`）が崩れる。
   const candidateCacheRef = useRef<CandidateCache | null>(null);
   candidateCacheRef.current ??= createCandidateCache();
@@ -146,7 +146,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   }, [readiness]);
 
   /**
-   * エンジンへ送り済みの局面。自動再開を抑止する印で、`null` はもう一度送ってよいことを表す。
+   * エンジンへ送り済みの局面。自動再開を抑止するフラグで、`null` はもう一度送ってよいことを表す。
    * 画面が読む `state.analyzedSfen` とは別に動く。
    */
   const sentSfenRef = useRef<string | null>(null);
@@ -285,7 +285,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   // アンマウントで再開のタイマーと Rust の席を片付ける。局面を見る effect は早期 return の描画で
   // cleanup を登録しないので、そのタイマーはここで消す。
   useEffect(() => {
-    // cleanup で立てる印は setup で戻す。StrictMode の setup → cleanup → setup で true のまま残ると、
+    // cleanup で立てるフラグは setup で戻す。StrictMode の setup → cleanup → setup で true のまま残ると、
     // タイマーが1つも張られず、盤を進めても解析が黙って再開しなくなる。
     unmountedRef.current = false;
     seat.markMounted();
@@ -329,14 +329,14 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           return;
         }
         unlistenRef.current = unlisten;
-        // StrictMode の setup → cleanup → setup で印を戻す。戻さないと、1度の失敗が以後の ▶ を断り続ける。
+        // StrictMode の setup → cleanup → setup でフラグを戻す。戻さないと、1度の失敗が以後の ▶ を断り続ける。
         listenersFailedRef.current = false;
       } catch (e) {
-        // アンマウント済みの setup の失敗で、生きているインスタンスの印と `state.error` を汚さない。
+        // アンマウント済みの setup の失敗で、生きているインスタンスのフラグと `state.error` を汚さない。
         if (!alive) return;
 
         // この effect はマウント1回きりで、落ちると結果が二度と届かない。断りだけでは ▶ の
-        // `clear_results` に消されて `go` が出るので、印を残して以後の ▶ を断る。
+        // `clear_results` に消されて `go` が出るので、フラグを残して以後の ▶ を断る。
         console.error("[ANALYSIS] Failed to setup listeners:", e);
         listenersFailedRef.current = true;
         dispatch({ type: "set_error", payload: LISTENERS_FAILED_MESSAGE });
@@ -430,7 +430,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
           sentSfenRef.current = null;
           return;
         }
-        // 読み直しの印を捨て、遅らせて張り直す。上限の直後に答えが来ると知らせが1回の描画にまとまり、
+        // 読み直しのフラグを捨て、遅らせて張り直す。上限の直後に答えが来ると知らせが1回の描画にまとまり、
         // `isReady` が動かないので、同期の追従の effect が走らない。まだ答えていなければ
         // `runRestartRef` の `isReady` の判定で降りる。
         if (released === "unanswered") {
@@ -520,7 +520,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
     clearDebounceTimer,
   ]);
 
-  // エンジンが使えなくなったら送り済みの印と席の欄を捨てる。起動し直しで Rust の席は全部空くので、
+  // エンジンが使えなくなったら送り済みのフラグと席の欄を捨てる。起動し直しで Rust の席は全部空くので、
   // 欄に残るのはもう無い席。捨てないと、戻ったときに下の effect が送り済みと読んで降り、
   // `検討中` のまま数字が動かない。
   const engineWasGoneRef = useRef(false);
@@ -594,7 +594,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
   const startInFlightRef = useRef<Promise<void> | null>(null);
 
   /**
-   * 断りを立てて投げる。▶ の経路で断るときはどの段もここを通る。
+   * 断りを立てて投げる。▶ の経路で断るときはどの段階もここを通る。
    * 例外は読む局面が無いときで、`refuseIfCannotStart` が断りを立てずに投げる。
    */
   const failStart = useCallback((message: string, e: unknown): never => {
@@ -608,7 +608,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    */
   const failUnreachable = useCallback(
     (e: unknown, generation: number): never => {
-      // 押した意思は残す。どの段で書けなかったかで、再起動の後に読むかが割れないように
+      // 押した意思は残す。どの段階で書けなかったかで、再起動の後に読むかが割れないように
       dispatch({ type: "hold_intent" });
       reportUnreachableSince(generation);
       throw e;
@@ -722,7 +722,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
       // 答えが無ければ語が `応答なし` に変わる。開始を頼むと断りの文が立つ
       if (released === "unanswered") {
         if (supersededSince(seq)) return false;
-        // `swapSeatAndGo` と同じ。答えが1回の描画にまとまると `isReady` が動かず、印が残って読み始めない
+        // `swapSeatAndGo` と同じ。答えが1回の描画にまとまると `isReady` が動かず、フラグが残って読み始めない
         sentSfenRef.current = null;
         dispatch({ type: "hold_intent" });
         return false;
@@ -736,7 +736,7 @@ export function AnalysisProvider({ children, positionSync }: Props) {
    * ▶ の本体。応答待ちの自動再開を待ち、握っている席を返し、局面を送って追いつくのを待ってから、
    * 席を取って `go` を出す。
    *
-   * 3つの段は先へ進めなければ `false` を返し、断りは段の側が `failStart` で立てる。席を取る段の
+   * 3つの段階は先へ進めなければ `false` を返し、断りは段階の側が `failStart` で立てる。席を取る段階の
    * 結末はエンジンが消えたときと利用者が降りたときで出す物が違うので、ここで書き分ける。
    *
    * **`seq` は返却より前に読む。** 返却の往復の間に世代が上がると、以降の判定が効かない。

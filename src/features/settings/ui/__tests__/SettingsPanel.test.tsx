@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 /**
- * 設定の枠。URL の `tab` から中身を決め、タブを押すと URL を書き換える。
+ * 設定のパネル。URL の `tab` から中身を決め、タブを押すと URL を書き換える。
  * タブの中身はそれぞれのテストが見るので、ここでは差し替える。
  */
 
@@ -52,7 +52,7 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe("設定の枠", () => {
+describe("設定のパネル", () => {
   test.each([
     ["workspace", "中身:workspace"],
     ["aiLibrary", "中身:aiLibrary"],
@@ -90,7 +90,7 @@ describe("設定の枠", () => {
     expect(tabButton(/^表示/).className).not.toContain("stab--active");
   });
 
-  test("外のものを指す2枚にだけ札が付く", () => {
+  test("外のものを指す2枚にだけバッジが付く", () => {
     render(<SettingsPanel />);
 
     expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([

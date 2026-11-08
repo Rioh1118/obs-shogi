@@ -36,7 +36,7 @@ export function GameFileTreeBridge() {
    * （その性質は `entities/file-tree` の `jkfData` の doc が持ち、
    * `activeKifuReferenceIdentity.test.ts` が固定している）。
    *
-   * 控えるのは `loadGame` が返ったあと。最初の読み込みが飛んでいる最中に来た改名は
+   * ref に入れるのは `loadGame` が返ったあと。最初の読み込みが飛んでいる最中に来た改名は
    * 参照が一致せず、載せ直しになる。その間は利用者の編集がまだ入り得ないので
    * 落ちるものは無い。
    */
@@ -57,7 +57,7 @@ export function GameFileTreeBridge() {
     const run = async () => {
       const res = await loadGame(jkfData, activeKifuPath);
       if (res.success) {
-        // 載せられたときだけ控える。落ちたときも控えると、盤には前の棋譜が
+        // 載せられたときだけ ref に入れる。落ちたときも入れると、盤には前の棋譜が
         // 載ったままなのに次の改名で `renameLoadedPath` が通り、
         // **前の棋譜が改名先のファイルへ書き込まれる**
         loadedJkfDataRef.current = jkfData;
@@ -65,21 +65,21 @@ export function GameFileTreeBridge() {
       }
 
       notify({
-        // 段は `code` から決まる（`kifuLoadFailureTier`）。ここで選ぶと、
-        // 2件目の呼び手が別の段にしても誰も気づかない
+        // tier は `code` から決まる（`kifuLoadFailureTier`）。ここで選ぶと、
+        // 2件目の呼び手が別の tier にしても誰も気づかない
         tier: kifuLoadFailureTier(res.error),
         presentation: "modal",
-        // 同じ棋譜で畳む。載せられなかった棋譜のノードは `FileNode` の判定
+        // 同じ棋譜の通知は重複をまとめる。載せられなかった棋譜のノードは `FileNode` の判定
         // （`canSkipReopen`）を通るので、押すたびに `openKifuNode` が新しい `jkfData` を
         // 作り、この effect が撃ち直される。鍵が無いと、押した回数だけ積み上がる。
         dedupeKey: `kifu-unloadable:${activeKifuPath}`,
         title: `「${getBaseName(activeKifuPath)}」を盤に並べられませんでした`,
         // 本文は「何をすれば直るか」から書く（`NotifyRequest` の `body`）。
-        // 段が `danger` で動作を持たない以上、次の一手を書けるのはここだけ。
+        // tier が `danger` で動作を持たない以上、次の一手を書けるのはここだけ。
         //
         // **「開き直しても結果は変わらない」と言い切らない。** 落ちるのはその時点の
         // 中身のせいで、外で直せば載る（判定が2条件なので押し直しは実際に届く）。
-        // 言い切ると、直せるファイルまで利用者が諦める。台帳の復帰欄も
+        // 言い切ると、直せるファイルまで利用者が諦める。`failure-surfacing.md` の復帰欄も
         // 「ファイルを直すか、別の棋譜を選ぶ」と書いている。
         //
         // 前の棋譜が残っているかで場合分けしない。残っているかは

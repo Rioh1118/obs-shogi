@@ -7,7 +7,7 @@ import type { FileTreeNode } from "@/entities/file-tree";
  * 棋譜の行を押したときに開き直すかの判定。「もう開いている」は盤にも訊く。
  *
  * ツリーの `activeKifuPath` は構文として読めた時点で進むので、そこから盤に
- * 載るまでの一段（`loadGame` の `buildPlayer`）で落ちた棋譜も「開いている」に
+ * 載るまでの一段階（`loadGame` の `buildPlayer`）で落ちた棋譜も「開いている」に
  * なる。その判定で2度目のクリックを捨てると、**復帰が別の棋譜を選ぶことだけに
  * なる**（`failure-surfacing.md` の F-31）。
  */

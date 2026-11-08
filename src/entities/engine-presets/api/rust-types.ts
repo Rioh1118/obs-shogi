@@ -16,7 +16,7 @@ export type PresetsLoadNotice =
 /** 読み込みの結果（Rust の `LoadedPresets`） */
 export type LoadedPresets = {
   presets: EnginePreset[];
-  /** 読んだファイルの中身の印。保存に渡す。ファイルが無ければ `null` */
+  /** 読んだファイルの中身の版。保存に渡す。ファイルが無ければ `null` */
   revision: string | null;
   writable: boolean;
   /** 読めなかった件の数。ファイルには残してあり、保存しても消えない */

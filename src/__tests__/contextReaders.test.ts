@@ -19,7 +19,7 @@ const ENTITIES = join(SRC, "entities");
 
 /**
  * 読み手が来る日が決まっている欄。理由を書いて足す。
- * `game-session` の2欄は、対局の面を戻すときに読む（ADR-0011 決定1）。
+ * `game-session` の2欄は、対局の画面を戻すときに読む（ADR-0011 決定1）。
  */
 const AWAITING_READER = [
   "entities/game-session/model/context.ts: startRefusal",

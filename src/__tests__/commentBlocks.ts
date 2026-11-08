@@ -8,7 +8,7 @@
  * 行末も拾う代わりに文字列の中も拾い、人が結果を見て直す前提で書かれている。
  */
 
-/** 1つの塊。`text` は印（`///` や `*`）を落とした本文 */
+/** 1つの塊。`text` はコメント記号（`///` や `*`）を落とした本文 */
 export interface CommentBlock {
   /** 1始まりの行番号 */
   line: number;
@@ -19,7 +19,7 @@ export interface CommentBlock {
 
 const LINE_MARKER = /^\s*(\/\/\/|\/\/!|\/\/)/;
 
-/** 同じ印の `//` 行が続く範囲を1つの塊にする。印が変わったら別の塊 */
+/** 同じコメント記号の `//` 行が続く範囲を1つの塊にする。記号が変わったら別の塊 */
 function lineBlockAt(lines: string[], start: number): { block: CommentBlock; next: number } {
   const marker = LINE_MARKER.exec(lines[start])?.[1] ?? "";
   const body: string[] = [];

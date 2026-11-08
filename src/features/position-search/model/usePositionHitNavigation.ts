@@ -21,7 +21,7 @@ type PendingNav = {
  * 移動を始められたか、始められなかったならその理由
  *
  * ツリーそのものがまだ無いのと、ツリーにその棋譜が無いのは別の失敗で、
- * 前者は読み込めれば同じ操作で開ける。呼び手が段と文言を分けられるように理由まで返す。
+ * 前者は読み込めれば同じ操作で開ける。呼び手がtier と文言を分けられるように理由まで返す。
  */
 export type NavigationOutcome = "started" | "not-in-tree" | "tree-unavailable";
 
@@ -128,7 +128,7 @@ export function usePositionHitNavigation() {
     // `loadFailedAbsPath` にしか出ない。
     //
     // 失敗の番号まで見る。パスの一致だけだと、前の要求の失敗が残っている状態で同じ棋譜を
-    // もう一度要求したときに、要求を出した直後の effect が古い印を読んで捨てる。
+    // もう一度要求したときに、要求を出した直後の effect が古いフラグを読んで捨てる。
     if (gameState.loadFailedAbsPath === p.absPath && gameState.loadFailedSeq !== p.failedSeq) {
       pendingRef.current = null;
       return;

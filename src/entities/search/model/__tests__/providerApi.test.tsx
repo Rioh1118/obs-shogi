@@ -306,7 +306,7 @@ describe("索引を開く失敗", () => {
     expect(search.state.openError).toBeNull();
   });
 
-  // TODO(#430): 飛行中の open を根を見ずに1本へ畳むので、新しい根が開かれない
+  // TODO(#430): 飛行中の open を根を見ずに1本にまとめるので、新しい根が開かれない
   test("開いている間に根が変わっても、呼び出しは1本のまま", async () => {
     openProjectApi.mockReturnValue(new Promise(() => {}));
 

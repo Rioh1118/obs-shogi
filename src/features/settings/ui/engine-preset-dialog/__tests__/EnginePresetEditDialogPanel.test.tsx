@@ -9,7 +9,7 @@ import type { EnginePreset, PresetId } from "@/entities/engine-presets";
  * 帯（`engines` の状態）が、**いつの索引を映すか**。
  *
  * AI ルートは開いている間にも設定（「AI ライブラリ」）から変わりうるので、走査の最中に画面が指すルートと
- * 索引のルートがずれる窓がある。ずれたまま帯を出すと、旧ルートの絶対パスを名指ししながら
+ * 索引のルートがずれる区間がある。ずれたまま帯を出すと、旧ルートの絶対パスを名指ししながら
  * 隣のボタンは新しいルートに対して働く——本文と動作の宛先が食い違う。
  */
 
@@ -132,7 +132,7 @@ describe("プリセット編集ダイアログの engines の帯", () => {
     );
     await waitFor(() => expect(band()).not.toBeUndefined(), { timeout: 5000 });
 
-    // 新しいルートの走査は返さない。切り替えた直後の窓をそのまま観測する
+    // 新しいルートの走査は返さない。切り替えた直後の区間をそのまま観測する
     scanAiRoot.mockReturnValue(new Promise(() => {}));
     aiRootValue.current = "/Users/me/ai2";
     // ルートは設定（AI ライブラリ）で変わる。本番では設定の provider が再描画する。ここは手で促す。

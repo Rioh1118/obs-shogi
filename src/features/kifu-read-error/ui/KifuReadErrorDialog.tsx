@@ -41,7 +41,7 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // クリップボードが使えない環境では、畳んだ詳細から手で拾える
+      // クリップボードが使えない環境では、折りたたんだ詳細から手で拾える
     }
   };
 

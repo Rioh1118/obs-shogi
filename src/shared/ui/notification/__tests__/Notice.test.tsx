@@ -35,7 +35,7 @@ describe("通知の中身", () => {
       expect(screen.getByText("37件")).toBeTruthy();
     });
 
-    // 畳んでいない通知に常に「1件」が付くと、数そのものに意味が無くなる
+    // まとめていない通知に常に「1件」が付くと、数そのものに意味が無くなる
     it("渡さなければ出さない", () => {
       show();
 
@@ -219,7 +219,7 @@ describe("通知の中身", () => {
   });
 
   describe("支援技術への出し方", () => {
-    // 繰り返しでは直らない段は、読んでいるものを中断してでも伝える
+    // 繰り返しでは直らない tier は、読んでいるものを中断してでも伝える
     it.each([
       ["danger", "alert"],
       ["fatal", "alert"],
@@ -243,7 +243,7 @@ describe("通知の中身", () => {
     expect(screen.queryByRole("button", { name: "閉じる" })).toBeNull();
   });
 
-  it("段が class に出る", () => {
+  it("tier が class に出る", () => {
     const { container } = show({ tier: "fatal" });
 
     expect(container.querySelector(".notice--fatal")).toBeTruthy();

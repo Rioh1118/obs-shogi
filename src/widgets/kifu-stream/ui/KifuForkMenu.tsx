@@ -171,7 +171,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
   };
 
   const handleItemPointerDown = (e: PointerEvent<HTMLElement>, forkIndex: number | null) => {
-    // 選ぶのは左ボタンだけ。右ボタンは行の contextmenu で操作の面を開く
+    // 選ぶのは左ボタンだけ。右ボタンは行の contextmenu で操作のサーフェスを開く
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
@@ -222,8 +222,8 @@ const KifuForkMenu = memo(function KifuForkMenu({
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onScroll={() => {
-        // 操作の面は開いたときの行の矩形に置く。メニューの中を流すと行だけが動き、
-        // 面が別の行の横に残るので閉じる
+        // 操作のサーフェスは開いたときの行の矩形に置く。メニューの中を流すと行だけが動き、
+        // サーフェスが別の行の横に残るので閉じる
         if (actions) setActions(null);
       }}
     >

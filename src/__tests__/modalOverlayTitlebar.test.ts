@@ -180,15 +180,15 @@ function isBounded(value: string): boolean {
   const args = splitTopLevel(call[2] ?? "", /,/).map((arg) => arg.trim());
   if (call[1] === "min") return args.includes("100%");
   // clamp(a, b, c) は max(a, min(b, c))。第3引数が `100%` でも、第1引数が
-  // それを超えうるなら上限にならない（`clamp(32rem, 78vh, 100%)` は器を超える）
+  // それを超えうるなら上限にならない（`clamp(32rem, 78vh, 100%)` はコンテナを超える）
   // ゼロ長は単位に関係なく `100%` 以下。裸の `0` は sass が長さとして受け付けない
   return args.length === 3 && args[2] === "100%" && /^0[a-z%]*$/.test(args[0] ?? "");
 }
 
 /**
  * ビューポート基準の長さ。`vh` 系だけでなく `vw` / `vmin` / `vmax` も、
- * 高さに使えば同じく器と無関係に決まる。
- * `max-height` は要素を大きくできないので危なくない。器より大きくなりうるのは、
+ * 高さに使えば同じくコンテナと無関係に決まる。
+ * `max-height` は要素を大きくできないので危なくない。コンテナより大きくなりうるのは、
  * 高さの下限か指定値を viewport で決めた場合。論理プロパティの `block-size` は
  * `horizontal-tb` では `height` と同じ（辺の展開と同じ前提）
  */
@@ -200,7 +200,7 @@ function scssUnder(directory: string): string[] {
 }
 
 /**
- * ビューポートで高さを決めていながら、器に対する頭打ちを持たない規則。
+ * ビューポートで高さを決めていながら、コンテナに対する頭打ちを持たない規則。
  *
  * モーダルの中身はカードの `overflow: hidden` の内側にいるので、カードを超えた分は
  * スクロールでも届かない。`Modal.scss` だけを見ていると、この故障は中身の側にあって
@@ -221,7 +221,7 @@ function unboundedIn(label: string, css: string): string[] {
       if (forcing.length === 0) return;
 
       // 解決順は `max(min-height, min(max-height, height))` なので、`min-height` が
-      // 器を超える値なら `max-height` では止まらない。`min-height: 0` は下限を
+      // コンテナを超える値なら `max-height` では止まらない。`min-height: 0` は下限を
       // 外すだけで上限にはならない
       const forcedFromBelow = forcing.some((declaration) => declaration.prop.startsWith("min-"));
       const bounded =
@@ -314,7 +314,7 @@ describe("モーダルの overlay とタイトルバー", () => {
 
   it("カード自身が高さの上限を持っている", () => {
     // size 側のセレクタは詳細度で勝つので、書いてある size ではそちらが実効の
-    // 上限になる。ここで見るのは、高さを書かない size が1つ増えたときの受け皿が
+    // 上限になる。ここで見るのは、高さを書かない size が1つ増えたときのフォールバックが
     // あること。無ければカードが内容の高さまで伸び、overlay を超えて帯に載る
     const base = cardDeclarations.filter(
       ({ selector, prop, unconditional }) =>
@@ -333,7 +333,7 @@ describe("モーダルの overlay とタイトルバー", () => {
   it("カードの高さ指定が必ず overlay の内容ボックスで頭打ちになる", () => {
     // `align-items: center` は不足分を上下対称にはみ出させるので、viewport 基準の
     // 高さを書くと overlay がタイトルバーの分だけ低いことを無視してカードが帯に載る。
-    // `min-height` は `max-height` を上書きする（CSS 2.1 §10.7）ので同じ枠で見る
+    // `min-height` は `max-height` を上書きする（CSS 2.1 §10.7）ので同じ区分で見る
     const unbounded = cardDeclarations
       .filter(({ prop }) => /^(min-|max-)?height$/.test(prop))
       .filter(({ value }) => !isBounded(value));
@@ -346,7 +346,7 @@ describe("モーダルの overlay とタイトルバー", () => {
         "カードが上へはみ出して帯を覆い、下へはみ出して画面外に出る。",
         "`100%` / `auto` / `0`、`100%` を引数に持つ `min()`、",
         "第1引数がゼロで第3引数が `100%` の `clamp()` が上限として効く。",
-        "`clamp()` の下限が非ゼロだと器を超えうるので、`min(…, 100%)` に書き換えること。",
+        "`clamp()` の下限が非ゼロだとカードを超えうるので、`min(…, 100%)` に書き換えること。",
         "`max(…, 100%)` や `calc(100% + …)`、`none` は上限にならない。",
       ].join("\n"),
     ).toEqual([]);
@@ -362,7 +362,7 @@ describe("モーダルの overlay とタイトルバー", () => {
       [
         "モーダルの中身の高さは、ビューポートでなくカードを基準にすること。",
         "`height` / `min-height` を `vh` で決めるなら、同じ規則に",
-        "`max-height: 100%` のような器に対する頭打ちを添える。",
+        "`max-height: 100%` のようなカードに対する頭打ちを添える。",
         "`max-height` だけを `vh` で書くのは要素を大きくしないので対象外。",
       ].join("\n"),
     ).toEqual([]);
@@ -373,20 +373,20 @@ describe("モーダルの overlay とタイトルバー", () => {
  * 通知の層とモーダルの overlay の重なり順。
  *
  * **通知が下だと、モーダルを開いている間に出た失敗が届かない。** overlay は
- * 全面に `backdrop-filter` と半透明の面を持つので、下にある帯はぼけて読めず、
+ * 全面に `backdrop-filter` と半透明の背景を持つので、下にある帯はぼけて読めず、
  * その動作を押したつもりのクリックは overlay に当たって**モーダルごと閉じる**
- * （編集中の入力が消える）。いちばん出したい段（`banner` には `fatal` が載る）が
+ * （編集中の入力が消える）。いちばん出したい tier（`banner` には `fatal` が載る）が
  * いちばん隠れる。
  *
  * 上げても操作を塞がないのは、層が `pointer-events` を通知1枚ずつにしか
- * 持たないため。**その前提もここで一緒に見る**——層の面がクリックを受けるように
+ * 持たないため。**その前提もここで一緒に見る**——層そのものがクリックを受けるように
  * 戻すと、通知が1つも出ていなくてもアプリ全体が操作できなくなる。
  */
 describe("通知の層とモーダルの重なり", () => {
   const layer = zIndexOf(noticeLayerCss, ".notice-layer");
   const overlay = zIndexOf(modalCss, ".modal__overlay");
 
-  it("どちらも数に解ける段を1つだけ持っている", () => {
+  it("どちらも数に解ける z-index を1つだけ持っている", () => {
     expect(layer, "`.notice-layer` の z-index が1つに決まらない").not.toBeNull();
     expect(overlay, "`.modal__overlay` の z-index が1つに決まらない").not.toBeNull();
   });
@@ -398,12 +398,12 @@ describe("通知の層とモーダルの重なり", () => {
         `通知の層 ${layer} がモーダルの overlay ${overlay} より上に無い。`,
         "下にすると、モーダルを開いている間に出た失敗が overlay にぼかされて読めず、",
         "その動作を押したつもりのクリックが overlay に当たってモーダルごと閉じる。",
-        "段は `src/index.scss` の $z-notification / $z-modal。片方だけ直値に戻さないこと。",
+        "重なりの順は `src/index.scss` の $z-notification / $z-modal。片方だけ直値に戻さないこと。",
       ].join("\n"),
     ).toBe(true);
   });
 
-  it("層の面そのものはクリックを通す", () => {
+  it("層そのものはクリックを通す", () => {
     const values = declarationsFor(noticeLayerCss, ".notice-layer")
       .filter(({ prop }) => prop === "pointer-events")
       .map(({ value }) => value.trim());
@@ -412,7 +412,7 @@ describe("通知の層とモーダルの重なり", () => {
       values,
       [
         "`.notice-layer` が `pointer-events: none` を持っていない。",
-        "モーダルより上に置いてあるので、面がクリックを受けると",
+        "モーダルより上に置いてあるので、この層がクリックを受けると",
         "通知が1つも出ていなくてもアプリ全体が操作できなくなる。",
       ].join("\n"),
     ).toEqual(["none"]);

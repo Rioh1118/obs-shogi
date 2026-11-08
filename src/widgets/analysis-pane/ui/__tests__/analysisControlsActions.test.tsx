@@ -8,7 +8,7 @@ import type { EngineStatus } from "@/entities/analysis";
  * 操作列のボタンが、どの条件で何を呼ぶか。
  *
  * ▶ と ■ はエンジンへ届き、他のボタンは URL の `modal` と `pov` を書く。
- * 呼び先を取り違えると、押した人には「何も起きない」か「別の面が開く」としか見えない。
+ * 呼び先を取り違えると、押した人には「何も起きない」か「別のモーダルが開く」としか見えない。
  * 状態ごとに出すボタンの形は `analysisControlsStatus.test.tsx` が見る。
  */
 

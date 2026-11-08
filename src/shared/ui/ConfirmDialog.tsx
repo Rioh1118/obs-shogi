@@ -47,7 +47,7 @@ export default function ConfirmDialog({
         {subtitle && <p className="confirm-dialog__sub">{subtitle}</p>}
         {/* **実行中は「閉じても続く」と書く。** 走っている書き込みを止める経路は無い。
             「キャンセル」のまま出すと、押した人は止めたと信じて閉じ、削除はそのまま
-            完了する。画面に出るのは「枝が消えたこと」だけで、止まらなかったことは
+            完了する。画面に出るのは「変化が消えたこと」だけで、止まらなかったことは
             どこにも出ない。取り消せない操作の確認で一番まずい破れ方。 */}
         {isLoading && <p className="confirm-dialog__sub">閉じても、この操作は続きます。</p>}
         {/* 領域は常設する（空でも DOM に置く）。中身と同時に入れると VoiceOver が

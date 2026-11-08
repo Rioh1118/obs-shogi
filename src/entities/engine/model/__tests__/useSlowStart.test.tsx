@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 describe("起動が長引いたか", () => {
-  test("越えたら立ち、段を抜けたら倒れる", () => {
+  test("越えたら立ち、起動の段階を抜けたら倒れる", () => {
     vi.useFakeTimers();
     const view = renderHook(({ starting }) => useSlowStart(starting), {
       initialProps: { starting: true },

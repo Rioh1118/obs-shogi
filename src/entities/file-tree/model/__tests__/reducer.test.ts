@@ -41,7 +41,7 @@ function editing(): FileTreeState {
 describe("失敗を積んだとき", () => {
   // 開いたままにすると、失敗を伝える表示がその上に重なる。閉じる操作で入力が
   // blur すると同じ名前がもう一度送られ、また失敗する。閉じても戻ってくる
-  test("編集中の行を畳む", () => {
+  test("編集中の行を閉じる", () => {
     const next = reducer(editing(), { type: "error", payload: ERROR });
 
     expect(next.renamingNodeId).toBeNull();
@@ -73,8 +73,8 @@ describe("失敗を積んだとき", () => {
     expect(next.isLoading).toBe(false);
   });
 
-  // `conflict_opened` は同じ失敗経路の隣にいる。こちらは畳む側の先例
-  test("同名の衝突でも同じように畳む", () => {
+  // `conflict_opened` は同じ失敗経路の隣にいる。こちらは閉じる側の先例
+  test("同名の衝突でも同じように閉じる", () => {
     const next = reducer(editing(), {
       type: "conflict_opened",
       payload: {
@@ -115,7 +115,7 @@ describe("衝突の解決中に失敗したとき", () => {
   });
 
   // 別名での解決は「操作 → 読み直し → 対話を閉じる」の順で走るので、読み直しは
-  // 対話が開いたままの窓の中で終わる。ここで捨てると、ファイルはできていて
+  // 対話が開いている間に終わる。ここで捨てると、ファイルはできていて
   // ツリーは古いまま、失敗はどこにも出ないまま対話が成功として閉じる
   test("読み直しの失敗は捨てない", () => {
     const next = reducer(resolving(), { type: "reload_failed", payload: ERROR });
@@ -126,7 +126,7 @@ describe("衝突の解決中に失敗したとき", () => {
   });
 
   // 読み直しの失敗は操作の失敗ではないので、開いている入力欄を巻き添えにしない
-  test("読み直しの失敗では編集中の行を畳まない", () => {
+  test("読み直しの失敗では編集中の行を閉じない", () => {
     const opened = { ...resolving(), renamingNodeId: CHILD.id };
     const next = reducer(opened, { type: "reload_failed", payload: ERROR });
 

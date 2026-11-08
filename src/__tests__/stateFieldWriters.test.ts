@@ -73,7 +73,7 @@ function caseBlocks(source: string): Map<string, string> {
 /**
  * その `case` がこの欄を書くか。
  *
- * **`...initialGameState` は全部の欄を書く。** 展開する枝は、書かなかった欄を
+ * **`...initialGameState` は全部の欄を書く。** 展開する分岐は、書かなかった欄を
  * 初期値へ戻すという形で全部に触っている——`reset_state` が `loadedAbsPath` を
  * null へ戻すのはこの経路で、欄の名前は現れない。
  */
@@ -87,7 +87,7 @@ function writes(block: string, field: string): boolean {
 const reducerSource = readFileSync(join(REPO_ROOT, REDUCER), "utf8");
 
 describe("欄を動かす action の集合", () => {
-  test("reducer から引いた集合が、控えと一致する", () => {
+  test("reducer から引いた集合が、期待値と一致する", () => {
     const blocks = caseBlocks(reducerSource);
     expect(blocks.size, `${REDUCER} の case を読めていない`).toBeGreaterThan(5);
 

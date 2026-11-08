@@ -14,7 +14,7 @@ import { EditorHarness, renderSeeded } from "./harness";
  * 引き継ぎを間違えると「押しても何も変わらない」か「持ち主が飛ぶ」になる。
  */
 
-// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組むタブはファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),
@@ -38,7 +38,7 @@ const square = (x: number, y: number): HTMLElement => {
   return el;
 };
 
-/** 駒の絵から種類と先後を読む。`PieceImage` が付ける印を通す */
+/** 駒の絵から種類と先後を読む。`PieceImage` が付けるクラスを通す */
 const pieceAt = (x: number, y: number): string | null => {
   const el = square(x, y).querySelector<HTMLElement>(".piece");
   if (!el) return null;
@@ -88,7 +88,7 @@ describe("右クリックで裏返す", () => {
   });
 
   test("既定のメニューを止める", () => {
-    // 器の中に OS のメニューが開くと、その裏で局面が変わったのか分からなくなる
+    // モーダルの中に OS のメニューが開くと、その裏で局面が変わったのか分からなくなる
     render(<EditorHarness />);
     const stopped = fireEvent.contextMenu(square(7, 7));
     expect(stopped).toBe(false);

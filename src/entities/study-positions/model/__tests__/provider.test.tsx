@@ -87,7 +87,7 @@ afterEach(() => {
 });
 
 describe("読み込み", () => {
-  it("空白を落とし、タグの空と重複を畳んで載せる", async () => {
+  it("空白を落とし、タグの空と重複をまとめて載せる", async () => {
     const view = await mounted([
       stored("a", `  ${SFEN_A}  `, {
         label: " 題 ",

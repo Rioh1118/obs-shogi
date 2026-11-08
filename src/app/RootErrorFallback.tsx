@@ -24,13 +24,13 @@ type Props = Omit<ErrorFallbackBodyProps, "extraActions" | "afterAction">;
  * `RuntimeShell` の中に居るので、例外が root まで上がった時点で落ちている。
  * ドラッグ領域と閉じるボタンをこの画面が持たないと、利用者に残るのは強制終了だけになる。
  *
- * **`TitleBar` を再利用しない。** 枠そのものが落ちて root まで来た場合に、同じものを
- * 描き直せば同じ例外でこの画面も落ち、境界の外へ抜けて白い窓に戻る。同じ理由で
+ * **`TitleBar` を再利用しない。** ウィンドウ枠そのものが落ちて root まで来た場合に、同じものを
+ * 描き直せば同じ例外でこの画面も落ち、境界の外へ抜けて白いウィンドウに戻る。同じ理由で
  * `getCurrentWindow()` はレンダで呼ばず押されたときだけ呼ぶ。Tauri の API が
  * 使えなくてもドラッグ領域は生き、ウィンドウを動かすことはできる。
  *
  * 帯の高さ・閉じるボタンの大きさ・色・帯の塗りは `TitleBar` と同じトークンから取る。落ちた瞬間に
- * 掴める領域が伸び縮みしたり赤の色味が変わったりすると、同じ窓の同じボタンだと分からなくなる。
+ * 掴める領域が伸び縮みしたり赤の色味が変わったりすると、同じウィンドウの同じボタンだと分からなくなる。
  * 避けているのは部品の再利用で、スタイルは共有する。スタイルは `App.tsx` と同じ塊に載るので、
  * この画面が描けている時点で読めている。
  *
@@ -39,7 +39,7 @@ type Props = Omit<ErrorFallbackBodyProps, "extraActions" | "afterAction">;
  *
  * 閉じられなかったことは `shared/lib/notification` を通さず、この画面が自分で描く。
  * 通知は `BootstrapProviders` の `NotificationLayer` が描くので、root の境界が受けている間は
- * 一緒に畳まれていて出てこない。
+ * 一緒に unmount されていて出てこない。
  */
 export function RootErrorFallback(view: Props) {
   // 握って黙ると「押しても何も起きないボタン」になる。この画面は他に手段が無いときの

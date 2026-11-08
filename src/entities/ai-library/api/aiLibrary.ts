@@ -26,7 +26,7 @@ export type Launchability =
   | "wrongPlatform";
 
 export type EngineCandidate = {
-  /** `engines/` からの相対。1段下のフォルダなら `<フォルダ>/<ファイル>`、開けないフォルダは `<フォルダ>/` */
+  /** `engines/` からの相対。1階層下のフォルダなら `<フォルダ>/<ファイル>`、開けないフォルダは `<フォルダ>/` */
   entry: string;
   /** 絶対パス */
   path: string;

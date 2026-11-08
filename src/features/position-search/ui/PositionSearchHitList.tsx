@@ -94,8 +94,8 @@ export default function PositionSearchHitList({
   const rootDir = config?.root_dir ?? null;
   const currentAbs = gameState.loadedAbsPath ?? null;
 
-  // 相対パスの控えはルートごとに作り直す。ルートと同じ描画で入れ替えないと、行が前のルートからの
-  // 相対パスを読み続ける。控えるのは、行が画面に入るたびに同じパスを組み直すため
+  // 相対パスのキャッシュはルートごとに作り直す。ルートと同じ描画で入れ替えないと、行が前のルートからの
+  // 相対パスを読み続ける。キャッシュするのは、行が画面に入るたびに同じパスを組み直すため
   const relPathOf = useMemo(() => {
     const rels = new Map<string, string>();
     return (absPath: string) => {
@@ -154,7 +154,7 @@ export default function PositionSearchHitList({
         </div>
       )}
 
-      {/* listbox は行を実際に収めている器（＝スクロールする要素）に置く。
+      {/* listbox は行を実際に収めているコンテナ（＝スクロールする要素）に置く。
           包む div に置くと、行とのあいだに要素が挟まって option の持ち主でなくなる */}
       <VirtualList<HitRowProps>
         className="pos-search__listVirtual"

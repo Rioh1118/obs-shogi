@@ -10,8 +10,8 @@ import type { CursorPath, ForkPointer } from "@/entities/kifu/model/cursor";
 import { countMovesToDelete, deleteBranchInKifu, swapBranchesInKifu } from "../branchEdit";
 
 /**
- * 分岐編集は `forks` の形しか見ないので、指し手の中身は区別が付く印で足りる。
- * 印は `comments` に入れる（`move` を持たせると tsshogi の検証が要る）。
+ * 分岐編集は `forks` の形しか見ないので、指し手の中身は区別が付く目印で足りる。
+ * 目印は `comments` に入れる（`move` を持たせると tsshogi の検証が要る）。
  */
 function mv(tag: string, forks?: JKFMove[][]): JKFMove {
   return forks ? { comments: [tag], forks } : { comments: [tag] };
@@ -296,7 +296,7 @@ describe("空の変化", () => {
 describe("同じ手数の入れ子の変化", () => {
   test("持ち上げて平坦にしてから書き戻す", () => {
     // 変化の先頭がさらに forks を持つ形は「同じ手数の別候補」なので、
-    // 候補配列では兄弟に並ぶ。平坦化を忘れると入れ替えが1段目にしか効かない。
+    // 候補配列では兄弟に並ぶ。平坦化を忘れると入れ替えが入れ子の1階層目にしか効かない。
     const kifu: JKFData = {
       header: {},
       moves: [mv("root"), mv("t1"), mv("main2", [[mv("f0", [[mv("g0")]])]])],
@@ -359,7 +359,7 @@ describe("cursor の forkPointers が正規化されていないとき", () => {
   });
 });
 
-/** JKF 全体の手数。`forks` の中も数える。照合側が1段しか見ないと入れ子の差を見逃す */
+/** JKF 全体の手数。`forks` の中も数える。照合側が1階層しか見ないと入れ子の差を見逃す */
 function countAll(moves: JKFMove[] | undefined): number {
   return (moves ?? []).reduce(
     (n, m) => n + 1 + (m.forks ?? []).reduce((s, f) => s + countAll(f), 0),

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { MemoryRouter, Route, Routes, useLocation, useNavigationType } from "react-router";
 
 /**
- * 起動してから作業面に着くまでの行き先。
+ * 起動してから作業画面に着くまでの行き先。
  *
  * 設定を読んでいる間は起動画面、根が無ければフォルダの選択、根があれば `/app` の
  * `panel/filetree`。どれを踏み外しても例外は出ず、別の画面に着くか、戻るで
@@ -115,7 +115,7 @@ describe("起動の画面", () => {
     expect(screen.getByTestId("layout").contains(screen.getByTestId("filetree"))).toBe(true);
   });
 
-  test("フォルダを選べたら、履歴を積まずに作業面へ移る", async () => {
+  test("フォルダを選べたら、履歴を積まずに作業画面へ移る", async () => {
     state.config = { root_dir: null };
     chooseRootDir.mockResolvedValue("/ws");
     mountApp("/");
@@ -140,7 +140,7 @@ describe("起動の画面", () => {
     expect(at.pathname).toBe("/");
   });
 
-  test("設定が読めなかった画面でも、選べたら作業面へ移る", async () => {
+  test("設定が読めなかった画面でも、選べたら作業画面へ移る", async () => {
     state.error = "設定の読み込みに失敗しました";
     chooseRootDir.mockResolvedValue("/ws");
     mountApp("/");
@@ -153,7 +153,7 @@ describe("起動の画面", () => {
   });
 });
 
-describe("作業面の前の確かめ", () => {
+describe("作業画面の前の確かめ", () => {
   function mountGuard() {
     return render(
       <MemoryRouter initialEntries={["/app"]}>

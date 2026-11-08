@@ -31,7 +31,7 @@ function Board() {
     resolve: (promote: boolean) => void;
   } | null>(null);
 
-  // 待っている間に別の操作で局面が動いたら、選択肢と選択を畳む。見るのは手数だけ
+  // 待っている間に別の操作で局面が動いたら、選択肢と選択を消す。見るのは手数だけ
   useEffect(() => {
     if (pendingPromotion && shogi) {
       const currentTesuu = view.player?.tesuu || 0;

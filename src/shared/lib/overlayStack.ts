@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef } from "react";
  *
  * Escape とフォーカスの閉じ込めは**最上位の1つだけ**が扱う。
  * 1つずつ独立に `window` へ `keydown` を張ると、1回の Escape で重なっている全部が閉じる。
- * `preventDefault()` は伝播を止めないので、キャプチャ段で処理しても相手に届く。
+ * `preventDefault()` は伝播を止めないので、キャプチャフェーズで処理しても相手に届く。
  * フォーカスの閉じ込めを独立させると、2枚が互いに奪い返し、`focus()` が同期でイベントを撒き続ける。
  *
  * 鍵は要素でなくトークン。DOM を持たない重なり（`ContextMenu`、付箋）も同じ順序に載せられる。

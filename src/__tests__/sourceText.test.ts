@@ -75,7 +75,7 @@ describe("codeOf（shell）", () => {
   });
 
   // **2行目以降の、字下げの無い行頭。** hooks の行頭コメント224行のうち198行がこの形
-  // （残り26行は字下げがあるので `[ \t]` 枝）。ここが落ちないと消した名前が
+  // （残り26行は字下げがあるので `[ \t]` の分岐）。ここが落ちないと消した名前が
   // corpus に残って「実在する」に戻る。
   // しかも壊れる向きは「消し足りない」側で、`missingIdentifiers` は黙って緑になる
   test("行頭の `#` は2行目以降でも落とす", () => {
@@ -197,7 +197,7 @@ describe("commentsOf", () => {
     expect(commentsOf("/** 説明 */ const FOO_BAR = 1;\n")).not.toContain("FOO_BAR");
   });
 
-  // **シェルの枝も固定する。** 丸ごと空を返す変異は、`.md` の取り分だけで
+  // **シェルの分岐も固定する。** 丸ごと空を返す変異は、`.md` の取り分だけで
   // 下限を越えるので `srcCommentIdentifiers` では赤くならない
   test("シェルの行コメントを拾う", () => {
     expect(commentsOf("needs_ts=1  # `FOO_BAR` のこと\n", "shell")).toContain("FOO_BAR");

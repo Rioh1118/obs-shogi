@@ -226,7 +226,7 @@ describe("フォルダの行", () => {
     expect(tree.toggleNode).not.toHaveBeenCalled();
   });
 
-  test("子は1段深く描かせる", () => {
+  test("子は1階層深く描かせる", () => {
     const renderChild = vi.fn((child: FileTreeNode) => <div key={child.path}>{child.name}</div>);
     inDnd(<DirectoryNode node={DIR} level={1} renderChild={renderChild} />);
 
@@ -270,7 +270,7 @@ describe("フォルダの行", () => {
 describe("ルートの行", () => {
   const renderRoot = () => inDnd(<RootNode node={ROOT} />);
 
-  test("押すと畳み、もう一度押すと開く", () => {
+  test("押すと折りたたみ、もう一度押すと開く", () => {
     renderRoot();
 
     expect(screen.getByText("研究")).toBeTruthy();
@@ -280,7 +280,7 @@ describe("ルートの行", () => {
     expect(screen.getByText("研究")).toBeTruthy();
   });
 
-  test("改名の最中は押しても畳まない", () => {
+  test("改名の最中は押しても折りたたまない", () => {
     tree.renamingNodeId = ROOT.id;
     renderRoot();
 
@@ -330,7 +330,7 @@ describe("ルートの行", () => {
     expect(tree.createNewDirectory).toHaveBeenCalledWith("/ws", "新しい");
   });
 
-  test("畳んでいる間は作成の行を出さない", () => {
+  test("折りたたんでいる間は作成の行を出さない", () => {
     tree.creatingDirParentPath = ROOT.path;
     renderRoot();
 

@@ -5,7 +5,7 @@ type Inputs = {
   status: EngineStatus;
   analysis: Pick<AnalysisState, "isAnalyzing" | "candidates" | "analyzedSfen">;
   currentSfen: string | null;
-  /** いまの局面の控えを引く。**読まない枝では呼ばない** */
+  /** いまの局面のキャッシュを引く。**読まない分岐では呼ばない** */
   lookupCached: () => readonly AnalysisCandidate[];
 };
 
@@ -14,7 +14,7 @@ type Inputs = {
  * （`docs/spec/features/engine-standardization.md` の「候補手の見え方」）。
  *
  * **読んでいる間は生の結果だけを出す。** 局面を切り替えている間は、新しい候補手が届くまで
- * 空にする（控えを出すと、読み始めた結果と入れ替わって飛ぶ）。
+ * 空にする（キャッシュを出すと、読み始めた結果と入れ替わって飛ぶ）。
  */
 export function visibleCandidatesOf({
   status,

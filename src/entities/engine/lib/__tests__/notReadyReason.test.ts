@@ -4,7 +4,7 @@ import { notReadyReasonOf } from "../notReadyReason";
 const CHOSEN = { chosen: true, presetIncomplete: false, failureKind: null };
 
 describe("notReadyReasonOf", () => {
-  test("選んでいなければ、段や失敗によらず no-engine", () => {
+  test("選んでいなければ、phase や失敗によらず no-engine", () => {
     expect(
       notReadyReasonOf({
         chosen: false,
@@ -41,7 +41,7 @@ describe("notReadyReasonOf", () => {
     expect(notReadyReasonOf({ ...CHOSEN, phase: "error", failureKind: "timedOut" })).toBe("failed");
   });
 
-  test("段が error でなければ、残った失敗の種類を見ない", () => {
+  test("phase が error でなければ、残った失敗の種類を見ない", () => {
     expect(notReadyReasonOf({ ...CHOSEN, phase: "exited", failureKind: "cancelled" })).toBe(
       "failed",
     );

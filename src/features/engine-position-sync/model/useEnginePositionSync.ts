@@ -114,7 +114,7 @@ export function useEnginePositionSync(): PositionSyncAdapter {
           //
           // NotInitialized も他の失敗と区別しない。ここへ来る時点で isReady は必ず true
           // （false なら送信前に保留して返している）ので、これはフロント側の準備完了判定が
-          // 実態とずれている印であり、ready の再遷移を待っても来ない。
+          // 実態とずれている兆候であり、ready の再遷移を待っても来ない。
           failure = e;
           continue;
         }

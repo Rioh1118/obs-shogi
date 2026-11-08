@@ -33,7 +33,7 @@ describe("withDefinitions", () => {
     expect(next.reservedNames).toEqual(OUTCOME.reserved);
     expect(next.probedAt).toBe("2026-09-27T00:00:00Z");
     expect([next.engineName, next.engineAuthor]).toEqual(["A", "x"]);
-    // この関数は値に触らない（値を定義に当てるのは別の段）
+    // この関数は値に触らない（値を定義に当てるのは別の段階）
     expect(next.options).toEqual({ Threads: "999" });
   });
 

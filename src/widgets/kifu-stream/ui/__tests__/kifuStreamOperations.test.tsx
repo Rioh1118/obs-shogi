@@ -6,10 +6,10 @@ import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 import type { DeleteQuery, SwapQuery } from "@/entities/kifu/model/branch";
 
 /**
- * 棋譜の一覧から呼ぶ操作が、どの手のどの枝に向けて呼ばれるか。
+ * 棋譜の一覧から呼ぶ操作が、どの手のどの変化に向けて呼ばれるか。
  *
- * 入れ替えと削除は棋譜ファイルへすぐ書き込み、取り消しが無い。押した行と違う枝へ
- * 渡ると、利用者が確認した枝とは別の変化が消える。
+ * 入れ替えと削除は棋譜ファイルへすぐ書き込み、取り消しが無い。押した行と違う変化へ
+ * 渡ると、利用者が確認した変化とは別の変化が消える。
  */
 
 /** 本譜3手。2手目に変化が1本 */
@@ -111,7 +111,7 @@ vi.mock("@/entities/game", async (importActual) => {
 
 vi.mock("@/shared/lib/overlayStack", async (importActual) => {
   const actual = await importActual<typeof import("@/shared/lib/overlayStack")>();
-  // 返すのは「自分が最上位か」を答える関数。Escape は最上位の面だけが受ける
+  // 返すのは「自分が最上位か」を答える関数。Escape は最上位のサーフェスだけが受ける
   const mocked = { ...actual, useOverlayLayer: () => () => overlay.isTop };
   return mocked satisfies typeof import("@/shared/lib/overlayStack");
 });
@@ -339,7 +339,7 @@ describe("分岐の操作", () => {
     expect(within(last).getByRole("menuitem", { name: "下へ" })).toHaveProperty("disabled", true);
   });
 
-  test("変化を上へ動かすと、その変化と1つ上の枝を入れ替える", async () => {
+  test("変化を上へ動かすと、その変化と1つ上の変化を入れ替える", async () => {
     await mount();
     const actions = await openForkActions(1);
 
@@ -512,7 +512,7 @@ describe("削除の確認", () => {
   });
 });
 
-describe("開く面は1つだけ", () => {
+describe("開くサーフェスは1つだけ", () => {
   test("分岐メニューを開くと、行の操作とノートを閉じる", async () => {
     await mount();
     await click(within(rowOf(1)).getByTitle(/コメントを(開く|追加)/));
@@ -611,7 +611,7 @@ describe("行の操作", () => {
     expect(screen.queryByRole("menu", { name: "3手目の操作" })).toBeNull();
   });
 
-  test("面の外を押すと閉じる", async () => {
+  test("サーフェスの外を押すと閉じる", async () => {
     await mount();
     await act(async () => {
       fireEvent.contextMenu(rowOf(3));
@@ -645,7 +645,7 @@ describe("分岐メニューの閉じ方", () => {
     expect(screen.queryByRole("menu", { name: "2手目の分岐" })).toBeNull();
   });
 
-  test("上に別の面が重なっている間は Escape を受けない", async () => {
+  test("上に別のサーフェスが重なっている間は Escape を受けない", async () => {
     await mount();
     await openForkMenu();
     overlay.isTop = false;
@@ -693,8 +693,8 @@ describe("分岐メニューの閉じ方", () => {
     expect(screen.queryByRole("menu", { name: "分岐の操作" })).toBeNull();
   });
 
-  /** 操作の面は開いたときの行の横に置くので、流すと別の行の横に残る */
-  test("メニューを流すと操作の面を閉じる", async () => {
+  /** 操作のサーフェスは開いたときの行の横に置くので、流すと別の行の横に残る */
+  test("メニューを流すと操作のサーフェスを閉じる", async () => {
     await mount();
     await openForkActions(1);
 

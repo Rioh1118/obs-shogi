@@ -32,7 +32,7 @@ vi.mock("@/entities/analysis/api/tauri", () => ({
   isAnalysisStartUnreachable: (e: unknown) => (e as { unreachable?: boolean }).unreachable === true,
 }));
 // エンジンの状態。**理由を決めるのは engine 側**（`EngineNotReadyReason`）なので、
-// 断りを枝ごとに見るテストはその理由を動かす。
+// 断りを分岐ごとに見るテストはその理由を動かす。
 let engine = {
   isReady: true,
   notReadyReason: null as "no-engine" | "starting" | "failed" | "cancelled" | null,
@@ -461,7 +461,7 @@ describe("AnalysisProvider の結果の照合", () => {
     });
     await advance(150);
 
-    // ここで `session-1` の遅れた `info` が届く。覚えているのが1枠だと、
+    // ここで `session-1` の遅れた `info` が届く。覚えているのが1件だけだと、
     // `session-2` に上書きされていて `session-1` が通る。
     await act(async () => {
       listeners?.onUpdate("session-1", oneCandidate);
@@ -491,7 +491,7 @@ describe("AnalysisProvider の結果の照合", () => {
       await view.setSync(adapter("P1", null));
       await advance(50);
 
-      // 席が返ってくる。Rust は畳む前に席を全部空けるので、この席は死んでいる。
+      // 席が返ってくる。Rust はエンジンを落とす前に席を全部空けるので、この席は死んでいる。
       await act(async () => {
         releaseStart("s1");
       });
@@ -548,12 +548,12 @@ describe("AnalysisProvider の結果の照合", () => {
       expect(startCore).toHaveBeenCalledTimes(1);
 
       // 設定でエンジンのオプションを変えて保存した回。**この画面の断りが案内している操作。**
-      // Rust は畳む前に席を全部空けるので、こちらが握っている席はもう無い。
+      // Rust はエンジンを落とす前に席を全部空けるので、こちらが握っている席はもう無い。
       engine = { isReady: false, notReadyReason: "starting" };
       await view.setSync(adapter("P1", null));
       await advance(50);
 
-      // 戻ってくる。投げ済みの印を捨てていないと、**「解析中」の表示のまま数字が
+      // 戻ってくる。投げ済みのフラグを捨てていないと、**「解析中」の表示のまま数字が
       // 一切動かない**（席は死んだまま握られ、断りも出ない）。
       engine = { isReady: true, notReadyReason: null };
       await view.setSync(adapter("P1", "P1"));
@@ -616,8 +616,8 @@ describe("AnalysisProvider の結果の照合", () => {
     SLOW,
   );
 
-  // **席が返る回と、Rust が断る回は同じ窓に居る。** 畳んでいる最中のエンジンへの
-  // 開始は `Err` で返るので、起こし直しの窓は断られるほうが起きやすい。
+  // **席が返る回と、Rust が断る回は同じ区間に居る。** 落としている最中のエンジンへの
+  // 開始は `Err` で返るので、起こし直しの区間では断られるほうが起きやすい。
   it(
     "起こし直しの最中に自動再開が断られても、解析は止まらず戻ったら読み直す",
     async () => {
@@ -643,7 +643,7 @@ describe("AnalysisProvider の結果の照合", () => {
       await view.setSync(adapter("P2", null));
       await advance(50);
 
-      // 畳んでいる最中のエンジンは開始を `Err` で返す。
+      // 落としている最中のエンジンは開始を `Err` で返す。
       await act(async () => {
         rejectStart(new Error("engine is shutting down"));
       });
@@ -817,7 +817,7 @@ describe("AnalysisProvider の結果の照合", () => {
     await view.setSync(adapter("P3", "P2"));
     await advance(150);
 
-    // 応答待ちの窓で `s2` の最初の `info` が届く（席が欄に入るより早いので通る）。
+    // 応答待ちの区間で `s2` の最初の `info` が届く（席が欄に入るより早いので通る）。
     // 間引きのタイマーが起きる前に応答が返り、その席は捨てられる。
     await act(async () => {
       listeners?.onUpdate("s2", oneCandidate);
@@ -830,7 +830,7 @@ describe("AnalysisProvider の結果の照合", () => {
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
-  // **席が返ってきて捨てる回と、Rust に断られる回は同じ窓に居る。** 後始末が枝で割れると、
+  // **席が返ってきて捨てる回と、Rust に断られる回は同じ区間に居る。** 後始末が分岐で割れると、
   // 断られた側だけが反映待ちを落とし忘れる。
   it("開始が断られた回も、反映待ちを残さない", async () => {
     tauri = true;
@@ -866,11 +866,11 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(150);
 
     // 残すと、死んだエンジンの読み筋が「解析中」の表示のまま commit される
-    // （この枝は `stop_analysis` を dispatch しないので `isAnalyzing` は true のまま）。
+    // （この分岐は `stop_analysis` を dispatch しないので `isAnalyzing` は true のまま）。
     expect(view.current.state.candidates).toHaveLength(0);
   });
 
-  // **間引きの1周期を跨がせる。** 枠を落とす形の後始末は、落とす前に
+  // **間引きの1周期を跨がせる。** 反映待ちを落とす形の後始末は、落とす前に
   // タイマーが起きた回を守れない——着地が遅い回だけが素通りする。
   it("席が着くのが間引きより遅くても、捨てた席の結果は出さない", async () => {
     tauri = true;
@@ -973,7 +973,7 @@ describe("AnalysisProvider の結果の照合", () => {
         await view.current.startInfiniteAnalysis();
       });
 
-      // 自動再開の返却を往復の途中で止める。**札を取るのはこの後。**
+      // 自動再開の返却を往復の途中で止める。**要求の番号を取るのはこの後。**
       let releaseStop: () => void = () => {};
       stopCore.mockImplementationOnce(
         () =>
@@ -988,7 +988,7 @@ describe("AnalysisProvider の結果の照合", () => {
       engine = { isReady: false, notReadyReason: "starting" };
       await view.setSync(adapter("P2", "P2"));
 
-      // 畳んでいる最中のエンジンへの開始は Rust が断る。
+      // 落としている最中のエンジンへの開始は Rust が断る。
       startCore.mockRejectedValueOnce(new Error("engine is shutting down"));
       await act(async () => {
         releaseStop();
@@ -1135,7 +1135,7 @@ describe("AnalysisProvider の結果の照合", () => {
     await advance(150);
 
     // 追い越された席を捨てにいくが、停止が落ちる。席の欄が空なので握り直される
-    // ——Rust にまだ居るなら、畳まれたときに返しにいけるように。
+    // ——Rust にまだ居るなら、unmount されたときに返しにいけるように。
     // 握り直した席を返す次の停止は応答が返らない＝席を握ったままにする。
     stopCore.mockImplementation(() => new Promise<void>(() => {}));
     stopCore.mockRejectedValueOnce(new Error("stop failed"));
@@ -1596,7 +1596,7 @@ describe("AnalysisProvider の開始", () => {
       await view.current.stopAnalysis();
     });
 
-    // 盤を動かして ▶。新しい席の最初の `info` が届くまでの窓で、
+    // 盤を動かして ▶。新しい席の最初の `info` が届くまでの間に、
     // 消さないと **P1 の評価値と読み筋が P2 の解析結果として出る**
     // ——`AnalysisPane` はその間に P2 の鍵でキャッシュへ焼き付ける。
     startCore.mockResolvedValueOnce("session-2");
@@ -1752,7 +1752,7 @@ describe("AnalysisProvider の開始", () => {
 
     stopCore.mockClear();
 
-    // 棋譜を閉じた。provider は畳まれないが、ペインごと消えるので ▶ も ■ も無くなる。
+    // 棋譜を閉じた。provider は unmount されないが、ペインごと消えるので ▶ も ■ も無くなる。
     await view.setSync(adapter(null, null));
     await advance(50);
 
@@ -1805,7 +1805,7 @@ describe("AnalysisProvider の開始", () => {
 });
 
 describe("AnalysisProvider のアンマウント", () => {
-  it("後ろに並んだ返却が飛んでいる間は、畳まれても指さない停止を撃たない", async () => {
+  it("後ろに並んだ返却が飛んでいる間は、unmount されても指さない停止を撃たない", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
     await act(async () => {
       await view.current.startInfiniteAnalysis();
@@ -1839,7 +1839,7 @@ describe("AnalysisProvider のアンマウント", () => {
     });
     expect(stopCore).toHaveBeenCalledTimes(2);
 
-    // 2本目が飛んでいる最中に畳まれる。指さない停止は席を全部空けるので、
+    // 2本目が飛んでいる最中に unmount される。指さない停止は席を全部空けるので、
     // 重ねると、開始の応答を待っている席まで止める。
     view.unmount();
     await advance(50);
@@ -1851,7 +1851,7 @@ describe("AnalysisProvider のアンマウント", () => {
   });
 
   it(
-    "畳んだ後に捨てる停止が落ちて席が戻ってきたら、その席も返す",
+    "unmount した後に捨てる停止が落ちて席が戻ってきたら、その席も返す",
     async () => {
       tauri = true;
       startCore.mockResolvedValueOnce("s1");
@@ -1888,7 +1888,7 @@ describe("AnalysisProvider のアンマウント", () => {
       });
       await advance(150);
 
-      // 捨てる停止が飛んでいる最中に畳まれる。ここで席の欄は空。
+      // 捨てる停止が飛んでいる最中に unmount される。ここで席の欄は空。
       stopCore.mockClear();
       view.unmount();
       await advance(50);
@@ -1908,11 +1908,11 @@ describe("AnalysisProvider のアンマウント", () => {
   );
 
   it(
-    "畳まれた後に着地した席の停止が落ちても、その席を返し直す",
+    "unmount された後に着地した席の停止が落ちても、その席を返し直す",
     async () => {
       tauri = true;
 
-      // ▶ の開始を往復の途中で止める。**着地するのは畳んだ後。**
+      // ▶ の開始を往復の途中で止める。**着地するのは unmount した後。**
       let releaseStart: (sessionId: string) => void = () => {};
       startCore.mockImplementationOnce(
         () =>
@@ -1925,7 +1925,7 @@ describe("AnalysisProvider のアンマウント", () => {
       const pressed = view.current.startInfiniteAnalysis().catch(() => {});
       await advance(50);
 
-      // 畳まれた時点で席の欄は空。飛んでいる停止も無い。
+      // unmount した時点で席の欄は空。飛んでいる停止も無い。
       stopCore.mockClear();
       view.unmount();
       await advance(50);
@@ -1961,8 +1961,8 @@ describe("AnalysisProvider のアンマウント", () => {
       tauri = true;
       startCore.mockResolvedValueOnce("s1");
 
-      // **畳んでいない。** StrictMode が setup → cleanup → setup を走らせるだけ。
-      // 畳んだ印を setup で戻さないと、以後この画面は「畳まれた」ものとして扱われる。
+      // **unmount していない。** StrictMode が setup → cleanup → setup を走らせるだけ。
+      // unmount したフラグを setup で戻さないと、以後この画面は「unmount された」ものとして扱われる。
       const view = mountAnalysis(adapter("P1", "P1"), { strict: true });
       await act(async () => {
         await view.current.startInfiniteAnalysis();
@@ -1995,7 +1995,7 @@ describe("AnalysisProvider のアンマウント", () => {
     SLOW,
   );
 
-  it("解析中に畳まれたら、エンジンのセッションを返す", async () => {
+  it("解析中にunmount されたら、エンジンのセッションを返す", async () => {
     const view = mountAnalysis(adapter("P1", "P1"));
 
     await act(async () => {
@@ -2007,7 +2007,7 @@ describe("AnalysisProvider のアンマウント", () => {
     view.unmount();
 
     // 返さないと Rust の `active_sessions` に席が残り、以降どの解析も
-    // 「Analysis already running」で断られる。エンジンを畳み直すまで戻れない。
+    // 「Analysis already running」で断られる。エンジンを起動し直すまで戻れない。
     expect(stopCore).toHaveBeenCalledTimes(1);
 
     // 指さない理由は `docs/state-transitions/analysis.md` ※12。ここで見るのは
@@ -2015,7 +2015,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledWith(undefined, "unmount");
   });
 
-  it("同期待ちの最中に畳まれたら、待つのをやめる", async () => {
+  it("同期待ちの最中にunmount されたら、待つのをやめる", async () => {
     const view = mountAnalysis(adapter("P1", null));
 
     let settled = false;
@@ -2027,16 +2027,16 @@ describe("AnalysisProvider のアンマウント", () => {
 
     view.unmount();
 
-    // **上限に届かないうちに見る**（畳んだら待つのをやめる）。合計を上限の半分より
+    // **上限に届かないうちに見る**（unmount したら待つのをやめる）。合計を上限の半分より
     // 十分下に置くこと——半分まで使うと、遅い機械では抜けていない回まで緑になる。
     await advance(limitMs() * 0.2);
 
-    // 抜けないと、畳まれた画面のために `syncedSfen` を上限いっぱい見続ける。
+    // 抜けないと、unmount された画面のために `syncedSfen` を上限いっぱい見続ける。
     expect(settled).toBe(true);
     expect(startCore).not.toHaveBeenCalled();
   });
 
-  it("席を受け取った直後、state に載る前に畳まれても、席を返す", async () => {
+  it("席を受け取った直後、state に載る前にunmount されても、席を返す", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockImplementation(
       () =>
@@ -2054,8 +2054,8 @@ describe("AnalysisProvider のアンマウント", () => {
     stopCore.mockClear();
 
     // **`act` で包まない。** 包むと effect が流れて `state` の写しが更新され、
-    // 見たい窓——dispatch と unmount が同じバッチに入り、写しが一度も
-    // 更新されないまま畳まれる回——を踏めなくなる。
+    // 見たい区間——dispatch と unmount が同じバッチに入り、写しが一度も
+    // 更新されないままunmount される回——を踏めなくなる。
     releaseStart("session-late");
     await Promise.resolve();
 
@@ -2066,7 +2066,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalled();
   });
 
-  it("返せなかった席を握り直して、畳まれたときにもう一度返す", async () => {
+  it("返せなかった席を握り直して、unmount されたときにもう一度返す", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockImplementation(
       () =>
@@ -2098,7 +2098,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledTimes(1);
   });
 
-  it("解析していないまま畳まれたら、停止を撃たない", async () => {
+  it("解析していないままunmount されたら、停止を撃たない", async () => {
     // StrictMode は mount 直後に setup → cleanup → setup を走らせる。
     // ここで撃つと、席を持っていないのに停止が飛ぶ。
     const view = mountAnalysis(adapter("P1", "P1"), { strict: true });
@@ -2108,7 +2108,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).not.toHaveBeenCalled();
   });
 
-  it("開始の応答が畳まれた後に返ってきたら、その席を返す", async () => {
+  it("開始の応答がunmount された後に返ってきたら、その席を返す", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockImplementation(
       () =>
@@ -2123,7 +2123,7 @@ describe("AnalysisProvider のアンマウント", () => {
     void view.current.startInfiniteAnalysis();
     await advance(50);
 
-    // 畳んだ時点ではまだ席を握っていない（開始の応答が返っていない）。
+    // unmount した時点ではまだ席を握っていない（開始の応答が返っていない）。
     // 後始末は席の判定で止まる。
     view.unmount();
     stopCore.mockClear();
@@ -2137,7 +2137,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(stopCore).toHaveBeenCalledWith("session-late", "late-start");
   });
 
-  it("再開の開始が畳まれた後に返ってきたら、その席を返す", async () => {
+  it("再開の開始がunmount された後に返ってきたら、その席を返す", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockResolvedValueOnce("session-1");
     startCore.mockImplementation(
@@ -2164,7 +2164,7 @@ describe("AnalysisProvider のアンマウント", () => {
     });
     await advance(50);
 
-    // 畳んだ時点で握っている席は無い——古い方は再開が先に返している。
+    // unmount した時点で握っている席は無い——古い方は再開が先に返している。
     // 後始末は席の判定で止まるので、この席を返せるのはここだけ。
     expect(stopCore).toHaveBeenCalledWith("session-2", "late-restart");
   });
@@ -2188,12 +2188,12 @@ describe("AnalysisProvider のアンマウント", () => {
 
     view.unmount();
 
-    // 畳んだ時点の後始末（席を返す停止）は数に入れない。ここで見たいのは
+    // unmount した時点の後始末（席を返す停止）は数に入れない。ここで見たいのは
     // 「タイマーが後から動かないこと」だけ。
     stopCore.mockClear();
     await advance(200);
 
-    // 残っていると、畳まれた後にエンジンへ go を出し、window の無くなった
+    // 残っていると、unmount された後にエンジンへ go を出し、window の無くなった
     // テスト環境ではタイマー自身が投げる。
     expect(startCore).not.toHaveBeenCalled();
     expect(stopCore).not.toHaveBeenCalled();
@@ -2201,7 +2201,7 @@ describe("AnalysisProvider のアンマウント", () => {
 
   it("同じインスタンスに effect が張り直されても、自動再開は死なない", async () => {
     // StrictMode は setup → cleanup → setup を1つのインスタンスに走らせる。
-    // 畳まれた印を cleanup で立てるだけだと、そこで立った印が残る。
+    // unmount したフラグを cleanup で立てるだけだと、そこで立ったフラグが残る。
     const view = mountAnalysis(adapter("P1", "P1"), { strict: true });
 
     await act(async () => {
@@ -2218,9 +2218,9 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(view.current.state.isAnalyzing).toBe(true);
   });
 
-  it("停止の応答を待っている間に畳まれたら、そのまま go を出さない", async () => {
+  it("停止の応答を待っている間にunmount されたら、そのまま go を出さない", async () => {
     // **待たせている停止を1本ずつ持つ。** 変数1つに上書きしていくと、
-    // 畳んだときの後始末で撃たれる停止が同じ変数を奪い、下で解いているのが
+    // unmount したときの後始末で撃たれる停止が同じ変数を奪い、下で解いているのが
     // 「再開が待っている停止」でなくなる——再開は止まったままなので
     // テストは通り続けるが、見たかった経路は踏まなくなる。
     const pendingStops: Array<() => void> = [];
@@ -2254,7 +2254,7 @@ describe("AnalysisProvider のアンマウント", () => {
     expect(startCore).not.toHaveBeenCalled();
   });
 
-  it("再開の応答が畳まれた後に返っても、タイマーを張り直さない", async () => {
+  it("再開の応答がunmount された後に返っても、タイマーを張り直さない", async () => {
     let releaseStart: (sessionId: string) => void = () => {};
     startCore.mockResolvedValueOnce("session-1");
     startCore.mockImplementation(
@@ -2297,11 +2297,11 @@ describe("AnalysisProvider のアンマウント", () => {
 });
 
 /**
- * 控えを provider が持つことの要点は「読み手より長生きする」こと。
- * 控えそのものの振る舞いは `candidateCache.test.ts` が見る。
+ * キャッシュを provider が持つことの要点は「読み手より長生きする」こと。
+ * キャッシュそのものの振る舞いは `candidateCache.test.ts` が見る。
  */
-describe("AnalysisProvider が渡す候補手の控え", () => {
-  it("読み手が畳まれて作り直されても残る", () => {
+describe("AnalysisProvider が渡す候補手のキャッシュ", () => {
+  it("読み手が unmount されて作り直されても残る", () => {
     const seen: AnalysisContextType["candidateCache"][] = [];
 
     function Probe() {
@@ -2592,7 +2592,7 @@ describe("中断が届かなかった回", () => {
     await advance(waits().restartDebounceMs * 2);
     expect(view.current.state.isAnalyzing).toBe(false);
 
-    // 開き直して ▶。返却に答えが無いので検討の意思だけ残る。答えは同じ描画に畳まれ、`isReady` は動かない
+    // 開き直して ▶。返却に答えが無いので検討の意思だけ残る。答えは同じ描画にまとめられ、`isReady` は動かない
     stopCore.mockReset();
     stopCore.mockResolvedValueOnce("unanswered");
     stopCore.mockResolvedValue("stopped");

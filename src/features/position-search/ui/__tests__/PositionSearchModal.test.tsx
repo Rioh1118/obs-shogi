@@ -262,7 +262,7 @@ describe("PositionSearchModal のヒットを開く", () => {
    * 開き直すたびに1検索ぶん積み上がる（2026-09-07 の実測で、10万件なら 17.6MB）。
    * 捨てる関数（`clearSearch`）を呼ぶのはこの画面だけなので、ここが呼ばないと誰も呼ばない。
    */
-  test("画面を畳むとき、進行中の検索を取り下げたうえで結果も捨てる", async () => {
+  test("モーダルを unmount するとき、進行中の検索を取り下げたうえで結果も捨てる", async () => {
     const { unmount } = await renderWithHits();
 
     unmount();
@@ -272,12 +272,12 @@ describe("PositionSearchModal のヒットを開く", () => {
   });
 
   /**
-   * rid が分かるのは invoke が解決してから。それより先に畳まれると
+   * rid が分かるのは invoke が解決してから。それより先に unmount されると
    * `discardSearch` は rid を知らないので、取り下げも破棄も飛ばない。素通りさせると
    * Rust の検索は最後まで走り、閉じた画面が到着のたびに一覧を組み直し続ける
    * （2026-09-07 の実測で、n=100,000 のとき 19.4MB を抱える）
    */
-  test("rid が分かる前に畳まれても、解決した側が取り下げて捨てる", async () => {
+  test("rid が分かる前に unmount されても、解決した側が取り下げて捨てる", async () => {
     let settleLaunch!: (out: { status: "started"; requestId: number }) => void;
     searchPosition.mockImplementation(
       () => new Promise((resolve) => (settleLaunch = resolve as typeof settleLaunch)),
@@ -401,12 +401,12 @@ describe("PositionSearchModal のヒットを開く", () => {
   });
 
   /**
-   * 畳んで張り直す経路（StrictMode の二重マウント）。世代を進める3つ目の箇所は
+   * unmount して張り直す経路（StrictMode の二重マウント）。世代を進める3つ目の箇所は
    * 「進めるだけで撃ち直さない」ので、覚えている問い合わせを残すと張り直された
    * effect が早期 return し、**飛行中の起動を降ろす者が居なくなる**。
    * 検索は取り下げ済みなのに、画面は結果の来ない「検索中…」で固まる。
    */
-  test("畳んで張り直されても、「検索中…」で固まらない", async () => {
+  test("unmount して張り直されても、「検索中…」で固まらない", async () => {
     const settlers: ((out: { status: "started"; requestId: number }) => void)[] = [];
     searchPosition.mockImplementation(
       () => new Promise((resolve) => settlers.push(resolve as (typeof settlers)[number])),
@@ -418,7 +418,7 @@ describe("PositionSearchModal のヒットを開く", () => {
       </StrictMode>,
     );
 
-    // 1本目（畳まれた回）が後から解決する
+    // 1本目（unmount された回）が後から解決する
     await act(async () => {
       settlers[0]({ status: "started", requestId: 41 });
     });
@@ -441,11 +441,11 @@ describe("PositionSearchModal のヒットを開く", () => {
 });
 
 /**
- * 部品を割る前後で、画面の段と後始末の時点が変わらないことを固定する。
+ * 部品を割る前後で、画面の状態と後始末の時点が変わらないことを固定する。
  * 起動の世代と選択の初期化は同じ effect の中で起きるので、片方だけを別の時点へ動かすと
  * 断りが前の検索の行へ残ったり、閉じた後に結果を抱えたりする。
  */
-describe("PositionSearchModal の検索の段と後始末", () => {
+describe("PositionSearchModal の検索の状態と後始末", () => {
   function statusBar() {
     return screen.getByLabelText("検索状態", { selector: "section.pos-search-status" });
   }
@@ -577,7 +577,7 @@ describe("PositionSearchModal の検索の段と後始末", () => {
     expect(card.textContent).toContain("現在:a.kif");
   });
 
-  test("閉じた後に畳まれても、同じ検索を2度は取り下げない", async () => {
+  test("閉じた後に unmount されても、同じ検索を2度は取り下げない", async () => {
     const { rerender, unmount } = await renderWithHits();
 
     urlParams.modal = "";
@@ -650,7 +650,7 @@ describe("PositionSearchModal の検索の段と後始末", () => {
     expect(seenPrefetch[seenPrefetch.length - 1]).toBe("/root/1.kif");
   });
 
-  test("ツリーをまだ読めていなければ、警告の段で断る", async () => {
+  test("ツリーをまだ読めていなければ、警告の tier で断る", async () => {
     startNavigationToHit.mockReturnValue("tree-unavailable");
     const { container } = await renderWithHits();
 

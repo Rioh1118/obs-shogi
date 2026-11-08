@@ -71,7 +71,7 @@ export const EXEMPT = new Set([
   "dangerouslySetInnerHTML",
   // vitest の matcher。レビューの手順書が「空振りを止める形」の例に引く
   "toBeGreaterThan",
-  // `shogi.js`（別リポジトリ）の綴り。局面を組む面が「あちらは編集モードで何を止め、
+  // `shogi.js`（別リポジトリ）の綴り。局面を組むタブが「あちらは編集モードで何を止め、
   // 何を止めないか」の出典に引く。`deadEnd` はあちらの中の局所変数
   "checkTurn",
   "flagEditMode",
@@ -114,9 +114,9 @@ let corpus: string | null = null;
  *
  * **検査の側も数える。** `expect_kinds` などは判定表が仕様として引く本物の定義で、
  * 外すと表が実在する関数を指しているのに落ちる。期待値に書いた名前が母数に入らないのは、
- * `codeOf` の shell の枝が引用符の中を落とすため。
+ * `codeOf` の shell の分岐が引用符の中を落とすため。
  *
- * `.sh` に絞るのは、その shell の枝を使うから——別の言語のファイルを混ぜると
+ * `.sh` に絞るのは、その shell の分岐を使うから——別の言語のファイルを混ぜると
  * `#` 以外のコメントが落ちない。歩くのは `walk.ts`（`CONTRIBUTING.md` の「走査の対象と起点」）
  */
 function hookCorpus(): string[] {
@@ -134,7 +134,7 @@ function sourceCorpus(): string {
       ...rustRoots().flatMap((root) => sourceFiles(root)),
     ].map((path) => codeOf(readFileSync(path, "utf8"))),
     ...hookCorpus(),
-    // 窓の設定も数える。画面の仕様が起動の1枚目を `tauri.conf.json` の
+    // ウィンドウの設定も数える。画面の仕様が起動の1枚目を `tauri.conf.json` の
     // `backgroundColor` のように**キーの綴りで**指すので、外すと実在する設定を
     // 指しているのに「無い」と言われ、直しようが無い
     readFileSync(TAURI_CONF, "utf8"),
@@ -164,8 +164,8 @@ export function identifiersIn(markdown: string): string[] {
  *
  * 1. **別の場所に同じ綴りが在る改名は素通りする。** 関数名を変えても、
  *    その綴りが構造体の欄名として残っていれば緑になる
- * 2. **型名・バリアント名は1つも見ていない。** `IDENTIFIER` のどの枝も先頭に
- *    小文字を要求する（大文字始まりを受けるのは大文字＋下線の枝だけ）ので、
+ * 2. **型名・バリアント名は1つも見ていない。** `IDENTIFIER` のどの分岐も先頭に
+ *    小文字を要求する（大文字始まりを受けるのは大文字＋下線の分岐だけ）ので、
  *    `ClocksView` や `Aborted` は候補にすら入らない
  * 3. 語境界で照合するので接尾辞を足す改名（`FOO` → `STOP_FOO`）は拾えるが、
  *    `Foo::Bar` の `Bar` 側は 2 の理由で拾えない

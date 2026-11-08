@@ -13,7 +13,7 @@ import StatsSection from "../StatsSection";
  *
  * 評価値はエンジンが手番の側から見た値なので、後手番の局面では符号を返して出す。
  * 返し損ねると、後手番の局面だけ形勢が逆に読める。
- * 候補手を出す条件と控えは `analysisPaneCandidateCache.test.tsx` が見る。
+ * 候補手を出す条件とキャッシュは `analysisPaneCandidateCache.test.tsx` が見る。
  */
 
 /** ▲７六歩 を指した後の局面。手番は後手 */

@@ -5,7 +5,7 @@ import type { AnalysisCandidate } from "@/entities/engine";
 
 const candidate = (rank: number): AnalysisCandidate => ({ rank, pv_line: [] });
 
-describe("候補手の控え", () => {
+describe("候補手のキャッシュ", () => {
   it("覚えた候補手を同じ鍵で引ける", () => {
     const cache = createCandidateCache();
 
@@ -45,8 +45,8 @@ describe("候補手の控え", () => {
   });
 
   /**
-   * 同じ棋譜の宣言では控えを捨てない。画面は作り直されると最初から宣言し直すので、
-   * 捨てると控えを画面の外へ出した意味が無くなる。前の宣言を覚えるのは控えの側。
+   * 同じ棋譜の宣言ではキャッシュを捨てない。画面は作り直されると最初から宣言し直すので、
+   * 捨てるとキャッシュを画面の外へ出した意味が無くなる。前の宣言を覚えるのはキャッシュの側。
    */
   it("同じ棋譜を宣言し直しても捨てない", () => {
     const cache = createCandidateCache();

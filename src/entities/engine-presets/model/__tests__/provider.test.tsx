@@ -122,8 +122,8 @@ describe("プリセットの保存は、書けてから画面に反映する", (
     expect(ctx().state.presets.map((p) => p.id)).toEqual(["a"]);
   });
 
-  /** 読んだ印で書き、書いた印で次を書く（別の書き手の変更を Rust が見分ける） */
-  test("読んだ印を保存に渡し、書けたら印を差し替える", async () => {
+  /** 読んだ版で書き、書いた版で次を書く（別の書き手の変更を Rust が見分ける） */
+  test("読んだ版を保存に渡し、書けたら版を差し替える", async () => {
     loadPresets.mockResolvedValue(loaded({ revision: "r1" }));
     savePresets.mockResolvedValueOnce("r2").mockResolvedValueOnce("r3");
     const ctx = await mount();
@@ -160,7 +160,7 @@ describe("プリセットの保存は、書けてから画面に反映する", (
   });
 
   /**
-   * 同時に2本書かない。2本目が1本目の前の印を持って書くと、自分の変更どうしが
+   * 同時に2本書かない。2本目が1本目の前の版を持って書くと、自分の変更どうしが
    * `conflict` になる（「別の場所で変更されました」と誤って伝える）
    */
   test("同時に呼んだ変更は1本ずつ通り、どちらも書ける", async () => {
@@ -187,8 +187,8 @@ describe("プリセットの保存は、書けてから画面に反映する", (
 });
 
 describe("初回の読み込みで書いた既定の1件", () => {
-  /** 読み込みの印へ戻すと、次の保存は別の書き手の変更と判定されて断られる */
-  test("書いた印で次の保存を行う", async () => {
+  /** 読み込みの版へ戻すと、次の保存は別の書き手の変更と判定されて断られる */
+  test("書いた版で次の保存を行う", async () => {
     loadPresets.mockResolvedValue(loaded({ presets: [], revision: null }));
     savePresets.mockResolvedValueOnce("r1").mockResolvedValueOnce("r2");
     const ctx = await mount();

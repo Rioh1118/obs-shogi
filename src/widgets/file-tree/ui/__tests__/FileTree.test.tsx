@@ -89,7 +89,7 @@ const TREE = { path: "/root", name: "root" };
 const IO_ERROR: FsError = { code: "io", message: "os error 5", path: "/root/a.kif" };
 // 読み直しても結果が変わらない失敗。原因は権限や入力の側にある
 const DENIED: FsError = { code: "permission_denied", message: "denied", path: "/root/a.kif" };
-// ルートごと消えた。Rust が返すのはこれ。段は warning だが読み直す先が無い
+// ルートごと消えた。Rust が返すのはこれ。tier は warning だが読み直す先が無い
 const ROOT_GONE: FsError = { code: "not_found", message: "root is missing", path: "/root" };
 
 /** ディスク上の改名は通り、`app.json` の書き戻しだけが落ちた */
@@ -128,7 +128,7 @@ function mount() {
 }
 
 /**
- * 通知の本文。`getByRole("alert").textContent` は畳んだ `<details>` の中身まで
+ * 通知の本文。`getByRole("alert").textContent` は折りたたんだ `<details>` の中身まで
  * 拾うので、「本文に出ているか」「本文に出ていないか」はこちらで見る。
  */
 function noticeBody() {
@@ -172,7 +172,7 @@ describe("FileTree の失敗表示", () => {
     expect(screen.getByRole("alert").textContent).toContain("/root/a.kif");
   });
 
-  test("Rust の生メッセージは畳んだ中に置き、そのまま本文にしない", () => {
+  test("Rust の生メッセージは折りたたんだ中に置き、そのまま本文にしない", () => {
     stub.fileTree = TREE;
     stub.error = asOperationFailure(IO_ERROR);
 
@@ -182,7 +182,7 @@ describe("FileTree の失敗表示", () => {
     expect(detail).toBeTruthy();
     expect(detail!.hasAttribute("open")).toBe(false);
     expect(detail!.textContent).toContain("os error 5");
-    // 畳んだ中にあることだけを見ると、本文にも出す実装で緑のままになる
+    // 折りたたんだ中にあることだけを見ると、本文にも出す実装で緑のままになる
     expect(noticeBody()).not.toContain("os error 5");
   });
 
@@ -258,7 +258,7 @@ describe("FileTree の失敗表示", () => {
  * 復帰に何が要るかで見せ方を変える（ADR-0004）。
  * 読み直しても直らない失敗に「再読み込み」を出すと、利用者は押し続ける。
  */
-describe("段による出し分け", () => {
+describe("tier による出し分け", () => {
   test("入力が原因の失敗では、何を直せばよいかが本文に出る", () => {
     stub.fileTree = TREE;
     stub.error = asOperationFailure(BAD_NAME);
@@ -304,8 +304,8 @@ describe("段による出し分け", () => {
   });
 
   /**
-   * ルートごと消えたときに Rust が返すのは `not_found`。段は `warning` なので、
-   * 逃げ道を段で切ると**実際に一番よく起きる経路だけ**が行き止まりになる。
+   * ルートごと消えたときに Rust が返すのは `not_found`。tier は `warning` なので、
+   * 逃げ道を tier で切ると**実際に一番よく起きる経路だけ**が行き止まりになる。
    * 読み直す先が消えているので、再読み込みは何度押しても同じ失敗に戻る。
    */
   test("ルートが消えたときも、ワークスペースを選び直せる", async () => {
@@ -369,7 +369,7 @@ describe("段による出し分け", () => {
     );
   });
 
-  test("段は見た目にも出る", () => {
+  test("tier は見た目にも出る", () => {
     stub.fileTree = TREE;
     stub.error = asOperationFailure(DENIED);
 

@@ -19,8 +19,8 @@ function AppLoading() {
     // 飛ぶが、`error` が立っている間は `RequireRootDir` が `/` へ戻すので往復が
     // 止まらない。`error` は `config` を残すので、この組み合わせは実際に起きる。
     //
-    // 器（`.container`）も自分で持つ。外に置くと面も文字色も継げず、
-    // この1行だけが UA まかせの色で暗い面の上に出る
+    // コンテナ（`.container`）も自分で持つ。外に置くと背景も文字色も継げず、
+    // この1行だけが UA まかせの色で暗い背景の上に出る
     return (
       <div className="container">
         <Title />

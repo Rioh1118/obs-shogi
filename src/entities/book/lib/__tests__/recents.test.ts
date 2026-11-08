@@ -43,7 +43,7 @@ describe("最近開いた定跡", () => {
     expect(readRecentBooks(["", "/books/", "/a.db"])).toEqual(["/a.db"]);
   });
 
-  test("読み出しでも重複は畳む", () => {
+  test("読み出しでも重複はまとめる", () => {
     expect(readRecentBooks(["/a.db", "/a.db", "/b.db"])).toEqual(["/a.db", "/b.db"]);
   });
 

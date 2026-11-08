@@ -84,7 +84,7 @@ describe("autofillPreset", () => {
 
   /**
    * 欄ごとに1本ずつ当てる。全欄が空の下書きを渡すテストだけだと、
-   * どれか1つの枝が `changed` を立て損ねても残りが `next` を運ぶ
+   * どれか1つの分岐が `changed` を立て損ねても残りが `next` を運ぶ
    */
   test("AI名だけが空なら、AI名だけ埋まる", () => {
     const cur: EnginePreset = {

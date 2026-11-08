@@ -66,7 +66,7 @@ describe("engineFailureNoticeOf", () => {
     expect(missing).toMatchObject({ title: "エンジンが中断の指示に応答しません", retry: true });
   });
 
-  test("プリセットが未完成なら再起動を出さず、エンジンの段の文を優先する", () => {
+  test("プリセットが未完成なら再起動を出さず、エンジンの状態の文を優先する", () => {
     expect(
       engineFailureNoticeOf({ ...QUIET, phase: "idle", presetIncomplete: true }),
     ).toMatchObject({ tier: "warning", retry: false, startFailure: true });

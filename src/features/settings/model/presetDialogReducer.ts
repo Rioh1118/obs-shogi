@@ -60,7 +60,7 @@ export function presetDialogReducer(
 ): PresetDialogState {
   switch (action.type) {
     case "opened":
-      // 取得中の印は残す。読み直しで下書きを作り直しても取得は進んでいて、下ろすと取得中に保存が開く
+      // 取得中のフラグは残す。読み直しで下書きを作り直しても取得は進んでいて、下ろすと取得中に保存が開く
       return {
         ...state,
         draft: action.preset,

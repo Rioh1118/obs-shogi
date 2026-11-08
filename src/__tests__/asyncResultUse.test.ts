@@ -10,7 +10,7 @@ import { codeOf } from "./sourceText";
  * 対象は2種類。`AsyncResult` を返すものは**投げない**ので、読まないと失敗は
  * どこにも出ないまま次の行へ進む。`SeatTakeResult` を返すものは投げるが、
  * **握れなかった理由**（エンジンが消えた／要求が死んだ）を戻り値でしか言わないので、
- * 捨てると枝ごとの後始末が黙って落ちる。
+ * 捨てると分岐ごとの後始末が黙って落ちる。
  *
  * 捨てると、別の理由の警告だけが画面に出る形になりやすい。
  * フォルダを作れなかったのに「中身が未検出です」と出れば、
@@ -30,7 +30,7 @@ import { codeOf } from "./sourceText";
  *
  * 読まないのが正しい呼び出しもある（呼び先が自分で `state.error` に積む場合）。
  * その1行に `// async-result-ignored: <理由>` を付けると外れる。
- * 印を付ける変更は差分としてレビューに出る。
+ * 免除の注記を付ける変更は差分としてレビューに出る。
  */
 
 /**
@@ -51,7 +51,7 @@ const DECLARES_MUST_READ = new RegExp(
   "g",
 );
 
-/** 読まないのが正しいときの印。理由を書かせるので `:` まで含めて要求する */
+/** 読まないのが正しいときの免除の注記。理由を書かせるので `:` まで含めて要求する */
 const IGNORE_MARKER = "async-result-ignored:";
 
 /**
@@ -85,11 +85,11 @@ describe("読まねばならない戻り値", () => {
       `戻り値を読むべき関数を ${names.size} 件しか拾えていない。名前の集め方が壊れている`,
     ).toBeGreaterThanOrEqual(20);
 
-    // **枝ごとに1本ずつ名指す。** 集計だけだと、片方の枝を丸ごと落としても数が
-    // ほとんど動かない——`AsyncResult` 側が数を支配しているので、`SeatTakeResult` の枝を
+    // **分岐ごとに1本ずつ名指す。** 集計だけだと、片方の分岐を丸ごと落としても数が
+    // ほとんど動かない——`AsyncResult` 側が数を支配しているので、`SeatTakeResult` の分岐を
     // 消しても 32 → 31 にしかならず下限に当たらない（実測）。
-    expect(names, "`AsyncResult<` の枝が `MUST_READ` から落ちている").toContain("loadFileTree");
-    expect(names, "`Promise<SeatTakeResult>` の枝が `MUST_READ` から落ちている").toContain(
+    expect(names, "`AsyncResult<` の分岐が `MUST_READ` から落ちている").toContain("loadFileTree");
+    expect(names, "`Promise<SeatTakeResult>` の分岐が `MUST_READ` から落ちている").toContain(
       "takeSeatAndGo",
     );
 

@@ -21,10 +21,10 @@ export type SelectedPosition =
   | { type: "hand"; color: Color; kind: Kind };
 
 /**
- * 盤に載せられなかった理由。呼び出し側は段と文言を `code` から決める。
+ * 盤に載せられなかった理由。呼び出し側はtier と文言を `code` から決める。
  *
  * 例外の `message` は `shogi.js` の英文なので、そのまま渡すと呼び出し側が自前の文言を書き、
- * 段と文言を決める場所が分かれる。`entities/file-tree` の `describeFsError` と同じ形にする。
+ * tier と文言を決める場所が分かれる。`entities/file-tree` の `describeFsError` と同じ形にする。
  *
  * `cause` は診断のためだけに持つ。内部の語が混ざるので利用者に出さない。
  */
@@ -72,13 +72,13 @@ export type GameContextState = {
    * その棋譜に紐づけて開いていたものが捨てられる。読み手は次の3つ。
    *
    * - `useResetOrientationOnKifuChange`（向きを落とすか）
-   * - `KifuStreamList`（開いている面・確認ダイアログを畳むか）
+   * - `KifuStreamList`（開いているポップオーバー・確認ダイアログを閉じるか）
    * - `KifuCommentNote`（書きかけの本文を、いまの棋譜へ書いてよいか）
    *
    * 名前そのものを問う読み手は `loadedAbsPath` を見る（`FileNode` の `canSkipReopen`、
    * `useHeaderCenterInfo`、`usePositionHitNavigation`）。
    *
-   * 閉じても戻さない。戻すと、控えた値と同じ回数で別の入れ替わりが観測されうる。
+   * 閉じても戻さない。戻すと、写しておいた値と同じ回数で別の入れ替わりが観測されうる。
    */
   boardSeq: number;
 
@@ -97,12 +97,12 @@ export type GameContextState = {
    * `loadFailedAbsPath` が立った回数。単調増加で、戻らない。
    *
    * パスだけでは「いつ失敗したか」が分からない。待っている側は要求を出した時点の値を
-   * 控えておき、それより進んでいるときだけ自分の要求が落ちたと読む
+   * 写しておき、それより進んでいるときだけ自分の要求が落ちたと読む
    * （`usePositionHitNavigation`）。
    *
-   * 印を試行の開始で落とす形では足りない。ツリーから開く経路は `openKifuNode` が
+   * フラグを試行の開始で落とす形では足りない。ツリーから開く経路は `openKifuNode` が
    * ディスクを読み終えるまで `loadGame` に届かないので、その間に走った effect が
-   * 前の失敗の印を読む。
+   * 前の失敗のフラグを読む。
    */
   loadFailedSeq: number;
 

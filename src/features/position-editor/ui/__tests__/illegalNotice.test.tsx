@@ -13,7 +13,7 @@ import { EditorHarness, renderSeeded } from "./harness";
  * **断りが遷移を変えないこと** —— 出ていても盤は触れるし、升の枠も付く。
  */
 
-// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組むタブはファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),
@@ -69,7 +69,7 @@ describe("断り", () => {
     expect(marked.sort()).toEqual(["5,5", "5,7"]);
   });
 
-  test("段は danger", () => {
+  test("tier は danger", () => {
     // 同じ操作を繰り返しても直らず、直し方は配置ごとに違う（ADR-0004 決定1）
     renderSeeded(nifuState());
     expect(notice()!.classList.contains("notice--danger")).toBe(true);
@@ -108,7 +108,7 @@ describe("断り", () => {
     expect(illegal()).toHaveLength(0);
   });
 
-  test("枠は面を塗らない。掴んでいる升の残像と両立する", () => {
+  test("枠は背景を塗らない。掴んでいる升の残像と両立する", () => {
     renderSeeded(nifuState());
     fireEvent.click(square(5, 5));
 

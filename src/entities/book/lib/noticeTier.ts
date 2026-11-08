@@ -2,7 +2,7 @@ import type { VisibleTier } from "@/shared/lib/notification/types";
 import type { BookFailure } from "../model/context";
 
 /**
- * 失敗の段を返す。段は深刻さでなく、復帰に何が要るかで切る（ADR-0004）。
+ * 失敗の tier を返す。tier は深刻さでなく、復帰に何が要るかで切る（ADR-0004）。
  *
  * - `warning`: そのまま再試行すれば直りうる。読み書きの失敗と、種別の分からない失敗
  * - `danger`: 別の操作が要る。ファイルが無い、読めない、形式が違うなど

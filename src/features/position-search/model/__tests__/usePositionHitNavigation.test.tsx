@@ -248,12 +248,12 @@ describe("usePositionHitNavigation", () => {
   /**
    * 前の要求の失敗が残っているうちに、新しい要求を出す。
    *
-   * 印が「いま失敗している」を表すと、要求を出した直後から立っているので、effect が
-   * 1回でも走った時点で新しい要求まで捨てられる。印は直近の読み込みだけを指すこと。
+   * フラグが「いま失敗している」を表すと、要求を出した直後から立っているので、effect が
+   * 1回でも走った時点で新しい要求まで捨てられる。フラグは直近の読み込みだけを指すこと。
    */
-  test("前の失敗の印が残っていても、新しい要求は捨てない", () => {
+  test("前の失敗のフラグが残っていても、新しい要求は捨てない", () => {
     selectNodeByAbsPath.mockReturnValue(true);
-    // 前の要求で載せられなかった印が残っている
+    // 前の要求で載せられなかったフラグが残っている
     stub.loadFailedAbsPath = "/root/b.kif";
     stub.loadFailedSeq = 1;
 
@@ -261,7 +261,7 @@ describe("usePositionHitNavigation", () => {
     result.current.startNavigationToHit("/root/b.kif", CURSOR);
 
     // `selectNodeByAbsPath` が選択を動かす。**`openKifuNode` はまだディスクを読んでいる**ので、
-    // `loadGame` には届いておらず、前の回の印が立ったまま effect が走る
+    // `loadGame` には届いておらず、前の回のフラグが立ったまま effect が走る
     stub.selectedNode = { path: "/root/b.kif", isDirectory: false };
     rerender();
 

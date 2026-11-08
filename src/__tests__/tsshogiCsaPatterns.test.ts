@@ -36,7 +36,7 @@ describe("tsshogi の CSA 行パターン", () => {
   test("fixture が、インストール済みの tsshogi と一致する", () => {
     const installed = patternsFromTsshogi();
 
-    // 取り出せなくなったら黙って通さない。バンドラが1行に畳んだ場合など、
+    // 取り出せなくなったら黙って通さない。バンドラが1行にまとめた場合など、
     // **書き方が変わったこと自体を知りたい**
     expect(
       installed.length,

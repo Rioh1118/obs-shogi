@@ -7,7 +7,7 @@ import { docsPath } from "./stateTransitionIndex";
 /**
  * 境界の名簿を、doc と現物の両方から起こして突き合わせる。
  *
- * `docs/spec/screens/app-layout.md` の「失敗の見せ方」は**段構えの出典**で、
+ * `docs/spec/screens/app-layout.md` の「失敗の見せ方」は**境界の重ね方の出典**で、
  * `app/App.tsx` と `docs/state-transitions/failure-surfacing.md` が
  * 「ここに写さない」と名指しで委ねている唯一の場所。そこが現物とずれると、
  * 委ねた側は誰も気づけない。
@@ -21,10 +21,10 @@ import { docsPath } from "./stateTransitionIndex";
  * 綴りが実在することは `BoundaryLabel` 型が保証するので、ここで見るのは
  * 「表と一致するか」と「1つの鍵を2箇所で使っていないか」の2つ。
  *
- * 見ないのは「畳まれる範囲」の列。日本語の説明なので機械では突き合わせられない。
+ * 見ないのは「unmount される範囲」の列。日本語の説明なので機械では突き合わせられない。
  */
 
-/** 表の行。`| 境界 | 名乗り | 畳まれる範囲 |` の3列 */
+/** 表の行。`| 境界 | 名乗り | unmount される範囲 |` の3列 */
 const TABLE_ROW = /^\|\s*`?[^|]+?`?\s*\|\s*([^|]+?)\s*\|\s*[^|]+?\s*\|\s*$/gm;
 
 /** `BOUNDARY_LABELS` の中身。`  root: "アプリ",` の形 */
@@ -89,7 +89,7 @@ describe("境界の名簿", () => {
       inCode,
       [
         "`docs/spec/screens/app-layout.md` の「失敗の見せ方」の表と、`BOUNDARY_LABELS` が違う。",
-        "この表は段構えの出典で、`app/App.tsx` と台帳が「ここに写さない」と委ねている先。",
+        "この表はエラー境界の重ね方の出典で、`app/App.tsx` と `failure-surfacing.md` が「ここに写さない」と委ねている先。",
         "境界を足した／減らした／名乗りを変えたなら、同じコミットで表も直すこと。",
         `doc:  ${inDoc.join(" / ")}`,
         `code: ${inCode.join(" / ")}`,

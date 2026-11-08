@@ -17,7 +17,7 @@ import { FloatingErrorFallback } from "../FloatingErrorFallback";
 const noop = () => {};
 
 /**
- * 浮かせた枠を積む器。`index.html` が持っているものを、テストでは自分で立てる
+ * 浮かせた箱を積むコンテナ。`index.html` が持っているものを、テストでは自分で立てる
  * （`Modal.test.tsx` の `#modal-root` と同じ）
  */
 const OVERLAY_ROOT_ID = "error-overlay-root";
@@ -72,7 +72,7 @@ describe("ErrorFallbackBody が出す原因", () => {
     expect(screen.getByText("棋譜を開き直してください。")).toBeTruthy();
   });
 
-  test("畳まれた範囲を名乗る", () => {
+  test("unmount された範囲を名乗る", () => {
     // 同じ文言だと、内側の1枚を外しても外側が同じ画面で受けて退行が見えない
     render(<ErrorFallbackBody label={BOUNDARY_LABELS.analysis} error={null} reset={noop} />);
 
@@ -81,7 +81,7 @@ describe("ErrorFallbackBody が出す原因", () => {
 });
 
 describe("FloatingErrorFallback の置き方", () => {
-  test("器へ入る。流れの中には出さない", () => {
+  test("コンテナへ入る。流れの中には出さない", () => {
     // 流れの中の箱で置き換えると、親の grid の行や flex の列を1つ食って
     // 周りの部品が暗黙の行へ押し出される
     const { container } = render(
@@ -93,9 +93,9 @@ describe("FloatingErrorFallback の置き方", () => {
     expect(overlay?.querySelector(".error-fallback")).not.toBeNull();
   });
 
-  test("2枚出しても、同じ器に並んで入る", () => {
-    // **重なりは器が決める。** 1枚ずつに座標を持たせると同時に出たときに同じ位置へ重なり、
-    // 後から描かれた側が不透明な面で下の1枚を丸ごと覆う（名乗りも出口も読めず押せない）
+  test("2枚出しても、同じコンテナに並んで入る", () => {
+    // **重なりはコンテナが決める。** 1枚ずつに座標を持たせると同時に出たときに同じ位置へ重なり、
+    // 後から描かれた側が不透明な背景で下の1枚を丸ごと覆う（名乗りも出口も読めず押せない）
     render(
       <>
         <FloatingErrorFallback label={BOUNDARY_LABELS.modal} error={null} reset={noop} />
@@ -120,7 +120,7 @@ describe("FloatingErrorFallback の置き方", () => {
   });
 
   test("閉じても子は描き直さない", () => {
-    // 畳みを解くのは境界の `reset` だけ。閉じた箱が子を描き直すと同じ行で落ちて箱が戻る
+    // 子を描き直すのは境界の `reset` だけ。閉じた箱が子を描き直すと同じ行で落ちて箱が戻る
     let renders = 0;
     function Counting(): never {
       renders += 1;
@@ -143,7 +143,7 @@ describe("FloatingErrorFallback の置き方", () => {
   });
 
   test("流れの中に出す本文には閉じる出口が無い", () => {
-    // in-flow の器は閉じても隙間が残るだけで、畳んだことが読めなくなる
+    // in-flow のコンテナは閉じても隙間が残るだけで、unmount したことが読めなくなる
     render(<ErrorFallbackBody label={BOUNDARY_LABELS.board} error={null} reset={noop} />);
 
     expect(screen.queryByText("閉じる")).toBeNull();

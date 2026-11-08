@@ -30,11 +30,11 @@ const FROZEN: { path: string; fn: string }[] = [
   { path: "src/entities/analysis/model/useResultFlush.ts", fn: "useResultFlush" },
 ];
 
-/** 枠への書き込み。読み出し（`=== ` / `if (releasingRef.current)`）は数えない */
+/** `releasingRef` への書き込み。読み出し（`=== ` / `if (releasingRef.current)`）は数えない */
 const WRITE = /releasingRef\.current\s*=[^=]/g;
 
-describe("解析の席を返す枠", () => {
-  test("枠に書くのは holdSlot の中だけ", () => {
+describe("解析の席を返すスロット", () => {
+  test("スロットに書くのは holdSlot の中だけ", () => {
     const code = codeOf(readFileSync(join(REPO_ROOT, SEAT), "utf8"));
 
     const holdSlot = /const holdSlot = \(run[\s\S]*?\n {2}\};/.exec(code);
@@ -46,8 +46,8 @@ describe("解析の席を返す枠", () => {
     const inside = holdSlot![0].match(WRITE)?.length ?? 0;
     const total = code.match(WRITE)?.length ?? 0;
 
-    expect(inside, `${SEAT}: \`holdSlot\` が枠に書いていない`).toBeGreaterThan(0);
-    expect(total, `${SEAT}: \`holdSlot\` の外から枠に書いている`).toBe(inside);
+    expect(inside, `${SEAT}: \`holdSlot\` がスロットに書いていない`).toBeGreaterThan(0);
+    expect(total, `${SEAT}: \`holdSlot\` の外からスロットに書いている`).toBe(inside);
   });
 
   test.each(FROZEN)("$fn は凍る前に useRef と useCallback だけを置く", ({ path, fn }) => {

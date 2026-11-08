@@ -15,20 +15,20 @@ import { codeOf } from "./sourceText";
  * `satisfies typeof import("…")` を書かせると、**export の増減と改名**は tsc が落とす
  * （`vi.fn()` が `any` を返すぶん、引数と戻り値までは捕まらない）。
  *
- * **`-D` では入れない。** 印の無い `vi.mock` は入れた時点で {@link BASELINE} 件あり、
- * 全部に印を付けるのは別の作業。増える方向にだけ落とす件数ラチェットにして、
+ * **`-D` では入れない。** `satisfies` の注記が無い `vi.mock` は入れた時点で {@link BASELINE} 件あり、
+ * 全部に注記を付けるのは別の作業。増える方向にだけ落とす件数ラチェットにして、
  * **今日から新しい差し替えに掛ける**。片付けたら基準を下げること。
  *
  * **基準が上がる向きに動くのは、走査を広げたときだけ。** 数え方を変えると、
  * 数える範囲の外に居た既存の呼び出しが一度に現れる。
- * **そのときの上げ幅を「印を付けずに増やした数」と読まないこと** ——
+ * **そのときの上げ幅を「注記を付けずに増やした数」と読まないこと** ——
  * 走査を広げるコミットには、何を新しく数えるのかを併記すること。
  *
  * 出典は `.claude/knowledge/mechanization-backlog.md`。
  */
 
 /**
- * 印の無い `vi.mock(…, ファクトリ)` の件数。
+ * `satisfies` の注記が無い `vi.mock(…, ファクトリ)` の件数。
  *
  * **動かしてよい向きは下げる方だけ。** 増えて落ちたときは、基準ではなく
  * 足した `vi.mock` の側に `satisfies typeof import("…")` を書く。
@@ -38,7 +38,7 @@ const BASELINE = 183;
 /** 走査が壊れて0件になったことを「違反が無い」と読ませないための下限 */
 const MIN_SCANNED = 150;
 
-/** 印。`satisfies typeof import("…")` をファクトリの中のどこかに持つこと */
+/** 注記の綴り。`satisfies typeof import("…")` をファクトリの中のどこかに持つこと */
 const MARKER = "satisfies typeof import(";
 
 interface MockCall {
@@ -51,7 +51,7 @@ interface MockCall {
  * `vi.mock(` の呼び出しを、括弧の対応を数えて切り出す。
  *
  * **正規表現で終端を探さない。** ファクトリの中に `)` はいくらでも出るので、
- * 非貪欲で切ると最初の `)` で止まり、**印を書いてあっても見つけられない**。
+ * 非貪欲で切ると最初の `)` で止まり、**注記を書いてあっても見つけられない**。
  */
 function mockCallsIn(file: string, body: string): MockCall[] {
   const calls: MockCall[] = [];
@@ -82,7 +82,7 @@ function mockCallsIn(file: string, body: string): MockCall[] {
  * ファクトリを渡している呼び出しだけ。`vi.mock("…")` の1引数の形は対象外。
  *
  * **引数を取るファクトリも数える。** `async (importActual) => …` の形は
- * 実物を混ぜる主流の書き方で、**そこが数から漏れると印を付けずに増やせる**。
+ * 実物を混ぜる主流の書き方で、**そこが数から漏れると注記を付けずに増やせる**。
  */
 function hasFactory(text: string): boolean {
   return /,\s*(?:async\s+)?\([^)]*\)\s*=>/.test(text) || /,\s*(?:async\s+)?function\b/.test(text);
@@ -90,7 +90,7 @@ function hasFactory(text: string): boolean {
 
 /**
  * 走査器そのもの。**自分を数えない** —— このファイルは綴りを本文に持っているので、
- * 数えると基準が1件ぶん嵩上げされ、その1件は永久に印が付かない
+ * 数えると基準が1件ぶん嵩上げされ、その1件は永久に注記が付かない
  */
 const SELF = "src/__tests__/viMockShape.test.ts";
 
@@ -114,7 +114,7 @@ describe("`vi.mock` の差し替え", () => {
     expect(scan().total).toBeGreaterThan(MIN_SCANNED);
   });
 
-  it("印の無い差し替えが増えていない", () => {
+  it("`satisfies` の注記が無い差し替えが増えていない", () => {
     const { unmarked } = scan();
 
     expect(
@@ -122,7 +122,7 @@ describe("`vi.mock` の差し替え", () => {
       `\`vi.mock\` のファクトリに \`${MARKER}…")\` が無いものが ${unmarked.length} 件ある` +
         `（基準 ${BASELINE}）。差し替える先の形と結び付いていないので、` +
         `export を増やしても改名しても tsc は落ちない。\n` +
-        `増えたなら、足した側に印を書くこと。減ったなら BASELINE を下げること。\n` +
+        `増えたなら、足した側に注記を書くこと。減ったなら BASELINE を下げること。\n` +
         `直近: ${[...new Set(unmarked)].slice(0, 5).join(", ")}`,
     ).toBe(BASELINE);
   });

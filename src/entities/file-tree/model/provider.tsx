@@ -131,7 +131,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   // 名前の失敗だけ呼び出し元へ返し、残りは通知へ積む。入力欄から起こす操作で使う。
   // 入力欄はその場に残っているので、そこへ出せば打った文字列を捨てずに直せる。
-  // state.error に積むと reducer が編集行ごと畳む（ADR-0004 の F-14）
+  // state.error に積むと reducer が編集行ごと閉じる（ADR-0004 の F-14）
   const failToNameInput = useCallback(
     (error: FsError, request: FileConflictRequest) => {
       if (isResolvedByConflictDialog(error.code)) {
@@ -438,7 +438,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
           // ディスク上の改名は済んでいる。ここで捨てると「ディスクは新しい名前・
           // 設定は古い名前」で固定され、再起動しても開けない。
           //
-          // **段のために別の code を借りない。** code は tier だけでなく利用者に
+          // **tier のために別の code を借りない。** code は tier だけでなく利用者に
           // 見せる一文も決めるので、借りると原因を偽ることになる。`setRootDir` が
           // 落ちる理由は権限とは限らない（ディスク満杯・直列化・IPC 断）
           //

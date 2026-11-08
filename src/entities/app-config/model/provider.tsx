@@ -116,7 +116,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
       // 操作（`WorkspaceTab` のボタン、`AppLoading` の分岐）がちらつく
       writeFields(patch).then(
         () => Ok(undefined),
-        // `error` に積まない。積むと表示の設定を1つ保存し損ねただけで `RequireRootDir` が畳む
+        // `error` に積まない。積むと表示の設定を1つ保存し損ねただけで `RequireRootDir` が unmount する
         (err: unknown) => Err(`表示の設定を保存できませんでした: ${String(err)}`),
       ),
     [writeFields],

@@ -104,7 +104,7 @@ describe("索引を開く合図", () => {
 
   /**
    * 前の open が終わっている場合だけを見ている。
-   * TODO(#430): 終わる前に根が変わる経路は、`openProject` が飛行中の open を根を見ずに畳むので通らない。
+   * TODO(#430): 終わる前に根が変わる経路は、`openProject` が飛行中の open を根を見ずに1本にまとめるので通らない。
    * ここを「ワークスペースを変えたら開き直す」と名乗らせない——名前が実装より
    * 強いと、直したかどうかがこのテストの緑では分からなくなる。
    */
@@ -137,7 +137,7 @@ describe("索引を開く合図", () => {
     expect(openedRoots()).toEqual(["/ws"]);
   });
 
-  /** 束ねない側。理由は同じ doc の「張れたか」ではなく「決着したか」の段 */
+  /** 束ねない側。理由は同じ doc の「張れたか」ではなく「決着したか」の項 */
   test("購読が張れなくても索引は開く", async () => {
     listenImpl = () => Promise.reject(new Error("listen failed"));
 
@@ -151,13 +151,13 @@ describe("索引を開く合図", () => {
   /**
    * 購読 effect が名乗る「StrictMode-safe」を実際に踏む。
    *
-   * 二度マウントされると、1回目は畳まれてから購読が決着する。畳まれた回が `isListenSettled` を
+   * 二度マウントされると、1回目は unmount されてから購読が決着する。unmount された回が `isListenSettled` を
    * 立てると、2回目の購読がまだ張れていないうちに `open_project` が飛び、
    * `Restoring` の最初の1発を取りこぼす。
    *
-   * ここでは1回目を失敗、2回目を保留にして、畳まれた回の決着では開かないことを見る。
+   * ここでは1回目を失敗、2回目を保留にして、unmount された回の決着では開かないことを見る。
    */
-  test("畳まれた回の購読が決着しても、生きている回の判定は立たない", async () => {
+  test("unmount された回の購読が決着しても、生きている回の判定は立たない", async () => {
     let letSecondListenFinish!: (unlisten: () => void) => void;
     let attempt = 0;
     listenImpl = () => {

@@ -16,7 +16,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** プリセットを1枚で編集する別窓。開いている間だけ描く。 */
+/** プリセットを1枚で編集する別のモーダル。開いている間だけ描く。 */
 export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props) {
   const library = useAiRootIndex();
   const dialog = usePresetDialog({ presetId, index: library.index, onClose });

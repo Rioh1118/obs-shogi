@@ -107,7 +107,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
         kifuFormat: action.payload.path === null ? null : state.kifuFormat,
       };
 
-    // 編集中の行とメニューは畳む。名前を直せば通る失敗は `failToNameInput` が入力欄へ返す。
+    // 編集中の行とメニューは閉じる。名前を直せば通る失敗は `failToNameInput` が入力欄へ返す。
     // ここへ届くのは、名前を直しても通らない失敗、欄が消えたあとの名前の失敗
     // （`InlineNameEditor` の `onUnshowable`）、欄を持たない操作（移動、削除）の失敗
     case "error":
@@ -135,7 +135,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
     // 出ない」で終わる。操作は `Ok` を返しているので対話は成功として閉じ、
     // 利用者は「作られていない」と読んで押し直し、`already_exists` に当たる。
     //
-    // 畳まないのは、これが操作の失敗ではなく、そのあとの読み直しの失敗だから。
+    // 閉じないのは、これが操作の失敗ではなく、そのあとの読み直しの失敗だから。
     // 開いている入力欄は、読み直しが直れば意味を持ち続ける
     case "reload_failed":
       return { ...state, isLoading: false, error: { from: "reload", error: action.payload } };

@@ -24,7 +24,7 @@ export type FsErrorCode =
   | "kifu_format_unknown"
   | "kifu_parse_failed"
   // ディスク側の操作は通ったが、設定を書き戻せなかった。Rust は返さない。
-  // **段のために他の code を借りない**ための1つ。借りると、利用者に見せる一文
+  // **tier のために他の code を借りない**ための1つ。借りると、利用者に見せる一文
   // （`describeFsError`）が原因を偽る
   | "config_write_failed"
   | "unknown";
@@ -132,7 +132,7 @@ export function isResolvedByConflictDialog(code: FsErrorCode): boolean {
  * 打った名前を直せば通る失敗か。
  *
  * この種の失敗は**入力欄のそばに出す**（ADR-0004 の F-14）。通知として積むと
- * reducer が編集行ごと畳み、打った文字列まで一緒に捨てることになる。
+ * reducer が編集行ごと閉じ、打った文字列まで一緒に捨てることになる。
  * 直すための入力欄が、直せという知らせに巻き込まれて消える。
  */
 export function isNameInputError(code: FsErrorCode): boolean {
@@ -171,8 +171,8 @@ export function isNameInputError(code: FsErrorCode): boolean {
  * 入力か権限の側を変えないと直らないもの。読み直しても直らない失敗に再読み込みを
  * 出すと、押しても何も起きないので利用者は押し続ける。
  *
- * **段の綴りは通知の基盤から取る。** 素の文字列だと、段を増やしたり名前を変えたりしても
- * tsc がここへ連れて来ない。ファイル操作の失敗は4段のうち2つにしか割れないので、
+ * **tier の綴りは通知の基盤から取る。** 素の文字列だと、tier を増やしたり名前を変えたりしても
+ * tsc がここへ連れて来ない。ファイル操作の失敗は4つの tier のうち2つにしか割れないので、
  * 取れるのはその2つに絞ってある。
  */
 export function fsErrorTier(code: FsErrorCode): Extract<VisibleTier, "warning" | "danger"> {

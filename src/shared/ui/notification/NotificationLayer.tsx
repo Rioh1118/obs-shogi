@@ -28,7 +28,7 @@ export default function NotificationLayer() {
 
   // **新着が可視の端に来るように並べる。** どちらの入れ物も高さに上限があり、
   // 溢れたぶんは巻き取られる。出た順のまま並べると巻き取られるのが常に新着側で、
-  // 失敗が続いている間に出た最後の1件——いちばん段が重いことが多い——が
+  // 失敗が続いている間に出た最後の1件——いちばん tier が重いことが多い——が
   // 一度も画面に出ない。`scrollTop` の初期値は 0 なので、見えているのは先頭
   const newestFirst = (list: Notification[]) => [...list].reverse();
 
@@ -39,14 +39,14 @@ export default function NotificationLayer() {
   const modal = notifications.find((n) => n.presentation === "modal");
 
   // 読み上げるのは最後に積まれた1件だけ。全部を流すと、1件増えるたびに
-  // 出ている分がまとめて読み直される。**畳まれたものは読み直さない**——
+  // 出ている分がまとめて読み直される。**まとめられたものは読み直さない**——
   // 同じ失敗が続いている間ずっと喋り続けることになる。
   // 閉じたときは1つ前が読まれるが、それは次に対処するものなので害が無い
   const newest = notifications[notifications.length - 1];
   const announcement = newest ? [newest.title, newest.body].filter(Boolean).join("。") : "";
 
-  // モーダルと同じ器へ出す。`#modal-root` は `#root` の後ろにあるので、
-  // 同じ段どうしなら DOM の順で重なりが決まる（`Modal.tsx` と同じ）。
+  // モーダルと同じコンテナへ出す。`#modal-root` は `#root` の後ろにあるので、
+  // z-index が同じなら DOM の順で重なりが決まる（`Modal.tsx` と同じ）。
   // 位置の話は `NotificationLayer.scss` が持つ
   const root = document.getElementById("modal-root") ?? document.body;
 

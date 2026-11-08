@@ -178,7 +178,7 @@ describe("盤の押下", () => {
     expect(screen.getByAltText("と")).toBeTruthy();
   });
 
-  test("成りを聞いている間に局面が動いたら、選択肢と選択を畳む", async () => {
+  test("成りを聞いている間に局面が動いたら、選択肢と選択を消す", async () => {
     const { game, pressSquare, run } = await mount();
 
     await pressSquare(3, 4);
@@ -206,7 +206,7 @@ describe("成りの選択肢", () => {
     expect(colors).toEqual([String(Color.White), String(Color.White)]);
   });
 
-  test("選んだ手が棋譜に書けずに戻っても、選択肢は畳む", async () => {
+  test("選んだ手が棋譜に書けずに戻っても、選択肢は消す", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const { game, press, pressSquare } = await mount({ saveFails: true });
 

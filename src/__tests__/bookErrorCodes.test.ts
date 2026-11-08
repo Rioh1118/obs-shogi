@@ -7,7 +7,7 @@ import { rustFile, SRC } from "./walk";
  * Rust の `BookErrorCode` が TS の `BookErrorCode` に収まっていることを見る。
  *
  * 収まっていないと `asBookError` の `isBookErrorCode` を通らず `unknown` に落ち、
- * 段（`bookNoticeTier`）も種別ごとのものでなく `warning` になる。Rust の製品コードには
+ * tier（`bookNoticeTier`）も種別ごとのものでなく `warning` になる。Rust の製品コードには
  * `BookErrorCode` を網羅 `match` する箇所が無いので、片側だけ増やしても
  * `cargo build` と tsc は通る。
  *

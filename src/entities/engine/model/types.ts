@@ -2,7 +2,7 @@ import type { BookChoice, EngineInfo, StartWarning, UnresponsiveReason } from ".
 import type { EngineStartFailure } from "../lib/engineFailure";
 
 /**
- * エンジンの段。`exited` は起動済みのプロセスが自分で終わった状態、`unresponsive` は指示が
+ * エンジンの状態。`exited` は起動済みのプロセスが自分で終わった状態、`unresponsive` は指示が
  * 通らなくなった状態。どちらもアプリは自分では起動し直さない
  * （`docs/state-transitions/engine-standardization.md` の V6 V7）
  */

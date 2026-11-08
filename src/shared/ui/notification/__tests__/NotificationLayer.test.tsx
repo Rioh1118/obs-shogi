@@ -33,7 +33,7 @@ function setup() {
   return { notify: (request: NotifyRequest) => act(() => notify(request)) };
 }
 
-/** 見せ方を変える関数は別に持つ。spread で差し替えると union の枝が決まらない */
+/** 見せ方を変える関数は別に持つ。spread で差し替えると union の分岐が決まらない */
 const request = (
   over: { tier?: VisibleTier; title?: string; actions?: NotifyAction[]; dedupeKey?: string } = {},
 ): NotifyRequest => ({
@@ -150,12 +150,12 @@ describe("通知の層", () => {
   });
 
   /**
-   * 畳まれると `actions` が丸ごと差し替わるのに id は動かない（再マウントしない）。
+   * まとめられると `actions` が丸ごと差し替わるのに id は動かない（再マウントしない）。
    * 走っているものを添字で覚えていると、**一度も押していないボタンが busy かつ
    * 押せない状態で残る**。押せなくなるのはたいてい「エンジンが応答しない」ときで、
    * 唯一の復帰導線がそれになる。
    */
-  it("畳まれて動作が差し替わっても、押していないボタンは押せる", async () => {
+  it("まとめられて動作が差し替わっても、押していないボタンは押せる", async () => {
     const app = setup();
     // 返らない動作。エンジンが死んでいる状態そのもの
     const stuck = { label: "再試行", run: () => new Promise<void>(() => {}) };
@@ -195,7 +195,7 @@ describe("通知の層", () => {
   /**
    * 入れ物は高さに上限を持ち、溢れたぶんは巻き取られる。`scrollTop` の初期値は 0 で
    * 見えているのは先頭なので、**出た順のまま並べると巻き取られるのが常に新着側**になる。
-   * 失敗が続いている間に出た最後の1件——いちばん段が重いことが多い——が
+   * 失敗が続いている間に出た最後の1件——いちばん tier が重いことが多い——が
    * 一度も画面に出ない。高さは happy-dom で測れないので、DOM の並びで固定する。
    */
   it.each([
@@ -236,7 +236,7 @@ describe("通知の層", () => {
   });
 
   describe("件数", () => {
-    it("畳む鍵を持つ通知にだけ出す", () => {
+    it("まとめる鍵を持つ通知にだけ出す", () => {
       const app = setup();
       app.notify(request({ dedupeKey: "sfen", title: "局面を読めませんでした" }));
       app.notify(request({ dedupeKey: "sfen", title: "局面を読めませんでした" }));

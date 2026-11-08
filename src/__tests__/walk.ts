@@ -79,7 +79,7 @@ export const RUST_CHECKS_DIR = join(REPO_ROOT, "src-tauri", "tests");
  * 起動の1枚目を作る2ファイル。**どちらも `src/` の外に居る。**
  *
  * `index.html` は React が着く前に出る画面を自分で持ち、`tauri.conf.json` は
- * 窓の初期色と CSP を持つ。両方を複数の検査が読むので、パスの出典をここに置く
+ * ウィンドウの初期色と CSP を持つ。両方を複数の検査が読むので、パスの出典をここに置く
  * ——それぞれが `join(REPO_ROOT, …)` を手書きすると、置き場を動かしたときに
  * 片方だけが直る。
  *
@@ -97,7 +97,7 @@ function repoFile(...parts: string[]): string {
 /** 起動の1枚目を持つ HTML */
 export const INDEX_HTML = repoFile("index.html");
 
-/** 窓の設定と CSP */
+/** ウィンドウの設定と CSP */
 export const TAURI_CONF = repoFile("src-tauri", "tauri.conf.json");
 
 /**

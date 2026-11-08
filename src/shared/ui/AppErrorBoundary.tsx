@@ -29,40 +29,40 @@ export const BOUNDARY_LABELS = {
 export type BoundaryLabel = (typeof BOUNDARY_LABELS)[keyof typeof BOUNDARY_LABELS];
 
 /**
- * 捕まえた例外と、畳みを解く手段。`fallback` に渡すのはこれだけ。
+ * 捕まえた例外と、子を描き直す手段。`fallback` に渡すのはこれだけ。
  *
  * 案内、出口、置き方は fallback 側の持ち物で、境界は関与しない。
  * 境界が表示の欄を持つと、増えるたびに fallback への転送を書き足すことになり、書き忘れても赤くならない。
  */
 export type ErrorBoundaryView = {
-  /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` と同じもの */
+  /** unmount された範囲の名前。`AppErrorBoundary` の `label` と同じもの */
   label: BoundaryLabel;
   /** 投げられた値。`Error` とは限らない */
   error: unknown;
-  /** 畳むのをやめて描き直す。原因が境界の外にあるなら効かない */
+  /** fallback をやめて子を描き直す。原因が境界の外にあるなら効かない */
   reset: () => void;
 };
 
 type Props = {
   /**
-   * 畳まれる範囲の名前。**名簿（`BOUNDARY_LABELS`）から選ぶ。**
+   * unmount される範囲の名前。**名簿（`BOUNDARY_LABELS`）から選ぶ。**
    *
    * 落ちたときの `console.error` の頭にも付くので、ログだけを見て
    * どの境界が受けたかが分かる。
    */
   label: BoundaryLabel;
   /**
-   * これが変わったら畳むのをやめる。落ちた原因が境界の外にあるときの唯一の出口。
+   * これが変わったらfallback をやめて子を描き直す。落ちた原因が境界の外にあるときの唯一の出口。
    *
    * `reset` は `error` を消すだけなので、原因が上位の state に残っていれば同じ行で落ち直す。
-   * 逆に原因が消えても（別の棋譜を選んだ、モーダルを閉じた）境界は畳んだままになる。
+   * 逆に原因が消えても（別の棋譜を選んだ、モーダルを閉じた）境界は fallback を出したままになる。
    *
    * 渡すのは「別の局面、別の画面になった」と言い切れる値だけにする。描画ごとに変わる値を渡すと、
    * 落ち続けるものを描き直し続けて**例外がこの境界を素通りする**。
    */
   resetKeys?: readonly unknown[];
   /**
-   * 畳んだ間に描くもの。既定を持たせない。持たせると置き方を選ばずに境界を置けて、選び損ねた事故は落ちるまで出ない。
+   * unmount した間に描くもの。既定を持たせない。持たせると置き方を選ばずに境界を置けて、選び損ねた事故は落ちるまで出ない。
    *
    * **ここで描くものは境界の内側に居る。** 投げれば同じ境界では捕まらず、1つ外の境界まで抜ける。
    * 落ちたツリーの部品（`TitleBar` など）を再利用すると、同じ例外でこの画面も落ちる。
@@ -87,9 +87,9 @@ type State = {
 };
 
 /**
- * レンダ例外を受けて、囲った範囲だけを畳む。
+ * レンダ例外を受けて、囲った範囲だけを unmount する。
  *
- * 持つのは「捕まえたか」と「畳みを解く鍵」だけで、何をどう見せるかは `fallback` が決める。
+ * 持つのは「捕まえたか」と「子を描き直す鍵」だけで、何をどう見せるかは `fallback` が決める。
  * どこに何枚あるかは `docs/spec/screens/app-layout.md` の「失敗の見せ方」が持つ。
  */
 export class AppErrorBoundary extends Component<Props, State> {
@@ -103,7 +103,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   /**
-   * 鍵が変わったら畳むのをやめる。
+   * 鍵が変わったら子を描き直す。
    *
    * **鍵は落ちている間も更新する。** 更新しないと、比較の相手が落ちた時点の鍵に留まったまま
    * 毎レンダ「変わった」と判定され、`error` を消しては子を描き直し続ける。境界は捕まえ直せず、

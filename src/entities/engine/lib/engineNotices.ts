@@ -11,7 +11,7 @@ import type { EngineStartFailure, EngineStartFailureKind } from "./engineFailure
  */
 export const SLOW_START_MS = 30_000;
 
-/** 起動した後で動かなくなった帯の段と文 */
+/** 起動した後で動かなくなった帯の tier と文 */
 type EngineStoppedNotice = { tier: "warning" | "danger"; title: string; body: string };
 
 /** プロセスが自分で終わった（`docs/spec/features/engine-standardization.md` の V7） */
@@ -35,7 +35,7 @@ const ENGINE_UNRESPONSIVE_NOTICES: Record<UnresponsiveReason, EngineStoppedNotic
   },
 };
 
-/** 帯1枚ぶんの段、本文、「もう一度起動」を出すか */
+/** 帯1枚ぶんの tier、本文、「もう一度起動」を出すか */
 type EngineStartFailureNotice = {
   tier: "warning" | "danger";
   body: string;
@@ -65,14 +65,14 @@ const UNIDENTIFIED_FAILURE_NOTICE: EngineStartFailureNotice = {
 };
 
 /**
- * 起動の失敗の種類ごとに、帯の段、本文、「もう一度起動」を出すかを決めた表。
+ * 起動の失敗の種類ごとに、帯の tier、本文、「もう一度起動」を出すかを決めた表。
  * 判断の出典はここ1つで、他の doc は種類を列挙せずここを指す。
  *
  * `Record` なので、種類が増えたのに書き足し忘れると tsc が落ちる。
  * Rust の種類が TS の union に届いていることは `startFailureKindWire.test.ts` が見る。
  *
- * **段と「もう一度起動」は別の軸で決める。**
- * - 段（ADR-0004）: 同じ操作をもう一度で直る見込みがあれば `warning`、利用者が何かを直す
+ * **tier と「もう一度起動」は別の軸で決める。**
+ * - tier（ADR-0004）: 同じ操作をもう一度で直る見込みがあれば `warning`、利用者が何かを直す
  *   必要があれば `danger`（`quarantined` は macOS の許可が要るので `danger`）
  * - 「もう一度起動」: 押す意味が残る種類に出す。原因が設定の外にもありうる種類
  *   （実行権限、置いたファイル、ドライブ、macOS の許可）は、そこを直しても設定が変わらず

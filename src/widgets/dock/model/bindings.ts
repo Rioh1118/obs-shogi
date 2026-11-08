@@ -7,14 +7,14 @@ export type DockViewBinding = {
   /** ドックの本体に出るもの */
   Body: ComponentType;
   /**
-   * タブ列の下の段に出る操作列。**他のビューの操作をここへ混ぜない。**
+   * タブ列の下の行に出る操作列。**他のビューの操作をここへ混ぜない。**
    *
    * 混ぜると、そのビューを見ていない間も操作だけが残る。
    */
   Controls: ComponentType;
   /** 本体が落ちたときの名乗り。**ビューごとに別の綴りを選ぶこと** */
   boundary: BoundaryLabel;
-  /** 畳んだときに出す次の一手 */
+  /** 境界が unmount したときに出す次の一手 */
   fallbackHint: string;
 };
 

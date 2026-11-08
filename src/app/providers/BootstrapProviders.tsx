@@ -4,9 +4,9 @@ import { NotificationProvider } from "@/shared/lib/notification/provider";
 import NotificationLayer from "@/shared/ui/notification/NotificationLayer";
 
 /**
- * 起動した時から在る器。通知の置き場と、それを描く層と、設定を張る。
+ * 起動した時から在る provider。通知の置き場と、それを描く層と、設定を張る。
  *
- * 通知は設定より外に置く。内側に置くと、設定の器が中身を描かない間は通知も出せなくなる。
+ * 通知は設定より外に置く。内側に置くと、設定の provider が中身を描かない間は通知も出せなくなる。
  * いまの `AppConfigProvider` は読み込み中も失敗しても中身を描くので、入れ替えても同じに動く
  * （設定の読み込みの失敗は通知でなく、`AppLoading` が起動画面に自分で出す）。
  *
@@ -17,7 +17,7 @@ import NotificationLayer from "@/shared/ui/notification/NotificationLayer";
  * （設定を開けなかったら起動画面へ戻る）。画面の中に置くと遷移で消える。
  *
  * `UpdaterScreen` はここより外にある（`App.tsx`）。あちらは失敗を自分のカードに
- * 書き、通知を使わない。通知へ載せ替えるなら、先に `UpdaterScreen` をこの器の内側へ入れること。
+ * 書き、通知を使わない。通知へ載せ替えるなら、先に `UpdaterScreen` をこの provider の内側へ入れること。
  */
 export function BootstrapProviders({ children }: { children: ReactNode }) {
   return (

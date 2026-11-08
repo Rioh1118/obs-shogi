@@ -5,9 +5,9 @@ import { render, screen, cleanup, fireEvent, act, within } from "@testing-librar
 /**
  * タブを跨いだときに何が残り、何が消えるか（状態遷移表の I×X9 と W×X9）。
  *
- * **器そのものを描く。** 面だけを描くと、面を外すのが器の側の判断なので、
+ * **モーダルそのものを描く。** タブだけを描くと、タブを外すのがモーダルの側の判断なので、
  * 「タブへ移ったら組みかけが消える」がテストに現れない。
- * 面の中で閉じた話は `features/position-editor` の側が見る。
+ * タブの中で閉じた話は `features/position-editor` の側が見る。
  */
 
 const closeModal = vi.fn();
@@ -57,15 +57,15 @@ const hasPiece = (x: number, y: number): boolean => square(x, y).querySelector("
 const tab = (name: string) => screen.getByRole("tab", { name, hidden: true });
 
 /**
- * 面ごとに引く
+ * タブごとに引く
  *
- * **両方の面が木に残る**（外すと組みかけも貼りかけも消える）ので、
- * 同じ語のラベルもボタンも器の中に2つある。器ごと引くと、
+ * **両方のタブが木に残る**（外すと組みかけも貼りかけも消える）ので、
+ * 同じ語のラベルもボタンもモーダルの中に2つある。モーダルごと引くと、
  * 隠れているほうを掴んで「押しても何も起きない」テストになる。
  */
 const faceIn = (selector: string) => {
   const el = document.querySelector<HTMLElement>(selector);
-  if (!el) throw new Error(`面が無い: ${selector}`);
+  if (!el) throw new Error(`タブが無い: ${selector}`);
   return within(el);
 };
 const importFace = () => faceIn(".kifu-import");
@@ -102,10 +102,10 @@ describe("タブの切り替え（X9）", () => {
     expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(false);
   });
 
-  test("課題局面の面を出したままタブを往復しても、戻り先は盤", () => {
+  test("課題局面のパネルを出したままタブを往復しても、戻り先は盤", () => {
     render(<CreateFileModal />);
-    // 隠れているあいだにどちらの面を描くかは目に見えないが、**フォームの有無が変わる**。
-    // 課題局面の面を描くと、隠れているあいだに作成フォームごと外れて入力が消える
+    // 隠れているあいだにどちらのパネルを描くかは目に見えないが、**フォームの有無が変わる**。
+    // 課題局面のパネルを描くと、隠れているあいだに作成フォームごと外れて入力が消える
     fireEvent.change(boardFace().getByLabelText("ファイル名"), { target: { value: "45角戦法" } });
     fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
     expect(screen.getByRole("button", { name: "戻る" })).toBeTruthy();
@@ -118,7 +118,7 @@ describe("タブの切り替え（X9）", () => {
     expect(boardFace().getByLabelText<HTMLInputElement>("ファイル名").value).toBe("45角戦法");
   });
 
-  test("閉じて開き直すと、面は盤から始まる", () => {
+  test("閉じて開き直すと、パネルは盤から始まる", () => {
     const { rerender } = render(<CreateFileModal />);
     fireEvent.click(tab("インポート"));
 
@@ -134,7 +134,7 @@ describe("タブの切り替え（X9）", () => {
 /** 読める最小の kif。インポートの送信条件（棋譜として読めたこと）を満たすために要る */
 const KIF_TEXT = "手数----指手---------消費時間--\n   1 ７六歩(77)   ( 0:00/00:00:00)\n";
 
-/** インポートの面を出して、送信できるところまで埋める */
+/** インポートのタブを出して、送信できるところまで埋める */
 function fillImport() {
   fireEvent.click(tab("インポート"));
   fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
@@ -147,7 +147,7 @@ const importForm = (): HTMLFormElement => {
   return form;
 };
 
-describe("インポートの面から閉じる", () => {
+describe("インポートのタブから閉じる", () => {
   test("組みかけを持ったまま「キャンセル」を押すと確認が出る", () => {
     render(<CreateFileModal />);
     makeDirty();
@@ -169,8 +169,8 @@ describe("インポートの面から閉じる", () => {
   });
 
   /**
-   * 捨てるものは面ごとに在り、**閉じる経路はどちらの面にもある**。
-   * 器が両方を数えないと、見ていないほうが黙って消える。
+   * 捨てるものはタブごとに在り、**閉じる経路はどちらのタブにもある**。
+   * モーダルが両方を数えないと、見ていないほうが黙って消える。
    */
   test("棋譜を貼ったまま閉じようとすると確認が出る", () => {
     render(<CreateFileModal />);
@@ -183,7 +183,7 @@ describe("インポートの面から閉じる", () => {
     expect(closeModal).not.toHaveBeenCalled();
   });
 
-  test("貼った棋譜は、盤の面から Esc で閉じようとしても数える", () => {
+  test("貼った棋譜は、盤のパネルから Esc で閉じようとしても数える", () => {
     render(<CreateFileModal />);
     fireEvent.click(tab("インポート"));
     fireEvent.change(importFace().getByLabelText("棋譜テキスト"), { target: { value: KIF_TEXT } });
@@ -219,8 +219,8 @@ describe("インポートの面から閉じる", () => {
     expect(importFace().getByLabelText<HTMLTextAreaElement>("棋譜テキスト").value).toBe(KIF_TEXT);
   });
 
-  test("インポートの面へ移ると、貼り付け欄に焦点が入る", async () => {
-    // 焦点は次のフレームで移す。**器の `Modal` が開いた直後に引き戻すので、
+  test("インポートのタブへ移ると、貼り付け欄に焦点が入る", async () => {
+    // 焦点は次のフレームで移す。**親の `Modal` が開いた直後に引き戻すので、
     // 同じターンで移すと奪われる**
     const frame = () =>
       act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
@@ -248,7 +248,7 @@ describe("作成中（W）", () => {
 
     render(<CreateFileModal />);
     fireEvent.change(boardFace().getByLabelText("ファイル名"), { target: { value: "a" } });
-    // **組む面の中から探す。** インポートの面も木に残っていて、そちらの
+    // **組むタブの中から探す。** インポートのタブも木に残っていて、そちらの
     // フォームのほうが DOM では先に来る
     const form = document.querySelector(".pos-editor form");
     if (!form) throw new Error("フォームが無い");
@@ -267,7 +267,7 @@ describe("作成中（W）", () => {
   });
 
   test("インポートの側で送信中も、タブが沈み Esc で閉じない", async () => {
-    // **旗は面ごとに立つ。** 片方しか見ないと、見ていない面で送信中に器が閉じ、
+    // **旗はタブごとに立つ。** 片方しか見ないと、見ていないタブで送信中にモーダルが閉じ、
     // 失敗を出す場所ごと消える
     let finish: (result: { success: boolean }) => void = () => undefined;
     importKifuFile.mockReturnValue(
@@ -306,18 +306,18 @@ describe("作成中（W）", () => {
 });
 
 /**
- * 2つの面が同じ `id` を名乗ると、ラベルを押したときに隠れている面の欄へ焦点が入る。
+ * 2つのタブが同じ `id` を名乗ると、ラベルを押したときに隠れているタブの欄へ焦点が入る。
  * ブラウザがラベルから引くのは文書の中で最初にその `id` を持つ要素なので、
- * ここも `getElementById` で引く（面の中だけを探すと衝突が見えない）。
+ * ここも `getElementById` で引く（タブの中だけを探すと衝突が見えない）。
  */
 describe("ラベルと欄", () => {
   test.each([
     [".kifu-import", ["棋譜テキスト", "ファイル名", "形式", "保存先"]],
     [".pos-editor", ["ファイル名", "形式", "保存先", "先手名", "後手名"]],
-  ])("%s のラベルは、同じ面の中の欄を指す", (selector, labels) => {
+  ])("%s のラベルは、同じタブの中の欄を指す", (selector, labels) => {
     render(<CreateFileModal />);
     const face = document.querySelector<HTMLElement>(selector);
-    if (!face) throw new Error(`面が無い: ${selector}`);
+    if (!face) throw new Error(`タブが無い: ${selector}`);
 
     for (const text of labels) {
       const label = [...face.querySelectorAll("label")].find((el) => el.textContent === text);

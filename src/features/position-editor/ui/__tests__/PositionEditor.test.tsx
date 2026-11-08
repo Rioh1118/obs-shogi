@@ -7,14 +7,14 @@ import type { JKFState } from "@/entities/kifu/model/jkf";
 import { EditorHarness, renderSeeded } from "./harness";
 
 /**
- * 組む面の描画。種を載せた局面が、盤と駒台の3つの置き場に**全部載る**こと。
+ * 組むタブの描画。種を載せた局面が、盤と駒台の3つの置き場に**全部載る**こと。
  * 掴む・置く・裏返すは別のファイルが見る。
  *
  * 載り切らないと、盤にも駒台にも出ない駒が生まれ、
  * 「40枚が必ずどこかにある」という置き場3つの前提が黙って崩れる。
  */
 
-// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組むタブはファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),

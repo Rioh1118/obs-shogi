@@ -122,7 +122,7 @@ export type GameSettings = {
  * - `rule`: `endGameByRule` か、Rust が手数の上限（`MAX_PLIES`）に当たったとき。
  *   後者は呼んでいないのに届き、`detail` は Rust の英文。自分の呼び出しのこだまとして捨てない
  * - `resign`: `resignGame`。エンジンの投了は Rust が決める
- * - `aborted`: `abortGame`。走っている対局への `closeGame` も、畳む前に中断を通すのでここへ入る
+ * - `aborted`: `abortGame`。走っている対局への `closeGame` も、エンジンを落とす前に中断を通すのでここへ入る
  *
  * `rulingTimeout` は「アプリの異常」で、裁定が `RULING_TIMEOUT` の間返らず Rust が終局させた
  * 対局。利用者の `aborted` とは対処が正反対なので値を分ける。
@@ -190,11 +190,11 @@ export type ClocksView = {
    *
    * 1. 裁定待ち
    * 2. 終局後
-   * 3. 手番だが、止めた探索の畳み待ちで `go` をまだ出していない。`phase` は `thinking` の
+   * 3. 手番だが、止めた探索の止め終わり待ちで `go` をまだ出していない。`phase` は `thinking` の
    *    まま。通常は数百ミリ秒、長くて `SETTLE_TIMEOUT`
    * 4. Rust の壁時計が取れない。`phase` は何でもありうる
    *
-   * 3 は渡す先に畳む探索があったときだけ起き、`ponder` の既定は false なので既定の設定では
+   * 3 は渡す先に止め終わりを待つ探索があったときだけ起き、`ponder` の既定は false なので既定の設定では
    * 起きない。それ以外の `turnChanged` は `running` を載せて届く。受け手は有無で分岐する。
    * 毎手 `null` と決め打って捨てると、次の `clockUpdated` まで期限を持たず止まって見える。
    */

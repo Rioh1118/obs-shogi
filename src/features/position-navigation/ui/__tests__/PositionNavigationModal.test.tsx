@@ -119,7 +119,7 @@ describe("PositionNavigationModal", () => {
     expect(selectedCardLabel()).toBe("変化1");
   });
 
-  test("札を押すとその候補を選ぶ", () => {
+  test("カードを押すとその候補を選ぶ", () => {
     cursor = { tesuu: 1, forkPointers: [] };
     render(<PositionNavigationModal />);
 

@@ -33,7 +33,7 @@ function placeAssetsState({ enginesDir, folderCount, scanReady }: SetupProgress)
   return scanReady ? "warn" : "locked";
 }
 
-/** 手順書の4段の状態を決める。 */
+/** 手順書の4段階の状態を決める。 */
 export function setupStepStates(progress: SetupProgress) {
   return {
     selectRoot: progress.hasRoot ? ("done" as const) : ("active" as const),

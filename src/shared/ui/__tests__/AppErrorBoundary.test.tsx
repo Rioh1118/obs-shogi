@@ -4,13 +4,13 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { AppErrorBoundary, BOUNDARY_LABELS, type ErrorBoundaryView } from "../AppErrorBoundary";
 
 /**
- * 境界が持つのは「捕まえたか」と「畳みを解く鍵」だけ。**見せ方はここでは見ない**
+ * 境界が持つのは「捕まえたか」と「子を描き直す鍵」だけ。**見せ方はここでは見ない**
  * （`error-fallback/__tests__/errorFallback.test.tsx`）。
  *
  * 境界から出る手段が「再表示」しか無いと、**押しても画面が1ドットも変わらない**行き止まりになる。
  * `reset` は自分の `error` を消すだけで、落ちた原因は境界の**外**（provider の state、URL）に
  * 残っている。同じ state で描き直せば同じ行で落ちる。逆に、原因が消えても
- * （別の画面へ移った、モーダルを閉じた）境界はそれを知らないので畳んだままになる。
+ * （別の画面へ移った、モーダルを閉じた）境界はそれを知らないのでfallback を出したままになる。
  * どちらも利用者からは「壊れたまま」に見え、**例外もエラー表示も出ない。**
  *
  * `resetKeys` の比較そのものをここで固定する。壊れても型では落ちない。
@@ -28,7 +28,7 @@ function Child({ boom }: { boom: boolean }) {
 }
 
 /**
- * 見せ方を持たない `fallback`。**畳んだこと・投げられた値・出口だけを出す。**
+ * 見せ方を持たない `fallback`。**unmount したこと・投げられた値・出口だけを出す。**
  *
  * 本文の部品を使うと、本文の文言を変えただけでこのファイルが赤くなる
  */
@@ -36,13 +36,13 @@ const bare = (view: ErrorBoundaryView) => (
   <div data-testid="fallback">
     <span data-testid="caught">{String(view.error)}</span>
     <button type="button" onClick={view.reset}>
-      畳みを解く
+      リセット
     </button>
   </div>
 );
 
 beforeEach(() => {
-  // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ畳む
+  // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ抑える
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -54,7 +54,7 @@ afterEach(() => {
 describe("AppErrorBoundary が捕まえる値", () => {
   // **投げられた値そのものを旗にすると、falsy な例外で境界が素通りする。**
   // 素通りした例外は外の境界も受けないので（React は「処理できなかった」と見なす）、
-  // 入れ子の何枚目でも抜けて root ごと unmount する ——「閉じられない白い窓」に戻る
+  // 入れ子の何枚目でも抜けて root ごと unmount する ——「閉じられない白いウィンドウ」に戻る
   for (const [name, value] of [
     ["undefined", undefined],
     ["null", null],
@@ -62,7 +62,7 @@ describe("AppErrorBoundary が捕まえる値", () => {
     ["0", 0],
     ["false", false],
   ] as const) {
-    test(`${name} を投げても畳む`, () => {
+    test(`${name} を投げても fallback に切り替える`, () => {
       let escaped = false;
       try {
         render(
@@ -94,7 +94,7 @@ describe("AppErrorBoundary が fallback へ渡すもの", () => {
 
   test("名乗りをそのまま渡す", () => {
     // 名乗りは境界の識別子でもある。渡らないと、fallback 側は
-    // どの範囲が畳まれたかを自分で書き足すことになり、写しが増える
+    // どの範囲が unmount されたかを自分で書き足すことになり、写しが増える
     let seen = "";
     render(
       <AppErrorBoundary
@@ -128,7 +128,7 @@ describe("AppErrorBoundary が残す記録", () => {
 });
 
 describe("AppErrorBoundary の resetKeys", () => {
-  test("鍵が変わったら畳むのをやめる", () => {
+  test("鍵が変わったら子を描き直す", () => {
     const { rerender } = render(
       <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["a"]} fallback={bare}>
         <Child boom />
@@ -144,7 +144,7 @@ describe("AppErrorBoundary の resetKeys", () => {
     expect(screen.getByTestId("child")).toBeTruthy();
   });
 
-  test("鍵が同じなら、描き直しても畳んだまま", () => {
+  test("鍵が同じなら、描き直しても fallback のまま", () => {
     const { rerender } = render(
       <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["a"]} fallback={bare}>
         <Child boom />
@@ -178,7 +178,7 @@ describe("AppErrorBoundary の resetKeys", () => {
     );
     expect(screen.getByTestId("fallback")).toBeTruthy();
 
-    // 原因が消えて鍵が動いたので、ここで畳むのをやめる
+    // 原因が消えて鍵が動いたので、ここで子を描き直す
     rerender(
       <AppErrorBoundary label={BOUNDARY_LABELS.board} resetKeys={["c"]} fallback={bare}>
         <Child boom={false} />
@@ -194,7 +194,7 @@ describe("AppErrorBoundary の resetKeys", () => {
       </AppErrorBoundary>,
     );
 
-    fireEvent.click(screen.getByText("畳みを解く"));
+    fireEvent.click(screen.getByText("リセット"));
 
     expect(
       screen.getByTestId("fallback"),

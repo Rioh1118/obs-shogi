@@ -76,8 +76,8 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe("最近開いた定跡への控え", () => {
-  it("開けた定跡を先頭に控える", async () => {
+describe("最近開いた定跡の一覧", () => {
+  it("開けた定跡を先頭に載せる", async () => {
     openBookFile.mockResolvedValue(Ok(info(1, "/books/a.db")));
     const { result } = renderOpening();
 
@@ -90,8 +90,8 @@ describe("最近開いた定跡への控え", () => {
     });
   });
 
-  /** 控えると、後から開いた定跡を古い一覧で上書きし、捨てた定跡が先頭に来る */
-  it("中止した定跡は控えない", async () => {
+  /** 載せると、後から開いた定跡を古い一覧で上書きし、捨てた定跡が先頭に来る */
+  it("中止した定跡は最近の一覧に載せない", async () => {
     let settle!: (value: unknown) => void;
     openBookFile.mockReturnValue(new Promise((resolve) => (settle = resolve)));
     const { result, close } = renderOpening();
@@ -109,7 +109,7 @@ describe("最近開いた定跡への控え", () => {
     expect(setDisplayConfig).not.toHaveBeenCalled();
   });
 
-  it("開けなかった定跡は控えない", async () => {
+  it("開けなかった定跡は一覧に載せない", async () => {
     openBookFile.mockResolvedValue(Err({ code: "io", message: "読めない", path: "/books/a.db" }));
     const { result } = renderOpening();
 
@@ -122,7 +122,7 @@ describe("最近開いた定跡への控え", () => {
 });
 
 describe("ダイアログで選んで開く", () => {
-  it("選んだ定跡を開いて控える", async () => {
+  it("選んだ定跡を開いて一覧に載せる", async () => {
     pickBookFile.mockResolvedValue("/books/a.db");
     openBookFile.mockResolvedValue(Ok(info(1, "/books/a.db")));
     const { result } = renderOpening();

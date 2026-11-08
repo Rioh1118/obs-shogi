@@ -72,7 +72,7 @@ export type UsiOptionDef = UsiOptionLabel &
  */
 export type UsiOptionLabel = {
   label?: string;
-  /** 定跡の設定の印 */
+  /** 定跡の設定であることを示す */
   group?: "book";
 };
 

@@ -316,7 +316,7 @@ describe("AppConfigProvider", () => {
   });
 
   /**
-   * 失敗を `error` に積むと `RequireRootDir` がランタイムごと畳むので、
+   * 失敗を `error` に積むと `RequireRootDir` がランタイムごと unmount するので、
    * 呼び出し元が出そうとした失敗が画面に出る前に消える
    */
   it("設定の更新の失敗を error に積まない", async () => {

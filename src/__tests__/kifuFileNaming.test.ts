@@ -7,11 +7,11 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
 /**
  * **書き込むファイル名を組む関数は1つ。**
  *
- * 棋譜を作る面は3つある（盤で組む・棋譜を貼る・課題局面から）。どれも
+ * 棋譜を作る入口は3つある（盤で組む・棋譜を貼る・課題局面から）。どれも
  * 「打った名前＋選んだ形式」でファイル名を作るが、**規則は写された瞬間に割れる。**
- * 実際に割れていて、同じ `45角戦法.kif` という入力が面によって
+ * 実際に割れていて、同じ `45角戦法.kif` という入力が入口によって
  * `45角戦法.kif` にも `45角戦法.kif.kif` にもなっていた。`.kif` とだけ打った状態も、
- * 押せない面と `.kif.kif` を作る面に分かれていた。
+ * 押せない入口と `.kif.kif` を作る入口に分かれていた。
  *
  * 規則は `kifuFileName`（`entities/kifu/model/kifu.ts`）が持つ。
  * 落とす拡張子の綴りを `KIFU_FORMAT_OPTIONS` から作るので、形式を1つ足せば
@@ -75,18 +75,18 @@ describe("書き込むファイル名を組む関数", () => {
       handBuilt,
       [
         "ファイル名を手で組んでいる。`kifuFileName(name, format)` を通すこと。",
-        "通さないと、打った拡張子が二重に付く面と落ちる面に分かれ、",
-        "`.kif` とだけ打った状態で押せてしまう面が残る。",
+        "通さないと、打った拡張子が二重に付くタブと落ちるタブに分かれ、",
+        "`.kif` とだけ打った状態で押せてしまうタブが残る。",
         ...handBuilt,
       ].join("\n"),
     ).toEqual([]);
   });
 
   /**
-   * 面を1つ増やしたときに、この検査が見る場所も増えていること。
+   * 入口を1つ増やしたときに、この検査が見る場所も増えていること。
    * **呼び出し元を数えないと、全員が手で組むのをやめた「0件」と見分けが付かない。**
    */
-  it("作る面はどれも kifuFileName を通る", () => {
+  it("作る入口はどれも kifuFileName を通る", () => {
     const callers = tsFiles(SRC).filter((file) => {
       const name = relative(REPO_ROOT, file);
       if (name === OWNER || name === SELF) return false;
@@ -95,7 +95,7 @@ describe("書き込むファイル名を組む関数", () => {
 
     expect(
       callers.map((file) => relative(REPO_ROOT, file)).sort(),
-      "棋譜を作成面が kifuFileName を通っていない",
+      "棋譜を作成するタブが kifuFileName を通っていない",
     ).toEqual([
       "src/entities/kifu/model/__tests__/kifu.test.ts",
       "src/features/create-file/model/useKifuImportDraft.ts",

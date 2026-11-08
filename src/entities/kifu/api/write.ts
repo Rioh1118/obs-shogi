@@ -6,7 +6,7 @@ import type { JKFData } from "../model/jkf";
 /**
  * JKF を指定の形式でファイルへ書き出す
  *
- * throw しない。失敗はすべて `Err` に畳むので、呼び出し側で try/catch を重ねる必要はない。
+ * throw しない。失敗はすべて `Err` に寄せるので、呼び出し側で try/catch を重ねる必要はない。
  * ただし中身は日本語とは限らない。Rust の `atomic_write` が返す OS のエラー
  * （`Permission denied (os error 13)` など）がそのまま入るので、
  * 利用者に出すなら何をしようとして失敗したのかを前後に足すこと。

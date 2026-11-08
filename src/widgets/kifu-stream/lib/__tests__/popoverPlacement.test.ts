@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 import { placeBelowOrAbove, placeBeside } from "../popoverPlacement";
 
 /**
- * 行の横と下に出す面の位置。
+ * 行の横と下に出すサーフェスの位置。
  *
- * 面が画面からはみ出すと、操作の項目が押せなくなる。横の面は行の高さに合わせて出るので、
+ * サーフェスが画面からはみ出すと、操作の項目が押せなくなる。横のサーフェスは行の高さに合わせて出るので、
  * 縦がずれると隣の行の操作に見える。
  */
 
@@ -73,7 +73,7 @@ describe("placeBelowOrAbove", () => {
   });
 
   test("下の空きがちょうど足りるなら下に出す", () => {
-    // 下の空きは 600 - 532 = 68 で、面の高さと余白の和と等しい
+    // 下の空きは 600 - 532 = 68 で、サーフェスの高さと余白の和と等しい
     expect(placeBelowOrAbove(rect(300, 512, 20, 20), pop, viewport).top).toBe(538);
     expect(placeBelowOrAbove(rect(300, 513, 20, 20), pop, viewport).top).toBe(447);
   });

@@ -187,7 +187,7 @@ describe("AI ライブラリタブの「開く」", () => {
   /**
    * スキャン中に「まだ何も読めていない」と同じ画面へ落ちないこと。
    *
-   * 進行中に索引を捨てると、開くボタンが押せなくなり、手順書の段が塞がり、
+   * 進行中に索引を捨てると、開くボタンが押せなくなり、手順書の段階が塞がり、
    * 押したスキャンのボタン自身も消える。`unknown` なので作成も出ない——
    * engines に対してできることが1つも無くなる。
    * 残るのは常設の「選択…」だけで、それはルートを選び直す操作であって、
@@ -336,7 +336,7 @@ describe("AI ライブラリタブの「開く」", () => {
     // 読めていない回に「0 件」と断言しない（観測していない）
     expect(screen.queryByText("0 件")).toBeNull();
     // 木も同じ。読めていないのに「作成しろ」と指示すると、
-    // その回は入力欄も段も描かれていないので、探しても作成の操作が無い
+    // その回は入力欄も手順の段階も描かれていないので、探しても作成の操作が無い
     expect(screen.queryByText("← AI フォルダを作成")).toBeNull();
   });
 
@@ -397,7 +397,7 @@ describe("AI ライブラリタブの「開く」", () => {
   /**
    * 作成の判定は、**成功と区別できる形**で返らないといけない。
    *
-   * 畳んで `null`（成功）にすると、呼び出し元は打った名前を消す。
+   * `null`（成功）に寄せると、呼び出し元は打った名前を消す。
    * 旧ルートでは作られているかもしれないのに、新しいルートの一覧には出ないので、
    * 利用者には「打ち直したのに何も起きなかった」ようにしか見えない
    */
@@ -423,7 +423,7 @@ describe("AI ライブラリタブの「開く」", () => {
 
     expect((screen.getByPlaceholderText("AI 名を入力") as HTMLInputElement).value).toBe("Suisho");
     // 名前は悪くないので、欄も赤くしない。**空であることまで見る**——
-    // `"stale"` を名前の失敗に畳むと、ここに `describeFsError` の文言が入る
+    // `"stale"` を名前の失敗に寄せると、ここに `describeFsError` の文言が入る
     expect(screen.getByRole("alert").textContent).toBe("");
   });
 
@@ -550,19 +550,19 @@ describe("AI ライブラリタブの「開く」", () => {
         autoDismiss: true,
         title: "前のフォルダに「Suisho」を作成しました",
         body: "切り替える前の AI ライブラリでの結果です",
-        // 連打しても1枚に畳む。鍵にルートと名前が入っていないと別のフォルダの回まで畳む
+        // 連打しても1枚にまとめる。鍵にルートと名前が入っていないと別のフォルダの回までまとめる
         dedupeKey: `create-profile:${AI_ROOT}/Suisho`,
       }),
     );
   });
 
   /**
-   * 落ちて返った回。**段まで同じにしない。**
+   * 落ちて返った回。**tier まで同じにしない。**
    *
    * 6秒で消える通知で成功と失敗の差が題の末尾の1語だけになると、
    * 作れていないのに「作れた」と読んで先へ進み、どのルートにもそのフォルダが無い
    */
-  test("宛先を失った作成が落ちていたら、段も文面も分ける", async () => {
+  test("宛先を失った作成が落ちていたら、tier も文面も分ける", async () => {
     scanAiRoot.mockResolvedValue(indexWithEngine());
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
@@ -756,7 +756,7 @@ describe("AI ライブラリタブの「開く」", () => {
     const request = notify.mock.calls[0][0];
 
     expect(request).toMatchObject({ tier: "info", presentation: "toast", autoDismiss: true });
-    // 連打しても1枚に畳まれること。鍵にパスが入っていないと別のフォルダの失敗まで畳む
+    // 連打しても1枚にまとまること。鍵にパスが入っていないと別のフォルダの失敗までまとめる
     expect(request).toHaveProperty("dedupeKey", `reveal:${AI_ROOT}/engines`);
     // どのフォルダかは題で言う。本文は6秒で読み切れる1行に収める
     expect(request).toHaveProperty("title", "engines/を開けませんでした");
@@ -799,7 +799,7 @@ function heroButtons() {
     .map((button) => button.textContent);
 }
 
-/** 手順の段の状態。見出しの文字から段の枠へ上がって読む */
+/** 手順の段階の状態。見出しの文字から段階の枠へ上がって読む */
 function stepState(title: string) {
   return screen.getByText(title).closest("[data-state]")?.getAttribute("data-state");
 }
@@ -1024,26 +1024,26 @@ describe("AI ライブラリタブの手順", () => {
     return STEPS.map(stepState);
   }
 
-  test("ルートが無ければ1段目だけが開く", () => {
+  test("ルートが無ければ1段階目だけが開く", () => {
     aiRootValue.current = "";
     render(<AiLibraryTab />);
 
     expect(stepStates()).toEqual(["active", "locked", "locked", "locked"]);
   });
 
-  test("engines/ が無ければ2段目が開く", async () => {
+  test("engines/ が無ければ2段階目が開く", async () => {
     await renderIndex(index(false));
 
     expect(stepStates()).toEqual(["done", "active", "locked", "locked"]);
   });
 
-  test("engines がフォルダでなければ2段目も塞ぐ", async () => {
+  test("engines がフォルダでなければ2段階目も塞ぐ", async () => {
     await renderIndex(index(true, "file"));
 
     expect(stepStates()).toEqual(["done", "locked", "locked", "locked"]);
   });
 
-  test("読めていなければ2段目も塞ぐ", async () => {
+  test("読めていなければ2段階目も塞ぐ", async () => {
     scanAiRoot.mockRejectedValue("読めません");
     render(<AiLibraryTab />);
     await waitFor(() => expect(badgeText()).toBe("エラー"));
@@ -1051,7 +1051,7 @@ describe("AI ライブラリタブの手順", () => {
     expect(stepStates()).toEqual(["done", "locked", "locked", "locked"]);
   });
 
-  test("エンジンも AI フォルダも0件なら3段目と4段目が注意になる", async () => {
+  test("エンジンも AI フォルダも0件なら3段階目と4段階目が注意になる", async () => {
     await renderIndex(index(true));
 
     expect(stepStates()).toEqual(["done", "done", "warn", "warn"]);
@@ -1066,7 +1066,7 @@ describe("AI ライブラリタブの手順", () => {
     expect(stepStates()).toEqual(["done", "done", "active", "locked"]);
   });
 
-  test("全部そろえば全段が済みで、数を添える", async () => {
+  test("全部そろえば全段階が済みで、数を添える", async () => {
     await renderIndex(indexWithFolder("Suisho"));
 
     expect(stepStates()).toEqual(["done", "done", "done", "done"]);
@@ -1075,7 +1075,7 @@ describe("AI ライブラリタブの手順", () => {
     expect(screen.getByText("1 個のAI検出")).toBeTruthy();
   });
 
-  test("済んだ段は本文を畳み、読み直しのボタンは処理中に押せない", async () => {
+  test("済んだ段階は本文を折りたたみ、読み直しのボタンは処理中に押せない", async () => {
     await renderIndex(index(true));
 
     expect(screen.queryByText("engines/ を作成")).toBeNull();
@@ -1261,7 +1261,7 @@ describe("AI フォルダの作成の欄", () => {
     expect(createAiProfileDirs).not.toHaveBeenCalled();
   });
 
-  test("作っている間の Enter の連打は1回に畳む", async () => {
+  test("作っている間の Enter の連打は1回にまとめる", async () => {
     await renderIndex(indexWithEngine());
     const input = screen.getByPlaceholderText("AI 名を入力");
     createAiProfileDirs.mockReturnValue(new Promise(() => {}));

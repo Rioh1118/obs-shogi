@@ -104,7 +104,7 @@ describe("describeFsError", () => {
 });
 
 describe("fsErrorTier", () => {
-  test("どの code でも段が決まる", () => {
+  test("どの code でも tier が決まる", () => {
     for (const code of ALL_CODES) {
       expect(["warning", "danger"], code).toContain(fsErrorTier(code));
     }

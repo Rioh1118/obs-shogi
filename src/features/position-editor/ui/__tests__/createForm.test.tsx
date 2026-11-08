@@ -252,7 +252,7 @@ describe("作成中", () => {
 
   const boardFace = () => document.querySelector<HTMLElement>(".pos-editor__main:not([hidden])")!;
 
-  test("盤の面を沈めて止め、ボタンが作成中を名乗る", async () => {
+  test("盤のパネルを沈めて止め、ボタンが作成中を名乗る", async () => {
     // 受け付けないだけだと「押しても何も起きない」になる。止まっていることを見せる
     render(<EditorHarness />);
     const finish = pressCreatePending();
@@ -283,8 +283,8 @@ describe("作成中", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  test("失敗の後は Esc の段へ戻る", async () => {
-    // 段0 に残ると、掴んだ駒を Esc で離せない
+  test("失敗の後は Esc の優先順へ戻る", async () => {
+    // 優先順0 に残ると、掴んだ駒を Esc で離せない
     render(<EditorHarness />);
     const finish = pressCreatePending();
     await finish({ success: false, error: DENIED });

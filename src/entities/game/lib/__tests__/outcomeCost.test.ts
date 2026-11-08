@@ -3,7 +3,7 @@
  *
  * 守るのは「判定が入れ子の数え上げに落ちないこと」。落ちると Rust の
  * `RULING_TIMEOUT`（30秒、`src-tauri/src/engine/game/session.rs`）を越え、
- * `over { rulingTimeout, winner: null }` で畳まれて勝敗そのものが消える。
+ * `over { rulingTimeout, winner: null }` で終局して勝敗そのものが消える。
  *
  * **数えるのは時間ではなく局面の写しの回数。** 王手放置と打ち歩詰めの検査は
  * 候補1手ごとに `Shogi` を1つ作って SFEN で写すので、写した回数がそのまま
@@ -54,7 +54,7 @@ function longGame(plies: number): string[] {
  * `run` の間に `Shogi` へ局面を写した回数。上限を超えたら写すのをやめる。
  *
  * 数え方を本番の側に持たせない。テスト用のカウンタを `moveValidation.ts` に置くと、
- * それ自体が公開面になって「誰が読むのか」を説明し続けることになる。
+ * それ自体が公開 APIになって「誰が読むのか」を説明し続けることになる。
  * shogi.js の `initializeFromSFENString` を覆えば、`wouldBeInCheckAfterMove` も
  * `isUchifudume` も同じ1本で数えられる。
  *

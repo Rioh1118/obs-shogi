@@ -38,7 +38,7 @@ export type AnalysisAction =
   | { type: "set_error"; payload: string }
   | { type: "clear_results" };
 
-/** エンジンへの局面の同期を解析へ渡す面。実装は `features/engine-position-sync` が持つ */
+/** エンジンへの局面の同期を解析へ渡すインターフェース。実装は `features/engine-position-sync` が持つ */
 export type PositionSyncAdapter = {
   /** 盤が指している局面の SFEN。棋譜を開いていなければ null */
   currentSfen: string | null;
@@ -57,20 +57,20 @@ export type PositionSyncAdapter = {
 };
 
 /**
- * 解析ペインが使う面
+ * 解析ペインが使うインターフェース
  *
  * 載せるのはスライスの外に呼び手が居るものだけ（`index.ts`）。
  *
  * `clear_results` が届くのは `state` の中だけで、`candidateCache` には届かない。
- * 控えを捨てる関数は控えの側（`scopeTo`）にある。
+ * キャッシュを捨てる関数はキャッシュの側（`scopeTo`）にある。
  */
 export type AnalysisContextType = {
   state: AnalysisState;
 
   /**
-   * 停止中に出す候補手の控え。持ち主と寿命は `lib/candidateCache.ts`。
+   * 停止中に出す候補手のキャッシュ。持ち主と寿命は `lib/candidateCache.ts`。
    *
-   * `state` には載せない。控えは表示を駆動する値ではなく、結果を捨てても停止中に見えていた
+   * `state` には載せない。キャッシュは表示を駆動する値ではなく、結果を捨てても停止中に見えていた
    * 候補手は見えたままでよいので、`clear_results` の対象にしない。
    */
   candidateCache: CandidateCache;
@@ -79,7 +79,7 @@ export type AnalysisContextType = {
    * ▶ の操作。エンジンの起動を待っているときは断らず、検討の意思を立てて resolve する。
    *
    * 断るときは `state.error` に載せてから reject し、帯（`AnalysisRefusalBridge`）が文を出す
-   * （枝と文言は `docs/state-transitions/analysis.md` の ※15）。読む局面が無いときだけは断りを立てずに
+   * （分岐と文言は `docs/state-transitions/analysis.md` の ※15）。読む局面が無いときだけは断りを立てずに
    * reject する。▶ が `disabled` なので出す先が無い。
    *
    * アンマウント、停止、読む局面の消失で要らなくなった要求は、静かに resolve する。

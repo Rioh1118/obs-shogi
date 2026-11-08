@@ -8,7 +8,7 @@ import PositionPreviewPane from "../PositionPreviewPane";
 /**
  * 局面のプレビューが描くものを固定する。
  *
- * 盤の一辺は枠を測って決めるので、枠の測り方が外れると盤が読めない大きさのまま残る。
+ * 盤の一辺はコンテナを測って決めるので、コンテナの測り方が外れると盤が読めない大きさのまま残る。
  */
 
 type Measure = (entries: { contentRect: { width: number; height: number } }[]) => void;
@@ -29,7 +29,7 @@ class FakeResizeObserver {
   }
 }
 
-/** 枠の内寸を流す。余白は `--board-pad` の下限の 8px を四辺に置く */
+/** コンテナの内寸を流す。余白は `--board-pad` の下限の 8px を四辺に置く */
 function resizeFrame(width: number, height: number) {
   const frame = document.querySelector<HTMLElement>(".position-preview__frame");
   frame?.style.setProperty("padding", "8px");
@@ -121,7 +121,7 @@ describe("局面のプレビュー", () => {
     );
   });
 
-  test("枠を測ると盤の一辺が追う", () => {
+  test("コンテナを測ると盤の一辺が追う", () => {
     render(<PositionPreviewPane previewData={preview(HIRATE)} />);
     resizeFrame(500, 500);
     expect(boardSize()).toBe("484px");
@@ -134,7 +134,7 @@ describe("局面のプレビュー", () => {
   });
 
   // 検索は再生器がまだ無いとき、`EditorStudyPicker` は一覧が空のときに局面が無いまま開く
-  test("局面が後から届いても枠を測る", () => {
+  test("局面が後から届いてもコンテナの大きさを測る", () => {
     const { rerender } = render(<PositionPreviewPane previewData={null} />);
     rerender(<PositionPreviewPane previewData={preview(HIRATE)} />);
     resizeFrame(500, 500);

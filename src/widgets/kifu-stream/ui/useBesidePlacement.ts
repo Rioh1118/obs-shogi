@@ -2,9 +2,9 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { placeBeside, type BesidePlacement } from "../lib/popoverPlacement";
 
 /**
- * 行の横に出す面の位置を測って持つ。`selfRef` を面の要素に付ける。
+ * 行の横に出すサーフェスの位置を測って持つ。`selfRef` をサーフェスの要素に付ける。
  *
- * 位置は面を描いた後に測る。最初に開いたときは測るまで null で、閉じても戻さないので、
+ * 位置はサーフェスを描いた後に測る。最初に開いたときは測るまで null で、閉じても戻さないので、
  * 開き直したときは測り直すまでの1拍だけ前の位置を持つ。
  * 開いている間は、画面の大きさが変わるか、どこかが流れるたびに測り直す。
  */
