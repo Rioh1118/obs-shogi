@@ -20,7 +20,7 @@ L1。`src-tauri/src/search/` の状態機械。**外部の状態（ディスク�
 | **E** | `Empty`      | 初期値                                                                           | 空                 |
 | **R** | `Restoring`  | `restart(Restart::Restoring)` を通った                                           | **空にされている** |
 | **B** | `Building`   | `restart(Restart::Building)` を通った。**口はこれ1つ**                           | **空にされている** |
-| **U** | `Updating`   | `install_restored(..)`（段は選べない）か `with_state(StoreIndexState::Updating)` | 前の中身が残る     |
+| **U** | `Updating`   | `install_restored(..)`（状態は選べない）か `with_state(StoreIndexState::Updating)` | 前の中身が残る     |
 | **Y** | `Ready`      | `with_state(StoreIndexState::Ready)`                                             | 揃っている         |
 
 **`R` と `B` は中身を捨てる。** どちらも `IndexSnapshot::restarting` で
@@ -47,7 +47,7 @@ let stale = snap.state != StoreIndexState::Ready;
 | `restore-ok`  | ディスク上のキャッシュ             | `decode_all` が通った                                                                                                                                                                                       |
 | `restore-ng`  | 同上                               | 版違い / magic 違い / root hash 違い / `bad length` / `bad file_id` / **桶の取り違え** / **桶の並びの崩れ** / **範囲外の `node_id`** / **範囲外の分岐** / **節表の無い出現** / zstd の失敗 / ファイルが無い |
 | `build-done`  | 全件構築の完了                     | `with_files` を最後まで流し終えた                                                                                                                                                                           |
-| `build-fail`  | 全件構築の前の走査が失敗           | root が消えた / 未マウント / 権限。**索引は空のまま**（`restart(Restart::Building)` が既に中身を捨てている）。**`IndexStore` の段は動かない**——画面へ出す段だけ `Empty` にする                              |
+| `build-fail`  | 全件構築の前の走査が失敗           | root が消えた / 未マウント / 権限。**索引は空のまま**（`restart(Restart::Building)` が既に中身を捨てている）。**`IndexStore` の状態は動かない**——画面へ出す状態だけ `Empty` にする                              |
 | `fs-event`    | `notify`（ファイルシステム）       | 静穏 800ms のあと `run_rescan_diff_apply`                                                                                                                                                                   |
 | `diff-empty`  | 再走査の結果                       | `(size, mtime_ms)` の差が0件                                                                                                                                                                                |
 | `diff-dirty`  | 同上                               | 追加 / 変更 / 削除が1件以上                                                                                                                                                                                 |
@@ -81,14 +81,14 @@ let stale = snap.state != StoreIndexState::Ready;
 
 `run_rescan_diff_apply` は結末を `RescanOutcome` の3値で返す。
 
-| 結末                                 | 段       | `EVT_INDEX_STATE`                      |
+| 結末                                 | 状態     | `EVT_INDEX_STATE`                      |
 | ------------------------------------ | -------- | -------------------------------------- |
 | `Committed { partially_unreadable }` | `Y` へ   | `Ready` ＋ 読めない場所があれば旗      |
 | `ScanFailed`                         | `Y` へ   | `Ready` ＋ `scan_failed`               |
 | `Superseded`                         | 上げない | **出さない**（その索引はもう別のもの） |
 
 **`Y` に上げるのは正しい。** 索引は最後に読めたときのまま健全で、差分が
-当たっていないだけ。ここで止めると `U` が最後の段になり、検索は永久に
+当たっていないだけ。ここで止めると `U` が最後の状態になり、検索は永久に
 `stale`、設定はスピナーのまま——再試行の導線は無いので開き直しても同じ。
 
 **ただし `query_service` が見るのは `state != Ready` だけ。** 旗は
@@ -100,11 +100,11 @@ let stale = snap.state != StoreIndexState::Ready;
 進んでいることを言う `announce_progress`。**どの経路もそこを通る**——
 経路ごとに組むと、旗を知らない側が `IndexStatePayload::of`（全部伏せた形）で
 組んで塗り潰す。`src-tauri/tests/state_is_announced_once.rs` が綴りで固定している。
-文言も同じ段が持つ（`scan_failure` / `unreadable_places` / `build_failure`）
+文言も同じファイルが持つ（`scan_failure` / `unreadable_places` / `build_failure`）
 ——内部の語彙は出さない。
 
 `Superseded` が「出さない」のは `announce_state` の中で決まっていて、
-`into_payload` が `None` を返す。段の照合（`snapshot_if_epoch`）とは別の守り
+`into_payload` が `None` を返す。状態の照合（`snapshot_if_epoch`）とは別の守り
 ——据え直しを検出した時点では、まだ照合が通ることがある。
 
 **`run_rescan_diff_apply` の早期 `return` は2つあり、出方が違う。** 走査が `Err` の
@@ -120,14 +120,14 @@ let stale = snap.state != StoreIndexState::Ready;
 `state != Ready` だけなので、空の索引を `Ready` にすると
 **0件が「最新」として並ぶ**。
 
-出すのは `IndexAnnouncement::BuildFailed`。画面の段が `Empty` ＋ `scan_failed` に
+出すのは `IndexAnnouncement::BuildFailed`。画面の状態が `Empty` ＋ `scan_failed` に
 なるのは `into_payload` の中（TS 側の `IndexUiState` はレコード型で、この名前の
 バリアントは持たない）。
 差分適用の `ScanFailed`（`Y` ＋ 旗）と逆になるのは、**残っている索引が
 あるかどうか**が逆だから——あちらは最後に読めたときのまま健全で、
 こちらは空。
 
-**`store` の段は動かしていない**ので、表のセルは `B` のまま。画面へ出すのは
+**`store` の状態は動かしていない**ので、表のセルは `B` のまま。画面へ出すのは
 `Empty` だが、`IndexStore` の中は `restart(Restart::Building)` が入れた
 `Building` のまま。検索は `stale=true` を返し続ける。
 **この食い違いを見るテストは無い。**
@@ -392,14 +392,14 @@ CSA でも上の2通り（`%` の打ち切り・UTF-16）は同じ。
 | `apply-done` の直前に `open`         | 同上                                                       |
 
 **Rust 側にこの3つを見るテストは1本も無い。**
-**各口が名乗る段と、捨てられる中身**は3本が固定している ——
+**各口が名乗る状態と、捨てられる中身**は3本が固定している ——
 `store/index_store.rs` の `restarting_the_store_throws_the_current_index_away`
-（中身が捨てられること。段は見ていない）と
+（中身が捨てられること。状態は見ていない）と
 `an_installed_restore_says_it_is_still_updating`、
 `store/snapshot.rs` の `restarting_starts_from_an_empty_index`。
 
-**表の矢印（どの段からどの段へ動くか）を見るものは1本も無い。**
-3本とも**段**は `E` から動かしておらず、`R`→`U` も `B`→`Y` も `U`→`Y` も踏んでいない。
+**表の矢印（どの状態からどの状態へ動くか）を見るものは1本も無い。**
+3本とも**状態**は `E` から動かしておらず、`R`→`U` も `B`→`Y` も `U`→`Y` も踏んでいない。
 
 ## この表が拾ったもの
 

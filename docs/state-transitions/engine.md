@@ -76,7 +76,7 @@ P2・P3 の間の、1本のプロセスとのやりとり（名乗り、準備�
 ※1 **停止は進行中の起動を待たない。** Rust が起動中のプロセスを落とし、その起動は `cancelled` で
 断られる。断りは世代が古いので捨てる（`provider.tsx` の `lastRequestRef`）。待つ形だと、`readyok` を
 返さないエンジンを選んだ回に停止ごと固まる。**停止の往復の間に次の起動を撃っていたら、停止の結果で
-`idle` を書かない**（書くと `lifecycleStepOf` の `idle` の枝が同じ設定でもう1回起動する）。
+`idle` を書かない**（書くと `lifecycleStepOf` の `idle` の分岐が同じ設定でもう1回起動する）。
 
 **世代は Rust にも渡す**（`startAnalysisEngine` / `shutdownEngine` の `request`）。Tauri のコマンドは
 別々のタスクで走るので、撃った順と Rust に着く順が逆転しうる。Rust は既に受けた番号より古い
@@ -84,7 +84,7 @@ P2・P3 の間の、1本のプロセスとのやりとり（名乗り、準備�
 取り消すことは無い。
 
 ※2 起動中に別の設定になったら、前の起動の結果を待たずにその設定で起動し直す
-（`lifecycleStepOf` の `initializing` の枝）。前の起動は Rust が落とし、前の呼び出しの
+（`lifecycleStepOf` の `initializing` の分岐）。前の起動は Rust が落とし、前の呼び出しの
 断り（`cancelled`）は世代が古いので捨てる。**進行中の起動を使い回す口は無い**——使い回すと、
 前の設定の起動結果を新しい設定のものとして `activeRuntime` に書く。
 踏んでいるのは `provider.test.tsx` の「起動中に設定が変わったら、その設定で起動し直す」。
@@ -188,7 +188,7 @@ R10・R11 は`EngineShutdown`の `quit` と `kill_engine`。待つ上限は手�
 | **Q5** | 閉じた | `Closed`。理由は `EngineEnd`（`Requested` / `Exited` / `Stalled`）。**吸収状態**で、`Requested` が他の理由より優先する |
 
 **名乗りは準備と別に進む**（`Naming`）。名乗らずに準備するエンジン（`usi` に答えない台本）も準備でき、探索できる。
-そのエンジンは Q2〜Q4 でも名乗り前の印を持ち、名乗りを頼まれると、Q2 なら `usi` を書き、Q2c なら確認の `usiok` を待ち、
+そのエンジンは Q2〜Q4 でも名乗り前のフラグを持ち、名乗りを頼まれると、Q2 なら `usi` を書き、Q2c なら確認の `usiok` を待ち、
 Q3・Q3p・Q4 なら断る（不変条件3）。`id` と `option` 行を集めるのは、名乗り前の間ずっと（どの行でも）。
 
 P との関係: P2 と P3 の間、プロセスは Q2〜Q4 のどれか。P3（席あり）でも Q4 はありうる（止めに答えないまま席だけ返った回）。
@@ -226,9 +226,9 @@ P との関係: P2 と P3 の間、プロセスは Q2〜Q4 のどれか。P3（�
 |  | L1 id | L2 option | L3 usiok | L4 readyok | L5 info | L6 checkmate | L7 bestmove | L8 出力の終わり | L9 解けない行 | W1 詰まった |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Q0** | 名と作者を集める | 宣言に溜める（上限 `MAX_OPTIONS` と `MAX_DECLARED_BYTES`。`declared.rs` の `declared_options_are_kept_only_while_open` ほか） | 名があれば名乗りを覚えて答え → Q1。名が無ければ断り（`NO_ID_NAME`）、Q0 のまま集め直す。台本: `an_engine_without_a_name_is_refused_with_no_id_name` | 準備の札が無ければ —。あれば Q1 と同じ | — | — | — | → Q5（`Exited`）。名乗りの待ちに「`usiok` の前に終わった」。台本: `a_startup_failure_carries_the_last_stderr_line` | —（数えて間引いて記録するのは `protocol.rs` の読み取り。時計が要る）。台本: `an_overflowing_number_does_not_end_the_reading` | → Q5（`Stalled`） |
-| **Q1** | — | —（宣言は閉じている）。台本: `option_lines_after_usiok_are_not_declared` | — | 準備の札があれば、全部に途中の `info string` を答え → Q2。無ければ —。台本: `a_start_returns_the_info_and_keeps_the_engine` | `info string` を準備の控えに足す。台本: `a_book_outside_the_vars_is_sent_as_a_path_only_when_it_is_accepted_and_read` | — | — | → Q5（`Exited`）。準備の待ちに「準備の前に終わった」 | Q0 と同じ | → Q5（`Stalled`） |
+| **Q1** | — | —（宣言は閉じている）。台本: `option_lines_after_usiok_are_not_declared` | — | 準備の札があれば、全部に途中の `info string` を答え → Q2。無ければ —。台本: `a_start_returns_the_info_and_keeps_the_engine` | `info string` を準備の待ちの `texts` に足す。台本: `a_book_outside_the_vars_is_sent_as_a_path_only_when_it_is_accepted_and_read` | — | — | → Q5（`Exited`）。準備の待ちに「準備の前に終わった」 | Q0 と同じ | → Q5（`Stalled`） |
 | **Q2** | — | — | — | — | — | — | 頼んでいない `bestmove`。捨てて記録する | → Q5（`Exited`）。台本: `an_engine_that_exits_while_idle_is_reported` | Q0 と同じ | → Q5（`Stalled`）。台本: `an_engine_that_stops_reading_is_reported_as_unwritable` |
-| **Q2c** | — | —（確認では宣言を作り直さない） | 確認の待ちに途中の `info string` を答える → 元の状態 | — | `info string` を確認の控えに足す（`check_book_path_support` の判定） | — | — | → Q5（`Exited`）。確認の待ちに断り。台本: `an_engine_that_dies_during_the_path_check_fails_with_its_output` | Q0 と同じ | → Q5（`Stalled`） |
+| **Q2c** | — | —（確認では宣言を作り直さない） | 確認の待ちに途中の `info string` を答える → 元の状態 | — | `info string` を確認の `texts` に足す（`check_book_path_support` の判定） | — | — | → Q5（`Exited`）。確認の待ちに断り。台本: `an_engine_that_dies_during_the_path_check_fails_with_its_output` | Q0 と同じ | → Q5（`Stalled`） |
 | **Q3** | — | — | — | — | その探索へ流す。台本: 検討は `bridge` の `endings`、対局は U0:T1 | その探索へ流す。台本: `a_checkmate_line_is_passed_on` | その探索へ最後の行として流して閉じる → Q2。台本: `an_instant_bestmove_is_not_lost`、対局は U0:T1、検討は U0:T7・T8 | → Q5（`Exited`）。探索を閉じる（受け手は届かない理由を受ける）。台本: `an_engine_that_exits_during_a_search_is_reported_with_its_start`、対局は U0:T5 | Q0 と同じ | → Q5（`Stalled`）。探索を閉じる |
 | **Q3p** | — | — | — | — | Q3 と同じ。U0:T3 | Q3 と同じ | Q3 と同じ（`ponderhit` の前に来た `bestmove` も同じ）。U0:T3 | Q3 と同じ。U0:T5 | Q0 と同じ | Q3 と同じ |
 | **Q4** | — | — | — | — | 捨てる（止めた探索の行） | 捨てる | 止めの待ちに全部「答えた」→ Q2。待つ者が諦めていれば、答えは `LateAnswer` が受ける。台本: `a_late_answer_can_be_waited_for_and_holds_back_the_next_search`、対局は U0:T2 | → Q5（`Exited`）。止めの待ちに「届かない」。台本: `an_engine_that_exits_on_stop_is_unreachable` | Q0 と同じ | → Q5（`Stalled`）。止めの待ちに「詰まった」 |
@@ -242,7 +242,7 @@ P との関係: P2 と P3 の間、プロセスは Q2〜Q4 のどれか。P3（�
 
 |  | R1 名乗り | R2 準備 | R3 値の確認 | R4 新しい対局 | R5 探索 | R6 ponderhit | R7 止める | R8 捨てる | R9 終局 | R10 quit | R11 kill |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| **Q0** | `usi` を書いて待つ。待ちが既に有れば書かずに同じ答えを待つ。台本: `concurrent_engine_info_requests_share_every_option` | Q1 と同じ。名乗りは待たない（Q0 のまま `readyok` を待つ）。台本: `search.rs` の `ready` を使う全部 | Q1 と同じ → Q2c | 断る | 断る | 断る | 答えた（走っていない探索は `bestmove` で終わっている） | — | 断る | 印を立てて `quit` を書く | → Q5（`Requested`）。待ちに全部 `Cancelled`、落とす。台本: `cancelling_while_waiting_for_usiok_leaves_nothing_starting`、`stopping_before_usiok_cancels_without_waiting_for_the_limit` |
+| **Q0** | `usi` を書いて待つ。待ちが既に有れば書かずに同じ答えを待つ。台本: `concurrent_engine_info_requests_share_every_option` | Q1 と同じ。名乗りは待たない（Q0 のまま `readyok` を待つ）。台本: `search.rs` の `ready` を使う全部 | Q1 と同じ → Q2c | 断る | 断る | 断る | 答えた（走っていない探索は `bestmove` で終わっている） | — | 断る | フラグを立てて `quit` を書く | → Q5（`Requested`）。待ちに全部 `Cancelled`、落とす。台本: `cancelling_while_waiting_for_usiok_leaves_nothing_starting`、`stopping_before_usiok_cancels_without_waiting_for_the_limit` |
 | **Q1** | 覚えた名乗りを返す | `setoption` を並べ `isready` を書いて待つ（Q1 のまま）。待ちが既に有れば、次の `readyok` で全部に答える | `setoption` と `usi` を書く → Q2c。台本: `no_answer_to_the_path_check_switches_the_book_off_with_its_own_warning` | 断る（`readyok` の前は積まない。ADR-0016 決定3） | 断る（決定3） | 断る | 答えた | — | 断る | Q0 と同じ | → Q5（`Requested`）。準備の待ちに `Cancelled`。台本: `stopping_while_loading_cancels_and_leaves_nothing` |
 | **Q2** | 覚えた名乗りを返す。名乗らずに準備したなら `usi` を書いて待つ | Q1 と同じ（**必ず** `isready` を送る） → Q1 | Q1 と同じ | `usinewgame` を書く。台本: `a_start_returns_the_info_and_keeps_the_engine` | `position` と `go` を書き `Search` を返す → Q3 か Q3p。台本: `bridge` の `endings`、対局は U0:T1 | 断る | 答えた。台本: `lines_come_in_order_and_end_at_bestmove` | — | `gameover` を書く。U0:T6 | Q0 と同じ。台本: `shutdown_sends_quit_before_ending_the_engine` | → Q5（`Requested`）、落とす。台本: `every_way_of_ending_ends_an_engine_that_ignores_quit` |
 | **Q2c** | 覚えた名乗りを返す。名乗り前なら、確認の `usiok` で答える | 確認を諦めたと答え（`Cancelled`）、Q1 と同じ → Q1。台本: `no_answer_to_the_path_check_switches_the_book_off_with_its_own_warning` | 断る | 断る | 断る | 断る | 答えた | — | 断る | Q0 と同じ | → Q5（`Requested`）。確認の待ちに `Cancelled` |
@@ -318,7 +318,7 @@ kill（R11）と値の確認（Q2c）は、台本のテストで足りている�
 前の探索が終わるのを上限（`PREVIOUS_SEARCH_LIMIT`）まで待ってから頼む（`a_search_started_after_a_dropped_one_does_not_take_its_bestmove`）。
 止めに上限まで答えなかった探索も、`LateAnswer` を捨てたかに関わらず、遅れた `bestmove` が来るまで次の探索を始めない。
 
-T4 は5秒を待つが `#[ignore]` にしない。載せ替えの番人なので、毎回走らないと意味が無い。
+T4 は5秒を待つが `#[ignore]` にしない。載せ替えの回帰テストなので、毎回走らないと意味が無い。
 
 **U3 で「積む・通す」から「断る」へ変えたセル**（ADR-0016 決定11）: `readyok` の前の R4・R5（決定3）、探索中と止め待ちの
 R2〜R5・R9、待機中の頼んでいない L7（捨てて記録する）。どれも、いまの呼び手が踏まないことを確かめてから入れた（PR の本文）。

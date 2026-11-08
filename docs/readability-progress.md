@@ -11,28 +11,28 @@
 
 ## 進め方
 
-- PR は下の段の枝を基点に積む。1段はレビューできる大きさにし、段の間で同じファイルを触らない。`BASELINE` の表とこのファイルは全段が触る例外で、下の載せ替えでは衝突しない
+- PR は下のステップのブランチを基点に積む。1ステップはレビューできる大きさにし、ステップの間で同じファイルを触らない。`BASELINE` の表とこのファイルは全ステップが触る例外で、下の載せ替えでは衝突しない
 - 範囲は依存の下から取る。1回の範囲はテストを除いて2000行以内
-- 動作が変わりうるコミットが大きくなる段は、整理だけの段と分ける
-- `shared` と `entities` の公開の名前を変えるなら、呼び手を含めて独立した段にし、スタックの下に置く
+- 動作が変わりうるコミットが大きくなるステップは、整理だけのステップと分ける
+- `shared` と `entities` の公開の名前を変えるなら、呼び手を含めて独立したステップにし、スタックの下に置く
 - 線の名前（Tauri コマンド、serde の欄、イベント名、保存形式）は変えない
 
-## 段の載せ替え
+## ステップの載せ替え
 
-マージは下の段から順に行う。セッションの開始時に、マージ済みの段が無いかを見る。
+マージは下のステップから順に行う。セッションの開始時に、マージ済みのステップが無いかを見る。
 
 1. `git fetch origin`
-2. 一番上の枝で `git rebase --update-refs --onto origin/main <下の段の旧先端>`
-3. 動いた枝ごとに `git push --force-with-lease`
+2. 一番上のブランチで `git rebase --update-refs --onto origin/main <下のステップの旧先端>`
+3. 動いたブランチごとに `git push --force-with-lease`
 4. `gh api -X PATCH repos/Rioh1118/obs-shogi/pulls/<番号> -f base=main`
 
 ours 戦略のマージは使わない。
 
-## 段の並び
+## ステップの並び
 
 下から順に積む。番号は PR。
 
-| 段 | 枝 | 範囲 | PR | 状態 |
+| ステップ | ブランチ | 範囲 | PR | 状態 |
 | -- | -- | ---- | -- | ---- |
 | 1 | `refactor/readability-structure-standard` | 部品の構造と書き方の基準、`componentShape` | #662 | マージ済み |
 | 2 | `refactor/tidy-shared-lib` | `src/shared/lib`、`src/shared/api` | #663 | マージ済み |
@@ -54,18 +54,18 @@ ours 戦略のマージは使わない。
 | 18 | `refactor/tidy-entities-search` | `src/entities/search` | #683 | マージ済み |
 | 19 | `refactor/tidy-entities-book` | `src/entities/book` | #684 | マージ済み |
 | 20 | `refactor/tidy-entities-rest` | `src/entities` の残り（app-config、dock、study-positions、updater） | #686 | マージ済み |
-| 21 | `refactor/tidy-features-settings-workspace` | `src/features/settings` の第1段（範囲13） | #687 | マージ済み |
+| 21 | `refactor/tidy-features-settings-workspace` | `src/features/settings` の第1ステップ（範囲13） | #687 | マージ済み |
 | 22 | `refactor/tidy-features-settings-ai-library` | `src/features/settings` の AI ライブラリタブ（範囲13b） | #688 | マージ済み |
 | 23 | `refactor/tidy-features-settings-preset-dialog` | `src/features/settings` のプリセット編集（範囲13c） | #690 | マージ済み |
-| 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1段） | #692 | マージ済み |
-| 25 | `refactor/tidy-features-position-editor` | `src/features/position-editor`（範囲14の第2段） | #693 | マージ済み |
-| 26 | `refactor/tidy-features-create-file` | `src/features` の `create-file`、`file-conflict`、`study-position-save`（範囲15の第1段）、保存先の欄の不具合 | #694 | マージ済み |
-| 27 | `refactor/tidy-features-study-positions` | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note`（範囲15の第2段）、局面を保存する対話の詰め直し | #695 | マージ済み |
-| 28 | `refactor/tidy-features-rest` | `src/features` の残りの8つ（範囲15の第3段） | #696 | マージ済み |
-| 29 | `refactor/tidy-widgets-kifu-stream` | `src/widgets/kifu-stream`（範囲16の第1段） | #697 | マージ済み |
-| 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2段）、読み直した後の行の強調 | #698 | マージ済み |
-| 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3段） | #699 | マージ済み |
-| 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4段） | #700 | マージ済み |
+| 24 | `refactor/tidy-features-position-search` | `src/features/position-search`（範囲14の第1ステップ） | #692 | マージ済み |
+| 25 | `refactor/tidy-features-position-editor` | `src/features/position-editor`（範囲14の第2ステップ） | #693 | マージ済み |
+| 26 | `refactor/tidy-features-create-file` | `src/features` の `create-file`、`file-conflict`、`study-position-save`（範囲15の第1ステップ）、保存先の欄の不具合 | #694 | マージ済み |
+| 27 | `refactor/tidy-features-study-positions` | `src/features` の `study-positions-manager`、`position-navigation`、`kifu-comment-note`（範囲15の第2ステップ）、局面を保存する対話の詰め直し | #695 | マージ済み |
+| 28 | `refactor/tidy-features-rest` | `src/features` の残りの8つ（範囲15の第3ステップ） | #696 | マージ済み |
+| 29 | `refactor/tidy-widgets-kifu-stream` | `src/widgets/kifu-stream`（範囲16の第1ステップ） | #697 | マージ済み |
+| 30 | `refactor/tidy-widgets-file-tree` | `src/widgets/file-tree`（範囲16の第2ステップ）、読み直した後の行の強調 | #698 | マージ済み |
+| 31 | `refactor/tidy-widgets-analysis-board` | `src/widgets` の `analysis-pane`、`game-board`（範囲16の第3ステップ） | #699 | マージ済み |
+| 32 | `refactor/tidy-widgets-rest` | `src/widgets` の `book-view`、`app-layout-header`、`dock`、`boot-splash`、`sidebar`（範囲16の第4ステップ） | #700 | マージ済み |
 | 33 | `refactor/tidy-pages-app` | `src/pages`、`src/app`（範囲17） | #701 | マージ済み |
 | 34 | `refactor/tidy-rust-fs-kifu-text` | `src-tauri/crates` の `fs`、`kifu-text`、`test-support`（Rust の範囲1）、`fs` のテストのコンパイル | #702 | マージ済み |
 | 35 | `refactor/tidy-rust-settings` | `src-tauri/crates/settings`（Rust の範囲1b）、`crates/*` のテストを `verify:rust` と CI に載せる | #704 | マージ済み |
@@ -74,17 +74,17 @@ ours 戦略のマージは使わない。
 | 38 | `refactor/tidy-rust-ai-library` | `src-tauri/src/ai_library`（Rust の範囲4） | #707 | マージ済み |
 | 39 | `refactor/tidy-rust-engine-launchable` | `src-tauri/src/engine` の `launchable`、`types`、`utils`、`option_line`（Rust の範囲5） | #709 | マージ済み |
 | 40 | `refactor/tidy-rust-engine-child-registry` | `src-tauri/src/engine` の `child`、`registry`（Rust の範囲5b）、「試験」を「テスト」に揃える | #710 | マージ済み |
-| 41 | `refactor/engine-crate-visibility` | `src-tauri/src/lib.rs` の `pub mod engine` と呼び手の無い `pub`（Rust の範囲「公開」）、5c を設計の段にする | #712 | マージ済み |
+| 41 | `refactor/engine-crate-visibility` | `src-tauri/src/lib.rs` の `pub mod engine` と呼び手の無い `pub`（Rust の範囲「公開」）、5c を設計の段階にする | #712 | マージ済み |
 | 42 | `docs/engine-usi-design` | USI のやりとりの作り直しの設計（Rust の範囲5c）。ADR-0016、`engine.md` と `analysis.md` の目標の形 | #713 | マージ済み |
-| 43 | `test/usi-u0-baseline` | 作り直しの段 U0。載せ替えの前に要るテスト T1〜T10 と性能の基準線 M1〜M3。製品のコードは変えない | #714 | マージ済み |
-| 44 | `refactor/usi-u1-procedures` | 作り直しの段 U1。手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry` と `setup` を手順へ移し、B-10 と D-1 の置き場を入れる | #715 | マージ済み |
+| 43 | `test/usi-u0-baseline` | 作り直しの段階 U0。載せ替えの前に要るテスト T1〜T10 と性能の基準線 M1〜M3。製品のコードは変えない | #714 | マージ済み |
+| 44 | `refactor/usi-u1-procedures` | 作り直しの段階 U1。手順の関数と `Search` を、いまの `UsiProtocol` の上に置く。`registry` と `setup` を手順へ移し、B-10 と D-1 の置き場を入れる | #715 | マージ済み |
 | 45 | `refactor/readability-range6` | `src-tauri/src/engine` の `option_labels`、`binding`、`setup`、`start_failure`（Rust の範囲6）。C-4、R-10、範囲内の W-1 を閉じ、`setup` の関数名を手順の語に揃える | #716 | マージ済み |
-| 46 | `refactor/usi-u2a-analyzer` | 作り直しの段 U2a。`analyzer` を手順「探索」と `Search` へ移し、検討の側から受け手の登録をなくす。D-1 の検討の写しを消す | #717 | マージ済み |
-| 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順を段 `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` に畳み、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | #718 | マージ済み |
-| 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | マージ済み |
-| 49 | `refactor/usi-u2b-game` | 作り直しの段 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` の段に閉じる | #720 | マージ済み |
-| 50 | `refactor/usi-u3-machine` | 作り直しの段 U3。1本のプロセスの USI の状態と判定を、新しい段 `usi_machine` の状態機械（純関数）へ移す。`UsiProtocol` は std の `Mutex` 1つの下でそれを持ち、受け手の表と積み置きを消す。`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（ADR-0016 決定3）。M3 は 8 から 1 | #721 | マージ済み |
-| 51 | `refactor/usi-u4-shell` | 作り直しの段 U4。状態機械をアクター1本（`run_actor`）に持たせ、`Mutex` と読んだ行を渡すタスクを消す。ハンドルを `UsiProtocol`（送る）と `EngineShutdown`（落とす）に分け、`EngineShutdown` は台帳だけが持つ。`EngineRegistry` に `Debug` を付ける。C-3 を閉じる。M3 は 1 から 0 | #722 | レビュー待ち |
+| 46 | `refactor/usi-u2a-analyzer` | 作り直しの段階 U2a。`analyzer` を手順「探索」と `Search` へ移し、検討の側から受け手の登録をなくす。D-1 の検討の写しを消す | #717 | マージ済み |
+| 47 | `refactor/readability-8a-analyzer` | `src-tauri/src/engine/analyzer.rs`（Rust の範囲8a）。起動の手順をレイヤ `analysis_start` へ割り、`begin_start` と `shutdown` を `take_over` にまとめ、起動した要求の番号を `analyzer` へ移す。D-2、R-7、R-8、B-13、範囲内の W-1 を閉じる | #718 | マージ済み |
+| 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。監視を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | マージ済み |
+| 49 | `refactor/usi-u2b-game` | 作り直しの段階 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` のレイヤに閉じる | #720 | マージ済み |
+| 50 | `refactor/usi-u3-machine` | 作り直しの段階 U3。1本のプロセスの USI の状態と判定を、新しいレイヤ `usi_machine` の状態機械（純関数）へ移す。`UsiProtocol` は std の `Mutex` 1つの下でそれを持ち、受け手の表と積み置きを消す。`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（ADR-0016 決定3）。M3 は 8 から 1 | #721 | マージ済み |
+| 51 | `refactor/usi-u4-shell` | 作り直しの段階 U4。状態機械をアクター1本（`run_actor`）に持たせ、`Mutex` と読んだ行を渡すタスクを消す。ハンドルを `UsiProtocol`（送る）と `EngineShutdown`（落とす）に分け、`EngineShutdown` は台帳だけが持つ。`EngineRegistry` に `Debug` を付ける。C-3 を閉じる。M3 は 1 から 0 | #722 | レビュー待ち |
 
 ## 語
 
@@ -139,12 +139,12 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## Rust
 
-`src-tauri/tests/layering.rs` の `LAYERS` の下の段から取る。行数は範囲5bまではファイル内のテストを含み、
+`src-tauri/tests/layering.rs` の `LAYERS` の下のレイヤから取る。行数は範囲5bまではファイル内のテストを含み、
 6 から 8b はテストを除く（切り方は `docs/audits/2026-11-engine.md` の「残りの範囲の切り方」）。
 
-**5c は整理ではなく設計の段にした**（利用者の決定）。`protocol.rs` をいまの形のまま磨くと、作り直しで書き直す行を磨くことになる。
-設計は ADR-0016（`docs/decisions/0016-usi-machine-shell-procedures.md`）。作り直しの段 U0〜U4 を、整理の範囲 6〜8b と交互に並べた
-（触るファイルが重ならない順。理由は ADR-0016 決定10）。**下の表の順に取る。** U の段は整理ではなく作り直しで、行数の上限（2000行）は
+**5c は整理ではなく設計の段階にした**（利用者の決定）。`protocol.rs` をいまの形のまま磨くと、作り直しで書き直す行を磨くことになる。
+設計は ADR-0016（`docs/decisions/0016-usi-machine-shell-procedures.md`）。作り直しの段階 U0〜U4 を、整理の範囲 6〜8b と交互に並べた
+（触るファイルが重ならない順。理由は ADR-0016 決定10）。**下の表の順に取る。** U の段階は整理ではなく作り直しで、行数の上限（2000行）は
 整理の範囲にだけ掛ける。`protocol.rs` の整理の範囲は無い——作り直しで書き直す行は、書くときに `/readable-code` に揃える。
 
 | 順 | 範囲                                                   | 行数  | 状態     |
@@ -165,7 +165,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 8a | `src-tauri/src/engine/analyzer.rs` | 828 | 済 |
 | 7a | `src-tauri/src/engine/game/session.rs` を4つのファイルに割る。割るだけ | 2208 | 済 |
 | U2b | `game` を手順へ移す | — | 済 |
-| U3 | 状態機械を新しい段 `usi_machine` に作る。受け手の表と積み置きを消す | — | 済 |
+| U3 | 状態機械を新しいレイヤ `usi_machine` に作る。受け手の表と積み置きを消す | — | 済 |
 | U4 | アクター（タスク1本）。2つのハンドル（`UsiProtocol` と `EngineShutdown`）を分ける | — | 済 |
 | 7b | `src-tauri/src/engine/game` の残りと `engine/commands/game.rs` | U2b の後に数える | 未着手 |
 | 8b | `src-tauri/src/engine` の `bridge`、`analysis_events`、`probe`、`state`、`commands`（`game.rs` を除く） | U4 の後に数える | 未着手 |
@@ -182,45 +182,45 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src-tauri/src/kifu/commands.rs` の `convert_jkf_to_format` と `normalize_jkf` | TS の呼び手は0。範囲3では消さなかった。`docs/spec/features/special-moves.md` が往復を確かめる経路として名指ししており、消すと仕様の文と `lib.rs` の登録まで範囲の外へ広がる。正規化をどの経路へ揃えるか（#322 を吸収した epic #349）で変換の経路が残るかが決まるので、そこで消すかを決める。`WriteKifuResponse` の `normalized_jkf` は正規化していない JKF を返し、範囲3で doc にそう書いた |
 | `src/entities/analysis/model/provider.tsx` の hook の順 | ref の宣言が effect の後ろに散り、R-TSW-4 の順と違う。自動再開の状態機械を割る Issue #489 で動くので、そこで揃える |
 | `docs/state-transitions/analysis.md` の E11 の列、※1、不変条件1、3 の「席は握ったまま」 | ■ の停止が届かないと `reportUnreachable` で `isReady` が落ち、`onEngineGone` が欄を空ける。表の「握ったまま」は `isReady` を動かさない `provider.test.tsx` の mock でしか起きない。表とテストの mock を合わせて直す |
-| `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。盤の成りの選択肢（`PromotionDialog`）も範囲16の第3段から `promotedKind` を通る。`Piece.promote` へ寄せるかは、逆引きの `UNPROMOTED` と合わせて決める |
-| `src/entities/position/ui/PieceImage.tsx` の `kind: string` | 範囲16の第3段で、読み手は全部 `Kind` を渡すようになった（`Board`、`Hand`、`PromotionDialog`、`features/position-editor` の3つ、`BoardPreview`）。`Kind` で受けるなら、`isKnownKind` の検査と、知らない綴りを描かない `PieceImage.test.tsx` の3本を残すかを合わせて決める |
+| `src/entities/position/lib/positionDraft.ts` の `PROMOTED` | `shogi.js` の `Piece.promote` の写し。盤の成りの選択肢（`PromotionDialog`）も範囲16の第3ステップから `promotedKind` を通る。`Piece.promote` へ寄せるかは、逆引きの `UNPROMOTED` と合わせて決める |
+| `src/entities/position/ui/PieceImage.tsx` の `kind: string` | 範囲16の第3ステップで、読み手は全部 `Kind` を渡すようになった（`Board`、`Hand`、`PromotionDialog`、`features/position-editor` の3つ、`BoardPreview`）。`Kind` で受けるなら、`isKnownKind` の検査と、知らない綴りを描かない `PieceImage.test.tsx` の3本を残すかを合わせて決める |
 | `src/entities/kifu/lib/applyMoveWithBranch.ts` の `promotable` | `src/entities/game/lib/moveValidation.ts` の `canPromote` と同じ規則。`entities/kifu` は `entities/game` より下なので、寄せるなら `shared/lib/shogi` へ下げる |
 | `src-tauri/src/storage/disk.rs` の `load` | 本体が `NotFound` の後に `bak.exists()` を見るので、その間に置き直しが2つ目の rename と退避の削除を終えると、本体に値が在るのに `NotFound` を返す筋がある。範囲2で、置き直しを5000回続ける間に読み続けるテストを3回走らせ、1回も起きなかった（未再現）。起きても索引の復元が全件の構築へ落ちるだけ。直すなら、退避が読めなければ本体を読み直す。下の Windows の行で退避をやめるなら筋ごと消える |
 | `src-tauri/src/storage/disk.rs` の `paths` の doc | 退避を挟む理由を「Windows で上書きの rename が失敗するため」と書くが、`std::fs::rename` は Windows でも `MOVEFILE_REPLACE_EXISTING` で上書きする。失敗するのは、他のプロセスが削除の共有を許さずに開いているときに限られる。Windows で確かめてから、退避をやめるかを決める |
 | `src-tauri/src/storage/mod.rs` の `BlobStore::delete` | 本番の呼び手が0で、テストだけが呼ぶ。`search/cache/format.rs` の `CACHE_VERSION` の doc は、読めない旧版の blob がディスクに残り続けると書く。復元が版の違いで落ちたときに捨てるかを、索引のキャッシュを次に触るときに決める。捨てないなら trait から外す |
-| `src/entities/game/model/provider.tsx` の `getCurrentMoveIndex` | `state.cursor?.tesuu ?? 0` を返すだけの包み。`getCurrentTurn` は範囲16の第3段で、`getTotalMoves` は第4段で読み手が0になったので消した。残る読み手は `src/features` の `StudyPositionSaveModal` だけで、`src/features` の範囲は済んでいる。`features/study-position-save` を次に触るときに `state.cursor` を読む形へ寄せ、包みを消す |
+| `src/entities/game/model/provider.tsx` の `getCurrentMoveIndex` | `state.cursor?.tesuu ?? 0` を返すだけの包み。`getCurrentTurn` は範囲16の第3ステップで、`getTotalMoves` は第4ステップで読み手が0になったので消した。残る読み手は `src/features` の `StudyPositionSaveModal` だけで、`src/features` の範囲は済んでいる。`features/study-position-save` を次に触るときに `state.cursor` を読む形へ寄せ、包みを消す |
 | `src-tauri/src/engine/commands/analysis.rs` の `get_analysis_result`、`get_last_result`、`get_analysis_status` | TS の呼び手が0になった。線の名前なので消すかを `/decide` で決める。範囲5で、`get_analysis_status` が返す `AnalysisStatus` の `elapsed_time` と `config` は組む経路が無く常に `None` で、`AnalysisConfig` はどこでも組まれないと確かめた（`engine/types.rs` の doc に書いた）。コマンドを消すなら2つの型も消える |
-| `src-tauri/src/engine/launchable.rs` の分類を起動の失敗で使う範囲 | 起動の失敗の分類（`start_failure::describe`）は `inspect` の答えのうち `Quarantined` だけを見る。実行権限が無い、別の OS 向け、読めないファイルは `SpawnFailed` になり、画面は候補の一覧と違う言葉で説明する。範囲5まではファイルの冒頭に `TODO(#523)` があったが、#523（帯を閉じると起動に失敗した理由が残らない）は閉じていて、この作業を含んでいなかった。TODO を外してこの行へ移した。`StartFailureKind` に種類を足すと線の値と画面の文言が増えるので、整理の段では入れない |
-| `src-tauri/src/engine/utils.rs` の役割 | 隠す判断を1つに言えない（R-RES-6）。名前も R-DUP-5 が概念の無い印とする `util` に当たる。2つの役割を持つ。`info` 行を読み筋へ畳む関数（`apply_info_params` ほか）と、ログに載せる文字列の部品（`shown`、`with_cause`、`LogThrottle`、`cmd_summary`、上限の定数）。`tests/layering.rs` の段の名前が `utils` なので、割ると `LAYERS` と段の検査の期待値（`["types", "utils"]`）を書き直す。範囲5では、触ってよい範囲の外なので割らなかった。割るなら、範囲6以降の段を取る前に独立した段にする |
+| `src-tauri/src/engine/launchable.rs` の分類を起動の失敗で使う範囲 | 起動の失敗の分類（`start_failure::describe`）は `inspect` の答えのうち `Quarantined` だけを見る。実行権限が無い、別の OS 向け、読めないファイルは `SpawnFailed` になり、画面は候補の一覧と違う言葉で説明する。範囲5まではファイルの冒頭に `TODO(#523)` があったが、#523（帯を閉じると起動に失敗した理由が残らない）は閉じていて、この作業を含んでいなかった。TODO を外してこの行へ移した。`StartFailureKind` に種類を足すと線の値と画面の文言が増えるので、整理のステップでは入れない |
+| `src-tauri/src/engine/utils.rs` の役割 | 隠す判断を1つに言えない（R-RES-6）。名前も R-DUP-5 が概念の無い名前とする `util` に当たる。2つの役割を持つ。`info` 行を読み筋へ集約する関数（`apply_info_params` ほか）と、ログに載せる文字列の部品（`shown`、`with_cause`、`LogThrottle`、`cmd_summary`、上限の定数）。`tests/layering.rs` のレイヤの名前が `utils` なので、割ると `LAYERS` とレイヤの検査の期待値（`["types", "utils"]`）を書き直す。範囲5では、触ってよい範囲の外なので割らなかった。割るなら、範囲6以降のステップを取る前に独立したステップにする |
 | `src-tauri/src/engine/types.rs` の `EngineOption` の `current_value` | 組むのは `option_line::parse_option_line` だけで、常に `None`。TS（`entities/engine/api/rust-types.ts`）も型に持つだけで読まない。線の欄なので、消すかを `EngineInfo` の線の形と合わせて決める |
-| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。範囲17でも送った。union にすると `entities/engine` の reducer（状態機械）と provider の `isReady`、`notReadyReasonOf` の入力が変わり、`entities` の公開の型が変わる。進め方の「`entities` の公開の名前を変えるなら、呼び手を含めて独立した段にする」に当たるので、整理の段に混ぜない。`src/app` で状態を読むのは `EngineFailureBridge`（`phase`、`error`、`unresponsiveReason`）と `EngineStartWarningBridge`（`phase`、`startWarnings`）の2つ。ほかの読み手は `features/engine-position-sync`、`entities/analysis` の provider、`src/widgets` の `AnalysisControls` と `useEngineStatus`。`engineFailureNoticeOf` は `exited`、`unresponsive`、`error`、未設定の順に見るので、union にしても判定の順は変わらない |
+| `src/entities/engine/model/types.ts` の `EngineState` | `phase` ごとの欄を判別できる union にすれば、`engineFailureNoticeOf` の `?? "noAnswer"` と `?? "unknown"` が消える。範囲17でも送った。union にすると `entities/engine` の reducer（状態機械）と provider の `isReady`、`notReadyReasonOf` の入力が変わり、`entities` の公開の型が変わる。進め方の「`entities` の公開の名前を変えるなら、呼び手を含めて独立したステップにする」に当たるので、整理のステップに混ぜない。`src/app` で状態を読むのは `EngineFailureBridge`（`phase`、`error`、`unresponsiveReason`）と `EngineStartWarningBridge`（`phase`、`startWarnings`）の2つ。ほかの読み手は `features/engine-position-sync`、`entities/analysis` の provider、`src/widgets` の `AnalysisControls` と `useEngineStatus`。`engineFailureNoticeOf` は `exited`、`unresponsive`、`error`、未設定の順に見るので、union にしても判定の順は変わらない |
 | `src/__tests__/crossSliceImports.ts` の `scanCrossSliceImports` | 層の直下のディレクトリを全部スライスとして歩くので、`src/pages/__tests__` が `pages/__tests__` というスライスに数えられる。doc は「`__tests__` は外す」と書くが、外れるのはスライスの中の `__tests__` だけ。範囲17では、テストの `satisfies typeof import` を相対パスで書いて避けた。層の直下の `__tests__` を歩かないように直すかを決める |
-| `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が畳み直す」と合わせて対局の面を戻すときに決める。未再現 |
-| `src/entities/game-session/model/provider.tsx` の `start` の `void closeGame(gameId)` | 手放した対局を畳む呼び出しの断りを誰も受けない。本番の呼び手が `closeSession` しか無いので、対局の面を戻すときに決める |
+| `src/entities/game-session/model/provider.tsx` の `retireEngines` | `over` は Rust の `finish` が `send_gameover` を待つ前に届くので、裁定や投了の呼び出しが `Arc` を持ったままの `close_game` は `busy` で断られる筋がある。呼び直す者が居ないので `isHeld` が真のまま残る。`Err` を受けたら間隔を空けて呼び直すかは、ADR-0011 の「`start` が `close_game` をやり直す」と合わせて、対局タブを戻すときに決める。未再現 |
+| `src/entities/game-session/model/provider.tsx` の `start` の `void closeGame(gameId)` | 手放した対局を終える呼び出しの断りを誰も受けない。本番の呼び手が `closeSession` しか無いので、対局タブを戻すときに決める |
 | `src-tauri/src/workspace/commands/kifu.rs` の `save_kifu_file` | TS の呼び手は0。範囲3では消さなかった。保存し直しの `write_kifu_to_file` は失敗を `FsError` の外で生の英文のまま返す（`kifu/commands.rs` の `TODO(#215)`）。綴り終えた本文を `FsError` で書くコマンドはこれだけなので、保存を `FsError` へ寄せるときに、これを使うか消すかを #215 で決める |
-| `src/widgets/file-tree/ui/TreeNode.tsx` の `key={child.id}` と、`renamingNodeId` | どちらも走査のたびに振り直す `id` で同一性を見るので、読み直すとフォルダの下の行が作り直され、改名の欄が打った文字ごと畳まれる。行の強調はパスで比べる形へ直した（範囲16の第2段）。`renamingNodeId` を `path` にするのは `entities/file-tree` の state の変更で、改名と移動の張り替えと合わせて決める |
+| `src/widgets/file-tree/ui/TreeNode.tsx` の `key={child.id}` と、`renamingNodeId` | どちらも走査のたびに振り直す `id` で同一性を見るので、読み直すとフォルダの下の行が作り直され、改名の欄が打った文字ごと unmount される。行の強調はパスで比べる形へ直した（範囲16の第2ステップ）。`renamingNodeId` を `path` にするのは `entities/file-tree` の state の変更で、改名と移動の張り替えと合わせて決める |
 | `src/widgets/file-tree/ui/TreeNodeActions.tsx` の `isDirectory` | 呼び手はルートとフォルダの行だけで、常に真。消すと `shared/lib/path.ts` の `getParentPath` の読み手が0になるので、`shared` の範囲と合わせて消す |
 | `src/widgets/file-tree/ui/DirectoryToggleIcon.scss` の `transition: transform 0.15 ease` | 時間に単位が無く、宣言ごと無効になっている。フォルダの矢印は回らずに切り替わる。直すと見た目が変わるので、画面の動きの棚卸しで決める |
 | `src/entities/kifu/api/parse.ts` の `parseKifuContentToJKF` | 形式を拡張子だけで決めるので、Finder で変えたファイルは本文と形式がずれたまま0手で載り、次の保存で本文を失う筋がある。未再現。指し手が0で本文が空でないときに開くのを断るかを、#210 と合わせて決める |
-| `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。範囲16の第4段で再現し、今の動きを `bookControls.test.tsx` に固定した。直すと `entities/book` の状態と画面の動きが変わるので送った。中止で前の定跡へ戻すか、題を「閉じる」に揃えるかを決める |
-| `src/entities/book/model/provider.tsx` の辿る失敗の枝 | `invalid_handle` を引く枝でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
+| `src/widgets/book-view/ui/BookControls.tsx` の ✕ と `BookProvider` の `close` | 題は「開くのを中止」だが、開き直しの途中で押すと、開いていた定跡まで閉じて `closed` へ落ちる。範囲16の第4ステップで再現し、今の動きを `bookControls.test.tsx` に固定した。直すと `entities/book` の状態と画面の動きが変わるので送った。中止で前の定跡へ戻すか、題を「閉じる」に揃えるかを決める |
+| `src/entities/book/model/provider.tsx` の辿る失敗の分岐 | `invalid_handle` を引く分岐でしか見ていないので、辿るのが落ちても次に局面が動くまで開き直す一覧へ戻らない。TS から閉じる経路は全部 `stale` で捨てられるので、踏む筋は未再現 |
 | `src-tauri/src/book/commands.rs` の `open_book` と `list_books` | 開いている間に webview が作り直されると、登録が新しい `list_books` より後になり、ハンドルが次の読み直しまで残る筋がある。未再現 |
 | `src/entities/updater/model/provider.tsx` の `persist` | 記憶を読み終える前に `checkNow` が通ると、`skippedVersion: null` で `updater.json` を書く。provider の単体では再現した。読み込みの応答より前に設定を開く必要があり、失うものは告知1回。手順では未再現 |
 | `src/entities/app-config/api/directories.ts` の `chooseDirectory` | ピッカーの前に読んだ設定を閉じた後に書くので、開いている間に列の書き込みが入るとその欄が消える。ピッカーが画面を止めるなら踏めない。未再現 |
-| `src/features/kifu-comment-note/lib/faceKey.ts` の `faceKey` | 要求の `forkPointers` を正規化せずに鍵へ入れるので、`cursorKey` なら同じ鍵になる、カーソルより先の予定だけが違う2つの要求が別の面になる。別の面と見ると、書きかけの本文を出ていく面として書き、エディタを組み直す。唯一の呼び手の `KifuStreamList` は渡さない。`onOpenComment` は要求を `descendTo` で組み、`descendTo` は計画から `te` 未満の欄だけを残して `te` に高々1つを足し、`te` の順に並べ直す。計画は `mergeBranchPlan` が重複を落として並べた形なので、`te > tesuu` の欄も同じ `te` の重複も要求に入らず、`cursorKey` の正規化と結果が一致する。別の呼び手を足すときは鍵に正規化を入れる |
-| `src/features/kifu-comment-note/ui/KifuCommentNote.tsx` の hook の順 | ref の宣言が effect の間に散り、R-TSW-4 の順と違う。各 ref の理由を書いたコメントが使う effect の隣にあるので、範囲15の第2段では動かさなかった。本体を割るときに揃える |
+| `src/features/kifu-comment-note/lib/faceKey.ts` の `faceKey` | 要求の `forkPointers` を正規化せずに鍵へ入れるので、`cursorKey` なら同じ鍵になる、カーソルより先の予定だけが違う2つの要求が別の対象の手になる。別の対象の手と見ると、書きかけの本文を出ていく手のものとして書き、エディタを組み直す。唯一の呼び手の `KifuStreamList` は渡さない。`onOpenComment` は要求を `descendTo` で組み、`descendTo` は計画から `te` 未満の欄だけを残して `te` に高々1つを足し、`te` の順に並べ直す。計画は `mergeBranchPlan` が重複を落として並べた形なので、`te > tesuu` の欄も同じ `te` の重複も要求に入らず、`cursorKey` の正規化と結果が一致する。別の呼び手を足すときは鍵に正規化を入れる |
+| `src/features/kifu-comment-note/ui/KifuCommentNote.tsx` の hook の順 | ref の宣言が effect の間に散り、R-TSW-4 の順と違う。各 ref の理由を書いたコメントが使う effect の隣にあるので、範囲15の第2ステップでは動かさなかった。本体を割るときに揃える |
 | `src/features/settings/ui/engine-tab/PresetCard.tsx` の `article` | `role="button"` の中にボタンがある。読み上げと操作の入れ子を解くかは、カードの適用の押し方と合わせて決める |
-| `src/features/settings/ui/workspace-tab/AppUpdateSection.tsx` の確認の結果 | 取得を始めた後も「この画面を閉じると案内が出ます」が残る。押せなくした後に残る前の答えで、段が動いたら消すかを決める |
+| `src/features/settings/ui/workspace-tab/AppUpdateSection.tsx` の確認の結果 | 取得を始めた後も「この画面を閉じると案内が出ます」が残る。押せなくした後に残る前の答えで、状態が動いたら消すかを決める |
 | `src/features/settings/lib/aiLibraryContents.ts` の `warningsOf` の定跡 | 定跡は任意なのに、無いと「検出された問題」に出てバッジが「注意あり」のまま消えない。hero は「土台は完成」、木は「（任意）」、一覧は「未設定」と言う。任意なら警告から外すかを決める |
 | `src/features/settings/model/useAiLibrary.ts` の `trim` | 走査と作成は前後の空白を落とし、開くとコピーは落とさない。名前の末尾に空白のあるフォルダを選ぶと、別のパスを読む。ピッカーの返す値は落とさない形へ揃えられる |
 | `src/features/settings/model/presetDialogReducer.ts` の `optionsCleared` | 絞り込みで一部の行だけを戻しても、当てて変えた値の一覧を全部消す。戻していない値の変更は保存で確定するのに、画面の説明が消える。消した名前の行だけを落とすかを決める |
 | `src/features/settings/model/useAiRootIndex.ts` の `createEnginesDir` | 待っている間に読み直しを押し、作成が失敗してから走査が成功すると、失敗文が消える。`useAiLibrary` も同じ形。未再現 |
-| `src/features/settings/model/useAiLibrary.ts` の `aiRootPath` | `config.ai_root` の控え（R-TSS-4）。本番では `chooseAiRoot` が設定を更新してから返るので要らないが、`AiLibraryTab.test.tsx` の `useAppConfig` の mock は値が変わっても描き直さず、控えの更新が再描画を起こしている。mock を購読の形にしてから消す |
+| `src/features/settings/model/useAiLibrary.ts` の `aiRootPath` | `config.ai_root` の写し（R-TSS-4）。本番では `chooseAiRoot` が設定を更新してから返るので要らないが、`AiLibraryTab.test.tsx` の `useAppConfig` の mock は値が変わっても描き直さず、写しの更新が再描画を起こしている。mock を購読の形にしてから消す |
 | `src/features/settings/ui/ai-library-tab/steps/Step3PlaceEngines.tsx` の「個検出」 | 状態のカードは同じ数を「件」と書く。`Step4PlaceAssets.tsx` も同じ。単位を揃えるかを画面の語の棚卸しで決める |
 | `src-tauri/src/search/build.rs` と `project_manager.rs` の棋譜の警告 | `warn_scan_failed` と違って代を見ずに出すので、根が変わった直後に届くと前の根のパスが残る筋がある。未再現 |
 | `src/features/position-search/ui/VirtualHitRow.tsx` の `path unknown` | 索引がパスを返さない行に英語のまま出る。画面の語の棚卸しで、断りの「この棋譜の場所が分かりません」と揃えるかを決める |
 | `src/shared/lib/path.ts` の `toRelPath` | `norm` が最初の `\` しか置き換えないので、名前に `\` を2つ以上含む棋譜は相対パスに `\` が残る。局面検索の行のファイル名は `getBaseName` が `\` でも区切るので、パスの欄と名前の欄で区切りが食い違う。TODO(#216) で直す |
-| `src/features/engine-position-sync/model/useEnginePositionSync.ts` の `pendingBeforeReadyRef` | `isReady` が `syncPosition` の依存にあるので、ready になると自動同期の effect が送り直す。保留を書かない変異を当てても `src/features src/pages src/widgets src/app` のテストは落ちない。保留の ref と送り直しの effect を消すかを、部品の構造の段で決める |
+| `src/features/engine-position-sync/model/useEnginePositionSync.ts` の `pendingBeforeReadyRef` | `isReady` が `syncPosition` の依存にあるので、ready になると自動同期の effect が送り直す。保留を書かない変異を当てても `src/features src/pages src/widgets src/app` のテストは落ちない。保留の ref と送り直しの effect を消すかを、部品の構造を直す段階で決める |
 | `src/entities/game/lib/gameOutcome.ts` の `stalemate` の doc | 詰みと分ける理由を「棋譜に落とす綴りが違うため」と書くが、説明の綴りを決める `rulingAdapter.ts` の `detail` は Rust の終局の結果に載るだけで、棋譜にも画面にも読み手が無い |
 | `src/__tests__/viMockShape.test.ts` の冒頭の doc | `satisfies` で export の増減と改名を tsc が落とすと書くが、`importActual` を展開する形では増えても落ちない。`entities/game` に export を足して `gameMoveBridge.test.tsx` の tsc が通ることを確かめた。差し替えの形ごとに何が落ちるかを書き分ける |
 | `src/entities/game/model/provider.tsx` の `edit` の `forceCommit` | `makeMove` は必ず局面を動かすので、`forceCommit` と局面の不動の判定は結果を変えない。読み手が増えるなら残す判定で、消すかを `entities/kifu` の `applyMoveWithBranch` の契約と合わせて決める |
@@ -236,7 +236,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 
 ## 次に取る範囲
 
-TypeScript の表は範囲17で全部「済」になった。Rust の範囲1は段34で、範囲1bは段35で、範囲2は段36で、範囲3は段37で、範囲4は段38で、範囲5は段39で、範囲5bは段40で、範囲「公開」は段41で、範囲5c（設計の段）は段42で、U0 は段43で、U1 は段44で、範囲6は段45で、U2a は段46で、範囲8aは段47で、範囲7aは段48で、U2b は段49で、U3 は段50で、U4 は段51で取った。次は 7b。
+TypeScript の表は範囲17で全部「済」になった。Rust の範囲1はステップ34で、範囲1bはステップ35で、範囲2はステップ36で、範囲3はステップ37で、範囲4はステップ38で、範囲5はステップ39で、範囲5bはステップ40で、範囲「公開」はステップ41で、範囲5c（設計の段階）はステップ42で、U0 はステップ43で、U1 はステップ44で、範囲6はステップ45で、U2a はステップ46で、範囲8aはステップ47で、範囲7aはステップ48で、U2b はステップ49で、U3 はステップ50で、U4 はステップ51で取った。次は 7b。
 
 範囲「公開」から、`engine` は crate の外へ出ない。外へ出すのは `tests/engine_timeouts.rs` が読む上限の定数だけで、
 `lib.rs` が再輸出する。`engine` の中で呼び手の無い `pub` は rustc の `dead_code` が拾うので、以後の範囲では grep で数えなくてよい。
@@ -245,29 +245,29 @@ U2b で対局が `Search` へ移り、`engine/protocol/search.rs` の `Search::p
 範囲7a: `game/session.rs` を4つのファイルに割る（本体 2208 行）。割るだけで、整理は 7b に回す。
 監査の行き先が 7a の所見は R-2、R-5、R-6、W-3（`docs/audits/2026-11-engine.md`）。
 
-- 割る先は番人（`stalled_turn`、`Stall`、`SEARCH_GRACE`）、起動（`START_TIMEOUT`、`remaining`、`prepare_engine`）、
+- 割る先は監視（`stalled_turn`、`Stall`、`SEARCH_GRACE`）、起動（`START_TIMEOUT`、`remaining`、`prepare_engine`）、
   書式（`validate_settings`、`validate_usi_move`）、状態機械（`Runner`、`finish`）の4つ（R-2）
-- `game/` の中は `tests/layering.rs` が段を割らない（`module_of` は `game/` の下を全部 `game` と読む）。
+- `game/` の中は `tests/layering.rs` がレイヤを割らない（`module_of` は `game/` の下を全部 `game` と読む）。
   割った後の各ファイルが冒頭で何を隠すかを言えることは `every_engine_file_says_what_it_hides` が見る
 - `tests/engine_timeouts.rs` が `session.rs` の上限の定数を読む。定数を動かしたら、読む側の綴りも同じコミットで直す
 
 範囲8a で `analyzer` は、どのプロセスが検討のものか（`Startup` の世代、`latest_request`、`started_by`）と、
 その上の探索（`run_infinite_search`、`collect_until_bestmove`、`stop_search`、`unanswered`）を持つ形になった。
-起こして設定を送る手順は段 `analysis_start` にある。`bridge` が組む断りの文と
+起こして設定を送る手順はレイヤ `analysis_start` にある。`bridge` が組む断りの文と
 `superseded_request` の重複（D-3）は 8b で取る。
 
 U2b で対局は `Search` を回すだけになった（`game/search.rs` の `run_search`）。`ponderhit` は探索のタスクが握る
 `Search` に書いてもらう（`PonderHit`）。
 `StopAnswer::Unreachable(EngineError::Timeout)`（`stop` の書き込みが上限を超えた）は、対局では `StopTimedOut`
-（止めに答えない。`gameover` を書かずに畳む）に写し、`a_stop_that_could_not_be_written_in_time_is_an_unanswered_stop` が固定する。
+（止めに答えない。`gameover` を書かずに対局を終える）に写し、`a_stop_that_could_not_be_written_in_time_is_an_unanswered_stop` が固定する。
 検討は同じ答えを失敗と読むまま残る。
 7b で取るもの: `Player::ponderhit` は `activity` と別の欄で、止めた後も古い値が残る。
 `Activity::Searching` か `SearchKind::Ponder` に持たせると型で止まる（U2b では既存のテストの形を変えないために見送った）。
 
-U3 で、1本のプロセスの USI の状態と判定は段 `usi_machine` の状態機械 `UsiMachine` に移った（時計も IO も持たない。
+U3 で、1本のプロセスの USI の状態と判定はレイヤ `usi_machine` の状態機械 `UsiMachine` に移った（時計も IO も持たない。
 `tokio` を使うと `no_layer_uses_a_crate_it_must_not` が落ちる）。表（`docs/state-transitions/engine.md` の「1本のプロセスの USI の状態」）の
 全セルは、列ごとに1本の純関数のテストが固定する。`UsiProtocol` は std の `Mutex` 1つ（`Shared` の `core`）の下で状態機械を持ち、
-出たこと（`Effect`）を同じロックの中で順に行う。受け手の表、積み置き、世代、`draining`、探索の枠のセマフォは消えた。
+出たこと（`Effect`）を同じロックの中で順に行う。受け手の表、積み置き、世代、`draining`、探索用のセマフォは消えた。
 `readyok` の待ちのタスクも、積み置きを掃く役が無くなったので消えた。読んだ行を状態機械へ渡すタスク（`start_reading`）は残る。
 M3（ロックの数）は 8 から 1（`research/engines/usi-measurements.md` の「U3 の後」）。
 `StopAnswer::NothingToStop` は起きなくなったので消した（走っていない探索は答え済み）。`Unreachable(Timeout)` の読み方は、
@@ -286,15 +286,15 @@ M3（ロックの数）は 1 から 0 で、`tests/layering.rs` の `the_usi_act
 
 次は 7b（`game` の残りと `commands/game.rs`）。その後に 8b（`bridge` など。U4 で終わりの見張りの名前が変わった後）を取る。
 
-`tests/layering.rs` は `engine` の段の上下を
-ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどの段に入るかを決める。
-所見の表の `utils.rs` の役割の行は、割るなら独立した段にする。
+`tests/layering.rs` は `engine` のレイヤの上下を
+ファイルの `use` で読むので、ファイルを割るか動かすなら、先に `LAYERS` のどのレイヤに入るかを決める。
+所見の表の `utils.rs` の役割の行は、割るなら独立したステップにする。
 
-段35から、`npm run verify:rust` と CI の `cargo test` と `cargo clippy` は `--workspace` で `crates/*` も走らせる。
+ステップ35から、`npm run verify:rust` と CI の `cargo test` と `cargo clippy` は `--workspace` で `crates/*` も走らせる。
 crate のテストは `cargo test --manifest-path src-tauri/Cargo.toml -p <crate>` で個別にも走らせられる。
 
-所見の表の `EngineState` の union は、範囲の表に載らない独立の段として残る。
-取るなら `entities/engine` の型と reducer から呼び手までを1段にし、整理の段とは分ける。
+所見の表の `EngineState` の union は、範囲の表に載らない独立のステップとして残る。
+取るなら `entities/engine` の型と reducer から呼び手までを1ステップにし、整理のステップとは分ける。
 
 `docs/IDEAS.md` の「feature の SCSS が shared の部品の内部クラスを掴んでいる」は、
 外すのに `shared/ui/Form` の手が要るので、範囲15では閉じない。

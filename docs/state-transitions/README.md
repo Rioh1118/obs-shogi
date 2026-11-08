@@ -28,18 +28,18 @@ L2    engine-position-sync.md  局面の送信。L1 の analysis と engine の�
 L2    position-search-view.md  局面検索の**画面**。L1 の search の結果を出す側だけを扱う
 L2    inline-name-editor.md    名前の入力欄。L1 の file-tree の中だけを扱う
 L2    board-orientation.md     盤の向き。盤に載っている棋譜とツリー側のパスのずれが軸
-L2    position-editor.md       初期局面を組む面。L1 の file-tree の「作る」側だけを扱う
+L2    position-editor.md       初期局面を組むタブ。L1 の file-tree の「作る」側だけを扱う
 L2    dock-tabs.md             ドックのタブ。L1 の analysis の上に「どのタブを見ているか」を重ねる
 L2    book-view.md             定跡ビュー。引くのが非同期で盤が待たないことが軸
 L2    engine-preset-dialog.md  プリセット編集の下書きと取得。当てる元の値と、いま待っている取得が軸
-L1    engine-standardization.md  エンジンの状態（画面の語）。これから満たす表で、engine と analysis を1語へ畳む
+L1    engine-standardization.md  エンジンの状態（画面の語）。これから満たす表で、engine と analysis を1語へまとめる
 
 横断  failure-surfacing.md     失敗が最終的にどこへ出るか。L0〜L2 のどの表からも参照される
 横断  branch-index.md          分岐を指す値の分類。スライスの状態機械ではなく、値が取りうる形の表
 
 判定  book-key-failures.md     book_key_or_reason の検査の順序 × 入力の形
 判定  yaneuraou-db-parse.md    .db の読み取り。行の種類 × パーサの状態
-判定  verify-gate-decision.md  verify-gate の段 × コマンドの形
+判定  verify-gate-decision.md  verify-gate の段階 × コマンドの形
 判定  presets-file.md          プリセットのファイルの読み込み（版・壊れ方）× 書けるか
 判定  option-binding.md        評価関数・定跡の流し先（エンジンの申告 × 選んだもの）
 ```
@@ -49,7 +49,7 @@ L1    engine-standardization.md  エンジンの状態（画面の語）。こ�
 「`BranchIndex` にどの値が入りうるか」は `branch-index.md` が持つ。
 
 「判定」の表はさらに粒度が違う。アプリの状態ではなく、**1つの関数 / 1つの hook が
-入力をどの枝へ落とすか**を軸にしている。先に置いた検査が後ろの枝を覆い隠す形の穴を、
+入力をどの分岐へ落とすか**を軸にしている。先に置いた検査が後ろの分岐を覆い隠す形の穴を、
 セルの重なりとして見るために作った。
 
 ## いま何が書けているか
@@ -61,12 +61,12 @@ L1    engine-standardization.md  エンジンの状態（画面の語）。こ�
 | [analysis.md](analysis.md)                         | ✅        | Rust の席を列に持つ。**✓ を使わない**（網羅は表末尾の「埋まっていないセル」）                                                           |
 | [file-tree.md](file-tree.md)                       | ✅        |                                                                                                                                         |
 | [engine-position-sync.md](engine-position-sync.md) | ✅        | 既存。issue #120 の産物                                                                                                                 |
-| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの台帳（F 番号の採番元）                                                                                          |
+| [failure-surfacing.md](failure-surfacing.md)       | ✅        | どの失敗がどこへ出るかの一覧（F 番号の採番元）                                                                                          |
 | [inline-name-editor.md](inline-name-editor.md)     | ✅        | `file-tree.md` の下。入力欄の中だけを扱う                                                                                               |
 | [branch-index.md](branch-index.md)                 | ✅        | 値の分類表。スライスの状態機械ではない                                                                                                  |
 | [book-key-failures.md](book-key-failures.md)       | ✅        | 判定表。`book_key_or_reason` の検査の順序                                                                                               |
 | [yaneuraou-db-parse.md](yaneuraou-db-parse.md)     | ✅        | 判定表。`.db` の行の種類 × パーサの状態。一次資料の表を持つ                                                                             |
-| [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段                                                                                                              |
+| [verify-gate-decision.md](verify-gate-decision.md) | ✅        | 判定表。`verify-gate` の段階                                                                                                              |
 | [presets-file.md](presets-file.md)                 | ✅        | 判定表。プリセットのファイルの版・壊れ方 × 書けるか。**書き込みを失敗させるセルは未検証**                                               |
 | [engine-preset-dialog.md](engine-preset-dialog.md) | ✅        | プリセット編集の下書きと取得（`presetDialogReducer`）。セルごとに reducer のテスト                                                      |
 | [engine-standardization.md](engine-standardization.md) | 未実装    | エンジンの状態（画面の語）。**これから満たす表**で、全セルが未検証                                                                     |
@@ -76,9 +76,9 @@ L1    engine-standardization.md  エンジンの状態（画面の語）。こ�
 | [search.md](search.md)                             | ✅        | **Rust 側**。ディスクのキャッシュを列に持つ                                                                                             |
 | [position-search-view.md](position-search-view.md) | ✅        | `search.md` の画面側。選択・ホバー・焦点の3つを揃える                                                                                   |
 | [board-orientation.md](board-orientation.md)       | ✅        | 合図は game の `loadedAbsPath` と `boardSeq` の組。ツリー側の `activeKifuPath` / `selectedNode` とのずれが軸                            |
-| [position-editor.md](position-editor.md)           | ✅        | 初期局面を組む面。Esc の段と「組みかけ」の扱いが軸。**未検証はこの4つ**（保存先が消える／作成中の Esc／インポートで作成／盤の鍵盤操作） |
+| [position-editor.md](position-editor.md)           | ✅        | 初期局面を組むタブ。Esc の優先順と「組みかけ」の扱いが軸。**未検証はこの4つ**（保存先が消える／作成中の Esc／インポートで作成／盤の鍵盤操作） |
 | [updater.md](updater.md)                           | ✅        | ディスク上のアプリの実体を列に持つ。**未検証は実プロセスと plugin の内側が要る6件**                                                     |
-| [dock-tabs.md](dock-tabs.md)                       | ✅        | 器と表示モードの列は踏んでいる。**器の外の列は1つも踏んでいない**（表末尾の「埋まっていないセル」）                                     |
+| [dock-tabs.md](dock-tabs.md)                       | ✅        | ドックと表示モードの列は踏んでいる。**ドックの外の列は1つも踏んでいない**（表末尾の「埋まっていないセル」）                                     |
 | [book-view.md](book-view.md)                       | ✅        | 定跡ビュー。**古い引きを捨てる（※A）が軸。** 実プロセスで返る順を踏んだテストは無い                                                     |
 | `study-positions.md`                               | ❌ 未作成 |                                                                                                                                         |
 
