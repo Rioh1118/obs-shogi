@@ -1,6 +1,6 @@
 # デザインシステム（構造のみ・値は仮）
 
-このリポジトリは、デザインシステムの正本であり、そのまま Claude Code のスキルでもある。名前は `lumen.config.json` にある。
+このディレクトリ（製品のリポジトリの `design-system/`）は、デザインシステムの正本であり、そのまま Claude Code のスキルでもある。名前は `lumen.config.json` にある。
 
 - 使い方の手順（AI 向け）：SKILL.md
 - 保守の規約：CLAUDE.md
@@ -15,7 +15,7 @@ npm install
 npx playwright install chromium
 npm run ds:build
 npm run ds:check
-ln -s "$PWD" ~/.claude/skills/obs-shogi-design-system   # スキルとして使う
+# スキルとしては製品の .claude/skills/obs-shogi-design-system がこのディレクトリを指している
 ```
 
 ## 次にやること

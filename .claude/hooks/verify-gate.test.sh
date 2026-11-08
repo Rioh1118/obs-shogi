@@ -459,6 +459,11 @@ expect_kinds "ts" "docs/IDEAS.md"
 # 状態遷移表は rust 側も見るので、表だけのコミットで2つとも走らせる
 expect_kinds "ts rust" "docs/state-transitions/yaneuraou-db-parse.md"
 expect_kinds "" ".claude/reviews/2026-08-30-book-foundation-r1.md"
+# デザインシステムは自前の検査だけ。正本は `.tokens.json` と `.md` で、拡張子では拾えない
+expect_kinds "ds" "design-system/design_system/tokens/semantic.tokens.json"
+expect_kinds "ds" "design-system/design_system/principles.md"
+# 入れ子の package.json は製品の依存ではない。根の `package.json` だけが ts
+expect_kinds "ds" "design-system/package.json"
 # 引用符付きのパスは -z で読むので、ここへは素のまま来る
 expect_kinds "ts" "src/dir with space/a.ts"
 

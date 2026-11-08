@@ -13,7 +13,7 @@ description: ObsShogi デザインシステム（トークン、コンポーネ�
 - B. 方向性を探る：brief から3案を作る。初回と大改修のときだけ
 - C. 更新する：確定したデザインシステムを差分で変える
 
-以下のパスは、このスキルのディレクトリ（`<skill>`。通常は `~/.claude/skills/obs-shogi-design-system`）からの相対パス。
+以下のパスは、このスキルのディレクトリ（`<skill>`。製品のリポジトリの `design-system/`。製品の `.claude/skills/obs-shogi-design-system` からシンボリックリンク）からの相対パス。
 
 ## どのファイルをいつ読むか
 
