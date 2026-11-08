@@ -114,7 +114,7 @@ async fn wait_for_late_answer(late: LateAnswer, unanswered: Arc<watch::Sender<bo
 /// 目標深度に届いたか。
 ///
 /// `None`（時間だけで打ち切る検討）では**常に偽**。ここが真を返すと `stop` が飛ぶので、
-/// 深度を指定していない検討まで途中で畳んでしまう。
+/// 深度を指定していない検討まで途中で止めてしまう。
 fn reached_depth(result: &AnalysisResult, target: Option<u32>) -> bool {
     let Some(target) = target else {
         return false;
@@ -240,7 +240,7 @@ impl EngineAnalyzer {
         let (process, warnings) = match started {
             Ok(process) => process,
             // **取り消された後の失敗は取り消しとして返す。** 取り消しは待ちとしか競わないので、
-            // 起こす段や書き込みで折れた起動は、止めた後でも本物の失敗の顔で返ってくる。
+            // 起こす段階や書き込みで折れた起動は、止めた後でも本物の失敗の顔で返ってくる。
             // 利用者が既に離れた起動に「起動できませんでした」を出さない
             Err(e) if cancel.is_cancelled() => {
                 log::debug!(target: LOGT, "start_engine: failed after it was cancelled: {e}");
@@ -602,7 +602,7 @@ impl EngineAnalyzer {
     /// 探索を止める（`Search::stop`）。上限まで答えなければ `unanswered` を立て、
     /// 遅れた答えを待って下ろすタスクを起こす。
     ///
-    /// **立ててから返す。** 返してから立てると、呼び手が次の `go` を通す窓ができる。
+    /// **立ててから返す。** 返してから立てると、呼び手が次の `go` を通す区間ができる。
     /// 遅れた `bestmove` が来るまで状態機械が止め待ちに残り、このプロセスで次の探索を断る。
     /// 届かない回はその理由で断る
     async fn stop_search(
@@ -632,7 +632,7 @@ impl EngineAnalyzer {
     /// `bestmove` を `ANALYSIS_STOP_GRACE` まで待つ。
     ///
     /// `target_depth` を渡すと、その深度に届いた時点でも止める。
-    /// 深度と時間で入口は分かれるが、**待ち方と後始末は同じ**なのでここに畳んである。
+    /// 深度と時間で入口は分かれるが、**待ち方と後始末は同じ**なのでここで1本にまとめてある。
     ///
     /// 止める頼み（`EngineAnalyzer::stop_analysis`）が来たら、止めてそこへ答え、ここまでの結果を返す
     async fn collect_until_bestmove(
@@ -722,7 +722,7 @@ mod tests {
     /// 深度を指定していない検討を、深度で止めないこと。
     ///
     /// **`None` で真を返すと `stop` が飛ぶ。** 時間だけで打ち切るはずの検討が、
-    /// エンジンが最初の `info depth` を出した時点で畳まれる
+    /// エンジンが最初の `info depth` を出した時点で止まる
     #[test]
     fn a_time_only_analysis_is_never_cut_short_by_depth() {
         for depth in [0, 1, 20, u32::MAX] {
@@ -881,7 +881,7 @@ done"#;
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// `usi` を受けたら印を置き、答えない台本
+        /// `usi` を受けたら目印のファイルを置き、答えない台本
         const NEVER_USIOK: &str = r#"while read line; do
   case "$line" in
     usi) touch saw-usi ;;
@@ -1248,7 +1248,7 @@ done"#
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// 確かめの途中で落ちたら、起動の他の段と同じく直近の出力（stderr）を添えて断る
+        /// 確かめの途中で落ちたら、起動の他の段階と同じく直近の出力（stderr）を添えて断る
         #[tokio::test]
         async fn an_engine_that_dies_during_the_path_check_fails_with_its_output() {
             let dir = test_support::dir::temp_dir("analyzer-start-book-exit");
@@ -1267,7 +1267,7 @@ done"#
         #[tokio::test]
         async fn a_path_with_a_newline_is_refused_before_starting() {
             let dir = test_support::dir::temp_dir("analyzer-start-bad-path");
-            // 起きたら印を置く台本（起こしてから断ると、落としても印が残る）
+            // 起きたら目印のファイルを置く台本（起こしてから断ると、落としても目印のファイルが残る）
             let path = place(&dir, "marked.sh", &format!("touch started\n{READY}")).await;
             let _ = std::fs::remove_file(dir.join("started"));
             let registry = Arc::new(EngineRegistry::new());
@@ -1400,7 +1400,7 @@ done"#
         async fn a_depth_analysis_stops_when_the_depth_is_reached() {
             // 探索は後ろで走らせ、`go` の後も行を読み続ける。前で書き切ると、早く書かれた
             // `stop` もパイプに溜まって深さ3の後に読まれ、深さを見て止めたのかが分からない。
-            // 深さ3を書く直前に印（`emitted3`）を残し、`stop` がその後に来たことを見る
+            // 深さ3を書く直前に目印のファイル（`emitted3`）を残し、`stop` がその後に来たことを見る
             let body = script(
                 "{ echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'; \
                    echo 'info depth 2 multipv 1 score cp 20 pv 7g7f 3c3d'; \
@@ -1463,7 +1463,7 @@ done"#
                 tokio::time::timeout(Duration::from_secs(10), analyzer.watch_answered()).await;
             // 中身は `()` なので、上限で切れたかだけを見る
             let Ok(()) = answered else {
-                panic!("遅れた答えの後も印が下りない: {}", seen(&dir));
+                panic!("遅れた答えの後もフラグが下りない: {}", seen(&dir));
             };
             assert!(
                 analyzer.start_infinite_analysis().await.is_ok(),

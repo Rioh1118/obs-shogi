@@ -11,7 +11,7 @@ pub type Jkf = JsonKifuFormat;
 /// 盤の組み立ては **`shogi_kifu_converter_obsshogi` に任せる**。手合割の盤面は
 /// あちらが表で持っており（`src/shogi_core/from.rs` — shogi_core へ変換する
 /// コードを置いたモジュールで、`shogi_core` クレートのファイルではない）、
-/// パーサはそれに合う盤面を `{preset, data: None}` へ畳んで返す。
+/// パーサはそれに合う盤面を `{preset, data: None}` へ寄せて返す。
 /// つまり手合割の棋譜はここへ `data` 無しで届くので、`data` のある形だけを
 /// 自前で組むと**手合割の棋譜が丸ごと索引から漏れる**。
 ///
@@ -69,7 +69,7 @@ mod tests {
 
     /// 手合割の棋譜が索引に入る。
     ///
-    /// パーサは手合割の盤面を `{preset, data: None}` に畳む（`normalize_initial`）。
+    /// パーサは手合割の盤面を `{preset, data: None}` に寄せる（`normalize_initial`）。
     /// **手合割の棋譜はここへ `data` 無しで届くのが通常**で、例外ではない。
     #[test]
     fn every_handicap_yields_an_initial_position() {

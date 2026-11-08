@@ -30,11 +30,11 @@ use crate::search::types::{
 
 /// 進捗を出す間隔。
 ///
-/// **`search/mod.rs` に置かない。** `mod.rs` は段の表の外なので、上下の言えない
+/// **`search/mod.rs` に置かない。** `mod.rs` はレイヤの表の外なので、上下の言えない
 /// 2つ（`build` と `project_manager`）がそこを共有の置き場にできてしまう。
-/// ここは「画面へ何をどれだけの頻度で出すか」を決める段なので、間隔もここが持つ。
+/// ここは「画面へ何をどれだけの頻度で出すか」を決めるレイヤなので、間隔もここが持つ。
 ///
-/// **段の検査は当てにできない。** `tests/layering.rs` が歩くのは `src/engine` だけで
+/// **レイヤの検査は当てにできない。** `tests/layering.rs` が歩くのは `src/engine` だけで
 /// （#399）、`search` は `mod.rs` も `announce.rs` も等しく検査の外に居る。
 /// 置き場の根拠は責務であって、機械ではない。
 ///
@@ -47,12 +47,12 @@ pub const EMIT_INTERVAL: std::time::Duration = std::time::Duration::from_millis(
 
 /// 差分適用がどう終わったか。
 ///
-/// **`bool` に畳まないこと。** 「据え直された」と「走査できなかった」は、
+/// **`bool` に寄せないこと。** 「据え直された」と「走査できなかった」は、
 /// 呼び手のするべきことが逆になる——前者は索引がもう自分のものではないので
 /// `Ready` を出してはいけない、後者は**索引は自分のもののまま健全**で
 /// 差分が当たっていないだけなので `Ready` を出さなければならない。
 ///
-/// 畳むと後者が前者として扱われ、復元した索引がメモリに丸ごと在るのに
+/// 寄せると後者が前者として扱われ、復元した索引がメモリに丸ごと在るのに
 /// 画面は「更新中」のまま戻らない（再試行の導線は無いので、開き直しても同じ）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[must_use = "結末を捨てると、旗を知らない側が `Ready` を伏せた旗で塗り潰す（`announce_state` に `IndexAnnouncement::Rescanned` で渡すこと）"]
@@ -62,7 +62,7 @@ pub enum RescanOutcome {
     /// **読めなかった場所があったかを一緒に運ぶ。** 結末と別に持つと、
     /// 結末を出す経路が旗を知らないまま `false` を書いて塗り潰す
     Committed {
-        /// 読めなかった場所があった。**索引に入っていない棋譜がある**の印
+        /// 読めなかった場所があった。**索引に入っていない棋譜がある**ことを示す
         partially_unreadable: bool,
     },
     /// 走っている間にワークスペースが据え直された。**何も書いていない**
@@ -127,7 +127,7 @@ pub fn announce_progress(
     let _ = app.emit(EVT_INDEX_STATE, progress.into_payload(indexed));
 }
 
-/// 進行中の段。**対象の件数は呼び手が持つ。**
+/// 進行中の状態。**対象の件数は呼び手が持つ。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexProgress {
     /// ディスク上のキャッシュを読みに行っている
@@ -186,7 +186,7 @@ impl IndexProgress {
 }
 
 /// 仕事が終わったことの告げ方。**`IndexState` そのものではない**——
-/// 段と旗をどう組むかはこの型が決める。
+/// 状態と旗をどう組むかはこの型が決める。
 ///
 /// **TS の `IndexUiState`（reducer が積む索引の現況）とは別物。**
 /// あちらは8欄のオブジェクトで、こちらは1回の結末。線には出ない。
@@ -201,20 +201,20 @@ pub enum IndexAnnouncement {
     Rescanned(RescanOutcome),
     /// **作ろうとして作れなかった。** 索引は空のまま
     ///
-    /// 画面の段を `Ready` にしない——`indexHealth`
+    /// 画面の状態を `Ready` にしない——`indexHealth`
     /// （`entities/search/lib/indexHealth.ts`）は `Empty` ＋ `scanFailed` でだけ
     /// `buildFailed`（＝必ず0件）に落ちる。`Ready` を出すと
     /// 「更新できていません」（＝前回の索引が残っている）と同じ語になり、
     /// **必ず0件になることが画面から消える**。
     ///
-    /// **`IndexStore` の段は動かしていない。** ここが決めるのは画面へ出す段だけで、
+    /// **`IndexStore` の状態は動かしていない。** ここが決めるのは画面へ出す状態だけで、
     /// 中は `restart(Restart::Building)` が入れた `Building` のまま
     /// （`docs/state-transitions/search.md` の同名の節）。
     BuildFailed,
 }
 
 impl IndexAnnouncement {
-    /// 段と旗を組む。**`AppHandle` も索引も要らない形**なのでテストから直に呼べる。
+    /// 状態と旗を組む。**`AppHandle` も索引も要らない形**なのでテストから直に呼べる。
     ///
     /// `None` は「出してはいけない」。**結末を出す経路の外で `Superseded` を
     /// 判定させないため**——呼び手が `outcome` を見て分岐する形にすると、
@@ -269,7 +269,7 @@ pub fn warn_scan_failed(
 
 /// 索引を作り始められなかったことを画面へ出す。
 ///
-/// **場所についての文言はこの段が組む。** 呼び手が裸のリテラルで組むと、
+/// **場所についての文言はこのレイヤが組む。** 呼び手が裸のリテラルで組むと、
 /// そこだけ言い分け（[`IndexSurvival`]）も語彙の統一も掛からない。
 ///
 /// **代は見ない。ここへ来る回は既に代が合っている。** 呼び手（`build.rs`）が
@@ -297,8 +297,8 @@ pub(crate) fn warn_build_not_started_message() -> ScreenMessage {
 ///
 /// **代を確かめてから出す。** 理由は [`warn_scan_failed`] と同じ。
 ///
-/// **引き継げた場所と引き継げなかった場所を1件に畳まない。** 失われるものが
-/// 逆になる——前者の棋譜は検索に出続け、後者の棋譜は索引に無い。畳むと、
+/// **引き継げた場所と引き継げなかった場所を1件にまとめない。** 失われるものが
+/// 逆になる——前者の棋譜は検索に出続け、後者の棋譜は索引に無い。まとめると、
 /// 名指しした場所に対して**逆のこと**を告げることになる。
 pub fn warn_unreadable(
     app: &AppHandle,
@@ -356,7 +356,7 @@ fn unreadable_warnings(
 /// ときのまま健全で、当たっていないのは差分だけ。全件構築なら
 /// `restart(Restart::Building)` が既に中身を捨てているので**索引は空**。
 ///
-/// 畳むと、空にした回に「索引は最後に読めたときのままです」と告げることになり、
+/// まとめると、空にした回に「索引は最後に読めたときのままです」と告げることになり、
 /// 利用者は**古い索引でなら検索できる**と読んで、0件を「棋譜が無い」と受け取る。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndexSurvival {
@@ -458,7 +458,7 @@ mod tests {
     use super::*;
     use crate::search::types::IndexWarnKind;
 
-    /// 段と旗の写像。**`announce_state` の中身は `AppHandle` を要るので、
+    /// 状態と旗の写像。**`announce_state` の中身は `AppHandle` を要るので、
     /// ここが落ちないかぎり写像は誰も見ていない。**
     fn payload(state: IndexAnnouncement, live: u32) -> Option<IndexStatePayload> {
         state.into_payload(live, live)
@@ -560,7 +560,7 @@ mod tests {
 
     /// **引き継げた場所と引き継げなかった場所に、逆のことを言わないこと。**
     ///
-    /// 1件に畳んで代表を先頭から選ぶと、引き継げなかった場所を指して
+    /// 1件にまとめて代表を先頭から選ぶと、引き継げなかった場所を指して
     /// 「前回の索引のまま残ります」と告げうる——その下の棋譜は索引に1件も
     /// 入っていないので検索に出ない。利用者は出てこない棋譜を「無い」と判断する。
     #[test]
@@ -630,7 +630,7 @@ mod tests {
     ///
     /// `IndexWarnPayload::place` と `::file` は引数の型も数も同じなので、
     /// 取り違えても型検査は止めない。`file` になると
-    /// `pickWarns`（TS 側）の場所優先の枠から外れ、**利用者が次にすることを
+    /// `pickWarns`（TS 側）の場所優先の区分から外れ、**利用者が次にすることを
     /// 含んだ唯一の文言**が普通のパース警告に押し出されて画面から消える。
     #[test]
     fn warnings_about_places_say_they_are_about_places() {
@@ -677,7 +677,7 @@ mod tests {
         );
     }
 
-    /// 進行中の段の写像。**`IndexAnnouncement` 側とは別の関数なので、
+    /// 進行中の状態の写像。**`IndexAnnouncement` 側とは別の関数なので、
     /// あちらのテストは1つも当たらない。**
     fn progress(p: IndexProgress) -> IndexStatePayload {
         p.into_payload(0)
@@ -688,7 +688,7 @@ mod tests {
         p.into_payload(indexed)
     }
 
-    /// **進行中の段が「走査に失敗した」と名乗らないこと。**
+    /// **進行中の状態が「走査に失敗した」と名乗らないこと。**
     ///
     /// 進行中はまだ走査の結末が出ていないので、この旗を立てられる回が無い。
     /// 立ったまま終端の告知が代の不一致で出なければ、**それが最後の状態として
@@ -832,7 +832,7 @@ mod tests {
 
     #[test]
     fn a_failed_build_is_empty_and_never_ready() {
-        // `Ready` を出すと `query_service` の `stale` は段しか見ないので、
+        // `Ready` を出すと `query_service` の `stale` は状態しか見ないので、
         // **空の索引の 0 件が「最新」として並ぶ**
         let p = payload(IndexAnnouncement::BuildFailed, 0).expect("構築失敗は画面へ出す");
         assert_eq!(p.state, IndexState::Empty);

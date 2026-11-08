@@ -899,7 +899,7 @@ impl UsiProtocol {
     ///   書き込みぶんが締切の外に出ないように
     ///
     /// **並べ替えない。** 値の解釈が前の `setoption` に依存するエンジンがあるので、順は呼び手が決める。
-    /// 値の検査（件数・長さ・行を壊す文字）は呼び手の段（`setup::validate_options`）が先に済ませる。
+    /// 値の検査（件数・長さ・行を壊す文字）は呼び手のレイヤ（`setup::validate_options`）が先に済ませる。
     /// 送る途中や `readyok` の前にエンジンが落ちたら、直近の出力を添えて返す。
     /// 待っている最中に `kill_engine` されたら `Cancelled` で返る。
     ///
@@ -1021,7 +1021,7 @@ impl UsiProtocol {
             Ok(Err(_)) => Err(self.cannot_reach()),
             Err(_) => Ok(None),
         };
-        // 落ちたら直近の出力を添える（起動の他の段と同じ。原因は stderr にある）
+        // 落ちたら直近の出力を添える（起動の他の段階と同じ。原因は stderr にある）
         match answered {
             Ok(answer) => Ok(answer),
             Err(e) => Err(self.handle.with_recent_output(e).await),
@@ -1072,7 +1072,7 @@ impl EngineShutdown {
     /// 戻り値を持たないのは、これが礼儀であって保証ではないため。
     /// 落とすことの保証は `kill_engine` の側にある。
     ///
-    /// **送る前に印を立てる**（状態機械の R10）。`quit` に答えて終わるエンジンは `kill_engine` より先に
+    /// **送る前にフラグを立てる**（状態機械の R10）。`quit` に答えて終わるエンジンは `kill_engine` より先に
     /// 出力を閉じるので、立てないと「自分で終わった」に見える（`EngineEndWatch`）
     pub async fn quit(&self) {
         log::debug!(target: LOGT, "quit: sending");
@@ -1086,7 +1086,7 @@ impl EngineShutdown {
     /// 先に状態機械を閉じ（理由は `Requested`）、待っている手順に答えを渡してから落とす。
     /// 落とすのは待ち手のタスクに頼むだけで（`EngineChild::start_kill`）、stdin のロックも
     /// 書き込みの列も通らない。**書き込みが詰まっていても落とせる。**
-    /// プロセスが畳まれるのを見届けるのはここで、上限は `KILL_TIMEOUT`。アクターは見届けるのを待たない。
+    /// プロセスが終わるのを見届けるのはここで、上限は `KILL_TIMEOUT`。アクターは見届けるのを待たない。
     ///
     /// `quit` は書かない。行儀よく終わらせたい呼び手は先に `quit` を送る
     /// （`EngineRegistry::terminate`）。
@@ -1179,7 +1179,7 @@ async fn listen_ended_line(diagnostics: &ChildDiagnostics, limit: Duration) -> S
 
 /// 締切までの残り。尽きていたら時間切れ（`TIMED_OUT` で始まる文言）。
 ///
-/// **`timeout` で包ませず、残りを渡して各段に自分で締めさせる。** 包むと、上限に当たったときに
+/// **`timeout` で包ませず、残りを渡して各段階に自分で締めさせる。** 包むと、上限に当たったときに
 /// 中の future ごと落ちる——`registry.spawn` が返した直後だと、台帳に載ったプロセスの ID を
 /// 誰も知らないまま消える。
 pub fn remaining(deadline: std::time::Instant, what: &str) -> Result<Duration, EngineError> {
@@ -1190,7 +1190,7 @@ pub fn remaining(deadline: std::time::Instant, what: &str) -> Result<Duration, E
     Ok(left)
 }
 
-/// 直近の出力を1行に畳む。失敗の理由とログに添える。
+/// 直近の出力を1行にまとめる。失敗の理由とログに添える。
 ///
 /// **stderr の行を先に選ぶ。** 評価関数や共有ライブラリの失敗、assert の文言はそちらに出る。
 /// 着いた順の末尾だけを取ると、その後に stdout の `info` が `RECENT_IN_REASON` 行続いた
@@ -1225,7 +1225,7 @@ const RECENT_IN_REASON: usize = 3;
 
 /// 実プロセスで確かめるテストの台本（`child::script`）を、プロトコル層に包んで起こす関数。
 ///
-/// 上の段のテストはここを通す。`child` を直に使うと、テストのためだけに
+/// 上のレイヤのテストはここを通す。`child` を直に使うと、テストのためだけに
 /// `tests/layering.rs` の辺（`may_use` の `child`）を本番にも開くことになる
 #[cfg(all(test, unix))]
 pub(crate) mod script {

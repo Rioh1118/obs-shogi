@@ -66,7 +66,7 @@ const MAX_ID_BYTES: usize = 48;
 /// （`LOG_FILE_BUDGET` ＋ `KeepOne`）を一周させられる——**壊れた理由を
 /// 説明していた行が全部消える**。改行を通せば、その後ろに好きなログ行も作れる。
 ///
-/// 台帳は `GameId` そのもの（`Hash` と `Eq`）で引くので、切り詰めが照合に効くことはない。
+/// `GameManager` の一覧は `GameId` そのもの（`Hash` と `Eq`）で引くので、切り詰めが照合に効くことはない。
 impl std::fmt::Display for GameId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // **数えるのは出す側のバイト数。** 制御文字は1バイトの入力が3バイトの
@@ -135,7 +135,7 @@ impl Side {
 /// 先後。
 ///
 /// **数を式に直書きしない。** 「`gameover` を最大2回通す」のような
-/// 見積もりを散文だけに置くと、番人の上限を式で書くときに数え直せない。
+/// 見積もりを散文だけに置くと、監視の上限を式で書くときに数え直せない。
 pub(super) const SIDES: [Side; 2] = [Side::Black, Side::White];
 
 pub use crate::engine::types::SetOptionValue;
@@ -170,7 +170,7 @@ pub enum PlayerSpec {
         /// 再現しない差の原因として最後まで疑われない。
         ///
         /// **評価関数・定跡はこの並びに組まないこと。** 解析の起動はパスで受け、どの名前で送るかを
-        /// その回の申告から決める（`binding::bind`）。対局の面を戻すときは、この形も
+        /// その回の申告から決める（`binding::bind`）。対局でも評価関数・定跡を送るようにするときは、この形も
         /// `analysis_start::StartInput` と同じ形（利用者の値・評価関数・定跡）に寄せて `bind` を通す
         #[serde(default)]
         options: Vec<SetOptionValue>,
@@ -301,7 +301,7 @@ impl GameSettings {
 /// `Aborted`（中断）の3つ。残りは Rust が決める。
 /// **`Rule` と `Resign` は両方から入る**——`Rule` は盤に載る手数の上限
 /// （`MAX_PLIES`）に当たったとき、`Resign` はエンジンが `bestmove resign` を
-/// 返したときに Rust が畳む。
+/// 返したときに Rust が終局させる。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GameOverReason {
@@ -321,18 +321,18 @@ pub enum GameOverReason {
     /// 利用者の中断。**入口は `Command::Abort` だけ**——`abort_game` と
     /// `close_game`、それに終了時の掃除（`close_all`）が通す。
     /// **どれも利用者の操作から始まる**ので、フロントの呼び出しが無い回
-    /// （Cmd+Q で走ったまま畳まれた対局）もここに入る。
+    /// （Cmd+Q で走ったまま終わった対局）もここに入る。
     ///
-    /// アプリが裁定を返せずに畳んだ終局は `RulingTimeout` で、この値には入らない。
+    /// アプリが裁定を返せずに迎えた終局は `RulingTimeout` で、この値には入らない。
     /// 受け手の対処が正反対（中断は利用者の意図なので何も名乗らなくてよい、
     /// 故障は名乗る必要がある）なので、値で分けてある。
     Aborted,
-    /// アプリの異常。**裁定が `RULING_TIMEOUT` の間返らず、Rust が畳んだ。**
+    /// アプリの異常。**裁定が `RULING_TIMEOUT` の間返らず、Rust が終局させた。**
     ///
     /// **フロントの呼び出しからは入らない。** 入るのは `MoveDecided` を出したまま
     /// `continue_game` も `end_by_rule` も受け取れなかった対局で、原因は
     /// フロント側（listener が死んだ、画面が落ちた）か、`emit` が落ちて
-    /// `MoveDecided` 自体が届かなかったとき（→ 台帳の F-19）。
+    /// `MoveDecided` 自体が届かなかったとき（→ `failure-surfacing.md` の F-19）。
     /// 後者では **`detail` の「アプリが裁定を返さなかった」が原因を取り違えている**
     /// ——フロントは裁定を返しようがなかった。
     RulingTimeout,
@@ -407,7 +407,7 @@ pub struct ClocksView {
     ///
     /// 1. 裁定待ち（`AwaitingRuling`）
     /// 2. 終局後（`Over`）
-    /// 3. **手番だが `go` をまだ出していない**（止めた探索の畳み待ち）。
+    /// 3. **手番だが `go` をまだ出していない**（止めた探索の止め終わり待ち）。
     ///    `phase` は `thinking` のまま。通常は数百ミリ秒、長くて `SETTLE_TIMEOUT`
     /// 4. **壁時計が取れない**（epoch より前を指している）。`phase` は何でもありうる
     ///
@@ -416,7 +416,7 @@ pub struct ClocksView {
     pub running: Option<RunningClock>,
 }
 
-/// 対局がいまどの段にいるか。
+/// 対局がいまどの状態にいるか。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(
     tag = "phase",
@@ -426,7 +426,7 @@ pub struct ClocksView {
 pub enum GamePhaseView {
     /// `side` の着手を待っている。
     ///
-    /// **時計が動いているとは限らない。** 畳み待ちの間は `clocks.running` が
+    /// **時計が動いているとは限らない。** 止め終わり待ちの間は `clocks.running` が
     /// `null` になる（`ClocksView::running` の 3）
     Thinking {
         side: Side,
@@ -466,7 +466,7 @@ pub struct GameSnapshot {
 pub enum GameEvent {
     /// 手番が変わった。
     ///
-    /// **`clocks.running` が `null` のことがある。** 前の探索を畳んでいる間は
+    /// **`clocks.running` が `null` のことがある。** 前の探索の止め終わりを待つ間は
     /// `go` をまだ出しておらず、時計はそこからは動かない。動き出したら
     /// 次の `clockUpdated` に載る
     TurnChanged {
@@ -517,10 +517,10 @@ impl GameEvent {
 
     /// これが届かなかったとき、**後から気付く手立てが無い**か。
     ///
-    /// 他のイベントは、届かなくても次のイベントか番人が状況を動かす。
+    /// 他のイベントは、届かなくても次のイベントか監視が状況を動かす。
     /// `Over` だけは違う——`Phase::Over` に入った後の `on_tick` は即 return なので
     /// 中断も来ない。落とすと、盤は最後に受けた期限で 00:00 まで描いてから静止し、
-    /// **時間切れなのに何も起きない画面**が残る（→ 台帳の F-19）。
+    /// **時間切れなのに何も起きない画面**が残る（→ `failure-surfacing.md` の F-19）。
     ///
     /// 立て直せるのは `get_game_state` を叩く側だけなので、ここは絞らずに出す。
     ///
@@ -977,11 +977,11 @@ mod tests {
             ),
             (
                 "GamePhaseView",
-                serde_json::to_value(GamePhaseView::Thinking { side: Side::Black }).expect("段"),
+                serde_json::to_value(GamePhaseView::Thinking { side: Side::Black }).expect("phase"),
             ),
             (
                 "GamePhaseView",
-                serde_json::to_value(sample_snapshot().phase).expect("段"),
+                serde_json::to_value(sample_snapshot().phase).expect("phase"),
             ),
             (
                 "GamePhaseView",
@@ -992,7 +992,7 @@ mod tests {
                         detail: None,
                     },
                 })
-                .expect("段"),
+                .expect("phase"),
             ),
             (
                 "AnalysisResult",
@@ -1147,7 +1147,7 @@ mod tests {
         }
         assert_eq!(declared.len(), samples.len(), "見本が余っている");
 
-        // 終局は「後から気付けない」側なので、絞る枠に載せてはいけない
+        // 終局は「後から気付けない」側なので、絞る区分に入れてはいけない
         let terminal: Vec<&str> = samples
             .iter()
             .filter(|e| e.is_terminal())

@@ -116,9 +116,9 @@ impl EngineBridge {
     /// **起動より前に呼ぶこと。** 起動が落ちた回に席を残すと、そのまま次の解析が
     /// 断られる——落ちた回こそ空けておく必要がある。
     async fn release_sessions(&self, what: &str) {
-        // 席を捨ててから、呼び手の起動（`EngineAnalyzer::start_engine`）が古いプロセスを畳む。
-        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる。** 畳むほうが直後に
-        // 殺すので短いが、**順序を「畳んでから捨てる」に変えないこと**——落ちた回に
+        // 席を捨ててから、呼び手の起動（`EngineAnalyzer::start_engine`）が古いプロセスを落とす。
+        // **この間だけ「席は空・古いエンジンはまだ読んでいる」になる。** 落とすほうが直後に
+        // 殺すので短いが、**順序を「落としてから捨てる」に変えないこと**——落ちた回に
         // 席が残り、そのまま次の解析が断られる。
         let stale: Vec<String> = self
             .active_sessions
@@ -236,7 +236,7 @@ impl EngineBridge {
     /// **同時に走らせるのは1本まで。** 既に走っていれば断る。
     ///
     /// 検査と登録を同じロック区間でやる。分けると、2本の `invoke` が
-    /// 両方とも「走っていない」を見てから両方とも登録する窓ができ、
+    /// 両方とも「走っていない」を見てから両方とも登録する区間ができ、
     /// **探索中のエンジンへ2本目の `go` が出る**
     /// （USI は探索中の `position` / `go` を認めない）。
     /// 対局側が `Activity` と `Handover` で守っているのと同じ不変条件。
@@ -395,7 +395,7 @@ impl EngineBridge {
                     Self::emit_to(&events, AnalysisEvent::Update(update)).await;
                 }
                 // **席を消してから知らせる。** 知らせてから消すと、受け取ったフロントの次の
-                // 開始が `take_session` に断られる窓ができる。
+                // 開始が `take_session` に断られる区間ができる。
                 //
                 // 席が無いなら `stop` の答え（止める経路は席を消してから `stop` を送る）
                 AnalysisStreamItem::Finished(result) => {
@@ -516,11 +516,11 @@ impl EngineBridge {
     /// 解析を止める。
     ///
     /// **`session_id` を省くと席を全部空ける。** 呼び手が席の ID を持てない場面
-    /// （画面が畳まれた後の後始末）は指せないので、この形が要る。
+    /// （画面を閉じた後の後始末）は指せないので、この形が要る。
     ///
     /// `by` は**どの経路から撃ったか**。ログにだけ出る（意味と値は `stop_all_sessions`）。
     ///
-    /// **どちらの枝でも、席は止めるより先に消える。** 指した側の `Err` は2種類——
+    /// **どちらの分岐でも、席は止めるより先に消える。** 指した側の `Err` は2種類——
     /// 照合に落ちた回（席に居るのが別のセッションなので**席は残る**）と、
     /// 席を消した後にエンジンの停止が落ちた回（**席は空**）。省いた側の `Err` は後者だけ。
     /// **フロントからこの2つは区別できない**
@@ -638,7 +638,7 @@ impl EngineBridge {
     ///
     /// `by` は**どの経路から撃ったか**。フロントの `stop_analysis` が名乗った値、
     /// `shutdown_engine` からの `"shutdown"`、名乗らなかった回の `"unnamed"`
-    /// （`stop_analysis_impl`）の3通り。畳まれた画面から来た停止は、失敗しても
+    /// （`stop_analysis_impl`）の3通り。閉じた画面から来た停止は、失敗しても
     /// 利用者にも開発者にも出せない（出す先の画面がもう無い）ので、
     /// **席が在ったのかどうかを後から言えるのはこのログだけ**。
     /// エンジンの入れ替えで空いた回や利用者が押した停止と字面が同じだと、
@@ -866,11 +866,11 @@ mod tests {
 
     /// `session_id` を省いた停止が席を空けること。**見ているのは席の一覧だけ**（→ `bridge`）。
     ///
-    /// **席の ID を持てない呼び手が居る。** 画面が畳まれた後の後始末は、
+    /// **席の ID を持てない呼び手が居る。** 画面を閉じた後の後始末は、
     /// 握っている ID が席の主とずれていることがあるので指せない
     /// （指すと上の照合に断られて席が残る）。この形が空けられなくなると、
     /// 以降の解析が全部「Analysis already running」で断られ、
-    /// エンジンを畳み直すまで戻れない。
+    /// エンジンを起こし直すまで戻れない。
     #[tokio::test]
     async fn stopping_without_naming_a_session_empties_the_seat() {
         let bridge = bridge();
@@ -1194,7 +1194,7 @@ done"#;
         }
 
         /// こちらが落とした回は知らせない。**`quit` に答えて `kill` より先に終わるエンジンが要。**
-        /// 印が `kill_engine` まで立たないと、再起動のたびに `エンジン終了` が出る
+        /// フラグが `kill_engine` まで立たないと、再起動のたびに `エンジン終了` が出る
         #[tokio::test]
         async fn an_engine_we_shut_down_is_not_reported() {
             let (bridge, recorded, dir) = started("bridge-shutdown", ":", ":", 1).await;
@@ -1302,7 +1302,7 @@ done"#;
         }
 
         /// (V6, E13) AC-10: 起動し直すと、`quit` を送らずに落として新しいプロセスへ移る。
-        /// 新しいプロセスには前の印が残らない
+        /// 新しいプロセスには前のフラグが残らない
         #[tokio::test]
         async fn restarting_an_unresponsive_engine_kills_it_without_quit() {
             let body = script_with(":", ":", SILENT.0, SILENT.1);
@@ -1330,7 +1330,7 @@ done"#;
             );
             assert!(
                 bridge.start_infinite_analysis_impl().await.is_ok(),
-                "新しいプロセスに前の印が残っている"
+                "新しいプロセスに前のフラグが残っている"
             );
 
             bridge.shutdown_engine_impl(7).await.expect("落とせる");

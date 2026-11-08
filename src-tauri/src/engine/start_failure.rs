@@ -1,4 +1,4 @@
-//! 起動の失敗を、利用者が取れる行動の種類（`StartFailureKind`）に分ける段。
+//! 起動の失敗を、利用者が取れる行動の種類（`StartFailureKind`）に分けるレイヤ。
 //!
 //! **画面の文言は種類から組む**ので、検討の起動（`start_analysis_engine`）の分類はここに置く。
 //! 対局の起動は文字列で返し、締切で削った `usiok` の待ちを時間切れとして読み直す
@@ -15,7 +15,7 @@ use crate::engine::types::{EngineError, StartFailure, StartFailureKind, StartupR
 /// `StartFailure::message` に載せる長さ（文字）。エンジンの出力を含むので切る
 const MAX_FAILURE_MESSAGE: usize = 512;
 
-/// 隔離の印を読みに行く上限。応答しないボリュームでは読み取りが返らないので、
+/// 隔離属性を読みに行く上限。応答しないボリュームでは読み取りが返らないので、
 /// 超えたら「隔離ではない」側に倒す（分類が変わるだけで、失敗であることは変わらない）
 const QUARANTINE_CHECK_TIMEOUT: Duration = Duration::from_secs(2);
 

@@ -1,8 +1,8 @@
 //! ログに載せる文字列の部品（伏字と切り詰め、原因の連鎖、送るコマンドの要約）と、ログの間引きと予算。
 //!
 //! 1行の要約の上限 `MAX_SUMMARY_LEN` はここが持ち、`LOG_FILE_BUDGET` と式で縛る。ほかの上限は
-//! 呼び手が持ち、`shown` へ渡す。`protocol`、`registry`、`setup` のような下の段からも呼ぶので、
-//! `tests/layering.rs` の段で他の段を使わない位置に置く。
+//! 呼び手が持ち、`shown` へ渡す。`protocol`、`registry`、`setup` のような下のレイヤからも呼ぶので、
+//! `tests/layering.rs` のレイヤで他のレイヤを使わない位置に置く。
 
 use std::time::{Duration, Instant};
 use usi::GuiCommand;
@@ -11,14 +11,14 @@ use usi::GuiCommand;
 ///
 /// **1つに寄せる。** 解析と対局で別々に持つと、片方を動かしたときに
 /// もう片方が古いまま残る。同じ判断（emit の失敗は洪水になるので絞る）なので、
-/// 両方が使える段に置く。
+/// 両方が使えるレイヤに置く。
 pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 
 /// ログ・断り文句・棋譜に残る値に載せてよい写しを返す。制御文字を潰し、`max` 文字で切る。
 ///
 /// 潰した結果はそのまま外へ出る。終局の説明（`GameResult::detail`）は、これを通した値が
 /// `over` のイベントとスナップショットに載るので、改行を含む文言を渡すと利用者の目に置換文字が見える。
-/// その断りは `endGameByRule` の TSDoc に書いてある。見えるのは、切った印と潰した制御文字の2つだけ。
+/// その断りは `endGameByRule` の TSDoc に書いてある。見えるのは、切ったことを示す記号と潰した制御文字の2つだけ。
 /// 全角空白や結合文字まで潰すと、化けた理由を調べる手掛かりがどこにも残らない。
 ///
 /// 潰すのは制御文字だけ。改行を通すと、その後ろに好きなログ行を作れる。
@@ -27,7 +27,7 @@ pub const EMIT_WARN_INTERVAL: Duration = Duration::from_secs(5);
 /// `search/` は別の規約を持つ（`search::message::for_screen`）。あちらは改行を通し
 /// （棋譜の引用を読める形で残すため）、上限を固定で持つ。同じ判断ではないので、片方だけ読んで
 /// 揃えないこと。実装を1本に寄せるには `tests/layering.rs` の規則3（`engine/` は crate の
-/// 他の枝を `use` しない）から動かすことになる。
+/// 他のモジュールを `use` しない）から動かすことになる。
 ///
 /// `is_control()` が真になるのは `Cc` だけで、U+2028 / U+2029（行区切り）も、双方向制御
 /// （U+202A–U+202E / U+2066–U+2069）も、BOM も通す。通すのは意図で、根拠は上と同じく、
@@ -120,13 +120,13 @@ pub const MAX_SUMMARY_LEN: usize = 64;
 /// 指すときはこの名前で指すこと。
 pub const LOG_FILE_BUDGET: u128 = 200_000;
 
-/// 同じ種類の1行を、`interval` に1度だけ通す枠
+/// 同じ種類の1行を、`interval` に1度だけ通す throttle
 ///
-/// **新しく作った枠の先頭は通る。** 呼び出し側の絞りはこれを前提に組んである
-/// （枠が無い＝その種類の1行がまだ出ていない、なので通す）。
+/// **新しく作った throttle は先頭を通す。** 呼び出し側の絞りはこれを前提に組んである
+/// （throttle が無い＝その種類の1行がまだ出ていない、なので通す）。
 ///
 /// 例外は起動直後だけ。`Instant` は単調時計でブートより前へ遡れないので、
-/// 起動から `interval` 未満に作った枠は先頭が通らない。その間は
+/// 起動から `interval` 未満に作った throttle は先頭を通さない。その間は
 /// `is_open` も偽を返すので、上限のある写像から落とされもしない。
 #[derive(Debug, Clone)]
 pub struct LogThrottle {
@@ -145,7 +145,7 @@ impl LogThrottle {
         }
     }
 
-    /// 通してよければ真を返し、枠を閉じる
+    /// 通してよければ真を返し、throttle を閉じる
     #[inline]
     pub fn allow(&mut self) -> bool {
         if self.last.elapsed() >= self.interval {
@@ -156,9 +156,9 @@ impl LogThrottle {
         }
     }
 
-    /// 枠が空いているか（次の `allow` が必ず通るか）。
+    /// throttle が開いているか（次の `allow` が必ず通るか）。
     ///
-    /// **空いた枠は何も覚えていない。** 捨てても失われる情報が無いので、
+    /// **開いた throttle は何も覚えていない。** 捨てても失われる情報が無いので、
     /// 上限のある写像から落とす判断に使える。
     #[inline]
     pub fn is_open(&self) -> bool {

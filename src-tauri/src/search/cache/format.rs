@@ -98,7 +98,7 @@ const CACHE_VERSION: u32 = 5;
 /// **これはキャッシュではない。** キャッシュはディスク上の blob で、
 /// これはそこから取り出した値。そのまま `IndexStore::install_restored` へ渡る。
 ///
-/// 桶は畳んだ状態（生きている出現だけ・鍵の昇順）で入っている。
+/// 桶はコンパクションした状態（生きている出現だけ・鍵の昇順）で入っている。
 pub struct RestoredIndex {
     pub file_table: FileTable,
     pub node_tables: NodeTables,
@@ -169,7 +169,7 @@ impl Codec for IndexCodec<'_> {
     type Output = Restored;
 
     fn encode(&self, v: Self::Input<'_>) -> Result<Vec<u8>, String> {
-        // 桶ごとに1本へ畳む。死んだ出現はここで落ちる
+        // 桶ごとに1本へまとめる。死んだ出現はここで落ちる
         let buckets = compact_all_buckets(v.snapshot);
 
         let mut body = Vec::<u8>::new();
@@ -248,9 +248,9 @@ pub fn try_restore(store: &dyn BlobStore, root_dir: &Path) -> Result<Restored, S
 // compaction
 // --------------------
 
-/// 桶ごとに畳んで、書き出せる素材にする。
+/// 桶ごとにコンパクションして、書き出せる素材にする。
 ///
-/// **畳み方は `store/compaction.rs` が持つ。** ここで別に組むと、
+/// **コンパクションの手順は `store/compaction.rs` が持つ。** ここで別に組むと、
 /// 同じ鍵が並んだときの尾が食い違って、blob の並びと索引の並びがずれる。
 fn compact_all_buckets(snap: &IndexSnapshot) -> BucketEntries {
     std::array::from_fn(|b| compact_bucket_entries(&snap.buckets[b], snap.file_table.as_ref()))
@@ -2105,7 +2105,7 @@ mod tests {
             ],
         );
 
-        // 出現は file 1 に1件だけ。**節表の段は桶の段より先に読み切る**ので、
+        // 出現は file 1 に1件だけ。**節表の段階は桶の段階より先に読み切る**ので、
         // 出現の有無はこの検査に届かない。file 3 に置かないのは題材を小さく保つため
         let key = PositionKey {
             z0: 0x7700_0000_0000_0001,

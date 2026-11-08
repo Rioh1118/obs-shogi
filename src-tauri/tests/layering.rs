@@ -10,14 +10,14 @@
 //! ここで見るのは11個。
 //!
 //! 1. モジュール間に環が無いこと
-//! 2. 決めた段より上のものを、下の段が `use` していないこと
-//! 3. `engine/` が crate の他の枝を `use` していないこと
-//! 4. 段が「使わない」と決めた外部クレートを**参照していない**こと（`Layer::forbids`）
+//! 2. 決めたレイヤより上のものを、下のレイヤが `use` していないこと
+//! 3. `engine/` が crate の他のモジュールを `use` していないこと
+//! 4. レイヤが「使わない」と決めた外部クレートを**参照していない**こと（`Layer::forbids`）
 //! 5. 子プロセスを作る綴りが `engine/child.rs` の外に無いこと（`SPAWNING`）
-//! 6. `engine/` の外から入る `use` が控えと一致すること（`ENGINE_ENTRIES_FROM_OUTSIDE`）
+//! 6. `engine/` の外から入る `use` が許可リストと一致すること（`ENGINE_ENTRIES_FROM_OUTSIDE`）
 //! 7. エンジンのオプションの定義を組み立てるのが `engine/option_line.rs` だけであること
-//! 8. 段とファイルが役割を言わない名前（`utils` など）を名乗らないこと（`NAMES_WITHOUT_A_ROLE`）
-//! 9. `types` の段が trait を宣言しないこと
+//! 8. レイヤとファイルが役割を言わない名前（`utils` など）を名乗らないこと（`NAMES_WITHOUT_A_ROLE`）
+//! 9. `types` のレイヤが trait を宣言しないこと
 //! 10. 線に出す形（serde の derive）が決めたファイルの外に無いこと（`WIRE_SHAPE_FILES`）
 //! 11. `engine/` の全部のファイルが冒頭に `//!` を持つこと
 //!
@@ -32,13 +32,13 @@
 //!
 //! 拾う形は3つ。`use super::x`、`use crate::engine::x`、そして
 //! **波括弧で並べた形**（`use crate::engine::{a::A, b::B}`）。
-//! **波括弧を落とすと、書き方ひとつで段を跨げる**——`use crate::engine::state::X`
+//! **波括弧を落とすと、書き方ひとつでレイヤを跨げる**——`use crate::engine::state::X`
 //! は落ちるのに `use crate::engine::{state::X}` は通る、という形になる。
 //! 走査が空振りしていないことは `the_scanner_actually_walks_the_engine` が見る。
 //!
 //! `use super::` は**そのファイルの親**を指す。`game/*.rs` の `use super::types`
-//! は `engine::types` ではなく `engine::game::types` なので、段の名前空間に
-//! 混ぜない（`game` の中は段を割らないので、辺として意味を持たない）。
+//! は `engine::types` ではなく `engine::game::types` なので、レイヤの名前空間に
+//! 混ぜない（`game` の中はレイヤを割らないので、辺として意味を持たない）。
 
 mod scanning;
 
@@ -48,19 +48,19 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// 段。**「何を決める場所か」と「何を使ってよいか」を並べる。**
+/// レイヤ。**「何を決める場所か」と「何を使ってよいか」を並べる。**
 ///
 /// 全順序にしない。順序を付けた分だけ**許可が生まれる**——`game` と
-/// `analyzer` に上下を付けると、解析のファサードが対局の台帳を持つ形が
+/// `analyzer` に上下を付けると、解析のファサードが `GameManager` を持つ形が
 /// 「上から下」として通ってしまう。上下が言えない2つは**同位**として持つ。
 ///
-/// 増やすときは、その段が「何を決める場所か」を1行で言えるときだけ。
-/// 言えないなら、それは段ではなく置き場の都合。
+/// 増やすときは、そのレイヤが「何を決める場所か」を1行で言えるときだけ。
+/// 言えないなら、それはレイヤではなく置き場の都合。
 struct Layer {
     name: &'static str,
     /// 何を決める場所か
     decides: &'static str,
-    /// `use` してよい段
+    /// `use` してよいレイヤ
     may_use: &'static [&'static str],
     /// **本文に綴りが現れてはいけない外部クレート。**
     ///
@@ -71,7 +71,7 @@ struct Layer {
     forbids: &'static [&'static str],
 }
 
-/// **テストのコードだけに許す辺**（`#[cfg(test)] mod` の中の `use`）。`(使う段, 使われる段, 理由)`。
+/// **テストのコードだけに許す辺**（`#[cfg(test)] mod` の中の `use`）。`(使うレイヤ, 使われるレイヤ, 理由)`。
 ///
 /// `may_use` はテストと本番を区別しないので、テストのためだけの辺を `may_use` に足すと本番の
 /// コードも同じ辺を使えてしまう（コメントの「テストだけ」は実装されない）。本番の辺は
@@ -104,7 +104,7 @@ const LAYERS: &[Layer] = &[
     },
     Layer {
         name: "candidates",
-        decides: "`info` 行を候補手の一覧へ畳む（検討と対局で同じ形）",
+        decides: "`info` 行を候補手の一覧へ集約する（検討と対局で同じ形）",
         may_use: &["types"],
         forbids: &[],
     },
@@ -266,8 +266,8 @@ fn engine_dir() -> PathBuf {
 
 /// `src/engine/` からの相対で、そのファイルが属するモジュール名。
 ///
-/// `game/session.rs` は `game`。段は `game` の中では割らない
-/// （割ると、対局の内部を外から段として参照させることになる）。
+/// `game/session.rs` は `game`。レイヤは `game` の中では割らない
+/// （割ると、対局の内部を外からレイヤとして参照させることになる）。
 fn module_of(relative: &Path) -> String {
     let first = relative
         .components()
@@ -306,7 +306,7 @@ fn leading_name(rest: &str) -> Option<String> {
 /// `use crate::engine::x` から `x` を拾う。**波括弧で並べた形も開く。**
 ///
 /// `use super::` は `game/*.rs` では `engine::game::*` を指すので、
-/// この走査では扱わない（段を割っていない場所への辺は意味を持たない）。
+/// この走査では扱わない（レイヤを割っていない場所への辺は意味を持たない）。
 /// ただし `engine/` 直下のファイルでは `super` = `engine` なので、
 /// そちらは呼び出し側が `crate::engine::` と同じに扱う。
 fn imports_from(rest: &str) -> BTreeSet<String> {
@@ -332,7 +332,7 @@ fn imports_from(rest: &str) -> BTreeSet<String> {
 ///
 /// **`pub` と可視性の括弧を落としてから見る。** `pub(crate) use` は
 /// `"use "` でも `"pub use "` でも始まらないので、綴りを直に比べると
-/// **走査に一度も入らない**。1行足すだけで段を跨げる形になる。
+/// **走査に一度も入らない**。1行足すだけでレイヤを跨げる形になる。
 fn use_body(line: &str) -> Option<&str> {
     let line = line.trim_start();
     let line = match line.strip_prefix("pub") {
@@ -349,11 +349,11 @@ fn use_body(line: &str) -> Option<&str> {
 ///
 /// rustfmt は100桁を超える `use` を波括弧で折る。行単位で見ていると、
 /// 折られた `use crate::engine::{` の行は中身が空に見えて**辺が1本も出ない**。
-/// 依存が増えたモジュールほど検査から外れる——段の違反が起きやすい側で先に穴が開く。
+/// 依存が増えたモジュールほど検査から外れる——レイヤの違反が起きやすい側で先に穴が開く。
 fn use_statements(source: &str) -> Vec<(String, usize)> {
     // **コメントも文字列も潰してから数える。** 潰さないと、`// mod tests {` や
     // `const A: &str = "mod x {";` の1行が幻の module を積み、閉じないので
-    // 以降すべての `use super::` が1段ずれる——**辺が1本も立たなくなる**。
+    // 以降すべての `use super::` が1階層ずれる——**辺が1本も立たなくなる**。
     // `use` の中に文字列は現れないので、潰して困らない。
     let source = &blank_out_noncode(source);
     let mut found = Vec::new();
@@ -370,7 +370,7 @@ fn use_statements(source: &str) -> Vec<(String, usize)> {
         let line = line.trim();
 
         if buffer.is_empty() && use_body(line).is_none() {
-            // `mod x {` は開いた塊がモジュールであることの印
+            // `mod x {` は開いた塊がモジュールであることを示す
             for ch in line.chars() {
                 match ch {
                     '{' => {
@@ -400,14 +400,14 @@ fn use_statements(source: &str) -> Vec<(String, usize)> {
     found
 }
 
-/// 1つの `use` が指す先。段の名前と、`engine/` の外への参照。
+/// 1つの `use` が指す先。レイヤの名前と、`engine/` の外への参照。
 ///
 /// `depth` は `engine/` からの相対パスの要素数（`protocol.rs` なら1、
 /// `game/session.rs` なら2）。**`super` を数えた数が `depth` と一致したとき、
 /// そこは `engine` 直下**——`game/session.rs` の `super::super::state::AppState` は
 /// `crate::engine::state::AppState` と同じものを指す。
 ///
-/// `super` が足りなければ `engine` の中の枝（`game::types` など）で、段の辺にならない。
+/// `super` が足りなければ `engine` の中のモジュール（`game::types` など）で、レイヤの辺にならない。
 /// 多ければ `engine` の外へ出ている。
 fn resolve(statement: &str, branch: &str, depth: usize) -> Resolved {
     // **先頭の `::` を落とす。** `use ::tauri::AppHandle;` は Rust として正当な形で、
@@ -456,7 +456,7 @@ fn resolve(statement: &str, branch: &str, depth: usize) -> Resolved {
             outside: outside(),
             ..Resolved::default()
         },
-        // `engine` の中の枝。段を割っていないので辺として意味を持たない
+        // `engine` の中のモジュール。レイヤを割っていないので辺として意味を持たない
         std::cmp::Ordering::Less => Resolved::default(),
     }
 }
@@ -464,9 +464,9 @@ fn resolve(statement: &str, branch: &str, depth: usize) -> Resolved {
 /// 1つの `use` が指す先。**3つは同時に立たない。**
 #[derive(Default)]
 struct Resolved {
-    /// `engine` 直下の段
+    /// `engine` 直下のレイヤ
     edges: BTreeSet<String>,
-    /// `engine` の外（crate の他の枝）への参照
+    /// `engine` の外（crate の他のモジュール）への参照
     outside: Option<String>,
     /// 外部クレートの名前
     crates: BTreeSet<String>,
@@ -523,7 +523,7 @@ fn edges_of(production_only: bool) -> BTreeMap<String, BTreeSet<String>> {
     for path in rust_files(&root) {
         let relative = path.strip_prefix(&root).unwrap_or(&path);
         let module = module_of(relative);
-        // `engine/mod.rs` は段に載せない（`pub mod` を並べるだけの場所）。
+        // `engine/mod.rs` はレイヤに載せない（`pub mod` を並べるだけの場所）。
         // 何も置かないことは `the_engine_root_only_declares_modules` が見る
         if module == "mod" {
             continue;
@@ -556,7 +556,7 @@ fn the_scanner_actually_walks_the_engine() {
     for Layer { name, .. } in LAYERS {
         assert!(
             graph.contains_key(*name),
-            "段に挙げた `{name}` が現物に無い。消したなら段からも消すこと"
+            "`LAYERS` に挙げた `{name}` が現物に無い。消したなら `LAYERS` からも消すこと"
         );
     }
 
@@ -610,7 +610,7 @@ fn the_scanner_reads_every_spelling_of_use() {
 
     // **可視性が付いた形。** `pub use` を特別扱いする以上、その兄弟も要る。
     // `pub(crate) use` は `"use "` でも `"pub use "` でも始まらないので、
-    // 綴りを直に比べる形だと**走査に一度も入らない**——1行足すだけで段を跨げる
+    // 綴りを直に比べる形だと**走査に一度も入らない**——1行足すだけでレイヤを跨げる
     for spelling in ["pub use", "pub(crate) use", "pub(super) use"] {
         let (edges, _) = scan_file(
             &format!("{spelling} crate::engine::state::AppState;\n"),
@@ -630,12 +630,15 @@ fn the_scanner_reads_every_spelling_of_use() {
     assert_eq!(
         edges,
         ["state"].map(String::from).into(),
-        "`super::super::` が段の辺として取れていない"
+        "`super::super::` がレイヤの辺として取れていない"
     );
 
-    // 足りなければ `engine` の中の枝。段を割っていないので辺にならない
+    // 足りなければ `engine` の中のモジュール。レイヤを割っていないので辺にならない
     let (edges, out) = scan_file("use super::types::Side;\n", "engine", 2);
-    assert!(edges.is_empty(), "`game` の中への辺を段として数えている");
+    assert!(
+        edges.is_empty(),
+        "`game` の中への辺をレイヤの辺として数えている"
+    );
     assert!(out.is_empty());
 
     // `engine/` 直下（深さ1）の `super` は `engine` そのもの
@@ -652,26 +655,30 @@ fn the_scanner_reads_every_spelling_of_use() {
     );
 
     let (_, out) = scan_file("use crate::file_system::open;\n", "engine", 1);
-    assert_eq!(out.len(), 1, "`crate::` の他の枝が外への参照になっていない");
+    assert_eq!(
+        out.len(),
+        1,
+        "`crate::` の他のモジュールが外への参照になっていない"
+    );
 
     // **`mod` の入れ子は `super` の意味を変える。**
     // `game/session.rs`（深さ2）の `mod tests` の中では、`engine::game` へ戻るのに
-    // `super::super` が要る——そこは段の辺ではない
+    // `super::super` が要る——そこはレイヤの辺ではない
     let source = "#[cfg(test)]\nmod tests {\n    use super::super::events::RecordedEvents;\n}\n";
     let (edges, out) = scan_file(source, "engine", 2);
     assert!(
         edges.is_empty(),
-        "`mod tests` の中の `super::super::` を段の辺として数えている: {edges:?}"
+        "`mod tests` の中の `super::super::` をレイヤの辺として数えている: {edges:?}"
     );
     assert!(out.is_empty(), "外への参照として数えている: {out:?}");
 
-    // その中から本当に `engine::state` を指す形は、段の辺として取れること
+    // その中から本当に `engine::state` を指す形は、レイヤの辺として取れること
     let source = "#[cfg(test)]\nmod tests {\n    use super::super::super::state::AppState;\n}\n";
     let (edges, _) = scan_file(source, "engine", 2);
     assert_eq!(
         edges,
         ["state"].map(String::from).into(),
-        "`mod` の中から段を跨ぐ形が取れていない"
+        "`mod` の中からレイヤを跨ぐ形が取れていない"
     );
 
     // **コメントの中の `mod {` を module として数えない。**
@@ -699,11 +706,11 @@ fn the_scanner_reads_every_spelling_of_use() {
     );
 }
 
-/// `engine/` が crate の他の枝を知らないこと。
+/// `engine/` が crate の他のモジュールを知らないこと。
 ///
-/// **段の一番上より、さらに上。** ここを見ないと、`engine` の中から
+/// **レイヤの一番上より、さらに上。** ここを見ないと、`engine` の中から
 /// `crate::CLOSE_TIMEOUT` のように上を引く行が素通りする
-/// （`use crate::engine::` で始まらないので、段の走査には現れない）。
+/// （`use crate::engine::` で始まらないので、レイヤの走査には現れない）。
 ///
 /// `super` を数えすぎた形（`analyzer.rs` の `use super::super::X`）も同じところを指す。
 #[test]
@@ -727,24 +734,24 @@ fn the_engine_does_not_reach_out_of_itself() {
     );
 }
 
-/// `engine/` の外から `engine/` の段へ入る `use` の控え。**（入る側の枝, 段）で持つ。**
+/// `engine/` の外から `engine/` のレイヤへ入る `use` の許可リスト。**（入る側のモジュール, レイヤ）で持つ。**
 ///
-/// 出る辺は上のテストが止める。**入る辺はこの控えが止める。** 控えが無いと、
+/// 出る辺は上のテストが止める。**入る辺はこの許可リストが止める。** 許可リストが無いと、
 /// `ai_library` に `use crate::engine::state::AppState;` を1行書くだけで、
 /// ADR-0009 決定3（`commands` より下は `AppState` を受け取らない）を外から迂回できる。
 /// 同じ crate の中なので Cargo も止めない。
 ///
 /// crate の根（`lib.rs`）は数えない。コマンドを登録し `AppState` を組む場所で、
-/// `engine` の段を外へ見せるのがそこの仕事。
+/// `engine` のレイヤを外へ見せるのがそこの仕事。
 ///
 /// いま在る1本は、候補の一覧が「起動できるか」の答えを起動の側と共有するため
 /// （`engine/launchable.rs` の冒頭）。
 const ENGINE_ENTRIES_FROM_OUTSIDE: [(&str, &str); 1] = [("ai_library", "launchable")];
 
-/// `engine/` の外から入っている（枝, 段）が、控えと一致すること。
+/// `engine/` の外から入っている（モジュール, レイヤ）が、許可リストと一致すること。
 ///
-/// **等値で見る。** 下限だと、使うのをやめて辺が消えたときに控えだけが残る。
-/// 控えが空でないので、走査が何も拾わなくなった場合もここで赤くなる。
+/// **等値で見る。** 下限だと、使うのをやめて辺が消えたときに許可リストだけが残る。
+/// 許可リストが空でないので、走査が何も拾わなくなった場合もここで赤くなる。
 #[test]
 fn the_engine_is_entered_from_outside_only_where_it_is_recorded() {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -774,13 +781,13 @@ fn the_engine_is_entered_from_outside_only_where_it_is_recorded() {
     assert_eq!(
         found,
         recorded,
-        "`engine/` の外から入る辺が控えと違う。\n\
-         増やすなら、なぜその段を外へ見せるのかをコミットに書くこと:\n{}",
+        "`engine/` の外から入る辺が `ENGINE_ENTRIES_FROM_OUTSIDE` と違う。\n\
+         増やすなら、なぜそのレイヤを外へ見せるのかをコミットに書くこと:\n{}",
         statements.join("\n")
     );
 }
 
-/// 外へ出ている `use` が `engine` を指していれば、その段の名前。
+/// 外へ出ている `use` が `engine` を指していれば、そのレイヤの名前。
 ///
 /// `crate::engine::launchable::…` も `super::super::engine::launchable::…` も `launchable`。
 fn engine_layer(statement: &str) -> Option<String> {
@@ -793,11 +800,11 @@ fn engine_layer(statement: &str) -> Option<String> {
     leading_name(rest.strip_prefix("engine::")?)
 }
 
-/// `book/` が `crate` の他の枝へ伸ばす辺の控え。**枝の名前で持つ。**
+/// `book/` が `crate` の他のモジュールへ伸ばす辺の許可リスト。**モジュールの名前で持つ。**
 ///
-/// **1件で始められるのはいまだけ。** 2本目が生えた時点で「どちらが器か」が
+/// **1件で始められるのはいまだけ。** 2本目が生えた時点で「どちらが依存される側か」が
 /// 消えるが、`book/mod.rs` は「これを見ている機械は無い」と自分で書いていて
-/// （#399）、実際に何も落ちない。1本しか無いうちに控えを張る。
+/// （#399）、実際に何も落ちない。1本しか無いうちに許可リストを張る。
 ///
 /// **足すときは向きの理由をコミットに書くこと。** いま在る1本は、綴りを局面に
 /// する実装を `book` へ写すと SFEN の受理集合が3つ目になる（#236 が既に2つあると
@@ -808,13 +815,13 @@ fn book_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src/book")
 }
 
-/// `book/` が知っている `crate` の他の枝が、控えと一致すること。
+/// `book/` が知っている `crate` の他のモジュールが、許可リストと一致すること。
 ///
 /// **`engine` と同じ走査を通す。** 自前で `crate::` を探す形にすると、
 /// `use super::super::super::x` で出る辺を黙って通す —— `resolve` は
 /// `super` の数と深さを突き合わせて外向きを判定するので、そちらに任せる。
 ///
-/// **等値で見る。** 下限だと、借りるのをやめて辺が消えたときに控えだけが残り、
+/// **等値で見る。** 下限だと、借りるのをやめて辺が消えたときに許可リストだけが残り、
 /// 「まだ借りている」と読ませる。
 #[test]
 fn the_book_reaches_out_only_where_it_is_recorded() {
@@ -836,18 +843,18 @@ fn the_book_reaches_out_only_where_it_is_recorded() {
     assert_eq!(
         branches,
         BOOK_OUTWARD_BRANCHES.map(String::from).into(),
-        "`book/` から `crate` の他の枝へ伸びる辺が控えと違う。\n\
+        "`book/` から `crate` の他のモジュールへ伸びる辺が `BOOK_OUTWARD_BRANCHES` と違う。\n\
          増やすなら、なぜその向きなのかをコミットに書くこと。\n\
          共有したいものは、共有できる位置まで下げるのが先:\n{}",
         statements.join("\n")
     );
 }
 
-/// 外へ出ている `use` から、行き先の枝の名前を取る。
+/// 外へ出ている `use` から、行き先のモジュールの名前を取る。
 ///
 /// `crate::search::…` も `super::super::super::search::…` も `search`。
-/// **枝より細かく持たない** —— 同じ枝の別の段へ移っただけで赤くすると、
-/// 控えが「どこを借りているか」ではなく「どの綴りか」の写しになる。
+/// **モジュールより細かく持たない** —— 同じモジュールの別のレイヤへ移っただけで赤くすると、
+/// 許可リストが「どこを借りているか」ではなく「どの綴りか」の写しになる。
 fn outward_branch(statement: &str) -> Option<String> {
     let body = use_body(statement).unwrap_or(statement).trim();
     let mut rest = body.trim_start_matches("::");
@@ -1141,7 +1148,7 @@ fn a_spawn_is_seen_whatever_the_import() {
     }
 }
 
-/// 段が「使わない」と決めた外部クレートを**参照していない**こと。
+/// レイヤが「使わない」と決めた外部クレートを**参照していない**こと。
 ///
 /// **ADR-0008 決定2 の核はここにある。** `game/` から `tauri` への `use` が
 /// 1本も無いから、対局の状態機械はプロセスもランタイムも無しで回せる
@@ -1153,7 +1160,7 @@ fn a_spawn_is_seen_whatever_the_import() {
 /// 改修前の状態そのもの**。だから決定と一緒に機械を置く。
 ///
 /// **許可制にしない。** `tokio` / `usi` / `serde` を全部書くことになり、
-/// 段を足すたびに写経が増える。挙げるのは逆転させた境界だけ。
+/// レイヤを足すたびに写経が増える。挙げるのは逆転させた境界だけ。
 ///
 /// **`use` の行だけでは足りない。** この repo は `AppHandle` を1度も `use` で
 /// 書いていない——`bridge.rs` も `commands/game.rs` も `app: tauri::AppHandle` と
@@ -1192,7 +1199,7 @@ fn no_layer_uses_a_crate_it_must_not() {
 
     assert!(
         offenders.is_empty(),
-        "段が使わないと決めたクレートを参照している:\n{}",
+        "レイヤが使わないと決めたクレートを参照している:\n{}",
         offenders.join("\n")
     );
 }
@@ -1218,20 +1225,20 @@ fn the_scanner_tells_an_outside_crate_from_a_sibling() {
     let (_, _, crates) = scan_file_all("use self::inner::X;\n", "engine", 2);
     assert!(crates.is_empty(), "`self::` を外部クレートと数えている");
 
-    // 段の辺は今までどおり立つ
+    // レイヤの辺は今までどおり立つ
     let (edges, _, crates) = scan_file_all("use crate::engine::registry::X;\n", "engine", 2);
-    assert!(edges.contains("registry"), "段の辺を落としている");
+    assert!(edges.contains("registry"), "レイヤの辺を落としている");
     assert!(crates.is_empty());
 }
 
 /// `engine/mod.rs` が `pub mod` を並べるだけであること。
 ///
-/// **ここは段の表の外にある**（`graph()` が飛ばす）ので、置いたものは
+/// **ここはレイヤの表の外にある**（`graph()` が飛ばす）ので、置いたものは
 /// どの検査にも掛からない。`pub const` を置けば、上下の言えない2つが
 /// そこを共有の置き場にできる。`pub fn` を置いて `use super::f;` で呼べば、
-/// 段3から段8へ届く経路が4つの検査すべて緑のまま通る。
+/// レイヤ3からレイヤ8へ届く経路が4つの検査すべて緑のまま通る。
 ///
-/// 何か置きたくなったら、それは**段を1つ足す合図**（`LAYERS` に
+/// 何か置きたくなったら、それは**レイヤを1つ足す合図**（`LAYERS` に
 /// 「何を決める場所か」を1行で書けるなら足してよい）。
 #[test]
 fn the_engine_root_only_declares_modules() {
@@ -1249,15 +1256,15 @@ fn the_engine_root_only_declares_modules() {
 
     assert!(
         stray.is_empty(),
-        "`engine/mod.rs` に宣言以外のものがある。ここは段の表の外なので、\
-         置いたものはどの検査にも掛からない。決める場所が要るなら段を足すこと:\n{}",
+        "`engine/mod.rs` に宣言以外のものがある。ここは `LAYERS` の外なので、\
+         置いたものはどの検査にも掛からない。決める場所が要るならレイヤを足すこと:\n{}",
         stray.join("\n")
     );
 }
 
 /// `engine/` の全部のファイルが冒頭に `//!` を持つこと（ADR-0009 決定5）。
 ///
-/// 段の `decides` は段の単位で、ファイルが何を隠すかまでは言わない。冒頭が無いファイルは、
+/// レイヤの `decides` はレイヤの単位で、ファイルが何を隠すかまでは言わない。冒頭が無いファイルは、
 /// 中身の型の doc がファイルを作った時点の役割を語るだけになり、実態とずれても誰も気づかない。
 #[test]
 fn every_engine_file_says_what_it_hides() {
@@ -1275,17 +1282,17 @@ fn every_engine_file_says_what_it_hides() {
     );
 }
 
-/// 段に載っていないモジュールを残さない。
+/// レイヤに載っていないモジュールを残さない。
 ///
 /// **載せ忘れは素通りする**ので、ここで拾う。新しいモジュールを足した人は、
 /// それが何を決める場所かを `LAYERS` に1行で書くことになる。
 #[test]
 fn every_module_is_placed_on_a_layer() {
-    // 「何を決める場所か」を空にしない。空で置けるなら、それは段ではなく置き場の都合
+    // 「何を決める場所か」を空にしない。空で置けるなら、それはレイヤではなく置き場の都合
     for Layer { name, decides, .. } in LAYERS {
         assert!(
             !decides.trim().is_empty(),
-            "段 `{name}` に「何を決める場所か」が書かれていない"
+            "レイヤ `{name}` に「何を決める場所か」が書かれていない"
         );
     }
 
@@ -1298,15 +1305,15 @@ fn every_module_is_placed_on_a_layer() {
 
     assert!(
         stray.is_empty(),
-        "段に載っていないモジュールがある。`LAYERS` に「何を決める場所か」を書くこと: {stray:?}"
+        "どのレイヤにも載っていないモジュールがある。`LAYERS` に「何を決める場所か」を書くこと: {stray:?}"
     );
 }
 
-/// `types` の段が trait を宣言しないこと。
+/// `types` のレイヤが trait を宣言しないこと。
 ///
-/// `types` は「何も決めない」段で、全段が `use` してよい。そこに trait を置くと、その契約
-/// （いつ呼ばれ、何を待ってはいけないか）まで全段から見え、どの段の判断なのかが言えなくなる。
-/// trait は、それを呼ぶ段のすぐ下に置く（`analysis_events`、`game::events`）。
+/// `types` は「何も決めない」レイヤで、全レイヤが `use` してよい。そこに trait を置くと、その契約
+/// （いつ呼ばれ、何を待ってはいけないか）まで全レイヤから見え、どのレイヤの判断なのかが言えなくなる。
+/// trait は、それを呼ぶレイヤのすぐ下に置く（`analysis_events`、`game::events`）。
 #[test]
 fn the_types_layer_declares_no_trait() {
     let path = engine_dir().join("types.rs");
@@ -1315,7 +1322,7 @@ fn the_types_layer_declares_no_trait() {
     let found = trait_declarations(&code);
     assert!(
         !code.trim().is_empty() && found.is_empty(),
-        "`types.rs` が trait を宣言している。呼ぶ段のすぐ下へ段を足して置くこと: {found:?}"
+        "`types.rs` が trait を宣言している。呼ぶレイヤのすぐ下へレイヤを足して置くこと: {found:?}"
     );
 }
 
@@ -1325,7 +1332,7 @@ fn the_types_layer_declares_no_trait() {
 /// Rust の側の正本を探し回ることになり、片側だけ変わった欄をフロントが空として読む。
 ///
 /// - `types.rs`: 検討と起動の線の形
-/// - `game/types.rs`: 対局の線の形（`game` の段の内側に閉じる）
+/// - `game/types.rs`: 対局の線の形（`game` のレイヤの内側に閉じる）
 /// - `launchable.rs`: 起動できるかの答え。`ai_library` が線へ載せる（`ENGINE_ENTRIES_FROM_OUTSIDE`）
 const WIRE_SHAPE_FILES: [&str; 3] = ["types.rs", "game/types.rs", "launchable.rs"];
 
@@ -1360,13 +1367,13 @@ fn wire_shapes_live_in_the_wire_shape_files() {
 
 /// 役割を言わない名前（`docs/rules/common.md` の R-DUP-5）。
 ///
-/// こう名乗る段は `decides` が「と」で繋がり、呼び手の違う2つの判断が同居する。
-/// 片方の呼び手が増えるたびに段の `may_use` が太り、もう片方の判断まで下の段から見えるようになる。
+/// こう名乗るレイヤは `decides` が「と」で繋がり、呼び手の違う2つの判断が同居する。
+/// 片方の呼び手が増えるたびにレイヤの `may_use` が太り、もう片方の判断まで下のレイヤから見えるようになる。
 const NAMES_WITHOUT_A_ROLE: [&str; 6] = ["utils", "util", "common", "misc", "helpers", "helper"];
 
-/// `engine/` の段、ファイル、ファイルの中の `mod x { … }` が、役割を言わない名前を名乗らないこと。
+/// `engine/` のレイヤ、ファイル、ファイルの中の `mod x { … }` が、役割を言わない名前を名乗らないこと。
 ///
-/// 段の中のファイル（`game/` の中）も見る。段を割らない場所でも、名前が役割を言わないと
+/// レイヤの中のファイル（`game/` の中）も見る。レイヤを割らない場所でも、名前が役割を言わないと
 /// 次に足す判断の置き場として選ばれる。
 #[test]
 fn no_module_is_named_after_no_role() {
@@ -1393,7 +1400,7 @@ fn no_module_is_named_after_no_role() {
         .collect();
     assert!(
         found.is_empty(),
-        "役割を言わない名前の段かファイルかモジュールがある。何を決める場所かで名付けること: {found:?}"
+        "役割を言わない名前のレイヤかファイルかモジュールがある。何を決める場所かで名付けること: {found:?}"
     );
 }
 
@@ -1517,7 +1524,7 @@ fn the_shape_scanners_read_every_spelling() {
 ///
 /// **長さ2で打ち切らない。** `a → b → c → a` は「互いに `use` し合う2つ」を
 /// 探すだけの検査には映らないのに、上下が言えないことは同じ。
-/// 段は同位を許すので、順序では環を消せない。
+/// レイヤは同位を許すので、順序では環を消せない。
 fn find_cycle(graph: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<String>> {
     #[derive(Clone, Copy, PartialEq)]
     enum Mark {
@@ -1571,7 +1578,7 @@ fn find_cycle(graph: &BTreeMap<String, BTreeSet<String>>) -> Option<Vec<String>>
 
 /// 環が無いこと。
 ///
-/// 環は「上下が言えない」そのものなので、段の違反より重い。
+/// 環は「上下が言えない」そのものなので、レイヤの違反より重い。
 /// 先に見つけて、どこが噛み合っているかを名指しで出す。
 #[test]
 fn no_module_depends_on_something_that_depends_back() {
@@ -1607,7 +1614,7 @@ fn the_declared_layers_are_not_a_cycle() {
         for target in layer.may_use {
             assert!(
                 declared.contains_key(*target),
-                "{} の may_use にある {target} が段に無い",
+                "{} の may_use にある {target} が `LAYERS` に無い",
                 layer.name
             );
         }
@@ -1616,7 +1623,7 @@ fn the_declared_layers_are_not_a_cycle() {
     let cycle = find_cycle(&declared);
     assert!(
         cycle.is_none(),
-        "段の表が環になっている。上下が言えない2つは同位にする（どちらの may_use にも書かない）:\n{}",
+        "`LAYERS` が環になっている。上下が言えない2つは同位にする（どちらの may_use にも書かない）:\n{}",
         cycle.unwrap_or_default().join(" -> ")
     );
 }
@@ -1630,7 +1637,7 @@ fn the_declared_layers_are_not_a_cycle() {
 /// 全部の検査を緑で通る——`commands/mod.rs` の「判断を書かない」に反しているのに。
 ///
 /// 辺を1本増やすたびに表を触ることになる。それが ADR-0008 の
-/// 「モジュールを足すときに段を決めることになる」。
+/// 「モジュールを足すときにレイヤを決めることになる」。
 #[test]
 fn no_permission_is_granted_without_a_real_edge() {
     let graph = graph();
@@ -1654,7 +1661,7 @@ fn no_permission_is_granted_without_a_real_edge() {
     );
 }
 
-/// 許していない段を `use` していないこと。
+/// 許していないレイヤを `use` していないこと。
 #[test]
 fn dependencies_only_point_downwards() {
     let mut upward = Vec::new();
@@ -1663,11 +1670,11 @@ fn dependencies_only_point_downwards() {
             continue;
         };
         for to in targets {
-            // **段に無い行き先を黙って飛ばさない。** 飛ばすと、走査が名前を
+            // **レイヤに無い行き先を黙って飛ばさない。** 飛ばすと、走査が名前を
             // 取り違えて存在しないモジュールへ辺を立てても誰も気付かない。
             if layer(&to).is_none() {
                 upward.push(format!(
-                    "{from} -> {to}（{to} は段に無い。走査の取り違えか、段への載せ忘れ）"
+                    "{from} -> {to}（{to} は `LAYERS` に無い。走査の取り違えか、`LAYERS` への載せ忘れ）"
                 ));
                 continue;
             }
@@ -1682,7 +1689,7 @@ fn dependencies_only_point_downwards() {
 
     assert!(
         upward.is_empty(),
-        "許していない段を使っている。共有したいものは共有できる段まで下げること:\n{}",
+        "許していないレイヤを使っている。共有したいものは共有できるレイヤまで下げること:\n{}",
         upward.join("\n")
     );
 }
@@ -1707,7 +1714,7 @@ fn test_only_edges_stay_in_the_tests() {
     }
     assert!(
         offenders.is_empty(),
-        "テストが許していない段を使っている。テストのためだけなら TEST_ONLY_EDGES に理由と足すこと: {offenders:?}"
+        "テストが許していないレイヤを使っている。テストのためだけなら TEST_ONLY_EDGES に理由と足すこと: {offenders:?}"
     );
 
     for (from, to, _) in TEST_ONLY_EDGES {

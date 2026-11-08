@@ -82,8 +82,8 @@ pub trait BlobStore {
 
     /// 捨てる。置かれていなくても、結果が同じなので成功する。
     ///
-    /// 捨てた後の [`Self::load`] は `NotFound` を返す。控え（`DiskStore` の退避）を持つ実装は
-    /// 控えも捨てる。残すと、捨てたはずのものが控えから戻る。
+    /// 捨てた後の [`Self::load`] は `NotFound` を返す。写し（`DiskStore` の退避）を持つ実装は
+    /// 写しも捨てる。残すと、捨てたはずのものが写しから戻る。
     fn delete(&self, key: &str) -> Result<(), StoreError>;
 }
 

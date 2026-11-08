@@ -1,6 +1,6 @@
 //! 局面での横断検索。
 //!
-//! 段は message → types → position → store → read → announce → index → {cache, project_manager,
+//! レイヤは message → types → position → store → read → announce → index → {cache, project_manager,
 //! query_service} → build → state → commands。**これを見ている機械は無い**（`tests/layering.rs` が
 //! 走査するのは `src/engine` だけ。#399）。
 //!

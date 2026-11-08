@@ -27,11 +27,11 @@ mod roots;
 mod scanning;
 use scanning::{blank_out_strings, doc_above, is_test_attribute};
 
-/// 表のテスト列で「踏むテストが無い」を意味する印
+/// 表のテスト列で「踏むテストが無い」を意味する記号
 const UNTESTED: char = '✗';
-/// 表のテスト列で「そのセルを固定するテストがある」を意味する印
+/// 表のテスト列で「そのセルを固定するテストがある」を意味する記号
 const TESTED: char = '✓';
-/// 表のテスト列で「一部の列だけ固定している」を意味する印
+/// 表のテスト列で「一部の列だけ固定している」を意味する記号
 const PARTIAL: char = '△';
 
 fn rust_files(dir: &Path) -> Vec<PathBuf> {
@@ -263,7 +263,7 @@ fn the_scanner_finds_the_claims() {
     assert!(columns.len() >= 10, "表の本体を読めていない: {columns:?}");
 
     // **列がずれていないこと。** 行数だけでは、別の欄を読んでいる状態を
-    // 見分けられない（読んだ値が印で始まらないので、下の検査は静かに通る）
+    // 見分けられない（読んだ値が記号で始まらないので、下の検査は静かに通る）
     let strays: Vec<String> = columns
         .iter()
         .filter(|(_, column)| !column.starts_with([TESTED, UNTESTED, PARTIAL]))
@@ -271,7 +271,7 @@ fn the_scanner_finds_the_claims() {
         .collect();
     assert!(
         strays.is_empty(),
-        "テスト列に印以外の値がある。列がずれているか、印を増やした:\n{}",
+        "テスト列に記号以外の値がある。列がずれているか、記号を増やした:\n{}",
         strays.join("\n")
     );
 }
@@ -365,7 +365,7 @@ fn every_symbol_a_test_names_exists() {
 ///
 /// **上の2本と向きが逆。** あちらは「表が未検証と言うのに名乗りがある」を見る。
 /// こちらが無いと、`{TESTED}` の行の実体が消えても表は `{TESTED}` のまま
-/// 4本とも緑になる——次の人はその枝が固定済みだと信じて落とせる。
+/// 4本とも緑になる——次の人はその分岐が固定済みだと信じて落とせる。
 ///
 /// **`△` は対象外。** 一部の列だけ固定している形は名乗りが無くても成り立つ
 /// （どの列かを表が持てない）。

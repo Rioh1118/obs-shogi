@@ -1,6 +1,6 @@
 //! 設定を読み書きする Tauri コマンドの入口。
 //!
-//! **判断を書かない。** 何を既定値にするか、どう検証するかは下の段が持つ。
+//! **判断を書かない。** 何を既定値にするか、どう検証するかは下のレイヤが持つ。
 
 use tauri::{AppHandle, Runtime};
 
@@ -34,7 +34,7 @@ pub fn load_presets(app_handle: AppHandle) -> Result<LoadedPresets, String> {
     presets::load(&app_handle)
 }
 
-/// プリセットを書き、新しい印を返す。`expected_revision` は読み込みか直前の保存で受け取った印で、
+/// プリセットを書き、新しい revision を返す。`expected_revision` は読み込みか直前の保存で受け取った revision で、
 /// ファイルがその後に変わっていたら書かずに断る
 #[tauri::command]
 pub fn save_presets(

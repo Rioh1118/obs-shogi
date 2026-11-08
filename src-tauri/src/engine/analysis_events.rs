@@ -1,6 +1,6 @@
 //! 検討の出来事をどこへ流すか。宛先の trait（`AnalysisEventSink`）と、流す出来事の列。
 //!
-//! trait を決めるのは下の段で、実装（`TauriAnalysisEvents`）は上の `commands::analysis` が持つ。
+//! trait を決めるのは下のレイヤで、実装（`TauriAnalysisEvents`）は上の `commands::analysis` が持つ。
 //! `bridge` が `tauri` を知らずに済むのはこのため（`game::events` の `GameEventSink` と同じ形）。
 
 use crate::engine::types::{AnalysisUpdate, EngineAnswered, EngineExited, EngineUnresponsive};
@@ -20,7 +20,7 @@ pub enum AnalysisEvent {
     EngineAnswered(EngineAnswered),
 }
 
-/// 解析の出来事の宛先。実装は上の段（`commands::analysis`）に置く。下が `tauri` を知らない、を
+/// 解析の出来事の宛先。実装は上のレイヤ（`commands::analysis`）に置く。下が `tauri` を知らない、を
 /// 保つため（`GameEventSink` と同じ形）。
 ///
 /// 実装が守る契約:

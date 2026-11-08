@@ -179,7 +179,7 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
         }
     };
 
-    // **黙ったエンジンの番人はここに置かない。** このタスクは起動時の値を
+    // **黙ったエンジンの監視はここに置かない。** このタスクは起動時の値を
     // 握ったまま走るので、`ponderhit` で先読みから本番へ昇格したことを
     // 観測できない。見張るのは `session.rs` の `on_tick`（判定は `stall.rs` の `stalled_turn`）で、
     // 打ち切りは `cancel` を通ってここへ届く。
@@ -247,7 +247,7 @@ async fn next_ponderhit(asks: &mut Option<PonderHitAsks>) -> PonderHitReply {
 /// 説明が付く。
 ///
 /// **`stop` の書き込みが上限を超えた（`Unreachable(EngineError::Timeout)`）は `StopTimedOut`。**
-/// stdin を読んでいないエンジンは探索中とみなし、`gameover` を書かずに畳む（`Activity::Unresponsive`）。
+/// stdin を読んでいないエンジンは探索中とみなし、`gameover` を書かずに終える（`Activity::Unresponsive`）。
 /// 検討は同じ答えを失敗と読むが、対局は「止めに答えない」と説明する。その後の書き込みは全部断られる
 /// （`fail_writes`）ので、`Failed` にして `gameover` を書きに行っても届かない
 fn outcome_after_stop(answer: StopAnswer) -> SearchOutcome {

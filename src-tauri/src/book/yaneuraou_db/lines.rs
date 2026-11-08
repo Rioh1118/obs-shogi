@@ -147,7 +147,7 @@ pub(super) const POSITION_PREFIX: &str = "sfen ";
 ///
 /// - `sfen` 行の後ろにあると候補手として登録され、しかも先頭に来る。
 ///   形式は「先頭がその局面の best move」と約束しているので、`//` が推奨手になる
-/// - 最初の `sfen` 行より前にあると「局面より先に指し手」の枝に落ち、
+/// - 最初の `sfen` 行より前にあると「局面より先に指し手」の分岐に落ち、
 ///   本家が普通に読める定跡が丸ごと開けなくなる
 pub(super) fn is_skippable(line: &str) -> bool {
     line.is_empty() || is_note(line.as_bytes())

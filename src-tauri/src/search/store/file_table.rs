@@ -59,7 +59,7 @@ impl FileTable {
     /// 入れる。同じ `file_id` があれば4列とも上書きする。
     ///
     /// **`deleted` も `indexed` も上書きする**ので、生きた項目を入れ直せば
-    /// 墓標も「組めなかった」印も消える。
+    /// 墓標も「組めなかった」フラグも消える。
     pub fn upsert(&mut self, entry: FileEntry) {
         self.ensure(entry.file_id);
         let i = entry.file_id as usize;
@@ -73,7 +73,7 @@ impl FileTable {
     ///
     /// `deleted` を立て、**同時に世代を上げる**。世代を上げるのは、
     /// 桶に残っている出現をその場で消さずに落とすため
-    /// （実際に桶から消えるのは畳むとき。`store/compaction.rs`）。
+    /// （実際に桶から消えるのはコンパクションのとき。`store/compaction.rs`）。
     ///
     /// 無い `file_id` には何もしない。
     pub fn tombstone(&mut self, file_id: FileId) {

@@ -75,7 +75,7 @@ async fn lookup_inner(
 /// InvalidSfen だけを返すと、フロントは定跡が閉じられていることに気づけず、
 /// 開き直す導線を出せない。
 ///
-/// ただし `Arc` を取るのは最後。失敗しうる処理を跨いで持つと、その枝で
+/// ただし `Arc` を取るのは最後。失敗しうる処理を跨いで持つと、その分岐で
 /// 落ちた `Arc` が最後の参照だったときに reader の Drop が async ワーカで走る。
 fn resolve_lookup(
     state: &BookState,
@@ -191,7 +191,7 @@ fn logged<T>(command: &str, result: Result<T, BookError>) -> Result<T, BookError
     result
 }
 
-/// blocking プールへ投げた処理が panic などで落ちたときの受け皿。
+/// blocking プールへ投げた処理が panic などで落ちたときのフォールバック。
 ///
 /// どの定跡で起きたかを必ず添える。複数開いていると、これが無いと利用者は
 /// どのファイルの話なのか決められない。
@@ -211,7 +211,7 @@ fn join_error(
 /// `Unknown` のときに出す復帰操作。**呼び出し側に選ばせず、ハンドルの有無から引く。**
 ///
 /// 2つの文言を定数で並べて呼び出し側に渡させると、open と lookup で取り違えても
-/// 型は通り、テストも通る（この枝は blocking プールの panic でしか踏まない）。
+/// 型は通り、テストも通る（この分岐は blocking プールの panic でしか踏まない）。
 /// 違いは「その時点でハンドルがあるか」だけで、それは引数に既に現れている ——
 /// open の途中で落ちた時点ではハンドルがまだ無いので、**open の呼び出し側の
 /// スコープには `Some` に入れられるものが1つも無い**（`Some(0)` と書けば通るが、
@@ -227,7 +227,7 @@ fn recovery_for(handle: Option<BookHandle>) -> &'static str {
 /// `Unknown` の文面。**組み立てだけを切り出す。**
 ///
 /// `join_error` は `tauri::Error` を要求するのでテストから作れない ——
-/// クロージャの中に文面を埋めると、**この枝だけ誰も見ないまま残る。**
+/// クロージャの中に文面を埋めると、**この分岐だけ誰も見ないまま残る。**
 /// 原文を先に置いて復帰操作で終わるのは、表の不変条件3。
 fn unknown_message(cause: &str, recovery: &str) -> String {
     format!("定跡の処理が異常終了した（{cause}）。{recovery}")
@@ -384,7 +384,7 @@ mod tests {
     ///
     /// 同じ文言に潰れると、まだ開いていない定跡に「閉じてから開き直す」と
     /// 案内する（従える操作が無い）か、開いたままの定跡に「開き直す」と案内して
-    /// ハンドルを溜める。どちらも `Unknown` の枝なので誰も踏まずに残る。
+    /// ハンドルを溜める。どちらも `Unknown` の分岐なので誰も踏まずに残る。
     #[test]
     fn the_recovery_depends_on_whether_a_handle_exists() {
         assert_ne!(recovery_for(None), recovery_for(Some(1)));
@@ -453,7 +453,7 @@ mod tests {
 
     /// 壊れた局面では `get` を呼ばないこと。
     ///
-    /// 先に `Arc` を取る形に戻すと、その枝で落ちた `Arc` が最後の参照だったときに
+    /// 先に `Arc` を取る形に戻すと、その分岐で落ちた `Arc` が最後の参照だったときに
     /// reader の Drop が async ワーカで走る。返る種別は両方の順序で同じなので、
     /// 種別を見るテストではこの差を捕まえられない。
     #[test]

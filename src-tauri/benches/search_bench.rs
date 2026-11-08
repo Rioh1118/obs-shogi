@@ -515,7 +515,7 @@ fn bench_06_compaction() {
             }
         }
         // 並びの規約は `PositionKey` の `Ord`。ここで組み直すと、
-        // 本番と違う順で畳んだものを測ることになる
+        // 本番と違う順でマージしたものを測ることになる
         merged.sort_by(|(k1, o1), (k2, o2)| {
             (*k1, o1.file_id, o1.node_id).cmp(&(*k2, o2.file_id, o2.node_id))
         });

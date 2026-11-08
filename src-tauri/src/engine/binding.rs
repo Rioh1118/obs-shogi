@@ -1,4 +1,4 @@
-//! 評価関数・定跡の流し先を、**その回のエンジンの申告**から決める段。純関数。
+//! 評価関数・定跡の流し先を、**その回のエンジンの申告**から決めるレイヤ。純関数。
 //!
 //! 判定表は `docs/state-transitions/option-binding.md`。**実行ファイル名は見ない**——同じ名前を
 //! 持つ別のエンジン、名前を変えたエンジンで食い違う。見るのは申告された `option` の名前と型だけ。
@@ -14,7 +14,7 @@ use crate::engine::types::{
     BookChoice, BookPathSupport, EngineOption, EngineOptionType, SetOptionValue, StartWarning,
 };
 
-/// 選んだ評価関数。ファイルかフォルダかは呼び手がディスクを見て決める（この段はディスクを見ない）
+/// 選んだ評価関数。ファイルかフォルダかは呼び手がディスクを見て決める（このレイヤはディスクを見ない）
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EvalTarget {
     File(String),
@@ -311,7 +311,7 @@ pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Ve
 ///
 /// 判定表の B1（`BookDir` と選択肢の `BookFile`）で、検討で使う定跡のファイル名が選択肢に（大小を
 /// 無視しても）無いときだけ。それ以外は確かめても結果を使わない（選択肢にあれば名前で、B2 ならパスで
-/// 送る）。確かめるのは呼び手（`setup::check_book_path_support`）で、この段は起こしたプロセスに触らない
+/// 送る）。確かめるのは呼び手（`setup::check_book_path_support`）で、このレイヤは起こしたプロセスに触らない
 pub fn book_path_check_name(
     declared: &[EngineOption],
     book: Option<&BookChoice>,

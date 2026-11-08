@@ -2,14 +2,14 @@
 //!
 //! 局面を「手番」「盤上の各駒」「各駒種の持駒枚数」にばらしたとき、その項1つに
 //! 対応する乱数を返す。返るのは [`ZobristValue`] で、**鍵ではない**。
-//! 鍵はこれを XOR で畳んだ結果で、畳む側は [`super::position_key`] にある。
+//! 鍵はこれを XOR した結果で、XOR する側は [`super::position_key`] にある。
 //!
 //! **添字の付け方はこのファイルの外に出さない。** 出すと同じ規約が2箇所に書かれ、
 //! 片方だけ直したときに同じ局面から別の鍵が出る。
 //!
 //! 手番・駒種・升の添字は `shogi_core` の `array_index()` に任せる。写すと
-//! 上流が変わったときに気付く経路が無くなる。**枚数の枠だけがこちらの決めごと。**
-//! 外へ出すのは [`MAX_REPRESENTABLE_HAND_COUNT`] だけで、枠の数と頭打ちの位置は
+//! 上流が変わったときに気付く経路が無くなる。**枚数の bucket だけがこちらの決めごと。**
+//! 外へ出すのは [`MAX_REPRESENTABLE_HAND_COUNT`] だけで、bucket の数と頭打ちの位置は
 //! このファイルに閉じる。
 
 use std::sync::OnceLock;
@@ -29,7 +29,7 @@ pub(super) struct ZobristValue {
 impl ZobristValue {
     const ZERO: Self = Self { z0: 0, z1: 0 };
 
-    /// 2つの項を畳む。XOR は自分自身が逆演算なので、足すのも消すのも同じ操作。
+    /// 2つの項を XOR する。XOR は自分自身が逆演算なので、足すのも消すのも同じ操作。
     #[inline]
     pub(super) fn xor(self, rhs: ZobristValue) -> Self {
         Self {
@@ -50,15 +50,15 @@ const HAND_KINDS: [PieceKind; 7] = [
     PieceKind::Rook,
 ];
 
-/// 持駒の**枚数**を添字にするので、枚数1つにつき1枠要る。
+/// 持駒の**枚数**を添字にするので、枚数1つにつき1つ bucket が要る。
 ///
-/// 一番多く持てるのは歩の18枚なので、`0..=18` の19枠。他の駒種も同じ枠で持つ。
+/// 一番多く持てるのは歩の18枚なので、`0..=18` の19個の bucket。他の駒種も同じ数の bucket で持つ。
 /// **これは総数ではなく、駒種ごとの枚数の値域。**
 const HAND_COUNT_SLOTS: usize = 19;
 
 /// 鍵が枚数として区別できる上限。
 ///
-/// これを超える枚数は末尾の枠へ落ちるので（[`hand_count`]）、**受理する側は
+/// これを超える枚数は末尾の bucket へ落ちるので（[`hand_count`]）、**受理する側は
 /// ここまでに絞ること**。広げると、落ちた先が同じになって別の局面が同じ鍵になる。
 pub(super) const MAX_REPRESENTABLE_HAND_COUNT: u32 = (HAND_COUNT_SLOTS - 1) as u32;
 
@@ -151,10 +151,10 @@ pub(super) fn piece_on_square(piece: Piece, sq: Square) -> ZobristValue {
 
 /// 「この色がこの駒種を n 枚持っている」ことの項。
 ///
-/// **持駒に出ない駒種（玉・成駒）では `None`。** 表に枠が無い。
+/// **持駒に出ない駒種（玉・成駒）では `None`。** 表に bucket が無い。
 ///
-/// 枠に収まらない枚数は末尾の枠へ落とす。**頭打ちをここに1つだけ置くことで、
-/// 盤を舐める側と1手ずつ動かす側が必ず同じ枠を引く。** 2箇所に書くと、
+/// bucket に収まらない枚数は末尾の bucket へ落とす。**頭打ちをここに1つだけ置くことで、
+/// 盤を舐める側と1手ずつ動かす側が必ず同じ bucket を引く。** 2箇所に書くと、
 /// 片方をずらしたときに同じ局面から別の鍵が出る。
 #[inline]
 pub(super) fn hand_count(c: Color, kind: PieceKind, n: usize) -> Option<ZobristValue> {
@@ -173,31 +173,31 @@ pub(super) fn hand_kinds() -> &'static [PieceKind; 7] {
 mod tests {
     use super::*;
 
-    /// 枠の境目を直に見る。
+    /// bucket の境目を直に見る。
     ///
     /// **頭打ちはこのファイルの1箇所にしか無い。** 盤を舐める側と1手ずつ動かす側が
-    /// 同じ枠を引くための集約だが、その代償として**両者を突き合わせる
+    /// 同じ bucket を引くための集約だが、その代償として**両者を突き合わせる
     /// `walk_and_compare` では壊れ方が見えない** — 片方だけずれることが
     /// 起きえなくなり、壊れると両者が仲良く同じだけ間違う。
     ///
     /// 実際、`n.min(HAND_COUNT_SLOTS - 1)` を `n % HAND_COUNT_SLOTS` に変えても
     /// `position_key.rs` の5本は全部通る（題材の持駒が高々1枚のため）。
-    /// 残るのは歩19枚が歩0枚と同じ鍵になる静かな衝突なので、ここで枠を直に見る。
+    /// 残るのは歩19枚が歩0枚と同じ鍵になる静かな衝突なので、ここで bucket を直に見る。
     #[test]
     fn the_hand_slots_clamp_at_the_last_one() {
-        // 枠の中は1枚ごとに別の項
+        // bucket の範囲の中は1枚ごとに別の項
         assert_ne!(
             hand_count(Color::Black, PieceKind::Pawn, 17),
             hand_count(Color::Black, PieceKind::Pawn, 18),
-            "枠の中で項が重なっている"
+            "bucket の中で項が重なっている"
         );
 
-        // 枠の外は末尾へ落ちる。折り返さない
+        // bucket の範囲の外は末尾へ落ちる。折り返さない
         let last = hand_count(Color::Black, PieceKind::Pawn, HAND_COUNT_SLOTS - 1);
         assert_eq!(
             hand_count(Color::Black, PieceKind::Pawn, HAND_COUNT_SLOTS),
             last,
-            "枠の外が末尾へ落ちていない"
+            "bucket の外が末尾へ落ちていない"
         );
         assert_eq!(
             hand_count(Color::Black, PieceKind::Pawn, 255),
@@ -218,18 +218,18 @@ mod tests {
         );
     }
 
-    /// 持駒に出ない駒種には枠が無い。
+    /// 持駒に出ない駒種には bucket が無い。
     ///
     /// `hand_step` はここが `None` を返すことを頼りにしている。
     #[test]
     fn kinds_that_never_reach_a_hand_have_no_slot() {
         assert!(
             hand_count(Color::Black, PieceKind::King, 0).is_none(),
-            "玉に枠がある"
+            "玉に bucket がある"
         );
         assert!(
             hand_count(Color::Black, PieceKind::ProPawn, 0).is_none(),
-            "成駒に枠がある"
+            "成駒に bucket がある"
         );
     }
 }

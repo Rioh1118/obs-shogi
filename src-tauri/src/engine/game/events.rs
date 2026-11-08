@@ -13,7 +13,7 @@ use super::types::GameEvent;
 /// 対局の出来事の宛先。
 ///
 /// **`game` が持つトレイトで、`tauri` を知らない。** 実装（`TauriEvents`）は
-/// 上の段（`commands::game`）に置く——下が上を知らない、を保つため。
+/// 上のレイヤ（`commands::game`）に置く——下が上を知らない、を保つため。
 pub trait GameEventSink: Send + Sync + 'static {
     /// 1件流す。**失敗しても対局を止めない。**
     ///

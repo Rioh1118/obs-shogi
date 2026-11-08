@@ -1,17 +1,17 @@
-//! `info` 行を候補手の一覧（`AnalysisResult`）へ畳む。
+//! `info` 行を候補手の一覧（`AnalysisResult`）へ集約する。
 //!
-//! 検討（`analyzer`）と対局（`game::search`）が同じ関数を呼ぶ。畳み方を2つ持たないためにここへ置く。
+//! 検討（`analyzer`）と対局（`game::search`）が同じ関数を呼ぶ。集約の仕方を2つ持たないためにここへ置く。
 
 use usi::{InfoParams, ScoreKind};
 
 use crate::engine::types::{AnalysisCandidate, AnalysisResult, Evaluation, EvaluationKind};
 
-/// `info` 行を解析結果へ畳み込む。
+/// `info` 行を解析結果へ集約する。
 ///
 /// 解析と対局で同じ形の読み筋を出す。**2箇所で別々に組み立てない。**
 /// 片方だけ直すと、同じエンジンの同じ出力が画面の場所によって違って見える。
 ///
-/// `multipv` の無い行は rank 1 に入る。畳んだ後、`candidates` を rank の昇順に並べる。
+/// `multipv` の無い行は rank 1 に入る。集約した後、`candidates` を rank の昇順に並べる。
 pub fn apply_info_params(info_params: &[InfoParams], result: &mut AnalysisResult) {
     let rank = extract_rank(info_params);
 
@@ -85,7 +85,7 @@ fn get_or_create_candidate(result: &mut AnalysisResult, rank: u32) -> &mut Analy
     &mut result.candidates[last]
 }
 
-/// `score` の値と種類を評価値にする。上界・下界の印は捨てる
+/// `score` の値と種類を評価値にする。上界・下界のフラグは捨てる
 fn map_score_to_evaluation(value: i32, kind: &ScoreKind) -> Evaluation {
     match kind {
         ScoreKind::CpExact | ScoreKind::CpLowerbound | ScoreKind::CpUpperbound => Evaluation {
@@ -122,7 +122,7 @@ mod tests {
         }
     }
 
-    /// `info` 行を MultiPV の番号ごとに畳み、番号の昇順に並べる。
+    /// `info` 行を MultiPV の番号ごとに集約し、番号の昇順に並べる。
     /// `multipv` の無い行は1本目に入り、行に無い欄は前の値を残す
     #[test]
     fn info_lines_fold_into_candidates_by_rank() {

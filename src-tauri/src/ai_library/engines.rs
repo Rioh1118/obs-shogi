@@ -24,7 +24,7 @@ pub const ENGINES_DIR: &str = "engines";
 #[derive(Debug, Clone, Serialize)]
 pub struct EngineCandidate {
     /// engines/ からの相対。区切りは常に `/`。形は3つ:
-    /// 直下のファイルは `<ファイル>`、1段下は `<フォルダ>/<ファイル>`、
+    /// 直下のファイルは `<ファイル>`、1階層下は `<フォルダ>/<ファイル>`、
     /// 開けなかったフォルダは `<フォルダ>/`（`kind: Dir`、`launchability: Unreadable`）
     pub entry: String,
     /// engines/ に `entry` を繋いだパス
@@ -34,9 +34,9 @@ pub struct EngineCandidate {
     pub launchability: Launchability,
 }
 
-/// engines/ の直下と、その1段下のフォルダにある実行ファイルを列挙する。
+/// engines/ の直下と、その1階層下のフォルダにある実行ファイルを列挙する。
 ///
-/// 1段下まで見るのは、フォルダごと置いた配布物のエンジンを選べるようにするため
+/// 1階層下まで見るのは、フォルダごと置いた配布物のエンジンを選べるようにするため
 /// （同梱の評価関数や `engine_options.txt` をそのエンジンに読ませる仕組みはまだ無い）。
 ///
 /// **Err になるのは engines/ 自体を読めないときだけ。** 中の1件の失敗では列挙を止めない
@@ -72,7 +72,7 @@ pub fn read_all(engines_dir: &Path) -> Result<Vec<EngineCandidate>, String> {
     Ok(out)
 }
 
-/// 1段下のフォルダを読む。**これより深くは見ない。**
+/// 1階層下のフォルダを読む。**これより深くは見ない。**
 fn read_folder(name: &str, path: &Path, out: &mut Vec<EngineCandidate>) {
     let Ok(children) = fs::read_dir(path) else {
         out.push(EngineCandidate {
@@ -214,7 +214,7 @@ pub(super) mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// 1段下のフォルダまで見る。2段下は見ない。フォルダ名に拡張子らしい綴りがあっても外さない
+    /// 1階層下のフォルダまで見る。2階層下は見ない。フォルダ名に拡張子らしい綴りがあっても外さない
     #[test]
     fn programs_one_folder_down_are_listed_but_not_deeper() {
         let dir = temp_dir("engines-depth");
@@ -301,7 +301,7 @@ pub(super) mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// 1段下のフォルダでも隠しファイルは候補にしない
+    /// 1階層下のフォルダでも隠しファイルは候補にしない
     #[test]
     fn hidden_files_one_folder_down_are_not_listed() {
         let dir = temp_dir("engines-hidden-child");

@@ -195,7 +195,7 @@ impl ProjectManager {
         });
 
         let mut g = self.inner.lock().await;
-        // 据え直されていたら、起こしたループを自分で畳む。据えると
+        // 据え直されていたら、起こしたループを自分で終える。据えると
         // 新しいプロジェクトの debounce を落とす
         if epoch != g.epoch {
             handle.abort();

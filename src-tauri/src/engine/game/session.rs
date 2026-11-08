@@ -26,7 +26,7 @@
 //! 表は `docs/state-transitions/game-session.md`。**このファイルの `G` / `A` / `E` は
 //! その表の記号。** 記号は表ごとに閉じていて、`G0`〜`G2` は `game.md` の、
 //! `A0`〜`A4` は `app.md`（上位の表）の同じ綴りと完全に重なる。どちらも別物。
-//! **`F-N` は別枠**で、`failure-surfacing.md` が採番している失敗の番号
+//! **`F-N` は別の区分**で、`failure-surfacing.md` が採番している失敗の番号
 //! （`.claude/reviews/` の所見番号とは無関係）。
 
 use std::sync::{Arc, Mutex};
@@ -81,7 +81,7 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 /// `close` が「両側の `Activity` が `Idle` に戻る」のを待つ上限。
 ///
 /// **`SETTLE_TIMEOUT` とは別物。** あちらは `TurnClock::Settling`（手番に入ったが
-/// `go` をまだ出していない）を見る番人で、こちらは探索が畳まれたかを見る待ち。
+/// `go` をまだ出していない）を見る監視で、こちらは探索が止まり終えたかを見る待ち。
 /// 見ている述語も所有者も違うので、片方の値をもう片方に合わせないこと。
 ///
 /// **待つ**理由: 待たずに落とすと、`stop` を送ろうとしている探索の足元で
@@ -93,29 +93,29 @@ const RULING_TIMEOUT: Duration = Duration::from_secs(30);
 /// パイプが埋まって書き込みが止まり、応答が返らない。上限が無いと
 /// `close_game` が無期限に返らなくなる。
 ///
-/// **1回の畳みの最悪値より長く取る。** 畳みは `stop` の書き込み
+/// **1回の止め終わり待ちの最悪値より長く取る。** 止めるのにかかるのは `stop` の書き込み
 /// （列の中で `WRITE_TIMEOUT`）＋ 捨てる `bestmove` を待つ `SEARCH_STOP_GRACE`。
 /// 短いと、`stop` の直後に1秒ほど stdin を吸わなかっただけの正常な対局で
 /// 待ち切れず、「エンジンが応答しない」の警告が出て探索の足元でプロセスが落ちる。
 /// **上と同じ関係を `the_watchdogs_are_ordered` が固定する。**
 ///
-/// `abort` はこれとは別枠。合計の予算にすると、`abort` が使い切ったぶんだけ
-/// 畳み待ちが縮む（`abort` は `finish` の中で、探索していない側それぞれへ
+/// `abort` はこれとは別の予算。合計の予算にすると、`abort` が使い切ったぶんだけ
+/// 止め終わり待ちが縮む（`abort` は `finish` の中で、探索していない側それぞれへ
 /// `gameover` を書く——`SIDES` ぶん直列に待ちうる）。
 pub const CLOSE_IDLE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// `close` が `abort` の応答を待つ上限。
 ///
-/// **畳み待ちと分ける。** 1つの予算を分け合うと、`abort` に時間を取られた
-/// ぶんだけ畳み待ちが縮み、正常な畳みを待ち切れなくなる。
+/// **止め終わり待ちと分ける。** 1つの予算を分け合うと、`abort` に時間を取られた
+/// ぶんだけ止め終わり待ちが縮み、正常な止め終わりを待ち切れなくなる。
 ///
 /// 下限は「列の先客1件＋`SIDES` ぶんの `gameover`」。
 /// `the_watchdogs_are_ordered` が式で持つ。
 pub const CLOSE_ABORT_TIMEOUT: Duration = Duration::from_secs(8);
 
-/// 畳まれたかを聞き直す間隔。
+/// 止まり終えたかを聞き直す間隔。
 ///
-/// **聞きに行くのは、畳まれたことを知らせる経路が無いため。** `Activity` が
+/// **聞きに行くのは、止まり終えたことを知らせる経路が無いため。** `Activity` が
 /// `Idle` に戻るのは `run_loop` の中で、そこから外へ通知する経路を持っていない。
 ///
 /// 50ms は `TICK`（100ms）より細かく、`close_game` の応答に足す遅れが
@@ -152,11 +152,11 @@ impl GameSession {
     ///
     /// **`GameId` もまだ返っていない。** 受け手は `gameId` で振り分けられないので、
     /// 解決するまで溜めて後から振り分け直すことになる（→ `startGame` の TSDoc）。
-    /// ここで ID を先に返す形にすると、台帳へ載る前の対局に操作が届く。
+    /// ここで ID を先に返す形にすると、`GameManager` へ載る前の対局に操作が届く。
     ///
-    /// **待たせる長さは `START_TIMEOUT` で決まる。** 2体ぶんの段ごとの上限を
+    /// **待たせる長さは `START_TIMEOUT` で決まる。** 2体ぶんの段階ごとの上限を
     /// 足した値ではない。取り消す経路は無いので、ここが唯一の歯止め。
-    /// 段に入る前に残りを見る作りなので、跨いだ段のぶんは少し超える。
+    /// 段階に入る前に残りを見る作りなので、跨いだ段階のぶんは少し超える。
     pub(super) async fn start(
         registry: &EngineRegistry,
         events: Arc<dyn GameEventSink>,
@@ -233,7 +233,7 @@ impl GameSession {
     ///
     /// **終局済みなら `Err(ALREADY_OVER)`**（投了・中断と同じ形）。
     /// 説明が長すぎるのは断らずに切る——断ると `RULING_TIMEOUT` が
-    /// 別の結末で畳み、勝敗が消える
+    /// 別の結末で終局させ、勝敗が消える
     pub(super) async fn end_by_rule(
         &self,
         winner: Option<Side>,
@@ -262,7 +262,7 @@ impl GameSession {
         self.request(|reply| Command::Abort { reply }).await
     }
 
-    /// いまの状態の写し。**`Err` は `ENDED` だけ**——タスクが既に畳まれていて、
+    /// いまの状態の写し。**`Err` は `ENDED` だけ**——タスクが既に終わっていて、
     /// この対局はもう進まない。上の3つと違い、終局済みでも `Ok` を返す
     /// （`Phase::Over` を載せて返る）。
     pub(super) async fn snapshot(&self) -> Result<GameSnapshot, String> {
@@ -327,12 +327,12 @@ impl GameSession {
     /// `usinewgame` で指し直せるようにしてある（USI がそういう作りのため）。
     /// 呼ばないとプロセスが残る。
     pub(super) async fn close(self, registry: &EngineRegistry) {
-        // 「止める → 畳まれるのを**待つ** → 落とす」の順。
+        // 「止める → 止まり終えるのを**待つ** → 落とす」の順。
         // 待つ理由と上限の理由はどちらも `CLOSE_IDLE_TIMEOUT` に書いてある
         self.abort_within_budget().await;
 
         // **`abort` の後から測る。** 前から測ると、`abort` に使ったぶんだけ
-        // 畳み待ちが縮み、正常に畳んでいるエンジンを待ち切れなくなる
+        // 止め終わり待ちが縮み、正常に止まりつつあるエンジンを待ち切れなくなる
         let deadline = Instant::now() + CLOSE_IDLE_TIMEOUT;
 
         let mut idle = false;
@@ -343,8 +343,8 @@ impl GameSession {
             }
             match tokio::time::timeout(left, self.searches_idle()).await {
                 Ok(Ok(true)) => idle = true,
-                // **タスクが消えている。** 畳まれたことは確認できていないので
-                // `idle` にしない。上の枝が既に1行残しているので、ここは黙って抜ける
+                // **タスクが消えている。** 止まり終えたことは確認できていないので
+                // `idle` にしない。上の分岐が既に1行残しているので、ここは黙って抜ける
                 Ok(Err(_)) => break,
                 Ok(Ok(false)) => tokio::time::sleep(CLOSE_POLL).await,
                 // 期限切れ。応答そのものが返らない
@@ -353,7 +353,7 @@ impl GameSession {
         }
 
         if !idle {
-            // 「畳まれなかった」と「`searches_idle` の応答が `CLOSE_IDLE_TIMEOUT` 内に
+            // 「止まり終えなかった」と「`searches_idle` の応答が `CLOSE_IDLE_TIMEOUT` 内に
             // 返らなかった」の両方でここに来る。締切は `abort` の**後**から測るので、
             // 1度も尋ねずに抜けることは無い
             log::warn!(
@@ -463,7 +463,7 @@ impl Player {
 
 /// エンジンプロセスが USI 上でいまどの状態にあるか。
 ///
-/// **セッションの段（`Phase`）と別に持つ。** 一致させ損ねたときに何が
+/// **セッションの状態（`Phase`）と別に持つ。** 一致させ損ねたときに何が
 /// 起きるかは `docs/state-transitions/game-session.md` の不変条件1
 /// （`G0` の間、本番の `go` が出ているのは手番側だけ）。
 enum Activity {
@@ -541,8 +541,8 @@ struct Runner {
     moves: Vec<String>,
     /// 拍を止める合図。
     ///
-    /// **`is_over()` と別物。** 段を答えるのはあちらで、これは
-    /// `tick_loop` を畳むためだけにある。`Phase::Over` に入った後の
+    /// **`is_over()` と別物。** 状態を答えるのはあちらで、これは
+    /// `tick_loop` を終えるためだけにある。`Phase::Over` に入った後の
     /// `on_tick` は即 return するので、止めないと**何もしない拍が
     /// `close_game` まで 10Hz で回り続ける**。対局を閉じ忘れる形は
     /// `list_games` を置くほど普通に起きる。
@@ -561,7 +561,7 @@ struct Runner {
     last_progress: Instant,
     next_req: u64,
     last_clock_emit: Instant,
-    /// 壁時計が取れないことを記録する枠。
+    /// 壁時計が取れないことを記録する throttle。
     ///
     /// **周期的に呼ばれる場所の warn は絞る。** `emit` の失敗と違い、
     /// 条件が満たされている間ずっと出続ける。
@@ -575,7 +575,7 @@ struct Runner {
     tx: WeakUnboundedSender<Command>,
 }
 
-/// 対局が畳まれたら、走っている探索も止める。
+/// 対局が終わったら、走っている探索も止める。
 ///
 /// **`CancellationToken` は drop では cancel しない**（`tokio_util`）。
 /// `run_loop` が終わって `Runner` が落ちても、`go ponder` を投げた探索タスクは
@@ -602,9 +602,9 @@ async fn run_loop(mut runner: Runner, mut rx: mpsc::UnboundedReceiver<Command>) 
 /// **weak で持つ。** strong を持つと、この拍自身が対局のチャンネルを
 /// 生かし続けて `run_loop` が終わらなくなる。
 ///
-/// **終局したら畳む。** `Phase::Over` の後の `on_tick` は即 return するので、
-/// 畳まないと何もしない拍が `close_game` まで残る——閉じ忘れは
-/// `list_games` を置くほど普通に起きる。`run_loop` は畳まない（終局後も
+/// **終局したら終える。** `Phase::Over` の後の `on_tick` は即 return するので、
+/// 終えないと何もしない拍が `close_game` まで残る——閉じ忘れは
+/// `list_games` を置くほど普通に起きる。`run_loop` は終えない（終局後も
 /// `Abort` / `SearchesIdle` / `Snapshot` に答える必要がある）。
 async fn tick_loop(tx: WeakUnboundedSender<Command>, stop_ticks: CancellationToken) {
     let mut interval = tokio::time::interval(TICK);
@@ -693,7 +693,7 @@ impl Runner {
     async fn accept_human_move(&mut self, side: Side, usi_move: String) -> Result<(), String> {
         // **終局と裁定待ちを1つの文言にしない。** 次にすべきことが正反対になる
         // ——終局は何をしても変わらず、裁定待ちは `continue_game` の往復が済めば
-        // 同じ手を指せる（人対人なら毎手この窓がある）。断り方は文言でしか
+        // 同じ手を指せる（人対人なら毎手この区間がある）。断り方は文言でしか
         // 伝わらないので、潰すと呼び出し側は捨てるか叩き続けるかを選べない
         if self.is_over() {
             return Err(ALREADY_OVER.to_string());
@@ -724,7 +724,7 @@ impl Runner {
     async fn accept_continue(&mut self, moves: Vec<String>) -> Result<(), String> {
         // **終局は別の文言で断る。** 潰すと、次にすべきことが正反対の2つが
         // 1つの `Err` になる——`Thinking` なら裁定の二重呼び出し（呼び出し側の誤り）、
-        // `Over` なら吸収状態（何度呼んでも同じ）。台帳の復帰導線は
+        // `Over` なら吸収状態（何度呼んでも同じ）。`failure-surfacing.md` の復帰導線は
         // 「操作をやり直す。ただし終局済みだけは違う」で、その例外は
         // `ALREADY_OVER` の綴りで見分ける前提になっている
         if self.is_over() {
@@ -779,7 +779,7 @@ impl Runner {
         // **上限に達したら終局にする。断らない。** 断ると、フロントは
         // 接頭辞と長さで一意に固定された列しか返せないのでやり直しても同じ `Err` になり、
         // `RULING_TIMEOUT` 後に `RulingTimeout { "no ruling came back from the app" }` で
-        // 畳まれる——**返しているのに「返さなかった」と棋譜に残る。**
+        // 終局する——**返しているのに「返さなかった」と棋譜に残る。**
         // 上限は GUI 側の都合なので、理由も GUI 側のもの（`Rule`）として持つ。
         //
         // **検算の後に置く。** 前に置くと、食い違った長い列——別の対局の指し手を
@@ -835,7 +835,7 @@ impl Runner {
             return Err(ALREADY_OVER.to_string());
         }
         // **断らない。** 裁定を拒否すると、フロントが呼び直さない限り
-        // `RULING_TIMEOUT` が `RulingTimeout { winner: None }` で畳む——
+        // `RULING_TIMEOUT` が `RulingTimeout { winner: None }` で終局させる——
         // **「先手の勝ち・詰み」が「アプリの異常・勝者なし」に化ける**。
         // `MAX_PLIES` が同じ理由で「超えたら終局にする」に倒しているのと同じ。
         //
@@ -980,7 +980,7 @@ impl Runner {
             // 止めた探索の結果。捨てて、必要なら改めていまの局面で考えさせる
             if restart && self.is_to_move(side) {
                 // **時計をここで引き直す。** `accept_continue` が手番を渡した
-                // 時点から数えると、止めた探索が畳まれるのを待っていた時間
+                // 時点から数えると、止めた探索が止まり終えるのを待っていた時間
                 // （最大 `SEARCH_STOP_GRACE`）が、1手も読んでいないエンジンの
                 // 消費として計上される。`go` に載せる `btime` は満額なので、
                 // 画面の残り時間とエンジンに伝えた残り時間も食い違う。
@@ -1055,7 +1055,7 @@ impl Runner {
             Phase::Thinking { side } => {
                 let side = *side;
 
-                // 手番が進まないことの番人。**`Settling` も `Running` もここで見る。**
+                // 手番が進まないことの監視。**`Settling` も `Running` もここで見る。**
                 // 探索タスクの中に置くと `ponderhit` の昇格を観測できず、
                 // 終局させても `Activity` が `Idle` に戻ってしまう
                 // （探索中のエンジンへ `gameover` が飛ぶ）
@@ -1089,7 +1089,7 @@ impl Runner {
             }
             Phase::AwaitingRuling { since, .. } => {
                 if since.elapsed() >= RULING_TIMEOUT {
-                    // **利用者の中断（`Aborted`）とは別の値で畳む。** 受け手の対処が
+                    // **利用者の中断（`Aborted`）とは別の値で終局させる。** 受け手の対処が
                     // 正反対で、こちらは故障として名乗らせる必要がある
                     self.finish(GameResult {
                         winner: None,
@@ -1228,7 +1228,7 @@ impl Runner {
             }
             Handover::Unusable => {
                 log::error!(target: LOGT, "handing the turn to an unresponsive engine side={side:?}");
-                // `Activity::Unresponsive` を立てるのは `StopTimedOut` の枝だけなので、
+                // `Activity::Unresponsive` を立てるのは `StopTimedOut` の分岐だけなので、
                 // ここへ来た側の物理状態は「`stop` に応じなかった」で同じ
                 self.finish(GameResult {
                     winner: Some(side.opponent()),
@@ -1373,7 +1373,7 @@ impl Runner {
         // ログだけが無防備になることはない）。二度通っても結果は変わらない
         result.detail = result.detail.map(|d| shown(&d, MAX_DETAIL_LEN));
 
-        // **終わり方をここで1行残す。** 番人が決めた終局（時間切れ・畳み待ち・
+        // **終わり方をここで1行残す。** 監視が決めた終局（時間切れ・止め終わり待ち・
         // 裁定が返らない）はどこにもログを書かないので、**どちらの検出器が先に
         // 当たったかで痕跡の有無が変わる**。ログを根拠に「正常に終わった」と
         // 読めるようにするには、全部の終わり方が同じ1行を通る必要がある。
@@ -1453,7 +1453,7 @@ impl Runner {
 
     /// 走っている探索が無いか。
     ///
-    /// `Unresponsive` は**畳まれたものとして数える**。`stop` に応じないと
+    /// `Unresponsive` は**止まり終えたものとして数える**。`stop` に応じないと
     /// 分かっている側なので、待ち続けても返らない。
     fn searches_idle(&self) -> bool {
         SIDES.into_iter().all(|side| {
@@ -1505,7 +1505,7 @@ impl Runner {
     ///
     /// `clocks_view` はこれに加えて、**壁時計が取れないときも `None` にする**
     /// （`ClocksView::running` の 4）。そちらは別の判定なので、
-    /// 「重複した番人」と読んで消さないこと。消すと 1970 年基準の期限が出る
+    /// 「重複した監視」と読んで消さないこと。消すと 1970 年基準の期限が出る
     fn running_clock(&self) -> Option<(Side, u64)> {
         let Phase::Thinking { side } = self.phase else {
             return None;
@@ -1601,7 +1601,7 @@ const ALREADY_OVER: &str = "game is already over";
 ///
 /// **`ALREADY_OVER` と分ける。** どちらも「いま指せない」だが、
 /// 終局はもう変わらず、こちらは `continue_game` の往復が済めば同じ手を指せる。
-/// 人対人なら毎手この窓があるので、潰すと呼び出し側は
+/// 人対人なら毎手この区間があるので、潰すと呼び出し側は
 /// 「捨てる」（普通に指せる局面で着手を1回落とす）か
 /// 「叩き続ける」（終局後に同じ `Err` を受け続ける）かのどちらかになる。
 const PENDING_RULING: &str = "a ruling is still pending; retry after continue_game";
@@ -1612,7 +1612,7 @@ const PENDING_RULING: &str = "a ruling is still pending; retry after continue_ga
 /// 縛らないと1回の `end_game_by_rule` でログの予算（`LOG_FILE_BUDGET`）を
 /// 一周させられる——診断の履歴が全部飛ぶ。
 ///
-/// **断らずに切る。** 裁定を拒否すると `RULING_TIMEOUT` が別の結末で畳む
+/// **断らずに切る。** 裁定を拒否すると `RULING_TIMEOUT` が別の結末で終局させる
 /// （`accept_rule_end`）。
 ///
 /// 1行がログの予算の1/50を超えないところで取る。式は
@@ -1695,7 +1695,7 @@ mod tests {
     /// 揃っていないと、`start_game` が `Ok` を返した対局で最初の手の裁定が
     /// 必ず断られる。フロントが返せる列は接頭辞と長さで一意に固定されているので、
     /// やり直しても同じ `Err` になり、`RULING_TIMEOUT` 後に
-    /// 「アプリが裁定を返さなかった」で畳まれる——**返しているのに。**
+    /// 「アプリが裁定を返さなかった」で終局する——**返しているのに。**
     #[tokio::test]
     async fn the_longest_startable_game_can_still_take_a_move() {
         let longest = MAX_PLIES - 1;
@@ -1727,7 +1727,7 @@ mod tests {
     ///
     /// **型が同じで隣り合っているので、入れ替えてもコンパイルが通る。**
     /// 入れ替えると、`info` を出していないエンジンで `thinking_is_an_engine` が
-    /// 偽になり、`Running` の枝に一切入らない——沈黙の腕だけでなく
+    /// 偽になり、`Running` の分岐に一切入らない——沈黙の腕だけでなく
     /// **`budget + HARD_TURN_LIMIT` の最後の上限も消える。**
     ///
     /// `stalled_turn` を直に叩くテストは、この配線を1本も見ていない。
@@ -1879,7 +1879,7 @@ mod tests {
 
         // 上限を超えたら**断らずに終局にする**。断ると、フロントは一意に固定された
         // 列しか返せないのでやり直しても同じ `Err` になり、`RULING_TIMEOUT` 後に
-        // 「アプリが裁定を返さなかった」で畳まれる——返しているのに、と記録される
+        // 「アプリが裁定を返さなかった」で終局する——返しているのに、と記録される
         let full = vec!["7g7f".to_string(); MAX_PLIES];
         let (tx, _rx) = mpsc::unbounded_channel();
         let mut runner = test_runner(&tx);
@@ -1913,7 +1913,7 @@ mod tests {
         }
     }
 
-    /// 走っている探索は、対局が畳まれたら止まること。
+    /// 走っている探索は、対局が終わったら止まること。
     ///
     /// `CancellationToken` は drop では cancel しないので、`Drop` を書かないと
     /// `go ponder` を投げた探索タスクが `bestmove` も cancel も来ないまま残る
@@ -1931,7 +1931,10 @@ mod tests {
 
         assert!(!cancel.is_cancelled());
         drop(runner);
-        assert!(cancel.is_cancelled(), "対局を畳んでも探索が止まっていない");
+        assert!(
+            cancel.is_cancelled(),
+            "runner を drop しても探索が止まっていない"
+        );
     }
 
     fn searching(cancel: &CancellationToken) -> Activity {
@@ -2045,11 +2048,11 @@ mod tests {
         }
     }
 
-    /// 止めた探索を畳んでいる間は、時計が動かないこと。
+    /// 止めた探索の止め終わりを待つ間は、時計が動かないこと。
     ///
     /// 手番に入った時刻で数えると、`go` を一度も受け取っていないエンジンの
     /// 消費として最大 `SEARCH_STOP_GRACE` が計上され、`enforce_engine_timeout` が
-    /// 真なら**それだけで時間切れ負けする**。画面の残り時間も畳み終わりに巻き戻る。
+    /// 真なら**それだけで時間切れ負けする**。画面の残り時間も止め終わりに巻き戻る。
     #[tokio::test]
     async fn the_clock_does_not_run_while_a_stopped_search_is_settling() {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -2062,15 +2065,15 @@ mod tests {
 
         assert!(
             runner.running_clock().is_none(),
-            "畳み待ちの間に時計が動いている"
+            "止め終わり待ちの間に時計が動いている"
         );
         assert!(
             runner.clocks_view().running.is_none(),
-            "畳み待ちの間に尽きる時刻を出している"
+            "止め終わり待ちの間に尽きる時刻を出している"
         );
     }
 
-    /// 畳み待ちの間は時間切れにもならないこと。
+    /// 止め終わり待ちの間は時間切れにもならないこと。
     /// 持ち時間を使い切った状態で tick を叩いても終局しない
     #[tokio::test]
     async fn settling_never_runs_the_clock_out() {
@@ -2093,7 +2096,7 @@ mod tests {
 
         assert!(
             matches!(runner.phase, Phase::Thinking { .. }),
-            "畳み待ちの間に時間切れで終局した"
+            "止め終わり待ちの間に時間切れで終局した"
         );
     }
 
@@ -2357,7 +2360,7 @@ mod tests {
 
     /// 手番の時計が尽きたら終局すること（表の E14）。
     ///
-    /// `AwaitingRuling` の `RULING_TIMEOUT` に対応する `Thinking` 側の番人。
+    /// `AwaitingRuling` の `RULING_TIMEOUT` に対応する `Thinking` 側の監視。
     /// 時計が動いている間の打ち切りはこれ、止まっている間は `SETTLE_TIMEOUT`
     #[tokio::test]
     async fn running_out_of_time_ends_the_game() {
@@ -2403,25 +2406,25 @@ mod tests {
         use crate::engine::game::search::SEARCH_STOP_GRACE;
         use crate::engine::protocol::WRITE_TIMEOUT;
 
-        // 畳み待ちの番人は、`stop` の書き込み1件ぶんと `bestmove` の猶予を
+        // 止め終わり待ちの監視は、`stop` の書き込み1件ぶんと `bestmove` の猶予を
         // 足したより長い。**これは下限でしかない。** `WRITE_TIMEOUT` は列の
         // 1件に掛かる上限で、手順が返るまでの実時間ではない
         // （列に先客が居れば、その処理時間が足される）。
-        // 下限を割ると、正常に畳んでいる最中のエンジンを必ず故障と呼ぶ
+        // 下限を割ると、正常に止まりつつあるエンジンを必ず故障と呼ぶ
         assert!(
             SETTLE_TIMEOUT > WRITE_TIMEOUT + SEARCH_STOP_GRACE,
             "SETTLE_TIMEOUT({SETTLE_TIMEOUT:?}) が WRITE_TIMEOUT + SEARCH_STOP_GRACE 以下"
         );
 
-        // 閉じるときの畳み待ちも、**同じ最悪値**より長い。
+        // 閉じるときの止め終わり待ちも、**同じ最悪値**より長い。
         // `SEARCH_STOP_GRACE` だけと比べると、書き込みぶんが抜けて足りない値が通る
         assert!(
             CLOSE_IDLE_TIMEOUT > WRITE_TIMEOUT + SEARCH_STOP_GRACE,
             "CLOSE_IDLE_TIMEOUT({CLOSE_IDLE_TIMEOUT:?}) が WRITE_TIMEOUT + SEARCH_STOP_GRACE 以下"
         );
 
-        // `abort` の予算は畳み待ちと別枠。合計にすると、`abort` が使ったぶんだけ
-        // 畳み待ちが縮む。**別枠であることを式で持つ**
+        // `abort` の予算は止め終わり待ちと別に持つ。合計にすると、`abort` が使ったぶんだけ
+        // 止め終わり待ちが縮む。**別であることを式で持つ**
         //
         // **1件ぶんでは足りない。** `abort` は `finish` を通り、`finish` は
         // 探索していない側それぞれへ `gameover` を書く。先後は別プロセス＝
@@ -2438,10 +2441,10 @@ mod tests {
             "CLOSE_ABORT_TIMEOUT({CLOSE_ABORT_TIMEOUT:?}) が、列の先客と `gameover` を書き切れる長さに足りない"
         );
 
-        // 思考の番人は畳み待ちの番人より長い。逆だと、考えているエンジンが
-        // 畳み待ちより先に故障扱いになる。
+        // 思考の監視は止め終わり待ちの監視より長い。逆だと、考えているエンジンが
+        // 止め終わり待ちより先に故障扱いになる。
         //
-        // **等値を許さない。** 同じなら両方の番人が同じ tick に当たりうるので、
+        // **等値を許さない。** 同じなら両方の監視が同じ tick に当たりうるので、
         // `NotStopping` と `NotAnswering` のどちらが付くかが `stalled_turn` の
         // 腕の順序で決まる——`detail` が原因を取り違える
         assert!(
@@ -2456,9 +2459,9 @@ mod tests {
         );
     }
 
-    /// 畳み待ちのまま `SETTLE_TIMEOUT` を過ぎたら終局にすること（表の E17）。
+    /// 止め終わり待ちのまま `SETTLE_TIMEOUT` を過ぎたら終局にすること（表の E17）。
     ///
-    /// 畳み待ちの間は時計が動かないので、時間切れの番人には掛からない。
+    /// 止め終わり待ちの間は時計が動かないので、時間切れの監視には掛からない。
     /// ここが無いと `stop` の書き込みが詰まったときに無音で固まる
     #[tokio::test]
     async fn settling_forever_ends_the_game() {
@@ -2476,7 +2479,7 @@ mod tests {
         );
         drop(cancel);
 
-        // 時計は動いていない。時間切れの番人は掛からない
+        // 時計は動いていない。時間切れの監視は掛からない
         assert!(runner.running_clock().is_none());
 
         runner.on_tick().await;
@@ -2486,7 +2489,7 @@ mod tests {
                 assert_eq!(result.reason, GameOverReason::EngineFailure);
                 assert_eq!(result.winner, Some(Side::White));
             }
-            _ => panic!("畳み待ちのまま固まっている"),
+            _ => panic!("止め終わり待ちのまま固まっている"),
         }
     }
 
@@ -2673,7 +2676,7 @@ mod tests {
                 runner.players[Side::White.index()].activity,
                 Activity::Stopping { restart: true, .. }
             ),
-            "止め終わった後に `go` を出し直す印が立っていない"
+            "止め終わった後に `go` を出し直すフラグ（`restart`）が立っていない"
         );
 
         // `A4` — 渡せない。その場で終局させる
@@ -2703,9 +2706,9 @@ mod tests {
         );
     }
 
-    /// 終局したら拍が畳まれること。
+    /// 終局したら拍のループが終わること。
     ///
-    /// `Phase::Over` に入った後の `on_tick` は即 return するので、畳まないと
+    /// `Phase::Over` に入った後の `on_tick` は即 return するので、終えないと
     /// **何もしない拍が `close_game` まで 10Hz で回り続ける**。対局を閉じ忘れる
     /// 形は `list_games` を置くほど普通に起きるので、放っておくと積み上がる。
     ///
@@ -2717,7 +2720,7 @@ mod tests {
         let mut runner = test_runner(&tx);
         assert!(
             !runner.stop_ticks.is_cancelled(),
-            "始まる前から畳まれている"
+            "始まる前から拍が止まっている"
         );
 
         runner
@@ -2730,7 +2733,7 @@ mod tests {
 
         assert!(
             runner.stop_ticks.is_cancelled(),
-            "終局したのに拍が畳まれていない"
+            "終局したのに拍が止まっていない"
         );
     }
 
@@ -2922,7 +2925,7 @@ mod tests {
     /// 裁定を待っている間の着手が、**終局とは別の文言**で断られること。
     ///
     /// 潰すと、次にすべきことが正反対の2つが1つの `Err` になる。
-    /// この窓は人対人なら毎手あり（`moveDecided` から `continue_game` の往復）、
+    /// この区間は人対人なら毎手あり（`moveDecided` から `continue_game` の往復）、
     /// そこへ相手が駒を置くだけで踏む。呼び出し側は文言でしか分けられないので、
     /// 潰れていると「捨てる」か「叩き続ける」かのどちらかを選ぶことになる。
     #[tokio::test]
@@ -3039,7 +3042,7 @@ mod tests {
         );
     }
 
-    /// 畳み待ち（`Stopping`）を「走っていない」と数えないこと。
+    /// 止め終わり待ち（`Stopping`）を「走っていない」と数えないこと。
     ///
     /// 数えると `close` が待たずに `registry.shutdown` へ進み、**`stop` を
     /// 送っている最中にプロセスが消える**。チャンネル閉塞が
@@ -3056,7 +3059,7 @@ mod tests {
 
         assert!(
             !runner.searches_idle(),
-            "畳み待ちの探索を「走っていない」と数えた"
+            "止め終わり待ちの探索を「走っていない」と数えた"
         );
     }
 
@@ -3164,10 +3167,10 @@ mod tests {
                 runner.players[Side::Black.index()].activity,
                 Activity::Stopping { restart: true, .. }
             ),
-            "始め直す印が立っていない"
+            "始め直すフラグ（`restart`）が立っていない"
         );
 
-        // 既に畳み待ちなら印を立てるだけ
+        // 既に止め終わり待ちならフラグを立てるだけ
         runner.players[Side::Black.index()].activity = Activity::Stopping {
             req: 5,
             restart: false,
@@ -3202,7 +3205,7 @@ mod tests {
                 runner.players[Side::White.index()].activity,
                 Activity::Stopping { restart: false, .. }
             ),
-            "終局したのに始め直す印が立ったまま"
+            "終局したのに始め直すフラグ（`restart`）が立ったまま"
         );
     }
 
@@ -3271,14 +3274,14 @@ mod tests {
         );
     }
 
-    /// 裁定が返らないまま `RULING_TIMEOUT` を過ぎたら畳むこと（表の `(G1, E15)`）。
+    /// 裁定が返らないまま `RULING_TIMEOUT` を過ぎたら終局させること（表の `(G1, E15)`）。
     ///
     /// **利用者の中断（`Aborted`）と同じ値にしない。** 同じにすると、自分で中断を
     /// 押した回とアプリが故障した回が画面で見分けられず、理由の欄はどちらかで嘘になる。
     ///
-    /// **上限に当たった裁定を「断らずに終局」にした根拠もこの番人。**
+    /// **上限に当たった裁定を「断らずに終局」にした根拠もこの監視。**
     /// 断ると同じ `Err` を返し続けてここに落ち、`detail` は「アプリが裁定を
-    /// 返さなかった」と書く——返しているのに。その番人が働くことをここで固定する。
+    /// 返さなかった」と書く——返しているのに。その監視が働くことをここで固定する。
     #[tokio::test]
     async fn a_ruling_that_never_comes_back_ends_the_game_as_an_app_failure() {
         let (tx, _rx) = mpsc::unbounded_channel();
@@ -3326,7 +3329,7 @@ mod tests {
         assert!(events.take().is_empty(), "世代の合わない読み筋を流している");
 
         // **落とした行でも「喋る実装だ」の証拠にはなる。**
-        // ここを落とすと、`info` を出すエンジンでも沈黙の番人が二度と掛からない
+        // ここを落とすと、`info` を出すエンジンでも沈黙の監視が二度と掛からない
         assert!(
             runner.players[Side::Black.index()].has_spoken,
             "落とした `info` を、喋った証拠として数えていない"
@@ -3376,7 +3379,7 @@ mod tests {
             .await;
 
         // 送れたかは protocol が要るので見られないが、**`A0` に戻ること**は
-        // 見られる。戻らないと `close` の畳み待ちが必ず上限まで走る
+        // 見られる。戻らないと `close` の止め終わり待ちが必ず上限まで走る
         assert!(
             matches!(runner.players[Side::Black.index()].activity, Activity::Idle),
             "終局後の `bestmove` で `A0` に戻っていない"
@@ -3629,7 +3632,7 @@ done"#
       *) echo 'bestmove 7g7f ponder 3c3d' ;;
     esac"#,
                 on_ponder: "echo 'info depth 1 multipv 1 score cp 5 pv 2g2f'",
-                // 答える前に印を残す。次の局面がこの印より後なら、答えを待ってから書いている
+                // 答える前に `seen.log` へ1行残す。次の局面がこの行より後なら、答えを待ってから書いている
                 on_stop: "sleep 0.3; echo answered >> seen.log; echo 'bestmove 9i9h'",
                 ..Answers::default()
             };
@@ -3733,7 +3736,7 @@ done"#
         /// T4 — (Q3p, R7) から (Q4, R9): 外れた先読みの `stop` に答えないエンジンは、止めの上限
         /// （`SEARCH_STOP_GRACE`）の後に `StopTimedOut` で負けになり、`gameover` は書かない。
         ///
-        /// **上限を実際に待つ。** 載せ替えの番人なので `#[ignore]` にしない
+        /// **上限を実際に待つ。** 載せ替えの監視なので `#[ignore]` にしない
         #[tokio::test]
         async fn an_engine_that_ignores_stop_loses_and_gets_no_gameover() {
             let answers = Answers {
@@ -3818,7 +3821,7 @@ done"#
         async fn ending_the_game_during_a_search_writes_gameover_after_the_stop() {
             let answers = Answers {
                 on_go: "echo 'info depth 1 multipv 1 score cp 10 pv 7g7f'",
-                // 答える前に印を残す。`gameover` がこの印より後なら、答えを待ってから書いている
+                // 答える前に `seen.log` へ1行残す。`gameover` がこの行より後なら、答えを待ってから書いている
                 on_stop: "sleep 0.3; echo answered >> seen.log; echo 'bestmove 7g7f'",
                 ..Answers::default()
             };

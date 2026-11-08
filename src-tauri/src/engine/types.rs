@@ -1,4 +1,4 @@
-//! `engine` の段が共に使う型と、webview へ出す線の形。判断は持たない（`tests/layering.rs` の段 `types`）。
+//! `engine` のレイヤが共に使う型と、webview へ出す線の形。判断は持たない（`tests/layering.rs` のレイヤ `types`）。
 //!
 //! serde の欄と変種の綴りは線の名前で、TS の `rust-types.ts` が同じ綴りで読む。
 //! 片側だけ変えても型の検査では落ちず、フロントは欄を空として読む。
@@ -53,7 +53,7 @@ pub enum EngineOptionType {
 
 /// 時間切れの目印。`EngineError::Timeout` の文の先頭に置く。
 ///
-/// 先頭にあれば「遅かっただけ」と読める。起動段の失敗のうち、再試行で通るものを
+/// 先頭にあれば「遅かっただけ」と読める。起動の段階の失敗のうち、再試行で通るものを
 /// フロントが見分けられるようにする（`docs/state-transitions/failure-surfacing.md` の F-27）。
 /// 返るのはフラットな文字列なので、目印を綴りで持つしかない。
 ///
@@ -159,7 +159,7 @@ pub struct UsiOptionDef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OptionGroup {
-    /// 定跡の設定（表示側が、定跡を使うかで出し分けるための印）
+    /// 定跡の設定（表示側が、定跡を使うかで出し分けるためのフラグ）
     Book,
 }
 
@@ -274,7 +274,7 @@ pub enum StartFailureKind {
     /// 使える状態になる前に出力が終わった・書き込めなくなった。評価関数・共有ライブラリの
     /// 失敗が多い（`usiok` の前に終わったものも含む）
     ExitedEarly,
-    /// 締切までに段が終わらなかった
+    /// 締切までに段階が終わらなかった
     TimedOut,
     /// 送る前に断った値（件数・長さ・行を壊す文字。利用者の値と評価関数・定跡のパス。`setup::validate_options`）。
     /// 型の合わない値は断らずに送らない（`StartWarning::InvalidType`）
@@ -350,7 +350,7 @@ pub const LAST_OUTPUT_PREFIX: &str = " (last output: ";
 #[derive(Debug)]
 pub struct FailureDetail<R> {
     pub reason: R,
-    /// エンジンが最後に出した行を1行に畳んだもの。添えるのは `protocol.rs` の `Handle::with_recent_output` だけ
+    /// エンジンが最後に出した行を1行にまとめたもの。添えるのは `protocol.rs` の `Handle::with_recent_output` だけ
     pub last_output: Option<String>,
 }
 
@@ -468,7 +468,7 @@ pub struct Evaluation {
     pub kind: EvaluationKind,
 }
 
-/// 評価値の読み方。上界・下界の印（`lowerbound` / `upperbound`）は区別しない
+/// 評価値の読み方。上界・下界のフラグ（`lowerbound` / `upperbound`）は区別しない
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EvaluationKind {
     /// `score cp`。`value` は centipawn

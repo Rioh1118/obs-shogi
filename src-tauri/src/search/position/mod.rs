@@ -1,4 +1,4 @@
-//! 局面と手順を値にする。**索引の器も、ディスクも知らない。**
+//! 局面と手順を値にする。**索引のデータ構造も、ディスクも知らない。**
 
 pub mod initial_position;
 pub mod position_apply;

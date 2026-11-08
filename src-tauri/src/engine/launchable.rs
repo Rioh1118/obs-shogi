@@ -25,7 +25,7 @@ pub enum Launchability {
     /// Unix の権限を記録しない zip（Windows で作ったものなど）を展開すると 0644 になる
     NotExecutable,
     /// macOS の隔離属性が付いたまま、利用者がまだ開くのを許可していない。
-    /// **許可済みなら属性が残っていても動く**ので、属性の有無ではなく許可の印で見る
+    /// **許可済みなら属性が残っていても動く**ので、属性の有無ではなく許可のフラグで見る
     Quarantined,
     /// 読めないので、実行ファイルかどうかも判らない（読み取り権限が無い、など）
     Unreadable,
@@ -405,7 +405,7 @@ mod tests {
         assert!(!quarantine_is_approved("zz;1;x;"));
     }
 
-    /// 属性の有無ではなく許可の印で見る。リンク越しでもリンク先の属性で判定する
+    /// 属性の有無ではなく許可のフラグで見る。リンク越しでもリンク先の属性で判定する
     #[cfg(target_os = "macos")]
     #[test]
     fn an_unapproved_quarantine_is_reported_even_through_a_symlink() {

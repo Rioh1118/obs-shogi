@@ -42,7 +42,7 @@ const GUARD: &str = "validate_under_root";
 /// - `create_ai_profile_dirs`: `ai_root` の外なので `validate_under_root` は掛からない。
 ///   名前の規則をここで書き直すと、`..` のような1つの規則を落としたときに
 ///   `ai_root` の外へ作れてしまう（`join("..")` は親へ抜け、`create_dir_all` は
-///   途中の段も黙って作る）
+///   途中のフォルダも黙って作る）
 /// - `rename_kifu_file` と `mv_kifu_file` の `ensure_same_extension`:
 ///   拡張子だけを変えると本文と形式がずれ、開けなくなるか、次の保存で棋譜が空になる
 const EXTRA_GUARDS: [(&str, &str); 5] = [
@@ -381,7 +381,7 @@ fn type_graph(files: &[(String, String)]) -> TypeGraph {
     }
 
     // **含む型もパスを運ぶ。** `GameSettings` は `PlayerSpec` を持ち、
-    // その中に `engine_path` がある。1段しか見ないと `start_game` は拾えない
+    // その中に `engine_path` がある。1階層しか見ないと `start_game` は拾えない
     loop {
         let mut grew = false;
         for (name, referenced) in &fields {

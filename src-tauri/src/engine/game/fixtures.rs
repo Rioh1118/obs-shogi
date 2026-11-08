@@ -36,7 +36,7 @@ pub(super) fn two_humans(initial_moves: Vec<&str>) -> GameSettings {
     }
 }
 
-/// `d` だけ前の時刻。番人の締切を跨がせるのに使う
+/// `d` だけ前の時刻。監視の締切を跨がせるのに使う
 pub(super) fn long_ago(d: Duration) -> Instant {
     Instant::now()
         .checked_sub(d)

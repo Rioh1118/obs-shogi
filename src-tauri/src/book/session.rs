@@ -25,7 +25,7 @@ impl fmt::Debug for BookSession {
 
 /// 開いている定跡を束ねる Tauri State。
 ///
-/// 同じ局面を複数の定跡で引き比べたい（#96）ので、1つに畳まずハンドルで並べて持つ。
+/// 同じ局面を複数の定跡で引き比べたい（#96）ので、1つにまとめずハンドルで並べて持つ。
 /// 同じパスを2回開けば別のハンドルになる。
 pub struct BookState {
     books: DashMap<BookHandle, Arc<BookSession>>,
@@ -145,7 +145,7 @@ impl BookState {
     pub(crate) fn close_all(&self) -> Vec<Arc<BookSession>> {
         // dashmap は map への参照を握ったまま remove を呼ぶと deadlock しうる
         // （dashmap 6.1.0 の DashMap::remove の doc）。キーを取り切って iter を
-        // 終わらせてから外す。1段に畳むとコマンドがアプリを固める。
+        // 終わらせてから外す。1つの式にまとめるとコマンドがアプリを固める。
         let handles: Vec<BookHandle> = self.books.iter().map(|entry| *entry.key()).collect();
         handles
             .into_iter()
@@ -286,7 +286,7 @@ mod tests {
         );
 
         // **末尾も見る。** 「操作は要らない」は `こと` で終わらないので、
-        // `error.rs` の網羅テストが使う判定はこちらの枝を通らない。
+        // `error.rs` の網羅テストが使う判定はこちらの分岐を通らない。
         // ここが崩れると、閉じ直しの案内だけが不変条件3の外に落ちる
         assert!(err.message().ends_with("要らない"), "{}", err.message());
     }

@@ -121,7 +121,7 @@ impl BookError {
 /// パスは丸ごと載る。**弾くための値ではない。**
 pub(crate) const MAX_PATH_CHARS: usize = 4096;
 
-/// エラーやログに載せるパスを打ち切る。切れていることが分かるように印を付ける。
+/// エラーやログに載せるパスを打ち切る。切れていることが分かるように省略記号を付ける。
 pub(crate) fn truncate_path(raw: &str) -> String {
     visible_and_truncated(raw, MAX_PATH_CHARS)
 }
@@ -297,11 +297,11 @@ mod tests {
     /// **どの種別も「次に何をすればよいか」で終わること。**
     ///
     /// **経路ごとに散らさない。** 復帰操作を見る assert を呼び出し経路の側に置くと、
-    /// どの経路も通らない枝がそのまま素通りする。
+    /// どの経路も通らない分岐がそのまま素通りする。
     ///
     /// 下の `sample` は `match` で網羅するので、**種別を足すとコンパイルが止まる。**
     /// 作った実物の `code()` が求めた種別と一致することも見る ——
-    /// 一致を見ないと、環境によって別の枝へ落ちた失敗を数えたことになる
+    /// 一致を見ないと、環境によって別の分岐へ落ちた失敗を数えたことになる
     /// （固定パスを使うと、そのファイルが在るかどうかで結果が変わる）。
     #[test]
     fn every_code_ends_with_something_the_user_can_do() {
@@ -379,8 +379,8 @@ mod tests {
             BookErrorCode::InvalidHandle => {
                 // **両方の復帰を通す。** 引くときは「開き直すこと」、
                 // 閉じるときは「操作は要らない」で、`ends_with_an_action` の
-                // 2つの枝はこの2つに1対1で結び付く。片方しか作らないと、
-                // もう片方の枝は判定を緩めただけで誰も通らない
+                // 2つの分岐はこの2つに1対1で結び付く。片方しか作らないと、
+                // もう片方の分岐は判定を緩めただけで誰も通らない
                 let state = BookState::new();
                 let closing = err_of(state.close(1));
                 assert!(
@@ -390,7 +390,7 @@ mod tests {
                 );
                 assert!(
                     closing.message().ends_with("要らない"),
-                    "`要らない` の枝を通っていない: {}",
+                    "`要らない` の分岐を通っていない: {}",
                     closing.message()
                 );
                 err_of(state.get(1))
@@ -398,7 +398,7 @@ mod tests {
             // 実物を作る経路がここに無いもの。理由を1つずつ書く
             BookErrorCode::PermissionDenied => {
                 // 権限を落としたファイルを作ると root で走らせたときに通ってしまう。
-                // `from_io` の枝は `an_io_error_ends_with_something_the_user_can_do` が見る
+                // `from_io` の分岐は `an_io_error_ends_with_something_the_user_can_do` が見る
                 return None;
             }
             BookErrorCode::TooLarge => {
@@ -413,7 +413,7 @@ mod tests {
                 err_of(open_reader(&path, BookFormat::YaneuraouDb))
             }
             BookErrorCode::Io => {
-                // `from_io` の枝は `an_io_error_ends_with_something_the_user_can_do` が
+                // `from_io` の分岐は `an_io_error_ends_with_something_the_user_can_do` が
                 // 3つの `ErrorKind` で見る
                 return None;
             }
