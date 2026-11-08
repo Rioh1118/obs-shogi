@@ -419,12 +419,13 @@ gate_kinds_for_path() {
   case "$path" in
     design-system/*) kinds="$kinds ds" ;;
   esac
-  # 用語集は製品の `screenVocabulary.test.ts` が読むので ts にも当たる。ds だけにすると、
-  # 語を1つ足しただけのコミットでその検査が走らない。
+  # デザインシステムの正本の文書は製品の vitest も読むので ts にも当たる。用語集は
+  # `screenVocabulary.test.ts` が、文書の語は `designSystemWording.test.ts` が読む。
+  # ds だけにすると、語を1つ足しただけのコミットでその検査が走らない。
   # （製品が読む値の生成物 `dist/scss/_tokens.scss` は、拡張子で既に ts に当たる。
   # トークンを変えれば生成物も同じコミットで変わり、`ds:check` が更新漏れを止める）
   case "$path" in
-    design-system/design_system/content/glossary.md) kinds="$kinds ts" ;;
+    design-system/design_system/*|design-system/SKILL.md) kinds="$kinds ts" ;;
   esac
 
   printf '%s' "${kinds# }"

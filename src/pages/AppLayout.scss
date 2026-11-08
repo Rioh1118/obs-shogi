@@ -5,8 +5,6 @@
   --sidebar-w: clamp(26rem, 20vw, 44rem);
   --dock-h: clamp(22rem, 28vh, 42rem);
   --stroke: rgba(255, 255, 255, 0.06);
-  --card: rgba(255, 255, 255, 0.04);
-  --card-strong: rgba(255, 255, 255, 0.06);
 
   height: 100%;
   width: 100%;
@@ -16,7 +14,9 @@
   display: grid;
   grid-template-rows: var(--header-h) 1fr;
 
-  background-color: index.$color-primary-light;
+  // ペインは全部この1色で、境目は線で引く。サーフェスの色で塗り分けない
+  // （`design-system/design_system/principles.md` の原則7）
+  background-color: index.$color-primary-dark;
   color: index.$color-text-light-1;
 
   &__body {
@@ -70,14 +70,12 @@
   min-height: 0;
   min-width: 0;
 
-  --gutter: 1.2rem;
   --surface-max: 1200px;
   --gap: 0.9rem;
   --kifu-w: clamp(32rem, 26vw, 44rem);
 
   --workspace-max: calc(var(--surface-max) + var(--kifu-w) + var(--gap));
 
-  padding: var(--gutter);
   display: grid;
   min-height: 0;
 
@@ -87,9 +85,6 @@
     min-height: 0;
     margin: 0 auto;
 
-    background: var(--card);
-    border: 1px solid var(--stroke);
-    border-radius: 1.4rem;
     overflow: hidden;
 
     display: grid;
@@ -118,6 +113,8 @@
     gap: 0rem;
     padding: 1.1rem 1.1rem 0.9rem;
     border-right: 1px solid var(--stroke);
+    // 盤と駒台の周りだけを半段沈める。素材が立つ場所を示す色の段はここだけ
+    background: index.$color-stage;
   }
 
   &__controls {
@@ -140,8 +137,6 @@
     overflow: hidden;
     padding: 1.1rem;
 
-    background: rgba(255, 255, 255, 0.02);
-
     .kifu {
       width: 100%;
       min-width: 0;
@@ -157,7 +152,7 @@
 
     overflow: hidden;
     padding: index.$space-3;
-    background: var(--card-strong);
+    border-top: 1px solid var(--stroke);
   }
 }
 

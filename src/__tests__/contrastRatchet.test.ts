@@ -44,7 +44,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに背景の側を直すこと。
  */
-const MEASURED_COUNT = 157;
+const MEASURED_COUNT = 158;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
@@ -64,7 +64,7 @@ const MEASURED_COUNT = 157;
  * それ以外で増やさない。背景が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 340;
+const UNMEASURED_COUNT = 339;
 
 /**
  * 透明の背景で銅の枠線と文字を持つ部品。**自分では背景を持たないので、載る先を渡さないと測れない。**

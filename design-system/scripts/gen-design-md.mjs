@@ -129,7 +129,7 @@ ${colorRows.join('\n')}
 
 ## Elevation & Depth
 
-ペイン（サイドバー・棋譜・ヘッダ・ドック）は \`background-default\` の1色にし、境目は線で引く。色で塗り分けない。盤と駒台の周りだけ \`background-stage\` で半段沈める。\`background-canvas\` は選ばれた行の濃淡、\`background-sunken\` は暗いカードと入力の沈みにだけ使う。面は影で浮かせない（panel・control の影は無し）。影はポップオーバーとメニュー（overlay）だけ。
+ペイン（サイドバー・棋譜・ヘッダ・ドック）は \`background-default\` の1色にし、境目は線で引く。色で塗り分けない。盤と駒台の周りだけ \`background-stage\` で半段沈める。\`background-canvas\` は選ばれた行の濃淡、\`background-sunken\` は暗いカードと入力の沈みにだけ使う。サーフェスは影で浮かせない（panel・control の影は無し）。影はポップオーバーとメニュー（overlay）だけ。
 
 ## Shapes
 

@@ -2,6 +2,12 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に倣い、版は semver（上げ方は CLAUDE.md）。
 
+## [0.2.2] - 2026-11-08
+
+### 変更（文書のみ）
+- 比喩の「面」を「サーフェス」に替えた（製品の語。UI の土台はサーフェス）。「止める口」を「中止の操作」に替えた。製品の `designSystemWording.test.ts` が止める
+- principles.md・patterns・トークンの説明の語をそろえた。値は変えていない
+
 ## [0.2.1] - 2026-11-08
 
 ### 変更（見た目が全体で変わる）

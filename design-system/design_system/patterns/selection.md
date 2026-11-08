@@ -15,7 +15,7 @@
 ## 仕組み
 
 - **左の銅の縦棒で見せる。** 棒は独立した要素で描く（影で引くと角丸に沿って曲がる）。色は `color.accent.default`、角は `radius.pill`
-- 背景は面の濃淡（`color.background.canvas` の段）で添える
+- 背景はサーフェスの濃淡（`color.background.canvas` の段）で添える
 - **白透明の背景を選択に使わない**（利用者「白透明はダサい」、2026-10-31）
 - 選ばれた行の文字は `font.weight.strong`
 - 行の角丸は `radius.row`
