@@ -17,7 +17,7 @@ export type StudyPositionState = (typeof STUDY_POSITION_STATES)[number]["value"]
 /**
  * 状態から画面に出す語を引く。
  *
- * `??` の先は `find` の戻り値を畳むためのもの。知らない綴りのファイルは
+ * `??` の先は `find` の戻り値を寄せるためのもの。知らない綴りのファイルは
  * `load_study_positions` が parse で断るので、ここへ来ない。
  */
 export function studyPositionStateLabel(state: StudyPositionState): string {

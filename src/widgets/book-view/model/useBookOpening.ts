@@ -6,8 +6,8 @@ import { pickBookFile } from "@/shared/api/picker/pickBookFile";
 /**
  * 定跡を開く操作を返す。操作列と空の画面の両方が使うので、ここに1つ置く。
  *
- * 最近開いた定跡に控えるのは、開けたパスだけ。開けなかったものを並べると、
- * 押すたびに同じ失敗が出る一覧ができる。中止した定跡も、`openBook` が `null` を返すので控えない。
+ * 最近開いた定跡の一覧に載せるのは、開けたパスだけ。開けなかったものを並べると、
+ * 押すたびに同じ失敗が出る一覧ができる。中止した定跡も、`openBook` が `null` を返すので載せない。
  */
 export function useBookOpening() {
   const { openBook, reportError } = useBook();
@@ -19,7 +19,7 @@ export function useBookOpening() {
       const opened = await openBook(path);
       if (!opened.success || opened.data === null) return;
 
-      void setDisplayConfig({ book_recent_paths: rememberBook(recents, path) }); // async-result-ignored: 控えを書き損ねても開いた定跡は使える。出す場所も無い
+      void setDisplayConfig({ book_recent_paths: rememberBook(recents, path) }); // async-result-ignored: 一覧を書き損ねても開いた定跡は使える。出す場所も無い
     },
     [openBook, setDisplayConfig, recents],
   );

@@ -5,7 +5,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import HandHeader from "../HandHeader";
 
 /**
- * 駒台の見出し。側の印と対局者名。
+ * 駒台の見出し。側の記号と対局者名。
  *
  * 長い名前は15字に収め、全体は `title` で読めるようにする。
  * 収め損ねると駒台の幅を押し広げ、盤の位置がずれる。

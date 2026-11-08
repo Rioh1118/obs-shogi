@@ -1,5 +1,5 @@
 /**
- * 更新の段。遷移は `docs/state-transitions/updater.md` が持つ。
+ * 更新の状態。遷移は `docs/state-transitions/updater.md` が持つ。
  *
  * `installing` と `ready` は、ディスク上のアプリが入れ替わったかで分ける。
  * plugin は取得が終わった時点で完了の合図を送り、署名の検証も入替もその後に走る。

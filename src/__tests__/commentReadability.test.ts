@@ -23,6 +23,9 @@ import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
  * 緑のときは一覧が出ないので、`/tidy-code` の棚卸しはこの出力から範囲の行を拾う。
  */
 
+/** `LITERAL_ONLY_TERMS` の塊の数。下げる方だけに動かす */
+const LITERAL_ONLY_BASELINE = { 段: 53, 面: 2, 枠: 14, 印: 1, 台帳: 38, 札: 27 };
+
 const BASELINE = {
   docStartsWithEmphasis: 245,
   manyEmphases: 760,
@@ -48,10 +51,26 @@ const ISSUE_NUMBER = /(?<![\w/#&])#\d{2,4}\b/;
 const EMPHASIS = /\*\*[^*]+?\*\*/g;
 
 /**
- * 関数、経路、判定の代わりに使われていた比喩の1文字の語。指すものが塊ごとに違うので読めない。
+ * 関数、経路、判定、タスクの代わりに使われていた比喩の1文字の語。指すものが塊ごとに違うので読めない。
  * 同じ字を含む一般の語を巻き込まないよう、前の1字で除く
  */
-const METAPHOR = /(?<![入窓出人閉手利糸河火]|切り)口|(?<![専部名入])門/;
+const METAPHOR =
+  /(?<![入窓出人閉手利糸河火]|切り)口|(?<![専部名入])門|(?<![甲地貝卵籾]|抜け)殻|畳(?!み込)|番人|受け皿|(?<!差し)控え(?!め)|窓(?!口)|枝|(?<!\p{Script=Han})器(?![用量])/u;
+
+/**
+ * 字義どおりの使い方だけを残した語。比喩としては使わない（2026-11 に全部置き換えた）。
+ * 将棋の段、描いた枠、画面の印、`EngineRegistry` の台帳、`Ticket` の札が残るので禁止にはできず、
+ * 塊の数で止める。増えたら、比喩として足していないかを見る。足していたら、指している実物の語で書く
+ * （モジュールの層はレイヤ、通知の重さは tier、UI の土台はサーフェス。`CONTEXT.md`）
+ */
+const LITERAL_ONLY_TERMS = {
+  段: /(?<![手階普値格算特別])段(?![落階位取々違])/,
+  面: /(?<![画局盤場表側全前背方当対正反一文紙両断多平誌書字譜真最片])面(?![倒白積談子])/,
+  枠: /(?<!ウィンドウ)枠(?!線)/,
+  印: /(?<![目矢刻調])印(?![刷象字])/,
+  台帳: /(?<!与件)台帳/,
+  札: /札/,
+} as const;
 
 /**
  * コメントから減らしていく語。いまは数が多くて一度に替えられないので、件数のラチェットで止めて
@@ -103,7 +122,7 @@ function retiredTermsIn(markdown: string): string[] {
     }
     const cell = column >= 0 ? cells[column] : undefined;
     if (!cell || cell === "—" || /^-+$/.test(cell)) continue;
-    // 1つの欄に語を「、」で並べられる。「（画面で）」の印は語ごとに付くので、欄ごとに捨てない
+    // 1つの欄に語を「、」で並べられる。「（画面で）」の注記は語ごとに付くので、欄ごとに捨てない
     for (const term of cell.split("、").map((t) => t.trim())) {
       if (term && !term.includes("（画面で）")) terms.add(term);
     }
@@ -125,6 +144,9 @@ function scan(terms: string[]) {
     retiredTerm: [] as string[],
     shrinkingTerm: [] as string[],
     metaphor: [] as string[],
+    literalOnly: Object.fromEntries(
+      Object.keys(LITERAL_ONLY_TERMS).map((term) => [term, [] as string[]]),
+    ) as Record<keyof typeof LITERAL_ONLY_TERMS, string[]>,
   };
   let files = 0;
   let blocks = 0;
@@ -151,6 +173,11 @@ function scan(terms: string[]) {
         }
         if (hasShrinkingTerm(block.text)) found.shrinkingTerm.push(report(name, block));
         if (METAPHOR.test(block.text)) found.metaphor.push(report(name, block));
+        for (const [term, pattern] of Object.entries(LITERAL_ONLY_TERMS)) {
+          if (pattern.test(block.text)) {
+            found.literalOnly[term as keyof typeof LITERAL_ONLY_TERMS].push(report(name, block));
+          }
+        }
       }
     }
   }
@@ -158,7 +185,7 @@ function scan(terms: string[]) {
 }
 
 describe("走査の部品", () => {
-  it("行コメントの塊を、印ごとに分けて読む", () => {
+  it("行コメントの塊を、コメント記号ごとに分けて読む", () => {
     const source = ["/// 要約", "/// 続き", "// 実装の説明", "let a = 1; // 行末"].join("\n");
     expect(commentBlocks(source)).toEqual([
       { line: 1, doc: true, text: "要約\n続き" },
@@ -166,7 +193,7 @@ describe("走査の部品", () => {
     ]);
   });
 
-  it("ブロックコメントの印を落として読む", () => {
+  it("ブロックコメントの記号を落として読む", () => {
     const source = ["const a = 1;", "/**", " * 要約", " *", " * 詳細", " */", "/* 実装 */"];
     expect(commentBlocks(source.join("\n"))).toEqual([
       { line: 2, doc: true, text: "要約\n\n詳細" },
@@ -200,10 +227,40 @@ describe("走査の部品", () => {
   });
 
   it("比喩の語だけを拾い、同じ字を含む一般の語を巻き込まない", () => {
-    for (const text of ["席を取る口", "開き口", "関門", "門番", "着手の門"]) {
+    for (const text of [
+      "席を取る口",
+      "開き口",
+      "関門",
+      "門番",
+      "着手の門",
+      "殻へ頼む",
+      "コマンドの殻",
+      "通知を畳む",
+      "時計の番人",
+      "panic の受け皿",
+      "候補手の控え",
+      "競合の窓",
+      "match の枝",
+      "親の器",
+    ]) {
       expect(METAPHOR.test(text), text).toBe(true);
     }
-    for (const text of ["コマンドの入口", "窓口", "出口", "切り口", "専門", "部門"]) {
+    for (const text of [
+      "コマンドの入口",
+      "窓口",
+      "出口",
+      "切り口",
+      "専門",
+      "部門",
+      "地殻",
+      "甲殻類",
+      "抜け殻",
+      "畳み込む",
+      "控えめ",
+      "再生器",
+      "入力機器",
+      "容器の量",
+    ]) {
       expect(METAPHOR.test(text), text).toBe(false);
     }
   });
@@ -255,6 +312,17 @@ describe("コメントを第三者が読める", () => {
   it("比喩の語を書かない", () => {
     expect(found.metaphor, "関数、経路、検査、判定のうち指している実物の語で書く").toEqual([]);
   });
+
+  it.each(Object.keys(LITERAL_ONLY_TERMS) as (keyof typeof LITERAL_ONLY_TERMS)[])(
+    "字義どおりにだけ使う語「%s」の塊が基準を超えない",
+    (term) => {
+      const hits = found.literalOnly[term];
+      expect(
+        hits.length,
+        `比喩として使っていないかを見る。使っていたら指している実物の語で書く\n${hits.join("\n")}`,
+      ).toBeLessThanOrEqual(LITERAL_ONLY_BASELINE[term]);
+    },
+  );
 
   it.each([
     ["docStartsWithEmphasis", "説明は要約から書く。強調で始めない"],

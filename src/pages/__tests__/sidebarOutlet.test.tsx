@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
  * `panel/*` のルートはサイドバーの中に描かれる。
  *
  * ルート表（`AppRouter`）と描画位置（`.sidebar`）の間に `AppLayout` が挟まっていて、
- * **どちらのファイルを読んでも繋がりが見えない。** `Outlet` を消したり別の枠へ
+ * **どちらのファイルを読んでも繋がりが見えない。** `Outlet` を消したり別の要素へ
  * 移したりしても、型でもレンダでも落ちない——サイドバーが空になるだけで、
  * 例外もエラー表示も出ない。ここで場所ごと固定する。
  */
@@ -20,7 +20,7 @@ vi.mock("@/entities/game", () => ({
   }),
 }));
 
-// 盤・棋譜・解析・モーダルはこの検査の対象外。枠だけ残す
+// 盤・棋譜・解析・モーダルはこの検査の対象外。レイアウトだけ残す
 const empty = { default: () => null };
 vi.mock("@/pages/AppModalLayer", () => empty);
 vi.mock("@/pages/WelcomeScreen", () => empty);

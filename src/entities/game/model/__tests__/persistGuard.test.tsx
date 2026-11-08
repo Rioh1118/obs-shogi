@@ -115,7 +115,7 @@ describe("保存先の検査", () => {
   });
 
   // 失敗したらメモリを戻す（ADR-0004 決定7）。戻さないと、候補列が1つ減った状態に
-  // 同じ添字で再試行が当たって別の枝が消える
+  // 同じ添字で再試行が当たって別の変化が消える
   it("書き込みに失敗したら、置き換える前の棋譜へ戻す", async () => {
     const written: { path: string; jkf: JKFData }[] = [];
     let game!: ReturnType<typeof useGame>;
@@ -181,7 +181,7 @@ describe("保存先の検査", () => {
   });
 
   // reducer.ts が巻き戻しの理由として名指ししている経路。戻さないと、候補列が
-  // 1つ減った状態に同じ添字で再試行が当たって別の枝が消える。
+  // 1つ減った状態に同じ添字で再試行が当たって別の変化が消える。
   it("分岐の削除に失敗したら、消える前の棋譜へ戻す", async () => {
     const written: { path: string; jkf: JKFData }[] = [];
     let game!: ReturnType<typeof useGame>;

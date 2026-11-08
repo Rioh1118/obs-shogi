@@ -1,14 +1,14 @@
 @use "@/index.scss" as index;
 
-// 面と枠は持たない。**器はドックのカード**で、ビューを増やしても同じ枠に載る
+// 背景と枠線は持たない。**コンテナはドックのカード**で、ビューを増やしても同じカードに載る
 .analysis-pane {
   width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
 
-  // **段の数を固定しない。** 評価値バーは既定で出ないので、`grid-template-rows` を
-  // 3段で書くと子が2つの回に本体が `auto` の段へ落ち、脚注が伸びる段を取る
+  // **行の数を固定しない。** 評価値バーは既定で出ないので、`grid-template-rows` を
+  // 3行で書くと子が2つの回に本体が `auto` の行へ落ち、脚注が伸びる行を取る
   display: flex;
   flex-direction: column;
 

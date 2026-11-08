@@ -8,14 +8,14 @@ import type { DockViewBindings } from "../model/bindings";
 import "./Dock.scss";
 
 /**
- * ドック。タブの器で、中身は知らない。
+ * ドック。タブのコンテナで、中身は知らない。
  *
- * 面を1枚足すときに触る場所は `docs/spec/screens/app-layout.md` の「ドック」の表が持つ。
+ * ビューを1つ足すときに触る場所は `docs/spec/screens/app-layout.md` の「ドック」の表が持つ。
  * `AppLayout.tsx` も、このファイルも動かない。
  *
  * - どのタブを出すかは設定（`AppConfig.dock_tabs`）
  * - どのタブを見ているかは URL（`dock=`）。リロードで戻る
- * - 選んだタブは設定にも控える（起動時に「前回のもの」を開くため）
+ * - 選んだタブは設定にも書き込む（起動時に「前回のもの」を開くため）
  *
  * 決定は ADR-0010、遷移は `docs/state-transitions/dock-tabs.md`。
  */
@@ -63,14 +63,14 @@ function Dock({ views }: { views: DockViewBindings }) {
     // タブの往復を巻き戻す
     updateParams({ dock: key }, { replace: true });
 
-    // 控えを書き損ねても、いま見ている面は URL が決める。外れるのは次の起動で
+    // 設定への書き込みに失敗しても、いま見ているビューは URL が決める。外れるのは次の起動で
     // 「前回のもの」を開いたときの行き先だけ
     void setDisplayConfig({ dock_last_tab: key }); // async-result-ignored: 出す場所が無く、失敗しても表示は動かない
   };
 
   return (
     <section className="dock">
-      {/* タブ列は器のもの。**ビューの境界の外**に置くので、ビューが落ちても残る */}
+      {/* タブ列はドックのもの。**ビューの境界の外**に置くので、ビューが落ちても残る */}
       <div className="dock__tabs" role="tablist" aria-label="ドック" onKeyDown={handleTabKeyDown}>
         {tabs.map((key) => (
           <button
@@ -91,13 +91,13 @@ function Dock({ views }: { views: DockViewBindings }) {
 
       {/*
         **操作列も境界の中に入れる。** 外に出すと、操作列が描画で落ちた回に
-        ここの境界が受けず、1つ外（作業画面）まで畳まれる —— ヘッダもサイドバーも
+        ここの境界が受けず、1つ外（作業画面）まで unmount される —— ヘッダもサイドバーも
         盤も棋譜一覧も消える。壊れたビューの操作列だけが残っても押す先が無いので、
-        畳む範囲としてもこちらが正しい。
+        unmount する範囲としてもこちらが正しい。
       */}
       <AppErrorBoundary
         label={binding.boundary}
-        // タブ列は残るので、落ちた面から別の面へ移れる。移れば鍵が動いて畳みが解ける
+        // タブ列は残るので、落ちたビューから別のビューへ移れる。移れば鍵が動いてフォールバックが解ける
         resetKeys={[active]}
         fallback={(view) => <ErrorFallbackBody {...view} hint={binding.fallbackHint} />}
       >

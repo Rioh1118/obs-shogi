@@ -53,7 +53,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
     return presetVersionRef.current.get(id) ?? 0;
   }, [state.selectedPresetId, versionEpoch]);
 
-  // 読んだ（か直前に書いた）ファイルの印。保存に渡し、別の書き手の変更を Rust が見分ける
+  // 読んだ（か直前に書いた）ファイルの版。保存に渡し、別の書き手の変更を Rust が見分ける
   const revisionRef = useRef<string | null>(null);
   // 書けるか。決めるのは読み込みだけなので、読み込みの経路でだけ書き換える
   // （`state.writable` と同じ値。書く関数を state に依存させないために ref で持つ）
@@ -61,7 +61,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
   // 最後に読んだか書けた一覧。次の一覧はここから組む。`state.presets` を掴んでから
   // `await` を挟むと、先に書けた変更を知らない一覧で上書きする（先の変更が黙って消える）
   const presetsRef = useRef<EnginePreset[]>([]);
-  // 読み書きを1本ずつ通す列。同時に2本書くと、2本目が1本目の前の印を持って書き、
+  // 読み書きを1本ずつ通す列。同時に2本書くと、2本目が1本目の前の版を持って書き、
   // 自分の変更どうしが `conflict` になる
   const [enqueue] = useState(createSerialQueue);
   // 列の中で走る処理（`reload` / `deletePreset`）が、組んだ時点ではなく走った時点の選択を読む
@@ -175,7 +175,7 @@ export function EnginePresetsProvider({ children }: { children: ReactNode }) {
         }
 
         const selectedId = chooseInitialSelectedId(presets);
-        // 既定の1件を書いたら印が進んでいる。読んだ時の印へ戻すと、次の保存が `conflict` で断られる
+        // 既定の1件を書いたら版が進んでいる。読んだ時の版へ戻すと、次の保存が `conflict` で断られる
         adopt({ ...loaded, revision: revisionRef.current }, presets, selectedId, saveFailure);
 
         if ((config?.last_preset_id ?? null) !== selectedId) {

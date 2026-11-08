@@ -249,13 +249,13 @@ describe("チャンクの合流", () => {
   });
 
   /**
-   * 溜めたまま畳まれたら、起こし手ごと消える。
+   * 溜めたまま unmount されたら、起こし手ごと消える。
    *
    * 「例外が出ないこと」では見張れない。外れた reducer への dispatch は
    * React が黙って捨てるので、タイマが残っていても通ってしまう。
    * 残っていないことを直接数える
    */
-  test("畳まれたら溜め場ごと捨てる", async () => {
+  test("unmount されたら溜め場ごと捨てる", async () => {
     await act(async () => {
       render(
         <PositionSearchProvider rootDir={null}>
@@ -272,8 +272,8 @@ describe("チャンクの合流", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  /** 畳んだ後に届いたチャンクが、消えた溜め場へ積んでタイマを張り直さないこと */
-  test("畳んだ後に届いたチャンクは積まない", async () => {
+  /** unmount した後に届いたチャンクが、消えた溜め場へ積んでタイマを張り直さないこと */
+  test("unmount した後に届いたチャンクは積まない", async () => {
     await act(async () => {
       render(
         <PositionSearchProvider rootDir={null}>

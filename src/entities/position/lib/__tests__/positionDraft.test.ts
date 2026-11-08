@@ -413,13 +413,13 @@ describe("cycleFrom", () => {
   });
 
   test("整数でない巡目は受け付けない", () => {
-    // 畳む式は負値しか畳めない。残ると kind も color も持たない値が返る
+    // 寄せる式は負値しか寄せられない。残ると kind も color も持たない値が返る
     for (const cyc of [1.5, NaN, Infinity]) {
       expect(() => cycleFrom("FU", Color.Black, { kind: "FU", color: Color.Black, cyc })).toThrow();
     }
   });
 
-  test("負の巡目は畳んで受け付ける", () => {
+  test("負の巡目は寄せて受け付ける", () => {
     expect(cycleFrom("FU", Color.Black, { kind: "FU", color: Color.Black, cyc: -1 })).toEqual({
       kind: "FU",
       color: Color.White,
@@ -649,7 +649,7 @@ describe("emptyHand", () => {
     expect(Object.values(hand).every((n) => n === 0)).toBe(true);
   });
 
-  test("呼ぶたびに別の器を返す", () => {
+  test("呼ぶたびに別のオブジェクトを返す", () => {
     const a = emptyHand();
     a.FU = 3;
     expect(emptyHand().FU).toBe(0);

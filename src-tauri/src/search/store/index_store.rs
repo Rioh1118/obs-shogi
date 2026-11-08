@@ -5,9 +5,9 @@
 //! | ファイル | 何を持つか | 何で変わるか |
 //! | --- | --- | --- |
 //! | [`snapshot`](super::snapshot) | 索引の値と、次の値を作る純関数 | 索引に何が入るか |
-//! | [`snapshot_cell`](super::snapshot_cell) | 差し替えの器。中身を知らない | 並行性の都合 |
+//! | [`snapshot_cell`](super::snapshot_cell) | 差し替えのラッパー。中身を知らない | 並行性の都合 |
 //!
-//! **`IndexStore` は器の `replace` を出さない。** 段を捨てる関数は
+//! **`IndexStore` はラッパーの `replace` を出さない。** 状態を捨てる関数は
 //! [`IndexStore::restart`] だけで、そこは [`Restart`] の2つに絞ってある。
 //!
 //! **絞りきってはいない。** `IndexSnapshot` の欄は4つとも `pub` なので、
@@ -22,7 +22,7 @@
 //! **`pub(in crate::search)` に絞っても塞がらない** —— `update` を呼べる場所は
 //! どのみち `crate::search` の中。
 //!
-//! **遷移の規則を持つ場所は無い。** どの段からどの段へ動いてよいかは
+//! **遷移の規則を持つ場所は無い。** どの状態からどの状態へ動いてよいかは
 //! 呼び手（`search/commands.rs` / `build.rs` / `project_manager.rs`）に散っている。
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -65,12 +65,12 @@ impl IndexStore {
         (s.epoch == epoch).then_some(s)
     }
 
-    /// **中身を捨てて作り直しに入る。** 段は捨ててよい2つに限る。
+    /// **中身を捨てて作り直しに入る。** 状態は捨ててよい2つに限る。
     /// **置いた代を返す。** 呼び手はそれを持ち回り、以後の書き込みに使う。
     ///
     /// 返さずに `snapshot().epoch` で拾わせると、
     /// **`restart` と拾うまでの間に別の `open` が入ったとき他人の代を掴む。**
-    /// その窓は狭くない —— `open_project` は間で全走査を回す。
+    /// その区間は狭くない —— `open_project` は間で全走査を回す。
     pub fn restart(&self, at: Restart) -> u64 {
         let epoch = self.take_epoch();
         self.cell.replace(IndexSnapshot::restarting(at, epoch));
@@ -97,7 +97,7 @@ impl IndexStore {
 
     /// キャッシュから読み戻した中身を丸ごと置く。
     ///
-    /// **段は `Updating` に決め打つ。** `Ready` を先に出すと
+    /// **状態は `Updating` に決め打つ。** `Ready` を先に出すと
     /// `stale = false` の結果が古い索引を見る（理由は `search/commands.rs` の
     /// `open_project`）。
     ///
@@ -132,7 +132,7 @@ mod tests {
 
     /// **作り直しに入ると、いま持っている索引が捨てられる。**
     ///
-    /// 捨てているのは `IndexStore::restart` の側なので、器を通して見る。
+    /// 捨てているのは `IndexStore::restart` の側なので、ラッパーを通して見る。
     #[test]
     fn restarting_the_store_throws_the_current_index_away() {
         let k = key_of(0x6600_0000_0000_0001);
@@ -189,7 +189,7 @@ mod tests {
         assert!(third > second, "install_restored で代が上がっていない");
     }
 
-    /// **段や中身を触っても代は動かない。**
+    /// **状態や中身を触っても代は動かない。**
     #[test]
     fn an_ordinary_update_keeps_the_epoch() {
         let k = key_of(0x8800_0000_0000_0001);
@@ -205,7 +205,7 @@ mod tests {
 
     /// **復元した索引は `Updating` を名乗る。**
     ///
-    /// 段を選ばせないのは、`Ready` を先に出すと `stale = false` の結果が
+    /// 状態を選ばせないのは、`Ready` を先に出すと `stale = false` の結果が
     /// 古い索引を見るため（`search/commands.rs` の `open_project`）。
     #[test]
     fn an_installed_restore_says_it_is_still_updating() {

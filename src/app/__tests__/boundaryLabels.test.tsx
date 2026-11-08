@@ -5,12 +5,12 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router";
 
 /**
- * 更新の知らせの境界と作業画面の境界が、自分の名乗りで畳み、作業画面は移ったら畳みを解くこと。
+ * 更新の知らせの境界と作業画面の境界が、自分の名乗りで unmount し、作業画面は移ったらリセットすること。
  *
- * 名乗りを取り違えても型も描画も通る。畳まれた範囲を利用者もログも取り違える。
- * 作業画面の境界は `location.key` で畳みを解くので、`?modal=` のように
+ * 名乗りを取り違えても型も描画も通る。unmount された範囲を利用者もログも取り違える。
+ * 作業画面の境界は `location.key` でリセットするので、`?modal=` のように
  * `pathname` が変わらない遷移でも解ける。`pathname` で見ると、それらの遷移では
- * 畳んだまま残る。
+ * unmount したまま残る。
  */
 
 vi.mock("@tauri-apps/api/window", async (importOriginal) => {
@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe("境界の名乗り", () => {
-  test("更新の知らせが落ちたら、更新の知らせとして畳む", () => {
+  test("更新の知らせが落ちたら、更新の知らせとして unmount する", () => {
     throwing.updater = true;
     render(<App />);
 
@@ -101,7 +101,7 @@ describe("境界の名乗り", () => {
 });
 
 describe("作業画面の境界", () => {
-  // 境界の外から動かす。畳まれた側の部品は描き終えていないので、そこで取った `navigate` は効かない
+  // 境界の外から動かす。unmount された側の部品は描き終えていないので、そこで取った `navigate` は効かない
   let navigate: ReturnType<typeof useNavigate> = () => {};
   function Navigator() {
     navigate = useNavigate();
@@ -113,7 +113,7 @@ describe("作業画面の境界", () => {
     return <div>pane</div>;
   }
 
-  test("pathname が変わらない遷移でも、移ったら畳みを解く", () => {
+  test("pathname が変わらない遷移でも、移ったらリセットする", () => {
     throwing.pane = true;
     render(
       <MemoryRouter initialEntries={["/app"]}>

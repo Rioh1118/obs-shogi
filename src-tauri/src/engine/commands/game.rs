@@ -30,7 +30,7 @@ use crate::engine::game::types::{GameId, GameSettings, GameSnapshot, Side};
 /// **購読は呼ぶ前に張ること。** 最初の `TurnChanged` と最初の `go` は
 /// この関数が返る前に走るので、`Ok` を待ってから張ると必ず取りこぼす。
 /// 評価関数の読み込みが重いエンジンではここで数十秒かかる。
-/// **待たせる長さは `START_TIMEOUT` で決まる**（跨いだ段のぶんは少し超える）。
+/// **待たせる長さは `START_TIMEOUT` で決まる**（跨いだ段階のぶんは少し超える）。
 /// 取り消す経路は無いので、それまでは返らない。
 #[tauri::command]
 pub async fn start_game(
@@ -62,13 +62,13 @@ pub async fn start_game(
 /// 「チャンネル名は `game` にある」を根拠に、宛先ごとの分岐を状態機械へ書き始める。
 const GAME_EVENT: &str = "game-event";
 
-/// `game-event` へ流す宛先。**実装はここ（上の段）に置く。**
+/// `game-event` へ流す宛先。**実装はここ（上のレイヤ）に置く。**
 ///
 /// `game` 側に置くと、対局の状態機械が `tauri` を知ることになる。
 /// トレイト（`GameEventSink`）は下が決め、それに合わせるのは上、という向き。
 struct TauriEvents {
     app: tauri::AppHandle,
-    /// 送信失敗を記録する枠。**1つで足りる。**
+    /// 送信失敗のログを絞る throttle。**1つで足りる。**
     ///
     /// **届かないことは、ここからは観測できない。** `emit` が返す `Err` は
     /// 直列化の失敗と webview への eval の失敗だけで、**購読者がゼロなら成功して返る**
@@ -76,10 +76,10 @@ struct TauriEvents {
     /// `GameEvent` が運ぶのは文字列と整数だけなので、直列化はまず失敗しない。
     ///
     /// つまりここに残るのは「起きたら全件起きる」種類の失敗で、
-    /// **種別ごとに分けても分かれない**。枠は1つでよい。
+    /// **種別ごとに分けても分かれない**。throttle は1つでよい。
     ///
     /// **対局が止まった理由は `finish` が書く。** 届かなかったせいで裁定が
-    /// 返らなかった場合も、終局の1行に `RulingTimeout` と理由が残る（→ 台帳の F-19）。
+    /// 返らなかった場合も、終局の1行に `RulingTimeout` と理由が残る（→ `failure-surfacing.md` の F-19）。
     emit_warn: Mutex<LogThrottle>,
 }
 
@@ -95,7 +95,7 @@ impl GameEventSink for TauriEvents {
         };
 
         // 立て直しに要るのは「どの局が終わったことになっているか」なので、
-        // 絞らず、段も上げて出す。1局に1回しか通らない
+        // 絞らず、レベルも上げて出す。1局に1回しか通らない
         if terminal {
             log::error!(
                 target: "obs_shogi::engine::game",
@@ -121,52 +121,52 @@ impl GameEventSink for TauriEvents {
 /// 1秒あれば、案内（`closeGame` の doc）より短い間隔で呼び直す実装の連打も潰せる。
 const REJECTION_WARN_INTERVAL: Duration = Duration::from_secs(1);
 
-/// 対局ごとの枠を持てる `(操作, 対局)` の組の数。
+/// 対局ごとの throttle を持てる `(操作, 対局)` の組の数。
 ///
-/// **1間隔に出る行数の上限はここだけで決まる。** 枠は1間隔に1行しか通さず、
-/// 落とせるのは「最後に通したのがその窓より前」の枠だけなので、
-/// 落として作り直した枠の通過は落とされた枠の通過と**排他**——
-/// 出る行は最悪で「枠の数 ＋ 操作の数」に収まる。
+/// **1間隔に出る行数の上限はここだけで決まる。** throttle は1間隔に1行しか通さず、
+/// 落とせるのは「最後に通したのがその間隔より前」の throttle だけなので、
+/// 落として作り直した throttle の通過は落とされた throttle の通過と**排他**——
+/// 出る行は最悪で「throttle の数 ＋ 操作の数」に収まる。
 ///
-/// **枠を増やすほど連打が通る。** ログの予算（`LOG_FILE_BUDGET`）から
+/// **throttle を増やすほど連打が通る。** ログの予算（`LOG_FILE_BUDGET`）から
 /// 逆算した値で、`the_log_keeps_a_minimum_of_history_under_rejections` が式で縛る。
 const MAX_TRACKED_GAMES: usize = 24;
 
-/// 断りの絞り。**2段で持つ。**
+/// 断りの絞り。**対局ごとと操作ごとの2層で持つ。**
 ///
 /// **対局まで鍵に入れる。** `op` だけで割ると、断られ続けている対局が
 /// **他の対局の断りを食う**——A局の裁定が毎回断られている裏で B局が1回
 /// 断られても、その1行はどこにも残らない。B局は `RULING_TIMEOUT` で
 /// `rulingTimeout` になり、ログにその `game_id` が一度も出ない。
 ///
-/// **溢れたぶんは操作ごとの枠へ落とす。** `game_id` は webView から来る
+/// **溢れたぶんは操作ごとの throttle へ落とす。** `game_id` は webView から来る
 /// 無検証の文字列なので、知らない ID を撃ち続ければ組はいくらでも増える。
 /// 溢れたときに写像を捨てる形にすると**絞りが1件も掛からなくなる**——
-/// `LogThrottle` は新しい枠の先頭を通すので、捨てた直後の1件が毎回
+/// `LogThrottle` は新しい throttle の先頭を通すので、捨てた直後の1件が毎回
 /// 通り、呼び出しと同じ頻度でログが書かれる。落とす先を用意すれば、
 /// 知らない ID の連打は操作ごとに1秒1行へ収まる。
 ///
-/// **長い ID は最初から操作ごとの枠へ。** 鍵に入れると、その文字列は
+/// **長い ID は最初から操作ごとの throttle へ。** 鍵に入れると、その文字列は
 /// プロセスが終わるまで解放されない（`GameId::is_safe_to_retain`）。
 ///
-/// **満杯になったら、空いた枠から落とす。** 落とす経路が無いと、知らない ID を
+/// **満杯になったら、開いた throttle から落とす。** 落とす経路が無いと、知らない ID を
 /// `MAX_TRACKED_GAMES` 回撃つだけで——対局を1つも開かずに数十ミリ秒で済む——
-/// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの枠に落ちる。
-/// 空いた枠（`LogThrottle::is_open`）は何も覚えていないので、落としても
+/// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの throttle に落ちる。
+/// 開いた throttle（`LogThrottle::is_open`）は何も覚えていないので、落としても
 /// 失われる情報が無い。
 ///
-/// **落とせる枠が無ければ操作ごとの枠へ。** 連打の最中は枠がどれも新しいので
-/// 誰も落とせず、その間だけ知らない ID と同じ扱いになる。枠が空く
-/// （`REJECTION_WARN_INTERVAL`）と自分の枠を取り戻す。
+/// **落とせる throttle が無ければ操作ごとの throttle へ。** 連打の最中は throttle がどれも新しいので
+/// 誰も落とせず、その間だけ知らない ID と同じ扱いになる。throttle が開く
+/// （`REJECTION_WARN_INTERVAL`）と自分の throttle を取り戻す。
 ///
-/// **行数の上限を別に持たない。** 枠の数がそのまま上限になるので、
-/// 「1間隔に何行まで」を重ねても一度も当たらない枝が増えるだけ。
+/// **行数の上限を別に持たない。** throttle の数がそのまま上限になるので、
+/// 「1間隔に何行まで」を重ねても一度も当たらない分岐が増えるだけ。
 #[derive(Default)]
 struct RejectionThrottles {
     per_game: HashMap<(&'static str, GameId), LogThrottle>,
     per_op: HashMap<&'static str, LogThrottle>,
-    /// 枠の長さ。**テストから縮められるようにしておく**——
-    /// 「枠が空けば取り戻せる」は時間が経たないと見えない
+    /// throttle の間隔。**テストから縮められるようにしておく**——
+    /// 「throttle が開けば取り戻せる」は時間が経たないと見えない
     interval: Option<Duration>,
 }
 
@@ -224,7 +224,7 @@ fn rejection_throttles() -> &'static Mutex<RejectionThrottles> {
 /// **同じ ID が1行に2回載る**ことがあるし、欄も増減する。
 ///
 /// **`op` は Tauri コマンドの関数名と同じ綴りにすること。** ログを
-/// `submit_game_move rejected game=…` で引ける前提が台帳（F-28）にある。
+/// `submit_game_move rejected game=…` で引ける前提が `failure-surfacing.md`（F-28）にある。
 /// 綴りが割れると、断りが残ったか確かめる人が「1行も残っていない」と読む。
 fn rejection_line(op: &str, game_id: &GameId, error: &str) -> String {
     format!("{op} rejected game={game_id}: {error}")
@@ -234,9 +234,9 @@ fn rejection_line(op: &str, game_id: &GameId, error: &str) -> String {
 ///
 /// 断り文句は `Err` でフロントへ返るが、**受けた側が捨てると記録がどこにも残らない**。
 /// 裁定（`continue_game` / `end_game_by_rule`）を断ると次の手番が始まらず、
-/// `RULING_TIMEOUT` を過ぎると「アプリが裁定を返さなかった」で畳まれる。
+/// `RULING_TIMEOUT` を過ぎると「アプリが裁定を返さなかった」で終局する。
 /// 断った事実がログに無いと、**呼ばなかったのか断られたのかが区別できない**
-/// （→ 台帳の F-28）。
+/// （→ `failure-surfacing.md` の F-28）。
 ///
 /// **絞る。** 断り方のうち `the game is busy` は呼び直しを案内してあり
 /// （`closeGame` の doc）、その busy 判定はミリ秒で返る。案内は間隔を空けろと
@@ -246,11 +246,11 @@ fn rejection_line(op: &str, game_id: &GameId, error: &str) -> String {
 ///
 /// つまりここが守るのは**案内に従わない実装から**であって、従う実装からではない。
 ///
-/// 静かなときの1件は残る（`LogThrottle` は枠の先頭を通す。例外は起動直後だけ）。
+/// 静かなときの1件は残る（`LogThrottle` は作った直後の1件を通す。例外は起動直後だけ）。
 ///
-/// **拾えないもの**: 連打の中で理由が変わったこと。枠が満杯で、どれも
+/// **拾えないもの**: 連打の中で理由が変わったこと。`per_game` が満杯で、どれも
 /// まだ空いていない間に来た新しい対局の断り。**続かない**——
-/// `REJECTION_WARN_INTERVAL` で枠が空く。
+/// `REJECTION_WARN_INTERVAL` で throttle が開く。
 fn log_rejection<T>(
     op: &'static str,
     game_id: &GameId,
@@ -345,7 +345,7 @@ pub async fn abort_game(state: tauri::State<'_, AppState>, game_id: GameId) -> R
 ///
 /// **後始末が要るのは `busy` のときだけ。** 断り方の分類は `GameManager::close`。
 ///
-/// 中断が `CLOSE_ABORT_TIMEOUT` を超えた場合は `Err` にならない（畳めなくても
+/// 中断が `CLOSE_ABORT_TIMEOUT` を超えた場合は `Err` にならない（中断できなくても
 /// 落としにいく）。→ `docs/state-transitions/failure-surfacing.md` の F-24。
 #[tauri::command]
 pub async fn close_game(state: tauri::State<'_, AppState>, game_id: GameId) -> Result<(), String> {
@@ -395,7 +395,7 @@ mod tests {
         GameId::new(value.to_string())
     }
 
-    /// 枠の長さを縮めた絞り。「空けば取り戻せる」は時間が経たないと見えない
+    /// 間隔を縮めた throttle。「空けば取り戻せる」は時間が経たないと見えない
     fn quick() -> RejectionThrottles {
         RejectionThrottles {
             interval: Some(Duration::from_millis(20)),
@@ -434,7 +434,7 @@ mod tests {
 
     /// `log_rejection` に渡している `op` を、**このファイルから拾う**。
     ///
-    /// 手で書くと、呼び出しを1つ足したときに数え直されない。`per_op` の枠は
+    /// 手で書くと、呼び出しを1つ足したときに数え直されない。`per_op` の throttle は
     /// この数だけ上乗せされるので、上限の式に直に効く。
     ///
     /// **綴りも返す。** 1行の長さは `op` の長さで変わるので、
@@ -464,8 +464,8 @@ mod tests {
 
     /// 断りが出続けても、ログが**一定の時間ぶん**は残ること。
     ///
-    /// **縛るのは実際に出る最悪値。** 枠は1間隔に1行しか通さないので、
-    /// 出る行は「枠の数 ＋ 操作の数」で頭打ちになる。ここを別の数
+    /// **縛るのは実際に出る最悪値。** throttle は1間隔に1行しか通さないので、
+    /// 出る行は「throttle の数 ＋ 操作の数」で頭打ちになる。ここを別の数
     /// （到達しない背押さえなど）で縛ると、**一次の上限を動かした人に
     /// 数え直させられない**。
     ///
@@ -480,7 +480,7 @@ mod tests {
         /// 断りが出続けても、これだけの時間ぶんは残ってほしい。
         ///
         /// 壊れた対局を見た人がログを開くまでの猶予。**これ以上は伸ばせない**
-        /// ——枠を減らすと、同時に追える対局が減る。
+        /// ——throttle を減らすと、同時に追える対局が減る。
         const MIN_HISTORY: Duration = Duration::from_secs(30);
 
         let ops = rejection_ops();
@@ -489,12 +489,12 @@ mod tests {
             "`log_rejection` のコマンドを数えられていない: {ops:?}"
         );
         // **テストが使う綴りも実在するコマンドであること。** 揃っていないと、
-        // 台帳が約束した「コマンド名で grep できる」を確かめた気になれる
+        // `failure-surfacing.md` が約束した「コマンド名で grep できる」を確かめた気になれる
         for used in ["submit_game_move", "close_game"] {
             assert!(ops.contains(used), "{used} というコマンドは無い: {ops:?}");
         }
 
-        // 台帳に無い ID は文言にもう一度載るので、1行に2回出る。
+        // `GameManager` に無い ID は文言にもう一度載るので、1行に2回出る。
         // **`op` はいちばん長い綴りで組む**——長さがそのまま1行に効く
         let game_id = worst_game_id();
         let worst = rejection_line(
@@ -516,9 +516,9 @@ mod tests {
         );
     }
 
-    /// 枠が実際に満杯まで埋まること。
+    /// `per_game` が実際に満杯まで埋まること。
     ///
-    /// **満杯にならないと、空いた枠を落とす枝がどのテストからも踏めない。**
+    /// **満杯にならないと、開いた throttle を落とす分岐がどのテストからも踏めない。**
     #[test]
     fn the_frames_actually_fill_up() {
         let mut throttles = quick();
@@ -527,18 +527,18 @@ mod tests {
         assert_eq!(
             throttles.per_game.len(),
             MAX_TRACKED_GAMES,
-            "枠が満杯まで埋まっていない。空いた枠を落とす枝が踏めない"
+            "`per_game` が満杯まで埋まっていない。開いた throttle を落とす分岐が踏めない"
         );
     }
 
-    /// 連打が**続いて**も、1間隔に通る行数が「枠の数 ＋ 操作の数」を超えないこと。
+    /// 連打が**続いて**も、1間隔に通る行数が「throttle の数 ＋ 操作の数」を超えないこと。
     ///
-    /// 枠ごとの絞りは「同じ鍵が続けて通らない」しか言わない。鍵が毎回違えば
-    /// 新しい枠が次々にできるので、**枠の数がそのまま1間隔の行数になる**。
-    /// 枠の数がログの予算に見合っていることは
+    /// throttle ごとの絞りは「同じ鍵が続けて通らない」しか言わない。鍵が毎回違えば
+    /// 新しい throttle が次々にできるので、**throttle の数がそのまま1間隔の行数になる**。
+    /// throttle の数がログの予算に見合っていることは
     /// `the_log_keeps_a_minimum_of_history_under_rejections` が縛る。
     ///
-    /// **窓の数で割って見る。** 遅いマシンでは窓が余分に開くぶん通る行が増えるが、
+    /// **間隔の数で割って見る。** 遅いマシンでは間隔が余分に過ぎるぶん通る行が増えるが、
     /// その増え方も式に入っているので、遅さで落ちることはない。
     #[test]
     fn a_sustained_flood_stays_within_the_log_budget() {
@@ -553,7 +553,7 @@ mod tests {
         }
 
         let windows = started.elapsed().as_secs_f64() / REJECTION_WARN_INTERVAL.as_secs_f64();
-        // 上限は枠の数。操作は1つしか使っていないので `per_op` は1枠
+        // 上限は throttle の数。操作は1つしか使っていないので `per_op` は1つ
         let per_window = MAX_TRACKED_GAMES as f64 + 1.0;
         let budget = per_window * (windows + 1.0);
         assert!(
@@ -562,14 +562,14 @@ mod tests {
         );
     }
 
-    /// 知らない ID の連打で枠が満杯になっても、**枠が空けば取り戻せる**こと。
+    /// 知らない ID の連打で `per_game` が満杯になっても、**throttle が開けば取り戻せる**こと。
     ///
     /// 落とす経路が無いと、対局を1つも開かずに数十ミリ秒で満杯にでき、
-    /// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの枠へ
+    /// 以後**プロセスの寿命ぶん**、走っている対局の断りが全部操作ごとの throttle へ
     /// 落ちる。A局が毎秒断られている裏で B局が1回断られても、その行はどこにも
     /// 残らない——`RULING_TIMEOUT` で `rulingTimeout` になった B局を、ログから追えない。
     ///
-    /// **待つ側にしか賭けていない。** 遅いマシンでは窓も枠も余計に空くだけで、
+    /// **待つ側にしか賭けていない。** 遅いマシンでは間隔が余計に過ぎて throttle が開くだけで、
     /// 下の表明はどれも通りやすくなる。
     #[test]
     fn a_flood_does_not_lock_real_games_out_forever() {
@@ -578,10 +578,10 @@ mod tests {
 
         std::thread::sleep(Duration::from_millis(60));
 
-        // 枠が空くので、落とされたぶんも自分の枠を取り直せる
+        // throttle が開くので、落とされたぶんも自分の throttle を取り直せる
         assert!(
             throttles.allow("submit_game_move", &id("real-a")),
-            "枠が空いても取り戻せていない"
+            "throttle が開いても取り戻せていない"
         );
         assert!(
             throttles.allow("submit_game_move", &id("real-b")),
@@ -589,7 +589,7 @@ mod tests {
         );
         assert!(
             !throttles.allow("submit_game_move", &id("real-b")),
-            "自分の枠で絞れていない（まだ共有枠に落ちている）"
+            "自分の throttle で絞れていない（まだ共有の throttle に落ちている）"
         );
     }
 
@@ -609,7 +609,7 @@ mod tests {
         );
         assert!(
             !throttles.allow("submit_game_move", &id(&"y".repeat(10_000))),
-            "操作ごとの枠で絞れていない"
+            "操作ごとの throttle で絞れていない"
         );
     }
 }

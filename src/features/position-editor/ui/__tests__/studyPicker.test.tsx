@@ -7,10 +7,10 @@ import { EditorHarness } from "./harness";
 /**
  * 課題局面から種を選ぶ（状態遷移表の X6 / X8）。
  *
- * **確定ボタンは無い。行を押した瞬間に載って盤の面へ戻る。**
+ * **確定ボタンは無い。行を押した瞬間に載って盤のパネルへ戻る。**
  */
 
-// 組む面はファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
+// 組むタブはファイルを作る hook（`useFileTree`）を持つ。ここで見たいのは盤の側なので、
 // 保存先が無い状態に固定する（作成そのものは `createForm.test.tsx` が見る）
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile: vi.fn(), fileTree: null }),
@@ -49,26 +49,26 @@ const select = (row: HTMLElement) => fireEvent.click(row);
 /** 載せる（選んだ行をもう1回） */
 const confirm = (row: HTMLElement) => fireEvent.click(row, { detail: 2 });
 const boardPieces = (): number => document.querySelectorAll(".pos-editor__square .piece").length;
-// **見えているかで判定する。** 課題局面の面へ移っても盤とフォームは木に残る
-// （外すと打った入力が消える）ので、有無では面を判定できない
+// **見えているかで判定する。** 課題局面のパネルへ移っても盤とフォームは木に残る
+// （外すと打った入力が消える）ので、有無ではパネルを判定できない
 const onBoardFace = (): boolean =>
   document.querySelector(".pos-editor__main:not([hidden]) .pos-editor__board") !== null;
 
-describe("面の出入り", () => {
+describe("パネルの出入り", () => {
   test("「課題局面から」で一覧に入る", () => {
     openPicker([position()]);
     expect(onBoardFace()).toBe(false);
     expect(rows()).toHaveLength(1);
   });
 
-  test("**押した時点では種が載らない。** 面が変わるだけ", () => {
+  test("**押した時点では種が載らない。** パネルが変わるだけ", () => {
     // 載せるのを行の押下に寄せないと、捨てた直後の盤に何が残るか決まらない
     openPicker([position()]);
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
     expect(boardPieces()).toBe(40); // 平手のまま
   });
 
-  test("「戻る」で盤の面へ帰る", () => {
+  test("「戻る」で盤のパネルへ帰る", () => {
     openPicker([position()]);
     fireEvent.click(screen.getByRole("button", { name: "戻る" }));
     expect(onBoardFace()).toBe(true);
@@ -76,7 +76,7 @@ describe("面の出入り", () => {
 });
 
 describe("行を押す", () => {
-  test("1回目では載らない。2回目で載って盤の面へ戻る", () => {
+  test("1回目では載らない。2回目で載って盤のパネルへ戻る", () => {
     // **「ちょっと見たいだけ」を押下で表せること。** 1回で載ると、
     // 見るために押した利用者が組みかけを捨てる確認に当たる
     openPicker([position({ sfen: TSUME })]);
@@ -109,7 +109,7 @@ describe("行を押す", () => {
 
   test("読めない SFEN の行は盤へ戻さない", () => {
     // 黙って盤へ戻すと、種が変わっていないのに別の局面が載ったように見える。
-    // 面に留めれば、その行が選べないことが画面から読める
+    // 一覧に留めれば、その行が選べないことが画面から読める
     openPicker([position({ sfen: "これは SFEN ではない" })]);
     select(rows()[0]!);
     confirm(rows()[0]!);
@@ -144,7 +144,7 @@ describe("行を押す", () => {
 });
 
 describe("選ぶ", () => {
-  test("面に入った時点で先頭の行が選ばれている", () => {
+  test("パネルに入った時点で先頭の行が選ばれている", () => {
     openPicker([position({ sfen: TSUME }), position({ id: "sp2", sfen: HIRATE })]);
     expect(rows()[0]!.getAttribute("aria-selected")).toBe("true");
   });
@@ -169,7 +169,7 @@ describe("選ぶ", () => {
     expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
   });
 
-  test("面に入った時点で ↑↓ が効く", () => {
+  test("パネルに入った時点で ↑↓ が効く", () => {
     // 焦点を移さないと、押した「課題局面から」が消えたあと `Modal` が焦点を
     // タブへ引き戻し、一覧のハンドラが合成イベントの経路から外れる。
     // **焦点のある場所から撃つ** —— ハンドラへ直に撃つと、この形は見えない

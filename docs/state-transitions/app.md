@@ -57,7 +57,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 **`error` を立てる口**は起動時ロードと `chooseRootDir` / `setLastPresetId`
 （`entities/app-config/model/provider.tsx`）。`setRootDir`（ツリーの根のリネーム）と
 `chooseAiRoot` は**意図して立てない**。立てると、呼び手が出そうとした失敗が画面に出る前に
-ランタイムごと畳まれるので、あの2つは `settled` を降ろし、失敗は呼び手がその場に出す。
+ランタイムごと unmount されるので、あの2つは `settled` を降ろし、失敗は呼び手がその場に出す。
 **ここを `error` に変えてはいけない。**
 
 **エラーの内容は画面に出ない。** 設定が壊れていても「ようこそ画面」に戻るだけで区別がつかない。
@@ -65,7 +65,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 
 ※2 ワークスペースを変えたときに開いている棋譜がどうなるかは
 [game.md](game.md) の E15 と ※4 が持つ。取得に失敗しても、棋譜が新しい根の外なら閉じる（`game.md` の ※4）。
-**読み込み中の窓は未検証** — 取得の途中で編集が走った場合の順序は決めていない
+**読み込み中の区間は未検証** — 取得の途中で編集が走った場合の順序は決めていない
 
 ※3 `startInfiniteAnalysis` は理由ごとの断りを立ててから throw する
 （文言の一覧は [analysis.md](analysis.md) の ※15）。**その読み手が0なので画面は変わらない**
@@ -76,7 +76,7 @@ provider の入れ子（`BootstrapProviders` → `RuntimeProviders`）と gate �
 
 ※5 設定の保存やワークスペースの選び直しが落ちると、**起動後でも `error` が立つ**
 （`entities/app-config/model/provider.tsx`）。A4 / A5 でそれが起きると `RequireRootDir` が
-差し戻し、`RuntimeProviders` ごと畳まれる——解析はそこで席を返す
+差し戻し、`RuntimeProviders` ごと unmount される——解析はそこで席を返す
 → [analysis.md](analysis.md) の E13。返せなかった回は
 [failure-surfacing.md](failure-surfacing.md) F-7。差し戻しそのものは F-38
 

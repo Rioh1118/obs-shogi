@@ -50,8 +50,8 @@
 | P3   | 持ち駒を選択中   | `selectedPosition.type === "hand"`   | 同上（打てるマスの強調）     |
 | P4   | 成りを聞いている | `pendingPromotion !== null`          | 移動先のマスに成／不成の選択 |
 
-※ `Board` の中に「盤面を読み込み中...」を返す枝は在るが、**そこへは来ない。**
-`AppLayout` が同じ `view` の `hasKifu` で門番していて、`Board` が描かれた時点では
+※ `Board` の中に「盤面を読み込み中...」を返す分岐は在るが、**そこへは来ない。**
+`AppLayout` が同じ `view` の `hasKifu` で検査していて、`Board` が描かれた時点では
 `player` があり、`player` があれば `shogi` もある（`GameView` の doc）。
 `.board-loading` の CSS 規則もリポジトリに1つも無い。**盤に載せられない棋譜を開いた
 ときも、ここは通らない**——`state.jkf` が前の棋譜のまま残るので盤も前の棋譜のまま
@@ -82,7 +82,7 @@
 ### 指した手の行き先
 
 `makeMove` は棋譜（`state.jkf`）を書き換え、`GamePersistence` を通して
-**ファイルへ即書き込む**。分岐の途中で指した場合は変化として枝が増える。
+**ファイルへ即書き込む**。分岐の途中で指した場合は変化が1つ増える。
 失敗すると棋譜はメモリ上で元に戻る。
 
 ## 失敗の見せ方
@@ -98,7 +98,7 @@
 `makeMove` は `Err` を返し `state.error` にも積むが、**それを描いている場所が無い**
 （`entities/game` の `error` の読み手は0）。→ #277 ／ ADR-0004
 
-レンダ中に throw した場合は盤ペインを包む `AppErrorBoundary` が受け、**畳まれるのは
+レンダ中に throw した場合は盤ペインを包む `AppErrorBoundary` が受け、**unmount されるのは
 盤と操作列だけ**になる。棋譜一覧と検討ペインは残る。
 → [app-layout.md](app-layout.md) の「失敗の見せ方」
 

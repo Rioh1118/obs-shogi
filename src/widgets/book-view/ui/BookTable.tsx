@@ -114,7 +114,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
         </thead>
         <tbody>
           {/*
-            空でも見出しは残す。器ごと消すと、候補手が届いた瞬間に見出しが生えて
+            空でも見出しは残す。表ごと消すと、候補手が届いた瞬間に見出しが生えて
             下の行が押し下がる（`CandidateTable` と同じ理由）
           */}
           {sorted.length === 0 && (
@@ -132,7 +132,7 @@ function BookTable({ rows, sfen, baseTesuu, sort, onSort, empty }: Props) {
               <tr key={row.move.usiMove} className="book-table__row">
                 {/*
                   切れた先へ届く手段を置く。日本語1手は全角4〜6字あり、
-                  幅の足りない窓では成・不成や右・左・引が落ちる。落ちたぶんは
+                  幅の足りないウィンドウでは成・不成や右・左・引が落ちる。落ちたぶんは
                   別の手として読めてしまうので、`title` で全文を出す
                 */}
                 <td className="book-table__move" title={texts.move}>

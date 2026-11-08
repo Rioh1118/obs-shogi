@@ -15,9 +15,9 @@ type SearchSessionOptions = {
 };
 
 /**
- * 画面が開いている間、その局面の検索を1本だけ走らせ、届いた結果と段を返す。
+ * 画面が開いている間、その局面の検索を1本だけ走らせ、届いた結果と状態を返す。
  *
- * 局面が変わるか閉じると、前の検索を取り下げて結果も捨てる。畳まれたときも同じ。
+ * 局面が変わるか閉じると、前の検索を取り下げて結果も捨てる。unmount されたときも同じ。
  */
 export function useSearchSession({ queryKey, isOpen, onReset }: SearchSessionOptions) {
   const {
@@ -64,8 +64,8 @@ export function useSearchSession({ queryKey, isOpen, onReset }: SearchSessionOpt
   const discardSearch = useCallback(() => {
     launchSeqRef.current += 1;
 
-    // 捨てたら、次に描かれたときに撃ち直す。ここを呼ぶのは、閉じる枝、撃ち直しの枝、
-    // 畳みの後始末の3か所。畳みの後始末は世代を進めるだけなので、覚えている問い合わせを
+    // 捨てたら、次に描かれたときに撃ち直す。ここを呼ぶのは、閉じる分岐、撃ち直しの分岐、
+    // unmount の後始末の3か所。unmount の後始末は世代を進めるだけなので、覚えている問い合わせを
     // 残すと、張り直された effect が早期 return して飛行中の起動を降ろす者が居なくなり、
     // 画面は結果の来ない「検索中…」で固まる
     lastQueryKeyRef.current = null;

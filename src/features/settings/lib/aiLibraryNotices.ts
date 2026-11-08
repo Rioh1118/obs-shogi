@@ -3,9 +3,9 @@ import type { NotifyRequest } from "@/shared/lib/notification/types";
 /**
  * フォルダを開けなかったことの通知を作る。文面の決まりは `docs/spec/screens/settings.md`。
  *
- * 段と見せ方は ADR-0004 の F-13。次の操作が要るのに `info` に留めるのは、復帰の操作が通知の外にあるため。
+ * tier と見せ方は ADR-0004 の F-13。次の操作が要るのに `info` に留めるのは、復帰の操作が通知の外にあるため。
  * 「選択…」は常設で、「engines/ を作成」は読み直しで消えていたときに現れる。
- * 鍵にパスを混ぜるのは、別のフォルダの失敗を1枚に畳まないため。
+ * 鍵にパスを混ぜるのは、別のフォルダの失敗を1枚にまとめないため。
  */
 export function revealFailureNotice(label: string, path: string): NotifyRequest {
   return {
@@ -21,8 +21,8 @@ export function revealFailureNotice(label: string, path: string): NotifyRequest 
 /**
  * AI フォルダを作っている間に AI ルートが変わったときの結果
  *
- * 見せ方は F-13 と同じ toast だが、段と本文を結果で割る。文面の決まりは `docs/spec/screens/settings.md`。
- * 段を揃えると、6秒で消える通知の差が題の末尾の1語だけになる。
+ * 見せ方は F-13 と同じ toast だが、tier と本文を結果で割る。文面の決まりは `docs/spec/screens/settings.md`。
+ * tier を揃えると、6秒で消える通知の差が題の末尾の1語だけになる。
  */
 type StaleCreateOutcome = "created" | "name-error" | "failed";
 

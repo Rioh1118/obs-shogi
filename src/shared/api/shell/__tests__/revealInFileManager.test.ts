@@ -38,7 +38,7 @@ describe("revealInFileManager", () => {
     expect(revealed).toEqual({ success: false, error: "No such file or directory (os error 2)" });
   });
 
-  // `Error` が投げられた回でも `message` を落とさない（`e instanceof Error` の枝）
+  // `Error` が投げられた回でも `message` を落とさない（`e instanceof Error` の分岐）
   it("例外で落ちても理由が残る", async () => {
     revealItemInDir.mockRejectedValue(new Error("boom"));
 

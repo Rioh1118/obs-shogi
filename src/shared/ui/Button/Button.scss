@@ -47,9 +47,9 @@
     font-size: index.$font-aux;
   }
 
-  // 器を閉じる／作る決め手。**面の中で一番大きい押しどころ**になる場所で使う。
+  // ダイアログを閉じる／作る決め手。**ダイアログの中で一番大きい押しどころ**になる場所で使う。
   // `md` との差を高さだけにせず文字も上げるのは、大きさの違いが
-  // 面の縮尺（`zoom` を持つ画面がある）で潰れないようにするため
+  // 画面の縮尺（`zoom` を持つ画面がある）で潰れないようにするため
   &--lg {
     height: 4rem;
     padding: 0 index.$space-10;
@@ -65,8 +65,8 @@
     border-radius: index.$radius-pill;
   }
 
-  // ── 面の色 ──
-  // 確定。暗い文字を載せる面なのでホバーは明るくする（ADR-0005 決定2）
+  // ── 背景の色 ──
+  // 確定。暗い文字を載せる背景なのでホバーは明るくする（ADR-0005 決定2）
   &--primary {
     background: index.$color-commit-solid;
     border-color: index.$color-commit-solid;
@@ -78,20 +78,20 @@
     }
   }
 
-  // 次の一手。銅は印の色なので、面に敷かず枠と文字で持つ
+  // 次の一手。銅は目印の色なので、背景に敷かず枠線と文字で持つ
   &--accent {
     background: transparent;
     border-color: index.$color-secondary-dark;
     color: index.$color-accent-text;
 
-    // 面を敷くと文字の比が下がる。動かすのは枠だけ
+    // 背景を敷くと文字の比が下がる。動かすのは枠線だけ
     &:hover:not(:disabled) {
       background: transparent;
       border-color: index.$color-accent-text;
     }
   }
 
-  // danger の面は $color-danger-solid。$color-danger だと暗い文字が 4.47:1 になる
+  // danger の背景は $color-danger-solid。$color-danger だと暗い文字が 4.47:1 になる
   &--danger {
     background: index.$color-danger-solid;
     border-color: index.$color-danger-solid;

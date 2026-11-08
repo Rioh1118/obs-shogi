@@ -122,7 +122,7 @@ pub(crate) const CRATE_CSA_DECODE_ORDER: [&Encoding; 2] = [UTF_8, SHIFT_JIS];
 /// 最後の行に改行が無いと、クレートは最後の指し手を取り込まない
 /// （`terminated(move_record, line_sep)`）。全行に `'\n'` を付けるので、
 /// 元から改行で終わるファイルでは空行が1つ増えるが、`line_sep` は `is_a` で
-/// 連続を1つに畳むので読みには効かない。
+/// 連続を1つにまとめるので読みには効かない。
 ///
 /// # 落とすもの
 ///
@@ -205,7 +205,7 @@ pub(crate) fn rank_cells(line: &str) -> Option<&str> {
 /// 誤検知したときに失うものが大きすぎる。数え方の判定が外れても、
 /// この形なら余計な警告が1つ出るだけで済む。
 ///
-/// **CSA には読み残しの番人が無い。** KIF / KI2 はクレートが読み残りを
+/// **CSA には読み残しの検査が無い。** KIF / KI2 はクレートが読み残りを
 /// `ParseError::Kif` / `Ki2` にし（`parser.rs` の `stopped_at`）、何も認識できなければ
 /// `recognised_nothing` で断るが、**`parse_csa_str` はどちらも通らない** —
 /// `csa` クレートの `parse_csa` が `game_record` の残り入力を `_` で捨てて `Ok` を返す。

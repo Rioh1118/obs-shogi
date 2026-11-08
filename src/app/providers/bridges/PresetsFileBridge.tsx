@@ -11,13 +11,13 @@ import {
 } from "./presetsFileNotice";
 import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
-/** 読み込みで起きたことの取っ手。読み直すと出し直す（同じ取っ手で置き換える） */
+/** 読み込みで起きたことの `dismissKey`。読み直すと出し直す（同じ `dismissKey` で置き換える） */
 const PRESETS_LOAD_NOTICE = "presets-load-notice";
-/** 読めなかった件があることの取っ手 */
+/** 読めなかった件があることの `dismissKey` */
 const PRESETS_UNREADABLE = "presets-unreadable";
-/** 保存を断られたことの取っ手。次に保存できたら引っ込める */
+/** 保存を断られたことの `dismissKey`。次に保存できたら引っ込める */
 const PRESETS_SAVE_FAILURE = "presets-save-failure";
-/** 読み込みそのものが失敗したことの取っ手 */
+/** 読み込みそのものが失敗したことの `dismissKey` */
 const PRESETS_LOAD_FAILURE = "presets-load-failure";
 
 /** 帯の動作の綴りごとに、押したときの動作 */

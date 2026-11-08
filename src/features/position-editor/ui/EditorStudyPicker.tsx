@@ -28,9 +28,9 @@ const STATE_OPTIONS: readonly { value: StudyPositionState | ""; label: string }[
 ];
 
 /**
- * 課題局面から種を選ぶ面
+ * 課題局面から種を選ぶパネル
  *
- * **確定ボタンを置かない。行を押した瞬間に載って盤の面へ戻る。**
+ * **確定ボタンを置かない。行を押した瞬間に載って盤のパネルへ戻る。**
  * 下見（どんな局面か見るだけ）はホバーと ↑↓ が受け持つので、
  * 「選ぶ」と「決める」を2手に割る必要が無い。
  *
@@ -97,8 +97,8 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
     }
   };
 
-  // 面に入ったら焦点を移す。**移さないと ↑↓ が効かない** ——
-  // 「課題局面から」のボタンは面へ入った時点で消えるので、`Modal` が焦点を
+  // パネルに入ったら焦点を移す。**移さないと ↑↓ が効かない** ——
+  // 「課題局面から」のボタンはパネルへ入った時点で消えるので、`Modal` が焦点を
   // タブへ引き戻し、`handleKeyDown`は合成イベントの経路から外れる
   useEffect(() => {
     faceRef.current?.focus();
@@ -107,7 +107,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
   return (
     <div
       className="pos-editor__picker"
-      // 一覧に焦点が無くても ↑↓ で下見できるようにする。器の中でこの面だけが出ている
+      // 一覧に焦点が無くても ↑↓ で下見できるようにする。モーダルの中でこのパネルだけが出ている
       tabIndex={-1}
       ref={faceRef}
       onKeyDown={handleKeyDown}

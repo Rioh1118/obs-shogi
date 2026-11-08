@@ -9,11 +9,11 @@
  *
  * Rust は手数の上限でも `rule` の `over` を出す。`endGameByRule` を呼んでいなくても届く。
  *
- * 生の Tauri コマンドは載せない。`closeGame` を直に呼ぶと Rust の台帳から消えるのに
+ * 生の Tauri コマンドは載せない。`closeGame` を直に呼ぶと Rust の `GameManager` から消えるのに
  * 進行の記録が残り、`start` が断り続ける。
  *
  * 公開するのは、いま呼び手が読んでいるものだけにする（`docs/spec/features/game-play.md`）。
- * 対局の面を戻すときに、要るものを呼び手と一緒に載せる。
+ * 対局の画面を戻すときに、要るものを呼び手と一緒に載せる。
  */
 export { GameSessionProvider } from "./model/provider";
 export { useGameSession } from "./model/useGameSession";

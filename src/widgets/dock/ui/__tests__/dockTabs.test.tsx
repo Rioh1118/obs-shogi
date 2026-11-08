@@ -9,8 +9,8 @@ import type { DockViewBindings } from "@/widgets/dock/model/bindings";
  * ドックのタブ切替。表は `docs/state-transitions/dock-tabs.md`。
  *
  * ここが踏むのは D1（別のタブを選ぶ）と D2（見ているタブを一覧から外す）の行。
- * 解析そのものの遷移は `analysis.md` 側が持つ。畳まれても解析を止めないことは
- * ビューの側の検査（`analysisControlsLifetime.test.tsx`）が見る。器は解析を知らないので、
+ * 解析そのものの遷移は `analysis.md` 側が持つ。unmount されても解析を止めないことは
+ * ビューの側の検査（`analysisControlsLifetime.test.tsx`）が見る。ドックは解析を知らないので、
  * ここに置くと何も見ていない検査になる。
  *
  * 名簿は差し替える。外せないタブと外せるタブを1枚ずつ、本物の名簿に依らずに置くため。
@@ -91,7 +91,7 @@ describe("ドックのタブ", () => {
     expect(screen.getAllByRole("tab").map((el) => el.textContent)).toEqual(["定跡", "検討"]);
   });
 
-  // (Ta, D1) —— 前のビューは畳まれ、新しいビューが出る
+  // (Ta, D1) —— 前のビューは unmount され、新しいビューが出る
   test("別のタブを選ぶと、前のビューは消えて新しいビューが出る", () => {
     mount();
     expect(screen.getByTestId("analysis-body")).toBeTruthy();
@@ -161,8 +161,8 @@ describe("ドックのタブ", () => {
   });
 
   // **操作列も境界の中に居ること。** 外に居ると、ここで落ちた回はドックの境界が
-  // 受けず、1つ外（作業画面）まで畳まれる —— 盤も棋譜一覧もヘッダも消える
-  test("操作列が落ちても、畳まれるのはドックの中だけで、タブ列は残る", () => {
+  // 受けず、1つ外（作業画面）まで unmount される —— 盤も棋譜一覧もヘッダも消える
+  test("操作列が落ちても、unmount されるのはドックの中だけで、タブ列は残る", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     throwing.bookControls = true;
     mount("/app?dock=book");
@@ -193,8 +193,8 @@ describe("ドックのタブ", () => {
     expect(tab("定跡").getAttribute("aria-selected")).toBe("true");
   });
 
-  test("ビューが落ちても、タブ列は残るので別の面へ移れる", () => {
-    // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ畳む
+  test("ビューが落ちても、タブ列は残るので別のビューへ移れる", () => {
+    // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ黙らせる
     vi.spyOn(console, "error").mockImplementation(() => {});
     throwing.book = true;
     mount("/app?dock=book");

@@ -124,7 +124,7 @@ describe("createChunkBuffer", () => {
     expect(dispatched).toHaveLength(0);
   });
 
-  /** 畳んで張り直す経路（StrictMode の二重マウント）で、閉じたまま残らないこと */
+  /** unmount して張り直す経路（StrictMode の二重マウント）で、閉じたまま残らないこと */
   test("止めたあと開け直せば、また積む", () => {
     const { dispatched, buffer } = setup();
 

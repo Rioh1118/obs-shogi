@@ -313,7 +313,7 @@ describe("画面の文字列に使わない語を書かない", () => {
       '    文";',
       'x.expect("開発者の文");',
       'log::warn!("ログの文");',
-      'let c = "[build] ログの札";',
+      'let c = "[build] ログのタグ";',
       '#[cfg(test)]',
       'mod tests { const D: &str = "テストの文"; }',
     ].join("\n");

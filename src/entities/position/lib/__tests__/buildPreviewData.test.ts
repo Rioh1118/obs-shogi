@@ -39,7 +39,7 @@ describe("buildPreviewData", () => {
 });
 
 describe("buildPreviewDataFromSfen", () => {
-  test("手番と持ち駒を読み、手数は0で固定の印を付ける", () => {
+  test("手番と持ち駒を読み、手数は0で固定の nodeId を付ける", () => {
     const preview = buildPreviewDataFromSfen(SFEN_WITH_HANDS);
 
     expect(preview?.nodeId).toBe("sfen-preview");

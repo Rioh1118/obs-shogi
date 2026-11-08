@@ -31,7 +31,7 @@ export type NoticeProps = {
   title: string;
   body?: string;
   actions?: NotifyAction[];
-  /** 畳んだ件数。渡したときだけ出す。条件は `Notification.count` の doc */
+  /** まとめた件数。渡したときだけ出す。条件は `Notification.count` の doc */
   count?: number;
   /** 閉じる手段。閉じられない通知（インライン）では渡さない */
   onDismiss?: () => void;
@@ -53,7 +53,7 @@ export default function Notice({
   className,
 }: NoticeProps) {
   const Icon = ICONS[tier];
-  // **添字でなく動作そのもので覚える。** 通知は畳まれると `actions` が丸ごと
+  // **添字でなく動作そのもので覚える。** 通知はまとめられると `actions` が丸ごと
   // 差し替わるのに id は動かない（再マウントしない）ので、添字で覚えると
   // 一度も押していないボタンが busy かつ押せない状態で残る。押せなくなるのは
   // たいてい「エンジンが応答しない」ときで、唯一の復帰導線がそれになる
@@ -111,7 +111,7 @@ export default function Notice({
               <Button
                 key={at}
                 size="sm"
-                // 先頭だけを `accent` にする。段では決めない（ADR-0004 決定3）。
+                // 先頭だけを `accent` にする。tier では決めない（ADR-0004 決定3）。
                 // 2つとも `accent` にすると「エンジンを再起動」が「再試行」と同じ重さに見える
                 tone={at === 0 ? "accent" : "neutral"}
                 // 待っていることは伝えるが押せなくはしない（`invoke` が弾く）

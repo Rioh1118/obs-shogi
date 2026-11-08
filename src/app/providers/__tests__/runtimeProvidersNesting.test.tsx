@@ -4,15 +4,15 @@ import { cleanup, render } from "@testing-library/react";
 import { createContext, useContext, type ReactNode } from "react";
 
 /**
- * `RuntimeProviders` の入れ子の順と、橋がどの器の内側に載るか。
+ * `RuntimeProviders` の入れ子の順と、橋がどの provider の内側に載るか。
  *
- * 順を入れ替えても型も描画も通る。変わるのは誰が誰を読めるかで、内側の器が
+ * 順を入れ替えても型も描画も通る。変わるのは誰が誰を読めるかで、内側の provider が
  * 外側の値を読めなくなると、`use…` が投げるか、棋譜が入れ替わるたびに
- * 対局や定跡が畳まれる。`runtimeProvidersBridges.test.tsx` は載っていることだけを見て、
- * 場所は見ない。ここは器を全部差し替え、描かれたときに包んでいた器の並びで順を読む。
+ * 対局や定跡が unmount される。`runtimeProvidersBridges.test.tsx` は載っていることだけを見て、
+ * 場所は見ない。ここは provider を全部差し替え、描かれたときに包んでいた provider の並びで順を読む。
  */
 
-/** 外から順に、いま包んでいる器の名前 */
+/** 外から順に、いま包んでいる provider の名前 */
 const Layers = createContext<readonly string[]>([]);
 
 function layer(name: string) {
@@ -22,7 +22,7 @@ function layer(name: string) {
   };
 }
 
-/** 描かれたときに包んでいた器。橋は `null` を返すので DOM では探せない */
+/** 描かれたときに包んでいた provider。橋は `null` を返すので DOM では探せない */
 const placed: Record<string, readonly string[]> = {};
 
 function leaf(name: string) {
@@ -149,7 +149,7 @@ afterEach(() => {
 });
 
 describe("RuntimeProviders の入れ子", () => {
-  test("器は外からこの順に重なり、中身はいちばん内側に入る", () => {
+  test("provider は外からこの順に重なり、中身はいちばん内側に入る", () => {
     render(
       <RuntimeProviders>
         <Child />

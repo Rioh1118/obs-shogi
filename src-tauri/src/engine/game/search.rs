@@ -99,7 +99,7 @@ type PonderHitReply = oneshot::Sender<Result<(), EngineError>>;
 /// 先読みの探索が受ける `ponderhit` の頼み。1本の探索につき高々1回
 pub type PonderHitAsks = oneshot::Receiver<PonderHitReply>;
 
-/// 先読みの探索へ「当たった」と伝える取っ手。**`Search` は探索のタスクが握っているので、
+/// 先読みの探索へ「当たった」と伝えるハンドル。**`Search` は探索のタスクが握っているので、
 /// `ponderhit` はタスクに書いてもらう。** 1本の探索につき1回だけ使える（`self` を消費する）。
 pub struct PonderHit(oneshot::Sender<PonderHitReply>);
 
@@ -179,7 +179,7 @@ pub async fn run_search(request: SearchRequest, tx: mpsc::UnboundedSender<Search
         }
     };
 
-    // **黙ったエンジンの番人はここに置かない。** このタスクは起動時の値を
+    // **黙ったエンジンの監視はここに置かない。** このタスクは起動時の値を
     // 握ったまま走るので、`ponderhit` で先読みから本番へ昇格したことを
     // 観測できない。見張るのは `session.rs` の `on_tick`（判定は `stall.rs` の `stalled_turn`）で、
     // 打ち切りは `cancel` を通ってここへ届く。
@@ -247,7 +247,7 @@ async fn next_ponderhit(asks: &mut Option<PonderHitAsks>) -> PonderHitReply {
 /// 説明が付く。
 ///
 /// **`stop` の書き込みが上限を超えた（`Unreachable(EngineError::Timeout)`）は `StopTimedOut`。**
-/// stdin を読んでいないエンジンは探索中とみなし、`gameover` を書かずに畳む（`Activity::Unresponsive`）。
+/// stdin を読んでいないエンジンは探索中とみなし、`gameover` を書かずに終える（`Activity::Unresponsive`）。
 /// 検討は同じ答えを失敗と読むが、対局は「止めに答えない」と説明する。その後の書き込みは全部断られる
 /// （`fail_writes`）ので、`Failed` にして `gameover` を書きに行っても届かない
 fn outcome_after_stop(answer: StopAnswer) -> SearchOutcome {

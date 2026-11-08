@@ -7,7 +7,7 @@ import { useNotifications } from "@/shared/lib/notification/useNotifications";
 /**
  * 通知が実際に画面へ出るところまでを見る。
  *
- * 置き場と部品それぞれの検査が緑でも、器に載っていなければ通知は1件も出ない。
+ * 置き場と部品それぞれの検査が緑でも、`BootstrapProviders` に載っていなければ通知は1件も出ない。
  * 「置き場だけが在って、表示する場所が無い」状態は全ての検査が緑のまま成立するので、
  * 載っていることを別に固定する。
  */
@@ -39,7 +39,7 @@ function Failing() {
   );
 }
 
-describe("起動時の器", () => {
+describe("起動時の provider", () => {
   it("配下から出した通知が画面に出る", async () => {
     render(
       <BootstrapProviders>

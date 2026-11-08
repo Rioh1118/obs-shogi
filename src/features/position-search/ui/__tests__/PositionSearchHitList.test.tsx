@@ -108,7 +108,7 @@ describe("PositionSearchHitList", () => {
   });
 
   /**
-   * 焦点と選択が割れると、リングと面が別の行を指し、Enter で開くのは面のほうになる。
+   * 焦点と選択が割れると、リングと背景が別の行を指し、Enter で開くのは背景のほうになる。
    * 読み上げは焦点を追うので、選択していない行を読む。
    */
   test("選択している行が焦点を持つ", () => {
@@ -248,7 +248,7 @@ describe("PositionSearchHitList", () => {
       />
     );
     const { container, rerender } = render(list());
-    // 描き直しを1回挟む。行はこの描画で、前のルートからの相対パスを控えに書く
+    // 描き直しを1回挟む。行はこの描画で、前のルートからの相対パスをキャッシュに書く
     rerender(list());
     expect(container.querySelector(".pos-hit__path")?.textContent).toBe("戦型/角換わり.kif");
 

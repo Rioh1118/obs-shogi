@@ -42,7 +42,7 @@ vi.mock("@/entities/kifu/api/write", () => ({
 
 const { GamePersistenceGate } = await import("@/app/providers/gates/GamePersistenceGate");
 
-/** 3手ぶんの枠。中身は見ないので指し手は要らない（コメントで編集を作る） */
+/** 3手ぶんの空の棋譜。中身は見ないので指し手は要らない（コメントで編集を作る） */
 const opened = (): JKFData => ({ header: {}, moves: [{}, {}, {}] });
 
 /** 盤に載せられない棋譜（`game.md` の E16）。`preset: "OTHER"` で `initial.data.board` が無い */
@@ -202,7 +202,7 @@ describe("開いている棋譜の改名・移動", () => {
   });
 
   /**
-   * 畳んでよいのは同じ `jkfData` のときだけ。参照ではなく「パスが変わったか」で
+   * 載せ直しを省いてよいのは同じ `jkfData` のときだけ。参照ではなく「パスが変わったか」で
    * 判断すると、別の棋譜を開いても盤が前の棋譜のまま残る。
    */
   test("別の棋譜を開いたときは載せ直す", async () => {

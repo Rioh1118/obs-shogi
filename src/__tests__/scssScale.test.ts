@@ -172,25 +172,25 @@ describe("モーション", () => {
   });
 });
 
-describe("除外の印", () => {
-  it("印の付いた宣言は exempt に移る", () => {
+describe("免除の注記", () => {
+  it("注記の付いた宣言は exempt に移る", () => {
     const source = ".a { font-size: 1.37rem; // scale-exempt\n}";
     expect(count(source, "font-size")).toBe(0);
     expect(count(source, "exempt")).toBe(1);
   });
 
-  it("折り返した宣言では値の行に印を書いても効く", () => {
+  it("折り返した宣言では値の行に注記を書いても効く", () => {
     const source = ".a {\n  transition:\n    width 77ms ease; // scale-exempt\n}";
     expect(count(source, "exempt")).toBe(1);
   });
 
-  it("mixin の引数にも印が効く", () => {
+  it("mixin の引数にも注記が効く", () => {
     const source = ".a { @include size(1.37rem); // scale-exempt\n}";
     expect(count(source, "indirect")).toBe(0);
     expect(count(source, "exempt")).toBe(1);
   });
 
-  it("複数行の値の途中に紛れた別の宣言の印を拾わない", () => {
+  it("複数行の値の途中に紛れた別の宣言の注記を拾わない", () => {
     const source = [
       ".a {",
       "  box-shadow:",

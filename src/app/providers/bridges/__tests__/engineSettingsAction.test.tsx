@@ -97,7 +97,7 @@ const { PresetsFileBridge } = await import("../PresetsFileBridge");
 
 function settingsAction(at: number): NotifyAction {
   const request = notify.mock.calls[at][0];
-  if (request.tier === "silent") throw new Error("出さない段で呼んでいる");
+  if (request.tier === "silent") throw new Error("出さない tier（silent）で呼んでいる");
   const actions = "actions" in request ? (request.actions ?? []) : [];
   const found = actions.find((a) => a.label === "設定を開く");
   if (!found) throw new Error("「設定を開く」が無い");

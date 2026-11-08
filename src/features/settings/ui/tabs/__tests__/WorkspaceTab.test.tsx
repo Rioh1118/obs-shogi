@@ -189,7 +189,7 @@ describe("「状態」の節", () => {
     ["Restoring", "復元中"],
     ["Building", "作成中"],
     ["Updating", "更新中"],
-  ])("作業中の語は段で分かれる: %s", async (state, label) => {
+  ])("作業中の語は状態で分かれる: %s", async (state, label) => {
     world.search.index = { ...READY, state };
 
     const { container } = await renderTab();

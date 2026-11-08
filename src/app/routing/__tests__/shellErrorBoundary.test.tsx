@@ -7,9 +7,9 @@ import { MemoryRouter, Route, Routes } from "react-router";
 /**
  * `/app` の下で throw しても、ウィンドウ枠（`TitleBar`）は残る。
  *
- * 枠は自前で描いていて（`tauri.conf.json` の `decorations: false`）、
+ * ウィンドウ枠は自前で描いていて（`tauri.conf.json` の `decorations: false`）、
  * `RuntimeShell` の中に居る。境界を `TitleBar` **より上**へ動かすと、
- * 盤やペインが落ちただけで枠まで差し替わり、ウィンドウを動かせなくなる。
+ * 盤やペインが落ちただけでウィンドウ枠まで差し替わり、ウィンドウを動かせなくなる。
  * 位置そのものをここで固定する —— 上下どちらに置いても型では落ちない。
  */
 
@@ -21,7 +21,7 @@ vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({ config: { root_dir: "/ws" }, isLoading: false, error: null }),
 }));
 
-// provider の入れ子はこの検査の対象外。器だけ残す
+// provider の入れ子はこの検査の対象外。ラッパーだけ残す
 vi.mock("../../providers/RuntimeProviders", () => ({
   RuntimeProviders: ({ children }: { children: ReactNode }) => children,
 }));
@@ -33,7 +33,7 @@ function Throwing(): ReactNode {
 }
 
 beforeEach(() => {
-  // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ畳む
+  // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ止める
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -57,7 +57,7 @@ describe("RuntimeShell の境界", () => {
     expect(screen.getByText("作業画面を表示できませんでした。")).toBeTruthy();
     expect(
       container.querySelector(".titlebar"),
-      "枠まで畳むと、ウィンドウを動かすことも閉じることもできなくなる",
+      "タイトルバーまで unmount すると、ウィンドウを動かすことも閉じることもできなくなる",
     ).not.toBeNull();
   });
 });

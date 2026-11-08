@@ -235,7 +235,7 @@ describe("定跡ビューの失敗の帯", () => {
   });
 
   /** 読み書きの失敗は押し直しで直りうるが、ファイルが無いのは直らない（ADR-0004） */
-  test("帯の段は失敗の種類から決まる", () => {
+  test("帯の tier は失敗の種類から決まる", () => {
     show(rows, failed("open"));
     expect(screen.getByRole("status").textContent).toContain("open が落ちた");
     cleanup();

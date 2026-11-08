@@ -77,7 +77,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
    * 盤で決まった手を積んでよいかを返す。`moveGate` が無ければ常に積める。
    *
    * 対局中は Rust が採るまで積まない。積むと Rust の写しと食い違った指し手列で
-   * 裁定を返すことになり、断られたまま対局が畳まれる。
+   * 裁定を返すことになり、断られたまま対局が終わる。
    */
   const acceptsMove = useCallback(
     async (move: StandardMoveFormat, player: JKFPlayer): Promise<boolean> => {
@@ -89,7 +89,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
         usiMoves: lineUsiMoves(player),
       };
 
-      // 待つ前に、積む相手を控える。`moveGate` は対局中 `submit_game_move` の往復を待つので、
+      // 待つ前に、積む相手を写しておく。`moveGate` は対局中 `submit_game_move` の往復を待つので、
       // その間に別の棋譜が載りうる。気づかずに進むと、`selectSquare` が握っている
       // 1つ前の棋譜の中身を、新しく載った棋譜の宛先へ保存する
       const before = loadedJkfRef.current;
@@ -120,7 +120,7 @@ export function GameProvider({ children, persistence, moveGate }: GameProviderPr
       // 理由は `GameFileTreeBridge` が断りとして出す。
       //
       // `renameLoadedPath` はこの据え置きを崩さない。橋は載せられたときだけ `jkfData` を
-      // `loadedJkfDataRef` へ控えるので、載せられなかった棋譜の改名では撃たれない。
+      // `loadedJkfDataRef` へ写すので、載せられなかった棋譜の改名では撃たれない。
       if (persistence.absPath !== state.loadedAbsPath) {
         const msg = "保存先が切り替わったため書き込みを中止しました";
         dispatch({ type: "set_error", payload: msg });

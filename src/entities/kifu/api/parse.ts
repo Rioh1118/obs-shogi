@@ -191,7 +191,7 @@ export type KifuReadResult =
 export function readKifuText(raw: string): KifuReadResult {
   try {
     const { detectedFormat, jkf } = parseKifuStringToJKF(raw);
-    // `moves` の先頭は初期局面の枠なので手数から外す
+    // `moves` の先頭は初期局面の要素なので手数から外す
     const moves = jkf.moves.length - 1;
     if (moves <= 0) {
       return { readable: false, message: "指し手を1つも読み取れませんでした。" };

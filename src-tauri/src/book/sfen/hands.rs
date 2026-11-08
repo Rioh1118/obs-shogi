@@ -10,7 +10,7 @@ use super::counts::PieceCounts;
 
 /// 持駒になりうる駒を、キーに書く順で並べたもの。玉は持駒にならない。
 ///
-/// 同じ持駒が別の綴りで来ると別のキーになるので、この順に畳んで書き直す。
+/// 同じ持駒が別の綴りで来ると別のキーになるので、この順に正規化して書き直す。
 ///
 /// **この並びは外部仕様に従属する。** ファイル上を二分探索する reader は、
 /// ファイルに書かれた綴りとキーを直接比較するため、並びが定跡ファイルの
@@ -23,13 +23,13 @@ use super::counts::PieceCounts;
 // 書いていることまで確かめる（並び自体はここで閉じている）。
 pub(super) const HAND_PIECES: [char; 7] = ['R', 'B', 'G', 'S', 'N', 'L', 'P'];
 
-/// 持駒を検査し、`HAND_PIECES` の順（先手を先）に畳んで書き直す。
+/// 持駒を検査し、`HAND_PIECES` の順（先手を先）に正規化して書き直す。
 pub(super) fn normalize_hands(hands: &str, counts: &mut PieceCounts) -> Result<String, String> {
     if hands == "-" {
         return Ok("-".to_string());
     }
 
-    // [先手, 後手] × HAND_PIECES の枚数。書き出す順に畳むために持つ。
+    // [先手, 後手] × HAND_PIECES の枚数。書き出す順に正規化するために持つ。
     let mut hand_counts = [[0u32; HAND_PIECES.len()]; 2];
     let mut chars = hands.chars().peekable();
 

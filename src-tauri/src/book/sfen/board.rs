@@ -7,9 +7,9 @@ use std::fmt::Write;
 
 use super::counts::PieceCounts;
 
-/// 盤面を検査し、空きマスの綴りを畳んで返す。
+/// 盤面を検査し、空きマスの綴りを正規化して返す。
 ///
-/// `4k22` と `4k4` は同じ盤面なので、畳まないと同じ局面が2つのキーになる。
+/// `4k22` と `4k4` は同じ盤面なので、正規化しないと同じ局面が2つのキーになる。
 pub(super) fn normalize_board(board: &str, counts: &mut PieceCounts) -> Result<String, String> {
     let ranks: Vec<&str> = board.split('/').collect();
     if ranks.len() != 9 {

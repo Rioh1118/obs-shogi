@@ -39,7 +39,7 @@ const MAX_NODES: usize = 200_000;
 /// 使い方）ので、これが無いと自分や祖先を指す1本で同じ部分木を積み直す。
 /// 深さは `MAX_DEPTH` が止めるが、そこまでの部分木が毎回複製される。
 ///
-/// root を最初に入れておく。入れないと `ws/self -> .` が1段降りてから
+/// root を最初に入れておく。入れないと `ws/self -> .` が1階層降りてから
 /// 初めて弾かれる。
 ///
 /// **経路ごとに持ち、`&mut` で回す。** 訪問済みの集合にすると、同じ実体を指す
@@ -51,7 +51,7 @@ struct Walk<'a> {
     /// あと何ノード作ってよいか。走査全体で1つを分け合う。
     ///
     /// 0 になったところで、そのディレクトリを `truncated` にして以降の項目を積まない。
-    /// 枝ごとに持たせると、枝の数だけ上限が掛け算になって上限にならない
+    /// サブツリーごとに持たせると、サブツリーの数だけ上限が掛け算になって上限にならない
     budget: usize,
 }
 
@@ -110,9 +110,9 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
         entries.sort_by_cached_key(|entry| entry.file_name());
 
         // 予算が尽きていても `read_dir` は済んでいる。**空のディレクトリで
-        // 「以降は出ません」と出さない**ために、1つでも隠したときだけ印を立てる。
+        // 「以降は出ません」と出さない**ために、1つでも隠したときだけフラグを立てる。
         // ここを入口の条件（`budget == 0` で降りない）にすると、予算が
-        // ちょうど尽きた瞬間に降りた空のフォルダにも印が付く
+        // ちょうど尽きた瞬間に降りた空のフォルダにもフラグが立つ
         for entry in entries {
             let child_path = entry.path();
 
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(child.name, "empty");
         assert!(
             !child.truncated,
-            "隠した行が無いのに打ち切りの印が付いている"
+            "隠した行が無いのに打ち切りのフラグが立っている"
         );
 
         let _ = fs::remove_dir_all(&base);
@@ -520,8 +520,8 @@ mod tests {
         build_file_tree_recursive(&root, &mut walk).expect("走査できない")
     }
 
-    /// 深さの上限に着いたフォルダは、降りずに打ち切りの印を付ける。
-    /// 1段降りるごとに深さを数えるので、上限の1段手前から降りた子で止まる
+    /// 深さの上限に着いたフォルダは、降りずに打ち切りのフラグを立てる。
+    /// 1階層降りるごとに深さを数えるので、上限の1階層手前から降りた子で止まる
     #[test]
     fn the_depth_limit_stops_the_descent() {
         let ws = temp_dir("depth");
@@ -647,7 +647,7 @@ mod tests {
         let _ = fs::remove_dir_all(&ws);
     }
 
-    /// `walk_from` は root を辿った先に数えてから歩くので、自分を指す symlink を1段も降りない
+    /// `walk_from` は root を辿った先に数えてから歩くので、自分を指す symlink を1階層も降りない
     #[test]
     fn walking_from_the_root_skips_a_link_to_itself() {
         let ws = temp_dir("walk-self");

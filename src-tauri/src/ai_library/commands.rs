@@ -46,7 +46,7 @@ pub fn create_ai_profile_dirs(ai_root: String, name: String) -> Result<String, F
 
     // **名前の規則は写さない。** ここで書き直すと、`.` と `..` のような
     // 1つの規則を落としたときに `ai_root` の外へ作れてしまう
-    // （`join("..")` は親へ抜ける。`create_dir_all` は途中の段も黙って作る）。
+    // （`join("..")` は親へ抜ける。`create_dir_all` は途中のフォルダも黙って作る）。
     let trimmed = validate_basename(&name)?;
 
     if is_engines_dir_name(&trimmed) {
@@ -260,7 +260,7 @@ mod tests {
     }
 
     /// AI ルートが無いときは engines/ を作らずに断る。`create_dir_all` に任せると、
-    /// 消えた AI ルートを途中の段ごと作り直してしまう
+    /// 消えた AI ルートを途中のフォルダごと作り直してしまう
     #[test]
     fn engines_are_not_placed_under_a_missing_ai_root() {
         let (base, root) = temp_ai_root("ensure-missing");

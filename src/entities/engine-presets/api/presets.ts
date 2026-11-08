@@ -8,7 +8,7 @@ export async function loadPresets(): Promise<LoadedPresets> {
 }
 
 /**
- * 書く。`expectedRevision` は読み込み（か直前の保存）で受け取った印。成功したら新しい印を返す。
+ * 書く。`expectedRevision` は読み込み（か直前の保存）で受け取った版。成功したら新しい版を返す。
  * 断るときは `SaveFailure`（`asSaveFailure` で読む）
  */
 export async function savePresets(

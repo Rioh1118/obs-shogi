@@ -22,8 +22,8 @@
 | [YaneuraOu-ScriptCollection CommonLib/YaneuraOuBookLib.py][yaneuraou-scriptcollection-booklib] の `count_yaneuraou_db_positions` | **`# NOE:N` ≡ `sfen ` 行の本数。** 無ければ `sfen ` 行を数える                                                                                                                                                                                                                                |
 | `user_book1.db`（peta_shock 系。配布されている最大の無償定跡）                                                                   | **493,157,464 B / 2,252,118 局面 / 16,097,817 手 / `# NOE:` 無し。** 上限の根拠はこの実測（展開後の見積もりは `BYTES_PER_POSITION` / `BYTES_PER_MOVE` の doc を見ること。数字を2箇所に置くと片方が腐る）                                                                                      |
 | ピーク確保の実測（合成データ）                                                                                                   | **定常値ではなくピークで較正する。測る点は `HashMap` / `Vec` が拡張した直後**（鋸歯のどこに乗るかで倍近く違う）。単価は `BYTES_PER_POSITION` / `BYTES_PER_MOVE` の doc に測定表を置く。改行の無い 2 GiB の1行ファイルでピーク 4.32 GB（H8 の根拠）                                            |
-| [ShogiHome src/background/book/yaneuraou.ts][shogihome-yaneuraou]                                                                | score / depth を省くとき **`none` を書き出す**（`SCORE_NONE` / `DEPTH_NONE`）。空文字は v1.20.0 までの書き方で、「連続するスペースをまとめて読み込む」実装があるため非推奨。重複局面は minPly 側で**丸ごと置換**（こちらは指し手ごとに先勝ちで畳むので、置換の単位も勝ち方も違う）            |
-| 本家 `source/misc.cpp:1621-1645` `LineScanner::peek_text`                                                                        | **本家は連続した空白を畳む。こちらは畳まない**（`splitn`）。ずれるのは空文字で省いた v1.20.0 以前の ShogiHome 定跡だけで、そこでは書いた側の意図が「欄を空けた」なので畳まない方が合う                                                                                                        |
+| [ShogiHome src/background/book/yaneuraou.ts][shogihome-yaneuraou]                                                                | score / depth を省くとき **`none` を書き出す**（`SCORE_NONE` / `DEPTH_NONE`）。空文字は v1.20.0 までの書き方で、「連続するスペースをまとめて読み込む」実装があるため非推奨。重複局面は minPly 側で**丸ごと置換**（こちらは指し手ごとに先勝ちでまとめるので、置換の単位も勝ち方も違う）            |
+| 本家 `source/misc.cpp:1621-1645` `LineScanner::peek_text`                                                                        | **本家は連続した空白を1つにまとめる。こちらはまとめない**（`splitn`）。ずれるのは空文字で省いた v1.20.0 以前の ShogiHome 定跡だけで、そこでは書いた側の意図が「欄を空けた」なのでまとめない方が合う                                                                                                        |
 | [ShogiHome src/tests/testdata/book/yaneuraou-no-header.db][shogihome-no-header-db]                                               | **見出しの無い `.db` を「開ける」側の回帰 fixture として持っている**（`index.spec.ts` の `sources`）                                                                                                                                                                                          |
 
 ## 状態
@@ -131,7 +131,7 @@
 ファイルが `sfen_lines < 0` を通り抜けて「0局面の定跡」として成功する。
 
 **H4 は `positions.len()` と比べてはいけない。** NOE は `sfen ` 行の本数で、
-`positions` は正規化して重複を畳んだ後のキー数。畳んだ後と比べると、
+`positions` は正規化して重複をまとめた後のキー数。まとめた後と比べると、
 持駒の綴りが揺れているだけの正常な定跡が「途中で切れている。取得し直すこと」で
 拒否される（何度取得し直しても直らない案内になる）。
 
@@ -184,8 +184,8 @@
 
 - 不変条件1: E3 / E4 の S0 セルと、綴りの揺れを含む定跡が H4 で落ちないこと ✓
 - 不変条件2: E6 の S2 セル ✓（`resign` / `none` が候補手にならない）、E8 の S2 セル ✓
-- 不変条件3: `every_failure_ends_with_something_the_user_can_do` が失敗の枝を並べて
-  「次に何をすればよいかで終わる」ことをまとめて見る ✓。**枝を足したらその一覧にも足すこと**
+- 不変条件3: `every_failure_ends_with_something_the_user_can_do` が失敗の分岐を並べて
+  「次に何をすればよいかで終わる」ことをまとめて見る ✓。**分岐を足したらその一覧にも足すこと**
   （個々のテストは自分が見たい語しか assert しないので、復帰操作が消えても大半は緑のまま通る）
 - 不変条件4: H0 ✓ / H6 ✓ / H8 ✓。実物との関係はコンパイル時 assert が見るので、
   上限を実物へ近づけると `cargo test` が止まる ✓（assert は `mod tests` の中に

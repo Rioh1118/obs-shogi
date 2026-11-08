@@ -18,7 +18,7 @@ use crate::search::store::node_table::NodeTables;
 use crate::search::store::segment::Segment;
 use crate::search::types::{FileId, Occurrence};
 
-/// **中身を捨ててよい段。**
+/// **中身を捨ててよい状態。**
 ///
 /// `IndexSnapshot::restarting` が受ける。`IndexState` を素で受けない理由は
 /// そちらの doc に書いてある。
@@ -39,7 +39,7 @@ impl From<Restart> for IndexState {
     }
 }
 
-/// 索引がいまどの段にいるか。**内部の段で、画面へは出ない。**
+/// 索引がいまどの状態にいるか。**内部の状態で、画面へは出ない。**
 ///
 /// ここから利用者に届くのは `search/query_service.rs` が作る `stale` の真偽1つだけ。
 /// 画面が読むのは同名の別型（`search/types.rs` の `IndexState`）で、
@@ -66,7 +66,7 @@ pub enum IndexState {
 /// 遷移を細かく刻むとそのぶん効く。
 #[derive(Debug, Clone)]
 pub struct IndexSnapshot {
-    /// いまどの段か。書き換えるのは [`Self::with_state`]
+    /// いまどの状態か。書き換えるのは [`Self::with_state`]
     pub state: IndexState,
     /// **この索引の代。** 作り直すたびに上がる（`restarting` と `restored`）。
     ///
@@ -98,12 +98,12 @@ impl Default for IndexSnapshot {
 impl IndexSnapshot {
     /// **中身を捨てて、これから作り直す索引。**
     ///
-    /// 復元を始めるときと全件構築を始めるときに使う。中身は同じで段だけ違う。
+    /// 復元を始めるときと全件構築を始めるときに使う。中身は同じで状態だけ違う。
     ///
-    /// **段を [`Restart`] に絞ってある。** `IndexState` を素で受けると
+    /// **状態を [`Restart`] に絞ってある。** `IndexState` を素で受けると
     /// 「空にして `Ready` を名乗る」が書けてしまい、`query_service` が
     /// `stale = false` を返して**空の結果が「新鮮で正しい」として画面に並ぶ** ——
-    /// エラーもログも出ない。捨ててよい段は2つだけ。
+    /// エラーもログも出ない。捨ててよい状態は2つだけ。
     pub(super) fn restarting(at: Restart, epoch: u64) -> Self {
         Self {
             state: at.into(),
@@ -134,7 +134,7 @@ impl IndexSnapshot {
     /// 素材が昇順であることは `cache/format.rs` の `decode_all` が
     /// 桶ごとに確かめてから渡す（崩れていればキャッシュごと捨てる）。
     ///
-    /// 段は `Updating` で固定。理由は [`IndexStore::install_restored`]
+    /// 状態は `Updating` で固定。理由は [`IndexStore::install_restored`]
     /// （`store/index_store.rs`）。
     pub(super) fn restored(
         file_table: FileTable,
@@ -162,10 +162,10 @@ impl IndexSnapshot {
 
     /// 読み終えた棋譜たちを取り込んだ、次の索引。**積み増す。置き換えではない。**
     ///
-    /// **桶にはセグメントを積み増す。** その場で畳まないのは、
-    /// 取り込みが1件ずつ来るのに対して畳むのは桶の全件を舐めるため。
+    /// **桶にはセグメントを積み増す。** その場でコンパクションしないのは、
+    /// 取り込みが1件ずつ来るのに対してコンパクションは桶の全件を舐めるため。
     /// 積み増した桶だけを見て、`COMPACT_THRESHOLD`（`store/compaction.rs`）を
-    /// 超えていたら畳む。
+    /// 超えていたらコンパクションする。
     ///
     /// 状態は変えない。取り込みの最中がどの状態かは呼び手が決める。
     pub fn with_files(&self, items: Vec<FileBucketEntries>) -> Self {
@@ -209,7 +209,7 @@ impl IndexSnapshot {
     /// その棋譜を消したことにした、次の索引。
     ///
     /// **桶からは消さない。** 出現は残ったまま、検索のたびに
-    /// `is_occ_alive` で弾かれる。実際に消えるのはその桶を畳むとき。
+    /// `is_occ_alive` で弾かれる。実際に消えるのはその桶をコンパクションするとき。
     /// 節表も残す —— `file_id` は使い回さないので、消しても空きが埋まらない。
     /// **代償はある**（`docs/state-transitions/search.md` の「出現ゼロの節表」）。
     pub fn with_tombstone(&self, file_id: FileId) -> Self {
@@ -320,9 +320,9 @@ mod tests {
         );
     }
 
-    /// **しきい値を超えるまで畳まない。超えたら1本になる。**
+    /// **しきい値を超えるまでコンパクションしない。超えたら1本になる。**
     ///
-    /// 畳む条件は `> COMPACT_THRESHOLD` なので、ちょうどの本数では畳まない。
+    /// コンパクションの条件は `> COMPACT_THRESHOLD` なので、ちょうどの本数ではコンパクションしない。
     /// 境界を両側から見る。
     #[test]
     fn a_bucket_is_folded_only_after_it_passes_the_threshold() {
@@ -336,23 +336,27 @@ mod tests {
         assert_eq!(
             at.buckets[b].len(),
             COMPACT_THRESHOLD,
-            "しきい値ちょうどで畳んでいる"
+            "しきい値ちょうどでコンパクションしている"
         );
 
         let over = at.with_files(vec![one_file(COMPACT_THRESHOLD as u32 + 1, k, 0)]);
-        assert_eq!(over.buckets[b].len(), 1, "しきい値を超えても畳んでいない");
+        assert_eq!(
+            over.buckets[b].len(),
+            1,
+            "しきい値を超えてもコンパクションしていない"
+        );
 
-        // 畳んでも中身は落ちない
+        // コンパクションしても中身は落ちない
         assert_eq!(
             over.search_occurrences_by_key(k).len(),
             COMPACT_THRESHOLD + 1,
-            "畳んだときに出現が消えた"
+            "コンパクションしたときに出現が消えた"
         );
     }
 
     /// **墓標を立てても、桶と節表はそのまま残る。**
     ///
-    /// 消えるのは検索の結果だけ。桶から実際に消えるのはその桶を畳むとき
+    /// 消えるのは検索の結果だけ。桶から実際に消えるのはその桶をコンパクションするとき
     /// （`store/compaction.rs`）。節表を残すのは `docs/state-transitions/search.md`
     /// の「出現ゼロの節表」の前提になっている。
     #[test]
@@ -383,7 +387,7 @@ mod tests {
 
     /// **まとめて渡した分だけが落ち、桶と節表は残る。**
     ///
-    /// 1件ずつ渡したのと同じ結果になること。畳むと、削除の件数 × 索引の
+    /// 1件ずつ渡したのと同じ結果になること。1件ずつにすると、削除の件数 × 索引の
     /// ファイル数ぶんの複製になる（`with_tombstones` の doc）。
     #[test]
     fn tombstoning_many_at_once_matches_doing_them_one_at_a_time() {
@@ -440,7 +444,7 @@ mod tests {
         assert_eq!(got, vec![1, 2], "何も渡していないのにヒットが減っている");
     }
 
-    /// **段だけ差し替えても中身は動かない。**
+    /// **状態だけ差し替えても中身は動かない。**
     #[test]
     fn with_state_leaves_everything_else_alone() {
         let k = key_of(0x4400_0000_0000_0001);
@@ -453,10 +457,10 @@ mod tests {
         assert!(ready.node_tables.get(1).is_some());
     }
 
-    /// **作り直しの起点は空で、段は名乗ったとおり。**
+    /// **作り直しの起点は空で、状態は名乗ったとおり。**
     ///
-    /// 段を `at.into()` と書くと `From<Restart>` を両辺が通るので、
-    /// あの impl の2本の腕を入れ替えても緑になる。**具体の段で書く。**
+    /// 状態を `at.into()` と書くと `From<Restart>` を両辺が通るので、
+    /// あの impl の2本の腕を入れ替えても緑になる。**具体の状態で書く。**
     #[test]
     fn restarting_starts_from_an_empty_index() {
         let k = key_of(0x5500_0000_0000_0001);
@@ -468,7 +472,7 @@ mod tests {
             let fresh = IndexSnapshot::restarting(at, 1);
             assert!(fresh.search_occurrences_by_key(k).is_empty());
             assert!(fresh.node_tables.get(1).is_none());
-            assert_eq!(fresh.state, want, "{at:?} が別の段を名乗っている");
+            assert_eq!(fresh.state, want, "{at:?} が別の状態を名乗っている");
         }
     }
 

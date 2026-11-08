@@ -27,7 +27,7 @@ const PRESETS_FILE: &str = "engine_presets.json";
 
 /// いま書く版。
 ///
-/// **版を上げるとき**（欄の形を変えるとき）は、この定数、`upgrade` に足す1段、その段のテストを
+/// **版を上げるとき**（欄の形を変えるとき）は、この定数、`upgrade` に足す1段階、その段階のテストを
 /// 揃えて触る。古い版の原本は `engine_presets.v<元の版>.bak` に残る（`back_up_original`）。
 /// v2 の欄の形は v1 と同じ（v1 → v2 は版の欄を付けるだけ）
 pub const CURRENT_VERSION: u64 = 2;
@@ -78,7 +78,7 @@ pub struct AnalysisDefaults {
 #[serde(rename_all = "camelCase")]
 pub struct LoadedPresets {
     pub presets: Vec<EnginePreset>,
-    /// 読んだファイルの中身の印。保存に渡す（別の書き手の変更を見分ける）。ファイルが無ければ `None`
+    /// 読んだファイルの中身の revision。保存に渡す（別の書き手の変更を見分ける）。ファイルが無ければ `None`
     pub revision: Option<String>,
     pub writable: bool,
     /// 読めなかった件の数。ファイルには残してあり、保存しても消えない
@@ -161,7 +161,7 @@ pub fn save(
     save_to(&dir, presets, expected_revision)
 }
 
-/// 中身の印。**変わったかを見分けるためだけ**に使う（改ざんの検出ではない）。
+/// 中身の revision。**変わったかを見分けるためだけ**に使う（改ざんの検出ではない）。
 /// 実行をまたいで同じ値になるよう、既定のハッシャ（種が実行ごとに変わる）を使わない
 fn revision_of(bytes: &[u8]) -> String {
     // FNV-1a 64
@@ -248,7 +248,7 @@ enum Parsed {
     Broken,
 }
 
-/// 古い版の最上位を、今の版の最上位へ移す。**版を上げるときはここに1段足す。**
+/// 古い版の最上位を、今の版の最上位へ移す。**版を上げるときはここに1段階足す。**
 ///
 /// v1 → v2 は欄の形が同じなので何もしない（版の欄は [`render`] が付ける）
 fn upgrade(_from: u64, top: Map<String, Value>) -> Map<String, Value> {
@@ -469,7 +469,7 @@ pub fn load_from(dir: &Path, now: SystemTime) -> LoadedPresets {
 /// ディスクが**今の版でなければ書かない**（`ReadOnly`）。古い版は原本を残さずに上書きすることになり、
 /// 新しい版は知らない欄を落とし、壊れたファイルは移せなかった中身を失う。読めない件の生の値と
 /// 最上位の知らない欄は、読み直したファイルから持ち回る。読み直しから書くまでの間に他が書いた分は
-/// 見分けられない（ファイルの鍵は取らない）。成功したら書いた中身の印を返す。
+/// 見分けられない（ファイルの鍵は取らない）。成功したら書いた中身の revision を返す。
 pub fn save_to(
     dir: &Path,
     presets: Vec<EnginePreset>,
@@ -750,7 +750,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// ファイルが無い状態から書ける。返した印で続けて書ける
+    /// ファイルが無い状態から書ける。返した revision で続けて書ける
     #[test]
     fn a_first_save_creates_the_file_and_the_revision_chains() {
         let dir = dir("presets-fresh");
@@ -954,7 +954,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// まだ移していない古い版は、読んだ印が合っていても書かない。書くと原本を `.bak` に残さずに
+    /// まだ移していない古い版は、読んだ revision が合っていても書かない。書くと原本を `.bak` に残さずに
     /// 上書きする。原本を残せず読み取り専用で開いたとき（F1b）に、ここへ来る。保存を断るのは
     /// 画面ではなく [`save_to`]
     #[test]
@@ -988,7 +988,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// 印は実行をまたいで同じ（読み込みと保存が別の実行でも比べられる）
+    /// revision は実行をまたいで同じ（読み込みと保存が別の実行でも比べられる）
     #[test]
     fn the_revision_depends_only_on_the_bytes() {
         assert_eq!(revision_of(b"abc"), revision_of(b"abc"));
@@ -997,8 +997,8 @@ mod tests {
     }
 
     /// F3 の移し先は `engine_presets.unreadable-<秒>.json` で、既に在る名前には番号を足して避ける。
-    /// 前に移したファイルを上書きすると、そちらの中身を失う。移した後は印を持たない（元の場所に
-    /// ファイルが無いので、次の保存は印なしで新しく作る）
+    /// 前に移したファイルを上書きすると、そちらの中身を失う。移した後は revision を持たない（元の場所に
+    /// ファイルが無いので、次の保存は revision なしで新しく作る）
     #[test]
     fn a_broken_file_moves_to_a_name_that_avoids_earlier_ones() {
         let dir = dir("presets-broken-twice");
@@ -1023,7 +1023,7 @@ mod tests {
             b"second"
         );
         assert_eq!(loaded.revision, None);
-        save_to(&dir, Vec::new(), None).expect("移した後は印なしで書ける");
+        save_to(&dir, Vec::new(), None).expect("移した後は版なしで書ける");
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -1154,7 +1154,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// 読んだ後にファイルが消えていたら書かない。印が `None` に変わったのも、他の書き手の変更
+    /// 読んだ後にファイルが消えていたら書かない。revision が `None` に変わったのも、他の書き手の変更
     #[test]
     fn a_save_after_the_file_was_removed_is_refused() {
         let dir = dir("presets-removed");
@@ -1173,7 +1173,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// F3x と同じ形: 壊れたファイルは、読んだ印が合っていても書かない。書くと、移せなかった中身を失う
+    /// F3x と同じ形: 壊れたファイルは、読んだ revision が合っていても書かない。書くと、移せなかった中身を失う
     #[test]
     fn a_broken_file_is_never_overwritten() {
         let dir = dir("presets-broken-kept");

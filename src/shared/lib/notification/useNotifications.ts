@@ -6,7 +6,7 @@ import type { NotificationActions, NotificationsView } from "./types";
  * 通知を出す関数を返す。
  *
  * 返す値は mount 後に変わらないので、読んでいる部品は通知が出入りしても再描画しない。
- * `silent` の段を渡したときは何も起きない（`NotifyRequest`）。
+ * `silent` の tier を渡したときは何も起きない（`NotifyRequest`）。
  *
  * **provider の外で呼ぶと投げる。** 囲い忘れを黙った no-op にすると、失敗を出したつもりで何も出ない。
  */

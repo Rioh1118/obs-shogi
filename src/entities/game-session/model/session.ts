@@ -77,13 +77,13 @@ export function requireGameId(session: Session | null): GameId {
 /**
  * エンジンが残っている対局か。真なら次の対局を始めない。
  *
- * 始められなかった対局は数えない。Rust は起動に失敗した対局を台帳に載せないので、
+ * 始められなかった対局は数えない。Rust は起動に失敗した対局を`GameManager` に載せないので、
  * 数えると設定を直してもやり直せなくなる。
  *
  * `closeGame` が通った終局も数えない。断る理由はエンジンが起きたままなことなので、
  * 通った後まで断ると、結末が残っている間ずっと次の対局を始められない。
  *
- * `closeGame` が断られた終局は数える。`start` が畳み直す処理はまだ無く、
+ * `closeGame` が断られた終局は数える。`start` が閉じ直す処理はまだ無く、
  * `closeSession` にも本番の呼び手が無いので、いまの復帰はアプリの再起動だけ（ADR-0011 決定1）。
  */
 export function isHeld(session: Session | null): boolean {

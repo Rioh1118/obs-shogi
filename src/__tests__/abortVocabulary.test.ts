@@ -26,7 +26,7 @@ const TIMEOUT_SPELLINGS = "RULING_TIMEOUT|rulingTimeout|RulingTimeout";
  * 打ち切りが「中断」で終わると読める形。
  *
  * **句点を跨がない。** 跨ぐと、2つを**対比した**正しい文
- * （「利用者の中断とは別。〜は `RulingTimeout` で畳む」）まで赤くなる。
+ * （「利用者の中断とは別。〜は `RulingTimeout` で対局を終える」）まで赤くなる。
  * 順序も向きも固定する —— 打ち切りを名指した**後**に「中断」が来る形だけを見る。
  */
 const TIMEOUT_CALLED_ABORT = new RegExp(`(?:${TIMEOUT_SPELLINGS})[^。]{0,40}中断`);
@@ -80,8 +80,8 @@ describe("終局の語彙", () => {
       [
         "裁定の打ち切りを「中断」と呼んでいる。",
         "「中断」は利用者が中断を押したときの語で、値は `Aborted`（ADR-0011 決定1）。",
-        "打ち切りで畳まれた終局は `RulingTimeout`、画面の語は「アプリの異常」。",
-        "「`RULING_TIMEOUT` で畳まれる」のように、終わり方を言い直さずに書くこと。",
+        "打ち切りで終わった対局は `RulingTimeout`、画面の語は「アプリの異常」。",
+        "「`RULING_TIMEOUT` で終わる」のように、終わり方を言い直さずに書くこと。",
         ...offenders,
       ].join("\n"),
     ).toEqual([]);

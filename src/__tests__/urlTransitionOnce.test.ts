@@ -30,7 +30,7 @@ const SELF = "src/__tests__/urlTransitionOnce.test.ts";
 /**
  * **行頭から始まる呼び出しだけを見る。** 1行のコールバック
  * （`onClick={() => openModal(...)}`）は別々の操作なので、隣り合っていても
- * 同じ流れではない。ここで線を引かないと、ボタンが2つ並ぶ面が全部当たる。
+ * 同じ流れではない。ここで線を引かないと、ボタンが2つ並ぶ部品が全部当たる。
  */
 const CALL = new RegExp(String.raw`^[ \t]*(?:await |void )?(${MOVERS.join("|")})\s*\(`, "gm");
 

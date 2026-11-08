@@ -6,11 +6,11 @@ import { FolderOpen, FileText } from "lucide-react";
 import "./WelcomeScreen.scss";
 
 // 形式の一覧を写さない。写すと、形式を1つ足したときに増えるのが
-// 作るフォームだけになり、この面だけが古い顔ぶれを出し続ける
+// 作るフォームだけになり、この画面だけが古い顔ぶれを出し続ける
 const FORMATS = KIFU_FORMAT_OPTIONS.map((option) => `.${option.value}`);
 
 /**
- * 棋譜を開いていないときの面。
+ * 棋譜を開いていないときの画面。
  *
  * 置くのは作る側の入口だけ。開くのはツリーの操作なので、こちらは持たない。
  */
@@ -33,7 +33,7 @@ function WelcomeScreen() {
 
           <div className="welcome-screen__actions">
             {/* 保存先を渡さない。ここからは `dir=` が決まらないので、
-                組む面の保存先の欄が受け持つ */}
+                組むタブの保存先の欄が受け持つ */}
             <Button tone="accent" onClick={() => openModal("create-file")}>
               棋譜を作成
             </Button>

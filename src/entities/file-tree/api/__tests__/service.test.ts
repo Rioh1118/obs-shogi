@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { KifuCreationOptions } from "@/entities/kifu/model/kifu";
 
 /**
- * Rust のコマンド名と引数、`AsyncResult` への畳み方を、関数ごとに固定する。
+ * Rust のコマンド名と引数、`AsyncResult` への寄せ方を、関数ごとに固定する。
  *
  * コマンド名と引数の欄は Rust の `#[command]` が受ける線の名前で、綴りが変わると
  * 型検査もコンパイルも通ったまま実行時に断られる。
@@ -124,7 +124,7 @@ const CASES: Case[] = [
   },
 ];
 
-/** Tauri の reject 値のほかに、Rust を通らない例外と壊れた値も同じ `Err` へ畳む */
+/** Tauri の reject 値のほかに、Rust を通らない例外と壊れた値も同じ `Err` へ寄せる */
 const REJECTIONS: [string, unknown, { code: string; message?: string; path?: string | null }][] = [
   [
     "Rust の FsError",
@@ -155,7 +155,7 @@ describe.each(CASES)("$name", ({ run, command, args, answer, data }) => {
     args(received);
   });
 
-  test.each(REJECTIONS)("%s の断りを Err へ畳む", async (_name, rejected, expected) => {
+  test.each(REJECTIONS)("%s の断りを Err へ寄せる", async (_name, rejected, expected) => {
     invoke.mockRejectedValue(rejected);
 
     const result = await run();
@@ -177,7 +177,7 @@ describe("fetchTree", () => {
     });
   });
 
-  test.each(REJECTIONS)("%s の断りを Err へ畳む", async (_name, rejected, expected) => {
+  test.each(REJECTIONS)("%s の断りを Err へ寄せる", async (_name, rejected, expected) => {
     invoke.mockRejectedValue(rejected);
 
     expect(await service.fetchTree("/r")).toMatchObject({ success: false, error: expected });

@@ -20,7 +20,7 @@ function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
           />
         ))}
 
-      {/* 表: 見出しの段があり、下が列で揃う */}
+      {/* 表: 見出しの行があり、下が列で揃う */}
       {mode === "table" && (
         <>
           <span className="displayModePreview__cells displayModePreview__cells--head">

@@ -26,8 +26,8 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
     startCreateDirectory(targetDir);
   };
 
-  // **余分な器を挟まない。** 間隔を決めているのは `node-box__actions` の `gap` で、
-  // 直下の子が1枚だと何にも効かない（`variant="ghost"` は面も枠も透明なので、
+  // **余分なコンテナを挟まない。** 間隔を決めているのは `node-box__actions` の `gap` で、
+  // 直下の子が1枚だと何にも効かない（`variant="ghost"` は背景も枠も透明なので、
   // 接した辺は当たり判定でしか分からない）
   return (
     <>

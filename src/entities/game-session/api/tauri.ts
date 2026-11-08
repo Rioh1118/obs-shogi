@@ -12,7 +12,7 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * 対局を始め、エンジンが `usinewgame` まで応じたら解決する。
  *
  * 待つ長さの上限は Rust の `START_TIMEOUT` で、評価関数の重いエンジンでは数十秒かかる。
- * 締切は段に入る前に見るので、跨いだ段のぶんは少し超える。取り消すコマンドは無い。
+ * 締切は段階に入る前に見るので、跨いだ段階のぶんは少し超える。取り消すコマンドは無い。
  *
  * 最初の `go` は待たない。その失敗は戻り値ではなく `over { reason: engineFailure }` で届く。
  *
@@ -27,7 +27,7 @@ import type { GameId, GameSettings, GameSnapshot, Side } from "./rust-types";
  * 解決より先に走るので、解決を待ってから張ると取りこぼす。
  *
  * 解決前に届いた出来事は `gameId` で判定できないので、溜めて解決後に振り分ける。
- * 捨てると、起動段を通って最初の `go` で落ちたエンジンの `over` を失い、
+ * 捨てると、起動の段階を通って最初の `go` で落ちたエンジンの `over` を失い、
  * 終局した対局が画面に残る。
  */
 export async function startGame(settings: GameSettings): Promise<GameId> {
@@ -53,8 +53,8 @@ export const ALREADY_OVER = "game is already over";
  * - {@link ALREADY_OVER}: 呼び直しても同じ `Err`。結末は `over` が運ぶ
  * - `the clock ran out before the move landed`: 着手が届く前に持ち時間が尽きた。
  *   手は採られず、`moveDecided` の代わりに `over { reason: "timeout" }` が届く
- * - それ以外（手番が違う、その側がエンジン、指し手の書式、対局が台帳に無い）: 呼び手の誤りか、
- *   対局が畳まれている。呼び直して直るとは限らない
+ * - それ以外（手番が違う、その側がエンジン、指し手の書式、対局が `GameManager` に無い）: 呼び手の誤りか、
+ *   対局が閉じられている。呼び直して直るとは限らない
  */
 export async function submitGameMove(gameId: GameId, side: Side, usiMove: string): Promise<void> {
   return await invoke("submit_game_move", { gameId, side, usiMove });
@@ -76,7 +76,7 @@ export async function submitGameMove(gameId: GameId, side: Side, usiMove: string
  * - `not awaiting a ruling`: 裁定を待っていない
  * - `move list is not the current one` など列の検算（続きでない、末尾が直前の手でない、
  *   長さが手番と合わない）: 送った列の誤り。この断りだけ `RULING_TIMEOUT` まで裁定待ちに残る
- * - `unknown game:` と `the game is being closed`: 対局が畳まれている
+ * - `unknown game:` と `the game is being closed`: 対局が閉じられている
  */
 export async function continueGame(gameId: GameId, moves: string[]): Promise<void> {
   return await invoke("continue_game", { gameId, moves });
@@ -122,7 +122,7 @@ export async function abortGame(gameId: GameId): Promise<void> {
 }
 
 /**
- * 対局を畳む。エンジンを落とし、Rust の台帳から外す。
+ * 対局を閉じる。エンジンを落とし、Rust の `GameManager` から外す。
  *
  * 終局しただけではエンジンは落ちない（`gameover` の後に指し直せる形にしてあるため）。
  *
@@ -132,8 +132,8 @@ export async function abortGame(gameId: GameId): Promise<void> {
  *   中断は試みるが、通ったかは保証しない。呼び直さないとプロセスが残る。
  *   この断りはミリ秒で返るので、数秒の間隔を空ける。Rust が絞るのはログだけで、連打は
  *   止めない。掴んでいる操作が返らないと `busy` が続くので、諦める条件も要る
- * - `the game is being closed`: 別の呼び出しが畳んでいる最中。待つ
- * - `unknown game:`: その `gameId` は台帳に無い。何も起きていない
+ * - `the game is being closed`: 別の呼び出しが閉じている最中。待つ
+ * - `unknown game:`: その `gameId` は`GameManager` に無い。何も起きていない
  */
 export async function closeGame(gameId: GameId): Promise<void> {
   return await invoke("close_game", { gameId });
@@ -147,14 +147,14 @@ export async function closeGame(gameId: GameId): Promise<void> {
  *
  * 断りは文言で分ける（`closeGame` と同じ）。
  *
- * - `the game is being closed`: 別の呼び出しが畳んでいる最中。待って呼び直す
- * - `unknown game:`: 台帳に無い。呼び直しても同じで、結末は分からない
+ * - `the game is being closed`: 別の呼び出しが閉じている最中。待って呼び直す
+ * - `unknown game:`: `GameManager` に無い。呼び直しても同じで、結末は分からない
  */
 export async function getGameState(gameId: GameId): Promise<GameSnapshot> {
   return await invoke("get_game_state", { gameId });
 }
 
-/** Rust の台帳に載っている対局の ID を返す。畳んでいる最中のものも含む。呼び手はまだ無い */
+/** Rust の `GameManager` に載っている対局の ID を返す。閉じている最中のものも含む。呼び手はまだ無い */
 export async function listGames(): Promise<GameId[]> {
   return await invoke("list_games");
 }

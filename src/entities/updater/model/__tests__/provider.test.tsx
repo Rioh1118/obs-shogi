@@ -12,7 +12,7 @@ import type { UpdaterState } from "../types";
  *
  * **plugin を差し替えるのは、実プロセスが要る経路をここでは踏めないため。**
  * 入替そのもの（D1 → D2 / D3）はこちらから観測できないので、固定できるのは
- * 「plugin がどう振る舞ったとき、画面がどの段に居るか」まで。
+ * 「plugin がどう振る舞ったとき、画面がどの状態に居るか」まで。
  */
 
 const check = vi.fn();
@@ -109,7 +109,7 @@ function phase() {
   return screen.getByTestId("phase").textContent;
 }
 
-/** 起動時の確認が終わって段が据わるまで待つ */
+/** 起動時の確認が終わって状態が据わるまで待つ */
 async function settled(expected: string) {
   await waitFor(() => expect(phase()).toBe(expected));
 }
@@ -137,24 +137,24 @@ describe("確認", () => {
     await waitFor(() => expect(saveUpdaterState).toHaveBeenCalled());
   }
 
-  it("(S1, E3) 更新が無ければ何も描かない段へ戻る", async () => {
+  it("(S1, E3) 更新が無ければ何も描かない状態へ戻る", async () => {
     mount();
     await checkSettled();
     expect(phase()).toBe("idle");
     expect(screen.getByTestId("manual").textContent).toBe("-");
   });
 
-  it("(S1, E2) 更新があれば告知の段へ進む", async () => {
+  it("(S1, E2) 更新があれば告知の状態へ進む", async () => {
     check.mockResolvedValue(fakeUpdate("9.9.9", async () => {}));
     mount();
     await settled("available");
     expect(screen.getByTestId("detail").textContent).toBe("9.9.9");
   });
 
-  it("(S1, E5) 確認が失敗しても段は idle のままで、最後に確認できた時刻が動かない", async () => {
+  it("(S1, E5) 確認が失敗しても状態は idle のままで、最後に確認できた時刻が動かない", async () => {
     check.mockRejectedValue(new Error("つながらない"));
     mount();
-    // 失敗の枝は記憶を書かないので、通ったことは記録で待つ
+    // 失敗の分岐は記憶を書かないので、通ったことは記録で待つ
     await waitFor(() => expect(console.error).toHaveBeenCalled());
     expect(phase()).toBe("idle");
     expect(screen.getByTestId("lastChecked").textContent).toBe("-");
@@ -209,7 +209,7 @@ describe("確認", () => {
     const update = fakeUpdate("9.9.9", async () => {});
     check.mockResolvedValue(update);
     mount();
-    // **`close` で待つ。** 飛ばす枝だけがここを通るので、枝を外すと待ちが空振りする
+    // **`close` で待つ。** 飛ばす分岐だけがここを通るので、分岐を外すと待ちが空振りする
     await waitFor(() => expect(update.close).toHaveBeenCalled());
     expect(phase()).toBe("idle");
   });
@@ -303,7 +303,7 @@ describe("取得と適用", () => {
     expect(update.downloadAndInstall).toHaveBeenCalledTimes(1);
   });
 
-  it("押した直後に段が進む。最初のチャンクを待たない", async () => {
+  it("押した直後に状態が進む。最初のチャンクを待たない", async () => {
     let emitStarted!: () => void;
     const update = fakeUpdate(
       "9.9.9",
@@ -374,7 +374,7 @@ describe("進捗", () => {
 });
 
 describe("飛ばす／解除", () => {
-  it("(S2, E16) 飛ばすと永続され、段は idle へ戻る", async () => {
+  it("(S2, E16) 飛ばすと永続され、状態は idle へ戻る", async () => {
     check.mockResolvedValue(fakeUpdate("9.9.9", async () => {}));
     mount();
     await settled("available");
@@ -554,7 +554,7 @@ describe("設定からの確認", () => {
   });
 
   /**
-   * 確認と取得は、確認が先に始まれば重なる（`available` の段では確認しても
+   * 確認と取得は、確認が先に始まれば重なる（`available` の状態では確認しても
    * カードのボタンが残る）。重なったまま確認が掴み替えると、**走っている取得の
    * 相手を閉じて足元を外す。**
    */
@@ -623,7 +623,7 @@ describe("設定からの確認", () => {
     expect(check.mock.calls.length).toBe(before);
   });
 
-  it("(S2, E17) 告知の段のまま確認し、掴み直した版で取得する", async () => {
+  it("(S2, E17) 告知の状態のまま確認し、掴み直した版で取得する", async () => {
     const first = fakeUpdate("9.9.9", async () => {});
     const second = fakeUpdate("9.9.10", async () => {});
     check.mockResolvedValue(first);
@@ -647,7 +647,7 @@ describe("設定からの確認", () => {
     expect(first.downloadAndInstall).not.toHaveBeenCalled();
   });
 
-  it("(S6, E17) 失敗の段のまま確認し、更新が無ければ失敗を残す", async () => {
+  it("(S6, E17) 失敗の状態のまま確認し、更新が無ければ失敗を残す", async () => {
     check.mockResolvedValue(
       fakeUpdate("9.9.9", async () => {
         throw new Error("落ちた");

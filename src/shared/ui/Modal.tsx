@@ -45,8 +45,8 @@ function useFocusTrap(cardRef: RefObject<HTMLDivElement | null>, isTop: () => bo
     /**
      * Tab の順に並ぶ、実際に焦点を取れる要素を返す。
      *
-     * 隠れた面の中のボタンを落とす。`querySelectorAll` は `display: none` を除かないので、
-     * 隠れたボタンが折り返しの端に選ばれると、そこからの Tab は**器の外へ抜ける**。
+     * 隠れたタブの中のボタンを落とす。`querySelectorAll` は `display: none` を除かないので、
+     * 隠れたボタンが折り返しの端に選ばれると、そこからの Tab は**モーダルの外へ抜ける**。
      *
      * 見るのは `hidden` 属性で、`checkVisibility()` は使わない。
      * 実装差が大きく（happy-dom は `[hidden]` に `true` を返す）、テストから見えなくなる。
@@ -99,7 +99,7 @@ function useFocusTrap(cardRef: RefObject<HTMLDivElement | null>, isTop: () => bo
       card.removeEventListener("keydown", onKeyDown);
 
       // 開いた引き金が同じコミットで消えている経路がある（右クリックのメニューから
-      // 削除の確認へ、インライン編集が畳まれてから失敗のモーダルへ）。そのとき
+      // 削除の確認へ、インライン編集が閉じてから失敗のモーダルへ）。そのとき
       // `restoreTo` は `<body>` なので、返すとフォーカスが文書の先頭へ落ちる。
       // 返せる先が無いなら何もしない
       if (restoreTo && restoreTo !== document.body && restoreTo.isConnected) {
@@ -142,7 +142,7 @@ function Modal({
       }
     };
 
-    // バブル段で聞く。キャプチャ段だと `#modal-root` に張られた React のハンドラより先に走り、
+    // バブリングフェーズで聞く。キャプチャフェーズだと `#modal-root` に張られた React のハンドラより先に走り、
     // 中の入力が Escape を使う経路（`TagsInput` は打ちかけの文字を消す）が届く前に閉じられる。
     //
     // **内側は `preventDefault()` で降ろす。** `stopPropagation()` は `document` まで届かないので、

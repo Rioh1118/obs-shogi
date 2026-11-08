@@ -14,7 +14,7 @@ import { useGameSession, type GameId } from "@/entities/game-session";
  * `GameProvider` の内側に置くこと（`useGame` を読む）。
  *
  * 1回に1手だけ積む。積めば盤が描き直り、この効果がもう一度走る。
- * まとめて積もうとすると、`await` の間に盤が別の棋譜へ入れ替わる窓ができる。
+ * まとめて積もうとすると、`await` の間に盤が別の棋譜へ入れ替わる区間ができる。
  */
 export function GameMoveBridge() {
   const { view, reportBoardFailure } = useGameSession();
@@ -59,8 +59,8 @@ export function GameMoveBridge() {
     // 盤が対局の線の上に居るときだけ積む。
     //
     // 手数で見ない。遡って分岐を並べた盤は、同じ深さでも別の手順を辿っている。
-    // そこへ積むと、遡って見ていた枝に対局の手が生える。
-    // 手数の一致だけを条件にすると、その枝を「まだ積んでいない対局の線」と読む。
+    // そこへ積むと、遡って見ていた変化に対局の手が生える。
+    // 手数の一致だけを条件にすると、その変化を「まだ積んでいない対局の線」と読む。
     //
     // 先頭一致で見るので、**2手以上遅れた盤も追いつく**（1回の描画で1手ずつ）。
     // 等号で見ると、遡っている間に2手決まった対局からは二度と追いつけない。
@@ -83,25 +83,25 @@ export function GameMoveBridge() {
     // 同じ位置を二度出さない。
     //
     // 積めなかった `makeMove` は `jkf_restored` で盤を戻す（`entities/game` の `edit`）。
-    // 戻った盤はまた同じ位置で先頭一致するので、控えが無いと
+    // 戻った盤はまた同じ位置で先頭一致するので、試した位置の記録が無いと
     // **積む→書けない→戻す→積む**が止まらない。ディスクの故障は要らない。
     // 盤に載せられなかった棋譜を選ぶと `persistIfPossible` が永久に断るので、
     // そこからは書き込みを1回もせずに描き直しだけが回る。
     //
-    // 待つ前に控える。戻す `dispatch` は `makeMove` が解決するより先に走るので、
-    // 解決を待ってから控えると、その前にこの効果がもう一度走る。
+    // 待つ前に記録する。戻す `dispatch` は `makeMove` が解決するより先に走るので、
+    // 解決を待ってから記録すると、その前にこの効果がもう一度走る。
     const attempted = attemptedRef.current;
     if (attempted !== null && attempted.kifuPath === kifuPath && attempted.at === line.length) {
       return;
     }
     attemptedRef.current = { kifuPath, at: line.length };
 
-    // **結果を控えてから読む。** `void makeMove(...).then(...)` と続けて書くと、
+    // **結果を変数に受けてから読む。** `void makeMove(...).then(...)` と続けて書くと、
     // 戻り値の読み落としを見る走査が「読まずに撃った」形として拾う（`.then` を見ていない）
     const appended = makeMove(move);
 
     void appended.then((result) => {
-      // **積めたら控えを捨てる。** 残すと、遡って見てから先端へ戻ったときに
+      // **積めたら記録を捨てる。** 残すと、遡って見てから先端へ戻ったときに
       // 同じ位置を積み直せなくなる
       if (result.success) {
         attemptedRef.current = null;

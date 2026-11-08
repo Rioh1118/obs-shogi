@@ -2,12 +2,12 @@
  * 1手ごとの終局を判定する。
  *
  * `moveDecided` を受けた側が呼ぶ。`null` が返ったときだけ `continueGame` を返してよい。
- * どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で畳まれる
+ * どちらも返さないと Rust は裁定待ちのまま止まり、`RULING_TIMEOUT` で対局が終わる
  * （`entities/game-session/api/tauri.ts`）。
  *
  * 利用者に見せる文言はここで決めない。返すのは種別と勝者だけで、`endGameByRule` に渡す
  * `detail` の綴りは呼び手が決める。理由は `KifuLoadFailure`（`entities/game/model/types.ts`）
- * と同じで、ライブラリの英文や内部の語を外へ出すと、段と文言を決める場所が呼び手ごとに分かれる。
+ * と同じで、ライブラリの英文や内部の語を外へ出すと、tier と文言を決める場所が呼び手ごとに分かれる。
  *
  * 27点法と24点法はここに入らない。どちらも宣言の規則で、条件を満たしただけでは
  * 終局しない。宣言の可否は `judgeDeclaration`（`jishogiDeclaration.ts`）が持つ。
@@ -18,7 +18,7 @@
  * 既に shogi.js を使っているため。合法手の生成を重ねると2実装になる
  * （`docs/state-transitions/game-session.md` の「責任の切れ目」）。
  *
- * TODO(#536): 2つの合法性の判定が割れた手は、ここで `unplayable_move` になって対局を畳む。
+ * TODO(#536): 2つの合法性の判定が割れた手は、ここで `unplayable_move` になって対局を終える。
  *
  * `judgeGameOutcome` の値段は手数に比例する。呼ばれるたびに根から `Record` を組み直すので、
  * 1回が実測で 100手 4.6ms / 400手 16ms / 2000手 60ms。毎手呼ぶと合計は2乗で効き、
@@ -79,7 +79,7 @@ export type GameOutcome = {
  * `continueGame` は通るが、次の裁定も同じ手で落ち続け、詰みも千日手も二度と立たない。
  * 終局にして利用者に見せるほかない。
  *
- * 「その手が反則だった」の受け皿ではない。盤で指す手は `view.legalMoves` を通るが、
+ * 「その手が反則だった」を受けるフォールバックではない。盤で指す手は `view.legalMoves` を通るが、
  * エンジンの手の合法性を裁定の前に見る経路はまだ無い。ここまで来た反則手は、その検査を
  * 通っていないか、`shogi.js` と `tsshogi` の答えが割れたかのどちらかで、どちらも反則負けにはできない。
  * `GameOutcomeKind` に反則の種別が無いので、誰の反則かをこの型は表せない。

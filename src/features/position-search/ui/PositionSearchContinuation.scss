@@ -1,6 +1,6 @@
 @use "@/index.scss" as index;
 
-// 器の中の箱。枠は持たず、面だけで一段沈める（面の段は PositionSearchModal.scss）
+// ペインの中の箱。枠線は持たず、背景だけで1段階沈める（背景の段階は PositionSearchModal.scss）
 .pos-search-cont {
   border-radius: index.$radius-6;
   background: rgba(index.$color-primary-black, 0.24);

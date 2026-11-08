@@ -1,4 +1,4 @@
-//! 手番が止まったことの番人。
+//! 手番が止まったことの監視。
 //!
 //! 隠すのは「どれだけ待てばエンジンが止まらない・答えないと呼ぶか」の判断で、
 //! 上限の長さと、どの信号（持ち時間、沈黙、`info` を出したことがあるか）を見るか。
@@ -51,14 +51,14 @@ pub const HARD_TURN_LIMIT: Duration = Duration::from_secs(600);
 ///
 /// `stalled_turn` は同じ型の真偽を2つ並べて受けるので、裸だと**入れ替えても
 /// コンパイルが通る**。入れ替えると、`info` を出していないエンジンで
-/// 「エンジンである」が偽になり、`Running` の枝に一切入らない——
+/// 「エンジンである」が偽になり、`Running` の分岐に一切入らない——
 /// 沈黙の腕だけでなく `budget + HARD_TURN_LIMIT` の最後の上限も消える。
 pub(super) struct IsEngine(pub(super) bool);
 
 /// そのエンジンがこの局で `info` を1行でも出したことがあるか。→ `IsEngine`
 pub(super) struct HasSpoken(pub(super) bool);
 
-/// 手番が長すぎることの番人。**`Thinking` の全部をここ1本で見る。**
+/// 手番が長すぎることの監視。**`Thinking` の全部をここ1本で見る。**
 ///
 /// 見るのは「**いまどうなっているか**」（`TurnClock` と持ち時間）で、
 /// 「いつ探索を起動したか」ではない。探索タスクの中に締切を置くと、
@@ -91,7 +91,7 @@ pub(super) fn stalled_turn(
     has_spoken: HasSpoken,
 ) -> Option<Stall> {
     let (thinking_is_an_engine, has_spoken) = (thinking_is_an_engine.0, has_spoken.0);
-    // 畳み待ちは探索を止めた側の話なので、対局者の種別に関わらず見る
+    // 止め終わり待ちは探索を止めた側の話なので、対局者の種別に関わらず見る
     if let TurnClock::Settling(since) = clock {
         return (since.elapsed() >= SETTLE_TIMEOUT).then_some(Stall::NotStopping);
     }
@@ -137,7 +137,7 @@ pub(super) fn stalled_turn(
 /// 手番が進まない理由。**エンジンの状態が違うので潰さない。**
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Stall {
-    /// `stop` を出したのに畳み終わらない
+    /// `stop` を出したのに止め終わらない
     NotStopping,
     /// `go` を出したのに `bestmove` が返らない
     NotAnswering,
@@ -148,7 +148,7 @@ impl Stall {
     ///
     /// **この文字列を書く場所はここ1箇所。** 同じ物理状態を別の検出器で
     /// 見た側（`SearchOutcome::StopTimedOut` と `Handover::Unusable`）も
-    /// ここを通す。手で写すと、どちらの番人が先に当たったかで綴りが変わり、
+    /// ここを通す。手で写すと、どちらの監視が先に当たったかで綴りが変わり、
     /// `GameOverReason` が5経路を1値に潰している以上、**残る差が冠詞だけ**に
     /// なる。腕を足したときに写しを数え直させられないのも同じ理由。
     pub(super) fn detail(self) -> &'static str {
@@ -161,30 +161,30 @@ impl Stall {
 
 /// 手番に入ったまま `go` を出せずにいられる上限。
 ///
-/// **`stalled_turn` の `Settling` の枝だけが使う。** `Running` の枝は同じ関数が
-/// `budget + HARD_TURN_LIMIT` と `SEARCH_GRACE`（沈黙）の2本で見る。番人は分かれていない。
-/// 畳み待ちの間は時計が動かないので、時間切れの判定には掛からない。
+/// **`stalled_turn` の `Settling` の分岐だけが使う。** `Running` の分岐は同じ関数が
+/// `budget + HARD_TURN_LIMIT` と `SEARCH_GRACE`（沈黙）の2本で見る。監視は分かれていない。
+/// 止め終わり待ちの間は時計が動かないので、時間切れの判定には掛からない。
 /// ここが無いと、`stop` の書き込みが詰まったときに対局が無音のまま固まる。
 ///
 /// `search.rs` の `SEARCH_STOP_GRACE` ＋書き込みの上限（`WRITE_TIMEOUT`）より長く取る
 /// （関係は `the_watchdogs_are_ordered` が式で見る）。
-/// 短いと、正常に畳んでいる最中のエンジンを故障と呼ぶ。
+/// 短いと、正常に止まりつつあるエンジンを故障と呼ぶ。
 pub(super) const SETTLE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// 手番の中で、時計が動いているか止まっているか。
 ///
-/// **どちらの枝も時刻を持つ。** 止まっている側にも時刻が要るのは、
-/// `on_tick` の `SETTLE_TIMEOUT` が「いつから畳み待ちか」を見るため。
+/// **どちらの分岐も時刻を持つ。** 止まっている側にも時刻が要るのは、
+/// `on_tick` の `SETTLE_TIMEOUT` が「いつから止め終わり待ちか」を見るため。
 #[derive(Debug, Clone, Copy)]
 pub(super) enum TurnClock {
     /// `go` を出した時刻。時計はここから動く
     Running(Instant),
-    /// 手番だが、まだ `go` を出していない。止めた探索を畳んでいる間
+    /// 手番だが、まだ `go` を出していない。止めた探索の止め終わりを待つ間
     /// （`Activity::Stopping`）がこれで、**その間は時計を動かさない**。
     /// 手番に入った時刻で数えると、エンジンが1手も読んでいない最大 `SEARCH_STOP_GRACE` が
-    /// 消費に入り、画面の残り時間も畳み終わりに巻き戻る。
+    /// 消費に入り、画面の残り時間も止め終わりに巻き戻る。
     ///
-    /// 持つのは**待ち始めた**時刻で、`on_tick` の番人がこれを見る
+    /// 持つのは**待ち始めた**時刻で、`on_tick` の監視がこれを見る
     Settling(Instant),
 }
 
@@ -193,9 +193,9 @@ mod tests {
     use super::super::fixtures::long_ago;
     use super::*;
 
-    /// 番人が2つの止まり方を分けること。**どちらも `Thinking` の中。**
+    /// 監視が2つの止まり方を分けること。**どちらも `Thinking` の中。**
     ///
-    /// 畳み待ちと思考中では、エンジンに何が起きているかが違う。
+    /// 止め終わり待ちと思考中では、エンジンに何が起きているかが違う。
     /// 潰すと `detail` が原因を取り違える
     #[test]
     fn a_stalled_turn_says_which_kind_of_stall_it_is() {
@@ -233,7 +233,7 @@ mod tests {
                 HasSpoken(true)
             ),
             Some(Stall::NotStopping),
-            "畳み待ちの上限は持ち時間とも便りとも無関係"
+            "止め終わり待ちの上限は持ち時間とも便りとも無関係"
         );
 
         // **黙っているなら持ち時間が残っていても落とす。**
@@ -268,7 +268,7 @@ mod tests {
     /// 対局者に挿す、深さが変わったときだけ出すエンジン）を沈黙で落とすと、
     /// **正常に読んでいるのに `SEARCH_GRACE` を過ぎた最初の tick で必ず負ける**
     /// ——棋譜に英文の故障理由が残り、
-    /// 利用者に無効化する手段が無い（`enforce_engine_timeout` はこの番人を見ない）。
+    /// 利用者に無効化する手段が無い（`enforce_engine_timeout` はこの監視を見ない）。
     ///
     /// 押さえるのは `budget + HARD_TURN_LIMIT` だけになる。**それは残す。**
     #[test]
@@ -400,7 +400,7 @@ mod tests {
             Some(Stall::NotAnswering)
         );
 
-        // 畳み待ちは種別に関わらず見る（止めた探索の話なので）
+        // 止め終わり待ちは種別に関わらず見る（止めた探索の話なので）
         assert_eq!(
             stalled_turn(
                 TurnClock::Settling(long_ago(SETTLE_TIMEOUT)),

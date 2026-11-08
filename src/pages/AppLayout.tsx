@@ -28,7 +28,7 @@ function AppLayout() {
 
   const toggleSidebar = () => setIsSidebarOpen((v) => !v);
 
-  // 「棋譜が無ければ WelcomeScreen、あれば作業面」は画面全体の切り替えなので、
+  // 「棋譜が無ければ WelcomeScreen、あれば作業画面」は画面全体の切り替えなので、
   // 判断はここに置く。何をもって「ある」とするかは game が決める
   const { hasKifu } = gameView;
 
@@ -45,7 +45,7 @@ function AppLayout() {
         モーダル1枚の事故で本体まで unmount させない。境界は `AppModalLayer` の中にある
         （鍵を読むために、ここが `FileTreeContext` を購読しないため）。
 
-        **`.app-layout` は `grid-template-rows` が2段で、ヘッダと本体でちょうど埋まっている。**
+        **`.app-layout` は `grid-template-rows` が2行で、ヘッダと本体でちょうど埋まっている。**
         ここに置けるのは、この層が平常時 in-flow の子を1つも作らないから。
         その条件は `pages/AppModalLayer.tsx` の `ModalLayerContent` が持つ
       */}
@@ -72,7 +72,7 @@ function AppLayout() {
                   <div className="workspace__boardPane">
                     {/*
                       盤は局面から駒の配置を組み直すので、棋譜が壊れていれば描く前に落ちる。
-                      畳むのは盤と操作列だけで、棋譜一覧と解析は残す
+                      unmount するのは盤と操作列だけで、棋譜一覧と解析は残す
                     */}
                     <AppErrorBoundary
                       label={BOUNDARY_LABELS.board}
@@ -99,7 +99,7 @@ function AppLayout() {
                   <aside className="workspace__kifuPane">
                     {/*
                       `buildStreamRowsFromCursor` は盤上で再生できない手で投げる（→ #277。症状は #295 の本文）。
-                      畳むのは一覧だけで、盤と解析は残す
+                      unmount するのは一覧だけで、盤と解析は残す
                     */}
                     <AppErrorBoundary
                       label={BOUNDARY_LABELS.kifuStream}

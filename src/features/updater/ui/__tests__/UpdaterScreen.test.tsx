@@ -4,10 +4,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { UpdaterStatus } from "@/entities/updater";
 
 /**
- * 更新のカード。段ごとの見出し、押せるもの、閉じられるかを見る。
+ * 更新のカード。段階ごとの見出し、押せるもの、閉じられるかを見る。
  * 表は `docs/spec/screens/system-dialogs.md` の「更新」。
  *
- * 取得と入替の最中に閉じられると、進み具合を見る面が消える。
+ * 取得と入替の最中に閉じられると、進み具合を見るカードが消える。
  */
 
 const updater = vi.hoisted(() => ({
@@ -53,7 +53,7 @@ function buttonNames(): string[] {
     .map((b) => b.getAttribute("aria-label") ?? b.textContent ?? "");
 }
 
-describe("描かない段", () => {
+describe("描かない段階", () => {
   test.each(["idle", "checking"] as const)("%s では何も描かない", (phase) => {
     show({ phase });
 
@@ -62,7 +62,7 @@ describe("描かない段", () => {
   });
 });
 
-describe("段ごとの見出しと押せるもの", () => {
+describe("段階ごとの見出しと押せるもの", () => {
   test("available: 版を出し、飛ばすか更新するかを選べて、閉じられる", () => {
     show({ phase: "available", version: "1.2.3" });
 

@@ -68,9 +68,9 @@ export const BUCKETS = [
 export type Bucket = (typeof BUCKETS)[number];
 
 /**
- * スケールに載らない寸法に付ける印。印を付けた宣言は本来の枠でなく
- * `exempt` に入る。数えるのをやめるのではなく枠を移すだけにしてあるのは、
- * 印を増やす変更を基準値の差分としてレビューに出すため
+ * スケールに載らない寸法に付ける免除の注記。注記を付けた宣言は本来の bucket でなく
+ * `exempt` に入る。数えるのをやめるのではなくbucket を移すだけにしてあるのは、
+ * 注記を増やす変更を基準値の差分としてレビューに出すため
  */
 export const EXEMPT_MARKER = "scale-exempt";
 
@@ -83,7 +83,7 @@ const RAW_LENGTH = /(?<![\w$.])-?\d*\.?\d+(rem|px|em)\b/;
 /** 角丸は `999px`（pill）と `50%`（円）にも $radius-pill / $radius-circle という寄せ先がある */
 const RAW_RADIUS = /(?<![\w$.])-?\d*\.?\d+(rem|px|em|%)/;
 
-/** 太さの直値。段は `$weight-*` の4つ */
+/** 太さの直値。段階は `$weight-*` の4つ */
 const RAW_WEIGHT = /(?<![\w$.])\d{3}\b/;
 
 /** モーションの直値。時間は長さと単位が違うので別に見る */
@@ -109,14 +109,14 @@ export function bucketOf(property: string): Bucket | null {
   if (MOTION_PROPERTIES.has(name)) return "motion";
   if (FONT_FAMILY_PROPERTIES.has(name)) return "family";
   // 変数とカスタムプロパティは、寸法をプロパティ名から離れた場所へ移すだけで
-  // 実体は直値なので、まとめて1つの枠で数える
+  // 実体は直値なので、まとめて1つの bucket で数える
   if (name.startsWith("$") || name.startsWith("--")) return "indirect";
   return null;
 }
 
 /**
  * 反復するアニメーションは、一度きりの遷移と違って持続時間が
- * 動きの速さではなく回転周期を決めるので、$duration-* の段に載らない
+ * 動きの速さではなく回転周期を決めるので、$duration-* の段階に載らない
  */
 function isLoopingAnimation(property: string, value: string): boolean {
   return property.toLowerCase().startsWith("animation") && /\binfinite\b/.test(value);
@@ -131,7 +131,7 @@ export function hasRawLiteral(bucket: Bucket, property: string, value: string): 
   // フォントは長さを持たない。寄せ先が要るのは、総称名まで並べたスタックを
   // 直書きしている場合だけ。`inherit` や単一の総称名はトークンにする意味が無い
   if (bucket === "family") return rest.includes(",");
-  // 太さは単位を持たない。`inherit` や `normal` は段の話ではないので数えない
+  // 太さは単位を持たない。`inherit` や `normal` は段階の話ではないので数えない
   if (bucket === "font-weight") return RAW_WEIGHT.test(rest);
   return RAW_LENGTH.test(rest);
 }
@@ -143,8 +143,8 @@ function isComment(node: ChildNode): node is Comment {
 }
 
 /**
- * 印は**直後に続く行末コメント**だけを見る。行だけで判定すると、
- * 複数行の値を持つ宣言が、同じ行で終わる別の宣言の印まで拾う
+ * 免除の注記は**直後に続く行末コメント**だけを見る。行だけで判定すると、
+ * 複数行の値を持つ宣言が、同じ行で終わる別の宣言の注記まで拾う
  */
 function isExempt(node: ChildNode): boolean {
   const comment = node.next();
@@ -178,9 +178,9 @@ function paramsHaveRawLiteral(params: string): boolean {
 }
 
 /**
- * 1ファイル分の所見。印が付いた宣言は本来の枠でなく `exempt` に入る。
+ * 1ファイル分の所見。免除の注記が付いた宣言は本来の bucket でなく `exempt` に入る。
  *
- * @param options.tokenSource `indirect` の枠だけを落とす。トークンを定義するファイルは
+ * @param options.tokenSource `indirect` の bucket だけを落とす。トークンを定義するファイルは
  *   `$name: 値` が直値であって当然だが、それ以外の宣言は通常どおり数える
  * @param options.from 解析に失敗したときの例外にファイル名を載せる
  */

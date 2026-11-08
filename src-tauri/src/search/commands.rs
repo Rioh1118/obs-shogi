@@ -223,7 +223,7 @@ pub async fn open_project(
                 IndexSurvival::Gone,
             );
             // **`Ready` にしない。** `restart` が中身を捨てた後なので索引は空で、
-            // `query_service` の `stale` は段だけを見る——空を `Ready` にすると
+            // `query_service` の `stale` は状態だけを見る——空を `Ready` にすると
             // **0件が「最新」として並ぶ**（`store/index_store.rs` の `//!`）
             announce_state(&app, &store, build_epoch, IndexAnnouncement::BuildFailed);
             // **内部の綴りを返さない。** `openError` に読み手が付いたとき

@@ -216,7 +216,7 @@ describe("StudyPositionsManagerModal", () => {
     expect(document.querySelector(".sp-manager__filterBadge")?.textContent).toBe("2");
   });
 
-  test("選んだタグは札で外せ、クリアで全部外れる", () => {
+  test("選んだタグはチップで外せ、クリアで全部外れる", () => {
     render(<StudyPositionsManagerModal />);
     fireEvent.click(screen.getByTitle("タグで絞り込む"));
     fireEvent.click(screen.getAllByRole("button", { name: "急所" })[0]);
@@ -229,7 +229,7 @@ describe("StudyPositionsManagerModal", () => {
     expect(rowLabels()).toEqual(["角換わり", "四間飛車", "矢倉"]);
   });
 
-  test("タグの欄の Escape は、語があれば消し、無ければ枠を閉じる", () => {
+  test("タグの欄の Escape は、語があれば消し、無ければパネルを閉じる", () => {
     render(<StudyPositionsManagerModal />);
     fireEvent.click(screen.getByTitle("タグで絞り込む"));
     const input = screen.getByPlaceholderText("タグを検索");
@@ -340,7 +340,7 @@ describe("StudyPositionsManagerModal", () => {
     expect(selectedLabel()).toBe("角換わり");
   });
 
-  test("削除の確認を出したまま選択が動いたら、確認を畳む", () => {
+  test("削除の確認を出したまま選択が動いたら、確認を閉じる", () => {
     render(<StudyPositionsManagerModal />);
     fireEvent.click(screen.getByRole("button", { name: "削除" }));
     expect(screen.getByText("「角換わり」を削除しますか？")).toBeTruthy();

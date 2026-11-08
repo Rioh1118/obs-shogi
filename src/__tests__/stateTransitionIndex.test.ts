@@ -359,7 +359,7 @@ describe("stripFences", () => {
   });
 
   test("閉じが3スペースまで字下げされていても閉じる", () => {
-    // 窓を狭める向きの変更も、有効な閉じを取りこぼしてファイルの残りを飲み込む側に倒れる。
+    // 字下げの範囲を狭める向きの変更も、有効な閉じを取りこぼしてファイルの残りを飲み込む側に倒れる。
     const body = ["```", "[例](nope.md)", "   ```", "", "[本物](real.md)"].join("\n");
 
     expect(stripFences(body)).not.toContain("nope.md");
@@ -439,7 +439,7 @@ describe("表を指す散文の数", () => {
         "表を指す散文の数が、表の行数と合っていない:",
         ...offenders,
         "",
-        "その数を根拠にした判断（軸を別に持つ、段をN個に切る）も一緒に古くなる。",
+        "その数を根拠にした判断（軸を別に持つ、段階をN個に切る）も一緒に古くなる。",
       ].join("\n"),
     ).toEqual([]);
   });
@@ -559,6 +559,6 @@ describe("tablesClaimedUnverified", () => {
   });
 
   test("表の行以外は見ない", () => {
-    expect(tablesClaimedUnverified("印の無いセルが未検証の経路。[a.md](a.md)")).toEqual([]);
+    expect(tablesClaimedUnverified("記号の無いセルが未検証の経路。[a.md](a.md)")).toEqual([]);
   });
 });

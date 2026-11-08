@@ -6,7 +6,7 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import { GameFileTreeBridge } from "../bridges/GameFileTreeBridge";
 
 /**
- * 盤の保存先を渡す器。
+ * 盤の保存先を渡すラッパー。
  *
  * 対局中の着手を通す `MoveGate` は受け取るだけ。ここで組むと、この gate が
  * `GameSessionProvider` の内側にしか置けなくなり、盤だけを試す場所へ

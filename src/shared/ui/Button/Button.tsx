@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import "./Button.scss";
 
 /**
- * 面の色と文字色を決める。それ以外の軸とは独立している。
+ * 背景の色と文字色を決める。それ以外の軸とは独立している。
  *
  * `primary` は確定（画面を閉じて結果を残す）で1画面に1つ。`accent` はその場の次の一手。
  * `neutral` は戻す・閉じる操作。
@@ -35,9 +35,9 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 /**
  * アプリ共通のボタン。
  *
- * **明るい面の上には置かない。** 対話の面は暗い側を既定にしてある（ADR-0005 決定3。
+ * **明るい背景の上には置かない。** 対話の背景は暗い側を既定にしてある（ADR-0005 決定3。
  * 通知については ADR-0004）ので、
- * 明暗の2系統を持たない。明るい面が要る画面が出たら、そのときに軸を足す。
+ * 明暗の2系統を持たない。明るい背景が要る画面が出たら、そのときに軸を足す。
  */
 export default function Button({
   tone = "neutral",

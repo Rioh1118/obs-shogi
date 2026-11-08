@@ -23,7 +23,7 @@
 }
 
 .pos-search__spinIcon {
-  // 反復するローディングは秒単位の別系統で、$duration-* の段には載らない（index.scss）
+  // 反復するローディングは秒単位の別系統で、$duration-* の段階には載らない（index.scss）
   animation: posSearchSpin 900ms linear infinite;
 }
 

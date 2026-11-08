@@ -23,14 +23,14 @@ type Props = {
   onClose: () => void;
 };
 
-/** ノートが出している面。書く先はこれで決まる */
+/** ノートが書く対象の手。書く先はこれで決まる */
 type Face = { key: string; cursor: CursorPath; boardSeq: number };
 
 /**
- * ノートが出している面の、確定した中身。鍵と本文が必ず同じコミットで揃う。
+ * ノートが書く対象の手の、確定した中身。鍵と本文が必ず同じコミットで揃う。
  *
  * `failureShown` は、**見せていない失敗を「1回目」と数えないため**に持つ。
- * 面の中に置く（面が変われば数え直す）。
+ * 対象の手の中に置く（対象の手が変われば数え直す）。
  */
 type Editing = {
   face: Face;
@@ -51,8 +51,8 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
   }, [cursor, getCommentsByCursor]);
 
   const face = useMemo<Face | null>(
-    // **`boardSeq` が無ければ面を作らない。** 盤に何も載っていないという意味なので、
-    // 書く先が無い。面にして通すと、突き合わせ（下の `save`）が永久に一致せず、
+    // **`boardSeq` が無ければ対象の手を作らない。** 盤に何も載っていないという意味なので、
+    // 書く先が無い。対象の手にして通すと、突き合わせ（下の `save`）が永久に一致せず、
     // そのノートの保存が全部「棋譜が切り替わった」で落ちる
     () =>
       open && cursor && boardSeq !== null
@@ -61,7 +61,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     [open, cursor, boardSeq],
   );
 
-  // 面はレンダ中に確定させる。
+  // 対象の手はレンダ中に確定させる。
   //
   // 効果で差し替えると、エディタを作り直す鍵（props 由来）だけが1レンダ先に進み、
   // **移った先のエディタが前の手の本文で mount される**。`LexicalComposer` は
@@ -101,12 +101,12 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
    */
   const chainRef = useRef<Promise<unknown>>(Promise.resolve());
 
-  /** いま描いている面。書き込みが返ってきたときに、書き戻してよいかをこれで見る */
+  /** いま描いている対象の手。書き込みが返ってきたときに、書き戻してよいかをこれで見る */
   const faceRef = useRef<Face | null>(null);
   /**
    * まだ mount しているか。unmount のあとに `setEditing` を撃たないため。
    *
-   * **畳んだあとの結果を捨てるのはこれではない。** ノートを畳んでもこの
+   * **折りたたんだあとの結果を捨てるのはこれではない。** ノートを折りたたんでもこの
    * コンポーネントは unmount しない（`KifuStreamList` が `open` で描き分ける）ので、
    * そちらは下の `showing()` が `faceRef` と突き合わせて弾いている。
    */
@@ -114,11 +114,11 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * 指定した面へ書く。**書く先も、書き戻す先も、面で決める。**
+   * 指定した対象の手へ書く。**書く先も、書き戻す先も、対象の手で決める。**
    *
-   * 面は書き込みを待っている間に変わる（別の手のコメントを開く、別のファイルを開く、
-   * 分岐メニューを開いてノートが閉じる）。「いまの面」を読むと、待っている間に
-   * 入れ替わった別の面へ書き、打っていない手のノートに結果が出る。
+   * 対象の手は書き込みを待っている間に変わる（別の手のコメントを開く、別のファイルを開く、
+   * 分岐メニューを開いてノートが閉じる）。「いまの対象の手」を読むと、待っている間に
+   * 入れ替わった別の手へ書き、打っていない手のノートに結果が出る。
    *
    * `baseAtFire` は撃った時点でディスクにあった本文。返ってきたときの
    * `baseText` とは限らない（下の書き戻しを参照）。
@@ -158,12 +158,12 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
                 // 基準もディスクの側へ戻す。
                 //
                 // `edit` は書き込みの前に棋譜を置き換える（ADR-0004 決定7）ので、
-                // 走っている最中に面を組み直すと `baseText` に**まだディスクに無い本文**が
+                // 走っている最中に対象の手を組み直すと `baseText` に**まだディスクに無い本文**が
                 // 入り、`dirty` が落ちる。落ちたままだと、閉じるときの再試行も
-                // 「この面で初めての失敗なら閉じない」もどちらも発火しない。
+                // 「この手で初めての失敗なら閉じない」もどちらも発火しない。
                 // 利用者から見ると、失敗を出したまま1回で閉じて本文が消える。
                 const base = e.baseText === baseAtFire ? e : { ...e, baseText: baseAtFire };
-                // 中身が同じなら同じ参照を返す。新しい参照は面の入れ替えを見る効果を
+                // 中身が同じなら同じ参照を返す。新しい参照は対象の手の入れ替えを見る効果を
                 // 走らせるだけで、そこは鍵が同じなら何もしない
                 if (base === e && e.error === res.error && e.failureShown) return e;
                 return { ...base, error: res.error, failureShown: true };
@@ -196,13 +196,13 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     [],
   );
 
-  // 面が入れ替わる前に、出ていく面を書き切る。
+  // 対象の手が入れ替わる前に、出ていく手を書き切る。
   //
-  // ノートは `KifuStreamList` が `setOpenComment(null)` / 別の面の `setOpenComment(...)` を
+  // ノートは `KifuStreamList` が `setOpenComment(null)` / 別の手の `setOpenComment(...)` を
   // 直に呼ぶ経路でも閉じたり移ったりする（分岐メニュー、手のメニュー、棋譜の差し替え）。
   // そこは閉じる手続きを通らないので、ここで書かないと**書きかけの本文が黙って消える**。
   //
-  // ここで書き切れなかったぶんは、失敗も本文も画面に出ない。面はもう外れており、
+  // ここで書き切れなかったぶんは、失敗も本文も画面に出ない。対象の手はもう外れており、
   // `save` の中の `showing()` が書き戻しを弾く。「閉じると、この本文は失われます」を
   // 出せるのは、ノート自身の閉じる操作を通ったときだけ。
   //
@@ -248,7 +248,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     }
 
     // 撃つ先を張った時点で固定する。**効くのは撃ってから返るまでの間。**
-    // その窓で面が入れ替わっても、書くのはこの本文を打った面。
+    // その区間で対象の手が入れ替わっても、書くのはこの本文を打った手。
     // 900ms の途中の入れ替わりは下の cleanup が消し、上の効果が書き直す
     const target = editing.face;
     const text = editing.draft;
@@ -263,7 +263,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     // `editing` そのものを見ない。失敗の書き戻しも `editing` を作り直すので、
     // 書けない棋譜では「失敗 → 張り直し → 900ms → 失敗」で**毎秒1本の書き込みを
     // 永久に撃ち続ける**。画面には「続けて書けば保存し直します」と出しており、
-    // 自動で再試行しないと宣言している。張り直す理由は本文か面が変わったときだけ。
+    // 自動で再試行しないと宣言している。張り直す理由は本文か対象の手が変わったときだけ。
   }, [editing?.face.key, editing?.draft, dirty]); // oxlint-disable-line react-hooks/exhaustive-deps
 
   const handleRequestClose = useCallback(async () => {
@@ -275,26 +275,26 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     // 閉じる前に必ずもう一度書きにいく。失敗が出ているからと飛ばすと、
     // 一時的な失敗（別のプロセスが掴んでいた等）でも本文が捨てられる。
     //
-    // 閉じないのは**この面で失敗を見せたのが初めてのときだけ**。止め続けると、
+    // 閉じないのは**この手で失敗を見せたのが初めてのときだけ**。止め続けると、
     // 書き込めない場所に置いた棋譜ではノートを閉じる手段が1つも無くなる
     // （失敗を伝えるより悪い行き止まり）。2回目は諦めて閉じる。
     if (editing && dirty) {
       const target = editing;
 
       const result = await save(target.face, target.draft, target.baseText);
-      // **`"skipped"` も同じだけ本文を失う。** 宛先が切り替わった枝は
+      // **`"skipped"` も同じだけ本文を失う。** 宛先が切り替わった分岐は
       // `setCommentsByCursor` を呼ぶ前に戻るので、本文はディスクにもメモリの棋譜にも
       // 入っていない。ここで抜けると、理由を入れた赤い箱が1フレームも見えないまま閉じる。
       if (result !== "saved" && !target.failureShown) return;
 
-      // 待っている間に別の面へ移っていたら、その面を閉じない。
-      // `onClose` はどの面を閉じるかを引数に取らないので、そのまま呼ぶと
-      // **入力中の別の手のノートが勝手に畳まれる**。
+      // 待っている間に別の手へ移っていたら、その手のノートを閉じない。
+      // `onClose` はどの手のノートを閉じるかを引数に取らないので、そのまま呼ぶと
+      // **入力中の別の手のノートが勝手に折りたたまれる**。
       if (faceRef.current?.key !== target.face.key) return;
 
       if (result !== "saved") {
         // 諦めて閉じる。画面には「閉じると、この本文は失われます」と出しているので、
-        // 失わせる。**基準へ戻すのは、この直後に面が消える効果がもう1本
+        // 失わせる。**基準へ戻すのは、この直後に対象の手が消える効果がもう1本
         // 書きに行かないため。**
         //
         // `leavingRef` は同期で書く。`setEditing` は `onClose()` と同じバッチに
@@ -337,7 +337,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
       <div className="kifu-comment-note__root">
         {editing && (
           <LiveMarkdownNote
-            // 鍵も中身も**確定した面**から組む。片方を props から取ると1レンダずれ、
+            // 鍵も中身も**確定した対象の手**から組む。片方を props から取ると1レンダずれ、
             // 移った先のエディタが前の手の本文で mount される
             key={editing.face.key}
             initialMarkdown={editing.draft}
@@ -347,8 +347,8 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
           />
         )}
         {/* 領域は常設する（空でも DOM に置く）。中身と同時に入れると VoiceOver が
-            live region の変化として読まない。面も宣言する。宣言しないと
-            `contrastRatchet` が「面が決まらない」として測れない枠へ落とす */}
+            live region の変化として読まない。サーフェスも宣言する。宣言しないと
+            `contrastRatchet` が「サーフェスが決まらない」として測れない区分へ落とす */}
         <div className="kifu-comment-note__error" role="alert">
           {saveError && (
             <>

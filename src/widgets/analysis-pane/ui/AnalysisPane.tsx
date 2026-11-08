@@ -32,7 +32,7 @@ import {
 /**
  * 見せ方ごとの本体。`Record` なので、綴りを足して本体を足さないと tsc が落ちる。
  *
- * `{mode === "table" && …}` を並べると、足し忘れた綴りではどの枝も偽になり、
+ * `{mode === "table" && …}` を並べると、足し忘れた綴りではどの分岐も偽になり、
  * **解析タブが真っ白になる。エラーは出ない。**
  */
 const BODY: Record<AnalysisDisplayMode, (props: { rows: readonly CandidateRow[] }) => ReactNode> = {
@@ -41,7 +41,7 @@ const BODY: Record<AnalysisDisplayMode, (props: { rows: readonly CandidateRow[] 
 };
 
 function AnalysisPane() {
-  // **控えの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
+  // **キャッシュの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
   // 保存場所を持たない。持つと、この画面が作り直されたときだけ停止中の候補手が消える
   // （理由は `entities/analysis/lib/candidateCache.ts`）。
   const { state, candidateCache } = useAnalysis();
@@ -60,9 +60,9 @@ function AnalysisPane() {
 
   const currentTurn = gameView.currentTurn;
 
-  // 停止中に出すのは控え。**控えを書くのはコミット後の effect なので、読むこのレンダは
-  // 書かれる前の控えを見る。** 控えの先は ref で、書いても再レンダは起きないので、
-  // ある鍵に初めて控えたときはその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
+  // 停止中に出すのはキャッシュ。**キャッシュを書くのはコミット後の effect なので、読むこのレンダは
+  // 書かれる前のキャッシュを見る。** キャッシュの先は ref で、書いても再レンダは起きないので、
+  // ある鍵に初めてキャッシュしたときはその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
   const visibleCandidates: readonly AnalysisCandidate[] = useMemo(
     () =>
       visibleCandidatesOf({
@@ -74,7 +74,7 @@ function AnalysisPane() {
     [candidateCache, status, state, currentSfen, cacheKey],
   );
 
-  // 読み筋は盤の局面から組む。控えの鍵が別の局面を指していると（#568）、盤の局面では
+  // 読み筋は盤の局面から組む。キャッシュの鍵が別の局面を指していると（#568）、盤の局面では
   // 指せない手の並びが出るか、手が組めずに評価値だけの行になる
   const pvBaseSfen = currentSfen;
 
@@ -119,10 +119,10 @@ function AnalysisPane() {
   // 止まる前の候補手は、表も評価値バーも薄く出す。今の結果のように見せない
   const staleClass = candidatesAreStale(status) ? " analysis-pane--stale" : "";
 
-  // **控える側（下の effect）より先に宣言する。** React は宣言順に effect を走らせる。
+  // **キャッシュする側（下の effect）より先に宣言する。** React は宣言順に effect を走らせる。
   // `scopeTo` は宣言された棋譜が前と同じなら何もしない（`candidateCache.ts` の早期 return）
-  // ので、順序が効くのは `fileKey` が前の宣言と食い違うレンダだけ。そこで控える側が
-  // 先に走ると、新しい棋譜の控えを書いた直後にそれを捨てる。
+  // ので、順序が効くのは `fileKey` が前の宣言と食い違うレンダだけ。そこでキャッシュする側が
+  // 先に走ると、新しい棋譜のキャッシュを書いた直後にそれを捨てる。
   useEffect(() => {
     candidateCache.scopeTo(fileKey);
   }, [candidateCache, fileKey]);
@@ -131,10 +131,10 @@ function AnalysisPane() {
     if (!cacheKey) return;
     if (!currentSfen) return;
     if (state.candidates.length === 0) return;
-    // エンジンが読んだ局面が盤と違うなら控えない。控えると、鍵が指す局面とは
+    // エンジンが読んだ局面が盤と違うならキャッシュしない。キャッシュすると、鍵が指す局面とは
     // 別の局面の候補手が、停止したあとその局面の結果として出る。
     //
-    // `analyzedSfen` が null のときも控えない。いま `candidates` が空でないときは必ず
+    // `analyzedSfen` が null のときもキャッシュしない。いま `candidates` が空でないときは必ず
     // `start_analysis` を通っているので null にはならないが、`stop_analysis` で
     // null へ戻す整理を入れると、短絡で判定が通って古い候補手が別の鍵へ焼き付く。
     //

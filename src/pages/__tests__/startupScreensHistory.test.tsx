@@ -5,9 +5,9 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigationType } from "rea
 import type { ReactElement } from "react";
 
 /**
- * 起動画面から作業面へ移るとき、履歴を積まないこと。
+ * 起動画面から作業画面へ移るとき、履歴を積まないこと。
  *
- * 積むと、作業面で戻るを押したときに起動画面へ戻る。`/app` の index は
+ * 積むと、作業画面で戻るを押したときに起動画面へ戻る。`/app` の index は
  * `panel/filetree` へ置き換えで飛ぶので、`AppRouter` ごと描くと最後の遷移が
  * いつも置き換えに見える。ここは `/app` を飛ばない部品にして、起動画面から
  * `/app` へ来た遷移そのものの種類を読む。
@@ -68,15 +68,15 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("起動画面から作業面へ", () => {
-  test("根があれば、置き換えで作業面へ移る", () => {
+describe("起動画面から作業画面へ", () => {
+  test("根があれば、置き換えで作業画面へ移る", () => {
     state.config = { root_dir: "/ws" };
     mount(<AppLoading />);
 
     expect(at).toEqual({ pathname: "/app", navigationType: "REPLACE" });
   });
 
-  test("フォルダを選べたら、置き換えで作業面へ移る", async () => {
+  test("フォルダを選べたら、置き換えで作業画面へ移る", async () => {
     state.config = { root_dir: null };
     chooseRootDir.mockResolvedValue("/ws");
     mount(<FolderSelect />);
@@ -96,7 +96,7 @@ describe("起動画面から作業面へ", () => {
     expect(at).toEqual({ pathname: "/app", navigationType: "REPLACE" });
   });
 
-  test("選ぶ操作を通らずに根が入っても、置き換えで作業面へ移る", () => {
+  test("選ぶ操作を通らずに根が入っても、置き換えで作業画面へ移る", () => {
     state.config = { root_dir: null };
     const view = mount(<FolderSelect />);
     expect(screen.queryByText("arrived")).toBeNull();

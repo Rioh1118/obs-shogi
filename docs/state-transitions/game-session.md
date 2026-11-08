@@ -1,8 +1,8 @@
 # 状態遷移表: game-session（L1）
 
-対象: `src-tauri/src/engine/game/session.rs`（状態機械）、`stall.rs`（手番が止まったことの番人）、
+対象: `src-tauri/src/engine/game/session.rs`（状態機械）、`stall.rs`（手番が止まったことの監視）、
 `start.rs`（起動の段取りと締切）、`input.rs`（入口の書式）、`search.rs`（1回の `go`）、
-`clock.rs`（持ち時間）、`manager.rs`（台帳）、`events.rs`（出来事の宛先）、
+`clock.rs`（持ち時間）、`manager.rs`（`GameManager`）、`events.rs`（出来事の宛先）、
 `src-tauri/src/engine/commands/game.rs`（Tauri コマンド）。
 エンジンの出力を読む側は `src-tauri/src/engine/protocol.rs`。
 
@@ -55,7 +55,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 | **G1** | 手が決まり、裁定待ち。**時計は止まる**                  | `Phase::AwaitingRuling { last_mover, .. }` |
 | **G2** | 終局                                                    | `Phase::Over { result }`                   |
 
-`G1` の `since` から `RULING_TIMEOUT` で畳む（`RulingTimeout`。**利用者の中断とは別の値**）。
+`G1` の `since` から `RULING_TIMEOUT` で対局を終える（`RulingTimeout`。**利用者の中断とは別の値**）。
 時計が止まっているので、この打ち切りが対局者の持ち時間を削ることはない。
 
 ## 外部の状態（エンジンプロセス）
@@ -73,7 +73,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 
 **「走っている探索をどう扱うか」はこの enum が全部持つ。**
 別のフラグと併せ持たないこと。持つと「立てる場所」と「読む場所」が割れ、
-どちらか一方しか見ない枝ができる。
+どちらか一方しか見ない分岐ができる。
 
 人間側の `activity` は常に `A0`（`engine` が `None` なので `spawn_search` を通らない）。
 
@@ -96,7 +96,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 | **E13** | `info`                         | `SearchMessage::Info`                                                                          |
 | **E14** | tick: 手番側の時計が尽きた     | `on_tick` の `has_expired`                                                                     |
 | **E15** | tick: 裁定が返らない           | `on_tick` の `RULING_TIMEOUT`                                                                  |
-| **E17** | tick: 畳み待ちが長すぎる       | `on_tick` の `SETTLE_TIMEOUT`                                                                  |
+| **E17** | tick: 止め終わりの待ちが長すぎる       | `on_tick` の `SETTLE_TIMEOUT`                                                                  |
 | **E18** | 思考が長すぎる                 | `on_tick` の `stalled_turn`。**3つの締切のどれか**（※12）                                      |
 | **E16** | 世代の合わない `SearchOutcome` | `req` が `activity` のものと違う                                                               |
 
@@ -118,7 +118,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 | **E3** 裁定「終局」                   | → G2（`reason: Rule`）                                                     | → G2                                                                          | `Err` "game is already over" | △※10   |
 | **E4** 人間の投了                     | → G2（`winner` は相手）。エンジン側を指定したら `Err`                      | → G2                                                                          | `Err`（`ALREADY_OVER`）      | △※10   |
 | **E5** 中断                           | → G2（`reason: Aborted`、`winner: None`）                                  | → G2                                                                          | `Err` "game is already over" | △※10   |
-| **E6** 閉じる                         | E5 を通し、**探索が畳まれるのを待ってから**エンジンを落とす※4              | 同左                                                                          | 同左                         | ✗      |
+| **E6** 閉じる                         | E5 を通し、**探索が止め終わるのを待ってから**エンジンを落とす※4              | 同左                                                                          | 同左                         | ✗      |
 | **E7** `A1` からの `bestmove`         | 形が通れば → G1※1。通らなければ → G2（`EngineFailure`）                    | 起きない※5                                                                    | `gameover` を送って `A0`※6   | △※10   |
 | **E7'** `A2` / `A3` からの `bestmove` | **採らない。** `A0` に落とし、`A3` で `restart` なら `go` を出し直す※7     | 採らない                                                                      | 同左※6                       | △※10   |
 | **E8** `bestmove resign`              | `A1` からなら → G2。`A2` / `A3` からは採らない                             | 採らない                                                                      | 同左※6                       | ✓※10   |
@@ -129,7 +129,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 | **E13** `info`                        | 手番側のものだけ流す※8                                                     | 流さない※8                                                                    | 流さない                     | △※10   |
 | **E14** 時計が尽きた                  | 成立するなら → G2（`Timeout`）※11                                          | 起きない（時計が止まっている）                                                | —                            | ✓※10   |
 | **E15** 裁定が返らない                | —                                                                          | → G2（`RulingTimeout`、`detail` 付き）                                        | —                            | ✓      |
-| **E17** 畳み待ちが長すぎる            | → G2（`EngineFailure`）                                                    | 起きない（畳み待ちは `G0` だけ）                                              | —                            | ✓      |
+| **E17** 止め終わりの待ちが長すぎる            | → G2（`EngineFailure`）                                                    | 起きない（止め終わりの待ちは `G0` だけ）                                              | —                            | ✓      |
 | **E18** 思考が長すぎる                | ※12 の締切に当たれば → G2（`EngineFailure`）                               | 起きない                                                                      | —                            | △      |
 | **E16** 世代違い                      | 捨てる                                                                     | 捨てる                                                                        | 捨てる                       | △※13   |
 
@@ -163,7 +163,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 **手数の上限（`MAX_PLIES`）だけは断らない。** 4つを通ったうえで超えていたら、
 `Ok` を返して `G2`（`Rule`）へ落とす。断ると、フロントが返せる列は一意に固定されて
 いるのでやり直しても同じ `Err` になり、E15 で「アプリが裁定を返さなかった」として
-畳まれる——返しているのに。**検算の後に置く**のは、食い違った長い列が接頭辞を
+対局が終わる——返しているのに。**検算の後に置く**のは、食い違った長い列が接頭辞を
 1手も見られないまま「上限に当たった」として終局しないため。
 
 **権威はフロントだが、受け取ったものが直前の手の続きであることは確かめる。**
@@ -174,26 +174,26 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 **写しの側（`self.moves`）の形は見ない。** 書き込む口は `start` と
 `accept_continue` の2つ（不変条件6）で、どちらも入るものを検証しているから。
 3つ目を増やすなら、そこでも形を見ること。
-4つのどれかで落ちると `G1` のまま留まるので、フロントが直さなければ E15（`RULING_TIMEOUT`）で畳まれる。
+4つのどれかで落ちると `G1` のまま留まるので、フロントが直さなければ E15（`RULING_TIMEOUT`）で対局が終わる。
 
 ※4 `GameSession::close` は「止める（`CLOSE_ABORT_TIMEOUT`） →
-**畳まれるのを待つ**（`CLOSE_IDLE_TIMEOUT`） → 落とす」の順。
+**止め終わるのを待つ**（`CLOSE_IDLE_TIMEOUT`） → 落とす」の順。
 
-**その間、対局は台帳から外れている。** `GameManager::close` は `sessions` から
-外してから待つので、窓のあいだ `sessions` を引いても見つからない。
-`closing` がその窓を埋めていて、`get_game_state` / `submit_game_move` は
+**その間、対局は `GameManager` から外れている。** `GameManager::close` は `sessions` から
+外してから待つので、その間 `sessions` を引いても見つからない。
+`closing` がその間を埋めていて、`get_game_state` / `submit_game_move` は
 「知らない対局」ではなく「いま閉じている」で断り、`list_games` はその ID を含める。
 埋めないと、**生きている対局への再同期が「無い対局」として断られる**。
-**上限は別枠。** 1つの予算を分け合うと、止めるのに使ったぶんだけ畳み待ちが縮む。
+**上限は別々に持つ。** 1つの予算を分け合うと、止めるのに使ったぶんだけ止め終わりの待ちが縮む。
 **この表は秒数を書かない**（定数を動かすと嘘になる）。値は定数名で指し、
-大小関係は `the_watchdogs_are_ordered` が式で固定する。畳み待ちが畳みの最悪値より
+大小関係は `the_watchdogs_are_ordered` が式で固定する。止め終わりの待ちが止め終わりの最悪値より
 長いことは `the_watchdogs_are_ordered` が固定する。
 待たずに落とすと、`stop` を送ろうとしている探索の足元で
 プロセスが消え、**正常に閉じただけで毎回「エンジンが応答しない」のログが出る**。
-`A4` は待っても返らないと分かっているので、畳まれたものとして数える。
+`A4` は待っても返らないと分かっているので、止め終わったものとして数える。
 
 上限を置くのは、書き込みが詰まると `close_game` が無期限に返らないため。
-**超えたら、畳めていなくても落とす**（警告を1行残す）。落とす側にも上限があり
+**超えたら、止め終わっていなくても落とす**（警告を1行残す）。落とす側にも上限があり
 （`engine/child.rs` の `KILL_TIMEOUT`）、そちらを超えるとプロセスが残る。
 
 エンジンへの書き込みは**1本の列**を通る（`protocol.rs` の `run_writer`）。
@@ -206,7 +206,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 `timeout` は発火する機会そのものを持たない。
 
 なお `GameManager::close` は `Arc::try_unwrap` が通らないと、中断だけ通して
-セッションを**台帳へ戻し** `Err` を返す。戻すのは、手掛かりを残さずに
+セッションを**`GameManager` へ戻し** `Err` を返す。戻すのは、手掛かりを残さずに
 エンジンだけが残るのを避けるため。次の `close_game` か `close_all` で落とせる。
 
 アプリを閉じるときは `lib.rs` が `close_all` → `shutdown_all` を呼ぶ。
@@ -218,7 +218,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 **解析用エンジンは掃除からしか届かない**ので必ず残る。
 
 `CLOSE_TIMEOUT` を超えても掃除が拾う。残るのは `SWEEP_TIMEOUT` が尽きて `kill` が
-届かなかった後続と、`KILL_TIMEOUT` を超えても OS が畳まなかった回（→ 台帳の F-25）。
+届かなかった後続と、`KILL_TIMEOUT` を超えても OS が終わらせなかった回（→ `failure-surfacing.md` の F-25）。
 `kill` は `quit` を書かずにシグナルを送り、待ち手のタスクが終了状態を見届ける
 （`engine/child.rs`）ので、stdin を閉じて走り続けるエンジンも落ちる。
 **`#!` のラッパーから起こした孫のエンジンまで落ちるのは、unix で、`kill` の時点で子が
@@ -232,7 +232,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 
 - **探索中だった側**（`A1`〜`A3`）: `finish` の時点では送らない。探索中のエンジンへ
   送るのはプロトコル違反なので、`bestmove` が返って `A0` になるまで待つ。
-  送るのは `on_search_outcome` の `Phase::Over` の枝
+  送るのは `on_search_outcome` の `Phase::Over` の arm
 - **`finish` の時点で `A0` だった側**: `finish` がその場で送る（`idle_sides`）。
   人対人や、両者が `A0` で終局した対局では**これが唯一の送信経路**。
   消すと、探索していないエンジンに `gameover` が永久に届かない
@@ -251,7 +251,7 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 いまの局面では非合法になりうる。採ると `MoveDecided` に載り、フロントが反則として
 終局させるので、**エンジンが身に覚えのない負けを負う**。
 `restart` が立っていて手番側なら、`go` を出し直す前に**時計を引き直す**
-（畳んでいた `SEARCH_STOP_GRACE` ぶんを、1手も読んでいないエンジンの消費にしないため。
+（止め終わりを待っていた `SEARCH_STOP_GRACE` ぶんを、1手も読んでいないエンジンの消費にしないため。
 その間はどちらの持ち時間にも入らない）。
 
 ※8 **手番でない側**の `info` を落とすのは `on_search_info` の `is_to_move` 1本だけ。
@@ -265,10 +265,10 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 
 **`is_to_move` の1行が守っているのは先読み中の側だけ。** 冗長と読んで消すと、
 相手の手番中の先読みが画面に出る（世代は `info_from_a_stopped_search_is_not_shown`
-が見る）。**間引きは1段も無い** → 埋まっていないセル。
+が見る）。**間引きは1つも無い** → 埋まっていないセル。
 
-※9 E10 の発生源は `protocol.rs` の殻（`run_shell`）。読み取り（`start_reading`）が行を殻へ送り、殻が状態機械へ渡す。
-読み取りの送り手（`Reading`）が落ちる時点で殻へ出力の終わりを送り、殻が状態機械に渡して（`on_output_end`）、状態機械が
+※9 E10 の発生源は `protocol.rs` のアクター（`run_actor`）。読み取り（`start_reading`）が行をアクターへ送り、アクターが状態機械へ渡す。
+読み取りの送り手（`Reading`）が落ちる時点でアクターへ出力の終わりを送り、アクターが状態機械に渡して（`on_output_end`）、状態機械が
 探索を閉じて、待っている手順へ「もう来ない」を答える。**読み取りの終わり方は1つではない**
 （stdout の EOF と、読み取り自体の失敗）。どの終わり方でも `Reading` は落ちるので、
 そこ1箇所で全部を拾う（拾わないと、準備の手順が `READY_TIMEOUT` まで待つ）。
@@ -299,12 +299,12 @@ Rust はどれも持たない。その帰結として、**Rust は手が決ま�
 
 `(G2, E1)`（終局後の着手）は `a_finished_game_refuses_every_move_and_verdict_the_same_way` が
 踏んでいる（着手・裁定・投了・中断の4つを同じループで見る）。
-E1 / E4 の「エンジン側を人間として撃つ」枝は
+E1 / E4 の「エンジン側を人間として撃つ」分岐は
 `a_seat_played_by_an_engine_refuses_human_moves_and_resignations` が踏んでいる。
 
-※12 `Thinking` の番人は `stalled_turn` 1本。締切は3つあり、どれかに当たれば落とす。
+※12 `Thinking` の監視は `stalled_turn` 1本。締切は3つあり、どれかに当たれば落とす。
 
-1. `Settling` が `SETTLE_TIMEOUT` を超えた（畳み待ちが長すぎる → E17）。
+1. `Settling` が `SETTLE_TIMEOUT` を超えた（止め終わりの待ちが長すぎる → E17）。
    **これだけは対局者の種別に関わらず見る**（止めた探索の話なので）
 2. `Running` が持ち時間＋`HARD_TURN_LIMIT` を超えた。**喋っていても落とす**
 3. `Running` が `SEARCH_GRACE` を超え、その間 `info` が1行も来ておらず、
@@ -338,14 +338,14 @@ E1 / E4 の「エンジン側を人間として撃つ」枝は
 
 **探索タスクの中には置かない。** あのタスクは起動時の値を握ったまま走るので、
 `ponderhit` で先読みから本番へ昇格したことを観測できない。`on_tick` は
-`TurnClock` を毎回読み直すので、昇格した手番も同じ番人が覆う。
+`TurnClock` を毎回読み直すので、昇格した手番も同じ監視が覆う。
 
 `on_tick` から終局させると `Activity` は `Searching` のままなので、
 `finish` の `idle_sides` に入らない＝**探索中のエンジンへ `gameover` を送らない**
 （不変条件3）。打ち切りは `cancel` を通って探索タスクへ届き、
 そちらが `stop` を出す。
 
-どちらの枝も `enforce_engine_timeout` を見ない。時間切れ負けではなく、
+どちらの分岐も `enforce_engine_timeout` を見ない。時間切れ負けではなく、
 **黙ったエンジンを見つける**ためにある。
 
 ※11 `timeout_enforced`。**エンジンの時間切れは既定で成立しない**
@@ -376,7 +376,7 @@ E1 / E4 の「エンジン側を人間として撃つ」枝は
 | `Unreachable`（`Timeout`）   | **stdin を読んでいない**               | `StopTimedOut`   |
 | `Unreachable`（その他）      | **送る先が無いか、プロセスが落ちた**   | `Failed`         |
 
-`Unreachable`（`Timeout`）は、検討（`analyzer`）では失敗と読む。対局は `gameover` を書かずに畳む側へ倒す（`Activity::Unresponsive`）。
+`Unreachable`（`Timeout`）は、検討（`analyzer`）では失敗と読む。対局は `gameover` を書かずに対局を終える側へ倒す（`Activity::Unresponsive`）。
 
 ## 時計
 
@@ -406,7 +406,7 @@ ClocksView {
 （本文を2箇所に置くと、片方だけ直る経路ができる）。ここで押さえるのは1つ——
 **`G1` と `G2` だけでなく `G0` でも `null` になりうる**こと。
 
-**`G0` で `null` になるのは、渡す先に畳む探索があったときだけ。** 先読みが外れた、
+**`G0` で `null` になるのは、渡す先に止める探索があったときだけ。** 先読みが外れた、
 手番でない側が本番の思考をしていた、既に止めてある——`Handover::StopThenStart`
 に落ちる場合。`StartNow` と `PonderHit` は emit より前に `begin_turn` を通るので、
 `TurnChanged` は `running` を載せて飛ぶ。`ponder` の既定は偽なので、
@@ -452,7 +452,7 @@ ClocksView {
    守っているのは `running_clock()` 1本。`Phase::Thinking` と
    `TurnClock::Running` の両方が揃わなければ `None` を返す。
    呼ぶ側（`on_tick` / `clocks_view` / `decide_move` / `finish`）はこれを通すだけで、
-   **独立した番人ではない。** ここの `Phase` 判定を「到達しない枝」と読んで
+   **独立した検査ではない。** ここの `Phase` 判定を「到達しない分岐」と読んで
    消すと、`snapshot` と `finish` が終局後も動いている時計を出す。
 
 5. **`close_game` を呼ぶまでエンジンプロセスは落ちない。** 終局は落とさない
@@ -475,7 +475,7 @@ ClocksView {
 起動する作りなので、**プロセスを差し替える口が無い**。
 
 固定できているのは、人間だけで踏める経路（※10）と、`Runner` を直に組んで
-`activity` を置いた単体、そして台帳の出し入れ（`manager.rs`）。
+`activity` を置いた単体、そして`GameManager` の出し入れ（`manager.rs`）。
 `engine/commands/game.rs` は、Tauri コマンドの本体が `AppHandle` を要求するので
 実機無しに呼べない。**純関数として切り出した部分**（断りの絞り）は
 同ファイルの `mod tests` が踏んでいる。
@@ -485,10 +485,10 @@ ClocksView {
 | セル                                           | 状態                                                                                                                                                                                                                                                                                                                                            |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `A4` になったエンジンの後始末                  | 探索したまま `close_game` まで残る。**`gameover` も届かない。** プロセスを落とすのは `close_game` と、終了時の `close_all` → `shutdown_all`                                                                                                                                                                                                     |
-| `GameManager::close` の `Arc::try_unwrap` 失敗 | 中断だけ通して台帳へ戻り `Err` が返る（※4）。終了時は `close_all` が拾う。**押し直す口は画面に無い** —— 対局の画面を外してあるので（`docs/spec/features/game-play.md`）、断られた対局は台帳に残ったままになる                                                                                                                                   |
+| `GameManager::close` の `Arc::try_unwrap` 失敗 | 中断だけ通して`GameManager` へ戻り `Err` が返る（※4）。終了時は `close_all` が拾う。**押し直す口は画面に無い** —— 対局の画面を外してあるので（`docs/spec/features/game-play.md`）、断られた対局は`GameManager` に残ったままになる                                                                                                                                   |
 | `(G0, E13)` `info` の間引き                    | Rust は対局も解析も1行ごとに `emit` する。間引きは**受け手側**にあり、解析は `src/entities/analysis/model/waits.ts` が持つ（`resultFlushMs`）。対局の受け手は `GameSessionProvider` に在るが、`searchInfo` を**捨てている**ので間引きの置き場がまだ無い。**`run_loop` は単一キューなので、`emit` が詰まると `bestmove` の処理がその後ろに並ぶ** |
 | `(G0, E10)` 出力が終わった                     | 実プロセスを落とす手段がテストに無い                                                                                                                                                                                                                                                                                                            |
-| `ponderhit` の**送信失敗**                     | ※2 の振り分けはどの行も `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す枝）                                                                                                                                                                                                    |
+| `ponderhit` の**送信失敗**                     | ※2 の振り分けはどの行も `Runner` を直に組んで踏んである。**実機が要るのは `ponderhit` の書き込みが落ちたとき**（`stop_then_start` へ倒す分岐）                                                                                                                                                                                                    |
 | `(G0, E9)` `bestmove win`                      | 入玉宣言。踏むテストが無い                                                                                                                                                                                                                                                                                                                      |
 | `enforce_engine_timeout` が true のとき        | ※11 の分岐。既定 false 側しか通していない                                                                                                                                                                                                                                                                                                       |
 | `E16` 世代違いの `SearchOutcome`               | `req` の照合。`Info` 側は `info_from_a_stopped_search_is_not_shown` が踏んでいる。`SearchOutcome` 側は `Runner` を直に組んで `req` をずらせば踏める（実機は要らない）。未検証                                                                                                                                                                   |
@@ -498,12 +498,12 @@ ClocksView {
 ## 実装との対応
 
 - 状態機械: `src-tauri/src/engine/game/session.rs`
-- 手番が止まったことの番人: `src-tauri/src/engine/game/stall.rs`
+- 手番が止まったことの監視: `src-tauri/src/engine/game/stall.rs`
 - 起動の段取りと締切: `src-tauri/src/engine/game/start.rs`
 - 入口の書式: `src-tauri/src/engine/game/input.rs`
 - 1回の `go`: `src-tauri/src/engine/game/search.rs`
 - 持ち時間: `src-tauri/src/engine/game/clock.rs`
-- 走っている対局の台帳: `src-tauri/src/engine/game/manager.rs`
+- 走っている対局を持つ `GameManager`: `src-tauri/src/engine/game/manager.rs`
 - 出来事の宛先（`GameEventSink`）: `src-tauri/src/engine/game/events.rs`
 - Tauri コマンド: `src-tauri/src/engine/commands/game.rs`
 - 境界に出る型: `src-tauri/src/engine/game/types.rs`

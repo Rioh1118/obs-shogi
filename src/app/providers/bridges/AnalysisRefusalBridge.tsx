@@ -4,7 +4,7 @@ import { useEngine } from "@/entities/engine";
 import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
-/** 帯の取っ手。断りが消えたら引っ込める */
+/** 帯の `dismissKey`。断りが消えたら引っ込める */
 const ANALYSIS_REFUSAL = "analysis-refusal";
 
 /**

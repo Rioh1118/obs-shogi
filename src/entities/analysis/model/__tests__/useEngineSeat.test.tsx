@@ -31,7 +31,7 @@ afterEach(cleanup);
  * `AnalysisProvider` を通さずに関数を直に並べる。いまの provider はこの順序を作らないが、
  * それは provider の都合で、フックの保証ではない。呼び手を足すと踏む。
  */
-describe("EngineSeat の枠", () => {
+describe("EngineSeat のスロット", () => {
   it("捨てる停止を挟んでも、飛んでいる返却と同じ席へ2本目を撃たない", async () => {
     const pending: { resolve: () => void; sessionId?: string }[] = [];
     stopCore.mockImplementation(
@@ -49,7 +49,7 @@ describe("EngineSeat の枠", () => {
     // 握っている席を返す。応答は返らない。
     seat.releaseHeldQuietly("no-position");
 
-    // 要らなくなった開始が持ってきた別の席を捨てる。**枠はこちらに移る。**
+    // 要らなくなった開始が持ってきた別の席を捨てる。**`releasingRef` はこちらに移る。**
     seat.beginTake("late-restart", ready).receiveSeat(id("S2"), () => true);
 
     // その後ろに並ぶ返却。並ぶ相手を取り違えると、S1 の1本目がまだ飛んでいるのに撃つ。
@@ -69,11 +69,11 @@ describe("EngineSeat の枠", () => {
  * 踏む（この画面の断りが案内している操作）。
  */
 describe("EngineSeat とエンジンの世代", () => {
-  it("札を取った後にエンジンが消えたら、着地した席を握らない", () => {
+  it("開始を頼んだ後にエンジンが消えたら、着地した席を握らない", () => {
     const { result } = renderHook(() => useEngineSeat());
     const seat = result.current;
 
-    // 開始を頼む行。この時点のエンジンが札に焼き付く。
+    // 開始を頼む行。この時点のエンジンが要求の番号に焼き付く。
     const take = seat.beginTake("late-restart", ready);
 
     seat.onEngineGone();
@@ -130,7 +130,7 @@ describe("EngineSeat とエンジンの世代", () => {
     let usable = true;
     const take = seat.beginTake("late-restart", () => usable);
 
-    // 往復の最中に起こし直される。**世代は動かない**（札より前に進んだ扱い）。
+    // 往復の最中に起こし直される。**世代は動かない**（要求の番号より前に進んだ扱い）。
     usable = false;
 
     expect(take.receiveSeat(id("S1"), () => false)).toBe("engine-gone");
@@ -143,7 +143,7 @@ describe("EngineSeat とエンジンの世代", () => {
    * provider はこの並びを作らないが、それは provider の都合で、フックの保証ではない。
    * `unmountedRef` を1回で倒すと、2本目の書き戻しが取り残され、その席が Rust に残る。
    */
-  it("畳まれた後に2本戻ってきたら、2本とも返し直す", async () => {
+  it("unmount された後に2本戻ってきたら、2本とも返し直す", async () => {
     const rejects: ((e: unknown) => void)[] = [];
     stopCore.mockImplementation((sessionId?: string) =>
       sessionId === undefined
@@ -161,7 +161,7 @@ describe("EngineSeat とエンジンの世代", () => {
 
     seat.sweepOnUnmount();
 
-    // 枠に並んだ停止が解決し切るまで進める。
+    // `releasingRef` に並んだ停止が解決し切るまで進める。
     const settle = () => new Promise((r) => setTimeout(r, 0));
 
     // 1本目が着地して捨てられ、その停止が落ちる → 書き戻し → 撃ち直す。

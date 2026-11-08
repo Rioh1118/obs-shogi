@@ -127,13 +127,13 @@ describe("KifuImportForm", () => {
       expect(screen.getAllByText("—").length).toBeGreaterThan(0);
     });
 
-    test("読めなかったら、段に載せて利用者向けの一文を見える位置に出す", () => {
+    test("読めなかったら、tier を付けて利用者向けの一文を見える位置に出す", () => {
       render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
 
       typeInto("棋譜テキスト", BROKEN_JKF);
 
       const notice = screen.getByText("棋譜として読めませんでした").closest(".notice");
-      // 段は danger（同じテキストを貼り直しても直らない）。畳んだ中ではなく、
+      // tier は danger（同じテキストを貼り直しても直らない）。折りたたんだ中ではなく、
       // 見える位置に理由が出ていること
       expect(notice?.className).toContain("notice--danger");
       expect(notice?.textContent).toContain("読み込めませんでした");
@@ -144,7 +144,7 @@ describe("KifuImportForm", () => {
      * 棋譜でない文章は**投げずに**「0手の棋譜」として返る
      * （`parseKifuStringToJKF` の doc）。投げなかったことを「読めた」と読むと、
      * 「読めました」と言い切ったうえで中身の無いファイルを作り、
-     * 貼ったテキストごと器を閉じる。
+     * 貼ったテキストごとモーダルを閉じる。
      */
     test("棋譜でない文章は、読めなかったことにする", () => {
       render(<KifuImportForm onCreated={onCreated} onCancel={onCancel} dirPath="/root" />);
@@ -168,7 +168,7 @@ describe("KifuImportForm", () => {
      * 判定が返す `cause` は開発者向け（tsshogi の英文）。**画面はそれを出さない。**
      * 代わりに、この入口で何をすればよいかをここが足す。
      */
-    test("開発者向けの手掛かりは画面に出さず、この面の直し方を足す", () => {
+    test("開発者向けの手掛かりは画面に出さず、このタブの直し方を足す", () => {
       vi.spyOn(parse, "readKifuText").mockReturnValue({
         readable: false,
         message: "棋譜形式の判定に失敗しました。",

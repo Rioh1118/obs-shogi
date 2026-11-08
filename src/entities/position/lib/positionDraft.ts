@@ -10,10 +10,10 @@ import { isValidCoords } from "./boardCoords";
  *
  * `Shogi` を状態として持たない。`editMode(true)` で止まるのは手番の側の駒かの確認
  * （`checkTurn`）、動きの合法性の照合（`getMovesFrom`）、`nextTurn`、`prevTurn` の4つだけで、
- * 残りはこの面の前提と逆を向いている。
+ * 残りは局面編集の前提と逆を向いている。
  *
  * - `move` は行き所のない升へ動かすと強制的に成らせる（`deadEnd` の判定は編集モードの外にある）。
- *   この面は行き所のない駒を置けたうえで断りに出す
+ *   局面編集は行き所のない駒を置けたうえで断りに出す
  * - `move` が駒を取ると `capture` が走り、取られた駒の反対側の駒台へ積む
  *   （`movePieceOnBoard` の doc を見ること）
  * - `drop` は `getDropsBy` で置ける升を絞る。あちらは `flagEditMode` を見ないので、
@@ -289,7 +289,7 @@ export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): Cyc
       ? remembered.cyc
       : undefined;
   if (carried !== undefined && !Number.isInteger(carried)) {
-    // 畳む式（`((n % p) + p) % p`）が畳めるのは負値だけで、非整数はそのまま残る。
+    // 寄せる式（`((n % p) + p) % p`）が寄せられるのは負値だけで、非整数はそのまま残る。
     // 残ると `steps[2.5]` が `undefined` になり、kind も color も持たない値が返る
     throw new RangeError(`巡目が整数でない: ${carried}`);
   }

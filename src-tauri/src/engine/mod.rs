@@ -1,11 +1,11 @@
-//! エンジンの段の宣言だけを置く。段ごとに何を決めるかは `tests/layering.rs` の `LAYERS` が持つ。
+//! エンジンのレイヤの宣言だけを置く。レイヤごとに何を決めるかは `tests/layering.rs` の `LAYERS` が持つ。
 
 pub mod analysis_events; // 検討の出来事の宛先の trait
 pub mod analysis_start; // 検討のエンジンを起こして設定を送る手順
 pub mod analyzer; // 検討のエンジンの起動と探索
 pub mod binding; // 評価関数・定跡の流し先を申告から決める
 pub mod bridge; // 検討の席
-pub mod candidates; // info 行を候補手の一覧へ畳む
+pub mod candidates; // info 行を候補手の一覧へ集約する
 pub mod child; // 子プロセスと標準入出力
 pub mod commands; // Tauri コマンドの入口
 pub mod game; // 対局
@@ -16,7 +16,7 @@ pub mod option_line; // USI の option 行を定義に写す
 pub mod probe; // 申告だけを取る
 pub mod protocol; // USI プロトコル
 pub mod registry; // 起動済みプロセスの台帳
-pub mod setup; // 設定を送って使える状態にする段
+pub mod setup; // 設定を送って使える状態にするレイヤ
 pub mod start_failure; // 起動の失敗を種類に分ける
 pub mod state; // Tauri コマンドが共有する持ち物
 pub mod types;

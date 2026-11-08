@@ -2,9 +2,9 @@ import type { VisibleTier } from "@/shared/lib/notification/types";
 import type { KifuLoadFailure } from "../model/types";
 
 /**
- * 盤に載せられなかった失敗の段と「何が起きたか」を `code` から決める。
+ * 盤に載せられなかった失敗の tier と「何が起きたか」を `code` から決める。
  *
- * 段と文言を呼び手が書くと、2件目の呼び手が別の段を選んでも誰も気づかない。
+ * tier と文言を呼び手が書くと、2件目の呼び手が別の tier を選んでも誰も気づかない。
  * `entities/file-tree` が `fsErrorTier` / `describeFsError` で同じ問題を避けている（`api/error.ts`）。
  *
  * 「何をすれば直るか」はここに書かない。復帰の手順はその画面の導線に依るので
@@ -12,7 +12,7 @@ import type { KifuLoadFailure } from "../model/types";
  */
 
 /**
- * 段を返す。段は復帰に何が要るかで切る（ADR-0004 決定1）。
+ * tier を返す。tier は復帰に何が要るかで切る（ADR-0004 決定1）。
  *
  * どの `code` も `danger` で、この画面の操作では直らない。同じ棋譜を開き直しても、
  * ファイルの中身が変わっていなければ同じ結果になる。

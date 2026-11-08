@@ -2,16 +2,16 @@ import type { ChildNode, Container, Declaration } from "postcss";
 import scss from "postcss-scss";
 
 /**
- * SCSS から「文字と、その文字が載る面」の対を取り出してコントラスト比を測る走査器。
+ * SCSS から「文字と、その文字が載る背景」の対を取り出してコントラスト比を測る走査器。
  *
- * 人の目では止まらないので機械で止める。文字と面は宣言する場所が離れるので、
+ * 人の目では止まらないので機械で止める。文字と背景は宣言する場所が離れるので、
  * 同じコミットの中でも片方だけ測って通ってしまう。
  *
- * 測れるのは**面が不透明に確定する対だけ**。半透明の面を親に重ねているだけの
+ * 測れるのは**背景が不透明に確定する対だけ**。半透明の背景を親に重ねているだけの
  * 部品は、どの親に載るかで実効値が変わるので判定しない。
  *
  * **測れた対と測れなかった宣言の両方を返す。** 割った対だけを返すと、
- * 面を半透明にするだけで対が検査から静かに消え、テストは緑のままになる。
+ * 背景を半透明にするだけで対が検査から静かに消え、テストは緑のままになる。
  * 数えられていることそのものを呼び出し側がラチェットできるようにする。
  */
 
@@ -196,14 +196,14 @@ export type ContrastPair = {
 };
 
 export type ContrastScan = {
-  /** 面が不透明に確定して比を出せた対 */
+  /** 背景が不透明に確定して比を出せた対 */
   pairs: ContrastPair[];
-  /** `color` は宣言されているのに面が確定せず、測れなかった宣言の数 */
+  /** `color` は宣言されているのに背景が確定せず、測れなかった宣言の数 */
   unmeasured: number;
 };
 
 type Context = {
-  /** 不透明に確定した面。確定していなければ `null` */
+  /** 不透明に確定した背景。確定していなければ `null` */
   surface: Rgba | null;
   bgText: string;
   color: Rgba | null;
@@ -211,7 +211,7 @@ type Context = {
   /** rem。大きい文字の判定に使う */
   fontSize: number | null;
   bold: boolean;
-  /** 継承する `opacity`。文字と面の両方に同じだけ掛かる */
+  /** 継承する `opacity`。文字と背景の両方に同じだけ掛かる */
   opacity: number;
 };
 
@@ -264,7 +264,7 @@ function thresholdFor(ctx: Context): number {
  */
 function isDisabledState(node: Container): boolean {
   const selector = (node as { selector?: string }).selector ?? "";
-  // `:not(:disabled)` は**有効なとき**の段。先に外さないと逆を拾う
+  // `:not(:disabled)` は**有効なとき**の状態。先に外さないと逆を拾う
   const withoutNot = selector.replace(/:not\([^)]*\)/g, "");
   return /:disabled|\[disabled\]|aria-disabled/.test(withoutNot);
 }
@@ -301,10 +301,10 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
       const parsed = resolveColor(child.value, vars);
       next.bgText = `${child.prop}: ${child.value}`;
       if (!parsed) {
-        // グラデーションや解けない値。ここから下は面が分からない
+        // グラデーションや解けない値。ここから下は背景が分からない
         next.surface = null;
       } else if (parsed.a === 0) {
-        // 透明。親の面がそのまま見える
+        // 透明。親の背景がそのまま見える
         next.surface = inherited.surface;
         next.bgText = inherited.bgText;
       } else if (parsed.a === 1) {
@@ -324,7 +324,7 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
     if (prop === "font-size") next.fontSize = toRem(child.value, vars);
     if (prop === "font-weight") next.bold = isBoldValue(child.value, vars);
 
-    // 要素ごと薄くすると、文字も面も同じだけ**親の面**へ寄る。
+    // 要素ごと薄くすると、文字も背景も同じだけ**親の背景**へ寄る。
     // 見ないと、静止 0.9 / ホバー 1.0 のボタンを実物より良い比で報告する。
     //
     // 擬似クラス・擬似要素の入れ子は同じ要素なので、掛けずに置き換える。
@@ -340,7 +340,7 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
   }
 
   if (declaresPair && next.colorText && !isDisabledState(node)) {
-    // `opacity` は文字と面の両方を**親の面**へ寄せる。親が分からなければ測れない
+    // `opacity` は文字と背景の両方を**親の背景**へ寄せる。親が分からなければ測れない
     const fadesInto = next.opacity < 1 ? inherited.surface : next.surface;
 
     if (next.color && next.surface && fadesInto) {
@@ -359,7 +359,7 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
         bg: next.bgText,
       });
     } else {
-      // 面が決まらない、色が解けない（`currentColor` / `var()`）、
+      // 背景が決まらない、色が解けない（`currentColor` / `var()`）、
       // 薄めた先が分からない。**どれも「合格」ではない**ので数える
       scan.unmeasured += 1;
     }
@@ -378,8 +378,8 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
  * 入れ子は継承として扱う。`&:hover { background: ... }` は親が宣言した
  * `color` の上に載るので、ホバーだけ基準を割る事故がここで見える。
  *
- * @param options.surface このファイルが載る面。渡すと最上位の面がそこから始まるので、
- *   自分では面を宣言しない部品（モーダルの中身など）も測れるようになる
+ * @param options.surface このファイルが載る背景。渡すと最上位の背景がそこから始まるので、
+ *   自分では背景を宣言しない部品（モーダルの中身など）も測れるようになる
  */
 export function scanContrast(
   source: string,

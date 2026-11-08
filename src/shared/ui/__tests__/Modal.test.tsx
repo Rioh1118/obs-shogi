@@ -27,9 +27,9 @@ afterEach(() => {
 });
 
 describe("Modal のフォーカス", () => {
-  test("隠れている面の中の押せるものは、焦点の行き先に選ばない", () => {
-    // 器が面を外さずに `hidden` で隠す作りがある（`create-file`）。
-    // `querySelectorAll` は `display: none` を除かないので、隠れた面の中の
+  test("隠れているタブの中の押せるものは、焦点の行き先に選ばない", () => {
+    // モーダルがタブを外さずに `hidden` で隠す作りがある（`create-file`）。
+    // `querySelectorAll` は `display: none` を除かないので、隠れたタブの中の
     // ボタンが先頭に来ると、開いた瞬間の焦点が**取れない要素**へ向かう
     render(
       <Modal onClose={vi.fn()} label="対話">
@@ -58,7 +58,7 @@ describe("Modal のフォーカス", () => {
     act(() => last.focus());
     fireEvent.keyDown(last, { key: "Tab" });
 
-    // 隠れているものを端に数えると、ここで折り返しが起きずに器の外へ抜ける
+    // 隠れているものを端に数えると、ここで折り返しが起きずにモーダルの外へ抜ける
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "先頭" }));
   });
 
@@ -210,7 +210,7 @@ describe("Modal のフォーカス", () => {
 
   /**
    * 中の入力が Escape を自分の用途に使う経路がある（`TagsInput` は打ちかけの
-   * 文字を消す）。キャプチャ段で聞くと、そこへ届く前に必ず閉じてしまい、
+   * 文字を消す）。キャプチャフェーズで聞くと、そこへ届く前に必ず閉じてしまい、
    * 打ちかけどころかフォームの入力が全部消える
    */
   test("中の要素が Escape を使ったら閉じない", () => {

@@ -8,7 +8,7 @@ function candidate(entry: string): EngineCandidate {
 }
 
 describe("プリセット編集のエンジンの候補", () => {
-  test("名前で絞らない。YaneuraOu 以外も、1段下のフォルダにあるものも選べる", () => {
+  test("名前で絞らない。YaneuraOu 以外も、1階層下のフォルダにあるものも選べる", () => {
     const options = presetEngineOptions([
       candidate("YaneuraOu_NNUE-V900Git_APPLEM1"),
       candidate("zermelo-f558898"),

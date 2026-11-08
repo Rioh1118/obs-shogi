@@ -1,6 +1,6 @@
 @use "@/index.scss" as index;
 
-// 脚注。**上の線は器（`.analysis-pane__footer`）が引く**ので、ここでは引かない
+// 脚注。**上の線は親の `.analysis-pane__footer` が引く**ので、ここでは引かない
 .stats-section {
   display: flex;
   align-items: center;
@@ -9,7 +9,7 @@
   height: 3.2rem;
   padding: 0 var(--pane-px, #{index.$space-4});
 
-  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  // **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
   background: index.$color-primary-dark;
   color: index.$color-text-primary;
   font-size: index.$font-hint;

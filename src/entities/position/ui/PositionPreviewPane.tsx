@@ -14,8 +14,8 @@ type Props = {
 /**
  * 局面のプレビュー
  *
- * 局面の有無で枠の要素を替えない。枠を測る effect は mount で1度だけ走るので、
- * 局面が無いときの枠に `ref` が無いと測る先が無く、盤が初期値のまま残る。
+ * 局面の有無でコンテナの要素を替えない。コンテナを測る effect は mount で1度だけ走るので、
+ * 局面が無いときのコンテナに `ref` が無いと測る先が無く、盤が初期値のまま残る。
  */
 function PositionPreviewPane({ previewData }: Props) {
   const boardWrapRef = useRef<HTMLDivElement>(null);
@@ -56,10 +56,10 @@ function PositionPreviewPane({ previewData }: Props) {
     <div className="position-preview__container">
       <div className="position-preview__frame" ref={boardWrapRef}>
         {/*
-          手番はこの部品が出す。盤の絵には現れない値で、局面だけを渡されるこの面では
-          初形からの偶奇を追えない。呼び手が添える形だと、添え忘れた面だけ手番が分からなくなる。
+          手番はこの部品が出す。盤の絵には現れない値で、局面だけを渡されるこの部品では
+          初形からの偶奇を追えない。呼び手が添える形だと、添え忘れた画面だけ手番が分からなくなる。
 
-          段を作らず枠の角に重ねる。盤の一辺はこの枠の内寸から決まるので、段を足すと盤が縮む
+          行を作らずコンテナの角に重ねる。盤の一辺はこのコンテナの内寸から決まるので、行を足すと盤が縮む
         */}
         <div className="position-preview__turn-tab">{turnBadgeText(previewData.turn)}</div>
 

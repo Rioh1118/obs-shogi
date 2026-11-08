@@ -101,7 +101,7 @@ describe("操作列が言う語", () => {
     ).toBe("cancelled");
   });
 
-  it("選択が外れたら、前の失敗が畳まれる前でもエンジンなし", () => {
+  it("選択が外れたら、前の失敗の状態が消える前でもエンジンなし", () => {
     for (const phase of ["idle", "error"] as const) {
       expect(
         engineStatusOf({

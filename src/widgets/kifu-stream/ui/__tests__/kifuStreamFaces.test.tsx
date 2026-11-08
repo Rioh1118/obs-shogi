@@ -5,11 +5,11 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 
 /**
- * 開いている面を畳む合図は `boardSeq` で、`loadedAbsPath` ではない。
+ * 開いているサーフェスを閉じる合図は `boardSeq` で、`loadedAbsPath` ではない。
  *
- * 畳むのは盤の中身が入れ替わったときだけ。パスは改名・移動でも動くので、そちらで畳むと
+ * 閉じるのは盤の中身が入れ替わったときだけ。パスは改名・移動でも動くので、そちらで閉じると
  * **名前を直しただけで書きかけのノートが閉じる**。閉じると `KifuCommentNote` の
- * 離脱時の保存が走り、面がもう外れているぶん断りも出ないまま本文が消える。
+ * 離脱時の保存が走り、対象の手がもう外れているぶん断りも出ないまま本文が消える。
  *
  * ノートの中身は見ない（Lexical ごと立てることになる）。見るのは
  * 開いたままか閉じたかと、渡している棋譜の識別子だけ。
@@ -82,9 +82,9 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe("開いている面を畳む合図", () => {
+describe("開いているサーフェスを閉じる合図", () => {
   /** 改名・移動（`path_renamed`）。パスだけが動き、盤の中身は同じ */
-  test("改名・移動では、開いているノートを畳まない", async () => {
+  test("改名・移動では、開いているノートを閉じない", async () => {
     const view = await openNote();
 
     game.state.loadedAbsPath = "/ws/b.kif";
@@ -94,11 +94,11 @@ describe("開いている面を畳む合図", () => {
   });
 
   /**
-   * 別の棋譜が載る（`game_loaded`）。畳まないと、ノートは同じ位置に開いたまま
+   * 別の棋譜が載る（`game_loaded`）。閉じないと、ノートは同じ位置に開いたまま
    * **前の棋譜の本文を出し続ける**——見出しは手数しか出さないので、どのファイルのものかは
    * 画面から読めない。
    */
-  test("別の棋譜が盤に載ったら、開いているノートを畳む", async () => {
+  test("別の棋譜が盤に載ったら、開いているノートを閉じる", async () => {
     const view = await openNote();
 
     game.state.loadedAbsPath = "/ws/b.kif";
@@ -109,7 +109,7 @@ describe("開いている面を畳む合図", () => {
   });
 
   /** 同じ名前で載り直した回（E16 のあとの復帰）も、中身は入れ替わっている */
-  test("同じ名前で載り直しても、開いているノートを畳む", async () => {
+  test("同じ名前で載り直しても、開いているノートを閉じる", async () => {
     const view = await openNote();
 
     game.state.boardSeq = 2;
@@ -120,12 +120,12 @@ describe("開いている面を畳む合図", () => {
 
   /**
    * ノートへ渡すのも `boardSeq`。**パスを渡すと、改名で `faceKey` が変わって
-   * 面が別物として組み直され、書きかけの本文がそこで捨てられる。**
+   * 対象の手が別物として組み直され、書きかけの本文がそこで捨てられる。**
    */
   test("ノートへ渡す識別子は、改名で変わらない", async () => {
     const view = await openNote();
     // **値そのものを言う。** 前後の一致だけを見ると、`null` を渡す退行
-    // （ノートが面を作れず、コメントが1文字も保存できなくなる）が
+    // （ノートが対象の手を作れず、コメントが1文字も保存できなくなる）が
     // 「前も後も null」で通ってしまう
     expect(screen.getByTestId("note").getAttribute("data-board-seq")).toBe("1");
 

@@ -2,11 +2,11 @@
 
 .position-preview {
   &__container {
-    // **部品の根で宣言する。** 器のクラスに載せると、別の器に置いたときだけ
-    // 面も枠も落ちる（`var()` が解決できず無効値になる）。
+    // **部品の根で宣言する。** 親のコンテナのクラスに載せると、別のコンテナに置いたときだけ
+    // 背景も枠線も落ちる（`var()` が解決できず無効値になる）。
     // Sass の変数は `#{}` で補間する —— 包まないと `rgba()` の呼び出しが
     // **文字列のまま**出力され、`var()` の値としては常に無効になる
-    // （面も枠も落ちる。走査は「トークンが実在するか」しか見ないので緑のまま）
+    // （背景も枠線も落ちる。走査は「トークンが実在するか」しか見ないので緑のまま）
     --board-pad: clamp(8px, 0.6cqw, 12px);
     --board-radius: #{index.$radius-4};
     --board-surface: #{index.$color-primary-black};
@@ -24,13 +24,13 @@
   &__turn-tab {
     // **枠の内寸を1pxも使わない。** 盤の一辺は枠の内寸から決まるので、
     // 場所を取る置き方にすると盤が縮む。重なりはこの部品の中で閉じるので、
-    // 段（`docs/spec/design-language.md` §4）ではなく局所の値でよい
+    // 名前付きのレイヤ（`docs/spec/design-language.md` §4）ではなく局所の値でよい
     position: absolute;
     // 枠の角にそのまま乗せる。1px ずらすのは枠線と重ねて1本に見せるため
     top: -1px;
     left: -1px;
     z-index: 1;
-    // 枠が狭い面では盤の隅に重なる。**押下も選択も盤へ通す**
+    // 枠が狭いときは盤の隅に重なる。**押下も選択も盤へ通す**
     pointer-events: none;
 
     display: inline-flex;
@@ -43,7 +43,7 @@
     border-top-left-radius: var(--board-radius);
     border-bottom-right-radius: index.$radius-4;
 
-    // 盤の木目の上に乗る位置なので、面は不透明に近づける
+    // 盤の木目の上に乗る位置なので、背景は不透明に近づける
     background: rgba(index.$color-primary-black, 0.92);
     color: rgba(index.$color-text-primary, 0.82);
 

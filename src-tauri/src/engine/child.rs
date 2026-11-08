@@ -35,11 +35,11 @@ const LOGT: &str = "obs_shogi::engine::child";
 /// 正常なエンジンの行がここに届くことはない。
 const MAX_LINE: usize = 1024 * 1024;
 
-/// 落とすよう頼んでから、プロセスが畳まれるのを見届けるまでの上限。
+/// 落とすよう頼んでから、プロセスが終わるのを見届けるまでの上限。
 ///
-/// SIGKILL は普通ミリ秒で効く。これを超えたら、OS がすぐには畳めない状態
+/// SIGKILL は普通ミリ秒で効く。これを超えたら、OS がすぐには終わらせられない状態
 /// （応答しないボリュームの上で止まっている、など）とみなして待つのをやめる。
-/// やめても待ち手は終わりを待ち続けるので、後から畳まれれば回収される。
+/// やめても待ち手は終わりを待ち続けるので、後から終われば回収される。
 pub const KILL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// 直近の出力として持つ行数。起動や実行の失敗の理由に添える材料。
@@ -118,7 +118,7 @@ pub struct EngineChild {
     diagnostics: ChildDiagnostics,
 }
 
-/// 子プロセスの様子を見るだけの取っ手。**落とす関数を持たない。**
+/// 子プロセスの様子を見るだけのハンドル。**落とす関数を持たない。**
 ///
 /// 読み取りの後始末など、プロセスより長く生きうるタスクにはこちらを渡す。
 /// `EngineChild` そのものを渡すと、そのタスクが生きている間 Drop が起きず、
@@ -148,7 +148,7 @@ pub fn spawn(program: &Path, work_dir: &Path) -> std::io::Result<EngineChild> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        // 待ち手のタスクごと捨てられたとき（ランタイムが畳まれたとき）にも直の子は残さない。
+        // 待ち手のタスクごと捨てられたとき（ランタイムが終わったとき）にも直の子は残さない。
         // `#!` のラッパーの孫まで届くのは、落とす頼みの経路（`signal_group`）だけ
         .kill_on_drop(true);
     #[cfg(unix)]
@@ -276,7 +276,7 @@ impl EngineChild {
     /// `ChildDiagnostics::wait_killed`。頼むまでもなかったら、その答え（`AlreadyExited` か `AlreadyRequested`）を
     /// `Err` で返す。
     ///
-    /// 頼むことと見届けることを分けるのは、`EngineChild` を持つ者（`protocol.rs` の殻）が、`KILL_TIMEOUT` を
+    /// 頼むことと見届けることを分けるのは、`EngineChild` を持つ者（`protocol.rs` のアクター）が、`KILL_TIMEOUT` を
     /// 待つ間も他の入力に答え続けられるようにするため
     pub fn start_kill(&self) -> Result<(), KillOutcome> {
         self.close_stdin();
@@ -308,7 +308,7 @@ impl EngineChild {
         });
     }
 
-    /// 様子を見るだけの取っ手（落とす関数を持たない）
+    /// 様子を見るだけのハンドル（落とす関数を持たない）
     pub fn diagnostics(&self) -> ChildDiagnostics {
         self.diagnostics.clone()
     }
@@ -682,7 +682,7 @@ pub(crate) mod script {
     /// **`ExecutableFileBusy`（ETXTBSY）なら起こし直す。** テストは並列に走る。台本を
     /// 書いている間に別のテストが fork すると、書き込み用の fd がその子へ exec までの間だけ
     /// 継がれ、その隙に台本を exec すると「書き込み中のファイル」として OS に断られる。
-    /// 窓は他人の fork から exec までなので、待てば閉じる
+    /// この区間は他人の fork から exec までなので、待てば閉じる
     pub(crate) async fn spawn_script(dir: &Path, body: &str) -> EngineChild {
         let path = write_script(dir, "engine.sh", body);
         spawn_when_not_busy(&path, dir).await

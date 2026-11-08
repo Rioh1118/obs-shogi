@@ -56,12 +56,12 @@ pub struct EngineProcess {
     engine_path: String,
     pub info: EngineInfo,
     protocol: UsiProtocol,
-    /// 落とす面。**台帳の外へ出さない**——呼び手は送る面だけを受け取り、落とせない（ADR-0016 決定6）
+    /// 落とすハンドル。**台帳の外へ出さない**——呼び手は `UsiProtocol` だけを受け取り、落とせない（ADR-0016 決定6）
     shutdown: EngineShutdown,
 }
 
 impl EngineProcess {
-    /// このプロセスへ送る面。呼び手（検討、対局、申告の取得）はこれだけを持つ。落とすのは台帳
+    /// このプロセスへ送るハンドル。呼び手（検討、対局、申告の取得）はこれだけを持つ。落とすのは台帳
     pub fn protocol(&self) -> UsiProtocol {
         self.protocol.clone()
     }
@@ -97,10 +97,10 @@ pub struct EngineRegistry {
     /// 起動したが、まだ `usiok` を取り切っていないもの。
     ///
     /// **子プロセスは既に走っている。** ここに載ってから `processes` への
-    /// 登録まで `info_timeout` の窓があり、その間ここに居ないと
+    /// 登録まで `info_timeout` の区間があり、その間ここに居ないと
     /// 終了時の掃除から見えない（起動を待たずにアプリを閉じると孤児になる）。
     ///
-    /// 窓はここより手前から開いている。載せるのは `spawn_blocking` が
+    /// この区間はここより手前から始まっている。載せるのは `spawn_blocking` が
     /// 解けた後で、子プロセスが走り出すのはその中。そこから載るまでの区間と、
     /// `SPAWN_TIMEOUT` を超えて `dispose_late_spawn` へ渡した後は、
     /// どちらの台帳にも居ない。
@@ -125,7 +125,7 @@ impl EngineRegistry {
     ///
     /// `spawn_timeout` はプロセスが立ち上がるまで、`info_timeout` はそこから
     /// `usiok` まで。**順に使う**ので、締切で縮めるなら引き算すること——
-    /// 対局は全体の締切（`START_TIMEOUT`）を持つので、段ごとの上限をそのまま
+    /// 対局は全体の締切（`START_TIMEOUT`）を持つので、段階ごとの上限をそのまま
     /// 渡すと締切の外で待つ時間ができる。
     ///
     /// # エラー
@@ -158,7 +158,7 @@ impl EngineRegistry {
     /// 落とせない。取り消しの引数をここに持たないと、止めたはずの起動が後から台帳に載る。
     ///
     /// **`usiok` を受け取った後に立った取り消しは見ない。** 返った `EngineProcess` は
-    /// 本台帳に居るので、呼び手が ID で落とす。起こす段（専用スレッドの fork/exec）の
+    /// 本台帳に居るので、呼び手が ID で落とす。起こす段階（専用スレッドの fork/exec）の
     /// 最中に立ったら、起き上がるのを待たずに返り、遅れて起きた子は別のタスクが落とす。
     ///
     /// 取り消しは `cancel` で行う。`usiok` を待つ間に future を捨てると、プロセスは
@@ -204,7 +204,7 @@ impl EngineRegistry {
 
             let engine_path = resolved.to_string_lossy().to_string();
             // `work_dir` が在るディレクトリであることを、起こす前に確かめる。
-            // `Command::current_dir` に任せると、失敗は起こす段の OS の失敗になり、
+            // `Command::current_dir` に任せると、失敗は起こす段階の OS の失敗になり、
             // どの引数が悪いのかが断り文句に出ない
             let work_dir = match dir_for_task {
                 Some(dir) => {
@@ -364,7 +364,7 @@ fn spawn_start_line(path: &str) -> String {
     format!("spawn: start path='{}'", shown(path, MAX_PATH_IN_LOG_LEN))
 }
 
-/// 上限を超えた後に起き上がったプロセスを畳むことを記録する1行。
+/// 上限を超えた後に起き上がったプロセスを落とすことを記録する1行。
 fn disposing_line(path: &str) -> String {
     format!(
         "spawn: disposing a late engine path='{}'",
@@ -372,7 +372,7 @@ fn disposing_line(path: &str) -> String {
     )
 }
 
-/// 上限を超えた後に起き上がったプロセスを畳む。
+/// 上限を超えた後に起き上がったプロセスを落とす。
 ///
 /// **落とせなかったことは記録する。** ここへ来る子はどの台帳にも居ないので
 /// （→ `starting` の doc）、落とし手はこの1回きり。Drop に任せても落ちるが、
@@ -473,7 +473,7 @@ impl EngineRegistry {
     /// `quit` の上限は書き込みの列の中、`kill` の上限は `kill_engine` の中。
     /// `quit` が超えても `kill` へ進む。待ち続けるよりましだという判断。
     ///
-    /// `kill` は `quit` を書かずにシグナルを送り、プロセスが畳まれるのを見届ける
+    /// `kill` は `quit` を書かずにシグナルを送り、プロセスが終わるのを見届ける
     /// （`EngineChild::kill_and_wait`）。上の `quit` で自発的に終わったエンジンには
     /// 「もう終わっていた」と返るだけで、stdin だけ閉じて走り続けるエンジンも落ちる。
     async fn terminate(process: &EngineProcess) {
@@ -491,7 +491,7 @@ impl EngineRegistry {
 
 /// パスを渡して起こす関数（`EngineRegistry::spawn` など）を通すテストの台本。
 ///
-/// 上の段のテストはここを通す（`child` を直に使うと、`tests/layering.rs` の辺を本番にも開く）
+/// 上のレイヤのテストはここを通す（`child` を直に使うと、`tests/layering.rs` の辺を本番にも開く）
 #[cfg(all(test, unix))]
 pub(crate) mod script {
     pub(crate) use crate::engine::child::script::place_script;
@@ -829,7 +829,7 @@ exec sleep 30"#,
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// `shutdown` は落とす前に `quit` を送り、エンジンが自分で畳む間を待つ
+        /// `shutdown` は落とす前に `quit` を送り、エンジンが自分で終わる間を待つ
         #[tokio::test]
         async fn shutdown_sends_quit_before_ending_the_engine() {
             let dir = temp_dir("registry-quit");

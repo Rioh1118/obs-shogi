@@ -112,7 +112,7 @@ describe("語を押して出す文", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  test("面の外を押すと閉じ、面の中を押しても閉じない", () => {
+  test("サーフェスの外を押すと閉じ、サーフェスの中を押しても閉じない", () => {
     render(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
     fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
 

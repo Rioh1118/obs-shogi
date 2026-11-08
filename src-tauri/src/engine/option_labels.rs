@@ -154,7 +154,7 @@ mod tests {
         assert_eq!(labeled_def.group, None);
     }
 
-    /// 定跡の項目は定跡の分類を持つ（表示側が、定跡を使うかで出し分けるための印）
+    /// 定跡の項目は定跡の分類を持つ（表示側が、定跡を使うかで出し分けるためのフラグ）
     #[test]
     fn book_settings_are_grouped_as_book() {
         for name in [

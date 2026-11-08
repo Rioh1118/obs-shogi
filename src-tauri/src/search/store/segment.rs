@@ -18,7 +18,7 @@ pub type SegmentArc = Arc<Segment>;
 /// ```
 ///
 /// **後から足せない。** 取り込みは新しいセグメントを桶に積み増す形で、
-/// 溜まったら `store/compaction.rs` が畳んで1本にする。
+/// 溜まったら `store/compaction.rs` がコンパクションで1本にする。
 /// 不変・整列済み・積み増し・溜まったら合流、という役は LSM の SSTable と同じ。
 ///
 /// **列に倒して持つ**（SoA）のは二分探索が `z0` / `z1` しか触らないため。
@@ -46,7 +46,7 @@ impl Segment {
     /// 崩れていると二分探索が黙って外す（検索が0件になるか別の局面を返す）。
     ///
     /// 昇順を作る側は3つ。取り込みは `store/bucket.rs` の `bucketize_entries`、
-    /// 畳んだ結果は `store/compaction.rs`、復元は `cache/format.rs` の
+    /// コンパクションの結果は `store/compaction.rs`、復元は `cache/format.rs` の
     /// `decode_all`（自分で昇順を検査してから渡す。**release でもそこで弾く**）。
     ///
     /// # Panics

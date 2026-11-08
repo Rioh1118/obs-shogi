@@ -60,7 +60,7 @@ describe("プロセスの通知", () => {
     expect(on.onAnswered).toHaveBeenCalledExactlyOnceWith(9);
   });
 
-  /** 登録が残ると、畳まれた画面のハンドラが呼ばれ続ける */
+  /** 登録が残ると、unmount された画面のハンドラが呼ばれ続ける */
   test("途中の登録が落ちたら、登録済みの分を解除して投げ直す", async () => {
     bus.failAt = 2;
 

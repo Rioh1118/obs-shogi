@@ -31,7 +31,7 @@ function failureText(failure: UpdaterFailure): {
   };
 }
 
-/** 描く段の見出しを返す。`idle` と `checking` は何も描かないので型で外してある。 */
+/** 描く段階の見出しを返す。`idle` と `checking` は何も描かないので型で外してある。 */
 function headingOf(status: Exclude<UpdaterStatus, { phase: "idle" | "checking" }>): string {
   switch (status.phase) {
     case "available":
@@ -55,11 +55,11 @@ export default function UpdaterScreen() {
   }
 
   // **閉じられるのは、何も進行していないときだけ。** 取得と入替の最中に閉じると、
-  // 進み具合を見る唯一の面が消える
+  // 進み具合を見る唯一のカードが消える
   const canDismiss = status.phase === "available" || status.phase === "error";
 
   return createPortal(
-    // **`aria-modal` を名乗らない。** この面は画面の隅に出て背後を止めないので、
+    // **`aria-modal` を名乗らない。** このカードは画面の隅に出て背後を止めないので、
     // 名乗ると支援技術にだけ「背後は操作できません」と伝わる
     <div className="updater-overlay" role="status" aria-live="polite" aria-label="アップデート">
       <div className="updater-card">
@@ -101,7 +101,7 @@ export default function UpdaterScreen() {
           )}
 
           {/*
-            **止められないことを言う。** 閉じる操作も取り消す操作も無い段なので、
+            **止められないことを言う。** 閉じる操作も取り消す操作も無い段階なので、
             進捗だけ黙って消すと「固まった」と読まれる
           */}
           {status.phase === "installing" && (
@@ -111,7 +111,7 @@ export default function UpdaterScreen() {
           )}
 
           {/*
-            **「再起動しないと適用されない」と読ませない。** この段ではディスク上の
+            **「再起動しないと適用されない」と読ませない。** この段階ではディスク上の
             アプリはもう入れ替わっていて、次にふつうに起動しても新しい版になる。
             ボタンは「いま切り替える」ためのもの
           */}

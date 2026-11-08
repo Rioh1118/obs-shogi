@@ -38,7 +38,7 @@ import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
 const RECENT_SCROLL_MS = 120;
 
 /**
- * 行から開く面。同時に開くのは1つだけで、どれかを開くと他は閉じる。
+ * 行から開くサーフェス。同時に開くのは1つだけで、どれかを開くと他は閉じる。
  *
  * 削除の確認はこの外にある。確認はモーダルで、`useBranchDeleteConfirm` が持つ。
  */
@@ -81,7 +81,7 @@ export default function KifuStreamList() {
   const openFork = openFace?.kind === "fork" ? openFace : null;
   const openMoveMenu = openFace?.kind === "move" ? openFace : null;
   const openComment = openFace?.kind === "comment" ? openFace : null;
-  // Escape は重なった面のうち最上位の1枚だけが受ける。最上位かは `useOverlayLayer` の返す関数に問う
+  // Escape は重なったサーフェスのうち最上位の1枚だけが受ける。最上位かは `useOverlayLayer` の返す関数に問う
   const isTop = useOverlayLayer(openFork !== null);
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
@@ -95,7 +95,7 @@ export default function KifuStreamList() {
 
   // TODO(#277): buildStreamRowsFromCursor は盤上で再生できない手で投げる。正規化に失敗して
   // 未正規化のまま開いた棋譜で起きる。ここはレンダ中なので、棋譜ペインを包む AppErrorBoundary が
-  // 受けて一覧ごと畳まれる。try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
+  // 受けて一覧ごと unmount される。try で包むだけだと読める手まで消えるので、復帰導線と一緒に直す。
   const rows = useMemo(() => {
     if (!view.player) return [];
     // 一覧を組むための再生用に、盤の player とは別の player を立てる。
@@ -107,9 +107,9 @@ export default function KifuStreamList() {
   const currentTesuu = state.cursor?.tesuu ?? 0;
 
   /**
-   * `kind` の面が開いていれば閉じる。別の面が開いていたら触らない。
+   * `kind` のサーフェスが開いていれば閉じる。別のサーフェスが開いていたら触らない。
    *
-   * 閉じる経路はそれぞれ自分の面だけを知っている。`onClickRow` は `closeFace("fork")` と
+   * 閉じる経路はそれぞれ自分のサーフェスだけを知っている。`onClickRow` は `closeFace("fork")` と
    * `closeFace("move")` を呼ぶので、無条件に空にすると、行を押したときに開いているノートまで閉じる。
    */
   const closeFace = useCallback((kind: OpenFace["kind"]) => {
@@ -215,7 +215,7 @@ export default function KifuStreamList() {
       const row = rows.find((r) => r.te === te);
       const forkIndex = forkIndexOrNull(branchIndex) ?? undefined;
 
-      // 数えるのは実際に消す関数と同じ経路で、指す枝を解決できないクエリはここで投げる。
+      // 数えるのは実際に消す関数と同じ経路で、指す変化を解決できないクエリはここで投げる。
       // そのときは数を伏せて確認だけ出す。**数が出ないことを理由に確認を飛ばさない。**
       // 投げなかったことは削除が通る保証にならない。数えるときはカーソルを渡さないので、
       // `deleteBranchInKifu` がカーソルの検査で投げる経路はここでは起きない。
@@ -291,7 +291,7 @@ export default function KifuStreamList() {
     onDeleteBranch(te, r.branchForkPointers, branchIndex);
   };
 
-  // 盤の中身が入れ替わったら、開いている面を全部閉じる。削除の確認は
+  // 盤の中身が入れ替わったら、開いているサーフェスを全部閉じる。削除の確認は
   // `useBranchDeleteConfirm` が同じ合図で閉じる。
   //
   // 行は `key={r.te}` なので DOM のボタンは再利用され、`anchorEl` も生き残る。
@@ -299,15 +299,15 @@ export default function KifuStreamList() {
   // `jkfData` を保持する）ので、**ノートは同じ位置に開いたまま前の棋譜の本文を出し続ける。**
   // 見出しは手数しか出さないので、どのファイルのものかは画面から読めない。
   //
-  // `loadedAbsPath` では畳まない。あちらは改名・移動でも動くので、名前を直しただけで
+  // `loadedAbsPath` では閉じない。あちらは改名・移動でも動くので、名前を直しただけで
   // 書きかけのノートが閉じる。閉じると `KifuCommentNote` の離脱時の保存が走り、
-  // 面がもう外れているぶん失敗の断りも出ないまま本文が消える。
+  // 対象の手がもう外れているぶん失敗の断りも出ないまま本文が消える。
   useEffect(() => {
     setOpenFace(null);
   }, [state.boardSeq]);
 
-  // 行の操作の面は自分の押下を止める（`KifuMoveActions` の `stopPropagation`）ので、
-  // document まで届いた押下は全部、面の外側の押下
+  // 行の操作のサーフェスは自分の押下を止める（`KifuMoveActions` の `stopPropagation`）ので、
+  // document まで届いた押下は全部、サーフェスの外側の押下
   useEffect(() => {
     if (!openMoveMenu) return;
 

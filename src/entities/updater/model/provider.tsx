@@ -31,7 +31,7 @@ function leaveChecking(status: UpdaterStatus): UpdaterStatus {
  * 更新の状態機械。
  *
  * `RequireRootDir` の内側に置かない。設定が読めない状態を直す版が、その状態のせいで
- * 届かなくなる。段の意味と遷移は `docs/state-transitions/updater.md` が持つ。
+ * 届かなくなる。状態の意味と遷移は `docs/state-transitions/updater.md` が持つ。
  */
 export function UpdaterProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<UpdaterStatus>({ phase: "idle" });
@@ -165,13 +165,13 @@ export function UpdaterProvider({ children }: { children: ReactNode }) {
     if (!update) return;
     installStartedRef.current = true;
 
-    // `await` より前に段を進める。最初のチャンクを待つと、その間ボタンが描かれたまま残り、
+    // `await` より前に状態を進める。最初のチャンクを待つと、その間ボタンが描かれたまま残り、
     // 押しても何も起きない
     setStatus({ phase: "downloading", progress: 0 });
 
     let downloaded = 0;
     let total = 0;
-    // 取得が終わったかどうかが、失敗したときの段を決める。
+    // 取得が終わったかどうかが、失敗したときの状態を決める。
     // 終わっていれば、落ちたのは署名の検証か入替のどちらか
     let downloadFinished = false;
 

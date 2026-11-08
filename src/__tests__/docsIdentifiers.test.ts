@@ -79,7 +79,7 @@ describe("identifiersIn", () => {
   });
 
   test("小文字の関数を拾う。括弧は落とす", () => {
-    expect(identifiersIn("番人は `running_clock()`")).toEqual(["running_clock"]);
+    expect(identifiersIn("時計は `running_clock()`")).toEqual(["running_clock"]);
   });
 
   // 表の記号を拾うと、行を足すたびに赤くなる
@@ -87,7 +87,7 @@ describe("identifiersIn", () => {
     expect(identifiersIn("`A3` の行と `E11` と `G0`")).toEqual([]);
   });
 
-  // 大文字だけの枝は下線を要求している。桁数で切ると `SFEN` が残る
+  // 大文字だけの分岐は下線を要求している。桁数で切ると `SFEN` が残る
   test("頭字語は拾わない", () => {
     expect(identifiersIn("`USI` と `SFEN` と `KIF`")).toEqual([]);
   });
@@ -96,13 +96,13 @@ describe("identifiersIn", () => {
     expect(identifiersIn("CLOSE_SETTLE_TIMEOUT を見る")).toEqual([]);
   });
 
-  // 大文字始まりを受ける枝が無い。拾えると嬉しいが、
+  // 大文字始まりを受ける分岐が無い。拾えると嬉しいが、
   // `Phase` のような一語の型は地の文の英単語と区別できない
   test("PascalCase の型名は拾わない", () => {
     expect(identifiersIn("`GameSession` の `Phase`")).toEqual([]);
   });
 
-  // **このリポジトリで実際に腐るのは TS 側の綴り。** 枝を落とす変異を赤くする
+  // **このリポジトリで実際に腐るのは TS 側の綴り。** 分岐を落とす変異を赤くする
   test("camelCase の綴りを拾う", () => {
     expect(identifiersIn("`isReady` と `analyzedSfen` を見る")).toEqual([
       "analyzedSfen",

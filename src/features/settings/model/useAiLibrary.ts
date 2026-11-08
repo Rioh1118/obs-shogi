@@ -15,7 +15,7 @@ import { failKeepingIndex, indexOfRoot, startLoading, type ScanState } from "../
  * - `"created"`: 作れた
  * - `FsError`: 名前を直せば通る。欄のそばに出し、打った文字列は残す
  * - `"diagnosed"`: 名前では直せない失敗で、診断へ回した。打った文字列は残す
- * - `"stale"`: 作り終える前に AI ルートが変わった。成功に畳むと打った名前が消え、`FsError` に畳むと
+ * - `"stale"`: 作り終える前に AI ルートが変わった。成功に寄せると打った名前が消え、`FsError` に寄せると
  *   名前が悪くないのに欄が赤くなる。旧ルートの結果は `staleCreateNotice` の通知が伝える
  */
 export type CreateAiFolderResult = "created" | FsError | "diagnosed" | "stale";
@@ -84,7 +84,7 @@ export function useAiLibrary() {
    *
    * `config` は起動時に非同期で届くので、この画面が `null` で mount することがある。初回だけ読む形では、
    * 後から届いたルートを誰も読まず、正常なフォルダに「読めていません」と出し続ける。
-   * 重なった走査は `scanSeqRef` が畳む。
+   * 重なった走査は `scanSeqRef` が1本にまとめる。
    */
   useEffect(() => {
     currentRootRef.current = savedRoot.trim();

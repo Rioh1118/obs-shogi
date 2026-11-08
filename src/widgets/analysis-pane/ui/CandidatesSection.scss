@@ -1,14 +1,14 @@
 @use "@/index.scss" as index;
 
-// **入りきらない候補手にスクロールで届く。** ドックの高さは窓に従うので、
-// 低い窓では必ずあふれる。
+// **入りきらない候補手にスクロールで届く。** ドックの高さはウィンドウに従うので、
+// 低いウィンドウでは必ずあふれる。
 // **バーは出さない** —— 全要素で消してあるのが意匠（`docs/spec/design-language.md`）
 .candidates-section {
   height: 100%;
   min-height: 0;
   overflow-y: auto;
 
-  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  // **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
   background: index.$color-primary-dark;
 
   display: grid;

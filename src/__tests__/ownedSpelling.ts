@@ -44,7 +44,7 @@ export function describeOwnedSpellings(rules: readonly OwnedSpelling[]) {
     test.each(owners)("%s では実際に書いている", (rel) => {
       expect(
         hitsIn(rel, read(rel), pattern).length > 0,
-        `${rel} からこの綴りが消えたなら、owners から外して番人を減らすこと`,
+        `${rel} からこの綴りが消えたなら、owners から外して検査を減らすこと`,
       ).toBe(true);
     });
   });

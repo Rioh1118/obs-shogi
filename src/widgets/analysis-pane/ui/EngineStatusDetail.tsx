@@ -14,14 +14,14 @@ type Props = {
 };
 
 /**
- * 操作列の語を押すと出る小さな面。**帯を閉じた後に理由へ戻る経路はここだけ**で、普段は画面を使わない
+ * 操作列の語を押すと出る小さなサーフェス。**帯を閉じた後に理由へ戻る経路はここだけ**で、普段は画面を使わない
  * （`docs/spec/features/engine-standardization.md` の「エンジンの状態」）。
  */
 export function EngineStatusDetail({ notice, lastOutput, anchor, onOpenSettings, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 語はこの面の親に居る。**語の押下は語の側が開閉する**ので、ここで閉じると開き直す
+    // 語はこのサーフェスの親に居る。**語の押下は語の側が開閉する**ので、ここで閉じると開き直す
     const closeOutside = (event: MouseEvent) => {
       if (!ref.current?.parentElement?.contains(event.target as Node)) onClose();
     };

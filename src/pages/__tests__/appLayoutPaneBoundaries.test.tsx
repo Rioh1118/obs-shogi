@@ -4,14 +4,14 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 /**
- * ペイン1つの事故で作業面を丸ごと畳まない。
+ * ペイン1つの事故で作業画面を丸ごと unmount しない。
  *
- * 上に `RuntimeShell` の境界があるので、ここに境界が無くても白い窓にはならない
- * ——**作業面がまるごと「作業画面を表示できませんでした。」に置き換わる**だけになる。
+ * 上に `RuntimeShell` の境界があるので、ここに境界が無くても白いウィンドウにはならない
+ * ——**作業画面がまるごと「作業画面を表示できませんでした。」に置き換わる**だけになる。
  * 見ているものが全部消えるので、何が落ちたのかも分からない。
  *
  * 境界を1枚外しても型でもレンダでも落ちない。受けた境界の名乗りと
- * 畳まれる範囲の両方をここで固定する。名乗りを見ないと、内側の1枚を外しても
+ * unmount される範囲の両方をここで固定する。名乗りを見ないと、内側の1枚を外しても
  * 外側が同じ形で受けるので緑のまま通る。
  */
 
@@ -66,7 +66,7 @@ function mount() {
 }
 
 beforeEach(() => {
-  // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ畳む
+  // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。出力だけ止める
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -83,7 +83,7 @@ describe("ペインごとの境界", () => {
     throwing.board = true;
     const { container } = mount();
 
-    expect(container.querySelector(".workspace"), "作業面まで畳んでいる").not.toBeNull();
+    expect(container.querySelector(".workspace"), "作業画面まで unmount している").not.toBeNull();
     // **どの境界が受けたかを文言で見る。** 同じ文言だと、盤の境界を外しても
     // 上の境界が同じ画面で受けて退行が見えない
     expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
@@ -96,7 +96,7 @@ describe("ペインごとの境界", () => {
     throwing.analysis = true;
     const { container } = mount();
 
-    expect(container.querySelector(".workspace"), "作業面まで畳んでいる").not.toBeNull();
+    expect(container.querySelector(".workspace"), "作業画面まで unmount している").not.toBeNull();
     expect(screen.getByText("検討を表示できませんでした。")).toBeTruthy();
     expect(container.querySelector('[data-testid="board"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
@@ -112,8 +112,8 @@ describe("ペインごとの境界", () => {
     expect(container.querySelector('[data-testid="analysis"]')).not.toBeNull();
   });
 
-  // 畳まれる範囲がドックの本体で止まること。タブ列まで畳むと、落ちた面から
-  // 別の面へ移る（＝`resetKeys` を動かす）唯一の操作が消える
+  // unmount される範囲がドックの本体で止まること。タブ列まで unmount すると、落ちたビューから
+  // 別のビューへ移る（＝`resetKeys` を動かす）唯一の操作が消える
   test("ビューが落ちても、ドックのタブ列は残る", () => {
     throwing.analysis = true;
     const { container } = mount();

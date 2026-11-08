@@ -1,4 +1,4 @@
-//! エンジンを起こして申告（`id` と `option` 行）だけを取り、すぐ落とす段。
+//! エンジンを起こして申告（`id` と `option` 行）だけを取り、すぐ落とすレイヤ。
 //!
 //! プリセット編集の画面が、取った定義をプリセットに残すために使う。**送る側はここを使わない**——
 //! 起動のたびにその回の申告を見る（`binding::bind`）。ここで取った定義は画面に出すためだけのもの。
@@ -200,7 +200,7 @@ mod tests {
         use super::*;
         use crate::engine::registry::script::place_script as place;
 
-        /// `EvalFile` と `ConsiderationMode` を申告し、起きたら印を置く台本
+        /// `EvalFile` と `ConsiderationMode` を申告し、起きたら目印のファイルを置く台本
         const DECLARES: &str = r#"touch started
 while read line; do
   case "$line" in
@@ -209,7 +209,7 @@ while read line; do
   esac
 done"#;
 
-        /// 起きたら印を置き、`usi` に答えない台本
+        /// 起きたら目印のファイルを置き、`usi` に答えない台本
         const SILENT: &str = r#"touch silent-started
 while read line; do :; done"#;
 

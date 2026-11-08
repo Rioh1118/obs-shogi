@@ -266,7 +266,7 @@ describe("定跡の provider", () => {
     expect(seen!.failure).toBeNull();
   });
 
-  it("畳まれたら、開いていた定跡を閉じる", async () => {
+  it("unmount されたら、開いていた定跡を閉じる", async () => {
     const { view, handle } = await openAt("sfen-a");
 
     view.unmount();
@@ -490,7 +490,7 @@ describe("定跡の provider", () => {
   });
 
   /** 残すと閉じる者が居なくなり、定跡ぶんのメモリが次の起動まで残る */
-  it("開いている途中で畳まれたら、返ってきた定跡を閉じる", async () => {
+  it("開いている途中で unmount されたら、返ってきた定跡を閉じる", async () => {
     const hold = deferred<Result<BookInfo, BookError>>();
     openHold = hold;
     const view = mount("sfen-a");

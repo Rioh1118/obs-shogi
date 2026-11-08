@@ -43,8 +43,8 @@ function RootNode({ node }: { node: FileTreeNode }) {
     commitName(nextName, (name) => renameNode(node, name), cancelInlineRename);
 
   const handleClick = () => {
-    // 改名中は畳まない。失敗の箱は行を押し広げて出るので、その文を読もうとした
-    // クリックがここに来る。畳むと打った名前と理由が同時に消える
+    // 改名中は折りたたまない。失敗の箱は行を押し広げて出るので、その文を読もうとした
+    // クリックがここに来る。折りたたむと打った名前と理由が同時に消える
     if (isRenaming) return;
     setIsOpen(!isOpen);
   };

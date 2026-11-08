@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router";
 import type { FileConflictState } from "@/features/file-conflict/model/types";
 
 /**
- * URL を持たない2枚の対話へ渡す閉じ方と、層が畳まれている間の案内と出口。
+ * URL を持たない2枚の対話へ渡す閉じ方と、層が unmount されている間の案内と出口。
  *
  * 対話へ渡す関数を取り違えても型は通る。閉じても `conflict` と `kifuError` が残り、
  * 同じ対話がまた出る。案内は、立っている知らせが原因のときだけ
@@ -151,7 +151,7 @@ describe("URL を持たない対話の閉じ方", () => {
   });
 });
 
-describe("層が畳まれている間の案内", () => {
+describe("層が unmount されている間の案内", () => {
   test("知らせが立っていなければ、別の操作からやり直すよう言う", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     throwing.settings = true;

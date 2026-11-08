@@ -9,7 +9,7 @@
 //! - ログにパスを打ち切って書いているか（長さは戻り値に出ない。
 //!   溢れるのは 200KB でローテートするログのほう）
 //! - `Unknown` の復帰案内が open と lookup で入れ替わっていないか
-//!   （この枝は blocking プールの panic でしか踏まない）
+//!   （この分岐は blocking プールの panic でしか踏まない）
 //! - 失敗がログに残るか（`logged` は残すためだけに在る）
 //!
 //! **走査で固定するのは、単体テストで書けないからではなく、書いても緑になるから。**
@@ -186,8 +186,8 @@ fn scan_log_lines(path: &Path, scanned: &mut usize, offenders: &mut Vec<String>)
             continue;
         }
         *scanned += 1;
-        // **固定行数の窓にしない。** rustfmt は引数が増えると `log::info!(` を
-        // 折り返すので、3行の窓だと `input.path` が窓の外へ落ちて素通しする。
+        // **固定行数の範囲にしない。** rustfmt は引数が増えると `log::info!(` を
+        // 折り返すので、3行の範囲だと `input.path` が範囲の外へ落ちて素通しする。
         // マクロ呼び出しの閉じ括弧までを1つの塊として渡す。
         let block = macro_call_at(&code, &lines, number);
         if !logs_a_raw_path(&block) {
@@ -200,10 +200,10 @@ fn scan_log_lines(path: &Path, scanned: &mut usize, offenders: &mut Vec<String>)
     // `{shown}` で埋め込むと、`log::` の塊には `input.path` の綴りが1つも出ない。
     //
     // **関数名を並べない。** `*_inner` の3つだけを見ていた版は、
-    // `#[tauri::command]` の殻（`open_book` ほか。どれも `input` がスコープに居る）を
+    // `#[tauri::command]` を付けた関数（`open_book` ほか。どれも `input` がスコープに居る）を
     // 丸ごと外していて、そこへ書けば同じ迂回が通った。入口のファイル全体を見る。
     // **綴りを2つ並べない。** `input.sfen` と `input.path` だけを探していた版は、
-    // 入力の型が1段入れ子になった回（`input.position.sfen`）に**0件を返した。**
+    // 入力の型が1階層入れ子になった回（`input.position.sfen`）に**0件を返した。**
     // 欄の名前で終わるアクセスを探し、その鎖が `input` から始まるかで決める。
     for field in [".path", ".sfen"] {
         for (at, _) in code.match_indices(field) {
@@ -290,11 +290,11 @@ fn a_known_offender_is_still_caught() {
     ));
     // パスを含まないログは対象外
     assert!(!logs_a_raw_path(r#"log::info!("[cmd] closed={closed}");"#));
-    // **窓を跨いだ言及で無罪にしない。** 隣の行に綴りがあるだけの形
+    // **範囲を跨いだ言及で無罪にしない。** 隣の行に綴りがあるだけの形
     assert!(logs_a_raw_path(
         "log::info!(\"path={}\", input.path);\n    let _shown = truncate_path(&input.path);"
     ));
-    // **折り返しで窓の外へ出さない。** rustfmt が引数を1行ずつに割った形
+    // **折り返しで範囲の外へ出さない。** rustfmt が引数を1行ずつに割った形
     assert!(logs_a_raw_path(
         "log::info!(\n        \"[cmd] open_book handle={} format={} path={}\",\n\
          \x20       0u64,\n        \"db\",\n        input.path\n    )"
@@ -325,7 +325,7 @@ fn escapes_the_async_runtime(block: &str) -> bool {
 
 /// 利用者の入力が、**打ち切りを通らずに**ログへ乗っているか。
 ///
-/// **窓の中に `truncate_path` の綴りがあるかで見ない。** それだと
+/// **範囲の中に `truncate_path` の綴りがあるかで見ない。** それだと
 /// `log::info!("… {}", input.path); let _ = truncate_path(&input.path);` のように
 /// 隣の行で名前を出すだけで無罪になる（実測で生き残った）。
 /// 見るのは「`input.path` の出現が、打ち切りの引数の位置にあるか」だけ。

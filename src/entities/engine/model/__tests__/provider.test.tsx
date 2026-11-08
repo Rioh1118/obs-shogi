@@ -29,7 +29,7 @@ vi.mock("@/entities/engine/api/initializer", () => ({
 
 /** Rust の通知を差し込む関数 */
 let listeners: EngineEventListeners | null = null;
-// `isTauri()` はこの印を読む（`@tauri-apps/api/core`）
+// `isTauri()` はこのグローバル値を読む（`@tauri-apps/api/core`）
 vi.stubGlobal("isTauri", true);
 vi.mock(
   "@/entities/engine/api/events",
@@ -287,7 +287,7 @@ describe("EngineProvider の要求の順序", () => {
 
   /**
    * 表の (S1, E2) の後に E1。**停止の往復の間に撃った起動を、停止の結果が `idle` で上書きしない。**
-   * 上書きすると effect の `idle` の枝が同じ設定でもう1回起動し、進行中の起動が捨てられる
+   * 上書きすると effect の `idle` の分岐が同じ設定でもう1回起動し、進行中の起動が捨てられる
    * （読み込みの重いエンジンでは1回ぶんの読み込みがまるごと無駄になる）
    */
   test("停止の往復中に撃った起動を、停止の結果で撃ち直さない", async () => {
@@ -353,7 +353,7 @@ describe("EngineProvider の要求の順序", () => {
 /**
  * `engine-standardization.md` の (V3, E12) (V2, E12) (V7, E1) と不変条件1。
  *
- * **番号の照合が要。** 起動し直しの窓に古いプロセスの終わりが届くので、照合しないと
+ * **番号の照合が要。** 起動し直しの区間に古いプロセスの終わりが届くので、照合しないと
  * 動いている新しいエンジンを「終了」と言う。
  */
 describe("同じプリセットを選び直す回", () => {

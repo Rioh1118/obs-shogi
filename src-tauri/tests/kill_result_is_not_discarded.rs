@@ -61,7 +61,7 @@ const KILL_CALL: &str = "kill_and_wait(";
 ///
 /// 文の頭は直前の `;` / `{` / `}` の後ろ。**文字列・文字・コメントの中の区切りは数えない**
 /// （`skip_literal_or_comment`）——`f("{", child.kill_and_wait(..))` の `{` で頭を切ると、
-/// `let _ =` が見えなくなる。返す頭は空白を1つに畳む。
+/// `let _ =` が見えなくなる。返す頭は空白を1つにまとめる。
 fn kill_call_heads(code: &str) -> Vec<(usize, String)> {
     let mut heads = Vec::new();
     let mut start = 0;

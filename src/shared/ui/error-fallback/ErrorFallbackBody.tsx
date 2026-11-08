@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import "./ErrorFallbackBody.scss";
 
 /**
- * 畳むのをやめる出口の文言。
+ * 子を描き直す出口の文言。
  *
  * 案内（`hint`）がこの語を本文に埋めるので、手書きにするとボタンの改名で**存在しないボタンを名指しする**。
  * `src/__tests__/errorBoundaryInventory.test.ts` が写しを禁じている。
@@ -10,7 +10,7 @@ import "./ErrorFallbackBody.scss";
 export const RETRY_LABEL = "再表示";
 
 export type ErrorFallbackBodyProps = {
-  /** 畳まれた範囲の名前。`AppErrorBoundary` の `label` がそのまま来る */
+  /** unmount された範囲の名前。`AppErrorBoundary` の `label` がそのまま来る */
   label: string;
   /**
    * 落ちた原因。**画面に出す唯一の場所。**
@@ -20,10 +20,10 @@ export type ErrorFallbackBodyProps = {
    * 利用者が報告できるのは「表示できませんでした」の一文だけになる。
    */
   error: unknown;
-  /** 畳むのをやめて描き直す。原因が境界の外にあるなら効かない */
+  /** fallback をやめて子を描き直す。原因が境界の外にあるなら効かない */
   reset: () => void;
   /**
-   * 次に何をすればよいか。**畳まれた範囲ごとに違う**ので、置く側が決める。
+   * 次に何をすればよいか。**unmount された範囲ごとに違う**ので、置く側が決める。
    *
    * `再表示` は境界の `error` を消すだけで、原因が境界の外にあれば同じ行で落ち直す。
    * ここが無いと、押しても変わらないボタン1つだけが残る行き止まりになる。

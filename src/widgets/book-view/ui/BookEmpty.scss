@@ -37,7 +37,7 @@
 
     // **grid item の `min-width` を落とす。** 既定の `auto` は中身の min-content
     // なので、下流の `__note` に `min-width: 0` を書いても効かず、添え書きは
-    // 一度も省略されないまま**項目ごと器からはみ出す**（器は `overflow-y: auto`
+    // 一度も省略されないまま**項目ごと親のコンテナからはみ出す**（コンテナは `overflow-y: auto`
     // なので横スクロールする箱になり、バーは意匠で消してあるので手掛かりも無い）
     > li {
       min-width: 0;
@@ -60,7 +60,7 @@
     cursor: pointer;
 
     &:hover {
-      // 暗い面なので**明るくする**（ADR-0005 決定2）
+      // 暗い背景なので**明るくする**（ADR-0005 決定2）
       background: rgba(index.$color-white, 0.07);
     }
 

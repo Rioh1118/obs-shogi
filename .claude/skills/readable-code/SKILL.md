@@ -53,7 +53,7 @@ allowed-tools: Read, Grep, Glob, Bash
 - 関数は**動詞＋目的語**、真偽は問いの形（R-NAM-5）。読む名前の関数は書き換えない（R-EFF-2）
 - 同じ役割に同じ動詞（R-NAM-4）。**動詞が割れていたら、揃える前に契約を比べる。** `settings` crate は3モジュールが `read_or_default` / `write`、`presets` が `load` / `save` と割れているが、`load` は古い版を書き直し壊れたファイルを移すので契約が違い、揃えない
 - 違いを修飾語で言う。`eqMoveMinimal` は何の最小かが分からず、`eqMove` が別名として2つ目に居る
-- 比喩より実物の語。`口` `門` `札` の代わりに関数・経路・引数と書く（`references/comments.md`）
+- 比喩より実物の語。`口` `門` `札` の代わりに関数・経路・引数と書く（`references/comments.md`）。プログラミングの概念はコミュニティの語（actor、handle）で書き、訳語や比喩を作らない（`/naming` 手順4）
 
 ### 4. 型から推測できるか
 

@@ -11,8 +11,8 @@ import { SRC, scssFiles, tsFiles } from "./walk";
  *
  * 横断そのものは禁じない。`entities/game` が `entities/kifu` の型を読むような、
  * 語彙の持ち主がはっきりしている組はある。見たいのは**増えたこと**なので、
- * いまある組を控えに置いて `toEqual` で突き合わせる。
- * 増えても減っても赤くなる（減ったら控えを減らす）。
+ * いまある組を期待値に置いて `toEqual` で突き合わせる。
+ * 増えても減っても赤くなる（減ったら期待値を減らす）。
  *
  * 判定はこのモジュールだけが持つ。テスト側に同じ判定を書き写さないこと。
  */
@@ -21,7 +21,7 @@ import { SRC, scssFiles, tsFiles } from "./walk";
 const LAYERS = ["pages", "widgets", "features", "entities"] as const;
 
 /**
- * いまある同層横断の組。**許可ではなく控え。**
+ * いまある同層横断の組。**許可リストではなく期待値。**
  *
  * ここへ足すときは、コミットのメッセージに**なぜその向きなのか**を書くこと。
  * 「型を読みたいから」は理由にならない —— 共有したい型は共有できる位置まで下げる。
@@ -39,9 +39,9 @@ export const CROSS_SLICE_INVENTORY: readonly string[] = [
   "entities/position -> entities/kifu",
   "entities/search -> entities/kifu",
 
-  // 器（ファイル作成の対話）が中身（組む面）を描く。**この向きだけ。**
-  // 逆を作ると `import/no-cycle` が落ちる。組む面は器を知らないので、
-  // 面の切り替えも保存先も器から prop で降りてくる
+  // 親のモーダル（ファイル作成の対話）が中身（組むタブ）を描く。**この向きだけ。**
+  // 逆を作ると `import/no-cycle` が落ちる。組むタブは親のモーダルを知らないので、
+  // タブの切り替えも保存先も親のモーダルから prop で降りてくる
   "features/create-file -> features/position-editor",
 ];
 
@@ -49,7 +49,7 @@ export const CROSS_SLICE_INVENTORY: readonly string[] = [
  * 互いを読み合っている組。**1組も認めない。**
  *
  * 往復は `import/no-cycle` が拾わない（**輪になるまで黙っている**）。輪でなくても、
- * 2スライスが互いを読む形は「どちらが器か」を消してしまう。片方の向きを消すのが直し方。
+ * 2スライスが互いを読む形は「どちらが依存される側か」を消してしまう。片方の向きを消すのが直し方。
  */
 export function mutualEdges(edges: ReadonlySet<string>): string[] {
   return [...edges]
@@ -71,7 +71,7 @@ export function mutualEdges(edges: ReadonlySet<string>): string[] {
  * - `@use "@/..."` / `@forward "@/..."` —— SCSS が SCSS を読む形。
  *   `import` の綴りを1つも含まないので、TS の形だけを見る走査は**黙って見逃す**
  *
- * 1つでも落とすと、綴りを変えるだけで控えを迂回できる。
+ * 1つでも落とすと、綴りを変えるだけで期待値との突き合わせを迂回できる。
  */
 export function aliasSpecifiersIn(source: string): string[] {
   const out: string[] = [];
@@ -82,7 +82,7 @@ export function aliasSpecifiersIn(source: string): string[] {
   return out;
 }
 
-/** 指定子を `層/スライス` に畳む。層でもスライスでもない綴り（`@/index.scss`）は null */
+/** 指定子を `層/スライス` に寄せる。層でもスライスでもない綴り（`@/index.scss`）は null */
 export function sliceOf(specifier: string): string | null {
   const m = /^@\/([a-z-]+)\/([A-Za-z0-9_.-]+)/.exec(specifier);
   if (!m) return null;
@@ -155,7 +155,7 @@ type CrossSliceScan = {
  *
  * **`.scss` も歩く。** レイヤを跨ぐ `@use "@/..."` は `no-restricted-imports`
  * （`.ts` / `.tsx` のみ）に1本も掛かっていないので、SCSS を落とすと
- * 控えを迂回する経路がそのまま残る。
+ * 期待値との突き合わせを迂回する経路がそのまま残る。
  */
 export function scanCrossSliceImports(): CrossSliceScan {
   const edges = new Map<string, number>();

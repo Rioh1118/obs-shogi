@@ -51,7 +51,7 @@ for (const path of [
   "@/features/position-search/ui/PositionSearchModal",
   "@/features/study-position-save/ui/StudyPositionSaveModal",
   "@/features/study-positions-manager/ui/StudyPositionsManagerModal",
-  // **中身は gameOverModal.test.tsx が見る。** ここで差し替えるのは、この面だけが
+  // **中身は gameOverModal.test.tsx が見る。** ここで差し替えるのは、このモーダルだけが
   // `modal=` ではなく対局の状態から開くので、外すと `GameSessionProvider` が要ること
   "@/widgets/play-view/ui/GameOverModal",
 ]) {
@@ -163,11 +163,11 @@ describe("衝突の解決", () => {
 });
 
 /**
- * 層が落ちたときに、何を畳み・何で解けるか。
+ * 層が落ちたときに、何を unmount し・何で戻るか。
  *
  * この層は平常時 in-flow の子を1つも作らない（閉じている間は `null`、開くと portal）。
- * `.app-layout` は `grid-template-rows` が2段なので、**箱を作る fallback を出すと
- * 本体が暗黙の3段目へ押し出されて `overflow: hidden` に切られる。**
+ * `.app-layout` は `grid-template-rows` が2行なので、**箱を作る fallback を出すと
+ * 本体が暗黙の3行目へ押し出されて `overflow: hidden` に切られる。**
  *
  * 鍵は `location.key` と、URL を持たない2枚の入力。`params.modal` で数え上げない ——
  * この層は `tab` / `dir` / `sfen` / `returnTo` も読むので、名前で並べると足し忘れる。
@@ -185,12 +185,12 @@ describe("モーダル層の境界", () => {
 
     expect(
       container.querySelector(".error-fallback"),
-      "in-flow の箱を出すと `.app-layout` の1段目を取り、本体が3段目へ押し出される",
+      "in-flow の箱を出すと `.app-layout` の1行目を取り、本体が3行目へ押し出される",
     ).toBeNull();
     expect(screen.getByText("モーダルを表示できませんでした。")).toBeTruthy();
   });
 
-  test("行き先が変わったら、境界も畳むのをやめる", () => {
+  test("行き先が変わったら、境界もリセットする", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     throwing.settings = true;
 
@@ -230,7 +230,7 @@ describe("モーダル層の境界", () => {
     );
 
     // 「別の操作からやり直す」だけだと、解けた瞬間に同じ値を描いてまた落ちる。
-    // **畳みが解けるかは原因による**ので、ここで見るのは「原因を消したこと」と
+    // **unmount から戻るかは原因による**ので、ここで見るのは「原因を消したこと」と
     // 「捨てたものを知らせたこと」の2つ（解けることは `kifuError` の1本が見る）
     fireEvent.click(screen.getByText("待っている操作を取り消す"));
 
@@ -255,7 +255,7 @@ describe("モーダル層の境界", () => {
     expect(screen.getByText("知らせを閉じる")).toBeTruthy();
   });
 
-  test("`kifuError` が消えたら、境界も畳むのをやめる", () => {
+  test("`kifuError` が消えたら、境界もリセットする", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     throwing.settings = true;
     stub.kifuError = { code: "unreadable", message: "読めない" };
@@ -278,7 +278,7 @@ describe("モーダル層の境界", () => {
     expect(screen.queryByText("モーダルを表示できませんでした。")).toBeNull();
   });
 
-  test("URL を持たない衝突が消えたら、境界も畳むのをやめる", () => {
+  test("URL を持たない衝突が消えたら、境界もリセットする", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     throwing.settings = true;
     stub.conflict = conflictFor("create_file");

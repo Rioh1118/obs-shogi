@@ -10,7 +10,7 @@
 
 「**いま居る局面**」と「**これから降りるつもりの変化**」を別々の値で持っている。
 2つは `tesuu` と `ForkPointer[]` の組で構造が同じなので、`BranchPlan` と `PlannedCursor` の
-brand で型として分けてある（`entities/kifu/model/cursor.ts`）。印を付けられるのは
+brand で型として分けてある（`entities/kifu/model/cursor.ts`）。brand を付けられるのは
 `asBranchPlan` と `plannedCursorFrom` だけで、`cursor.forkPointers` を計画として渡すと
 tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 
@@ -62,7 +62,7 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 | **P1** | メモリとディスクが一致         | 最後の `save` が成功、または失敗して `jkf_restored` が通った           |
 | **P2** | **メモリとディスクが食い違う** | `save` が失敗し、かつ `jkf_restored` が**通らなかった**                |
 
-`persistIfPossible` は2つ門番を持つ。`persistence` が無ければ書かない（P0）。
+`persistIfPossible` は書かない条件を2つ持つ。`persistence` が無ければ書かない（P0）。
 `persistence.absPath !== state.loadedAbsPath` なら書かない
 （**開いている棋譜と宛先が食い違う**間に書くと、前の棋譜が新しいファイルへ入る）。
 `persistence` を作るのは `GamePersistenceGate` で、`activeKifuPath` と `kifuFormat` の
@@ -129,7 +129,7 @@ E3〜E10 のどれかに対応する。
 | **E10** 「変化 k」         | 無視           | 選択済みを再度なら `goToIndex(te)`、別のものなら `applyCursor`                                                                                                                                                         | 同じ規則※2                                                                                           | ✓      |
 | **E11** `makeMove`         | 無視           | 手を足して1手進む                                                                                                                                                                                                      | **先の計画が消える** → #226                                                                          | ✗      |
 | **E12** コメント保存       | 無視           | 局面は動かない（`forceCommit`）。開いた棋譜と違えば書かない※6                                                                                                                                                          | **先の計画が消える** → #226                                                                          | ✓      |
-| **E13** `swap` / `delete`  | 無視           | 棋譜が変わり、カーソルは `res.nextCursor` 由来へ                                                                                                                                                                       | **先の計画が消える。** 消えて正しいのは消した枝を指す分だけ                                          | ✗      |
+| **E13** `swap` / `delete`  | 無視           | 棋譜が変わり、カーソルは `res.nextCursor` 由来へ                                                                                                                                                                       | **先の計画が消える。** 消えて正しいのは消した変化を指す分だけ                                          | ✗      |
 | **E14** 保存の失敗         | —              | `jkf_restored` が編集前へ戻すので **P1 のまま**。戻せなかったときだけ P2（→ #301）。`error` は棋譜が別物になっていたら積まれない（`write_failed`）。**戻り値では必ず返る**。画面に出るのはコメントの保存と分岐の削除※5 | 同左                                                                                                 | ✗      |
 | **E15** ワークスペース変更 | —              | 棋譜が新しい根の外なら E2 と同じ。取得の成否は見ない※4                                                                                                                                                                 | 同左                                                                                                 | ✓      |
 | **E16** 棋譜を載せられない | 棋譜が載らない | 前の棋譜がそのまま残る。`error` に積み、**`Err` を返す**（`error` の読み手は0のまま）。宛先を `loadFailedAbsPath` に、回数を `loadFailedSeq` に残す※3                                                                  | 同左。**計画も残るので、別の棋譜の計画を持ったままになる**                                           | ✓※8    |
@@ -162,7 +162,7 @@ E3〜E10 のどれかに対応する。
 ※3 **盤には前の棋譜が出たままなのに、保存先だけが新しいファイルになっている。**
 `kifu_opened` は `activeKifuPath` を先に更新し、`GamePersistenceGate` はそれを見て
 `persistence` を組み直す。`loadGame` が落ちても `state.jkf` は前の棋譜のまま。
-この後に1手指すかコメントを1つ保存すると、**門番が止める**
+この後に1手指すかコメントを1つ保存すると、**検査が止める**
 （`persistence.absPath !== state.loadedAbsPath` なので `Err` を返す）。
 前の棋譜が新しいファイルへ入ることは無いが、**保存だけが黙って落ちる状態**が残る
 （`error` の読み手が0 → #277）。盤には前の棋譜が出たまま。
@@ -193,14 +193,14 @@ E2（`reset_state`）だけ**。`loadFailedSeq` はそのたびに1つ進み、*
 - `KifuCommentNote`：失敗したら `baseText` を進めずノートの中に出す。
   進めてしまうと `dirty` が落ちて autosave も閉じるときの保存も走らず、
   **画面には「保存済み」だけが出て本文が消える**。
-  **楽観的更新の写しを `baseText` に入れないこと。** 走っている保存の最中に面を
+  **楽観的更新の写しを `baseText` に入れないこと。** 走っている保存の最中に対象の手（`face`）を
   組み直すと、まだディスクに無い本文が入って同じ失われ方をする
 - `useBranchDeleteConfirm`（`KifuStreamList` が使う）の `confirmDelete`：確認ダイアログの中に出す。
   **失敗したあとは実行ボタンを押せなくする**（押した時点の指定を撃ち直すので、
   失敗の間にメモリ側の棋譜が変わっていると別のものを指す）
 
 盤で1手指したときと分岐の入れ替えの失敗は依然としてどこにも出ない
-（`async-result-ignored` の印）。
+（`async-result-ignored` の免除の注記）。
 → [failure-surfacing.md](failure-surfacing.md) の F-12a。出口を作るのは #277
 
 **書き込みは直列化していない。** Rust 側の `write_kifu_to_file` は並行に走るので、
@@ -214,7 +214,7 @@ E2（`reset_state`）だけ**。`loadFailedSeq` はそのたびに1つ進み、*
 ※6 コメントの保存は、**ノートを開いた時点の棋譜と `state.loadedAbsPath` が同じときだけ**書く。
 `setCommentsByCursor` は現在の `state.jkf` を複製して当てるので、棋譜が差し替わったあとに
 autosave が撃つと、前のファイルの本文が**次のファイルの同じ手数へ**入る。
-`KifuStreamList` が棋譜の変化で開いている面を閉じ、`faceKey`（ノートの `face.key`）に
+`KifuStreamList` が棋譜の変化で開いているノートやメニューを閉じ、`faceKey`（ノートの `face.key`）に
 棋譜の識別子を混ぜて Lexical を作り直すが、**エディタを作り直す前に autosave が撃つ競合が残る**ので
 この突き合わせが要る。→ #204
 
@@ -229,7 +229,7 @@ G2 で計画が消えること（#226）も**見ていない**。
 
 ※8 `provider.test.tsx` が固定しているのは `loadGame` の2つ（読み込めた棋譜が
 `state` に入ること、盤に載せられない棋譜を弾いて `error` と `Err` を残すこと）。
-**E16 の番人は `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` 1行だけ**で、
+**E16 を弾く検査は `loadGame` の `buildPlayer(nextJkf, ROOT_CURSOR)` 1行だけ**で、
 返り値を使わないので消しても tsc も lint も通る。このテストがその1行を守っている。
 
 E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持つ。
@@ -241,17 +241,17 @@ E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持
 棋譜は `file-tree.state.jkfData` へ。そのあと1手でも書くと、間の編集を落とした内容が
 新しいパスへ保存される。
 
-**見分けているのは橋。** `GameFileTreeBridge` は前回載せた `jkfData` の参照を控え、
+**見分けているのは橋。** `GameFileTreeBridge` は前回載せた `jkfData` の参照をキャッシュし、
 同じなら `renameLoadedPath` で宛先だけを張り替える。`entities/game` はツリーの
 `jkfData` を知らず、`entities/file-tree` は盤を知らないので、**この判断ができるのはそこだけ**。
-控えるのは**載せられた回だけ**——落ちた回も控えると、盤に前の棋譜が載ったまま
+キャッシュするのは**載せられた回だけ**——落ちた回もキャッシュすると、盤に前の棋譜が載ったまま
 次の改名で宛先が動き、前の棋譜が改名先のファイルへ入る。
 
-**走っている書き込みと重なる回は別枠。** 改名は `blockingWrites` を見ないので、
+**走っている書き込みと重なる回は別の区分。** 改名は `blockingWrites` を見ないので、
 保存が飛んでいる最中に改名すると、その往復が古い名前のファイルを作り直す → #537。
 宛先が移ること自体は変わらないが、「改名では宛先だけが移る」で片付く話ではない。
 
-**G0 で `無視` なのは reducer の門番。** `loadedAbsPath` は「盤に載っている棋譜」なので、
+**G0 で `無視` なのは reducer の検査。** `loadedAbsPath` は「盤に載っている棋譜」なので、
 載っていないのに値を持つと `FileNode` の `canSkipReopen` が真になり、その行は
 押しても開かなくなる。
 
@@ -262,8 +262,8 @@ E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持
 | 読み手                            | 進めてしまうと                                                                             |
 | --------------------------------- | ------------------------------------------------------------------------------------------ |
 | `useResetOrientationOnKifuChange` | 名前を直しただけで盤が回る（→ [board-orientation.md](board-orientation.md) の `(B2, E7)`） |
-| `KifuStreamList`                  | 開いているノート・分岐メニュー・削除の確認が畳まれる                                       |
-| `KifuCommentNote`                 | 離脱時の保存が門番に弾かれ、**書きかけの本文が断りも無く消える**                           |
+| `KifuStreamList`                  | 開いているノート・分岐メニュー・削除の確認が閉じる                                       |
+| `KifuCommentNote`                 | 離脱時の保存が検査に弾かれ、**書きかけの本文が断りも無く消える**                           |
 
 **この3つはパスを見てはいけない。** パスを見る読み手（`FileNode` の `canSkipReopen`、
 `useHeaderCenterInfo`、`usePositionHitNavigation`）とは問いが違う——あちらは
@@ -274,8 +274,8 @@ E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持
 どちらも `entities/file-tree` の `activeKifuReferenceIdentity.test.ts` が固定している——
 橋のテストは file-tree をまるごとモックするので、そこでは守れない。
 
-✓ は `gameFileTreeBridgeRename.test.tsx`（橋と保存先の門番を通した形）、
-`reducer.test.ts` の `path_renamed`、`kifuStreamFaces.test.tsx`（開いている面を畳む合図）。
+✓ は `gameFileTreeBridgeRename.test.tsx`（橋と保存先の検査を通した形）、
+`reducer.test.ts` の `path_renamed`、`kifuStreamFaces.test.tsx`（開いているノートやメニューを閉じる合図）。
 
 ## ディスクを組で見る
 
@@ -290,14 +290,14 @@ E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持
 
 E14 で巻き戻しが飛ぶのは、**待っている間に別の編集や読み込みが入ったとき**だけ
 （`expectedJkf` の突き合わせ）。並行する書き込みが実在するので絵空事ではない
-（コメントの自動保存は 900ms 後に、開いている面や確認ダイアログとは無関係に撃つ）。
+（コメントの自動保存は 900ms 後に、開いているノートや確認ダイアログとは無関係に撃つ）。
 
 E2 は `GameFileTreeBridge` が `activeKifuPath` / `jkfData` / `kifuFormat` の
 どれかを失った瞬間に `resetGame()` を呼ぶ経路。`reset_state` は保存を挟まない。
 
 E15（ワークスペース変更）の帰結は ※4。
 
-P2 は state の中に印が無い。`error` は5箇所で消える（局面を動かすか棋譜を書き換える
+P2 は state の中にフラグが無い。`error` は5箇所で消える（局面を動かすか棋譜を書き換える
 操作の先頭4つ — `navigate` / `runWrite` / `loadGame` / `applyCursor` — と、
 公開されている `clearError`）ので、
 **「保存に失敗したまま操作を続けている」状態を後から判定する手段が無い。**
@@ -331,7 +331,7 @@ W4〜W6 は `te > tesuu` の計画を無条件に捨てる。**コメントを1�
 見ていた変化の予定が消えて手数表示が本譜の長さに戻る**（#226）。
 W8 でも戻さないので、**コメントの保存は成功しても失敗しても計画を失う**。
 直すなら W4 の側（`jkf_replaced` が `mergeBranchPlan` を使う）で、そこが #226。
-W5 / W6 は棋譜が変わって枝が実在しなくなることがあるが、それは「捨てる」ではなく
+W5 / W6 は棋譜が変わって変化が実在しなくなることがあるが、それは「捨てる」ではなく
 「作り直す」で扱うべき区別で、今は両方まとめて捨てている。
 
 W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの呼び出し側のうち
@@ -377,7 +377,7 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
    `cursor.forkPointers` と比べても**不変条件1により G1 では一致してしまう**ので、
    取り違えは G2 でしか表に出ない。テストを G1 だけで書くと素通りする。
 
-3. **カーソルより先の計画を捨ててよいのは、棋譜が変わってその枝が実在しなくなったときだけ。**
+3. **カーソルより先の計画を捨ててよいのは、棋譜が変わってその変化が実在しなくなったときだけ。**
    コメントの保存も駒を1つ動かすのも「棋譜が変わった」に含めているので、
    関係の無い先の計画まで巻き添えで消える（#226）。
 
@@ -390,18 +390,18 @@ W3 の第3引数 `overridePlan` に `te > tesuu` を渡しうるのは、3つの
 
 | セル                                                   | 状態                                                                                                                                                                                               |
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GameProvider` 自体の遷移すべて                        | ✓ `persistGuard.test.tsx`（保存先の門番・巻き戻し・コメントが行を止めないこと）。**それ以外は未検証で、上の表で ✗ を付けたものは全部これ**                                                         |
+| `GameProvider` 自体の遷移すべて                        | ✓ `persistGuard.test.tsx`（保存先の検査・巻き戻し・コメントが行を止めないこと）。**それ以外は未検証で、上の表で ✗ を付けたものは全部これ**                                                         |
 | `GameProvider` の遷移のうち `loadGame` 以外            | **テスト無し。** `provider.test.tsx` が踏むのは `loadGame`（成功と E16）だけ。上の表の ✗ は全部これで、`△` も provider を通る部分は同じく未検証                                                    |
 | **E9** / **E10** 分岐メニュー                          | ✓ `cursorSelection.test.ts`。ただし `resolveForkSelection` の**振り分けまで**。`applyCursor` / `goToIndex` を通した結果は未検証                                                                    |
-| **E15** でツリーの取得が失敗したとき                   | ✓ `workspaceGuard.test.tsx`（根の外に出た棋譜を閉じる）。**読み込み中の窓は未検証** — 取得の途中に編集が走った場合の順序は決めていない                                                             |
+| **E15** でツリーの取得が失敗したとき                   | ✓ `workspaceGuard.test.tsx`（根の外に出た棋譜を閉じる）。**読み込み中の区間は未検証** — 取得の途中に編集が走った場合の順序は決めていない                                                             |
 | `(G2, P2)` で `loadGame`                               | **テスト無し。** 未保存の編集と先の計画が同時に消える。手で再現していない                                                                                                                          |
-| E16 のあとで編集する                                   | ✓ `persistGuard.test.tsx`「宛先が別のファイルを指している間は書かない」。門番が止めることは固定した（※3）                                                                                          |
+| E16 のあとで編集する                                   | ✓ `persistGuard.test.tsx`「宛先が別のファイルを指している間は書かない」。検査が止めることは固定した（※3）                                                                                          |
 | `(G1/P2, E2)` 保存に失敗したまま棋譜を閉じる           | **テスト無し。** 巻き戻しが通れば消える編集そのものが無い。飛んだときだけ永久に消える（`resetGame` は保存を挟まない）。**書きかけのコメントは失われる**（→ #314）                                  |
 | 線を乗り換えたとき、深い計画をどうするか               | **判断が決まっていない。** `resolveForkSelection` は `te` 以降を落とすが `mergeBranchPlan` が復活させる。乗り換え先に無い変化を指したまま残り、`computeLeafTesuu` が見たことのない葉を返す         |
 | R3 / R4 に壊れた `forkIndex` を渡す                    | **テスト無し。** R1 は `leafTesuu.test.ts`、R5 は `buildStreamRows.test.ts` が固定している。捨てない4箇所は誰も固定していない                                                                      |
 | R2 / R6 に壊れた `forkIndex` を渡す                    | **テスト無し。** 捨てる側は `advanceWithPlan.test.ts` が共通の実装を固定し、R1 は `leafTesuu.test.ts`、R5 は `buildStreamRows.test.ts` が重ねて固定している。捨てない R2 / R6 は誰も固定していない |
 | `PositionNavigationModal` の ← で作った `overridePlan` | **テスト無し。** `te > tesuu` を持つカーソルを `applyCursor` に渡す唯一の経路                                                                                                                      |
-| 行の `branchForkPointers` が計画から作られる           | **テスト無し。** 削除・入れ替えのクエリが「辿っていない枝」を指しうる → #196                                                                                                                       |
+| 行の `branchForkPointers` が計画から作られる           | **テスト無し。** 削除・入れ替えのクエリが「辿っていない変化」を指しうる → #196                                                                                                                       |
 
 ## 実装との対応
 

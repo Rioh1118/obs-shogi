@@ -14,7 +14,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
         selectedPosition: null,
         loadedAbsPath: action.payload.absPath,
         boardSeq: state.boardSeq + 1,
-        // 載ったので前の失敗の印は消す。回数は戻さない。戻すと、控えた値との比較が
+        // 載ったので前の失敗のフラグは消す。回数は戻さない。戻すと、写しておいた値との比較が
         // 別の失敗と一致しうる
         loadFailedAbsPath: null,
         loadFailedSeq: state.loadFailedSeq,
@@ -50,7 +50,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     // ADR-0004 決定7 の楽観的更新は、先に変えて失敗したら戻す。
     // 戻さないと、メモリとディスクが食い違ったまま次の操作が積み上がる。
     // 分岐の削除では、候補列が1つ減った状態に同じ添字で再試行が当たって
-    // 別の枝が消える。コメントでは、同じ本文の再試行が `changed: false` に
+    // 別の変化が消える。コメントでは、同じ本文の再試行が `changed: false` に
     // なって書き込みを飛ばし、「保存済み」だけが出る。
     //
     // `error` は消さない。戻したことと、戻した理由は別々に伝わる必要がある。
@@ -140,7 +140,7 @@ export function gameReducer(state: GameContextState, action: GameAction): GameCo
     //
     // - `blockingWrites`: 書き込みの最中にも棋譜は閉じる（ワークスペースの切り替え）。
     //   0 に戻すと `isLoading` が落ちて確認ダイアログが押し直せる状態へ戻る
-    // - `loadFailedSeq`: 単調増加。戻すと、控えた値と同じ回数で別の失敗が観測され、
+    // - `loadFailedSeq`: 単調増加。戻すと、写しておいた値と同じ回数で別の失敗が観測され、
     //   待っている側が落ちた要求を捨てそこねる
     // - `boardSeq`: 単調増加。盤の中身が空へ入れ替わったので、ここでは進める
     case "reset_state":

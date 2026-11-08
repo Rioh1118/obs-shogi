@@ -186,7 +186,7 @@ describe("advanceToLeafWithPlan", () => {
   });
 
   // PLAN_WALK_LIMIT の doc が「goto と足並みは揃わない」と言っている根拠。
-  // goto の番人は上限ではなく `0 === c` の等値判定なので、ぴったりの手数だけが
+  // goto の検査は上限ではなく `0 === c` の等値判定なので、ぴったりの手数だけが
   // 投げて、それより長い線は素通りする。この非単調さを前提に doc を書いてある。
   test("goto はぴったり PLAN_WALK_LIMIT 手のときだけ投げ、それより長いと投げない", () => {
     const gotoResult = (length: number) => {

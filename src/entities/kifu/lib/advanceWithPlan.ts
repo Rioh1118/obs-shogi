@@ -101,7 +101,7 @@ export function advanceCurrentLine(player: JKFPlayer): AdvanceResult {
 /**
  * 計画に沿って歩く手数の上限。歩き続けて戻らない形を止める
  *
- * `JKFPlayer.goto` の番人と同じ値だが、足並みは揃わない。あちらは残りがちょうど0のときだけ
+ * `JKFPlayer.goto` の検査と同じ値だが、足並みは揃わない。あちらは残りがちょうど0のときだけ
  * 投げる等値判定で、`forkPointers` を渡すと区間ごとに数え直す。
  * `__tests__/advanceWithPlan.test.ts` が実測を固定している。
  *

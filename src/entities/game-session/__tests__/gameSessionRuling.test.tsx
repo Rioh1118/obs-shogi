@@ -71,7 +71,7 @@ const CLOCKS = {
   running: null,
 };
 
-/** 常に「まだ続く」を返す裁定器 */
+/** 常に「まだ続く」を返す裁定のアダプタ */
 const alwaysContinue: RulingAdapter = { judge: () => ({ kind: "continue" }) };
 
 function rulingReturning(verdict: GameRuling): RulingAdapter {
@@ -242,7 +242,7 @@ describe("対局の進行", () => {
   });
 
   /** 裁定をドックのタブの中に置くと、別のタブを開いただけで返す者が居なくなる */
-  test("本体が畳まれていても裁定は返る", async () => {
+  test("本体が unmount されていても裁定は返る", async () => {
     const { rerender } = mount(alwaysContinue);
     await act(async () => {
       await startOnce();
@@ -411,7 +411,7 @@ describe("対局の進行", () => {
       elapsedMs: 1000,
       clocks: CLOCKS,
     });
-    // Rust が `RULING_TIMEOUT` で畳む。理由は「アプリの異常」で届く
+    // Rust が `RULING_TIMEOUT` で対局を終える。理由は「アプリの異常」で届く
     await emit({
       type: "over",
       gameId: GAME_ID,
@@ -527,7 +527,7 @@ describe("対局の進行", () => {
     expect(kindText()).toBe("live");
   });
 
-  /** Rust は起動に失敗した対局を台帳に載せないので、`close_game` を呼ぶと断られる */
+  /** Rust は起動に失敗した対局を`GameManager` に載せないので、`close_game` を呼ぶと断られる */
   test("始め損ねた対局は、エンジンを呼ばずに片付く", async () => {
     tauri.startGame.mockRejectedValueOnce(new Error("engine did not answer usiok"));
     mount(alwaysContinue);
@@ -544,7 +544,7 @@ describe("対局の進行", () => {
     expect(kindText()).toBe("idle");
   });
 
-  test("別の対局のイベントは畳み込まない", async () => {
+  test("別の対局のイベントは反映しない", async () => {
     mount(alwaysContinue);
     await act(async () => {
       await startOnce();
@@ -1106,7 +1106,7 @@ describe("操作の断り", () => {
   });
 
   /**
-   * 終局したエンジンは `close_game` を通して台帳から外れている。もう一度通すと
+   * 終局したエンジンは `close_game` を通して`GameManager` から外れている。もう一度通すと
    * Rust は `unknown game` で断り、結末が手放せなくなる。
    */
   test("エンジンを落とし終えた対局は、呼び直さずに手放す", async () => {
@@ -1135,7 +1135,7 @@ describe("操作の断り", () => {
   });
 
   /**
-   * 本物の `close_game` は畳む前に中断を通すので、応答より先に `over` が届く。
+   * 本物の `close_game` はエンジンを落とす前に中断を通すので、応答より先に `over` が届く。
    * それを受けた2本目の `close_game` は断られるが、手放す妨げにはならない。
    */
   test("走っている対局を手放す間に届いた `over` と2本目の断りで止まらない", async () => {

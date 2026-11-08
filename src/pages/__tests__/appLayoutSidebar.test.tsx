@@ -41,7 +41,7 @@ vi.mock(
     ({
       default: (props: { toggleSidebar: () => void; isSidebarOpen: boolean }) => {
         header = props;
-        // 子が伝播を止めても、取り込みの段で受けていれば届く
+        // 子が伝播を止めても、取り込みの段階で受けていれば届く
         return (
           <button type="button" onPointerDown={(event) => event.stopPropagation()}>
             header

@@ -4,15 +4,15 @@ import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 
 /**
- * 解析ビューが畳まれても、解析は止まらない。
+ * 解析ビューがunmount されても、解析は止まらない。
  *
- * `docs/state-transitions/dock-tabs.md` の不変条件1。ドックがタブの器になったので、
- * この面はタブを移るだけで unmount される。ここで停止を投げると、
+ * `docs/state-transitions/dock-tabs.md` の不変条件1。ドックがタブのコンテナになったので、
+ * このペインはタブを移るだけで unmount される。ここで停止を投げると、
  * **別のタブを覗いた人のエンジンが黙って止まる**——止めた覚えが無いので、
  * 戻ったときに「解析が終わっている」としか見えない。
  *
  * 席を返すのは `AnalysisProvider`（`RuntimeProviders` 側に居るので、
- * タブを移っても畳まれない）の仕事。
+ * タブを移ってもunmount されない）の仕事。
  */
 const analysis = {
   state: { isAnalyzing: true, starting: false, finished: false, analyzedSfen: "sfen" },
@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 describe("解析ビューの寿命", () => {
-  test("操作列が畳まれても、停止を投げない", () => {
+  test("操作列がunmount されても、停止を投げない", () => {
     const { unmount } = render(
       <MemoryRouter>
         <AnalysisControls />

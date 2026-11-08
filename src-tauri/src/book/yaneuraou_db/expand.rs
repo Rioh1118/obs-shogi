@@ -1,10 +1,10 @@
-//! 1行ずつ読んで、局面ごとの候補手へ畳む。
+//! 1行ずつ読んで、局面ごとの候補手へ集約する。
 //!
 //! この形式はメモリへ全部載せるので、走査そのものが上限との競争になる ——
 //! 局面を跨ぐたびに見積もりを更新し、超えたらそこで断る（[`super::limits`]）。
 //!
 //! **溜めるのは1局面ぶんだけ。** 局面が変わった時点で map へ渡し、
-//! 同じ局面が後からもう一度現れたら結合する。全部読んでから畳むと、
+//! 同じ局面が後からもう一度現れたら結合する。全部読んでから集約すると、
 //! 重複を抱えたままの列が読み切るまで残る。
 
 use super::dedup::{keep_first_of_each_move_everywhere, push_without_doubling, LONG_MOVE_LIST};
@@ -65,7 +65,7 @@ pub(crate) fn load(path: &Path, size: u64) -> Result<YaneuraouDbReader, BookErro
     })
 }
 
-/// 本文を局面ごとに畳む。
+/// 本文を局面ごとに集約する。
 ///
 /// **見出しは要求しない。** 本家は検査しないし、見出しの無い `.db` は実在する。
 /// 別形式のファイルに `.db` を付けただけのものは、局面行にも注記にもならない行が
@@ -175,7 +175,7 @@ fn parse_limited<R: BufRead>(
     // ハッシュ計算が1回ずつ走る（100MB の定跡で 312 万回、パース時間の 17%）。
     let mut buffered: Vec<BookMove> = Vec::new();
     // 申告と突き合わせるのは `sfen` 行の数。map の要素数ではない（正規化と
-    // 重複の畳み込みで減るので、正常な定跡でも一致しない）。
+    // 重複をまとめるので減るので、正常な定跡でも一致しない）。
     let mut sfen_lines: u64 = 0;
     // 上限に当たった時点までに、本体のループが読んだ量。文面ではファイルの
     // 大きさと並べる（理由は `check_expanded_size` の中のコメント）。
@@ -206,7 +206,7 @@ fn parse_limited<R: BufRead>(
             continue;
         }
 
-        // **データの行だけを記録する。** 上の枝が注記と空行を先に `continue` で
+        // **データの行だけを記録する。** 上の分岐が注記と空行を先に `continue` で
         // 抜けているので、ここへ来るのはデータの行だけ。本家は末尾の改行を
         // 要求しない（`misc.cpp:1133-1140`）ので、改行の無い注記が末尾に1行あるだけの
         // 完全な定跡がある。そこまで数えると、正しい定跡が毎回警告される。
@@ -279,8 +279,8 @@ fn parse_limited<R: BufRead>(
     // 辿り着けない。
     if let Some(count) = declared {
         // 比べるのは `sfen` 行の数。**`positions.len()` と比べてはいけない。**
-        // キーは手数を落とすので、手数違いで2度書かれた局面は1つに畳まれる
-        // （`flush` の `Entry::Occupied` の枝に書いたとおり実在する）。畳んだ後の数と申告を突き合わせると、
+        // キーは手数を落とすので、手数違いで2度書かれた局面は1つにまとまる
+        // （`flush` の `Entry::Occupied` の分岐に書いたとおり実在する）。まとめた後の数と申告を突き合わせると、
         // 正常な定跡が「途中で切れている。取得し直すこと」で拒否され、
         // 何度取得し直しても直らない案内を出すことになる。
         //
@@ -351,7 +351,7 @@ fn parse_limited<R: BufRead>(
 /// 消すと収録局面数だけが黙って減り、テストは全部緑のまま通る。
 ///
 /// 短い列はちょうどの大きさへ移し替えて空きを落とす（長い列は移し替えない。
-/// 理由は本体）。`shrink_to_fit` は重複を畳んだ後に一括で掛ける。
+/// 理由は本体）。`shrink_to_fit` は重複をまとめた後に一括で掛ける。
 fn flush(
     positions: &mut HashMap<BookKey, Vec<BookMove>>,
     current: &mut Option<BookKey>,
@@ -364,7 +364,7 @@ fn flush(
         return;
     };
 
-    // **ここでは畳まない。** 理由と実測は `keep_first_of_each_move_everywhere` の doc。
+    // **ここでは重複をまとめない。** 理由と実測は `keep_first_of_each_move_everywhere` の doc。
     match positions.entry(key) {
         Entry::Vacant(slot) => {
             // **溜める側の容量ごと渡さない。** `push` の倍々成長が残す空きは
@@ -386,13 +386,13 @@ fn flush(
         }
         // 同じ局面が2度書かれていることがある。キーは手数を落とすので、
         // `... b - 1` と `... b - 31` は同じキーになる（本家も手数違いの重複を
-        // 書き出す側で畳んでいる。`book.cpp:406-409`）。
+        // 書き出す側でまとめている。`book.cpp:406-409`）。
         //
         // **同じ指し手は先に読んだ方を残す。** 連ねると同じ指し手が評価値違いで
         // 2度返り、「先頭がその局面の best move」という形式の約束が
         // 2つのエントリの境目で崩れる。
         //
-        // 畳み方と本家との差は `keep_first_of_each_move_everywhere` の doc。
+        // まとめ方と本家との差は `keep_first_of_each_move_everywhere` の doc。
         // 本家・ShogiHome との差は `docs/state-transitions/yaneuraou-db-parse.md` の一次資料の表。
         Entry::Occupied(mut slot) => slot.get_mut().append(buffered),
     }
@@ -437,7 +437,7 @@ mod tests {
     /// 報告を受けた側は存在しない破損を追う。
     ///
     /// `is_ok()` だけを見ても記録の位置は分からない。記録する行を
-    /// `is_skippable` の枝より上へ動かす変異はここで落ちる。
+    /// `is_skippable` の分岐より上へ動かす変異はここで落ちる。
     #[test]
     fn a_note_or_a_blank_line_at_the_end_does_not_count_as_unterminated() {
         let head = "#YANEURAOU-DB2016 1.00\n\
@@ -579,7 +579,7 @@ mod tests {
     }
 
     /// v1.20.0 までの ShogiHome は score と depth を省くとき空文字を書き出す。
-    /// **その定跡はいまも配布されている**ので、連続した空白を畳むと欄が1つずつ
+    /// **その定跡はいまも配布されている**ので、連続した空白を1つにまとめると欄が1つずつ
     /// ずれ、深さが評価値として画面に出る（現行の綴りは一次資料の表を見ること）。
     #[test]
     fn an_empty_field_does_not_shift_the_columns() {
@@ -758,8 +758,8 @@ mod tests {
         assert!(err.message().contains("取得し直す"), "{}", err.message());
     }
 
-    /// 手数違いで2度書かれた局面は1つに畳まれるので、畳んだ後の数と申告は
-    /// 一致しない。畳んだ後で突き合わせると、正常な定跡が「途中で切れている。
+    /// 手数違いで2度書かれた局面は1つにまとまるので、まとめた後の数と申告は
+    /// 一致しない。まとめた後で突き合わせると、正常な定跡が「途中で切れている。
     /// 取得し直すこと」で拒否される（何度取得し直しても直らない案内になる）。
     #[test]
     fn a_book_with_duplicate_positions_is_not_mistaken_for_a_truncated_one() {
@@ -771,7 +771,7 @@ mod tests {
              2g2f none 40 32 1\n";
         let positions = loaded(text);
 
-        // 畳まれて1局面。申告は2だが、数えているのは sfen 行なので通る
+        // まとまって1局面。申告は2だが、数えているのは sfen 行なので通る
         assert_eq!(positions.len(), 1);
         assert_eq!(positions[&to_book_key(HIRATE).unwrap()].len(), 2);
     }
@@ -1052,7 +1052,7 @@ mod tests {
     /// 表の (S2, E2)。局面より**後ろ**の `# NOE:` も申告値として覚える。
     ///
     /// **読み飛ばしだけを見るテストでは足りない。** 申告値が実数と一致する入力を
-    /// 使うと、覚えても覚えなくても同じ結果になり、本体ループの枝を丸ごと消しても
+    /// 使うと、覚えても覚えなくても同じ結果になり、本体ループの分岐を丸ごと消しても
     /// 緑で通る。実数と食い違わせて、H4 が発火することで見る。
     #[test]
     fn a_declared_count_after_the_first_position_is_remembered() {
@@ -1131,9 +1131,9 @@ mod tests {
     /// **不変条件3。どの失敗も「次に何をすればよいか」で終わること。**
     ///
     /// 個々のテストは自分が見たい語しか assert しないので、復帰操作が消えても
-    /// 大半は緑のまま通る。**枝を1箇所に並べて、まとめて見る。**
+    /// 大半は緑のまま通る。**分岐を1箇所に並べて、まとめて見る。**
     ///
-    /// ここに並んでいない失敗の枝を足したら、この一覧にも足すこと。
+    /// ここに並んでいない失敗の分岐を足したら、この一覧にも足すこと。
     #[test]
     fn every_failure_ends_with_something_the_user_can_do() {
         let long_move = "x".repeat(3000);
@@ -1147,7 +1147,7 @@ mod tests {
                 format!("sfen {HIRATE}\n{long_move}\n"),
             ),
             ("申告との不一致", format!("# NOE:2\nsfen {HIRATE}\n7g7f\n")),
-            // `sfen ` 行が `BookKey` の検査に落ちる枝。**ここだけ引用で
+            // `sfen ` 行が `BookKey` の検査に落ちる分岐。**ここだけ引用で
             // 終わっていた**（復帰操作を文の途中に置いていた）
             ("局面行が読めない", format!("sfen {HIRATE} moves 7g7f\n")),
         ];
@@ -1212,7 +1212,7 @@ mod tests {
         let mut text = String::from("#YANEURAOU-DB2016 1.00\n");
         for i in 0..BLOCKS {
             text.push_str(&format!("sfen {HIRATE}\n"));
-            // 相異なる手を1つずつ。畳んだ後は BLOCKS 手になる
+            // 相異なる手を1つずつ。まとめた後は BLOCKS 手になる
             let file = (i % 9) + 1;
             let rank = (b'a' + (i / 9 % 9) as u8) as char;
             let to_file = (i / 81 % 9) + 1;
@@ -1227,7 +1227,7 @@ mod tests {
         assert_eq!(positions.len(), 1);
 
         // 時間で見るので、機械差を吸収できるだけ差を開けてある。
-        // 実測: 併合のたびに畳む形で 4.70s、読み切った後に1回で 0.10s（47倍）。
+        // 実測: 併合のたびに重複をまとめる形で 4.70s、読み切った後に1回で 0.10s（47倍）。
         // 閾値の 2 秒は、速い側の 20 倍・遅い側の半分以下。
         assert!(elapsed.as_secs() < 2, "併合が二乗になっている: {elapsed:?}");
     }
@@ -1313,7 +1313,7 @@ mod tests {
                 "sfen lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - {ply}\n"
             ));
         }
-        // 正規化で1局面に畳まれる。局面1つぶんの見積もりが上限 200 を超える
+        // 正規化で1局面にまとまる。局面1つぶんの見積もりが上限 200 を超える
         let err = parse_limited(
             std::io::Cursor::new(text.as_bytes()),
             "/books/a.db",
@@ -1344,7 +1344,7 @@ mod tests {
     ///
     /// 境界が効く入力の条件は2つ。**末尾に改行が無いこと**（改行付きの行では
     /// `take` が切らないので、`>` と `>=` のどちらでも同じ結果になる）と、
-    /// **注記でないこと**（注記は長さの枝より先に読み捨てへ落ちる）。
+    /// **注記でないこと**（注記は長さの分岐より先に読み捨てへ落ちる）。
     /// 片方でも外すと、境界をずらす変異が緑で通る。
     #[test]
     fn a_line_at_the_length_limit_is_accepted() {
@@ -1627,7 +1627,7 @@ mod tests {
         assert_eq!(moves.len(), 2);
     }
 
-    /// 同じブロックの中の重複も畳む。ブロックを跨ぐときだけ畳んでいると、
+    /// 同じブロックの中の重複もまとめる。ブロックを跨ぐときだけまとめていると、
     /// 手で編集した定跡で同じ指し手が評価値違いに2行並ぶ。
     #[test]
     fn a_move_written_twice_in_the_same_block_is_kept_once() {
@@ -1645,17 +1645,17 @@ mod tests {
         assert_eq!(moves[0].value, Some(50), "先に読んだ方が残る");
     }
 
-    /// 走査で畳む形のままだと、同じ局面が延々と繰り返されるファイルで二乗になる
+    /// 走査でまとめる形のままだと、同じ局面が延々と繰り返されるファイルで二乗になる
     /// （実測 6.22MB で16秒、100MB なら70分超）。`SCAN_LIMIT` を超える列でも
-    /// 畳めていること。
+    /// まとめられていること。
     #[test]
     fn a_position_with_very_many_moves_is_still_deduped() {
         let mut text = format!("#YANEURAOU-DB2016 1.00\nsfen {HIRATE}\n");
         // 相異なる 81 手を2回ずつ書く。`SCAN_LIMIT`（32）を超えるので
-        // `HashSet` の枝に入る。
+        // `HashSet` の分岐に入る。
         //
-        // **2周で評価値を変える。** 同じ値だと畳んだ結果が先勝ちでも後勝ちでも
-        // 一致してしまい、`HashSet` の枝が本家（後勝ち）に戻っても緑で通る。
+        // **2周で評価値を変える。** 同じ値だとまとめた結果が先勝ちでも後勝ちでも
+        // 一致してしまい、`HashSet` の分岐が本家（後勝ち）に戻っても緑で通る。
         for value in [50, 900] {
             for file in 1..=9 {
                 for rank in b'a'..=b'i' {
@@ -1667,7 +1667,7 @@ mod tests {
         let moves = &loaded(&text)[&to_book_key(HIRATE).unwrap()];
         assert_eq!(moves.len(), 81, "重複が残っている: {}", moves.len());
         // 先頭がその局面の best move、というのが形式の約束。
-        // 本家は後勝ちで畳むが、こちらはファイルに書かれた順の意味を保つ
+        // 本家は後勝ちでまとめるが、こちらはファイルに書かれた順の意味を保つ
         assert!(
             moves.iter().all(|m| m.value == Some(50)),
             "先に読んだ方が残っていない"

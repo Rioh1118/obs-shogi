@@ -5,9 +5,9 @@ import type { FileTreeNode } from "@/entities/file-tree";
 import type { StudyPosition } from "@/entities/study-positions/model/types";
 
 /**
- * Esc の段と、組みかけを捨てる確認（状態遷移表の X10 / X13）。
+ * Esc の優先順と、組みかけを捨てる確認（状態遷移表の X10 / X13）。
  *
- * **段が1つずれると、組んだものが黙って消えるか、逆に何も組んでいないのに
+ * **優先順が1つずれると、組んだものが黙って消えるか、逆に何も組んでいないのに
  * 毎回確認が出て、確認そのものが読まれなくなる。**
  */
 
@@ -55,17 +55,17 @@ const square = (x: number, y: number): HTMLElement => {
 
 const editor = (): HTMLElement => document.querySelector<HTMLElement>(".pos-editor")!;
 const confirm = (): HTMLElement | null => document.querySelector(".confirm-dialog");
-// **見えているかで判定する。** 課題局面の面へ移っても盤とフォームは木に残る
-// （外すと打った入力が消える）ので、有無では面を判定できない
+// **見えているかで判定する。** 課題局面のパネルへ移っても盤とフォームは木に残る
+// （外すと打った入力が消える）ので、有無ではパネルを判定できない
 const onBoardFace = (): boolean =>
   document.querySelector(".pos-editor__main:not([hidden]) .pos-editor__board") !== null;
 
 /**
- * Esc を押して、面が畳んだか（＝器へ届かせなかったか）を返す
+ * Esc を押して、タブが処理したか（＝モーダルへ届かせなかったか）を返す
  *
- * **升から撃つ。** ハンドラは面の器に付いているので、器そのものへ直に撃つと
- * 「焦点が面の外にあっても畳めた」ように見えてしまう。実際の経路は
- * 「押した升 → 面の器」の泡立ちなので、そちらを通す。
+ * **升から撃つ。** ハンドラはタブのコンテナに付いているので、コンテナそのものへ直に撃つと
+ * 「焦点がタブの外にあっても処理できた」ように見えてしまう。実際の経路は
+ * 「押した升 → タブのコンテナ」の泡立ちなので、そちらを通す。
  */
 const pressEscape = (from: HTMLElement = square(5, 5)): boolean => {
   const dispatched = fireEvent.keyDown(from, { key: "Escape" });
@@ -78,8 +78,8 @@ const makeDirty = () => {
   fireEvent.click(square(7, 6));
 };
 
-describe("Esc の段", () => {
-  test("段2: 掴んでいる駒を離す。器へは届かせない", () => {
+describe("Esc の優先順", () => {
+  test("優先順2: 掴んでいる駒を離す。モーダルへは届かせない", () => {
     render(<EditorHarness />);
     fireEvent.click(square(7, 7));
 
@@ -87,7 +87,7 @@ describe("Esc の段", () => {
     expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(false);
   });
 
-  test("段2 は組みかけより先。離すだけで確認は出ない", () => {
+  test("優先順2 は組みかけより先。離すだけで確認は出ない", () => {
     render(<EditorHarness />);
     makeDirty();
     fireEvent.click(square(2, 7));
@@ -96,19 +96,19 @@ describe("Esc の段", () => {
     expect(confirm()).toBeNull();
   });
 
-  test("段3: 課題局面の面から盤の面へ戻る", () => {
+  test("優先順3: 課題局面のパネルから盤へ戻る", () => {
     render(<EditorHarness studyPositions={[STUDY]} />);
     fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
     expect(onBoardFace()).toBe(false);
 
-    // 盤の面には升が無いので、一覧の中から撃つ
+    // 課題局面のパネルには升が無いので、一覧の中から撃つ
     expect(pressEscape(document.querySelector<HTMLElement>(".pos-editor__picker-rows")!)).toBe(
       true,
     );
     expect(onBoardFace()).toBe(true);
   });
 
-  test("段4: 組みかけなら確認が出る", () => {
+  test("優先順4: 組みかけなら確認が出る", () => {
     render(<EditorHarness />);
     makeDirty();
 
@@ -116,8 +116,8 @@ describe("Esc の段", () => {
     expect(screen.getByText("組んだ局面は保存されません。")).toBeTruthy();
   });
 
-  test("段5: 組みかけでなければ器が閉じる", () => {
-    // 畳むものが無いときは面が何もせず、器の `Modal` が受けて閉じる
+  test("優先順5: 組みかけでなければモーダルが閉じる", () => {
+    // 処理するものが無いときはタブが何もせず、親の `Modal` が受けて閉じる
     onClose.mockClear();
     render(<EditorHarness onClose={onClose} />);
     pressEscape();
@@ -125,9 +125,9 @@ describe("Esc の段", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  test("段4 の確認は、器を閉じる前に出る", () => {
+  test("優先順4 の確認は、モーダルを閉じる前に出る", () => {
     // **Esc・覆いの押下・「キャンセル」のどれも同じ `requestClose` を通る。**
-    // 面のハンドラだけで段4 を持つと、焦点が面の外にある経路と覆いの押下が素通りする
+    // タブのハンドラだけで優先順4 を持つと、焦点がタブの外にある経路と覆いの押下が素通りする
     onClose.mockClear();
     render(<EditorHarness onClose={onClose} />);
     makeDirty();
@@ -157,7 +157,7 @@ describe("Esc の段", () => {
   });
 
   test("作成中は閉じない。覆いを押しても消えない", () => {
-    // 止められない書き込みの途中で器ごと消えると、失敗が出る先が無くなる
+    // 止められない書き込みの途中でモーダルごと消えると、失敗が出る先が無くなる
     render(<EditorHarness onClose={onClose} />);
     fireEvent.change(screen.getByLabelText("ファイル名"), { target: { value: "a" } });
     fireEvent.click(screen.getByRole("button", { name: "作成" }));
@@ -167,7 +167,7 @@ describe("Esc の段", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  test("段0: 作成中は無視する", async () => {
+  test("優先順0: 作成中は無視する", async () => {
     let settle: (v: unknown) => void = () => undefined;
     createNewFile.mockReturnValue(
       new Promise((resolve) => {
@@ -188,8 +188,8 @@ describe("Esc の段", () => {
     });
   });
 
-  test("段0: 作成中は掴んでいる駒も離さない", async () => {
-    // 作成中の Esc は段のどれにも落とさない。落ちると、止められない書き込みの途中で盤が動く
+  test("優先順0: 作成中は掴んでいる駒も離さない", async () => {
+    // 作成中の Esc は優先順のどれにも落とさない。落ちると、止められない書き込みの途中で盤が動く
     let settle: (v: unknown) => void = () => undefined;
     createNewFile.mockReturnValue(
       new Promise((resolve) => {
@@ -209,8 +209,8 @@ describe("Esc の段", () => {
     });
   });
 
-  test("段1: 確認の中の Esc は確認を閉じ、組みかけを残す", () => {
-    // ここで降ろすと、確認の器が `defaultPrevented` を見て閉じなくなる
+  test("優先順1: 確認の中の Esc は確認を閉じ、組みかけを残す", () => {
+    // ここで降ろすと、確認のモーダルが `defaultPrevented` を見て閉じなくなる
     render(<EditorHarness onClose={onClose} />);
     makeDirty();
     fireEvent.click(document.querySelector<HTMLElement>("#pos-editor-handicap")!);
@@ -223,8 +223,8 @@ describe("Esc の段", () => {
     expect(square(7, 6).querySelector(".piece")).not.toBeNull();
   });
 
-  test("課題局面の面へ移ると、掴んでいる駒は離れる", () => {
-    // 掴んだまま移ると、面の上の Esc が見えない駒を離すだけになり、盤へ戻れない
+  test("課題局面のパネルへ移ると、掴んでいる駒は離れる", () => {
+    // 掴んだまま移ると、パネルの上の Esc が見えない駒を離すだけになり、盤へ戻れない
     render(<EditorHarness studyPositions={[STUDY]} />);
     fireEvent.click(square(7, 7));
     fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
@@ -234,8 +234,8 @@ describe("Esc の段", () => {
     expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(false);
   });
 
-  test("変換中の Escape では畳まない", () => {
-    // 変換中の Escape は「変換を取り消す」であって、面を畳む合図ではない
+  test("変換中の Escape は処理しない", () => {
+    // 変換中の Escape は「変換を取り消す」であって、Esc として処理する合図ではない
     render(<EditorHarness />);
     fireEvent.click(square(7, 7));
 
@@ -243,15 +243,15 @@ describe("Esc の段", () => {
     expect(square(7, 7).classList.contains("pos-editor__square--from")).toBe(true);
   });
 
-  test("面の器が焦点を持てる", () => {
-    // **持てないと段が1つも通らない。** 升も駒台も焦点を持てないので、押すと
-    // ブラウザは最も近い焦点を持てる祖先へ焦点を移す。面の器が持てなければ
-    // その祖先は `Modal` のカード（面の外）になり、合成イベントの経路から外れる
+  test("タブのコンテナが焦点を持てる", () => {
+    // **持てないと優先順が1つも通らない。** 升も駒台も焦点を持てないので、押すと
+    // ブラウザは最も近い焦点を持てる祖先へ焦点を移す。タブのコンテナが持てなければ
+    // その祖先は `Modal` のカード（タブの外）になり、合成イベントの経路から外れる
     render(<EditorHarness />);
     expect(editor().tabIndex).toBe(-1);
   });
 
-  test("課題局面の面でも器が焦点を持てる", () => {
+  test("課題局面のパネルでもコンテナが焦点を持てる", () => {
     render(<EditorHarness studyPositions={[STUDY]} />);
     fireEvent.click(screen.getByRole("button", { name: "課題局面から…" }));
     expect(editor().tabIndex).toBe(-1);
@@ -322,7 +322,7 @@ describe("捨てる確認", () => {
 
     expect(screen.getByRole("button", { name: "捨てる" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "削除する" })).toBeNull();
-    // 戻る側は、器ごと閉じるフォームの「キャンセル」と別の語にする。
+    // 戻る側は、モーダルごと閉じるフォームの「キャンセル」と別の語にする。
     // 「組み続ける」にもしない —— 貼りかけだけを捨てるとき、利用者は組んでいない
     expect(screen.getByRole("button", { name: "閉じない" })).toBeTruthy();
   });

@@ -1,7 +1,7 @@
 @use "@/index.scss" as index;
 
-// **面を自分で持つ。** この器が出るのは、面を塗っていた部品ごと畳んだ後。
-// `.app-layout` の背景も `.workspace` の枠も消えているので、面を継ごうとすると
+// **背景を自分で持つ。** このコンテナが出るのは、背景を塗っていた部品ごと unmount した後。
+// `.app-layout` の背景も `.workspace` のコンテナも消えているので、背景を継ごうとすると
 // `body` まで遡って canvas の既定色（白）に着き、白地に白文字になる。
 // 同じ理由は `pages/AppLoading.tsx` にも書いてある
 .error-fallback {
@@ -11,8 +11,8 @@
 
   display: flex;
   flex-direction: column;
-  // 親が高さをくれる枠（盤ペイン）とくれない枠（ドック・`.app-content`）の両方に出る。
-  // `safe` を付けるのは、狭い枠で中身が溢れたときに上端を切らないため
+  // 親が高さをくれるコンテナ（盤ペイン）とくれないコンテナ（ドック・`.app-content`）の両方に出る。
+  // `safe` を付けるのは、狭いコンテナで中身が溢れたときに上端を切らないため
   align-items: safe center;
   justify-content: safe center;
   gap: index.$space-6;

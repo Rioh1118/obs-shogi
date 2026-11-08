@@ -32,7 +32,7 @@
     box-shadow: inset 0 -1px 0 rgba(index.$color-white, 0.025);
   }
 
-  // 選べる保存先が無い理由。失敗ではないので `FsErrorView` の段には載せない
+  // 選べる保存先が無い理由。失敗ではないので `FsErrorView` の tier には載せない
   &__hint {
     margin: index.$space-2 0 0;
     font-size: index.$font-hint;

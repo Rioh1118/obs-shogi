@@ -72,9 +72,9 @@ fn strip_utf8_bom_str(text: &str) -> &str {
 /// `kifu::convert` の `convert_jkf_to_string_internal`。
 ///
 /// **0バイトにはならない。** 綴りは4形式とも開始局面を名乗る
-/// （KIF / KI2 は `手合割`、CSA は `PI`、JKF は JSON の器）ので、
+/// （KIF / KI2 は `手合割`、CSA は `PI`、JKF は JSON の構造）ので、
 /// ヘッダも指し手も無い JKF でも骨組みが残る。
-/// 空を書かせない番人は要らない — 空が作れない。
+/// 空を書かせない検査は要らない — 空が作れない。
 /// 固定するのは `no_format_spells_a_blank_record_as_nothing`。
 pub fn spell_for_extension(jkf_data: &JsonKifuFormat, file_path: &Path) -> Result<String, FsError> {
     // `ConvertError` の Display は綴れなかったものを名指しする（書き分けられない手、

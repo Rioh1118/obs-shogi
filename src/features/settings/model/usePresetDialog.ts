@@ -147,7 +147,7 @@ export function usePresetDialog({ presetId, index, onClose }: Params) {
   }, [draft, index]);
 
   // 開いたときに1回、エンジンを読み込む。画面の名前は保存しないので、毎回いまの辞書から取る。
-  // 空欄の補完でエンジンが埋まった回も読み込み、利用者が先に選んでいれば `runProbe` が印を立てている
+  // 空欄の補完でエンジンが埋まった回も読み込み、利用者が先に選んでいれば `runProbe` がフラグを立てている
   useEffect(() => {
     if (openedProbeRef.current || !draft?.enginePath) return;
     runProbe(draft.enginePath);

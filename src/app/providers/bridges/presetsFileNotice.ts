@@ -36,7 +36,7 @@ type LoadNoticeBuilders = {
  * 読み込みで起きたことの見せ方。型が全種類を書かせる（種類が Rust から届いていることは
  * `presetsWire.test.ts` が見る）。
  *
- * 段（ADR-0004）は次のとおり。
+ * tier（ADR-0004）は次のとおり。
  * - 何もしなくてよいものは `info`
  * - このまま使うと変更が保存されず、直すのがアプリの中か利用者のフォルダの権限の種類は `danger`
  * - 新しい版は `warning`。書けない状態で開くが、直す手段はアプリの更新で、
@@ -101,7 +101,7 @@ const LOAD_NOTICE_BUILDERS: LoadNoticeBuilders = {
   }),
 };
 
-/** 知らない種類（Rust にだけ足された種類）の受け皿。表を引けずに落ちるより、汎用の文言を出す */
+/** 知らない種類（Rust にだけ足された種類）のフォールバック。表を引けずに落ちるより、汎用の文言を出す */
 const UNKNOWN_LOAD_NOTICE: PresetsFileNoticeView = {
   presentation: "banner",
   tier: "warning",

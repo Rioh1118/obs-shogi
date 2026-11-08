@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { Color } from "shogi.js";
 
-// **barrel を通さない。** 控えを作る関数にはスライスの外からの本番の呼び手が
+// **barrel を通さない。** キャッシュを作る関数にはスライスの外からの本番の呼び手が
 // 居ない（呼ぶのは `entities/analysis` の provider だけ）ので、載せると
 // `scripts/knip-ratchet.sh` の到達しない export が1つ増える。載せていない実体への
 // 深い import は `src/__tests__/sliceBarrels.test.ts` が許している。
@@ -11,20 +11,20 @@ import { createCandidateCache } from "@/entities/analysis/lib/candidateCache";
 import type { AnalysisCandidate } from "@/entities/engine";
 
 /**
- * 停止中に出る候補手の控えを、この画面は持たない。
+ * 停止中に出る候補手のキャッシュを、この画面は持たない。
  *
  * この画面はドックの `AppErrorBoundary` の内側にあり、そこからの復帰で作り直される
  * （タブ化（ADR-0010 / #562）を入れるとタブ切替でも作り直される。経路の一覧は
  * `entities/analysis/lib/candidateCache.ts`）。保存場所をこの画面に置くと、
- * 作り直された回だけ控えが空に戻る —— エンジンの席も `state.candidates` も
+ * 作り直された回だけキャッシュが空に戻る —— エンジンの席も `state.candidates` も
  * 何も失っていないのに、画面からだけ候補手が消える（#561）。
  *
- * ここが見るのは「控えが画面より長生きする置き場から来ている」まで。
+ * ここが見るのは「キャッシュが画面より長生きする置き場から来ている」まで。
  * 実際に `AnalysisProvider` がそういう置き場を持つことは
- * `entities/analysis/model/__tests__/provider.test.tsx` が、控えそのものの振る舞いは
+ * `entities/analysis/model/__tests__/provider.test.tsx` が、キャッシュそのものの振る舞いは
  * `entities/analysis/lib/__tests__/candidateCache.test.ts` が見る。
  *
- * 控えは**テストの側で作って持ち回す**。画面の外に置かれていれば作り直しを跨いで
+ * キャッシュは**テストの側で作って持ち回す**。画面の外に置かれていれば作り直しを跨いで
  * 残る、という関係がそのまま写るため。
  */
 
@@ -68,8 +68,8 @@ vi.mock("@/entities/file-tree", () => ({ useFileTree: () => fileTree }));
 vi.mock("@/entities/engine-presets/model/useEnginePresets", () => ({
   useEnginePresets: () => presets,
 }));
-// この画面は評価値バーの出し分けと表示モードのために設定を引く。控えの経路には関係しない。
-// **モードは「行」に固定する** —— 控えが出ているかを `.candidates-section` で見るため
+// この画面は評価値バーの出し分けと表示モードのために設定を引く。キャッシュの経路には関係しない。
+// **モードは「行」に固定する** —— キャッシュが出ているかを `.candidates-section` で見るため
 vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({
     config: { analysis_display_mode: "rows" },
@@ -86,8 +86,8 @@ const shownCandidates = (container: HTMLElement) =>
 /**
  * 出ている候補手の指し手そのもの。
  *
- * **件数では足りない。** 控えと `state.candidates` がどちらも同じ件数を持つ場面では、
- * 件数を見るだけの判定は「控えを一度も読まない実装」を素通しする。
+ * **件数では足りない。** キャッシュと `state.candidates` がどちらも同じ件数を持つ場面では、
+ * 件数を見るだけの判定は「キャッシュを一度も読まない実装」を素通しする。
  */
 const shownCandidateMoves = (container: HTMLElement) =>
   [...container.querySelectorAll(".candidates-section .move-sequence__move")]
@@ -117,7 +117,7 @@ beforeEach(() => {
   game.view.currentSfen = INITIAL_SFEN;
   fileTree.selectedNode = { id: "file-a" };
   presets.state.selectedPresetId = "preset-a";
-  // **`scopeTo` で初期化しない。** 控えの隔離をそちらに負わせると、`scopeTo` の意味を
+  // **`scopeTo` で初期化しない。** キャッシュの隔離をそちらに負わせると、`scopeTo` の意味を
   // 変えた回に無関係なテストが赤くなる。作り直しを跨ぐ関係を見る本だけが持ち回す。
   analysis.candidateCache = createCandidateCache();
 });
@@ -125,7 +125,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 /**
- * 解析を回して止める。控えはここで書かれる。
+ * 解析を回して止める。キャッシュはここで書かれる。
  *
  * **`candidates` を空にしない。** `stop_analysis` は `isAnalyzing` と席だけを落とし、
  * `candidates` と `analyzedSfen` を残す（`entities/analysis/model/reducer.ts`）。
@@ -143,14 +143,14 @@ function analyzeThenStop() {
   return view;
 }
 
-describe("解析ペインの候補手の控え", () => {
+describe("解析ペインの候補手のキャッシュ", () => {
   /**
-   * 控えを読んでいることを、`state.candidates` と別の値で固定する。
+   * キャッシュを読んでいることを、`state.candidates` と別の値で固定する。
    * 停止しても `candidates` は残るので（`stop_analysis` は触らない）、戻ってきた局面の
-   * 控えと、いま `state` に載っている候補手が別物になる場面を作る。
-   * 停止中の枝を `state.candidates` に差し替える実装はここで落ちる。
+   * キャッシュと、いま `state` に載っている候補手が別物になる場面を作る。
+   * 停止中の分岐を `state.candidates` に差し替える実装はここで落ちる。
    */
-  test("戻ってきた局面では、その局面の控えを出す（`state` に残っている候補手ではない）", () => {
+  test("戻ってきた局面では、その局面のキャッシュを出す（`state` に残っている候補手ではない）", () => {
     // 初形を解析して止める
     analysis.state.isAnalyzing = true;
     analysis.state.analyzedSfen = INITIAL_SFEN;
@@ -180,7 +180,7 @@ describe("解析ペインの候補手の控え", () => {
 
   /**
    * `scopeTo` の呼び出し箇所が消えても気づけるようにする。**鍵に棋譜が入っているので、
-   * 別の棋譜へ移るだけでは分からない** —— 戻ってきて、前の控えが引けないことを見る。
+   * 別の棋譜へ移るだけでは分からない** —— 戻ってきて、前のキャッシュが引けないことを見る。
    * `fileKey` はツリーの走査ごとに振り直される（#568）ので、同じ棋譜でも宣言し直しは起きる。
    */
   test("棋譜を宣言し直すと、前に宣言していた分は引けない", () => {
@@ -194,7 +194,7 @@ describe("解析ペインの候補手の控え", () => {
     expect(shownCandidates(view.container)).toBe(0);
   });
 
-  test("起動を待っている間に検討の意思を立てても、控えの読み筋が読める", () => {
+  test("起動を待っている間に検討の意思を立てても、キャッシュの読み筋が読める", () => {
     analyzeThenStop();
     cleanup();
     statusOverride.value = "starting";
@@ -212,7 +212,7 @@ describe("解析ペインの候補手の控え", () => {
     expect(shownCandidates(view.container)).toBe(2);
   });
 
-  test("停止中に畳まれて作り直されても、直前に見えていた候補手が出る", () => {
+  test("停止中にunmount されて作り直されても、直前に見えていた候補手が出る", () => {
     analyzeThenStop().unmount();
 
     const again = render(<AnalysisPane />);
@@ -225,7 +225,7 @@ describe("解析ペインの候補手の控え", () => {
    * 別の棋譜の鍵は外れる（`scopeTo` を潰す変異でこの本は緑のまま通る）。
    * 破棄は `entities/analysis/lib/__tests__/candidateCache.test.ts` が見る。
    */
-  test("別の棋譜の鍵では控えが出ない", () => {
+  test("別の棋譜の鍵ではキャッシュが出ない", () => {
     const view = analyzeThenStop();
 
     fileTree.selectedNode = { id: "file-b" };
@@ -236,10 +236,10 @@ describe("解析ペインの候補手の控え", () => {
   });
 
   /**
-   * エンジンが読んでいる局面が盤と離れている間に控えると、鍵が指す局面とは別の局面の
+   * エンジンが読んでいる局面が盤と離れている間にキャッシュすると、鍵が指す局面とは別の局面の
    * 候補手が、停止したあとその局面の結果として出る。
    */
-  test("エンジンが別の局面を読んでいる間は控えない", () => {
+  test("エンジンが別の局面を読んでいる間はキャッシュしない", () => {
     analysis.state.isAnalyzing = true;
     analysis.state.analyzedSfen = "9/9/9/9/9/9/9/9/9 b - 1";
     analysis.state.candidates = twoCandidates;
@@ -253,10 +253,10 @@ describe("解析ペインの候補手の控え", () => {
 
   /**
    * 同じ局面で開いている棋譜だけが替わる場合（どちらも初形など）、エンジンが読んでいる
-   * のはその局面なので控えてよい。**捨てる側と控える側が同じレンダで走る**ので、
-   * 順序が逆だと控えた直後に捨てることになる。
+   * のはその局面なのでキャッシュしてよい。**捨てる側とキャッシュする側が同じレンダで走る**ので、
+   * 順序が逆だとキャッシュした直後に捨てることになる。
    */
-  test("解析中に棋譜が替わっても、同じ局面なら新しい棋譜の控えとして残る", () => {
+  test("解析中に棋譜が替わっても、同じ局面なら新しい棋譜のキャッシュとして残る", () => {
     analysis.state.isAnalyzing = true;
     analysis.state.analyzedSfen = INITIAL_SFEN;
     analysis.state.candidates = twoCandidates;
@@ -271,7 +271,7 @@ describe("解析ペインの候補手の控え", () => {
     expect(shownCandidates(view.container)).toBe(2);
   });
 
-  test("プリセットを替えると、前のエンジンの控えは出ない", () => {
+  test("プリセットを替えると、前のエンジンのキャッシュは出ない", () => {
     const view = analyzeThenStop();
 
     presets.state.selectedPresetId = "preset-b";
@@ -280,7 +280,7 @@ describe("解析ペインの候補手の控え", () => {
     expect(shownCandidates(view.container)).toBe(0);
   });
 
-  test("同じ局面で読み直して、候補手が届く前に止めても、前の控えが残る", () => {
+  test("同じ局面で読み直して、候補手が届く前に止めても、前のキャッシュが残る", () => {
     const view = analyzeThenStop();
 
     analysis.state.isAnalyzing = true;
@@ -292,7 +292,7 @@ describe("解析ペインの候補手の控え", () => {
     expect(shownCandidates(view.container)).toBe(2);
   });
 
-  test("局面を動かすと、その局面の控えだけを出す", () => {
+  test("局面を動かすと、その局面のキャッシュだけを出す", () => {
     const view = analyzeThenStop();
 
     game.state.cursor = { tesuuPointer: "1,[]" };

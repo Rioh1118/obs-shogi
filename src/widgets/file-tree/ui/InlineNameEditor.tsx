@@ -16,7 +16,7 @@ type InlineNameEditorProps = {
    *
    * `shown` に載るのは名前を直せば通る失敗だけ。それ以外は provider が
    * 通知（`state.error`）か衝突の対話（`state.conflict`）へ振り分け、
-   * reducer はどちらでも編集行を畳む。
+   * reducer はどちらでも編集行を閉じる。
    * 絞り込みは `entities/file-tree/lib/commitName` が持つ。
    */
   onCommit: (nextName: string) => Promise<CommitOutcome>;
@@ -24,7 +24,7 @@ type InlineNameEditorProps = {
   /**
    * 欄が unmount されたあとに失敗が返ったときの行き先。
    *
-   * 確定の最中に呼び出し側が編集行を畳むと（reducer の `case "error"` など）、
+   * 確定の最中に呼び出し側が編集行を閉じると（reducer の `case "error"` など）、
    * 返ってきた失敗を出す場所が無い。名前の失敗は provider が通知へ積まない
    * （出す責任がここだけにある）ので、ここで捨てると**どの出口にも出ない**。
    *
@@ -87,12 +87,12 @@ function InlineNameEditor({
    * 全て `stopPropagation()` するので Escape が他のハンドラにも届かなくなる。
    *
    * 閉じるのは2つ。送るものが無いとき（空欄・`initialName` と同じ）と、
-   * 欄そのものが無くなったとき（呼び出し側が畳んだ）。失敗では閉じない。
+   * 欄そのものが無くなったとき（呼び出し側が閉じた）。失敗では閉じない。
    */
   const commit = async () => {
     const next = draft.trim();
 
-    // Escape で立てた印を戻す。ここへ来たということは取り消しではない
+    // Escape で立てたフラグを戻す。ここへ来たということは取り消しではない
     cancelRef.current = false;
 
     // 空欄と同名は送っても何も変わらない。編集を閉じるだけにする
@@ -108,7 +108,7 @@ function InlineNameEditor({
     try {
       const outcome = await onCommit(next);
 
-      // 欄がもう無い（呼び出し側が畳んだ）。名前の失敗は provider が通知へ積まない
+      // 欄がもう無い（呼び出し側が閉じた）。名前の失敗は provider が通知へ積まない
       // ので、ここで捨てるとどの出口にも出ない
       if (!outcome.ok && outcome.shown && !inputRef.current) {
         onUnshowable(outcome.shown);

@@ -10,10 +10,10 @@ import type { NotifyAction, NotifyRequest } from "@/shared/lib/notification/type
 import { startWarningBody } from "../startWarningNotice";
 
 /**
- * 橋が出す通知の段・見せ方・本文と、条件を抜けたときに引っ込めること、
+ * 橋が出す通知の tier・見せ方・本文と、条件を抜けたときに引っ込めること、
  * 押したときに描き直した後の関数を呼ぶこと。
  *
- * どれも外しても型と描画は通る。段を取り違えると帯がトーストになって動作が消え、
+ * どれも外しても型と描画は通る。tier を取り違えると帯がトーストになって動作が消え、
  * 引っ込め忘れると直った後も古い帯がヘッダを覆う。ref を書き換えないと、
  * 押したときに作り直す前の関数を呼び、起動し直す先が古いプリセットになる。
  */
@@ -89,7 +89,7 @@ const { PresetsFileBridge } = await import("../PresetsFileBridge");
 
 function last(): Exclude<NotifyRequest, { tier: "silent" }> {
   const request = notify.mock.calls[notify.mock.calls.length - 1][0];
-  if (request.tier === "silent") throw new Error("出さない段で呼んでいる");
+  if (request.tier === "silent") throw new Error("出さない tier（silent）で呼んでいる");
   return request;
 }
 
@@ -223,7 +223,7 @@ describe("起動で送らなかった設定", () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  test("起動の段を抜けたら引っ込める", async () => {
+  test("起動の段階を抜けたら引っ込める", async () => {
     engine.state = { ...engine.state, phase: "ready", startWarnings: warnings };
     const redraw = await mount(() => <EngineStartWarningBridge />);
     engine.state = { ...engine.state, phase: "initializing" };
@@ -263,7 +263,7 @@ describe("プリセットのファイル", () => {
     expect(dismissByKey).toHaveBeenCalledWith(key);
   });
 
-  test("移したことのトーストは自分で消え、帯は引っ込める取っ手を持つ", async () => {
+  test("移したことのトーストは自分で消え、帯は引っ込める `dismissKey` を持つ", async () => {
     presets.state = {
       ...presetsInitialState,
       loadNotice: { kind: "migrated", from: 1, backup: "/c/presets.v1.json" },

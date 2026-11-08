@@ -7,7 +7,7 @@ Tauri v2 デスクトップアプリ（React 19 + TypeScript + SCSS / Rust）。
 ```bash
 npm run verify          # tsc -b + lint + vitest + ratchet:knip
 npm run verify:rust     # cargo fmt + clippy + test + ratchet:rustdoc
-npm run test:hooks      # 門番自身の検査。verify には入っていない（下記）
+npm run test:hooks      # 検証ゲート自身の検査。verify には入っていない（下記）
 ```
 
 **所要時間をここに書かない。** 書いた瞬間から実測と離れる（`verify` は
@@ -17,9 +17,9 @@ npm run test:hooks      # 門番自身の検査。verify には入っていな�
 **`test:hooks` は `verify` に入っていない。** 判定を1件ずつ当てるうえ、
 `probe_is_readonly` が動詞ごとに使い捨ての repo を複製するので git を
 数千プロセス起動する。これを毎コミット払っていた時期は `verify` の8割がこれだった。
-守っている不変条件は**門番を触ったときしか動かない**ので、
+守っている不変条件は**検証ゲートを触ったときしか動かない**ので、
 `.claude/hooks/*.sh` を触ったコミットで**ゲート自身が走らせる**（種類 `hooks`）。
-CI にも控えがある。**思い出して手で走らせる必要は無い。**
+CI でも走る。**思い出して手で走らせる必要は無い。**
 
 `git commit` は `.claude/hooks/verify-gate.sh` が横取りし、変更ファイルの種類に応じて
 上を自動で走らせる。落ちればコミット自体が止まる。**止まったら直す。飛ばさない。**
@@ -76,13 +76,13 @@ CI にも控えがある。**思い出して手で走らせる必要は無い。
 **判断点で人に聞かず `/decide` で決める。** 止まって聞く条件は `docs/rules/decisions.md` にあるものだけ。
 利用者の確認は最後の PR の差分で行う。決めたことのうち見てほしいものは PR コメントの確認事項に残す。
 
-**Issue を読み書きする前に `docs/issue-guidelines.md` を読む。** Issue は「やると決まった作業」の札で、
+**Issue を読み書きする前に `docs/issue-guidelines.md` を読む。** Issue は「やると決まった作業」1件を表し、
 詳細はリポジトリの正本に置く。
 
 **画面に触る前に `docs/spec/` を読む。** 画面ごとに「いま何ができて、何ができないか」が
 書いてある。触った画面の仕様が現物と違うようになったら、同じ PR で直す。
 
-**新しい UI を書く前に `docs/spec/design-language.md` を読む。** 段の切り方・色の選び方・
+**新しい UI を書く前に `docs/spec/design-language.md` を読む。** 段階の切り方・色の選び方・
 ホバーの向き・重なりの順は既に決まっている。**その場で決め直さない。**
 
 ## コメント
@@ -101,10 +101,10 @@ CI にも控えがある。**思い出して手で走らせる必要は無い。
 総計を印字せず、末尾に出るのは doc-test の `0 passed`。
 **`src-tauri/tests/test_count_ratchet.rs` の `EXPECTED_MIN` も現在値ではない**（床）。
 
-**厚さは面によって全く違う。** 対局の状態機械（`engine/game/`）は変異を当てて
+**厚さは領域によって全く違う。** 対局の状態機械（`engine/game/`）は変異を当てて
 埋めてあるが、**実プロセスを要する経路は1つも固定されていない**。
 `src-tauri/tests/` の大半は**ソースを走査するラチェット**で、振る舞いは見ていない。
-**例外は `engine_timeouts.rs`** —— ソースを読まず、段を跨ぐ上限どうしの関係を
+**例外は `engine_timeouts.rs`** —— ソースを読まず、レイヤを跨ぐ上限どうしの関係を
 式で固定している。`CLOSE_TIMEOUT` の doc はその保証を根拠にしているので、
 赤くなったら「走査の都合」と読まず、どちらの定数が動いたのかを見ること。
 

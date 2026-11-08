@@ -6,7 +6,7 @@ import type { FsError } from "@/entities/file-tree";
 import InlineNameEditor from "../InlineNameEditor";
 
 /**
- * 入力の訂正を求める失敗を通知として積むと、reducer が編集行ごと畳み、
+ * 入力の訂正を求める失敗を通知として積むと、reducer が編集行ごと閉じ、
  * **直すための入力欄が、直せという知らせに巻き込まれて消える**。
  * 打った文字列も一緒に捨てられるので、右クリックからやり直して全部打ち直すことになる。
  *
@@ -246,7 +246,7 @@ describe("InlineNameEditor", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.blur(input);
 
-    // 呼び出し側が畳んだ（reducer の `case "error"` など）
+    // 呼び出し側が閉じた（reducer の `case "error"` など）
     view.unmount();
 
     await act(async () => {

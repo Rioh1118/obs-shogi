@@ -23,7 +23,7 @@ type EditorSeedProps = {
  * **確定ボタンは置かない。** 選んだ瞬間に載る。載せる前に「本当に載せるか」を
  * 聞く場面は組みかけのときだけで、それは捨てる確認が受け持つ。
  *
- * 押せるものは2つだけなので、出どころを選ぶ段（分節）を挟まない ——
+ * 押せるものは2つだけなので、出どころを選ぶ段階（分節）を挟まない ——
  * 挟むと押す回数が増えるだけになる。
  */
 function EditorSeed({ handicap, onPickHandicap, onOpenStudyPositions }: EditorSeedProps) {

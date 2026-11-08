@@ -4,7 +4,7 @@ import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { startWarningBody } from "./startWarningNotice";
 import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
-/** 起動で送らなかった設定があることの取っ手。次の起動で置き換える */
+/** 起動で送らなかった設定があることの `dismissKey`。次の起動で置き換える */
 const ENGINE_START_WARNINGS = "engine-start-warnings";
 
 /**

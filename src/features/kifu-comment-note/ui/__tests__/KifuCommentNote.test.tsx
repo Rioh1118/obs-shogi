@@ -231,10 +231,10 @@ describe("開いた棋譜との突き合わせ", () => {
  * `setOpenComment(null)` を直に呼び、別の手のコメントボタンは
  * `open` を true のままカーソルだけ差し替える。
  *
- * どちらも 900ms のタイマーより早く踏めるので、出ていく面を書き切らないと
+ * どちらも 900ms のタイマーより早く踏めるので、出ていく手を書き切らないと
  * **書きかけの本文が黙って消える**。
  */
-describe("面が入れ替わるとき", () => {
+describe("対象の手が入れ替わるとき", () => {
   const OTHER: CursorPath = {
     tesuu: 7,
     forkPointers: [],
@@ -257,7 +257,7 @@ describe("面が入れ替わるとき", () => {
     });
   }
 
-  it("別の手のコメントへ移る前に、出ていく面へ書く", async () => {
+  it("別の手のコメントへ移る前に、出ていく手へ書く", async () => {
     const view = open(1);
     await type("5手目のメモ");
 
@@ -268,12 +268,12 @@ describe("面が入れ替わるとき", () => {
     });
 
     expect(setCommentsByCursor).toHaveBeenCalledTimes(1);
-    // **出ていく面の cursor へ書く。** いまの cursor へ書くと 7手目に 5手目の本文が入る
+    // **出ていく手の cursor へ書く。** いまの cursor へ書くと 7手目に 5手目の本文が入る
     expect(setCommentsByCursor.mock.calls[0][0]).toBe(CURSOR);
     expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["5手目のメモ"]);
   });
 
-  it("閉じる手続きを通らずに閉じられても、出ていく面へ書く", async () => {
+  it("閉じる手続きを通らずに閉じられても、出ていく手へ書く", async () => {
     const view = open(1);
     await type("メモ");
 
@@ -293,9 +293,9 @@ describe("面が入れ替わるとき", () => {
     expect(setCommentsByCursor.mock.calls[0][1]).toEqual(["メモ"]);
   });
 
-  // 面の入れ替えは書き切りを await せずに撃つので、返る頃には別の面が描かれている。
+  // 対象の手の入れ替えは書き切りを await せずに撃つので、返る頃には別の手が描かれている。
   // 突き合わせずに書き戻すと、**打っていない手のノートに失敗の箱が出る**。
-  it("出ていく面の失敗を、移った先の面に出さない", async () => {
+  it("出ていく手の失敗を、移った先の手に出さない", async () => {
     setCommentsByCursor.mockResolvedValue(Err("boom-A"));
     const view = open(1);
     await type("5手目のメモ");
@@ -306,9 +306,9 @@ describe("面が入れ替わるとき", () => {
     expect(screen.getByRole("alert").textContent).toBe("");
   });
 
-  // `saveError` は面をまたいで残りうる。それで判定すると、別の手の失敗を抱えている
-  // だけで、この面の**初回**の失敗が2回目と判定されて一度も伝えずに閉じる。
-  it("別の手の失敗が残っていても、この面の初回の失敗ではノートを閉じない", async () => {
+  // `saveError` は手をまたいで残りうる。それで判定すると、別の手の失敗を抱えている
+  // だけで、この手の**初回**の失敗が2回目と判定されて一度も伝えずに閉じる。
+  it("別の手の失敗が残っていても、この手の初回の失敗ではノートを閉じない", async () => {
     setCommentsByCursor.mockResolvedValue(Err("boom"));
     const onClose = vi.fn();
     const view = open(1);
@@ -366,7 +366,7 @@ describe("面が入れ替わるとき", () => {
   });
 
   /**
-   * 宛先が切り替わった枝は `setCommentsByCursor` を**呼ぶ前に**戻るので、
+   * 宛先が切り替わった分岐は `setCommentsByCursor` を**呼ぶ前に**戻るので、
    * 本文はディスクにもメモリの棋譜にも入っていない。失敗と同じだけ失うのに
    * 1回で閉じると、理由を入れた赤い箱が1フレームも見えない。
    */
@@ -426,13 +426,13 @@ describe("面が入れ替わるとき", () => {
 
 /**
  * `edit` は書き込みの前にメモリの棋譜を置き換える（ADR-0004 決定7）。
- * その最中に面を組み直すと、`baseText` に**まだディスクに無い本文**が入る。
+ * その最中に対象の手を組み直すと、`baseText` に**まだディスクに無い本文**が入る。
  *
  * ここは `useGame` を板に差し替えているので、楽観的更新は `comments` を手で進めて表す。
  * 「`edit` が書き込みの前に置き換える」ことと「失敗したら巻き戻す」ことは
  * `entities/game` 側（`persistGuard.test.tsx` / `reducer.test.ts`）が固定している。
  */
-describe("走っている保存の面を組み直したとき", () => {
+describe("走っている保存の対象の手を組み直したとき", () => {
   const OTHER: CursorPath = {
     tesuu: 7,
     forkPointers: [],
@@ -474,9 +474,9 @@ describe("走っている保存の面を組み直したとき", () => {
 
   /**
    * 失敗の書き戻しで基準も戻さないと `dirty` が落ちたままになり、
-   * 閉じるときの再試行も「この面で初めての失敗なら閉じない」も**どちらも発火しない**。
+   * 閉じるときの再試行も「この手で初めての失敗なら閉じない」も**どちらも発火しない**。
    */
-  it("走っている保存の面へ戻ってから失敗が返ったら、閉じるときにもう一度書きに行く", async () => {
+  it("走っている保存の対象の手へ戻ってから失敗が返ったら、閉じるときにもう一度書きに行く", async () => {
     const fail = holdFirstFailure("boom");
     const view = open(1);
 

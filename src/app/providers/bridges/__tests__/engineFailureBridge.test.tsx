@@ -63,16 +63,16 @@ vi.mock("@/shared/lib/router/useURLParams", () => ({ useURLParams: () => ({ open
 
 const { EngineFailureBridge } = await import("../EngineFailureBridge");
 
-/** **毎回新しい要素を作る。** 同じ要素を渡し直すと React がサブツリーごと畳む */
+/** **毎回新しい要素を作る。** 同じ要素を渡し直すと React がサブツリーの描き直しを省く */
 const app = () => <EngineFailureBridge />;
 
 /**
- * 出した通知。**自分から消える枝をここで落とす**ので、各テストは動作も鍵も
+ * 出した通知。**自分から消える通知をここで落とす**ので、各テストは動作も鍵も
  * そのまま読める（`silent` は見せ方を持たず、自動で消えるトーストは動作を持てない）
  */
 function shown(at = 0) {
   const req = notify.mock.calls[at][0];
-  if (req.tier === "silent") throw new Error("出さない段で呼んでいる");
+  if (req.tier === "silent") throw new Error("出さない tier（silent）で呼んでいる");
   if (req.presentation === "toast") throw new Error("自分から消える見せ方になっている");
   return req;
 }
@@ -103,13 +103,13 @@ async function mountWith(
   };
 
   return Object.assign(
-    /** エンジンの段が動いた、を実物と同じ順序で起こす */
+    /** エンジンの段階（`phase`）が動いた、を実物と同じ順序で起こす */
     async (next: EnginePhase, nextError: EngineStartFailure | null = null) => {
       engine.state = { phase: next, error: nextError, unresponsiveReason: null };
       await draw();
     },
     {
-      /** 段は動かさず、画面（URL）だけが動いた回 */
+      /** 段階は動かさず、画面（URL）だけが動いた回 */
       async redraw() {
         await draw();
       },
@@ -201,7 +201,7 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
 
   /**
    * 利用者が実際に踏む筋。起動中から失敗へ落ちる。
-   * 段を1つだけ与えるテストは、マウント時にしか見ない実装でも全部緑になるので、
+   * 段階を1つだけ与えるテストは、マウント時にしか見ない実装でも全部緑になるので、
    * **失敗へ落ちる切り替え**を踏むのはここだけ（抜ける側は下の「引っ込める」）。
    */
   test("起動中から失敗へ落ちたときに出す", async () => {
@@ -228,18 +228,18 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   });
 
   /**
-   * 帯は条件と結び付いているので、**出した取っ手で引っ込められること**が要る。
-   * 取っ手が無いと `dismissByKey` の指し先が無く、出しっぱなしになる。
+   * 帯は条件と結び付いているので、**出した `dismissKey` で引っ込められること**が要る。
+   * `dismissKey` が無いと `dismissByKey` の指し先が無く、出しっぱなしになる。
    */
-  test("引っ込めるための取っ手を持つ", async () => {
+  test("引っ込めるための `dismissKey` を持つ", async () => {
     await mountWith("error", failure("unknown"));
 
     expect(shown().dismissKey).toEqual(expect.any(String));
   });
 
   /**
-   * 畳む鍵は持たない。この帯は条件から出ていて2枚目が積まれようがないので、
-   * 畳む鍵にすると「1件」が出たまま動かない（`Notification.count`）。
+   * 重複をまとめる鍵は持たない。この帯は条件から出ていて2枚目が積まれようがないので、
+   * まとめる鍵にすると「1件」が出たまま動かない（`Notification.count`）。
    */
   test("件数の付く鍵は持たない", async () => {
     await mountWith("error", failure("unknown"));
@@ -283,8 +283,8 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   });
 
   /**
-   * 種類ごとの段と「もう一度起動」。**2つは別の軸**（`ENGINE_START_FAILURE_NOTICES` の doc）——
-   * `quarantined` は `danger` なのに「もう一度起動」を出す。段から再試行を導く形に畳むと、
+   * 種類ごとの tier と「もう一度起動」。**2つは別の軸**（`ENGINE_START_FAILURE_NOTICES` の doc）——
+   * `quarantined` は `danger` なのに「もう一度起動」を出す。tier から再試行を導く形に寄せると、
    * macOS で許可した後に押すボタンが消え、同じ設定なので自動でも起動しない
    */
   test.each<[EngineStartFailureKind, "warning" | "danger", boolean]>([
@@ -376,7 +376,7 @@ describe("起動に時間が掛かっていることを届ける", () => {
     expect(cancelStart).toHaveBeenCalledTimes(1);
   });
 
-  test("段を抜けたら引っ込める", async () => {
+  test("段階を抜けたら引っ込める", async () => {
     engine.slowStart = true;
     const move = await mountWith("initializing");
     const key = shown().dismissKey;
@@ -389,7 +389,7 @@ describe("起動に時間が掛かっていることを届ける", () => {
 });
 
 describe("エンジンが終了したことを届ける橋", () => {
-  test("文と再起動のボタンを出し、段を抜けたら引っ込める", async () => {
+  test("文と再起動のボタンを出し、段階を抜けたら引っ込める", async () => {
     const next = await mountWith("exited");
 
     expect(shown().title).toBe("エンジンが終了しました");
@@ -412,7 +412,7 @@ describe("エンジンが応答しないことを届ける橋", () => {
   test.each([
     ["noAnswer", "エンジンが中断の指示に応答しません"],
     ["unwritable", "エンジンに指示を送信できません"],
-  ] as const)("%s の文と再起動のボタンを出し、段を抜けたら引っ込める", async (reason, title) => {
+  ] as const)("%s の文と再起動のボタンを出し、段階を抜けたら引っ込める", async (reason, title) => {
     const next = await mountWith("unresponsive", null, reason);
 
     expect(shown().title).toBe(title);

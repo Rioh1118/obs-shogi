@@ -23,14 +23,14 @@ describe("候補手の見え方", () => {
   });
 
   it.each(["starting", "unresponsive", "exited", "failed", "cancelled"] as const)(
-    "%s は盤と同じ局面なら結果を残し、違えば控えを出す",
+    "%s は盤と同じ局面なら結果を残し、違えばキャッシュを出す",
     (status) => {
       expect(show(status, true, "P1")).toBe(live);
       expect(show(status, true, "P0")).toBe(cached);
     },
   );
 
-  it("待機中は控えを出す", () => {
+  it("待機中はキャッシュを出す", () => {
     expect(show("standing-by", false, "P1")).toBe(cached);
   });
 

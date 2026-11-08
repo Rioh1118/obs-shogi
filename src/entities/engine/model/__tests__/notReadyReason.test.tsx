@@ -70,7 +70,7 @@ function mountEngine(desired: EngineRuntimeConfig | null) {
  * `isReady` が false の間、解析側はこの理由だけを見て断りを選ぶ（`NOT_READY_REFUSALS`）。
  *
  * **`AnalysisProvider` のテストは `useEngine` をモックする**ので、この導出はそちらでは
- * 1度も走らない。断りを取り違える窓はここでしか捕まえられない。
+ * 1度も走らない。断りを取り違える区間はここでしか捕まえられない。
  */
 describe("エンジンが使えない理由", () => {
   it("起こし直しの間、一度も「選んでください」に落ちない", async () => {
@@ -85,7 +85,7 @@ describe("エンジンが使えない理由", () => {
     await view.setDesired(runtime("/b"));
     await advance(30);
 
-    // **`idle` の窓も「起動を待っている」。** ここで `"no-engine"` に落ちると、
+    // **`idle` の間も「起動を待っている」。** ここで `"no-engine"` に落ちると、
     // 起こし直しを案内された利用者が、その指示に従った直後に同じ指示を受ける。
     expect(view.reasonsSeen()).not.toContain("no-engine");
     expect(view.current.isReady).toBe(true);
@@ -102,7 +102,7 @@ describe("エンジンが使えない理由", () => {
 
   it("壊れたプリセットの選択を外したら、その瞬間から「選んでください」になる", async () => {
     initialize.mockRejectedValue(new Error("boom"));
-    // 畳むのは本物の IPC 往復。その間も理由を配り続ける。
+    // エンジンを落とすのは本物の IPC 往復。その間も理由を配り続ける。
     let finishShutdown: () => void = () => {};
     shutdown.mockImplementation(
       () =>

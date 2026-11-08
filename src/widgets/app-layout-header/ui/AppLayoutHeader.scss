@@ -2,7 +2,7 @@
 
 .app-header {
   // **再宣言しない。** 高さの出典は `index.scss` の `$app-header-height` 1つで、
-  // ここで上書きすると `.app-layout` の grid の1段目と独立に動き、片方だけ直したときに
+  // ここで上書きすると `.app-layout` の grid の1行目と独立に動き、片方だけ直したときに
   // 隙間が空くか `overflow: hidden` に切られる
   height: index.$app-header-height;
   display: flex;
@@ -43,8 +43,8 @@
     opacity: 0.75;
   }
 
-  // 面を持たない。白の被せはパレットと無関係な灰色になり、
-  // 深緑の面の上では箱だけが浮いて見える。区切りと余白で構造を出す
+  // 背景を持たない。白の被せはパレットと無関係な灰色になり、
+  // 深緑の背景の上では箱だけが浮いて見える。区切りと余白で構造を出す
   &__context {
     min-width: 0;
     display: flex;

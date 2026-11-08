@@ -9,7 +9,7 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  * 直値の残り件数。
  *
  * `exempt` 以外の7つは**下げる方向にだけ動かす**。直値をトークンへ寄せたら減らす。
- * `exempt` は逆で、印を1つ足すごとに増える。元の枠が1減って `exempt` が1増えるので、
+ * `exempt` は逆で、免除の注記を1つ足すごとに増える。元の bucket が1減って `exempt` が1増えるので、
  * 2行を同じコミットで動かすことになる。
  */
 const BASELINE: Record<Bucket, number> = {
@@ -112,7 +112,7 @@ describe("SCSS のトークン名", () => {
    *
    * `--x: rgba(index.$c, 0.1)` はコンパイルを通るが、Sass は custom property の値を
    * **そのままの文字列**として出す。`var(--x)` は無効値になり、その宣言だけが
-   * 黙って落ちる（面が透明に、枠が `0px none` に）。`vite build` も緑、
+   * 黙って落ちる（背景が透明に、枠線が `0px none` に）。`vite build` も緑、
    * 上の「トークンが実在するか」も緑 —— **どの検査にも掛からない。**
    *
    * `#{}` で包めば値として評価される。見るのはそこだけ。
@@ -162,9 +162,9 @@ describe("SCSS のトークン名", () => {
 function guidance(bucket: Bucket, actual: number): string {
   if (bucket === "exempt") {
     return [
-      `${EXEMPT_MARKER} の印が付いた宣言が基準値 ${BASELINE[bucket]} 件に対して ${actual} 件ある。`,
-      `印を1つ足したなら、元の枠を1減らしてこの数を ${actual} に上げること。`,
-      `この枠に寄せ先のトークンは無い。印そのものが妥当かをレビューで見るための枠。`,
+      `${EXEMPT_MARKER} の注記が付いた宣言が基準値 ${BASELINE[bucket]} 件に対して ${actual} 件ある。`,
+      `注記を1つ足したなら、元の区分を1減らしてこの数を ${actual} に上げること。`,
+      `この区分に寄せ先のトークンは無い。注記そのものが妥当かをレビューで見るための区分。`,
     ].join("\n");
   }
   return [
@@ -172,8 +172,8 @@ function guidance(bucket: Bucket, actual: number): string {
     `増えたなら src/index.scss のトークンを使うこと（ADR-0003）。`,
     `どの宣言を足したかは git diff で見ること。`,
     `減ったなら BASELINE を ${actual} に下げること。`,
-    `スケールに載らない寸法は ${EXEMPT_MARKER} の印で exempt の枠へ移せるが、`,
-    `枠を移すだけで数は消えないので、exempt の行も一緒に動かすことになる。`,
+    `スケールに載らない寸法は ${EXEMPT_MARKER} の注記で exempt の区分へ移せるが、`,
+    `区分を移すだけで数は消えないので、exempt の行も一緒に動かすことになる。`,
   ].join("\n");
 }
 
@@ -184,7 +184,7 @@ describe("SCSS のスケール", () => {
         counts[bucket],
         [
           guidance(bucket, counts[bucket]),
-          `--- この枠の例（走査順の先頭。あなたが足した行とは限らない） ---`,
+          `--- この区分の例（走査順の先頭。あなたが足した行とは限らない） ---`,
           ...samples[bucket],
         ].join("\n"),
       ).toBe(BASELINE[bucket]);

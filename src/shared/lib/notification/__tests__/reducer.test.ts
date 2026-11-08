@@ -8,7 +8,7 @@ import type { NotifyAction, NotifyRequest, VisibleTier } from "../types";
 
 /**
  * 差し替えられるのは見せ方に依らない欄だけ。`presentation` を差し替え可能にすると、
- * spread の結果が union のどの枝にも決まらず、型が制約を語らなくなる
+ * spread の結果が union のどの分岐にも決まらず、型が制約を語らなくなる
  */
 type Over = {
   tier?: VisibleTier;
@@ -47,10 +47,10 @@ describe("通知の置き場", () => {
     });
   });
 
-  // 出さないと決めた段が「出ない」ことは、この検査でしか固定できない。
-  // 段の判定を落としても、他のどの検査も赤くならない。
+  // 出さないと決めた tier が「出ない」ことは、この検査でしか固定できない。
+  // tier の判定を落としても、他のどの検査も赤くならない。
   //
-  // **可視の通知から `tier` だけを差し替えては書けない。** 型が別の枝なので、
+  // **可視の通知から `tier` だけを差し替えては書けない。** 型が別の分岐なので、
   // 見せ方も文言も落として「なぜ出さないか」を書くことになる
   it("silent は何も積まない", () => {
     const state = notificationReducer(INITIAL_NOTIFICATION_STATE, {
@@ -73,7 +73,7 @@ describe("通知の置き場", () => {
     expect(state.notifications).toHaveLength(2);
   });
 
-  describe("同じ鍵は畳む", () => {
+  describe("同じ鍵はまとめる", () => {
     const folded = notify(
       notify(INITIAL_NOTIFICATION_STATE, { dedupeKey: "sfen", title: "1件目" }),
       { dedupeKey: "sfen", title: "2件目", body: "74 手目" },
@@ -94,14 +94,14 @@ describe("通知の置き場", () => {
       expect(folded.notifications[0].id).toBe("notice-1");
     });
 
-    // 畳んだのに採番を進めると、どの通知も名乗らない id が飛び番で残る
-    it("畳んだときは採番しない", () => {
+    // まとめたのに採番を進めると、どの通知も名乗らない id が飛び番で残る
+    it("まとめたときは採番しない", () => {
       expect(folded.nextSeq).toBe(2);
     });
 
-    // 件数だけ増えて段が据え置かれると、「読めなかった」が
+    // 件数だけ増えて tier が据え置かれると、「読めなかった」が
     // 「もう続けられない」に変わったことが黙って消える
-    it("段が上がったら上書きする", () => {
+    it("tier が上がったら上書きする", () => {
       const raised = notificationReducer(folded, {
         type: "notify",
         request: request({ dedupeKey: "sfen", tier: "danger" }),
@@ -146,7 +146,7 @@ describe("通知の置き場", () => {
       });
     });
 
-    it("鍵が違えば畳まない", () => {
+    it("鍵が違えばまとめない", () => {
       const other = notificationReducer(folded, {
         type: "notify",
         request: request({ dedupeKey: "other" }),
@@ -157,11 +157,11 @@ describe("通知の置き場", () => {
   });
 
   /**
-   * 取っ手（`dismissKey`）は**引っ込めるためだけ**。畳む鍵と分けてあるのは、
+   * `dismissKey` は**引っ込めるためだけ**。まとめる鍵と分けてあるのは、
    * 条件と結び付いた通知——条件が消えれば引っ込む類——に件数を出さないため
    * （`Notification.count` は「必ず1件」に数が付くのを避けている）。
    */
-  describe("同じ取っ手は置き換える", () => {
+  describe("同じ `dismissKey` は置き換える", () => {
     const held = notify(
       notify(INITIAL_NOTIFICATION_STATE, { dismissKey: "engine", title: "1回目" }),
       { dismissKey: "engine", title: "2回目" },
@@ -172,7 +172,7 @@ describe("通知の置き場", () => {
       expect(held.notifications[0].title).toBe("2回目");
     });
 
-    /** **畳みと違って数えない。** 「また起きた」ではなく「まだ続いている」ので */
+    /** **まとめるときと違って数えない。** 「また起きた」ではなく「まだ続いている」ので */
     it("件数は増えない", () => {
       expect(held.notifications[0].count).toBe(1);
     });
@@ -183,15 +183,15 @@ describe("通知の置き場", () => {
 
     /**
      * 件数を出すかどうかは `dedupeKey` の有無で決まる（`NotificationLayer`）。
-     * 取っ手だけの通知に鍵が付くと、そこに「1件」が出る
+     * `dismissKey` だけの通知に鍵が付くと、そこに「1件」が出る
      */
-    it("畳む鍵は持たない", () => {
+    it("まとめる鍵は持たない", () => {
       expect(held.notifications[0].dedupeKey).toBeUndefined();
     });
   });
 
   describe("両方の鍵を持つ通知", () => {
-    it("同じ dedupeKey があれば、dismissKey が同じでも畳む", () => {
+    it("同じ dedupeKey があれば、dismissKey が同じでもまとめる", () => {
       const keys = { dedupeKey: "read", dismissKey: "engine" };
       const state = notify(notify(INITIAL_NOTIFICATION_STATE, keys), keys);
 
@@ -225,8 +225,8 @@ describe("通知の置き場", () => {
       expect(state.notifications.map((n) => n.id)).toEqual(["notice-2"]);
     });
 
-    /** 取っ手で出したものは取っ手で消える。**畳む鍵しか見ないと消せない** */
-    it("取っ手でも消える", () => {
+    /** `dismissKey` で出したものは `dismissKey` で消える。**まとめる鍵しか見ないと消せない** */
+    it("`dismissKey` でも消える", () => {
       const state = notificationReducer(
         notify(INITIAL_NOTIFICATION_STATE, { dismissKey: "engine" }),
         { type: "dismissByKey", key: "engine" },

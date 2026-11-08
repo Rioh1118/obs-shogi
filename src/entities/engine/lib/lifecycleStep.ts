@@ -19,7 +19,7 @@ function matches(a: EngineRuntimeConfig, b: EngineRuntimeConfig | null): boolean
 }
 
 /**
- * いまの段と選んでいる設定から、次に行うことを返す。
+ * いまの状態と選んでいる設定から、次に行うことを返す。
  *
  * `error` と `exited` は別の設定になったときだけ起動し、同じ設定では止まったままにする。
  * 繰り返し落ちるエンジンを起動し続けないため。

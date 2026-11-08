@@ -1,6 +1,6 @@
 @use "@/index.scss" as index;
 
-// 器の中の箱。`pos-search-cont` と同じ段に載るので、面も角丸も同じ値を採る
+// ペインの中の箱。`pos-search-cont` と同じ段階に載るので、背景も角丸も同じ値を採る
 .pos-search-dest {
   border-radius: index.$radius-6;
   background: rgba(index.$color-primary-black, 0.24);
@@ -47,7 +47,7 @@
     text-overflow: ellipsis;
   }
 
-  // 見出しの側を退かせる。値（パス）は `__current` の段のまま読ませたいので触らない
+  // 見出しの側を退かせる。値（パス）は `__current` の段階のまま読ませたいので触らない
   &__currentLabel {
     margin-right: index.$space-3;
     color: rgba(index.$color-text-light-1, 0.45);

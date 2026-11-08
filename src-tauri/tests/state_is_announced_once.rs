@@ -1,15 +1,15 @@
-//! **索引の段を画面へ出す場所が1つに閉じているか。**
+//! **索引の状態を画面へ出す場所が1つに閉じているか。**
 //!
 //! `IndexStatePayload::of` は旗（`scan_failed` / `partially_unreadable`）を
 //! **全部伏せた形から始める**。組み立てる場所が散っていると、旗を知らない側が
 //! 伏せたまま出し、あとから出たほうが緑で塗り潰す。前の再走査で立った旗は、
 //! 次の再走査に入った瞬間に消える（reducer は payload の欄を丸ごと写す）。
 //!
-//! 段が増えるより先に旗が増えるので、**壊れ方は「新しい旗が黙って伏せられる」**。
+//! 状態が増えるより先に旗が増えるので、**壊れ方は「新しい旗が黙って伏せられる」**。
 //! 出す関数が1つなら `IndexAnnouncement` / `IndexProgress` に腕を足すときに
 //! 全経路が同時に直る。
 //!
-//! ここが見るのは**どこで出しているか**だけ。段と旗の対応が正しいかは
+//! ここが見るのは**どこで出しているか**だけ。状態と旗の対応が正しいかは
 //! `search/announce.rs` の `mod tests` が見る（`IndexAnnouncement` と
 //! `IndexProgress` の両方の写像に腕ごとのテストがある）。
 //!
@@ -22,7 +22,7 @@
 //! 3. `use ... as P` で別名にする——`cargo fmt` は書き戻さないので他の検査も拾わない
 //!
 //! **走査するのは `src` 全体。** `EVT_INDEX_STATE` も `IndexStatePayload` も `pub` で、
-//! `search` の外のどの枝からでも組んで出せる。
+//! `search` の外のどのモジュールからでも組んで出せる。
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,10 +30,10 @@ use std::path::{Path, PathBuf};
 mod scanning;
 use scanning::{blank_out_comments, blank_out_noncode};
 
-/// 段を組んでよい唯一のファイル。
+/// 状態を組んでよい唯一のファイル。
 const THE_ONE_ANNOUNCER: &str = "src/search/announce.rs";
 
-/// 段の綴りを持ってよい場所。**`types` は定義するだけで出さない。**
+/// 状態の綴りを持ってよい場所。**`types` は定義するだけで出さない。**
 const NOT_CALLERS: [&str; 2] = ["src/search/announce.rs", "src/search/types.rs"];
 
 /// `EVT_INDEX_STATE` の値。**定数名を迂回した綴りを塞ぐ。**
@@ -49,7 +49,7 @@ const EXPECTED_EMIT_SITES: usize = 2;
 /// 検査の対象にすら入らない——**列挙の漏れは静かに通る**。
 fn callers() -> Vec<PathBuf> {
     // **`src` 全体を歩く。** `EVT_INDEX_STATE` も `IndexStatePayload` も `pub` なので、
-    // `search` の外のどの枝からでも組んで出せる——`search` だけを歩く形だと、
+    // `search` の外のどのモジュールからでも組んで出せる——`search` だけを歩く形だと、
     // そこに書かれた emit は検査の対象にすら入らない
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut out = Vec::new();
@@ -104,7 +104,7 @@ fn read_raw(rel: &str) -> String {
     fs::read_to_string(&p).unwrap_or_else(|e| panic!("{} を読めない: {e}", p.display()))
 }
 
-/// **段を出す呼び出しが `announce` の外に無いこと。**
+/// **状態を出す呼び出しが `announce` の外に無いこと。**
 #[test]
 fn no_caller_emits_the_index_state_itself() {
     let offenders: Vec<String> = callers()
@@ -119,7 +119,7 @@ fn no_caller_emits_the_index_state_itself() {
 
     assert!(
         offenders.is_empty(),
-        "段を出す箇所が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
+        "状態を出す箇所が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
          `announce_state`（終端）か `announce_progress`（進行中）を通すこと。\
          生で組むと、旗を知らない側が伏せたまま出す",
     );
@@ -134,14 +134,14 @@ fn the_announcer_still_emits_from_both_paths() {
     // emit を両方消しても `use` に名前が残っているかぎり緑になる
     //
     // **箇所の数で見る。** emit は2箇所（終端と進行中）あるので「1箇所以上あるか」
-    // だと**片方が黙っても緑**になる。進行中が黙れば構築の段が1つも画面に届かず、
+    // だと**片方が黙っても緑**になる。進行中が黙れば構築の状態が1つも画面に届かず、
     // 終端が黙れば `Ready` が二度と来ないので検索は永久に `stale`
     let code = read_code(THE_ONE_ANNOUNCER);
     let sites = code.matches("emit(EVT_INDEX_STATE").count();
     assert_eq!(
         sites, EXPECTED_EMIT_SITES,
         "{THE_ONE_ANNOUNCER} の emit が {sites} 箇所（終端と進行中で {EXPECTED_EMIT_SITES} 箇所のはず）。\n\
-         増やしたならこの数も動かすこと——減っているなら、その経路の段は誰も出せない",
+         増やしたならこの数も動かすこと——減っているなら、その経路の状態は誰も出せない",
     );
 }
 
@@ -165,7 +165,7 @@ fn no_caller_builds_the_payload_itself() {
     assert!(
         offenders.is_empty(),
         "旗を組む箇所が `{THE_ONE_ANNOUNCER}` の外にある: {offenders:?}\n\
-         段と旗の対応は `IndexAnnouncement` / `IndexProgress` の写像1箇所で決めること",
+         状態と旗の対応は `IndexAnnouncement` / `IndexProgress` の写像1箇所で決めること",
     );
 }
 
@@ -176,7 +176,7 @@ fn no_caller_builds_the_payload_itself() {
 /// 言い分け（`IndexSurvival`）も語彙の統一も掛からない。
 ///
 /// **`::file`（棋譜1件）は許す。** 文言の出所が2つ（`read/diagnosis.rs` と
-/// `announce::build_failure`）あり、どちらも段の旗を組まないので、
+/// `announce::build_failure`）あり、どちらも状態の旗を組まないので、
 /// 出す場所と組む場所を分ける理由が無い。
 #[test]
 fn no_caller_builds_a_place_warning_itself() {
@@ -200,7 +200,7 @@ fn no_caller_builds_a_place_warning_itself() {
 ///
 /// 欄を非公開にすれば型で閉じられるが、`announce` の `mod tests` が20箇所ほど
 /// 読んでいるので取り出す関数をその数だけ足すことになる。**取り違えたときに
-/// 起きること**（`kind` を誤ると `pickWarns` の場所優先の枠から外れ、
+/// 起きること**（`kind` を誤ると `pickWarns` の場所優先の区分から外れ、
 /// 「ワークスペースを読めません」がファイル単位の警告に押し出されて画面から消える）
 /// を止められれば足りるので、字面で見る。
 ///
@@ -265,7 +265,7 @@ fn no_search_command_returns_a_bare_string_error() {
 /// `use` から `;` までを1つずつ返す。
 ///
 /// **行で切らない。** `use a::{\n  B as C,\n};` のように**項目が次の行に並ぶ**形が
-/// 普通に書かれている（`cargo fmt` がそう畳む）ので、`use ` を含む行だけを見ると
+/// 普通に書かれている（`cargo fmt` がそう折り返す）ので、`use ` を含む行だけを見ると
 /// 別名は必ず次の行に居て**一度も引っかからない**。
 fn use_statements(code: &str) -> Vec<String> {
     code.match_indices("use ")
@@ -299,7 +299,7 @@ fn no_caller_hides_the_names_behind_an_alias() {
 
     assert!(
         offenders.is_empty(),
-        "段の名前を別名で隠している: {offenders:?}\n\
+        "状態の名前を別名で隠している: {offenders:?}\n\
          別名にすると綴りの走査が全部素通りする。素の名前で `use` すること",
     );
 }

@@ -7,12 +7,12 @@ import { REPO_ROOT, SRC, tsFiles } from "./walk";
 /**
  * Escape を扱うキーハンドラで `stopPropagation()` を呼ばない。
  *
- * `Modal` は Escape を `document` のバブル段で聞き、内側が `preventDefault()` を
+ * `Modal` は Escape を `document` のバブリング段階で聞き、内側が `preventDefault()` を
  * していれば降りる。`stopPropagation()` は `document` までイベントを届かせないので、
  * **`defaultPrevented` の判定にすら到達しない**。内側が「消すものが無いときは
  * 閉じる」と書いていても、そこへ行き着く前に握り潰される。
  *
- * `Modal` の側では守れない（キャプチャ段へ戻すと今度は内側が Escape を使えなくなる）
+ * `Modal` の側では守れない（キャプチャ段階へ戻すと今度は内側が Escape を使えなくなる）
  * ので、書き方の規約として機械で止める。
  *
  * 消費したいときは `e.preventDefault()`。消費しないなら何もしない。

@@ -104,7 +104,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
     try {
       await engineInitializer.shutdown(request);
     } finally {
-      // 停止の往復の間に次の起動が始まっていたら `idle` を書かない。書くと起動中の段が `idle` に落ち、
+      // 停止の往復の間に次の起動が始まっていたら `idle` を書かない。書くと起動中の状態が `idle` に落ち、
       // `lifecycleStepOf` が同じ設定でもう1回起動して、進行中の起動が捨てられる
       if (lastRequestRef.current === request) dispatch({ type: "shutdown" });
     }

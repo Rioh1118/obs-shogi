@@ -4,9 +4,9 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { useBesidePlacement } from "../useBesidePlacement";
 
 /**
- * 行の横の面は、開いている間に画面の大きさが変わったら置き直す。
+ * 行の横のサーフェスは、開いている間に画面の大きさが変わったら置き直す。
  *
- * 置き直さないと、窓を狭めたときに面が画面の右へはみ出したまま残り、項目が押せなくなる。
+ * 置き直さないと、ウィンドウを狭めたときにサーフェスが画面の右へはみ出したまま残り、項目が押せなくなる。
  */
 
 const anchor = { top: 100, left: 100, right: 300, bottom: 120, width: 200, height: 20 } as DOMRect;

@@ -3,10 +3,10 @@ import type { EngineNotReadyReason } from "@/entities/engine";
 /**
  * 解析が利用者に返す断りの文
  *
- * 枝ごとに1本ずつ持つ。復帰の手が違うものを同じ文にすると、帯（`AnalysisRefusalBridge`）が
+ * 分岐ごとに1本ずつ持つ。復帰の手が違うものを同じ文にすると、帯（`AnalysisRefusalBridge`）が
  * もう一度押すのか起動し直すのかを選べない。どの文も次に何をすればよいかで終える（ADR-0004 の決定1）。
  *
- * **足したら `docs/state-transitions/analysis.md` の ※15 にも枝を足すこと。**
+ * **足したら `docs/state-transitions/analysis.md` の ※15 にも分岐を足すこと。**
  * `src/__tests__/analysisRefusals.test.ts` が突き合わせる。
  *
  * @packageDocumentation

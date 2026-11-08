@@ -4,14 +4,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 /**
- * root の境界を抜けた例外は、**閉じられない窓**になる。
+ * root の境界を抜けた例外は、**閉じられないウィンドウ**になる。
  *
  * ウィンドウ枠は自前で描いていて（`tauri.conf.json` の `decorations: false`）、
- * `TitleBar` は `RuntimeShell` の中に居る。root まで例外が上がると枠ごと消えるので、
+ * `TitleBar` は `RuntimeShell` の中に居る。root まで例外が上がるとウィンドウ枠ごと消えるので、
  * 画面には閉じるボタンもドラッグ領域も残らず、利用者に残るのは強制終了だけになる。
  *
  * 境界を1枚外しても型でもレンダでも落ちない（React は静かに root を unmount する）。
- * 実際に throw させて、枠が出ることをここで固定する。
+ * 実際に throw させて、フォールバックが出ることをここで固定する。
  */
 
 const close = vi.fn(() => Promise.resolve());
@@ -42,7 +42,7 @@ vi.mock("../routing/AppRouter", () => ({
 
 const { default: App } = await import("../App");
 
-/** 浮かせた枠を積む器。`index.html` が持っているものを、テストでは自分で立てる */
+/** 浮かせたフォールバックを積むコンテナ。`index.html` が持っているものを、テストでは自分で立てる */
 const OVERLAY_ROOT_ID = "error-overlay-root";
 
 beforeEach(() => {
@@ -52,7 +52,7 @@ beforeEach(() => {
   overlay.id = OVERLAY_ROOT_ID;
   document.body.appendChild(overlay);
   // 境界が捕まえた例外は `componentDidCatch` と React の両方が出す。
-  // 出ること自体は意図どおりなので、出力だけ畳む
+  // 出ること自体は意図どおりなので、出力だけ止める
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -113,7 +113,7 @@ describe("root の境界", () => {
     ).toBeTruthy();
   });
 
-  test("更新の知らせが落ちても、本体は畳まない", () => {
+  test("更新の知らせが落ちても、本体は unmount しない", () => {
     throwing.router = false;
     throwing.updater = true;
     const { container } = render(<App />);
@@ -123,7 +123,7 @@ describe("root の境界", () => {
       "更新の知らせ1枚の事故で、動いているアプリ全体が最後の砦に差し替わっている",
     ).toBeTruthy();
     // in-flow の箱を作ると `.app-root`（flex column）の列を1つ食い、本体が縮む。
-    // 器へ逃がしているので、呼び出し元の流れには何も残らない
+    // コンテナへ逃がしているので、呼び出し元の流れには何も残らない
     expect(container.querySelector(".error-fallback")).toBeNull();
     expect(
       document.getElementById(OVERLAY_ROOT_ID)?.querySelector(".error-fallback"),

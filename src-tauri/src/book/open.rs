@@ -212,7 +212,7 @@ mod tests {
     ///
     /// **symlink は自分で張る。** 一時ディレクトリが symlink かどうかは環境で違い
     /// （macOS の `/var` は symlink、Linux の `/tmp` は実ディレクトリ）、
-    /// 環境任せにすると**枝に入らないまま緑になる**。
+    /// 環境任せにすると**分岐に入らないまま緑になる**。
     /// 入ったことを `starts_with` で固定する —— 前提が崩れたら黙って素通りせず落ちる。
     #[cfg(unix)]
     #[test]
@@ -220,7 +220,7 @@ mod tests {
         let dir = test_support::dir::temp_dir("book-open-at-ends");
 
         // 中身が定跡でない `.db` を、symlink 越しに開く。
-        // 要求の綴りと実体が食い違うので注記の枝に入る
+        // 要求の綴りと実体が食い違うので注記の分岐に入る
         let target = dir.join("target.db");
         let link = dir.join("link.db");
         std::fs::write(&target, b"not a book\n").expect("テスト用のファイル");
@@ -231,10 +231,10 @@ mod tests {
             panic!("定跡でない中身なのに開けてしまった");
         };
 
-        // 枝に入ったこと自体を固定する
+        // 分岐に入ったこと自体を固定する
         assert!(
             err.message().starts_with("（実体"),
-            "注記の枝を通っていない: {}",
+            "注記の分岐を通っていない: {}",
             err.message()
         );
         assert!(
@@ -250,7 +250,7 @@ mod tests {
 
     /// 開いてから引くまでを、実物と同じ形の定跡ファイルで通す。
     ///
-    /// 各段の unit test は自分の担当だけを見るので、**繋ぎ目がずれても全部緑のまま
+    /// 各レイヤの unit test は自分の担当だけを見るので、**繋ぎ目がずれても全部緑のまま
     /// 通る。** ここだけが「開いて引ける」を言える。
     #[test]
     fn opens_a_book_and_finds_the_opening_moves() {
@@ -409,7 +409,7 @@ mod tests {
         assert_eq!(err.path(), Some("/books/a.db"));
     }
 
-    /// 解決自体が失敗する枝。実体は取れないが、リンク先の綴りは読める。
+    /// 解決自体が失敗する分岐。実体は取れないが、リンク先の綴りは読める。
     /// ここを落とすと、外付けを外した定跡が「見つからない」だけになる。
     #[test]
     #[cfg(unix)]
@@ -452,7 +452,7 @@ mod tests {
     /// 素通しすると `Io` に化けて「定跡を取得し直すこと」と案内される ——
     /// 何度取得し直しても直らない。
     ///
-    /// **絶対パスで当てる。** 相対パスだと `is_absolute` の枝が先に落として、
+    /// **絶対パスで当てる。** 相対パスだと `is_absolute` の分岐が先に落として、
     /// この検査を1度も踏まない。
     #[test]
     fn rejects_a_path_with_a_nul_byte() {

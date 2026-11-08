@@ -7,9 +7,9 @@ import type { JKFData } from "@/entities/kifu/model/jkf";
 import type { KifuFormat } from "@/entities/kifu/model/kifu";
 
 /**
- * 上から取った値を下の provider へ prop で渡す器が、何をどの形で渡すか。
+ * 上から取った値を下の provider へ prop で渡すラッパーが、何をどの形で渡すか。
  *
- * どの器も、渡し損ねても型と描画は通る。根が `null` のまま検索が走らない、
+ * どのラッパーも、渡し損ねても型と描画は通る。根が `null` のまま検索が走らない、
  * 定跡が局面を引かない、保存先が無いまま指せる、といった形で黙って壊れる。
  * provider は差し替え、受け取った prop だけを見る。
  */
@@ -197,7 +197,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("ワークスペースの根を渡す器", () => {
+describe("ワークスペースの根を渡すラッパー", () => {
   test.each([
     ["FileTreeRootGate", FileTreeRootGate, "FileTreeProvider"],
     ["SearchRootGate", SearchRootGate, "PositionSearchProvider"],
@@ -226,7 +226,7 @@ describe("ワークスペースの根を渡す器", () => {
   });
 });
 
-describe("盤の局面を定跡へ渡す器", () => {
+describe("盤の局面を定跡へ渡すラッパー", () => {
   test("いまの局面を渡し、子を描く", () => {
     currentSfen = "9/9/9/9/9/9/9/9/9 b - 1";
     render(<BookPositionGate>{child}</BookPositionGate>);
@@ -236,7 +236,7 @@ describe("盤の局面を定跡へ渡す器", () => {
   });
 });
 
-describe("盤の保存先を渡す器", () => {
+describe("盤の保存先を渡すラッパー", () => {
   test("開いている棋譜が無ければ保存先を渡さない", () => {
     tree = { activeKifuPath: null, kifuFormat: "kif" };
     render(<GamePersistenceGate>{child}</GamePersistenceGate>);
@@ -290,7 +290,7 @@ describe("盤の保存先を渡す器", () => {
   });
 });
 
-describe("対局の着手を盤へ渡す器", () => {
+describe("対局の着手を盤へ渡すラッパー", () => {
   test("対局から組んだ門を盤へ渡し、エンジンの手を積む橋を盤の内側に載せる", () => {
     render(<GameMoveGate>{child}</GameMoveGate>);
 
@@ -300,7 +300,7 @@ describe("対局の着手を盤へ渡す器", () => {
   });
 });
 
-describe("プリセットをエンジンへ渡す器", () => {
+describe("プリセットをエンジンへ渡すラッパー", () => {
   test("何も選んでいなければ、起動するものも未設定も無い", () => {
     render(<EngineRuntimeGate>{child}</EngineRuntimeGate>);
 
@@ -331,7 +331,7 @@ describe("プリセットをエンジンへ渡す器", () => {
   });
 });
 
-describe("下の provider へ部品を注入する器", () => {
+describe("下の provider へ部品を注入するラッパー", () => {
   test("局面の同期を検討へ渡す", () => {
     render(<AnalysisPositionSyncGate>{child}</AnalysisPositionSyncGate>);
 

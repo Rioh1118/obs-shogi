@@ -13,7 +13,7 @@
 //!
 //! 画面側は [`decode_kifu`] を通る。索引側はこれを通らず、読めるまでパーサに掛けて、
 //! どの復号なら棋譜として通るかで決める。画面側にパーサは無いので、そこまでは真似できない。
-//! 印の読み方（[`declared_encoding`]）は両者が呼ぶ。候補の一覧は [`KIFU_ENCODINGS`] が正本で、
+//! 名乗り（BOM / エスケープ）の読み方（[`declared_encoding`]）は両者が呼ぶ。候補の一覧は [`KIFU_ENCODINGS`] が正本で、
 //! 索引側はそこから UTF-8 と Shift_JIS を除いた写し（`ENCODINGS_THE_CRATE_SKIPS`）を持つ。
 //! 写しとの一致は `kifu_reader` のテストが見るので、ここを変えたら写しも直す。
 //! 候補を試す順は画面側だけが使う。
@@ -41,9 +41,9 @@ pub const KIFU_ENCODINGS: [&Encoding; 6] =
 
 /// バイト列が名乗っている文字コード。分からなければ `None`。
 ///
-/// **推測しない。そのバイト列にしか現れない印だけを見る。**
+/// **推測しない。そのバイト列にしか現れない BOM とエスケープだけを見る。**
 ///
-/// | 印 | 文字コード |
+/// | 名乗り | 文字コード |
 /// | --- | --- |
 /// | BOM | UTF-8 / UTF-16LE / UTF-16BE |
 /// | エスケープ `ESC $ B` | ISO-2022-JP |
@@ -59,7 +59,7 @@ pub const KIFU_ENCODINGS: [&Encoding; 6] =
 /// | 反対側の番地の NUL が 1/8 未満なら UTF-16 | `一` `　` は低位バイトが `0x00` なので反対側に NUL を置く。一段目へ指す KI2 が落ちる |
 ///
 /// 当てられなくても、[`KIFU_ENCODINGS`] を順に試すので読める。
-/// 効くのは読めなかったときの文言と、印がある側を優先することだけ。
+/// 効くのは読めなかったときの文言と、名乗りがある側を優先することだけ。
 /// 当てにいって嘘の文字コード名を出す側の害のほうが大きい。
 pub fn declared_encoding(bytes: &[u8]) -> Option<&'static Encoding> {
     // BOM の並びは手で書かない。`encoding_rs` が同じ表を持っており、
@@ -88,7 +88,7 @@ pub struct Decoded {
 
 /// 棋譜のバイト列を、誤りの出ない文字コードで復号する。
 ///
-/// 印（BOM / エスケープ）があればそれを使い、無ければ [`KIFU_ENCODINGS`] を
+/// 名乗り（BOM / エスケープ）があればそれを使い、無ければ [`KIFU_ENCODINGS`] を
 /// 順に試して最初に誤り無く読めたものを採る。どれでも誤りが出れば `None`。
 ///
 /// # 呼ぶのは画面に開く経路だけ
@@ -163,7 +163,7 @@ mod tests {
         }
     }
 
-    /// 印があれば、順序より印を採る。
+    /// 名乗りがあれば、順序より名乗りを採る。
     ///
     /// ISO-2022-JP は 7bit なので UTF-8 の復号が誤り無く通る。順に試すだけだと
     /// **UTF-8 が先に勝って、エスケープが本文に残ったまま**索引に入る。
@@ -173,7 +173,7 @@ mod tests {
         let bytes = encoded(kifu, ISO_2022_JP);
 
         let decoded = decode_kifu(&bytes).expect("ISO-2022-JP の棋譜が読めない");
-        assert_eq!(decoded.encoding, ISO_2022_JP, "印を採っていない");
+        assert_eq!(decoded.encoding, ISO_2022_JP, "宣言を採っていない");
         assert_eq!(decoded.text, kifu, "本文が復元できていない");
     }
 
@@ -193,7 +193,7 @@ mod tests {
         );
     }
 
-    /// BOM とエスケープ `ESC $ B` だけを印として見る。
+    /// BOM とエスケープ `ESC $ B` だけを名乗りとして見る。
     /// `ESC ( B` は ASCII へ戻す指示で、ASCII のファイルにも現れうる
     #[test]
     fn only_a_bom_or_a_switch_to_jis_x_0208_declares_an_encoding() {

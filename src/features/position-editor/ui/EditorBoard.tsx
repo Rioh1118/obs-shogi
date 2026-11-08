@@ -19,7 +19,7 @@ type EditorBoardProps = {
 };
 
 /**
- * 組む面の盤
+ * 組むタブの盤
  *
  * **対局の盤（`widgets/game-board`）と別に持つ。** あちらは `useGame` から局面も
  * 合法手も取るので、種を載せただけの局面を描けない。幾何（画像の縦横比と枠の内寸）は
@@ -40,7 +40,7 @@ function EditorBoard({
   const heldFrom = held?.from === "square" ? held.sq : null;
 
   const handleContextMenu = (event: MouseEvent, sq: Square) => {
-    // 盤の上では既定のメニューを出さない。器の中に OS のメニューが
+    // 盤の上では既定のメニューを出さない。モーダルの中に OS のメニューが
     // 開くと、その裏で局面が変わったのかどうかが分からなくなる。
     // 駒が無い升では裏返すものが無いので、止めるだけ
     event.preventDefault();

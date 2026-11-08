@@ -15,7 +15,7 @@
     display: inline-flex;
     align-self: flex-start;
 
-    // 帯に面を敷かない。選択は銅の縦棒が示すので、帯の面は要らない
+    // 帯に背景を敷かない。選択は銅の縦棒が示すので、帯の背景は要らない
     border: 1px solid index.$stroke;
     border-radius: index.$radius-4;
     padding: index.$space-2;
@@ -39,7 +39,7 @@
       background-color index.$duration-4 index.$ease,
       color index.$duration-3 index.$ease;
 
-    // 面の差だけだと 1.12:1 で読めない。文字の濃さでも示す
+    // 背景の差だけだと 1.12:1 で読めない。文字の濃さでも示す
     &:hover {
       background-color: rgba(index.$color-white, 0.04);
       color: index.$color-text-primary;
@@ -63,7 +63,7 @@
   }
 
   // Form側は padding 2rem 3rem なので、ここは余計な padding を付けない。
-  // どちらの面も器の高さいっぱいを使う（盤は残りの高さから、貼り付け欄は
+  // どちらのタブもモーダルの高さいっぱいを使う（盤は残りの高さから、貼り付け欄は
   // 左の列の残りから決まる）ので、ここが伸びる側になる
   &__body {
     flex: 1 1 auto;

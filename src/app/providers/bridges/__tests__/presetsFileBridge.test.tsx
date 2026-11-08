@@ -60,7 +60,7 @@ async function mountWith(patch: Partial<EnginePresetsState>) {
 
 function shown(at = 0) {
   const req = notify.mock.calls[at][0];
-  if (req.tier === "silent") throw new Error("出さない段で呼んでいる");
+  if (req.tier === "silent") throw new Error("出さない tier（silent）で呼んでいる");
   return req;
 }
 
@@ -148,7 +148,7 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
   });
 
   /**
-   * 段と動作を種類ごとに固定する。**書けない状態で開く種類は `danger`、新しい版だけ `warning`**
+   * tier と動作を種類ごとに固定する。**書けない状態で開く種類は `danger`、新しい版だけ `warning`**
    * （直す手段がアプリの更新で、フォルダの問題ではない）
    */
   test.each<[PresetsLoadNotice, string, string | null]>([
@@ -159,7 +159,7 @@ describe("プリセットのファイルで起きたことを届ける橋", () =
     [{ kind: "notRecovered", reason: "x" }, "danger", "reload"],
     [{ kind: "newerVersion", version: 3 }, "warning", "settings"],
     [{ kind: "unreadable", reason: "x" }, "danger", "reload"],
-  ])("$kind の段と動作", (notice, tier, action) => {
+  ])("$kind の tier と動作", (notice, tier, action) => {
     const view = presetsLoadNoticeView(notice);
     expect(view.tier).toBe(tier);
     expect(view.presentation === "banner" ? view.action : null).toBe(action);

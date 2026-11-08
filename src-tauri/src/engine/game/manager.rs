@@ -1,4 +1,4 @@
-//! 走っている対局セッションの台帳。
+//! 走っている対局セッションの一覧。
 //!
 //! 対局は同時に複数走りうる（検討しながら指す、エンジン同士を2組回す）。
 //! ID で引ける形にしてあるのはそのため。
@@ -16,10 +16,10 @@ use super::types::{GameId, GameSettings, GameSnapshot, Side};
 
 const LOGT: &str = "obs_shogi::engine::game::manager";
 
-/// 開いている対局の台帳。**アプリに1つ**（`AppState` が持つ）。
+/// 開いている対局の一覧。**アプリに1つ**（`AppState` が持つ）。
 ///
-/// 対局の規則をここには置かない。段の判定も時計も `GameSession` の中で、
-/// ここが持つのは **`GameId` から引けること**と、閉じる最中の窓を埋めることだけ。
+/// 対局の規則をここには置かない。`Phase` の判定も時計も `GameSession` の中で、
+/// ここが持つのは **`GameId` から引けること**と、閉じる最中の区間を埋めることだけ。
 ///
 /// **断り方は3つ**（知らない／いま閉じている最中／他の操作が掴んでいる）。
 /// 呼び直す意味があるのは3つ目だけで、文言は `Rejection` の `Display` が持つ。
@@ -27,7 +27,7 @@ pub struct GameManager {
     sessions: RwLock<HashMap<GameId, Arc<GameSession>>>,
     /// いま閉じている最中の対局。
     ///
-    /// **台帳から外れている窓を埋める。** 無いと、その窓の `close_game` が
+    /// **`GameManager` から外れている区間を埋める。** 無いと、その区間の `close_game` が
     /// 「知らない対局」として返り、呼び出し側は「何も起きていない」と読む。
     closing: Mutex<BTreeSet<GameId>>,
     /// 対局のエンジンを起こす／落とす台帳。
@@ -55,11 +55,11 @@ pub struct GameManager {
 /// 呼び出し側（`closeGame`）はそれを文言で分類する。ここが持てるのは
 /// Rust 側で綴りを1本にするところまで。
 enum Rejection<'a> {
-    /// 台帳に無い。何も起きていない
+    /// `GameManager` に無い。何も起きていない
     Unknown(&'a GameId),
     /// 別の呼び出しがいま閉じている最中。待つこと
     Closing(&'a GameId),
-    /// 他の操作が掴んでいる。エンジンは生きたまま台帳に残るので、呼び直せる
+    /// 他の操作が掴んでいる。エンジンは生きたまま `GameManager` に残るので、呼び直せる
     Busy(&'a GameId),
 }
 
@@ -80,7 +80,7 @@ impl Rejection<'_> {
 }
 
 impl GameManager {
-    /// 空の台帳。`registry` は対局が使うエンジンを起こす／落とす先。
+    /// 空の `GameManager`。`registry` は対局が使うエンジンを起こす／落とす先。
     ///
     /// **解析と同じ台帳を渡すこと。** 別のものを渡すと `engine_ids` の
     /// 対応先が消え、落とせないプロセスが残る（`registry` 欄の doc）。
@@ -92,7 +92,7 @@ impl GameManager {
         }
     }
 
-    /// 対局を始め、台帳に載せて `GameId` を返す。
+    /// 対局を始め、`GameManager` に載せて `GameId` を返す。
     ///
     /// **`events` の購読は呼ぶ前に張ること。** 最初の `TurnChanged` と最初の `go` は
     /// これが返る**前に**走る。`GameId` はまだ手に入らないので、購読側は
@@ -103,8 +103,8 @@ impl GameManager {
     /// # エラー
     ///
     /// 設定が通らなかったか、エンジンを起こせなかった。
-    /// **時間切れ側は `TIMED_OUT` の綴りで始まる**（→ 台帳の F-27）。
-    /// 台帳には何も載らず、起こした側のプロセスは落としてある。
+    /// **時間切れ側は `TIMED_OUT` の綴りで始まる**（→ `failure-surfacing.md` の F-27）。
+    /// `GameManager` には何も載らず、起こした側のプロセスは落としてある。
     pub async fn start(
         &self,
         events: Arc<dyn GameEventSink>,
@@ -134,12 +134,12 @@ impl GameManager {
     ///
     /// `Busy` は他の操作が同じ対局を掴んでいる。**中断は試みたが、通ったかは
     /// 保証しない**（`CLOSE_ABORT_TIMEOUT` を超えると warn を1行残して先へ進む
-    /// ＝探索も時計も続いている）。**エンジンは生きたまま台帳に残る**ので
+    /// ＝探索も時計も続いている）。**エンジンは生きたまま `GameManager` に残る**ので
     /// そのまま呼び直せる。呼び直さないとプロセスが残る。
     pub async fn close(&self, game_id: &GameId) -> Result<(), String> {
-        // **「知らない」と「いま閉じている」を分ける。** `close` は台帳から
-        // 外してから最大十数秒待つので、その窓に2本目が入ると `unknown game` を
-        // 受け取る。受けた側が「何も起きていない」と読むと、直後に台帳へ戻る
+        // **「知らない」と「いま閉じている」を分ける。** `close` は `GameManager` から
+        // 外してから最大十数秒待つので、その間に2本目が入ると `unknown game` を
+        // 受け取る。受けた側が「何も起きていない」と読むと、直後に `GameManager` へ戻る
         // セッション（エンジンは生きている）を誰も閉じないまま置き去りにする。
         {
             let mut closing = self.closing.lock().await;
@@ -173,20 +173,20 @@ impl GameManager {
         match Arc::try_unwrap(session) {
             Ok(session) => session.close(&self.registry).await,
             Err(session) => {
-                // 誰かが操作中。中断だけ通して、**台帳へ戻す。**
+                // 誰かが操作中。中断だけ通して、**`GameManager` へ戻す。**
                 //
                 // 戻さないと、この `Arc` を最後に手放した者がセッションごと
                 // drop してエンジンの ID が消え、プロセスを落とす手掛かりが
-                // どこにも残らない。`close_all` も台帳しか見ないので拾えない。
+                // どこにも残らない。`close_all` も `GameManager` しか見ないので拾えない。
                 // 戻しておけば、次の `close_game` か `close_all` で落とせる。
                 //
                 // 中断の上限と失敗の分類は `GameSession` が1箇所で持つ
                 //
                 // **ここでログを書かない。** 案内（`closeGame` の doc）は間隔を
                 // 空けろと書いているが、守らせる手立ては無い——待たずに呼び直す
-                // 実装ではこの枝がミリ秒で回る。絞りを通らない行を1本でも置くと、`log_rejection`
+                // 実装ではこの分岐がミリ秒で回る。絞りを通らない行を1本でも置くと、`log_rejection`
                 // が守っているログの予算（`LOG_FILE_BUDGET` ＋ `KeepOne`）を
-                // その1本だけで一周させられる。伝えたいこと（台帳へ戻した）は
+                // その1本だけで一周させられる。伝えたいこと（`GameManager` へ戻した）は
                 // `Rejection::Busy` の doc と、絞りを通る `commands::game` の
                 // 1行が持つ
                 session.abort_within_budget().await;
@@ -197,9 +197,9 @@ impl GameManager {
         Ok(())
     }
 
-    /// 台帳の全部を閉じる。**閉じられなかったものは残り、1行残す。**
+    /// `GameManager` の全部を閉じる。**閉じられなかったものは残り、1行残す。**
     ///
-    /// `close` は操作中の対局を閉じられずに台帳へ戻すので、ここで潰すと
+    /// `close` は操作中の対局を閉じられずに `GameManager` へ戻すので、ここで潰すと
     /// 「一括で閉じたのにエンジンが残っている」が痕跡なしに起きる。
     /// 戻る `Vec` は閉じられなかった対局の ID
     pub async fn close_all(&self) -> Vec<GameId> {
@@ -214,13 +214,13 @@ impl GameManager {
         left
     }
 
-    /// 人間の着手を1手預ける。**段と手番が合っているときだけ通る。**
+    /// 人間の着手を1手預ける。**状態と手番が合っているときだけ通る。**
     ///
     /// # エラー
     ///
-    /// 断り方は `GameSession::submit_move` が決める（知らない対局／段が違う／
+    /// 断り方は `GameSession::submit_move` が決める（知らない対局／状態が違う／
     /// 手番が違う／その側がエンジン／書式が壊れている／終局済み／裁定待ち）。
-    /// **`Err` の文言でしか区別できない**（→ 台帳の F-28）。
+    /// **`Err` の文言でしか区別できない**（→ `failure-surfacing.md` の F-28）。
     pub async fn submit_move(
         &self,
         game_id: &GameId,
@@ -234,11 +234,11 @@ impl GameManager {
     ///
     /// **`AwaitingRuling` でだけ通る。** Rust は将棋の規則で終局を判定しないので、
     /// これか `end_by_rule` のどちらかが来るまで対局は進まない
-    /// （来ないと `RULING_TIMEOUT` で `RulingTimeout` として畳まれる）。
+    /// （来ないと `RULING_TIMEOUT` で `RulingTimeout` として終局する）。
     ///
     /// # エラー
     ///
-    /// 段が違う／`moves` がいまの写しの続きになっていない／終局済み。
+    /// 状態が違う／`moves` がいまの写しの続きになっていない／終局済み。
     pub async fn continue_game(&self, game_id: &GameId, moves: Vec<String>) -> Result<(), String> {
         self.get(game_id).await?.continue_game(moves).await
     }
@@ -246,7 +246,7 @@ impl GameManager {
     /// 裁定「終局」を返す。**詰み・千日手・持将棋を判定したのは呼び出し側。**
     ///
     /// `detail` は長すぎても断らない——切り詰める。断ると `RULING_TIMEOUT` が
-    /// 別の結末で畳んでしまい、勝敗が消える。
+    /// 別の結末で終局させてしまい、勝敗が消える。
     pub async fn end_by_rule(
         &self,
         game_id: &GameId,
@@ -264,13 +264,13 @@ impl GameManager {
 
     /// 利用者の中断で終局させる。**エンジンプロセスは落ちない**——落とすのは `close`。
     ///
-    /// 結末は `Aborted`。アプリが裁定を返せずに畳んだ終局は `RulingTimeout` で、
+    /// 結末は `Aborted`。アプリが裁定を返せずに迎えた終局は `RulingTimeout` で、
     /// ここを通らない。
     pub async fn abort(&self, game_id: &GameId) -> Result<(), String> {
         self.get(game_id).await?.abort().await
     }
 
-    /// いまの段・手番・時計をまとめて読む。**イベントを取りこぼした後の突き合わせ用。**
+    /// いまの状態・手番・時計をまとめて読む。**イベントを取りこぼした後の突き合わせ用。**
     ///
     /// 時計は読んだ時点で組み直すので、`RunningClock` の「尽きる時刻」は
     /// 呼ぶたびに変わる。
@@ -280,7 +280,7 @@ impl GameManager {
 
     /// 開いている対局の ID。**閉じている最中のものも含める。**
     ///
-    /// 含めないと、`close` が台帳から外している数秒のあいだ、
+    /// 含めないと、`close` が `GameManager` から外している数秒のあいだ、
     /// 「閉じ忘れを拾う」ためのこの関数から、まさに閉じ損ねようとしている対局が消える。
     pub async fn ids(&self) -> Vec<GameId> {
         let mut ids: BTreeSet<GameId> = self.sessions.read().await.keys().cloned().collect();
@@ -290,7 +290,7 @@ impl GameManager {
 
     /// **「知らない」と「いま閉じている」を分ける。**
     ///
-    /// `close` は台帳から外してから最大十数秒待つ。その窓で `unknown game` を返すと、
+    /// `close` は `GameManager` から外してから最大十数秒待つ。その間に `unknown game` を返すと、
     /// 生きている対局への `get_game_state`（取りこぼし後の突き合わせ）や
     /// `submit_game_move` が「無い対局」として断られる。
     async fn get(&self, game_id: &GameId) -> Result<Arc<GameSession>, String> {
@@ -304,7 +304,7 @@ impl GameManager {
     }
 }
 
-/// `closing` から必ず外すための番人。
+/// `closing` から必ず外すためのガード。
 ///
 /// **戻り値に頼らない。** `insert` と `remove` の間で future が drop されるか
 /// panic すると ID が残り続け、以後その対局は `the game is being closed` を
@@ -368,7 +368,7 @@ mod tests {
 
     /// 閉じている最中の対局を「知らない対局」と言わないこと。
     ///
-    /// **`close` は台帳から外してから待つ。** その窓で `unknown game` を返すと、
+    /// **`close` は `GameManager` から外してから待つ。** その間に `unknown game` を返すと、
     /// 生きている対局への `get_game_state`（取りこぼし後の突き合わせ）が
     /// 「無い対局」として断られ、`list_games`（閉じ忘れを拾うコマンド）からも消える。
     #[tokio::test]
@@ -380,13 +380,13 @@ mod tests {
             .await
             .expect("人間だけの対局は起動できるはず");
 
-        // 台帳から外した状態を作る（`take_and_close` の中の窓）
+        // `GameManager` から外した状態を作る（`take_and_close` の中の区間）
         let session = games
             .sessions
             .write()
             .await
             .remove(&id)
-            .expect("台帳にある");
+            .expect("GameManager にある");
         games.closing.lock().await.insert(id.clone());
 
         let error = games
@@ -419,11 +419,11 @@ mod tests {
         games.sessions.write().await.insert(id, session);
     }
 
-    /// 掴まれている対局は閉じられず、**台帳に残ること**。
+    /// 掴まれている対局は閉じられず、**`GameManager` に残ること**。
     ///
     /// 戻さないと、この `Arc` を最後に手放した者がセッションごと drop して
     /// `engine_ids` が消え、**プロセスを落とす手掛かりがどこにも残らない**。
-    /// `close_all` も台帳しか見ないので拾えない。
+    /// `close_all` も `GameManager` しか見ないので拾えない。
     #[tokio::test]
     async fn a_borrowed_game_is_refused_and_kept_in_the_ledger() {
         let games = GameManager::new(Arc::new(EngineRegistry::new()));
@@ -439,7 +439,7 @@ mod tests {
             .await
             .get(&id)
             .cloned()
-            .expect("台帳にある");
+            .expect("GameManager にある");
 
         let error = games
             .close(&id)
@@ -448,7 +448,7 @@ mod tests {
         assert!(error.contains("busy"), "断る理由が変わっている: {error}");
         assert!(
             games.sessions.read().await.contains_key(&id),
-            "閉じられなかった対局を台帳から落としている"
+            "閉じられなかった対局を GameManager から落としている"
         );
         assert_eq!(
             games.close_all().await,
@@ -460,7 +460,7 @@ mod tests {
         games.close(&id).await.expect("手放した後も閉じられない");
     }
 
-    /// 閉じている印が、番人を落とせば必ず外れること。
+    /// 閉じているフラグが、ガードを落とせば必ず外れること。
     ///
     /// 外れないと、その対局は以後ずっと `the game is being closed` を返し続ける
     /// ——`close_all` も `close` を通るので拾えず、落とす経路が終了時の掃除だけになる。
@@ -479,7 +479,7 @@ mod tests {
 
         assert!(
             !games.closing.lock().await.contains(&id),
-            "番人を落としても閉じている印が残っている"
+            "ガードを drop しても `closing` に残っている"
         );
     }
 }

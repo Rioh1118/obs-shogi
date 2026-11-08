@@ -64,7 +64,7 @@ function messageOf(error: unknown): string {
  * - アプリ全体で1つだけ mount する。2つあると `game-event` を二重に受け、同じ手に
  *   2つの裁定を返す
  *
- * 持てる対局は1局だけで、2局目は `startRefusal` が断る。`start_game` は台帳に載る数を
+ * 持てる対局は1局だけで、2局目は `startRefusal` が断る。`start_game` は`GameManager` に載る数を
  * 見ず、1局あたりエンジンのプロセスが最大2本立つ。
  */
 export function GameSessionProvider({
@@ -230,7 +230,7 @@ export function GameSessionProvider({
           void retireEngines(session, session.gameId);
           break;
 
-        // 読み筋を出す面がまだ無いので捨てる。置き場は ADR-0011 決定4 が決めてある
+        // 読み筋を出すペインがまだ無いので捨てる。置き場は ADR-0011 決定4 が決めてある
         case "searchInfo":
           return;
       }
@@ -328,7 +328,7 @@ export function GameSessionProvider({
         return;
       }
 
-      // 待っている間に手放された。Rust の台帳には載っているので、ここで畳む
+      // 待っている間に手放された。Rust の `GameManager` には載っているので、ここで閉じる
       if (sessionRef.current !== mine) {
         void closeGame(gameId);
         return;
@@ -365,7 +365,7 @@ export function GameSessionProvider({
     const { gameId } = session;
 
     // `gameId` が無ければ送り先が無い。`startGame` の解決を待っている対局は、解決した
-    // `start` が畳む。エンジンを落とし終えた対局は台帳に居ないので、`close_game` を
+    // `start` が閉じる。エンジンを落とし終えた対局は `GameManager` に居ないので、`close_game` を
     // 通すと `unknown game` で断られ、結末を手放せなくなる
     if (gameId !== null && !session.engineClosed) {
       // 落ちるまで手放さない。先に捨てると、断られたときに呼び直す `gameId` が残らず、

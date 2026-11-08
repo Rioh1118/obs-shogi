@@ -1,10 +1,10 @@
 //! 上限どうしの関係のうち、**モジュールを跨ぐもの**を式で固定する。
 //!
-//! 段を跨ぐ関係は `#[cfg(test)] mod tests` からは見られない
-//! （`game` は `analyzer` を `use` できないし、`engine` は crate の他の枝を
+//! レイヤを跨ぐ関係は `#[cfg(test)] mod tests` からは見られない
+//! （`game` は `analyzer` を `use` できないし、`engine` は crate の他のモジュールを
 //! 知らない）。ここに置くのはそのため。
 //!
-//! 同じ段の中で閉じる関係は `session.rs` の `the_watchdogs_are_ordered` にある。
+//! 同じレイヤの中で閉じる関係は `session.rs` の `the_watchdogs_are_ordered` にある。
 //! **散文で「どちらも同じ長さ」と書かない**——書くと、片方を動かしたときに何も落ちない。
 
 // `engine` は crate の外へ出ないので、定数は crate の根の再輸出から読む（`lib.rs`）
@@ -17,18 +17,18 @@ use app_lib::{
 ///
 /// これは意図した関係。固まったエンジンを待つ猶予と、アプリを閉じるときに
 /// 待つ時間は別の話で、後者を前者に合わせると終了が `HARD_TURN_LIMIT` ぶん待たされる。
-/// 閉じるときは畳めていなくても落とす（→ `CLOSE_TIMEOUT` の doc）。
+/// 閉じるときは止め終わっていなくても落とす（→ `CLOSE_TIMEOUT` の doc）。
 ///
 /// **持ち時間を足さない。** `MAX_TIME_MS` を足すと `CLOSE_TIMEOUT` < `MAX_TIME_MS`
 /// が桁で成り立ってしまい、どちらの定数をどう動かしても落ちなくなる
 /// （`HARD_TURN_LIMIT` を `CLOSE_TIMEOUT` より短くしても通る）。
-/// ここで守りたいのは持ち時間の話ではなく、**番人の猶予と終了の予算の関係**。
+/// ここで守りたいのは持ち時間の話ではなく、**監視の猶予と終了の予算の関係**。
 #[test]
 fn closing_never_waits_as_long_as_a_stuck_engine() {
     assert!(
         CLOSE_TIMEOUT < HARD_TURN_LIMIT,
         "終了時の予算({CLOSE_TIMEOUT:?})が、固まったエンジンへの猶予({HARD_TURN_LIMIT:?})以上。\
-         アプリを閉じるのに対局の番人と同じだけ待つことになる"
+         アプリを閉じるのに対局の監視（watchdog）と同じだけ待つことになる"
     );
 }
 
@@ -63,9 +63,9 @@ fn the_close_budget_is_deliberately_short() {
 /// （`KILL_TIMEOUT`）を下回ると、**1本も落とし切れないまま予算が尽きる**。
 /// 予算が尽きると、順番が回ってこなかった後続には `kill` が1度も届かず、残る。
 ///
-/// **見ているのは `kill` の段だけ。** 1本を落とす手順（`EngineRegistry::terminate`）は
-/// `quit` の書き込み（`WRITE_TIMEOUT`）→ 猶予 → `kill` の3段で、書き込みが詰まった
-/// エンジンでは3段の和がこの予算を超えうる。
+/// **見ているのは `kill` の段階だけ。** 1本を落とす手順（`EngineRegistry::terminate`）は
+/// `quit` の書き込み（`WRITE_TIMEOUT`）→ 猶予 → `kill` の3段階で、書き込みが詰まった
+/// エンジンでは3段階の和がこの予算を超えうる。
 #[test]
 fn the_sweep_can_finish_at_least_one_kill() {
     assert!(
@@ -75,35 +75,35 @@ fn the_sweep_can_finish_at_least_one_kill() {
     );
 }
 
-/// 対局の起動にかける上限が、**段ごとの上限より短い**こと。
+/// 対局の起動にかける上限が、**段階ごとの上限より短い**こと。
 ///
-/// 段ごとの上限（`SPAWN_TIMEOUT` + `USI_OK_TIMEOUT` + `READY_TIMEOUT`）を素直に
+/// 段階ごとの上限（`SPAWN_TIMEOUT` + `USI_OK_TIMEOUT` + `READY_TIMEOUT`）を素直に
 /// 足すと全体の締切を大きく超える（関係は `the_steps_alone_would_overrun_the_start_budget`）。
 /// その間 `start_game` は返らず、
 /// フロントには進捗も残り時間も無く、取り消す経路も無い。
 ///
-/// **`READY_TIMEOUT` 単体より短いことを見る。** ここがいちばん長い段で、
+/// **`READY_TIMEOUT` 単体より短いことを見る。** ここがいちばん長い段階で、
 /// 逆転していると全体の締切が意味を持たない。
 #[test]
 fn starting_a_game_is_bounded_below_the_slowest_step() {
     assert!(
         START_TIMEOUT < READY_TIMEOUT,
         "START_TIMEOUT({START_TIMEOUT:?}) が `readyok` を待つ上限({READY_TIMEOUT:?})以上。\
-         全体の締切が段ごとの上限に飲まれている"
+         全体の締切が段階ごとの上限に飲まれている"
     );
     assert!(
         START_TIMEOUT > USI_OK_TIMEOUT,
         "START_TIMEOUT({START_TIMEOUT:?}) が `usiok` を待つ上限({USI_OK_TIMEOUT:?})以下。\
-         最初の段を待ち切る前に全体が切れる"
+         最初の段階を待ち切る前に全体が切れる"
     );
 }
 
-/// 段ごとの上限を素直に足した値が、全体の締切より**長い**こと。
+/// 段階ごとの上限を素直に足した値が、全体の締切より**長い**こと。
 ///
-/// **これが逆転したら締切は要らない。** 締切を置いた理由は「段を足すと
+/// **これが逆転したら締切は要らない。** 締切を置いた理由は「段階を足すと
 /// 締切を大きく超える」なので、足しても収まるなら、締切は何も縮めていないことになる。
 ///
-/// 逆に、この式が成り立つ限り**各段は締切で縮めないと意味がない**
+/// 逆に、この式が成り立つ限り**各段階は締切で縮めないと意味がない**
 /// （`prepare_engine` が `SPAWN_TIMEOUT.min(left)` を渡しているのはそのため）。
 #[test]
 fn the_steps_alone_would_overrun_the_start_budget() {
@@ -111,7 +111,7 @@ fn the_steps_alone_would_overrun_the_start_budget() {
 
     assert!(
         one_engine > START_TIMEOUT,
-        "1体ぶんの段({one_engine:?})が全体の締切({START_TIMEOUT:?})以下。\
+        "1体ぶんの段階の上限の和({one_engine:?})が全体の締切({START_TIMEOUT:?})以下。\
          締切が何も縮めていない"
     );
 }

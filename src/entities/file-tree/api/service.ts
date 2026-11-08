@@ -6,7 +6,7 @@ import * as fs from "./fileSystem";
 import { parseKifuStringToJKF } from "@/entities/kifu/api/parse";
 import { createInitialJKFData } from "@/entities/kifu/lib/createInitialJKFData";
 
-/** `run` の成否を `FsError` の `Result` へ畳む */
+/** `run` の成否を `FsError` の `Result` へ寄せる */
 async function attempt<T>(run: () => Promise<T>): AsyncResult<T, FsError> {
   try {
     return Ok(await run());
@@ -23,7 +23,7 @@ export function fetchTree(rootPath: string): AsyncResult<FileTreeNode, FsError> 
  * テキストとして読む。投げない。
  *
  * `api/fileSystem` の `readFile` は投げるので、呼び手が `catch {}` で握り潰すと、
- * 権限も見つからないも同じ「何も出ない」に落ちる。公開面にはこちらだけを出す
+ * 権限も見つからないも同じ「何も出ない」に落ちる。公開 API にはこちらだけを出す
  */
 export function readText(path: string): AsyncResult<string, FsError> {
   return attempt(() => fs.readFile(path));

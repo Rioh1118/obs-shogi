@@ -53,7 +53,7 @@ export function engineStatusOf({
   analysis,
   currentSfen,
 }: Inputs): EngineStatus {
-  // 選択が外れたら、前のエンジンの段が畳まれる前でも `エンジンなし`
+  // 選択が外れたら、前のエンジンが落ちきる前でも `エンジンなし`
   if (notReadyReason === "no-engine") return "no-engine";
   if (phase === "exited") return "exited";
   if (phase === "unresponsive") return "unresponsive";

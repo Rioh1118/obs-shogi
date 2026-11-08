@@ -15,9 +15,9 @@ type Props = {
  * `FsError` を利用者に見せる。ファイル操作の失敗も棋譜の読み込み失敗も同じ形で出す。
  *
  * 利用者に見せる文は `describeFsError` が `code` から作る。`message` は開発者向けの
- * ログなので、`cause` と一緒に畳んだ中へ置く。
+ * ログなので、`cause` と一緒に折りたたんだ中へ置く。
  *
- * TODO(#277): 段と動作は `shared/ui/notification` の `Notice` と同じものを描いている。
+ * TODO(#277): tier と動作は `shared/ui/notification` の `Notice` と同じものを描いている。
  * **そのままでは寄せられない**——ここは `FsError` 固有の詳細（`code` / `message` /
  * `cause`）を `details` で出すが、`Notice` には本文以外の差し込み欄が無い。
  * 欄を足してから寄せること。
@@ -29,7 +29,7 @@ export default function FsErrorView({ error, actions }: Props) {
   return (
     <div className={`fsError fsError--${tier}`}>
       {/*
-        読み上げるのは何が起きたかだけ。ボタンと畳んだログまで包むと、
+        読み上げるのは何が起きたかだけ。ボタンと折りたたんだログまで包むと、
         読み直し中にボタンの文言が変わるたびに全文が読み上げ直される
       */}
       <div className="fsError__message" role="alert">

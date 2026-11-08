@@ -8,7 +8,7 @@ import { GamePersistenceGate } from "./GamePersistenceGate";
  * **`GameSessionProvider` の内側に置くこと。** `useGameMoveGate` は走っている対局を見て
  * 「Rust が採ったか」を決めるので、対局を知らない位置では組めない。
  *
- * 保存先の器（`GamePersistenceGate`）と分けてあるのは、盤だけを立てる場所に
+ * 保存先のラッパー（`GamePersistenceGate`）と分けてあるのは、盤だけを立てる場所に
  * 対局を持ち込まないため。`moveGate` を渡さなければ盤は素通しで指せる。
  */
 export function GameMoveGate({ children }: { children: ReactNode }) {

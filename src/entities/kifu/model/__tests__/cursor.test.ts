@@ -34,7 +34,7 @@ describe("selectAt", () => {
     expect(selectAt([fp(2, 0), fp(4, 1)], 2, null)).toEqual([fp(4, 1)]);
   });
 
-  // 0 は「変化の0番目」であって本譜ではない。取り違えると別の枝が選ばれる。
+  // 0 は「変化の0番目」であって本譜ではない。取り違えると別の変化が選ばれる。
   test("forkIndex 0 は消さずに書き込む", () => {
     expect(selectAt([fp(2, 1)], 2, 0)).toEqual([fp(2, 0)]);
   });
@@ -97,7 +97,7 @@ describe("cursorKey", () => {
 
   // cursorKey が受ける CursorPath は、並び順も te <= tesuu も型では保証されない
   // （previewCursor は handlePrevious のあと te > tesuu を持つ）。
-  // 鍵の側で畳まないと、同じ局面を指す2つの CursorPath が別の鍵になる。
+  // 鍵の側で寄せないと、同じ局面を指す2つの CursorPath が別の鍵になる。
   test("並びが違うだけの forkPointers は同じ鍵", () => {
     expect(cursorKey(at(5, [fp(4, 1), fp(2, 0)]))).toBe(cursorKey(at(5, [fp(2, 0), fp(4, 1)])));
   });
@@ -109,7 +109,7 @@ describe("cursorKey", () => {
     expect(cursorKey(at(3, [fp(2, 0), fp(5, 1)]))).toBe(cursorKey(at(3, [fp(2, 0)])));
   });
 
-  test("同じ te が重なれば後勝ちで1つに畳む", () => {
+  test("同じ te が重なれば後勝ちで1つにまとめる", () => {
     expect(cursorKey(at(5, [fp(2, 0), fp(2, 1)]))).toBe(cursorKey(at(5, [fp(2, 1)])));
   });
 
@@ -156,7 +156,7 @@ describe("descendTo", () => {
     expect(descendTo(at(1, []), 2, 0)).toEqual({ tesuu: 2, forkPointers: [fp(2, 0)] });
   });
 
-  // te の選択を変えた以上、その先は別の枝に対して作られた値なので捨てる。
+  // te の選択を変えた以上、その先は別の変化に対して作られた値なので捨てる。
   // 残すと利用者が一度も見ていない変化に盤が入る。
   test("te 以降の選択は落とす", () => {
     expect(descendTo(at(9, [fp(2, 0), fp(5, 1), fp(7, 0)]), 5, 0)).toEqual({
@@ -178,7 +178,7 @@ describe("descendTo", () => {
   });
 
   // 型の上でだけ通る経路。KifuStreamList が PlannedCursor | null を持つので受けるが、
-  // view.player の番人が先に返すので現物では走らない。意味を決めておかないと
+  // view.player の検査が先に返すので現物では走らない。意味を決めておかないと
   // 呼び出し側が ! を書く。
   test("path が null なら te の選択だけを持つ", () => {
     expect(descendTo(null, 3, 1)).toEqual({ tesuu: 3, forkPointers: [fp(3, 1)] });
@@ -211,7 +211,7 @@ describe("normalizeForkPointers", () => {
     ]);
   });
 
-  test("同じ te は後勝ちで1つに畳む", () => {
+  test("同じ te は後勝ちで1つにまとめる", () => {
     expect(normalizeForkPointers([fp(2, 0), fp(2, 1)])).toEqual([fp(2, 1)]);
   });
 
@@ -242,7 +242,7 @@ describe("normalizeBefore", () => {
     expect(normalizeBefore([fp(2, 0), fp(3, 1)], 3)).toEqual([fp(2, 0)]);
   });
 
-  test("並べ替えと重複の畳み込みもする", () => {
+  test("並べ替えて、重複もまとめる", () => {
     expect(normalizeBefore([fp(2, 1), fp(1, 0), fp(2, 0)], 5)).toEqual([fp(1, 0), fp(2, 0)]);
   });
 

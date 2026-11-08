@@ -283,7 +283,7 @@ pub fn scan_kifu_files(root_dir: &Path, opts: &ScanOptions) -> Result<Scanned, S
 ///
 /// 鍵の数を返すと、呼び手は「この回のどこかで引き継ぎが起きた」しか言えない。
 /// 場所ごとに失われるものが逆になる——引き継げた場所の棋譜は検索に出続け、
-/// 引き継げなかった場所の棋譜は索引に無い。数で畳むと、**出ないものを
+/// 引き継げなかった場所の棋譜は索引に無い。数にまとめると、**出ないものを
 /// 「残る」と告げる**か、その逆をやる。
 pub fn carry_over_unreadable(
     prev: &ScanSnapshot,
@@ -383,7 +383,7 @@ pub fn diff_snapshot(prev: &ScanSnapshot, next: &ScanSnapshot) -> ScanDiff {
 /// （`cache/format.rs`）、`PathBuf` のままだと OS ごとの綴りの違いが
 /// キャッシュの互換性の話になる。
 ///
-/// **正規化しない。** 大文字小文字も `..` も畳まないので、
+/// **正規化しない。** 大文字小文字も揃えず、`..` も解決しないので、
 /// 同じファイルを別の綴りで指すと別の項目になる。走査は1つの根の下を
 /// `WalkDir` で歩くだけなので、いまはその形が出ない。
 #[inline]

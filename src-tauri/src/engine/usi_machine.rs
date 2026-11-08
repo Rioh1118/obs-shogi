@@ -31,7 +31,7 @@ pub const STALLED: &str = "the engine stopped reading stdin; the process cannot 
 /// 探索が走っている間、次の探索を断る文言。手順「探索」は、これを返す前に前の探索の終わりを待つ
 const SEARCH_NOT_ENDED: &str = "the previous search on this engine has not ended";
 
-/// 探索1本が受ける行。生の USI の形のまま渡す（畳み方は呼び手が `apply_info_params` で決める）
+/// 探索1本が受ける行。生の USI の形のまま渡す（集約の仕方は呼び手が `apply_info_params` で決める）
 #[derive(Debug)]
 pub enum SearchLine {
     Info(Vec<InfoParams>),
@@ -191,7 +191,7 @@ impl UsiMachine {
         matches!(self.state, State::Searching { .. } | State::Stopping { .. })
     }
 
-    /// 届かない理由。閉じる前に呼ばれたら（探索の行が途切れた回など）、いまの印で選ぶ
+    /// 届かない理由。閉じる前に呼ばれたら（探索の行が途切れた回など）、いまのフラグで選ぶ
     pub fn cannot_reach(&self) -> EngineError {
         closed_error(self.unreachable_end())
     }
@@ -560,7 +560,7 @@ impl UsiMachine {
         }
     }
 
-    /// R10 `quit`。印を立ててから書く。以後の出力の終わりは `Requested`
+    /// R10 `quit`。フラグを立ててから書く。以後の出力の終わりは `Requested`
     pub fn quit(&mut self) {
         if matches!(self.state, State::Closed(_)) {
             return;
@@ -1010,7 +1010,7 @@ mod tests {
         }
     }
 
-    /// L5 `info`: 探索中（Q3、Q3p）はその探索へ流す。準備と値の確認の間は `info string` を控えに足す。
+    /// L5 `info`: 探索中（Q3、Q3p）はその探索へ流す。準備と値の確認の間は `info string` を保留中の答えに足す。
     /// 止め待ち（Q4）では捨てる（止めた探索の行）
     #[test]
     fn an_info_line_goes_to_whoever_is_waiting_for_it() {
@@ -1402,7 +1402,7 @@ mod tests {
         }
     }
 
-    /// R10 `quit`: 閉じていなければ印を立てて書く。以後の出力の終わりは `Requested`
+    /// R10 `quit`: 閉じていなければフラグを立てて書く。以後の出力の終わりは `Requested`
     #[test]
     fn quit_marks_the_end_as_ours() {
         for row in ALL {

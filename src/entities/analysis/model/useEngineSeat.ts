@@ -38,13 +38,13 @@ type SeatTake = {
    * 開始が断られたときに、往復の間にエンジンが消えていたかを返す。
    *
    * 起動し直している最中のエンジンへの開始は Rust が `Err` で返す（`bridge.rs`）ので、席が返る場合と
-   * 断られる場合の両方が同じ窓に入る。この述語で断りの文を1つに揃える。
+   * 断られる場合の両方が同じ区間に入る。この述語で断りの文を1つに揃える。
    */
   hasEngineChanged: () => boolean;
 };
 
 /**
- * Rust が渡した解析の席（`active_sessions` の1エントリ）の生死を持つ面。
+ * Rust が渡した解析の席（`active_sessions` の1エントリ）の生死を持つフック。
  *
  * 席の識別子とエンジンの世代はこのフックの中でだけ書き換える。席の生死は欄が埋まっているかと
  * その席のエンジンがまだ居るかの両方で決まり、片方を外に置くと判定が2つのモジュールに割れる。
@@ -115,10 +115,10 @@ type EngineSeat = {
   /** 応答を待てない場所から、握っている席を返す。握っていなければ何もしない。 */
   releaseHeldQuietly: (by: QuietReleasePoint) => void;
   /**
-   * アンマウントの印を戻す。停止は送らない。
+   * アンマウントのフラグを戻す。停止は送らない。
    *
-   * cleanup で立てる印は setup で戻す。戻さないと StrictMode の setup → cleanup → setup で
-   * 印が残り、画面が生きているのに席を指さない停止が飛ぶ。
+   * cleanup で立てるフラグは setup で戻す。戻さないと StrictMode の setup → cleanup → setup で
+   * フラグが残り、画面が生きているのに席を指さない停止が飛ぶ。
    */
   markMounted: () => void;
   /**
@@ -176,7 +176,7 @@ export function useEngineSeat(): EngineSeat {
    * アンマウント済みか。書き戻された席を返し直す判断に使う。
    *
    * `sweepOnUnmount` が読むのは `releasingRef` が空いた時点の席で、席はその後に戻ることがある
-   * （アンマウント後に返った席を捨て、その停止が落ちたとき）。戻す側の `keepOrForget` がこの印を見て
+   * （アンマウント後に返った席を捨て、その停止が落ちたとき）。戻す側の `keepOrForget` がこのフラグを見て
    * 送り直す。戻すのは `markMounted`。
    */
   const unmountedRef = useRef(false);
@@ -224,7 +224,7 @@ export function useEngineSeat(): EngineSeat {
     }
     seatRef.current = sessionId;
 
-    // 画面が無いので effect は再走せず、戻った席はここでしか返せない。印は倒さない。
+    // 画面が無いので effect は再走せず、戻った席はここでしか返せない。フラグは倒さない。
     // 倒すと2本目以降の書き戻しを落とし、その席が Rust に残る。
     // 送るのは席を指さない停止で、落ちても先頭の `sessionId === undefined` で降りるので回り続けない。
     if (unmountedRef.current) {
