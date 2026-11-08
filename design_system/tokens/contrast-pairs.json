@@ -7,17 +7,28 @@
       ],
       "bg": [
         "color.background.default",
-        "color.background.subtle"
+        "color.background.sunken",
+        "color.background.canvas"
       ],
       "kind": "text"
     },
     {
       "fg": [
-        "color.text.subtle"
+        "color.text.subtle",
+        "color.text.faint"
+      ],
+      "bg": [
+        "color.background.default"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.accent"
       ],
       "bg": [
         "color.background.default",
-        "color.background.subtle"
+        "color.background.sunken"
       ],
       "kind": "text"
     },
@@ -26,32 +37,70 @@
         "color.text.inverse"
       ],
       "bg": [
-        "color.background.emphasis"
+        "color.commit.solid",
+        "color.commit.solid-hover",
+        "color.feedback.danger.solid",
+        "color.feedback.danger.solid-hover"
       ],
       "kind": "text"
     },
     {
       "fg": [
-        "color.border.default"
+        "color.text.on-solid"
       ],
       "bg": [
-        "color.background.default",
-        "color.background.subtle"
+        "color.accent.solid",
+        "color.accent.solid-hover"
       ],
-      "kind": "non-text"
+      "kind": "text"
     },
     {
       "fg": [
-        "focus.ring.color.inner",
-        "focus.ring.color.outer"
+        "color.feedback.danger.text",
+        "color.feedback.fatal.text"
+      ],
+      "bg": [
+        "color.background.sunken"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.feedback.fatal.text"
+      ],
+      "bg": [
+        "color.feedback.fatal.surface"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "button.color.text.primary"
+      ],
+      "bg": [
+        "button.color.background.primary"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "button.color.text.secondary"
+      ],
+      "bg": [
+        "button.color.background.secondary"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "focus.ring.color"
       ],
       "bg": [
         "color.background.default",
-        "color.background.subtle",
-        "color.background.emphasis"
+        "color.background.sunken",
+        "color.background.canvas"
       ],
-      "kind": "non-text",
-      "anyOf": true
+      "kind": "non-text"
     }
   ]
 }

@@ -1,65 +1,266 @@
 {
   "color": {
     "$type": "color",
-    "$description": "意味付けの色（light テーマ）。dark は themes/dark.tokens.json で全項目を上書きする",
-    "text": {
+    "$description": "色。テーマは1つ（暗い緑黒の枠）。製品の src/index.scss（2026-11-08、origin/main 0be56281）の値をそのまま写した基準線",
+    "background": {
+      "sunken": {
+        "$value": "{base.color.black}",
+        "$description": "いちばん深い面。サイドバー、暗いカード"
+      },
       "default": {
-        "$value": "{base.color.gray.900}",
-        "$description": "仮：本文の文字"
+        "$value": "{base.color.dark}",
+        "$description": "本文の背景。ドック、ヘッダ、読むペイン"
       },
-      "subtle": {
-        "$value": "{base.color.gray.700}",
-        "$description": "仮：補足の文字"
-      },
-      "inverse": {
-        "$value": "{base.color.gray.0}",
-        "$description": "仮：emphasis 背景の上の文字"
+      "canvas": {
+        "$value": "{base.color.light}",
+        "$description": "盤と棋譜を置く面"
       }
     },
-    "background": {
+    "surface": {
+      "raised": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.2353,
+            0.2588,
+            0.2667
+          ],
+          "hex": "#3c4244"
+        },
+        "$description": "暗い背景を1段階持ち上げた面。意味色を持たず「いま触れない」を示す（$surface-raised）"
+      },
+      "field": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hex": "#000000",
+          "alpha": 0.18
+        },
+        "$description": "打つ欄の背景。半透明なのは載る背景の明るさを保つため（$surface-field）"
+      },
+      "overlay": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.1098,
+            0.1373,
+            0.1451
+          ],
+          "hex": "#1c2325",
+          "alpha": 0.88
+        },
+        "$description": "ツールチップ。半透明なので文字との比は走査で測れない（$surface-overlay）"
+      }
+    },
+    "text": {
       "default": {
-        "$value": "{base.color.gray.0}",
-        "$description": "仮：ページの背景"
+        "$value": "{base.color.sand}",
+        "$description": "本文"
       },
       "subtle": {
-        "$value": "{base.color.gray.50}",
-        "$description": "仮：区切った面の背景"
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.7255,
+            0.7176,
+            0.6745
+          ],
+          "hex": "#b9b7ac"
+        },
+        "$description": "名前の添え書き・説明。本文の背景で 6.16:1。不透明に混ぜる（$color-text-muted）"
       },
-      "emphasis": {
-        "$value": "{base.color.gray.900}",
-        "$description": "仮：主要な操作の背景"
+      "faint": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.6196,
+            0.6235,
+            0.5922
+          ],
+          "hex": "#9e9f97"
+        },
+        "$description": "無効・範囲の注記。本文の背景で 4.64:1。surface.raised の上には載せない（$color-text-faint）"
+      },
+      "inverse": {
+        "$value": "{base.color.ink}",
+        "$description": "明るい背景（確定・危険のボタン）に載せる文字"
+      },
+      "accent": {
+        "$value": "{base.color.copperText}",
+        "$description": "進めるボタンの銅の文字"
+      },
+      "on-solid": {
+        "$value": "{base.color.white}",
+        "$description": "背景に敷いた銅に載せる白文字"
+      }
+    },
+    "accent": {
+      "default": {
+        "$value": "{base.color.copper}",
+        "$description": "選択の棒、つまみの満たした側、目印の帯"
+      },
+      "solid": {
+        "$value": "{base.color.copperSolid}",
+        "$description": "背景に敷く銅"
+      },
+      "solid-hover": {
+        "$value": "{base.color.copperSolidHover}",
+        "$description": "背景に敷く銅のホバー（暗くする）"
+      }
+    },
+    "commit": {
+      "solid": {
+        "$value": "{base.color.sand}",
+        "$description": "確定のボタンの背景。暗い文字を載せる"
+      },
+      "solid-hover": {
+        "$value": "{base.color.sandHover}",
+        "$description": "確定のボタンのホバー（明るくする）"
       }
     },
     "border": {
+      "weak": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "hex": "#ffffff",
+          "alpha": 0.06
+        },
+        "$description": "弱い区切り（$stroke-weak）"
+      },
       "default": {
-        "$value": "{base.color.gray.600}",
-        "$description": "仮：入力欄や操作部品の境界線（3:1 の対象）"
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "hex": "#ffffff",
+          "alpha": 0.1
+        },
+        "$description": "枠。打つ欄と中立のボタン（$stroke）"
+      },
+      "strong": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "hex": "#ffffff",
+          "alpha": 0.16
+        },
+        "$description": "強い枠（$stroke-strong）"
+      }
+    },
+    "feedback": {
+      "$description": "意味色。tier は深刻度ではなく「復帰に何が要るか」（製品の ADR-0004）。tier の区別を色だけに持たせない",
+      "info": {
+        "default": {
+          "$value": "{base.color.info}",
+          "$description": "伝えるだけ（$color-info）"
+        },
+        "surface": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.1333,
+              0.1647,
+              0.1765
+            ],
+            "hex": "#222a2d"
+          },
+          "$description": "失敗を伝える箱の背景。不透明（$surface-info）"
+        }
+      },
+      "warning": {
+        "default": {
+          "$value": "{base.color.warning}",
+          "$description": "再試行で直る（$color-warning）"
+        },
+        "surface": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.149,
+              0.1647,
+              0.1569
+            ],
+            "hex": "#262a28"
+          },
+          "$description": "失敗を伝える箱の背景。不透明（$surface-warning）"
+        }
+      },
+      "danger": {
+        "default": {
+          "$value": "{base.color.danger}",
+          "$description": "別の操作が要る。危険な操作の確認も（$color-danger）"
+        },
+        "surface": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.1451,
+              0.1529,
+              0.1569
+            ],
+            "hex": "#252728"
+          },
+          "$description": "失敗を伝える箱の背景。不透明（$surface-danger）"
+        },
+        "solid": {
+          "$value": "{base.color.dangerSolid}",
+          "$description": "背景に敷く危険色。暗い文字 4.92:1（$color-danger-solid）"
+        },
+        "solid-hover": {
+          "$value": "{base.color.dangerSolidHover}",
+          "$description": "背景に敷く危険色のホバー。暗い文字 6.10:1。暗い文字なので明るくする（$color-danger-solid-hover）"
+        },
+        "text": {
+          "$value": "{base.color.dangerText}",
+          "$description": "暗い背景に載せる危険色の文字。#1c2325 で 5.66:1（$color-danger-text）"
+        }
+      },
+      "fatal": {
+        "default": {
+          "$value": "{base.color.fatal}",
+          "$description": "アプリ再起動（$color-fatal）"
+        },
+        "surface": {
+          "$value": {
+            "colorSpace": "srgb",
+            "components": [
+              0.1373,
+              0.1451,
+              0.1529
+            ],
+            "hex": "#232527"
+          },
+          "$description": "失敗を伝える箱の背景。不透明（$surface-fatal）"
+        },
+        "text": {
+          "$value": "{base.color.fatalText}",
+          "$description": "暗い背景に載せる fatal の文字。#1c2325 で 5.27:1（$color-fatal-text）"
+        }
       }
     }
   },
   "focus": {
-    "$description": "固定（変更不可）：フォーカス表示。明暗2色の二重リングで、どの背景でもどちらかが 3:1 以上になる",
     "ring": {
       "color": {
         "$type": "color",
-        "inner": {
-          "$value": "{base.color.focus.light}",
-          "$description": "固定（変更不可）：要素に接する明るい縁",
-          "$extensions": {
-            "local.design-system": {
-              "locked": true
-            }
-          }
-        },
-        "outer": {
-          "$value": "{base.color.focus.dark}",
-          "$description": "固定（変更不可）：外側の暗いアウトライン",
-          "$extensions": {
-            "local.design-system": {
-              "locked": true
-            }
-          }
-        }
+        "$value": "{base.color.copperText}",
+        "$description": "フォーカスの銅のリング。全ての面で 3:1 以上（固定値。decisions/0003）"
       },
       "width": {
         "$type": "dimension",
@@ -67,12 +268,7 @@
           "value": 2,
           "unit": "px"
         },
-        "$description": "固定（変更不可）",
-        "$extensions": {
-          "local.design-system": {
-            "locked": true
-          }
-        }
+        "$description": "固定値"
       },
       "offset": {
         "$type": "dimension",
@@ -80,91 +276,186 @@
           "value": 2,
           "unit": "px"
         },
-        "$description": "固定（変更不可）",
-        "$extensions": {
-          "local.design-system": {
-            "locked": true
-          }
-        }
+        "$description": "固定値。枠の中で切れる部品は外側のコンテナに出す"
       }
     }
   },
   "space": {
     "$type": "dimension",
-    "$description": "仮：余白の段階（4px 基数）",
-    "0": {
+    "$description": "間隔。0.2rem 刻み（製品の ADR-0003）。同じ N の radius と同じ値",
+    "1": {
       "$value": {
-        "value": 0,
+        "value": 2,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $space-1"
     },
-    "050": {
+    "2": {
       "$value": {
         "value": 4,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $space-2"
     },
-    "100": {
+    "3": {
+      "$value": {
+        "value": 6,
+        "unit": "px"
+      },
+      "$description": "製品の $space-3"
+    },
+    "4": {
       "$value": {
         "value": 8,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $space-4"
     },
-    "150": {
+    "5": {
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "製品の $space-5"
+    },
+    "6": {
       "$value": {
         "value": 12,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $space-6"
     },
-    "200": {
+    "7": {
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "製品の $space-7"
+    },
+    "8": {
       "$value": {
         "value": 16,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $space-8"
     },
-    "300": {
+    "9": {
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      },
+      "$description": "製品の $space-9"
+    },
+    "10": {
+      "$value": {
+        "value": 20,
+        "unit": "px"
+      },
+      "$description": "製品の $space-10"
+    },
+    "11": {
+      "$value": {
+        "value": 22,
+        "unit": "px"
+      },
+      "$description": "製品の $space-11"
+    },
+    "12": {
       "$value": {
         "value": 24,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
-    },
-    "400": {
-      "$value": {
-        "value": 32,
-        "unit": "px"
-      },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $space-12"
     }
   },
   "radius": {
     "$type": "dimension",
-    "$description": "仮：角丸の段階",
-    "none": {
+    "$description": "角丸。外のサーフェスほど大きく、内側は1段階以上小さい",
+    "1": {
       "$value": {
-        "value": 0,
+        "value": 2,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $radius-1"
     },
-    "sm": {
+    "2": {
       "$value": {
         "value": 4,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $radius-2"
     },
-    "full": {
+    "3": {
       "$value": {
-        "value": 9999,
+        "value": 6,
         "unit": "px"
       },
-      "$description": "仮：本番の値はモード B で決める"
+      "$description": "製品の $radius-3"
+    },
+    "4": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "製品の $radius-4"
+    },
+    "5": {
+      "$value": {
+        "value": 10,
+        "unit": "px"
+      },
+      "$description": "製品の $radius-5"
+    },
+    "6": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "製品の $radius-6"
+    },
+    "7": {
+      "$value": {
+        "value": 14,
+        "unit": "px"
+      },
+      "$description": "製品の $radius-7"
+    },
+    "8": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      },
+      "$description": "製品の $radius-8"
+    },
+    "9": {
+      "$value": {
+        "value": 18,
+        "unit": "px"
+      },
+      "$description": "製品の $radius-9"
+    },
+    "pill": {
+      "$value": {
+        "value": 999,
+        "unit": "px"
+      },
+      "$description": "進捗の棒、丸ボタン列"
+    },
+    "row": {
+      "$value": "{radius.2}",
+      "$description": "行（ツリー、一覧、メニューの項目）、バッジ、チップ"
+    },
+    "control": {
+      "$value": "{radius.3}",
+      "$description": "押す・打つもの"
+    },
+    "surface": {
+      "$value": "{radius.4}",
+      "$description": "ドック、カード、ポップオーバー、メニュー"
+    },
+    "modal": {
+      "$value": "{radius.5}",
+      "$description": "モーダル"
     }
   },
   "font": {
@@ -173,63 +464,427 @@
       "sans": {
         "$value": [
           "system-ui",
+          "Hiragino Sans",
+          "Yu Gothic",
+          "Noto Sans JP",
           "sans-serif"
         ],
-        "$description": "仮：書体は未定。OS の標準書体で代用"
+        "$description": "本文"
+      },
+      "mono": {
+        "$value": [
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "Courier New",
+          "monospace"
+        ],
+        "$description": "読み筋と綴り"
       }
     },
     "weight": {
       "$type": "fontWeight",
+      "$description": "4段階。中間を作らない",
       "regular": {
         "$value": 400,
-        "$description": "仮：本番の値はモード B で決める"
+        "$description": "本文"
       },
-      "bold": {
+      "medium": {
+        "$value": 500,
+        "$description": "欄の名前、タブ"
+      },
+      "strong": {
+        "$value": 600,
+        "$description": "小見出し、ボタン、選ばれた行"
+      },
+      "title": {
         "$value": 700,
-        "$description": "仮：本番の値はモード B で決める"
+        "$description": "ダイアログとペインの題"
       }
     },
     "size": {
       "$type": "dimension",
-      "caption": {
+      "$description": "用途で選ぶ。サイズで選ばない",
+      "hint": {
+        "$value": {
+          "value": 11,
+          "unit": "px"
+        },
+        "$description": "注記、件数、バッジ"
+      },
+      "aux": {
+        "$value": {
+          "value": 12,
+          "unit": "px"
+        },
+        "$description": "説明文、副題、パス"
+      },
+      "body": {
+        "$value": {
+          "value": 13,
+          "unit": "px"
+        },
+        "$description": "本文とフォームのコントロール"
+      },
+      "lead": {
         "$value": {
           "value": 14,
           "unit": "px"
         },
-        "$description": "仮：補助の文字。下限 14px（固定の規則）"
+        "$description": "リード文、強調した本文、入力欄"
       },
-      "body": {
+      "section": {
         "$value": {
           "value": 16,
           "unit": "px"
         },
-        "$description": "仮：本文。下限 16px（固定の規則）"
+        "$description": "小見出し、カードの題"
       },
-      "lg": {
+      "title": {
         "$value": {
-          "value": 20,
+          "value": 18,
           "unit": "px"
         },
-        "$description": "仮：本番の値はモード B で決める"
+        "$description": "ダイアログ・ペインの題"
       },
-      "xl": {
+      "display": {
         "$value": {
           "value": 24,
           "unit": "px"
         },
-        "$description": "仮：本番の値はモード B で決める"
+        "$description": "画面の主題"
+      },
+      "hero": {
+        "$value": {
+          "value": 40,
+          "unit": "px"
+        },
+        "$description": "ガイド画面の導入"
       }
     },
     "lineHeight": {
       "$type": "number",
       "body": {
         "$value": 1.5,
-        "$description": "仮：本文の行間。下限 1.5（固定の規則）"
-      },
-      "heading": {
-        "$value": 1.3,
-        "$description": "仮：本番の値はモード B で決める"
+        "$description": "長い文（説明文、ノート）。表と一覧は詰めるので当てない（製品は行間を指定していない。decisions/0003）"
       }
+    }
+  },
+  "duration": {
+    "$type": "duration",
+    "$description": "動き。押す・開く・選ぶに応えるのは 3〜5",
+    "1": {
+      "$value": {
+        "value": 80,
+        "unit": "ms"
+      },
+      "$description": "製品の $duration-1"
+    },
+    "2": {
+      "$value": {
+        "value": 100,
+        "unit": "ms"
+      },
+      "$description": "製品の $duration-2"
+    },
+    "3": {
+      "$value": {
+        "value": 120,
+        "unit": "ms"
+      },
+      "$description": "製品の $duration-3"
+    },
+    "4": {
+      "$value": {
+        "value": 140,
+        "unit": "ms"
+      },
+      "$description": "製品の $duration-4"
+    },
+    "5": {
+      "$value": {
+        "value": 150,
+        "unit": "ms"
+      },
+      "$description": "製品の $duration-5"
+    },
+    "6": {
+      "$value": {
+        "value": 160,
+        "unit": "ms"
+      },
+      "$description": "製品の $duration-6"
+    },
+    "7": {
+      "$value": {
+        "value": 200,
+        "unit": "ms"
+      },
+      "$description": "製品の $duration-7"
+    }
+  },
+  "easing": {
+    "$type": "cubicBezier",
+    "default": {
+      "$value": [
+        0.25,
+        0.1,
+        0.25,
+        1
+      ],
+      "$description": "CSS の ease と同じ曲線"
+    }
+  },
+  "z": {
+    "$type": "number",
+    "$description": "重なり。離れたファイル同士で大小が意味を持つものだけ。通知はモーダルより上",
+    "status-detail": {
+      "$value": 5000,
+      "$description": "状態の詳細"
+    },
+    "titlebar": {
+      "$value": 9999,
+      "$description": "タイトルバー"
+    },
+    "modal": {
+      "$value": 9999,
+      "$description": "モーダル"
+    },
+    "notification": {
+      "$value": 10000,
+      "$description": "通知。下にすると overlay にぼかされ、クリックがモーダルを閉じる"
+    },
+    "error-fallback": {
+      "$value": 10001,
+      "$description": "描画の失敗の箱"
+    }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "$description": "浮き上がりの高さでなく、何が浮いているかで選ぶ",
+    "panel": {
+      "$value": [
+        {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "hex": "#000000",
+            "alpha": 0.24
+          },
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 1,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 2,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          },
+          "inset": false
+        },
+        {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "hex": "#000000",
+            "alpha": 0.18
+          },
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 10,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 24,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          },
+          "inset": false
+        }
+      ],
+      "$description": "パネル・カード"
+    },
+    "overlay": {
+      "$value": [
+        {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "hex": "#000000",
+            "alpha": 0.45
+          },
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 10,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 30,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          },
+          "inset": false
+        },
+        {
+          "color": {
+            "colorSpace": "srgb",
+            "components": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "hex": "#000000",
+            "alpha": 0.35
+          },
+          "offsetX": {
+            "value": 0,
+            "unit": "px"
+          },
+          "offsetY": {
+            "value": 2,
+            "unit": "px"
+          },
+          "blur": {
+            "value": 10,
+            "unit": "px"
+          },
+          "spread": {
+            "value": 0,
+            "unit": "px"
+          },
+          "inset": false
+        }
+      ],
+      "$description": "ポップオーバー・メニュー"
+    },
+    "press": {
+      "$value": {
+        "color": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hex": "#000000",
+          "alpha": 0.28
+        },
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 2,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 6,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        },
+        "inset": true
+      },
+      "$description": "押下"
+    },
+    "control": {
+      "$value": {
+        "color": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hex": "#000000",
+          "alpha": 0.22
+        },
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 4,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 8,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        },
+        "inset": false
+      },
+      "$description": "押せるもの。ホバーで浮かせる"
+    },
+    "control-press": {
+      "$value": {
+        "color": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hex": "#000000",
+          "alpha": 0.16
+        },
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 2,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 4,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        },
+        "inset": false
+      },
+      "$description": "押せるもの。押下で落とす"
     }
   }
 }

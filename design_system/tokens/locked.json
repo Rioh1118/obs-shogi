@@ -1,10 +1,7 @@
 {
-  "$comment": "固定値の正本。ここにある値と規則は brief やモード B でも変えない。変えるには ADR とユーザーの明示的な承認が要る。トークン側の $extensions は印にすぎず、照合はこのファイルを正とする。",
+  "$comment": "固定値の正本。ここにある値と規則は brief やモード B でも変えない。変えるには ADR とユーザーの明示的な承認が要る。製品に合わせて変えた経緯は decisions/0003。",
   "values": {
-    "base.color.focus.dark": "#000000",
-    "base.color.focus.light": "#ffffff",
-    "focus.ring.color.inner": "{base.color.focus.light}",
-    "focus.ring.color.outer": "{base.color.focus.dark}",
+    "focus.ring.color": "{base.color.copperText}",
     "focus.ring.width": "2px",
     "focus.ring.offset": "2px"
   },
@@ -12,25 +9,14 @@
     {
       "id": "body-font-size-min",
       "token": "font.size.body",
-      "min": "16px",
-      "source": "DADS の本文下限 / GOV.UK v6 の最小 16px"
-    },
-    {
-      "id": "caption-font-size-min",
-      "token": "font.size.caption",
-      "min": "14px",
-      "source": "補助文字の下限"
+      "min": "13px",
+      "source": "製品の本文（decisions/0003）。密度の高いデスクトップの研究アプリ"
     },
     {
       "id": "all-font-size-min",
       "group": "font.size",
-      "min": "14px"
-    },
-    {
-      "id": "body-line-height-min",
-      "token": "font.lineHeight.body",
-      "min": 1.5,
-      "source": "WCAG 1.4.12 の想定と DADS"
+      "min": "11px",
+      "source": "製品の注記・件数（decisions/0003）"
     },
     {
       "id": "contrast-text",

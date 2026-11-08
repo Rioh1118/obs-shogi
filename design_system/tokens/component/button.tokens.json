@@ -1,61 +1,61 @@
 {
   "button": {
-    "$description": "コンポーネントトークン（Primer の Component 層）。Button だけが参照する",
+    "$description": "コンポーネントトークン。Button だけが参照する。値の割り当ては仮（工程2の部品の移し替えで、製品の Button の高さ・余白を写す）",
     "color": {
       "$type": "color",
       "background": {
         "primary": {
-          "$value": "{color.background.emphasis}",
-          "$description": "仮"
+          "$value": "{color.commit.solid}",
+          "$description": "確定（primary）。砂色の背景"
         },
         "secondary": {
           "$value": "{color.background.default}",
-          "$description": "仮"
+          "$description": "中立（neutral）。仮：製品は背景を敷かない枠のボタン"
         }
       },
       "text": {
         "primary": {
           "$value": "{color.text.inverse}",
-          "$description": "仮"
+          "$description": "確定の文字"
         },
         "secondary": {
           "$value": "{color.text.default}",
-          "$description": "仮"
+          "$description": "中立の文字"
         }
       },
       "border": {
         "secondary": {
           "$value": "{color.border.default}",
-          "$description": "仮"
+          "$description": "中立の枠"
         }
       }
     },
     "space": {
       "$type": "dimension",
       "inline": {
-        "$value": "{space.200}",
+        "$value": "{space.6}",
         "$description": "仮"
       },
       "block": {
-        "$value": "{space.100}",
+        "$value": "{space.3}",
         "$description": "仮"
       }
     },
     "radius": {
       "$type": "dimension",
-      "$value": "{radius.sm}",
-      "$description": "仮"
+      "$value": "{radius.control}",
+      "$description": "押す・打つもの"
     },
     "font": {
       "size": {
         "$type": "dimension",
-        "$value": "{font.size.body}",
-        "$description": "仮"
+        "$value": "{font.size.aux}",
+        "$description": "押すものは aux"
       },
       "weight": {
         "$type": "fontWeight",
-        "$value": "{font.weight.bold}",
-        "$description": "仮"
+        "$value": "{font.weight.strong}",
+        "$description": "押すものは strong"
       }
     }
   }

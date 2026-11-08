@@ -42,7 +42,7 @@
 
 ## 固定値
 
-design_system/tokens/locked.json が正本。フォーカス表示（明暗2色の二重リング、2px、オフセット 2px）、文字サイズの下限（本文 16px、補助 14px）、本文の行間 1.5 以上、コントラスト（文字 4.5:1、UI 部品 3:1）。変えるには ADR とユーザーの明示的な承認が要る。トークン側の `$extensions["local.design-system"].locked` は印で、照合は locked.json を正とする。
+design_system/tokens/locked.json が正本。フォーカス表示（銅の1本のリング、2px、オフセット 2px）、文字サイズの下限（本文 13px、全体 11px）、コントラスト（文字 4.5:1、UI 部品 3:1）。変えるには ADR とユーザーの明示的な承認が要る。トークン側の `$extensions["local.design-system"].locked` は印で、照合は locked.json を正とする。
 
 ## トークンの約束
 

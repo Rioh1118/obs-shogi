@@ -28,13 +28,12 @@ export function genDesignMd() {
     colors[dashed(p)] = val(light, p);
     colorRows.push(`| \`${dashed(p)}\` | ${t.description ?? ''} |`);
   }
-  colors.primary = '{colors.background-emphasis}';
+  colors.primary = '{colors.commit-solid}';
   for (const [name, set] of Object.entries(sets)) {
     if (name === 'light') continue;
     for (const [p] of set.tokens) if (p.startsWith('color.')) colors[`${name}-${dashed(p)}`] = val(set.tokens, p);
   }
-  colors['focus-ring-inner'] = val(light, 'focus.ring.color.inner');
-  colors['focus-ring-outer'] = val(light, 'focus.ring.color.outer');
+  colors['focus-ring'] = val(light, 'focus.ring.color');
 
   const typo = (size, lh) => ({
     fontFamily: val(light, 'font.family.sans'),
@@ -44,9 +43,10 @@ export function genDesignMd() {
   });
   const typography = {
     body: typo('body', 'body'),
-    caption: typo('caption', 'body'),
-    'heading-lg': { ...typo('lg', 'heading'), fontWeight: Number(val(light, 'font.weight.bold')) },
-    'heading-xl': { ...typo('xl', 'heading'), fontWeight: Number(val(light, 'font.weight.bold')) },
+    hint: typo('hint', 'body'),
+    aux: typo('aux', 'body'),
+    section: { ...typo('section', 'body'), fontWeight: Number(val(light, 'font.weight.strong')) },
+    title: { ...typo('title', 'body'), fontWeight: Number(val(light, 'font.weight.title')) },
   };
   const pick = (prefix) =>
     Object.fromEntries([...light].filter(([p]) => p.startsWith(prefix)).map(([p]) => [p.slice(prefix.length), val(light, p)]));
@@ -69,7 +69,7 @@ export function genDesignMd() {
       textColor: ref('button.color.text.primary'),
       rounded: ref('button.radius'),
       padding: `${val(light, 'button.space.block')} ${val(light, 'button.space.inline')}`,
-      typography: '{typography.body}',
+      typography: '{typography.aux}',
     },
     'button-secondary': {
       backgroundColor: ref('button.color.background.secondary'),
@@ -83,7 +83,7 @@ export function genDesignMd() {
   const front = {
     version: 'alpha',
     name: config.brandName,
-    description: `${config.brandName} design system — 構造のみ。値はすべて仮（brief 未記入）。`,
+    description: `${config.brandName} design system — 値は製品の今の画面から写した基準線（v0.1）。`,
     colors,
     typography,
     rounded: pick('radius.'),
@@ -105,35 +105,35 @@ ${stringify(front, { lineWidth: 0 }).trim()}
 
 ## Overview
 
-状態：v0.0.0。器だけを作った段階で、色・書体・密度などの値はすべて仮（グレーの階調と OS 標準書体）。性格と雰囲気は brief.md を書いたあと、SKILL.md のモード B で決める。
+状態：基準線。値は製品の今の画面（暗い緑黒の枠、砂色の文字、銅のアクセント）から写した。盤・駒台・駒は実物の画像で、トークンの対象外。洗練の方向は brief.md をもとにモード B で決める。
 
 ${overview}
 
 ## Colors
 
-色は「何に使うか」の名前（意味付けトークン）だけを使う。\`primary\` は仮に \`background-emphasis\`（主要な操作の背景）を指している。主色は未定。dark テーマの値は \`dark-\` で始まる名前で示す。テーマは HTML の \`data-theme\` 属性で切り替える。
+色は「何に使うか」の名前（意味付けトークン）だけを使う。\`primary\` は確定のボタンの砂色（\`commit-solid\`）を指す。テーマは暗い1つだけ。
 
 | 名前 | 役割 |
 | --- | --- |
 ${colorRows.join('\n')}
 
-フォーカスリング（\`focus-ring-inner\` / \`focus-ring-outer\`）は固定の値で、ブランド色とは独立している。変えない。
+フォーカスリング（\`focus-ring\`）は固定の値（銅の1本、2px）。変えない（decisions/0003）。
 
 ## Typography
 
-本文は 16px 以上、行間は 1.5 以上（固定の規則）。補助の文字（caption）も 14px を下回らない。書体は未定で、OS の標準書体で代用している。
+文字は用途で選ぶ（hint / aux / body / lead / section / title / display / hero）。本文は 13px 以上、全体は 11px 以上（固定の規則、decisions/0003）。太さは4段階。書体は端末の和文書体。数は等幅にする。
 
 ## Layout
 
-余白は 4px を基数にした段階（spacing）だけを使う。段階にない値が必要になったら、作らずに質問する。
+余白は 2px 刻みの段階（spacing 1〜12）だけを使う。同じ N の角丸と同じ値。段階にない値が必要になったら、作らずに質問する。
 
 ## Elevation & Depth
 
-未定（影を使うか、境界線で面を分けるかはモード B で決める）。
+面の暗さは sunken / default / canvas の3段。影は浮き上がりの高さでなく、何が浮いているか（panel / overlay / control）で選ぶ。
 
 ## Shapes
 
-角丸は rounded の段階（none / sm / full）だけを使う。
+角丸は役割で選ぶ（row / control / surface / modal / pill）。外のサーフェスほど大きく、内側は1段階以上小さい。
 
 ## Components
 

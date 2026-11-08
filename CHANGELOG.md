@@ -2,7 +2,17 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に倣い、版は semver（上げ方は CLAUDE.md）。
 
-## [Unreleased]
+## [0.1.0] - 2026-11-08
+
+### 変更（トークン名の削除・改名を含む）
+- 値を製品の今の画面（src/index.scss）から写した基準線にした。色は sunken / default / canvas の面、text の4段、accent・commit・feedback（info / warning / danger / fatal）、border の3段。文字は用途の8段（hint〜hero）、太さ4段、間隔と角丸は 2px 刻み、角丸の役割名、動き7段、重なり、影（decisions/0003）
+- テーマを1つにした。themes/dark.tokens.json を消した
+- 固定値を製品に合わせた：文字の下限を本文 13px・全体 11px、行間の下限を外した、フォーカスを銅の1本のリング（#c29a78）にした（ユーザーの承認。decisions/0003）
+- Button の見本・例・プレビュー・DESIGN.md の生成を新しいトークン名に合わせた。Button の部品トークンの割り当ては仮
+
+### 追加
+- 製品の規則を写した：principles.md（7原則と Do's and Don'ts）、content/（ボイスとトーン、表記、用語集）、components/_index.md（入力の種類から部品、並ぶ部品の共通の基準）、components/button.md（4つの役割、ホバーの向き）、patterns/（状態と失敗の見せ方、選択の見せ方、未決の問い）、references/product-references-2026-11.md
+
 
 ### 変更
 - 汎用の土台（upstream）から製品専用に複製した。ブランド名・スキル名・パッケージ名を lumen.config.json と手書きの文書で替えた。CSS の接頭辞は upstream に合わせて `lm` のまま

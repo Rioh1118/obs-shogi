@@ -3,7 +3,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--lm-space-100);
+  gap: var(--lm-space-4);
   padding: var(--lm-button-space-block) var(--lm-button-space-inline);
   border: var(--lm-focus-ring-width) solid transparent;
   border-radius: var(--lm-button-radius);
@@ -29,11 +29,10 @@
   text-decoration: underline;
 }
 
-/* フォーカス表示は固定（locked）。明暗2色の二重リング。変更しない */
+/* フォーカス表示は固定（locked）。銅の1本のリング。変更しない */
 .lm-button:focus-visible {
-  outline: var(--lm-focus-ring-width) solid var(--lm-focus-ring-color-outer);
+  outline: var(--lm-focus-ring-width) solid var(--lm-focus-ring-color);
   outline-offset: var(--lm-focus-ring-offset);
-  box-shadow: 0 0 0 var(--lm-focus-ring-offset) var(--lm-focus-ring-color-inner);
 }
 
 .lm-button:disabled {

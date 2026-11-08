@@ -49,18 +49,18 @@ export const usage = renderToStaticMarkup(<ButtonUsage />);
 const PAGE_CSS = `
 body { margin: 0; font-family: var(--${config.cssPrefix}-font-family-sans); font-size: var(--${config.cssPrefix}-font-size-body); line-height: var(--${config.cssPrefix}-font-line-height-body); background: var(--${config.cssPrefix}-color-background-default); color: var(--${config.cssPrefix}-color-text-default); }
 main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
-h1 { font-size: var(--${config.cssPrefix}-font-size-xl); line-height: var(--${config.cssPrefix}-font-line-height-heading); }
-h2 { font-size: var(--${config.cssPrefix}-font-size-lg); line-height: var(--${config.cssPrefix}-font-line-height-heading); margin-top: 32px; }
+h1 { font-size: var(--${config.cssPrefix}-font-size-display); }
+h2 { font-size: var(--${config.cssPrefix}-font-size-title); margin-top: 32px; }
 a { color: inherit; }
 .pv-note { color: var(--${config.cssPrefix}-color-text-subtle); }
 .pv-themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .pv-theme { padding: 16px; border: 1px solid var(--${config.cssPrefix}-color-border-default); background: var(--${config.cssPrefix}-color-background-default); color: var(--${config.cssPrefix}-color-text-default); }
 .pv-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-table { border-collapse: collapse; width: 100%; font-size: var(--${config.cssPrefix}-font-size-caption); }
+table { border-collapse: collapse; width: 100%; font-size: var(--${config.cssPrefix}-font-size-aux); }
 th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--${config.cssPrefix}-color-border-default); vertical-align: middle; }
 .pv-swatch { display: inline-block; width: 32px; height: 20px; border: 1px solid var(--${config.cssPrefix}-color-border-default); vertical-align: middle; }
 .pv-bar { display: inline-block; height: 12px; background: var(--${config.cssPrefix}-color-text-subtle); vertical-align: middle; }
-code { font-size: var(--${config.cssPrefix}-font-size-caption); }
+code { font-size: var(--${config.cssPrefix}-font-size-aux); }
 `;
 
 function page(title, body, extraCss = []) {

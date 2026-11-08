@@ -8,18 +8,18 @@
 <style>
 body { margin: 0; font-family: var(--lm-font-family-sans); font-size: var(--lm-font-size-body); line-height: var(--lm-font-line-height-body); background: var(--lm-color-background-default); color: var(--lm-color-text-default); }
 main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
-h1 { font-size: var(--lm-font-size-xl); line-height: var(--lm-font-line-height-heading); }
-h2 { font-size: var(--lm-font-size-lg); line-height: var(--lm-font-line-height-heading); margin-top: 32px; }
+h1 { font-size: var(--lm-font-size-display); }
+h2 { font-size: var(--lm-font-size-title); margin-top: 32px; }
 a { color: inherit; }
 .pv-note { color: var(--lm-color-text-subtle); }
 .pv-themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .pv-theme { padding: 16px; border: 1px solid var(--lm-color-border-default); background: var(--lm-color-background-default); color: var(--lm-color-text-default); }
 .pv-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-table { border-collapse: collapse; width: 100%; font-size: var(--lm-font-size-caption); }
+table { border-collapse: collapse; width: 100%; font-size: var(--lm-font-size-aux); }
 th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--lm-color-border-default); vertical-align: middle; }
 .pv-swatch { display: inline-block; width: 32px; height: 20px; border: 1px solid var(--lm-color-border-default); vertical-align: middle; }
 .pv-bar { display: inline-block; height: 12px; background: var(--lm-color-text-subtle); vertical-align: middle; }
-code { font-size: var(--lm-font-size-caption); }
+code { font-size: var(--lm-font-size-aux); }
 </style>
 </head>
 <body>
@@ -28,50 +28,95 @@ code { font-size: var(--lm-font-size-caption); }
 <h1>ObsShogi トークン一覧</h1>
 <p>正本は design_system/tokens/*.tokens.json。CSS 変数は dist/css/tokens.css。</p>
 <h2>色（テーマ別）</h2>
-<table><thead><tr><th>トークン</th><th>light</th><th>dark</th><th>説明</th></tr></thead><tbody><tr><td><code>color.text.default</code><br><code>--lm-color-text-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-default)"></span> <code>#212121</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-text-default)"></span> <code>#f5f5f5</code></td><td>仮：本文の文字</td></tr>
-<tr><td><code>color.text.subtle</code><br><code>--lm-color-text-subtle</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-subtle)"></span> <code>#616161</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-text-subtle)"></span> <code>#bdbdbd</code></td><td>仮：補足の文字</td></tr>
-<tr><td><code>color.text.inverse</code><br><code>--lm-color-text-inverse</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-inverse)"></span> <code>#ffffff</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-text-inverse)"></span> <code>#212121</code></td><td>仮：emphasis 背景の上の文字</td></tr>
-<tr><td><code>color.background.default</code><br><code>--lm-color-background-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-default)"></span> <code>#ffffff</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-background-default)"></span> <code>#212121</code></td><td>仮：ページの背景</td></tr>
-<tr><td><code>color.background.subtle</code><br><code>--lm-color-background-subtle</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-subtle)"></span> <code>#f5f5f5</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-background-subtle)"></span> <code>#424242</code></td><td>仮：区切った面の背景</td></tr>
-<tr><td><code>color.background.emphasis</code><br><code>--lm-color-background-emphasis</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-emphasis)"></span> <code>#212121</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-background-emphasis)"></span> <code>#f5f5f5</code></td><td>仮：主要な操作の背景</td></tr>
-<tr><td><code>color.border.default</code><br><code>--lm-color-border-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-border-default)"></span> <code>#757575</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-border-default)"></span> <code>#9e9e9e</code></td><td>仮：入力欄や操作部品の境界線（3:1 の対象）</td></tr>
-<tr><td><code>focus.ring.color.inner</code><br><code>--lm-focus-ring-color-inner</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-focus-ring-color-inner)"></span> <code>#ffffff</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-focus-ring-color-inner)"></span> <code>#ffffff</code></td><td>固定（変更不可）：要素に接する明るい縁</td></tr>
-<tr><td><code>focus.ring.color.outer</code><br><code>--lm-focus-ring-color-outer</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-focus-ring-color-outer)"></span> <code>#000000</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-focus-ring-color-outer)"></span> <code>#000000</code></td><td>固定（変更不可）：外側の暗いアウトライン</td></tr></tbody></table>
+<table><thead><tr><th>トークン</th><th>light</th><th>説明</th></tr></thead><tbody><tr><td><code>color.background.sunken</code><br><code>--lm-color-background-sunken</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-sunken)"></span> <code>#1c2325</code></td><td>いちばん深い面。サイドバー、暗いカード</td></tr>
+<tr><td><code>color.background.default</code><br><code>--lm-color-background-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-default)"></span> <code>#2c3639</code></td><td>本文の背景。ドック、ヘッダ、読むペイン</td></tr>
+<tr><td><code>color.background.canvas</code><br><code>--lm-color-background-canvas</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-canvas)"></span> <code>#3f4e4f</code></td><td>盤と棋譜を置く面</td></tr>
+<tr><td><code>color.surface.raised</code><br><code>--lm-color-surface-raised</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-surface-raised)"></span> <code>#3c4244</code></td><td>暗い背景を1段階持ち上げた面。意味色を持たず「いま触れない」を示す（$surface-raised）</td></tr>
+<tr><td><code>color.surface.field</code><br><code>--lm-color-surface-field</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-surface-field)"></span> <code>#000000</code></td><td>打つ欄の背景。半透明なのは載る背景の明るさを保つため（$surface-field）</td></tr>
+<tr><td><code>color.surface.overlay</code><br><code>--lm-color-surface-overlay</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-surface-overlay)"></span> <code>#1c2325</code></td><td>ツールチップ。半透明なので文字との比は走査で測れない（$surface-overlay）</td></tr>
+<tr><td><code>color.text.default</code><br><code>--lm-color-text-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-default)"></span> <code>#dcd7c9</code></td><td>本文</td></tr>
+<tr><td><code>color.text.subtle</code><br><code>--lm-color-text-subtle</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-subtle)"></span> <code>#b9b7ac</code></td><td>名前の添え書き・説明。本文の背景で 6.16:1。不透明に混ぜる（$color-text-muted）</td></tr>
+<tr><td><code>color.text.faint</code><br><code>--lm-color-text-faint</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-faint)"></span> <code>#9e9f97</code></td><td>無効・範囲の注記。本文の背景で 4.64:1。surface.raised の上には載せない（$color-text-faint）</td></tr>
+<tr><td><code>color.text.inverse</code><br><code>--lm-color-text-inverse</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-inverse)"></span> <code>#0e1110</code></td><td>明るい背景（確定・危険のボタン）に載せる文字</td></tr>
+<tr><td><code>color.text.accent</code><br><code>--lm-color-text-accent</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-accent)"></span> <code>#c29a78</code></td><td>進めるボタンの銅の文字</td></tr>
+<tr><td><code>color.text.on-solid</code><br><code>--lm-color-text-on-solid</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-on-solid)"></span> <code>#ffffff</code></td><td>背景に敷いた銅に載せる白文字</td></tr>
+<tr><td><code>color.accent.default</code><br><code>--lm-color-accent-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-accent-default)"></span> <code>#a27b5c</code></td><td>選択の棒、つまみの満たした側、目印の帯</td></tr>
+<tr><td><code>color.accent.solid</code><br><code>--lm-color-accent-solid</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-accent-solid)"></span> <code>#8f6b4e</code></td><td>背景に敷く銅</td></tr>
+<tr><td><code>color.accent.solid-hover</code><br><code>--lm-color-accent-solid-hover</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-accent-solid-hover)"></span> <code>#866549</code></td><td>背景に敷く銅のホバー（暗くする）</td></tr>
+<tr><td><code>color.commit.solid</code><br><code>--lm-color-commit-solid</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-commit-solid)"></span> <code>#dcd7c9</code></td><td>確定のボタンの背景。暗い文字を載せる</td></tr>
+<tr><td><code>color.commit.solid-hover</code><br><code>--lm-color-commit-solid-hover</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-commit-solid-hover)"></span> <code>#e8e4d9</code></td><td>確定のボタンのホバー（明るくする）</td></tr>
+<tr><td><code>color.border.weak</code><br><code>--lm-color-border-weak</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-border-weak)"></span> <code>#ffffff</code></td><td>弱い区切り（$stroke-weak）</td></tr>
+<tr><td><code>color.border.default</code><br><code>--lm-color-border-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-border-default)"></span> <code>#ffffff</code></td><td>枠。打つ欄と中立のボタン（$stroke）</td></tr>
+<tr><td><code>color.border.strong</code><br><code>--lm-color-border-strong</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-border-strong)"></span> <code>#ffffff</code></td><td>強い枠（$stroke-strong）</td></tr>
+<tr><td><code>color.feedback.info.default</code><br><code>--lm-color-feedback-info-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-info-default)"></span> <code>#7d93a3</code></td><td>伝えるだけ（$color-info）</td></tr>
+<tr><td><code>color.feedback.info.surface</code><br><code>--lm-color-feedback-info-surface</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-info-surface)"></span> <code>#222a2d</code></td><td>失敗を伝える箱の背景。不透明（$surface-info）</td></tr>
+<tr><td><code>color.feedback.warning.default</code><br><code>--lm-color-feedback-warning-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-warning-default)"></span> <code>#c8955a</code></td><td>再試行で直る（$color-warning）</td></tr>
+<tr><td><code>color.feedback.warning.surface</code><br><code>--lm-color-feedback-warning-surface</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-warning-surface)"></span> <code>#262a28</code></td><td>失敗を伝える箱の背景。不透明（$surface-warning）</td></tr>
+<tr><td><code>color.feedback.danger.default</code><br><code>--lm-color-feedback-danger-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-danger-default)"></span> <code>#b5645c</code></td><td>別の操作が要る。危険な操作の確認も（$color-danger）</td></tr>
+<tr><td><code>color.feedback.danger.surface</code><br><code>--lm-color-feedback-danger-surface</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-danger-surface)"></span> <code>#252728</code></td><td>失敗を伝える箱の背景。不透明（$surface-danger）</td></tr>
+<tr><td><code>color.feedback.danger.solid</code><br><code>--lm-color-feedback-danger-solid</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-danger-solid)"></span> <code>#b96d66</code></td><td>背景に敷く危険色。暗い文字 4.92:1（$color-danger-solid）</td></tr>
+<tr><td><code>color.feedback.danger.solid-hover</code><br><code>--lm-color-feedback-danger-solid-hover</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-danger-solid-hover)"></span> <code>#c3817b</code></td><td>背景に敷く危険色のホバー。暗い文字 6.10:1。暗い文字なので明るくする（$color-danger-solid-hover）</td></tr>
+<tr><td><code>color.feedback.danger.text</code><br><code>--lm-color-feedback-danger-text</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-danger-text)"></span> <code>#c98a83</code></td><td>暗い背景に載せる危険色の文字。#1c2325 で 5.66:1（$color-danger-text）</td></tr>
+<tr><td><code>color.feedback.fatal.default</code><br><code>--lm-color-feedback-fatal-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-fatal-default)"></span> <code>#8c4a44</code></td><td>アプリ再起動（$color-fatal）</td></tr>
+<tr><td><code>color.feedback.fatal.surface</code><br><code>--lm-color-feedback-fatal-surface</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-fatal-surface)"></span> <code>#232527</code></td><td>失敗を伝える箱の背景。不透明（$surface-fatal）</td></tr>
+<tr><td><code>color.feedback.fatal.text</code><br><code>--lm-color-feedback-fatal-text</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-feedback-fatal-text)"></span> <code>#c18580</code></td><td>暗い背景に載せる fatal の文字。#1c2325 で 5.27:1（$color-fatal-text）</td></tr>
+<tr><td><code>focus.ring.color</code><br><code>--lm-focus-ring-color</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-focus-ring-color)"></span> <code>#c29a78</code></td><td>フォーカスの銅のリング。全ての面で 3:1 以上（固定値。decisions/0003）</td></tr></tbody></table>
 <h2>コントラスト（contrast-pairs.json）</h2>
-<table><thead><tr><th>テーマ</th><th>前景</th><th>背景</th><th>種別</th><th>比</th><th>基準</th><th>結果</th></tr></thead><tbody><tr><td>light</td><td><code>color.text.default</code></td><td><code>color.background.default</code></td><td>text</td><td>16.10 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>color.text.default</code></td><td><code>color.background.subtle</code></td><td>text</td><td>14.77 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>color.text.subtle</code></td><td><code>color.background.default</code></td><td>text</td><td>6.19 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>color.text.subtle</code></td><td><code>color.background.subtle</code></td><td>text</td><td>5.68 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>color.text.inverse</code></td><td><code>color.background.emphasis</code></td><td>text</td><td>16.10 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>color.border.default</code></td><td><code>color.background.default</code></td><td>non-text</td><td>4.61 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>color.border.default</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>4.23 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.default</code></td><td>non-text</td><td>21.00 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>19.26 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>light</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.emphasis</code></td><td>non-text</td><td>16.10 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>color.text.default</code></td><td><code>color.background.default</code></td><td>text</td><td>14.77 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>color.text.default</code></td><td><code>color.background.subtle</code></td><td>text</td><td>9.22 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>color.text.subtle</code></td><td><code>color.background.default</code></td><td>text</td><td>8.57 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>color.text.subtle</code></td><td><code>color.background.subtle</code></td><td>text</td><td>5.35 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>color.text.inverse</code></td><td><code>color.background.emphasis</code></td><td>text</td><td>14.77 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>color.border.default</code></td><td><code>color.background.default</code></td><td>non-text</td><td>6.01 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>color.border.default</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>3.75 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.default</code></td><td>non-text</td><td>16.10 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>10.05 : 1</td><td>3 : 1</td><td>合格</td></tr>
-<tr><td>dark</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.emphasis</code></td><td>non-text</td><td>19.26 : 1</td><td>3 : 1</td><td>合格</td></tr></tbody></table>
-<h2>余白</h2><table><tbody><tr><td><code>space.0</code></td><td><code>0px</code></td><td><span class="pv-bar" style="width: var(--lm-space-0)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>space.100</code></td><td><code>8px</code></td><td><span class="pv-bar" style="width: var(--lm-space-100)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>space.150</code></td><td><code>12px</code></td><td><span class="pv-bar" style="width: var(--lm-space-150)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>space.200</code></td><td><code>16px</code></td><td><span class="pv-bar" style="width: var(--lm-space-200)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>space.300</code></td><td><code>24px</code></td><td><span class="pv-bar" style="width: var(--lm-space-300)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>space.400</code></td><td><code>32px</code></td><td><span class="pv-bar" style="width: var(--lm-space-400)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>space.050</code></td><td><code>4px</code></td><td><span class="pv-bar" style="width: var(--lm-space-050)"></span></td><td>仮：本番の値はモード B で決める</td></tr></tbody></table>
-<h2>角丸</h2><table><tbody><tr><td><code>radius.none</code></td><td><code>0px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-none)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>radius.sm</code></td><td><code>4px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-sm)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>radius.full</code></td><td><code>9999px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-full)"></span></td><td>仮：本番の値はモード B で決める</td></tr></tbody></table>
-<h2>文字サイズ</h2><table><tbody><tr><td><code>font.size.caption</code></td><td><code>14px</code></td><td><span style="font-size: var(--lm-font-size-caption)">あいうえお Aa</span></td><td>仮：補助の文字。下限 14px（固定の規則）</td></tr>
-<tr><td><code>font.size.body</code></td><td><code>16px</code></td><td><span style="font-size: var(--lm-font-size-body)">あいうえお Aa</span></td><td>仮：本文。下限 16px（固定の規則）</td></tr>
-<tr><td><code>font.size.lg</code></td><td><code>20px</code></td><td><span style="font-size: var(--lm-font-size-lg)">あいうえお Aa</span></td><td>仮：本番の値はモード B で決める</td></tr>
-<tr><td><code>font.size.xl</code></td><td><code>24px</code></td><td><span style="font-size: var(--lm-font-size-xl)">あいうえお Aa</span></td><td>仮：本番の値はモード B で決める</td></tr></tbody></table>
+<table><thead><tr><th>テーマ</th><th>前景</th><th>背景</th><th>種別</th><th>比</th><th>基準</th><th>結果</th></tr></thead><tbody><tr><td>light</td><td><code>color.text.default</code></td><td><code>color.background.default</code></td><td>text</td><td>8.62 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.default</code></td><td><code>color.background.sunken</code></td><td>text</td><td>11.10 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.default</code></td><td><code>color.background.canvas</code></td><td>text</td><td>6.05 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.subtle</code></td><td><code>color.background.default</code></td><td>text</td><td>6.16 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.faint</code></td><td><code>color.background.default</code></td><td>text</td><td>4.64 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.accent</code></td><td><code>color.background.default</code></td><td>text</td><td>4.83 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.accent</code></td><td><code>color.background.sunken</code></td><td>text</td><td>6.22 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.inverse</code></td><td><code>color.commit.solid</code></td><td>text</td><td>13.20 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.inverse</code></td><td><code>color.commit.solid-hover</code></td><td>text</td><td>14.94 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.inverse</code></td><td><code>color.feedback.danger.solid</code></td><td>text</td><td>4.92 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.inverse</code></td><td><code>color.feedback.danger.solid-hover</code></td><td>text</td><td>6.10 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.on-solid</code></td><td><code>color.accent.solid</code></td><td>text</td><td>4.79 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.on-solid</code></td><td><code>color.accent.solid-hover</code></td><td>text</td><td>5.29 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.feedback.danger.text</code></td><td><code>color.background.sunken</code></td><td>text</td><td>5.66 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.feedback.fatal.text</code></td><td><code>color.background.sunken</code></td><td>text</td><td>5.27 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.feedback.fatal.text</code></td><td><code>color.feedback.fatal.surface</code></td><td>text</td><td>5.08 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>button.color.text.primary</code></td><td><code>button.color.background.primary</code></td><td>text</td><td>13.20 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>button.color.text.secondary</code></td><td><code>button.color.background.secondary</code></td><td>text</td><td>8.62 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>focus.ring.color</code></td><td><code>color.background.default</code></td><td>non-text</td><td>4.83 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>focus.ring.color</code></td><td><code>color.background.sunken</code></td><td>non-text</td><td>6.22 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>focus.ring.color</code></td><td><code>color.background.canvas</code></td><td>non-text</td><td>3.39 : 1</td><td>3 : 1</td><td>合格</td></tr></tbody></table>
+<h2>余白</h2><table><tbody><tr><td><code>space.1</code></td><td><code>2px</code></td><td><span class="pv-bar" style="width: var(--lm-space-1)"></span></td><td>製品の $space-1</td></tr>
+<tr><td><code>space.2</code></td><td><code>4px</code></td><td><span class="pv-bar" style="width: var(--lm-space-2)"></span></td><td>製品の $space-2</td></tr>
+<tr><td><code>space.3</code></td><td><code>6px</code></td><td><span class="pv-bar" style="width: var(--lm-space-3)"></span></td><td>製品の $space-3</td></tr>
+<tr><td><code>space.4</code></td><td><code>8px</code></td><td><span class="pv-bar" style="width: var(--lm-space-4)"></span></td><td>製品の $space-4</td></tr>
+<tr><td><code>space.5</code></td><td><code>10px</code></td><td><span class="pv-bar" style="width: var(--lm-space-5)"></span></td><td>製品の $space-5</td></tr>
+<tr><td><code>space.6</code></td><td><code>12px</code></td><td><span class="pv-bar" style="width: var(--lm-space-6)"></span></td><td>製品の $space-6</td></tr>
+<tr><td><code>space.7</code></td><td><code>14px</code></td><td><span class="pv-bar" style="width: var(--lm-space-7)"></span></td><td>製品の $space-7</td></tr>
+<tr><td><code>space.8</code></td><td><code>16px</code></td><td><span class="pv-bar" style="width: var(--lm-space-8)"></span></td><td>製品の $space-8</td></tr>
+<tr><td><code>space.9</code></td><td><code>18px</code></td><td><span class="pv-bar" style="width: var(--lm-space-9)"></span></td><td>製品の $space-9</td></tr>
+<tr><td><code>space.10</code></td><td><code>20px</code></td><td><span class="pv-bar" style="width: var(--lm-space-10)"></span></td><td>製品の $space-10</td></tr>
+<tr><td><code>space.11</code></td><td><code>22px</code></td><td><span class="pv-bar" style="width: var(--lm-space-11)"></span></td><td>製品の $space-11</td></tr>
+<tr><td><code>space.12</code></td><td><code>24px</code></td><td><span class="pv-bar" style="width: var(--lm-space-12)"></span></td><td>製品の $space-12</td></tr></tbody></table>
+<h2>角丸</h2><table><tbody><tr><td><code>radius.1</code></td><td><code>2px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-1)"></span></td><td>製品の $radius-1</td></tr>
+<tr><td><code>radius.2</code></td><td><code>4px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-2)"></span></td><td>製品の $radius-2</td></tr>
+<tr><td><code>radius.3</code></td><td><code>6px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-3)"></span></td><td>製品の $radius-3</td></tr>
+<tr><td><code>radius.4</code></td><td><code>8px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-4)"></span></td><td>製品の $radius-4</td></tr>
+<tr><td><code>radius.5</code></td><td><code>10px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-5)"></span></td><td>製品の $radius-5</td></tr>
+<tr><td><code>radius.6</code></td><td><code>12px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-6)"></span></td><td>製品の $radius-6</td></tr>
+<tr><td><code>radius.7</code></td><td><code>14px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-7)"></span></td><td>製品の $radius-7</td></tr>
+<tr><td><code>radius.8</code></td><td><code>16px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-8)"></span></td><td>製品の $radius-8</td></tr>
+<tr><td><code>radius.9</code></td><td><code>18px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-9)"></span></td><td>製品の $radius-9</td></tr>
+<tr><td><code>radius.pill</code></td><td><code>999px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-pill)"></span></td><td>進捗の棒、丸ボタン列</td></tr>
+<tr><td><code>radius.row</code></td><td><code>4px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-row)"></span></td><td>行（ツリー、一覧、メニューの項目）、バッジ、チップ</td></tr>
+<tr><td><code>radius.control</code></td><td><code>6px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-control)"></span></td><td>押す・打つもの</td></tr>
+<tr><td><code>radius.surface</code></td><td><code>8px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-surface)"></span></td><td>ドック、カード、ポップオーバー、メニュー</td></tr>
+<tr><td><code>radius.modal</code></td><td><code>10px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-modal)"></span></td><td>モーダル</td></tr></tbody></table>
+<h2>文字サイズ</h2><table><tbody><tr><td><code>font.size.hint</code></td><td><code>11px</code></td><td><span style="font-size: var(--lm-font-size-hint)">あいうえお Aa</span></td><td>注記、件数、バッジ</td></tr>
+<tr><td><code>font.size.aux</code></td><td><code>12px</code></td><td><span style="font-size: var(--lm-font-size-aux)">あいうえお Aa</span></td><td>説明文、副題、パス</td></tr>
+<tr><td><code>font.size.body</code></td><td><code>13px</code></td><td><span style="font-size: var(--lm-font-size-body)">あいうえお Aa</span></td><td>本文とフォームのコントロール</td></tr>
+<tr><td><code>font.size.lead</code></td><td><code>14px</code></td><td><span style="font-size: var(--lm-font-size-lead)">あいうえお Aa</span></td><td>リード文、強調した本文、入力欄</td></tr>
+<tr><td><code>font.size.section</code></td><td><code>16px</code></td><td><span style="font-size: var(--lm-font-size-section)">あいうえお Aa</span></td><td>小見出し、カードの題</td></tr>
+<tr><td><code>font.size.title</code></td><td><code>18px</code></td><td><span style="font-size: var(--lm-font-size-title)">あいうえお Aa</span></td><td>ダイアログ・ペインの題</td></tr>
+<tr><td><code>font.size.display</code></td><td><code>24px</code></td><td><span style="font-size: var(--lm-font-size-display)">あいうえお Aa</span></td><td>画面の主題</td></tr>
+<tr><td><code>font.size.hero</code></td><td><code>40px</code></td><td><span style="font-size: var(--lm-font-size-hero)">あいうえお Aa</span></td><td>ガイド画面の導入</td></tr></tbody></table>
 </main>
 </body>
 </html>

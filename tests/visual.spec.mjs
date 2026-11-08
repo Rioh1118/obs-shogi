@@ -15,7 +15,7 @@ for (const name of pages) {
   });
 }
 
-test('Button のフォーカス表示（固定の二重リング）', async ({ page }) => {
+test('Button のフォーカス表示（固定の銅のリング）', async ({ page }) => {
   await page.goto(pathToFileURL(path.resolve('preview', 'button.html')).href);
   await page.keyboard.press('Tab'); // ナビゲーションのリンク
   await page.locator('[data-theme="dark"] .lm-button--primary').first().focus();

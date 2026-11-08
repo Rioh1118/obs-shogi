@@ -1,6 +1,6 @@
 {
   "name": "obs-shogi-ds",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Design system source of truth + Claude Code skill (structure only; values are provisional)",
   "type": "module",

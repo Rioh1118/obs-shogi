@@ -1,8 +1,8 @@
 /* 良い例：余白はトークンだけで指定する */
 .lm-example-actions {
   display: flex;
-  gap: var(--lm-space-200);
-  padding: var(--lm-space-300);
+  gap: var(--lm-space-8);
+  padding: var(--lm-space-12);
   background-color: var(--lm-color-background-default);
   color: var(--lm-color-text-default);
 }
