@@ -9,6 +9,8 @@ lerna-debug.log*
 
 node_modules
 dist
+# デザインシステムの生成物は製品が読むのでコミットする（design-system/CLAUDE.md「正本と生成物」）
+!design-system/dist/
 dist-ssr
 *.local
 
