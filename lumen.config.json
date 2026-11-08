@@ -1,0 +1,9 @@
+{
+  "$comment": "ブランド名はこのファイルの brandName だけに書く。SKILL.md の frontmatter と生成物（dist/、preview/、DESIGN.md）は ds:build がここから作る。手書きの文書には書かない（ds:check が検出する）。",
+  "brandName": "Lumen",
+  "skillName": "lumen-design-system",
+  "packageName": "lumen-ds",
+  "cssPrefix": "lm",
+  "tokenExtensionKey": "local.design-system",
+  "skillDescriptionTemplate": "{brandName} デザインシステム（トークン、コンポーネント、パターン、文言）を適用・保守する。{brandName} を採用したプロジェクト（CLAUDE.md で指定がある）で画面・コンポーネント・CSS・画面上の文言を作る／直すとき、またはこのデザインシステム自体の方向性を探る・更新するよう頼まれたときに使う。Use when building or editing UI, CSS, or on-screen copy in a project that adopts the {brandName} design system, or when asked to explore or update that design system. 別ブランドの UI、バックエンド、データ処理、UI を含まない作業には使わない。"
+}

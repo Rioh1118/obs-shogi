@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>トークン — Lumen preview</title>
+<link rel="stylesheet" href="assets/tokens.css">
+<style>
+body { margin: 0; font-family: var(--lm-font-family-sans); font-size: var(--lm-font-size-body); line-height: var(--lm-font-line-height-body); background: var(--lm-color-background-default); color: var(--lm-color-text-default); }
+main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: var(--lm-font-size-xl); line-height: var(--lm-font-line-height-heading); }
+h2 { font-size: var(--lm-font-size-lg); line-height: var(--lm-font-line-height-heading); margin-top: 32px; }
+a { color: inherit; }
+.pv-note { color: var(--lm-color-text-subtle); }
+.pv-themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.pv-theme { padding: 16px; border: 1px solid var(--lm-color-border-default); background: var(--lm-color-background-default); color: var(--lm-color-text-default); }
+.pv-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+table { border-collapse: collapse; width: 100%; font-size: var(--lm-font-size-caption); }
+th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--lm-color-border-default); vertical-align: middle; }
+.pv-swatch { display: inline-block; width: 32px; height: 20px; border: 1px solid var(--lm-color-border-default); vertical-align: middle; }
+.pv-bar { display: inline-block; height: 12px; background: var(--lm-color-text-subtle); vertical-align: middle; }
+code { font-size: var(--lm-font-size-caption); }
+</style>
+</head>
+<body>
+<main>
+<p class="pv-note">生成物（npm run ds:build）。値はすべて仮。 <a href="index.html">トークン</a> · <a href="button.html">Button</a> · <a href="examples.html">良い例</a></p>
+<h1>Lumen トークン一覧</h1>
+<p>正本は design_system/tokens/*.tokens.json。CSS 変数は dist/css/tokens.css。</p>
+<h2>色（テーマ別）</h2>
+<table><thead><tr><th>トークン</th><th>light</th><th>dark</th><th>説明</th></tr></thead><tbody><tr><td><code>color.text.default</code><br><code>--lm-color-text-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-default)"></span> <code>#212121</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-text-default)"></span> <code>#f5f5f5</code></td><td>仮：本文の文字</td></tr>
+<tr><td><code>color.text.subtle</code><br><code>--lm-color-text-subtle</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-subtle)"></span> <code>#616161</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-text-subtle)"></span> <code>#bdbdbd</code></td><td>仮：補足の文字</td></tr>
+<tr><td><code>color.text.inverse</code><br><code>--lm-color-text-inverse</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-text-inverse)"></span> <code>#ffffff</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-text-inverse)"></span> <code>#212121</code></td><td>仮：emphasis 背景の上の文字</td></tr>
+<tr><td><code>color.background.default</code><br><code>--lm-color-background-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-default)"></span> <code>#ffffff</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-background-default)"></span> <code>#212121</code></td><td>仮：ページの背景</td></tr>
+<tr><td><code>color.background.subtle</code><br><code>--lm-color-background-subtle</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-subtle)"></span> <code>#f5f5f5</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-background-subtle)"></span> <code>#424242</code></td><td>仮：区切った面の背景</td></tr>
+<tr><td><code>color.background.emphasis</code><br><code>--lm-color-background-emphasis</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-background-emphasis)"></span> <code>#212121</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-background-emphasis)"></span> <code>#f5f5f5</code></td><td>仮：主要な操作の背景</td></tr>
+<tr><td><code>color.border.default</code><br><code>--lm-color-border-default</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-color-border-default)"></span> <code>#757575</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-color-border-default)"></span> <code>#9e9e9e</code></td><td>仮：入力欄や操作部品の境界線（3:1 の対象）</td></tr>
+<tr><td><code>focus.ring.color.inner</code><br><code>--lm-focus-ring-color-inner</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-focus-ring-color-inner)"></span> <code>#ffffff</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-focus-ring-color-inner)"></span> <code>#ffffff</code></td><td>固定（変更不可）：要素に接する明るい縁</td></tr>
+<tr><td><code>focus.ring.color.outer</code><br><code>--lm-focus-ring-color-outer</code></td><td><span class="pv-swatch" data-theme="light" style="background: var(--lm-focus-ring-color-outer)"></span> <code>#000000</code></td><td><span class="pv-swatch" data-theme="dark" style="background: var(--lm-focus-ring-color-outer)"></span> <code>#000000</code></td><td>固定（変更不可）：外側の暗いアウトライン</td></tr></tbody></table>
+<h2>コントラスト（contrast-pairs.json）</h2>
+<table><thead><tr><th>テーマ</th><th>前景</th><th>背景</th><th>種別</th><th>比</th><th>基準</th><th>結果</th></tr></thead><tbody><tr><td>light</td><td><code>color.text.default</code></td><td><code>color.background.default</code></td><td>text</td><td>16.10 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.default</code></td><td><code>color.background.subtle</code></td><td>text</td><td>14.77 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.subtle</code></td><td><code>color.background.default</code></td><td>text</td><td>6.19 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.subtle</code></td><td><code>color.background.subtle</code></td><td>text</td><td>5.68 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.text.inverse</code></td><td><code>color.background.emphasis</code></td><td>text</td><td>16.10 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.border.default</code></td><td><code>color.background.default</code></td><td>non-text</td><td>4.61 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>color.border.default</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>4.23 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.default</code></td><td>non-text</td><td>21.00 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>19.26 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>light</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.emphasis</code></td><td>non-text</td><td>16.10 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>color.text.default</code></td><td><code>color.background.default</code></td><td>text</td><td>14.77 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>color.text.default</code></td><td><code>color.background.subtle</code></td><td>text</td><td>9.22 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>color.text.subtle</code></td><td><code>color.background.default</code></td><td>text</td><td>8.57 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>color.text.subtle</code></td><td><code>color.background.subtle</code></td><td>text</td><td>5.35 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>color.text.inverse</code></td><td><code>color.background.emphasis</code></td><td>text</td><td>14.77 : 1</td><td>4.5 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>color.border.default</code></td><td><code>color.background.default</code></td><td>non-text</td><td>6.01 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>color.border.default</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>3.75 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.default</code></td><td>non-text</td><td>16.10 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.subtle</code></td><td>non-text</td><td>10.05 : 1</td><td>3 : 1</td><td>合格</td></tr>
+<tr><td>dark</td><td><code>focus.ring.color.inner | focus.ring.color.outer</code></td><td><code>color.background.emphasis</code></td><td>non-text</td><td>19.26 : 1</td><td>3 : 1</td><td>合格</td></tr></tbody></table>
+<h2>余白</h2><table><tbody><tr><td><code>space.0</code></td><td><code>0px</code></td><td><span class="pv-bar" style="width: var(--lm-space-0)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>space.100</code></td><td><code>8px</code></td><td><span class="pv-bar" style="width: var(--lm-space-100)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>space.150</code></td><td><code>12px</code></td><td><span class="pv-bar" style="width: var(--lm-space-150)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>space.200</code></td><td><code>16px</code></td><td><span class="pv-bar" style="width: var(--lm-space-200)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>space.300</code></td><td><code>24px</code></td><td><span class="pv-bar" style="width: var(--lm-space-300)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>space.400</code></td><td><code>32px</code></td><td><span class="pv-bar" style="width: var(--lm-space-400)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>space.050</code></td><td><code>4px</code></td><td><span class="pv-bar" style="width: var(--lm-space-050)"></span></td><td>仮：本番の値はモード B で決める</td></tr></tbody></table>
+<h2>角丸</h2><table><tbody><tr><td><code>radius.none</code></td><td><code>0px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-none)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>radius.sm</code></td><td><code>4px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-sm)"></span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>radius.full</code></td><td><code>9999px</code></td><td><span class="pv-swatch" style="border-radius: var(--lm-radius-full)"></span></td><td>仮：本番の値はモード B で決める</td></tr></tbody></table>
+<h2>文字サイズ</h2><table><tbody><tr><td><code>font.size.caption</code></td><td><code>14px</code></td><td><span style="font-size: var(--lm-font-size-caption)">あいうえお Aa</span></td><td>仮：補助の文字。下限 14px（固定の規則）</td></tr>
+<tr><td><code>font.size.body</code></td><td><code>16px</code></td><td><span style="font-size: var(--lm-font-size-body)">あいうえお Aa</span></td><td>仮：本文。下限 16px（固定の規則）</td></tr>
+<tr><td><code>font.size.lg</code></td><td><code>20px</code></td><td><span style="font-size: var(--lm-font-size-lg)">あいうえお Aa</span></td><td>仮：本番の値はモード B で決める</td></tr>
+<tr><td><code>font.size.xl</code></td><td><code>24px</code></td><td><span style="font-size: var(--lm-font-size-xl)">あいうえお Aa</span></td><td>仮：本番の値はモード B で決める</td></tr></tbody></table>
+</main>
+</body>
+</html>

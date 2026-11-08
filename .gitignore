@@ -1,0 +1,6 @@
+node_modules/
+.cache-ds-*/
+test-results/
+playwright-report/
+evals/results/
+.DS_Store

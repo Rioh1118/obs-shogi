@@ -1,0 +1,62 @@
+{
+  "button": {
+    "$description": "コンポーネントトークン（Primer の Component 層）。Button だけが参照する",
+    "color": {
+      "$type": "color",
+      "background": {
+        "primary": {
+          "$value": "{color.background.emphasis}",
+          "$description": "仮"
+        },
+        "secondary": {
+          "$value": "{color.background.default}",
+          "$description": "仮"
+        }
+      },
+      "text": {
+        "primary": {
+          "$value": "{color.text.inverse}",
+          "$description": "仮"
+        },
+        "secondary": {
+          "$value": "{color.text.default}",
+          "$description": "仮"
+        }
+      },
+      "border": {
+        "secondary": {
+          "$value": "{color.border.default}",
+          "$description": "仮"
+        }
+      }
+    },
+    "space": {
+      "$type": "dimension",
+      "inline": {
+        "$value": "{space.200}",
+        "$description": "仮"
+      },
+      "block": {
+        "$value": "{space.100}",
+        "$description": "仮"
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.sm}",
+      "$description": "仮"
+    },
+    "font": {
+      "size": {
+        "$type": "dimension",
+        "$value": "{font.size.body}",
+        "$description": "仮"
+      },
+      "weight": {
+        "$type": "fontWeight",
+        "$value": "{font.weight.bold}",
+        "$description": "仮"
+      }
+    }
+  }
+}

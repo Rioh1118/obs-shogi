@@ -1,0 +1,235 @@
+{
+  "color": {
+    "$type": "color",
+    "$description": "意味付けの色（light テーマ）。dark は themes/dark.tokens.json で全項目を上書きする",
+    "text": {
+      "default": {
+        "$value": "{base.color.gray.900}",
+        "$description": "仮：本文の文字"
+      },
+      "subtle": {
+        "$value": "{base.color.gray.700}",
+        "$description": "仮：補足の文字"
+      },
+      "inverse": {
+        "$value": "{base.color.gray.0}",
+        "$description": "仮：emphasis 背景の上の文字"
+      }
+    },
+    "background": {
+      "default": {
+        "$value": "{base.color.gray.0}",
+        "$description": "仮：ページの背景"
+      },
+      "subtle": {
+        "$value": "{base.color.gray.50}",
+        "$description": "仮：区切った面の背景"
+      },
+      "emphasis": {
+        "$value": "{base.color.gray.900}",
+        "$description": "仮：主要な操作の背景"
+      }
+    },
+    "border": {
+      "default": {
+        "$value": "{base.color.gray.600}",
+        "$description": "仮：入力欄や操作部品の境界線（3:1 の対象）"
+      }
+    }
+  },
+  "focus": {
+    "$description": "固定（変更不可）：フォーカス表示。明暗2色の二重リングで、どの背景でもどちらかが 3:1 以上になる",
+    "ring": {
+      "color": {
+        "$type": "color",
+        "inner": {
+          "$value": "{base.color.focus.light}",
+          "$description": "固定（変更不可）：要素に接する明るい縁",
+          "$extensions": {
+            "local.design-system": {
+              "locked": true
+            }
+          }
+        },
+        "outer": {
+          "$value": "{base.color.focus.dark}",
+          "$description": "固定（変更不可）：外側の暗いアウトライン",
+          "$extensions": {
+            "local.design-system": {
+              "locked": true
+            }
+          }
+        }
+      },
+      "width": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        },
+        "$description": "固定（変更不可）",
+        "$extensions": {
+          "local.design-system": {
+            "locked": true
+          }
+        }
+      },
+      "offset": {
+        "$type": "dimension",
+        "$value": {
+          "value": 2,
+          "unit": "px"
+        },
+        "$description": "固定（変更不可）",
+        "$extensions": {
+          "local.design-system": {
+            "locked": true
+          }
+        }
+      }
+    }
+  },
+  "space": {
+    "$type": "dimension",
+    "$description": "仮：余白の段階（4px 基数）",
+    "0": {
+      "$value": {
+        "value": 0,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "050": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "100": {
+      "$value": {
+        "value": 8,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "150": {
+      "$value": {
+        "value": 12,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "200": {
+      "$value": {
+        "value": 16,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "300": {
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "400": {
+      "$value": {
+        "value": 32,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "$description": "仮：角丸の段階",
+    "none": {
+      "$value": {
+        "value": 0,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "sm": {
+      "$value": {
+        "value": 4,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    },
+    "full": {
+      "$value": {
+        "value": 9999,
+        "unit": "px"
+      },
+      "$description": "仮：本番の値はモード B で決める"
+    }
+  },
+  "font": {
+    "family": {
+      "$type": "fontFamily",
+      "sans": {
+        "$value": [
+          "system-ui",
+          "sans-serif"
+        ],
+        "$description": "仮：書体は未定。OS の標準書体で代用"
+      }
+    },
+    "weight": {
+      "$type": "fontWeight",
+      "regular": {
+        "$value": 400,
+        "$description": "仮：本番の値はモード B で決める"
+      },
+      "bold": {
+        "$value": 700,
+        "$description": "仮：本番の値はモード B で決める"
+      }
+    },
+    "size": {
+      "$type": "dimension",
+      "caption": {
+        "$value": {
+          "value": 14,
+          "unit": "px"
+        },
+        "$description": "仮：補助の文字。下限 14px（固定の規則）"
+      },
+      "body": {
+        "$value": {
+          "value": 16,
+          "unit": "px"
+        },
+        "$description": "仮：本文。下限 16px（固定の規則）"
+      },
+      "lg": {
+        "$value": {
+          "value": 20,
+          "unit": "px"
+        },
+        "$description": "仮：本番の値はモード B で決める"
+      },
+      "xl": {
+        "$value": {
+          "value": 24,
+          "unit": "px"
+        },
+        "$description": "仮：本番の値はモード B で決める"
+      }
+    },
+    "lineHeight": {
+      "$type": "number",
+      "body": {
+        "$value": 1.5,
+        "$description": "仮：本文の行間。下限 1.5（固定の規則）"
+      },
+      "heading": {
+        "$value": 1.3,
+        "$description": "仮：本番の値はモード B で決める"
+      }
+    }
+  }
+}

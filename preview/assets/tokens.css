@@ -1,0 +1,74 @@
+/**
+ * Lumen design tokens — 生成物。手で編集しない（npm run ds:build）。
+ * 正本: design_system/tokens/*.tokens.json（DTCG 2025.10）
+ * 「仮」と書かれた値は暫定。
+ */
+:root {
+  --lm-base-color-gray-0: #ffffff; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-50: #f5f5f5; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-100: #eeeeee; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-200: #e0e0e0; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-300: #bdbdbd; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-400: #9e9e9e; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-500: #8a8a8a; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-600: #757575; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-700: #616161; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-800: #424242; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-900: #212121; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-gray-1000: #000000; /** 仮：グレーの階調。本番の値はモード B で決める */
+  --lm-base-color-focus-dark: #000000; /** 固定（変更不可）：フォーカスリングの暗い色 */
+  --lm-base-color-focus-light: #ffffff; /** 固定（変更不可）：フォーカスリングの明るい色 */
+  --lm-focus-ring-width: 2px; /** 固定（変更不可） */
+  --lm-focus-ring-offset: 2px; /** 固定（変更不可） */
+  --lm-space-0: 0px; /** 仮：本番の値はモード B で決める */
+  --lm-space-100: 8px; /** 仮：本番の値はモード B で決める */
+  --lm-space-150: 12px; /** 仮：本番の値はモード B で決める */
+  --lm-space-200: 16px; /** 仮：本番の値はモード B で決める */
+  --lm-space-300: 24px; /** 仮：本番の値はモード B で決める */
+  --lm-space-400: 32px; /** 仮：本番の値はモード B で決める */
+  --lm-space-050: 4px; /** 仮：本番の値はモード B で決める */
+  --lm-radius-none: 0px; /** 仮：本番の値はモード B で決める */
+  --lm-radius-sm: 4px; /** 仮：本番の値はモード B で決める */
+  --lm-radius-full: 9999px; /** 仮：本番の値はモード B で決める */
+  --lm-font-family-sans: system-ui, sans-serif; /** 仮：書体は未定。OS の標準書体で代用 */
+  --lm-font-weight-regular: 400; /** 仮：本番の値はモード B で決める */
+  --lm-font-weight-bold: 700; /** 仮：本番の値はモード B で決める */
+  --lm-font-size-caption: 14px; /** 仮：補助の文字。下限 14px（固定の規則） */
+  --lm-font-size-body: 16px; /** 仮：本文。下限 16px（固定の規則） */
+  --lm-font-size-lg: 20px; /** 仮：本番の値はモード B で決める */
+  --lm-font-size-xl: 24px; /** 仮：本番の値はモード B で決める */
+  --lm-font-line-height-body: 1.5; /** 仮：本文の行間。下限 1.5（固定の規則） */
+  --lm-font-line-height-heading: 1.3; /** 仮：本番の値はモード B で決める */
+  --lm-focus-ring-color-inner: var(--lm-base-color-focus-light); /** 固定（変更不可）：要素に接する明るい縁 */
+  --lm-focus-ring-color-outer: var(--lm-base-color-focus-dark); /** 固定（変更不可）：外側の暗いアウトライン */
+}
+
+:root, [data-theme] {
+  --lm-button-space-inline: var(--lm-space-200); /** 仮 */
+  --lm-button-space-block: var(--lm-space-100); /** 仮 */
+  --lm-button-radius: var(--lm-radius-sm); /** 仮 */
+  --lm-button-font-size: var(--lm-font-size-body); /** 仮 */
+  --lm-button-font-weight: var(--lm-font-weight-bold); /** 仮 */
+  --lm-color-text-default: var(--lm-base-color-gray-900); /** 仮：本文の文字 */
+  --lm-color-text-subtle: var(--lm-base-color-gray-700); /** 仮：補足の文字 */
+  --lm-color-text-inverse: var(--lm-base-color-gray-0); /** 仮：emphasis 背景の上の文字 */
+  --lm-color-background-default: var(--lm-base-color-gray-0); /** 仮：ページの背景 */
+  --lm-color-background-subtle: var(--lm-base-color-gray-50); /** 仮：区切った面の背景 */
+  --lm-color-background-emphasis: var(--lm-base-color-gray-900); /** 仮：主要な操作の背景 */
+  --lm-color-border-default: var(--lm-base-color-gray-600); /** 仮：入力欄や操作部品の境界線（3:1 の対象） */
+  --lm-button-color-background-primary: var(--lm-color-background-emphasis); /** 仮 */
+  --lm-button-color-background-secondary: var(--lm-color-background-default); /** 仮 */
+  --lm-button-color-text-primary: var(--lm-color-text-inverse); /** 仮 */
+  --lm-button-color-text-secondary: var(--lm-color-text-default); /** 仮 */
+  --lm-button-color-border-secondary: var(--lm-color-border-default); /** 仮 */
+}
+
+[data-theme="dark"] {
+  --lm-color-text-default: var(--lm-base-color-gray-50); /** 仮 */
+  --lm-color-text-subtle: var(--lm-base-color-gray-300); /** 仮 */
+  --lm-color-text-inverse: var(--lm-base-color-gray-900); /** 仮 */
+  --lm-color-background-default: var(--lm-base-color-gray-900); /** 仮 */
+  --lm-color-background-subtle: var(--lm-base-color-gray-800); /** 仮 */
+  --lm-color-background-emphasis: var(--lm-base-color-gray-50); /** 仮 */
+  --lm-color-border-default: var(--lm-base-color-gray-400); /** 仮 */
+}

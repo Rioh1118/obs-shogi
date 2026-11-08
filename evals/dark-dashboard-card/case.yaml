@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: dark-dashboard-card
+expected_outcome: |
+  スキルを使い、data-theme="dark" でダークテーマのトークンに切り替えたカード。色はトークンの CSS 変数だけで、ダーク用の色を直書きしていない。
+context:
+  scaffold_script: place-files.sh

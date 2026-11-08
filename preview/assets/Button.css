@@ -1,0 +1,42 @@
+/* Button — 値はすべてトークン（CSS 変数）。直書きの色・px は stylelint で禁止 */
+.lm-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lm-space-100);
+  padding: var(--lm-button-space-block) var(--lm-button-space-inline);
+  border: var(--lm-focus-ring-width) solid transparent;
+  border-radius: var(--lm-button-radius);
+  font-family: var(--lm-font-family-sans);
+  font-size: var(--lm-button-font-size);
+  font-weight: var(--lm-button-font-weight);
+  line-height: var(--lm-font-line-height-body);
+  cursor: pointer;
+}
+
+.lm-button--primary {
+  background-color: var(--lm-button-color-background-primary);
+  color: var(--lm-button-color-text-primary);
+}
+
+.lm-button--secondary {
+  background-color: var(--lm-button-color-background-secondary);
+  color: var(--lm-button-color-text-secondary);
+  border-color: var(--lm-button-color-border-secondary);
+}
+
+.lm-button:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+/* フォーカス表示は固定（locked）。明暗2色の二重リング。変更しない */
+.lm-button:focus-visible {
+  outline: var(--lm-focus-ring-width) solid var(--lm-focus-ring-color-outer);
+  outline-offset: var(--lm-focus-ring-offset);
+  box-shadow: 0 0 0 var(--lm-focus-ring-offset) var(--lm-focus-ring-color-inner);
+}
+
+.lm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

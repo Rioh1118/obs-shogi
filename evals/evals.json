@@ -1,0 +1,73 @@
+{
+  "$comment": "ケースの一覧（索引）。正本は各ケースのフォルダ（evals/<name>/prompt.md・case.yaml・graders/）で、claude plugin eval が読む。skill-creator の旧形式（evals 配列）ではないので、ここにケースを書き足さない。human_review は機械採点しない、人（または別モデル）が見る項目。",
+  "skill_name": "lumen-design-system",
+  "cases": [
+    {
+      "name": "pricing-page",
+      "tags": [
+        "positive",
+        "screen"
+      ],
+      "graders": [
+        "01-uses-skill",
+        "02-no-hex-in-css",
+        "03-uses-tokens",
+        "04-imports-button",
+        "05-no-tailwind",
+        "06-runs-ds-check",
+        "07-plans-comparable"
+      ],
+      "human_review": [
+        "3プランの比較が一目で分かるか（人・別モデル）",
+        "ブランドの性格に合うか（brief 確定後）"
+      ]
+    },
+    {
+      "name": "settings-form-errors",
+      "tags": [
+        "positive",
+        "form"
+      ],
+      "graders": [
+        "01-uses-skill",
+        "02-no-hex-in-css",
+        "03-aria-error-link",
+        "04-aria-invalid",
+        "05-no-tailwind",
+        "06-flags-missing-danger-token"
+      ],
+      "human_review": [
+        "エラー文の口調が voice-and-tone に沿うか（voice 確定後）"
+      ]
+    },
+    {
+      "name": "dark-dashboard-card",
+      "tags": [
+        "positive",
+        "theme"
+      ],
+      "graders": [
+        "01-uses-skill",
+        "02-uses-data-theme-dark",
+        "03-no-hex-in-css",
+        "04-no-token-redefinition",
+        "05-no-tailwind"
+      ],
+      "human_review": [
+        "密度と余白がブランドの性格に合うか（brief 確定後）",
+        "SC 1.4.11 の 3:1 はトークン側の ds:check で担保"
+      ]
+    },
+    {
+      "name": "misfire-sql",
+      "tags": [
+        "negative"
+      ],
+      "graders": [
+        "01-skill-not-used",
+        "02-fixes-group-by"
+      ],
+      "human_review": []
+    }
+  ]
+}

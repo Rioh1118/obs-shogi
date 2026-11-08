@@ -1,0 +1,57 @@
+{
+  "$comment": "コントラスト検査の対象ペア。全テーマで検査する。kind=text は 4.5:1、non-text は 3:1（locked.json の rules）。anyOf は fg のどれか1つが基準を満たせば合格（二重リング用）。装飾だけの境界線はここに入れない。",
+  "pairs": [
+    {
+      "fg": [
+        "color.text.default"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.subtle"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.subtle"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.subtle"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.inverse"
+      ],
+      "bg": [
+        "color.background.emphasis"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.border.default"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.subtle"
+      ],
+      "kind": "non-text"
+    },
+    {
+      "fg": [
+        "focus.ring.color.inner",
+        "focus.ring.color.outer"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.subtle",
+        "color.background.emphasis"
+      ],
+      "kind": "non-text",
+      "anyOf": true
+    }
+  ]
+}
