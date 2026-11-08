@@ -48,7 +48,47 @@ export async function buildTokens({ tokensDir = TOKENS_DIR, outFile = path.join(
     await sdTheme.buildAllPlatforms();
     parts.push(fs.readFileSync(path.join(tmp, `3-${name}.css`), 'utf8'));
   }
+  // SCSS（製品が読む）。製品は rgba(<トークン>, 透明度) のように**コンパイル時に値を使う**ので、
+  // CSS 変数ではなく値そのものを出す。寸法は製品の決定（rem に統一、html の基準は 10px）に合わせ、
+  // 文字・間隔・角丸だけを 10px 基準の rem にする。pill は文字の大きさに従わないので px のまま
+  const scaleToRem = (t) => ['font', 'space', 'radius'].includes(t.path[0]) && t.path.at(-1) !== 'pill' && (t.$type ?? t.type) === 'dimension';
+  StyleDictionary.registerTransform({
+    name: 'lm/scale-px-to-rem',
+    type: 'value',
+    filter: scaleToRem,
+    transform: (t) => {
+      const v = t.$value ?? t.value;
+      const px = typeof v === 'object' ? v.value : parseFloat(v);
+      return `${px / 10}rem`;
+    },
+  });
+  StyleDictionary.registerTransform({
+    name: 'lm/dimension',
+    type: 'value',
+    filter: (t) => (t.$type ?? t.type) === 'dimension' && typeof (t.$value ?? t.value) === 'object',
+    transform: (t) => {
+      const v = t.$value ?? t.value;
+      return `${v.value}${v.unit}`;
+    },
+  });
+  const sdScss = new StyleDictionary({
+    source: baseFiles.filter((f) => !f.includes(`${path.sep}component${path.sep}`)),
+    log: { warnings: 'disabled', verbosity: 'silent' },
+    platforms: {
+      scss: {
+        transforms: ['name/kebab', 'lm/scale-px-to-rem', 'lm/dimension', 'time/seconds', 'color/css', 'fontFamily/css', 'cubicBezier/css', 'shadow/css/shorthand'],
+        prefix: config.cssPrefix,
+        buildPath: tmp + path.sep,
+        files: [{ destination: '_tokens.scss', format: 'scss/variables', options: { outputReferences: false, showFileHeader: false } }],
+      },
+    },
+  });
+  await sdScss.buildAllPlatforms();
+  const scss = fs.readFileSync(path.join(tmp, '_tokens.scss'), 'utf8');
   fs.rmSync(tmp, { recursive: true, force: true });
+  const scssOut = path.join(path.dirname(path.dirname(outFile)), 'scss/_tokens.scss');
+  fs.mkdirSync(path.dirname(scssOut), { recursive: true });
+  fs.writeFileSync(scssOut, `// ${config.brandName} design tokens — 生成物。手で編集しない（npm run ds:build）。\n// 正本: design_system/tokens/*.tokens.json。値そのもの（CSS 変数ではない）。寸法は 10px 基準の rem\n` + scss.trim() + '\n');
 
   const header = `/**\n * ${config.brandName} design tokens — 生成物。手で編集しない（npm run ds:build）。\n * 正本: design_system/tokens/*.tokens.json（DTCG 2025.10）\n * 「仮」と書かれた値は暫定。\n */\n`;
   fs.mkdirSync(path.dirname(outFile), { recursive: true });

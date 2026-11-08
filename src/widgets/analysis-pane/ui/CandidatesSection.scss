@@ -2,7 +2,7 @@
 
 // **入りきらない候補手にスクロールで届く。** ドックの高さはウィンドウに従うので、
 // 低いウィンドウでは必ずあふれる。
-// **バーは出さない** —— 全要素で消してあるのが意匠（`docs/spec/design-language.md`）
+// **バーは出さない** —— 全要素で消してあるのが意匠（`design-system/design_system/principles.md` の原則7）
 .candidates-section {
   height: 100%;
   min-height: 0;

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT, SRC, rustRoots, sourceFiles, tsFiles } from "./walk";
 
 /**
- * **画面の文字列に、`docs/spec/design-language.md` の「使わない語」を書かない**（ADR-0012）。
+ * **画面の文字列に、`design-system/design_system/content/glossary.md` の「使わない語」を書かない**（ADR-0012）。
  *
  * **語の一覧は表から引く**（写しにしない）。表は辞書形で書いてあるので、活用と別の意味の除外は
  * `SPELLINGS` が持ち、表と `SPELLINGS` の語の過不足はこの検査が赤にする。表に語を足した人は
@@ -125,7 +125,7 @@ const EXCEPTIONS: ReadonlyArray<{ word: string; file: string; text: string; why:
 
 /** 表の「使わない語」の列 */
 function bannedWords(): string[] {
-  const doc = readFileSync(`${REPO_ROOT}/docs/spec/design-language.md`, "utf8");
+  const doc = readFileSync(`${REPO_ROOT}/design-system/design_system/content/glossary.md`, "utf8");
   const lines = doc.split("\n");
   const words = lines.flatMap((line, i) => {
     if (!/^\|.*使わない語\s*\|$/.test(line)) return [];
@@ -254,7 +254,7 @@ describe("画面の文字列に使わない語を書かない", () => {
         offenses(rustScreenStrings(readFileSync(f, "utf8")), relative(REPO_ROOT, f)),
       ),
     ];
-    expect(found, "`docs/spec/design-language.md` の用語表の左の語へ揃えること").toEqual([]);
+    expect(found, "`design-system/design_system/content/glossary.md` の表の左の語へ揃えること").toEqual([]);
   });
 
   it("ボタンの語に「〜する」を付けない", () => {
@@ -264,7 +264,7 @@ describe("画面の文字列に使わない語を書かない", () => {
         .filter((text) => text.endsWith("する"))
         .map((text) => `${relative(REPO_ROOT, f)}: ${text}`),
     );
-    expect(found, "漢語のボタンは体言止めにすること（`design-language.md`「文の型」）").toEqual([]);
+    expect(found, "漢語のボタンは体言止めにすること（`design-system/design_system/content/voice-and-tone.md`「文の形」）").toEqual([]);
   });
 
   it("省略記号は `…` 1文字にする", () => {

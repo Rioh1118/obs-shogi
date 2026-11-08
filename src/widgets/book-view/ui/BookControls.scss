@@ -108,7 +108,7 @@
 
     transition: background-color index.$duration-3 index.$ease;
 
-    // 白文字を載せる背景なので、ホバーは暗くする（design-language 3）
+    // 白文字を載せる背景なので、ホバーは暗くする（`design-system/design_system/components/button.md` の「状態」）
     &:hover:not(:disabled) {
       background-color: rgba(index.$color-primary-black, 0.8);
     }

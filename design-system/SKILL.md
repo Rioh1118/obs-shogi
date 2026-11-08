@@ -34,22 +34,23 @@ description: ObsShogi デザインシステム（トークン、コンポーネ�
 
 ## 利用先での前提
 
-- 技術：React と素の CSS。Tailwind、CSS-in-JS、CSS Modules は使わない。
-- トークンは CSS 変数。利用先のエントリで `import 'obs-shogi-ds/tokens.css'` を1回だけ読み込む。
-- テーマは `<html data-theme="light">` か `data-theme="dark"`。一部だけ切り替えるときは、その要素に `data-theme` を付ける。
-- 部品は `import { Button } from 'obs-shogi-ds/react/Button'` で使う（導入は docs/consumer-claude-md.md）。
-- トークン名 `color.text.subtle` は CSS 変数 `--lm-color-text-subtle` になる。クラス名には `lm-` を付ける。
+利用先は製品のリポジトリ1つ（このディレクトリはその `design-system/`）。製品の実際に合わせる。
+
+- 技術：React と SCSS。Tailwind、CSS-in-JS、CSS Modules は使わない。部品の構造と書き方は製品の ADR-0014。
+- 値は製品の `src/index.scss` の名前（`index.$font-body`、`index.$color-text-muted` など）から選ぶ。`index.scss` は `dist/scss/_tokens.scss`（このデザインシステムの値）を製品の名前へ結ぶ層。部品の SCSS から `dist/` を直接読まない。
+- テーマは1つ（暗い枠）。`data-theme` は使わない。
+- 部品は製品の `src/shared/ui/` にある。`implementations/react/` は規則を確かめる見本で、製品は import しない。
+- 盤・駒台・駒は実物の画像で、トークンの対象外。
 
 ## モード A：使う
 
 1. DESIGN.md を読み、components/_index.md で使う部品を決める。
-2. 既存の部品を import して使う。生の `<button>` や、自作の似た部品を作らない。
-3. 色・余白・角丸・文字サイズ・行間には、意味付けトークンか部品トークンの CSS 変数（`var(--lm-*)`）だけを使う。hex、rgb()、色名、任意の px を直接書かない。`var(--lm-x, 13px)` のようなフォールバックも書かない。`--lm-base-*` は直接使わない。
-4. 部品のスタイルは、部品ごとの .css ファイルに書く。クラス名は `lm-` で始める。style 属性に値を直書きしない。
-5. 合う部品やトークンがないときは、作らずに止まる。「足りないもの」と「既存での代替案」を示し、ユーザーに確認する。たとえば危険や成功の色トークンはまだ無い。直書きで代用しない。
-6. 文言は content/voice-and-tone.md に従う（未記入の項目は、ユーザーに聞くか、既存画面の書き方に合わせる）。
-7. 完了前に検査を実行する。失敗したら直して再実行する。失敗したまま完了と報告しない。
-   `npm --prefix <skill> run ds:check -- --dir <利用先で変更したディレクトリの絶対パス>`
+2. 製品の既存の部品（`src/shared/ui/`）を使う。生の `<button>` や、自作の似た部品を作らない。
+3. 色・余白・角丸・文字サイズ・太さ・影・重なり・動きは、`index.scss` の名前だけを使う。hex、rgb()、色名、任意の px を直接書かない。製品のラチェット（ADR-0003）が見るのはスケールに載るプロパティだけなので、通っても規約に沿っているとは限らない。
+4. スタイルは部品ごとの .scss に書く。style 属性に値を直書きしない。
+5. 合う部品やトークンがないときは、作らずに止まる。「足りないもの」と「既存での代替案」を示し、モード C でこのデザインシステムに足してから使う。直書きで代用しない。
+6. 文言は content/（voice-and-tone、writing-rules、glossary）に従う。glossary の「使わない語」は製品の `screenVocabulary.test.ts` が止める。
+7. 完了前に検査を実行する。製品は `npm run verify`、このデザインシステムを変えたら `npm run verify:ds`。失敗したまま完了と報告しない。
 8. 画面をスクリーンショットで確認し、DESIGN.md の Don'ts に触れていないかを自分で点検する。合否は検査結果とユーザーが決めるので、自己評価で「問題なし」と断定しない。
 
 ## モード B：方向性を探る

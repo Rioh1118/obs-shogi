@@ -5,7 +5,7 @@ argument-hint: "[slug / 台帳のパス]"
 ---
 
 入力は `.claude/plans/<slug>/ledger.md` と、あれば `survey.md`。
-節の順は `docs/spec/README.md`、見た目は `docs/spec/design-language.md` が持つ。
+節の順は `docs/spec/README.md`、見た目と画面の文言はデザインシステム（`design-system/`）が持つ。
 
 ## 手順1: 骨格を見せる
 
