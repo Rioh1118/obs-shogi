@@ -1,7 +1,7 @@
 @use "@/index.scss" as index;
 
-// 対話の面は暗い側だけ（ADR-0005）。明暗の2系統は持たない。
-// 明るい面が要る画面が出たら、そのときに軸を足す
+// ダイアログのサーフェスは暗い側だけ（ADR-0005）。明暗の2系統は持たない。
+// 明るいサーフェスが要る画面が出たら、そのときに軸を足す
 
 .tags-input-wrapper {
   display: flex;
@@ -179,7 +179,7 @@
   outline: none;
   line-height: 1.5;
 
-  // 0.35 だと、この面（暗いカードの上の白 6%）に対して 2.86:1 で本文の基準を割る
+  // 0.35 だと、この背景（暗いカードの上の白 6%）に対して 2.86:1 で本文の基準を割る
   &::placeholder {
     color: rgba(index.$color-text-light-1, 0.6);
     font-style: italic;
@@ -226,8 +226,8 @@
 
 .tags-input__help {
   font-size: 1.1rem;
-  // 面を敷いた span の中でも本文の基準を満たす所で止める。
-  // 0.55 だと地では 5.36:1 だが、span の面の上で 4.45:1 に落ちる
+  // 背景を敷いた span の中でも本文の基準を満たす所で止める。
+  // 0.55 だと地では 5.36:1 だが、span の背景の上で 4.45:1 に落ちる
   color: rgba(index.$color-text-light-1, 0.65);
   font-style: italic;
   margin-left: 0.4rem;

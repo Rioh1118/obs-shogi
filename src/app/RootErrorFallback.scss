@@ -1,7 +1,7 @@
 @use "@/index.scss" as index;
 
-// 落ちた画面を窓いっぱいに敷く。`.app-root` の flex 配分に頼らないのは、
-// この器が出るときに何が残っているかが読めないため
+// 落ちた画面をウィンドウいっぱいに敷く。`.app-root` の flex 配分に頼らないのは、
+// このコンテナが出るときに何が残っているかが読めないため
 .root-error-fallback {
   position: fixed;
   inset: 0;
@@ -10,7 +10,7 @@
 
   &__chrome {
     // **本物の帯と同じ高さで出す（意匠）。** 掴める領域が落ちた瞬間に伸び縮みすると、
-    // 同じ窓の同じ場所だと分からなくなる。従属ではないので `TitleBar` は再利用しない
+    // 同じウィンドウの同じ場所だと分からなくなる。従属ではないので `TitleBar` は再利用しない
     height: index.$titlebar-height;
     flex-shrink: 0;
     display: flex;

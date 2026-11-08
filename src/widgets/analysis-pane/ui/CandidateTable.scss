@@ -1,14 +1,14 @@
 @use "@/index.scss" as index;
 
-// **入りきらない候補手にスクロールで届く。** ドックの高さは窓に従うので、
-// 低い窓では必ずあふれる。
+// **入りきらない候補手にスクロールで届く。** ドックの高さはウィンドウに従うので、
+// 低いウィンドウでは必ずあふれる。
 // **バーは出さない** —— 全要素で消してあるのが意匠（`docs/spec/design-language.md`）
 .candidate-table {
   height: 100%;
   min-height: 0;
   overflow-y: auto;
 
-  // **器と同じ面をここでも宣言する。** 下に並ぶ文字の色は、この面との比で決めてある
+  // **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
   background: index.$color-primary-dark;
   color: rgba(index.$color-text-primary, 0.92);
 
@@ -72,8 +72,8 @@
     box-shadow: index.$marker-bar;
   }
 
-  // **ホバーより後に置く。** 置かないと選んだ行にポインタを載せた瞬間だけ印が消える。
-  // 最善手の行も選べるので、**面の濃さだけで示さない** —— 0.13 と 0.18 の差は読めない
+  // **ホバーより後に置く。** 置かないと選んだ行にポインタを載せた瞬間だけ目印が消える。
+  // 最善手の行も選べるので、**背景の濃さだけで示さない** —— 0.13 と 0.18 の差は読めない
   &__row--selected td,
   &__row--selected:hover td {
     background: rgba(index.$color-secondary-dark, 0.24);

@@ -1,6 +1,6 @@
 @use "@/index.scss" as index;
 
-// 文字色をここで宣言しない。設定の面は勾配なので、載る色が確定しない
+// 文字色をここで宣言しない。設定の背景は勾配なので、載る色が確定しない
 // ——弱めたい行は `opacity` で下げる
 .displayTab {
   display: grid;
@@ -41,7 +41,7 @@
     cursor: pointer;
   }
 
-  // 見本の下の1行。**面が確定しないので色は敷かない** —— 器（`sui-radio__desc`）の
+  // 見本の下の1行。**背景が確定しないので色は敷かない** —— 親の `sui-radio__desc` の
   // 色をそのまま使い、字の大きさだけで弱める
   &__modeHint {
     display: block;

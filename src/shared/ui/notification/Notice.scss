@@ -1,13 +1,13 @@
 @use "@/index.scss" as index;
 
 // 通知の中身。トースト・バナー・モーダル・インラインが共有する（ADR-0004 決定4）。
-// 共通なのは段（色）と動作だけで、どこに置くかは載せる側が決める。
+// 共通なのは tier（色）と動作だけで、どこに置くかは載せる側が決める。
 .notice {
   display: flex;
   gap: index.$space-4;
   align-items: flex-start;
   padding: index.$space-4 index.$space-5;
-  // 段の印。4つの面どうしの差は最大でも 1.06:1 しか無いので、段はこの帯と記号が持つ
+  // tier の目印。4つの背景どうしの差は最大でも 1.06:1 しか無いので、tier はこの帯と記号が持つ
   border-left: 3px solid transparent;
 
   // 題の1行目と目線を揃える。記号の箱は文字より背が低い
@@ -35,7 +35,7 @@
     word-break: break-word;
   }
 
-  // 畳んだ件数のバッジ。出す条件は `Notification.count` の doc
+  // 重複をまとめた件数のバッジ。出す条件は `Notification.count` の doc
   &__count {
     flex: none;
     min-width: index.$space-10;
@@ -82,15 +82,15 @@
   }
 }
 
-// 段ごとの面と文字。**4つ書き下してある。**
+// tier ごとの背景と文字。**4つ書き下してある。**
 //
-// `@each` や `@mixin` で回すと `contrastRatchet` の走査器が段の色を解けず、
-// 24 対が丸ごと「測れなかった」枠へ移る（ループ変数も mixin の引数も
+// `@each` や `@mixin` で回すと `contrastRatchet` の走査器が tier の色を解けず、
+// 24 対が丸ごと「測れなかった」区分へ移る（ループ変数も mixin の引数も
 // `$name: 値` の宣言ではないので `collectVariables` が拾えない）。
 // **落ちるのは `UNMEASURED_COUNT` の側**なので気づけはするが、そこで数を上げて
-// 通すと、この面の比を誰も測っていない状態が緑のまま残る。書き下すぶんの重複はその代償。
+// 通すと、この背景の比を誰も測っていない状態が緑のまま残る。書き下すぶんの重複はその代償。
 //
-// 面が不透明なのは、載る場所（暗いカード・サイドバー・モーダルの中）ごとに
+// 背景が不透明なのは、載る場所（暗いカード・サイドバー・モーダルの中）ごとに
 // 実効値が変わるのを防ぐため。
 .notice--info {
   background: index.$surface-info;
@@ -173,7 +173,7 @@
   }
 }
 
-// 段の色は $color-fatal でなく $color-fatal-text。生のままだと 2.32:1 で、
+// tier の色は $color-fatal でなく $color-fatal-text。生のままだと 2.32:1 で、
 // 帯も記号も見えない（理由は index.scss）
 .notice--fatal {
   background: index.$surface-fatal;

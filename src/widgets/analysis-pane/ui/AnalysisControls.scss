@@ -1,9 +1,9 @@
 @use "@/index.scss" as index;
 
-// 操作列の段。
+// 操作列の行。
 //
-// **器と同じ面をここでも宣言する。** 下に並ぶ文字と記号の色は、この面との比で
-// 決めてある。器の側だけが面を持つと、その比をこのファイルの中で確かめられない
+// **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字と記号の色は、この背景との比で
+// 決めてある。ドックの側だけが背景を持つと、その比をこのファイルの中で確かめられない
 .analysis-controls {
   --hit: #{index.$control-hit};
   --r: #{index.$radius-2};
@@ -64,7 +64,7 @@
     opacity: 0.82;
   }
 
-  // 押せる語。**読む面の隣なので色で目立たせず、下線だけで押せることを言う**
+  // 押せる語。**読む内容の隣なので色で目立たせず、下線だけで押せることを言う**
   &__status-text--button {
     padding: 0;
     border: none;
@@ -107,7 +107,7 @@
   }
 
   // 押しっぱなしの状態は `aria-pressed` と記号の塗り（栞の `fill`）が示す。
-  // **色では示さない** —— この面の上で `$color-secondary-dark` は 4.5:1 を割る
+  // **色では示さない** —— この背景の上で `$color-secondary-dark` は 4.5:1 を割る
   &__iconBtn {
     width: var(--hit);
     height: var(--hit);
@@ -127,7 +127,7 @@
 
     transition: background-color index.$duration-3 index.$ease;
 
-    // 白文字を載せる面なので、ホバーは暗くする（design-language 3）
+    // 白文字を載せる背景なので、ホバーは暗くする（design-language 3）
     &:hover:not(:disabled) {
       background-color: rgba(index.$color-primary-black, 0.8);
     }
