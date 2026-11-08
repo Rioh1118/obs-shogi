@@ -114,3 +114,7 @@ button, input, select { font-family: var(--lm-font-family-sans); color: var(--lm
 .x-sidebar, .x-kifu { background-color: var(--lm-color-background-default); }
 .x-sidebar { border-right: 1px solid var(--lm-color-border-weak); }
 .x-kifu-row.x-selected { background-color: var(--lm-color-background-canvas); }
+
+/* この案だけ：今の製品の配置。サイドバーは縦いっぱい、ドックは盤と棋譜の列の下 */
+.x-sidebar { grid-row: 1 / span 2; }
+.x-body > .x-dock { grid-column: 2 / span 2; }
