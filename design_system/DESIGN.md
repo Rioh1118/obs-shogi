@@ -1,7 +1,7 @@
 ---
 version: alpha
-name: Lumen
-description: Lumen design system — 構造のみ。値はすべて仮（brief 未記入）。
+name: ObsShogi
+description: ObsShogi design system — 構造のみ。値はすべて仮（brief 未記入）。
 colors:
   text-default: "#212121"
   text-subtle: "#616161"
@@ -70,7 +70,7 @@ components:
 
 <!-- 生成物。手で編集しない。正本は design_system/tokens/*.tokens.json と principles.md。npm run ds:build で再生成する。 -->
 
-# Lumen Design System
+# ObsShogi Design System
 
 ## Overview
 

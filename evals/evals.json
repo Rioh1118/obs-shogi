@@ -1,6 +1,6 @@
 {
   "$comment": "ケースの一覧（索引）。正本は各ケースのフォルダ（evals/<name>/prompt.md・case.yaml・graders/）で、claude plugin eval が読む。skill-creator の旧形式（evals 配列）ではないので、ここにケースを書き足さない。human_review は機械採点しない、人（または別モデル）が見る項目。",
-  "skill_name": "lumen-design-system",
+  "skill_name": "obs-shogi-design-system",
   "cases": [
     {
       "name": "pricing-page",

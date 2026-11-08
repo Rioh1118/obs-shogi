@@ -1,6 +1,6 @@
 ---
-name: lumen-design-system
-description: Lumen デザインシステム（トークン、コンポーネント、パターン、文言）を適用・保守する。Lumen を採用したプロジェクト（CLAUDE.md で指定がある）で画面・コンポーネント・CSS・画面上の文言を作る／直すとき、またはこのデザインシステム自体の方向性を探る・更新するよう頼まれたときに使う。Use when building or editing UI, CSS, or on-screen copy in a project that adopts the Lumen design system, or when asked to explore or update that design system. 別ブランドの UI、バックエンド、データ処理、UI を含まない作業には使わない。
+name: obs-shogi-design-system
+description: ObsShogi デザインシステム（トークン、コンポーネント、パターン、文言）を適用・保守する。ObsShogi を採用したプロジェクト（CLAUDE.md で指定がある）で画面・コンポーネント・CSS・画面上の文言を作る／直すとき、またはこのデザインシステム自体の方向性を探る・更新するよう頼まれたときに使う。Use when building or editing UI, CSS, or on-screen copy in a project that adopts the ObsShogi design system, or when asked to explore or update that design system. 別ブランドの UI、バックエンド、データ処理、UI を含まない作業には使わない。
 ---
 
 # Design System（スキル本体）
@@ -13,7 +13,7 @@ description: Lumen デザインシステム（トークン、コンポーネン�
 - B. 方向性を探る：brief から3案を作る。初回と大改修のときだけ
 - C. 更新する：確定したデザインシステムを差分で変える
 
-以下のパスは、このスキルのディレクトリ（`<skill>`。通常は `~/.claude/skills/lumen-design-system`）からの相対パス。
+以下のパスは、このスキルのディレクトリ（`<skill>`。通常は `~/.claude/skills/obs-shogi-design-system`）からの相対パス。
 
 ## どのファイルをいつ読むか
 
@@ -35,9 +35,9 @@ description: Lumen デザインシステム（トークン、コンポーネン�
 ## 利用先での前提
 
 - 技術：React と素の CSS。Tailwind、CSS-in-JS、CSS Modules は使わない。
-- トークンは CSS 変数。利用先のエントリで `import 'lumen-ds/tokens.css'` を1回だけ読み込む。
+- トークンは CSS 変数。利用先のエントリで `import 'obs-shogi-ds/tokens.css'` を1回だけ読み込む。
 - テーマは `<html data-theme="light">` か `data-theme="dark"`。一部だけ切り替えるときは、その要素に `data-theme` を付ける。
-- 部品は `import { Button } from 'lumen-ds/react/Button'` で使う（導入は docs/consumer-claude-md.md）。
+- 部品は `import { Button } from 'obs-shogi-ds/react/Button'` で使う（導入は docs/consumer-claude-md.md）。
 - トークン名 `color.text.subtle` は CSS 変数 `--lm-color-text-subtle` になる。クラス名には `lm-` を付ける。
 
 ## モード A：使う

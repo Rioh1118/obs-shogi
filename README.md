@@ -15,7 +15,7 @@ npm install
 npx playwright install chromium
 npm run ds:build
 npm run ds:check
-ln -s "$PWD" ~/.claude/skills/lumen-design-system   # スキルとして使う
+ln -s "$PWD" ~/.claude/skills/obs-shogi-design-system   # スキルとして使う
 ```
 
 ## 次にやること
