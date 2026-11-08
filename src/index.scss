@@ -5,6 +5,8 @@
 $color-primary-light: ds.$lm-color-background-canvas;
 $color-primary-dark: ds.$lm-color-background-default;
 $color-primary-black: ds.$lm-color-background-sunken;
+// 盤と駒台を置くサーフェス。ペインのサーフェス（$color-primary-dark）から半段だけ沈める
+$color-stage: ds.$lm-color-background-stage;
 
 $color-secondary-light: ds.$lm-color-commit-solid;
 $color-secondary-dark: ds.$lm-color-accent-default;
