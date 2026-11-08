@@ -35,7 +35,7 @@ node $N word <候補> <類語> <類語>   # 語を含む宣言を場所つきで
 node $N verbs <範囲>                # その範囲の動詞の表
 ```
 
-1. `CONTEXT.md`、`docs/decisions/`、`docs/spec/design-language.md` の語を引く
+1. `CONTEXT.md`、`docs/decisions/`、`design-system/design_system/content/glossary.md` の語を引く
 2. 類語を3つ以上挙げて走らせる。読む系なら `get read load fetch find lookup resolve`
 3. **0件は「無い」の証拠にならない。** 宣言を拾えていない場合があるので `grep` で確かめる
 

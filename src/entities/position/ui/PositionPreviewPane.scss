@@ -24,7 +24,7 @@
   &__turn-tab {
     // **枠の内寸を1pxも使わない。** 盤の一辺は枠の内寸から決まるので、
     // 場所を取る置き方にすると盤が縮む。重なりはこの部品の中で閉じるので、
-    // 名前付きのレイヤ（`docs/spec/design-language.md` §4）ではなく局所の値でよい
+    // 名前付きのレイヤ（`design-system/design_system/tokens/semantic.tokens.json` の `z`）ではなく局所の値でよい
     position: absolute;
     // 枠の角にそのまま乗せる。1px ずらすのは枠線と重ねて1本に見せるため
     top: -1px;

@@ -51,7 +51,7 @@ export type UpdaterState = {
  * 手で押した確認の結果。設定の画面が読む。
  *
  * 更新が見つかってもカードは設定モーダルの下に隠れる（重なりの順は
- * `docs/spec/design-language.md`）ので、見つかったことは設定の中で言う。
+ * `design-system/design_system/tokens/semantic.tokens.json` の `z`）ので、見つかったことは設定の中で言う。
  * 取得と適用はカードが持つ。2箇所に置くと進捗も失敗も二重になる。
  */
 export type ManualCheckResult =

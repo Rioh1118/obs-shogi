@@ -1,9 +1,13 @@
-$color-primary-light: #3f4e4f;
-$color-primary-dark: #2c3639;
-$color-primary-black: #1c2325;
+// 値の正本はデザインシステム（`design-system/design_system/tokens/`）。ここは製品の名前を
+// その値へ結ぶ層で、値を書かない。DS に無いもの（画面の寸法、ウィンドウ操作の色など）だけが直値を持つ。
+@use "../design-system/dist/scss/tokens" as ds;
 
-$color-secondary-light: #dcd7c9;
-$color-secondary-dark: #a27b5c;
+$color-primary-light: ds.$lm-color-background-canvas;
+$color-primary-dark: ds.$lm-color-background-default;
+$color-primary-black: ds.$lm-color-background-sunken;
+
+$color-secondary-light: ds.$lm-color-commit-solid;
+$color-secondary-dark: ds.$lm-color-accent-default;
 $color-secondary-dark-2: #a57d5c;
 
 // 背景に敷く銅。$color-secondary-dark に白文字を置くと 3.80:1 で本文の基準を割る。
@@ -11,25 +15,25 @@ $color-secondary-dark-2: #a57d5c;
 //
 // ホバーは**暗くする**。白文字を載せる背景なので、明るくすると比が下がり、
 // 押そうとしている瞬間にいちばん読みにくくなる
-$color-secondary-solid: #8f6b4e; // 白文字 4.79:1
-$color-secondary-solid-hover: #866549; // 白文字 5.29:1
+$color-secondary-solid: ds.$lm-color-accent-solid; // 白文字 4.79:1
+$color-secondary-solid-hover: ds.$lm-color-accent-solid-hover; // 白文字 5.29:1
 // 確定のボタンの背景。砂色の文字と同じ素材にして、暗い文字を載せる（$color-primary-black で 11.1:1）
-$color-commit-solid: $color-secondary-light;
-$color-commit-solid-hover: #e8e4d9;
+$color-commit-solid: ds.$lm-color-commit-solid;
+$color-commit-solid-hover: ds.$lm-color-commit-solid-hover;
 // 進めるボタンの銅の文字。$color-secondary-dark は暗い背景で 4.2:1 なので1段階上げる（6.22:1）
-$color-accent-text: #c29a78;
+$color-accent-text: ds.$lm-color-text-accent;
 
 $color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
 
-$color-text-primary: #dcd7c9;
+$color-text-primary: ds.$lm-color-text-default;
 // 文字の濃さの段階。**不透明に混ぜる。** 半透明にすると載る背景ごとに比が変わる。
 // 混ぜる相手は本文の背景（$color-primary-dark）で、比は本文の基準 4.5:1 を見て決めた。
 // faint は $surface-raised の上で 4.03:1 に落ちるので、そこには載せない
-$color-text-muted: color-mix(in srgb, $color-text-primary 80%, $color-primary-dark); // 本文の背景で 6.16:1
-$color-text-faint: color-mix(in srgb, $color-text-primary 65%, $color-primary-dark); // 本文の背景で 4.64:1
+$color-text-muted: ds.$lm-color-text-subtle; // 本文の背景で 6.16:1
+$color-text-faint: ds.$lm-color-text-faint; // 本文の背景で 4.64:1
 
-$color-text-dark-1: #0e1110;
+$color-text-dark-1: ds.$lm-color-text-inverse;
 $color-text-dark-2: #3a3a3a;
 
 // ウィンドウ操作ボタンの3色。**パレットの外**で、OS のウィンドウの作法をなぞっている
@@ -50,10 +54,10 @@ $color-window-maximize: #28c840;
 //
 // 危険な操作の色はまだ全部が寄り切っていない。どこが何を使っているかは
 // CONTRIBUTING.md の「SCSS」節に一覧がある → issue #180
-$color-info: #7d93a3; // 伝えるだけ
-$color-warning: #c8955a; // 再試行で直る
-$color-danger: #b5645c; // 別の操作が要る。危険な操作の確認もここへ寄せる
-$color-fatal: #8c4a44; // アプリ再起動
+$color-info: ds.$lm-color-feedback-info-default; // 伝えるだけ
+$color-warning: ds.$lm-color-feedback-warning-default; // 再試行で直る
+$color-danger: ds.$lm-color-feedback-danger-default; // 別の操作が要る。危険な操作の確認もここへ寄せる
+$color-fatal: ds.$lm-color-feedback-fatal-default; // アプリ再起動
 
 // 背景に敷く危険色。$color-danger は枠線と薄い背景に残す（文字には $color-danger-text）。
 // 背景に敷いて $color-text-dark-1 を載せると 4.47:1 で本文の基準を割る。
@@ -61,11 +65,11 @@ $color-fatal: #8c4a44; // アプリ再起動
 //
 // ホバーは**明るくする**。暗い文字を載せる背景なので、明るくすると比が上がる
 // （向きの決め方は ADR-0005 決定2）
-$color-danger-solid: #b96d66; // $color-text-dark-1 で 4.92:1
-$color-danger-solid-hover: #c3817b; // $color-text-dark-1 で 6.10:1
+$color-danger-solid: ds.$lm-color-feedback-danger-solid; // $color-text-dark-1 で 4.92:1
+$color-danger-solid-hover: ds.$lm-color-feedback-danger-solid-hover; // $color-text-dark-1 で 6.10:1
 
 // 暗い背景の上に置く危険色の文字。$color-danger のままだと暗いカードで 3.75:1
-$color-danger-text: #c98a83; // 暗いカード（#1c2325）で 5.66:1
+$color-danger-text: ds.$lm-color-feedback-danger-text; // 暗いカード（#1c2325）で 5.66:1
 
 // 同じ理由で持ち上げた fatal。$color-fatal は暗いカード（#1c2325）で 2.41:1、
 // 自分の背景（$surface-fatal）の上では 2.32:1 しかなく、
@@ -74,49 +78,49 @@ $color-danger-text: #c98a83; // 暗いカード（#1c2325）で 5.66:1
 // **$color-danger-text と近い色になるのは避けられない。** 2つは色相が同じで
 // （どちらも 5deg 前後）明るさだけが違うので、暗い背景で基準まで持ち上げると寄る。
 // **tier の区別は色に持たせない**——記号と文言、そして出す動作（「アプリを再起動」）が持つ
-$color-fatal-text: #c18580; // 暗いカード（#1c2325）で 5.27:1、$surface-fatal の上で 5.07:1
+$color-fatal-text: ds.$lm-color-feedback-fatal-text; // 暗いカード（#1c2325）で 5.27:1、$surface-fatal の上で 5.07:1
 
 // 失敗を伝える箱の背景。**不透明**にするのは、載る場所（暗いカード・サイドバー・
 // ツリーの行）ごとに実効値が変わるのを防ぐため。tier は意味色で分ける。
 // 4つの tier をそろえて同じ式で作る。1つだけ作り方を変えると、どれが違うのかが読めなくなる
-$surface-info: color-mix(in srgb, $color-primary-black 94%, $color-info);
-$surface-warning: color-mix(in srgb, $color-primary-black 94%, $color-warning);
-$surface-danger: color-mix(in srgb, $color-primary-black 94%, $color-danger);
-$surface-fatal: color-mix(in srgb, $color-primary-black 94%, $color-fatal);
+$surface-info: ds.$lm-color-feedback-info-surface;
+$surface-warning: ds.$lm-color-feedback-warning-surface;
+$surface-danger: ds.$lm-color-feedback-danger-surface;
+$surface-fatal: ds.$lm-color-feedback-fatal-surface;
 
 // 暗い背景を1段階持ち上げた背景。意味色を持たず、「いま触れない」を示すのに使う。
 // **部品の中で百分率を書かない。** 段階が名前を持たないまま増えると、
 // どれが1段階上なのかコードから読めなくなる
-$surface-raised: color-mix(in srgb, $color-primary-black 86%, $color-white);
+$surface-raised: ds.$lm-color-surface-raised;
 
 // 打つ欄の背景。数・文字・選択が同じ値を見る。**半透明なのは載る背景の明るさを保つため**で、
 // 本文の背景（$color-primary-dark）と暗いカードのどちらの上でも欄として沈んで見える
-$surface-field: rgba(0, 0, 0, 0.18);
+$surface-field: ds.$lm-color-surface-field;
 
 // コンテナの上に浮かせるサーフェス（ツールチップ）。**半透明**なので、載る場所ごとに実効値が
 // 変わる。文字との比はコントラストの走査では測れない → #185
-$surface-overlay: color-mix(in srgb, $color-primary-black 88%, transparent);
+$surface-overlay: ds.$lm-color-surface-overlay;
 
 // 成功は置かない。通知する場面が1件も無いため（必要になったら足す）
 
 // font
 // 段階は用途で選ぶ。サイズで選ぶと段階の中で値が再び割れる（ADR-0003）
-$font-hint: 1.1rem; // 注記、件数、バッジ
-$font-aux: 1.2rem; // 説明文、副題、パス
-$font-body: 1.3rem; // 本文とフォームのコントロール。body の基準
-$font-lead: 1.4rem; // リード文、強調した本文、入力欄
-$font-section: 1.6rem; // 小見出し、カードの題
-$font-title: 1.8rem; // ダイアログ・ペインの題
-$font-display: 2.4rem; // 画面の主題
-$font-hero: 4rem; // ガイド画面の導入
+$font-hint: ds.$lm-font-size-hint; // 注記、件数、バッジ
+$font-aux: ds.$lm-font-size-aux; // 説明文、副題、パス
+$font-body: ds.$lm-font-size-body; // 本文とフォームのコントロール。body の基準
+$font-lead: ds.$lm-font-size-lead; // リード文、強調した本文、入力欄
+$font-section: ds.$lm-font-size-section; // 小見出し、カードの題
+$font-title: ds.$lm-font-size-title; // ダイアログ・ペインの題
+$font-display: ds.$lm-font-size-display; // 画面の主題
+$font-hero: ds.$lm-font-size-hero; // ガイド画面の導入
 
-// 太さの段階。**中間を作らない**（`docs/spec/design-language.md` の「文字の太さは4段階」）
-$weight-regular: 400; // 本文
-$weight-medium: 500; // 欄の名前、タブ
-$weight-strong: 600; // 小見出し、ボタン、選ばれた行
-$weight-title: 700; // ダイアログとペインの題
+// 太さの段階。**中間を作らない**（`design-system/design_system/tokens/semantic.tokens.json` の `font.weight`）
+$weight-regular: ds.$lm-font-weight-regular; // 本文
+$weight-medium: ds.$lm-font-weight-medium; // 欄の名前、タブ
+$weight-strong: ds.$lm-font-weight-strong; // 小見出し、ボタン、選ばれた行
+$weight-title: ds.$lm-font-weight-title; // ダイアログとペインの題
 
-$font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+$font-mono: ds.$lm-font-family-mono;
 
 // 日本語を含む本文の書体。**webfont は同梱していない**ので、ここに並ぶのは
 // OS が持っている綴りだけ。同梱しているのは Latin だけを描く3書体
@@ -125,52 +129,52 @@ $font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New"
 //
 // **総称名 `sans-serif` を引用符で囲まない。** 囲むと「`sans-serif` という名前の
 // 書体」を探す指定になり、見つからないので UA 既定（多くの環境で明朝）へ落ちる
-$font-sans: system-ui, "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+$font-sans: ds.$lm-font-family-sans;
 
 // space
 // 役割名を付けない。役割と寸法が一対一に対応しないため。
 // 0.2rem 刻みを 2.4rem まで欠けなく張る。段階を飛ばすと寄せ先が2つに割れる
-$space-1: 0.2rem;
-$space-2: 0.4rem;
-$space-3: 0.6rem;
-$space-4: 0.8rem;
-$space-5: 1rem;
-$space-6: 1.2rem;
-$space-7: 1.4rem;
-$space-8: 1.6rem;
-$space-9: 1.8rem;
-$space-10: 2rem;
-$space-11: 2.2rem;
-$space-12: 2.4rem;
+$space-1: ds.$lm-space-1;
+$space-2: ds.$lm-space-2;
+$space-3: ds.$lm-space-3;
+$space-4: ds.$lm-space-4;
+$space-5: ds.$lm-space-5;
+$space-6: ds.$lm-space-6;
+$space-7: ds.$lm-space-7;
+$space-8: ds.$lm-space-8;
+$space-9: ds.$lm-space-9;
+$space-10: ds.$lm-space-10;
+$space-11: ds.$lm-space-11;
+$space-12: ds.$lm-space-12;
 
 // radius
 // 間隔と同じ連番。**同じ N は同じ値**にしてある。
 // 途中から始めると $space-6 と $radius-6 が別の値になり、
 // どちらもトークン参照なのでラチェットもレビューも気づけない
-$radius-1: 0.2rem;
-$radius-2: 0.4rem;
-$radius-3: 0.6rem;
-$radius-4: 0.8rem;
-$radius-5: 1rem;
-$radius-6: 1.2rem;
-$radius-7: 1.4rem;
-$radius-8: 1.6rem;
-$radius-9: 1.8rem;
-$radius-pill: 999px; // 文字サイズに従属しないので rem 化しない
+$radius-1: ds.$lm-radius-1;
+$radius-2: ds.$lm-radius-2;
+$radius-3: ds.$lm-radius-3;
+$radius-4: ds.$lm-radius-4;
+$radius-5: ds.$lm-radius-5;
+$radius-6: ds.$lm-radius-6;
+$radius-7: ds.$lm-radius-7;
+$radius-8: ds.$lm-radius-8;
+$radius-9: ds.$lm-radius-9;
+$radius-pill: ds.$lm-radius-pill; // 文字サイズに従属しないので rem 化しない
 $radius-circle: 50%;
 
 // motion
 // 実測で8件以上ある値には段階を置く。段階を欠くと、たとえば 140ms が
 // 120 と 160 のどちらにも倒せてしまい、寄せ先が2つに割れる。
 // 件数はここに書かない。移行で減るので、書くと必ず腐る（実測は ADR-0003 §4）
-$duration-1: 80ms;
-$duration-2: 100ms;
-$duration-3: 120ms;
-$duration-4: 140ms;
-$duration-5: 150ms;
-$duration-6: 160ms;
-$duration-7: 200ms;
-$ease: ease;
+$duration-1: ds.$lm-duration-1;
+$duration-2: ds.$lm-duration-2;
+$duration-3: ds.$lm-duration-3;
+$duration-4: ds.$lm-duration-4;
+$duration-5: ds.$lm-duration-5;
+$duration-6: ds.$lm-duration-6;
+$duration-7: ds.$lm-duration-7;
+$ease: ds.$lm-easing-default;
 
 // ローディングの反復は秒単位の別系統なのでここには置かない
 
@@ -228,34 +232,30 @@ $create-file-side-width: 28rem;
 // （`.error-overlay`）→ 棋譜のポップオーバー（100000 台）。
 // 名前を持たないレイヤを動かすときは、この並びを読んでから決めること。
 // 操作列の語から開く小さなサーフェス。**帯より下。** 帯はヘッダの上に出るので重ならない
-$z-status-detail: 5000;
-$z-titlebar: 9999;
-$z-modal: 9999;
+$z-status-detail: ds.$lm-z-status-detail;
+$z-titlebar: ds.$lm-z-titlebar;
+$z-modal: ds.$lm-z-modal;
 // **通知はモーダルより上。** 下にすると overlay にぼかされて読めず、
 // クリックが overlay に当たってモーダルごと閉じる（編集中の入力が消える）。
 // 上げても操作を塞がないのは、通知の層が `pointer-events` を通知1枚ずつにしか
 // 持たないため。タイトルバーの帯を覆わないのは z-index でなく `top` が守っている
-$z-notification: 10000;
+$z-notification: ds.$lm-z-notification;
 // 落ちた層を伝える小箱を積むコンテナ（`.error-overlay`）。**通知より上。**
 // 下にすると、幅いっぱいの帯（banner）が「◯◯を表示できませんでした。」の1行を覆う
 // —— unmount した範囲を名乗ることがこの箱の役目なので、そこが隠れると出す意味が無くなる。
 // 覆う側になっても塞がないのは、箱が右の一部にしか出ないため
-$z-error-fallback: 10001;
+$z-error-fallback: ds.$lm-z-error-fallback;
 
 // elevation
 // 段階は浮き上がりの高さでなく、何が浮いているかで選ぶ
 // パネル・カード。棋譜ペイン、盤の操作列、付箋、設定パネルが乗る
-$shadow-panel:
-  0 1px 2px rgba(0, 0, 0, 0.24),
-  0 10px 24px rgba(0, 0, 0, 0.18);
+$shadow-panel: ds.$lm-shadow-panel;
 // ポップオーバー・メニュー。暗い背景の上に出るので、パネルより強く落とす
-$shadow-overlay:
-  0 10px 30px rgba(0, 0, 0, 0.45),
-  0 2px 10px rgba(0, 0, 0, 0.35);
-$shadow-press: inset 0 2px 6px rgba(0, 0, 0, 0.28); // 押下
+$shadow-overlay: ds.$lm-shadow-overlay;
+$shadow-press: ds.$lm-shadow-press; // 押下
 // 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
-$shadow-control: 0 $space-2 $space-4 rgba(0, 0, 0, 0.22);
-$shadow-control-press: 0 $space-1 $space-2 rgba(0, 0, 0, 0.16);
+$shadow-control: ds.$lm-shadow-control;
+$shadow-control-press: ds.$lm-shadow-control-press;
 
 // 最善の行を示す左の帯。**浮きの高さではなく目印**なので、
 // 上の3つとは別に置く。背景の塗りだけで示すと、隣の行のホバーと見分けが付かない
@@ -264,11 +264,11 @@ $marker-bar: inset 2px 0 0 $color-secondary-dark;
 // （`.candidate-table` では最善の行も選べる）ので、左右で描き分ける
 $marker-bar-end: inset -2px 0 0 $color-secondary-dark;
 
-$stroke-weak: rgba($color-white, 0.06);
-$stroke: rgba($color-white, 0.1);
-$stroke-strong: rgba($color-white, 0.16);
+$stroke-weak: ds.$lm-color-border-weak;
+$stroke: ds.$lm-color-border-default;
+$stroke-strong: ds.$lm-color-border-strong;
 
-$focus-ring: rgba($color-secondary-dark, 0.85);
+$focus-ring: ds.$lm-focus-ring-color;
 
 // このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される
 

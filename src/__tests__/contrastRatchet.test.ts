@@ -27,6 +27,11 @@ const BASELINE = [
 ];
 
 const TOKEN_SOURCE = join(SRC, "index.scss");
+/**
+ * `index.scss` は値を持たず、デザインシステムの生成物（`ds.$lm-*`）を指す。
+ * 先にこちらを集めないと、参照が解けずに全ての対が「測れなかった」に落ちる。
+ */
+const DS_TOKEN_SOURCE = join(SRC, "..", "design-system", "dist", "scss", "_tokens.scss");
 
 type Row = { key: string; detail: string };
 
@@ -80,7 +85,10 @@ let measured = 0;
 let unmeasured = 0;
 
 beforeAll(() => {
-  const vars = collectVariables(readFileSync(TOKEN_SOURCE, "utf8"));
+  const vars = collectVariables(
+    readFileSync(TOKEN_SOURCE, "utf8"),
+    collectVariables(readFileSync(DS_TOKEN_SOURCE, "utf8")),
+  );
 
   for (const file of scssFiles(SRC)) {
     const name = relative(SRC, file).split("\\").join("/");

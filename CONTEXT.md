@@ -7,7 +7,7 @@
 
 - 対局: [ADR-0011](docs/decisions/0011-game-vocabulary-and-placement.md) 決定1
 - ドックとビュー: [ADR-0010](docs/decisions/0010-dock-tabs-and-view-vocabulary.md)
-- 画面の将棋の語: [ADR-0012](docs/decisions/0012-shogi-gui-vocabulary.md)。一覧は `docs/spec/design-language.md` の「将棋 GUI の語」
+- 画面の将棋の語: [ADR-0012](docs/decisions/0012-shogi-gui-vocabulary.md)。画面の語の一覧は `design-system/design_system/content/glossary.md` の「将棋 GUI の語」
 
 ## 書き方
 

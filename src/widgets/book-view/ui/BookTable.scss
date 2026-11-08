@@ -1,6 +1,6 @@
 @use "@/index.scss" as index;
 
-// 入りきらない候補手にスクロールで届く。**バーは出さない**（意匠。`design-language.md`）
+// 入りきらない候補手にスクロールで届く。**バーは出さない**（意匠。`design-system/design_system/principles.md` の原則7）
 .book-table {
   height: 100%;
   min-height: 0;

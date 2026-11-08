@@ -12,7 +12,7 @@ import { getAppVersion } from "@/shared/api/app/appVersion";
  * 手で押した確認の結果の文。
  *
  * 見つかっても取得のボタンを置かない。更新のカードは設定モーダルの下に出る（重なりの順は
- * `docs/spec/design-language.md`）ので、ここに置くと進捗と失敗の出るカードが2つになる。
+ * `design-system/design_system/tokens/semantic.tokens.json` の `z`）ので、ここに置くと進捗と失敗の出るカードが2つになる。
  * 失敗に「もう一度」を出さない。すぐ上の「更新を確認」と同じ動作のボタンが2つ並ぶ。
  */
 function manualCheckText(result: ManualCheckResult): string {

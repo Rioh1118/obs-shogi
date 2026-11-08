@@ -464,6 +464,12 @@ expect_kinds "ds" "design-system/design_system/tokens/semantic.tokens.json"
 expect_kinds "ds" "design-system/design_system/principles.md"
 # 入れ子の package.json は製品の依存ではない。根の `package.json` だけが ts
 expect_kinds "ds" "design-system/package.json"
+# 用語集は製品の vitest（screenVocabulary）も読む
+expect_kinds "ds ts" "design-system/design_system/content/glossary.md"
+# 製品が読む値の生成物は拡張子で ts。コントラストのラチェットと SCSS のコンパイルが読む
+expect_kinds "ts ds" "design-system/dist/scss/_tokens.scss"
+# CSS 変数の生成物は製品が読まない
+expect_kinds "ds" "design-system/dist/css/tokens.css"
 # 引用符付きのパスは -z で読むので、ここへは素のまま来る
 expect_kinds "ts" "src/dir with space/a.ts"
 
