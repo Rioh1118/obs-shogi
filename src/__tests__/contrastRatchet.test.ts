@@ -20,7 +20,6 @@ const BASELINE = [
   "shared/ui/IconButton.scss | &--obs-primary | color: index.$color-text-light-1 | background-color: index.$color-secondary-dark",
   "shared/ui/IconButton.scss | &:hover:not(:disabled) | color: index.$color-white | background-color: index.$color-secondary-dark",
   "shared/ui/IconButton.scss | &:active:not(:disabled) | color: index.$color-secondary-dark | background-color: index.$color-secondary-dark-2",
-  "widgets/file-tree/ui/ContextMenu.scss | &--danger | color: index.$color-secondary-dark | background: index.$color-primary-black",
   "widgets/file-tree/ui/ContextMenu.scss | &:hover:not(:disabled) | color: index.$color-secondary-dark | background-color: rgba(index.$color-secondary-dark, 0.22)",
   "widgets/file-tree/ui/ContextMenu.scss | &:active:not(:disabled) | color: index.$color-secondary-dark | background-color: rgba(index.$color-secondary-dark, 0.28)",
   "widgets/file-tree/ui/ContextMenu.scss | &:focus-visible:not(:disabled) | color: index.$color-secondary-dark | background-color: rgba(index.$color-secondary-dark, 0.22)",

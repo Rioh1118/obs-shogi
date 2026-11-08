@@ -21,4 +21,4 @@ ADR と仕様がこのファイルの節を名指しているので、節ごと�
 | 6. 表記                                       | `design-system/design_system/content/writing-rules.md`                                                                  |
 | 7. まだ決まっていないこと                     | `design-system/design_system/patterns/README.md` の問い                                                                 |
 | 参考にしてよいもの                            | `design-system/references/product-references-2026-11.md`                                                                |
-| やらないこと                                  | `design-system/design_system/principles.md` の原則7。幅の下限は `design-system/design_system/patterns/README.md` の問い |
+| やらないこと                                  | `design-system/design_system/principles.md` の原則8。幅の下限は `design-system/design_system/patterns/README.md` の問い |

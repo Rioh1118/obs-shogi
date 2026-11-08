@@ -1,19 +1,31 @@
 {
   "color": {
     "$type": "color",
-    "$description": "色。テーマは1つ（暗い緑黒の枠）。製品の src/index.scss（2026-11-08、origin/main 0be56281）の値をそのまま写した基準線",
+    "$description": "色。テーマは1つ（深く冷たい緑黒の枠、decisions/0004）。比は contrast-pairs.json で照合する",
     "background": {
       "sunken": {
         "$value": "{base.color.black}",
-        "$description": "いちばん深い面。サイドバー、暗いカード"
+        "$description": "いちばん深い面。暗いカード、入力の沈み。ペインの面には使わない（decisions/0004）"
       },
       "default": {
         "$value": "{base.color.dark}",
-        "$description": "本文の背景。ドック、ヘッダ、読むペイン"
+        "$description": "本文の背景。ペイン（サイドバー・棋譜・ヘッダ・ドック）は全部この1色にし、境目は線で引く（decisions/0004）"
       },
       "canvas": {
         "$value": "{base.color.light}",
-        "$description": "盤と棋譜を置く面"
+        "$description": "持ち上げた面。選ばれた行の濃淡、選ばれた区切りボタン。ペインの面には使わない（decisions/0004）"
+      },
+      "stage": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0863,
+            0.1137,
+            0.1216
+          ],
+          "hex": "#161d1f"
+        },
+        "$description": "盤と駒台を置く面。ペインの面から半段だけ沈める（decisions/0004）"
       }
     },
     "surface": {
@@ -21,11 +33,11 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.2353,
-            0.2588,
-            0.2667
+            0.2,
+            0.2196,
+            0.2235
           ],
-          "hex": "#3c4244"
+          "hex": "#333839"
         },
         "$description": "暗い背景を1段階持ち上げた面。意味色を持たず「いま触れない」を示す（$surface-raised）"
       },
@@ -46,11 +58,11 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.1098,
-            0.1373,
-            0.1451
+            0.0706,
+            0.0941,
+            0.098
           ],
-          "hex": "#1c2325",
+          "hex": "#121819",
           "alpha": 0.88
         },
         "$description": "ツールチップ。半透明なので文字との比は走査で測れない（$surface-overlay）"
@@ -65,25 +77,25 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.7255,
-            0.7176,
-            0.6745
+            0.698,
+            0.7137,
+            0.6902
           ],
-          "hex": "#b9b7ac"
+          "hex": "#b2b6b0"
         },
-        "$description": "名前の添え書き・説明。本文の背景で 6.16:1。不透明に混ぜる（$color-text-muted）"
+        "$description": "名前の添え書き・説明。砂を本文の背景に 80% で混ぜる。不透明に混ぜる（$color-text-muted）"
       },
       "faint": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.6196,
-            0.6235,
-            0.5922
+            0.5882,
+            0.6078,
+            0.5882
           ],
-          "hex": "#9e9f97"
+          "hex": "#969b96"
         },
-        "$description": "無効・範囲の注記。本文の背景で 4.64:1。surface.raised の上には載せない（$color-text-faint）"
+        "$description": "無効・範囲の注記。砂を本文の背景に 65% で混ぜる。surface.raised の上には載せない（$color-text-faint）"
       },
       "inverse": {
         "$value": "{base.color.ink}",
@@ -174,11 +186,11 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.1333,
-              0.1647,
-              0.1765
+              0.0941,
+              0.1216,
+              0.1294
             ],
-            "hex": "#222a2d"
+            "hex": "#181f21"
           },
           "$description": "失敗を伝える箱の背景。不透明（$surface-info）"
         }
@@ -192,11 +204,11 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.149,
-              0.1647,
-              0.1569
+              0.1137,
+              0.1255,
+              0.1137
             ],
-            "hex": "#262a28"
+            "hex": "#1d201d"
           },
           "$description": "失敗を伝える箱の背景。不透明（$surface-warning）"
         }
@@ -210,11 +222,11 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.1451,
-              0.1529,
-              0.1569
+              0.1098,
+              0.1137,
+              0.1137
             ],
-            "hex": "#252728"
+            "hex": "#1c1d1d"
           },
           "$description": "失敗を伝える箱の背景。不透明（$surface-danger）"
         },
@@ -228,7 +240,7 @@
         },
         "text": {
           "$value": "{base.color.dangerText}",
-          "$description": "暗い背景に載せる危険色の文字。#1c2325 で 5.66:1（$color-danger-text）"
+          "$description": "暗い背景に載せる危険色の文字（$color-danger-text）"
         }
       },
       "fatal": {
@@ -240,17 +252,17 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.1373,
-              0.1451,
-              0.1529
+              0.098,
+              0.1059,
+              0.1098
             ],
-            "hex": "#232527"
+            "hex": "#191b1c"
           },
           "$description": "失敗を伝える箱の背景。不透明（$surface-fatal）"
         },
         "text": {
           "$value": "{base.color.fatalText}",
-          "$description": "暗い背景に載せる fatal の文字。#1c2325 で 5.27:1（$color-fatal-text）"
+          "$description": "暗い背景に載せる fatal の文字（$color-fatal-text）"
         }
       }
     }
@@ -442,19 +454,19 @@
       "$description": "進捗の棒、丸ボタン列"
     },
     "row": {
-      "$value": "{radius.2}",
+      "$value": "{radius.1}",
       "$description": "行（ツリー、一覧、メニューの項目）、バッジ、チップ"
     },
     "control": {
-      "$value": "{radius.3}",
+      "$value": "{radius.2}",
       "$description": "押す・打つもの"
     },
     "surface": {
-      "$value": "{radius.4}",
+      "$value": "{radius.2}",
       "$description": "ドック、カード、ポップオーバー、メニュー"
     },
     "modal": {
-      "$value": "{radius.5}",
+      "$value": "{radius.3}",
       "$description": "モーダル"
     }
   },
@@ -482,6 +494,28 @@
           "monospace"
         ],
         "$description": "読み筋と綴り"
+      },
+      "heading": {
+        "$value": [
+          "system-ui",
+          "Hiragino Sans",
+          "Yu Gothic",
+          "Noto Sans JP",
+          "sans-serif"
+        ],
+        "$description": "ダイアログとペインの題、画面の主題"
+      },
+      "label": {
+        "$value": [
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          "Courier New",
+          "monospace"
+        ],
+        "$description": "表の見出し、欄の名前、状態の注記"
       }
     },
     "weight": {
@@ -665,129 +699,67 @@
     "$type": "shadow",
     "$description": "浮き上がりの高さでなく、何が浮いているかで選ぶ",
     "panel": {
-      "$value": [
-        {
-          "color": {
-            "colorSpace": "srgb",
-            "components": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "hex": "#000000",
-            "alpha": 0.24
-          },
-          "offsetX": {
-            "value": 0,
-            "unit": "px"
-          },
-          "offsetY": {
-            "value": 1,
-            "unit": "px"
-          },
-          "blur": {
-            "value": 2,
-            "unit": "px"
-          },
-          "spread": {
-            "value": 0,
-            "unit": "px"
-          },
-          "inset": false
+      "$value": {
+        "color": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hex": "#000000",
+          "alpha": 0
         },
-        {
-          "color": {
-            "colorSpace": "srgb",
-            "components": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "hex": "#000000",
-            "alpha": 0.18
-          },
-          "offsetX": {
-            "value": 0,
-            "unit": "px"
-          },
-          "offsetY": {
-            "value": 10,
-            "unit": "px"
-          },
-          "blur": {
-            "value": 24,
-            "unit": "px"
-          },
-          "spread": {
-            "value": 0,
-            "unit": "px"
-          },
-          "inset": false
-        }
-      ],
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 0,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 0,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        },
+        "inset": false
+      },
       "$description": "パネル・カード"
     },
     "overlay": {
-      "$value": [
-        {
-          "color": {
-            "colorSpace": "srgb",
-            "components": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "hex": "#000000",
-            "alpha": 0.45
-          },
-          "offsetX": {
-            "value": 0,
-            "unit": "px"
-          },
-          "offsetY": {
-            "value": 10,
-            "unit": "px"
-          },
-          "blur": {
-            "value": 30,
-            "unit": "px"
-          },
-          "spread": {
-            "value": 0,
-            "unit": "px"
-          },
-          "inset": false
+      "$value": {
+        "color": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "hex": "#000000",
+          "alpha": 0.45
         },
-        {
-          "color": {
-            "colorSpace": "srgb",
-            "components": [
-              0.0,
-              0.0,
-              0.0
-            ],
-            "hex": "#000000",
-            "alpha": 0.35
-          },
-          "offsetX": {
-            "value": 0,
-            "unit": "px"
-          },
-          "offsetY": {
-            "value": 2,
-            "unit": "px"
-          },
-          "blur": {
-            "value": 10,
-            "unit": "px"
-          },
-          "spread": {
-            "value": 0,
-            "unit": "px"
-          },
-          "inset": false
-        }
-      ],
+        "offsetX": {
+          "value": 0,
+          "unit": "px"
+        },
+        "offsetY": {
+          "value": 6,
+          "unit": "px"
+        },
+        "blur": {
+          "value": 16,
+          "unit": "px"
+        },
+        "spread": {
+          "value": 0,
+          "unit": "px"
+        },
+        "inset": false
+      },
       "$description": "ポップオーバー・メニュー"
     },
     "press": {
@@ -832,18 +804,18 @@
             0.0
           ],
           "hex": "#000000",
-          "alpha": 0.22
+          "alpha": 0
         },
         "offsetX": {
           "value": 0,
           "unit": "px"
         },
         "offsetY": {
-          "value": 4,
+          "value": 0,
           "unit": "px"
         },
         "blur": {
-          "value": 8,
+          "value": 0,
           "unit": "px"
         },
         "spread": {
@@ -864,18 +836,18 @@
             0.0
           ],
           "hex": "#000000",
-          "alpha": 0.16
+          "alpha": 0
         },
         "offsetX": {
           "value": 0,
           "unit": "px"
         },
         "offsetY": {
-          "value": 2,
+          "value": 0,
           "unit": "px"
         },
         "blur": {
-          "value": 4,
+          "value": 0,
           "unit": "px"
         },
         "spread": {

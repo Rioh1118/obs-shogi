@@ -105,7 +105,7 @@ ${stringify(front, { lineWidth: 0 }).trim()}
 
 ## Overview
 
-状態：基準線。値は製品の今の画面（暗い緑黒の枠、砂色の文字、銅のアクセント）から写した。盤・駒台・駒は実物の画像で、トークンの対象外。洗練の方向は brief.md をもとにモード B で決める。
+状態：洗練の方向 C4（decisions/0004）。深く冷たい緑黒の枠、冷たい砂の文字、銅のアクセント。開発者の道具（計器）の精度で、タイトル戦の本物の盤と駒台を囲む。盤・駒台・駒は実物の画像で、トークンの対象外。
 
 ${overview}
 
@@ -129,7 +129,7 @@ ${colorRows.join('\n')}
 
 ## Elevation & Depth
 
-面の暗さは sunken / default / canvas の3段。影は浮き上がりの高さでなく、何が浮いているか（panel / overlay / control）で選ぶ。
+ペイン（サイドバー・棋譜・ヘッダ・ドック）は \`background-default\` の1色にし、境目は線で引く。色で塗り分けない。盤と駒台の周りだけ \`background-stage\` で半段沈める。\`background-canvas\` は選ばれた行の濃淡、\`background-sunken\` は暗いカードと入力の沈みにだけ使う。面は影で浮かせない（panel・control の影は無し）。影はポップオーバーとメニュー（overlay）だけ。
 
 ## Shapes
 
