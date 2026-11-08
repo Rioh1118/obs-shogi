@@ -2,6 +2,18 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に倣い、版は semver（上げ方は CLAUDE.md）。
 
+## [0.2.0] - 2026-11-08
+
+### 追加
+- dist/scss/_tokens.scss：製品が読む SCSS。値そのもの（CSS 変数ではない）で、文字・間隔・角丸は 10px 基準の rem。製品は `rgba(<トークン>, 透明度)` のようにコンパイル時に値を使うため
+- content/glossary.md に「将棋 GUI の語」の表（製品の design-language.md から移した）
+- `z` の説明に重なりの並び順（トークンを持たない層も含む）。工程2で写し漏らしていた
+
+### 変更
+- principles.md の原則4に「読むペインは本文の背景の上で詰める」を足した（写し漏れ）
+- 置き場を製品のリポジトリの `design-system/` に移した
+- SKILL.md の「利用先での前提」とモード A、docs/consumer-claude-md.md を製品の実際（SCSS、`index.scss` の名前、`src/shared/ui/` の部品、テーマ1つ）に合わせた
+
 ## [0.1.0] - 2026-11-08
 
 ### 変更（トークン名の削除・改名を含む）
