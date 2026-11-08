@@ -459,13 +459,15 @@ expect_kinds "ts" "docs/IDEAS.md"
 # 状態遷移表は rust 側も見るので、表だけのコミットで2つとも走らせる
 expect_kinds "ts rust" "docs/state-transitions/yaneuraou-db-parse.md"
 expect_kinds "" ".claude/reviews/2026-08-30-book-foundation-r1.md"
-# デザインシステムは自前の検査だけ。正本は `.tokens.json` と `.md` で、拡張子では拾えない
-expect_kinds "ds" "design-system/design_system/tokens/semantic.tokens.json"
-expect_kinds "ds" "design-system/design_system/principles.md"
+# デザインシステムの正本は `.tokens.json` と `.md` で拡張子では拾えない。製品の vitest も読むので ts にも当たる
+expect_kinds "ds ts" "design-system/design_system/tokens/semantic.tokens.json"
+expect_kinds "ds ts" "design-system/design_system/principles.md"
 # 入れ子の package.json は製品の依存ではない。根の `package.json` だけが ts
 expect_kinds "ds" "design-system/package.json"
-# 用語集は製品の vitest（screenVocabulary）も読む
 expect_kinds "ds ts" "design-system/design_system/content/glossary.md"
+expect_kinds "ds ts" "design-system/SKILL.md"
+# 案は記録なので自前の検査だけ
+expect_kinds "ds" "design-system/explorations/2026-11-08-a/README.md"
 # 製品が読む値の生成物は拡張子で ts。コントラストのラチェットと SCSS のコンパイルが読む
 expect_kinds "ts ds" "design-system/dist/scss/_tokens.scss"
 # CSS 変数の生成物は製品が読まない

@@ -5,7 +5,7 @@
     "background": {
       "sunken": {
         "$value": "{base.color.black}",
-        "$description": "いちばん深い面。暗いカード、入力の沈み。ペインの面には使わない（decisions/0004）"
+        "$description": "いちばん深いサーフェス。暗いカード、入力の沈み。ペインのサーフェスには使わない（decisions/0004）"
       },
       "default": {
         "$value": "{base.color.dark}",
@@ -13,7 +13,7 @@
       },
       "canvas": {
         "$value": "{base.color.light}",
-        "$description": "持ち上げた面。選ばれた行の濃淡、選ばれた区切りボタン。ペインの面には使わない（decisions/0004）"
+        "$description": "持ち上げたサーフェス。選ばれた行の濃淡、選ばれた区切りボタン。ペインのサーフェスには使わない（decisions/0004）"
       },
       "stage": {
         "$value": {
@@ -25,7 +25,7 @@
           ],
           "hex": "#161d1f"
         },
-        "$description": "盤と駒台を置く面。ペインの面から半段だけ沈める（decisions/0004）"
+        "$description": "盤と駒台を置くサーフェス。ペインのサーフェスから半段だけ沈める（decisions/0004）"
       }
     },
     "surface": {
@@ -39,7 +39,7 @@
           ],
           "hex": "#333839"
         },
-        "$description": "暗い背景を1段階持ち上げた面。意味色を持たず「いま触れない」を示す（$surface-raised）"
+        "$description": "暗い背景を1段階持ち上げたサーフェス。意味色を持たず「いま触れない」を示す（$surface-raised）"
       },
       "field": {
         "$value": {
@@ -272,7 +272,7 @@
       "color": {
         "$type": "color",
         "$value": "{base.color.copperText}",
-        "$description": "フォーカスの銅のリング。全ての面で 3:1 以上（固定値。decisions/0003）"
+        "$description": "フォーカスの銅のリング。全てのサーフェスで 3:1 以上（固定値。decisions/0003）"
       },
       "width": {
         "$type": "dimension",

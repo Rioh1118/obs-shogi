@@ -4,9 +4,9 @@
  * 「仮」と書かれた値は暫定。
  */
 :root {
-  --lm-base-color-black: #121819; /** 深く冷たい緑黒。いちばん深い面（製品の $color-primary-black） */
-  --lm-base-color-dark: #1b2325; /** 冷たい緑黒。本文の背景、ペインの面（$color-primary-dark） */
-  --lm-base-color-light: #253033; /** 緑黒を持ち上げた面。選ばれた行の濃淡（$color-primary-light） */
+  --lm-base-color-black: #121819; /** 深く冷たい緑黒。いちばん深いサーフェス（製品の $color-primary-black） */
+  --lm-base-color-dark: #1b2325; /** 冷たい緑黒。本文の背景、ペインのサーフェス（$color-primary-dark） */
+  --lm-base-color-light: #253033; /** 緑黒を持ち上げたサーフェス。選ばれた行の濃淡（$color-primary-light） */
   --lm-base-color-sand: #d8dbd3; /** 冷たい砂。本文の文字と確定のボタン（$color-secondary-light / $color-text-primary） */
   --lm-base-color-sand-hover: #e6e8e2; /** 砂のホバー（$color-commit-solid-hover）。明るくする */
   --lm-base-color-copper: #a8805f; /** 銅。選択の棒とアクセント（$color-secondary-dark） */
@@ -82,7 +82,7 @@
   --lm-shadow-press: inset 0px 2px 6px 0px rgb(0% 0% 0% / 0.28); /** 押下 */
   --lm-shadow-control: 0px 0px 0px 0px rgb(0% 0% 0% / 0); /** 押せるもの。ホバーで浮かせる */
   --lm-shadow-control-press: 0px 0px 0px 0px rgb(0% 0% 0% / 0); /** 押せるもの。押下で落とす */
-  --lm-focus-ring-color: var(--lm-base-color-copper-text); /** フォーカスの銅のリング。全ての面で 3:1 以上（固定値。decisions/0003） */
+  --lm-focus-ring-color: var(--lm-base-color-copper-text); /** フォーカスの銅のリング。全てのサーフェスで 3:1 以上（固定値。decisions/0003） */
   --lm-radius-row: var(--lm-radius-1); /** 行（ツリー、一覧、メニューの項目）、バッジ、チップ */
   --lm-radius-control: var(--lm-radius-2); /** 押す・打つもの */
   --lm-radius-surface: var(--lm-radius-2); /** ドック、カード、ポップオーバー、メニュー */
@@ -90,8 +90,8 @@
 }
 
 :root, [data-theme] {
-  --lm-color-background-stage: #161d1f; /** 盤と駒台を置く面。ペインの面から半段だけ沈める（decisions/0004） */
-  --lm-color-surface-raised: #333839; /** 暗い背景を1段階持ち上げた面。意味色を持たず「いま触れない」を示す（$surface-raised） */
+  --lm-color-background-stage: #161d1f; /** 盤と駒台を置くサーフェス。ペインのサーフェスから半段だけ沈める（decisions/0004） */
+  --lm-color-surface-raised: #333839; /** 暗い背景を1段階持ち上げたサーフェス。意味色を持たず「いま触れない」を示す（$surface-raised） */
   --lm-color-surface-field: rgba(0, 0, 0, 0.18); /** 打つ欄の背景。半透明なのは載る背景の明るさを保つため（$surface-field） */
   --lm-color-surface-overlay: rgba(18, 24, 25, 0.88); /** ツールチップ。半透明なので文字との比は走査で測れない（$surface-overlay） */
   --lm-color-text-subtle: #b2b6b0; /** 名前の添え書き・説明。砂を本文の背景に 80% で混ぜる。不透明に混ぜる（$color-text-muted） */
@@ -108,9 +108,9 @@
   --lm-button-space-block: var(--lm-space-3); /** 仮 */
   --lm-button-font-size: var(--lm-font-size-aux); /** 押すものは aux */
   --lm-button-font-weight: var(--lm-font-weight-strong); /** 押すものは strong */
-  --lm-color-background-sunken: var(--lm-base-color-black); /** いちばん深い面。暗いカード、入力の沈み。ペインの面には使わない（decisions/0004） */
+  --lm-color-background-sunken: var(--lm-base-color-black); /** いちばん深いサーフェス。暗いカード、入力の沈み。ペインのサーフェスには使わない（decisions/0004） */
   --lm-color-background-default: var(--lm-base-color-dark); /** 本文の背景。ペイン（サイドバー・棋譜・ヘッダ・ドック）は全部この1色にし、境目は線で引く（decisions/0004） */
-  --lm-color-background-canvas: var(--lm-base-color-light); /** 持ち上げた面。選ばれた行の濃淡、選ばれた区切りボタン。ペインの面には使わない（decisions/0004） */
+  --lm-color-background-canvas: var(--lm-base-color-light); /** 持ち上げたサーフェス。選ばれた行の濃淡、選ばれた区切りボタン。ペインのサーフェスには使わない（decisions/0004） */
   --lm-color-text-default: var(--lm-base-color-sand); /** 本文 */
   --lm-color-text-inverse: var(--lm-base-color-ink); /** 明るい背景（確定・危険のボタン）に載せる文字 */
   --lm-color-text-accent: var(--lm-base-color-copper-text); /** 進めるボタンの銅の文字 */

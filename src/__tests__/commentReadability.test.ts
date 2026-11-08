@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 import { commentBlocks, type CommentBlock } from "./commentBlocks";
+import { LITERAL_ONLY_TERMS, METAPHOR } from "./metaphorTerms";
 import { REPO_ROOT, rustRoots, SRC, sourceFiles } from "./walk";
 
 /**
@@ -50,27 +51,6 @@ const NUMBERED_TODO = /\bTODO\(#\d+\)/g;
 const ISSUE_NUMBER = /(?<![\w/#&])#\d{2,4}\b/;
 const EMPHASIS = /\*\*[^*]+?\*\*/g;
 
-/**
- * 関数、経路、判定、タスクの代わりに使われていた比喩の1文字の語。指すものが塊ごとに違うので読めない。
- * 同じ字を含む一般の語を巻き込まないよう、前の1字で除く
- */
-const METAPHOR =
-  /(?<![入窓出人閉手利糸河火]|切り)口|(?<![専部名入])門|(?<![甲地貝卵籾]|抜け)殻|畳(?!み込)|番人|受け皿|(?<!差し)控え(?!め)|窓(?!口)|枝|(?<!\p{Script=Han})器(?![用量])/u;
-
-/**
- * 字義どおりの使い方だけを残した語。比喩としては使わない（2026-11 に全部置き換えた）。
- * 将棋の段、描いた枠、画面の印、`EngineRegistry` の台帳、`Ticket` の札が残るので禁止にはできず、
- * 塊の数で止める。増えたら、比喩として足していないかを見る。足していたら、指している実物の語で書く
- * （モジュールの層はレイヤ、通知の重さは tier、UI の土台はサーフェス。`CONTEXT.md`）
- */
-const LITERAL_ONLY_TERMS = {
-  段: /(?<![手階普値格算特別])段(?![落階位取々違])/,
-  面: /(?<![画局盤場表側全前背方当対正反一文紙両断多平誌書字譜真最片])面(?![倒白積談子])/,
-  枠: /(?<!ウィンドウ)枠(?!線)/,
-  印: /(?<![目矢刻調])印(?![刷象字])/,
-  台帳: /(?<!与件)台帳/,
-  札: /札/,
-} as const;
 
 /**
  * コメントから減らしていく語。いまは数が多くて一度に替えられないので、件数のラチェットで止めて

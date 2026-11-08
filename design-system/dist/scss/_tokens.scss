@@ -1,8 +1,8 @@
 // ObsShogi design tokens — 生成物。手で編集しない（npm run ds:build）。
 // 正本: design_system/tokens/*.tokens.json。値そのもの（CSS 変数ではない）。寸法は 10px 基準の rem
-$lm-base-color-black: #121819; // 深く冷たい緑黒。いちばん深い面（製品の $color-primary-black）
-$lm-base-color-dark: #1b2325; // 冷たい緑黒。本文の背景、ペインの面（$color-primary-dark）
-$lm-base-color-light: #253033; // 緑黒を持ち上げた面。選ばれた行の濃淡（$color-primary-light）
+$lm-base-color-black: #121819; // 深く冷たい緑黒。いちばん深いサーフェス（製品の $color-primary-black）
+$lm-base-color-dark: #1b2325; // 冷たい緑黒。本文の背景、ペインのサーフェス（$color-primary-dark）
+$lm-base-color-light: #253033; // 緑黒を持ち上げたサーフェス。選ばれた行の濃淡（$color-primary-light）
 $lm-base-color-sand: #d8dbd3; // 冷たい砂。本文の文字と確定のボタン（$color-secondary-light / $color-text-primary）
 $lm-base-color-sand-hover: #e6e8e2; // 砂のホバー（$color-commit-solid-hover）。明るくする
 $lm-base-color-copper: #a8805f; // 銅。選択の棒とアクセント（$color-secondary-dark）
@@ -19,11 +19,11 @@ $lm-base-color-danger-solid: #b96d66; // 背景に敷く危険色。暗い文字
 $lm-base-color-danger-solid-hover: #c3817b; // 背景に敷く危険色のホバー。暗い文字 6.10:1。暗い文字なので明るくする（$color-danger-solid-hover）
 $lm-base-color-danger-text: #c98a83; // 暗い背景に載せる危険色の文字（$color-danger-text）
 $lm-base-color-fatal-text: #c18580; // 暗い背景に載せる fatal の文字（$color-fatal-text）
-$lm-color-background-sunken: #121819; // いちばん深い面。暗いカード、入力の沈み。ペインの面には使わない（decisions/0004）
+$lm-color-background-sunken: #121819; // いちばん深いサーフェス。暗いカード、入力の沈み。ペインのサーフェスには使わない（decisions/0004）
 $lm-color-background-default: #1b2325; // 本文の背景。ペイン（サイドバー・棋譜・ヘッダ・ドック）は全部この1色にし、境目は線で引く（decisions/0004）
-$lm-color-background-canvas: #253033; // 持ち上げた面。選ばれた行の濃淡、選ばれた区切りボタン。ペインの面には使わない（decisions/0004）
-$lm-color-background-stage: #161d1f; // 盤と駒台を置く面。ペインの面から半段だけ沈める（decisions/0004）
-$lm-color-surface-raised: #333839; // 暗い背景を1段階持ち上げた面。意味色を持たず「いま触れない」を示す（$surface-raised）
+$lm-color-background-canvas: #253033; // 持ち上げたサーフェス。選ばれた行の濃淡、選ばれた区切りボタン。ペインのサーフェスには使わない（decisions/0004）
+$lm-color-background-stage: #161d1f; // 盤と駒台を置くサーフェス。ペインのサーフェスから半段だけ沈める（decisions/0004）
+$lm-color-surface-raised: #333839; // 暗い背景を1段階持ち上げたサーフェス。意味色を持たず「いま触れない」を示す（$surface-raised）
 $lm-color-surface-field: rgba(0, 0, 0, 0.18); // 打つ欄の背景。半透明なのは載る背景の明るさを保つため（$surface-field）
 $lm-color-surface-overlay: rgba(18, 24, 25, 0.88); // ツールチップ。半透明なので文字との比は走査で測れない（$surface-overlay）
 $lm-color-text-default: #d8dbd3; // 本文
@@ -52,7 +52,7 @@ $lm-color-feedback-danger-text: #c98a83; // 暗い背景に載せる危険色の
 $lm-color-feedback-fatal-default: #8c4a44; // アプリ再起動（$color-fatal）
 $lm-color-feedback-fatal-surface: #191b1c; // 失敗を伝える箱の背景。不透明（$surface-fatal）
 $lm-color-feedback-fatal-text: #c18580; // 暗い背景に載せる fatal の文字（$color-fatal-text）
-$lm-focus-ring-color: #c8a07c; // フォーカスの銅のリング。全ての面で 3:1 以上（固定値。decisions/0003）
+$lm-focus-ring-color: #c8a07c; // フォーカスの銅のリング。全てのサーフェスで 3:1 以上（固定値。decisions/0003）
 $lm-focus-ring-width: 2px; // 固定値
 $lm-focus-ring-offset: 2px; // 固定値。枠の中で切れる部品は外側のコンテナに出す
 $lm-space-1: 0.2rem; // 製品の $space-1

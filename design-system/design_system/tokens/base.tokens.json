@@ -13,7 +13,7 @@
           ],
           "hex": "#121819"
         },
-        "$description": "深く冷たい緑黒。いちばん深い面（製品の $color-primary-black）"
+        "$description": "深く冷たい緑黒。いちばん深いサーフェス（製品の $color-primary-black）"
       },
       "dark": {
         "$value": {
@@ -25,7 +25,7 @@
           ],
           "hex": "#1b2325"
         },
-        "$description": "冷たい緑黒。本文の背景、ペインの面（$color-primary-dark）"
+        "$description": "冷たい緑黒。本文の背景、ペインのサーフェス（$color-primary-dark）"
       },
       "light": {
         "$value": {
@@ -37,7 +37,7 @@
           ],
           "hex": "#253033"
         },
-        "$description": "緑黒を持ち上げた面。選ばれた行の濃淡（$color-primary-light）"
+        "$description": "緑黒を持ち上げたサーフェス。選ばれた行の濃淡（$color-primary-light）"
       },
       "sand": {
         "$value": {
