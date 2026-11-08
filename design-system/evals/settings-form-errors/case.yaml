@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: settings-form-errors
+expected_outcome: |
+  スキルを使い、エラー状態を aria-invalid と aria-describedby で関連づけたフォーム。色の直書きをせず、危険色のトークンがないことをユーザーに伝えている（直書きで代用しない）。
+context:
+  scaffold_script: place-files.sh

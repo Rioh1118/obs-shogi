@@ -1,0 +1,14 @@
+/* 悪い例・真似しない：色を直書きし（color-no-hex / function-disallowed-list）、余白・角丸・文字サイズにトークン外の値を使い、トークンの CSS 変数をその場で上書きしている */
+.my-card {
+  --lm-color-text-default: #333333;
+}
+
+.my-button {
+  background: #6d28d9;
+  color: rgb(255 255 255);
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 15px;
+  margin: var(--lm-space-100, 13px);
+  gap: calc(var(--other-space) + 3px);
+}
