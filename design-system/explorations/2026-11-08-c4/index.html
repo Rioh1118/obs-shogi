@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C4 半段だけ沈める — 見本</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<h1 class="x-page-title">C4 半段だけ沈める</h1>
+
+<!-- 画面1: 主画面 -->
+<section class="x-screen" aria-labelledby="s1">
+<h2 id="s1" class="x-screen-name">1. 主画面（盤・棋譜・検討）</h2>
+<div class="x-app">
+  <header class="x-header">
+    <span class="x-logo">OBS SHOGI</span>
+    <p class="x-header-title"><span>F</span><span class="x-chip">☗先手番</span><span class="x-chip x-num">0手目</span><span class="x-header-state">棋譜表示中</span></p>
+    <div class="x-header-actions">
+      <button type="button" class="x-icon-button" aria-label="課題局面">▤</button>
+      <button type="button" class="x-icon-button" aria-label="設定">⚙</button>
+    </div>
+  </header>
+  <div class="x-body">
+    <nav class="x-sidebar" aria-label="ファイル">
+      <p class="x-tree-root">KIFU</p>
+      <ul class="x-tree">
+        <li class="x-tree-row">▸ 実戦</li>
+        <li class="x-tree-row">▸ 将棋ウォーズ</li>
+        <li class="x-tree-row">▸ 戦法研究</li>
+        <li class="x-tree-row x-selected" aria-current="true">F.kif</li>
+        <li class="x-tree-row">kakugawari.kif</li>
+        <li class="x-tree-row">あああ.kif</li>
+      </ul>
+    </nav>
+    <div class="x-stage">
+      <div class="x-stage-row">
+        <div class="x-hand">
+          <img class="x-komadai" src="../2026-11-08-assets/komadai-gote.png" alt="後手の駒台">
+          <p class="x-hand-label">☖ 持ち駒なし</p>
+        </div>
+        <img class="x-board" src="../2026-11-08-assets/board.png" alt="盤。開始局面">
+        <div class="x-hand x-hand--sente">
+          <p class="x-hand-label">☗ 持ち駒なし</p>
+          <img class="x-komadai" src="../2026-11-08-assets/komadai-sente.png" alt="先手の駒台">
+        </div>
+      </div>
+      <div class="x-nav" role="group" aria-label="手の移動">
+        <button type="button" class="x-nav-button" aria-label="最初へ">|◀</button>
+        <button type="button" class="x-nav-button" aria-label="1手戻る">◀</button>
+        <button type="button" class="x-nav-button" aria-label="1手進む">▶</button>
+        <button type="button" class="x-nav-button" aria-label="最後へ">▶|</button>
+      </div>
+    </div>
+    <section class="x-kifu" aria-label="棋譜">
+      <p class="x-kifu-head x-label">手数 <span class="x-num">0/9</span></p>
+      <ol class="x-kifu-list">
+        <li class="x-kifu-row x-selected" aria-current="true"><span class="x-num x-kifu-no"></span>開始局面</li>
+        <li class="x-kifu-row"><span class="x-num x-kifu-no">1</span>☗2六歩</li>
+        <li class="x-kifu-row"><span class="x-num x-kifu-no">2</span>☖8四歩</li>
+        <li class="x-kifu-row"><span class="x-num x-kifu-no">3</span>☗2五歩</li>
+        <li class="x-kifu-row"><span class="x-num x-kifu-no">4</span>☖8五歩</li>
+        <li class="x-kifu-row"><span class="x-num x-kifu-no">5</span>☗7八金</li>
+      </ol>
+    </section>
+  <section class="x-dock" aria-label="ドック">
+    <div class="x-tabs" role="tablist">
+      <button type="button" role="tab" aria-selected="true" class="x-tab x-tab--active">検討</button>
+      <button type="button" role="tab" aria-selected="false" class="x-tab">定跡</button>
+    </div>
+    <div class="x-dock-bar">
+      <p class="x-status"><span class="x-dot" aria-hidden="true"></span>検討中 <span class="x-num">5s</span></p>
+      <button type="button" class="x-button x-button--neutral x-button--sm">中断</button>
+    </div>
+    <table class="x-table">
+      <thead><tr><th scope="col">指し手</th><th scope="col">評価値</th><th scope="col">読み筋</th></tr></thead>
+      <tbody>
+        <tr class="x-best"><td>☗7六歩</td><td class="x-num">+101</td><td class="x-pv">☗7六歩 ☖3四歩 ☗2六歩 ☖8四歩 ☗2五歩 ☖8五歩 ☗7八金 ☖3二金</td></tr>
+        <tr><td>☗2六歩</td><td class="x-num">+65</td><td class="x-pv">☗2六歩 ☖3四歩 ☗7六歩 ☖4四歩 ☗4八銀 ☖3二銀</td></tr>
+        <tr><td>☗7八金</td><td class="x-num">+60</td><td class="x-pv">☗7八金 ☖3四歩 ☗7六歩 ☖8四歩 ☗6八銀</td></tr>
+        <tr><td>☗5六歩</td><td class="x-num">+43</td><td class="x-pv">☗5六歩 ☖3四歩 ☗7六歩 ☖8四歩</td></tr>
+      </tbody>
+    </table>
+    <p class="x-dock-foot x-label">深さ <span class="x-num">21</span>　ノード数 <span class="x-num">15.7M</span>　NPS <span class="x-num">3.0M</span>　時間 <span class="x-num">5.2s</span></p>
+  </section>
+  </div>
+</div>
+</section>
+
+<!-- 画面2: プリセット編集 -->
+<section class="x-screen" aria-labelledby="s2">
+<h2 id="s2" class="x-screen-name">2. プリセット編集</h2>
+<div class="x-modal" role="dialog" aria-labelledby="m2">
+  <h3 id="m2" class="x-modal-title">Hao</h3>
+  <p class="x-help">保存時にプリセットが更新され、必要なら自動でエンジンが再起動されます。</p>
+  <div class="x-field">
+    <label class="x-label" for="f-name">名前</label>
+    <input id="f-name" class="x-input" value="Hao">
+  </div>
+  <div class="x-field">
+    <label class="x-label" for="f-engine">エンジン</label>
+    <div class="x-row">
+      <select id="f-engine" class="x-input"><option>YaneuraOu NNUE V9.00Git 64APPLEM1 TOURNAMENT</option></select>
+      <button type="button" class="x-button x-button--accent">もう一度読み込む</button>
+    </div>
+    <p class="x-note x-mono">engines/YaneuraOu_NNUE_halfkp_256x2_32-V900Git_APPLEM1</p>
+  </div>
+  <fieldset class="x-field x-fieldset">
+    <legend class="x-label">候補手の数</legend>
+    <div class="x-segmented" role="radiogroup" aria-label="候補手の数">
+      <button type="button" role="radio" aria-checked="false" class="x-segment">1</button>
+      <button type="button" role="radio" aria-checked="false" class="x-segment">3</button>
+      <button type="button" role="radio" aria-checked="true" class="x-segment x-segment--on">5</button>
+      <button type="button" role="radio" aria-checked="false" class="x-segment">8</button>
+    </div>
+  </fieldset>
+  <div class="x-field">
+    <label class="x-label" for="f-hash">ハッシュ（MB）</label>
+    <div class="x-row">
+      <button type="button" class="x-button x-button--neutral x-button--square" aria-label="減らす">−</button>
+      <input id="f-hash" class="x-input x-input--invalid x-num" value="abc" aria-invalid="true" aria-describedby="f-hash-error">
+      <button type="button" class="x-button x-button--neutral x-button--square" aria-label="増やす">＋</button>
+    </div>
+    <p id="f-hash-error" class="x-error">数値を入力してください</p>
+  </div>
+  <div class="x-modal-foot">
+    <button type="button" class="x-button x-button--neutral">キャンセル</button>
+    <button type="button" class="x-button x-button--primary">保存</button>
+  </div>
+</div>
+</section>
+
+<!-- 画面3: 課題局面 -->
+<section class="x-screen" aria-labelledby="s3">
+<h2 id="s3" class="x-screen-name">3. 課題局面</h2>
+<div class="x-modal x-modal--wide" role="dialog" aria-labelledby="m3">
+  <h3 id="m3" class="x-modal-title">課題局面</h3>
+  <div class="x-band" role="status">
+    <p><strong>1件を保存できませんでした。</strong>ファイルの場所を確認してください。（読み取り専用）</p>
+    <button type="button" class="x-button x-button--neutral x-button--sm">もう一度</button>
+  </div>
+  <div class="x-segmented" role="radiogroup" aria-label="状態で絞り込む">
+    <button type="button" role="radio" aria-checked="true" class="x-segment x-segment--on">全て <span class="x-num">5</span></button>
+    <button type="button" role="radio" aria-checked="false" class="x-segment">未整理 <span class="x-num">2</span></button>
+    <button type="button" role="radio" aria-checked="false" class="x-segment">研究中 <span class="x-num">2</span></button>
+    <button type="button" role="radio" aria-checked="false" class="x-segment">完了 <span class="x-num">1</span></button>
+  </div>
+  <label class="x-label" for="f-search">ラベル・メモを検索</label>
+  <input id="f-search" class="x-input" placeholder="例: 角換わり">
+  <ul class="x-list">
+    <li class="x-list-row x-selected" aria-current="true"><span>先手振飛車穴熊に対する4四銀型</span><span class="x-badge">研究中</span><span class="x-note x-num">2026-09-01</span></li>
+    <li class="x-list-row"><span>矢倉早囲い対急戦の成立</span><span class="x-badge">未整理</span><span class="x-note x-num">2026-09-03</span></li>
+    <li class="x-list-row"><span>相掛かり▲3七銀型の手順</span><span class="x-badge">完了</span><span class="x-note x-num">2026-09-11</span></li>
+  </ul>
+  <div class="x-modal-foot">
+    <button type="button" class="x-button x-button--danger">削除</button>
+    <span class="x-spacer"></span>
+    <button type="button" class="x-button x-button--neutral">閉じる</button>
+    <button type="button" class="x-button x-button--accent">局面を開く</button>
+  </div>
+</div>
+</section>
+</main>
+</body>
+</html>
