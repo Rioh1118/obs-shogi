@@ -1,10 +1,10 @@
 //! 起動した1本のエンジンへ手順を通す。何を書いてよいか、読んだ行をどこへ流すかは状態機械（`usi_machine`）が
-//! 決める。ここは、それを持つタスク1本（殻。`run_shell`）と、殻へ頼む取っ手を持つ。殻は入力（頼みごと、読んだ行、
+//! 決める。ここは、それを持つタスク1本（アクター。`run_actor`）と、アクターへ頼むハンドルを持つ。アクターは入力（頼みごと、読んだ行、
 //! 出力の終わり、書き込みの詰まり）を着いた順に状態機械へ渡し、出たこと（書き込みの列へ入れる、札の答えを渡す、
 //! 探索へ行を流す、落とす）を出た順に行う。待つ上限は手順が持つ（ADR-0016 決定2）。
 //!
-//! 取っ手は2つの型に分ける（決定6）。送る面 `UsiProtocol` は手順を持ち、呼び手（検討、対局、申告の取得）が持つ。
-//! 落とす面 `EngineShutdown` は `quit` と kill を持ち、台帳（`registry`）だけが持つ。
+//! ハンドルは2つの型に分ける（決定6）。`UsiProtocol` は手順を持ち、呼び手（検討、対局、申告の取得）が持つ。
+//! `EngineShutdown` は `quit` と kill を持ち、台帳（`registry`）だけが持つ。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -52,7 +52,7 @@ fn check_writable(command: &GuiCommand) -> Result<(), EngineError> {
     Ok(())
 }
 
-/// 線に出る1行の欄が、行を壊す文字を含めば断る。手順が殻へ頼む前に呼ぶ。
+/// 線に出る1行の欄が、行を壊す文字を含めば断る。手順がアクターへ頼む前に呼ぶ。
 ///
 /// 頼んだ後に書き込みの列（`check_writable`）で断ると、同じ頼みの後ろの書き込み
 /// （`position` の後の `go`、`setoption` の後の `isready`）は列へ入り、状態機械も書いたつもりで進む
@@ -94,8 +94,8 @@ const SKIPPED_LINE_LOG_INTERVAL: Duration = Duration::from_secs(10);
 /// 避けられないが、その後ろに何も並ばないようにはできる。
 pub const WRITE_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// 閉じたと分かる答えを受けてから、殻が閉じたのを写しで見るまでの上限（`Handle::wait_closed`）。
-/// 殻は答えの直後に写しを書くので、普通はすぐ揃う。**上限はハングの止め** —— 殻が閉じないまま答える退行があっても、
+/// 閉じたと分かる答えを受けてから、アクターが閉じたのを写しで見るまでの上限（`Handle::wait_closed`）。
+/// アクターは答えの直後に写しを書くので、普通はすぐ揃う。**上限はハングの止め** —— アクターが閉じないまま答える退行があっても、
 /// 手順が返らなくなる代わりに記録を1行残して進む
 const CLOSED_SEEN_LIMIT: Duration = Duration::from_secs(1);
 
@@ -111,11 +111,11 @@ pub const USI_OK_TIMEOUT: Duration = Duration::from_secs(30);
 /// 短く切ると、重い設定のエンジンが起動できないという形で出る。
 pub const READY_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// 起こしたプロセスに殻を付け、送る面と落とす面を返す（状態機械は Q0）。
+/// 起こしたプロセスにアクターを付け、2つのハンドル（`UsiProtocol` と `EngineShutdown`）を返す（状態機械は Q0）。
 ///
-/// **子プロセスの持ち主は殻1つ。** 取っ手はどちらも殻への送り手を包むだけで、子プロセスを持たない。
-/// 取っ手（`Search` が持つ送る面を含む）が全部落ちると殻が抜け、そのとき子プロセスも落ちる
-/// （`run_shell`）。読み取りと書き込みの列は殻への送り手を weak で持つので、殻の寿命を延ばさない
+/// **子プロセスの持ち主はアクター1つ。** ハンドルはどちらもアクターへの送り手を包むだけで、子プロセスを持たない。
+/// ハンドル（`Search` が持つ `UsiProtocol` を含む）が全部落ちるとアクターが終わり、そのとき子プロセスも落ちる
+/// （`run_actor`）。読み取りと書き込みの列はアクターへの送り手を weak で持つので、アクターの寿命を延ばさない
 pub fn attach(child: EngineChild) -> (UsiProtocol, EngineShutdown) {
     let (inputs, received) = mpsc::unbounded_channel();
     let (writer, jobs) = mpsc::unbounded_channel();
@@ -133,7 +133,7 @@ pub fn attach(child: EngineChild) -> (UsiProtocol, EngineShutdown) {
         diagnostics: child.diagnostics(),
     };
     let reading = start_reading(&child, inputs.downgrade());
-    let shell = Shell {
+    let actor = UsiActor {
         child,
         machine: UsiMachine::new(),
         waiters: HashMap::new(),
@@ -142,7 +142,7 @@ pub fn attach(child: EngineChild) -> (UsiProtocol, EngineShutdown) {
         status,
         inputs: inputs.downgrade(),
     };
-    tokio::spawn(run_shell(shell, received));
+    tokio::spawn(run_actor(actor, received));
     if !reading {
         // 読み取りを始めるのはここだけなので起きない。起きたら、待つ者が上限まで待たないように閉じる
         // （`start_reading` が渡した出力の終わりで閉じる）
@@ -158,24 +158,24 @@ pub fn attach(child: EngineChild) -> (UsiProtocol, EngineShutdown) {
     )
 }
 
-/// 送る面。手順（`identify`、`prepare`、`check_value`、`new_game`、`search`、`game_over`）と、
+/// 手順を送るハンドル。手順（`identify`、`prepare`、`check_value`、`new_game`、`search`、`game_over`）と、
 /// 終わりの見張り、直近の出力を持つ。**落とす関数を持たない**（落とすのは台帳の `EngineShutdown`）。
 ///
-/// 殻への送り手を包むだけなので、`Clone` で配ってよい。持っている間は殻と子プロセスが生きる
+/// アクターへの送り手を包むだけなので、`Clone` で配ってよい。持っている間はアクターと子プロセスが生きる
 #[derive(Debug, Clone)]
 pub struct UsiProtocol {
     handle: Handle,
 }
 
-/// 落とす面。`quit` と kill を持つ。**持つのは台帳（`registry`）だけ**（ADR-0016 決定6）。
+/// 落とすハンドル。`quit` と kill を持つ。**持つのは台帳（`registry`）だけ**（ADR-0016 決定6）。
 ///
-/// 手順を持たないので、台帳は行を送れない。殻への送り手を包むだけなので `Clone` で持ってよい
+/// 手順を持たないので、台帳は行を送れない。アクターへの送り手を包むだけなので `Clone` で持ってよい
 #[derive(Debug, Clone)]
 pub struct EngineShutdown {
     handle: Handle,
 }
 
-/// 取っ手（送る面と落とす面）の中身。殻への送り手と、状態の写しと、子プロセスの様子を見る取っ手（落とす関数を持たない）
+/// 2つのハンドル（`UsiProtocol` と `EngineShutdown`）の中身。アクターへの送り手と、状態の写しと、子プロセスの様子を見る `ChildDiagnostics`（落とす関数を持たない）
 #[derive(Debug, Clone)]
 struct Handle {
     inputs: mpsc::UnboundedSender<Input>,
@@ -183,9 +183,9 @@ struct Handle {
     diagnostics: ChildDiagnostics,
 }
 
-/// 殻への入力。**着いた順に1つずつ状態機械へ渡す**
+/// アクターへの入力。**着いた順に1つずつ状態機械へ渡す**
 enum Input {
-    /// 取っ手からの頼みごと
+    /// ハンドルからの頼みごと
     Ask(Request),
     /// 読んだ1行（L1〜L7、L9）。`parsed` は `usi` crate が解いた形
     Line {
@@ -225,7 +225,7 @@ enum Request {
         kind: GameOverKind,
         reply: Reply<()>,
     },
-    /// 探索。`Search` は殻が作って返す（`Shell::start_search`）
+    /// 探索。`Search` はアクターが作って返す（`UsiActor::start_search`）
     Search {
         position: String,
         params: ThinkParams,
@@ -270,7 +270,7 @@ enum Waiter {
     Stopped(oneshot::Sender<Result<(), EngineError>>),
 }
 
-/// 状態機械の写し（`Shell::status`）。取っ手が殻に頼まずに読む
+/// 状態機械の写し（`UsiActor::status`）。ハンドルがアクターに頼まずに読む
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Status {
     end: Option<EngineEnd>,
@@ -279,7 +279,7 @@ struct Status {
     unreachable: EngineEnd,
 }
 
-/// 1回の `Shell::step` で書き込みの列へ入れたもの。書けたかを待つのは、頼んだ手順（`Handle::finish`）
+/// 1回の `UsiActor::step` で書き込みの列へ入れたもの。書けたかを待つのは、頼んだ手順（`Handle::finish`）
 #[must_use]
 #[derive(Default)]
 struct Written {
@@ -288,9 +288,9 @@ struct Written {
     kill: bool,
 }
 
-/// 殻。状態機械と、その答えを待つ者と、子プロセスを持つ。**`run_shell` のタスクだけが触る**
-struct Shell {
-    /// 子プロセス。**殻が抜けると落ちる**（`EngineChild` の Drop）
+/// アクター。状態機械と、その答えを待つ者と、子プロセスを持つ。**`run_actor` のタスクだけが触る**
+struct UsiActor {
+    /// 子プロセス。**アクターが終わると落ちる**（`EngineChild` の Drop）
     child: EngineChild,
     machine: UsiMachine,
     /// 札ごとの答えの送り先。答えを渡したら外す。待つ者が諦めていれば、送っても黙って捨てられる
@@ -300,27 +300,27 @@ struct Shell {
     /// 書き込みの列。**投入順がそのままワイヤ上の順になる**（`run_writer`）
     writer: mpsc::UnboundedSender<WriteJob>,
     /// 閉じたか・探索中かの写し。待つ者（終わりの見張り、前の探索の終わりを待つ手順「探索」）が
-    /// 殻に頼まずに待てるように置く。書くのは `step` だけ
+    /// アクターに頼まずに待てるように置く。書くのは `step` だけ
     status: watch::Sender<Status>,
     /// 自分への送り手。`Search` を作るときだけ強める。**weak であることが要る**——strong を持つと
-    /// 殻が自分の入力を生かし続け、取っ手を全部捨てても抜けない
+    /// アクターが自分の入力を生かし続け、ハンドルを全部捨てても終わらない
     inputs: WeakUnboundedSender<Input>,
 }
 
-/// 殻のタスク。入力を着いた順に1つずつ処理する。**処理（`Shell::handle`）は同期で、await 点を持たない**——
-/// 落とすのを見届ける間（`KILL_TIMEOUT`）も、待つのは頼んだ側（`EngineShutdown::kill_engine`）で、殻は次の入力に答える。
+/// アクター。入力を着いた順に1つずつ処理する。**処理（`UsiActor::handle`）は同期で、await 点を持たない**——
+/// 落とすのを見届ける間（`KILL_TIMEOUT`）も、待つのは頼んだ側（`EngineShutdown::kill_engine`）で、アクターは次の入力に答える。
 ///
-/// 取っ手が全部落ちたら抜ける。抜ける前に kill（R11）を渡し、待っている札に答えて閉じた理由を `Requested` にする。
-/// 子プロセスは殻と一緒に落ちる（`EngineChild` の Drop）
-async fn run_shell(mut shell: Shell, mut inputs: mpsc::UnboundedReceiver<Input>) {
+/// ハンドルが全部落ちたら終わる。終わる前に kill（R11）を渡し、待っている札に答えて閉じた理由を `Requested` にする。
+/// 子プロセスはアクターと一緒に落ちる（`EngineChild` の Drop）
+async fn run_actor(mut actor: UsiActor, mut inputs: mpsc::UnboundedReceiver<Input>) {
     while let Some(input) = inputs.recv().await {
-        shell.handle(input);
+        actor.handle(input);
     }
-    let ((), _dropped_with_the_child) = shell.step(|shell| shell.machine.kill());
-    log::debug!(target: LOGT, "shell: every handle is gone; ending the engine");
+    let ((), _dropped_with_the_child) = actor.step(|actor| actor.machine.kill());
+    log::debug!(target: LOGT, "actor: every handle is gone; ending the engine");
 }
 
-/// プロセスの終わりを待つ取っ手。**子プロセスも殻への送り手も持たない**ので、
+/// プロセスの終わりを待つハンドル。**子プロセスもアクターへの送り手も持たない**ので、
 /// 待っている間もプロセスの寿命を延ばさない
 pub struct EngineEndWatch {
     diagnostics: ChildDiagnostics,
@@ -334,7 +334,7 @@ impl EngineEndWatch {
             Ok(status) => status.end,
             Err(_) => None,
         };
-        // 送り手が消えた（`Err`）のは、殻ごと抜けたとき。取っ手が全部捨てられている
+        // 送り手が消えた（`Err`）のは、アクターごと終わったとき。ハンドルが全部捨てられている
         end.unwrap_or(EngineEnd::Requested)
     }
 
@@ -362,12 +362,12 @@ struct WriteJob {
 /// 書き込みは取り消さない**——途中で取り消すと行の半分だけがワイヤに残り、
 /// エンジンは次の行と繋げて読む。
 ///
-/// 上限に当たったら、詰まった書き込みに答える**前に**殻へ知らせる（`Input::WriteStalled`）。
-/// 答えを受けた手順が次に頼むことは、殻が詰まりを状態機械へ渡した後に着く
+/// 上限に当たったら、詰まった書き込みに答える**前に**アクターへ知らせる（`Input::WriteStalled`）。
+/// 答えを受けた手順が次に頼むことは、アクターが詰まりを状態機械へ渡した後に着く
 async fn run_writer(
     writer: Option<ChildWriter>,
     mut jobs: mpsc::UnboundedReceiver<WriteJob>,
-    shell: WeakUnboundedSender<Input>,
+    actor: WeakUnboundedSender<Input>,
 ) {
     let writer = writer.map(Arc::new);
     // 1件でも上限に達したら、**それ以降は書かずに断る。**
@@ -413,9 +413,9 @@ async fn run_writer(
             )),
             Err(_) => {
                 stalled = true;
-                // 殻が抜けていれば知らせる先は無い（取っ手が全部捨てられ、子プロセスも落ちている）
-                if let Some(shell) = shell.upgrade() {
-                    let _ = shell.send(Input::WriteStalled);
+                // アクターが終わっていれば知らせる先は無い（ハンドルが全部捨てられ、子プロセスも落ちている）
+                if let Some(actor) = actor.upgrade() {
+                    let _ = actor.send(Input::WriteStalled);
                 }
                 Err(EngineError::Timeout(format!(
                     "{TIMED_OUT} accepting the write; it may still arrive"
@@ -430,14 +430,14 @@ async fn run_writer(
     }
 }
 
-impl Shell {
-    /// 入力を1つ処理する。**同期。await 点を持たない**（`run_shell`）
+impl UsiActor {
+    /// 入力を1つ処理する。**同期。await 点を持たない**（`run_actor`）
     fn handle(&mut self, input: Input) {
         match input {
             Input::Ask(request) => self.answer(request),
             Input::Line { raw, parsed } => {
                 // 行から書き込みは出ない（状態機械が行に答えて書くことは無い）。出ても列へは入っている
-                let ((), _nobody_waits) = self.step(|shell| shell.machine.on_line(&raw, parsed));
+                let ((), _nobody_waits) = self.step(|actor| actor.machine.on_line(&raw, parsed));
             }
             Input::OutputEnded => self.on_output_end(),
             Input::WriteStalled => self.fail_writes(),
@@ -450,11 +450,11 @@ impl Shell {
     fn answer(&mut self, request: Request) {
         match request {
             Request::Identify { answer, reply } => {
-                let (asked, written) = self.step(|shell| {
-                    Ok(match shell.machine.identify()? {
+                let (asked, written) = self.step(|actor| {
+                    Ok(match actor.machine.identify()? {
                         Asked::Done(info) => Asked::Done(info),
                         Asked::Waiting(ticket) => {
-                            shell.waiters.insert(ticket, Waiter::Named(answer));
+                            actor.waiters.insert(ticket, Waiter::Named(answer));
                             Asked::Waiting(())
                         }
                     })
@@ -466,9 +466,9 @@ impl Shell {
                 answer,
                 reply,
             } => {
-                let (asked, written) = self.step(|shell| {
-                    let ticket = shell.machine.prepare(&options)?;
-                    shell.waiters.insert(ticket, Waiter::Prepared(answer));
+                let (asked, written) = self.step(|actor| {
+                    let ticket = actor.machine.prepare(&options)?;
+                    actor.waiters.insert(ticket, Waiter::Prepared(answer));
                     Ok(())
                 });
                 let _ = reply.send((asked, written));
@@ -479,19 +479,19 @@ impl Shell {
                 answer,
                 reply,
             } => {
-                let (asked, written) = self.step(|shell| {
-                    let ticket = shell.machine.check_value(&name, &value)?;
-                    shell.waiters.insert(ticket, Waiter::Checked(answer));
+                let (asked, written) = self.step(|actor| {
+                    let ticket = actor.machine.check_value(&name, &value)?;
+                    actor.waiters.insert(ticket, Waiter::Checked(answer));
                     Ok(())
                 });
                 let _ = reply.send((asked, written));
             }
             Request::NewGame { reply } => {
-                let (asked, written) = self.step(|shell| shell.machine.new_game());
+                let (asked, written) = self.step(|actor| actor.machine.new_game());
                 let _ = reply.send((asked, written));
             }
             Request::GameOver { kind, reply } => {
-                let (asked, written) = self.step(|shell| shell.machine.game_over(kind));
+                let (asked, written) = self.step(|actor| actor.machine.game_over(kind));
                 let _ = reply.send((asked, written));
             }
             Request::Search {
@@ -499,20 +499,20 @@ impl Shell {
                 params,
                 reply,
             } => {
-                let (asked, written) = self.step(|shell| shell.start_search(position, params));
+                let (asked, written) = self.step(|actor| actor.start_search(position, params));
                 // 頼んだ手順が既に捨てられていたら、`Search` はここで落ち、その `Drop` が `stop` を頼む
                 let _ = reply.send((asked, written));
             }
             Request::Ponderhit { id, reply } => {
-                let (asked, written) = self.step(|shell| shell.machine.ponderhit(id));
+                let (asked, written) = self.step(|actor| actor.machine.ponderhit(id));
                 let _ = reply.send((asked, written));
             }
             Request::Stop { id, answer, reply } => {
-                let (asked, written) = self.step(|shell| {
-                    Ok(match shell.machine.stop(id)? {
+                let (asked, written) = self.step(|actor| {
+                    Ok(match actor.machine.stop(id)? {
                         Asked::Done(()) => Asked::Done(()),
                         Asked::Waiting(ticket) => {
-                            shell.waiters.insert(ticket, Waiter::Stopped(answer));
+                            actor.waiters.insert(ticket, Waiter::Stopped(answer));
                             Asked::Waiting(())
                         }
                     })
@@ -521,14 +521,14 @@ impl Shell {
             }
             Request::DropSearch { id } => {
                 // 書けたかを待つ者は居ない。書けなければ書き込みの列が記録する
-                let ((), _nobody_waits) = self.step(|shell| shell.machine.drop_search(id));
+                let ((), _nobody_waits) = self.step(|actor| actor.machine.drop_search(id));
             }
             Request::Quit { reply } => {
-                let ((), written) = self.step(|shell| shell.machine.quit());
+                let ((), written) = self.step(|actor| actor.machine.quit());
                 let _ = reply.send((Ok(()), written));
             }
             Request::Kill { reply } => {
-                let ((), written) = self.step(|shell| shell.machine.kill());
+                let ((), written) = self.step(|actor| actor.machine.kill());
                 // 状態機械は kill に必ず落とす指示で答える（閉じた後も。2回目は空振りする）
                 let started = if written.kill {
                     self.child.start_kill()
@@ -559,7 +559,7 @@ impl Shell {
         let id = self.machine.search(position, params)?;
         let (tx, lines) = mpsc::unbounded_channel();
         self.search = Some((id, tx));
-        // 弱めた送り手が強められないのは、取っ手が全部落ちた後だけ。殻はこの後で抜けて落とす
+        // 弱めた送り手が強められないのは、ハンドルが全部落ちた後だけ。アクターはこの後で終わって落とす
         let inputs = self
             .inputs
             .upgrade()
@@ -638,7 +638,7 @@ impl Shell {
         &self,
         command: GuiCommand,
     ) -> Result<oneshot::Receiver<Result<(), EngineError>>, EngineError> {
-        // **最後の砦。** 手順も殻へ頼む前に弾いている（ここで断ると、同じ `step` の後ろの
+        // **最後の砦。** 手順もアクターへ頼む前に弾いている（ここで断ると、同じ `step` の後ろの
         // 書き込みは列へ入る）が、そちらは入口ごとに書く検証なので、入口を足した人が素通りするのを
         // 止めるものが無い。ここは書き込みの列へ入る唯一の経路
         check_writable(&command)?;
@@ -659,7 +659,7 @@ impl Shell {
     /// ロックを握ったままになる。落とすことはできる（`kill_engine` は stdin の
     /// ロックを待たない）ので、復帰は落として新しいプロセスを起動し直すこと。
     fn fail_writes(&mut self) {
-        let ((), _nothing_written) = self.step(|shell| shell.machine.on_write_stalled());
+        let ((), _nothing_written) = self.step(|actor| actor.machine.on_write_stalled());
         log::error!(
             target: LOGT,
             "write: stalled; refusing every later write on this process (→ F-26)"
@@ -668,14 +668,14 @@ impl Shell {
 
     /// 出力の終わり（L8）。**溜まっていた行を渡し切った後に着く**（読み取りは1本で、行と同じ列へ送る）
     fn on_output_end(&mut self) {
-        let ((), _nothing_written) = self.step(|shell| shell.machine.on_output_end());
+        let ((), _nothing_written) = self.step(|actor| actor.machine.on_output_end());
         if self.machine.end() == Some(EngineEnd::Requested) {
             log::debug!(target: LOGT, "listen: engine output ended after the kill");
             return;
         }
         // **原因を残す。** 検討や対局の途中で落ちたエンジンの手掛かりは、
         // 直近の出力（assert の文言は stderr に出る）と終わり方しか無い。
-        // 見届けるのを待つので、殻の外で書く（殻は待たない）
+        // 見届けるのを待つので、アクターの外で書く（アクターは待たない）
         let diagnostics = self.child.diagnostics();
         tokio::spawn(async move {
             log::warn!(
@@ -687,19 +687,19 @@ impl Shell {
     }
 }
 
-/// 読み取りを始め、読んだ行を殻へ送る。始められなかったら `false`。
+/// 読み取りを始め、読んだ行をアクターへ送る。始められなかったら `false`。
 ///
-/// 読み取りのタスク（`EngineChild::read_stdout`）から、殻の入力の列へ直に送る。**行ごとに `spawn` しない**——
-/// どのタスクが先に殻へ着くかがランタイム任せになり、`id name` と `usiok` が入れ替わると名前の無い名乗りになる。
+/// 読み取りのタスク（`EngineChild::read_stdout`）から、アクターの入力の列へ直に送る。**行ごとに `spawn` しない**——
+/// どのタスクが先にアクターへ着くかがランタイム任せになり、`id name` と `usiok` が入れ替わると名前の無い名乗りになる。
 ///
-/// 殻への送り手は weak で持つ（殻の寿命を延ばさない）。殻のタスクが既に終わっていれば読むのをやめる
-fn start_reading(child: &EngineChild, shell: WeakUnboundedSender<Input>) -> bool {
+/// アクターへの送り手は weak で持つ（アクターの寿命を延ばさない）。アクターが既に終わっていれば読むのをやめる
+fn start_reading(child: &EngineChild, actor: WeakUnboundedSender<Input>) -> bool {
     // 解けなかった行も状態機械へ渡す（`option` 行は解けなくても宣言に入る）。
     // **読み取りは止めない**——止めると、エンジンが生きたまま以後の出力が全部消える。
     // 解けなかった数の記録は時計が要るので、状態機械ではなくここで間引く
     let mut skipped = 0u64;
     let mut throttle = LogThrottle::new(SKIPPED_LINE_LOG_INTERVAL);
-    let reading = Reading { shell };
+    let reading = Reading { actor };
     child.read_stdout(move |event| match event {
         ReadEvent::Line { parsed, raw } => {
             if parsed.is_none() {
@@ -720,21 +720,21 @@ fn start_reading(child: &EngineChild, shell: WeakUnboundedSender<Input>) -> bool
     })
 }
 
-/// 読み取りが殻へ送るための送り手。**落ちるときに出力の終わりを送る。**
+/// 読み取りがアクターへ送るための送り手。**落ちるときに出力の終わりを送る。**
 ///
 /// 読み取りの終わり方は1つではない（stdout の EOF、読み取り自体の失敗、始められなかった）が、
 /// どの終わり方でも読み取りのタスクと一緒にこれが落ちるので、ここに置けば終わり方を数え上げずに済む。
 /// 行と同じ列へ、行の後に送るので、まだ渡していない行（`bestmove` を書いた直後に終わるエンジンの手）を捨てない
 struct Reading {
-    shell: WeakUnboundedSender<Input>,
+    actor: WeakUnboundedSender<Input>,
 }
 
 impl Reading {
-    /// 殻へ送る。殻のタスクが既に終わっていれば `false`（読むのをやめる）
+    /// アクターへ送る。アクターが既に終わっていれば `false`（読むのをやめる）
     fn send(&self, input: Input) -> bool {
-        self.shell
+        self.actor
             .upgrade()
-            .is_some_and(|shell| shell.send(input).is_ok())
+            .is_some_and(|actor| actor.send(input).is_ok())
     }
 }
 
@@ -745,7 +745,7 @@ impl Drop for Reading {
 }
 
 impl Handle {
-    /// 殻へ頼み、受け付けたかと、書き込みの列へ入れたものを受け取る
+    /// アクターへ頼み、受け付けたかと、書き込みの列へ入れたものを受け取る
     async fn ask<T>(
         &self,
         request: impl FnOnce(Reply<T>) -> Request,
@@ -761,10 +761,10 @@ impl Handle {
         }
     }
 
-    /// 殻が書き込みの列へ入れたものが書けたかを、入れた順に待つ。最初の失敗を返す。
+    /// アクターが書き込みの列へ入れたものが書けたかを、入れた順に待つ。最初の失敗を返す。
     ///
-    /// 上限に当たった（`EngineError::Timeout`）なら、殻が詰まりを状態機械へ渡して閉じるのを見てから返す。
-    /// 書き込みの列は詰まりを殻へ先に知らせている（`run_writer`）ので、待ちは短い。返った後の頼みと
+    /// 上限に当たった（`EngineError::Timeout`）なら、アクターが詰まりを状態機械へ渡して閉じるのを見てから返す。
+    /// 書き込みの列は詰まりをアクターへ先に知らせている（`run_writer`）ので、待ちは短い。返った後の頼みと
     /// 届かない理由（`cannot_reach`）が、閉じた状態を見るように
     async fn finish(&self, written: Written) -> Result<(), EngineError> {
         for reply in written.replies {
@@ -783,20 +783,20 @@ impl Handle {
         Ok(())
     }
 
-    /// 殻が閉じたのを写しで見るまで待つ（上限 `CLOSED_SEEN_LIMIT`）。閉じたと分かっている回
+    /// アクターが閉じたのを写しで見るまで待つ（上限 `CLOSED_SEEN_LIMIT`）。閉じたと分かっている回
     /// （探索の行が途切れた、書き込みが詰まった）に、届かない理由を写しから組む前に呼ぶ。
     ///
-    /// 殻は閉じた答え（探索の送り手を落とす、詰まった書き込みに答える）と写しを別々に渡すので、
+    /// アクターは閉じた答え（探索の送り手を落とす、詰まった書き込みに答える）と写しを別々に渡すので、
     /// 答えを先に見た側が写しを読むと、閉じる前の写しを読みうる。順の約束に頼らず、ここで待つ
     async fn wait_closed(&self) {
         let mut status = self.status.clone();
         let closed = async { status.wait_for(|status| status.end.is_some()).await.is_ok() };
         match tokio::time::timeout(CLOSED_SEEN_LIMIT, closed).await {
-            // 閉じたか（`true`）、写しの送り手が消えた（`false`。殻ごと抜けた）
+            // 閉じたか（`true`）、写しの送り手が消えた（`false`。アクターごと終わった）
             Ok(_closed_or_gone) => {}
             Err(_) => log::warn!(
                 target: LOGT,
-                "the shell did not close within {CLOSED_SEEN_LIMIT:?} after an answer that implies it"
+                "the actor did not close within {CLOSED_SEEN_LIMIT:?} after an answer that implies it"
             ),
         }
     }
@@ -807,7 +807,7 @@ impl Handle {
         self.cannot_reach()
     }
 
-    /// 届かなくなった理由。状態の写しから組む（殻に頼まない）
+    /// 届かなくなった理由。状態の写しから組む（アクターに頼まない）
     fn cannot_reach(&self) -> EngineError {
         closed_error(self.status.borrow().unreachable)
     }
@@ -923,7 +923,7 @@ impl UsiProtocol {
             None => ready_limit,
         };
         let ready_deadline = limit.map(|limit| tokio::time::Instant::now() + limit);
-        // 線を壊す値は、殻へ頼む前に断る。頼んでから書き込みの列で断ると、
+        // 線を壊す値は、アクターへ頼む前に断る。頼んでから書き込みの列で断ると、
         // 後ろの `setoption` と `isready` だけが線に出る
         for SetOptionValue { name, value } in options {
             refuse_breaking_field("an option name", name)?;
@@ -996,7 +996,7 @@ impl UsiProtocol {
         value: &str,
         limit: Duration,
     ) -> Result<Option<Vec<String>>, EngineError> {
-        // 線を壊す値は、殻へ頼む前に断る（`prepare` と同じ）
+        // 線を壊す値は、アクターへ頼む前に断る（`prepare` と同じ）
         refuse_breaking_field("an option name", name)?;
         refuse_breaking_field("an option value", value)?;
         let (answer, answered) = oneshot::channel();
@@ -1052,7 +1052,7 @@ impl UsiProtocol {
         summarize_recent(&self.handle.diagnostics.recent_lines())
     }
 
-    /// このプロセスの終わりを見る取っ手
+    /// このプロセスの終わりを見るハンドル
     pub fn end_watch(&self) -> EngineEndWatch {
         EngineEndWatch {
             diagnostics: self.handle.diagnostics.clone(),
@@ -1062,7 +1062,7 @@ impl UsiProtocol {
 }
 
 impl EngineShutdown {
-    /// 同じプロセスの落とす面か（台帳が起動中の置き場から外すときに比べる）
+    /// 同じプロセスの `EngineShutdown` か（台帳が起動中の置き場から外すときに比べる）
     pub fn same_process(&self, other: &EngineShutdown) -> bool {
         self.handle.inputs.same_channel(&other.handle.inputs)
     }
@@ -1086,7 +1086,7 @@ impl EngineShutdown {
     /// 先に状態機械を閉じ（理由は `Requested`）、待っている手順に答えを渡してから落とす。
     /// 落とすのは待ち手のタスクに頼むだけで（`EngineChild::start_kill`）、stdin のロックも
     /// 書き込みの列も通らない。**書き込みが詰まっていても落とせる。**
-    /// プロセスが畳まれるのを見届けるのはここで、上限は `KILL_TIMEOUT`。殻は見届けるのを待たない。
+    /// プロセスが畳まれるのを見届けるのはここで、上限は `KILL_TIMEOUT`。アクターは見届けるのを待たない。
     ///
     /// `quit` は書かない。行儀よく終わらせたい呼び手は先に `quit` を送る
     /// （`EngineRegistry::terminate`）。
@@ -1099,14 +1099,14 @@ impl EngineShutdown {
             .send(Input::Ask(Request::Kill { reply }))
             .is_err()
         {
-            log::debug!(target: LOGT, "kill_engine: the shell has already ended");
+            log::debug!(target: LOGT, "kill_engine: the actor has already ended");
             return;
         }
         let outcome = match started.await {
             Ok(Ok(())) => self.handle.diagnostics.wait_killed(KILL_TIMEOUT).await,
             Ok(Err(answered)) => answered,
             Err(_) => {
-                log::debug!(target: LOGT, "kill_engine: the shell ended before answering");
+                log::debug!(target: LOGT, "kill_engine: the actor ended before answering");
                 return;
             }
         };
@@ -1132,8 +1132,8 @@ impl EngineShutdown {
     }
 }
 
-/// テストだけが使う取っ手のメソッド。**本番の呼び手は落とす面を持たない**（落とすのは台帳の `EngineShutdown`）。
-/// 台本のテストは送る面だけを受け取り（`script::spawn_protocol`）、後始末と kill の経路をここから踏む
+/// テストだけが使うハンドルのメソッド。**本番の呼び手は `EngineShutdown` を持たない**（落とすのは台帳の `EngineShutdown`）。
+/// 台本のテストは `UsiProtocol` だけを受け取り（`script::spawn_protocol`）、後始末と kill の経路をここから踏む
 #[cfg(test)]
 impl UsiProtocol {
     /// `EngineShutdown::kill_engine` と同じ頼みを送る
@@ -1154,7 +1154,7 @@ impl UsiProtocol {
         self.handle.finish(written).await
     }
 
-    /// 子プロセスの様子を見る取っ手（落とせたかを確かめる）
+    /// 子プロセスの様子を見るハンドル（落とせたかを確かめる）
     fn diagnostics(&self) -> ChildDiagnostics {
         self.handle.diagnostics.clone()
     }
@@ -1429,7 +1429,7 @@ done"#;
         }
 
         /// (Q2, W1): 書き込みが上限に当たって返った直後から、届かない理由は「詰まった」（`STALLED`）で、
-        /// 続く頼みも同じ理由で断る。殻は詰まりを写しへ書くのと詰まった書き込みに答えるのを別々に行うので、
+        /// 続く頼みも同じ理由で断る。アクターは詰まりを写しへ書くのと詰まった書き込みに答えるのを別々に行うので、
         /// 手順が閉じたのを見ずに返ると、閉じる前の写し（`CLOSED`）を読みうる（`Handle::finish`）
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn a_stalled_write_is_seen_as_stalled_as_soon_as_it_returns() {
@@ -1507,8 +1507,8 @@ done"#;
         }
 
         /// `kill_engine` を通さずに `UsiProtocol` を全部捨てても、プロセスは落ちる。
-        /// 殻の外のタスク（読み取り、書き込みの列）が殻への送り手を strong で持つと、
-        /// 取っ手を捨てても殻が抜けず、子プロセスが残る
+        /// アクターの外のタスク（読み取り、書き込みの列）がアクターへの送り手を strong で持つと、
+        /// ハンドルを捨ててもアクターが終わらず、子プロセスが残る
         #[tokio::test]
         async fn dropping_the_protocol_ends_the_process() {
             let dir = test_support::dir::temp_dir("protocol-drop");
@@ -1531,8 +1531,8 @@ done"#;
         }
 
         /// `readyok` を待っている最中に `UsiProtocol` を全部捨てても、プロセスは落ちる。
-        /// 状態機械は `readyok` の札を持ったまま残る（待つ者が諦めても状態は変わらない）。殻が札の残りを
-        /// 理由に抜けずにいると、`readyok` を返さないエンジンでは `EngineChild` の Drop が起きずに残る
+        /// 状態機械は `readyok` の札を持ったまま残る（待つ者が諦めても状態は変わらない）。アクターが札の残りを
+        /// 理由に終わらずにいると、`readyok` を返さないエンジンでは `EngineChild` の Drop が起きずに残る
         #[tokio::test]
         async fn dropping_the_protocol_while_waiting_for_readyok_ends_the_process() {
             let dir = test_support::dir::temp_dir("protocol-drop-waiting");
@@ -1709,12 +1709,12 @@ done"#;
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// (Q3, R8): 探索中に取っ手（`UsiProtocol` と `Search`）を全部捨てても、プロセスは落ちる。
+        /// (Q3, R8): 探索中にハンドル（`UsiProtocol` と `Search`）を全部捨てても、プロセスは落ちる。
         ///
         /// **台本は探索中に stdin を読まない。** 読んでいると、捨てたときに閉じた stdin で
         /// 台本が自分から終わり、こちらが落としたかどうかを見ないまま通る
         /// （`dropping_the_protocol_ends_the_process` の `cat` はそちらで終わる）。
-        /// `Search` を捨てると殻へ `stop` を頼むだけで、殻を生かすものは残らない
+        /// `Search` を捨てるとアクターへ `stop` を頼むだけで、アクターを生かすものは残らない
         #[tokio::test]
         async fn dropping_the_protocol_during_a_search_ends_the_process() {
             let dir = test_support::dir::temp_dir("protocol-drop-searching");
@@ -1764,8 +1764,8 @@ done"#,
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        /// 止めに答えない探索の `LateAnswer` を持ったまま取っ手を全部捨てても、プロセスは落ち、
-        /// `LateAnswer` は落とした理由（`GONE`）で返る。`LateAnswer` が殻への送り手を持つと、殻が抜けず
+        /// 止めに答えない探索の `LateAnswer` を持ったままハンドルを全部捨てても、プロセスは落ち、
+        /// `LateAnswer` は落とした理由（`GONE`）で返る。`LateAnswer` がアクターへの送り手を持つと、アクターが終わらず
         /// プロセスが残る
         #[tokio::test]
         async fn a_late_answer_does_not_keep_a_dropped_engine_alive() {

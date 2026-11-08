@@ -157,11 +157,11 @@ describe("通知の置き場", () => {
   });
 
   /**
-   * 取っ手（`dismissKey`）は**引っ込めるためだけ**。畳む鍵と分けてあるのは、
+   * `dismissKey` は**引っ込めるためだけ**。畳む鍵と分けてあるのは、
    * 条件と結び付いた通知——条件が消えれば引っ込む類——に件数を出さないため
    * （`Notification.count` は「必ず1件」に数が付くのを避けている）。
    */
-  describe("同じ取っ手は置き換える", () => {
+  describe("同じ `dismissKey` は置き換える", () => {
     const held = notify(
       notify(INITIAL_NOTIFICATION_STATE, { dismissKey: "engine", title: "1回目" }),
       { dismissKey: "engine", title: "2回目" },
@@ -183,7 +183,7 @@ describe("通知の置き場", () => {
 
     /**
      * 件数を出すかどうかは `dedupeKey` の有無で決まる（`NotificationLayer`）。
-     * 取っ手だけの通知に鍵が付くと、そこに「1件」が出る
+     * `dismissKey` だけの通知に鍵が付くと、そこに「1件」が出る
      */
     it("畳む鍵は持たない", () => {
       expect(held.notifications[0].dedupeKey).toBeUndefined();
@@ -225,8 +225,8 @@ describe("通知の置き場", () => {
       expect(state.notifications.map((n) => n.id)).toEqual(["notice-2"]);
     });
 
-    /** 取っ手で出したものは取っ手で消える。**畳む鍵しか見ないと消せない** */
-    it("取っ手でも消える", () => {
+    /** `dismissKey` で出したものは `dismissKey` で消える。**畳む鍵しか見ないと消せない** */
+    it("`dismissKey` でも消える", () => {
       const state = notificationReducer(
         notify(INITIAL_NOTIFICATION_STATE, { dismissKey: "engine" }),
         { type: "dismissByKey", key: "engine" },

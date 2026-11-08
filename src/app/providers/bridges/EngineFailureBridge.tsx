@@ -4,7 +4,7 @@ import { useNotify } from "@/shared/lib/notification/useNotifications";
 import { useEngineSettingsAction } from "./useEngineSettingsAction";
 
 /**
- * 起動の失敗の帯を引っ込めるための取っ手。帯は `engineFailureNoticeOf` が文を返す間だけ出るので、
+ * 起動の失敗の帯を引っ込めるための `dismissKey`。帯は `engineFailureNoticeOf` が文を返す間だけ出るので、
  * 条件を抜けたときに指せる名前が要る（`NotificationActions`）。
  *
  * **畳む鍵（`dedupeKey`）ではない。** この帯は条件から出ていて2枚目が積まれようが
@@ -12,7 +12,7 @@ import { useEngineSettingsAction } from "./useEngineSettingsAction";
  */
 const ENGINE_FAILURE = "engine-failure";
 
-/** 起動に時間が掛かっている帯の取っ手。起動中の段を抜けたら引っ込める */
+/** 起動に時間が掛かっている帯の `dismissKey`。起動中の段を抜けたら引っ込める */
 const ENGINE_SLOW_START = "engine-slow-start";
 
 /**

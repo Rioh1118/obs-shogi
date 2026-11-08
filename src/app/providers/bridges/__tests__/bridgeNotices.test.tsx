@@ -263,7 +263,7 @@ describe("プリセットのファイル", () => {
     expect(dismissByKey).toHaveBeenCalledWith(key);
   });
 
-  test("移したことのトーストは自分で消え、帯は引っ込める取っ手を持つ", async () => {
+  test("移したことのトーストは自分で消え、帯は引っ込める `dismissKey` を持つ", async () => {
     presets.state = {
       ...presetsInitialState,
       loadNotice: { kind: "migrated", from: 1, backup: "/c/presets.v1.json" },

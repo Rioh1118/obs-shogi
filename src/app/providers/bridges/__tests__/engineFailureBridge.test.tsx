@@ -228,10 +228,10 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   });
 
   /**
-   * 帯は条件と結び付いているので、**出した取っ手で引っ込められること**が要る。
-   * 取っ手が無いと `dismissByKey` の指し先が無く、出しっぱなしになる。
+   * 帯は条件と結び付いているので、**出した `dismissKey` で引っ込められること**が要る。
+   * `dismissKey` が無いと `dismissByKey` の指し先が無く、出しっぱなしになる。
    */
-  test("引っ込めるための取っ手を持つ", async () => {
+  test("引っ込めるための `dismissKey` を持つ", async () => {
     await mountWith("error", failure("unknown"));
 
     expect(shown().dismissKey).toEqual(expect.any(String));

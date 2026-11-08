@@ -1078,12 +1078,12 @@ fn only_the_child_layer_spawns_processes() {
 }
 
 /// 1本のプロセスとのやりとり（`engine/protocol.rs` と `engine/protocol/`）は、ロックを持たない
-/// （ADR-0016 決定9 の M3 が 0）。状態機械を持つのは殻のタスク1本（`run_shell`）で、取っ手は列で頼む。
-/// ロックを足すと、殻を通らずに状態へ触る経路ができ、書く行の順（不変条件1）を殻だけで決められなくなる。
+/// （ADR-0016 決定9 の M3 が 0）。状態機械を持つのはアクター1本（`run_actor`）で、ハンドルは列で頼む。
+/// ロックを足すと、アクターを通らずに状態へ触る経路ができ、書く行の順（不変条件1）をアクターだけで決められなくなる。
 ///
 /// 本番のコードだけを見る（テストの台本が `Mutex` を使うのは構わない）。コメントと文字列は潰してから見る
 #[test]
-fn the_usi_shell_holds_no_lock() {
+fn the_usi_actor_holds_no_lock() {
     let dir = engine_dir();
     let files: Vec<PathBuf> = rust_files(&dir)
         .into_iter()
@@ -1109,7 +1109,7 @@ fn the_usi_shell_holds_no_lock() {
     }
     assert!(
         locks.is_empty(),
-        "1本のプロセスのためにロックを持っている。状態は殻（`run_shell`）に頼んで変えること: {locks:?}"
+        "1本のプロセスのためにロックを持っている。状態はアクター（`run_actor`）に頼んで変えること: {locks:?}"
     );
 }
 

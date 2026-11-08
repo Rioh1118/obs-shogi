@@ -84,7 +84,7 @@ ours 戦略のマージは使わない。
 | 48 | `refactor/readability-7a-session` | `src-tauri/src/engine/game/session.rs`（Rust の範囲7a）。番人を `stall`、起動の段取りと締切を `start`、入口の書式を `input` へ割る。割るだけで中身は動かさない。R-2 を閉じ、R-5、R-6、W-3 を 7b へ送る | #719 | マージ済み |
 | 49 | `refactor/usi-u2b-game` | 作り直しの段 U2b。対局（`engine/game`）の探索を手順「探索」と `Search` へ移し、対局の側から受け手の登録をなくす。D-1 の対局の写しを消し、受け手の登録を `protocol` の段に閉じる | #720 | マージ済み |
 | 50 | `refactor/usi-u3-machine` | 作り直しの段 U3。1本のプロセスの USI の状態と判定を、新しい段 `usi_machine` の状態機械（純関数）へ移す。`UsiProtocol` は std の `Mutex` 1つの下でそれを持ち、受け手の表と積み置きを消す。`readyok` の前の `position` / `go` / `usinewgame` は積まずに断る（ADR-0016 決定3）。M3 は 8 から 1 | #721 | マージ済み |
-| 51 | `refactor/usi-u4-shell` | 作り直しの段 U4。状態機械を殻のタスク1本（`run_shell`）に持たせ、`Mutex` と読んだ行を渡すタスクを消す。取っ手を送る面 `UsiProtocol` と落とす面 `EngineShutdown` に分け、落とす面は台帳だけが持つ。`EngineRegistry` に `Debug` を付ける。C-3 を閉じる。M3 は 1 から 0 | #722 | レビュー待ち |
+| 51 | `refactor/usi-u4-shell` | 作り直しの段 U4。状態機械をアクター1本（`run_actor`）に持たせ、`Mutex` と読んだ行を渡すタスクを消す。ハンドルを `UsiProtocol`（送る）と `EngineShutdown`（落とす）に分け、`EngineShutdown` は台帳だけが持つ。`EngineRegistry` に `Debug` を付ける。C-3 を閉じる。M3 は 1 から 0 | #722 | レビュー待ち |
 
 ## 語
 
@@ -166,7 +166,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | 7a | `src-tauri/src/engine/game/session.rs` を4つのファイルに割る。割るだけ | 2208 | 済 |
 | U2b | `game` を手順へ移す | — | 済 |
 | U3 | 状態機械を新しい段 `usi_machine` に作る。受け手の表と積み置きを消す | — | 済 |
-| U4 | 殻（タスク1本）。送る面と落とす面を分ける | — | 済 |
+| U4 | アクター（タスク1本）。2つのハンドル（`UsiProtocol` と `EngineShutdown`）を分ける | — | 済 |
 | 7b | `src-tauri/src/engine/game` の残りと `engine/commands/game.rs` | U2b の後に数える | 未着手 |
 | 8b | `src-tauri/src/engine` の `bridge`、`analysis_events`、`probe`、`state`、`commands`（`game.rs` を除く） | U4 の後に数える | 未着手 |
 | 9  | `src-tauri/src/book`                                   | 7044  | 未着手   |
@@ -273,15 +273,15 @@ M3（ロックの数）は 8 から 1（`research/engines/usi-measurements.md` �
 `StopAnswer::NothingToStop` は起きなくなったので消した（走っていない探索は答え済み）。`Unreachable(Timeout)` の読み方は、
 検討（失敗）と対局（`StopTimedOut`）で分かれたまま残る（PR の確認事項）。
 
-U4 で、状態機械は殻のタスク1本（`protocol.rs` の `run_shell`）が持つようになった。入力（頼みごと、読んだ行、出力の終わり、
-書き込みの詰まり）は1本の列で着き、殻は着いた順に渡して、出たことを出た順に行う。処理は同期で await 点を持たない。
+U4 で、状態機械はアクター1本（`protocol.rs` の `run_actor`）が持つようになった。入力（頼みごと、読んだ行、出力の終わり、
+書き込みの詰まり）は1本の列で着き、アクターは着いた順に渡して、出たことを出た順に行う。処理は同期で await 点を持たない。
 `Mutex` と、読んだ行を状態機械へ渡すタスクと、捨てた探索の `stop` を書き終えるのを待つタスクは消えた。
-読み取りと書き込みの列は殻への送り手を weak で持ち、取っ手が全部落ちると殻が抜けて子プロセスも落ちる。
-取っ手は送る面 `UsiProtocol` と落とす面 `EngineShutdown` に分かれ、呼び手（`analyzer`、`game`、`probe`）は送る面だけを受け取る
+読み取りと書き込みの列はアクターへの送り手を weak で持ち、ハンドルが全部落ちるとアクターが終わって子プロセスも落ちる。
+ハンドルは `UsiProtocol`（送る）と `EngineShutdown`（落とす）に分かれ、呼び手（`analyzer`、`game`、`probe`）は `UsiProtocol` だけを受け取る
 （`EngineProcess::protocol`）。どちらも送り手を包むだけなので `Clone` で配り、`Arc<UsiProtocol>` の共有は無くなった。
-`EngineRegistry` は `Debug` を持つ。`Search` は殻が作る（`Shell::start_search`）ので、手順「探索」を答えの前に捨てても `stop` が書かれる。
+`EngineRegistry` は `Debug` を持つ。`Search` はアクターが作る（`UsiActor::start_search`）ので、手順「探索」を答えの前に捨てても `stop` が書かれる。
 C-3 は `UsiProtocol::recent_output`（待たない）と `EngineEndWatch::final_output`（stderr の読み切りを待つ）に分けて閉じた。
-M3（ロックの数）は 1 から 0 で、`tests/layering.rs` の `the_usi_shell_holds_no_lock` が止める。
+M3（ロックの数）は 1 から 0 で、`tests/layering.rs` の `the_usi_actor_holds_no_lock` が止める。
 `Unreachable(Timeout)` の読み方は、検討と対局で分かれたまま残す（ADR-0016 の判断ログの U4 の行）。
 
 次は 7b（`game` の残りと `commands/game.rs`）。その後に 8b（`bridge` など。U4 で終わりの見張りの名前が変わった後）を取る。

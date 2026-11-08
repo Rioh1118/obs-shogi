@@ -200,7 +200,7 @@ fn scan_log_lines(path: &Path, scanned: &mut usize, offenders: &mut Vec<String>)
     // `{shown}` で埋め込むと、`log::` の塊には `input.path` の綴りが1つも出ない。
     //
     // **関数名を並べない。** `*_inner` の3つだけを見ていた版は、
-    // `#[tauri::command]` の殻（`open_book` ほか。どれも `input` がスコープに居る）を
+    // `#[tauri::command]` を付けた関数（`open_book` ほか。どれも `input` がスコープに居る）を
     // 丸ごと外していて、そこへ書けば同じ迂回が通った。入口のファイル全体を見る。
     // **綴りを2つ並べない。** `input.sfen` と `input.path` だけを探していた版は、
     // 入力の型が1段入れ子になった回（`input.position.sfen`）に**0件を返した。**

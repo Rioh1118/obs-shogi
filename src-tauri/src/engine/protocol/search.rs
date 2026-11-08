@@ -51,7 +51,7 @@ pub const PREVIOUS_SEARCH_LIMIT: Duration = Duration::from_secs(10);
 /// `bestmove` が来るまで状態機械は止め待ちに残るので、次の探索はその後でしか始まらず、
 /// 前の探索の行を受けない。
 ///
-/// 送る面（`UsiProtocol`）を持つので、持っている間は殻と子プロセスが生きる
+/// `UsiProtocol` を持つので、持っている間はアクターと子プロセスが生きる
 pub struct Search {
     protocol: UsiProtocol,
     id: SearchId,
@@ -70,7 +70,7 @@ impl std::fmt::Debug for Search {
 }
 
 impl Search {
-    /// 殻が、状態機械へ探索を頼んだ直後に作る（`Shell::start_search`）
+    /// アクターが、状態機械へ探索を頼んだ直後に作る（`UsiActor::start_search`）
     pub(super) fn new(
         protocol: UsiProtocol,
         id: SearchId,
@@ -93,7 +93,7 @@ impl UsiProtocol {
     /// （`PREVIOUS_SEARCH_LIMIT`）、過ぎたら状態機械が断る。`readyok` の前も断る（ADR-0016 決定3）。
     /// 線を壊す局面（改行入り）は、状態機械へ頼む前に断る（頼んでから断ると `go` だけが線に出る）。
     ///
-    /// **`Search` は殻が状態機械へ頼んだ直後に作る**（`Shell::start_search`）。答えを受け取る前や、書けたかを
+    /// **`Search` はアクターが状態機械へ頼んだ直後に作る**（`UsiActor::start_search`）。答えを受け取る前や、書けたかを
     /// 待つ間に future を捨てても、`Search` の `Drop` が `stop` を書くので、走り始めた探索が誰にも持たれずに
     /// 残らない。書けなかったときも同じ `Drop` を通る。詰まった回（W1）と落とした後は状態機械が閉じているので
     /// 何も書かず、それ以外（書き込みが失敗したがまだ出力が終わっていない回）は `stop` を書いて止め待ちになる
@@ -106,7 +106,7 @@ impl UsiProtocol {
         let previous_ended = status.wait_for(|status| !status.searching || status.end.is_some());
         // 過ぎても待つのをやめるだけ。断るかは状態機械が決める
         match tokio::time::timeout(PREVIOUS_SEARCH_LIMIT, previous_ended).await {
-            // 終わったか、写しの送り手が消えた（殻ごと抜けている）
+            // 終わったか、写しの送り手が消えた（アクターごと終わっている）
             Ok(_) => {}
             Err(_) => log::warn!(
                 target: LOGT,
@@ -201,7 +201,7 @@ impl Search {
 ///
 /// 答えを待っているのは状態機械で、持っている間も捨てた後も、遅れた `bestmove` が来るまで
 /// このプロセスで次の探索は始まらない（止め待ちの状態機械が断る）。これは答えを受け取る札と状態の写しだけを
-/// 持ち、**殻への送り手を持たない**（持っている間も、取っ手を全部捨てればプロセスは落ちる）
+/// 持ち、**アクターへの送り手を持たない**（持っている間も、ハンドルを全部捨てればプロセスは落ちる）
 pub struct LateAnswer {
     answer: oneshot::Receiver<Result<(), EngineError>>,
     status: watch::Receiver<Status>,
@@ -225,14 +225,14 @@ impl LateAnswer {
 }
 
 impl Drop for Search {
-    /// 答えの決まっていない探索なら `stop` だけを書くよう殻へ頼む（状態機械の R8。走っていなければ何もしない）。
+    /// 答えの決まっていない探索なら `stop` だけを書くようアクターへ頼む（状態機械の R8。走っていなければ何もしない）。
     /// 送るだけで待たない。書けたかを待つ者は居ない（書けなければ書き込みの列が記録する）
     fn drop(&mut self) {
         if self.answered {
             return;
         }
         let id = self.id;
-        // 殻が抜けていれば、プロセスごと落ちている
+        // アクターが終わっていれば、プロセスごと落ちている
         let _ = self
             .protocol
             .handle
@@ -628,7 +628,7 @@ done"#;
         }
 
         /// (Q3, R11): 探索中に落とすと、行を待つ `Search` は落とした理由（`GONE`）で返る。
-        /// 殻は探索の送り手を落とすのと閉じた写しを書くのを別々に行うので、写しを先に読むと
+        /// アクターは探索の送り手を落とすのと閉じた写しを書くのを別々に行うので、写しを先に読むと
         /// 「出力が終わった」（`CLOSED`）で返りうる。**競合なので回数を取り、複数のスレッドで走らせる**
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn a_search_cut_by_the_kill_says_we_stopped_it() {

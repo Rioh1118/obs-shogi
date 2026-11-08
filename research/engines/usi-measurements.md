@@ -187,7 +187,7 @@ cargo test --release --lib engine::protocol::tests::baseline -- --ignored --noca
 
 M3 は **1**。`protocol.rs` の `Shared` の `core`（std の `Mutex`。`UsiProtocol` と、読んだ行を状態機械へ渡すタスクと、
 `Search` が `Arc<Shared>` で共有する）。ほかに `watch` が1つ（`Shared` の `status`）あるが、ロックではないので数えない。
-U3 の `Mutex` は await を跨がない（`Shared::step` は同期）。0 にするのは U4（殻のタスク1本）。
+U3 の `Mutex` は await を跨がない（`Shared::step` は同期）。0 にするのは U4（アクター1本）。
 
 ## U4 の後（2026-11-07）
 
@@ -211,11 +211,11 @@ U4 の木を続けて測り直した**（上の表の U3 と今回の U3 で、t
 U4 の中央値は、どの印・どのビルドでも、同じビルドの U3 の最小〜最大の中に収まる（悪くなったとは言えない）。
 M1 の中央値の3走行の平均は U4 が少し大きい（test で 37.95 に対し 39.86、release で 13.32 に対し 14.69）が、
 U3 の走行どうしの差（test の中央値で 32.71〜41.66）より小さい。差の理由は測っていない。
-1行あたりの経路は、U3 が「読み取り → 列 → 渡すタスクが `Mutex` を取って状態機械へ」、U4 が「読み取り → 殻の列 → 殻が状態機械へ」で、
+1行あたりの経路は、U3 が「読み取り → 列 → 渡すタスクが `Mutex` を取って状態機械へ」、U4 が「読み取り → アクターの列 → アクターが状態機械へ」で、
 列を1つ通ることは変わらず、U4 は1行ごとに weak の送り手を強める（`Reading::send`）。
 
 M3 は **0**。`protocol.rs` と `protocol/search.rs` の本番のコードに `Mutex` と `RwLock` は無い（`tests/layering.rs` の
-`the_usi_shell_holds_no_lock` が止める）。状態機械は殻のタスク1本（`run_shell`）が持つ。`watch` が1つ（殻の `status`）あるが、ロックではないので数えない。
+`the_usi_actor_holds_no_lock` が止める）。状態機械はアクター1本（`run_actor`）が持つ。`watch` が1つ（アクターの `status`）あるが、ロックではないので数えない。
 
 ## 読み方
 

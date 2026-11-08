@@ -56,12 +56,12 @@ pub struct EngineProcess {
     engine_path: String,
     pub info: EngineInfo,
     protocol: UsiProtocol,
-    /// 落とす面。**台帳の外へ出さない**——呼び手は送る面だけを受け取り、落とせない（ADR-0016 決定6）
+    /// 落とすハンドル。**台帳の外へ出さない**——呼び手は `UsiProtocol` だけを受け取り、落とせない（ADR-0016 決定6）
     shutdown: EngineShutdown,
 }
 
 impl EngineProcess {
-    /// このプロセスへ送る面。呼び手（検討、対局、申告の取得）はこれだけを持つ。落とすのは台帳
+    /// このプロセスへ送るハンドル。呼び手（検討、対局、申告の取得）はこれだけを持つ。落とすのは台帳
     pub fn protocol(&self) -> UsiProtocol {
         self.protocol.clone()
     }

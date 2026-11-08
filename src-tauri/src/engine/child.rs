@@ -118,7 +118,7 @@ pub struct EngineChild {
     diagnostics: ChildDiagnostics,
 }
 
-/// 子プロセスの様子を見るだけの取っ手。**落とす関数を持たない。**
+/// 子プロセスの様子を見るだけのハンドル。**落とす関数を持たない。**
 ///
 /// 読み取りの後始末など、プロセスより長く生きうるタスクにはこちらを渡す。
 /// `EngineChild` そのものを渡すと、そのタスクが生きている間 Drop が起きず、
@@ -276,7 +276,7 @@ impl EngineChild {
     /// `ChildDiagnostics::wait_killed`。頼むまでもなかったら、その答え（`AlreadyExited` か `AlreadyRequested`）を
     /// `Err` で返す。
     ///
-    /// 頼むことと見届けることを分けるのは、`EngineChild` を持つ者（`protocol.rs` の殻）が、`KILL_TIMEOUT` を
+    /// 頼むことと見届けることを分けるのは、`EngineChild` を持つ者（`protocol.rs` のアクター）が、`KILL_TIMEOUT` を
     /// 待つ間も他の入力に答え続けられるようにするため
     pub fn start_kill(&self) -> Result<(), KillOutcome> {
         self.close_stdin();
@@ -308,7 +308,7 @@ impl EngineChild {
         });
     }
 
-    /// 様子を見るだけの取っ手（落とす関数を持たない）
+    /// 様子を見るだけのハンドル（落とす関数を持たない）
     pub fn diagnostics(&self) -> ChildDiagnostics {
         self.diagnostics.clone()
     }

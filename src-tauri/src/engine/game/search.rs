@@ -99,7 +99,7 @@ type PonderHitReply = oneshot::Sender<Result<(), EngineError>>;
 /// 先読みの探索が受ける `ponderhit` の頼み。1本の探索につき高々1回
 pub type PonderHitAsks = oneshot::Receiver<PonderHitReply>;
 
-/// 先読みの探索へ「当たった」と伝える取っ手。**`Search` は探索のタスクが握っているので、
+/// 先読みの探索へ「当たった」と伝えるハンドル。**`Search` は探索のタスクが握っているので、
 /// `ponderhit` はタスクに書いてもらう。** 1本の探索につき1回だけ使える（`self` を消費する）。
 pub struct PonderHit(oneshot::Sender<PonderHitReply>);
 

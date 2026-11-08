@@ -238,7 +238,7 @@ mod tests {
 
     /// **入口を実際に通す。**
     ///
-    /// `#[tauri::command]` の殻は `tauri::State` を要るが、中身の `*_inner` は
+    /// `#[tauri::command]` を付けた関数は `tauri::State` を要るが、中身の `*_inner` は
     /// `&BookState` を取るので `block_on` で呼べる。
     ///
     /// **ここで見えるのは戻り値だけ。** `spawn_blocking` を外しても

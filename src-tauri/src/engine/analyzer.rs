@@ -421,7 +421,7 @@ impl EngineAnalyzer {
         self.protocol().await.ok()?.recent_output()
     }
 
-    /// 検討用エンジンの終わりを見る取っ手。起動していなければ `None`（見張るものが無い）
+    /// 検討用エンジンの終わりを見るハンドル。起動していなければ `None`（見張るものが無い）
     pub async fn end_watch(&self) -> Option<EngineEndWatch> {
         Some(self.protocol().await.ok()?.end_watch())
     }

@@ -431,7 +431,7 @@ struct Player {
     /// 人間なら `None`
     engine: Option<Arc<EngineProcess>>,
     activity: Activity,
-    /// いまの先読みの探索へ `ponderhit` を頼む取っ手。`spawn_search` が探索ごとに置き直す。
+    /// いまの先読みの探索へ `ponderhit` を頼むハンドル。`spawn_search` が探索ごとに置き直す。
     /// 意味を持つのは `activity` が `Searching { kind: Ponder }` の間だけで、止めた後や答えた後も
     /// 古い値が残る（書き換えるのは `spawn_search` と `hand_turn_to` の `take` だけ）。
     /// `activity` を見ずに使わないこと。`PonderHit::send` は終わった探索へ頼んでも `Ok` を返す
