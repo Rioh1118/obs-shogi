@@ -5,18 +5,18 @@
   "type": "module",
   "scripts": {
     "tauri": "tauri",
-    "dev": "vp dev",
-    "build": "tsc -b && vp build",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b",
-    "test": "vp test run",
-    "test:watch": "vp test watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "verify": "npm run typecheck && npm run lint && npm test && npm run ratchet:knip && npm run ratchet:notices",
     "test:hooks": "bash .claude/hooks/verify-gate.test.sh",
     "verify:ds": "npm --prefix design-system run ds:check",
     "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace && npm run ratchet:rustdoc && npm run ratchet:notices",
     "ratchet:rustdoc": "bash scripts/rustdoc-ratchet.sh",
-    "preview": "vp preview",
+    "preview": "vite preview",
     "prepare": "simple-git-hooks",
     "deadcode": "knip --include exports,types,files",
     "deadfiles": "knip --include files",
@@ -64,7 +64,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-react": "^6.3.0",
     "eslint": "^10.15.0",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.18.1",
@@ -80,12 +80,8 @@
     "simple-git-hooks": "^2.14.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.73.0",
-    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.24",
-    "vite-plus": "0.1.24"
-  },
-  "overrides": {
-    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.24",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.24"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   },
   "packageManager": "npm@11.12.0",
   "simple-git-hooks": {

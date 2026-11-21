@@ -28,8 +28,8 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Skill
 D=.claude/plans/tidy-<日付>-<範囲>
 mkdir -p "$D"
 node .claude/skills/cross-cutting-audit/scripts/inventory.mjs "$D/inventory" <範囲>
-COMMENT_REPORT="$D/comments.json" ./node_modules/.bin/vp test run src/__tests__/commentReadability.test.ts
-SHAPE_REPORT="$D/shapes.json" ./node_modules/.bin/vp test run src/__tests__/componentShape.test.ts
+COMMENT_REPORT="$D/comments.json" ./node_modules/.bin/vitest run src/__tests__/commentReadability.test.ts
+SHAPE_REPORT="$D/shapes.json" ./node_modules/.bin/vitest run src/__tests__/componentShape.test.ts
 node .claude/skills/naming/scripts/word-usage.mjs verbs <範囲>
 ```
 

@@ -191,8 +191,6 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
   `rust-toolchain.toml` は固定、`Cargo.toml` の `rust-version` は雛形の既定値
 - **画面仕様2本が、`.gitignore` された `.claude/plans/` を設計の出典に挙げている。**
   外部の人は辿れない
-- **`AGENTS.md` が `vp install` を指示している。** README / CONTRIBUTING は
-  `npm install` で、`vp` はグローバル導入が前提の綴り
 
 **ここに並べたものは issue にしない**（`docs/OPERATING-MODEL.md`）。着手すると決めた
 時点で昇格すること。

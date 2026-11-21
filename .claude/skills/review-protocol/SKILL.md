@@ -16,7 +16,7 @@ user-invocable: false
 ```bash
 RV=$(mktemp -d) && git archive HEAD | tar -x -C "$RV"
 ln -s "$PWD/node_modules" "$RV/node_modules"
-cd "$RV" && ./node_modules/.bin/vp test run --run <path>
+cd "$RV" && ./node_modules/.bin/vitest run <path>
 ```
 
 **宛先は必ず使い捨てにすること**（`mktemp -d`）。固定の名前にすると、並走する
