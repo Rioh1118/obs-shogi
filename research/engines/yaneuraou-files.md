@@ -31,7 +31,7 @@
 
 | `BookFile` に送った値      | 起きたこと                                                                                                      |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `user_book1.db`            | `book file fallback` の行のあと `.ybb` を読み、17,000,703 局面。定跡の手で指した                              |
+| `user_book1.db`            | `book file fallback` の行のあと `read book file : <.ybb の絶対パス>` を出して読み、17,000,703 局面。定跡の手で指した |
 | `user_book1.ybb`           | `combo value not found` を出して値を捨て、既定の `standard_book.db` を読みに行き `can't read file`。`readyok` は返る |
 | `.ybb` の絶対パス          | 同上                                                                                                            |
 
