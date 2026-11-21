@@ -13,10 +13,13 @@ use crate::search::read::outcome::{Jkf, KifuReadError};
 /// 読むのはクレートの `parse_csa_str`。KIF / KI2 と同じく、読めない行があれば
 /// その行を名指しする `ParseError::Csa` を返し、途中までの記録を `Ok` にはしない。
 ///
-/// **クレートが読めても画面が開けない形は、ここで断る**（[`viewer_refuses`]）。
-/// クレートは CSA の仕様に沿って読み、画面の `tsshogi` の `importCSA` は
-/// 行ごとの正規表現で読む。クレートの方が緩い形を索引に入れると、
-/// **検索に出るのに開くと読めない**棋譜ができる。
+/// **クレートが読めても画面が開けない形のうち、見出しの3つの文（手番・`PI`・盤面の段）の
+/// 綴りの違いは、ここで断る**（[`viewer_refuses`]）。クレートは CSA の仕様に沿って読み、
+/// 画面の `tsshogi` の `importCSA` は行ごとの正規表現で読む。クレートの方が緩い形を
+/// 索引に入れると、**検索に出るのに開くと読めない**棋譜ができる。
+///
+/// それ以外の食い違いは断らない。例えば、駒の動きと合わない指し手（`+7776KI`）は
+/// クレートが読み画面が断る。改行が `\r` だけのファイルは、画面が指し手0の棋譜として開く。
 pub(crate) fn parse_csa_portable(bytes: &[u8]) -> Result<Jkf, KifuReadError> {
     if let Some(refused) = viewer_refuses(bytes) {
         return Err(parse_failed(unreadable_record(refused)));
@@ -59,9 +62,12 @@ pub(crate) const CRATE_CSA_DECODE_ORDER: [&Encoding; 2] = [UTF_8, SHIFT_JIS];
 /// | `PI…` | `^PI([1-9]{2}[A-Z]{2})*$` | 末尾の空白を読み飛ばす | 末尾に空白があれば断る |
 /// | `P1`〜`P9` | `^P[1-9]( \* ?\|[-+][A-Z][A-Z]){9}$` の後に `parseRank` が升を切る | 升9つの後ろの空白を読み飛ばす | パターンに合わないか、切った升が駒名でなければ断る |
 ///
-/// 見る範囲は画面が読む範囲に揃える（[`what_the_viewer_reads`]）。
-/// 画面は文を `,` で割ってから当てるので、ここも `,` で割る。
-/// コメント（`'` で始まる行）は割らずに飛ばす。
+/// 見る範囲は画面が読む範囲に揃える（[`what_the_viewer_reads`]）。さらに、画面は
+/// 手番の文（`+` か `-` ちょうど）を読んだ後の見出しの文を読み飛ばす（`importCSA` の
+/// `inMoveSection`）ので、ここもそこで止める。`/` で区切らずに続けた2局目の見出しは見ない。
+///
+/// 画面は文を `,` で割ってから当てるので、ここも `,` で割る。ただし `'`・`N`・`$` で
+/// 始まる行は割らない（`parseLine`）。その行は表のどの文にも当たらないので飛ばす。
 ///
 /// バイト列で見るのは、対象の文が全て ASCII だから。ASCII を1バイトのまま
 /// 持つ文字コード（UTF-8・Shift_JIS・EUC-JP）なら、どれで復号しても同じ判定になる。
@@ -72,10 +78,13 @@ pub(crate) fn viewer_refuses(bytes: &[u8]) -> Option<ParseError> {
         .enumerate()
     {
         let line = line.strip_suffix(b"\r").unwrap_or(line);
-        if line.starts_with(b"'") {
+        if matches!(line.first(), Some(b'\'' | b'N' | b'$')) {
             continue;
         }
         for statement in line.split(|b| *b == b',') {
+            if statement == b"+" || statement == b"-" {
+                return None;
+            }
             let why = if is_side_or_pi_with_trailing_blank(statement) {
                 "the viewer does not read blanks after this statement"
             } else if is_rank(statement)

@@ -1787,6 +1787,12 @@ P9 *  *  *  * +OU *  *  *  * ";
             ("BOM の後ろ", "\u{feff}V2.2\nPI\n+ \n"),
             ("2局目の手番行", "V2.2\nPI\n+\n/\nV2.2\nPI\n+ \n"),
             ("CRLF の2局目", "V2.2\r\nPI\r\n+\r\n/\r\nPI \r\n"),
+            (
+                "`/` で区切らずに続けた2局目の見出し",
+                "V2.2\nPI\n+\n+7776FU\n%TORYO\nV2.2\nPI \n+ \n+2726FU\n%TORYO\n",
+            ),
+            ("`$` の行の値の中のカンマ", "$EVENT:A,PI \nPI\n+\n+7776FU\n"),
+            ("名前の行の値の中のカンマ", "N+a,+ \nPI\n+\n+7776FU\n"),
         ] {
             assert!(
                 viewer_refuses(text.as_bytes()).is_none(),
@@ -1801,6 +1807,10 @@ P9 *  *  *  * +OU *  *  *  * ";
                 "V2.2\n/x\nPI\n+ \n+7776FU\n",
             ),
             ("段の空きの直後に駒", "P2 *-HI *  *  *  *  * -KA * "),
+            (
+                "手番の前の文はカンマの後ろでも見る",
+                "V2.2\nPI,+ \n+7776FU\n",
+            ),
         ] {
             assert!(
                 viewer_refuses(text.as_bytes()).is_some(),

@@ -123,9 +123,9 @@ const EXEMPT: &[&str] = &[
     // --- `shogi_kifu_converter`（CSA） ---
     // ファイルを開いて復号まで済ませること（自前で復号する理由）
     "parse_csa_file",
-    // 段の読み方（短い段を補わない理由）
-    "board_row",
     // --- `shogi_kifu_converter` ---
+    // KIF の盤面の段の読み方（題材の列の見出しを2文字空ける理由）
+    "board_row",
     // 手合割の盤面の寄せ方
     "normalize_initial",
     // 読めなかったことの表し方
@@ -135,6 +135,10 @@ const EXEMPT: &[&str] = &[
     "parseRank",
     // 画面が受ける駒名の表。索引の検査が持つ駒名の出どころ
     "csaNameToPieceType",
+    // 行を文に割る手続き。`'`・`N`・`$` の行を割らないことの根拠
+    "parseLine",
+    // 手番の行を読んだ後の見出しを読み飛ばす旗。索引の検査がそこで止まることの根拠
+    "inMoveSection",
     // --- OS ---
     // パスの上限を「弾くための値ではない」と言うときの比較対象
     "PATH_MAX",
