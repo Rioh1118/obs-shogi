@@ -106,7 +106,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | vest-utils | 1.5.0 | MIT | Copyright (c) 2021 ealush |
 | yjs | 13.6.32 | MIT | Copyright (c) 2023 |
 
-## Rust の依存（464 件）
+## Rust の依存（467 件）
 
 `cargo metadata` の解決結果のうち、dev-dependencies を除いたもの。
 配っている 4 ターゲット分の和なので、1つの OS のバイナリには載らないものも含む。
@@ -315,6 +315,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | Dan Gohman <dev@sunfishcode.online> |
 | litemap | 0.8.3 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
+| lock_api | 0.5.0 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
 | log | 0.4.35 | MIT OR Apache-2.0 | The Rust Project Developers |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 | The html5ever Project Developers |
 | memchr | 2.8.3 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com>, bluss |
@@ -356,6 +357,8 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | pango-sys | 0.18.0 | MIT | The gtk-rs Project Developers |
 | parking | 2.2.1 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, The Rust Project Developers |
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
+| parking_lot | 0.13.0 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
+| parking_lot_core | 0.10.0 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
 | parking_lot_core | 0.9.12 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
 | percent-encoding | 2.3.2 | MIT OR Apache-2.0 | The rust-url developers |
 | phf | 0.13.1 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
