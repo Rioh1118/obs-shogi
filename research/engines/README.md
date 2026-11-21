@@ -16,3 +16,4 @@
 - [usi-measurements.md](usi-measurements.md) — 応答の遅れ・`go` の形・壊れ方
 - [yaneuraou-files.md](yaneuraou-files.md) — やねうら王が自分で読むファイル（`.ybb` への切り替え、優先定跡、`eval_options.txt`、評価関数の型）。2026-11-21 に V9.90 開発版と V9.00Git で実測
 - [mate-engines.md](mate-engines.md) — 詰将棋エンジンが `go mate` と通常の `go` に返す行。KomoringHeights `kh-v1.1.0` とやねうら王の詰将棋エンジンのソースで確認（実行はしていない）
+- [yaneuraou-analysis-output.md](yaneuraou-analysis-output.md) — 検討の出力（`ConsiderationMode` の有無、境界つきの値、詰んだ局面）と、`byoyomi` が短くなる理由。2026-11-21 に V9.90 開発版で実測

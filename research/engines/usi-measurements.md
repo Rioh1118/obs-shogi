@@ -27,7 +27,8 @@
 
 - **3本とも `movetime` / `depth` / `nodes` に従う。** `nodes` の括弧は最後の `info` の `nodes`
 - **`byoyomi` はやねうら王では 1 秒にならない。** 同じ 1000 でエンジンによって約 10 倍違う。
-  原因は調べていない（`[未確認]`。`MinimumThinkingTime` など時間の設定が関わる可能性はある）
+  原因は `NetworkDelay2`（既定 1120ms）を秒読みから引き、100ms を下限にする時間の計算（`[確定]`。2026-11-21 に V9.90 開発版で、
+  `NetworkDelay2 0` なら 1001ms になることを測った。[yaneuraou-analysis-output.md](yaneuraou-analysis-output.md) の「時間の指定」）
 - `go mate 2000`（1手詰の局面）: やねうら王は **`checkmate` でなく `bestmove G*1b`** を返す（3.2〜5.3）。
   zermelo は `checkmate notimplemented`（1.0）。この NNUE のビルドの範囲の結果で、
   詰将棋エンジンのビルドは測っていない
