@@ -137,21 +137,3 @@ CLI（`src/command/usi-csa-bridge`）は本体と**別のワークフローで t
 | CI                 | test / test-cli / audit / release / publish-cli | `ci.yml` / `release.yml`                                                                  |
 | CHANGELOG          | 無し（リリースノートで代替）                    | 無し                                                                                      |
 | i18n               | ja / en / vi / zh_tw                            | 日本語のみ                                                                                |
-
-## 所感
-
-- **`specs/` の層が obs-shogi に無いのは効いていると思う。**
-  `docs/state-transitions/` は「いまこうなっている」を書く器なので、
-  「これから何を作るか」を書く場所が `.claude/plans/` しかない
-  （**しかもそこは `.gitignore` 済みで、公開リポジトリの読み手には見えない**）。
-  そして plans は実装計画（ファイル一覧・タスク分解）なので、
-  **「何を作るか」と「どう作るか」が同じ文書に混ざっている**。
-  局面編集の駒箱の食い違いは、まさにその混ざりから出ている。
-- **テンプレート類は obs-shogi の方が揃っている**（Issue Forms・CODE_OF_CONDUCT・SECURITY）。
-  欠けているのは `specs/` 相当の層と CHANGELOG。
-- ShogiHome の `CONTRIBUTING.md` は**個人開発の境界防衛**に振り切っていて、
-  「標準的な OSS の作法」としてそのまま真似る対象ではない。
-  ただし「歓迎するもの／控えて欲しいもの」を明示する形式そのものは
-  一般的な良い作法（GitHub の Open Source Guides も推奨している）。
-- `I am human` と `do not remove following sections` のチェックボックスは、
-  テンプレートを丸ごと消して1行だけ書く投稿への対策として実践的。2026 年時点では現実的だと思う。

@@ -151,21 +151,3 @@ export type EnginePreset = {
 | 定跡         | `extraBook`（選択規則・温度つき）             | `bookEnabled` + `bookFilePath` | 単純                                                                                    |
 | タグ         | `tags?: string[]` ＋ 色                       | 無い                           | 「タグで管理」の実例がここにある                                                        |
 | 解析の既定値 | 持たない（`settings/analysis.ts` が別に持つ） | `analysis?: AnalysisDefaults`  | 関心が混ざっている                                                                      |
-
-## 所感
-
-- **`options: Record<string, string>` は将来必ず詰まる。**
-  USI の `option` 行は型・既定・範囲・選択肢を運んでくるのに、
-  obs-shogi はそれを文字列へ潰して捨てている。
-  「強さの調整を対局ダイアログに出せるか」が難しいのは、
-  そもそも `NodesLimit` が spin なのか string なのかを型が知らないため。
-  **ここを直すのは対局の前提工事に入ると思う。**
-- **`aiName` は名前が嘘をついている**（USI のエンジン名ではなく
-  AI ライブラリのフォルダ名）。ShogiHome が `name` / `defaultName` / `author` を
-  分けているのに対応させるなら、obs-shogi 側は
-  「AI ライブラリのディレクトリ名」と「エンジンが名乗る名前」を別の項目にする必要がある。
-- `evalFilePath` を第一級に持つ判断は、**やねうら王専用ならむしろ正しい**。
-  他のエンジンを受け入れる気があるかで是非が変わるので、
-  「どのエンジンを相手にするか」を先に決めた方がいい。
-- **タグはエンジンに付いている。** obs-shogi 側の「タグで管理」案は
-  棋譜に付ける話だったが、エンジンに付ける需要も実在するという事実は使える。

@@ -30,7 +30,7 @@
 判断: 定跡の read/write 本体（#84 #90–#101）が先。
 
 なお ShogiHome は4形式の read/write/変換をテスト付きで実装済みだが、**それは捨てる理由にならない**。
-判断の軸は「ShogiHome と張り合えるか」ではなく「将棋AI開発者の需要を取れるか」（→ `PREMISES.md` P-008）。
+判断の軸は「将棋AI開発者の需要を取れるか」（→ `PREMISES.md` P-008）。
 `.sbk` の仕様把握には ShogiHome の `src/background/book/sbk.ts` が参考になる。
 **`.db.bin` は実在しないフォーマットなので #103 / #104 で拡張子を数えるときは注意すること**
 （やねうら王のバイナリ定跡は `.ybb`）。
@@ -39,7 +39,7 @@
 
 「この棋譜の山場」を手にマークする機能。課題局面（study positions）とは別物。
 判断: 注釈機能（marks / file-meta）の設計が未決着なので、それを決めるまで着手しない。
-（「2系統に分裂」は誤りと判明している → `research/findings/L0-annotation-implementations.md`）
+（「2系統に分裂」は誤りと判明している。2本目の系統は origin にもローカルにも見つからなかった。2026-07-27 に確認）
 
 ## #120 の積み残し（構造）
 
@@ -62,7 +62,7 @@
 
 ## 未 issue のアイデア
 
-- **合流 / transposition を DAG として扱う** — ShogiHome issue #236（30コメント。**コメント数は2位で、ユニーク参加者は2名** → `research/findings/L2-transposition-demand.md`）が「木構造では千日手や局面の合流に対応できない、グラフを直接可視化・編集したい」と要求し未解決のまま。KIF/KI2/CSA いずれも仕様として合流を持たない。横断検索側は `PositionKey`(SFEN由来) なので既に合流に強く、棋譜内表現だけが木。**差別化の最有力候補**だが、着手前に現行 `normalizedTree` の設計影響を調べること
+- **合流 / transposition を DAG として扱う** — KIF/KI2/CSA はいずれも仕様として合流を持たず、木構造では千日手や局面の合流を表せない（ShogiHome の issue #236 も同じ点を挙げている）。横断検索側は `PositionKey`(SFEN由来) なので既に合流に強く、棋譜内表現だけが木。着手前に現行 `normalizedTree` の設計影響を調べること
 - **「ShogiHome で開く」導線** — エンジン/対局/検討 GUI を自前で磨くより価値が高い可能性
 - **棋譜ブログ向けの出力** — ShogiHome #1271（複数棋譜横断の一括局面図）が 2025-07 から open のまま
 - **`AsyncResult` のラチェットが、深いプロパティ経路の呼び出しを見ていない** —

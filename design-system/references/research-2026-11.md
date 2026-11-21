@@ -253,7 +253,7 @@ X API の Recent Search は過去7日分しか対象にしない。そのため�
 | 2026-11-05 | [@kgsi（こぎそ）](https://x.com/kgsi/status/2118147692950159496) | カナリーの事例を紹介。DESIGN.md だけでは、生成のたびにコンポーネントの扱いをその都度判断するためブレる。そこで種類一覧と使い分けの索引を足した。このアカウントは、デザイン×AI の国内事例を継続して紹介している |
 | 2026-11-07 | [@MacopeninSUTABA](https://x.com/MacopeninSUTABA/status/2118901755001913660) | Hikari さんの note を紹介。渡す文脈を「常駐させる・取りに行かせる・その場で渡す」の三層に分ける |
 | 2026-11-05 | [@this\_majika](https://x.com/this_majika/status/2118394206620405795) | awesome-design-md-jp を紹介。日本語タイポに合わせて拡張した DESIGN.md テンプレートがある。収録ファイルは公式文書ではなく、各社サイトの CSS から抽出したものだと明記している |
-| 2026-11-01 | [@CULUMU\_Design](https://x.com/CULUMU_Design/status/2116817785321886037) | Brad Frost の番組で取り上げた State of AI in Design Systems を紹介。「21件中20件が MCP」と書いているが、元サイトの insights ページでは公式 MCP は 18/21 |
+| 2026-11-01 | [@CULUMU\_Design](https://x.com/CULUMU_Design/status/2116817785321886037) | Brad Frost の番組で取り上げた State of AI in Design Systems を紹介。元サイトの insights ページでは、21件中18件が公式の MCP を持つ |
 | 2026-11-01 | [@HackrLife](https://x.com/HackrLife/status/2116849411938799775) | PreToolUse フックで、既存コンポーネント以外の新規作成を止める |
 | 2026-11-02 | [@\_heyrico](https://x.com/_heyrico/status/2117239556114358552) | Figma で、生の値を使って自由に作る。その後、構造を定義したスキルで Claude Code に体系化させる |
 | 2026-11-04 | [@edo\_lunardi](https://x.com/edo_lunardi/status/2117958290860617957) | デザインシステムを本番サイトの非公開ルートとして置き、本番と同じコンポーネントで描画する。トークンはソースから直接読むので、ドキュメントと実装がずれない |

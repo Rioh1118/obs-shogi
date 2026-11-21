@@ -387,8 +387,10 @@ gate_kinds_for_path() {
   #
   # **どの検査が掛かるかを数えて書かない。** ts 側の検査は増える。件数や名前を
   # ここに書くと、1本畳んだ人が「もう ts は要らない」と読んで分類ごと戻す。
+  # `research/` も公開の文書として vitest が読む（所感の見出しと事業の前提の語。
+  # `src/__tests__/noPrivateNotesInDocs.test.ts`）。
   case "$path" in
-    docs/*.md|CONTRIBUTING.md) kinds="$kinds ts" ;;
+    docs/*.md|research/*.md|CONTRIBUTING.md) kinds="$kinds ts" ;;
   esac
   # 状態遷移表は rust 側も見る。表の登録漏れ（足した表がどちらの一覧にも載っていない）と、
   # 表のセルが名乗る定数の実在を、Rust 側の integration test が見ている。
