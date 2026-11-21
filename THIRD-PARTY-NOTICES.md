@@ -14,10 +14,10 @@ ObsShogi 自身のライセンスは [LICENSE.md](LICENSE.md)（MIT）。
   - Copyright (c) 2010-2011 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato". Licensed under the SIL Open Font License, Version 1.1.
 - **@fontsource/orbitron** 5.3.0 — OFL-1.1
   - Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron)
-- **@fontsource/zen-kaku-gothic-antique** 5.3.0 — OFL-1.1
+- **@fontsource/zen-kaku-gothic-antique** 5.3.1 — OFL-1.1
   - Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic)
 
-## npm の依存（79 件）
+## npm の依存（81 件）
 
 `npm query .prod` が返す、配布物に載る依存。開発だけで使うものは含まない。
 `os` / `cpu` / `libc` で入るかが変わるパッケージ（ネイティブの prebuilt）も含まない ——
@@ -36,7 +36,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | @floating-ui/utils | 0.2.12 | MIT | Copyright (c) 2021-present Floating UI contributors |
 | @fontsource/lato | 5.3.0 | OFL-1.1 | Copyright (c) 2010-2011 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato". Licensed under the SIL Open Font License, Version 1.1. |
 | @fontsource/orbitron | 5.3.0 | OFL-1.1 | Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron) |
-| @fontsource/zen-kaku-gothic-antique | 5.3.0 | OFL-1.1 | Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic) |
+| @fontsource/zen-kaku-gothic-antique | 5.3.1 | OFL-1.1 | Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic) |
 | @lexical/clipboard | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | @lexical/code | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | @lexical/devtools-core | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
@@ -61,13 +61,15 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | @lexical/yjs | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | @parcel/watcher | 2.6.0 | MIT | Copyright (c) 2017-present Devon Govett |
 | @preact/signals-core | 1.14.4 | MIT | Copyright (c) 2022-present Preact Team |
+| @remix-run/route-pattern | 0.22.1 | MIT | Copyright (c) 2025 Shopify Inc. |
 | @tauri-apps/api | 2.12.5 | Apache-2.0 OR MIT | — |
 | @tauri-apps/plugin-dialog | 2.8.4 | MIT OR Apache-2.0 | — |
 | @tauri-apps/plugin-fs | 2.7.1 | MIT OR Apache-2.0 | — |
 | @tauri-apps/plugin-opener | 2.7.3 | MIT OR Apache-2.0 | — |
 | @tauri-apps/plugin-process | 2.4.0 | MIT OR Apache-2.0 | — |
 | @tauri-apps/plugin-updater | 2.14.1 | MIT OR Apache-2.0 | — |
-| @types/react | 19.2.18 | MIT | Copyright (c) Microsoft Corporation. |
+| @types/react | 19.3.0 | MIT | Copyright (c) Microsoft Corporation. |
+| @types/react-dom | 19.3.0 | MIT | Copyright (c) Microsoft Corporation. |
 | chokidar | 5.0.0 | MIT | Copyright (c) 2012 Paul Miller (https://paulmillr.com), Elan Shanker |
 | context | 3.1.0 | MIT | Copyright (c) 2020 ealush |
 | cookie-es | 3.1.1 | MIT | copyright (c) Pooya Parsa <pooya@pi0.io><br>Copyright (c) 2012-2014 Roman Shtylman <shtylman@gmail.com><br>Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com> |
@@ -81,23 +83,23 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | json-kifu-format | 5.4.1 | MIT | Copyright (c) 2014 na2hiro (https://github.com/na2hiro) |
 | lexical | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | lib0 | 0.2.117 | MIT | Copyright (c) 2019 Kevin Jahns <kevin.jahns@protonmail.com>. |
-| lucide-react | 1.35.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors<br>Copyright (c) 2013-present Cole Bemis |
+| lucide-react | 1.77.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors<br>Copyright (c) 2013-present Cole Bemis |
 | node-addon-api | 7.1.1 | MIT | Copyright (c) 2017 [Node.js API collaborators](https://github.com/nodejs/node-addon-api#collaborators) |
 | path | 0.12.7 | MIT | Joyent |
 | pathe | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev><br>Copyright (c) 2023-present Fabio Spampinato |
 | picomatch | 4.0.7 | MIT | Copyright (c) 2017-present, Jon Schlinkert. |
 | prismjs | 1.30.0 | MIT | Copyright (c) 2012 Lea Verou |
 | process | 0.11.10 | MIT | Copyright (c) 2013 Roman Shtylman <shtylman@gmail.com> |
-| react | 19.2.8 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| react-dom | 19.2.8 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| react | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| react-dom | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | react-error-boundary | 6.1.3 | MIT | Copyright (c) 2020 Brian Vaughn |
-| react-router | 8.3.1 | MIT | Copyright (c) React Training LLC 2015-2019<br>Copyright (c) Remix Software Inc. 2020-2021<br>Copyright (c) Shopify Inc. 2022-2023 |
-| react-window | 2.3.0 | MIT | Copyright (c) 2018 Brian Vaughn |
+| react-router | 8.5.2 | MIT | Copyright (c) React Training LLC 2015-2019<br>Copyright (c) Remix Software Inc. 2020-2021<br>Copyright (c) Shopify Inc. 2022-2023 |
+| react-window | 2.5.3 | MIT | Copyright (c) 2018 Brian Vaughn |
 | readdirp | 5.1.1 | MIT | Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com) |
-| sass | 1.103.1 | MIT | Copyright (c) 2016, Google Inc.<br>Copyright 2012, the Dart project authors.<br>Copyright 2019, the Dart project authors. |
-| scheduler | 0.27.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| sass | 1.108.2 | MIT | Copyright (c) 2016, Google Inc.<br>Copyright 2012, the Dart project authors.<br>Copyright 2019, the Dart project authors. |
+| scheduler | 0.28.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | shogi.js | 5.4.1 | MIT | na2hiro |
-| source-map-js | 1.2.1 | BSD-3-Clause | Copyright (c) 2009-2011, Mozilla Foundation and contributors |
+| source-map-js | 1.2.4 | BSD-3-Clause | Copyright (c) 2009-2011, Mozilla Foundation and contributors |
 | tabbable | 6.5.0 | MIT | Copyright (c) 2015 David Clark |
 | tslib | 2.8.1 | 0BSD | Copyright (c) Microsoft Corporation. |
 | tsshogi | 2.3.4 | MIT | Copyright (c) 2023 Kubo, Ryosuke |
