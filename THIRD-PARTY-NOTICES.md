@@ -17,7 +17,7 @@ ObsShogi 自身のライセンスは [LICENSE.md](LICENSE.md)（MIT）。
 - **@fontsource/zen-kaku-gothic-antique** 5.3.1 — OFL-1.1
   - Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic)
 
-## npm の依存（82 件）
+## npm の依存（83 件）
 
 `npm query .prod` が返す、配布物に載る依存。開発だけで使うものは含まない。
 `os` / `cpu` / `libc` で入るかが変わるパッケージ（ネイティブの prebuilt）も含まない ——
@@ -72,6 +72,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | @types/react | 19.3.0 | MIT | Copyright (c) Microsoft Corporation. |
 | @types/react-dom | 19.3.0 | MIT | Copyright (c) Microsoft Corporation. |
 | @types/trusted-types | 2.0.7 | MIT | Copyright (c) Microsoft Corporation. |
+| @typescript/typescript6 | 6.0.2 | Apache-2.0 | Microsoft Corp. |
 | chokidar | 5.0.0 | MIT | Copyright (c) 2012 Paul Miller (https://paulmillr.com), Elan Shanker |
 | context | 3.1.0 | MIT | Copyright (c) 2020 ealush |
 | cookie-es | 3.1.1 | MIT | copyright (c) Pooya Parsa <pooya@pi0.io><br>Copyright (c) 2012-2014 Roman Shtylman <shtylman@gmail.com><br>Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com> |
@@ -103,7 +104,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | tabbable | 6.5.0 | MIT | Copyright (c) 2015 David Clark |
 | tslib | 2.8.1 | 0BSD | Copyright (c) Microsoft Corporation. |
 | tsshogi | 2.3.4 | MIT | Copyright (c) 2023 Kubo, Ryosuke |
-| typescript | 5.8.3 | Apache-2.0 | Microsoft Corp. |
+| typescript | 6.0.3 | Apache-2.0 | Microsoft Corp. |
 | util | 0.10.4 | MIT | Joyent |
 | uuid | 11.1.1 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
 | vest-utils | 1.5.0 | MIT | Copyright (c) 2021 ealush |
