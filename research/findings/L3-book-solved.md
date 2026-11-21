@@ -2,6 +2,8 @@
 
 調査日: 2026-07-27 / 調査レーン L3 (OSINT) / 閲覧のみ（能動的接触なし）
 一次資料の取得方法: `gh api`, `git clone --depth 1`, `curl raw.githubusercontent.com`。
+結論・判定と、obs-shogi の issue への含意の節は 2026-11 に外した（判定は `docs/PREMISES.md` P-006 が持つ）。
+外す前の本文は `git show 11d456a7:research/findings/L3-book-solved.md` で読める。
 ShogiHome の clone HEAD = `f07e934a270622ff7219f9dd94d490ba3098dd68` (2026-07-26 22:49:03 +0900)。
 以下「ShogiHome:」で始まるファイル:行はすべてこの HEAD に対するもの。
 
@@ -100,7 +102,6 @@ Windows / macOS / Linux 版が配布されている。[確定]
 - Wiki `ファイル形式の種類.md:36-46` の「定跡のフォーマット」表は、clone HEAD 時点で
   `| .sbk | ShogiGUI | 対応予定なし |` と書かれている。**これは v1.28.0 (2026-06-27) の .sbk 対応と矛盾しており、Wiki が古い。**
   出典: https://github.com/sunfish-shogi/shogihome/wiki (`ファイル形式の種類`)。[確定]
-  → **教訓: ドキュメント層は当てにならない。ソースが唯一の権威。**
 - `docs/how-to-use.html` に「定跡」の記述は **0 件**（grep 該当なし）。[確定]
 
 ---
@@ -181,7 +182,7 @@ Wayback: http://web.archive.org/web/20260520102621/http://yaneuraou.yaneu.com/20
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `yaneurao/ShogiBookTools`             | Python、「10億局面の超巨大定跡でも処理できるように」。sort/merge/部分抽出/戦型判定。**最終 push 2024-02-15、ライセンス null**。YaneuraOu-ScriptCollection に事実上置き換わった | `gh api repos/yaneurao/ShogiBookTools`; README                                                                                                                                     | [確定]                                                                                                                                   |
 | BookMiner                             | YaneuraOu-ScriptCollection 内。大規模定跡採掘。**現在 1,500万局面、16台 PC・512並列**。128GB RAM で 1億局面まで想定                                                            | https://yaneuraou.yaneu.com/2026/06/18/shogi-bookminer/ (2026-06-18)<br>Wayback: http://web.archive.org/web/20260629054103/https://yaneuraou.yaneu.com/2026/06/18/shogi-bookminer/ | [推定]（WebFetch 経由の引用。数値は原文引用として提示されたもの。Wiki `定跡の作成.md:26-30` が BookMiner の存在と役割を裏付ける [確定]） |
-| `ak110/Blunder.BookEditor`            | 「Blunder(C#版、C++版)の定跡編集ツール」。最終更新 **2016-07-10**、star 0。事実上死んでいる                                                                                    | `gh search repos "定跡 編集"`                                                                                                                                                      | [確定]                                                                                                                                   |
+| `ak110/Blunder.BookEditor`            | 「Blunder(C#版、C++版)の定跡編集ツール」。最終更新 **2016-07-10**、star 0                                                                                    | `gh search repos "定跡 編集"`                                                                                                                                                      | [確定]                                                                                                                                   |
 | GitHub topic `shogi` 全 40 件スイープ | 定跡編集を主目的とするリポジトリは **ShogiHome 以外に存在しない**（`shogidb2/joseki` は記事データ、`akicho8/shogi-extend` は汎用ツール集）                                     | `gh search repos --topic shogi --limit 40`                                                                                                                                         | [確定]                                                                                                                                   |
 | ShogiGUI                              | 定跡機能あり（`.sbk`）。ただし**クローズドソース・Windows 専用**。公式マニュアルに定跡ページあり                                                                               | https://sites.google.com/site/shogigui/マニュアル/定跡 ; https://shogigui.siganus.com/download.html                                                                                | [推定]（検索結果由来。ソース非公開のため実装レベル確認は不可能 → **[未確認]**）                                                          |
 

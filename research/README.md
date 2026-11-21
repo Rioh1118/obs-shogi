@@ -66,6 +66,9 @@
 `docs/PREMISES.md` P-006・P-008 が根拠として引いている。**消すならこの2つも直すこと。**
 `docs/decisions/` は append-only なので、ここのリンクを切ると直すのが一番高い。
 
+ADR-0002 が根拠にした判定（P-006 の反証、未充足の機能、obs-shogi の issue への含意）の節は、
+2026-11 に L3 から外した。当時の本文は `git show 11d456a7:research/findings/L3-book-solved.md` で読める。
+
 ## 再取得
 
 ソースは `gh` で取る。クローンしない（更新の追従が要るのは調査のときだけ）。

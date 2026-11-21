@@ -27,16 +27,17 @@ obs-shogi 自身も MIT（`LICENSE.md`）。
 
 **読む順**: 対局を設計するなら 01 → 02。レイアウトなら 03 → 06。局面編集なら 04。
 
-| ファイル                                         | 何が書いてあるか                                                              |
-| ------------------------------------------------ | ----------------------------------------------------------------------------- |
-| [01-app-state.md](01-app-state.md)               | アプリ全体の状態機械。**モーダルな `AppState` 1本＋直交する `ResearchState`** |
-| [02-game.md](02-game.md)                         | 対局。`Player` 抽象・設定の型・時計・連続対局・SPRT                           |
-| [03-board-layout.md](03-board-layout.md)         | 盤と駒台の3レイアウトと**比率の保ち方**。obs-shogi の駒台問題に直接効く       |
-| [04-position-editing.md](04-position-editing.md) | 局面編集。**駒箱もごみ箱も無い**。枚数を直接編集する                          |
-| [05-usi-engine.md](05-usi-engine.md)             | `USIEngine` 型と USI オプションの持ち方。obs-shogi の `EnginePreset` と比較   |
-| [06-tabs-and-layout.md](06-tabs-and-layout.md)   | タブペインとカスタムレイアウト（絶対座標＋ドラッグ編集）                      |
-| [07-project-ops.md](07-project-ops.md)           | CONTRIBUTING / issue テンプレ / `specs/` の使い方                             |
-| [08-engine-behaviour.md](08-engine-behaviour.md) | エンジンの見せ方・起動終了・検討の振る舞い。**版は `6304cdaf`。05 の訂正を含む** |
+| ファイル                                         | 何が書いてあるか                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| [01-app-state.md](01-app-state.md)               | アプリ全体の状態機械。**モーダルな `AppState` 1本＋直交する `ResearchState`**        |
+| [02-game.md](02-game.md)                         | 対局。`Player` 抽象・設定の型・時計・連続対局・SPRT                                  |
+| [03-board-layout.md](03-board-layout.md)         | 盤と駒台の3レイアウトと**比率の保ち方**。obs-shogi の駒台問題に直接効く              |
+| [04-position-editing.md](04-position-editing.md) | 局面編集。**駒箱もごみ箱も無い**。枚数を直接編集する                                 |
+| [05-usi-engine.md](05-usi-engine.md)             | `USIEngine` 型と USI オプションの持ち方。obs-shogi の `EnginePreset` と比較          |
+| [06-tabs-and-layout.md](06-tabs-and-layout.md)   | タブペインとカスタムレイアウト（絶対座標＋ドラッグ編集）                             |
+| [07-project-ops.md](07-project-ops.md)           | CONTRIBUTING / issue テンプレ / `specs/` の使い方                                    |
+| [08-engine-behaviour.md](08-engine-behaviour.md) | エンジンの見せ方・起動終了・検討の振る舞い。**版は `6304cdaf`。05 の訂正を含む**     |
+| [feature-catalog.md](feature-catalog.md)         | 機能を UI 操作・設定値まで並べた棚卸し。**版を記録していない**。比べるときは取り直す |
 
 ## 全体の骨格
 
