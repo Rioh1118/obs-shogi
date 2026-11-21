@@ -105,6 +105,7 @@ export type StartFailureKind =
   | "quarantined"
   | "notUsi"
   | "exitedEarly"
+  | "evalTypeMismatch"
   | "timedOut"
   | "invalidValue"
   | "cancelled"
@@ -116,6 +117,8 @@ export type StartFailure = {
   /** エンジンが最後に出した行の要約（stderr を先に最大3行）。無ければ `null` */
   lastOutput: string | null;
   message: string;
+  /** 選んだ評価関数の型（`HalfKA2 1024x2` など）。`evalTypeMismatch` で読めたときだけ */
+  evalType: string | null;
 };
 
 type EvaluationKind = "Centipawn" | { MateInMoves: number } | { MateUnknown: boolean };

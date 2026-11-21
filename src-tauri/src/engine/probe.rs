@@ -58,7 +58,8 @@ impl EngineProber {
         match self.probe_steps(engine_path, request, fixed).await {
             Ok(outcome) => Ok(outcome),
             Err(e) => {
-                let failure = start_failure::describe(&e, engine_path).await;
+                // 取得は `isready` を送らないので、評価関数を読まない（型の不一致は起きない）
+                let failure = start_failure::describe(&e, engine_path, None).await;
                 log::info!(target: LOGT, "probe: failed ({:?}): {e}", failure.kind);
                 Err(failure)
             }

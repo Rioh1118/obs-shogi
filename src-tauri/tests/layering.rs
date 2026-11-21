@@ -97,6 +97,12 @@ const LAYERS: &[Layer] = &[
         forbids: &[],
     },
     Layer {
+        name: "eval_arch",
+        decides: "評価関数ファイルの先頭に書かれた型",
+        may_use: &[],
+        forbids: &[],
+    },
+    Layer {
         name: "types",
         decides: "線に出す形と失敗の型。何も決めない",
         may_use: &[],
@@ -165,7 +171,7 @@ const LAYERS: &[Layer] = &[
     Layer {
         name: "start_failure",
         decides: "起動の失敗を、利用者が取れる行動の種類に分ける",
-        may_use: &["types", "logging", "launchable"],
+        may_use: &["types", "logging", "launchable", "eval_arch"],
         forbids: &[],
     },
     Layer {
@@ -744,9 +750,10 @@ fn the_engine_does_not_reach_out_of_itself() {
 /// crate の根（`lib.rs`）は数えない。コマンドを登録し `AppState` を組む場所で、
 /// `engine` のレイヤを外へ見せるのがそこの仕事。
 ///
-/// いま在る1本は、候補の一覧が「起動できるか」の答えを起動の側と共有するため
-/// （`engine/launchable.rs` の冒頭）。
-const ENGINE_ENTRIES_FROM_OUTSIDE: [(&str, &str); 1] = [("ai_library", "launchable")];
+/// いま在るのは、候補の一覧が「起動できるか」の答え（`engine/launchable.rs` の冒頭）と
+/// 評価関数の型（`engine/eval_arch.rs` の冒頭）を、起動の側と共有するため。
+const ENGINE_ENTRIES_FROM_OUTSIDE: [(&str, &str); 2] =
+    [("ai_library", "eval_arch"), ("ai_library", "launchable")];
 
 /// `engine/` の外から入っている（モジュール, レイヤ）が、許可リストと一致すること。
 ///

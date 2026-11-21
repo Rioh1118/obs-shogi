@@ -1139,3 +1139,25 @@ describe("文言", () => {
     expect(screen.getByText("※ 編集中は保存されません。保存で確定します。")).toBeTruthy();
   });
 });
+
+describe("評価関数の型", () => {
+  test("選んだ評価関数の型を欄の下に出す。読めなかったファイルには何も出さない（AC-E5）", async () => {
+    const profile = INDEX.profiles[0];
+    scanAiRoot.mockResolvedValue({
+      ...INDEX,
+      profiles: [
+        {
+          ...profile,
+          eval_files: [{ ...profile.eval_files[0], eval_type: "HalfKA2 1024x2" }],
+        },
+      ],
+    });
+    await openDialog({ evalFilePath: EVAL_HAO });
+    expect(screen.getByText("型: HalfKA2 1024x2")).toBeTruthy();
+
+    cleanup();
+    scanAiRoot.mockResolvedValue(INDEX);
+    await openDialog({ evalFilePath: EVAL_HAO });
+    expect(screen.queryByText(/^型: /)).toBeNull();
+  });
+});

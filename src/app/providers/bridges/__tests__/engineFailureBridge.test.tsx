@@ -39,6 +39,7 @@ const failure = (kind: EngineStartFailureKind, message = "boom"): EngineStartFai
   kind,
   message,
   lastOutput: null,
+  evalType: null,
 });
 
 const notify = vi.fn<(request: NotifyRequest) => void>();
