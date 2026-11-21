@@ -72,7 +72,7 @@
     "postcss": "^8.5.33",
     "postcss-scss": "^4.0.9",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.68.0",
+    "typescript-eslint": "^8.73.0",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.1.24",
     "vite-plus": "0.1.24"
   },
