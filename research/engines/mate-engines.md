@@ -30,18 +30,27 @@ KomoringHeights（`engine/user-engine/user-search.cpp` の `PrintResult` と `Ma
 
 [確定・ソースのみ]
 
-- **`go mate` には `bestmove` を返さない。** 終わりの行は `checkmate` の1行
+**探索の途中は、検討と同じ形の `info` を流す。** `PvInterval`（既定 1000ms）ごとに、根の候補手を `MultiPV` の数だけ
+`info ... score <値> depth <深さ> multipv <番号> pv <手順>` の行で出す（`engine/user-engine/komoring_heights.cpp` の `Print`）。
+詰みが示された手は `score mate <手数>`、まだ示されていない手は `score cp <値>`。`go mate` でも通常の `go` でも同じ。[確定・ソースのみ]
+
+- **`go mate` には `bestmove` を返さない。** 終わりの行は結論の `checkmate` の1行
 - **通常の `go` では、詰まない局面でも `bestmove resign` を返す。** 候補手や評価値は出さない。
   `go infinite` なら `stop` まで待ってから返す
 - やねうら王の `yaneuraou-mate-engine` は、上の3つに加えて `checkmate none`（結果不明）を返す経路を持つ
   （`yaneuraou-mate-search.cpp`）。[確定・ソースのみ]
 
-通常のエンジンは `go mate` に `checkmate` を返さない。やねうら王 NNUE は `bestmove`、zermelo は
+通常のエンジンは `go mate` に `checkmate` を返さない。手元のやねうら王 V9.90 開発版は、`go mate 2000` を通常の探索として扱い、`info ... pv ...` を流して `bestmove` を返した（2026-11-21 に実測）。やねうら王 NNUE は `bestmove`、zermelo は
 `checkmate notimplemented`（[usi-measurements.md](usi-measurements.md) の「`go` の形」）。[確定]
+
+## 他の GUI の見せ方
+
+ShogiHome（`sunfish-shogi/shogihome` の `8aef2262`）は、詰み探索の `info` を検討と同じ経路（`src/renderer/players/usi.ts` の `onUSIInfo` から `src/renderer/store/index.ts` の `updateUSIInfo`）で読み筋の欄に出す。
+始めると読み筋のタブへ切り替える（`store/index.ts` の `startMateSearch`）。[確定・ソースのみ]
 
 ## 測っていないこと
 
-- 詰将棋エンジンを実際に起動した応答（時間、`info` の出し方、`stop` への応答）。`[未確認]`
+- 詰将棋エンジンを実際に起動した応答（時間、`stop` への応答）。`[未確認]`
 - dlshogi 系が探索の中で詰みを調べる機能（エンジンの中の話で、GUI への応答の形は変わらない）。`[未確認]`
 
 ## 失効条件

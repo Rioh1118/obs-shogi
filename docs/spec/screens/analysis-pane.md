@@ -225,6 +225,9 @@ React の仕様で覚えた値を捨てうるので使わない。`state`（`use
 
 ## これからの要件
 
+- **詰み探索をこのペインで切り替えて走らせること。** 操作列に「詰み探索」を足し、探索中は詰将棋エンジンの候補手を
+  この表に出し、終わったら結論を表の上に1行出す。検討とは同時に走らせない
+  → [features/mate-search.md](../features/mate-search.md) ／ #746
 - **脚注に seldepth / hashfull を出すこと。** `AnalysisCandidate`
   （`src-tauri/src/engine/types.rs`）に欄が無く、その手前で #380 が塞いでいる
   （NPS は `nodes` と `time_ms` から導いてあるので、これには含まない）

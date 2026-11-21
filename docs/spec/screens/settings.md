@@ -295,6 +295,8 @@
 
 ## これからの要件
 
+- **エンジン管理で「詰み探索に使う」プリセットを1つ指定し、詰み探索の上限時間を選べること**
+  → [features/mate-search.md](../features/mate-search.md) の AC-M6 AC-M9 ／ #746
 - **表示タブに「脚注に出す項目」を足す。** `AnalysisCandidate` に
   NPS / seldepth / hashfull の欄が無い（→ #380）ので、まだ置けない。
   **#101「研究まわりの設定が散らばっている」はこれでは解消しない** ——
