@@ -19,11 +19,7 @@ export type DirInfo = {
  * 実行ファイル（Windows では `.exe` 以外を中身で見ないので出ない）
  */
 export type Launchability =
-  | "ready"
-  | "notExecutable"
-  | "quarantined"
-  | "unreadable"
-  | "wrongPlatform";
+  "ready" | "notExecutable" | "quarantined" | "unreadable" | "wrongPlatform";
 
 export type EngineCandidate = {
   /** `engines/` からの相対。1階層下のフォルダなら `<フォルダ>/<ファイル>`、開けないフォルダは `<フォルダ>/` */

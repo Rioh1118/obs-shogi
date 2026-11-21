@@ -8,3 +8,7 @@ THIRD-PARTY-NOTICES.md
 design-system/dist/
 src-tauri/gen/
 src-tauri/target/
+
+# デザインシステムは別のパッケージで、自分の検査（`ds:check`）と生成物を持つ。
+# 根の整形を当てると、実装から作る生成物と食い違う
+design-system/

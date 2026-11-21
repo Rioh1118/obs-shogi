@@ -16,4 +16,9 @@ export type {
 export { MULTIPV_MAX, MULTIPV_MIN, MULTIPV_OPTION, QUICK_MULTIPV } from "./model/multiPv";
 export { fitSpin, fitValues, parseSpinValue } from "./lib/fitValues";
 export type { ClampedValue, DroppedValue, FittedValues } from "./lib/fitValues";
-export { hasCurrentDefinitions, probePathOf, storedDefinitions, withDefinitions } from "./lib/withDefinitions";
+export {
+  hasCurrentDefinitions,
+  probePathOf,
+  storedDefinitions,
+  withDefinitions,
+} from "./lib/withDefinitions";

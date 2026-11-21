@@ -16,7 +16,10 @@ describe("index.scss が読む外のファイル", () => {
     const source = readFileSync(join(SRC, "index.scss"), "utf8");
     const paths = [...source.matchAll(/@use\s+"(\.\.\/[^"]+)"/g)].map((m) => m[1]);
 
-    expect(paths.length, "`@use` で外のファイルを読んでいない。読み方が変わったならこの検査を直す").toBeGreaterThan(0);
+    expect(
+      paths.length,
+      "`@use` で外のファイルを読んでいない。読み方が変わったならこの検査を直す",
+    ).toBeGreaterThan(0);
 
     const untracked = paths
       .map((p) => {
@@ -25,10 +28,16 @@ describe("index.scss が読む外のファイル", () => {
         return relative(REPO_ROOT, join(dir, `_${base}.scss`));
       })
       .filter((file) => {
-        const listed = execFileSync("git", ["ls-files", "--", file], { cwd: REPO_ROOT, encoding: "utf8" });
+        const listed = execFileSync("git", ["ls-files", "--", file], {
+          cwd: REPO_ROOT,
+          encoding: "utf8",
+        });
         return listed.trim() === "";
       });
 
-    expect(untracked, "生成物をコミットすること（根の `.gitignore` の `dist` に当たっていないか）").toEqual([]);
+    expect(
+      untracked,
+      "生成物をコミットすること（根の `.gitignore` の `dist` に当たっていないか）",
+    ).toEqual([]);
   });
 });

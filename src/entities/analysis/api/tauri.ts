@@ -92,10 +92,7 @@ type InlineOnlyReleasePoint = "unmount";
  * その値を渡す関数の doc に書き足す。書けないなら、その経路は要らない
  */
 export type SeatReleasePoint =
-  | BlockingReleasePoint
-  | QuietReleasePoint
-  | DiscardReleasePoint
-  | InlineOnlyReleasePoint;
+  BlockingReleasePoint | QuietReleasePoint | DiscardReleasePoint | InlineOnlyReleasePoint;
 
 /**
  * 解析の開始の失敗が、エンジンへ書けなかったためか。

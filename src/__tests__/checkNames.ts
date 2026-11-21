@@ -50,7 +50,6 @@ export function rustChecks(): string[] {
   return [...new Set(walk(RUST_CHECKS_DIR, "tests"))].sort();
 }
 
-
 /**
  * すべての検査の名前。TS と Rust の両方、および `.test.ts` を持たない検査本体
  * （`ownedSpelling` / `walk` のような走査の道具）。
@@ -64,7 +63,12 @@ export function allCheckNames(): Set<string> {
   const helpers = tsFiles(SRC, { includeTests: true })
     .map((p) => relative(REPO_ROOT, p))
     .filter((p) => p.startsWith("src/__tests__/") && !/\.test\.tsx?$/.test(p))
-    .map((p) => p.split("/").pop()!.replace(/\.tsx?$/, ""));
+    .map((p) =>
+      p
+        .split("/")
+        .pop()!
+        .replace(/\.tsx?$/, ""),
+    );
 
   return new Set([...existingChecks(), ...rustChecks(), ...helpers]);
 }

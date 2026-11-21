@@ -297,7 +297,9 @@ export function cycleFrom(kind: Kind, color: Color, remembered?: CycleStep): Cyc
   const current = (((carried ?? (UNPROMOTED[kind] ? 1 : 0)) % period) + period) % period;
 
   // いま何巡目かが分かれば、1巡目の持ち主が逆算できる
-  const owner: Color = (promoted ? current >= 2 : current === 1) ? Piece.oppositeColor(color) : color;
+  const owner: Color = (promoted ? current >= 2 : current === 1)
+    ? Piece.oppositeColor(color)
+    : color;
   const nextCyc = (current + 1) % period;
 
   if (!promoted) {

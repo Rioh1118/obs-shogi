@@ -132,13 +132,7 @@ export type GameSettings = {
  * が落ちる。
  */
 export type GameOverReason =
-  | "resign"
-  | "declareWin"
-  | "timeout"
-  | "engineFailure"
-  | "rule"
-  | "aborted"
-  | "rulingTimeout";
+  "resign" | "declareWin" | "timeout" | "engineFailure" | "rule" | "aborted" | "rulingTimeout";
 
 export type GameResult = {
   /** 引き分けなら null */

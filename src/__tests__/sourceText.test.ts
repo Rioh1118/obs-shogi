@@ -162,9 +162,7 @@ describe("commentsOf", () => {
   });
 
   test("インデントして開くブロックも拾う", () => {
-    expect(commentsOf("function f() {\n  /** `FOO_BAR` */\n  return 1;\n}\n")).toContain(
-      "FOO_BAR",
-    );
+    expect(commentsOf("function f() {\n  /** `FOO_BAR` */\n  return 1;\n}\n")).toContain("FOO_BAR");
   });
 
   test("行コメントを拾う", () => {

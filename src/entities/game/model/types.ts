@@ -17,8 +17,7 @@ import type { IMove as ShogiMove } from "shogi.js";
 export type { IMove as ShogiMove } from "shogi.js";
 
 export type SelectedPosition =
-  | { type: "square"; x: number; y: number }
-  | { type: "hand"; color: Color; kind: Kind };
+  { type: "square"; x: number; y: number } | { type: "hand"; color: Color; kind: Kind };
 
 /**
  * 盤に載せられなかった理由。呼び出し側はtier と文言を `code` から決める。

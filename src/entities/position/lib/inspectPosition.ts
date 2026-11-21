@@ -5,13 +5,7 @@ import type { JKFState } from "@/entities/kifu/model/jkf";
 import { BOARD_SIZE } from "../model/board";
 import { coordsToShogiNotation } from "./boardCoords";
 import { toKan } from "./toKan";
-import {
-  isCheckOn,
-  pieceAt,
-  piecesOnBoard,
-  squareKey,
-  type Square,
-} from "./positionDraft";
+import { isCheckOn, pieceAt, piecesOnBoard, squareKey, type Square } from "./positionDraft";
 
 /**
  * 組んだ局面のうち、将棋の規則に反しているところを挙げる

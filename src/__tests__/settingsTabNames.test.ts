@@ -59,7 +59,11 @@ const namesSettings = (line: string) => line.includes("settings");
 const specDocs = (): string[] => {
   const walk = (rel: string): string[] =>
     readdirSync(join(REPO_ROOT, rel), { withFileTypes: true }).flatMap((e) =>
-      e.isDirectory() ? walk(`${rel}/${e.name}`) : e.name.endsWith(".md") ? [`${rel}/${e.name}`] : [],
+      e.isDirectory()
+        ? walk(`${rel}/${e.name}`)
+        : e.name.endsWith(".md")
+          ? [`${rel}/${e.name}`]
+          : [],
     );
   return walk("docs/spec");
 };

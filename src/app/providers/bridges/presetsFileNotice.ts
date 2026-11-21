@@ -112,8 +112,7 @@ const UNKNOWN_LOAD_NOTICE: PresetsFileNoticeView = {
 
 export function presetsLoadNoticeView(notice: PresetsLoadNotice): PresetsFileNoticeView {
   const build = LOAD_NOTICE_BUILDERS[notice.kind] as
-    | ((notice: PresetsLoadNotice) => PresetsFileNoticeView)
-    | undefined;
+    ((notice: PresetsLoadNotice) => PresetsFileNoticeView) | undefined;
   return build ? build(notice) : UNKNOWN_LOAD_NOTICE;
 }
 

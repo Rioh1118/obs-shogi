@@ -49,7 +49,8 @@ function wordsOf(name) {
 function codeLines(source) {
   const lines = source.split("\n");
   const testModule = lines.findIndex(
-    (line, index) => line.trim() === "#[cfg(test)]" && /^\s*(pub\s+)?mod\s+\w+\s*\{/.test(lines[index + 1] ?? ""),
+    (line, index) =>
+      line.trim() === "#[cfg(test)]" && /^\s*(pub\s+)?mod\s+\w+\s*\{/.test(lines[index + 1] ?? ""),
   );
   return testModule < 0 ? lines : lines.slice(0, testModule);
 }

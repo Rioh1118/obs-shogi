@@ -3,7 +3,12 @@ import { AlertTriangle, CheckCircle2, Copy, Pencil, Trash2 } from "lucide-react"
 
 import Button from "@/shared/ui/Button/Button";
 
-import { bookInUse, type EnginePreset, isPresetConfigured, MULTIPV_OPTION } from "@/entities/engine-presets";
+import {
+  bookInUse,
+  type EnginePreset,
+  isPresetConfigured,
+  MULTIPV_OPTION,
+} from "@/entities/engine-presets";
 import { cx } from "@/features/settings/lib/cx";
 import { fileLabel } from "@/features/settings/lib/fileChoices";
 import { getBaseName } from "@/shared/lib/path";

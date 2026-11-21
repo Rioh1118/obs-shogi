@@ -91,10 +91,7 @@ export default function EngineTab() {
       </SSection>
 
       {editingId && (
-        <EnginePresetEditDialogPanel
-          presetId={editingId}
-          onClose={() => setEditingId(null)}
-        />
+        <EnginePresetEditDialogPanel presetId={editingId} onClose={() => setEditingId(null)} />
       )}
     </div>
   );

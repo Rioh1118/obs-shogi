@@ -13,8 +13,7 @@ export const branchIndexFromRow = (r: StreamRow): BranchIndex => {
 
 /** 分岐メニューの選択に対して次に呼ぶ操作 */
 export type ForkMenuAction =
-  | { kind: "goToIndex"; te: number }
-  | { kind: "applyCursor"; cursor: CursorPath };
+  { kind: "goToIndex"; te: number } | { kind: "applyCursor"; cursor: CursorPath };
 
 /**
  * 分岐メニューで選ばれた項目を、次に呼ぶ操作へ振り分ける
