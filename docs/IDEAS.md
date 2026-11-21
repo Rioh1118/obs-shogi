@@ -398,3 +398,11 @@ lint もテストもラチェットも赤くならない。
 ## `GameManager` と `EngineRegistry` の語を揃える（#364 から。2026-10-31）
 
 `GameManager` と `EngineRegistry` はどちらも ID で引く一覧（registry）だが語が違う。`registry.rs` は検討側からも使うので差分が対局の外へ出る。語を揃える利得に対して差分が大きく、やらない判断もありうる。
+
+## 優先定跡
+
+やねうら王は `BookFile` の名前に `-000`・`-001` … を付けたファイルを、本体の定跡より先に引く
+（`research/engines/yaneuraou-files.md`）。同じ `book/` に置くと、エンジンの指す手と定跡ビューが出す手が食い違い、
+AI ライブラリの候補にも別の定跡として並ぶ。束ねて1つの定跡として見せるかを決める。
+
+判断: 置いている配布物が手元に無い。`.ybb` をエンジンに読ませる作業（[features/book.md](spec/features/book.md) の R-B1〜R-B5）が先。

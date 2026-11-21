@@ -179,6 +179,9 @@ URL を持たない（設定の「エンジン管理」タブの上に重なる�
 ## いま満たしていないこと
 
 - **定跡の候補が `.db` だけ** → #84
+- **`.ybb` を選べず、選べても名前のまま送ると定跡なしで動く** → [features/book.md](../features/book.md) の R-B2 → #741
+- **`eval_options.txt` が上書きする欄（`FV_SCALE` など）を、効かない値のまま編集できる** → [features/eval-files.md](../features/eval-files.md) の AC-E2 → #743
+- **評価関数の型が出ず、型違いの失敗は英語の `FileMissMatch` だけ** → [features/eval-files.md](../features/eval-files.md) の AC-E5 AC-E6 → #744
 - **終了条件を入力できるのに、検討の実行へ届いていない** → #107 #110
 - **URL を持たないのでリロードで消える**
 
