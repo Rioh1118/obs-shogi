@@ -58,7 +58,7 @@ issue は「直すこと」の集合であって、直っている部分を書�
 | 対局                       | [features/game-play.md](features/game-play.md)           | #374 ほか     | 1局を通して指せる。棋譜に結果が残らない |
 | USI オプション・検討モード | [features/engine-options.md](features/engine-options.md) | #107 #110     | オプションの編集はある。**新しい要件は下の行へ移した** |
 | エンジン設定と挙動の標準化 | [features/engine-standardization.md](features/engine-standardization.md) | #502 #356 ほか | 一部。画面の語と止める条件が無い |
-| 評価関数フォルダ           | [features/eval-files.md](features/eval-files.md)         | #743 #744     | 無い。`eval_options.txt` を知らない      |
+| 評価関数フォルダ           | [features/eval-files.md](features/eval-files.md)         | #743 #744     | `eval_options.txt` はある（#743）。評価関数の型は無い（#744） |
 | 詰み探索                   | [features/mate-search.md](features/mate-search.md)       | #745 #746     | 無い。`checkmate` を受ける経路だけ       |
 
 ## 書き方
