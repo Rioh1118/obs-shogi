@@ -456,6 +456,8 @@ expect_kinds "ts" "CONTRIBUTING.md"
 expect_kinds "ts" "docs/decisions/0002-drop-book-read-write.md"
 expect_kinds "ts" "docs/spec/screens/board.md"
 expect_kinds "ts" "docs/IDEAS.md"
+# research の調査も公開の文書として vitest が読むので ts
+expect_kinds "ts" "research/shogihome/01-app-state.md"
 # 状態遷移表は rust 側も見るので、表だけのコミットで2つとも走らせる
 expect_kinds "ts rust" "docs/state-transitions/yaneuraou-db-parse.md"
 expect_kinds "" ".claude/reviews/2026-08-30-book-foundation-r1.md"
