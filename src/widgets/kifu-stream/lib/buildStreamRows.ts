@@ -1,4 +1,5 @@
 import { advanceWithPlan, planByTe } from "@/entities/kifu/lib/advanceWithPlan";
+import { readableCurrentMove, readableNextForks } from "@/entities/kifu/lib/readableMove";
 import { truncateFrom, type ForkPointer, type PlannedCursor } from "@/entities/kifu/model/cursor";
 import type { JKFPlayer } from "json-kifu-format";
 
@@ -66,11 +67,11 @@ export function buildStreamRowsFromCursor(
     const te = player.tesuu + 1;
     if (!player.currentStream[te]) break;
 
-    const forkTexts = player.getReadableForkKifu?.() ?? [];
+    const forkTexts = readableNextForks(player);
     const mainText = (() => {
       const ok = player.forward();
       if (!ok) return "";
-      const s = player.getReadableKifu?.() ?? "";
+      const s = readableCurrentMove(player);
       player.backward();
       return s;
     })();
@@ -87,7 +88,7 @@ export function buildStreamRowsFromCursor(
     const side =
       mv?.color === 0 ? "sente" : mv?.color === 1 ? "gote" : te % 2 === 1 ? "sente" : "gote";
 
-    const text = player.getReadableKifu?.() ?? "";
+    const text = readableCurrentMove(player);
 
     const branchForkPointers = truncateFrom(cursor?.forkPointers ?? [], te);
     rows.push({

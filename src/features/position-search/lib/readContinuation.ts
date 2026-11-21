@@ -1,5 +1,6 @@
 import { advanceCurrentLine } from "@/entities/kifu/lib/advanceWithPlan";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
+import { readableCurrentMove } from "@/entities/kifu/lib/readableMove";
 import type { CursorPath } from "@/entities/kifu/model/cursor";
 import type { JKFData } from "@/entities/kifu/model/jkf";
 
@@ -26,7 +27,7 @@ export function readContinuation(jkf: JKFData, cursor: CursorPath, ply: number):
     // 引く te が `tesuu + 1` 以降なので1度も当たらない）。
     if (!advanceCurrentLine(player).moved) break;
 
-    const s = player.getReadableKifu?.() ?? "";
+    const s = readableCurrentMove(player);
     if (s) out.push(s);
   }
 
