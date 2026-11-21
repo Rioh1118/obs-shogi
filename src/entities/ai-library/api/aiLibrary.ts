@@ -49,8 +49,8 @@ export type ProfileCandidate = {
 
   /** `<profile>/eval` の中の候補 */
   eval_files: FileCandidate[];
-  /** `<profile>/book` の中の `.db` の候補 */
-  book_db_files: FileCandidate[];
+  /** `<profile>/book` の中の `.db` と `.ybb` の候補 */
+  book_files: FileCandidate[];
 };
 
 export type AiRootIndex = {

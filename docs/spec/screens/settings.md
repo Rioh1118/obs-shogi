@@ -103,7 +103,7 @@
 ├ engines/              エンジンの実行ファイル（直下と1階層下のフォルダ。名前ではなく中身で判定する）
 └ <AI名>/               AI フォルダ。ai_root 直下のディレクトリが1つ1つ
    ├ eval/              評価関数（nn.bin を優先して先頭に出す）
-   └ book/              定跡（.db だけを数える）
+   └ book/              定跡（.db と .ybb を数える）
 ```
 
 - `engines` という名前のディレクトリは**AI フォルダの一覧から除く**
@@ -288,8 +288,6 @@
 - **別の OS 向け・読めないエンジンを、理由を言わずに数えから外す。** Windows 版だけを置くと「未検出」とだけ出る。
   プリセット編集は同じものを理由つき（「別の OS 向けです」）で並べる
 - **AI フォルダの作成に、エンジンが1件以上あることを求めている** → #475
-- **`book/` に `.ybb` だけを置くと「定跡が未検出」になる。** やねうら王の配布物はこの形
-  → [features/book.md](../features/book.md) の R-B1 → #741
 - **`eval_options.txt` を知らない。** `eval/` の外に置かれていても何も言わない
   → [features/eval-files.md](../features/eval-files.md) の AC-E3 AC-E4 → #743
 
@@ -302,7 +300,7 @@
   **#101「研究まわりの設定が散らばっている」はこれでは解消しない** ——
   あちらは検討の既定値がプリセット側にあることを指している
 - **USI オプションの全項目を編集できること** → [features/engine-options.md](../features/engine-options.md)
-- **定跡ファイルの列挙を `.db` 以外へ広げること**（`.ybb` / Apery `book.bin` / `.sbk`）
-  → #84（`.ybb` は #741）／ [features/book.md](../features/book.md)。
+- **定跡ファイルの列挙を `.db` と `.ybb` 以外へ広げること**（Apery `book.bin` / `.sbk`）
+  → #84 ／ [features/book.md](../features/book.md)。
   **`.db.bin` というフォーマットは存在しない**（`docs/PREMISES.md` P-006）
 - **エンジン切替の進捗を出すこと** → #85
