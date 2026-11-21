@@ -1,4 +1,4 @@
-# L3: 定跡(book)の read/write は既に解決済み領域か
+# L3: 定跡(book)の read/write の他実装（ShogiHome）
 
 調査日: 2026-07-27 / 調査レーン L3 (OSINT) / 閲覧のみ（能動的接触なし）
 一次資料の取得方法: `gh api`, `git clone --depth 1`, `curl raw.githubusercontent.com`。
@@ -7,27 +7,19 @@ ShogiHome の clone HEAD = `f07e934a270622ff7219f9dd94d490ba3098dd68` (2026-07-2
 
 ---
 
-## 結論（1段落）
+## 要約
 
-**ShogiHome の定跡機能は「read/write を自前で作る価値がある」という前提を潰す水準で完成している。** [確定]
-4形式（やねうら王テキスト `.db` / Apery `.bin` / ShogiGUI `.sbk` / やねうら王バイナリ `.ybb`）を
+ShogiHome の定跡機能は、4形式（やねうら王テキスト `.db` / Apery `.bin` / ShogiGUI `.sbk` / やねうら王バイナリ `.ybb`）を
 **読み・書き・相互変換**でき、in-memory と on-the-fly の2モードを持ち、on-the-fly でも編集できる
 （差分をメモリに置き保存時にストリーミング merge する方式）。指し手の追加/削除/並べ替え/評価値・深さ・出現回数・
-コメント編集、局面コメント編集、棋譜ファイル・ディレクトリ・**現在開いている棋譜の全分岐**からの一括取り込み
-（対局者名フィルタ・手数範囲・コメントからの評価値取り込み付き）まで実装済みで、57 個のテストが付いている。
-Windows / macOS / Linux 版が配布されている。obs-shogi #90–#100 のうち **#90,#91,#92,#93,#94,#95,#97,#99,#100 の
-9件は ShogiHome に既存機能として対応物がある**。唯一まともに未充足なのは **#96 の「複数定跡の同時ロードと重ね合わせ」**
-で、これは ShogiHome 側でも issue #1456 として **open のまま**（2026-01-10 起票、2026-07-27 時点未実装）。
-さらに obs-shogi #92/#84 は **存在しないフォーマット `.db.bin`** を前提にしており、事実誤認がある。
+コメント編集、局面コメント編集、棋譜ファイル・ディレクトリ・現在開いている棋譜の全分岐からの一括取り込み
+（対局者名フィルタ・手数範囲・コメントからの評価値取り込み付き）まで実装されていて、57 個のテストが付いている。
+Windows / macOS / Linux 版が配布されている。[確定]
 
----
+複数の定跡を同時に開いて重ね合わせる機能は、ShogiHome の issue #1456 として open のまま
+（2026-01-10 起票、2026-07-27 時点で未実装）。[確定]
 
-## 判定: P-006「自前で作る価値がある」は **[反証]**
-
-- 「read/write」という設問の中心部分は **完全に解決済み**。ここに 6 週間を投じる根拠は本調査では見つからなかった。
-- ただし「定跡まわり全体に何もやることが無い」ではない。**未充足なのは read/write ではなく「複数定跡の横断参照」**（後述）。
-- したがって 11 issue のうち **read/write 実装系（#90–#94, #97, #98, #99, #100）は捨てるべき**、
-  **#96（複数 book 重ね合わせ）だけが残る候補**、という判定になる。
+**`.db.bin` という形式は存在しない。** やねうら王のバイナリ定跡は `.ybb`、`book.bin` は Apery のもの（下の「定跡フォーマットの一次仕様」）。[確定]
 
 ---
 
@@ -141,7 +133,7 @@ Wayback: http://web.archive.org/web/20260520102621/http://yaneuraou.yaneu.com/20
 > **重要: `.db.bin` というフォーマットは存在しない。** [確定]
 > `yane/book.cpp` / `book.h` を `.bin` で grep して出るのは Apery の `book.bin` のみ（`book.cpp:203` `kAperyBookName = "book.bin"`、`book.cpp:1334` の候補リスト `"user_book1.db", ..., "book.bin"`）。
 > やねうら王のバイナリ定跡は **`.ybb`**（2026年に追加、`book.h:246-278`）。
-> obs-shogi **#92「db_bin.rs YaneuraOu バイナリ on-the-fly」および #84 の 4 拡張子 `.db / .db.bin / .bin / .sbk` は、存在しないフォーマットを前提にしている。**
+> **`.db.bin` という拡張子の形式は存在しない。**
 
 ---
 
@@ -165,7 +157,7 @@ Wayback: http://web.archive.org/web/20260520102621/http://yaneuraou.yaneu.com/20
 
 > **調査前提の訂正**: 「BookConv が `.sbk` ↔ `book.bin` ↔ `.db` を処理」の `book.bin` は **技巧(Gikou)の book.bin であって Apery の book.bin ではない**。
 > Apery は**出力専用**（入力に Apery は無い）。[確定]
-> また **Windows 専用 GUI・ライセンス無し・9年間リリース無し**なので、obs-shogi が依存できる部品ではない。[確定]
+> BookConv は Windows 専用の GUI で、ライセンスの表示が無く、9年間リリースが無い。[確定]
 
 ### YaneuraOu-ScriptCollection / makebook — 実質的な現行標準ツール
 
@@ -181,7 +173,7 @@ Wayback: http://web.archive.org/web/20260520102621/http://yaneuraou.yaneu.com/20
 | 棋譜→定跡                    | `from_sfen.py`（SFEN棋譜列から `.db`/`.ybb` 生成）                                                                                                                                                                                             | 同上                                               | [確定] |
 | 検証                         | 「テスト用の定跡DBで旧やねうら王 `makebook` 実装と byte 単位の一致を確認しています」（`from_sfen.py` / `merge.py` / `sort.py` / `convert_to_apery.py`）                                                                                        | `makebook/README.md:471-480`                       | [確定] |
 
-→ **obs-shogi #98「merge_into_book + MergePolicy」は、MIT ライセンスの Python 実装として既にあり、しかも旧 makebook との byte 一致まで検証済み。** [確定]
+→ 定跡のマージは MIT ライセンスの Python 実装（`makebook/merge.py`）として公開されていて、旧 makebook との byte 一致まで検証されている。[確定]
 
 ### その他
 
@@ -216,107 +208,16 @@ Wayback: http://web.archive.org/web/20260520102621/http://yaneuraou.yaneu.com/20
 
 ---
 
-## 「ShogiHome の定跡編集に足りないもの」— 1行で言えるか
+## 開発者の公開の発言
 
-**言える。1行は次のとおり:**
+ShogiHome の開発者（Kubo Ryosuke = sunfish-shogi）は、定跡機能の位置づけを次のように書いている。
 
-> **ShogiHome の定跡は常に「1ファイル・現在の局面の候補手リスト」でしかなく、複数の定跡を同時に開いて重ね合わせる／定跡全体を横断して閲覧・検索・比較する手段が一切ない。**
+> 将棋 AI 大会用の定跡ファイルを編集する。
 
-この 1 行を構成する事実（すべて出典つき）:
+> 定跡の勉強は書籍やブログ、動画をメインにして、将棋 AI や定跡データベースは補助的に利用することをお勧めします。
 
-1. **UI は 1 セッション固定。** レンダラーの定跡ストアは全 API 呼び出しで `defaultBookSession` を直接渡している
-   （`src/renderer/store/book.ts:97,120,126,143,146,164,167,186,196,209,229,238,263,274` — 14箇所すべて）。[確定]
-2. **複数セッション基盤自体は存在するが、UI からは使われていない。** `openBookAsNewSession` / `closeBookSession`
-   （`index.ts:369-384`）を呼ぶのは **USI プレイヤーの `extraBook`（エンジンが定跡から着手するための裏読み）だけ**
-   （`src/renderer/players/usi.ts:74, 82, 191, 288-289`）。[確定]
-3. **ShogiHome 自身が「未実装」と認めている。** issue **#1456「複数の定跡ファイルを同時に検索する機能」**、
-   本文「編集モードで開いている定跡とは別で、閲覧専用で別の定跡を開けるようにする。」
-   起票 **2026-01-10**、**2026-07-27 時点 open**。
-   https://github.com/sunfish-shogi/shogihome/issues/1456 [確定]
-4. **定跡全体を見る UI が無い。** 定跡関連の renderer ビューは `BookPanel.vue`(312行) と `BookView.vue`(278行) の 2 つだけで、
-   `BookView.vue` は**現在の局面の候補手テーブル**（`src/renderer/view/primitive/BookView.vue:10-21` のヘッダ列＝
-   定跡手/再生/編集/削除/評価値/深さ/頻度/コメント）。
-   `bookTree|BookTree|bookGraph|BookGraph|searchBookPositions` は**全ソースで grep 0 件**。[確定]
-5. **diff が無い。** `src/background/book/` と `src/renderer/store/book.ts` に `diff|Diff` は **grep 0 件**。[確定]
-6. **merge のポリシーを選べない。** `mergeBookEntries`（`src/background/book/types.ts:64-140`）は
-   patch 優先・`count` 加算・`minPly` は min という**固定規則**。ユーザーが Overwrite / MaxEval / KeepExisting を選ぶ口は無い。[確定]
-7. 参考: 開発者本人（Kubo Ryosuke = sunfish-shogi）の解説記事にも、複数定跡の同時オープンや 2 定跡の比較の記述は
-   **NOT PRESENT**。https://note.com/ryosuke_kubo/n/nb50932229b9f (2025-12-31) [推定：WebFetch 経由]
-
-### ただし — この 1 行は 11 issue を正当化しない
-
-| 観点                                         | ShogiHome の実際                                                                                                                                              | 出典                                                          | obs-shogi に残る余地                                                                      |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| クロスプラットフォーム性                     | **Win / macOS / Linux(AppImage, deb) を配布済み**。定跡編集も 3 OS すべてで動く（Electron main プロセス実装、OS 依存コード無し）。Web 版のみ不可              | v1.28.0 release assets; `src/renderer/ipc/web.ts:357-372`     | **無し**（差別化にならない）                                                              |
-| 大規模定跡の性能                             | on-the-fly 二分探索 (`yaneuraou.ts:337-384`)、`.ybb` バイナリ index、on-the-fly 編集 (patch + streaming merge)、しきい値 UI 設定可                            | 上表参照                                                      | **ほぼ無し**。残る穴は「形式変換だけは全読み」(`index.ts:514-516`) と Electron 4GB ヒープ |
-| 棋譜研究との統合（自分の棋譜から定跡を作る） | **実装済み**。「現在の棋譜から」タブで**全分岐**を列挙し一括登録、ファイル/ディレクトリ取り込み、対局者名フィルタ、手数範囲、棋譜コメントからの評価値取り込み | `AddBookMovesDialog.vue:189-229,251-267`; `index.ts:805-1037` | **無し**（obs-shogi #100 は完全に先行実装されている）                                     |
-| 差分管理・マージ                             | アプリ内 merge はあるがポリシー固定・diff UI 無し。**外部には MIT の `makebook/merge.py` があり、しかも旧 makebook と byte 一致検証済み**                     | `types.ts:64-140`; `makebook/README.md:154-200, 471-480`      | **小**（diff UI のみ。merge ロジック自体を書く価値は無い）                                |
-| 複数定跡の比較                               | **未実装。#1456 open**                                                                                                                                        | issue #1456                                                   | **これだけが本物のギャップ**                                                              |
-| 注釈との連携                                 | ShogiHome には注釈機能そのものが無い（比較対象なし）。ただし obs-shogi `main` にも注釈機能は存在しない（CLAUDE.md 記載）                                      | —                                                             | **[未確認]**（obs-shogi 側の前提が未確定なため評価不能）                                  |
-
----
-
-## 反証側の証拠（「ShogiHome で十分」「需要が無い」）
-
-1. **「十分」側の最強証拠 = 実装の網羅性そのもの。** 上の実装確認表の全行。特に `specs/book-data-fields.md` が
-   「どの項目がどの形式で、UI 表示可能か、UI 編集可能か」を**網羅的に表で管理している**という事実は、
-   この領域が「思いつきで作った機能」ではなく**仕様として詰め切られている**ことを示す。[確定]
-2. **開発速度で追いつけない。** 2024-12-28 の v1.20.0 から 2026-07-19 の v1.29.0-alpha.1 まで
-   **19ヶ月で 17 リリースにわたり定跡機能を継続的に拡張**。`.ybb` は やねうら王側の追加から数ヶ月で追随している。[確定]
-3. **「個人の学習向けではない」という開発者自身の位置づけ。**
-   「将棋 AI 大会用の定跡ファイルを編集する。」
-   「定跡の勉強は書籍やブログ、動画をメインにして、将棋 AI や定跡データベースは補助的に利用することをお勧めします。」
-   出典: Kubo Ryosuke「ShogiHome の定跡機能を使いこなす」 https://note.com/ryosuke_kubo/n/nb50932229b9f (2025-12-31)
-   Wayback: **スナップショット無し**（availability API で確認）。[推定：WebFetch 経由の引用]
-   → **これは obs-shogi にとって二重の意味を持つ**: (a) 定跡編集の需要は「AI 大会勢」という狭い層に集中しており、
-   obs-shogi のターゲット（研究家）とはズレる可能性がある = 需要側の反証、
-   (b) 逆に「研究家向けの定跡 UX」という空席がある、とも読める。**本調査だけでは決着できない → 人間判断が必要。**
-4. **やねうら王側は GUI ではなく Python スクリプトに寄せている。** 本体から makebook コマンドを退けて
-   `YaneuraOu-ScriptCollection/makebook` の Python 群へ移行（Wiki `定跡の作成.md:32-34, 328-336`）。
-   定跡の一括加工は「GUI でやるもの」ではないという業界側の判断が読める。[推定：ドキュメント上の移行方針から]
-
----
-
-## 不満の実例
-
-**ほぼ見つからなかった。** [確定]
-
-| 日付       | 内容                                                                                                                                                           | 出典                                                                       | 等級                         |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------------- |
-| 2025-08-19 | 「約 1 GB を超える巨大定跡を編集モードで開くことができない。」（開発者自身による起票。Electron のポインタ圧縮でヒープ 4GB 制限）                               | https://github.com/sunfish-shogi/shogihome/issues/1311 (closed 2025-08-25) | [確定]                       |
-| 2026-01-10 | 「編集モードで開いている定跡とは別で、閲覧専用で別の定跡を開けるようにする。」                                                                                 | https://github.com/sunfish-shogi/shogihome/issues/1456 (**open**)          | [確定]                       |
-| 2025-12-31 | 「⚠️ファイル形式の変換には対応していません。」→ **v1.28.0 (2026-06-27) で解消済み**                                                                            | https://note.com/ryosuke_kubo/n/nb50932229b9f                              | [推定：WebFetch 経由]        |
-| 2025-12-31 | 「⚠️ Apery 定跡は深さとコメントに対応していません。入力しても無効になります。」→ 現在も真（`index.ts:674-694` で sanitize、`specs/book-data-fields.md:14,16`） | 同上 + ソース                                                              | [確定]（ソースで裏取り済み） |
-
-**外部（ブログ / X / 掲示板）の第三者による具体的な不満投稿は発見できなかった。** [確定：試した検索語は下記]
-GitHub Discussions は**リポジトリ全体で 1 件のみ**（定跡関連なし）。
-ShogiHome の定跡 issue **32件中 31件が closed**、かつ**大半が開発者自身の起票**（`sunfish-shogi`）。
-→ **「ユーザーが困って声を上げている」形跡が無い** = 需要が薄いか、既に満たされているか、どちらか。[推定]
-
----
-
-## obs-shogi の #90–#100 に対する含意
-
-| obs-shogi issue                                                     | ShogiHome の対応物                                                                                                       | 判定                                                             |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| #90 Rust book/mod + BookReader trait + Tauri commands               | `src/background/book/index.ts` + `types.ts`（セッション管理・ハンドル込み）                                              | **重複。捨てる**                                                 |
-| #91 db_text.rs YANEURAOU-DB2016 parser                              | `yaneuraou.ts` (422行、BOM/CRLF/`none`/空文字まで実戦対応、テスト4件)                                                    | **重複。捨てる**                                                 |
-| #92 db_bin.rs YaneuraOu バイナリ on-the-fly                         | **前提が誤り**。`.db.bin` は存在しない。実在するのは `.ybb` で `ybb.ts` (536行) が対応済み                               | **前提誤り + 重複。捨てる**                                      |
-| #93 apery_bin.rs Apery book.bin reader                              | `apery.ts` + `apery_zobrist.ts` (2701行のテーブル)                                                                       | **重複。捨てる**（Zobrist テーブルを自前で持つコストが特に無駄） |
-| #94 .sbk → .db 変換                                                 | `exportBook` (`index.ts:483-588`) が sbk→yane2016 を含む全方向（Apery 入力を除く）に対応                                 | **重複。捨てる**                                                 |
-| #95 FE entities/book + book-viewer                                  | `BookPanel.vue` + `BookView.vue` + `BookMoveDialog.vue` + `BookPropertiesDialog.vue`                                     | **重複。捨てる**                                                 |
-| #96 定跡 hit バッジ + **複数 book 同時ロード + 重ね合わせ優先順位** | hit 表示は BookPanel が実質担う。**複数 book 同時 = ShogiHome #1456 が open**                                            | **唯一残す候補**                                                 |
-| #97 db_text.rs write (atomic + .bak)                                | `storeYaneuraOuBook` + 一時ファイル経由保存 (#1599, v1.28.0)。`.bak` は無い                                              | **重複。捨てる**（`.bak` だけのために作らない）                  |
-| #98 merge_into_book + MergePolicy                                   | `mergeBookEntries` (固定ポリシー) + MIT の `makebook/merge.py`（4段階の採用基準 + 先後別マージ、byte 一致検証済み）      | **重複。捨てる**                                                 |
-| #99 Book Viewer 編集 UI + 現局面を定跡に追加                        | `BookView.vue` の inline 編集 + `BookMoveDialog` + `AddBookMovesDialog`                                                  | **重複。捨てる**                                                 |
-| #100 現棋譜の全枝を定跡に出力                                       | `AddBookMovesDialog` 「現在の棋譜から」タブ = **全分岐を列挙して一括登録**。しかも棋譜コメントからの評価値取り込みまで済 | **重複。捨てる**                                                 |
-| （関連）#84 ai_library を 4 種類の book 拡張子に対応                | 4 拡張子のうち `.db.bin` は**実在しない**。正しくは `.db / .bin / .sbk / .ybb`                                           | **仕様を訂正して縮小**                                           |
-
-**要約: 11件中 10件は捨てて良い。残るのは #96 の「複数定跡の同時ロードと重ね合わせ」1件のみ。**
-それも、ShogiHome が #1456 として認識している以上、**先に実装されるリスクがある**（同レポジトリの定跡機能の実装速度は
-19ヶ月17リリース）。
-
-副産物として、**#84 は「`.db.bin` を消して `.ybb` にする」だけの小修正**にできる。
+出典: Kubo Ryosuke「ShogiHome の定跡機能を使いこなす」 https://note.com/ryosuke_kubo/n/nb50932229b9f (2025-12-31)。
+Wayback のスナップショットは無い（availability API で確認）。[推定：WebFetch 経由の引用]
 
 ---
 
@@ -382,36 +283,13 @@ ShogiHome の定跡 issue **32件中 31件が closed**、かつ**大半が開発
 
 ---
 
-## 未解決・人間に見てほしいこと
+## 未確認のこと
 
-1. **[要判断 / 最重要] 「AI大会用 vs 研究家用」の需要の分岐。**
-   ShogiHome 開発者本人が「定跡機能は将棋 AI 大会用」「定跡の勉強は書籍・ブログ・動画をメインに」と書いている。
-   これが (a)「定跡編集そのものに研究家需要が無い」なのか、(b)「研究家向け定跡 UX という空席がある」なのか、
-   **公開情報では決着しない**。obs-shogi のターゲットが後者だと信じるなら #96 は生きるが、
-   その根拠は本調査では得られていない。→ **ユーザー1人（＝あなた自身）の実利用で確かめる以外にない。**
-
-2. **[要確認] ShogiHome #1456 の実装が始まっていないか。**
-   2026-01-10 起票で 7ヶ月間 open だが、v1.29.0 系はまだ alpha。
-   obs-shogi が #96 に着手する前に、`gh api repos/sunfish-shogi/shogihome/issues/1456` と
-   最新 alpha のリリースノートを再確認すべき。**先を越されると #96 も消える。**
-
-3. **[要修正] obs-shogi #92 / #84 の `.db.bin` は実在しないフォーマット。**
-   issue 本文を書き換えるか、issue ごと閉じるかの判断が必要。放置すると
-   「存在しない仕様に対する実装」を始める危険がある。
-
-4. **[未確認] ShogiGUI の定跡機能の実装レベル。**
-   クローズドソースのため、本調査の規律（ソースを読む）では検証不可能。
+1. **ShogiGUI の定跡機能の実装レベル。**
+   クローズドソースのため、ソースを読む規律では検証できない。
    `.sbk` の実装は ShogiHome の `sbk.ts` / BookConv の `SBook.cs` から逆算できるが、
-   ShogiGUI 本体の編集 UI の範囲は **[未確認]** のまま。ただし Windows 専用なので
-   obs-shogi のクロスプラットフォーム論点には影響しない。
+   ShogiGUI 本体の編集 UI の範囲は **[未確認]** のまま。
 
-5. **[未確認] obs-shogi の「注釈との連携」観点。**
-   CLAUDE.md に「`main` に注釈機能（marks / file-meta / normalizedTree）は存在しない」とあり、
-   #100 が依存する `src/entities/kifu/lib/normalizedTree.ts` も未マージ。
-   **#100 は依存先が存在しない状態で書かれている**可能性が高い。捨てる判断と整合するが、
-   依存関係の棚卸しは人間が確認すべき。
-
-6. **[提案] 本調査で最も再利用価値の高い一次資料**は
-   ShogiHome の `specs/book-data-fields.md`（73行、形式×項目×表示可否×編集可否のマトリクス）。
-   obs-shogi が今後どの領域を触るにせよ、**まずこれを読んで「既に埋まっている升目」を確認する**のが最短。
+2. **最も再利用価値の高い一次資料**は ShogiHome の `specs/book-data-fields.md`
+   （73行、形式×項目×表示可否×編集可否のマトリクス）。
    https://github.com/sunfish-shogi/shogihome/blob/main/specs/book-data-fields.md

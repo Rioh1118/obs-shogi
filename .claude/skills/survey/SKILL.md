@@ -9,7 +9,8 @@ argument-hint: "[slug / 台帳のパス]"
 
 ## 手順0: 手持ちを確かめる
 
-`research/`、`shogi-home-spec.md`、`obs-shogi-spec.md`、`.claude/knowledge/usi_protocol.md` に既にある事実を
+`research/`（ShogiHome の機能の棚卸しは `research/shogihome/feature-catalog.md`）、自分の機能は `docs/spec/`、
+`.claude/knowledge/usi_protocol.md` に既にある事実を
 棚卸しする。**どれも取った時点の写し**なので、判定に使うものは版を確かめて取り直す。
 
 ## 手順1: 調べ方を宣言する
@@ -73,6 +74,7 @@ agent に割るなら対象ごとに。本数は `.claude/rules/agents.md` に�
 - 各行の状態を更新する。新しい論点が出たら `/intake` の手順4へ戻る
 - 判定の分かれる論点は `/decide` で決め、判断ログを `survey.md` の末尾に残す
 - 残すべき仮定は `docs/PREMISES.md`、未決は `docs/OPEN-QUESTIONS.md` へ
+- **調べた相手への所感、需要や利用者数の推計は公開の `research/` に書かない。** 書くなら追跡外の `.private/` へ
 
 完了:
 
