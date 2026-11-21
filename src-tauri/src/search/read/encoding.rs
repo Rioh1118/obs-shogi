@@ -227,7 +227,7 @@ where
             });
         } else if !had_errors {
             // 名乗れないが文字にはできた。行番号だけでも利用者の役に立つ
-            if anonymous.as_ref().map_or(true, |(best, _)| lines > *best) {
+            if anonymous.as_ref().is_none_or(|(best, _)| lines > *best) {
                 anonymous = Some((
                     lines,
                     Unparsable {

@@ -117,8 +117,6 @@ const EXEMPT: &[&str] = &[
     // --- `std` ---
     // 確保に失敗したときの挙動を説明している
     "handle_alloc_error",
-    // MSRV では使えないことを書いている
-    "repeat_n",
     // --- `nom` ---
     // パースの失敗をそのまま引用できることの根拠
     "convert_error",

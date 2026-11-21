@@ -119,7 +119,7 @@ fn says_nothing(jkf: &Jkf) -> bool {
     }
     jkf.moves
         .first()
-        .map_or(true, |m| m.comments.is_none() && m.special.is_none())
+        .is_none_or(|m| m.comments.is_none() && m.special.is_none())
 }
 
 /// これを超えるファイルは棋譜として読まない。
@@ -629,8 +629,7 @@ mod tests {
                 "Shift_JIS + NUL 16個",
                 {
                     let mut v = sjis.clone();
-                    // `repeat_n` は Rust 1.82 以降。MSRV は 1.77.2（`Cargo.toml`）
-                    v.extend(std::iter::repeat(0u8).take(16));
+                    v.extend(std::iter::repeat_n(0u8, 16));
                     v
                 },
                 None,

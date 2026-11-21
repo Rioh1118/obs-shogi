@@ -146,7 +146,7 @@ fn quoted(md: &str) -> Vec<String> {
     let body = without_fences(md);
     let ticks = body.matches('`').count();
     assert!(
-        ticks % 2 == 0,
+        ticks.is_multiple_of(2),
         "`search.md` のバッククォートが奇数個（{ticks}）。閉じ忘れると\
          この検査は緑のまま何も見なくなる"
     );
