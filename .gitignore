@@ -26,10 +26,12 @@ dist-ssr
 *.sw?
 
 # Claude Code
-# settings.json / agents / skills / hooks / rules / reviews は追跡する。
-# 機械固有の設定とセッション作業用の計画メモだけ除外する。
+# settings.json / agents / skills / hooks / rules は追跡する。
+# 機械固有の設定、セッション作業用の計画メモ、レビューの報告書は除外する。
+# 報告書は作業の途中経過で、公開リポジトリの読み手が読む理由が無い。
 .claude/settings.local.json
 .claude/plans/
+.claude/reviews/
 # セッション間の引き継ぎ指示書。実体はメインのチェックアウトに置き、
 # worktree からは絶対パスで読む。腐るものなので履歴に残さない。
 .claude/handoffs/

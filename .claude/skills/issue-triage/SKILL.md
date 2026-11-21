@@ -49,7 +49,7 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Agent, AskUserQuestion
 - 一部だけ終わった Issue は閉じない。残りを本文にして書き直す
 - 正本の無いバグは、`.github/ISSUE_TEMPLATE/bug_report.yml` の並びで書き直す
 - ラベルだけが足りないなら「残す」にして、付けるラベルを一覧に書く
-- 書き直すときも**本文の事実を消す前に行き先を決める。** 正本に無い実測は、仕様か `.claude/reviews/` へ移す
+- 書き直すときも**本文の事実を消す前に行き先を決める。** 正本に無い実測は、仕様（`docs/spec/`）か状態遷移（`docs/state-transitions/`）へ移す。レビューの報告書（`.claude/reviews/`）は追跡外で、公開の読み手が辿れない
 - 新しい本文は全部書いて、`.claude/plans/issue-triage/<日付>/bodies/<番号>.md` に置く
 - 優先度の無い Issue には、残すか書き直すなら優先度の案も付ける
 

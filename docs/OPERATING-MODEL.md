@@ -38,7 +38,7 @@ Little の法則はコードだけでなく決定にも効く。
 | `docs/OPEN-QUESTIONS.md`                | **まだ決めていないこと**                   | 決まったら ADR に昇格して削除                                                                                                           |
 | `docs/PREMISES.md`                      | **仮定していること**                       | 日付と失効条件つき。覆ったら依存 ADR を直すまでがワンセット                                                                             |
 | `docs/IDEAS.md`                         | **6週間以内に着手しないこと**              | issue にしない。昇格するのは6週間以内に着手すると決めた時                                                                               |
-| `.claude/reviews/`                      | **レビューの指摘と修正計画**               | 変更ごとに1本。**外から出す PR に付ける必要は無い**                                                                                     |
+| `.claude/reviews/`                      | **レビューの指摘と修正計画**               | 変更ごとに1本。**追跡外**（`.gitignore`）。公開の文書・コメント・Issue から個別の報告書を指さない                                       |
 | GitHub issues                           | **6週間以内に着手すると決めた作業**        | 中身は正本に置く。運用は `docs/issue-guidelines.md`                                                                                     |
 | `CLAUDE.md`                             | エージェント向けの**命令形の制約**         | 概観を書かない（過剰探索を招くため）                                                                                                    |
 | `docs/state-transitions/`               | **実装がいまどうなっているか**             | 埋まっていないセル＝未検証の経路。`stateTransitionIndex` のラチェットが見る                                                             |
