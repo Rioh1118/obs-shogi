@@ -1133,10 +1133,7 @@ mod tests {
             expect_read_line,
         };
 
-        let v830 = sent(
-            "/Users/riohatta/test_shogi_engine/li/book/user_book1.db",
-            true,
-        );
+        let v830 = sent("/Users/me/test_shogi_engine/li/book/user_book1.db", true);
         assert_eq!(book_load_warning(std::slice::from_ref(&read), &v830), None);
         assert_eq!(
             book_load_warning(&[], &v830),
@@ -1146,7 +1143,7 @@ mod tests {
         );
 
         let missing = sent(
-            "/Users/riohatta/test_shogi_engine/li/book/standard_book.db",
+            "/Users/me/test_shogi_engine/li/book/standard_book.db",
             false,
         );
         assert_eq!(
