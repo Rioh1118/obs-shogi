@@ -64,7 +64,7 @@ cd "$RV" && ./node_modules/.bin/vp test run --run <path>
 
 ## このプロジェクトの実態
 
-- 検証は `npm run verify`（tsc + oxlint + vitest + 未使用 export のラチェット）と
+- 検証は `npm run verify`（tsc + ESLint + vitest + 未使用 export のラチェット）と
   `npm run verify:rust`（fmt + clippy + test + rustdoc のラチェット）。
   **所要時間をここに書かない**（`CLAUDE.md`）
 - **テストの件数をここに書かない**（`CLAUDE.md`）。現在値は `npm run test` と `cargo test` の末尾。
@@ -72,7 +72,7 @@ cd "$RV" && ./node_modules/.bin/vp test run --run <path>
   `src-tauri/tests/` の大半はソースを走査するラチェットで、振る舞いを見ていない
 - E2E は無い。今後も作らない（`tauri-driver` が macOS 非対応）
 - 対象画面サイズは MacBook 相当以上（幅1280px 以上）。スマホ・タブレットは対象外
-- Lint は oxlint（設定は `vite.config.ts` の `lint` にインライン）
+- Lint は ESLint（設定は `eslint.config.ts`）。整形は Prettier（`.prettierrc.json`）
 
 ## 確信度
 

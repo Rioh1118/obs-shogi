@@ -5,9 +5,9 @@ import { SRC, scssFiles, tsFiles } from "./walk";
 /**
  * **同じ層の別スライスを読む import** を数える検査の本体。
  *
- * `vite.config.ts` の `no-restricted-imports` は**上位の層**しか禁じない。
+ * `eslint.config.ts` の `no-restricted-imports` は**上位の層**しか禁じない。
  * `entities/A` → `entities/B` は下向きでも上向きでもないので1本も掛からず、
- * `import/no-cycle` も輪になるまで黙っている。つまり**増えたことに誰も気づかない**。
+ * `import-x/no-cycle` も輪になるまで黙っている。つまり**増えたことに誰も気づかない**。
  *
  * 横断そのものは禁じない。`entities/game` が `entities/kifu` の型を読むような、
  * 語彙の持ち主がはっきりしている組はある。見たいのは**増えたこと**なので、
@@ -108,7 +108,7 @@ export function crossSliceEdgesIn(source: string, self: string): string[] {
 /**
  * SCSS が上の層を読んでいる箇所。
  *
- * **lint は SCSS を1本も見ない。** `vite.config.ts` の `no-restricted-imports` は
+ * **lint は SCSS を1本も見ない。** `eslint.config.ts` の `no-restricted-imports` は
  * `.ts` / `.tsx` に限られているので、`entities/` の SCSS が上の層を `@use` しても
  * 緑のまま通る。レイヤを跨ぐ SCSS の `@use` は現に在る（盤の幾何）ので、
  * 向きだけを見る検査がここに要る。

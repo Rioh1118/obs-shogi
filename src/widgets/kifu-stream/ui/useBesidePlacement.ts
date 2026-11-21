@@ -30,7 +30,7 @@ export function useBesidePlacement(open: boolean, anchorRect: DOMRect | null) {
     if (!open || !anchorRect) return;
     // 初回は測定が必要なので rAF で1拍置く
     requestAnimationFrame(updatePlacement);
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, anchorRect?.top, anchorRect?.left, anchorRect?.width, anchorRect?.height]);
 
   useLayoutEffect(() => {
@@ -42,7 +42,7 @@ export function useBesidePlacement(open: boolean, anchorRect: DOMRect | null) {
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   return { selfRef, placement };

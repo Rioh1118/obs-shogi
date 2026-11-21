@@ -138,7 +138,6 @@ export function useSearchSession({ queryKey, isOpen, onReset }: SearchSessionOpt
         setRequestId(launch.requestId);
         setIsLaunching(false);
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error("[PositionSearchModal] search failed:", e);
 
         // 失敗も自分の番のときだけ出す。捨てた起動の失敗をここで載せると、

@@ -123,7 +123,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
 
   useLayoutEffect(() => {
     updatePosition();
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [anchorEl, options.length]);
 
   useLayoutEffect(() => {
@@ -137,7 +137,7 @@ const KifuForkMenu = memo(function KifuForkMenu({
       window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onResize, true);
     };
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos]);
 
   const style: CSSProperties = pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 };
