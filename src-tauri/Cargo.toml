@@ -22,7 +22,7 @@ dashmap = "6.1.0"
 parking_lot = "0.12"
 arc-swap = "1.8.1"
 walkdir = "2.5.0"
-notify = "8.2.0"
+notify = "9.0.0"
 rayon = "1.11.0"
 tokio-util = { version = "0.7.18", default-features = false }
 
