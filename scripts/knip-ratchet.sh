@@ -19,7 +19,12 @@ set -uo pipefail
 
 # `npm run deadcode` と同じ範囲（未使用ファイル・未使用 export・未使用の型）の合計。
 # **減らしたらここを下げること。**
-BASELINE=34
+#
+# **knip の版を上げたら数え直す。** v6 は解析の土台を TypeScript から oxc に替え、
+# 「export されているが同じファイルの中でしか使われていない型」のどれを拾うかが
+# v5 と違う。同じコミットを v5 は 34、v6 は 43 と数えた（v6 だけが拾う 23 件、
+# v5 だけが拾った 14 件）。版を上げて数が動いたら、増減の中身を見てから置き直すこと。
+BASELINE=43
 # **テストからの import も「消費」に数える。** 本番から到達しない barrel の export でも、
 # テストが1本 import すればこの数から消える——**減った理由が「死んだ export を消した」とは
 # 限らない。** 下げる前に、減ったぶんが何かを `npx knip --reporter json` で見ること
@@ -62,10 +67,11 @@ count=$(printf '%s' "$output" | node -e '
     } catch {
       process.exit(2);
     }
-    if (!Array.isArray(r.files) || !Array.isArray(r.issues)) process.exit(2);
-    let n = r.files.length;
+    // v6 の JSON はルートに `files` を持たず、到達しないファイルも各要素の `files` に入る
+    if (!Array.isArray(r.issues)) process.exit(2);
+    let n = 0;
     for (const i of r.issues) {
-      n += (i.exports ?? []).length + (i.types ?? []).length;
+      n += (i.files ?? []).length + (i.exports ?? []).length + (i.types ?? []).length;
     }
     process.stdout.write(String(n));
   });
