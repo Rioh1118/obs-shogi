@@ -1,8 +1,11 @@
+import { includeIgnoreFile } from "@eslint/compat";
 import js from "@eslint/js";
+import eslintReact from "@eslint-react/eslint-plugin";
 import { createTypeScriptImportResolver } from "eslint-import-resolver-typescript";
 import { importX } from "eslint-plugin-import-x";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import unicorn from "eslint-plugin-unicorn";
 import type { Linter } from "eslint";
 import { defineConfig } from "eslint/config";
 import globals from "globals";
@@ -106,7 +109,58 @@ const layerFreeTests: Linter.Config = {
   },
 };
 
+/**
+ * 以前の lint（oxlint）が `correctness` の分類で有効にしていた規則のうち、
+ * ESLint と typescript-eslint の recommended に無いもの。移行で黙って消さないために並べる。
+ *
+ * 同じ規則が ESLint 側に無いものは移していない。oxc 固有の規則（常に同じ結果の比較、
+ * `throw` の無い `new Error`、`Math.min` / `max` の取り違え など）と、React の
+ * `jsx-props-no-spread-multi` / `no-this-in-sfc` / `no-is-mounted` / `forward-ref-uses-ref`。
+ * JSX の属性の重複・未定義の部品・文字列の ref、存在しない default / 名前空間の import
+ * （import の `default` / `namespace`）は型検査が落とす。import の2つは CommonJS の
+ * パッケージ（`postcss-scss`）を「default が無い」と誤って落とす。
+ */
+const FROM_OXLINT_CORRECTNESS: Linter.RulesRecord = {
+  "no-caller": "error",
+  "no-eval": "error",
+  "no-iterator": "error",
+  "no-unassigned-vars": "error",
+  "no-useless-rename": "error",
+  "@typescript-eslint/no-unnecessary-parameter-property-assignment": "error",
+  "@typescript-eslint/no-useless-empty-export": "error",
+  "unicorn/no-await-in-promise-methods": "error",
+  "unicorn/no-empty-file": "error",
+  "unicorn/no-invalid-fetch-options": "error",
+  "unicorn/no-invalid-remove-event-listener": "error",
+  "unicorn/no-new-array": "error",
+  "unicorn/no-single-promise-in-promise-methods": "error",
+  "unicorn/no-thenable": "error",
+  "unicorn/no-unnecessary-await": "error",
+  "unicorn/no-useless-fallback-in-spread": "error",
+  "unicorn/no-useless-length-check": "error",
+  "unicorn/no-useless-spread": "error",
+  "unicorn/prefer-set-size": "error",
+  "unicorn/prefer-string-starts-ends-with": "error",
+  "@eslint-react/no-missing-key": "error",
+  "@eslint-react/jsx-no-children-prop": "error",
+  "@eslint-react/no-direct-mutation-state": "error",
+  "@eslint-react/no-set-state-in-component-did-mount": "error",
+  "@eslint-react/no-set-state-in-component-did-update": "error",
+  "@eslint-react/no-set-state-in-component-will-update": "error",
+  "@eslint-react/no-unsafe-component-will-mount": "error",
+  "@eslint-react/no-unsafe-component-will-receive-props": "error",
+  "@eslint-react/no-unsafe-component-will-update": "error",
+  "@eslint-react/dom-no-dangerously-set-innerhtml-with-children": "error",
+  "@eslint-react/dom-no-find-dom-node": "error",
+  "@eslint-react/dom-no-render-return-value": "error",
+  "@eslint-react/dom-no-void-elements-with-children": "error",
+};
+
 export default defineConfig(
+  // `.gitignore` の場所は lint しない。`.claude/worktrees/` には別ブランチの
+  // チェックアウトが丸ごと入り、そこで落ちると今のブランチの verify が赤くなる。
+  // `.gitignore` は `design-system/dist/` を追跡に戻すので、生成物は下でもう一度外す
+  includeIgnoreFile(path.resolve(__dirname, ".gitignore")),
   {
     ignores: ["**/dist/**", "src-tauri/**", "**/node_modules/**"],
   },
@@ -130,6 +184,8 @@ export default defineConfig(
       // こちらは `configs` を使わない（有効にする規則は下で選ぶ）
       "react-hooks": { rules: reactHooks.rules },
       "react-refresh": reactRefresh,
+      unicorn,
+      ...eslintReact.configs.all.plugins,
     },
     settings: {
       // 既定では `.js` しか辿らないので、循環の検査が TypeScript のファイルを素通りする
@@ -161,11 +217,13 @@ export default defineConfig(
         },
       ],
       // 棋譜の表記は全角の空白を含む（`同　銀`）。コメントと複数行の題材に書けるようにし、
-      // 画面に出る JSX の文字列では落とす（`{"　"}` で囲む。CLAUDE.md の既知の落とし穴）
+      // JSX の子のテキストでは落とす（`{"　"}` で囲む。CLAUDE.md の既知の落とし穴）。
+      // 属性の文字列（`title="同　銀"`）は文字列の扱いなので落ちない
       "no-irregular-whitespace": ["error", { skipComments: true, skipTemplates: true }],
       // `new Error(message, { cause })` の型は ES2022 の lib にある。tsconfig の lib は
       // ES2020 なので、付けると型検査が落ちる
       "preserve-caught-error": "off",
+      ...FROM_OXLINT_CORRECTNESS,
     },
   },
   ...layerBoundaries,

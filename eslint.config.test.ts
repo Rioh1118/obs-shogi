@@ -46,11 +46,13 @@ describe("レイヤ規則", () => {
     expect(await rulesHit(`import "@/shared/lib/turn";\n`, SAMPLES.entities)).toEqual([]);
   });
 
-  test("スライス配下でも2階層以上遡る相対 import を禁じている", async () => {
-    expect(await rulesHit(`import "../../x";\n`, SAMPLES.entities)).toContain(
-      "no-restricted-imports",
-    );
-  });
+  // レイヤごとの設定が共通の設定を丸ごと差し替えるので、どのレイヤでも並べ直されていること
+  test.each(Object.entries(SAMPLES))(
+    "%s でも2階層以上遡る相対 import を禁じている",
+    async (_layer, file) => {
+      expect(await rulesHit(`import "../../x";\n`, file)).toContain("no-restricted-imports");
+    },
+  );
 
   test("スライス配下では自スライスの barrel も禁じている", async () => {
     expect(await rulesHit(`import "@/entities/kifu";\n`, SAMPLES.entities)).toContain(
@@ -73,6 +75,55 @@ describe("循環", () => {
     expect(await rulesHit(code, "src/shared/lib/notification/context.ts")).toContain(
       "import-x/no-cycle",
     );
+  });
+});
+
+describe("以前の lint から移した規則", () => {
+  // 移行で黙って消えないこと。プラグインごとに1つ以上
+  test.each([
+    ["no-eval", "src/shared/lib/x.ts", `eval("1");\n`],
+    ["no-useless-rename", "src/shared/lib/x.ts", `const { a: a } = { a: 1 };\nexport { a };\n`],
+    [
+      "@typescript-eslint/no-useless-empty-export",
+      "src/shared/lib/x.ts",
+      `export const a = 1;\nexport {};\n`,
+    ],
+    ["unicorn/no-thenable", "src/shared/lib/x.ts", `export const o = { then() {} };\n`],
+    ["unicorn/no-new-array", "src/shared/lib/x.ts", `export const xs = new Array(3);\n`],
+    [
+      "unicorn/no-invalid-remove-event-listener",
+      "src/shared/lib/x.ts",
+      `window.removeEventListener("click", () => {});\n`,
+    ],
+    [
+      "@eslint-react/no-missing-key",
+      "src/shared/ui/x.tsx",
+      `export const L = ({ xs }: { xs: string[] }) => <ul>{xs.map((x) => <li>{x}</li>)}</ul>;\n`,
+    ],
+    [
+      "@eslint-react/dom-no-void-elements-with-children",
+      "src/shared/ui/x.tsx",
+      `export const B = () => <br>x</br>;\n`,
+    ],
+  ])("%s が落とす", async (rule, file, code) => {
+    expect(await rulesHit(code, file)).toContain(rule);
+  });
+});
+
+describe("lint しない場所", () => {
+  // `.claude/worktrees/` には別ブランチのチェックアウトが入る。そこで落ちると
+  // 今のブランチの verify が赤くなる
+  test.each([
+    ".claude/worktrees/x/src/shared/lib/a.ts",
+    ".claude/plans/x/a.ts",
+    "design-system/dist/react/Button/Button.js",
+    "src-tauri/gen/a.js",
+  ])("%s は見ない", async (file) => {
+    expect(await eslint.isPathIgnored(file)).toBe(true);
+  });
+
+  test("src は見る", async () => {
+    expect(await eslint.isPathIgnored("src/shared/lib/turn.ts")).toBe(false);
   });
 });
 

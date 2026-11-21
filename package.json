@@ -17,7 +17,7 @@
     "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace && npm run ratchet:rustdoc && npm run ratchet:notices",
     "ratchet:rustdoc": "bash scripts/rustdoc-ratchet.sh",
     "preview": "vite preview",
-    "prepare": "node scripts/install-git-hooks.mjs",
+    "prepare": "simple-git-hooks",
     "deadcode": "knip --include exports,types,files",
     "deadfiles": "knip --include files",
     "ratchet:knip": "bash scripts/knip-ratchet.sh",
@@ -57,6 +57,8 @@
     "uuid": "^11.1.1"
   },
   "devDependencies": {
+    "@eslint-react/eslint-plugin": "^5.30.5",
+    "@eslint/compat": "^2.1.1",
     "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.12.6",
     "@testing-library/react": "^16.3.3",
@@ -70,6 +72,7 @@
     "eslint-plugin-import-x": "^4.18.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.8",
+    "eslint-plugin-unicorn": "^80.0.0",
     "globals": "^17.14.0",
     "happy-dom": "^21.0.4",
     "knip": "^6.47.0",
