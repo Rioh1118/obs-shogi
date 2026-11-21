@@ -13,7 +13,7 @@
 //!
 //! ```text
 //! 頭     32 バイト   "YANE-BINBOOK-V1\0"、局面の数 u64、フラグ u64（1 = 指し手に深さが付く）
-//! 索引   44 バイト × 局面の数   詰めた局面 32 バイト、指し手の位置 u64、手数 u16、指し手の数 u16
+//! 索引   44 バイト × 局面の数   詰めた局面 32 バイト、指し手の位置 u64（索引の終わりから）、手数 u16、指し手の数 u16
 //!                                （詰めた局面のバイト列の昇順）
 //! 指し手 4 か 6 バイト × 指し手の数   指し手 u16、評価値 i16、（フラグがあれば）深さ u16
 //! ```
@@ -45,6 +45,8 @@ pub(crate) struct YaneuraouYbbReader {
     file: Mutex<File>,
     record_count: u64,
     flags: u64,
+    /// ファイルの大きさ。指し手の位置が外を指していないかを、読む前に見る
+    size: u64,
 }
 
 impl YaneuraouYbbReader {
@@ -105,6 +107,7 @@ pub(crate) fn open(path: &Path, size: u64) -> Result<YaneuraouYbbReader, BookErr
         file: Mutex::new(file),
         record_count,
         flags,
+        size,
     })
 }
 
@@ -140,10 +143,13 @@ impl YaneuraouYbbReader {
 
     fn moves_of(&self, file: &mut File, entry: &IndexEntry) -> Result<Vec<BookMove>, BookError> {
         let width = self.move_record_bytes();
+        let len = u64::from(entry.move_count) * width;
+        // 外を指す位置は seek に渡さない（2^63 以上は負の位置として `Io` で返り、壊れていると言えない）
         let start = (HEADER_BYTES + self.record_count * INDEX_RECORD_BYTES)
             .checked_add(entry.moves_offset)
-            .ok_or_else(|| self.broken("指し手の位置が大きすぎる"))?;
-        let mut bytes = vec![0u8; (u64::from(entry.move_count) * width) as usize];
+            .filter(|start| start.checked_add(len).is_some_and(|end| end <= self.size))
+            .ok_or_else(|| self.broken("指し手の位置がファイルの外"))?;
+        let mut bytes = vec![0u8; len as usize];
         self.read_exact_at(file, start, &mut bytes)?;
         bytes
             .chunks_exact(width as usize)
@@ -205,6 +211,10 @@ fn usi_of_move16(raw: u16) -> Option<String> {
     let to = usi_square(raw & 0x7f)?;
     let from = (raw >> 7) & 0x7f;
     if raw & (1 << 14) != 0 {
+        // 打つ手は成らない。両方のビットが立つ値は指し手ではない
+        if raw & (1 << 15) != 0 {
+            return None;
+        }
         // 駒の種類の番号は 歩1 香2 桂3 銀4 角5 飛6 金7
         let piece = match from {
             1 => 'P',
@@ -217,6 +227,10 @@ fn usi_of_move16(raw: u16) -> Option<String> {
             _ => return None,
         };
         return Some(format!("{piece}*{to}"));
+    }
+    // 元の升と行き先が同じ値は指し手ではない（`none` / `resign` / `win` / null の手を表す値。`types.h` の MoveEnum）
+    if from == raw & 0x7f {
+        return None;
     }
     let from = usi_square(from)?;
     let promote = if raw & (1 << 15) != 0 { "+" } else { "" };
@@ -292,7 +306,7 @@ fn pack(key: &str) -> Option<[u8; 32]> {
     let mut parts = key.split(' ');
     let (board, side, hands) = (parts.next()?, parts.next()?, parts.next()?);
 
-    // 升の番号は (筋 - 1) * 9 + (段 - 1)。SFEN は 1段目の 9筋から左へ書く
+    // 升の番号は (筋 - 1) * 9 + (段 - 1)。SFEN は 1段目から、各段を 9筋から 1筋へ向けて書く
     // 玉の升は盤の並びに書かない（位置は先頭の 7 ビット × 2 が持つ）
     #[derive(Clone, Copy)]
     enum On {
@@ -420,9 +434,35 @@ mod tests {
         assert_eq!(hex(&packed(HIRATE)), HIRATE_PACKED);
     }
 
+    /// 先後とも金・銀・複数枚の歩を持ち、盤に成った角がある局面。同じ配布物の定跡を
+    /// 初期局面から辿り、引き当てたもの（持駒の順・先後のビット・金の成りビットの有無を縛る）
+    const BOTH_HANDS: &str =
+        "l4k1nl/4s1g2/2n1p2p1/p1p3P1p/1p3S1P1/P1P2S2P/1P+b1PP3/2R6/LNK4NL b RG2Pb2gs2p 1";
+    const BOTH_HANDS_PACKED: &str =
+        "7c9b91140cab1458bc02e03802672200c09ae2fb07525846523000e743ce7b9f";
+
     #[test]
     fn promoted_pieces_and_pieces_in_hand_pack_like_the_engine() {
         assert_eq!(hex(&packed(EXCHANGED)), EXCHANGED_PACKED);
+        assert_eq!(hex(&packed(BOTH_HANDS)), BOTH_HANDS_PACKED);
+    }
+
+    /// 打つ駒の番号（`types.h` の PieceType: 歩1 香2 桂3 銀4 角5 飛6 金7）と、指し手でない値
+    #[test]
+    fn move16_spells_drops_by_piece_number_and_rejects_non_moves() {
+        let drop = |kind: u16| usi_of_move16(40 | (kind << 7) | (1 << 14));
+        let spelled: Vec<_> = (1..=7).map(|k| drop(k).expect("打つ手")).collect();
+        assert_eq!(
+            spelled,
+            ["P*5e", "L*5e", "N*5e", "S*5e", "B*5e", "R*5e", "G*5e"]
+        );
+        assert_eq!(drop(0), None);
+        assert_eq!(drop(8), None);
+        // 打つ手と成りが両方立った値、元と行き先が同じ値（none = 0、resign など）
+        assert_eq!(usi_of_move16(40 | (1 << 7) | (1 << 14) | (1 << 15)), None);
+        for n in 0..4 {
+            assert_eq!(usi_of_move16((n << 7) | n), None, "{n}");
+        }
     }
 
     /// 頭・索引（詰めた局面の昇順）・指し手を並べた `.ybb` を作る。`depth` でフラグを決める
@@ -538,6 +578,12 @@ mod tests {
         let mut unknown_flag = good.clone();
         unknown_flag[24] = 2;
         let mut too_many = good.clone();
+        // 指し手の位置が外を指す（2^63 以上は seek が負の位置と読む）
+        let offset_at = 32 + 32;
+        let mut far = good.clone();
+        far[offset_at..offset_at + 8].copy_from_slice(&(1u64 << 63).to_le_bytes());
+        let mut farthest = good.clone();
+        farthest[offset_at..offset_at + 8].copy_from_slice(&(u64::MAX - 100).to_le_bytes());
         too_many[16..24].copy_from_slice(&1000u64.to_le_bytes());
         for (name, bytes) in [
             ("short", good[..10].to_vec()),
@@ -559,6 +605,8 @@ mod tests {
         for (name, bytes) in [
             ("cut", good[..good.len() - 2].to_vec()),
             ("square", bad_square),
+            ("far", far),
+            ("farthest", farthest),
         ] {
             let (dir, reader) = opened(&format!("ybb-broken-moves-{name}"), &bytes);
             let err = reader
