@@ -77,7 +77,7 @@
 
 ## SCSS の既存の負債（`refactor/app-shell-wiring` のレビューで出たもの）
 
-`.claude/reviews/2026-09-06-app-shell-wiring-r1.md` の ui reviewer が挙げたもの。
+2026-09-06 の app-shell-wiring のレビュー（r1）の ui reviewer が挙げたもの。
 **その PR は SCSS を1行も触っていない**ので範囲外にした。どれも単独では
 着手する価値を判断できていない。
 
@@ -107,7 +107,7 @@
 
 ## `.tsx` のインライン直値が、どのラチェットにも数えられない（#436 のレビューで出たもの）
 
-`.claude/reviews/2026-09-08-436-error-boundary-layers-r1.md` の r1-21（ui reviewer）。
+2026-09-08 の 436-error-boundary-layers のレビュー（r1）の r1-21（ui reviewer）。
 **その PR では直値そのものを消した**ので、走査は要らないまま残した。
 
 - `scssScaleRatchet` も `contrastRatchet` も `scssFiles(SRC)`（`.scss` だけ）を歩く。
@@ -117,7 +117,7 @@
 
 ## 到達しない分岐が `Board` に残っている
 
-`.claude/reviews/2026-09-06-app-shell-wiring-r2.md` の r2-10 の付随（ui reviewer）。
+2026-09-06 の app-shell-wiring のレビュー（r2）の r2-10 の付随（ui reviewer）。
 **SCSS の話ではない**ので上の節とは分けてある。
 
 - **`Board` の「盤面を読み込み中...」は到達しない** — `AppLayout` の `hasKifu` が同じ `view` を
@@ -129,7 +129,7 @@
 
 ## 呼び出し元の無い公開 API が、スライスの barrel と context に残っている
 
-`.claude/reviews/2026-09-06-app-shell-wiring-r3.md` の r3-17（architecture reviewer）。
+2026-09-06 の app-shell-wiring のレビュー（r3）の r3-17（architecture reviewer）。
 `entities/file-tree/index.ts` は「ここに並ぶのはスライスの外に呼び出し元があるものだけ」を
 規約として書いているが、機械が見ていないので守られているのは一部だけ。
 
@@ -145,7 +145,7 @@
 
 ## 公開リポジトリとしての体裁が、配布物とドキュメントで揃っていない
 
-`.claude/reviews/2026-09-07-441-unmount-session-r6.md` の所見（oss-hygiene）。
+2026-09-07 の 441-unmount-session のレビュー（r6）の所見（oss-hygiene）。
 #441 の範囲外として持ち越した。**どれも `main` から在る。**
 
 **判断: 6週間以内に着手しない。** 利用者に見える不具合ではなく、
@@ -171,7 +171,7 @@
 
 ### 着手の合図は、もう過ぎている
 
-`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（oss-hygiene）。
+2026-09-07 の 441-unmount-session のレビュー（r29、oss-hygiene）。
 上は「**Releases を人に配り始める回**が着手の合図」と書いているが、実測では
 v0.1.0（2026-02-27）から v0.2.1（2026-03-21）まで**9本が既に公開済み**で、
 README がそこへ利用者を誘導している。**帰属表示の判断は据え置けない。**
@@ -197,7 +197,7 @@ README がそこへ利用者を誘導している。**帰属表示の判断は�
 
 ## `entities/ai-library` の `api/` を barrel に載せるか
 
-`.claude/reviews/2026-09-07-441-unmount-session-r12.md` の所見17（architecture）で、`entities/engine` の
+2026-09-07 の 441-unmount-session のレビュー（r12）の所見17（architecture）で、`entities/engine` の
 `api/` が barrel を通さずに読まれていると出た。エンジン横断の棚卸し（`docs/audits/2026-11-engine.md`）で、
 読まれていたもののうち `aiLibrary` は `entities/ai-library` へ、`setPositionFromSfen` は `entities/analysis` へ移し、
 `probeEngine` は `entities/engine` の barrel から出した。`entities/engine` へ深く入る import はもう無い。
@@ -278,7 +278,7 @@ lint もテストもラチェットも赤くならない。
 
 ## 自動再開に、差の出る筋を組めていない門が2つある
 
-`.claude/reviews/2026-09-07-441-unmount-session-r29.md`（react reviewer）。
+2026-09-07 の 441-unmount-session のレビュー（r29、react reviewer）。
 `provider.tsx` の追従 effect にある `bookIfRestarting()` と、`runRestart` の
 `sentSfenRef` の門。**3ラウンド続けて、落としても全テストが緑になる筋しか作れていない。**
 落とすのは危ない（差が無いことを示せていないだけで、無いことの証明ではない）が、
@@ -287,7 +287,7 @@ lint もテストもラチェットも赤くならない。
 
 ## `useEngineSeat` から、席を返すスロットの管理を割る
 
-`.claude/reviews/2026-09-09-441-unmount-session-r33.md`（architecture reviewer）。
+2026-09-09 の 441-unmount-session のレビュー（r33、architecture reviewer）。
 このフックは2つのことをしている——**席を取る/手放す**（`beginTake` /
 `keepOrForget` / `sendStop`）と、**返却を1本ずつに並べるスロット**（`holdSlot` /
 `queueBehind` / `foldIntoSlot` / `sweepOnUnmount`）。後者は前者を知らなくても書ける。
@@ -388,7 +388,7 @@ lint もテストもラチェットも赤くならない。
 
 ## プリセット編集の置き場と分け方（U2 のレビューで出たもの。2026-10-04）
 
-`.claude/reviews/2026-10-04-preset-dialog-b.md`（architecture）。
+2026-10-04 の preset-dialog-b のレビュー（architecture）。
 
 - **`fileLabel` が AI ライブラリの配置（`<名前>/eval|book/<file>`）を知っている**のに `features/settings/lib` にある。
   配置を変えると、表示だけが黙ってファイル名に落ちる。`entities/engine` に下げ、分解は `shared/lib/path.ts` に寄せる（#216）

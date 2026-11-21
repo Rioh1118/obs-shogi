@@ -38,20 +38,20 @@ Issue は git の外にあるので、レビューも走査も届かない。詳
 
 ## 置き場
 
-| もの                                | 置き場                                                           |
-| ----------------------------------- | ---------------------------------------------------------------- |
-| やると決まった作業                  | **Issue**                                                        |
-| 仕様、受入条件                      | `docs/spec/`                                                     |
-| いま足りていないことの詳細          | `docs/spec/screens/` の「いま満たしていないこと」                |
-| 状態とイベント                      | `docs/state-transitions/`                                        |
-| 決めていないこと                    | 仕様の「決まっていないこと」から `docs/OPEN-QUESTIONS.md` へ     |
-| いつかやる（6週間以内に着手しない） | `docs/IDEAS.md`                                                  |
-| 決めたこと、直し方の設計判断        | `docs/decisions/`                                                |
-| 仮定                                | `docs/PREMISES.md`                                               |
-| 他の実装の事実                      | `research/`                                                      |
-| レビューの所見と実測                | `.claude/reviews/`                                               |
-| 実装の中で決めた細部                | PR の本文                                                        |
-| 質問、相談、まだ作業でない話        | [Discussions](https://github.com/Rioh1118/obs-shogi/discussions) |
+| もの                                | 置き場                                                                                                                                |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| やると決まった作業                  | **Issue**                                                                                                                             |
+| 仕様、受入条件                      | `docs/spec/`                                                                                                                          |
+| いま足りていないことの詳細          | `docs/spec/screens/` の「いま満たしていないこと」                                                                                     |
+| 状態とイベント                      | `docs/state-transitions/`                                                                                                             |
+| 決めていないこと                    | 仕様の「決まっていないこと」から `docs/OPEN-QUESTIONS.md` へ                                                                          |
+| いつかやる（6週間以内に着手しない） | `docs/IDEAS.md`                                                                                                                       |
+| 決めたこと、直し方の設計判断        | `docs/decisions/`                                                                                                                     |
+| 仮定                                | `docs/PREMISES.md`                                                                                                                    |
+| 他の実装の事実                      | `research/`                                                                                                                           |
+| レビューの所見と実測                | 仕様（`docs/spec/`）か状態遷移（`docs/state-transitions/`）。レビューの報告書（`.claude/reviews/`）は追跡外なので、Issue から指さない |
+| 実装の中で決めた細部                | PR の本文                                                                                                                             |
+| 質問、相談、まだ作業でない話        | [Discussions](https://github.com/Rioh1118/obs-shogi/discussions)                                                                      |
 
 Issue を立ててよい条件は `docs/OPERATING-MODEL.md` §2（6週間以内に着手するものだけ）。
 

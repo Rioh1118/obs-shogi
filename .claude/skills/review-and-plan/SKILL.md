@@ -104,7 +104,7 @@ git ls-tree -r --name-only HEAD -- .claude/agents .claude/skills |
 
 ## 報告書
 
-`.claude/reviews/<YYYY-MM-DD>-<slug>.md` に**1本だけ**書く。
+`.claude/reviews/<YYYY-MM-DD>-<slug>.md` に**1本だけ**書く。この置き場は追跡外（`.gitignore`）なので、公開の文書・コメント・Issue・PR から個別の報告書を指さない。残す事実は仕様か状態遷移へ書く。
 
 ```markdown
 # レビュー <slug>
