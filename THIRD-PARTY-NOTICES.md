@@ -106,7 +106,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | vest-utils | 1.5.0 | MIT | Copyright (c) 2021 ealush |
 | yjs | 13.6.32 | MIT | Copyright (c) 2023 |
 
-## Rust の依存（515 件）
+## Rust の依存（503 件）
 
 `cargo metadata` の解決結果のうち、dev-dependencies を除いたもの。
 配っている 4 ターゲット分の和なので、1つの OS のバイナリには載らないものも含む。
@@ -335,7 +335,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | nom | 7.1.3 | MIT | Copyright (c) 2014-2019 Geoffroy Couprie |
 | notify | 8.2.0 | CC0-1.0 | Félix Saparelli <me@passcod.name>, Daniel Faust <hessijames@gmail.com>, Aron Heinecke <Ox0p54r36@t-online.de> |
 | notify-types | 2.1.0 | MIT OR Apache-2.0 | Daniel Faust <hessijames@gmail.com> |
-| ntapi | 0.4.1 | Apache-2.0 OR MIT | MSxDOS <melcodos@gmail.com> |
 | num-conv | 0.2.2 | MIT OR Apache-2.0 | Jacob Pratt <jacob@jhpratt.dev> |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 | The Rust Project Developers |
 | num_threads | 0.1.7 | MIT OR Apache-2.0 | Jacob Pratt <open-source@jhpratt.dev> |
@@ -346,7 +345,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | objc2-encode | 4.1.0 | MIT | Mads Marquart <mads@marquart.dk> |
 | objc2-exception-helper | 0.1.1 | Zlib OR Apache-2.0 OR MIT | Mads Marquart <mads@marquart.dk> |
 | objc2-foundation | 0.3.1 | MIT | — |
-| objc2-io-kit | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
 | objc2-io-surface | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
 | objc2-osa-kit | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
 | objc2-web-kit | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
@@ -479,7 +477,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | syn | 3.0.4 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | sync_wrapper | 1.0.2 | Apache-2.0 | Actyx AG <developer@actyx.io> |
 | synstructure | 0.13.2 | MIT | Copyright 2016 Nika Layzell |
-| sysinfo | 0.38.3 | MIT | Copyright (c) 2015 Guillaume Gomez |
 | system-deps | 6.2.2 | MIT OR Apache-2.0 | Guillaume Desmottes <guillaume.desmottes@collabora.com>, Josh Triplett <josh@joshtriplett.org> |
 | tao | 0.35.3 | Apache-2.0 | Tauri Programme within The Commons Conservancy, The winit contributors |
 | tar | 0.4.46 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
@@ -563,27 +560,19 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | webview2-com | 0.38.2 | MIT | — |
 | webview2-com-macros | 0.8.1 | MIT | — |
 | webview2-com-sys | 0.38.2 | MIT | — |
-| winapi | 0.3.9 | MIT/Apache-2.0 | Peter Atashian <retep998@gmail.com> |
 | winapi-util | 0.1.9 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
 | window-vibrancy | 0.6.0 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
 | windows | 0.61.1 | MIT OR Apache-2.0 | Microsoft |
-| windows | 0.62.2 | MIT OR Apache-2.0 | — |
 | windows-collections | 0.2.0 | MIT OR Apache-2.0 | — |
-| windows-collections | 0.3.2 | MIT OR Apache-2.0 | — |
 | windows-core | 0.61.2 | MIT OR Apache-2.0 | Microsoft |
-| windows-core | 0.62.2 | MIT OR Apache-2.0 | — |
 | windows-future | 0.2.1 | MIT OR Apache-2.0 | — |
-| windows-future | 0.3.2 | MIT OR Apache-2.0 | — |
 | windows-implement | 0.60.2 | MIT OR Apache-2.0 | — |
 | windows-interface | 0.59.3 | MIT OR Apache-2.0 | — |
 | windows-link | 0.1.1 | MIT OR Apache-2.0 | Microsoft |
 | windows-link | 0.2.1 | MIT OR Apache-2.0 | — |
 | windows-numerics | 0.2.0 | MIT OR Apache-2.0 | — |
-| windows-numerics | 0.3.1 | MIT OR Apache-2.0 | — |
 | windows-result | 0.3.4 | MIT OR Apache-2.0 | Microsoft |
-| windows-result | 0.4.1 | MIT OR Apache-2.0 | — |
 | windows-strings | 0.4.2 | MIT OR Apache-2.0 | Microsoft |
-| windows-strings | 0.5.1 | MIT OR Apache-2.0 | — |
 | windows-sys | 0.48.0 | MIT OR Apache-2.0 | Microsoft |
 | windows-sys | 0.52.0 | MIT OR Apache-2.0 | Microsoft |
 | windows-sys | 0.59.0 | MIT OR Apache-2.0 | Microsoft |
@@ -593,7 +582,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | windows-targets | 0.52.6 | MIT OR Apache-2.0 | Microsoft |
 | windows-targets | 0.53.5 | MIT OR Apache-2.0 | — |
 | windows-threading | 0.1.0 | MIT OR Apache-2.0 | Microsoft |
-| windows-threading | 0.2.1 | MIT OR Apache-2.0 | — |
 | windows-version | 0.1.4 | MIT OR Apache-2.0 | Microsoft |
 | windows_x86_64_msvc | 0.48.5 | MIT OR Apache-2.0 | Microsoft |
 | windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | Microsoft |
