@@ -28,7 +28,7 @@ tokio-util = { version = "0.7.18", default-features = false }
 
 thiserror = "2.0.12"
 tauri-plugin-fs = "2.7.1"
-zstd = "0.13"
+zstd = "0.14"
 blake3 = "1.8"
 tauri-plugin-opener = "2.7.3"
 tauri-plugin-updater = "2.14.1"

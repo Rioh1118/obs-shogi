@@ -574,8 +574,8 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | zip | 9.8.1 | MIT | Copyright (c) 2014 Mathijs van de Nes |
 | zlib-rs | 0.6.8 | Zlib | — |
 | zmij | 1.0.23 | MIT | David Tolnay <dtolnay@gmail.com> |
-| zstd | 0.13.5 | BSD-3-Clause | Copyright (c) 2026, Alexandre Bury |
-| zstd-safe | 7.4.1 | BSD-3-Clause | Copyright (c) 2026, Alexandre Bury |
+| zstd | 0.14.4 | BSD-3-Clause | Copyright (c) 2026, Alexandre Bury |
+| zstd-safe | 8.3.0 | BSD-3-Clause | Copyright (c) 2026, Alexandre Bury |
 | zstd-sys | 2.1.3+zstd.1.5.7 | BSD-3-Clause AND BSD-2-Clause | Copyright (c) 2026, Alexandre Bury |
 | zvariant | 5.15.1 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
 | zvariant_derive | 5.15.1 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
