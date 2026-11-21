@@ -17,7 +17,7 @@
     "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace && npm run ratchet:rustdoc && npm run ratchet:notices",
     "ratchet:rustdoc": "bash scripts/rustdoc-ratchet.sh",
     "preview": "vite preview",
-    "prepare": "simple-git-hooks",
+    "prepare": "node scripts/install-git-hooks.mjs",
     "deadcode": "knip --include exports,types,files",
     "deadfiles": "knip --include files",
     "ratchet:knip": "bash scripts/knip-ratchet.sh",
