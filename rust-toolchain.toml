@@ -6,5 +6,5 @@
 # 上げるときは、先に手元で `npm run verify:rust` を通してからこの値を変えること。
 # 新しい clippy が追加した lint に既存コードが引っかかる場合、修正が先に要る。
 [toolchain]
-channel = "1.98.0"
+channel = "1.100.0"
 components = ["rustfmt", "clippy"]

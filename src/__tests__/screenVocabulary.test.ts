@@ -95,7 +95,11 @@ const SPELLINGS: Record<string, RegExp> = {
 
 /** 綴りには当たるが、表の語の意味ではないもの。ファイルと文字列の一部で指す。`why` は読み手のため */
 const EXCEPTIONS: ReadonlyArray<{ word: string; file: string; text: string; why: string }> = [
-  ...["engineNotices.ts:のパスに", "EngineOptionInput.tsx:欄にパスを", "AiLibraryTab.tsx:パスをコピー"]
+  ...[
+    "engineNotices.ts:のパスに",
+    "EngineOptionInput.tsx:欄にパスを",
+    "AiLibraryTab.tsx:パスをコピー",
+  ]
     .concat(["open.rs:定跡のパスが空", "open.rs:定跡のパスに", "open.rs:定跡のパスは"])
     .map((spot) => {
       const [file, text] = spot.split(":");
@@ -187,10 +191,17 @@ function tsButtonLabels(file: string): string[] {
     ts.forEachChild(node, texts);
   };
   const visit = (node: ts.Node): void => {
-    if (ts.isJsxElement(node) && /^(Button|button)$/.test(node.openingElement.tagName.getText(source))) {
+    if (
+      ts.isJsxElement(node) &&
+      /^(Button|button)$/.test(node.openingElement.tagName.getText(source))
+    ) {
       node.children.forEach(texts);
     }
-    if (ts.isJsxAttribute(node) && node.initializer && /(^l|L)abel$/.test(node.name.getText(source))) {
+    if (
+      ts.isJsxAttribute(node) &&
+      node.initializer &&
+      /(^l|L)abel$/.test(node.name.getText(source))
+    ) {
       texts(node.initializer);
     }
     if (ts.isPropertyAssignment(node) && /(^l|L)abel$/.test(node.name.getText(source))) {
@@ -226,9 +237,7 @@ function offenses(texts: string[], rel: string): string[] {
       .filter(([, spelling]) => spelling.test(text))
       .filter(
         ([word]) =>
-          !EXCEPTIONS.some(
-            (e) => e.word === word && rel.endsWith(e.file) && text.includes(e.text),
-          ),
+          !EXCEPTIONS.some((e) => e.word === word && rel.endsWith(e.file) && text.includes(e.text)),
       )
       .map(([word]) => `${rel}: 「${word}」: ${text.replace(/\s+/g, " ")}`),
   );
@@ -254,7 +263,10 @@ describe("画面の文字列に使わない語を書かない", () => {
         offenses(rustScreenStrings(readFileSync(f, "utf8")), relative(REPO_ROOT, f)),
       ),
     ];
-    expect(found, "`design-system/design_system/content/glossary.md` の表の左の語へ揃えること").toEqual([]);
+    expect(
+      found,
+      "`design-system/design_system/content/glossary.md` の表の左の語へ揃えること",
+    ).toEqual([]);
   });
 
   it("ボタンの語に「〜する」を付けない", () => {
@@ -264,7 +276,10 @@ describe("画面の文字列に使わない語を書かない", () => {
         .filter((text) => text.endsWith("する"))
         .map((text) => `${relative(REPO_ROOT, f)}: ${text}`),
     );
-    expect(found, "漢語のボタンは体言止めにすること（`design-system/design_system/content/voice-and-tone.md`「文の形」）").toEqual([]);
+    expect(
+      found,
+      "漢語のボタンは体言止めにすること（`design-system/design_system/content/voice-and-tone.md`「文の形」）",
+    ).toEqual([]);
   });
 
   it("省略記号は `…` 1文字にする", () => {
@@ -314,7 +329,7 @@ describe("画面の文字列に使わない語を書かない", () => {
       'x.expect("開発者の文");',
       'log::warn!("ログの文");',
       'let c = "[build] ログのタグ";',
-      '#[cfg(test)]',
+      "#[cfg(test)]",
       'mod tests { const D: &str = "テストの文"; }',
     ].join("\n");
     expect(rustScreenStrings(body)).toEqual(["画面の文", "続く文"]);

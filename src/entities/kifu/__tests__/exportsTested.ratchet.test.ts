@@ -38,7 +38,7 @@ import * as applyMoveWithBranchModule from "@/entities/kifu/lib/applyMoveWithBra
  * 定数は `typeof !== "function"` で落ちるので、この数え方で対象がそのまま決まる。
  *
  * 置き場がスライスの中なのは、`src/__tests__` が「レイヤに依存しない検査」の場所で
- * アプリのコードを import できないため（`vite.config.ts` の `no-restricted-imports`）。
+ * アプリのコードを import できないため（`eslint.config.ts` の `no-restricted-imports`）。
  * `model/` と `lib/` の両方を見るのでスライス直下に置く。
  *
  * **起点は `walk.ts` から引く**（`CONTRIBUTING.md`）。自分の居場所から相対で辿ると、

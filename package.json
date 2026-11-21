@@ -5,24 +5,25 @@
   "type": "module",
   "scripts": {
     "tauri": "tauri",
-    "dev": "vp dev",
-    "build": "tsc -b && vp build",
-    "lint": "vp lint .",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
     "typecheck": "tsc -b",
-    "test": "vp test run",
-    "test:watch": "vp test watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "verify": "npm run typecheck && npm run lint && npm test && npm run ratchet:knip && npm run ratchet:notices",
     "test:hooks": "bash .claude/hooks/verify-gate.test.sh",
     "verify:ds": "npm --prefix design-system run ds:check",
     "verify:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check && cargo clippy --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml --locked --workspace && npm run ratchet:rustdoc && npm run ratchet:notices",
     "ratchet:rustdoc": "bash scripts/rustdoc-ratchet.sh",
-    "preview": "vp preview",
-    "prepare": "vp config",
+    "preview": "vite preview",
+    "prepare": "simple-git-hooks",
     "deadcode": "knip --include exports,types,files",
     "deadfiles": "knip --include files",
     "ratchet:knip": "bash scripts/knip-ratchet.sh",
     "notices": "node scripts/generate-third-party-notices.mjs",
-    "ratchet:notices": "node scripts/generate-third-party-notices.mjs --check"
+    "ratchet:notices": "node scripts/generate-third-party-notices.mjs --check",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,css,scss}\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -56,29 +57,44 @@
     "uuid": "^11.1.1"
   },
   "devDependencies": {
-    "@eslint/js": "^9.25.0",
+    "@eslint-react/eslint-plugin": "^5.30.5",
+    "@eslint/compat": "^2.1.1",
+    "@eslint/js": "^10.0.1",
     "@tauri-apps/cli": "^2.12.6",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@typescript/native": "npm:typescript@^7.0.2",
-    "@vitejs/plugin-react": "^6.1.1",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.26",
-    "globals": "^16.5.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "eslint": "^10.15.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.18.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.8",
+    "eslint-plugin-unicorn": "^80.0.0",
+    "globals": "^17.14.0",
     "happy-dom": "^21.0.4",
     "knip": "^6.47.0",
+    "lint-staged": "^17.6.1",
     "postcss": "^8.5.33",
     "postcss-scss": "^4.0.9",
+    "prettier": "^3.10.1",
+    "simple-git-hooks": "^2.14.0",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "typescript-eslint": "^8.73.0",
-    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.24",
-    "vite-plus": "0.1.24"
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   },
-  "overrides": {
-    "vite": "npm:@voidzero-dev/vite-plus-core@0.1.24",
-    "vitest": "npm:@voidzero-dev/vite-plus-test@0.1.24"
+  "packageManager": "npm@11.12.0",
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
   },
-  "packageManager": "npm@11.12.0"
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,scss}": "prettier --write"
+  }
 }

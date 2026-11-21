@@ -142,7 +142,6 @@ export function PositionSearchProvider({
       await cancelSearchApi(requestId);
     } catch (e) {
       // ここへ来るのは IPC の失敗だけ。結果は呼び手が `clearSearch` で捨てる
-      // eslint-disable-next-line no-console
       console.error("[SEARCH] cancelSearch failed:", e);
     }
   }, []);
@@ -257,7 +256,6 @@ export function PositionSearchProvider({
         unlisten = unlistenAll;
         setIsListenSettled(true);
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error("[SEARCH] Failed to setup listeners:", e);
         if (cancelled) return;
         setIsListenSettled(true);

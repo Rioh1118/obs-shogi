@@ -110,7 +110,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | vest-utils | 1.5.0 | MIT | Copyright (c) 2021 ealush |
 | yjs | 13.6.33 | MIT | Copyright (c) 2023 |
 
-## Rust の依存（467 件）
+## Rust の依存（462 件）
 
 `cargo metadata` の解決結果のうち、dev-dependencies を除いたもの。
 配っている 4 ターゲット分の和なので、1つの OS のバイナリには載らないものも含む。
@@ -122,7 +122,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | alloc-no-stdlib | 3.0.0 | BSD-3-Clause | Copyright (c) 2016 Dropbox, Inc. |
 | alloc-stdlib | 0.3.0 | BSD-3-Clause | Daniel Reiter Horn <danielrh@dropbox.com> |
 | anyhow | 1.0.104 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| arc-swap | 1.9.5 | MIT OR Apache-2.0 | Michal 'vorner' Vaner <vorner@vorner.cz> |
 | arrayvec | 0.7.8 | MIT OR Apache-2.0 | bluss |
 | async-broadcast | 0.7.2 | MIT OR Apache-2.0 | Stjepan Glavina <stjepang@gmail.com>, Yoshua Wuyts <yoshuawuyts@gmail.com>, Zeeshan Ali Khan <zeeshanak@gnome.org> |
 | async-channel | 2.5.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
@@ -178,8 +177,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 | RustCrypto Developers |
 | crc32fast | 1.5.5 | MIT OR Apache-2.0 | Sam Rijs <srijs@airpost.net>, Alex Crichton <alex@alexcrichton.com> |
 | crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 | — |
-| crossbeam-deque | 0.8.8 | MIT OR Apache-2.0 | — |
-| crossbeam-epoch | 0.9.21 | MIT OR Apache-2.0 | — |
 | crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 | — |
 | crypto-common | 0.2.2 | MIT OR Apache-2.0 | RustCrypto Developers |
 | cssparser | 0.37.0 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
@@ -388,8 +385,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | quick-xml | 0.42.0 | MIT | — |
 | quote | 1.0.47 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib | Osspial <osspial@gmail.com> |
-| rayon | 1.12.0 | MIT OR Apache-2.0 | — |
-| rayon-core | 1.13.0 | MIT OR Apache-2.0 | — |
 | ref-cast | 1.0.27 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | ref-cast-impl | 1.0.27 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | regex | 1.13.2 | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> |

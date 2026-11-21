@@ -67,9 +67,7 @@ export function commentBlocks(source: string): CommentBlock[] {
       at += 1;
       continue;
     }
-    const { block, next } = head.startsWith("//")
-      ? lineBlockAt(lines, at)
-      : starBlockAt(lines, at);
+    const { block, next } = head.startsWith("//") ? lineBlockAt(lines, at) : starBlockAt(lines, at);
     blocks.push(block);
     at = next;
   }

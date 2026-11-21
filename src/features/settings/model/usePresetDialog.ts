@@ -2,7 +2,12 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { asStartFailure, probeEngine } from "@/entities/engine";
 import type { AiRootIndex } from "@/entities/ai-library/api/aiLibrary";
-import { type AnalysisDefaults, type PresetId, probePathOf, useEnginePresets } from "@/entities/engine-presets";
+import {
+  type AnalysisDefaults,
+  type PresetId,
+  probePathOf,
+  useEnginePresets,
+} from "@/entities/engine-presets";
 import { autofillPreset } from "@/features/settings/lib/autofillPreset";
 import {
   presetFieldErrors,

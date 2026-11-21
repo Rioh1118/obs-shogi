@@ -20,10 +20,8 @@ shogi_core = "0.1.5"
 tokio = { version = "1.45.1", features = ["full"] }
 dashmap = "6.1.0"
 parking_lot = "0.13"
-arc-swap = "1.8.1"
 walkdir = "2.5.0"
 notify = "9.0.0"
-rayon = "1.11.0"
 tokio-util = { version = "0.7.18", default-features = false }
 
 thiserror = "2.0.12"
@@ -77,10 +75,8 @@ shogi_core = { workspace = true }
 tokio = { workspace = true }
 dashmap = { workspace = true }
 parking_lot = { workspace = true }
-arc-swap = { workspace = true }
 walkdir = { workspace = true }
 notify = { workspace = true }
-rayon = { workspace = true }
 tokio-util = { workspace = true }
 thiserror = { workspace = true }
 tauri-plugin-fs = { workspace = true }

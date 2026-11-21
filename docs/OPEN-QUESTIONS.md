@@ -200,7 +200,7 @@ AI 開発者の作業で要るかを数える（Q-003 の1と同じ調べ物）�
 
 ## Q-015 🟢 同一レイヤのスライス間 import を機械で留めるか
 
-`SelectNodeOptions` の doc は「`entities/file-tree` から `entities/game` は見えない」を根拠に `forceReopen` を作っているが、`vite.config.ts` は同一レイヤを禁じていない。
+`SelectNodeOptions` の doc は「`entities/file-tree` から `entities/game` は見えない」を根拠に `forceReopen` を作っているが、`eslint.config.ts` は同一レイヤを禁じていない。
 
 **決めるのに要るもの**: 同一レイヤの import の現在の本数と、留めた場合に直す数。
 

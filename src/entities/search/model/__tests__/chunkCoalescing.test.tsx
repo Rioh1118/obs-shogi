@@ -224,7 +224,6 @@ describe("チャンクの合流", () => {
    * 同じ配列のままだと新着ヒットが一覧に出なくなる
    */
   test("増えたら別の配列として渡す", async () => {
-    let seen: unknown[] = [];
     await mount();
 
     act(() => {
@@ -233,8 +232,7 @@ describe("チャンクの合流", () => {
     act(() => {
       vi.runAllTimers();
     });
-    seen = lastHits;
-    const first = seen;
+    const first = lastHits;
 
     act(() => {
       handlers.onSearchChunk(chunkOf(2, 2));

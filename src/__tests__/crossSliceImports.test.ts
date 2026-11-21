@@ -79,9 +79,10 @@ describe("mutualEdges", () => {
   });
 
   test("互いを読み合っていれば両方返す", () => {
-    expect(
-      mutualEdges(new Set(["features/a -> features/b", "features/b -> features/a"])),
-    ).toEqual(["features/a -> features/b", "features/b -> features/a"]);
+    expect(mutualEdges(new Set(["features/a -> features/b", "features/b -> features/a"]))).toEqual([
+      "features/a -> features/b",
+      "features/b -> features/a",
+    ]);
   });
 });
 

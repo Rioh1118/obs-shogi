@@ -264,7 +264,7 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
     // 書けない棋譜では「失敗 → 張り直し → 900ms → 失敗」で**毎秒1本の書き込みを
     // 永久に撃ち続ける**。画面には「続けて書けば保存し直します」と出しており、
     // 自動で再試行しないと宣言している。張り直す理由は本文か対象の手が変わったときだけ。
-  }, [editing?.face.key, editing?.draft, dirty]); // oxlint-disable-line react-hooks/exhaustive-deps
+  }, [editing?.face.key, editing?.draft, dirty]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRequestClose = useCallback(async () => {
     if (autoSaveTimerRef.current) {

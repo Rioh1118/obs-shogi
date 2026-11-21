@@ -343,7 +343,9 @@ describe("値を定義に当てる", () => {
 
     const summary = await screen.findByText(/このエンジンに合わせて 2 件の値を変えました/);
     fireEvent.click(summary);
-    expect(screen.getByText("NetworkDelay = 120 を削除しました（このエンジンに無い）")).toBeTruthy();
+    expect(
+      screen.getByText("NetworkDelay = 120 を削除しました（このエンジンに無い）"),
+    ).toBeTruthy();
 
     expect((await saved()).options).toEqual({ Threads: "512", MultiPV: "3" });
   }, 20000);

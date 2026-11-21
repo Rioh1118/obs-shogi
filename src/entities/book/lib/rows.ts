@@ -7,9 +7,7 @@ import type { BookLine, BookMove } from "../model/types";
  * 「辿っています」と言い続け、利用者は待てば埋まると読む。
  */
 export type BookRowLine =
-  | { state: "pending" }
-  | { state: "walked"; line: BookLine }
-  | { state: "failed" };
+  { state: "pending" } | { state: "walked"; line: BookLine } | { state: "failed" };
 
 /** 表の1行。線は遅れて届くので、候補手と別に持つ */
 export type BookRow = {

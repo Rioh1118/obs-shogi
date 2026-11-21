@@ -67,8 +67,7 @@
     border-radius: var(--board-radius);
     background: var(--board-surface);
     border: 1px solid var(--board-border);
-    box-shadow:
-      0 10px 24px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
   }
 
   &__hands {

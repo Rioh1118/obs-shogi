@@ -182,7 +182,11 @@ describe("プリセット編集ダイアログの engines の帯", () => {
 
     scanAiRoot.mockReturnValue(new Promise(() => {}));
     // 帯の中の「もう一度読み込む」。同じ名前のボタンはエンジンの欄にもある
-    fireEvent.click(within(band() as HTMLElement).getByRole("button", { name: "AI ライブラリをもう一度読み込む" }));
+    fireEvent.click(
+      within(band() as HTMLElement).getByRole("button", {
+        name: "AI ライブラリをもう一度読み込む",
+      }),
+    );
 
     await waitFor(
       () =>

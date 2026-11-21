@@ -7,14 +7,14 @@ import { describe, expect, it } from "vitest";
  * `src/__tests__` はレイヤに属さない。リポジトリ全体の検査だけを置く場所で、
  * `src/**` はデータとして読む。
  *
- * `vite.config.ts` の `no-restricted-imports` は**静的な import 文しか見ない**ので、
+ * `eslint.config.ts` の `no-restricted-imports` は**静的な import 文しか見ない**ので、
  * `await import("@/…")` と `vi.mock("@/…")` は素通りする。ここは文字列として拾う。
  */
 
 const HERE = join(SRC, "__tests__");
 
 /**
- * レイヤは `src/` 直下のディレクトリ。`vite.config.ts` の一覧を写すと、
+ * レイヤは `src/` 直下のディレクトリ。`eslint.config.ts` の一覧を写すと、
  * レイヤが増えたときにこちらだけ古いまま緑になる
  */
 function layers(): string[] {
@@ -41,7 +41,7 @@ function appReference(names: string[]): RegExp {
  * `@/__tests__/` と、相対で辿り着く `__tests__/`（`./` でも `../` でも、間に何階層あっても）。
  *
  * **相対も見る。** `src/` から1階層以内のファイル（`src/main.tsx` ほか）は相対1階層で
- * `src/__tests__/` に届き、`vite.config.ts` の `DEEP_RELATIVE_IMPORT`（`../../` 以上を
+ * `src/__tests__/` に届き、`eslint.config.ts` の `DEEP_RELATIVE_IMPORT`（`../../` 以上を
  * 禁じる）にも当たらない。`src/main.tsx` は入口なので、`node:fs` が本番の束に入ると
  * ツリーシェイクの逃げ道が無い。
  */
@@ -65,7 +65,7 @@ const NODE_SCAN =
   /(?:from\s+|import\s*\(\s*|require\s*\(\s*)["'`](?:node:)?(?:fs|path|url|os|child_process|module)(?:\/[\w-]+)?["'`]/g;
 
 /**
- * 上から下へ。`vite.config.ts` の `no-restricted-imports` と同じ順で、
+ * 上から下へ。`eslint.config.ts` の `no-restricted-imports` と同じ順で、
  * ここでも `src/` 直下から導く（一覧を写さない）
  */
 const TOP_DOWN = ["app", "pages", "widgets", "features", "entities", "shared"];
@@ -153,7 +153,7 @@ describe("レイヤに依存しない検査の置き場", () => {
   });
 
   /**
-   * **逆向きも塞ぐ。** `vite.config.ts` のレイヤの override は
+   * **逆向きも塞ぐ。** `eslint.config.ts` のレイヤの設定は
    * `@/{app,pages,widgets,features}` を禁じるだけなので、本番モジュールが
    * `@/__tests__/walk` を読んでも lint は鳴らない。読めば `node:fs` が本番の束に
    * 入り、落ちるのはビルドかブラウザの実行時になる。

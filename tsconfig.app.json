@@ -23,10 +23,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
-      "@/*": ["./src/*"],
-      // vitest は package.json の override 経由なので node_modules/vitest が無い。
-      // ここを張らないとテストが丸ごと TS2307 になり、型検査から落ちる。
-      "vitest": ["./node_modules/@voidzero-dev/vite-plus-test"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"],

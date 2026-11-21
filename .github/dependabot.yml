@@ -7,23 +7,34 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
-    # vite-plus のツールチェーンは3パッケージの版がそろっていないと壊れる。
-    # `@voidzero-dev/vite-plus-test` は core を完全一致で依存しており、core だけが
-    # 先に上がると `node_modules/vitest/` の下に入れ子の core が入る。入れ子側には
-    # プラットフォームバイナリが同梱されないため `prepare` の `vp config` が落ち、
-    # `npm ci` ごと止まる。3つそろって上がるまで手で上げる。
-    ignore:
-      - dependency-name: vite-plus
-      - dependency-name: vite
-      - dependency-name: "@voidzero-dev/*"
     groups:
       # postcss と postcss-scss は peer で結ばれている（postcss-scss@4 は postcss ^8.4.29）。
       # postcss だけが major で先に上がると peer を割り、入れ子か解決失敗になる。
-      # vite-plus で踏んだのと同じ形なので、major も含めて1本にまとめる。
+      # major も含めて1本にまとめる。
       postcss-toolchain:
         patterns:
           - postcss
           - postcss-scss
+        update-types:
+          - minor
+          - patch
+          - major
+      # vitest と @vitejs/plugin-react は vite を peer に取る。vite だけが major で
+      # 先に上がると peer を割るので、同じ理由で1本にまとめる。
+      vite-toolchain:
+        patterns:
+          - vite
+          - vitest
+          - "@vitejs/plugin-react"
+        update-types:
+          - minor
+          - patch
+          - major
+      # @eslint/js は eslint の同じ major を peer に取る。同じ理由で1本にまとめる。
+      eslint-toolchain:
+        patterns:
+          - eslint
+          - "@eslint/js"
         update-types:
           - minor
           - patch

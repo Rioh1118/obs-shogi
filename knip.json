@@ -2,5 +2,5 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["src/main.tsx"],
   "project": ["src/**/*.{ts,tsx}"],
-  "ignoreDependencies": ["vite-plus"]
+  "ignoreDependencies": []
 }
