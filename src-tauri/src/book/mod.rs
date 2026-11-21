@@ -6,7 +6,7 @@
 //! 説明は「型名から読めないもの」にだけ付ける。`BookInfo::handle` のように
 //! 名前と型で決まるものは書かない。書く / 書かないが混ざると、次に足す人が迷う。
 //!
-//! レイヤは types → error → sfen → usi_move → reader → yaneuraou_db → formats →
+//! レイヤは types → error → sfen → usi_move → reader → yaneuraou_db / yaneuraou_ybb → formats →
 //! open → session → walk → commands。**これを見ている機械は無い**
 //! （`tests/layering.rs` が走査するのは `src/engine` だけ。#399）。
 //!
@@ -35,6 +35,7 @@ mod types;
 mod usi_move;
 mod walk;
 mod yaneuraou_db;
+mod yaneuraou_ybb;
 
 // **再輸出を置かない**（ADR-0009 決定4）。`pub use` の facade があると、
 // レイヤの名前を通らずに到達できる経路ができ、レイヤの表が記述でなくなる。

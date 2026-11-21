@@ -9,6 +9,7 @@ use crate::book::error::{format_size, BookError, BookErrorCode};
 use crate::book::reader::OpenedBook;
 use crate::book::types::BookFormat;
 use crate::book::yaneuraou_db;
+use crate::book::yaneuraou_ybb;
 use std::path::Path;
 
 /// 読める形式1件ぶん。上限と reader の作り方を1つに持つ。
@@ -44,8 +45,23 @@ fn support(format: BookFormat) -> Option<Support> {
                 })
             },
         }),
+        // 開くときに読むのは頭だけで、引くたびに索引を二分探索する。配布物は 1.5 GB あるので上限を掛けない
+        BookFormat::YaneuraouYbb => Some(Support {
+            max_file_bytes: None,
+            open: |path, size| {
+                let reader = yaneuraou_ybb::open(path, size)?;
+                Ok(OpenedBook {
+                    path: path.to_path_buf(),
+                    format: BookFormat::YaneuraouYbb,
+                    position_count: Some(reader.position_count()),
+                    // 欄を捨てずに読む（読めない指し手は引いたときに `InvalidContent`）
+                    dropped_fields: Some(0),
+                    reader: Box::new(reader),
+                })
+            },
+        }),
         // reader をまだ持っていない。
-        BookFormat::AperyBin | BookFormat::ShogiGuiSbk | BookFormat::YaneuraouYbb => None,
+        BookFormat::AperyBin | BookFormat::ShogiGuiSbk => None,
     }
 }
 
@@ -116,8 +132,10 @@ pub(crate) fn open_reader(path: &Path, format: BookFormat) -> Result<OpenedBook,
         return Err(BookError::new(
             BookErrorCode::UnsupportedFormat,
             format!(
-                "{}はまだ開けない。やねうら王テキスト定跡 (.db) を選択し直すこと",
-                format.display_name()
+                "{}はまだ開けない。{}か{}を選択し直すこと",
+                format.display_name(),
+                BookFormat::YaneuraouDb.display_name(),
+                BookFormat::YaneuraouYbb.display_name()
             ),
         )
         .with_path(path.to_string_lossy()));
