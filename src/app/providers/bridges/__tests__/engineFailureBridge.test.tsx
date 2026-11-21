@@ -286,19 +286,27 @@ describe("エンジンの起動に失敗したことを届ける橋", () => {
   /**
    * 種類ごとの tier と「もう一度起動」。**2つは別の軸**（`ENGINE_START_FAILURE_NOTICES` の doc）——
    * `quarantined` は `danger` なのに「もう一度起動」を出す。tier から再試行を導く形に寄せると、
-   * macOS で許可した後に押すボタンが消え、同じ設定なので自動でも起動しない
+   * macOS で許可した後に押すボタンが消え、同じ設定なので自動でも起動しない。
+   *
+   * 表は種類を鍵にした `Record` なので、種類を足して行を書き忘れると tsc が落ちる
    */
-  test.each<[EngineStartFailureKind, "warning" | "danger", boolean]>([
-    ["spawnFailed", "danger", true],
-    ["quarantined", "danger", true],
-    ["notUsi", "danger", true],
-    ["exitedEarly", "danger", true],
-    ["timedOut", "warning", true],
-    ["invalidValue", "danger", false],
-    ["cancelled", "warning", true],
-    ["other", "danger", true],
-    ["unknown", "danger", true],
-  ])("%s は %s の帯で、「もう一度起動」を出すか: %s", async (kind, tier, retry) => {
+  const EXPECTED: Record<EngineStartFailureKind, ["warning" | "danger", boolean]> = {
+    spawnFailed: ["danger", true],
+    quarantined: ["danger", true],
+    notUsi: ["danger", true],
+    exitedEarly: ["danger", true],
+    evalTypeMismatch: ["danger", true],
+    timedOut: ["warning", true],
+    invalidValue: ["danger", false],
+    cancelled: ["warning", true],
+    other: ["danger", true],
+    unknown: ["danger", true],
+  };
+  test.each(
+    Object.entries(EXPECTED).map(
+      ([kind, [tier, retry]]) => [kind as EngineStartFailureKind, tier, retry] as const,
+    ),
+  )("%s は %s の帯で、「もう一度起動」を出すか: %s", async (kind, tier, retry) => {
     await mountWith("error", failure(kind));
 
     const labels = (shown().actions ?? []).map((a) => a.label);

@@ -36,20 +36,42 @@ pub async fn describe(
     let mut failure = classify(error, quarantined);
     if failure.kind == StartFailureKind::EvalTypeMismatch {
         if let Some(path) = eval_path {
-            failure.eval_type = eval_type_of(PathBuf::from(path)).await;
+            let named = failure.last_output.as_deref().and_then(named_eval_file);
+            failure.eval_type = eval_type_of(PathBuf::from(path), named).await;
         }
     }
     failure
 }
 
-/// 評価関数の型を、`is_quarantined` と同じく専用スレッドで上限つきで読む。フォルダなら中の `nn.bin`
-/// （やねうら王が `EvalDir` で読む名前の初期値）
-async fn eval_type_of(path: PathBuf) -> Option<String> {
+/// 型が合わなかったとエンジンが言ったファイルの名前（`failed to read nn.bin : FileMissMatch` の
+/// `nn.bin`）。行が切られていて取れなければ `None`
+fn named_eval_file(output: &str) -> Option<String> {
+    let line = output
+        .split(" / ")
+        .find(|line| line.contains(EVAL_TYPE_MISMATCH))?;
+    let name = line.split("failed to read ").nth(1)?;
+    let name = name.split(" : ").next()?.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
+/// エンジンが読んで型が合わなかった評価関数の型を、`is_quarantined` と同じく専用スレッドで上限つきで読む。
+///
+/// **選んだファイルをそのまま読まない。** フォルダで受けるエンジン（`EvalDir`）には選んだファイルの
+/// 親だけを送るので、エンジンが読むのはそのフォルダの決まった名前のファイル（やねうら王は `nn.bin`）で、
+/// 選んだファイルとは限らない。読むのは、エンジンが名指したファイルを選んだフォルダ（ファイルならその親）
+/// に繋いだもの。名指しが取れなければ、フォルダなら中の `nn.bin`、ファイルならそれ自身
+async fn eval_type_of(chosen: PathBuf, named: Option<String>) -> Option<String> {
     let read = tokio::task::spawn_blocking(move || {
-        let file = if path.is_dir() {
-            path.join("nn.bin")
+        let is_dir = chosen.is_dir();
+        let folder = if is_dir {
+            chosen.clone()
         } else {
-            path
+            chosen.parent().map(PathBuf::from).unwrap_or_default()
+        };
+        let file = match named {
+            Some(name) => folder.join(name),
+            None if is_dir => chosen.join("nn.bin"),
+            None => chosen,
         };
         read_eval_type(&file)
     });
@@ -329,6 +351,12 @@ mod tests {
                 "{eval}"
             );
         }
+        // 選んだのが nn.bin 以外でも、エンジンが名指した nn.bin の型を出す（エンジンはフォルダを受ける）
+        std::fs::write(dir.join("old.bin"), b"not an eval").expect("書けない");
+        let old = dir.join("old.bin").to_string_lossy().into_owned();
+        let failure = describe(&error, "/nonexistent/engine", Some(old.as_str())).await;
+        assert_eq!(failure.eval_type.as_deref(), Some("HalfKA2 1024x2"));
+
         // 他の種類には読みに行かない
         let other = describe(
             &EngineError::CommunicationFailed("ended".into()),
