@@ -81,6 +81,24 @@ function FilenameInput({ row, set }: { row: OptionRow; set: SetValue }) {
   );
 }
 
+/**
+ * `eval_options.txt` が決める値。エンジンが送った値を上書きするので、値を出して編集させない
+ * （`docs/spec/features/eval-files.md` の AC-E2）
+ */
+function FixedValue({ row, fixedValue }: { row: OptionRow; fixedValue: string }) {
+  return (
+    <div>
+      <SInput
+        value={row.def.type === "check" ? onOff(fixedValue) : fixedValue}
+        aria-label={`${row.def.name}（eval_options.txt が決める値）`}
+        disabled
+        readOnly
+      />
+      <div className="presetDialog__hintMuted">評価関数フォルダの eval_options.txt が決めます</div>
+    </div>
+  );
+}
+
 /** オプションの型に合った入力の欄。空は値を消す。 */
 export default function EngineOptionInput({
   row,
@@ -91,6 +109,8 @@ export default function EngineOptionInput({
 }) {
   const { def } = row;
   const set: SetValue = (value) => setOption(def.name, value);
+
+  if (row.fixedValue != null) return <FixedValue row={row} fixedValue={row.fixedValue} />;
 
   switch (def.type) {
     case "check":

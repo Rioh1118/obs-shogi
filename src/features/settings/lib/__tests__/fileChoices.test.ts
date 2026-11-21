@@ -9,6 +9,8 @@ const profile = (name: string, evals: string[], books: string[]): ProfileCandida
   has_eval_dir: evals.length > 0,
   has_book_dir: books.length > 0,
   eval_files: evals.map((e) => ({ entry: e, path: `/ai/${name}/eval/${e}`, kind: "file" })),
+  eval_options: [],
+  eval_options_outside_eval: false,
   book_db_files: books.map((b) => ({ entry: b, path: `/ai/${name}/book/${b}`, kind: "file" })),
 });
 const PROFILES = [

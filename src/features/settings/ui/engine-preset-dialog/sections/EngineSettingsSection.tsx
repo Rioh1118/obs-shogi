@@ -14,6 +14,8 @@ type Props = {
   clearOptions: (names: string[]) => void;
   probing: boolean;
   fitNote: FitNote | null;
+  /** 評価関数フォルダの `eval_options.txt` が決める値（`evalOptionsFor`）。その欄は編集させない */
+  fixed: ReadonlyMap<string, string>;
 };
 
 /**
@@ -26,6 +28,7 @@ export default function EngineSettingsSection({
   clearOptions,
   probing,
   fitNote,
+  fixed,
 }: Props) {
   const [query, setQuery] = useState("");
   const [changedOnly, setChangedOnly] = useState(false);
@@ -45,10 +48,12 @@ export default function EngineSettingsSection({
   }
 
   const bookUsed = bookInUse(draft);
-  const rows = optionRows(draft, { query, changedOnly, bookUsed });
+  const rows = optionRows(draft, { query, changedOnly, bookUsed, fixed });
   const total = optionRows(draft, { bookUsed }).length;
-  // 絞り込みで見えない行は消さない
-  const clearable = rows.filter((r) => r.value != null).map((r) => r.def.name);
+  // 絞り込みで見えない行は消さない。`eval_options.txt` が決める欄の保存した値も消さない（欄が見せていない値）
+  const clearable = rows
+    .filter((r) => r.value != null && r.fixedValue == null)
+    .map((r) => r.def.name);
   const fitLines = fitNoteLines(fitNote, draft.enginePath);
 
   return (

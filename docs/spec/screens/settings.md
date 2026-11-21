@@ -290,8 +290,6 @@
 - **AI フォルダの作成に、エンジンが1件以上あることを求めている** → #475
 - **`book/` に `.ybb` だけを置くと「定跡が未検出」になる。** やねうら王の配布物はこの形
   → [features/book.md](../features/book.md) の R-B1 → #741
-- **`eval_options.txt` を知らない。** `eval/` の外に置かれていても何も言わない
-  → [features/eval-files.md](../features/eval-files.md) の AC-E3 AC-E4 → #743
 
 ## これからの要件
 

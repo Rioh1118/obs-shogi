@@ -72,4 +72,15 @@ describe("optionRows", () => {
       names(optionRows(twice, { bookUsed: true })).filter((n) => n === "NumaPolicy"),
     ).toHaveLength(1);
   });
+
+  test("eval_options.txt が決める名前は、その値を持ち、変えた値に数えない", () => {
+    const fixed = new Map([["Threads", "2"]]);
+    const row = optionRows(DRAFT, { bookUsed: true, fixed }).find((r) => r.def.name === "Threads");
+    expect(row?.fixedValue).toBe("2");
+    expect(row?.value).toBe("8");
+    expect(row?.changed).toBe(false);
+    expect(
+      optionRows(DRAFT, { bookUsed: true }).find((r) => r.def.name === "Threads")?.fixedValue,
+    ).toBeNull();
+  });
 });
