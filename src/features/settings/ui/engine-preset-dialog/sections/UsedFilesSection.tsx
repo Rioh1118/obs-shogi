@@ -81,7 +81,7 @@ export default function UsedFilesSection({
           description="選んだ定跡を検討で使い、定跡ビューにも出します。"
           hint={
             readAsDb
-              ? "同じ名前の .db があるので、エンジンは .db を読みます。.ybb を使うには、.db を book フォルダの外へ移動してください。"
+              ? "同じ名前の .db があると、エンジンは .ybb でなく .db を読みます。.ybb を使うには、.db を book フォルダの外へ移動してください。"
               : undefined
           }
         >

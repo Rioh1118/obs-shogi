@@ -48,8 +48,8 @@ pub struct Bound {
 /// 読んだかを確かめる定跡
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SentBookPath {
-    /// エンジンが読むと言うはずのパス。`.ybb` は選んだ `.ybb` のパス（やねうら王は `.db` の代わりに
-    /// 読んだ `.ybb` のパスを出す）
+    /// エンジンが読むと言うはずのパス。`.ybb` は送った `.db` の名前を `.ybb` に替えたパス
+    /// （やねうら王は `.db` の代わりに読んだ `.ybb` のパスを出す）
     pub path: String,
     /// 読んだと言うはずのエンジンか（B1 の形。やねうら王は読むと `read book file : <パス>` を出す）。
     /// 偽なら「読めない」と言ったときだけ警告する（言わないエンジンを疑わない）
@@ -248,10 +248,15 @@ fn bind_book(
                     out.push(set(BOOK_DIR_NAME, parent_of(&book.path)));
                     out.push(set(name, var.clone()));
                     // 同じ名前の `.db` が並んでいればエンジンはそちらを読むので、`.ybb` を読んだと
-                    // 言わなければ警告する（`book_load_warning`）
+                    // 言わなければ警告する（`book_load_warning`）。照合の相手はエンジンが出すパス——
+                    // 送った綴りの末尾 `.db` を `.ybb` に替えて `BookDir` に繋いだもの。選んだファイルの
+                    // 綴り（`User_Book1.YBB`）とは大小が違いうる
                     if is_ybb(&file) {
                         path_sent = Some(SentBookPath {
-                            path: book.path.clone(),
+                            path: Path::new(&parent_of(&book.path))
+                                .join(Path::new(var).with_extension("ybb"))
+                                .to_string_lossy()
+                                .into_owned(),
                             expect_read_line: true,
                         });
                     }
@@ -702,17 +707,18 @@ mod tests {
     #[test]
     fn a_ybb_book_goes_by_its_db_name_and_is_confirmed_by_its_own_path() {
         let input = BindingInput {
-            book: book("/ai/suisho/book/user_book1.YBB", true),
+            book: book("/ai/suisho/book/User_Book1.YBB", true),
             ..Default::default()
         };
         let bound = bind(&declared(V900), &input);
         assert_eq!(lookup(&bound, "BookDir"), Some("/ai/suisho/book"));
         assert_eq!(lookup(&bound, "BookFile"), Some("user_book1.db"));
         assert_eq!(lookup(&bound, "USI_OwnBook"), Some("true"));
+        // 照合の相手は、エンジンが送った名前から組んで出すパス（選んだファイルの大小ではない）
         assert_eq!(
             bound.book_path_sent,
             Some(SentBookPath {
-                path: "/ai/suisho/book/user_book1.YBB".to_string(),
+                path: "/ai/suisho/book/user_book1.ybb".to_string(),
                 expect_read_line: true,
             })
         );
