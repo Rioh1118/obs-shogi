@@ -668,7 +668,6 @@ mod reading_tests {
 #[cfg(all(test, unix))]
 pub(crate) mod script {
     use super::{spawn, EngineChild};
-    use rustix::io::Errno;
     use std::os::unix::fs::PermissionsExt;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
@@ -716,8 +715,7 @@ pub(crate) mod script {
     async fn spawn_when_not_busy(path: &Path, dir: &Path) -> EngineChild {
         for _ in 0..BUSY_RETRIES {
             match spawn(path, dir) {
-                // `ErrorKind::ExecutableFileBusy` は MSRV より新しいので errno で見る
-                Err(e) if Errno::from_io_error(&e) == Some(Errno::TXTBSY) => {
+                Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
                     tokio::time::sleep(BUSY_WAIT).await;
                 }
                 spawned => return spawned.expect("起こせる"),

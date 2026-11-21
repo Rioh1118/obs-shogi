@@ -5,8 +5,7 @@ use std::path::Path;
 
 use encoding_rs::SHIFT_JIS;
 
-use crate::search::message::for_screen;
-use crate::search::read::csa::{parse_csa_portable, warn_if_moves_were_dropped};
+use crate::search::read::csa::parse_csa_portable;
 use crate::search::read::diagnosis::{cannot_open, parse_failed, unreadable_record};
 use crate::search::read::encoding::{read_bytes, read_portable, ENCODINGS_THE_CRATE_SKIPS};
 use crate::search::read::fs_scan::{FileRecord, KifuKind};
@@ -20,17 +19,15 @@ use shogi_kifu_converter_obsshogi::parser::{
 ///
 /// # 形式ごとに手当てが違う
 ///
-/// | 形式 | 文字コードの総当たり | パニックを捕まえる | 読み残し |
+/// | 形式 | 文字コードの総当たり | 読み残し | 画面との食い違い |
 /// | --- | --- | --- | --- |
-/// | KIF / KI2 | する（`read_portable`） | しない | クレートが断る |
-/// | CSA | する（`read_portable`） | **する**（`parse_csa_portable`） | **こちらが見つけて `warns` に積む**（`warn_if_moves_were_dropped`） |
-/// | JKF | しない（JSON なので UTF-8） | しない | — |
+/// | KIF / KI2 | する（`read_portable`） | クレートが断る | — |
+/// | CSA | する（`read_portable_bytes`） | クレートが断る | **画面が開けない形を先に断る**（`parse_csa_portable`） |
+/// | JKF | しない（JSON なので UTF-8） | — | — |
 ///
-/// 非対称の理由はそれぞれの関数の doc にある。
-/// **CSA 固有の経路**は、クレートが断った／パニックを捕まえた。
+/// 非対称の理由は `parse_csa_portable` の doc にある。
 /// 形式を問わない経路（開けない・`SIZE_LIMIT` 超過）は形式で分岐する前にあり、
-/// この表の外。**読み残しはどちらにも入らない** — `warns` に積むだけで、
-/// 記録を落とすかどうかは `says_nothing` だけが決める。
+/// この表の外。
 ///
 /// # 戻り
 ///
@@ -47,8 +44,8 @@ use shogi_kifu_converter_obsshogi::parser::{
 /// 世代が上がらず、**前の世代のセグメントが索引に残る**。
 /// 下2つでは、その棋譜の局面は検索に出てこない。
 ///
-/// **`Ok` でも `warns` が空とは限らない。** `NothingToIndex` を
-/// `looks_intentional` で割った表は `docs/state-transitions/search.md`
+/// 今の読み手は `warns` を積まない（読み残しはクレートが `Err` で断る）。
+/// `NothingToIndex` を `looks_intentional` で割った表は `docs/state-transitions/search.md`
 /// （この関数を主語にしている）。
 ///
 /// [`ReadOutcome::Indexable`]: crate::search::read::outcome::ReadOutcome::Indexable
@@ -122,7 +119,7 @@ fn says_nothing(jkf: &Jkf) -> bool {
     }
     jkf.moves
         .first()
-        .map_or(true, |m| m.comments.is_none() && m.special.is_none())
+        .is_none_or(|m| m.comments.is_none() && m.special.is_none())
 }
 
 /// これを超えるファイルは棋譜として読まない。
@@ -237,8 +234,8 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
         }
     }
 
-    // **CSA だけバイト列を手元に残す。** 読み残しの検査が、パースしたのと
-    // 同じバイト列を要る。path を渡して別々に読ませると、
+    // **CSA だけバイト列を手元に残す。** 空かどうかの判定が、パースしたのと
+    // 同じバイト列を見る。path を渡して別々に読ませると、
     // 「同じものを見ているか」を型で表せない
     let (jkf, csa_bytes) = match kind {
         KifuKind::Kif => (parse_kif_portable(path)?, None),
@@ -253,25 +250,14 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
         ),
     };
 
-    // 2つの問いを別々に答えさせ、ここでは**受け取るだけ**にする。
-    // 権限の割り振りと、そう分けた理由は `docs/state-transitions/search.md`。
-    //
-    // **どちらの判断もここで再導出しない。** `preset` と `initial.data` を見ているのは
+    // **ここで再導出しない。** `preset` と `initial.data` を見ているのは
     // [`says_nothing`] だけで、ここに条件を写すと片方だけが増えたときに穴が空く。
-    //
-    // 読めたかを先に見るのは、`says_nothing` が真の記録でも
-    // **なぜ空に見えるのかを伝えたい**から。対局者名を書かない CSA が
-    // 1手目で切れると `says_nothing` は真になるが、それは「本当に空」ではない。
-    let warn = csa_bytes
-        .as_deref()
-        .and_then(|bytes| warn_if_moves_were_dropped(bytes, &jkf));
-
-    // 組んだ場所で刈る。下流はもう通さない
-    let warns: Vec<_> = warn.iter().map(|w| for_screen(w)).collect();
+    // 読み残しはクレートが断るので、ここまで来た記録は最後まで読めている。
+    let warns = Vec::new();
 
     if says_nothing(&jkf) {
         // **空なのが正しい姿か**を、ここで決めて運ぶ。呼び手が `warns` の
-        // 有無から導くと、警告を出す検査が無い形式で必ず「正しい姿」になる
+        // 有無から導くと、読み手は警告を積まないので必ず「正しい姿」になる
         //
         // **中身を読んで決める。** ここへ来るのは記録が空に見えた回だけなので、
         // 読み直しの費用は掛かっても構わない（`SIZE_LIMIT` で上限は付いている）。
@@ -296,7 +282,7 @@ fn read_path_inner(path: &Path, kind: KifuKind) -> Result<ReadOutcome, KifuReadE
                 }
             },
         };
-        let looks_intentional = has_content && warn.is_none();
+        let looks_intentional = has_content;
         return Ok(ReadOutcome::NothingToIndex {
             warns,
             looks_intentional,
@@ -327,7 +313,7 @@ fn parse_ki2_portable(path: &Path) -> Result<Jkf, KifuReadError> {
 mod tests {
     use super::*;
     use crate::search::message::SCREEN_MESSAGE_LIMIT;
-    use crate::search::read::csa::{is_csa_move_line, tidy_csa};
+    use crate::search::read::csa::viewer_refuses;
     use crate::search::read::encoding::{
         can_be_named, describe, Evidence, Unparsable, ENCODINGS_THE_CRATE_SKIPS,
     };
@@ -429,7 +415,7 @@ mod tests {
 
     /// どの文字コードでも文字として読めなかったときは、試した文字コードを添える。
     ///
-    /// クレートが返す `ParseError::Decode` の Display は `Decode Error` の一語しかない。
+    /// クレートが返す `ParseError::Decode` の Display は `decode error` の一語しかない。
     /// そのまま出すと、利用者に「読めません」以外が何も残らない。
     #[test]
     fn a_file_no_encoding_can_decode_lists_what_was_tried() {
@@ -453,7 +439,7 @@ mod tests {
         // 案内が丸ごと落ちる（`unreadable_record` の doc の語順の規約）。
         // 長さではなく語順を見るので、引用が短い今日でも変異を捕まえられる
         assert!(
-            !message.starts_with("Decode Error"),
+            !message.to_lowercase().starts_with("decode error"),
             "クレートの英語が文頭に出ている: {message}"
         );
         assert!(
@@ -464,38 +450,42 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// CSA は壊れた値でパニックせずエラーを返す。
+    /// CSA は壊れた値でパニックせず、読めない値はエラーを返す。
     ///
-    /// CSA の本文を読むのは `csa` クレートで、そちらは `unwrap` を残している。
-    /// `shogi-kifu-converter` の lint はそこへ届かないので、
-    /// [`parse_csa_portable`] が捕まえる。
+    /// 消費時間の桁あふれはエラーにする。存在しない日付はヘッダの文字列
+    /// として書かれたまま残し、対局は読む（日付は棋譜の局面に関わらない）。
     #[test]
     fn a_csa_with_broken_values_is_an_error_not_a_panic() {
         let dir = temp_dir("csa");
 
-        for (label, body) in [
-            (
-                "存在しない日付",
-                "V2.2\n$START_TIME:2004/02/30 10:30:00\nPI\n+\n+7776FU\n%TORYO\n",
-            ),
-            (
-                "桁あふれの消費時間",
-                "V2.2\nPI\n+\n+7776FU\nT99999999999999999999\n%TORYO\n",
-            ),
-        ] {
-            let path = dir.join(format!("{label}.csa"));
-            fs::write(&path, body).expect("書き出し");
+        let path = dir.join("桁あふれの消費時間.csa");
+        fs::write(
+            &path,
+            "V2.2\nPI\n+\n+7776FU\nT99999999999999999999\n%TORYO\n",
+        )
+        .expect("書き出し");
+        let err = read_path_to_jkf(&path, KifuKind::Csa)
+            .err()
+            .unwrap_or_else(|| panic!("桁あふれの消費時間: 読めてしまった"));
+        // どのファイルかは呼び手が `IndexWarnPayload` の別の欄で持つ。
+        // ここが言うのは理由
+        assert!(
+            err.to_string().contains("CSA"),
+            "何が起きたか言っていない: {err}"
+        );
 
-            let err = read_path_to_jkf(&path, KifuKind::Csa)
-                .err()
-                .unwrap_or_else(|| panic!("{label}: 読めてしまった"));
-            // どのファイルかは呼び手が `IndexWarnPayload` の別の欄で持つ。
-            // ここが言うのは理由
-            assert!(
-                err.to_string().contains("CSA"),
-                "{label}: 何が起きたか言っていない: {err}"
-            );
-        }
+        let path = dir.join("存在しない日付.csa");
+        fs::write(
+            &path,
+            "V2.2\n$START_TIME:2004/02/30 10:30:00\nPI\n+\n+7776FU\n%TORYO\n",
+        )
+        .expect("書き出し");
+        let jkf = read_path_to_jkf(&path, KifuKind::Csa).expect("日付が壊れていても対局は読める");
+        assert_eq!(
+            jkf.header.get("開始日時").map(String::as_str),
+            Some("2004/02/30 10:30:00"),
+            "書かれた日付を残していない"
+        );
 
         // 壊れていない CSA は読める。上のテストだけだと、CSA を常に失敗させても通る
         let ok_path = dir.join("ok.csa");
@@ -508,7 +498,7 @@ mod tests {
 
     /// 文字としては読めたのに棋譜として読めなかったなら、その理由を出す。
     ///
-    /// EUC-JP の棋譜に読めない行が1つあると、クレートは `Decode Error` を返す
+    /// EUC-JP の棋譜に読めない行が1つあると、クレートは `decode error` を返す
     /// （クレートは EUC-JP を試さないので、文字にすらできない）。総当たりのほうは
     /// EUC-JP で文字にできているので**何行目が読めないかを知っている**。
     /// クレート側の一語を採ると、利用者は「文字コードを変換しろ」と言われて
@@ -639,8 +629,7 @@ mod tests {
                 "Shift_JIS + NUL 16個",
                 {
                     let mut v = sjis.clone();
-                    // `repeat_n` は Rust 1.82 以降。MSRV は 1.77.2（`Cargo.toml`）
-                    v.extend(std::iter::repeat(0u8).take(16));
+                    v.extend(std::iter::repeat_n(0u8, 16));
                     v
                 },
                 None,
@@ -1605,7 +1594,7 @@ P9 *  *  *  * +OU *  *  *  * ";
 
     /// 画面に開くほうの行パターン。
     ///
-    /// `tidy_csa` の doc には tsshogi のパターンを写した表があるが、
+    /// `viewer_refuses` の doc には tsshogi のパターンを写した表があるが、
     /// **写した表は、写した時点の tsshogi しか知らない**。ここでは
     /// `tests/fixtures/tsshogi_csa_patterns.json` を読んで当てる。
     ///
@@ -1651,76 +1640,32 @@ P9 *  *  *  * +OU *  *  *  * ";
             .collect()
     }
 
-    /// **整形は、画面の判定を変えない。**
+    /// 画面の検査は、画面の行パターンと同じ判定をする。
     ///
-    /// 画面（`tsshogi`）は**元のファイル**を読み、索引は**整形したもの**を読む。
-    /// だから整形が画面の判定をまたぐと、その行について2つの読み手が違うものを見る。
+    /// [`viewer_refuses`] は、クレートは読むが画面（`tsshogi`）は断る文
+    /// （手番・`PI`・盤面の段）を断る。判定が画面とずれると、
+    /// 検索に出るのに開けない棋譜か、開けるのに読めませんと言われる棋譜ができる。
+    /// 画面の判定は fixture に写したパターンで取る（[`viewer_line_patterns`]）。
     ///
-    /// | 元の行 | 整形後 | |
-    /// | --- | --- | --- |
-    /// | 画面が受ける | 受ける | よい（末尾の空白を落とす・段の最後の空升を補う） |
-    /// | 画面が断る | 断る | よい（`ZZZZ …` の末尾を削っても何も変わらない） |
-    /// | 画面が断る | **受ける** | **索引だけが読む**。検索に出るのに開けない |
-    /// | 画面が受ける | **断る** | **索引だけが読めない**。開けるのに読めませんと言われる |
-    ///
-    /// 行ごと落とすのは別扱い。読める範囲が減るだけで、食い違いは作らない。
-    ///
-    /// # 判定が両方「断る」でも足してはいけない
-    ///
-    /// クレートは画面より緩い。段の升は `grid_piece` が中身を見ずに3文字取るので、
-    /// **升7つで切れた段を空白で埋めると「空升9つ」として通る**。画面は
-    /// 埋める前も後も断つので、上の表だけでは捕まらない。
-    ///
-    /// **画面が断ったままの行には足さない。** 削るだけなら、
-    /// クレートに新しく読めるものは生まれない。
-    ///
-    /// # 過去の3件で確かめてある
-    ///
-    /// 見つかった穴を戻す変異を当てると、いずれもここで落ちる。
-    ///
-    /// | 入れてしまった整形 | どちらの規則で落ちるか |
-    /// | --- | --- |
-    /// | 手番行と `PI` の末尾の空白を削る | 判定をまたぐ（断る→受ける） |
-    /// | 升の数が合わない段を27文字に均す | 判定をまたぐ（断る→受ける） |
-    /// | カンマで繋いだ盤面を `P1` で切る | 判定をまたぐ（断る→受ける） |
-    /// | 升7つの段を空白で埋める | 断る行に足している |
-    ///
-    /// 題材は**すべて合成**。実在の CSA を舐めてはいない。
+    /// 題材は**すべて合成**。
     #[test]
-    fn tidying_never_crosses_the_viewers_verdict() {
+    fn the_viewer_check_agrees_with_the_viewers_patterns() {
         let patterns = viewer_line_patterns();
         let accepted = |line: &str| patterns.iter().any(|re| re.is_match(line));
 
         let rank = "P1 *  *  *  *  * -OU *  *  * ";
         let bases = [
-            "V2.2",
-            "N+山田",
-            "N-田中",
-            "$EVENT:テスト",
-            "'コメント",
-            "'",
             "PI",
             "PI82HI22KA",
-            "P+00FU",
-            "P-00KY",
             "+",
             "-",
-            "+7776FU",
-            "-3334FU",
-            "T60",
-            "%TORYO",
-            "ZZZZ 棋譜でない行",
             rank,
-            // 升が足りない／余る／カンマで繋いだ段
+            "P1 * * * * * -OU * * *",
             "P1 *  *  *  *  *  *  *",
-            "P1",
-            &BOARD_ONLY_CSA.replace('\n', ","),
+            "P1-KY-KE-GI-KI-OU-KI-GI-KE-KY",
         ];
-
         /// 綴りの揺れ1つ。名前と、健全な行を揺らす手続き
         type Wobble = (&'static str, fn(&str) -> String);
-
-        // **整形が触りたくなる形を網羅する**
         let wobbles: [Wobble; 5] = [
             ("そのまま", |s: &str| s.to_owned()),
             ("末尾に空白", |s: &str| format!("{s} ")),
@@ -1734,39 +1679,14 @@ P9 *  *  *  * +OU *  *  *  * ";
         for base in bases {
             for (wobble, apply) in wobbles {
                 let line = apply(base);
-                let tidied = tidy_csa(&line);
-                let Some(after) = tidied.strip_suffix('\n') else {
-                    // 行ごと落とした。読める範囲が減るだけなので画面と食い違わない
-                    assert!(tidied.is_empty(), "整形が改行で終わっていない: {tidied:?}");
-                    continue;
-                };
-                if after == line {
-                    continue;
-                }
-                let verdict = |ok: bool| if ok { "受ける" } else { "断る" };
+                // 画面はファイル末尾の空白を落としてから読むので、行が最後に来ると
+                // 末尾の空白の揺れが届かない。コメント行を続けて途中の行にする
+                let file = format!("{line}\n'");
                 assert_eq!(
-                    accepted(&line),
-                    accepted(after),
-                    "整形が画面の判定をまたいだ（{wobble}）\n  \
-                     前: {line:?}（画面: {}）\n  \
-                     後: {after:?}（画面: {}）",
-                    verdict(accepted(&line)),
-                    verdict(accepted(after)),
+                    viewer_refuses(file.as_bytes()).is_some(),
+                    !accepted(&line),
+                    "画面と判定が食い違う（{wobble}）: {line:?}"
                 );
-
-                // 画面が断ったままの行に**足さない**。判定が両方「断る」でも、
-                // クレートは画面より緩いので足したぶんを読んでしまう
-                //（升7つの段を空白で埋めると「空升9つ」として通る）。
-                // 削るだけなら、クレートに新しく読めるものは生まれない
-                if !accepted(after) {
-                    assert!(
-                        line.starts_with(after)
-                            && line[after.len()..].chars().all(char::is_whitespace),
-                        "画面が断る行に足した（{wobble}）\n  \
-                         前: {line:?}\n  \
-                         後: {after:?}",
-                    );
-                }
             }
         }
     }
@@ -1852,42 +1772,69 @@ P9 *  *  *  * +OU *  *  *  * ";
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 整形は**画面に開くほうが受ける範囲を出ない**。
+    /// 画面が捨てる所の形は、検査でも見ない。
     ///
-    /// [`tidy_csa`] が直しすぎると、索引には入るのに開けない棋譜ができる。
-    /// 「読めません」と言われて開けたのと、検索に出たのに開けないのとでは、
-    /// **後者のほうが悪い**（検索結果から辿れる先が行き止まりになる）。
-    ///
-    /// tsshogi 側の正規表現は `node_modules/tsshogi/dist/esm/csa.mjs` にあり、
-    /// 行を trim せずそのまま当てる。だから `$` で閉じている行型は
-    /// **末尾に空白があるだけで型に当たらない**。
-    ///
-    /// | 行 | tsshogi | ここでの期待 |
-    /// | --- | --- | --- |
-    /// | 手番行 `+` の末尾に空白 | `^[-+]$` に当たらず断る | **断る**（揃えない） |
-    /// | `PI` の末尾に空白 | `^PI(…)*$` に当たらず断る | **断る**（揃えない） |
-    /// | 段の末尾に空白が1つ余る | `$` で閉じているので当たらず、**黙って空段にする** | **断る**（削らない） |
-    /// | 段が7升で切れている | 当たらず、黙って空段にする | **断る**（埋めない） |
-    /// | `P+` の末尾に空白 | `$` で閉じていないので受ける | 読める |
-    /// | 段の最後の空升の空白が消えている | ` \* ?` で最後の空白は任意、受ける | **読める**（補う） |
-    /// | 盤面をカンマで繋いだ | `,` で割ってから型に当てる | **読める**（触らない） |
-    ///
-    /// 下3行は「tsshogi が受けるのに索引が読めない」側、
-    /// 上4行は「索引が読めてしまうと tsshogi が違うものを描く」側。
-    /// **整形はこの2つの間にしか置けない。**
-    ///
-    /// 段を削る／埋めるのが特に悪いのは、tsshogi が**エラーを出さずに
-    /// その段を空にして描く**こと。索引には正しい盤面が載るので、
-    /// 検索には当たるのに開くと違う局面が出る。
-    ///
-    /// カンマは `csa` クレートも `tsshogi` も行区切りとして受ける
-    /// （`csa-1.0.2` の `line_sep = is_a("\r\n,")`、`csa.mjs` の `line.split(",")`）。
-    /// [`tidy_csa`] は `'\n'` でしか割らないので、段を削ると
-    /// **カンマで繋いだ盤面の2段目以降が丸ごと消える**。
+    /// 画面はファイル全体を `trim` し、`/` だけの行から後ろを捨ててから読む。
+    /// 末尾の手番行の空白や、2局目の崩れた行で断ると、**開ける棋譜を索引から落とす**。
+    /// 捨てる範囲が広すぎないこと（1局目の崩れた行と、`/` で始まるだけの行）も見る。
     ///
     /// 題材は**すべて合成**。
     #[test]
-    fn tidying_stops_where_the_viewer_stops() {
+    fn the_viewer_check_skips_what_the_viewer_drops() {
+        for (name, text) in [
+            ("手の無い棋譜が手番行の空白で終わる", "V2.2\nPI\n+ "),
+            ("同じく改行で終わる", "V2.2\nPI\n+ \r\n"),
+            ("BOM の後ろ", "\u{feff}V2.2\nPI\n+ \n"),
+            ("2局目の手番行", "V2.2\nPI\n+\n/\nV2.2\nPI\n+ \n"),
+            ("CRLF の2局目", "V2.2\r\nPI\r\n+\r\n/\r\nPI \r\n"),
+            (
+                "`/` で区切らずに続けた2局目の見出し",
+                "V2.2\nPI\n+\n+7776FU\n%TORYO\nV2.2\nPI \n+ \n+2726FU\n%TORYO\n",
+            ),
+            ("`$` の行の値の中のカンマ", "$EVENT:A,PI \nPI\n+\n+7776FU\n"),
+            ("名前の行の値の中のカンマ", "N+a,+ \nPI\n+\n+7776FU\n"),
+        ] {
+            assert!(
+                viewer_refuses(text.as_bytes()).is_none(),
+                "{name}: 画面が読まない所で断った: {text:?}"
+            );
+        }
+
+        for (name, text) in [
+            ("1局目の手番行", "V2.2\nPI\n+ \n+7776FU\n/\nV2.2\nPI\n+\n"),
+            (
+                "`/` で始まるだけの行は区切りでない",
+                "V2.2\n/x\nPI\n+ \n+7776FU\n",
+            ),
+            ("段の空きの直後に駒", "P2 *-HI *  *  *  *  * -KA * "),
+            (
+                "手番の前の文はカンマの後ろでも見る",
+                "V2.2\nPI,+ \n+7776FU\n",
+            ),
+        ] {
+            assert!(
+                viewer_refuses(text.as_bytes()).is_some(),
+                "{name}: 画面が断る形を通した: {text:?}"
+            );
+        }
+    }
+
+    /// 画面で開けない形は索引でも断り、開ける形は索引でも読む。
+    ///
+    /// クレートは CSA の仕様に沿って読み、文の後ろの空白を読み飛ばす。画面の
+    /// `tsshogi` は手番行と `PI` の末尾の空白を受けず、盤面の段は
+    /// 升9つちょうどで、3文字ずつ切って駒名になる形しか受けない。
+    /// その差は [`viewer_refuses`] が先に断る。
+    ///
+    /// 逆に、画面が読まない所は調べない。`/` の行から後ろ（2局目以降）と
+    /// ファイル末尾の空白は、画面が捨ててから読む。
+    ///
+    /// カンマは `tsshogi` も文の区切りとして受けるので、盤面をカンマで繋いだ形は
+    /// 両方で読める。
+    ///
+    /// 題材は**すべて合成**。
+    #[test]
+    fn what_the_viewer_refuses_the_index_refuses() {
         let dir = temp_dir("csa-viewer-bound");
         let whole = "V2.2\nN+山田\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
 
@@ -1905,6 +1852,14 @@ P9 *  *  *  * +OU *  *  *  * ";
             (
                 "段が7升で切れている",
                 board_csa.replace(first_rank, "P1 *  *  *  *  *  *  *"),
+            ),
+            (
+                // 行パターンには合うが、画面は ` *-`・`HI ` と切って駒名にならない
+                "空きの升の直後に空白なしで駒",
+                board_csa.replace(
+                    "P2 *  *  *  *  *  *  *  *  * ",
+                    "P2 *-HI *  *  *  *  * -KA * ",
+                ),
             ),
         ] {
             let path = dir.join(format!("{name}.csa").replace('/', "_"));
@@ -1933,6 +1888,12 @@ P9 *  *  *  * +OU *  *  *  * ";
                 format!("V2.2\n{}+\n+5958OU\n%TORYO\n", board_trimmed),
             ),
             (
+                // 画面は `/` の行から後ろを捨てるので、2局目の手番行の空白は見ない
+                "2局目の手番行の末尾に空白",
+                format!("{whole}/\nV2.2\nPI\n+ \n+2726FU\n%TORYO\n"),
+            ),
+            ("ファイル末尾に空白行", format!("{whole} \n\t\n")),
+            (
                 "盤面をカンマで繋いだ",
                 format!(
                     "V2.2\n{}\n+\n+5958OU\n-4142OU\n%TORYO\n",
@@ -1956,52 +1917,25 @@ P9 *  *  *  * +OU *  *  *  * ";
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 綴りの揺れは整えて読み、本当に切れているときだけ伝える。
+    /// 画面が読む綴りは索引でも読み、読めない行は行を名指しして断る。
     ///
-    /// # なぜ整えるのか
+    /// 画面（`tsshogi`）は、指し手の後ろの空白・タブ、アポストロフィだけの行、
+    /// 最後の行の改行なしを気にせず読む。索引側（クレート）も同じく読む。
     ///
-    /// 棋譜を画面に開く経路（`tsshogi` の `importCSA`）は、末尾の改行なし・
-    /// 空のコメント行を気にせず読み、行末の空白も**行の型によっては**気にしない。
-    /// 索引側だけが読めないと、**開けば全部見えるのに「読めません」と言われる**
-    /// ことになり、利用者に直しようが無い。だから [`tidy_csa`] で綴りを揃えてから読む。
+    /// 棋譜の形をしていない行が指し手の間に混ざると、クレートは KIF と同じく
+    /// その行を名指しして断る。途中までの記録を `Ok` にはしない。
     ///
-    /// **揃えてよい行と、揃えてはいけない行がある。** その境目は
-    /// [`tidying_stops_where_the_viewer_stops`] が見ている。
-    ///
-    /// | 題材 | 整形前 | 整形後 |
-    /// | --- | --- | --- |
-    /// | 行末に空白 / タブ | 0手 | **全部** |
-    /// | 最終行の改行なし | 途中まで | **全部** |
-    /// | アポストロフィだけの行 | 途中まで | **全部** |
-    /// | 棋譜でない行が混ざる | 途中まで | **途中まで（救わない）** |
-    ///
-    /// **整形で救えないものだけが警告になる。** 最後の行が要で、
-    /// 整形が壊れた棋譜を「読めた」ことにしていないことを見ている。
-    ///
-    /// ただし最後の題材（棋譜でない行）は、**tsshogi は読み飛ばして最後まで読む**。
-    /// つまりこれは「壊れた棋譜」ではなく「索引側だけが読めない棋譜」で、
-    /// 警告はいまも出る。整形の対象にしないのは、指し手でない行を捨てると
-    /// **本当に指し手が欠けている棋譜まで黙って通る**ため。
-    ///
-    /// # 警告が出るときの戻り
-    ///
-    /// 戻りを決めるのは [`says_nothing`] だけで、読み残しの検査は関わらない。
-    /// 対局者名を書かない CSA が1手も読めないと `says_nothing` が真になるので、
-    /// **その形でも警告が消えない**ことをヘッダなしの題材で見る。
-    ///
-    /// 題材は**すべて合成**。実在の CSA で誤報しないことは確かめていない。
+    /// 題材は**すべて合成**。
     #[test]
-    fn csa_spelling_is_tidied_and_what_tidying_cannot_reach_is_warned() {
-        let dir = temp_dir("csa-cut");
+    fn csa_spelling_the_viewer_reads_is_read_and_a_broken_line_is_named() {
+        let dir = temp_dir("csa-spelling");
         let whole = "V2.2\nN+山田\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
         // アプリが対局者名なしで書き出す形（`try_to_csa_owned` は空のヘッダを書かない）
         let headerless = "V2.2\nPI\n+\n+7776FU\n-3334FU\n%TORYO\n";
 
         /// 健全な CSA の綴りを揺らす
         type Wobble = (&'static str, &'static dyn Fn(&str) -> String);
-
-        // 整形で救えるもの。**全部読めて、警告は出ない**
-        let recoverable: [Wobble; 4] = [
+        let readable: [Wobble; 5] = [
             ("1手目の末尾に空白", &|s: &str| {
                 s.replace("+7776FU\n", "+7776FU \n")
             }),
@@ -2014,121 +1948,47 @@ P9 *  *  *  * +OU *  *  *  * ";
             ("アポストロフィだけの行", &|s: &str| {
                 s.replace("-3334FU\n", "'\n-3334FU\n")
             }),
+            ("最後の行の改行なし", &|s: &str| {
+                s.trim_end().to_owned()
+            }),
         ];
 
         for (base_name, base) in [("ヘッダあり", whole), ("ヘッダなし", headerless)] {
-            // 健全な題材が黙って通ることを先に見る。通らなければ以下は無意味
-            let ok_path = dir.join(format!("whole-{base_name}.csa"));
-            fs::write(&ok_path, base).expect("書き出し");
-            let (jkf, warns) =
-                read_indexable(&ok_path, KifuKind::Csa).expect("健全な CSA が読めること");
-            assert_eq!(jkf.moves.len(), 4, "{base_name}: 題材が想定の手数でない");
-            assert!(
-                warns.is_empty(),
-                "{base_name}: 健全な CSA に警告: {warns:?}"
-            );
-
-            for (wobble, apply) in &recoverable {
+            for (wobble, apply) in
+                std::iter::once::<Wobble>(("そのまま", &|s: &str| s.to_owned())).chain(readable)
+            {
                 let name = format!("{base_name}/{wobble}");
                 let path = dir.join(format!("{name}.csa").replace('/', "_"));
                 fs::write(&path, apply(base)).expect("書き出し");
 
                 let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
-                    .unwrap_or_else(|e| panic!("{name}: 整えれば読めるものを断った: {e}"));
-                assert_eq!(jkf.moves.len(), 4, "{name}: 整形しても全部読めていない");
+                    .unwrap_or_else(|e| panic!("{name}: 画面が読む綴りを断った: {e}"));
+                assert_eq!(jkf.moves.len(), 4, "{name}: 全部読めていない");
                 assert!(warns.is_empty(), "{name}: 直しようの無い警告: {warns:?}");
             }
-        }
 
-        // 末尾の改行が無い形は `replace` では作れないので別に置く
-        for (base_name, base) in [("ヘッダあり", whole), ("ヘッダなし", headerless)] {
-            let path = dir.join(format!("no-final-newline-{base_name}.csa"));
-            fs::write(&path, base.trim_end()).expect("書き出し");
-            let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
-                .unwrap_or_else(|e| panic!("{base_name}: 末尾の改行が無いだけで断った: {e}"));
-            assert_eq!(jkf.moves.len(), 4, "{base_name}: 最後の手が落ちている");
-            assert!(
-                warns.is_empty(),
-                "{base_name}: 直しようの無い警告: {warns:?}"
-            );
-        }
-
-        // **整形で救えないものだけが警告になる。** 棋譜でない行は残るので、
-        // クレートはそこで止まる
-        for (base_name, base) in [("ヘッダあり", whole), ("ヘッダなし", headerless)] {
-            let path = dir.join(format!("really-broken-{base_name}.csa"));
-            // **差し込む**（置き換えない）。置き換えると指し手行が1本減るので、
-            // 数える側から見て「読み残し」が消えてしまう
+            let path = dir.join(format!("broken-{base_name}.csa"));
             let body = base.replace("-3334FU\n", "ZZZZ これは棋譜の行ではない\n-3334FU\n");
             fs::write(&path, &body).expect("書き出し");
-
-            // 戻りは `says_nothing` が決める。**警告はどちらでも出る**
-            let warns = match read_path_inner(&path, KifuKind::Csa) {
-                Ok(
-                    ReadOutcome::Indexable { warns, .. }
-                    | ReadOutcome::NothingToIndex { warns, .. },
-                ) => warns,
-                Err(e) => panic!("{base_name}: 読めた記録を断った: {e}"),
+            let Err(KifuReadError::ParseFailed(message)) = read_path_inner(&path, KifuKind::Csa)
+            else {
+                panic!("{base_name}: 読めない行がある記録を通した");
             };
-            assert_eq!(warns.len(), 1, "{base_name}: 警告が1件でない: {warns:?}");
             assert!(
-                warns[0].to_string().contains("しか読めませんでした"),
-                "{base_name}: 読み残しを言っていない: {}",
-                warns[0]
+                message.to_string().contains("ZZZZ"),
+                "{base_name}: 読めなかった行を名指ししていない: {message}"
             );
-            // **利用者に出る文言に Markdown を入れない。** 素のテキストで描かれる
-            assert!(
-                !warns[0].to_string().contains("**") && !warns[0].to_string().contains('`'),
-                "{base_name}: 文言に記法が混ざっている: {}",
-                warns[0]
-            );
-        }
-
-        // **読み残しの検査は記録を落とせない。** 落とすかどうかを決めるのは
-        // `says_nothing` だけで、駒落ちや盤面図は「中身がある」側に入る。
-        // 盤面図の題材にヘッダを置かないのは、置くと `header` の判定で先に抜けて
-        // `initial` を見る腕を踏まないから
-        for (name, body) in [
-            (
-                "駒落ち",
-                "V2.2\nPI82HI22KA\n-\n-3334FU\nZZZZ 棋譜でない行\n+7776FU\n%TORYO\n".to_owned(),
-            ),
-            (
-                "盤面図",
-                format!("V2.2\n{BOARD_ONLY_CSA}\n+\n+5958OU\nZZZZ 棋譜でない行\n-4142OU\n%TORYO\n"),
-            ),
-        ] {
-            let path = dir.join(format!("{name}.csa"));
-            fs::write(&path, &body).expect("書き出し");
-
-            let (jkf, warns) = read_indexable(&path, KifuKind::Csa)
-                .unwrap_or_else(|e| panic!("{name}: 初期局面ごと落とした: {e}"));
-            assert!(jkf.initial.is_some(), "{name}: 初期局面が消えている");
-            assert_eq!(warns.len(), 1, "{name}: 警告が1件でない: {warns:?}");
         }
 
         fs::remove_dir_all(&dir).ok();
     }
 
-    /// 最後まで読めた CSA に、余計な警告を出さない。
+    /// 終局の後ろに続くものは、記録を断る理由にならない。
     ///
-    /// 指し手行を数えるだけだと、**記録が終わったあとの行まで数に入る**。
-    /// 2局を1ファイルに置く形（CSA は `/` だけの行で区切る）と、
-    /// 感想戦の書き起こしを終局の後ろに置く形が実際にそうなる。
-    /// どちらもクレートは1局目を最後まで読めていて、言うことは何も無い。
-    ///
-    /// **題材が何を固定しているかは1つずつ違う。**
-    ///
-    /// | 題材 | 黙る理由 |
-    /// | --- | --- |
-    /// | 2局を連結 / 区切りで分ける | `%` の打ち切り。外すと2局目まで数えて警告が出る |
-    /// | 終局の後ろに解説行 | `%` の打ち切り。行の形は指し手だが数に入れない |
-    /// | 終局の後ろに指し手の形の行 | **打ち切りに依らない** — クレートもその行を1手として読むので数が揃う |
-    /// | special にしない終局のあとに2局目 | `%` の打ち切りだけ。`%TIME_UP` は `special` にならない |
-    ///
-    /// **4件目は打ち切りを外しても黙る。** そこだけは腕を固定していない。
-    /// 5件目に2局目を置いてあるのは、置かないと数が `read` を超えず、
-    /// 打ち切りを外しても通ってしまうため（この行が無いと変異が生き残る）。
+    /// 2局を1ファイルに置く形（`/` の有無を問わない）と、感想戦の書き起こしを
+    /// 終局の後ろに置く形が実際にある。クレートは終局（`%`）の後ろの、CSA の文
+    /// として読めない行で記録を終える（クレートの判断 D36）。終局の後ろの
+    /// 指し手の形の行は、中断と再開でありうるので読む。
     ///
     /// 題材は**すべて合成**。
     #[test]
@@ -2165,50 +2025,6 @@ P9 *  *  *  * +OU *  *  *  * ";
         }
 
         fs::remove_dir_all(&dir).ok();
-    }
-
-    /// 数える側と数えられる側が揃っている。**誤報を出さない側を固定する。**
-    ///
-    /// 指し手ではない行を指し手と数えると、健全な棋譜が「途中で切れている」と
-    /// 断られる。CSA のヘッダ・盤面・消費時間・終局・コメントを1つずつ置いて、
-    /// どれも数に入らないことを見る。
-    ///
-    /// **途中で切れた指し手は数える側。** 健全な CSA に `+7776F` という完結した
-    /// 行は現れない（`+7776FU` になる）ので、数えても誤報にならない。数えないと
-    /// ファイルが指し手の最中で終わった回に `moves_seen` が 0 のままになり、
-    /// **指し手のある棋譜が警告も出さずに索引から消える**。
-    #[test]
-    fn only_move_lines_are_counted_as_moves() {
-        // 数える対象（`+7776FU` の形と、途中で切れた形）
-        for line in ["+7776FU", "-3334FU", "+2726FU\r", "+7776F", "+777"] {
-            assert!(
-                is_csa_move_line(line.as_bytes()),
-                "指し手行を数えていない: {line:?}"
-            );
-        }
-        // 数えない対象
-        for line in [
-            "+",
-            "-",
-            "V2.2",
-            "PI",
-            "P1-KY-KE",
-            "P+00FU",
-            "N+山田",
-            "$EVENT:研究会",
-            "T60",
-            "%TORYO",
-            "%CHUDAN",
-            "'コメント",
-            "",
-            "+777FU",
-            "+7776fu",
-        ] {
-            assert!(
-                !is_csa_move_line(line.as_bytes()),
-                "指し手行でないものを数えた: {line:?}"
-            );
-        }
     }
 
     /// 棋譜として読めなかった理由も、4形式とも利用者の言葉で出す。

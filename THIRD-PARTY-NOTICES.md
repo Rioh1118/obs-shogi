@@ -14,10 +14,10 @@ ObsShogi 自身のライセンスは [LICENSE.md](LICENSE.md)（MIT）。
   - Copyright (c) 2010-2011 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato". Licensed under the SIL Open Font License, Version 1.1.
 - **@fontsource/orbitron** 5.3.0 — OFL-1.1
   - Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron)
-- **@fontsource/zen-kaku-gothic-antique** 5.3.0 — OFL-1.1
+- **@fontsource/zen-kaku-gothic-antique** 5.3.1 — OFL-1.1
   - Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic)
 
-## npm の依存（79 件）
+## npm の依存（83 件）
 
 `npm query .prod` が返す、配布物に載る依存。開発だけで使うものは含まない。
 `os` / `cpu` / `libc` で入るかが変わるパッケージ（ネイティブの prebuilt）も含まない ——
@@ -36,38 +36,43 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | @floating-ui/utils | 0.2.12 | MIT | Copyright (c) 2021-present Floating UI contributors |
 | @fontsource/lato | 5.3.0 | OFL-1.1 | Copyright (c) 2010-2011 by tyPoland Lukasz Dziedzic (team@latofonts.com) with Reserved Font Name "Lato". Licensed under the SIL Open Font License, Version 1.1. |
 | @fontsource/orbitron | 5.3.0 | OFL-1.1 | Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron) |
-| @fontsource/zen-kaku-gothic-antique | 5.3.0 | OFL-1.1 | Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic) |
-| @lexical/clipboard | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/code | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/devtools-core | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/dragon | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/extension | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/hashtag | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/history | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/html | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/link | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/list | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/mark | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/markdown | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/offset | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/overflow | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/plain-text | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/react | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/rich-text | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/selection | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/table | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/text | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/utils | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| @lexical/yjs | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @fontsource/zen-kaku-gothic-antique | 5.3.1 | OFL-1.1 | Copyright 2022 The Zen Project Authors (https://github.com/googlefonts/zen-kakugothic) |
+| @lexical/a11y | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/clipboard | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/code-core | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/devtools-core | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/dragon | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/extension | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/hashtag | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/history | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/html | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/internal | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/link | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/list | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/mark | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/markdown | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/overflow | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/plain-text | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/react | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/rich-text | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/selection | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/table | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/text | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/utils | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| @lexical/yjs | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | @parcel/watcher | 2.6.0 | MIT | Copyright (c) 2017-present Devon Govett |
-| @preact/signals-core | 1.14.4 | MIT | Copyright (c) 2022-present Preact Team |
-| @tauri-apps/api | 2.11.1 | Apache-2.0 OR MIT | — |
-| @tauri-apps/plugin-dialog | 2.7.2 | MIT OR Apache-2.0 | — |
-| @tauri-apps/plugin-fs | 2.5.1 | MIT OR Apache-2.0 | — |
-| @tauri-apps/plugin-opener | 2.5.4 | MIT OR Apache-2.0 | — |
-| @tauri-apps/plugin-process | 2.3.1 | MIT OR Apache-2.0 | — |
-| @tauri-apps/plugin-updater | 2.10.1 | MIT OR Apache-2.0 | — |
-| @types/react | 19.2.18 | MIT | Copyright (c) Microsoft Corporation. |
+| @preact/signals-core | 1.14.5 | MIT | Copyright (c) 2022-present Preact Team |
+| @remix-run/route-pattern | 0.22.1 | MIT | Copyright (c) 2025 Shopify Inc. |
+| @tauri-apps/api | 2.12.5 | Apache-2.0 OR MIT | — |
+| @tauri-apps/plugin-dialog | 2.8.4 | MIT OR Apache-2.0 | — |
+| @tauri-apps/plugin-fs | 2.7.1 | MIT OR Apache-2.0 | — |
+| @tauri-apps/plugin-opener | 2.7.3 | MIT OR Apache-2.0 | — |
+| @tauri-apps/plugin-process | 2.4.0 | MIT OR Apache-2.0 | — |
+| @tauri-apps/plugin-updater | 2.14.1 | MIT OR Apache-2.0 | — |
+| @types/react | 19.3.0 | MIT | Copyright (c) Microsoft Corporation. |
+| @types/react-dom | 19.3.0 | MIT | Copyright (c) Microsoft Corporation. |
+| @types/trusted-types | 2.0.7 | MIT | Copyright (c) Microsoft Corporation. |
+| @typescript/typescript6 | 6.0.2 | Apache-2.0 | Microsoft Corp. |
 | chokidar | 5.0.0 | MIT | Copyright (c) 2012 Paul Miller (https://paulmillr.com), Elan Shanker |
 | context | 3.1.0 | MIT | Copyright (c) 2020 ealush |
 | cookie-es | 3.1.1 | MIT | copyright (c) Pooya Parsa <pooya@pi0.io><br>Copyright (c) 2012-2014 Roman Shtylman <shtylman@gmail.com><br>Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com> |
@@ -79,169 +84,162 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | is-glob | 4.0.3 | MIT | Copyright (c) 2014-2017, Jon Schlinkert. |
 | isomorphic.js | 0.2.5 | MIT | Copyright (c) 2020 Kevin Jahns <kevin.jahns@protonmail.com>. |
 | json-kifu-format | 5.4.1 | MIT | Copyright (c) 2014 na2hiro (https://github.com/na2hiro) |
-| lexical | 0.41.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| lib0 | 0.2.117 | MIT | Copyright (c) 2019 Kevin Jahns <kevin.jahns@protonmail.com>. |
-| lucide-react | 1.35.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors<br>Copyright (c) 2013-present Cole Bemis |
+| lexical | 0.53.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| lib0 | 0.2.120 | MIT | Copyright (c) 2019 Kevin Jahns <kevin.jahns@protonmail.com>. |
+| lucide-react | 1.77.0 | ISC | Copyright (c) 2026 Lucide Icons and Contributors<br>Copyright (c) 2013-present Cole Bemis |
 | node-addon-api | 7.1.1 | MIT | Copyright (c) 2017 [Node.js API collaborators](https://github.com/nodejs/node-addon-api#collaborators) |
 | path | 0.12.7 | MIT | Joyent |
 | pathe | 2.0.3 | MIT | Copyright (c) Pooya Parsa <pooya@pi0.io> - Daniel Roe <daniel@roe.dev><br>Copyright (c) 2023-present Fabio Spampinato |
 | picomatch | 4.0.7 | MIT | Copyright (c) 2017-present, Jon Schlinkert. |
-| prismjs | 1.30.0 | MIT | Copyright (c) 2012 Lea Verou |
 | process | 0.11.10 | MIT | Copyright (c) 2013 Roman Shtylman <shtylman@gmail.com> |
-| react | 19.2.8 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| react-dom | 19.2.8 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
-| react-error-boundary | 6.1.3 | MIT | Copyright (c) 2020 Brian Vaughn |
-| react-router | 8.3.1 | MIT | Copyright (c) React Training LLC 2015-2019<br>Copyright (c) Remix Software Inc. 2020-2021<br>Copyright (c) Shopify Inc. 2022-2023 |
-| react-window | 2.3.0 | MIT | Copyright (c) 2018 Brian Vaughn |
+| react | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| react-dom | 19.3.1 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| react-router | 8.5.2 | MIT | Copyright (c) React Training LLC 2015-2019<br>Copyright (c) Remix Software Inc. 2020-2021<br>Copyright (c) Shopify Inc. 2022-2023 |
+| react-window | 2.5.3 | MIT | Copyright (c) 2018 Brian Vaughn |
 | readdirp | 5.1.1 | MIT | Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com) |
-| sass | 1.103.1 | MIT | Copyright (c) 2016, Google Inc.<br>Copyright 2012, the Dart project authors.<br>Copyright 2019, the Dart project authors. |
-| scheduler | 0.27.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
+| sass | 1.108.2 | MIT | Copyright (c) 2016, Google Inc.<br>Copyright 2012, the Dart project authors.<br>Copyright 2019, the Dart project authors. |
+| scheduler | 0.28.0 | MIT | Copyright (c) Meta Platforms, Inc. and affiliates. |
 | shogi.js | 5.4.1 | MIT | na2hiro |
-| source-map-js | 1.2.1 | BSD-3-Clause | Copyright (c) 2009-2011, Mozilla Foundation and contributors |
+| source-map-js | 1.2.4 | BSD-3-Clause | Copyright (c) 2009-2011, Mozilla Foundation and contributors |
 | tabbable | 6.5.0 | MIT | Copyright (c) 2015 David Clark |
 | tslib | 2.8.1 | 0BSD | Copyright (c) Microsoft Corporation. |
 | tsshogi | 2.3.4 | MIT | Copyright (c) 2023 Kubo, Ryosuke |
+| typescript | 6.0.3 | Apache-2.0 | Microsoft Corp. |
 | util | 0.10.4 | MIT | Joyent |
 | uuid | 11.1.1 | MIT | Copyright (c) 2010-2020 Robert Kieffer and other contributors |
 | vest-utils | 1.5.0 | MIT | Copyright (c) 2021 ealush |
-| yjs | 13.6.32 | MIT | Copyright (c) 2023 |
+| yjs | 13.6.33 | MIT | Copyright (c) 2023 |
 
-## Rust の依存（517 件）
+## Rust の依存（467 件）
 
 `cargo metadata` の解決結果のうち、dev-dependencies を除いたもの。
 配っている 4 ターゲット分の和なので、1つの OS のバイナリには載らないものも含む。
 
 | パッケージ | 版 | ライセンス | 著作権表示 |
 | --- | --- | --- | --- |
-| adler2 | 2.0.0 | 0BSD OR MIT OR Apache-2.0 | Jonas Schievink <jonasschievink@gmail.com>, oyvindln <oyvindln@users.noreply.github.com> |
-| aho-corasick | 1.1.3 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
-| alloc-no-stdlib | 2.0.4 | BSD-3-Clause | Copyright (c) 2016 Dropbox, Inc. |
-| alloc-stdlib | 0.2.2 | BSD-3-Clause | Daniel Reiter Horn <danielrh@dropbox.com> |
-| anyhow | 1.0.98 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| arc-swap | 1.9.2 | MIT OR Apache-2.0 | Michal 'vorner' Vaner <vorner@vorner.cz> |
-| arrayvec | 0.7.6 | MIT OR Apache-2.0 | bluss |
+| adler2 | 2.0.1 | 0BSD OR MIT OR Apache-2.0 | Jonas Schievink <jonasschievink@gmail.com>, oyvindln <oyvindln@users.noreply.github.com> |
+| aho-corasick | 1.1.5 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| alloc-no-stdlib | 3.0.0 | BSD-3-Clause | Copyright (c) 2016 Dropbox, Inc. |
+| alloc-stdlib | 0.3.0 | BSD-3-Clause | Daniel Reiter Horn <danielrh@dropbox.com> |
+| anyhow | 1.0.104 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| arc-swap | 1.9.5 | MIT OR Apache-2.0 | Michal 'vorner' Vaner <vorner@vorner.cz> |
+| arrayvec | 0.7.8 | MIT OR Apache-2.0 | bluss |
 | async-broadcast | 0.7.2 | MIT OR Apache-2.0 | Stjepan Glavina <stjepang@gmail.com>, Yoshua Wuyts <yoshuawuyts@gmail.com>, Zeeshan Ali Khan <zeeshanak@gnome.org> |
 | async-channel | 2.5.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
-| async-executor | 1.14.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, John Nunley <dev@notgull.net> |
+| async-executor | 1.14.1 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, John Nunley <dev@notgull.net> |
 | async-io | 2.6.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
-| async-lock | 3.4.2 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
+| async-lock | 3.5.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
 | async-process | 2.5.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
-| async-recursion | 1.1.1 | MIT OR Apache-2.0 | Robert Usher <266585+dcchut@users.noreply.github.com> |
-| async-signal | 0.2.13 | Apache-2.0 OR MIT | John Nunley <dev@notgull.net> |
+| async-recursion | 1.2.0 | MIT OR Apache-2.0 | Robert Usher <266585+dcchut@users.noreply.github.com> |
+| async-signal | 0.2.14 | Apache-2.0 OR MIT | John Nunley <dev@notgull.net> |
 | async-task | 4.7.1 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
-| async-trait | 0.1.88 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| async-trait | 0.1.92 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | atk | 0.18.2 | MIT | The gtk-rs Project Developers |
 | atk-sys | 0.18.2 | MIT | The gtk-rs Project Developers |
 | atomic-waker | 1.1.2 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, Contributors to futures-rs |
-| autocfg | 1.4.0 | Apache-2.0 OR MIT | Josh Stone <cuviper@gmail.com> |
+| autocfg | 1.5.1 | Apache-2.0 OR MIT | Josh Stone <cuviper@gmail.com> |
 | base64 | 0.21.7 | MIT OR Apache-2.0 | Alice Maz <alice@alicemaz.com>, Marshall Pierce <marshall@mpierce.org> |
-| base64 | 0.22.1 | MIT OR Apache-2.0 | Marshall Pierce <marshall@mpierce.org> |
+| base64 | 0.23.1 | MIT OR Apache-2.0 | Marshall Pierce <marshall@mpierce.org> |
 | bit-set | 0.8.0 | Apache-2.0 OR MIT | Alexis Beingessner <a.beingessner@gmail.com> |
 | bit-vec | 0.8.0 | Apache-2.0 OR MIT | Alexis Beingessner <a.beingessner@gmail.com> |
 | bitflags | 1.3.2 | MIT/Apache-2.0 | The Rust Project Developers |
-| bitflags | 2.13.1 | MIT OR Apache-2.0 | The Rust Project Developers |
+| bitflags | 2.13.2 | MIT OR Apache-2.0 | The Rust Project Developers |
 | blake3 | 1.8.7 | CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception | Jack O'Connor <oconnor663@gmail.com>, Samuel Neves |
-| block-buffer | 0.10.4 | MIT OR Apache-2.0 | RustCrypto Developers |
-| block2 | 0.6.1 | MIT | Mads Marquart <mads@marquart.dk> |
-| blocking | 1.6.2 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
-| brotli | 8.0.2 | BSD-3-Clause AND MIT | Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors. |
-| brotli-decompressor | 5.0.0 | BSD-3-Clause/MIT | Copyright (c) 2016 Dropbox, Inc. |
+| block-buffer | 0.12.1 | MIT OR Apache-2.0 | RustCrypto Developers |
+| block2 | 0.6.2 | MIT | Mads Marquart <mads@marquart.dk> |
+| blocking | 1.7.0 | Apache-2.0 OR MIT | — |
+| brotli | 9.1.3 | BSD-3-Clause AND MIT | Copyright (c) 2016 Dropbox, Inc. |
+| brotli-decompressor | 6.3.2 | BSD-3-Clause/MIT | Copyright (c) 2016 Dropbox, Inc. |
+| bs58 | 0.5.1 | MIT/Apache-2.0 | — |
 | byteorder | 1.5.0 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
-| bytes | 1.12.1 | MIT | Copyright (c) 2018 Carl Lerche |
+| bytes | 1.12.2 | MIT | Copyright (c) 2018 Carl Lerche |
 | cairo-rs | 0.18.5 | MIT | The gtk-rs Project Developers |
 | cairo-sys-rs | 0.18.2 | MIT | The gtk-rs Project Developers |
-| camino | 1.1.9 | MIT OR Apache-2.0 | Without Boats <saoirse@without.boats>, Ashley Williams <ashley666ashley@gmail.com>, Steve Klabnik <steve@steveklabnik.com>, Rain <rain@sunshowers.io> |
+| camino | 1.2.6 | MIT OR Apache-2.0 | Without Boats <saoirse@without.boats>, Ashley Williams <ashley666ashley@gmail.com>, Steve Klabnik <steve@steveklabnik.com>, Rain <rain@sunshowers.io> |
 | cargo-platform | 0.1.9 | MIT OR Apache-2.0 | — |
 | cargo_metadata | 0.19.2 | MIT | Oliver Schneider <git-spam-no-reply9815368754983@oli-obk.de> |
-| cargo_toml | 0.22.1 | Apache-2.0 OR MIT | Kornel <kornel@geekhood.net> |
-| cc | 1.2.24 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
-| cfb | 0.7.3 | MIT | Copyright (c) 2017 Matthew D. Steele |
+| cargo_toml | 1.0.1 | Apache-2.0 OR MIT | Kornel <kornel@geekhood.net> |
+| cc | 1.11.3 | MIT OR Apache-2.0 | — |
+| cfb | 0.14.0 | MIT | Copyright (c) 2017 Matthew D. Steele |
 | cfg-expr | 0.15.8 | MIT OR Apache-2.0 | Embark <opensource@embark-studios.com>, Jake Shadle <jake.shadle@embark-studios.com> |
-| cfg-if | 1.0.4 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
-| cfg_aliases | 0.2.1 | MIT | Copyright (c) 2020 Katharos Technology |
-| chrono | 0.4.41 | MIT OR Apache-2.0 | Copyright (c) 2014--2025, Kang Seonghoon and<br>Copyright (c) 2014, Kang Seonghoon. |
+| cfg-if | 1.0.5 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
+| chrono | 0.4.45 | MIT OR Apache-2.0 | Copyright (c) 2014--2026, Kang Seonghoon and<br>Copyright (c) 2014, Kang Seonghoon. |
 | concurrent-queue | 2.5.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, Taiki Endo <te316e89@gmail.com>, John Nunley <dev@notgull.net> |
+| const-oid | 0.10.3 | Apache-2.0 OR MIT | RustCrypto Developers |
 | constant_time_eq | 0.4.2 | CC0-1.0 OR MIT-0 OR Apache-2.0 | Cesar Eduardo Barros <cesarb@cesarb.eti.br> |
-| convert_case | 0.4.0 | MIT | David Purdum <purdum41@gmail.com> |
-| cookie | 0.18.1 | MIT OR Apache-2.0 | Sergio Benitez <sb@sergio.bz>, Alex Crichton <alex@alexcrichton.com> |
-| core-foundation | 0.10.0 | MIT OR Apache-2.0 | The Servo Project Developers |
+| constant_time_eq | 0.6.1 | CC0-1.0 OR MIT-0 OR Apache-2.0 | Cesar Eduardo Barros <cesarb@cesarb.eti.br> |
+| cookie | 0.18.2 | MIT OR Apache-2.0 | Sergio Benitez <sb@sergio.bz>, Alex Crichton <alex@alexcrichton.com> |
+| core-foundation | 0.10.1 | MIT OR Apache-2.0 | The Servo Project Developers |
+| core-foundation | 0.9.4 | MIT OR Apache-2.0 | The Servo Project Developers |
 | core-foundation-sys | 0.8.7 | MIT OR Apache-2.0 | The Servo Project Developers |
 | core-graphics | 0.25.0 | MIT OR Apache-2.0 | The Servo Project Developers |
 | core-graphics-types | 0.2.0 | MIT OR Apache-2.0 | The Servo Project Developers |
-| cpufeatures | 0.2.17 | MIT OR Apache-2.0 | RustCrypto Developers |
+| core_detect | 1.0.0 | MIT/Apache-2.0 | Thom Chiovoloni <chiovolonit@gmail.com> |
 | cpufeatures | 0.3.1 | MIT OR Apache-2.0 | RustCrypto Developers |
-| crc32fast | 1.4.2 | MIT OR Apache-2.0 | Sam Rijs <srijs@airpost.net>, Alex Crichton <alex@alexcrichton.com> |
-| crossbeam-channel | 0.5.15 | MIT OR Apache-2.0 | — |
-| crossbeam-deque | 0.8.6 | MIT OR Apache-2.0 | — |
-| crossbeam-epoch | 0.9.18 | MIT OR Apache-2.0 | — |
-| crossbeam-utils | 0.8.21 | MIT OR Apache-2.0 | — |
-| crypto-common | 0.1.6 | MIT OR Apache-2.0 | RustCrypto Developers |
-| csa | 1.0.2 | MIT | Copyright (c) 2017 Takashi Nozawa |
-| cssparser | 0.29.6 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
-| cssparser | 0.36.0 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
-| cssparser-macros | 0.6.1 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
-| ctor | 0.8.0 | Apache-2.0 OR MIT | Matt Mastracci <matthew@mastracci.com> |
-| ctor-proc-macro | 0.0.7 | Apache-2.0 OR MIT | Matt Mastracci <matthew@mastracci.com> |
-| darling | 0.20.11 | MIT | Copyright (c) 2017 Ted Driggs |
-| darling_core | 0.20.11 | MIT | Copyright (c) 2017 Ted Driggs |
-| darling_macro | 0.20.11 | MIT | Copyright (c) 2017 Ted Driggs |
+| crc32fast | 1.5.5 | MIT OR Apache-2.0 | Sam Rijs <srijs@airpost.net>, Alex Crichton <alex@alexcrichton.com> |
+| crossbeam-channel | 0.5.17 | MIT OR Apache-2.0 | — |
+| crossbeam-deque | 0.8.8 | MIT OR Apache-2.0 | — |
+| crossbeam-epoch | 0.9.21 | MIT OR Apache-2.0 | — |
+| crossbeam-utils | 0.8.23 | MIT OR Apache-2.0 | — |
+| crypto-common | 0.2.2 | MIT OR Apache-2.0 | RustCrypto Developers |
+| cssparser | 0.37.0 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
+| cssparser-macros | 0.7.1 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
+| ctor | 1.0.14 | Apache-2.0 OR MIT | Matt Mastracci <matthew@mastracci.com> |
+| darling | 0.24.1 | MIT | Copyright (c) 2017 Ted Driggs |
+| darling_core | 0.24.1 | MIT | Copyright (c) 2017 Ted Driggs |
+| darling_macro | 0.24.1 | MIT | Copyright (c) 2017 Ted Driggs |
 | dashmap | 6.2.1 | MIT | Copyright (c) 2019 Acrimon |
 | dbus | 0.9.12 | Apache-2.0/MIT | David Henningsson <diwic@ubuntu.com> |
-| deranged | 0.5.8 | MIT OR Apache-2.0 | Jacob Pratt <jacob@jhpratt.dev> |
-| derive_more | 0.99.20 | MIT | Copyright (c) 2016 Jelte Fennema |
+| deranged | 0.5.9 | MIT OR Apache-2.0 | Jacob Pratt <jacob@jhpratt.dev> |
 | derive_more | 2.1.1 | MIT | Copyright (c) 2016 Jelte Fennema |
 | derive_more-impl | 2.1.1 | MIT | Copyright (c) 2016 Jelte Fennema |
-| digest | 0.10.7 | MIT OR Apache-2.0 | RustCrypto Developers |
-| dirs | 6.0.0 | MIT OR Apache-2.0 | Simon Ochsenreither <simon@ochsenreither.de> |
+| digest | 0.11.3 | MIT OR Apache-2.0 | RustCrypto Developers |
+| dirs | 7.0.0 | MIT OR Apache-2.0 | Simon Ochsenreither <simon@ochsenreither.de> |
 | dirs-sys | 0.5.0 | MIT OR Apache-2.0 | Simon Ochsenreither <simon@ochsenreither.de> |
-| dispatch2 | 0.3.0 | Zlib OR Apache-2.0 OR MIT | Mads Marquart <mads@marquart.dk>, Mary <mary@mary.zone> |
-| displaydoc | 0.2.5 | MIT OR Apache-2.0 | Jane Lusby <jlusby@yaah.dev> |
+| dispatch2 | 0.3.1 | Zlib OR Apache-2.0 OR MIT | Mads Marquart <mads@marquart.dk>, Mary <mary@mary.zone> |
+| displaydoc | 0.2.7 | MIT OR Apache-2.0 | Jane Lusby <jlusby@yaah.dev> |
 | dlopen2 | 0.8.2 | MIT | Szymon Wieloch <szymon.wieloch@gmail.com>, Ahmed Masud <ahmed.masud@saf.ai>, OpenByte <development.openbyte@gmail.com> |
-| dlopen2_derive | 0.4.0 | MIT | Szymon Wieloch <szymon.wieloch@gmail.com>, OpenByte <development.openbyte@gmail.com> |
-| dom_query | 0.27.0 | MIT | Copyright (c) 2023 Mykola Humanov |
+| dlopen2_derive | 0.4.3 | MIT | Szymon Wieloch <szymon.wieloch@gmail.com>, OpenByte <development.openbyte@gmail.com> |
+| dom_query | 0.28.0 | MIT | Copyright (c) 2023 Mykola Humanov |
 | dpi | 0.1.2 | Apache-2.0 AND MIT | — |
-| dtoa | 1.0.10 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| dtoa | 1.0.11 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | dtoa-short | 0.3.5 | MPL-2.0 | Xidorn Quan <me@upsuper.org> |
-| dtor | 0.3.0 | Apache-2.0 OR MIT | Matt Mastracci <matthew@mastracci.com> |
-| dtor-proc-macro | 0.0.6 | Apache-2.0 OR MIT | Matt Mastracci <matthew@mastracci.com> |
 | dunce | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 | Kornel <kornel@geekhood.net> |
-| dyn-clone | 1.0.19 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| either | 1.15.0 | MIT OR Apache-2.0 | bluss |
-| embed-resource | 3.0.2 | MIT | Copyright (c) 2017 nabijaczleweli |
+| dyn-clone | 1.0.20 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| either | 1.19.0 | MIT OR Apache-2.0 | — |
+| embed-resource | 3.0.12 | MIT | Copyright (c) 2017 nabijaczleweli |
 | embed_plist | 1.2.2 | MIT OR Apache-2.0 | Nikolai Vazquez <hello@nikolaivazquez.com> |
-| encoding_rs | 0.8.35 | (Apache-2.0 OR MIT) AND BSD-3-Clause | Henri Sivonen <hsivonen@hsivonen.fi> |
-| endi | 1.1.0 | MIT | Zeeshan Ali Khan <zeenix@gmail.com> |
-| enumflags2 | 0.7.11 | MIT OR Apache-2.0 | maik klein <maikklein@googlemail.com>, Maja Kądziołka <maya@compilercrim.es> |
-| enumflags2_derive | 0.7.11 | MIT OR Apache-2.0 | maik klein <maikklein@googlemail.com>, Maja Kądziołka <maya@compilercrim.es> |
-| equivalent | 1.0.2 | Apache-2.0 OR MIT | — |
-| erased-serde | 0.4.6 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| errno | 0.3.12 | MIT OR Apache-2.0 | Chris Wong <lambda.fairy@gmail.com>, Dan Gohman <dev@sunfishcode.online> |
-| event-listener | 5.4.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, John Nunley <dev@notgull.net> |
+| encoding_rs | 0.8.44 | (Apache-2.0 OR MIT) AND BSD-3-Clause | Henri Sivonen <hsivonen@hsivonen.fi> |
+| endi | 1.1.1 | MIT | Zeeshan Ali Khan <zeenix@gmail.com> |
+| enumflags2 | 0.7.12 | MIT OR Apache-2.0 | maik klein <maikklein@googlemail.com>, Maja Kądziołka <maya@compilercrim.es> |
+| enumflags2_derive | 0.7.12 | MIT OR Apache-2.0 | maik klein <maikklein@googlemail.com>, Maja Kądziołka <maya@compilercrim.es> |
+| equivalent | 1.0.3 | Apache-2.0 OR MIT | — |
+| erased-serde | 0.4.11 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| errno | 0.3.15 | MIT OR Apache-2.0 | Chris Wong <lambda.fairy@gmail.com>, Dan Gohman <dev@sunfishcode.online> |
+| event-listener | 5.4.2 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, John Nunley <dev@notgull.net> |
 | event-listener-strategy | 0.5.4 | Apache-2.0 OR MIT | John Nunley <dev@notgull.net> |
-| fastrand | 2.3.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
+| fastrand | 2.5.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com> |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 | The image-rs Developers |
 | fern | 0.7.1 | MIT | Copyright (c) 2014-2017 David Ross |
 | field-offset | 0.3.6 | MIT OR Apache-2.0 | Diggory Blake <diggsey@googlemail.com> |
-| filetime | 0.2.27 | MIT/Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
-| flate2 | 1.1.1 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Josh Triplett <josh@joshtriplett.org> |
+| filetime | 0.2.30 | MIT/Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
+| find-msvc-tools | 0.1.15 | MIT OR Apache-2.0 | — |
+| flate2 | 1.1.11 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Josh Triplett <josh@joshtriplett.org> |
 | fnv | 1.0.7 | Apache-2.0 / MIT | Alex Crichton <alex@alexcrichton.com> |
 | foldhash | 0.2.0 | Zlib | Copyright (c) 2024 Orson Peters |
 | foreign-types | 0.5.0 | MIT/Apache-2.0 | Steven Fackler <sfackler@gmail.com> |
-| foreign-types-macros | 0.2.3 | MIT/Apache-2.0 | Steven Fackler <sfackler@gmail.com> |
+| foreign-types-macros | 0.2.4 | MIT/Apache-2.0 | Steven Fackler <sfackler@gmail.com> |
 | foreign-types-shared | 0.3.1 | MIT/Apache-2.0 | Steven Fackler <sfackler@gmail.com> |
-| form_urlencoded | 1.2.1 | MIT OR Apache-2.0 | The rust-url developers |
-| fsevent-sys | 4.1.0 | MIT | Copyright (c) 2015 Pierre Baillet |
-| futf | 0.1.5 | MIT / Apache-2.0 | Keegan McAllister <kmcallister@mozilla.com> |
-| futures-channel | 0.3.31 | MIT OR Apache-2.0 | — |
-| futures-core | 0.3.31 | MIT OR Apache-2.0 | — |
-| futures-executor | 0.3.31 | MIT OR Apache-2.0 | — |
-| futures-io | 0.3.31 | MIT OR Apache-2.0 | — |
-| futures-lite | 2.6.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, Contributors to futures-rs |
-| futures-macro | 0.3.31 | MIT OR Apache-2.0 | — |
-| futures-sink | 0.3.31 | MIT OR Apache-2.0 | — |
-| futures-task | 0.3.31 | MIT OR Apache-2.0 | — |
-| futures-util | 0.3.31 | MIT OR Apache-2.0 | — |
-| fxhash | 0.2.1 | Apache-2.0/MIT | cbreeden <github@u.breeden.cc> |
+| form_urlencoded | 1.2.3 | MIT OR Apache-2.0 | The rust-url developers |
+| futures-channel | 0.3.34 | MIT OR Apache-2.0 | — |
+| futures-core | 0.3.34 | MIT OR Apache-2.0 | — |
+| futures-executor | 0.3.34 | MIT OR Apache-2.0 | — |
+| futures-io | 0.3.34 | MIT OR Apache-2.0 | — |
+| futures-lite | 2.6.1 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, Contributors to futures-rs |
+| futures-macro | 0.3.34 | MIT OR Apache-2.0 | — |
+| futures-sink | 0.3.34 | MIT OR Apache-2.0 | — |
+| futures-task | 0.3.34 | MIT OR Apache-2.0 | — |
+| futures-util | 0.3.34 | MIT OR Apache-2.0 | — |
 | gdk | 0.18.2 | MIT | The gtk-rs Project Developers |
 | gdk-pixbuf | 0.18.5 | MIT | The gtk-rs Project Developers |
 | gdk-pixbuf-sys | 0.18.0 | MIT | The gtk-rs Project Developers |
@@ -249,17 +247,15 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | gdkwayland-sys | 0.18.2 | MIT | The gtk-rs Project Developers |
 | gdkx11 | 0.18.2 | MIT | The gtk-rs Project Developers |
 | gdkx11-sys | 0.18.2 | MIT | The gtk-rs Project Developers |
-| generic-array | 0.14.7 | MIT | Copyright (c) 2015 Bartłomiej Kamiński |
-| getrandom | 0.1.16 | MIT OR Apache-2.0 | The Rand Project Developers |
-| getrandom | 0.2.16 | MIT OR Apache-2.0 | The Rand Project Developers |
-| getrandom | 0.3.3 | MIT OR Apache-2.0 | The Rand Project Developers |
+| getrandom | 0.2.17 | MIT OR Apache-2.0 | The Rand Project Developers |
+| getrandom | 0.3.4 | MIT OR Apache-2.0 | The Rand Project Developers |
 | getrandom | 0.4.3 | MIT OR Apache-2.0 | The Rand Project Developers |
 | gio | 0.18.4 | MIT | The gtk-rs Project Developers |
 | gio-sys | 0.18.1 | MIT | The gtk-rs Project Developers |
 | glib | 0.18.5 | MIT | The gtk-rs Project Developers |
 | glib-macros | 0.18.5 | MIT | The gtk-rs Project Developers |
 | glib-sys | 0.18.1 | MIT | The gtk-rs Project Developers |
-| glob | 0.3.2 | MIT OR Apache-2.0 | The Rust Project Developers |
+| glob | 0.3.4 | MIT OR Apache-2.0 | The Rust Project Developers |
 | gobject-sys | 0.18.0 | MIT | The gtk-rs Project Developers |
 | gtk | 0.18.2 | MIT | The gtk-rs Project Developers |
 | gtk-sys | 0.18.2 | MIT | The gtk-rs Project Developers |
@@ -270,90 +266,94 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | heck | 0.4.1 | MIT OR Apache-2.0 | Without Boats <woboats@gmail.com> |
 | heck | 0.5.0 | MIT OR Apache-2.0 | — |
 | hex | 0.4.3 | MIT OR Apache-2.0 | KokaKiwi <kokakiwi@kokakiwi.net> |
-| html5ever | 0.29.1 | MIT OR Apache-2.0 | The html5ever Project Developers |
-| html5ever | 0.38.0 | MIT OR Apache-2.0 | The html5ever Project Developers |
-| http | 1.3.1 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Carl Lerche <me@carllerche.com>, Sean McArthur <sean@seanmonstar.com> |
-| http-body | 1.0.1 | MIT | Copyright (c) 2019-2024 Sean McArthur & Hyper Contributors |
-| http-body-util | 0.1.3 | MIT | Copyright (c) 2019-2025 Sean McArthur & Hyper Contributors |
+| html5ever | 0.39.0 | MIT OR Apache-2.0 | The html5ever Project Developers |
+| http | 1.5.0 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Carl Lerche <me@carllerche.com>, Sean McArthur <sean@seanmonstar.com> |
+| http-body | 1.1.0 | MIT | Copyright (c) 2019-2026 Sean McArthur & Hyper Contributors |
+| http-body-util | 0.1.5 | MIT | Copyright (c) 2019-2026 Sean McArthur & Hyper Contributors |
 | httparse | 1.10.1 | MIT OR Apache-2.0 | Sean McArthur <sean@seanmonstar.com> |
-| hyper | 1.6.0 | MIT | Copyright (c) 2014-2025 Sean McArthur |
-| hyper-rustls | 0.27.7 | Apache-2.0 OR ISC OR MIT | — |
-| hyper-util | 0.1.12 | MIT | Copyright (c) 2023-2025 Sean McArthur |
-| iana-time-zone | 0.1.63 | MIT OR Apache-2.0 | Andrew Straw <strawman@astraw.com>, René Kijewski <rene.kijewski@fu-berlin.de>, Ryan Lopopolo <rjl@hyperbo.la> |
-| ico | 0.5.0 | MIT | Copyright (c) 2018 Matthew D. Steele |
-| icu_collections | 2.0.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| icu_locale_core | 2.0.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| icu_normalizer | 2.0.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| icu_normalizer_data | 2.0.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| icu_properties | 2.0.1 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| icu_properties_data | 2.0.1 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| icu_provider | 2.0.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| hybrid-array | 0.4.15 | MIT OR Apache-2.0 | RustCrypto Developers |
+| hyper | 1.12.0 | MIT | Copyright (c) 2014-2026 Sean McArthur |
+| hyper-rustls | 0.27.10 | Apache-2.0 OR ISC OR MIT | — |
+| hyper-util | 0.1.21 | MIT | Copyright (c) 2023-2025 Sean McArthur |
+| iana-time-zone | 0.1.65 | MIT OR Apache-2.0 | Andrew Straw <strawman@astraw.com>, René Kijewski <rene.kijewski@fu-berlin.de>, Ryan Lopopolo <rjl@hyperbo.la> |
+| ico | 0.6.0 | MIT | Copyright (c) 2018 Matthew D. Steele |
+| icu_collections | 2.4.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| icu_locale_core | 2.4.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| icu_normalizer | 2.4.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| icu_normalizer_data | 2.4.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| icu_properties | 2.4.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| icu_properties_data | 2.4.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| icu_provider | 2.4.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
 | ident_case | 1.0.1 | MIT/Apache-2.0 | Ted Driggs <ted.driggs@outlook.com> |
-| idna | 1.0.3 | MIT OR Apache-2.0 | The rust-url developers |
-| idna_adapter | 1.2.1 | Apache-2.0 OR MIT | The rust-url developers |
+| idna | 1.1.0 | MIT OR Apache-2.0 | The rust-url developers |
+| idna_adapter | 1.2.2 | Apache-2.0 OR MIT | The rust-url developers |
 | indexmap | 1.9.3 | Apache-2.0 OR MIT | — |
-| indexmap | 2.14.1 | Apache-2.0 OR MIT | — |
-| infer | 0.19.0 | MIT | Copyright (c) 2019 Bojan |
-| inotify | 0.11.0 | ISC | Copyright (c) Hanno Braun and contributors |
-| inotify-sys | 0.1.5 | ISC | Copyright (c) Hanno Braun and contributors |
-| ipnet | 2.11.0 | MIT OR Apache-2.0 | Kris Price <kris@krisprice.nz> |
-| iri-string | 0.7.10 | MIT OR Apache-2.0 | YOSHIOKA Takuma <nop_thread@nops.red> |
+| indexmap | 2.14.2 | Apache-2.0 OR MIT | — |
+| infer | 0.22.0 | MIT | Copyright (c) 2019 Bojan |
+| inotify | 0.11.5 | ISC | Copyright (c) Hanno Braun and contributors |
+| inotify-sys | 0.1.8 | ISC | Copyright (c) Hanno Braun and contributors |
+| ipnet | 2.12.2 | MIT OR Apache-2.0 | Kris Price <kris@krisprice.nz> |
 | is-docker | 0.2.0 | MIT | Copyright (c) 2023 Sean Larkin |
 | is-wsl | 0.4.0 | MIT | Copyright (c) 2023 Sean Larkin |
 | itertools | 0.10.5 | MIT/Apache-2.0 | bluss |
-| itoa | 1.0.15 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| itoa | 1.0.19 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | javascriptcore-rs | 1.1.2 | MIT | Copyright (c) 2013-2021, The Gtk-rs Project Developers.<br>Copyright (c) 2021, Tauri Programme within The Commons Conservancy. |
 | javascriptcore-rs-sys | 1.1.1 | MIT | Copyright (c) 2013-2017, The Gtk-rs Project Developers. |
-| jobserver | 0.1.34 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
-| json-patch | 3.0.1 | MIT/Apache-2.0 | Ivan Dubrov <dubrov.ivan@gmail.com> |
-| jsonptr | 0.6.3 | MIT OR Apache-2.0 | chance dinkins, André Sá de Mello <codasm@pm.me> |
-| keyboard-types | 0.7.0 | MIT OR Apache-2.0 | Pyfisch <pyfisch@posteo.org> |
-| kuchikiki | 0.8.8-speedreader | MIT | Brave Authors, Ralph Giles <rgiles@brave.com>, Simon Sapin <simon.sapin@exyr.org> |
+| jiff | 0.2.46 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jiff | 1.0.1 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jiff-core | 0.1.8 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jiff-core | 1.0.1 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jiff-tzdb | 0.1.10 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jiff-tzdb | 1.0.0 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jiff-tzdb-platform | 0.1.3 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jiff-tzdb-platform | 1.0.0 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| jobserver | 0.1.35 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
+| json-patch | 4.2.0 | MIT/Apache-2.0 | Ivan Dubrov <dubrov.ivan@gmail.com> |
+| jsonptr | 0.7.1 | MIT OR Apache-2.0 | chance dinkins, André Sá de Mello <codasm@pm.me>, Oliver Wangler <oliver@wngr.de> |
+| keyboard-types | 0.8.3 | MIT OR Apache-2.0 | Pyfisch <pyfisch@posteo.org> |
 | libappindicator | 0.9.0 | Apache-2.0 OR MIT | — |
 | libappindicator-sys | 0.9.0 | Apache-2.0 OR MIT | — |
-| libc | 0.2.189 | MIT OR Apache-2.0 | — |
+| libc | 0.2.191 | MIT OR Apache-2.0 | — |
 | libdbus-sys | 0.2.7 | Apache-2.0/MIT | David Henningsson <diwic@ubuntu.com> |
 | libloading | 0.7.4 | ISC | Copyright © 2015, Simonas Kazlauskas |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | Dan Gohman <dev@sunfishcode.online> |
-| litemap | 0.8.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| litemap | 0.8.3 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
-| log | 0.4.34 | MIT OR Apache-2.0 | The Rust Project Developers |
-| mac | 0.1.1 | MIT/Apache-2.0 | Jonathan Reem <jonathan.reem@gmail.com> |
-| markup5ever | 0.14.1 | MIT OR Apache-2.0 | The html5ever Project Developers |
-| markup5ever | 0.38.0 | MIT OR Apache-2.0 | The html5ever Project Developers |
-| match_token | 0.1.0 | MIT OR Apache-2.0 | — |
-| matches | 0.1.10 | MIT | Copyright (c) 2014-2016 Simon Sapin |
-| memchr | 2.7.4 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com>, bluss |
+| lock_api | 0.5.0 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
+| log | 0.4.35 | MIT OR Apache-2.0 | The Rust Project Developers |
+| markup5ever | 0.39.0 | MIT OR Apache-2.0 | The html5ever Project Developers |
+| memchr | 2.8.3 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com>, bluss |
 | memoffset | 0.9.1 | MIT | Copyright (c) 2017 Gilad Naaman |
-| mime | 0.3.17 | MIT OR Apache-2.0 | Sean McArthur <sean@seanmonstar.com> |
+| mime | 0.3.18 | MIT OR Apache-2.0 | Sean McArthur <sean@seanmonstar.com> |
 | minimal-lexical | 0.2.1 | MIT/Apache-2.0 | Copyright (c) 2009 The Go Authors. All rights reserved. |
-| minisign-verify | 0.2.5 | MIT | Copyright (c) 2019-2025 Frank Denis<br>Copyright (c) 2006-2009 Graydon Hoare<br>Copyright (c) 2009-2013 Mozilla Foundation |
-| miniz_oxide | 0.8.8 | MIT OR Zlib OR Apache-2.0 | Copyright 2013-2014 RAD Game Tools and Valve Software<br>Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC<br>Copyright (c) 2017 Frommi |
-| mio | 1.0.3 | MIT | Copyright (c) 2014 Carl Lerche and other MIO contributors |
-| muda | 0.19.3 | Apache-2.0 OR MIT | — |
+| minisign-verify | 0.3.0 | MIT | Copyright (c) 2019-2025 Frank Denis<br>Copyright (c) 2006-2009 Graydon Hoare<br>Copyright (c) 2009-2013 Mozilla Foundation |
+| miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 | Copyright 2013-2014 RAD Game Tools and Valve Software<br>Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC<br>Copyright (c) 2017 Frommi |
+| miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 | Copyright 2013-2014 RAD Game Tools and Valve Software<br>Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC<br>Copyright (c) 2017 Frommi |
+| mio | 1.2.5 | MIT | Copyright (c) 2014 Carl Lerche and other MIO contributors |
+| muda | 0.20.0 | Apache-2.0 OR MIT | — |
+| multiversion_no_op | 1.0.0 | Apache-2.0 OR MIT | Henri Sivonen <hsivonen@hsivonen.fi> |
 | new_debug_unreachable | 1.0.6 | MIT | Matt Brubeck <mbrubeck@limpet.net>, Jonathan Reem <jonathan.reem@gmail.com> |
-| nodrop | 0.1.14 | MIT/Apache-2.0 | bluss |
 | nom | 7.1.3 | MIT | Copyright (c) 2014-2019 Geoffroy Couprie |
-| notify | 8.2.0 | CC0-1.0 | Félix Saparelli <me@passcod.name>, Daniel Faust <hessijames@gmail.com>, Aron Heinecke <Ox0p54r36@t-online.de> |
-| notify-types | 2.1.0 | MIT OR Apache-2.0 | Daniel Faust <hessijames@gmail.com> |
-| ntapi | 0.4.1 | Apache-2.0 OR MIT | MSxDOS <melcodos@gmail.com> |
+| notify | 9.0.0 | CC0-1.0 | Félix Saparelli <me@passcod.name>, Daniel Faust <hessijames@gmail.com>, Aron Heinecke <Ox0p54r36@t-online.de> |
+| notify-types | 2.3.1 | MIT OR Apache-2.0 | Daniel Faust <hessijames@gmail.com> |
 | num-conv | 0.2.2 | MIT OR Apache-2.0 | Jacob Pratt <jacob@jhpratt.dev> |
 | num-traits | 0.2.19 | MIT OR Apache-2.0 | The Rust Project Developers |
-| num_threads | 0.1.7 | MIT OR Apache-2.0 | Jacob Pratt <open-source@jhpratt.dev> |
-| objc2 | 0.6.4 | MIT | Mads Marquart <mads@marquart.dk> |
-| objc2-app-kit | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
-| objc2-core-foundation | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
-| objc2-core-graphics | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
+| num_threads | 0.1.8 | MIT OR Apache-2.0 | Jacob Pratt <open-source@jhpratt.dev> |
+| objc2 | 0.6.5 | MIT | Mads Marquart <mads@marquart.dk> |
+| objc2-app-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
+| objc2-core-foundation | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
+| objc2-core-graphics | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
+| objc2-core-services | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
 | objc2-encode | 4.1.0 | MIT | Mads Marquart <mads@marquart.dk> |
 | objc2-exception-helper | 0.1.1 | Zlib OR Apache-2.0 OR MIT | Mads Marquart <mads@marquart.dk> |
-| objc2-foundation | 0.3.1 | MIT | — |
-| objc2-io-kit | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
-| objc2-io-surface | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
-| objc2-osa-kit | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
-| objc2-web-kit | 0.3.1 | Zlib OR Apache-2.0 OR MIT | — |
+| objc2-foundation | 0.3.2 | MIT | — |
+| objc2-io-surface | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
+| objc2-osa-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
+| objc2-quartz-core | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
+| objc2-web-kit | 0.3.2 | Zlib OR Apache-2.0 OR MIT | — |
 | once_cell | 1.21.4 | MIT OR Apache-2.0 | Aleksey Kladov <aleksey.kladov@gmail.com> |
-| open | 5.3.3 | MIT | Copyright © `2015` `Sebastian Thiel` |
-| openssl-probe | 0.2.1 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
+| open | 5.4.5 | MIT | Copyright © `2015` `Sebastian Thiel` |
+| openssl-probe | 0.2.2 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
 | option-ext | 0.2.0 | MPL-2.0 | Simon Ochsenreither <simon@ochsenreither.de> |
 | ordered-stream | 0.2.0 | MIT OR Apache-2.0 | Daniel De Graaf <code@danieldg.net>, Zeeshan Ali Khan <zeeshanak@gnome.org> |
 | osakit | 0.3.1 | MIT OR Apache-2.0 | Marat Dulin <mdevils@gmail.com> |
@@ -361,274 +361,228 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | pango-sys | 0.18.0 | MIT | The gtk-rs Project Developers |
 | parking | 2.2.1 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, The Rust Project Developers |
 | parking_lot | 0.12.5 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
+| parking_lot | 0.13.0 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
+| parking_lot_core | 0.10.0 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
 | parking_lot_core | 0.9.12 | MIT OR Apache-2.0 | Amanieu d'Antras <amanieu@gmail.com> |
-| pathdiff | 0.2.3 | MIT/Apache-2.0 | Manish Goregaokar <manishsmail@gmail.com> |
-| percent-encoding | 2.3.1 | MIT OR Apache-2.0 | The rust-url developers |
-| phf | 0.10.1 | MIT | Steven Fackler <sfackler@gmail.com> |
-| phf | 0.11.3 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
+| percent-encoding | 2.3.2 | MIT OR Apache-2.0 | The rust-url developers |
 | phf | 0.13.1 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
-| phf | 0.8.0 | MIT | Steven Fackler <sfackler@gmail.com> |
-| phf_codegen | 0.11.3 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
 | phf_codegen | 0.13.1 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
-| phf_codegen | 0.8.0 | MIT | Steven Fackler <sfackler@gmail.com> |
-| phf_generator | 0.10.0 | MIT | Steven Fackler <sfackler@gmail.com> |
-| phf_generator | 0.11.3 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
 | phf_generator | 0.13.1 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
-| phf_generator | 0.8.0 | MIT | Steven Fackler <sfackler@gmail.com> |
-| phf_macros | 0.10.0 | MIT | Steven Fackler <sfackler@gmail.com> |
 | phf_macros | 0.13.1 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
-| phf_shared | 0.10.0 | MIT | Steven Fackler <sfackler@gmail.com> |
-| phf_shared | 0.11.3 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
 | phf_shared | 0.13.1 | MIT | Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi |
-| phf_shared | 0.8.0 | MIT | Steven Fackler <sfackler@gmail.com> |
-| pin-project-lite | 0.2.16 | Apache-2.0 OR MIT | — |
-| pin-utils | 0.1.0 | MIT OR Apache-2.0 | Josef Brandl <mail@josefbrandl.de> |
-| piper | 0.2.4 | MIT OR Apache-2.0 | Stjepan Glavina <stjepang@gmail.com>, John Nunley <dev@notgull.net> |
-| pkg-config | 0.3.32 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
-| plist | 1.7.1 | MIT | Copyright (c) 2015 Edward Barnard |
-| png | 0.17.16 | MIT OR Apache-2.0 | The image-rs Developers |
+| pin-project-lite | 0.2.18 | Apache-2.0 OR MIT | — |
+| piper | 0.2.5 | MIT OR Apache-2.0 | Stjepan Glavina <stjepang@gmail.com>, John Nunley <dev@notgull.net> |
+| pkg-config | 0.3.34 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
+| plist | 1.10.4 | MIT | Copyright (c) 2015 Edward Barnard |
 | png | 0.18.1 | MIT OR Apache-2.0 | The image-rs Developers |
 | polling | 3.11.0 | Apache-2.0 OR MIT | Stjepan Glavina <stjepang@gmail.com>, John Nunley <dev@notgull.net> |
-| potential_utf | 0.1.2 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| powerfmt | 0.2.0 | MIT OR Apache-2.0 | Jacob Pratt <jacob@jhpratt.dev> |
-| ppv-lite86 | 0.2.21 | MIT OR Apache-2.0 | The CryptoCorrosion Contributors |
+| potential_utf | 0.1.6 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| powerfmt | 0.2.1 | MIT OR Apache-2.0 | Jacob Pratt <jacob@jhpratt.dev> |
 | precomputed-hash | 0.1.1 | MIT | Copyright (c) 2017 Emilio Cobos Álvarez |
 | proc-macro-crate | 1.3.1 | MIT OR Apache-2.0 | Bastian Köcher <git@kchr.de> |
-| proc-macro-crate | 2.0.0 | MIT OR Apache-2.0 | Bastian Köcher <git@kchr.de> |
-| proc-macro-crate | 3.3.0 | MIT OR Apache-2.0 | Bastian Köcher <git@kchr.de> |
+| proc-macro-crate | 2.0.2 | MIT OR Apache-2.0 | Bastian Köcher <git@kchr.de> |
+| proc-macro-crate | 3.5.0 | MIT OR Apache-2.0 | Bastian Köcher <git@kchr.de> |
 | proc-macro-error | 1.0.4 | MIT OR Apache-2.0 | CreepySkeleton <creepy-skeleton@yandex.ru> |
 | proc-macro-error-attr | 1.0.4 | MIT OR Apache-2.0 | CreepySkeleton <creepy-skeleton@yandex.ru> |
-| proc-macro-hack | 0.5.20+deprecated | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| proc-macro2 | 1.0.95 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com>, Alex Crichton <alex@alexcrichton.com> |
-| quick-xml | 0.32.0 | MIT | — |
-| quote | 1.0.40 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| rand | 0.7.3 | MIT OR Apache-2.0 | The Rand Project Developers, The Rust Project Developers |
-| rand | 0.8.5 | MIT OR Apache-2.0 | The Rand Project Developers, The Rust Project Developers |
-| rand_chacha | 0.2.2 | MIT OR Apache-2.0 | The Rand Project Developers, The Rust Project Developers, The CryptoCorrosion Contributors |
-| rand_chacha | 0.3.1 | MIT OR Apache-2.0 | The Rand Project Developers, The Rust Project Developers, The CryptoCorrosion Contributors |
-| rand_core | 0.5.1 | MIT OR Apache-2.0 | The Rand Project Developers, The Rust Project Developers |
-| rand_core | 0.6.4 | MIT OR Apache-2.0 | The Rand Project Developers, The Rust Project Developers |
-| rand_pcg | 0.2.1 | MIT OR Apache-2.0 | The Rand Project Developers |
+| proc-macro2 | 1.0.107 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com>, Alex Crichton <alex@alexcrichton.com> |
+| quick-xml | 0.42.0 | MIT | — |
+| quote | 1.0.47 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib | Osspial <osspial@gmail.com> |
 | rayon | 1.12.0 | MIT OR Apache-2.0 | — |
 | rayon-core | 1.13.0 | MIT OR Apache-2.0 | — |
-| regex | 1.11.1 | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> |
-| regex-automata | 0.4.9 | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> |
-| regex-syntax | 0.8.5 | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> |
-| reqwest | 0.13.2 | MIT OR Apache-2.0 | Sean McArthur <sean@seanmonstar.com> |
-| rfd | 0.16.0 | MIT | Copyright (c) 2022 Bartłomiej Maryńczak |
+| ref-cast | 1.0.27 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| ref-cast-impl | 1.0.27 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| regex | 1.13.2 | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> |
+| regex-automata | 0.4.19 | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> |
+| regex-syntax | 0.8.12 | MIT OR Apache-2.0 | The Rust Project Developers, Andrew Gallant <jamslam@gmail.com> |
+| reqwest | 0.13.5 | MIT OR Apache-2.0 | Sean McArthur <sean@seanmonstar.com> |
+| rfd | 0.17.2 | MIT | Copyright (c) 2022 Bartłomiej Maryńczak |
 | ring | 0.17.14 | Apache-2.0 AND ISC | — |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT | The Rust Project Developers |
 | rustc_version | 0.4.1 | MIT OR Apache-2.0 | — |
-| rustix | 1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | Dan Gohman <dev@sunfishcode.online>, Jakub Konka <kubkon@jakubkonka.com> |
-| rustls | 0.23.37 | Apache-2.0 OR ISC OR MIT | — |
-| rustls-native-certs | 0.8.4 | Apache-2.0 OR ISC OR MIT | — |
-| rustls-pki-types | 1.14.0 | MIT OR Apache-2.0 | — |
-| rustls-platform-verifier | 0.6.2 | MIT OR Apache-2.0 | — |
-| rustls-webpki | 0.103.15 | ISC | Copyright 2015 Brian Smith. |
-| rustversion | 1.0.21 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| rustix | 1.1.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | Dan Gohman <dev@sunfishcode.online>, Jakub Konka <kubkon@jakubkonka.com> |
+| rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT | — |
+| rustls-native-certs | 0.8.5 | Apache-2.0 OR ISC OR MIT | — |
+| rustls-pki-types | 1.16.0 | MIT OR Apache-2.0 | — |
+| rustls-platform-verifier | 0.7.1 | MIT OR Apache-2.0 | — |
+| rustls-webpki | 0.103.17 | ISC | Copyright 2015 Brian Smith. |
+| rustversion | 1.0.23 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | same-file | 1.0.6 | Unlicense/MIT | Andrew Gallant <jamslam@gmail.com> |
 | schemars | 0.8.22 | MIT | Copyright (c) 2019 Graham Esau |
+| schemars | 0.9.0 | MIT | Copyright (c) 2019 Graham Esau |
+| schemars | 1.2.3 | MIT | Copyright (c) 2019 Graham Esau |
 | schemars_derive | 0.8.22 | MIT | Copyright (c) 2019 Graham Esau |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 | bluss |
 | security-framework | 3.7.0 | MIT OR Apache-2.0 | Steven Fackler <sfackler@gmail.com>, Kornel <kornel@geekhood.net> |
 | security-framework-sys | 2.17.0 | MIT OR Apache-2.0 | Steven Fackler <sfackler@gmail.com>, Kornel <kornel@geekhood.net> |
-| selectors | 0.24.0 | MPL-2.0 | The Servo Project Developers |
-| selectors | 0.36.1 | MPL-2.0 | The Servo Project Developers |
-| semver | 1.0.26 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| selectors | 0.38.0 | MPL-2.0 | The Servo Project Developers |
+| semver | 1.0.28 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | serde | 1.0.229 | MIT OR Apache-2.0 | Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com> |
-| serde-untagged | 0.1.7 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| serde-untagged | 0.1.9 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | serde_core | 1.0.229 | MIT OR Apache-2.0 | Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com> |
 | serde_derive | 1.0.229 | MIT OR Apache-2.0 | Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com> |
 | serde_derive_internals | 0.29.1 | MIT OR Apache-2.0 | Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com> |
-| serde_json | 1.0.151 | MIT OR Apache-2.0 | Erick Tryzelaar <erick.tryzelaar@gmail.com>, David Tolnay <dtolnay@gmail.com> |
-| serde_repr | 0.1.20 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| serde_spanned | 0.6.8 | MIT OR Apache-2.0 | — |
-| serde_spanned | 1.1.1 | MIT OR Apache-2.0 | — |
-| serde_with | 3.12.0 | MIT OR Apache-2.0 | Jonas Bushart, Marcin Kaźmierczak |
-| serde_with_macros | 3.12.0 | MIT OR Apache-2.0 | Jonas Bushart |
+| serde_json | 1.0.154 | MIT OR Apache-2.0 | — |
+| serde_repr | 0.1.21 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| serde_spanned | 0.6.9 | MIT OR Apache-2.0 | — |
+| serde_spanned | 1.1.3 | MIT OR Apache-2.0 | — |
+| serde_with | 3.25.0 | MIT OR Apache-2.0 | Jonas Bushart, Marcin Kaźmierczak |
+| serde_with_macros | 3.25.0 | MIT OR Apache-2.0 | Jonas Bushart |
 | serialize-to-javascript | 0.1.2 | MIT OR Apache-2.0 | Chip Reed <chip@chip.sh> |
 | serialize-to-javascript-impl | 0.1.2 | MIT OR Apache-2.0 | Chip Reed <chip@chip.sh> |
-| servo_arc | 0.2.0 | MIT OR Apache-2.0 | The Servo Project Developers |
 | servo_arc | 0.4.3 | MIT OR Apache-2.0 | The Servo Project Developers |
-| sha2 | 0.10.9 | MIT OR Apache-2.0 | RustCrypto Developers |
-| shlex | 1.3.0 | MIT OR Apache-2.0 | comex <comexk@gmail.com>, Fenhl <fenhl@fenhl.net>, Adrian Taylor <adetaylor@chromium.org>, Alex Touchet <alextouchet@outlook.com>, Daniel Parks <dp+git@oxidized.org>, Garrett Berg <googberg@gmail.com> |
-| shogi-kifu-converter | 0.5.0 | MIT | Copyright (c) 2022 Yoshihiro Sugi |
+| sha2 | 0.11.1 | MIT OR Apache-2.0 | RustCrypto Developers |
+| shlex | 2.0.1 | MIT OR Apache-2.0 | comex <comexk@gmail.com>, Fenhl <fenhl@fenhl.net>, Adrian Taylor <adetaylor@chromium.org>, Alex Touchet <alextouchet@outlook.com>, Daniel Parks <dp+git@oxidized.org>, Garrett Berg <googberg@gmail.com> |
+| shogi-kifu-converter | 0.6.1 | MIT | Copyright (c) 2022 Yoshihiro Sugi |
 | shogi_core | 0.1.5 | MIT | Rust shogi crates developers |
 | shogi_legality_lite | 0.1.3 | MIT | Rust shogi crates developers |
-| shogi_official_kifu | 0.1.2 | MIT | Rust shogi crates developers |
-| signal-hook-registry | 1.4.5 | Apache-2.0/MIT | Michal 'vorner' Vaner <vorner@vorner.cz>, Masaki Hara <ackie.h.gmai@gmail.com> |
-| simd-adler32 | 0.3.7 | MIT | Copyright (c) [2021] [Marvin Countryman] |
-| siphasher | 0.3.11 | MIT/Apache-2.0 | Copyright 2012-2016 The Rust Project Developers.<br>Copyright 2016-2023 Frank Denis. |
-| siphasher | 1.0.1 | MIT/Apache-2.0 | Copyright 2012-2016 The Rust Project Developers.<br>Copyright 2016-2024 Frank Denis. |
-| slab | 0.4.9 | MIT | Copyright (c) 2019 Carl Lerche |
-| smallvec | 1.15.0 | MIT OR Apache-2.0 | The Servo Project Developers |
-| socket2 | 0.5.9 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Thomas de Zeeuw <thomasdezeeuw@gmail.com> |
+| signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 | Michal 'vorner' Vaner <vorner@vorner.cz>, Masaki Hara <ackie.h.gmai@gmail.com> |
+| simd-adler32 | 0.3.10 | MIT | Copyright (c) [2021] [Marvin Countryman] |
+| simdutf8 | 0.1.5 | MIT OR Apache-2.0 | Hans Kratz <hans@appfour.com> |
+| siphasher | 1.0.4 | MIT OR Apache-2.0 | Copyright 2012-2016 The Rust Project Developers.<br>Copyright 2016-2026 Frank Denis. |
+| slab | 0.4.12 | MIT | Copyright (c) 2019 Carl Lerche |
+| smallvec | 1.16.6 | MIT OR Apache-2.0 | The Servo Project Developers |
 | socket2 | 0.6.5 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com>, Thomas de Zeeuw <thomasdezeeuw@gmail.com> |
-| softbuffer | 0.4.6 | MIT OR Apache-2.0 | — |
+| softbuffer | 0.4.8 | MIT OR Apache-2.0 | — |
 | soup3 | 0.5.0 | MIT | Copyright (c) 2013-2017, The Gtk-rs Project Developers. |
 | soup3-sys | 0.5.0 | MIT | Copyright (c) 2013-2017, The Gtk-rs Project Developers. |
-| stable_deref_trait | 1.2.0 | MIT/Apache-2.0 | Robert Grosse <n210241048576@gmail.com> |
-| string_cache | 0.8.9 | MIT OR Apache-2.0 | The Servo Project Developers |
+| stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 | Robert Grosse <n210241048576@gmail.com> |
+| static_vcruntime | 3.0.0 | MIT OR Apache-2.0 OR Zlib | — |
 | string_cache | 0.9.0 | MIT OR Apache-2.0 | The Servo Project Developers |
-| string_cache_codegen | 0.5.4 | MIT OR Apache-2.0 | The Servo Project Developers |
 | string_cache_codegen | 0.6.1 | MIT OR Apache-2.0 | The Servo Project Developers |
 | strsim | 0.11.1 | MIT | Copyright (c) 2015 Danny Guo<br>Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com><br>Copyright (c) 2018 Akash Kurdekar |
 | subtle | 2.6.1 | BSD-3-Clause | Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights reserved.<br>Copyright (c) 2016-2024 Isis Agora Lovecruft. All rights reserved. |
-| swift-rs | 1.0.7 | MIT OR Apache-2.0 | The swift-rs contributors |
+| swift-rs | 1.0.9 | MIT OR Apache-2.0 | The swift-rs contributors |
 | syn | 1.0.109 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| syn | 2.0.101 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| syn | 3.0.4 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| syn | 2.0.119 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| syn | 3.0.10 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | sync_wrapper | 1.0.2 | Apache-2.0 | Actyx AG <developer@actyx.io> |
-| synstructure | 0.13.2 | MIT | Copyright 2016 Nika Layzell |
-| sysinfo | 0.38.3 | MIT | Copyright (c) 2015 Guillaume Gomez |
+| synstructure | 0.14.0 | MIT | Copyright 2016 Nika Layzell |
+| system-configuration | 0.7.0 | MIT OR Apache-2.0 | Mullvad VPN |
+| system-configuration-sys | 0.6.0 | MIT OR Apache-2.0 | Mullvad VPN |
 | system-deps | 6.2.2 | MIT OR Apache-2.0 | Guillaume Desmottes <guillaume.desmottes@collabora.com>, Josh Triplett <josh@joshtriplett.org> |
-| tao | 0.35.3 | Apache-2.0 | Tauri Programme within The Commons Conservancy, The winit contributors |
+| tao | 0.37.3 | Apache-2.0 | Tauri Programme within The Commons Conservancy, The winit contributors |
 | tar | 0.4.46 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
 | target-lexicon | 0.12.16 | Apache-2.0 WITH LLVM-exception | Dan Gohman <sunfish@mozilla.com> |
-| tauri | 2.11.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-build | 2.6.3 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-codegen | 2.6.3 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-macros | 2.6.3 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-plugin | 2.5.4 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-plugin-dialog | 2.7.2 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-plugin-fs | 2.5.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-plugin-log | 2.9.0 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-plugin-opener | 2.5.4 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-plugin-process | 2.3.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-plugin-updater | 2.10.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-runtime | 2.11.3 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-runtime-wry | 2.11.4 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-utils | 2.9.3 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| tauri-winres | 0.3.1 | MIT | Copyright (c) 2023 - Present Tauri Apps Contributors<br>Copyright (c) 2016 Max Resch |
-| tempfile | 3.20.0 | MIT OR Apache-2.0 | Steven Allen <steven@stebalien.com>, The Rust Project Developers, Ashley Mannix <ashleymannix@live.com.au>, Jason White <me@jasonwhite.io> |
-| tendril | 0.4.3 | MIT/Apache-2.0 | Keegan McAllister <mcallister.keegan@gmail.com>, Simon Sapin <simon.sapin@exyr.org>, Chris Morgan <me@chrismorgan.info> |
+| tauri | 2.12.7 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-build | 2.7.6 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-codegen | 2.7.6 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-macros | 2.7.6 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-plugin | 2.7.4 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-plugin-dialog | 2.8.4 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-plugin-fs | 2.7.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-plugin-log | 2.10.2 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-plugin-opener | 2.7.3 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-plugin-process | 2.4.0 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-plugin-updater | 2.14.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-runtime | 2.12.4 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-runtime-wry | 2.12.5 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-utils | 2.10.4 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| tauri-winres | 0.3.7 | MIT | Copyright (c) 2023 - Present Tauri Apps Contributors<br>Copyright (c) 2016 Max Resch |
+| tempfile | 3.27.0 | MIT OR Apache-2.0 | Steven Allen <steven@stebalien.com>, The Rust Project Developers, Ashley Mannix <ashleymannix@live.com.au>, Jason White <me@jasonwhite.io> |
 | tendril | 0.5.1 | MIT OR Apache-2.0 | Keegan McAllister <mcallister.keegan@gmail.com>, Simon Sapin <simon.sapin@exyr.org>, Chris Morgan <me@chrismorgan.info> |
 | thiserror | 1.0.69 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| thiserror | 2.0.20 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| thiserror | 2.0.21 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | thiserror-impl | 1.0.69 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| thiserror-impl | 2.0.20 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
+| thiserror-impl | 2.0.21 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
 | time | 0.3.55 | MIT OR Apache-2.0 | Jacob Pratt <open-source@jhpratt.dev>, Time contributors |
 | time-core | 0.1.9 | MIT OR Apache-2.0 | Jacob Pratt <open-source@jhpratt.dev>, Time contributors |
 | time-macros | 0.2.32 | MIT OR Apache-2.0 | Jacob Pratt <open-source@jhpratt.dev>, Time contributors |
-| tinystr | 0.8.1 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| tokio | 1.50.0 | MIT | Copyright (c) Tokio Contributors |
-| tokio-macros | 2.6.1 | MIT | Copyright (c) 2019 Yoshua Wuyts<br>Copyright (c) Tokio Contributors |
-| tokio-rustls | 0.26.4 | MIT OR Apache-2.0 | — |
-| tokio-util | 0.7.19 | MIT | Copyright (c) Tokio Contributors |
-| toml | 0.8.22 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
-| toml | 0.9.6 | MIT OR Apache-2.0 | — |
-| toml | 1.1.4+spec-1.1.0 | MIT OR Apache-2.0 | — |
-| toml_datetime | 0.6.9 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
-| toml_datetime | 0.7.5+spec-1.1.0 | MIT OR Apache-2.0 | — |
-| toml_datetime | 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 | — |
+| tinystr | 0.8.5 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| tinyvec | 1.13.3 | Zlib OR Apache-2.0 OR MIT | Lokathor <zefria@gmail.com> |
+| tokio | 1.54.1 | MIT | Copyright (c) Tokio Contributors |
+| tokio-macros | 2.7.2 | MIT | Copyright (c) 2019 Yoshua Wuyts<br>Copyright (c) Tokio Contributors |
+| tokio-rustls | 0.26.6 | MIT OR Apache-2.0 | — |
+| tokio-util | 0.7.20 | MIT | Copyright (c) Tokio Contributors |
+| toml | 0.8.2 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
+| toml | 1.2.2+spec-1.1.0 | MIT OR Apache-2.0 | — |
+| toml_datetime | 0.6.3 | MIT OR Apache-2.0 | Alex Crichton <alex@alexcrichton.com> |
+| toml_datetime | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | — |
 | toml_edit | 0.19.15 | MIT OR Apache-2.0 | Andronik Ordian <write@reusable.software>, Ed Page <eopage@gmail.com> |
-| toml_edit | 0.20.7 | MIT OR Apache-2.0 | Andronik Ordian <write@reusable.software>, Ed Page <eopage@gmail.com> |
-| toml_edit | 0.22.26 | MIT OR Apache-2.0 | Andronik Ordian <write@reusable.software>, Ed Page <eopage@gmail.com> |
-| toml_parser | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | — |
-| toml_write | 0.1.1 | MIT OR Apache-2.0 | — |
-| toml_writer | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | — |
-| tower | 0.5.2 | MIT | Copyright (c) 2019 Tower Contributors |
-| tower-http | 0.6.8 | MIT | Copyright (c) 2019-2021 Tower Contributors |
+| toml_edit | 0.20.2 | MIT OR Apache-2.0 | Andronik Ordian <write@reusable.software>, Ed Page <eopage@gmail.com> |
+| toml_edit | 0.25.20+spec-1.1.0 | MIT OR Apache-2.0 | — |
+| toml_parser | 1.1.6+spec-1.1.0 | MIT OR Apache-2.0 | — |
+| toml_writer | 1.2.0+spec-1.1.0 | MIT OR Apache-2.0 | — |
+| tower | 0.5.3 | MIT | Copyright (c) 2019 Tower Contributors |
+| tower-http | 0.6.11 | MIT | Copyright (c) 2019-2021 Tower Contributors |
 | tower-layer | 0.3.3 | MIT | Copyright (c) 2019 Tower Contributors |
 | tower-service | 0.3.3 | MIT | Copyright (c) 2019 Tower Contributors |
-| tracing | 0.1.41 | MIT | Copyright (c) 2019 Tokio Contributors |
-| tracing-attributes | 0.1.28 | MIT | Copyright (c) 2019 Tokio Contributors |
-| tracing-core | 0.1.33 | MIT | Copyright (c) 2019 Tokio Contributors |
-| tray-icon | 0.23.1 | MIT OR Apache-2.0 | — |
+| tracing | 0.1.44 | MIT | Copyright (c) 2019 Tokio Contributors |
+| tracing-attributes | 0.1.31 | MIT | Copyright (c) 2019 Tokio Contributors |
+| tracing-core | 0.1.36 | MIT | Copyright (c) 2019 Tokio Contributors |
+| tray-icon | 0.25.1 | MIT OR Apache-2.0 | — |
 | try-lock | 0.2.5 | MIT | Copyright (c) 2018-2023 Sean McArthur<br>Copyright (c) 2016 Alex Crichton |
+| typed-path | 0.13.0 | MIT OR Apache-2.0 | Chip Senkbeil <chip@senkbeil.org> |
 | typeid | 1.0.3 | MIT OR Apache-2.0 | David Tolnay <dtolnay@gmail.com> |
-| typenum | 1.18.0 | MIT OR Apache-2.0 | Paho Lurie-Gregg <paho@paholg.com>, Andre Bogus <bogusandre@gmail.com> |
-| unic-char-property | 0.9.0 | MIT/Apache-2.0 | The UNIC Project Developers |
-| unic-char-range | 0.9.0 | MIT/Apache-2.0 | The UNIC Project Developers |
-| unic-common | 0.9.0 | MIT/Apache-2.0 | The UNIC Project Developers |
-| unic-ucd-ident | 0.9.0 | MIT/Apache-2.0 | The UNIC Project Developers |
-| unic-ucd-version | 0.9.0 | MIT/Apache-2.0 | The UNIC Project Developers |
-| unicode-ident | 1.0.18 | (MIT OR Apache-2.0) AND Unicode-3.0 | David Tolnay <dtolnay@gmail.com> |
-| unicode-segmentation | 1.12.0 | MIT OR Apache-2.0 | kwantam <kwantam@gmail.com>, Manish Goregaokar <manishsmail@gmail.com> |
+| typenum | 1.20.1 | MIT OR Apache-2.0 | — |
+| unicode-ident | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 | David Tolnay <dtolnay@gmail.com> |
+| unicode-segmentation | 1.13.3 | MIT OR Apache-2.0 | kwantam <kwantam@gmail.com>, Manish Goregaokar <manishsmail@gmail.com> |
 | untrusted | 0.9.0 | ISC | Copyright 2015-2016 Brian Smith. |
-| url | 2.5.4 | MIT OR Apache-2.0 | The rust-url developers |
-| urlpattern | 0.3.0 | MIT | Copyright (c) 2021 the Deno authors |
+| url | 2.5.9 | MIT OR Apache-2.0 | The rust-url developers |
+| urlpattern | 0.6.0 | MIT | Copyright (c) 2021 the Deno authors |
 | usi | 0.6.2 | MIT | Copyright (c) 2017 Takashi Nozawa |
-| utf-8 | 0.7.6 | MIT OR Apache-2.0 | Simon Sapin <simon.sapin@exyr.org> |
-| utf8_iter | 1.0.4 | Apache-2.0 OR MIT | Henri Sivonen <hsivonen@hsivonen.fi> |
-| uuid | 1.25.0 | Apache-2.0 OR MIT | Ashley Mannix<ashleymannix@live.com.au>, Dylan DPC<dylan.dpc@gmail.com>, Hunar Roop Kahlon<hunar.roop@gmail.com> |
-| version-compare | 0.2.0 | MIT | Copyright (c) 2017 Tim Visée |
+| utf8_iter | 1.1.0 | Apache-2.0 OR MIT | Henri Sivonen <hsivonen@hsivonen.fi> |
+| utf_types | 1.0.0 | Apache-2.0 OR MIT | Henri Sivonen <hsivonen@hsivonen.fi> |
+| uuid | 1.29.3 | Apache-2.0 OR MIT | — |
+| version-compare | 0.2.1 | MIT | Copyright (c) 2017 Tim Visée |
 | version_check | 0.9.5 | MIT/Apache-2.0 | Sergio Benitez <sb@sergio.bz> |
 | vswhom | 0.1.0 | MIT | Copyright (c) 2019 nabijaczleweli |
 | vswhom-sys | 0.1.3 | MIT | Copyright (c) 2019 nabijaczleweli |
-| walkdir | 2.5.0 | Unlicense/MIT | Andrew Gallant <jamslam@gmail.com> |
-| want | 0.3.1 | MIT | Copyright (c) 2018-2019 Sean McArthur |
+| walkdir | 2.5.1 | Unlicense/MIT | Andrew Gallant <jamslam@gmail.com> |
+| want | 0.3.2 | MIT | Copyright (c) 2018-2019 Sean McArthur |
+| web-time | 1.1.0 | MIT OR Apache-2.0 | — |
 | web_atoms | 0.2.6 | MIT OR Apache-2.0 | The html5ever Project Developers |
 | webkit2gtk | 2.0.2 | MIT | Copyright (c) 2016 Boucher, Antoni <bouanto@zoho.com><br>Copyright (c) 2017-2021, The Gtk-rs Project Developers.<br>Copyright (c) 2021, Tauri Programme within The Commons Conservancy |
 | webkit2gtk-sys | 2.0.2 | MIT | Copyright (c) 2016 Boucher, Antoni <bouanto@zoho.com> |
-| webview2-com | 0.38.2 | MIT | — |
+| webview2-com | 0.39.1 | MIT | — |
 | webview2-com-macros | 0.8.1 | MIT | — |
-| webview2-com-sys | 0.38.2 | MIT | — |
-| winapi | 0.3.9 | MIT/Apache-2.0 | Peter Atashian <retep998@gmail.com> |
-| winapi-util | 0.1.9 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
-| window-vibrancy | 0.6.0 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
-| windows | 0.61.1 | MIT OR Apache-2.0 | Microsoft |
+| webview2-com-sys | 0.39.1 | MIT | — |
+| winapi-util | 0.1.11 | Unlicense OR MIT | Andrew Gallant <jamslam@gmail.com> |
+| window-vibrancy | 0.8.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
 | windows | 0.62.2 | MIT OR Apache-2.0 | — |
-| windows-collections | 0.2.0 | MIT OR Apache-2.0 | — |
 | windows-collections | 0.3.2 | MIT OR Apache-2.0 | — |
-| windows-core | 0.61.2 | MIT OR Apache-2.0 | Microsoft |
 | windows-core | 0.62.2 | MIT OR Apache-2.0 | — |
-| windows-future | 0.2.1 | MIT OR Apache-2.0 | — |
 | windows-future | 0.3.2 | MIT OR Apache-2.0 | — |
 | windows-implement | 0.60.2 | MIT OR Apache-2.0 | — |
 | windows-interface | 0.59.3 | MIT OR Apache-2.0 | — |
-| windows-link | 0.1.1 | MIT OR Apache-2.0 | Microsoft |
 | windows-link | 0.2.1 | MIT OR Apache-2.0 | — |
-| windows-numerics | 0.2.0 | MIT OR Apache-2.0 | — |
 | windows-numerics | 0.3.1 | MIT OR Apache-2.0 | — |
-| windows-result | 0.3.4 | MIT OR Apache-2.0 | Microsoft |
+| windows-registry | 0.6.1 | MIT OR Apache-2.0 | — |
 | windows-result | 0.4.1 | MIT OR Apache-2.0 | — |
-| windows-strings | 0.4.2 | MIT OR Apache-2.0 | Microsoft |
 | windows-strings | 0.5.1 | MIT OR Apache-2.0 | — |
-| windows-sys | 0.48.0 | MIT OR Apache-2.0 | Microsoft |
-| windows-sys | 0.52.0 | MIT OR Apache-2.0 | Microsoft |
-| windows-sys | 0.59.0 | MIT OR Apache-2.0 | Microsoft |
-| windows-sys | 0.60.2 | MIT OR Apache-2.0 | Microsoft |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 | — |
-| windows-targets | 0.48.5 | MIT OR Apache-2.0 | Microsoft |
-| windows-targets | 0.52.6 | MIT OR Apache-2.0 | Microsoft |
-| windows-targets | 0.53.5 | MIT OR Apache-2.0 | — |
-| windows-threading | 0.1.0 | MIT OR Apache-2.0 | Microsoft |
 | windows-threading | 0.2.1 | MIT OR Apache-2.0 | — |
-| windows-version | 0.1.4 | MIT OR Apache-2.0 | Microsoft |
-| windows_x86_64_msvc | 0.48.5 | MIT OR Apache-2.0 | Microsoft |
-| windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | Microsoft |
-| windows_x86_64_msvc | 0.53.0 | MIT OR Apache-2.0 | Microsoft |
+| windows-version | 0.1.7 | MIT OR Apache-2.0 | — |
 | winnow | 0.5.40 | MIT | — |
-| winnow | 0.7.10 | MIT | — |
-| winnow | 1.0.4 | MIT | — |
-| winreg | 0.52.0 | MIT | Copyright (c) 2015 Igor Shaula |
-| writeable | 0.6.1 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| wry | 0.55.1 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
+| winnow | 1.0.5 | MIT | — |
+| winreg | 0.56.0 | MIT | Copyright (c) 2015 Igor Shaula |
+| writeable | 0.6.4 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| wry | 0.57.3 | Apache-2.0 OR MIT | Tauri Programme within The Commons Conservancy |
 | x11 | 2.21.0 | MIT | daggerbot <daggerbot@gmail.com>, Erle Pereira <erle@erlepereira.com>, AltF02 <contact@altf2.dev> |
 | x11-dl | 2.21.0 | MIT | daggerbot <daggerbot@gmail.com>, Erle Pereira <erle@erlepereira.com>, AltF02 <contact@altf2.dev> |
-| xattr | 1.6.1 | MIT OR Apache-2.0 | Steven Allen <steven@stebalien.com> |
-| yoke | 0.8.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| yoke-derive | 0.8.0 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| xattr | 1.7.0 | MIT OR Apache-2.0 | Steven Allen <steven@stebalien.com> |
+| xxhash-rust | 0.8.21 | BSL-1.0 | Douman <douman@gmx.se> |
+| yoke | 0.8.4 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| yoke-derive | 0.8.4 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
 | zbus | 5.19.0 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
 | zbus_macros | 5.19.0 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
-| zbus_names | 4.3.4 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
-| zcheapstr | 1.1.0 | MIT | Copyright (c) 2026 Zeeshan Ali Khan & zcheapstr contributors |
-| zerocopy | 0.8.25 | BSD-2-Clause OR Apache-2.0 OR MIT | Joshua Liebow-Feeser <joshlf@google.com>, Jack Wrenn <jswrenn@amazon.com> |
-| zerofrom | 0.1.6 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| zerofrom-derive | 0.1.6 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| zeroize | 1.8.2 | Apache-2.0 OR MIT | The RustCrypto Project Developers |
-| zerotrie | 0.2.2 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| zerovec | 0.11.2 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| zerovec-derive | 0.11.1 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
-| zip | 4.6.1 | MIT | Copyright (c) 2014 Mathijs van de Nes |
+| zbus_names | 4.3.5 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
+| zcheapstr | 1.4.0 | MIT | Copyright (c) 2026 Zeeshan Ali Khan & zcheapstr contributors |
+| zerofrom | 0.1.8 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| zerofrom-derive | 0.1.8 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| zeroize | 1.9.2 | Apache-2.0 OR MIT | The RustCrypto Project Developers |
+| zeroize_derive | 1.5.0 | Apache-2.0 OR MIT | The RustCrypto Project Developers |
+| zerotrie | 0.2.5 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| zerovec | 0.11.9 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| zerovec-derive | 0.11.7 | Unicode-3.0 | Copyright © 2020-2024 Unicode, Inc. |
+| zip | 9.8.1 | MIT | Copyright (c) 2014 Mathijs van de Nes |
+| zlib-rs | 0.6.8 | Zlib | — |
 | zmij | 1.0.23 | MIT | David Tolnay <dtolnay@gmail.com> |
-| zstd | 0.13.3 | MIT | Copyright (c) 2016 Alexandre Bury |
-| zstd-safe | 7.2.4 | MIT OR Apache-2.0 | Copyright (c) 2016 Alexandre Bury |
-| zstd-sys | 2.0.16+zstd.1.5.7 | MIT/Apache-2.0 | Copyright (c) 2016-present, Facebook, Inc. All rights reserved. |
-| zvariant | 5.15.0 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
-| zvariant_derive | 5.15.0 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
+| zstd | 0.14.4 | BSD-3-Clause | Copyright (c) 2026, Alexandre Bury |
+| zstd-safe | 8.3.0 | BSD-3-Clause | Copyright (c) 2026, Alexandre Bury |
+| zstd-sys | 2.1.3+zstd.1.5.7 | BSD-3-Clause AND BSD-2-Clause | Copyright (c) 2026, Alexandre Bury |
+| zvariant | 5.15.1 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
+| zvariant_derive | 5.15.1 | MIT | Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors |
 | zvariant_utils | 4.2.0 | MIT | Zeeshan Ali Khan <zeeshanak@gnome.org>, turbocooler <turbocooler@cocaine.ninja> |
 
 ## ライセンス本文
@@ -859,6 +813,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
+### BSD-2-Clause
+
+```
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ### BSD-3-Clause
 
 ```
@@ -871,6 +837,34 @@ Redistribution and use in source and binary forms, with or without modification,
 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### BSL-1.0
+
+```
+Boost Software License - Version 1.0 - August 17th, 2003
+
+Permission is hereby granted, free of charge, to any person or organization
+obtaining a copy of the software and accompanying documentation covered by
+this license (the "Software") to use, reproduce, display, distribute,
+execute, and transmit the Software, and to prepare derivative works of the
+Software, and to permit third-parties to whom the Software is furnished to
+do so, all subject to the following:
+
+The copyright notices in the Software and this entire statement, including
+the above license grant, this restriction and the following disclaimer,
+must be included in all copies of the Software, in whole or in part, and
+all derivative works of the Software, unless such copies or derivative
+works are solely in the form of machine-executable object code generated by
+a source language processor.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE
+FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ```
 
 ### CC0-1.0

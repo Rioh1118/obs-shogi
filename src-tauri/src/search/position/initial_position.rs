@@ -30,7 +30,7 @@ pub type Jkf = JsonKifuFormat;
 ///
 /// # Errors
 ///
-/// [`ConvertError::InitialBoardNoDataWithPresetOTHER`] だけ。`preset` が `OTHER`
+/// [`ConvertError::UnknownPreset`] だけ。`preset` が `OTHER`
 /// なのに `data` が無い JKF で起きる。
 ///
 /// **盤の座標も持駒の枚数もここでは検査されない。** 座標は `data.board` の型が

@@ -152,7 +152,7 @@ pub(super) fn derive_side_after(settings: &GameSettings, played: usize) -> Side 
         .and_then(Side::from_sfen_token)
         .unwrap_or(Side::Black);
 
-    if played % 2 == 0 {
+    if played.is_multiple_of(2) {
         root
     } else {
         root.opponent()

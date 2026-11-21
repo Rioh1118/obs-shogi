@@ -24,10 +24,23 @@ vi.mock("@/entities/kifu/api/parse", () => ({
   parseKifuStringToJKF: (text: string) => ({ jkf: { text } }),
 }));
 
+/**
+ * 再生器の代わり。`readableCurrentMove` が読む `tesuu` と `currentStream` だけを持つ。
+ * 手は正規化を通した形（`color` 付き）で置く。足りないと表記の組み立てが例外になり、
+ * 画面は「続きが無い」側へ落ちるのに、回数だけを見るテストは緑のまま通る
+ */
+const PLAYER_AT_FIRST_MOVE = {
+  tesuu: 1,
+  currentStream: [
+    {},
+    { move: { color: 0, from: { x: 7, y: 7 }, to: { x: 7, y: 6 }, piece: "FU" } },
+  ],
+};
+
 vi.mock("@/entities/kifu/lib/buildPlayer", () => ({
   buildPlayer: (...args: unknown[]) => {
     buildPlayer(...args);
-    return { getReadableKifu: () => "☗７六歩" };
+    return PLAYER_AT_FIRST_MOVE;
   },
 }));
 
@@ -116,6 +129,7 @@ describe("この先の手を取り直す回数", () => {
     });
     await settle();
     expect(buildPlayer).toHaveBeenCalledTimes(1);
+    expect(v.container.textContent).toContain("☗７六歩");
 
     for (let i = 0; i < 5; i++) {
       await act(async () => {

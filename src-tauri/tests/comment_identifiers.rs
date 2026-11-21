@@ -117,28 +117,28 @@ const EXEMPT: &[&str] = &[
     // --- `std` ---
     // 確保に失敗したときの挙動を説明している
     "handle_alloc_error",
-    // MSRV では使えないことを書いている
-    "repeat_n",
     // --- `nom` ---
     // パースの失敗をそのまま引用できることの根拠
     "convert_error",
-    // 空行の扱いを説明している
-    "is_a",
-    "line_sep",
-    // --- `csa` ---
-    // 残り入力を捨てて `Ok` を返すこと（自前で読む理由）
-    "parse_csa",
+    // --- `shogi_kifu_converter`（CSA） ---
+    // ファイルを開いて復号まで済ませること（自前で復号する理由）
     "parse_csa_file",
-    "game_record",
-    // 段の読み方（短い段を補わない理由）
-    "board_row",
-    "grid_piece",
     // --- `shogi_kifu_converter` ---
+    // KIF の盤面の段の読み方（題材の列の見出しを2文字空ける理由）
+    "board_row",
     // 手合割の盤面の寄せ方
     "normalize_initial",
     // 読めなかったことの表し方
     "recognised_nothing",
-    "stopped_at",
+    // --- tsshogi（画面の CSA の読み手。`node_modules` にだけ在る） ---
+    // 盤面の段を升に切る手続き。索引の検査が同じ切り方を写していることの根拠
+    "parseRank",
+    // 画面が受ける駒名の表。索引の検査が持つ駒名の出どころ
+    "csaNameToPieceType",
+    // 行を文に割る手続き。`'`・`N`・`$` の行を割らないことの根拠
+    "parseLine",
+    // 手番の行を読んだ後の見出しを読み飛ばす旗。索引の検査がそこで止まることの根拠
+    "inMoveSection",
     // --- OS ---
     // パスの上限を「弾くための値ではない」と言うときの比較対象
     "PATH_MAX",

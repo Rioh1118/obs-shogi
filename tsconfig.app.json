@@ -29,5 +29,10 @@
       "vitest": ["./node_modules/@voidzero-dev/vite-plus-test"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  // テストは tsconfig.test.json が Node の型つきで検査する。ここに含めると、
+  // TypeScript 7 で `types` の既定が `[]` になったため Node の型が無いまま検査され、
+  // 走査テストの `node:fs` などが全て型エラーになる。WebView で動く本体には
+  // Node の型を見せない
+  "exclude": ["src/**/__tests__/**/*", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

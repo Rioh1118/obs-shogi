@@ -128,9 +128,10 @@ impl ProjectManager {
         // notify → tokio へ橋渡し
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<PathBuf>();
 
+        let watched_root = PathBuf::from(&root);
         let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             if let Ok(ev) = res {
-                for p in ev.paths {
+                for p in paths_to_mark_dirty(ev, &watched_root) {
                     let _ = tx.send(p);
                 }
             }
@@ -567,9 +568,41 @@ impl ProjectManager {
     }
 }
 
+/// 監視のイベントから、差分更新を待つ集合（`dirty_paths`）へ積むパス。
+///
+/// **取りこぼしの合図（`need_rescan`）はパスを持たないことがある。** OS のイベントの
+/// バッファがあふれたときなどに出る。パスだけを拾うと合図ごと捨て、
+/// 変更が索引に入らないまま黙って残るので、監視の根を1件送って差分更新を起こす。
+/// 差分更新は全走査なので、どのパスを送っても結果は同じ。
+fn paths_to_mark_dirty(ev: notify::Event, root: &Path) -> Vec<PathBuf> {
+    if ev.need_rescan() && ev.paths.is_empty() {
+        return vec![root.to_path_buf()];
+    }
+    ev.paths
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 取りこぼしの合図は、パスが無くても差分更新を起こす。
+    #[test]
+    fn a_rescan_signal_without_paths_marks_the_root() {
+        use notify::event::{EventKind, Flag};
+        let root = Path::new("/ws");
+
+        let rescan = notify::Event::new(EventKind::Other).set_flag(Flag::Rescan);
+        assert_eq!(paths_to_mark_dirty(rescan, root), vec![root.to_path_buf()]);
+
+        let changed = notify::Event::new(EventKind::Any).add_path(PathBuf::from("/ws/a.kif"));
+        assert_eq!(
+            paths_to_mark_dirty(changed, root),
+            vec![PathBuf::from("/ws/a.kif")]
+        );
+
+        let nothing = notify::Event::new(EventKind::Any);
+        assert!(paths_to_mark_dirty(nothing, root).is_empty());
+    }
 
     fn ledger() -> ProjectManager {
         ProjectManager::new()

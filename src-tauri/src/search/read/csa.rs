@@ -1,331 +1,197 @@
-//! CSA を読む。**整形してから読み直すのはこの形式だけ。**
-
-use std::panic::{catch_unwind, AssertUnwindSafe};
+//! CSA を読む。**画面（tsshogi）が開けない形は、読む前に断る。**
 
 use encoding_rs::{Encoding, SHIFT_JIS, UTF_8};
 use shogi_kifu_converter_obsshogi::error::ParseError;
 use shogi_kifu_converter_obsshogi::parser::parse_csa_str;
 
-use crate::search::read::diagnosis::parse_failed;
+use crate::search::read::diagnosis::{parse_failed, unreadable_record};
 use crate::search::read::encoding::read_portable_bytes;
 use crate::search::read::outcome::{Jkf, KifuReadError};
 
-/// CSA を読む。**パニックを捕まえるのはこの形式だけ。**
+/// CSA を読む。
 ///
-/// `shogi-kifu-converter` は CSA の本文を `csa` クレートに投げており、
-/// そちらは `Cargo.lock` で 1.0.2 に固定されたまま入力由来の `unwrap` を残している。
+/// 読むのはクレートの `parse_csa_str`。KIF / KI2 と同じく、読めない行があれば
+/// その行を名指しする `ParseError::Csa` を返し、途中までの記録を `Ok` にはしない。
 ///
-/// | 入力 | どこで落ちるか |
-/// | --- | --- |
-/// | `$START_TIME:2004/02/30`（存在しない日付） | `csa-1.0.2/src/parser/time.rs:57` |
-/// | 20桁の消費時間 `T99999999999999999999` | `csa-1.0.2/src/parser/game.rs:40` |
+/// **クレートが読めても画面が開けない形のうち、見出しの3つの文（手番・`PI`・盤面の段）の
+/// 綴りの違いは、ここで断る**（[`viewer_refuses`]）。クレートは CSA の仕様に沿って読み、
+/// 画面の `tsshogi` の `importCSA` は行ごとの正規表現で読む。クレートの方が緩い形を
+/// 索引に入れると、**検索に出るのに開くと読めない**棋譜ができる。
 ///
-/// **他の3形式を包まないのは「安全だと分かっている」からではない。** 同じ形の
-/// `unwrap` を `csa` にだけ実際に見つけた、というだけ。KIF / KI2 は `nom` を、
-/// JKF は `serde_json` を通っており、どちらも
-/// `shogi-kifu-converter` の `deny(clippy::unwrap_used)` の外側にある。
-/// 同じ壊れ方が出たら上の表に行を足すこと。
-///
-/// 呼び出し箇所は `spawn_blocking` の中なのでプロセスは落ちないが、捕まえずに落ちると
-/// 利用者に届くのは join error の定型文だけになり、**この行のどこが悪いのかが消える**
-/// （ファイル名は `IndexWarnPayload` が別の欄で持つので残る）。
-///
-/// # 総当たりの外側で捕まえる
-///
-/// 候補ごとに包むと、パニックした候補だけを飛ばして次を試せる。そうしていないのは、
-/// **パニックを起こす値が候補によって変わらない**から。落ちるのは `$START_TIME` の
-/// 日付と `T` 行の桁数で、どちらも ASCII。
-///
-/// ASCII をそのまま通す候補は、クレートが試す2つ（[`CRATE_ENCODING_NAMES`]）と、
-/// [`ENCODINGS_THE_CRATE_SKIPS`] のうち UTF-16 でない2つ（EUC-JP / ISO-2022-JP）、
-/// [`LOSSY_DECODERS`] の2つ。**そのどれで復号しても同じ位置で落ちる**
-/// （実測: ISO-2022-JP で書いた `2004/02/30` は UTF-8 / Shift_JIS /
-/// EUC-JP / ISO-2022-JP のどれで復号してもパニックする）。
-/// UTF-16 の2つは本文が CSA の形にならないので、パニックの手前で読めずに終わる。
+/// それ以外の食い違いは断らない。例えば、駒の動きと合わない指し手（`+7776KI`）は
+/// クレートが読み画面が断る。改行が `\r` だけのファイルは、画面が指し手0の棋譜として開く。
 pub(crate) fn parse_csa_portable(bytes: &[u8]) -> Result<Jkf, KifuReadError> {
-    // `read_portable_bytes` はローカルに確保して返すだけで、パニックの向こうへ
-    // 壊れた不変条件を持ち越す状態を持たない
-    let attempt = AssertUnwindSafe(|| {
-        read_portable_bytes(bytes, parse_csa_tidied, |s| parse_csa_str(&tidy_csa(s)))
-    });
-    match catch_unwind(attempt) {
-        Ok(result) => result,
-        // パニックの中身を捨てない。上の表は実測した2件だが、`csa` には
-        // 他にも `unwrap` があり、原因を決め打ちすると**違う理由を名指しする**
-        Err(payload) => {
-            let what = payload
-                .downcast_ref::<&'static str>()
-                .copied()
-                .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
-                .unwrap_or("理由不明");
-            Err(parse_failed(format!(
-                "CSA の値が規格外です。$START_TIME の日付と T 行の消費時間を\
-                     確認してください（内部の理由: {what}）"
-            )))
-        }
+    if let Some(refused) = viewer_refuses(bytes) {
+        return Err(parse_failed(unreadable_record(refused)));
     }
+    read_portable_bytes(bytes, parse_csa_decoded, parse_csa_str)
 }
 
-/// CSA を、行の綴りを整えてから読む。
+/// CSA を、クレートと同じ順に復号して読む。
 ///
-/// **画面に開くほうと読める範囲を揃えるため。** 棋譜を開く経路は `tsshogi` の
-/// `importCSA` で、そちらは末尾の改行なし・空のコメント行を気にせず読み、
-/// 行末の空白も**行の型によっては**気にしない。索引側だけが読めないと、
-/// **開けば全部見えるのに「読めません」と言われる**ことになり、
-/// 利用者に直しようが無い。どこまで揃えるかは [`tidy_csa`] の表にある。
-///
-/// クレートの `parse_csa_file` を通さず自分で読むのは、そちらが
-/// ファイルを開いて復号まで済ませてしまい、間に整形を挟めないから。
-/// バイト列で受けるのは、読み残しの検査と**同じものを見ていることを型で示す**ため。
-/// 復号の順（UTF-8 → Shift_JIS）はクレートの `decode_kifu` と同じにしてある。
+/// クレートの `parse_csa_file` を通さず自分で復号するのは、画面の検査
+/// （[`viewer_refuses`]）とパースが**同じバイト列を見ていることを型で示す**ため。
 /// どちらでも誤りが出るなら [`ParseError::Decode`] を返し、
-/// [`read_portable`] の総当たりへ渡す。
-pub(crate) fn parse_csa_tidied(bytes: &[u8]) -> Result<Jkf, ParseError> {
+/// [`read_portable_bytes`] の総当たりへ渡す。
+pub(crate) fn parse_csa_decoded(bytes: &[u8]) -> Result<Jkf, ParseError> {
     for enc in CRATE_CSA_DECODE_ORDER {
         let (text, _, had_errors) = enc.decode(bytes);
         if !had_errors {
-            return parse_csa_str(&tidy_csa(&text));
+            return parse_csa_str(&text);
         }
     }
     Err(ParseError::Decode)
 }
 
-/// CSA を復号する順。**クレートの `parse_csa_file` に合わせてある。**
+/// CSA を復号する順。**クレートの `parse_csa_file` の初めの2つに合わせてある。**
 ///
-/// 自分で復号する以上、順が違えば同じファイルが違う文字コードで読まれうる。
-/// [`CRATE_ENCODING_NAMES`] とは並びが違うが、あちらは表示用で読ませる順ではない。
+/// クレートはこの後に EUC-JP も試すが、こちらは [`read_portable_bytes`] の
+/// 総当たりが EUC-JP を含めて試すので、ここには置かない。
 pub(crate) const CRATE_CSA_DECODE_ORDER: [&Encoding; 2] = [UTF_8, SHIFT_JIS];
 
-/// 行の綴りを整える。**指し手や局面は足さない。**
+/// クレートは読むが、画面（`tsshogi` の `importCSA`）は断る形があれば、
+/// その行を名指しするエラーを返す。
 ///
-/// # 揃える先は「もう一方の読み手が受ける範囲」
+/// 画面の行パターンは `tests/fixtures/tsshogi_csa_patterns.json` に写してあり、
+/// この関数との食い違いは `kifu_reader` のテスト
+/// （`the_viewer_check_agrees_with_the_viewers_patterns`）が見る。
 ///
-/// 棋譜を画面に開くのは `tsshogi` の `importCSA` で、そちらは行ごとに
-/// 正規表現を当て、**どれにも当たらない行は読み飛ばす**。だから索引側は
-/// 原理的につねに tsshogi 以下しか読めない。揃えられるのは
-/// **tsshogi も受ける形に直せる行**だけで、それ以外を直すと
-/// **索引だけが読めて画面では開けない**という逆向きのずれを作る。
-///
-/// | 行 | tsshogi の型 | 末尾の空白 | ここでの扱い |
+/// | 文 | 画面のパターン | クレート | ここ |
 /// | --- | --- | --- | --- |
-/// | `P1`〜`P9` | `^P[1-9]( \* ?\|[-+][A-Z][A-Z]){9}$` | 最後の升のぶんだけ任意 | **最後の空升の空白だけ補う**（短い段・長い段は触らない） |
-/// | `P+` / `P-` | `^P[-+]([0-9]{2}[A-Z]{2})*` | 末尾は見ない | 落とす |
-/// | 指し手 / `%` / `T` / `V` / `N` / `$` / `'` | いずれも末尾を見ない、または値に含む | 受ける | 落とす |
-/// | 手番行 `+` / `-` | `^[-+]$` | **受けない** | **触らない** |
-/// | `PI…` | `^PI([1-9]{2}[A-Z]{2})*$` | **受けない** | **触らない** |
+/// | 手番 `+` / `-` | `^[-+]$` | 末尾の空白を読み飛ばす | 末尾に空白があれば断る |
+/// | `PI…` | `^PI([1-9]{2}[A-Z]{2})*$` | 末尾の空白を読み飛ばす | 末尾に空白があれば断る |
+/// | `P1`〜`P9` | `^P[1-9]( \* ?\|[-+][A-Z][A-Z]){9}$` の後に `parseRank` が升を切る | 升9つの後ろの空白を読み飛ばす | パターンに合わないか、切った升が駒名でなければ断る |
 ///
-/// 下2つを触らないのは、直すと索引だけが先へ進むから。
-/// tsshogi が断る形は索引でも断って、**両方で同じものが読めない**状態に保つ。
+/// 見る範囲は画面が読む範囲に揃える（[`what_the_viewer_reads`]）。さらに、画面は
+/// 手番の文（`+` か `-` ちょうど）を読んだ後の見出しの文を読み飛ばす（`importCSA` の
+/// `inMoveSection`）ので、ここもそこで止める。`/` で区切らずに続けた2局目の見出しは見ない。
 ///
-/// # 補うもの
+/// 画面は文を `,` で割ってから当てるので、ここも `,` で割る。ただし `'`・`N`・`$` で
+/// 始まる行は割らない（`parseLine`）。その行は表のどの文にも当たらないので飛ばす。
 ///
-/// 最後の行に改行が無いと、クレートは最後の指し手を取り込まない
-/// （`terminated(move_record, line_sep)`）。全行に `'\n'` を付けるので、
-/// 元から改行で終わるファイルでは空行が1つ増えるが、`line_sep` は `is_a` で
-/// 連続を1つにまとめるので読みには効かない。
-///
-/// # 落とすもの
-///
-/// アポストロフィだけの行は、クレートの `comment` が `'` の後ろに1文字以上を
-/// 要求するのでそこで止まる（tsshogi も `^'(.+)$` に当たらず読み飛ばす）。
-/// コメントは JKF に写らないので、落としても記録は変わらない。
-///
-/// `\r` を先に落とすのは、クレートの `line_sep` が受けないからではない
-/// （`is_a("\r\n,")` は受ける）。**先に落とさないと末尾の空白の削りが
-/// 行末に届かない**（CRLF のとき）。
-///
-/// **壊れた棋譜は救わない。** 指し手の形をしていない行はそのまま残るので、
-/// クレートはそこで止まる。
-pub(crate) fn tidy_csa(text: &str) -> String {
-    /// 升は3文字（` * ` / `+OU`）× 9
-    const RANK_CELLS_LEN: usize = 27;
-
-    let mut out = String::with_capacity(text.len() + 1);
-    for line in text.split('\n') {
-        let line = line.strip_suffix('\r').unwrap_or(line);
-        let trimmed = line.trim_end_matches([' ', '\t']);
-
-        if let Some(cells) = rank_cells(line) {
-            out.push_str(line);
-            // 最後の空升の空白だけが落ちた形を補う。エディタの trim がこれを作る。
-            //
-            // **補う条件は1つだけ。** 27文字に1つ足りず、末尾が空升（` *`）。
-            // 27 = 3文字 × 9 升なので、この形は「9升のうち最後だけが2文字」に
-            // 決まり、tsshogi の `( \* ?){9}` がちょうど受ける範囲と重なる。
-            //
-            // **短い段は補わない。** クレートの `grid_piece` は先頭が `+` / `-` で
-            // なければ中身を見ずに3文字取る（`csa-1.0.2` の `game.rs`）ので、
-            // 空白で埋めると**升が7つで切れた段が「空升9つ」に化けて通る**。
-            // 補わなければクレートがそこで止まり、読めない旨が利用者に出る。
-            //
-            // **長い段も触らない。** 削って27文字にすると索引だけが読める。
-            // tsshogi の段のパターンは `$` で閉じているので末尾に空白が1つでも
-            // 余れば当たらず、その段を**黙って空段として描く**。
-            // カンマで繋いだ盤面（CSA は `,` も行区切り）がここに落ちる
-            if cells.len() == RANK_CELLS_LEN - 1 && cells.ends_with(" *") {
-                out.push(' ');
+/// バイト列で見るのは、対象の文が全て ASCII だから。ASCII を1バイトのまま
+/// 持つ文字コード（UTF-8・Shift_JIS・EUC-JP）なら、どれで復号しても同じ判定になる。
+/// **UTF-16 では成り立たない** —— 文字の間に NUL が挟まり、どの文にも当たらず素通しする。
+pub(crate) fn viewer_refuses(bytes: &[u8]) -> Option<ParseError> {
+    for (index, line) in what_the_viewer_reads(bytes)
+        .split(|b| *b == b'\n')
+        .enumerate()
+    {
+        let line = line.strip_suffix(b"\r").unwrap_or(line);
+        if matches!(line.first(), Some(b'\'' | b'N' | b'$')) {
+            continue;
+        }
+        for statement in line.split(|b| *b == b',') {
+            if statement == b"+" || statement == b"-" {
+                return None;
             }
-            out.push('\n');
-            continue;
-        }
-
-        // tsshogi が末尾の空白を受けない行。**直さない**
-        if trimmed == "+" || trimmed == "-" || trimmed.starts_with("PI") {
-            out.push_str(line);
-            out.push('\n');
-            continue;
-        }
-
-        // 空のコメントは何も伝えない
-        if trimmed == "'" {
-            continue;
-        }
-
-        out.push_str(trimmed);
-        out.push('\n');
-    }
-    out
-}
-
-/// 盤面の段（`P1`〜`P9`）なら、`P` と段番号を除いた升の部分を返す
-pub(crate) fn rank_cells(line: &str) -> Option<&str> {
-    let rest = line.strip_prefix('P')?;
-    let rank = rest.chars().next()?;
-    if !rank.is_ascii_digit() || rank == '0' {
-        return None;
-    }
-    Some(&rest[1..])
-}
-
-/// CSA が途中で読むのをやめていたら、そのことを伝える文言を返す。
-///
-/// **断らない。** 読めたところまでの局面は索引に入れる価値があるので、
-/// 記録は通して警告だけを出す。断ると**そのファイルの局面が1件も入らなくなり**
-/// （`ParseFailed` は `build.rs` / `project_manager.rs` の両方で空の桶に落ちる）、
-/// 誤検知したときに失うものが大きすぎる。数え方の判定が外れても、
-/// この形なら余計な警告が1つ出るだけで済む。
-///
-/// **CSA には読み残しの検査が無い。** KIF / KI2 はクレートが読み残りを
-/// `ParseError::Kif` / `Ki2` にし（`parser.rs` の `stopped_at`）、何も認識できなければ
-/// `recognised_nothing` で断るが、**`parse_csa_str` はどちらも通らない** —
-/// `csa` クレートの `parse_csa` が `game_record` の残り入力を `_` で捨てて `Ok` を返す。
-///
-/// [`tidy_csa`] が綴りの揺れを吸うので、ここに残るのは**整形で届かない切れ方**だけ。
-/// 実測すると、CSA の形をしていない行が1本混ざるとそこで読むのをやめ、
-/// **後ろの指し手が消えたまま `Ok`** になる。対局者名が無ければ
-/// [`says_nothing`] も真になるが、**この文言は
-/// `ReadOutcome::NothingToIndex` の `warns` に載せて呼び手へ渡す**
-/// （`read_path_inner` がこの検査を`says_nothing` の判定より前に置いているのはそのため）。
-///
-/// **これが出たとき、画面で開けるかどうかは行の形で分かれる。**
-///
-/// - `ZZZZ …` のように**どの行パターンにも当たらない行**なら、`tsshogi` は
-///   その行を読み飛ばす。飛ばした結果あとの手が局面に合えばそのまま開けて、
-///   壊れているのは棋譜ではなく**索引側だけが読めない**状態になる。
-///   ただし**飛ばした行が指し手だったなら、あとの手が合わなくなって
-///   `tsshogi` も断る**（`PieceNotExistsError`）
-/// - `-3334XX` のように**指し手の形で値が壊れている行**なら、`tsshogi` も
-///   `Invalid piece name` で断る。[`is_csa_move_line`] は形しか見ないので
-///   この行も数に入り、警告が出る。こちらは整形では消せない
-///
-/// 整形で指し手でない行まで捨てないのは、捨てると
-/// **本当に指し手が欠けている棋譜まで黙って通る**から。
-///
-/// # 数え方は当てにいかない
-///
-/// この数え方は**クレートの文法を写していない**ので、外れることがある。
-///
-/// - `%MATTA` や `%CHUDAN` の後ろに指し手が続く記録では、`%` の行で数を打ち切るので
-///   落ちた手を**数え落とす**（＝黙る）
-/// - 終局行を持たない記録が2つ繋がっていると、2局目の指し手を**数えすぎる**
-///   （＝余計な警告が出る）
-///
-/// どちらも索引の中身は変わらない。**外れる方向を選べないので、
-/// 外れても害の少ない側（警告を出しすぎる側）に倒してある。**
-///
-/// **出口は警告だけではない。** この戻りは
-/// [`ReadOutcome::NothingToIndex::looks_intentional`] を通って
-/// `FileEntry::indexed` になり、設定タブのバッジまで決める。黙った回は
-/// 「本当に空の棋譜」として数えられる——上の2つはそこでも黙る。
-///
-/// # バイト列で数える
-///
-/// 復号したあとの文字列ではなくファイルのバイト列を見るのは、**CSA の指し手行が
-/// ASCII だから**。ASCII をそのまま通す候補（[`CRATE_ENCODING_NAMES`] の2つ、
-/// [`ENCODINGS_THE_CRATE_SKIPS`] のうち UTF-16 でない2つ、[`LOSSY_DECODERS`] の2つ）は
-/// どれも同じ数を出すので、どの候補で読めたかに関わらず結果が変わらない。
-/// UTF-16 はバイト列に NUL が挟まって指し手行の形にならず0件と数える（＝黙る）。
-///
-/// # 戻り値は有界
-///
-/// **埋めるのは数字と行番号だけ。** だから呼び手は組み上がった `String` を刈れば足りる。
-/// ファイルの本文やクレートの文言を引用するように変えるなら、`format_args!` を返す形に
-/// して `for_screen` へ**組みながら**渡すこと —— 組み上げてから刈ると、
-/// 刈る対象がファイルの大きさで先に確保される。
-///
-/// # バイト列を受け取る
-///
-/// **パースしたのと同じバイト列であることを型で示すため。** `Path` を受けて
-/// 自分で読み直す形だと、渡し間違いをコンパイラが止められない
-/// （読み直しとパースの間に保存されると、数える側とパース側で中身が違う）。
-/// [`read_path_inner`] が1度読んで、パースと検査の両方へ同じものを渡す。
-///
-pub(crate) fn warn_if_moves_were_dropped(bytes: &[u8], jkf: &Jkf) -> Option<String> {
-    let read = jkf.moves.iter().filter(|m| m.move_.is_some()).count();
-    let mut moves_seen = 0usize;
-    for (line_no, line) in bytes.split(|b| *b == b'\n').enumerate() {
-        // `%` の行から先は数えない。**終局とは限らない** — `%MATTA` や `%CHUDAN` の
-        // 後ろにも指し手は続き、クレートはそれを読む。どこまでがこの記録かを
-        // バイト列だけからは決められないので、最初の `%` で打ち切って
-        // 数え落とす側（＝黙る側）に倒す。
-        // クレートが `special` にしない終局理由（`%TIME_UP` など）もここで止まる
-        if line.starts_with(b"%") {
-            break;
-        }
-        if !is_csa_move_line(line) {
-            continue;
-        }
-        moves_seen += 1;
-        if moves_seen > read {
-            // `enumerate` は0始まり。利用者が数えるのはファイルの行番号なので1を足す
-            return Some(format!(
-                "CSA を {read} 手までしか読めませんでした。\
-                 ファイルの {} 行目（{moves_seen} 手目）から先の指し手は検索に出ません。\
-                 その行と手前の行に、CSA の形をしていない行が\
-                 混ざっていないか確認してください",
-                line_no + 1
-            ));
+            let why = if is_side_or_pi_with_trailing_blank(statement) {
+                "the viewer does not read blanks after this statement"
+            } else if is_rank(statement)
+                && !(cells_the_viewer_reads(&statement[2..], 9) && rank_the_viewer_cuts(statement))
+            {
+                "the viewer does not read this rank of the board"
+            } else {
+                continue;
+            };
+            return Some(ParseError::Csa(format!(
+                "at line {}: {why}\n{}",
+                index + 1,
+                String::from_utf8_lossy(line)
+            )));
         }
     }
-
     None
 }
 
-/// その行が CSA の指し手か。**`+7776FU` の形と、その途中で切れた形を数える。**
+/// 画面が行パターンを当てる範囲。
 ///
-/// 手番だけの `+` / `-`、`P` で始まる盤面、`T` の消費時間、`%` の終局、
-/// `'` のコメント、`$` や `N` のヘッダはどれも形が違うので数に入らない。
-/// 終局（`%TORYO`）を数えないのは、`jkf` 側で `special` に入って
-/// `move_` にならないため — 数える側と数えられる側を揃える。
-pub(crate) fn is_csa_move_line(line: &[u8]) -> bool {
-    // 行末の `\r` は落とす。CRLF のファイルで全行が外れる
-    let line = line.strip_suffix(b"\r").unwrap_or(line);
-    // **途中で切れた指し手も数える。** ファイルが指し手の最中で終わると
-    // `+7776F` のような6バイトの行が残る。長さで外すと `moves_seen` が 0 のまま
-    // 警告が出ず、**指し手のある棋譜が黙って索引から消える**——外しても害の無い
-    // 側（警告を出しすぎる側）に倒す、という `warn_if_moves_were_dropped` の
-    // 決めごとに従う
-    if line.len() < 2 || !matches!(line[0], b'+' | b'-') {
-        return false;
+/// 画面は、BOM を外して全体を `trim` した文字列（`src/entities/kifu/api/parse.ts`）を
+/// `importCSA` に渡し、`importCSA` は `/` だけの行から後ろ（2局目以降）を捨ててから読む。
+/// 範囲の外まで調べると、**画面で開ける棋譜を断る**。
+///
+/// 頭の空白は落とさない。落とすと、エラーで名指しする行の番号がずれる。
+/// 頭の空白は行パターンの当たり方を変えない。
+fn what_the_viewer_reads(bytes: &[u8]) -> &[u8] {
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let end = bytes
+        .iter()
+        .rposition(|b| !b.is_ascii_whitespace())
+        .map_or(0, |last| last + 1);
+    let bytes = &bytes[..end];
+
+    // `importCSA` の `/\r?\n\/(\r?\n[\s\S]*)?$/` と同じく、`/` の後ろが
+    // 改行か終わりのときだけ区切りと見る
+    let separator = bytes.windows(2).enumerate().find_map(|(at, pair)| {
+        let rest = &bytes[at + 2..];
+        (pair == b"\n/"
+            && (rest.is_empty() || rest.starts_with(b"\n") || rest.starts_with(b"\r\n")))
+        .then_some(at)
+    });
+    separator.map_or(bytes, |at| &bytes[..at])
+}
+
+fn is_side_or_pi_with_trailing_blank(statement: &[u8]) -> bool {
+    let end = statement
+        .iter()
+        .rposition(|b| !b.is_ascii_whitespace())
+        .map_or(0, |last| last + 1);
+    let trimmed = &statement[..end];
+    trimmed.len() < statement.len()
+        && (trimmed == b"+" || trimmed == b"-" || trimmed.starts_with(b"PI"))
+}
+
+fn is_rank(statement: &[u8]) -> bool {
+    matches!(statement, [b'P', b'1'..=b'9', ..])
+}
+
+/// `( \* ?|[-+][A-Z][A-Z]){n}$` に `cells` が合うか。
+///
+/// 空きの升の後ろの空白は有っても無くてもよいので、正規表現と同じく
+/// 両方を試す（空白の詰まった ` * * ` は、空白の無い方で合う）。
+fn cells_the_viewer_reads(cells: &[u8], n: usize) -> bool {
+    if n == 0 {
+        return cells.is_empty();
     }
-    let digits = line[1..].len().min(4);
-    if !line[1..1 + digits].iter().all(u8::is_ascii_digit) {
-        return false;
+    match cells {
+        [b' ', b'*', tail @ ..] => {
+            cells_the_viewer_reads(tail, n - 1)
+                || matches!(tail, [b' ', rest @ ..] if cells_the_viewer_reads(rest, n - 1))
+        }
+        [b'+' | b'-', a, b, tail @ ..] if a.is_ascii_uppercase() && b.is_ascii_uppercase() => {
+            cells_the_viewer_reads(tail, n - 1)
+        }
+        _ => false,
     }
-    // 数字が4桁に満たない＝途中で切れている
-    if digits < 4 {
-        return true;
+}
+
+/// 画面の駒名。`tsshogi` の `csaNameToPieceType` の鍵。
+const VIEWER_PIECE_NAMES: [&[u8]; 14] = [
+    b"FU", b"KY", b"KE", b"GI", b"KI", b"KA", b"HI", b"OU", b"TO", b"NY", b"NK", b"NG", b"UM",
+    b"RY",
+];
+
+/// 行パターンに合った段を、画面の `parseRank` と同じく切って読めるか。
+///
+/// `parseRank` は升を3文字ずつ切り、次の文字が `*` なら1文字戻る
+/// （空きの升の後ろの空白が詰まった ` * * ` を読むため）。この切り方だと
+/// 空きの升の直後に空白なしで駒が来る ` *-KA` を ` *-`・`KA ` と切ってしまい、
+/// 行パターンには合うのに開けない。
+fn rank_the_viewer_cuts(statement: &[u8]) -> bool {
+    let mut begin = 2;
+    for _ in 0..9 {
+        let section = statement
+            .get(begin..(begin + 3).min(statement.len()))
+            .unwrap_or_default();
+        begin += 3;
+        if statement.get(begin) == Some(&b'*') {
+            begin -= 1;
+        }
+        match section {
+            [b' ', ..] => {}
+            [_, name @ ..] if VIEWER_PIECE_NAMES.contains(&name) => {}
+            _ => return false,
+        }
     }
-    let upper = line[5..].len().min(2);
-    line[5..5 + upper].iter().all(u8::is_ascii_uppercase)
+    true
 }
