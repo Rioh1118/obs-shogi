@@ -55,18 +55,12 @@ impl FileBuild {
     /// 局面を持たない項目。**登録はするが検索には出ない。**
     ///
     /// **空になった理由は読み手が決める。** ここで `warns` の有無から導くと、
-    /// 警告を出す検査が無い形式（CSA 以外）が必ず「本当に空」になる
+    /// 読み手は今どの形式でも警告を積まないので、必ず「本当に空」になる
     /// ——0バイトや空白だけの `.kif` を「本当に空」に数えないため。
     ///
-    /// **割れるのは検査が見つけられた範囲だけ。**
-    ///
-    /// 読み残しを見る検査は `warn_if_moves_were_dropped` **1つで、CSA 専用**。
-    /// KIF / KI2 / JKF には無いので、中身があるのに局面0件で終わった回
-    /// （ヘッダの途中で切れた KIF など）は**真に落ちる**——局面が入って
-    /// いないのに緑になる。**TODO(#501)**
-    ///
-    /// CSA でも、その検査が黙る形（最初の `%` 行で数を打ち切る／UTF-16 は
-    /// 指し手行の形にならず0件と数える）は同じく真に落ちる。
+    /// **中身があるのに局面0件で終わった回は割れない。** 読み残しはクレートが
+    /// 断るので、ここへ来るのはヘッダだけ読めた記録（ヘッダの途中で切れた KIF
+    /// など）で、**真に落ちる**——局面が入っていないのに緑になる。**TODO(#501)**
     fn empty(warns: Vec<ScreenMessage>, looks_intentional: bool) -> Self {
         Self {
             by_bucket: empty_buckets(),
@@ -151,43 +145,42 @@ mod tests {
     use test_support::dir::temp_dir;
 
     fn write_and_build(name: &str, body: &str) -> FileBuild {
+        write_and_try_build(name, body).expect("読めるはず")
+    }
+
+    fn write_and_try_build(name: &str, body: &str) -> Result<FileBuild, ScreenMessage> {
         let dir = temp_dir("file-build");
         let path = dir.join(name);
         fs::write(&path, body).expect("下ごしらえ");
         let rec = FileRecord {
             path: path.clone(),
             // **形式は名前から取る。** `Csa` を直に書くと、他の形式の腕を
-            // 落とす変異が緑で通る——警告を出す検査があるのは CSA だけなので、
-            // 割り方の穴はいつも他の形式に空く
+            // 落とす変異が緑で通る——形式ごとに読み手が違うので、
+            // 1つの形式だけで試すと他の形式の割り方の穴が見えない
             kind: KifuKind::from_path(&path).expect("拡張子から種別が決まること"),
             size: body.len() as u64,
             mtime_ms: 0,
         };
-        let built = build_file_index(&rec, 1, 1).expect("読めるはず");
+        let built = build_file_index(&rec, 1, 1);
         fs::remove_dir_all(&dir).ok();
         built
     }
 
-    /// **`Ok` を「索引に入った」と読まないこと。**
+    /// 読めない行がある CSA は、読めなかったとして返す。
     ///
-    /// 途中で切れた CSA はヘッダだけ読めて `Ok` で返るが、入る局面は無い。
-    /// `Ok`/`Err` で数えると**局面を1つも持たない棋譜が「索引済み」になり**、
-    /// 1000件中200件がこの形でも `indexed == total` で緑の「準備完了」が出る。
+    /// KIF / KI2 と同じく、クレートがその行を名指しして断る。途中までの記録を
+    /// `Ok` にすると、局面を1つも持たない棋譜が「索引済み」に数えられうる。
     #[test]
-    fn a_kifu_that_reads_but_yields_nothing_is_not_counted_as_indexed() {
-        let built = write_and_build(
+    fn a_csa_with_an_unreadable_line_is_not_built() {
+        let message = write_and_try_build(
             "broken.csa",
             "V2.2\nPI\n+\nZZZZ not a kifu line\n+7776FU\n-3334FU\n%TORYO\n",
-        );
+        )
+        .err()
+        .expect("読めない行がある棋譜を組んだ");
         assert!(
-            !built.warns.is_empty(),
-            "読み残しの警告が出ていない。題材が古い: {:?}",
-            built.warns
-        );
-        assert!(
-            !built.indexed,
-            "局面を1つも持たない棋譜を「索引済み」に数えている: {:?}",
-            built.warns
+            message.to_string().contains("ZZZZ"),
+            "行を名指ししていない: {message}"
         );
     }
 
@@ -213,8 +206,8 @@ mod tests {
     /// **中身が無いファイルを「本当に空の棋譜」と読まないこと。**
     ///
     /// 同期の途中で置かれた 0 バイトのプレースホルダや、保存が落ちた残骸が
-    /// この形になる。**警告の有無で割ると KIF / KI2 は必ず素通りする**
-    /// ——警告を出す検査があるのは CSA だけなので、0バイトでも `warns` は空。
+    /// この形になる。**警告の有無で割ると必ず素通りする**
+    /// ——読み手は警告を積まないので、0バイトでも `warns` は空。
     #[test]
     fn a_zero_byte_file_is_not_a_genuinely_empty_kifu() {
         for name in ["empty.kif", "empty.ki2"] {
@@ -248,17 +241,16 @@ mod tests {
 
     /// **指し手の途中で切れた CSA を「本当に空」と読まないこと。**
     ///
-    /// `+7776F` は6バイトなので、指し手行を長さで数えると 0 件になり、
-    /// 読み残しの警告が出ない。**指し手のある棋譜が黙って索引から消える。**
+    /// 切れた行は読めない行で、クレートが名指しして断る。
     #[test]
     fn a_csa_cut_mid_move_is_not_a_genuinely_empty_kifu() {
-        let built = write_and_build("trunc.csa", "V2.2\nPI\n+\n+7776F");
+        let message = write_and_try_build("trunc.csa", "V2.2\nPI\n+\n+7776F")
+            .err()
+            .expect("切れた棋譜を組んだ");
         assert!(
-            !built.warns.is_empty(),
-            "切れた指し手に警告が出ていない: {:?}",
-            built.warns
+            message.to_string().contains("+7776F"),
+            "切れた行を名指ししていない: {message}"
         );
-        assert!(!built.indexed, "切れた棋譜を「索引済み」に数えている");
     }
 
     /// 局面が入った棋譜は数えること。

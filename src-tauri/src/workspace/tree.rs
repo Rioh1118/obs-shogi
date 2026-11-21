@@ -12,8 +12,8 @@ use super::types::FileTreeNode;
 ///
 /// `followed` は同じ実体を2度辿らないだけなので、相異なるディレクトリを鎖状に
 /// symlink で繋ぐと深さがディレクトリ数まで伸びる。走査は再帰なので、
-/// 深いほどスタックが積み上がる。Rust のスタックオーバーフローは `catch_unwind`
-/// できず、`get_file_tree` は `Err` すら返せないまま落ちる。
+/// 深いほどスタックが積み上がる。Rust のスタックオーバーフローはパニックとして
+/// 捕まえられず、`get_file_tree` は `Err` すら返せないまま落ちる。
 ///
 /// 実体のディレクトリだけでこの深さに達する棋譜庫は無い
 const MAX_DEPTH: usize = 64;
@@ -93,7 +93,7 @@ fn build_file_tree_recursive(path: &Path, walk: &mut Walk) -> Result<FileTreeNod
 
     // **深さの上限を見るのはここだけ。** 下のループはノード数しか見ないので、
     // この条件を外すと `MAX_DEPTH` が完全に消える（結果はスタックオーバーフローで、
-    // `catch_unwind` できずプロセスごと落ちる）
+    // パニックとして捕まえられずプロセスごと落ちる）
     if is_dir && walk.depth >= MAX_DEPTH {
         node.truncated = true;
     } else if is_dir {

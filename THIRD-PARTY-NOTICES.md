@@ -106,7 +106,7 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | vest-utils | 1.5.0 | MIT | Copyright (c) 2021 ealush |
 | yjs | 13.6.32 | MIT | Copyright (c) 2023 |
 
-## Rust の依存（517 件）
+## Rust の依存（515 件）
 
 `cargo metadata` の解決結果のうち、dev-dependencies を除いたもの。
 配っている 4 ターゲット分の和なので、1つの OS のバイナリには載らないものも含む。
@@ -176,7 +176,6 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | crossbeam-epoch | 0.9.18 | MIT OR Apache-2.0 | — |
 | crossbeam-utils | 0.8.21 | MIT OR Apache-2.0 | — |
 | crypto-common | 0.1.6 | MIT OR Apache-2.0 | RustCrypto Developers |
-| csa | 1.0.2 | MIT | Copyright (c) 2017 Takashi Nozawa |
 | cssparser | 0.29.6 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
 | cssparser | 0.36.0 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
 | cssparser-macros | 0.6.1 | MPL-2.0 | Simon Sapin <simon.sapin@exyr.org> |
@@ -453,10 +452,9 @@ JS / CSS / 書体だけで、prebuilt はビルドする機械で走るだけだ
 | servo_arc | 0.4.3 | MIT OR Apache-2.0 | The Servo Project Developers |
 | sha2 | 0.10.9 | MIT OR Apache-2.0 | RustCrypto Developers |
 | shlex | 1.3.0 | MIT OR Apache-2.0 | comex <comexk@gmail.com>, Fenhl <fenhl@fenhl.net>, Adrian Taylor <adetaylor@chromium.org>, Alex Touchet <alextouchet@outlook.com>, Daniel Parks <dp+git@oxidized.org>, Garrett Berg <googberg@gmail.com> |
-| shogi-kifu-converter | 0.5.0 | MIT | Copyright (c) 2022 Yoshihiro Sugi |
+| shogi-kifu-converter | 0.6.1 | MIT | Copyright (c) 2022 Yoshihiro Sugi |
 | shogi_core | 0.1.5 | MIT | Rust shogi crates developers |
 | shogi_legality_lite | 0.1.3 | MIT | Rust shogi crates developers |
-| shogi_official_kifu | 0.1.2 | MIT | Rust shogi crates developers |
 | signal-hook-registry | 1.4.5 | Apache-2.0/MIT | Michal 'vorner' Vaner <vorner@vorner.cz>, Masaki Hara <ackie.h.gmai@gmail.com> |
 | simd-adler32 | 0.3.7 | MIT | Copyright (c) [2021] [Marvin Countryman] |
 | siphasher | 0.3.11 | MIT/Apache-2.0 | Copyright 2012-2016 The Rust Project Developers.<br>Copyright 2016-2023 Frank Denis. |

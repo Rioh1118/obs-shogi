@@ -23,8 +23,8 @@ use kifu_text::declared_encoding;
 ///
 /// | 文字コード | クレート単体 |
 /// | --- | --- |
-/// | EUC-JP | `Decode Error` |
-/// | **BOM の無い** UTF-16LE / UTF-16BE | `Decode Error`（CSA は本文が形にならず `Csa` エラー） |
+/// | EUC-JP | `decode error` |
+/// | **BOM の無い** UTF-16LE / UTF-16BE | `decode error`（CSA は本文が形にならず `Csa` エラー） |
 /// | ISO-2022-JP | 7bit なので UTF-8 / Shift_JIS の復号が誤り無く通る |
 ///
 /// # 総当たりはクレートが失敗したときにしか動かない
@@ -62,7 +62,7 @@ where
 
 /// [`read_portable`] のバイト列版。**CSA はこちらを通る。**
 ///
-/// CSA だけ別なのは、読み残しの検査（[`warn_if_moves_were_dropped`]）が
+/// CSA だけ別なのは、画面が開けない形の検査（`csa::viewer_refuses`）が
 /// **同じバイト列**を要るから。path を渡す形だと、パースと検査が別々に読んで
 /// 「同じファイルを見ているか」を型で表せない。
 pub(crate) fn read_portable_bytes<First, Str>(

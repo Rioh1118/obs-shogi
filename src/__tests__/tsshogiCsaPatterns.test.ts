@@ -15,8 +15,8 @@ import { describe, expect, test } from "vitest";
  * fixture がずれていたらこのテストが落ちる。落ちたら:
  *
  * 1. `src-tauri/tests/fixtures/tsshogi_csa_patterns.json` を作り直す
- * 2. **Rust 側の `tidy_csa` を見直す** — 受ける範囲が変わったということは、
- *    整形してよい範囲も変わっている
+ * 2. **Rust 側の `viewer_refuses`（`search/read/csa.rs`）を見直す** — 受ける範囲が
+ *    変わったということは、索引で断るべき形も変わっている
  *
  * 1 だけやって 2 を飛ばすと、索引と画面で読める棋譜が食い違う。
  */
@@ -47,7 +47,7 @@ describe("tsshogi の CSA 行パターン", () => {
 
     expect(
       fixture.patterns,
-      "fixture が古い。作り直したうえで、Rust の `tidy_csa` が整形してよい範囲も見直すこと",
+      "fixture が古い。作り直したうえで、Rust の `viewer_refuses` が断る範囲も見直すこと",
     ).toEqual(installed);
   });
 
