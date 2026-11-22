@@ -19,6 +19,8 @@ type Call = {
   reject: (e: unknown) => void;
 };
 let calls: Call[] = [];
+/** 購読を待たせる・失敗させる */
+let listenGate: Promise<void> | null = null;
 
 vi.mock("@tauri-apps/api/core", async (importActual) => {
   const actual = await importActual<typeof import("@tauri-apps/api/core")>();
@@ -37,6 +39,7 @@ vi.mock("@tauri-apps/api/event", async (importActual) => {
   const mocked = {
     ...actual,
     listen: (async (name: string, handler: Handler) => {
+      if (listenGate) await listenGate;
       handlers.set(name, handler);
       return () => handlers.delete(name);
     }) as unknown as typeof actual.listen,
@@ -58,6 +61,7 @@ const RESULT = { candidates: CANDIDATES };
 
 const props = {
   currentSfen: "P1" as string | null,
+  presetChosen: true,
   engine: ENGINE as EngineRuntimeConfig | null,
   limitMs: 30_000 as number | null,
   analysisBusy: false,
@@ -100,10 +104,12 @@ async function searching(session = "s1") {
 }
 
 beforeEach(async () => {
+  listenGate = null;
   calls = [];
   handlers.clear();
   Object.assign(props, {
     currentSfen: "P1",
+    presetChosen: true,
     engine: ENGINE,
     limitMs: 30_000,
     analysisBusy: false,
@@ -195,11 +201,92 @@ describe("始める", () => {
 
   test("プリセットの指定か局面が無ければ何もしない", async () => {
     await rerender({ engine: null });
-    expect(seen.available).toBe(false);
+    expect(seen.availability).toBe("incomplete");
+    await rerender({ presetChosen: false });
+    expect(seen.availability).toBe("unset");
     await toggle();
     await rerender({ engine: ENGINE, currentSfen: null });
     await toggle();
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("起動中の語", () => {
+  test("前の中止を待つ間にやめても、動いているエンジンなら次も起動中と言わない", async () => {
+    await searching();
+    await act(async () => seen.dismiss());
+    await toggle();
+    await rerender({ currentSfen: "P2" });
+    await toggle();
+    expect(seen.state.phase).toBe("searching");
+  });
+
+  test.each(["engineExited", "stopUnanswered"])(
+    "%s の通知が応答より先に着いても、次は起動中と言う",
+    async (kind) => {
+      await toggle();
+      await finished("s1", { kind });
+      await settle(last("start_mate_search"), "s1");
+      await toggle();
+      expect(seen.state.phase).toBe("starting");
+    },
+  );
+
+  test("stopUnanswered の後も起動中と言う", async () => {
+    await searching();
+    await finished("s1", { kind: "stopUnanswered" });
+    await toggle();
+    expect(seen.state.phase).toBe("starting");
+  });
+
+  test("動いているエンジンで始め直した途中にやめても、次も起動中と言わない", async () => {
+    await searching();
+    await finished("s1", { kind: "noMate" });
+    await toggle();
+    const start = last("start_mate_search");
+    await act(async () => seen.dismiss());
+    await refuse(start, { kind: "superseded" });
+    await toggle();
+    expect(seen.state.phase).toBe("searching");
+  });
+
+  test("設定が違えば起動中と言う", async () => {
+    await searching();
+    await finished("s1", { kind: "noMate" });
+    await rerender({ engine: { ...ENGINE, enginePath: "/e/other" } });
+    await toggle();
+    expect(seen.state.phase).toBe("starting");
+  });
+});
+
+describe("購読", () => {
+  async function remount() {
+    view.unmount();
+    calls = [];
+    view = render(tree());
+    await flush();
+    await settle(last("stop_mate_search"), null);
+    calls = [];
+  }
+
+  test("購読し終えるまで Rust へ送らない", async () => {
+    let open!: () => void;
+    listenGate = new Promise((r) => (open = r));
+    await remount();
+    await toggle();
+    expect(named("start_mate_search")).toHaveLength(0);
+    await act(async () => open());
+    expect(named("start_mate_search")).toHaveLength(1);
+  });
+
+  test("購読できなければ始めず、開始できなかったと言う", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    listenGate = Promise.reject(new Error("no events"));
+    listenGate.catch(() => {});
+    await remount();
+    await toggle();
+    expect(named("start_mate_search")).toHaveLength(0);
+    expect(seen.state).toMatchObject({ phase: "finished", outcome: { kind: "refused" } });
   });
 });
 
@@ -228,6 +315,15 @@ describe("受ける", () => {
     expect(seen.state.phase).toBe("starting");
     await settle(last("start_mate_search"), "s1");
     expect(seen.state).toMatchObject({ phase: "finished", outcome: { kind: "noMate" } });
+  });
+
+  test("途中経過が開始の応答より先に着いても、候補手に出る", async () => {
+    vi.useFakeTimers();
+    await toggle();
+    await emit("mate-search-update", { sessionId: "s1", result: RESULT });
+    await settle(last("start_mate_search"), "s1");
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(seen.state).toMatchObject({ phase: "searching", candidates: CANDIDATES });
   });
 
   test("ほかの探索の通知では動かない", async () => {
@@ -296,6 +392,67 @@ describe("中止", () => {
     await toggle();
     await refuse(last("stop_mate_search"), "ipc closed");
     expect(seen.state).toMatchObject({ phase: "searching", stopping: false });
+  });
+});
+
+describe("中止が開始を追い越す", () => {
+  test("中止が先に済んで後から始まった探索は、もう一度止める", async () => {
+    await toggle();
+    const start = last("start_mate_search");
+    await toggle();
+    await settle(last("stop_mate_search"), null);
+    await settle(start, "s1");
+    expect(named("stop_mate_search")).toHaveLength(2);
+    await finished("s1", { kind: "cancelled" });
+    expect(seen.state).toMatchObject({ phase: "finished", outcome: { kind: "cancelled" } });
+  });
+
+  test("中止が済んでも終わりの通知が来なければ、もう一度押せる", async () => {
+    await searching();
+    await toggle();
+    await settle(last("stop_mate_search"), null);
+    expect(seen.state).toMatchObject({ phase: "searching", stopping: false });
+  });
+
+  test("閉じた後に始まった探索は、もう一度止める", async () => {
+    await toggle();
+    const start = last("start_mate_search");
+    await act(async () => seen.dismiss());
+    await settle(last("stop_mate_search"), null);
+    await settle(start, "s1");
+    expect(named("stop_mate_search")).toHaveLength(2);
+    expect(seen.state.phase).toBe("closed");
+  });
+
+  test("描画より前に Rust へ出た開始も、閉じれば止める", async () => {
+    let stopped!: () => void;
+    await rerender({
+      analysisBusy: true,
+      stopAnalysis: vi.fn(() => new Promise<void>((r) => (stopped = r))),
+    });
+    await toggle();
+    await act(async () => {
+      stopped();
+      // 検討の中断の続き（開始の送信まで）を、描画を挟まずに進める
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      expect(named("start_mate_search")).toHaveLength(1);
+      seen.dismiss();
+    });
+    expect(named("stop_mate_search")).toHaveLength(1);
+  });
+
+  test("重ねて送った中止が全部返るまで、次を始めない", async () => {
+    await searching();
+    await toggle();
+    const first = last("stop_mate_search");
+    await rerender({ currentSfen: "P2" });
+    const second = last("stop_mate_search");
+    expect(second).not.toBe(first);
+    await toggle();
+    await settle(second, null);
+    expect(named("start_mate_search")).toHaveLength(1);
+    await settle(first, null);
+    expect(named("start_mate_search")).toHaveLength(2);
   });
 });
 

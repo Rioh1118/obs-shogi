@@ -5,7 +5,7 @@ import { Color } from "shogi.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { AnalysisCandidate } from "@/entities/engine";
 import type { EngineStatus } from "@/entities/analysis";
-import type { MateSearchState } from "@/entities/mate-search";
+import type { MateSearchAvailability, MateSearchState } from "@/entities/mate-search";
 
 /** 操作列と候補手の表が、検討と詰み探索のどちらのものとして出るか（AC-M6〜AC-M11） */
 const SFEN = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
@@ -32,7 +32,7 @@ const analysis = {
 const mate = {
   state: { phase: "closed" } as MateSearchState,
   ownsTable: false,
-  available: true,
+  availability: "ready" as MateSearchAvailability,
   toggle: vi.fn(async () => {}),
   dismiss: vi.fn(),
 };
@@ -149,7 +149,7 @@ beforeEach(() => {
   vi.useFakeTimers({ now: 12_000 });
   vi.clearAllMocks();
   own({ phase: "closed" });
-  mate.available = true;
+  mate.availability = "ready";
   status.value = "standing-by";
   game.view.currentSfen = SFEN;
   Object.assign(analysis.state, {
@@ -176,9 +176,17 @@ describe("詰み探索のボタン", () => {
   });
 
   test("プリセットの指定が無ければ無効で、設定で選択するよう言う", () => {
-    mate.available = false;
+    mate.availability = "unset";
     controls();
     expect(button("詰み探索に使うプリセットを設定で選択してください").disabled).toBe(true);
+  });
+
+  test("指定したプリセットのエンジンが未設定なら、別の文で言う", () => {
+    mate.availability = "incomplete";
+    controls();
+    expect(button("詰み探索に使うプリセットのエンジンを設定で選択してください").disabled).toBe(
+      true,
+    );
   });
 
   test("読む局面が無ければ押せない", () => {
@@ -200,7 +208,7 @@ describe("詰み探索のボタン", () => {
 
   test("走っている間にプリセットの指定が外れても、中止できる", () => {
     own(SEARCHING);
-    mate.available = false;
+    mate.availability = "unset";
     controls();
     expect(button("詰み探索を中止").disabled).toBe(false);
   });

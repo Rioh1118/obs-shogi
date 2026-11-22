@@ -40,7 +40,7 @@ vi.mock("@/entities/mate-search/model/useMateSearch", () => {
     useMateSearch: () => ({
       state: { phase: "closed" as const },
       ownsTable: false,
-      available: false,
+      availability: "unset" as const,
       toggle: async () => {},
       dismiss: () => {},
     }),

@@ -20,14 +20,14 @@ export function MateSearchGate({ children }: { children: ReactNode }) {
   const { state: analysis, stopAnalysis } = useAnalysis();
 
   const presetId = config?.mate_preset_id ?? null;
-  const engine = useMemo(() => {
-    const preset = presets.presets.find((p) => p.id === presetId);
-    return preset ? runtimeConfigOf(preset) : null;
-  }, [presets.presets, presetId]);
+  // 削除したプリセットの ID が残っていれば、指定が無いのと同じ
+  const preset = presets.presets.find((p) => p.id === presetId) ?? null;
+  const engine = useMemo(() => (preset ? runtimeConfigOf(preset) : null), [preset]);
 
   return (
     <MateSearchProvider
       currentSfen={view.currentSfen}
+      presetChosen={preset !== null}
       engine={engine}
       limitMs={resolveMateSearchLimit(config?.mate_search_limit).ms}
       analysisBusy={analysis.isAnalyzing || analysis.starting}

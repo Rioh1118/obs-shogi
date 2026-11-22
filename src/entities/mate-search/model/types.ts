@@ -54,6 +54,14 @@ export type MateSearchAction =
   | { type: "end_stop" }
   | { type: "close" };
 
+/** 始められるか。始められない2つは、利用者が次にすることが違う */
+export type MateSearchAvailability =
+  | "ready"
+  /** 詰み探索に使うプリセットの指定が無い */
+  | "unset"
+  /** 指定したプリセットにエンジンが設定されていない */
+  | "incomplete";
+
 export type MateSearchContextType = {
   state: MateSearchState;
   /**
@@ -62,8 +70,7 @@ export type MateSearchContextType = {
    * 盤の局面と探索の局面が同じときだけ真。局面を動かした直後の1描画に、前の局面の結論を出さない
    */
   ownsTable: boolean;
-  /** 詰み探索に使うプリセットが指定されていて、エンジンが設定されているか */
-  available: boolean;
+  availability: MateSearchAvailability;
   /** 詰み探索のボタン。走っていれば中止し、走っていなければ始める */
   toggle: () => Promise<void>;
   /** 詰み探索を中止し、表を検討に返す。結論は残さない */

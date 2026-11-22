@@ -7,15 +7,22 @@ import {
   startMateSearch,
   stopMateSearch,
 } from "../api/tauri";
-import type { MateSearchFinished, MateSearchUpdate, MateSessionId } from "../api/rust-types";
+import type {
+  MateConclusion,
+  MateSearchFinished,
+  MateSearchUpdate,
+  MateSessionId,
+} from "../api/rust-types";
 import { MateSearchContext } from "./context";
 import { initialState, isRunning, mateSearchReducer } from "./reducer";
-import type { MateSearchContextType } from "./types";
+import type { MateOutcome, MateSearchContextType } from "./types";
 
 type Props = {
   children: ReactNode;
   /** 盤の局面。棋譜を開いていなければ `null` */
   currentSfen: string | null;
+  /** 詰み探索に使うプリセットを指定してあるか */
+  presetChosen: boolean;
   /** 詰み探索に使うプリセットの設定。指定が無い・エンジンが未設定なら `null` */
   engine: EngineRuntimeConfig | null;
   /** 上限時間。`null` は無制限 */
@@ -25,6 +32,11 @@ type Props = {
   /** 検討を中断し、検討の意思を下ろす。届かなければ reject する */
   stopAnalysis: () => Promise<void>;
 };
+
+/** その結論で、Rust が詰将棋エンジンを落としているか */
+function losesEngine({ kind }: MateConclusion): boolean {
+  return kind === "engineExited" || kind === "stopUnanswered";
+}
 
 /** 途中経過を画面へ流す間隔（ミリ秒）。通常のエンジンは1秒に何百行も流す */
 const UPDATE_INTERVAL_MS = 100;
@@ -40,6 +52,7 @@ const UPDATE_INTERVAL_MS = 100;
 export function MateSearchProvider({
   children,
   currentSfen,
+  presetChosen,
   engine,
   limitMs,
   analysisBusy,
@@ -63,18 +76,27 @@ export function MateSearchProvider({
   /** 動いているはずの詰将棋エンジンの設定。同じ設定なら起動中の語を出さない */
   const warmRef = useRef<string | null>(null);
 
+  /** Rust へ送って、まだ返っていない開始の数 */
+  const startsInFlightRef = useRef(0);
+
   /**
-   * 最後に送った中止。次の探索は、これが返ってから始める。
+   * 送った中止が全部返るまで。次の探索は、これを待ってから始める。
    *
    * Tauri のコマンドは別々のタスクで走るので、送った順に着くとは限らない。待たないと、前の探索の中止が
-   * 後から着いて、始めたばかりの探索を止める
+   * 後から着いて、始めたばかりの探索を止める。逆に中止が開始を追い越した回は、開始の応答の側でもう一度止める
    */
-  const lastStopRef = useRef<Promise<void>>(Promise.resolve());
+  const stopsRef = useRef<Promise<unknown>>(Promise.resolve());
   const stop = useCallback((): Promise<void> => {
     const stopped = stopMateSearch();
-    lastStopRef.current = stopped.catch(() => {});
+    stopsRef.current = Promise.all([stopsRef.current, stopped.catch(() => {})]);
     return stopped;
   }, []);
+  const stopAndLog = useCallback(() => {
+    stop().catch((e: unknown) => console.error("[MATE] could not stop the mate search", e));
+  }, [stop]);
+
+  /** 通知を購読し終えるまで。購読できなければ `false` で、以後は始めない（結論が届かない） */
+  const listeningRef = useRef<Promise<boolean>>(Promise.resolve(true));
 
   const pendingRef = useRef<{ sessionId: MateSessionId; candidates: AnalysisCandidate[] } | null>(
     null,
@@ -117,25 +139,29 @@ export function MateSearchProvider({
     let alive = true;
     let unlisten: (() => void) | null = null;
 
-    setupMateEventListeners({
+    const listening = setupMateEventListeners({
       onUpdate: (update) => {
         if (update.sessionId === sessionRef.current) receiveUpdate(update);
         else if (awaitingRef.current) earlyRef.current.set(update.sessionId, update);
       },
       onFinished: (finished) => {
         // 落としたエンジンは、どの探索のものでも次に起動し直す
-        const { kind } = finished.conclusion;
-        if (kind === "engineExited" || kind === "stopUnanswered") warmRef.current = null;
+        if (losesEngine(finished.conclusion)) warmRef.current = null;
 
         if (finished.sessionId === sessionRef.current) receiveFinished(finished);
         else if (awaitingRef.current) earlyRef.current.set(finished.sessionId, finished);
       },
-    }).then(
+    });
+    listeningRef.current = listening.then(
       (fn) => {
         if (alive) unlisten = fn;
         else fn();
+        return true;
       },
-      (e: unknown) => console.error("[MATE] could not listen to the mate search", e),
+      (e: unknown) => {
+        console.error("[MATE] could not listen to the mate search", e);
+        return false;
+      },
     );
 
     return () => {
@@ -148,8 +174,7 @@ export function MateSearchProvider({
   // 残っていれば、誰も見ていない探索がエンジンを回し続ける
   useEffect(() => {
     const stopLeftover = () => {
-      if (!isTauri()) return;
-      stop().catch((e: unknown) => console.warn("[MATE] could not stop the leftover search", e));
+      if (isTauri()) stopAndLog();
     };
     stopLeftover();
     return () => {
@@ -157,11 +182,12 @@ export function MateSearchProvider({
       dropPending();
       stopLeftover();
     };
-  }, [dropPending, stop]);
+  }, [dropPending, stopAndLog]);
 
   const dismiss = useCallback(() => {
-    const { phase } = stateRef.current;
-    if (phase === "closed") return;
+    // 描画の写し（`stateRef`）で決めない。始めるリクエストは描画より前に Rust へ出ることがあり、
+    // 写しが古いと、閉じた探索が走り続ける
+    const alive = startsInFlightRef.current > 0 || sessionRef.current !== null;
 
     seqRef.current += 1;
     sessionRef.current = null;
@@ -169,11 +195,8 @@ export function MateSearchProvider({
     earlyRef.current.clear();
     dropPending();
     dispatch({ type: "close" });
-
-    if (phase === "starting" || phase === "searching") {
-      stop().catch((e: unknown) => console.error("[MATE] could not stop the mate search", e));
-    }
-  }, [dropPending, stop]);
+    if (alive) stopAndLog();
+  }, [dropPending, stopAndLog]);
 
   // 局面が変わったら結論も候補手も古い。検討の意思は立てない（▶ を押したときだけ始まる）
   useEffect(() => {
@@ -200,42 +223,53 @@ export function MateSearchProvider({
     }
 
     const engineKey = JSON.stringify(engine);
-    dispatch({ type: "begin", sfen, warm: warmRef.current === engineKey, now: Date.now() });
-    warmRef.current = null;
+    const warm = warmRef.current === engineKey;
+    dispatch({ type: "begin", sfen, warm, now: Date.now() });
     sessionRef.current = null;
     awaitingRef.current = true;
     earlyRef.current.clear();
 
-    await lastStopRef.current;
-    if (superseded()) return;
-    if (cancelledSeqRef.current === seq) {
+    const fail = (outcome: MateOutcome) => {
       awaitingRef.current = false;
-      dispatch({ type: "fail", outcome: { kind: "cancelled" } });
-      return;
-    }
+      dispatch({ type: "fail", outcome });
+    };
 
+    await stopsRef.current;
+    const listening = await listeningRef.current;
+    if (superseded()) return;
+    if (cancelledSeqRef.current === seq) return fail({ kind: "cancelled" });
+    if (!listening) return fail({ kind: "refused" });
+
+    // 設定が違えば、Rust は前のエンジンを落として起こす
+    if (!warm) warmRef.current = null;
+    startsInFlightRef.current += 1;
     let sessionId: MateSessionId;
     try {
       sessionId = await startMateSearch({ engine, position: sfen, limitMs });
     } catch (e) {
-      if (superseded()) return;
-      awaitingRef.current = false;
       const kind = asMateStartFailureKind(e);
       console.warn("[MATE] start refused", e);
+      if (kind === "engineFailed" || kind === "refused") warmRef.current = null;
+      if (superseded()) return;
+
+      if (kind === "engineFailed") return fail({ kind: "startFailed" });
+      if (kind === "refused") return fail({ kind: "refused" });
       if (kind === "superseded" && cancelledSeqRef.current === seq) {
-        dispatch({ type: "fail", outcome: { kind: "cancelled" } });
-      } else if (kind === "superseded" || kind === "analysisUnresponsive") {
-        dispatch({ type: "close" });
-      } else {
-        dispatch({
-          type: "fail",
-          outcome: { kind: kind === "engineFailed" ? "startFailed" : "refused" },
-        });
+        return fail({ kind: "cancelled" });
       }
+      awaitingRef.current = false;
+      dispatch({ type: "close" });
+      return;
+    } finally {
+      startsInFlightRef.current -= 1;
+    }
+
+    if (superseded()) {
+      // 閉じた側の中止が開始を追い越していれば、誰も見ていない探索が残る。新しいリクエストがあれば、
+      // そちらの開始が Rust で前の探索を終わらせる
+      if (!awaitingRef.current && sessionRef.current === null) stopAndLog();
       return;
     }
-    // 要らなくなった探索は、閉じた側の `stopMateSearch` が止めている
-    if (superseded()) return;
 
     awaitingRef.current = false;
     warmRef.current = engineKey;
@@ -244,15 +278,24 @@ export function MateSearchProvider({
 
     const early = earlyRef.current.get(sessionId);
     earlyRef.current.clear();
-    if (!early) return;
-    if ("conclusion" in early) {
-      const { kind } = early.conclusion;
-      if (kind === "engineExited" || kind === "stopUnanswered") warmRef.current = null;
+    if (early && "conclusion" in early) {
+      if (losesEngine(early.conclusion)) warmRef.current = null;
       receiveFinished(early);
-    } else {
-      receiveUpdate(early);
+      return;
     }
-  }, [engine, currentSfen, limitMs, analysisBusy, stopAnalysis, receiveFinished, receiveUpdate]);
+    if (early) receiveUpdate(early);
+    // 中止が開始を追い越した。止めたつもりの探索が走っている
+    if (cancelledSeqRef.current === seq) stopAndLog();
+  }, [
+    engine,
+    currentSfen,
+    limitMs,
+    analysisBusy,
+    stopAnalysis,
+    stopAndLog,
+    receiveFinished,
+    receiveUpdate,
+  ]);
 
   const cancel = useCallback(async () => {
     const current = stateRef.current;
@@ -270,8 +313,9 @@ export function MateSearchProvider({
       await stop();
     } catch (e) {
       console.error("[MATE] could not stop the mate search", e);
-      if (seqRef.current === seq) dispatch({ type: "end_stop" });
     }
+    // 終わりの通知が来なかった回も、もう一度押せるようにする
+    if (seqRef.current === seq) dispatch({ type: "end_stop" });
   }, [dismiss, stop]);
 
   const toggle = useCallback(
@@ -282,9 +326,11 @@ export function MateSearchProvider({
   const ownsTable =
     state.phase !== "closed" && state.phase !== "preparing" && state.sfen === currentSfen;
 
+  const availability = engine ? "ready" : presetChosen ? "incomplete" : "unset";
+
   const value = useMemo<MateSearchContextType>(
-    () => ({ state, ownsTable, available: engine !== null, toggle, dismiss }),
-    [state, ownsTable, engine, toggle, dismiss],
+    () => ({ state, ownsTable, availability, toggle, dismiss }),
+    [state, ownsTable, availability, toggle, dismiss],
   );
 
   return <MateSearchContext.Provider value={value}>{children}</MateSearchContext.Provider>;
