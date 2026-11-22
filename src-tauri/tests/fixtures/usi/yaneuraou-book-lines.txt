@@ -2,6 +2,6 @@
 info string Error! : combo value not found, value = `mybook.db`, values = standard_book.db var no_book var standard_book.db var yaneura_book1.db var yaneura_book2.db var yaneura_book3.db var yaneura_book4.db var user_book1.db var user_book2.db var user_book3.db var book.bin
 info string read book file : /Users/me/test_shogi_engine/li/book/user_book1.db
 info string Error! : can't read file : /Users/me/test_shogi_engine/li/book/standard_book.db
-info string book file fallback : /Users/me/ShogiAi/TuyouraOu/book/user_book1.db -> /Users/me/ShogiAi/TuyouraOu/book/user_book1.ybb
-info string read book file : /Users/me/ShogiAi/TuyouraOu/book/user_book1.ybb
+info string book file fallback : /Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.db -> /Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.ybb
+info string read book file : /Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.ybb
 info string read book file : /Users/me/ShogiAi/AobaNNUE/book/user_book1.db

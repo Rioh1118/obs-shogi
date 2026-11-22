@@ -1265,7 +1265,10 @@ mod tests {
 
         // `.ybb` を `.db` の名前で送った回: `.ybb` を読めば通る。同じ名前の `.db` が並んでいて
         // エンジンが `.db` を読んだなら、`.ybb` を読んだとは言っていない
-        let ybb = sent("/Users/me/ShogiAi/TuyouraOu/book/user_book1.ybb", true);
+        let ybb = sent(
+            "/Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.ybb",
+            true,
+        );
         assert_eq!(book_load_warning(&real[3..5], &ybb), None);
         let shadowed = sent("/Users/me/ShogiAi/AobaNNUE/book/user_book1.ybb", true);
         assert_eq!(
