@@ -47,7 +47,7 @@ function summarizeFolder(profile: ProfileCandidate): AiFolderSummary {
     name: profile.name,
     path: profile.path,
     hasEval: profile.has_eval_dir && profile.eval_files.length > 0,
-    hasBook: profile.has_book_dir && profile.book_db_files.length > 0,
+    hasBook: profile.has_book_dir && profile.book_files.length > 0,
     evalOptionsOutsideEval: profile.eval_options_outside_eval,
   };
 }
@@ -69,7 +69,7 @@ function warningsOf(enginesDir: EnginesDir, engineCount: number, profiles: AiFol
         `「${name}」: eval_options.txt が eval/ の外にあります。eval/ の中に置かないとエンジンに読まれません。`,
       );
     }
-    if (!hasBook) warnings.push(`「${name}」: 定跡が未検出です（<AI 名>/book に .db）。`);
+    if (!hasBook) warnings.push(`「${name}」: 定跡が未検出です（<AI 名>/book に .db か .ybb）。`);
   }
   return warnings;
 }

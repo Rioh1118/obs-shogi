@@ -58,8 +58,8 @@ export type ProfileCandidate = {
   eval_options: EvalOption[];
   /** `eval_options.txt` が `eval/` に無く、`<profile>/` の直下にある（エンジンは読まない） */
   eval_options_outside_eval: boolean;
-  /** `<profile>/book` の中の `.db` の候補 */
-  book_db_files: FileCandidate[];
+  /** `<profile>/book` の中の `.db` と `.ybb` の候補 */
+  book_files: FileCandidate[];
 };
 
 export type AiRootIndex = {

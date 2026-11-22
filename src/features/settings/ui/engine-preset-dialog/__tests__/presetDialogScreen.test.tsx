@@ -47,7 +47,7 @@ const INDEX: AiRootIndex = {
       eval_files: [{ entry: "nn.bin", path: EVAL_HAO, kind: "file" }],
       eval_options: [],
       eval_options_outside_eval: false,
-      book_db_files: [],
+      book_files: [],
     },
   ],
 };

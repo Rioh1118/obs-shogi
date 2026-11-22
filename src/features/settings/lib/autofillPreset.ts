@@ -12,8 +12,8 @@ function pickDefaultEvalFile(profile: ProfileCandidate | null): FileCandidate | 
   return xs.find((f) => f.entry === "nn.bin") ?? xs[0];
 }
 
-function pickDefaultBookDb(profile: ProfileCandidate | null): FileCandidate | null {
-  const xs = profile?.book_db_files ?? [];
+function pickDefaultBook(profile: ProfileCandidate | null): FileCandidate | null {
+  const xs = profile?.book_files ?? [];
   if (xs.length === 0) return null;
   return xs[0];
 }
@@ -65,7 +65,7 @@ export function autofillPreset(
   }
 
   if (next.bookEnabled && !(next.bookFilePath ?? "").trim()) {
-    const defBook = pickDefaultBookDb(prof);
+    const defBook = pickDefaultBook(prof);
     const path = defBook ? defBook.path : null;
     if (next.bookFilePath !== path) {
       next.bookFilePath = path;

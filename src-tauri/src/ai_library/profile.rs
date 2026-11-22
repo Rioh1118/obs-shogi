@@ -21,6 +21,10 @@ const EVAL_OPTIONS_FILE: &str = "eval_options.txt";
 /// `eval_options.txt` を読む上限（バイト）。数行のファイルなので、超えるものは別物として読まない
 const MAX_EVAL_OPTIONS_BYTES: u64 = 64 * 1024;
 
+/// book/ から拾う定跡の拡張子（大文字小文字を問わない）。やねうら王が `BookFile` で読む2つで、
+/// `.ybb` は `.db` の名前で送ると読む（`engine::binding` の B1）。`.bin` / `.sbk` はまだ拾わない
+const BOOK_EXTENSIONS: [&str; 2] = ["db", "ybb"];
+
 /// eval/ と book/ の1つから読む項目の上限。数え方は `list_file_candidates`
 const MAX_FILES_PER_DIR: usize = 200;
 
@@ -59,8 +63,8 @@ pub struct ProfileCandidate {
     pub eval_options: Vec<EvalOption>,
     /// `eval_options.txt` が eval/ に無く、AI フォルダの直下にある。エンジンは読まない
     pub eval_options_outside_eval: bool,
-    /// book/ の直下の、拡張子が `db` のファイル（大文字小文字を問わない）
-    pub book_db_files: Vec<FileCandidate>,
+    /// book/ の直下の、拡張子が `BOOK_EXTENSIONS` のどれかのファイル
+    pub book_files: Vec<FileCandidate>,
 }
 
 /// 一覧に出る AI フォルダか。
@@ -161,8 +165,8 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
         let eval_options_outside_eval =
             !eval_options_inside.is_file() && path.join(EVAL_OPTIONS_FILE).is_file();
 
-        let book_db_files = if has_book_dir {
-            list_file_candidates(&book_dir, Some("db"), MAX_FILES_PER_DIR)
+        let book_files = if has_book_dir {
+            list_file_candidates(&book_dir, Some(&BOOK_EXTENSIONS), MAX_FILES_PER_DIR)
         } else {
             vec![]
         };
@@ -175,7 +179,7 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
             eval_files,
             eval_options,
             eval_options_outside_eval,
-            book_db_files,
+            book_files,
         });
     }
 
@@ -215,11 +219,11 @@ fn parse_eval_options(text: &str) -> Vec<EvalOption> {
         .collect()
 }
 
-/// `dir` の直下のファイルと symlink を名前の順に返す。`ext_filter` があれば、その拡張子だけ。
+/// `dir` の直下のファイルと symlink を名前の順に返す。`ext_filter` があれば、そのどれかの拡張子だけ。
 ///
 /// 見るのは `read_dir` が返す先頭の `max` 件で、絞り込みより前に数える。
 /// 多いフォルダでは、どれが入るかは `read_dir` の順で決まる
-fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec<FileCandidate> {
+fn list_file_candidates(dir: &Path, ext_filter: Option<&[&str]>, max: usize) -> Vec<FileCandidate> {
     let mut out: Vec<FileCandidate> = vec![];
 
     let it = match fs::read_dir(dir) {
@@ -241,12 +245,11 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec
             _ => continue,
         }
 
-        if let Some(ext) = ext_filter {
+        if let Some(exts) = ext_filter {
             let ok = path
                 .extension()
                 .and_then(|s| s.to_str())
-                .map(|s| s.eq_ignore_ascii_case(ext))
-                .unwrap_or(false);
+                .is_some_and(|s| exts.iter().any(|ext| s.eq_ignore_ascii_case(ext)));
             if !ok {
                 continue;
             }
@@ -378,7 +381,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// eval/ はファイルを全部、book/ は拡張子が `db` のもの（大文字も）だけを返す。フォルダは返さない
+    /// eval/ はファイルを全部、book/ は拡張子が `db` か `ybb` のもの（大文字も）だけを返す。フォルダは返さない
     #[test]
     fn files_are_listed_and_books_are_filtered_by_extension() {
         let root = temp_dir("ai-profile-files");
@@ -391,6 +394,9 @@ mod tests {
             "book/a.db",
             "book/B.DB",
             "book/c.txt",
+            "book/user_book1.ybb",
+            "book/D.YBB",
+            "book/e.bin",
         ] {
             fs::write(profile.join(file), "").expect("書けない");
         }
@@ -404,11 +410,11 @@ mod tests {
             .collect();
         assert_eq!(eval, ["README.txt", "nn.bin"]);
         let books: Vec<_> = found[0]
-            .book_db_files
+            .book_files
             .iter()
             .map(|f| f.entry.as_str())
             .collect();
-        assert_eq!(books, ["B.DB", "a.db"]);
+        assert_eq!(books, ["B.DB", "D.YBB", "a.db", "user_book1.ybb"]);
         let _ = fs::remove_dir_all(&root);
     }
 }

@@ -11,7 +11,7 @@ const profile = (name: string, options: [string, string][]): ProfileCandidate =>
   eval_files: [{ entry: "nn.bin", path: `/ai/${name}/eval/nn.bin`, kind: "file" }],
   eval_options: options.map(([n, value]) => ({ name: n, value })),
   eval_options_outside_eval: false,
-  book_db_files: [],
+  book_files: [],
 });
 
 describe("evalOptionsFor", () => {
