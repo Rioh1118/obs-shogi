@@ -14,7 +14,11 @@
       {
         "title": "obs-shogi",
         "width": 1600,
-        "height": 960,
+        "height": 1000,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "center": true,
+        "preventOverflow": { "width": 96, "height": 64 },
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
