@@ -107,6 +107,8 @@ pub fn run() {
             crate::engine::commands::analysis::get_analysis_result,
             crate::engine::commands::analysis::get_last_result,
             crate::engine::commands::analysis::get_analysis_status,
+            crate::engine::commands::analysis::start_mate_search,
+            crate::engine::commands::analysis::stop_mate_search,
             crate::engine::commands::game::start_game,
             crate::engine::commands::game::submit_game_move,
             crate::engine::commands::game::continue_game,

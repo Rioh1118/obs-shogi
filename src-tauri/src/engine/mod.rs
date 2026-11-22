@@ -12,6 +12,7 @@ pub mod eval_arch; // 評価関数ファイルの先頭の型
 pub mod game; // 対局
 pub mod launchable; // OS がこのファイルを起動させるか
 pub mod logging; // ログの文字列の部品、間引き、予算
+pub mod mate_search; // 詰み探索
 pub mod option_labels; // オプションの画面の名前（日本語）と分類
 pub mod option_line; // USI の option 行を定義に写す
 pub mod probe; // 申告だけを取る

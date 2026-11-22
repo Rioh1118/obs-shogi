@@ -212,6 +212,22 @@ const LAYERS: &[Layer] = &[
         ],
         forbids: &[],
     },
+    // `analyzer` と同位。互いを知らない。排他は `bridge` が持つ
+    Layer {
+        name: "mate_search",
+        decides: "どのプロセスが詰み探索のものかと、その上の探索と結論",
+        may_use: &[
+            "types",
+            "logging",
+            "candidates",
+            "protocol",
+            "registry",
+            "analysis_start",
+            "analysis_events",
+            "start_failure",
+        ],
+        forbids: &["tauri"],
+    },
     Layer {
         name: "bridge",
         decides: "検討の席を配り、開始と停止を1本ずつ通す",
@@ -221,6 +237,7 @@ const LAYERS: &[Layer] = &[
             "registry",
             "analysis_start",
             "analyzer",
+            "mate_search",
             "start_failure",
             "analysis_events",
         ],

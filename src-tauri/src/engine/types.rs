@@ -530,6 +530,68 @@ pub struct AnalysisUpdate {
     pub result: AnalysisResult,
 }
 
+/// 詰み探索の結論。`checkmate` の答えを画面が言い分けられる種類にしたもの
+/// （`docs/spec/features/mate-search.md` の「結論の文」）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum MateConclusion {
+    /// 詰み。`moves` は詰み手順（USI の指し手）
+    Mate { moves: Vec<String> },
+    /// 不詰
+    NoMate,
+    /// 時間切れ
+    Timeout,
+    /// 利用者が中止した（`stop` を送った）。エンジンの答えは読まない
+    Cancelled,
+    /// このエンジンは詰み探索をしない（`notimplemented`、または `checkmate` でなく `bestmove` が返った）
+    NotSupported,
+    /// 答えを読めない（`checkmate` の後が4つのどれでもない）。行はログに残す
+    Unreadable,
+    /// 探索中にエンジンが終わった
+    EngineExited,
+    /// `stop` に上限まで答えなかった。エンジンは落としてある
+    StopUnanswered,
+}
+
+/// 詰み探索の途中経過。形は検討の `AnalysisUpdate` と同じ
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MateSearchUpdate {
+    pub session_id: String,
+    pub result: AnalysisResult,
+}
+
+/// 詰み探索が終わった。`result` は最後に受けた候補手
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MateSearchFinished {
+    pub session_id: String,
+    pub conclusion: MateConclusion,
+    pub result: AnalysisResult,
+}
+
+/// 詰み探索を始められなかった
+#[derive(Debug, Clone, Serialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum MateStartFailure {
+    /// 検討の探索が `stop` に答えない（V6）。検討のエンジンには触らず、詰み探索は始めない
+    AnalysisUnresponsive,
+    /// 詰将棋エンジンを起動できない
+    EngineFailed { failure: StartFailure },
+    /// 始める前に別のリクエスト（中止、検討の開始、次の詰み探索）が来た
+    Superseded,
+    /// 検討を中断できない・探索をリクエストできない。`message` はログ用
+    Refused { message: String },
+}
+
 /// エンジンが自分で終わったことの通知。
 ///
 /// `request` はそのプロセスを起動した要求の番号（`analyzer::Request`）。受け手は最後に撃った

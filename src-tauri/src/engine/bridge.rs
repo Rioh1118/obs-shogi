@@ -8,6 +8,7 @@ use crate::engine::logging::{shown, MAX_SUMMARY_LEN};
 use super::analysis_events::{AnalysisEvent, AnalysisEventSink, DiscardAnalysisEvents};
 use super::analysis_start::StartInput;
 use super::analyzer::{AnalysisStreamItem, EngineAnalyzer, Request, MAX_THINK_TIME};
+use super::mate_search::MateSearcher;
 use super::registry::EngineRegistry;
 use super::start_failure;
 use super::types::*;
@@ -26,6 +27,9 @@ pub struct EngineBridge {
     /// 開始と停止を1本ずつ通す。**開始の途中（席を取ってから `go` が線に出るまで）に停止が
     /// 割り込むと、席だけ消えてエンジンが読み続ける。** 順序をフロントの握手に頼らない
     search_turn: Mutex<()>,
+    /// 詰み探索。**検討の探索と同時には走らせない**（`start_mate_search_impl` が検討を中断し、
+    /// 検討を始める側が `stop` する）
+    mate: MateSearcher,
 }
 
 /// 走っている解析1本ぶんの記録。**`active_sessions` の値**（鍵は `session_id`）。
@@ -93,10 +97,13 @@ fn stop_start_line(session_id: &str, by: &str) -> String {
 
 impl EngineBridge {
     pub fn new(registry: Arc<EngineRegistry>) -> Self {
+        let events: Arc<RwLock<Arc<dyn AnalysisEventSink>>> =
+            Arc::new(RwLock::new(Arc::new(DiscardAnalysisEvents)));
         Self {
-            analyzer: EngineAnalyzer::new(registry),
+            analyzer: EngineAnalyzer::new(Arc::clone(&registry)),
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
-            events: Arc::new(RwLock::new(Arc::new(DiscardAnalysisEvents))),
+            mate: MateSearcher::new(registry, Arc::clone(&events)),
+            events,
             search_turn: Mutex::new(()),
         }
     }
@@ -306,8 +313,54 @@ impl EngineBridge {
         Ok(())
     }
 
+    /// 詰み探索を始める（`MateSearcher::start`）。**検討の探索を先に中断する。** 検討のエンジンは落とさない。
+    /// 検討が `stop` に答えなければ始めない（V6 は `stop_all_sessions` が知らせる）。
+    ///
+    /// 検討のエンジンを起こし直している間（前のプロセスを落とし終えるまでの数百ミリ秒）は、検討に
+    /// 止めるものが無いと答えるので、落ちかけの検討と短く重なりうる。前のプロセスは必ず落ちるので待たない
+    ///
+    /// `reserve` は検討を中断するのと同じ順番の中で呼ぶ。順番を放してから呼ぶと、その間に始まった検討と
+    /// 同時に走る
+    pub async fn start_mate_search_impl(
+        &self,
+        engine_path: &str,
+        input: &StartInput,
+        position: String,
+        limit_ms: Option<u64>,
+    ) -> Result<String, MateStartFailure> {
+        let reservation = {
+            let _turn = self.search_turn.lock().await;
+            let reservation = self.mate.reserve().await;
+            match self.stop_all_sessions("mate-search").await {
+                Ok(StopOutcome::Stopped) => reservation,
+                Ok(StopOutcome::Unanswered) => return Err(MateStartFailure::AnalysisUnresponsive),
+                Err(message) => return Err(MateStartFailure::Refused { message }),
+            }
+        };
+        self.mate
+            .start(
+                reservation,
+                engine_path,
+                input,
+                position,
+                limit_ms.map(Duration::from_millis),
+            )
+            .await
+    }
+
+    /// 詰み探索を止める。走っていなければ何もしない。
+    ///
+    /// **始める側と同じ順番に並ぶ。** 並ばずに止めると、順番を待っている `start_mate_search_impl` が
+    /// 止めた後で `reserve` し、中止したはずの探索が始まる（順番は来た順に回る）
+    pub async fn stop_mate_search_impl(&self) {
+        let _turn = self.search_turn.lock().await;
+        self.mate.stop().await;
+    }
+
     pub async fn start_infinite_analysis_impl(&self) -> Result<String, StartRefusal> {
         let _turn = self.search_turn.lock().await;
+        // 検討と詰み探索は同時に走らせない。始める側が相手を終わらせる（AC-M5）
+        self.mate.stop().await;
 
         // **セッションを先に登録する。** 後にすると、走らせている間だけ
         // 「走っていない」に見える
@@ -484,11 +537,14 @@ impl EngineBridge {
                 MAX_THINK_TIME.as_secs()
             );
         }
+        // **`go` を書くまで順番を放さない。** 放してから書くと、その間に始まった詰み探索と同時に走る
+        let turn = self.search_turn.lock().await;
+        self.mate.stop().await;
         let session_id = self.take_session(SessionType::Timed(duration)).await?;
 
         let result = self
             .analyzer
-            .analyze_with_time(duration)
+            .analyze_with_time(duration, move || drop(turn))
             .await
             .map_err(|e| format!("Timed analysis failed: {e}"));
 
@@ -502,11 +558,14 @@ impl EngineBridge {
     /// `go depth` は送れない（`usi` crate に手段が無い）ので、届くかは
     /// `DEPTH_ANALYSIS_BUDGET` の中で `info depth` がそこまで伸びるか次第。
     pub async fn analyze_with_depth_impl(&self, depth: u32) -> Result<DepthOutcome, String> {
+        // **`go` を書くまで順番を放さない。** 放してから書くと、その間に始まった詰み探索と同時に走る
+        let turn = self.search_turn.lock().await;
+        self.mate.stop().await;
         let session_id = self.take_session(SessionType::Depth(depth)).await?;
 
         let result = self
             .analyzer
-            .analyze_with_depth(depth)
+            .analyze_with_depth(depth, move || drop(turn))
             .await
             .map_err(|e| format!("Depth analysis failed: {e}"));
 
@@ -1628,6 +1687,242 @@ done"#;
             assert!(refused.is_err_and(|e| e.unreachable));
             bridge.shutdown_engine_impl(6).await.expect("落とせる");
             let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        /// 詰将棋エンジンを別のフォルダに置く（検討のエンジンと記録が混ざらない）
+        async fn mate_engine(name: &str) -> (String, std::path::PathBuf) {
+            let dir = test_support::dir::temp_dir(name);
+            let body = script_with(
+                "echo 'info depth 1 multipv 1 score cp 1 pv 7g7f'",
+                ":",
+                "echo 'checkmate timeout'",
+                "exit 0",
+            );
+            let path = place_script(&dir, "mate.sh", &body).await;
+            (path.to_str().expect("パス").to_string(), dir)
+        }
+
+        fn mate_finished(recorded: &Recorded) -> Vec<MateConclusion> {
+            let events = recorded.0.lock().expect("記録");
+            events
+                .iter()
+                .filter_map(|e| match e {
+                    AnalysisEvent::MateFinished(f) => Some(f.conclusion.clone()),
+                    _ => None,
+                })
+                .collect()
+        }
+
+        /// AC-M5: 詰み探索を始めると検討の探索を先に中断し、検討のエンジンは落とさない
+        #[tokio::test]
+        async fn a_mate_search_stops_the_analysis_first_and_keeps_its_engine() {
+            let (bridge, _recorded, dir) = started("bridge-mate-first", ":", ":", 5).await;
+            let (mate, mate_dir) = mate_engine("bridge-mate-first-engine").await;
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+
+            bridge
+                .start_mate_search_impl(&mate, &StartInput::default(), "startpos".into(), None)
+                .await
+                .expect("詰み探索が始まる");
+
+            assert!(seen(&dir).contains("stop"), "検討を中断していない");
+            assert!(
+                bridge.active_sessions.read().await.is_empty(),
+                "検討の席が残っている"
+            );
+            wait_until("go mate が届く", || {
+                seen(&mate_dir).contains("go mate infinite")
+            })
+            .await;
+            assert!(!seen(&dir).contains("quit"), "検討のエンジンを落とした");
+
+            bridge.stop_mate_search_impl().await;
+            // 検討のエンジンは起こし直さずに使える
+            bridge
+                .start_infinite_analysis_impl()
+                .await
+                .expect("検討へ戻れる");
+            assert_eq!(seen(&dir).matches("usi\n").count(), 1);
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&mate_dir);
+        }
+
+        /// AC-M5: 検討が `stop` に答えなければ詰み探索を始めず、詰将棋エンジンも起こさない
+        #[tokio::test]
+        async fn a_mate_search_is_not_started_when_the_analysis_does_not_answer_stop() {
+            let body = script_with(":", ":", ":", "exit 0");
+            let (bridge, _recorded, dir) = started_as("bridge-mate-deaf", &body, 5).await;
+            let (mate, mate_dir) = mate_engine("bridge-mate-deaf-engine").await;
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+
+            let refused = bridge
+                .start_mate_search_impl(&mate, &StartInput::default(), "startpos".into(), None)
+                .await;
+
+            assert!(
+                matches!(refused, Err(MateStartFailure::AnalysisUnresponsive)),
+                "{refused:?}"
+            );
+            assert!(
+                !mate_dir.join("seen.log").exists(),
+                "詰将棋エンジンを起こしている"
+            );
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&mate_dir);
+        }
+
+        /// AC-M7: 検討を始めると、先に詰み探索を中止する（同時に走らない）
+        #[tokio::test]
+        async fn starting_the_analysis_ends_the_mate_search_first() {
+            let (bridge, recorded, dir) = started("bridge-mate-back", ":", ":", 5).await;
+            let (mate, mate_dir) = mate_engine("bridge-mate-back-engine").await;
+            bridge
+                .start_mate_search_impl(&mate, &StartInput::default(), "startpos".into(), None)
+                .await
+                .expect("詰み探索が始まる");
+            assert!(mate_finished(&recorded).is_empty());
+
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+
+            assert_eq!(mate_finished(&recorded), [MateConclusion::Cancelled]);
+            wait_until("検討の go が届く", || {
+                seen(&dir).contains("go infinite")
+            })
+            .await;
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&mate_dir);
+        }
+
+        /// 検討の `go` は、詰み探索が終わりを流した後にしか出ない
+        #[tokio::test]
+        async fn the_analysis_go_comes_after_the_end_of_the_mate_search() {
+            /// 終わりを流した時点で、検討の `go` が届いているかを残す
+            struct AtEnd {
+                dir: std::path::PathBuf,
+                go_seen: std::sync::Mutex<Option<bool>>,
+            }
+            impl AnalysisEventSink for AtEnd {
+                fn emit(&self, event: AnalysisEvent) {
+                    if matches!(event, AnalysisEvent::MateFinished(_)) {
+                        *self.go_seen.lock().expect("記録") =
+                            Some(seen(&self.dir).contains("go infinite"));
+                    }
+                }
+            }
+            let (bridge, _recorded, dir) = started("bridge-mate-order", ":", ":", 5).await;
+            let at_end = Arc::new(AtEnd {
+                dir: dir.clone(),
+                go_seen: std::sync::Mutex::new(None),
+            });
+            bridge.set_events(Arc::clone(&at_end) as _).await;
+            let (mate, mate_dir) = mate_engine("bridge-mate-order-engine").await;
+            bridge
+                .start_mate_search_impl(&mate, &StartInput::default(), "startpos".into(), None)
+                .await
+                .expect("始まる");
+
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+
+            assert_eq!(*at_end.go_seen.lock().expect("記録"), Some(false));
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&mate_dir);
+        }
+
+        /// 時間と深度の検討も、先に詰み探索を終わらせる。走っている間に詰み探索を始めれば、そちらを中断する
+        #[tokio::test]
+        async fn timed_and_depth_analysis_take_turns_with_the_mate_search() {
+            let (bridge, recorded, dir) = started("bridge-mate-timed", ":", ":", 5).await;
+            let bridge = Arc::new(bridge);
+            let (mate, mate_dir) = mate_engine("bridge-mate-timed-engine").await;
+            // 1周で2回終わる（検討の開始と、最後の中止）
+            for (ended, depth) in [(1, false), (3, true)] {
+                bridge
+                    .start_mate_search_impl(&mate, &StartInput::default(), "startpos".into(), None)
+                    .await
+                    .expect("始まる");
+                let before = seen(&dir).matches("go ").count();
+                let analysis = tokio::spawn({
+                    let bridge = Arc::clone(&bridge);
+                    async move {
+                        if depth {
+                            bridge.analyze_with_depth_impl(40).await.map(|_| ())
+                        } else {
+                            bridge.analyze_with_time_impl(30).await.map(|_| ())
+                        }
+                    }
+                });
+                wait_until("検討の go が届く", || {
+                    seen(&dir).matches("go ").count() > before
+                })
+                .await;
+                assert_eq!(
+                    mate_finished(&recorded).len(),
+                    ended,
+                    "詰み探索が残っている"
+                );
+
+                bridge
+                    .start_mate_search_impl(&mate, &StartInput::default(), "startpos".into(), None)
+                    .await
+                    .expect("始まる");
+                let _ = analysis.await.expect("中断されて返る");
+                bridge.stop_mate_search_impl().await;
+            }
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&mate_dir);
+        }
+
+        /// 順番を待っている詰み探索への中止は消えない。検討の停止が順番を持っている間に
+        /// 「始める」「中止」と並べば、最後は走っていない
+        #[tokio::test]
+        async fn a_stop_is_not_lost_while_the_mate_search_waits_for_its_turn() {
+            let body = script_with(":", ":", "sleep 1; echo 'bestmove 7g7f'", "exit 0");
+            let (bridge, recorded, dir) = started_as("bridge-mate-queued", &body, 5).await;
+            let bridge = Arc::new(bridge);
+            let (mate, mate_dir) = mate_engine("bridge-mate-queued-engine").await;
+            bridge.start_infinite_analysis_impl().await.expect("始まる");
+            let stopping = tokio::spawn({
+                let bridge = Arc::clone(&bridge);
+                async move { bridge.stop_analysis_impl(None, None).await }
+            });
+            wait_until("検討の stop が届く", || seen(&dir).contains("stop")).await;
+            let starting = tokio::spawn({
+                let (bridge, mate) = (Arc::clone(&bridge), mate.clone());
+                async move {
+                    bridge
+                        .start_mate_search_impl(
+                            &mate,
+                            &StartInput::default(),
+                            "startpos".into(),
+                            None,
+                        )
+                        .await
+                }
+            });
+            // 始める側が順番に並ぶまで待つ
+            tokio::time::sleep(QUIET).await;
+
+            bridge.stop_mate_search_impl().await;
+
+            stopping.await.expect("task").expect("止まる");
+            match starting.await.expect("task") {
+                Err(MateStartFailure::Superseded) => {}
+                Ok(_) => {
+                    wait_until("中止で終わる", || {
+                        mate_finished(&recorded) == [MateConclusion::Cancelled]
+                    })
+                    .await
+                }
+                other => panic!("{other:?}"),
+            }
+            bridge.shutdown_engine_impl(6).await.expect("落とせる");
+            let _ = std::fs::remove_dir_all(&dir);
+            let _ = std::fs::remove_dir_all(&mate_dir);
         }
     }
 }

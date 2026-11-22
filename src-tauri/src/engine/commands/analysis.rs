@@ -44,6 +44,10 @@ impl AnalysisEventSink for TauriAnalysisEvents {
                 self.app.emit("engine-unresponsive", unresponsive)
             }
             AnalysisEvent::EngineAnswered(answered) => self.app.emit("engine-answered", answered),
+            AnalysisEvent::MateUpdate(update) => self.app.emit("mate-search-update", update),
+            AnalysisEvent::MateFinished(finished) => {
+                self.app.emit("mate-search-finished", finished)
+            }
         };
         if let Err(e) = emitted {
             if self.emit_warn.lock().is_ok_and(|mut w| w.allow()) {
@@ -147,4 +151,38 @@ pub async fn get_analysis_status(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<AnalysisStatus>, String> {
     state.bridge.get_analysis_status_impl().await
+}
+
+/// 現局面の詰み探索を始める。**検討の探索を先に中断し、検討のエンジンは落とさない。** 詰将棋エンジンは
+/// 検討とは別のプロセスで動く（`docs/spec/features/mate-search.md` の AC-M5）。
+///
+/// `position` は `set_position` と同じ綴り。`limit_ms` を省くと無制限。返すのは探索の番号で、
+/// `mate-search-update` と `mate-search-finished` に載る
+#[tauri::command]
+pub async fn start_mate_search(
+    state: tauri::State<'_, AppState>,
+    engine_path: String,
+    values: Vec<SetOptionValue>,
+    eval_path: Option<String>,
+    book: Option<BookChoice>,
+    position: String,
+    limit_ms: Option<u64>,
+) -> Result<String, MateStartFailure> {
+    let input = StartInput {
+        values,
+        eval_path,
+        book,
+    };
+    state
+        .bridge
+        .start_mate_search_impl(&engine_path, &input, position, limit_ms)
+        .await
+}
+
+/// 詰み探索を中止する。結論（`mate-search-finished` の `cancelled`）を流し終えてから返る。
+/// 走っていなければ何もしない
+#[tauri::command]
+pub async fn stop_mate_search(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    state.bridge.stop_mate_search_impl().await;
+    Ok(())
 }

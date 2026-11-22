@@ -12,8 +12,7 @@
 mod declared;
 
 use usi::{
-    BestMoveParams, CheckmateParams, EngineCommand, GameOverKind, GuiCommand, IdParams, InfoParams,
-    ThinkParams,
+    BestMoveParams, EngineCommand, GameOverKind, GuiCommand, IdParams, InfoParams, ThinkParams,
 };
 
 use crate::engine::types::{EngineEnd, EngineError, EngineInfo, SetOptionValue, StartupReason};
@@ -35,9 +34,68 @@ const SEARCH_NOT_ENDED: &str = "the previous search on this engine has not ended
 #[derive(Debug)]
 pub enum SearchLine {
     Info(Vec<InfoParams>),
-    Checkmate(CheckmateParams),
+    /// `checkmate` の行。詰み探索（`go mate`）では最後の行で、この後その探索には何も流さない
+    Checkmate(MateAnswer),
     /// 最後の行。この後その探索には何も流さない。手を読むのは対局だけ（検討は手を使わない）
     BestMove(BestMoveParams),
+}
+
+/// `checkmate` の行の答え。**行は自前で読む**——`usi` 0.6.2 は `notimplemented` を `nomate` と同じ値にし、
+/// `checkmate none`（結果不明）を「`none` という1手の詰み」と読む（`docs/spec/features/mate-search.md` の AC-M2 AC-M4）
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MateAnswer {
+    /// 詰み手順
+    Mate(Vec<String>),
+    /// 詰まない（`nomate`）
+    NoMate,
+    /// 時間内に決まらない（`timeout`）
+    Timeout,
+    /// 詰み探索をしない（`notimplemented`）
+    NotImplemented,
+    /// 上のどれとも読めない行。生の行を持つ（記録に残す）
+    Unreadable(String),
+}
+
+impl MateAnswer {
+    /// `checkmate` で始まる行を読む。手順は1手ずつ USI の指し手の綴りかを見る（`none` は手ではない）
+    pub fn read(raw: &str) -> Self {
+        let mut tokens = raw.split_whitespace();
+        if tokens.next() != Some("checkmate") {
+            return Self::Unreadable(raw.to_string());
+        }
+        let rest: Vec<&str> = tokens.collect();
+        match rest.as_slice() {
+            ["nomate"] => Self::NoMate,
+            ["timeout"] => Self::Timeout,
+            ["notimplemented"] => Self::NotImplemented,
+            moves if !moves.is_empty() && moves.iter().all(|m| is_usi_move(m)) => {
+                Self::Mate(moves.iter().map(|m| (*m).to_string()).collect())
+            }
+            _ => Self::Unreadable(raw.to_string()),
+        }
+    }
+}
+
+/// 止めた探索に、エンジンが何で答えたか
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StopReply {
+    BestMove,
+    /// 詰み探索の結論（`go mate` の探索だけ）
+    Checkmate(MateAnswer),
+    /// 止める前に答えていた
+    AlreadyAnswered,
+}
+
+/// USI の指し手の綴りか（`7g7f` / `8h2b+` / `P*5e`）。局面に当てられるかは見ない
+fn is_usi_move(token: &str) -> bool {
+    let b = token.as_bytes();
+    let square =
+        |file: u8, rank: u8| (b'1'..=b'9').contains(&file) && (b'a'..=b'i').contains(&rank);
+    match b {
+        [piece, b'*', file, rank] => b"PLNSGBR".contains(piece) && square(*file, *rank),
+        [f1, r1, f2, r2] | [f1, r1, f2, r2, b'+'] => square(*f1, *r1) && square(*f2, *r2),
+        _ => false,
+    }
 }
 
 /// 答えを待つ者の札。待つ手順が1つ頼むごとに1枚出す
@@ -67,8 +125,8 @@ pub enum Effect {
     Prepared(Ticket, Result<Vec<String>, EngineError>),
     /// 値の確認の札への答え。`usiok` までの `info string` の文
     Checked(Ticket, Result<Vec<String>, EngineError>),
-    /// 止めの札への答え。`Ok` は `bestmove` で答えた
-    Stopped(Ticket, Result<(), EngineError>),
+    /// 止めの札への答え。`Ok` は `bestmove`（詰み探索なら `checkmate` も）で答えた
+    Stopped(Ticket, Result<StopReply, EngineError>),
     /// 探索へ流す行
     ToSearch(SearchId, SearchLine),
     /// その探索にはもう何も流さない
@@ -123,12 +181,18 @@ enum State {
         texts: Vec<String>,
         back: Back,
     },
-    /// Q3（`ponder` が偽）と Q3p（真）。探索1本が走っている
-    Searching { search: SearchId, ponder: bool },
-    /// Q4 止め待ち。`stop` を書いたが `bestmove` がまだ。止めを待つ札が無くてもここに居る
+    /// Q3（`ponder` が偽）と Q3p（真）。探索1本が走っている。`mate` は詰み探索（`go mate`）で、
+    /// `bestmove` でなく `checkmate` で終わる
+    Searching {
+        search: SearchId,
+        ponder: bool,
+        mate: bool,
+    },
+    /// Q4 止め待ち。`stop` を書いたが `bestmove`（詰み探索なら `checkmate`）がまだ。止めを待つ者が居なくてもここに居る
     Stopping {
         search: SearchId,
         waiting: Vec<Ticket>,
+        mate: bool,
     },
     /// Q5 閉じた。吸収状態
     Closed(EngineEnd),
@@ -214,13 +278,17 @@ impl UsiMachine {
         if let Naming::Collecting { declared, .. } = &mut self.naming {
             declared.note(raw);
         }
+        // `checkmate` は解けたかに関わらず生の行から読む（`MateAnswer`）
+        if raw.split_whitespace().next() == Some("checkmate") {
+            self.on_checkmate(MateAnswer::read(raw));
+            return;
+        }
         let Some(command) = parsed else { return };
         match command {
             EngineCommand::Id(id) => self.on_id(id),
             EngineCommand::UsiOk => self.on_usiok(),
             EngineCommand::ReadyOk => self.on_readyok(),
             EngineCommand::Info(params) => self.on_info(params),
-            EngineCommand::Checkmate(params) => self.on_checkmate(params),
             EngineCommand::BestMove(params) => self.on_bestmove(params),
             _ => {}
         }
@@ -337,10 +405,34 @@ impl UsiMachine {
         }
     }
 
-    fn on_checkmate(&mut self, params: CheckmateParams) {
-        if let State::Searching { search, .. } = self.state {
-            self.effects
-                .push(Effect::ToSearch(search, SearchLine::Checkmate(params)));
+    /// 探索中ならその探索へ流す。**詰み探索なら最後の行として閉じる**（通常のエンジンは詰み探索にも
+    /// `bestmove` を返すので、そちらでも閉じる。`on_bestmove`）。
+    /// 詰み探索の止め待ちなら、`checkmate` が止めの答え（`stop` の後に結論を返して待機へ戻る）
+    fn on_checkmate(&mut self, answer: MateAnswer) {
+        match &mut self.state {
+            State::Searching { search, mate, .. } => {
+                let (search, mate) = (*search, *mate);
+                self.effects
+                    .push(Effect::ToSearch(search, SearchLine::Checkmate(answer)));
+                if mate {
+                    self.effects.push(Effect::SearchEnded(search));
+                    self.state = State::Idle;
+                }
+            }
+            State::Stopping {
+                waiting,
+                mate: true,
+                ..
+            } => {
+                for ticket in std::mem::take(waiting) {
+                    self.effects.push(Effect::Stopped(
+                        ticket,
+                        Ok(StopReply::Checkmate(answer.clone())),
+                    ));
+                }
+                self.state = State::Idle;
+            }
+            _ => {}
         }
     }
 
@@ -355,7 +447,8 @@ impl UsiMachine {
             }
             State::Stopping { waiting, .. } => {
                 for ticket in std::mem::take(waiting) {
-                    self.effects.push(Effect::Stopped(ticket, Ok(())));
+                    self.effects
+                        .push(Effect::Stopped(ticket, Ok(StopReply::BestMove)));
                 }
                 self.state = State::Idle;
             }
@@ -495,18 +588,23 @@ impl UsiMachine {
             });
         }
         let ponder = is_ponder(&params);
+        let mate = is_mate(&params);
         self.effects
             .push(Effect::Write(GuiCommand::Position(position)));
         self.effects.push(Effect::Write(GuiCommand::Go(params)));
         let search = SearchId(self.issue());
-        self.state = State::Searching { search, ponder };
+        self.state = State::Searching {
+            search,
+            ponder,
+            mate,
+        };
         Ok(search)
     }
 
     /// R6 先読みを本番にする。その探索が先読み中（Q3p）のときだけ `ponderhit` を書く（→ Q3）
     pub fn ponderhit(&mut self, id: SearchId) -> Result<(), EngineError> {
         match &mut self.state {
-            State::Searching { search, ponder } if *search == id && *ponder => {
+            State::Searching { search, ponder, .. } if *search == id && *ponder => {
                 *ponder = false;
                 self.effects.push(Effect::Write(GuiCommand::Ponderhit));
                 Ok(())
@@ -520,17 +618,18 @@ impl UsiMachine {
 
     /// R7 止める。走っている探索なら `stop` を書いて答えを待つ（→ Q4）。止め待ちなら同じ答えを待つ。
     ///
-    /// **走っていない探索は「答えた」。** 探索は `bestmove` か閉じることでしか終わらないので、
-    /// 閉じていなければ、その探索は既に `bestmove` で答えている
+    /// **走っていない探索は「答えた」。** 探索は最後の行（`bestmove`、詰み探索なら `checkmate` も）か
+    /// 閉じることでしか終わらないので、閉じていなければ、その探索は既に答えている
     pub fn stop(&mut self, id: SearchId) -> Result<Asked<()>, EngineError> {
         match self.state {
-            State::Searching { search, .. } if search == id => {
+            State::Searching { search, mate, .. } if search == id => {
                 let ticket = self.issue_ticket();
                 self.effects.push(Effect::Write(GuiCommand::Stop));
                 self.effects.push(Effect::SearchEnded(id));
                 self.state = State::Stopping {
                     search: id,
                     waiting: vec![ticket],
+                    mate,
                 };
                 Ok(Asked::Waiting(ticket))
             }
@@ -548,13 +647,14 @@ impl UsiMachine {
 
     /// R8 探索を止めずに捨てた。走っていれば `stop` だけを書く（→ Q4）。待つ者は居ない
     pub fn drop_search(&mut self, id: SearchId) {
-        if let State::Searching { search, .. } = self.state {
+        if let State::Searching { search, mate, .. } = self.state {
             if search == id {
                 self.effects.push(Effect::Write(GuiCommand::Stop));
                 self.effects.push(Effect::SearchEnded(id));
                 self.state = State::Stopping {
                     search: id,
                     waiting: Vec::new(),
+                    mate,
                 };
             }
         }
@@ -717,6 +817,12 @@ fn is_ponder(params: &ThinkParams) -> bool {
     params.to_string().starts_with(" ponder")
 }
 
+/// 詰み探索（`go mate`）か。`is_ponder` と同じく線に出る形で見る（`usi` 0.6.2 は ` mate <ミリ秒>` か
+/// ` mate infinite` を書く。`a_mate_search_is_told_by_the_mate_word` が固定する）
+pub fn is_mate(params: &ThinkParams) -> bool {
+    params.to_string().split_whitespace().any(|w| w == "mate")
+}
+
 fn info_strings(params: Vec<InfoParams>) -> impl Iterator<Item = String> {
     params.into_iter().filter_map(|p| match p {
         InfoParams::Text(text) => Some(text),
@@ -864,7 +970,7 @@ mod tests {
                 Effect::Prepared(_, Err(e)) => format!("prepared {}", kind(e)),
                 Effect::Checked(_, Ok(texts)) => format!("checked {texts:?}"),
                 Effect::Checked(_, Err(e)) => format!("checked {}", kind(e)),
-                Effect::Stopped(_, Ok(())) => "stopped".to_string(),
+                Effect::Stopped(_, Ok(_)) => "stopped".to_string(),
                 Effect::Stopped(_, Err(e)) => format!("stopped {}", kind(e)),
                 Effect::ToSearch(_, SearchLine::Info(_)) => "search info".to_string(),
                 Effect::ToSearch(_, SearchLine::Checkmate(_)) => "search checkmate".to_string(),
@@ -1033,7 +1139,130 @@ mod tests {
         assert_eq!(shapes(&mut checking.m), says(&["checked [\"hello\"]"]));
     }
 
-    /// L6 `checkmate`: 探索中（Q3、Q3p）だけその探索へ流す。`bestmove` ではないので探索は続く
+    /// 詰み探索（`go mate`）を始めた Q3。`at(Row::Q3)` は通常の `go`
+    fn mate_search() -> At {
+        let mut at = at(Row::Q2);
+        let id =
+            at.m.search(
+                "startpos".to_string(),
+                ThinkParams::new()
+                    .mate(usi::MateParam::Timeout(std::time::Duration::from_secs(30))),
+            )
+            .expect("Q2 で探索できる");
+        at.search = Some(id);
+        assert_eq!(
+            shapes(&mut at.m),
+            says(&["write position sfen startpos", "write go mate 30000"])
+        );
+        at
+    }
+
+    /// L6 `checkmate`（詰み探索）: 最後の行として流して閉じる → Q2。`bestmove` を待たない（AC-M1）
+    #[test]
+    fn a_checkmate_line_ends_a_mate_search() {
+        for line in [
+            "checkmate nomate",
+            "checkmate 7g7f",
+            "checkmate none",
+            "checkmate",
+        ] {
+            let mut at = mate_search();
+            feed(&mut at.m, line);
+            assert_eq!(
+                shapes(&mut at.m),
+                says(&["search checkmate", "search ended"]),
+                "{line}"
+            );
+            assert_eq!(q(&at.m), Row::Q2, "{line}");
+        }
+    }
+
+    /// 詰み探索に `bestmove` が返った（詰み探索をしないエンジン）。通常の探索と同じく閉じる
+    #[test]
+    fn a_bestmove_also_ends_a_mate_search() {
+        let mut at = mate_search();
+        feed(&mut at.m, "bestmove 7g7f");
+        assert_eq!(
+            shapes(&mut at.m),
+            says(&["search bestmove", "search ended"])
+        );
+        assert_eq!(q(&at.m), Row::Q2);
+    }
+
+    /// 詰み探索を止めたら、`checkmate` が止めの答え（AC-M3）。通常の探索の止め待ちでは答えにしない
+    #[test]
+    fn a_checkmate_answers_the_stop_of_a_mate_search_only() {
+        let mut mate = mate_search();
+        let id = mate.search_id();
+        assert!(matches!(mate.m.stop(id), Ok(Asked::Waiting(_))));
+        mate.m.take_effects();
+        feed(&mut mate.m, "checkmate timeout");
+        assert_eq!(shapes(&mut mate.m), says(&["stopped"]));
+        assert_eq!(q(&mate.m), Row::Q2);
+
+        let mut normal = at(Row::Q4);
+        feed(&mut normal.m, "checkmate timeout");
+        assert_eq!(shapes(&mut normal.m), none());
+        assert_eq!(q(&normal.m), Row::Q4);
+    }
+
+    /// 捨てた詰み探索も、`checkmate` で待機へ戻る（戻らないと、次の探索がずっと断られる）
+    #[test]
+    fn a_checkmate_ends_a_dropped_mate_search() {
+        let mut mate = mate_search();
+        let id = mate.search_id();
+        mate.m.drop_search(id);
+        assert_eq!(q(&mate.m), Row::Q4);
+        feed(&mut mate.m, "checkmate timeout");
+        assert_eq!(q(&mate.m), Row::Q2);
+    }
+
+    /// `checkmate` の行は自前で読む。`usi` 0.6.2 は `notimplemented` を `nomate` と同じにし、
+    /// `none` を1手の詰みと読む（AC-M2 AC-M4）
+    #[test]
+    fn a_checkmate_line_is_read_into_one_of_five_answers() {
+        assert_eq!(MateAnswer::read("checkmate nomate"), MateAnswer::NoMate);
+        assert_eq!(MateAnswer::read("checkmate timeout"), MateAnswer::Timeout);
+        assert_eq!(
+            MateAnswer::read("checkmate notimplemented"),
+            MateAnswer::NotImplemented
+        );
+        assert_eq!(
+            MateAnswer::read("checkmate G*8f 9f9g 8f8g 9g9h 8g8h+"),
+            MateAnswer::Mate(
+                ["G*8f", "9f9g", "8f8g", "9g9h", "8g8h+"]
+                    .map(String::from)
+                    .to_vec()
+            )
+        );
+        for unreadable in [
+            "checkmate none",
+            "checkmate",
+            "checkmate nomate extra",
+            "checkmate 7g7f none",
+            "checkmate K*5e",
+            "checkmate 0a1b",
+        ] {
+            assert_eq!(
+                MateAnswer::read(unreadable),
+                MateAnswer::Unreadable(unreadable.to_string()),
+                "{unreadable}"
+            );
+        }
+    }
+
+    /// `go mate` かは線に出る形で見る（`is_ponder` と同じ理由）
+    #[test]
+    fn a_mate_search_is_told_by_the_mate_word() {
+        assert!(is_mate(&ThinkParams::new().mate(usi::MateParam::Infinite)));
+        assert!(is_mate(&ThinkParams::new().mate(usi::MateParam::Timeout(
+            std::time::Duration::from_millis(500)
+        ))));
+        assert!(!is_mate(&ThinkParams::new().infinite()));
+        assert!(!is_mate(&ThinkParams::new().ponder().infinite()));
+    }
+
+    /// L6 `checkmate`: 探索中（Q3、Q3p）だけその探索へ流す。通常の探索では `bestmove` ではないので探索は続く
     #[test]
     fn a_checkmate_line_goes_only_to_a_running_search() {
         for row in ALL {

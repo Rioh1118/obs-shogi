@@ -253,7 +253,7 @@ async fn next_ponderhit(asks: &mut Option<PonderHitAsks>) -> PonderHitReply {
 fn outcome_after_stop(answer: StopAnswer) -> SearchOutcome {
     match answer {
         // 止めに答えた。止める前に答えていた探索もここ
-        StopAnswer::Answered => SearchOutcome::StoppedCleanly,
+        StopAnswer::Answered(_) => SearchOutcome::StoppedCleanly,
         // 上限まで答えなかった。エンジンは探索中とみなす
         StopAnswer::Unanswered(_) => SearchOutcome::StopTimedOut,
         StopAnswer::Unreachable(EngineError::Timeout(_)) => SearchOutcome::StopTimedOut,
@@ -282,7 +282,9 @@ mod tests {
     fn a_stop_answer_does_not_collapse_its_endings() {
         // 止めに答えた。エンジンは待機に戻っている
         assert!(matches!(
-            outcome_after_stop(StopAnswer::Answered),
+            outcome_after_stop(StopAnswer::Answered(
+                crate::engine::protocol::search::StopReply::BestMove
+            )),
             SearchOutcome::StoppedCleanly
         ));
         // 送る先が無いか、出力が終わった。**探索中とは限らないので `StopTimedOut` にしない**

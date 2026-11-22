@@ -10,10 +10,10 @@ use usi::ThinkParams;
 
 use super::{refuse_breaking_field, Input, Request, Status, UsiProtocol, LOGT};
 use crate::engine::types::EngineError;
-pub use crate::engine::usi_machine::SearchLine;
 #[cfg(test)]
 use crate::engine::usi_machine::GONE;
 use crate::engine::usi_machine::{closed_error, Asked, SearchId};
+pub use crate::engine::usi_machine::{MateAnswer, SearchLine, StopReply};
 
 /// 止めたときの答え。**`stop` の後に何が起きたかを、ここで1つの値にする。**
 ///
@@ -21,10 +21,10 @@ use crate::engine::usi_machine::{closed_error, Asked, SearchId};
 /// 写しが2つになる。監査の D-1）。
 #[derive(Debug)]
 pub enum StopAnswer {
-    /// `bestmove` で答えた。エンジンは待機に戻った。止める前に答えていた探索もここ
-    /// （探索は `bestmove` か閉じることでしか終わらないので、閉じていなければ答え済み）
-    Answered,
-    /// 上限まで `bestmove` が来なかった。エンジンは止め待ちのまま残っている。
+    /// 答えた（何で答えたかは `StopReply`）。エンジンは待機に戻った。止める前に答えていた探索もここ
+    /// （探索は最後の行か閉じることでしか終わらないので、閉じていなければ答え済み）
+    Answered(StopReply),
+    /// 上限まで最後の行（`bestmove`、詰み探索なら `checkmate` も）が来なかった。エンジンは止め待ちのまま残っている。
     /// 遅れて来る答えは中の `LateAnswer` で待てる
     Unanswered(LateAnswer),
     /// 届かない。`stop` を書けなかったか、待つ間に出力が終わった。
@@ -40,7 +40,7 @@ pub enum StopAnswer {
 /// 前の探索の終わりを待つ上限。対局の止めの上限（`engine/game/search.rs` の `SEARCH_STOP_GRACE`）の倍以上に取る
 /// （関係は `game/search.rs` の `waiting_for_the_previous_search_outlasts_a_stop` が固定する）。
 ///
-/// 捨てた探索（`Search` の `Drop`）は `stop` を書くだけで、`bestmove` が来るまで状態機械は止め待ちに
+/// 捨てた探索（`Search` の `Drop`）は `stop` を書くだけで、最後の行（`bestmove`、詰み探索なら `checkmate` も）が来るまで状態機械は止め待ちに
 /// 残り、次の探索を断る。手順「探索」は、断られる前にここまで待つ
 pub const PREVIOUS_SEARCH_LIMIT: Duration = Duration::from_secs(10);
 
@@ -56,7 +56,9 @@ pub struct Search {
     protocol: UsiProtocol,
     id: SearchId,
     lines: mpsc::UnboundedReceiver<SearchLine>,
-    /// `bestmove` を受けた。以後は止めるものが無い
+    /// 詰み探索（`go mate`）。`checkmate` も最後の行（通常のエンジンは `bestmove` で終える）
+    mate: bool,
+    /// 最後の行（`bestmove`、詰み探索なら `checkmate`）を受けた。以後は止めるものが無い
     answered: bool,
 }
 
@@ -75,11 +77,13 @@ impl Search {
         protocol: UsiProtocol,
         id: SearchId,
         lines: mpsc::UnboundedReceiver<SearchLine>,
+        mate: bool,
     ) -> Self {
         Self {
             protocol,
             id,
             lines,
+            mate,
             answered: false,
         }
     }
@@ -129,8 +133,8 @@ impl UsiProtocol {
 }
 
 impl Search {
-    /// 次の行を待つ。`bestmove` を返した後は `Ok(None)`。
-    /// `bestmove` の前に閉じたら、閉じた写しを見てから届かない理由（`UsiProtocol::cannot_reach`）で断る。
+    /// 次の行を待つ。`bestmove`（詰み探索なら `checkmate`）を返した後は `Ok(None)`。
+    /// 最後の行の前に閉じたら、閉じた写しを見てから届かない理由（`UsiProtocol::cannot_reach`）で断る。
     ///
     /// 取り消してよい（`select!` に置ける）。受けていない行は失われない
     pub async fn next_line(&mut self) -> Result<Option<SearchLine>, EngineError> {
@@ -139,7 +143,11 @@ impl Search {
         }
         match self.lines.recv().await {
             Some(line) => {
-                self.answered = matches!(line, SearchLine::BestMove(_));
+                self.answered = match line {
+                    SearchLine::BestMove(_) => true,
+                    SearchLine::Checkmate(_) => self.mate,
+                    SearchLine::Info(_) => false,
+                };
                 Ok(Some(line))
             }
             // 送り手が落ちるのは閉じたときだけ（`bestmove` の後は上で返る）。理由は閉じた写しから組む
@@ -155,7 +163,7 @@ impl Search {
         handle.finish(written).await
     }
 
-    /// 止める。`stop` を書き、`bestmove` を `limit` まで待って答えを返す（`StopAnswer`）。
+    /// 止める。`stop` を書き、最後の行（`bestmove`、詰み探索なら `checkmate` も）を `limit` まで待って答えを返す（`StopAnswer`）。
     ///
     /// **上限は呼び手が渡す**（検討と対局で違う）。上限まで待っても答えなければ `Unanswered` を返し、
     /// エンジンは止め待ちのまま残る。止めた探索の `info` は状態機械が捨てる。
@@ -164,10 +172,10 @@ impl Search {
     /// 「`stop` に答えなかった」という説明が付き、次の手（起こし直す）が出ない。
     ///
     /// 途中で future を捨てても探索は残らない。`stop` を書く前なら `Drop` が書き、書いた後なら
-    /// 状態機械が止め待ちのまま `bestmove` を待つ
+    /// 状態機械が止め待ちのまま最後の行を待つ
     pub async fn stop(self, limit: Duration) -> StopAnswer {
         if self.answered {
-            return StopAnswer::Answered;
+            return StopAnswer::Answered(StopReply::AlreadyAnswered);
         }
         let id = self.id;
         let handle = &self.protocol.handle;
@@ -177,7 +185,9 @@ impl Search {
             .await
         {
             Ok((Asked::Waiting(()), written)) => written,
-            Ok((Asked::Done(()), _nothing_written)) => return StopAnswer::Answered,
+            Ok((Asked::Done(()), _nothing_written)) => {
+                return StopAnswer::Answered(StopReply::AlreadyAnswered)
+            }
             Err(e) => return StopAnswer::Unreachable(e),
         };
         let sent = handle.finish(written).await;
@@ -186,7 +196,7 @@ impl Search {
             return StopAnswer::Unreachable(e);
         }
         match tokio::time::timeout(limit, &mut answered).await {
-            Ok(Ok(Ok(()))) => StopAnswer::Answered,
+            Ok(Ok(Ok(reply))) => StopAnswer::Answered(reply),
             Ok(Ok(Err(e))) => StopAnswer::Unreachable(e),
             Ok(Err(_)) => StopAnswer::Unreachable(handle.cannot_reach()),
             Err(_) => StopAnswer::Unanswered(LateAnswer {
@@ -199,11 +209,11 @@ impl Search {
 
 /// 止めに上限まで答えなかった探索の残り（`StopAnswer::Unanswered`）。
 ///
-/// 答えを待っているのは状態機械で、持っている間も捨てた後も、遅れた `bestmove` が来るまで
+/// 答えを待っているのは状態機械で、持っている間も捨てた後も、遅れた最後の行が来るまで
 /// このプロセスで次の探索は始まらない（止め待ちの状態機械が断る）。これは答えを受け取る札と状態の写しだけを
 /// 持ち、**アクターへの送り手を持たない**（持っている間も、ハンドルを全部捨てればプロセスは落ちる）
 pub struct LateAnswer {
-    answer: oneshot::Receiver<Result<(), EngineError>>,
+    answer: oneshot::Receiver<Result<StopReply, EngineError>>,
     status: watch::Receiver<Status>,
 }
 
@@ -214,11 +224,11 @@ impl std::fmt::Debug for LateAnswer {
 }
 
 impl LateAnswer {
-    /// 遅れて来る `bestmove` を待つ。来たら `Ok`。その前に閉じたら、届かない理由
+    /// 遅れて来る最後の行を待つ。来たら `Ok`。その前に閉じたら、届かない理由
     /// （`UsiProtocol::cannot_reach`）で断る。上限は持たない（落とせば閉じる）
     pub async fn wait(self) -> Result<(), EngineError> {
         match self.answer.await {
-            Ok(answered) => answered,
+            Ok(answered) => answered.map(|_| ()),
             Err(_) => Err(closed_error(self.status.borrow().unreachable)),
         }
     }
@@ -244,7 +254,7 @@ impl Drop for Search {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use usi::{BestMoveParams, CheckmateParams, InfoParams};
+    use usi::{BestMoveParams, InfoParams};
 
     /// 実プロセスで確かめる
     #[cfg(unix)]
@@ -351,7 +361,7 @@ done"#;
             // (Q2, R7): 答えた探索を止めても `stop` は書かない
             assert!(matches!(
                 search.stop(Duration::from_secs(1)).await,
-                StopAnswer::Answered
+                StopAnswer::Answered(_)
             ));
             protocol.new_game().await.expect("書ける");
             assert!(wait_logged(&dir, "usinewgame").await);
@@ -378,12 +388,12 @@ done"#;
                 .expect("書ける");
             assert!(matches!(
                 search.next_line().await,
-                Ok(Some(SearchLine::Checkmate(CheckmateParams::NoMate)))
+                Ok(Some(SearchLine::Checkmate(MateAnswer::NoMate)))
             ));
             // 答えていないので止められる（台本は `stop` に `bestmove` で答える）
             assert!(matches!(
                 search.stop(Duration::from_secs(5)).await,
-                StopAnswer::Answered
+                StopAnswer::Answered(_)
             ));
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
@@ -405,7 +415,7 @@ done"#;
 
             assert!(matches!(
                 search.stop(Duration::from_secs(5)).await,
-                StopAnswer::Answered
+                StopAnswer::Answered(_)
             ));
             assert_eq!(
                 logged(&dir),
@@ -563,7 +573,7 @@ done"#;
             );
             assert!(matches!(
                 second.stop(Duration::from_secs(5)).await,
-                StopAnswer::Answered
+                StopAnswer::Answered(_)
             ));
             protocol.kill_engine().await;
             let _ = std::fs::remove_dir_all(&dir);
