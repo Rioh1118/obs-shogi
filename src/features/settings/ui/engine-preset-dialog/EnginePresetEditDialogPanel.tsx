@@ -1,4 +1,5 @@
 import type { PresetId } from "@/entities/engine-presets";
+import { evalOptionsFor } from "@/features/settings/lib/evalOptions";
 import { multiPvMax } from "@/features/settings/lib/presetOptionValues";
 import { useAiRootIndex } from "@/features/settings/model/useAiRootIndex";
 import { usePresetDialog } from "@/features/settings/model/usePresetDialog";
@@ -83,6 +84,7 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
             clearOptions={dialog.clearOptions}
             probing={probing}
             fitNote={dialog.fitNote}
+            fixed={evalOptionsFor(library.index?.profiles ?? [], draft.evalFilePath)}
           />
         </div>
 

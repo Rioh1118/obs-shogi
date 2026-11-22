@@ -41,8 +41,9 @@ main にあるか: **ある**（#446）。`src-tauri/src/book/` と、`lib.rs` �
 `.ybb` だけになった**（`book/` に `user_book1.ybb` の1ファイル）ので、ここが通らないと
 配布物をそのまま置いても定跡が効かない。
 
-**いまは通らない。** AI ライブラリは `book/` の `.db` しか拾わないので、`.ybb` だけのフォルダは
-「定跡が未検出です」になり、プリセットで選べない。
+AI ライブラリは `book/` の `.db` と `.ybb` を拾う（`ai_library/profile.rs` の `BOOK_EXTENSIONS`）。
+`.ybb` を `.db` の名前に替えて送るのは束縛（`engine/binding.rs` の `name_to_look_up`。判定表は
+[option-binding.md](../../state-transitions/option-binding.md) の B1）。
 
 ### 要件
 
@@ -81,7 +82,7 @@ main にあるか: **ある**（#446）。`src-tauri/src/book/` と、`lib.rs` �
 | 741 | `.ybb` だけの定跡をエンジンに読ませる（R-B1〜R-B5）                       |
 | 93  | Apery `book.bin`（Zobrist ハッシュ。読むだけ）                            |
 | 94  | ShogiGUI `.sbk`（protobuf。仕様非公開）                                   |
-| 84  | AI Library が `.bin` / `.sbk` を列挙する（`.ybb` は #741）                |
+| 84  | AI Library が `.bin` / `.sbk` を列挙する（`.ybb` は #741 で済み）         |
 
 ### 書く・育てる
 

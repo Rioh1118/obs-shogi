@@ -835,7 +835,9 @@ function indexWithFolder(name: string, { evalFiles = 1, bookFiles = 1 }: FolderF
         has_eval_dir: true,
         has_book_dir: true,
         eval_files: files("eval", evalFiles),
-        book_db_files: files("book", bookFiles),
+        eval_options: [],
+        eval_options_outside_eval: false,
+        book_files: files("book", bookFiles),
       },
     ],
   };
@@ -907,7 +909,17 @@ describe("AI ライブラリタブの「検出された問題」", () => {
 
     expect(warnings()).toEqual([
       "「Suisho」: 評価関数が未検出です（<AI 名>/eval に nn.bin 等）。",
-      "「Suisho」: 定跡が未検出です（<AI 名>/book に .db）。",
+      "「Suisho」: 定跡が未検出です（<AI 名>/book に .db か .ybb）。",
+    ]);
+  });
+
+  test("eval_options.txt が eval/ の外にあれば、中に置かないと読まれないと言う（AC-E3）", async () => {
+    const scanned = indexWithFolder("Tuyoura");
+    scanned.profiles[0].eval_options_outside_eval = true;
+    await renderIndex(scanned);
+
+    expect(warnings()).toEqual([
+      "「Tuyoura」: eval_options.txt が eval/ の外にあります。eval/ の中に置かないとエンジンに読まれません。",
     ]);
   });
 

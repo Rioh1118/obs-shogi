@@ -15,6 +15,17 @@ const BOOK_DIR: &str = "book";
 /// AI フォルダが持つ下位フォルダ
 const PROFILE_SUBS: [&str; 2] = [EVAL_DIR, BOOK_DIR];
 
+/// やねうら王が `isready` で `EvalDir` の中から読み、送ったオプションを上書きするファイル
+/// （`research/engines/yaneuraou-files.md`）。評価関数ではないので候補に出さない
+const EVAL_OPTIONS_FILE: &str = "eval_options.txt";
+
+/// `eval_options.txt` を読む上限（バイト）。数行のファイルなので、超えるものは別物として読まない
+const MAX_EVAL_OPTIONS_BYTES: u64 = 64 * 1024;
+
+/// book/ から拾う定跡の拡張子（大文字小文字を問わない）。やねうら王が `BookFile` で読む2つで、
+/// `.ybb` は `.db` の名前で送ると読む（`engine::binding` の B1）。`.bin` / `.sbk` はまだ拾わない
+const BOOK_EXTENSIONS: [&str; 2] = ["db", "ybb"];
+
 /// eval/ と book/ の1つから読む項目の上限。数え方は `list_file_candidates`
 const MAX_FILES_PER_DIR: usize = 200;
 
@@ -32,6 +43,14 @@ pub struct FileCandidate {
     pub eval_type: Option<String>,
 }
 
+/// `eval_options.txt` の1行（`<名前> <値>`）
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvalOption {
+    pub name: String,
+    pub value: String,
+}
+
 /// 一覧に出る AI フォルダ1つ。`eval` と `book` の少なくとも一方を持つ
 #[derive(Debug, Clone, Serialize)]
 pub struct ProfileCandidate {
@@ -42,10 +61,15 @@ pub struct ProfileCandidate {
     pub has_eval_dir: bool,
     pub has_book_dir: bool,
 
-    /// eval/ の直下のファイル
+    /// eval/ の直下のファイル。`eval_options.txt` は除く
     pub eval_files: Vec<FileCandidate>,
-    /// book/ の直下の、拡張子が `db` のファイル（大文字小文字を問わない）
-    pub book_db_files: Vec<FileCandidate>,
+    /// eval/ の `eval_options.txt` に書かれたオプション。ファイルが無い・読めなければ空。
+    /// エンジンはこれで送った値を上書きするので、画面はこの名前の欄を固定する
+    pub eval_options: Vec<EvalOption>,
+    /// `eval_options.txt` が eval/ に無く、AI フォルダの直下にある。エンジンは読まない
+    pub eval_options_outside_eval: bool,
+    /// book/ の直下の、拡張子が `BOOK_EXTENSIONS` のどれかのファイル
+    pub book_files: Vec<FileCandidate>,
 }
 
 /// 一覧に出る AI フォルダか。
@@ -136,6 +160,7 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
         let eval_files = if has_eval_dir {
             list_file_candidates(&eval_dir, None, MAX_FILES_PER_DIR)
                 .into_iter()
+                .filter(|f| !f.entry.eq_ignore_ascii_case(EVAL_OPTIONS_FILE))
                 .map(|f| FileCandidate {
                     eval_type: read_eval_type(Path::new(&f.path)),
                     ..f
@@ -144,9 +169,13 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
         } else {
             vec![]
         };
+        let eval_options_inside = eval_dir.join(EVAL_OPTIONS_FILE);
+        let eval_options = read_eval_options(&eval_options_inside);
+        let eval_options_outside_eval =
+            !eval_options_inside.is_file() && path.join(EVAL_OPTIONS_FILE).is_file();
 
-        let book_db_files = if has_book_dir {
-            list_file_candidates(&book_dir, Some("db"), MAX_FILES_PER_DIR)
+        let book_files = if has_book_dir {
+            list_file_candidates(&book_dir, Some(&BOOK_EXTENSIONS), MAX_FILES_PER_DIR)
         } else {
             vec![]
         };
@@ -157,7 +186,9 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
             has_eval_dir,
             has_book_dir,
             eval_files,
-            book_db_files,
+            eval_options,
+            eval_options_outside_eval,
+            book_files,
         });
     }
 
@@ -165,11 +196,43 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
     Ok(out)
 }
 
-/// `dir` の直下のファイルと symlink を名前の順に返す。`ext_filter` があれば、その拡張子だけ。
+/// `eval_options.txt` を読む。無い・読めない・大きすぎるときは空。
+///
+/// 1行が `<名前> <値>`。値の前後の空白と CR（配布物は CRLF）は落とす。値の無い行、
+/// `#` か `//` で始まる行は飛ばす（そういう名前のオプションは無いので、エンジンが読んでも何も変わらない）
+fn read_eval_options(path: &Path) -> Vec<EvalOption> {
+    let Ok(meta) = fs::metadata(path) else {
+        return vec![];
+    };
+    if !meta.is_file() || meta.len() > MAX_EVAL_OPTIONS_BYTES {
+        return vec![];
+    }
+    let Ok(bytes) = fs::read(path) else {
+        return vec![];
+    };
+    parse_eval_options(&String::from_utf8_lossy(&bytes))
+}
+
+fn parse_eval_options(text: &str) -> Vec<EvalOption> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.starts_with('#') && !line.starts_with("//"))
+        .filter_map(|line| {
+            let (name, value) = line.split_once(char::is_whitespace)?;
+            let value = value.trim();
+            (!value.is_empty()).then(|| EvalOption {
+                name: name.to_string(),
+                value: value.to_string(),
+            })
+        })
+        .collect()
+}
+
+/// `dir` の直下のファイルと symlink を名前の順に返す。`ext_filter` があれば、そのどれかの拡張子だけ。
 ///
 /// 見るのは `read_dir` が返す先頭の `max` 件で、絞り込みより前に数える。
 /// 多いフォルダでは、どれが入るかは `read_dir` の順で決まる
-fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec<FileCandidate> {
+fn list_file_candidates(dir: &Path, ext_filter: Option<&[&str]>, max: usize) -> Vec<FileCandidate> {
     let mut out: Vec<FileCandidate> = vec![];
 
     let it = match fs::read_dir(dir) {
@@ -191,12 +254,11 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&str>, max: usize) -> Vec
             _ => continue,
         }
 
-        if let Some(ext) = ext_filter {
+        if let Some(exts) = ext_filter {
             let ok = path
                 .extension()
                 .and_then(|s| s.to_str())
-                .map(|s| s.eq_ignore_ascii_case(ext))
-                .unwrap_or(false);
+                .is_some_and(|s| exts.iter().any(|ext| s.eq_ignore_ascii_case(ext)));
             if !ok {
                 continue;
             }
@@ -271,7 +333,65 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    /// eval/ はファイルを全部、book/ は拡張子が `db` のもの（大文字も）だけを返す。フォルダは返さない
+    /// `eval/eval_options.txt` は読んで、評価関数の候補からは外す
+    #[test]
+    fn eval_options_in_eval_are_read_and_not_offered_as_an_eval() {
+        let root = temp_dir("ai-profile-eval-options");
+        let profile = root.join("tuyoura");
+        fs::create_dir_all(profile.join("eval")).expect("作れない");
+        fs::write(profile.join("eval/nn.bin"), "").expect("書けない");
+        fs::write(
+            profile.join("eval/eval_options.txt"),
+            "FV_SCALE 24\r\n# memo\r\n\r\nNoValue\r\nBookFile  user_book1.db \r\n",
+        )
+        .expect("書けない");
+
+        let found = read_all(&root).expect("読める");
+
+        let eval: Vec<_> = found[0]
+            .eval_files
+            .iter()
+            .map(|f| f.entry.as_str())
+            .collect();
+        assert_eq!(eval, ["nn.bin"]);
+        assert_eq!(
+            found[0].eval_options,
+            [
+                EvalOption {
+                    name: "FV_SCALE".to_string(),
+                    value: "24".to_string()
+                },
+                EvalOption {
+                    name: "BookFile".to_string(),
+                    value: "user_book1.db".to_string()
+                },
+            ]
+        );
+        assert!(!found[0].eval_options_outside_eval);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// AI フォルダの直下にだけある `eval_options.txt` はエンジンが読まない。読まずに、外にあると返す
+    #[test]
+    fn eval_options_outside_eval_are_reported_and_not_read() {
+        let root = temp_dir("ai-profile-eval-options-outside");
+        let profile = root.join("tuyoura");
+        fs::create_dir_all(profile.join("eval")).expect("作れない");
+        fs::write(profile.join("eval_options.txt"), "FV_SCALE 24\n").expect("書けない");
+
+        let found = read_all(&root).expect("読める");
+        assert!(found[0].eval_options.is_empty());
+        assert!(found[0].eval_options_outside_eval);
+
+        // 両方にあれば、エンジンは eval/ の方を読むので言わない
+        fs::write(profile.join("eval/eval_options.txt"), "FV_SCALE 40\n").expect("書けない");
+        let found = read_all(&root).expect("読める");
+        assert!(!found[0].eval_options_outside_eval);
+        assert_eq!(found[0].eval_options[0].value, "40");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// eval/ はファイルを全部、book/ は拡張子が `db` か `ybb` のもの（大文字も）だけを返す。フォルダは返さない
     #[test]
     fn files_are_listed_and_books_are_filtered_by_extension() {
         let root = temp_dir("ai-profile-files");
@@ -284,6 +404,9 @@ mod tests {
             "book/a.db",
             "book/B.DB",
             "book/c.txt",
+            "book/user_book1.ybb",
+            "book/D.YBB",
+            "book/e.bin",
         ] {
             fs::write(profile.join(file), "").expect("書けない");
         }
@@ -297,11 +420,11 @@ mod tests {
             .collect();
         assert_eq!(eval, ["README.txt", "nn.bin"]);
         let books: Vec<_> = found[0]
-            .book_db_files
+            .book_files
             .iter()
             .map(|f| f.entry.as_str())
             .collect();
-        assert_eq!(books, ["B.DB", "a.db"]);
+        assert_eq!(books, ["B.DB", "D.YBB", "a.db", "user_book1.ybb"]);
         let _ = fs::remove_dir_all(&root);
     }
 }

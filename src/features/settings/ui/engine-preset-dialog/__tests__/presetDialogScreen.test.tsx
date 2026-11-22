@@ -45,7 +45,9 @@ const INDEX: AiRootIndex = {
       has_eval_dir: true,
       has_book_dir: false,
       eval_files: [{ entry: "nn.bin", path: EVAL_HAO, kind: "file" }],
-      book_db_files: [],
+      eval_options: [],
+      eval_options_outside_eval: false,
+      book_files: [],
     },
   ],
 };
@@ -1159,5 +1161,38 @@ describe("評価関数の型", () => {
     scanAiRoot.mockResolvedValue(INDEX);
     await openDialog({ evalFilePath: EVAL_HAO });
     expect(screen.queryByText(/^型: /)).toBeNull();
+  });
+});
+
+describe("eval_options.txt が決める欄", () => {
+  // AC-E2: エンジンは isready で評価関数フォルダの eval_options.txt を読み、送った値を上書きする
+  const WITH_OPTIONS: AiRootIndex = {
+    ...INDEX,
+    profiles: [{ ...INDEX.profiles[0], eval_options: [{ name: "Slow", value: "24" }] }],
+  };
+
+  test("そのフォルダの評価関数を選ぶと、欄はファイルの値を出して編集させず、そう添える", async () => {
+    scanAiRoot.mockResolvedValue(WITH_OPTIONS);
+    await openLoaded({ evalFilePath: EVAL_HAO, options: { Slow: "40" } });
+
+    const fixed = screen.getByLabelText("Slow（eval_options.txt が決める値）") as HTMLInputElement;
+    expect(fixed.value).toBe("24");
+    expect(fixed.disabled).toBe(true);
+    expect(screen.getByText("評価関数フォルダの eval_options.txt が決めます")).toBeTruthy();
+  });
+
+  test("保存した値は消さない（初期値に戻すでも消さず、保存してもそのまま）", async () => {
+    scanAiRoot.mockResolvedValue(WITH_OPTIONS);
+    await openLoaded({ evalFilePath: EVAL_HAO, options: { Slow: "40", Threads: "8" } });
+
+    fireEvent.click(button("すべて初期値に戻す"));
+    expect((await saved()).options).toEqual({ Slow: "40" });
+  });
+
+  test("評価関数を選んでいなければ、いつもの欄のまま", async () => {
+    scanAiRoot.mockResolvedValue(WITH_OPTIONS);
+    await openLoaded({ options: { Slow: "40" } });
+
+    expect(screen.queryByLabelText("Slow（eval_options.txt が決める値）")).toBeNull();
   });
 });

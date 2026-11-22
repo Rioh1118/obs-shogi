@@ -318,6 +318,21 @@ describe("起動で送らなかった設定の本文", () => {
     expect(startWarningBody([clamped("A"), clamped("B")])?.split("\n")).toHaveLength(2);
   });
 
+  test("定跡の名前を替える案内は、選んだ形式の名前で例を出す（.ybb に .db の例を出さない）", () => {
+    const notInVars = (file: string): StartWarning => ({ kind: "bookNameNotInVars", file });
+
+    expect(startWarningBody([notInVars("my_book.ybb")])).toContain("user_book1.ybb など");
+    expect(startWarningBody([notInVars("my_book.YBB")])).toContain("user_book1.ybb など");
+    expect(startWarningBody([notInVars("my_book.db")])).toContain("user_book1.db など");
+  });
+
+  test(".ybb を読んだと言わなければ、同じ名前の .db を疑うよう案内する", () => {
+    const body = startWarningBody([{ kind: "bookLoadUnconfirmed", file: "user_book1.ybb" }]);
+
+    expect(body).toContain("同じ名前の .db");
+    expect(body).not.toContain("名前に変えて");
+  });
+
   test("知らない種類は汎用の1文にする", () => {
     const unknown = { kind: "fromTheFuture", name: "X" } as unknown as StartWarning;
 

@@ -1,4 +1,7 @@
-# やねうら王の実機の出力（定跡まわり）。1行目 V9.00 が選択肢に無い BookFile を断る行、2行目 V8.30 がパスの定跡を読んだ行、3行目 読めない定跡の行。パスの利用者名だけ例示用の `me` に置き換えてある
+# やねうら王の実機の出力（定跡まわり）。1行目 V9.00 が選択肢に無い BookFile を断る行、2行目 V8.30 がパスの定跡を読んだ行、3行目 読めない定跡の行。4〜5行目 V9.90 開発版に `.ybb` だけの book/ で `user_book1.db` を送ったときの行、6行目 同じ名前の `.db` と `.ybb` が並ぶ book/ で同じ名前を送ったときの行（2026-11-21）。パスの利用者名だけ例示用の `me` に置き換えてある
 info string Error! : combo value not found, value = `mybook.db`, values = standard_book.db var no_book var standard_book.db var yaneura_book1.db var yaneura_book2.db var yaneura_book3.db var yaneura_book4.db var user_book1.db var user_book2.db var user_book3.db var book.bin
 info string read book file : /Users/me/test_shogi_engine/li/book/user_book1.db
 info string Error! : can't read file : /Users/me/test_shogi_engine/li/book/standard_book.db
+info string book file fallback : /Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.db -> /Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.ybb
+info string read book file : /Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.ybb
+info string read book file : /Users/me/ShogiAi/AobaNNUE/book/user_book1.db

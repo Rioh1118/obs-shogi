@@ -53,7 +53,7 @@ export function FolderConcept() {
           <ExampleLine text="├─ 📂 eval/" indent={2} />
           <ExampleLine text="│  └─ 📄 nn.bin" note="← 評価関数" indent={2} />
           <ExampleLine text="└─ 📂 book/" indent={2} />
-          <ExampleLine text="   └─ 📄 user_book1.db" note="← 定跡（.db）" indent={2} dim />
+          <ExampleLine text="   └─ 📄 user_book1.db" note="← 定跡（.db か .ybb）" indent={2} dim />
         </div>
       </div>
     </div>
