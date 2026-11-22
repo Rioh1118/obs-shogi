@@ -44,6 +44,35 @@ function typeAndCommit(value: string) {
   });
 }
 
+describe("開いたときに選ぶ範囲", () => {
+  const selected = async (initialName: string, selectMode: "file" | "all") => {
+    render(
+      <InlineNameEditor
+        initialName={initialName}
+        selectMode={selectMode}
+        onCommit={vi.fn()}
+        onCancel={vi.fn()}
+        onUnshowable={vi.fn()}
+      />,
+    );
+    await act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    return input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0);
+  };
+
+  test("棋譜は、拡張子の手前まで", async () => {
+    expect(await selected("角換わり.kif", "file")).toBe("角換わり");
+  });
+
+  test.each([
+    ["拡張子の無い棋譜", "メモ", "file"],
+    ["フォルダ", "2026.11", "all"],
+  ] as const)("%s は、全部", async (_, name, selectMode) => {
+    expect(await selected(name, selectMode)).toBe(name);
+  });
+});
+
 describe("InlineNameEditor", () => {
   test("失敗が返ったら理由を出し、打った文字列を残す", async () => {
     const onCommit = vi.fn().mockResolvedValue(rejected);

@@ -23,7 +23,7 @@ function NodeBox({
       ref={ref}
       className={`node-box ${isSelected ? "node-box__selected" : ""} ${className ?? ""}`}
       style={{
-        paddingLeft: `${2 + level * 1.3}rem`,
+        paddingLeft: `${1 + level * 1.4}rem`,
         ...style,
       }}
       {...rest}

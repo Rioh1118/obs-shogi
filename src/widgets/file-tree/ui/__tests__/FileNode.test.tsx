@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import type { FileTreeNode } from "@/entities/file-tree";
 
 /**
@@ -39,6 +39,10 @@ vi.mock("@/entities/game", () => ({ useLoadedKifuPath: () => game.loadedAbsPath 
 
 const { default: FileNode } = await import("../FileNode");
 
+/** 行の名前。拡張子は別の箱に入るので、文字全体で探す */
+const nameOf = (name: string) =>
+  [...document.querySelectorAll<HTMLElement>(".node-name")].find((el) => el.textContent === name)!;
+
 const NODE = {
   id: "n1",
   name: "a.kif",
@@ -49,7 +53,7 @@ const NODE = {
 
 const clickNode = () => {
   render(<FileNode node={NODE} level={1} />);
-  fireEvent.click(screen.getByText("a.kif"));
+  fireEvent.click(nameOf("a.kif"));
 };
 
 beforeEach(() => {
@@ -63,6 +67,12 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+test("棋譜の行は、拡張子を別の箱に出す", () => {
+  const { container } = render(<FileNode node={NODE} level={1} />);
+
+  expect(container.querySelector(".node-name__ext")?.textContent).toBe(".kif");
+});
 
 describe("棋譜のノードを押したとき", () => {
   test("盤に載っていなければ開きに行く", () => {
@@ -125,9 +135,7 @@ describe("読み直した後の選択", () => {
 
     render(<FileNode node={NODE} level={1} />);
 
-    expect(screen.getByText("a.kif").closest(".node-box")?.className).toContain(
-      "node-box__selected",
-    );
+    expect(nameOf("a.kif").closest(".node-box")?.className).toContain("node-box__selected");
   });
 
   test("強調するのは選んだパスの行だけ", () => {
@@ -142,6 +150,6 @@ describe("読み直した後の選択", () => {
     );
 
     const selected = Array.from(document.querySelectorAll(".node-box__selected"));
-    expect(selected).toEqual([screen.getByText("a.kif").closest(".node-box")]);
+    expect(selected).toEqual([nameOf("a.kif").closest(".node-box")]);
   });
 });

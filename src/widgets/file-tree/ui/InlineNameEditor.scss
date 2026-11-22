@@ -13,16 +13,12 @@
   margin-top: index.$space-1;
   max-width: 100%;
 
-  padding: index.$space-1 index.$space-3;
-  border-radius: index.$radius-2;
-  // 輪郭は意味色の帯で示す。1px の枠だけだと地に対して 1.66:1 で箱として見えない。
-  // 入力の直下に出す失敗はこの形で揃える（`.file-conflict__error` も同じ）。
+  padding: index.$space-1 0;
+  // 入力の直下に出す失敗は、箱にせず、意味色の文字だけで言う（`.file-conflict__error` も同じ）。
   // 独立した通知のサーフェスは `FsErrorView` が持つ
-  border: 1px solid rgba(index.$color-danger, 0.4);
-  border-left: 3px solid index.$color-danger;
-  background: index.$surface-danger;
+  background: index.$color-primary-dark;
 
-  color: index.$color-text-primary;
+  color: index.$color-danger-text;
   font-size: index.$font-hint;
   line-height: 1.4;
 
@@ -35,7 +31,6 @@
   &:empty {
     margin: 0;
     padding: 0;
-    border: 0;
   }
 }
 
@@ -44,36 +39,23 @@
   height: 2.2rem;
   max-width: 100%;
 
-  padding: 0 0.7rem;
-  border-radius: 0.5rem;
+  padding: 0 index.$space-3;
+  border: 1px solid index.$stroke;
+  border-radius: index.$radius-control;
 
-  background-color: rgba(index.$color-white, 0.08);
-  border: 1px solid rgba(index.$color-white, 0.16);
-
-  color: index.$color-text-light-1;
-  font-size: 1.4rem;
+  background: index.$surface-field;
+  color: index.$color-text-strong;
+  font-size: index.$font-body;
   line-height: 1;
-  caret-color: index.$color-secondary-dark;
-  outline: none;
 
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    box-shadow 120ms ease;
-
-  &:hover {
-    background-color: rgba(index.$color-white, 0.1);
-  }
-
-  &:focus,
+  // 行の中の欄なので、輪を内側に描く
   &:focus-visible {
-    border-color: rgba(index.$color-secondary-dark, 0.88);
-    box-shadow: 0 0 0 2px rgba(index.$color-secondary-dark, 0.24);
-    background-color: rgba(index.$color-white, 0.1);
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
   }
 
   &::selection {
-    background: rgba(index.$color-secondary-dark, 0.42);
-    color: index.$color-text-light-1;
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
   }
 }

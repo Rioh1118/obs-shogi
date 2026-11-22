@@ -1,11 +1,13 @@
 @use "@/index.scss" as index;
 
 .file-icon {
+  flex: none;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  vertical-align: middle;
-  margin: 0.2rem;
-  margin-right: 0.55rem;
-  color: index.$color-text-light-1;
+  width: 2rem;
+  color: index.$color-text-faint;
+
+  // 選んだ行の上では、薄い段階の文字が読みにくい
+  .node-box__selected & {
+    color: index.$color-text-muted;
+  }
 }

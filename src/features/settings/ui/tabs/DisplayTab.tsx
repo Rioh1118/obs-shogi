@@ -101,8 +101,6 @@ export default function DisplayTab() {
 
                 <span className="displayTab__order">
                   <IconButton
-                    size="small"
-                    variant="obs-ghost"
                     title="上へ"
                     ariaLabel={`${dockViewLabel(key)}を上へ`}
                     disabled={at === 0}
@@ -111,8 +109,6 @@ export default function DisplayTab() {
                     <ChevronUp size={16} />
                   </IconButton>
                   <IconButton
-                    size="small"
-                    variant="obs-ghost"
                     title="下へ"
                     ariaLabel={`${dockViewLabel(key)}を下へ`}
                     disabled={at === tabs.length - 1}

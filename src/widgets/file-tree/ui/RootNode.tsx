@@ -2,9 +2,10 @@ import { useState, type MouseEventHandler } from "react";
 import NodeBox from "./NodeBox";
 import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import TreeNode from "./TreeNode";
-import "./RootNode.scss";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import NodeName from "./NodeName";
+import FileIcon from "./FileIcon";
 import NewDirectoryRow from "./NewDirectoryRow";
 import TruncatedNotice from "./TruncatedNotice";
 import { useDroppable } from "@dnd-kit/core";
@@ -66,6 +67,7 @@ function RootNode({ node }: { node: FileTreeNode }) {
         }
       >
         <DirectoryToggleIcon isExpanded={isOpen} />
+        <FileIcon type="folder" isOpen={isOpen} />
         {isRenaming ? (
           <InlineNameEditor
             initialName={node.name}
@@ -75,7 +77,7 @@ function RootNode({ node }: { node: FileTreeNode }) {
             onUnshowable={pushError}
           />
         ) : (
-          <span className="file-tree__rootdir--name">{node.name}</span>
+          <NodeName name={node.name} className="file-tree__rootName" />
         )}
       </NodeBox>
 

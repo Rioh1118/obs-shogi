@@ -42,6 +42,12 @@ const CASES = {
     bad: box('width:300px', '<div style="height:9px;margin-top:8px;background:#e2ddd0"></div>') + box('left:120px', '<span>検討中</span>'),
     good: box('white-space:nowrap', '<span>角換わりの研究</span>') + '<div role="menu" style="position:fixed;left:90px;top:46px;width:200px;height:120px;background:#333">メニュー</div>',
   },
+  // 閉じた「詳細」の中身は、箱を持ったまま描かれない
+  'overlap（閉じた詳細）': {
+    kind: 'overlap',
+    bad: box('', '<details open><summary>詳細</summary><p>permission_denied</p></details>') + box('top:60px', '<span>もう一度起動</span>'),
+    good: box('', '<details><summary>詳細</summary><p>permission_denied</p></details>') + box('top:60px', '<span>もう一度起動</span>'),
+  },
   touch: {
     bad: box('display:grid;grid-template-columns:auto auto;white-space:nowrap', '<span>33,554,432 MB</span><span>ON</span>'),
     good: box('display:grid;grid-template-columns:auto auto;column-gap:24px;white-space:nowrap', '<span>33,554,432 MB</span><span>ON</span>'),

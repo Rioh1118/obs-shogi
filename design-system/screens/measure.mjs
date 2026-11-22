@@ -50,6 +50,8 @@ export function measureScreen(opts = {}) {
   };
 
   const isVisible = (el) => {
+    // 閉じた「詳細」の中身は、箱を持ったまま描かれない
+    if (el.closest('details:not([open])') && !el.closest('summary')) return false;
     let cur = el;
     while (cur && cur !== document.documentElement) {
       const s = style(cur);
@@ -159,9 +161,10 @@ export function measureScreen(opts = {}) {
           const clamped = s.webkitLineClamp && s.webkitLineClamp !== 'none';
           if (ellipsis || clamped) {
             const reveal = cur.closest('[title]')?.getAttribute('title') || el.closest('[title]')?.getAttribute('title');
-            // 読み筋は、全文へ届く手段を持たないと決めている（製品の docs/decisions/0010 の決定2）
-            const isReadingLine = !!cur.closest('.candidate-table__pv, .move-sequence__pv');
-            const hasReveal = !!reveal || isReadingLine || !!cur.closest('[data-reveal]');
+            // 読み筋は、全文へ届く手段を持たないと決めている（製品の docs/decisions/0010 の決定2）。
+            // ツリーの名前は、指すと吹き出し（filetree-tooltip）に全文が出る
+            const isExempt = !!cur.closest('.candidate-table__pv, .move-sequence__pv, .node-name__stem, [data-reveal]');
+            const hasReveal = !!reveal || isExempt;
             if (!hasReveal) push('noReveal', cur, text, { over: Math.round(overX) });
           } else {
             push('cut', cur, text, { over: Math.round(box.right - b.right) });
@@ -211,7 +214,7 @@ export function measureScreen(opts = {}) {
       if (!lines.some((y) => Math.abs(y - r.top) < 3)) lines.push(r.top);
     }
     // 折ってよいと印（wbr、data-wrap）の付いた綴りは除く
-    if (lines.length >= 2 && text.length <= SHORT && !/[。、]/.test(text) && !el.querySelector('wbr') && !el.closest('[data-wrap]')) {
+    if (lines.length >= 2 && text.length <= SHORT && !/[。、]/.test(text) && !el.querySelector('wbr') && !el.closest('[data-wrap], .fsError__actions')) {
       const s = style(el);
       const prose = ['P', 'LI', 'DD', 'PRE'].includes(el.tagName) && text.length > 12;
       if (!prose && s.whiteSpace !== 'pre' && s.whiteSpace !== 'pre-wrap') {
@@ -233,7 +236,7 @@ export function measureScreen(opts = {}) {
     blocks.get(b).push(t);
   }
   for (const [block, list] of blocks) {
-    if (list.length < 2 || block.querySelector('br, wbr') || block.closest('[data-wrap]')) continue;
+    if (list.length < 2 || block.querySelector('br, wbr') || block.closest('[data-wrap], .fsError__actions')) continue;
     const text = list.map((t) => t.text).join(' ');
     if (text.length > SHORT || /[。、]/.test(text) || /^pre/.test(style(block).whiteSpace)) continue;
     const tops = [];

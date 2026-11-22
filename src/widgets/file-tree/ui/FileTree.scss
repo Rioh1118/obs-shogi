@@ -13,7 +13,12 @@
     overscroll-behavior: contain;
     width: 100%;
 
-    padding-bottom: 24px;
+    padding: index.$space-3 0 index.$space-12;
+
+    // 失敗は端から端まで使う。狭いペインで余白を足すと、逃げ道のボタンの文字が折れる
+    > .file-tree__failure {
+      padding: 0;
+    }
   }
 }
 
