@@ -47,7 +47,7 @@ describe("起動時の provider", () => {
       </BootstrapProviders>,
     );
 
-    const layer = () => document.querySelector(".notice-layer__toasts");
+    const layer = () => document.querySelector(".notice-layer__bands");
     expect(layer()).toBeNull();
 
     await act(async () => screen.getByRole("button", { name: "失敗させる" }).click());
@@ -65,8 +65,10 @@ describe("起動時の provider", () => {
     );
 
     await act(async () => screen.getByRole("button", { name: "失敗させる" }).click());
-    await act(async () => screen.getByRole("button", { name: "閉じる" }).click());
+    await act(async () =>
+      screen.getByRole("button", { name: "「エンジンを初期化できませんでした」を閉じる" }).click(),
+    );
 
-    expect(document.querySelector(".notice-layer__toasts")).toBeNull();
+    expect(document.querySelector(".notice-layer__bands")).toBeNull();
   });
 });

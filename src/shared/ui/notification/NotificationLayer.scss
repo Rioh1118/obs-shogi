@@ -6,12 +6,6 @@
 // ウィンドウを動かす唯一の手段（`data-tauri-drag-region`）だから。
 // 覆うとウィンドウを掴めなくなる（`Modal.scss` の overlay と同じ理由）。
 //
-// **帯が無い画面でもこのぶんを空ける。** `TitleBar` を描くのは `RuntimeShell` だけで、
-// 起動画面（`AppLoading`）には無い。そこでは上端に 2.6rem の何も無い帯ができる。
-// 画面ごとに切り替えないのは、帯の有無を層へ伝える手段が
-// `:has()` かグローバルな class の付け外ししか無く、どちらもこの隙間より高くつくため。
-// **起動画面に出すのはトースト（右下）だけにすること**——帯を出すと隙間が見える。
-//
 // z-index は `index.scss` の `$z-notification`（モーダルより上）。理由はそちらに書いてある。
 .notice-layer {
   position: fixed;
@@ -28,9 +22,11 @@
   // アプリ全体が操作できなくなる
   pointer-events: none;
 
-  // **積み上がる数に上限を置かない代わりに、占める高さに上限を置く。**
-  // 同じ失敗が繰り返し出るとき、古いものを黙って捨てると「何件あったか」が消える
-  // （まとめたいなら `dedupeKey` を使う）。溢れたぶんは押し出さずにここで巻き取る
+  // タイトルバーの無い画面（起動、最初のフォルダ選択）では、上端から始める
+  body:not(:has(.titlebar)) & {
+    top: 0;
+  }
+
   // 読み上げの領域。**出しっぱなしにするので、見えないようにしつつ木から外さない。**
   // `display: none` や `visibility: hidden` は読み上げの対象からも外れる
   &__announce {
@@ -44,72 +40,103 @@
     white-space: nowrap;
   }
 
-  // **帯はアプリの本体を押し下げず、上に重なる。** 層は `position: fixed` で流れの中に居ないので、
-  // 帯が出ている間はアプリのヘッダ（`AppLayout` の `--header-h`）が隠れる。
-  // 閉じれば戻るが、帯は自分からは消えないので、× を押すまでヘッダの操作は届かない。
-  // 押し下げる形にするには `AppLayout` の grid に行を足すことになり、
-  // 包むコンテナのほうが画面ごとに違う（起動画面には grid が無い）。
+  // 残る知らせ。**本文とモーダルを覆わない。** 高さを `--notice-bands-h` に置き、
+  // `.app-content` と `.modal__overlay` がそのぶん下へ始まる。
   //
-  // **帯を出す失敗には、必ず動作を持たせること**——ヘッダの操作を奪うので、
-  // 閉じる以外にやることが無い帯は出さない。
-  //
-  // **帯を先に確定させる。** 両方 `flex-shrink: 1` のままだと、合計が層を超えたときに
-  // 縮み量が内容の高さに比例して両方から取られる。帯1枚とトースト20枚なら帯のほうが
-  // 潰れるが、帯は自分からは消えない（`autoDismiss` はトーストにしか効かない）ので、
-  // いちばん残したいものがいちばん潰れることになる
-  &__banners {
+  // 数に上限を置かない代わりに、占める高さに上限を置く。古いものを黙って捨てると
+  // 「何件あったか」が消える（まとめたいなら `dedupeKey` を使う）
+  &__bands {
     display: flex;
     flex-direction: column;
-    pointer-events: none;
     flex: none;
-    // 半分。帯は下にあるアプリの操作を覆うので、これを超えると盤も棋譜も使えなくなる
     max-height: 50%;
     overflow-y: auto;
-  }
-
-  // トーストは右下。**押し出さない**ので、盤の操作を邪魔しない位置に置く
-  &__toasts {
-    margin-top: auto;
-    align-self: flex-end;
-    display: flex;
-    flex-direction: column;
-    gap: index.$space-3;
-    padding: index.$space-5;
-    pointer-events: none;
-
-    // flex の子は既定で内容より縮まないので、min-height を落とさないと
-    // max-height が効かず、溢れたぶんがタイトルバーの下から飛び出す
-    min-height: 0;
-    max-height: 100%;
-    overflow-y: auto;
-
-    // 幅は寸法のスケールに載らない（ADR-0003 が見るのは間隔・角丸・文字サイズ）。
-    // 36rem は、題1行と動作2つ（「再試行」＋「エンジンを再起動」）が
-    // 折り返さずに収まる幅。狭いウィンドウでは親のコンテナに合わせて縮む
-    width: 36rem;
-    max-width: 100%;
+    pointer-events: auto;
   }
 }
 
-// **クリックを受けるのは通知1枚ずつ。入れ物では受けない。**
-// 入れ物に持たせると、余白の上のクリックまで握る。トーストの入れ物は
-// 右下の角を 36rem × 余白ぶん占めるので、そこに重なる別の部品
-// （更新カードは同じ角に立つ）のボタンが、通知が出ている間ずっと押せなくなる
-.notice-layer .notice {
+// 放っておけば消える知らせ。盤の大きさを動かさないように、上の帯の空きに出す
+.notice-line {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  height: index.$titlebar-height;
+  max-width: 46vw;
+  transform: translateX(-50%);
+
+  display: flex;
+  align-items: center;
+  gap: index.$space-4;
+  padding: 0 index.$space-4;
+  background: index.$surface-titlebar;
+  color: index.$color-text-primary;
+  font-size: index.$font-aux;
   pointer-events: auto;
+
+  &__icon {
+    flex: none;
+  }
+
+  &__title,
+  &__text {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__title {
+    font-weight: index.$weight-strong;
+  }
+
+  &__text {
+    color: index.$color-text-muted;
+  }
+
+  &__close {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border: 0;
+    border-radius: index.$radius-control;
+    background: transparent;
+    color: index.$color-text-muted;
+    cursor: pointer;
+  }
 }
 
-// 帯は画面の一部として出す。角丸も影も持たず、下の境界で本体と切る
-.notice--banner {
-  border-bottom: 1px solid index.$stroke;
+.notice-line--info {
+  background: index.$surface-titlebar;
+
+  .notice-line__icon {
+    color: index.$color-info;
+  }
 }
 
-.notice--toast {
-  border-radius: index.$radius-3;
-  border-top: 1px solid index.$stroke-strong;
-  border-right: 1px solid index.$stroke-strong;
-  border-bottom: 1px solid index.$stroke-strong;
-  box-shadow: index.$shadow-overlay;
+.notice-line--warning {
+  background: index.$surface-titlebar;
+
+  .notice-line__icon {
+    color: index.$color-warning;
+  }
+}
+
+.notice-line--danger {
+  background: index.$surface-titlebar;
+
+  .notice-line__icon {
+    color: index.$color-danger-text;
+  }
+}
+
+.notice-line--fatal {
+  background: index.$surface-titlebar;
+
+  .notice-line__icon {
+    color: index.$color-fatal-text;
+  }
 }
 
 // モーダルは `Modal` のカードがもう背景と枠線を持っているので、通知の側は背景だけ敷く

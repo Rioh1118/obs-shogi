@@ -103,8 +103,8 @@ export type NotifyRequest =
   | (Omit<VisibleRequestBase, "actions"> & { presentation: "toast"; autoDismiss: true })
   // モーダルは自分からは消えない。閉じるか、出した側が引っ込めるまで残る
   | (VisibleRequestBase & { presentation: "modal" })
-  // 帯も同じだが、動作を1つ以上持つ。帯はアプリのヘッダを押し下げず覆う
-  // （`NotificationLayer.scss`）ので、閉じる以外にやることが無い帯は操作を奪うだけになる
+  // 帯も同じだが、動作を1つ以上持つ。帯は本文を押し下げて残るので、
+  // 閉じる以外にやることが無いなら、消えるトーストかインラインで足りる
   | (VisibleRequestBase & {
       presentation: "banner";
       actions: [NotifyAction, ...NotifyAction[]];

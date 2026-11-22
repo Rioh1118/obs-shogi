@@ -8,6 +8,9 @@
   overflow: hidden;
   .app-content {
     flex: 1;
+    min-height: 0;
+    // 残る知らせの帯（`NotificationLayer`）のぶん、下へ始める
+    margin-top: var(--notice-bands-h, 0);
     overflow: hidden;
   }
 }

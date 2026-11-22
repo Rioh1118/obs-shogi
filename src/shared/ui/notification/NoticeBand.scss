@@ -1,0 +1,157 @@
+@use "@/index.scss" as index;
+
+// 1件1行。長い題と本文は末尾を省き、全部は「詳細」で下に開く
+.notice-band {
+  display: grid;
+  grid-template-columns: auto fit-content(44vw) minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: index.$space-5;
+  min-height: 3.4rem;
+  padding: 0 index.$space-4 0 index.$space-7;
+  border-bottom: 1px solid index.$stroke-weak;
+  background: index.$surface-danger;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+  user-select: text;
+
+  &__icon {
+    flex: none;
+  }
+
+  &__title,
+  &__text {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__title {
+    color: index.$color-text-strong;
+    font-weight: index.$weight-strong;
+  }
+
+  &__text {
+    color: index.$color-text-muted;
+    font-size: index.$font-aux;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: index.$space-3;
+  }
+
+  &__count {
+    color: index.$color-text-muted;
+    font-size: index.$font-aux;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__action {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-2;
+    height: 2.4rem;
+    padding: 0 index.$space-4;
+    border: 1px solid index.$stroke-strong;
+    border-radius: index.$radius-control;
+    background: transparent;
+    color: index.$color-text-primary;
+    font-size: index.$font-aux;
+    white-space: nowrap;
+    cursor: pointer;
+
+    &:hover {
+      border-color: index.$color-text-muted;
+    }
+
+    // 薄くしない。待っていることを読めるように残す
+    &[aria-busy="true"] {
+      color: index.$color-text-muted;
+      border-color: index.$stroke;
+      cursor: progress;
+    }
+
+    // 次にすること。1行の中で1つだけ
+    &--first {
+      font-weight: index.$weight-strong;
+    }
+  }
+
+  &__chevron {
+    [aria-expanded="true"] > & {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__close {
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 0;
+    border-radius: index.$radius-control;
+    background: transparent;
+    color: index.$color-text-muted;
+    cursor: pointer;
+
+    &:hover {
+      color: index.$color-text-strong;
+    }
+  }
+
+  &__failed,
+  &__body {
+    grid-column: 2 / -1;
+    padding: 0 index.$space-12 index.$space-4 0;
+    font-size: index.$font-aux;
+    overflow-wrap: anywhere;
+  }
+
+  &__failed {
+    color: index.$color-danger-text;
+  }
+
+  // 複数の理由を並べる通知は、改行を書いたとおりに折る。既定だと改行が空白に
+  // 潰れて全部が1文につながり、何件あるのかが読めなくなる
+  &__body {
+    max-height: 30vh;
+    overflow-y: auto;
+    white-space: pre-line;
+    line-height: 1.5;
+  }
+}
+
+// 4つの背景の差は小さいので、tier は記号と語が持つ
+.notice-band--info {
+  background: index.$surface-info;
+
+  .notice-band__icon {
+    color: index.$color-info;
+  }
+}
+
+.notice-band--warning {
+  background: index.$surface-warning;
+
+  .notice-band__icon {
+    color: index.$color-warning;
+  }
+}
+
+.notice-band--danger {
+  background: index.$surface-danger;
+
+  .notice-band__icon {
+    color: index.$color-danger-text;
+  }
+}
+
+.notice-band--fatal {
+  background: index.$surface-fatal;
+
+  .notice-band__icon {
+    color: index.$color-fatal-text;
+  }
+}

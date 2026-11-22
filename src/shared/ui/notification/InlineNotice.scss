@@ -1,10 +1,6 @@
 @use "@/index.scss" as index;
 
-// インラインは親のコンテナの中に埋まるので、角丸と枠線を持って「ここだけ別のサーフェス」を示す。
-// トーストと違って浮かないので影は持たない
+// インラインは親のコンテナの中に埋まる。浮かないので影も枠も持たない
 .notice--inline {
-  border-radius: index.$radius-3;
-  border-top: 1px solid index.$stroke-weak;
-  border-right: 1px solid index.$stroke-weak;
-  border-bottom: 1px solid index.$stroke-weak;
+  border-radius: index.$radius-surface;
 }

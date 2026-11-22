@@ -2,7 +2,8 @@
 
 .app-layout {
   --sidebar-w: clamp(26rem, 20vw, 44rem);
-  --dock-h: clamp(22rem, 28vh, 42rem);
+  // 残る知らせの帯のぶんは、盤でなくドックから取る
+  --dock-h: max(16rem, calc(clamp(22rem, 28vh, 42rem) - var(--notice-bands-h, 0px)));
   --stroke: rgba(255, 255, 255, 0.06);
 
   height: 100%;
