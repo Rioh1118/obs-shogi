@@ -25,8 +25,13 @@ export type OptionRow = {
   value: string | null;
   /** 初期値（表示用）。申告に既定値が無ければ `null` */
   defaultText: string | null;
-  /** 値があり、初期値と違う */
+  /** 値があり、初期値と違う。`fixedValue` があれば偽（保存した値は効かない） */
   changed: boolean;
+  /**
+   * 評価関数フォルダの `eval_options.txt` が決める値。あればエンジンは送った値をこれで上書きするので、
+   * 欄はこの値を出して編集させない。保存した値（`value`）は消さない
+   */
+  fixedValue: string | null;
 };
 
 type OptionRowFilter = {
@@ -36,6 +41,8 @@ type OptionRowFilter = {
   changedOnly?: boolean;
   /** 定跡を使うか。使わないなら定跡の設定（`group: "book"`）を出さない */
   bookUsed: boolean;
+  /** 評価関数フォルダの `eval_options.txt` が決める値（`evalOptionsFor`） */
+  fixed?: ReadonlyMap<string, string>;
 };
 
 /** 同じ名前の申告は最初の1件だけを残す。どちらの行も同じ値を書くので、行を分ける意味が無い */
@@ -72,12 +79,14 @@ export function optionRows(
     .map((def): OptionRow => {
       const value = draft.options[def.name] ?? null;
       const defaultText = def.default == null ? null : String(def.default);
+      const fixedValue = filter.fixed?.get(def.name) ?? null;
       return {
         def,
         label: def.label ?? null,
         value,
         defaultText,
-        changed: value != null && value !== defaultText,
+        changed: fixedValue == null && value != null && value !== defaultText,
+        fixedValue,
       };
     })
     .filter(

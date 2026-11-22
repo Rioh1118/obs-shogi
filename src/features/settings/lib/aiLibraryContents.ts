@@ -12,6 +12,8 @@ export type AiFolderSummary = {
   path: string;
   hasEval: boolean;
   hasBook: boolean;
+  /** `eval_options.txt` が `eval/` の外（AI 名のフォルダの直下）にあり、エンジンに読まれない */
+  evalOptionsOutsideEval: boolean;
 };
 
 /** 索引から読み取った、画面に出す中身 */
@@ -46,6 +48,7 @@ function summarizeFolder(profile: ProfileCandidate): AiFolderSummary {
     path: profile.path,
     hasEval: profile.has_eval_dir && profile.eval_files.length > 0,
     hasBook: profile.has_book_dir && profile.book_files.length > 0,
+    evalOptionsOutsideEval: profile.eval_options_outside_eval,
   };
 }
 
@@ -59,8 +62,13 @@ function warningsOf(enginesDir: EnginesDir, engineCount: number, profiles: AiFol
   if (canListEnginesDir(enginesDir) && engineCount === 0) {
     warnings.push("エンジン実行ファイルが未検出です。engines/ 配下に置いてください。");
   }
-  for (const { name, hasEval, hasBook } of profiles) {
+  for (const { name, hasEval, hasBook, evalOptionsOutsideEval } of profiles) {
     if (!hasEval) warnings.push(`「${name}」: 評価関数が未検出です（<AI 名>/eval に nn.bin 等）。`);
+    if (evalOptionsOutsideEval) {
+      warnings.push(
+        `「${name}」: eval_options.txt が eval/ の外にあります。eval/ の中に置かないとエンジンに読まれません。`,
+      );
+    }
     if (!hasBook) warnings.push(`「${name}」: 定跡が未検出です（<AI 名>/book に .db か .ybb）。`);
   }
   return warnings;

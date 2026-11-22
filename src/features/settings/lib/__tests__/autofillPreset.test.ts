@@ -34,6 +34,8 @@ const PROFILE: ProfileCandidate = {
   has_eval_dir: true,
   has_book_dir: true,
   eval_files: [{ entry: "nn.bin", path: "/ai/Suisho/eval/nn.bin", kind: "file" }],
+  eval_options: [],
+  eval_options_outside_eval: false,
   book_files: [{ entry: "user_book1.db", path: "/ai/Suisho/book/user_book1.db", kind: "file" }],
 };
 
