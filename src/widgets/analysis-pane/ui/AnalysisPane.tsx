@@ -10,22 +10,15 @@ import {
   MAX_VISIBLE_CANDIDATES,
   type CandidateRow,
 } from "@/widgets/analysis-pane/lib/candidateRows";
-import {
-  candidatesAreStale,
-  visibleCandidatesOf,
-} from "@/widgets/analysis-pane/lib/visibleCandidates";
-import { useEngineStatus } from "@/widgets/analysis-pane/lib/useEngineStatus";
+import { candidatesAreStale } from "@/widgets/analysis-pane/lib/visibleCandidates";
+import { useVisibleCandidates } from "@/widgets/analysis-pane/lib/useVisibleCandidates";
 import "./AnalysisPane.scss";
-import StatsSection from "./StatsSection";
 import { useAppConfig } from "@/entities/app-config";
-import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
-import { useEnginePresets } from "@/entities/engine-presets";
-import { useMateSearch, type MateSearchState } from "@/entities/mate-search";
+import { useMateSearch } from "@/entities/mate-search";
 import { mateOutcomeText } from "@/widgets/analysis-pane/lib/mateOutcome";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import {
-  pickTopCandidate,
   resolveAnalysisDisplayMode,
   useAnalysis,
   type AnalysisDisplayMode,
@@ -42,13 +35,6 @@ const BODY: Record<AnalysisDisplayMode, (props: { rows: readonly CandidateRow[] 
   rows: ({ rows }) => <CandidatesSection rows={rows} />,
 };
 
-const NO_CANDIDATES: readonly AnalysisCandidate[] = [];
-
-/** 詰み探索が表を持つ間の候補手。生の結果だけを出し、検討のキャッシュには入れない */
-function mateCandidatesOf(state: MateSearchState): readonly AnalysisCandidate[] {
-  return "candidates" in state ? state.candidates : NO_CANDIDATES;
-}
-
 function AnalysisPane() {
   // **キャッシュの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
   // 保存場所を持たない。持つと、この画面が作り直されたときだけ停止中の候補手が消える
@@ -56,35 +42,12 @@ function AnalysisPane() {
   const { state, candidateCache } = useAnalysis();
 
   const { config } = useAppConfig();
-  const { state: gameState, view: gameView } = useGame();
+  const { view: gameView } = useGame();
   const currentSfen = gameView.currentSfen;
-  const { selectedNode } = useFileTree();
-  const { state: presetsState } = useEnginePresets();
-  const status = useEngineStatus(currentSfen);
   const mate = useMateSearch();
-
-  const engineKey = presetsState.selectedPresetId ?? "no-engine";
-  const fileKey = selectedNode?.id ?? null;
-  const tesuuPointer = gameState.cursor?.tesuuPointer ?? null;
-  const cacheKey = fileKey && tesuuPointer ? `${engineKey}${fileKey}:${tesuuPointer}` : null;
+  const { candidates: visibleCandidates, status, fileKey, cacheKey } = useVisibleCandidates();
 
   const currentTurn = gameView.currentTurn;
-
-  // 停止中に出すのはキャッシュ。**キャッシュを書くのはコミット後の effect なので、読むこのレンダは
-  // 書かれる前のキャッシュを見る。** キャッシュの先は ref で、書いても再レンダは起きないので、
-  // ある鍵に初めてキャッシュしたときはその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
-  const visibleCandidates: readonly AnalysisCandidate[] = useMemo(
-    () =>
-      mate.ownsTable
-        ? mateCandidatesOf(mate.state)
-        : visibleCandidatesOf({
-            status,
-            analysis: state,
-            currentSfen,
-            lookupCached: () => candidateCache.lookup(cacheKey),
-          }),
-    [candidateCache, status, state, currentSfen, cacheKey, mate.ownsTable, mate.state],
-  );
 
   // 読み筋は盤の局面から組む。キャッシュの鍵が別の局面を指していると（#568）、盤の局面では
   // 指せない手の並びが出るか、手が組めずに評価値だけの行になる
@@ -113,13 +76,6 @@ function AnalysisPane() {
 
     return buildCandidateRows(shown, senteMoves, senteEvaluations);
   }, [pvBaseSfen, currentTurn, visibleCandidates]);
-
-  const searchStats = useMemo(() => {
-    const top = pickTopCandidate([...visibleCandidates]);
-    return top
-      ? { depth: top.depth ?? null, nodes: top.nodes ?? null, time_ms: top.time_ms ?? null }
-      : null;
-  }, [visibleCandidates]);
 
   // 見せ方は設定が決める（ADR-0010 決定4 の改訂）。**局面ごとに変える値ではなく好み**
   const mode = resolveAnalysisDisplayMode(config?.analysis_display_mode);
@@ -176,10 +132,6 @@ function AnalysisPane() {
       )}
 
       <main className={`analysis-pane__body${staleClass}`}>{BODY[mode]({ rows })}</main>
-
-      <footer className="analysis-pane__footer">
-        <StatsSection searchStats={searchStats} />
-      </footer>
     </section>
   );
 }

@@ -1,20 +1,30 @@
 @use "@/index.scss" as index;
 
-// 脚注。**上の線は親の `.analysis-pane__footer` が引く**ので、ここでは引かない
+// 読みの量。**置き場所はドックが決める**（下の帯か、低いウィンドウではタブの行）
 .stats-section {
   display: flex;
-  align-items: center;
-  gap: index.$space-6;
+  gap: index.$space-9;
 
-  height: 3.2rem;
-  padding: 0 var(--pane-px, #{index.$space-4});
+  line-height: index.$dock-button-height-low;
+  padding: 0 var(--pane-px, #{index.$space-7});
 
   // **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
-  background: index.$color-primary-dark;
+  background: index.$surface-dock;
   color: index.$color-text-primary;
-  font-size: index.$font-hint;
   white-space: nowrap;
   overflow-x: auto;
+
+  // タブの行に上がったとき
+  @media (max-height: 800px) {
+    gap: index.$space-7;
+    padding: 0 index.$space-6 0 index.$space-11;
+    background: index.$surface-dock-strip;
+
+    @media (max-width: 1150px) {
+      gap: index.$space-5;
+      padding-left: index.$space-9;
+    }
+  }
 
   &__item {
     display: flex;
@@ -24,13 +34,14 @@
 
   &__label {
     font-family: index.$font-mono;
-    letter-spacing: 0.08em;
-    // 0.55 まで沈めると 11px の文字が 3.77:1 になり、基準（4.5:1）を割る
-    opacity: 0.72;
+    font-size: index.$font-hint;
+    letter-spacing: 0.06em;
+    color: index.$color-text-label;
   }
 
   &__value {
     font-family: index.$font-mono;
+    font-size: index.$font-aux;
     font-variant-numeric: tabular-nums;
     font-weight: index.$weight-strong;
   }

@@ -1,31 +1,35 @@
 @use "@/index.scss" as index;
 
-// 背景と枠線は持たない。**コンテナはドックのカード**で、ビューを増やしても同じカードに載る
+// 背景と枠線は持たない。ドックが持つ
 .analysis-pane {
   width: 100%;
   height: 100%;
   min-height: 0;
   overflow: hidden;
 
-  // **行の数を固定しない。** 評価値バーは既定で出ないので、`grid-template-rows` を
-  // 3行で書くと子が2つの回に本体が `auto` の行へ落ち、脚注が伸びる行を取る
+  // **行の数を固定しない。** 評価値バーと結論は既定で出ないので、`grid-template-rows` で
+  // 書くと、出ていないときに本体が `auto` の行へ落ちる
   display: flex;
   flex-direction: column;
 
-  // 左右は候補手と脚注と同じ始点（`--pane-px`）。**バーは幅いっぱいに伸ばす**ので、
-  // 左右が揃っていればそのまま中央に来る
-  // エンジンが止まる前の結果。**注記の行は足さない**——語は操作列にある
+  // エンジンが止まる前の結果。**注記の行は足さない**——語は操作列にある。
+  // 薄くするのは候補手とバーだけ。見出しと「候補手なし」は今も正しい
   &--stale {
-    opacity: 0.55;
+    .candidate-table__row,
+    .move-sequence,
+    .evaluation-bar {
+      opacity: 0.62;
+    }
   }
 
+  // 左右は候補手と同じ始点（`--pane-px`）。**バーは幅いっぱいに伸ばす**ので、
+  // 左右が揃っていればそのまま中央に来る
   &__gauge {
     flex: none;
-    padding: index.$space-2 var(--pane-px, #{index.$space-4}) 0;
+    padding: index.$space-4 var(--pane-px, #{index.$space-7}) index.$space-3;
 
     .evaluation-bar {
       height: 0.9rem;
-      border: 1px solid rgba(index.$color-text-primary, 0.35);
     }
   }
 
@@ -33,24 +37,20 @@
   &__outcome {
     flex: none;
     margin: 0;
-    padding: index.$space-3 var(--pane-px, #{index.$space-4});
+    padding: 0 var(--pane-px, #{index.$space-7});
     overflow-x: auto;
     white-space: nowrap;
+    background: index.$surface-dock;
     border-bottom: 1px solid index.$stroke-weak;
     font-size: index.$font-body;
     font-weight: index.$weight-strong;
-    color: index.$color-text-primary;
+    line-height: index.$table-head-height;
+    color: index.$color-text-strong;
   }
 
   &__body {
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-  }
-
-  // 脚注。**帯として読ませる**（本体との境目を線で切る）
-  &__footer {
-    flex: none;
-    border-top: 1px solid index.$stroke-weak;
   }
 }

@@ -16,9 +16,9 @@ type Props = {
  * 字面まで同じだが、TSX は重ならない —— こちらは行を選べて見出しを押せず、
  * あちらは選べなくて見出しを押せる。コンテナを共有するかは `docs/OPEN-QUESTIONS.md` の Q-016。
  *
- * 読み筋は1行に収める（`text-overflow`）。折り返すと行の高さが揃わず、
- * 列で揃えるという表の取り柄が消える。**切れた先へ届く手段は持たない**
- * （`docs/spec/screens/analysis-pane.md` の「候補手の見せ方」）。
+ * 読み筋は1行に収める。折り返すと行の高さが揃わず、列で揃えるという表の取り柄が消える。
+ * 入りきらない手は、手の途中でなく手の切れ目で省く。**切れた先へ届く手段は持たない**
+ * （ADR-0010 決定2）。題で出すと、読んでいる行のすぐ下を吹き出しが覆う。
  *
  * 行の選択は読む位置の目印で、ここから先へ動くものは何も無い。
  * 見せ方を跨いで持ち回らない —— 行モードに選択という概念が無いため。
@@ -69,7 +69,11 @@ function CandidateTable({ rows }: Props) {
             >
               <td className="candidate-table__move">{row.moves[0]?.move ?? "—"}</td>
               <td className="candidate-table__score">{formatEvaluation(row.evaluation)}</td>
-              <td className="candidate-table__pv">{row.moves.map((m) => m.move).join(" ")}</td>
+              <td className="candidate-table__pv">
+                {row.moves.map((m, i) => (
+                  <span key={i}>{m.move} </span>
+                ))}
+              </td>
             </tr>
           ))}
         </tbody>

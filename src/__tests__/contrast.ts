@@ -280,6 +280,22 @@ function isSameElement(node: Container): boolean {
   return /^&[:.[]/.test(selector.trim());
 }
 
+/**
+ * 文字を持たない箱。空の擬似要素（線や点を描くもの）と、スクロールバー。
+ *
+ * 文字の色は親から継がれるので、外さないと「線の色の上に本文」という、どこにも出ない対を測る
+ */
+function hasNoText(node: Container): boolean {
+  const selector = (node as { selector?: string }).selector ?? "";
+  if (/::-webkit-scrollbar/.test(selector)) return true;
+  if (!/::(before|after)\b/.test(selector)) return false;
+
+  return (node.nodes ?? []).some(
+    (child) =>
+      isDeclaration(child) && child.prop === "content" && /^(""|'')$/.test(child.value.trim()),
+  );
+}
+
 function selectorOf(node: Container): string {
   const anyNode = node as { selector?: string; name?: string; params?: string };
   if (anyNode.selector) return anyNode.selector.replace(/\s+/g, " ");
@@ -339,7 +355,7 @@ function visit(node: Container, inherited: Context, vars: Map<string, string>, s
     }
   }
 
-  if (declaresPair && next.colorText && !isDisabledState(node)) {
+  if (declaresPair && next.colorText && !isDisabledState(node) && !hasNoText(node)) {
     // `opacity` は文字と背景の両方を**親の背景**へ寄せる。親が分からなければ測れない
     const fadesInto = next.opacity < 1 ? inherited.surface : next.surface;
 

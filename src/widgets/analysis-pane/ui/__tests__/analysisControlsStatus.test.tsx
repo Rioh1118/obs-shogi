@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
+import type { EngineStatus } from "@/entities/analysis";
+import { isTextStep } from "@/widgets/analysis-pane/lib/engineStep";
 import { EngineAction } from "../EngineAction";
 import { EngineStatusLabel } from "../EngineStatusLabel";
 
@@ -170,6 +172,44 @@ describe("操作列の時計の持ち越し", () => {
 
     expect(statusText(view.container)).toBe("検討完了0s");
   });
+});
+
+describe("語のボタンになる状態", () => {
+  const STATUSES: EngineStatus[] = [
+    "no-engine",
+    "starting",
+    "standing-by",
+    "analyzing",
+    "finished",
+    "unresponsive",
+    "exited",
+    "failed",
+    "cancelled",
+  ];
+
+  /** 食い違うと、語のボタンが記号の間に出るか、操作列から消える */
+  test.each(STATUSES.flatMap((status) => [true, false].map((slow) => [status, slow] as const)))(
+    "%s（起動が長引いた: %s）で、`isTextStep` と出るボタンが合う",
+    (status, slowStart) => {
+      const { container } = render(
+        <EngineAction
+          status={status}
+          isAnalyzing={false}
+          stopping={false}
+          canStart
+          retry
+          slowStart={slowStart}
+          onToggle={vi.fn()}
+          onRestart={vi.fn()}
+          onOpenSettings={vi.fn()}
+          onCancelStart={vi.fn()}
+        />,
+      );
+
+      const isIcon = container.querySelector(".analysis-controls__iconBtn") !== null;
+      expect(isTextStep(status, slowStart)).toBe(!isIcon);
+    },
+  );
 });
 
 describe("▶ の位置のボタン", () => {

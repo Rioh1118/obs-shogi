@@ -143,6 +143,35 @@ describe("走査", () => {
     expect(findings.map((f) => f.selector)).toEqual([".a"]);
   });
 
+  it.each([
+    ["空の擬似要素", '&::before { content: ""; background: #777777; }'],
+    ["空の擬似要素（一重の引用符）", "&::after { content: ''; background: #777777; }"],
+    ["スクロールバー", "&::-webkit-scrollbar-thumb { background: #777777; }"],
+  ])("文字を持たない箱は測らない: %s", (_, nested) => {
+    const { pairs, unmeasured } = measured(`.a { color: #888888; background: #111111; ${nested} }`);
+
+    expect(pairs.map((pair) => pair.selector)).toEqual([".a"]);
+    expect(unmeasured).toBe(0);
+  });
+
+  it("文字を持つ擬似要素は測る", () => {
+    const { pairs } = measured(
+      `.a { color: #888888; background: #111111; &::after { content: "✓"; background: #777777; } }`,
+    );
+
+    expect(pairs.map((pair) => pair.selector)).toEqual([".a", "&::after"]);
+  });
+
+  it("文字を持たない箱の中の、文字を持つ箱は測る", () => {
+    const { pairs } = measured(
+      `.a { color: #888888; background: #111111;
+        &::before { content: ""; background: #777777; }
+        &:hover { background: #222222; } }`,
+    );
+
+    expect(pairs.map((pair) => pair.selector)).toEqual([".a", "&:hover"]);
+  });
+
   it("背景が半透明のまま確定しなければ測らず、測れなかったことを数える", () => {
     const result = measured(`
       .a {

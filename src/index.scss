@@ -205,10 +205,19 @@ $sidebar-width: 23%;
 // 作業画面の見出し（`AppLayoutHeader`）もこの帯の中に描くので、見出しの押すものが収まる高さにする
 $titlebar-height: 3.8rem;
 
-// ドックの操作列に並ぶ記号ボタンの当たり。**タブを跨いで同じ値であること**が要件で、
-// ずれるとタブを移った回に下の領域の高さが変わって本体が上下にずれる。
-// ファイルごとに直値を書くと、片方を動かしても何も落ちない
-$control-hit: 3.6rem;
+// 一覧の行と、表の見出しの高さ。候補手と定跡の表・棋譜・ツリーが同じ行に立つ
+// （`design-system/design_system/components/list-row.md`）
+$row-height: 2.6rem;
+$table-head-height: 2.5rem;
+
+// ドックの、タブと操作列の帯と、そこに並ぶ記号ボタン。**タブを跨いで同じ値であること**が要件で、
+// ずれると、タブを移ったときに記号が動く。低いウィンドウと狭いウィンドウでは詰める
+$dock-bar-height: 3.8rem;
+$dock-bar-height-low: 3.4rem;
+$dock-button-height: 3rem;
+$dock-button-height-low: 2.8rem;
+$dock-button-width: 3.4rem;
+$dock-button-width-narrow: 3.2rem;
 // 指で押す入力機器（`pointer: coarse`）のとき。当たりだけを広げ、記号は変えない
 $control-hit-coarse: 4.4rem;
 // エンジンの状態の語に添える目印の大きさ。操作列と設定のカードが同じ状態を別々に描くので、

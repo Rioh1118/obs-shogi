@@ -28,7 +28,7 @@ function TextAction({ label, onClick }: { label: string; onClick: () => void }) 
 }
 
 /**
- * ▶ の位置に出る1つのボタン。**いまの状態の次の一手を出す**
+ * いまの状態の次の一手を出す1つのボタン。▶ と ■ か、語のボタン（`isTextStep`）
  * （`docs/spec/features/engine-standardization.md` の「エンジンの状態」）。
  */
 export function EngineAction({

@@ -8,11 +8,12 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: index.$space-2;
-  padding: index.$space-3;
-  border: index.$stroke;
-  border-radius: index.$radius-3;
+  gap: index.$space-4;
+  padding: index.$space-6 index.$space-7;
+  border: 1px solid index.$stroke;
+  border-radius: index.$radius-surface;
   background-color: index.$color-primary-dark;
+  box-shadow: index.$shadow-overlay;
 
   &__title {
     margin: 0;

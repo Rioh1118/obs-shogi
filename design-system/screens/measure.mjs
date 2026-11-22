@@ -159,7 +159,9 @@ export function measureScreen(opts = {}) {
           const clamped = s.webkitLineClamp && s.webkitLineClamp !== 'none';
           if (ellipsis || clamped) {
             const reveal = cur.closest('[title]')?.getAttribute('title') || el.closest('[title]')?.getAttribute('title');
-            const hasReveal = !!reveal || !!cur.closest('[data-reveal]');
+            // 読み筋は、全文へ届く手段を持たないと決めている（製品の docs/decisions/0010 の決定2）
+            const isReadingLine = !!cur.closest('.candidate-table__pv, .move-sequence__pv');
+            const hasReveal = !!reveal || isReadingLine || !!cur.closest('[data-reveal]');
             if (!hasReveal) push('noReveal', cur, text, { over: Math.round(overX) });
           } else {
             push('cut', cur, text, { over: Math.round(box.right - b.right) });

@@ -9,16 +9,18 @@ import { useGame } from "@/entities/game";
 import { useAnalysis } from "@/entities/analysis";
 import { engineFailureNoticeOf, useEngine } from "@/entities/engine";
 import { useMateSearch } from "@/entities/mate-search";
+import { isTextStep } from "@/widgets/analysis-pane/lib/engineStep";
 import { useEngineStatus } from "@/widgets/analysis-pane/lib/useEngineStatus";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import { useBoardOrientation } from "@/features/board-orientation";
 import { useOpenSettings } from "@/features/settings/model/useOpenSettings";
 
 /**
- * 検討ビューの操作列。ドックのタブ列の下の行に出る。
+ * 検討ビューの操作列。ドックのタブと同じ行に出る。
  *
  * 左が状態（語と経過秒）、右が操作。詰み探索が表を持つ間、語は詰み探索のもので、▶ は検討へ切り替える。並びは
  * 盤と検討（向き・開始／中断・詰み探索）→ 局面の道具（ナビ・検索・課題局面）→ 設定。
+ * 次の一手が語のボタンのときは、操作の左端に出る（`isTextStep`）。
  *
  * **候補手の見せ方はここに置かない。** 局面ごとに変える値ではなく好みなので、
  * 置き場は設定「表示」（ADR-0010 決定4 の改訂）。
@@ -67,6 +69,22 @@ function AnalysisControls() {
     openSettings("engine");
   };
 
+  const isText = !mate.ownsTable && isTextStep(status, slowStart);
+  const engineAction = (
+    <EngineAction
+      status={status}
+      isAnalyzing={state.isAnalyzing || state.starting}
+      stopping={state.stopping}
+      canStart={!!currentSfen}
+      retry={notice?.retry ?? false}
+      slowStart={slowStart}
+      onToggle={handleToggleAnalysis}
+      onRestart={() => void initialize()}
+      onOpenSettings={handleOpenSettings}
+      onCancelStart={cancelStart}
+    />
+  );
+
   return (
     <div className="analysis-controls">
       {mate.ownsTable ? (
@@ -82,6 +100,7 @@ function AnalysisControls() {
       )}
 
       <div className="analysis-controls__actions">
+        {isText && engineAction}
         {/*
           `role="toolbar"` を名乗らない。名乗ると矢印キーでの移動が期待されるが、
           この帯はそれを持たない。`group` なら並びの名前だけを伝える
@@ -104,18 +123,7 @@ function AnalysisControls() {
               <Play className="analysis-controls__icon" />
             </button>
           ) : (
-            <EngineAction
-              status={status}
-              isAnalyzing={state.isAnalyzing || state.starting}
-              stopping={state.stopping}
-              canStart={!!currentSfen}
-              retry={notice?.retry ?? false}
-              slowStart={slowStart}
-              onToggle={handleToggleAnalysis}
-              onRestart={() => void initialize()}
-              onOpenSettings={handleOpenSettings}
-              onCancelStart={cancelStart}
-            />
+            !isText && engineAction
           )}
           <MateSearchButton currentSfen={currentSfen} />
         </div>

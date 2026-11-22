@@ -4,7 +4,7 @@
   --sidebar-w: clamp(16rem, 14.5vw, 22.4rem);
   --kifu-w: clamp(22.8rem, 20.5vw, 33.6rem);
   // 残る知らせの帯のぶんは、盤でなくドックから取る
-  --dock-h: max(16rem, calc(clamp(22.1rem, 24.6vh, 27.3rem) - var(--notice-bands-h, 0px)));
+  --dock-h: max(12.6rem, calc(clamp(22.1rem, 24.6vh, 27.3rem) - var(--notice-bands-h, 0px)));
 
   height: 100%;
   width: 100%;
@@ -21,7 +21,7 @@
 
   // 低いウィンドウでは、ドックの段を減らして盤に返す
   @media (max-height: 800px) {
-    --dock-h: max(16rem, calc(19.4rem - var(--notice-bands-h, 0px)));
+    --dock-h: max(12.6rem, calc(19.4rem - var(--notice-bands-h, 0px)));
   }
 
   &__body {

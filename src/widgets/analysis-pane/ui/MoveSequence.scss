@@ -1,21 +1,16 @@
 @use "@/index.scss" as index;
 
 .move-sequence {
+  height: var(--row-h);
+
   display: grid;
-  grid-template-columns: minmax(6.5ch, max-content) 1fr;
-  align-items: baseline;
-  column-gap: 0.3rem;
+  grid-template-columns: 8.4rem minmax(0, 1fr);
+  align-items: center;
 
   // **左右は持たない。** 始点は節（`.candidates-section`）が `--pane-px` で持つ
-  padding: index.$space-1 0;
   color: index.$color-text-primary;
-  line-height: 1.35;
-
+  font-size: index.$font-body;
   white-space: nowrap;
-  overflow: hidden;
-
-  font-size: 1.22rem;
-  font-weight: 440;
 
   &__pv {
     min-width: 0;
@@ -24,19 +19,15 @@
   }
 
   &__evaluation {
-    font-weight: 520;
+    padding-right: index.$space-10;
+    font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
-    letter-spacing: 0.02em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: 1.3rem;
+    text-align: right;
   }
 
+  // 1手ずつの箱にすると、手の途中でなく手の切れ目で省かれる
   &__move {
     display: inline-block;
-    margin-right: 0.4rem;
-    &:last-child {
-      margin-right: 0rem;
-    }
+    margin-right: index.$space-4;
   }
 }

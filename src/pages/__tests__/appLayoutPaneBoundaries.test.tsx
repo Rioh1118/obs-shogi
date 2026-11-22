@@ -36,15 +36,20 @@ function mockThrowing(name: keyof typeof throwing, testId: string) {
 }
 
 const empty = { default: () => null };
+const controls = { default: () => <div data-testid="controls" /> };
 // 境界ごとこの層の中に居るので、落ちたときの振る舞いは AppModalLayer.test.tsx が見る
 vi.mock("@/pages/AppModalLayer", () => empty);
 vi.mock("@/pages/WelcomeScreen", () => empty);
 vi.mock("@/widgets/app-layout-header/ui/AppLayoutHeader", () => empty);
 vi.mock("@/widgets/game-board/ui/Hand", () => empty);
-vi.mock("@/widgets/game-board/ui/GameControls", () => empty);
+vi.mock("@/widgets/game-board/ui/GameControls", () => controls);
 // **ドックは本物を出す。** 解析の境界はもうページではなくドックの中にあるので、
 // 差し替えるとその1枚が検査から消える
 vi.mock("@/widgets/analysis-pane/ui/AnalysisControls", () => empty);
+vi.mock("@/widgets/analysis-pane/ui/AnalysisStats", () => {
+  const mocked = { default: () => <></> };
+  return mocked satisfies typeof import("@/widgets/analysis-pane/ui/AnalysisStats");
+});
 vi.mock("@/entities/app-config", () => ({
   useAppConfig: () => ({ config: null, setDisplayConfig: vi.fn() }),
 }));
@@ -79,7 +84,7 @@ afterEach(() => {
 });
 
 describe("ペインごとの境界", () => {
-  test("盤が落ちても、棋譜一覧と解析ペインは残る", () => {
+  test("盤が落ちても、棋譜一覧と手の移動と解析ペインは残る", () => {
     throwing.board = true;
     const { container } = mount();
 
@@ -89,6 +94,7 @@ describe("ペインごとの境界", () => {
     expect(screen.getByText("盤を表示できませんでした。")).toBeTruthy();
     expect(container.querySelector('[data-testid="analysis"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="kifu"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="controls"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="board"]')).toBeNull();
   });
 
@@ -103,12 +109,13 @@ describe("ペインごとの境界", () => {
     expect(container.querySelector('[data-testid="analysis"]')).toBeNull();
   });
 
-  test("棋譜一覧が落ちても、盤と解析ペインは残る", () => {
+  test("棋譜一覧が落ちても、盤と手の移動と解析ペインは残る", () => {
     throwing.kifu = true;
     const { container } = mount();
 
     expect(screen.getByText("棋譜一覧を表示できませんでした。")).toBeTruthy();
     expect(container.querySelector('[data-testid="board"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="controls"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="analysis"]')).not.toBeNull();
   });
 

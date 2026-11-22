@@ -35,7 +35,7 @@ function Dock({ views }: { views: DockViewBindings }) {
   });
 
   const binding = views[active];
-  const { Body, Controls } = binding;
+  const { Body, Controls, Meta } = binding;
 
   /**
    * タブ列の中を矢印で移す。`role="tablist"` を名乗る以上、これが要る。
@@ -102,21 +102,26 @@ function Dock({ views }: { views: DockViewBindings }) {
         label={binding.boundary}
         // タブ列は残るので、落ちたビューから別のビューへ移れる。移れば鍵が動いてフォールバックが解ける
         resetKeys={[active]}
-        fallback={(view) => <ErrorFallbackBody {...view} hint={binding.fallbackHint} />}
+        fallback={(view) => (
+          <div className="dock__body">
+            <ErrorFallbackBody {...view} hint={binding.fallbackHint} />
+          </div>
+        )}
       >
-        <div className="dock__view">
-          <div className="dock__controls">
-            <Controls />
-          </div>
-          <div
-            className="dock__body"
-            role="tabpanel"
-            id="dock-panel"
-            aria-labelledby={`dock-tab-${active}`}
-          >
-            <Body />
-          </div>
+        <Controls />
+        <div
+          className="dock__body"
+          role="tabpanel"
+          id="dock-panel"
+          aria-labelledby={`dock-tab-${active}`}
+        >
+          <Body />
         </div>
+        {Meta && (
+          <div className="dock__meta">
+            <Meta />
+          </div>
+        )}
       </AppErrorBoundary>
     </section>
   );

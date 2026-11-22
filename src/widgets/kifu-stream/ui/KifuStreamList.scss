@@ -1,7 +1,7 @@
 @use "@/index.scss" as index;
 
 .kifu {
-  --kifu-row-h: 2.6rem;
+  --kifu-row-h: #{index.$row-height};
 
   flex: 1 1 auto;
   min-height: 0;

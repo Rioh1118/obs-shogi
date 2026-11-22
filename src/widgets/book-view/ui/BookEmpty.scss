@@ -5,14 +5,14 @@
   min-height: 0;
   overflow-y: auto;
 
-  padding: index.$space-4 var(--pane-px, #{index.$space-4});
-  background: index.$color-primary-dark;
-  color: rgba(index.$color-text-primary, 0.92);
+  padding: index.$space-5 var(--pane-px, #{index.$space-7});
+  background: index.$surface-dock;
+  color: index.$color-text-primary;
 
   &__lead {
-    margin: 0 0 index.$space-4;
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-primary, 0.72);
+    margin: 0 0 index.$space-5;
+    font-size: index.$font-body;
+    color: index.$color-text-muted;
   }
 
   &__group {
@@ -25,7 +25,7 @@
     font-weight: index.$weight-strong;
     font-size: index.$font-hint;
     letter-spacing: 0.09em;
-    color: rgba(index.$color-text-primary, 0.72);
+    color: index.$color-text-label;
   }
 
   &__list {
@@ -33,7 +33,8 @@
     padding: 0;
     list-style: none;
     display: grid;
-    gap: index.$space-1;
+    margin-inline: calc(-1 * var(--pane-px, #{index.$space-7}));
+    border-top: 1px solid index.$stroke-weak;
 
     // **grid item の `min-width` を落とす。** 既定の `auto` は中身の min-content
     // なので、下流の `__note` に `min-width: 0` を書いても効かず、添え書きは
@@ -47,26 +48,28 @@
   // 1件ぶん。左にファイル名、右に添え書き。**同じ名前のファイルを見分けられること**
   &__item {
     display: flex;
-    align-items: baseline;
-    gap: index.$space-3;
+    align-items: center;
+    gap: index.$space-5;
     width: 100%;
 
-    padding: index.$space-2 index.$space-3;
+    height: 2.8rem;
+    padding: 0 var(--pane-px, #{index.$space-7});
     border: 0;
-    border-radius: index.$radius-2;
-    background: rgba(index.$color-white, 0.035);
-    color: rgba(index.$color-text-primary, 0.92);
+    border-bottom: 1px solid index.$stroke-weak;
+    border-radius: index.$radius-row;
+    background: index.$surface-dock;
+    color: index.$color-text-primary;
+    font-size: index.$font-body;
     text-align: left;
     cursor: pointer;
 
     &:hover {
-      // 暗い背景なので**明るくする**（ADR-0005 決定2）
-      background: rgba(index.$color-white, 0.07);
+      background: index.$surface-hover;
     }
 
     &:focus-visible {
       outline: 2px solid index.$focus-ring;
-      outline-offset: 2px;
+      outline-offset: -2px;
     }
   }
 
@@ -91,24 +94,25 @@
     white-space: nowrap;
 
     font-size: index.$font-aux;
-    color: rgba(index.$color-text-primary, 0.72);
+    color: index.$color-text-label;
   }
 
   &__browse {
     display: inline-flex;
     align-items: center;
-    gap: index.$space-2;
+    gap: index.$space-3;
 
-    padding: index.$space-2 index.$space-4;
-    border: 1px solid index.$stroke-weak;
-    border-radius: index.$radius-2;
-    background: transparent;
-    color: rgba(index.$color-text-primary, 0.92);
-    font-size: index.$font-aux;
+    height: 2.8rem;
+    padding: 0 index.$space-5;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-control;
+    background: index.$surface-dock;
+    color: index.$color-text-primary;
+    font-size: index.$font-body;
     cursor: pointer;
 
     &:hover {
-      background: rgba(index.$color-white, 0.07);
+      background: index.$surface-hover;
     }
 
     &:focus-visible {
