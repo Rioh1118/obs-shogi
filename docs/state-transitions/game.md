@@ -80,10 +80,10 @@ tsc が落ちる。同じ取り違えから #226 と #196 が出ている。
 | ------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | **E1**  | `loadGame`                      | `GameFileTreeBridge`（ツリーで棋譜を開く）                                                                  |
 | **E2**  | `resetGame`                     | 棋譜を閉じる                                                                                                |
-| **E3**  | `nextMove`                      | → キー / `GameControls`                                                                                     |
-| **E4**  | `previousMove`                  | ← キー / `GameControls`                                                                                     |
-| **E5**  | `goToStart`                     | `GameControls`                                                                                              |
-| **E6**  | `goToEnd`                       | `GameControls`                                                                                              |
+| **E3**  | `nextMove`                      | → キー / 一覧で ↓ キー / `GameControls`※10                                                                         |
+| **E4**  | `previousMove`                  | ← キー / 一覧で ↑ キー / `GameControls`※10                                                                         |
+| **E5**  | `goToStart`                     | Home キー / `GameControls`※10                                                                               |
+| **E6**  | `goToEnd`                       | End キー / `GameControls`※10                                                                                |
 | **E7**  | `goToIndex(n)`                  | 棋譜ストリームの行クリック                                                                                  |
 | **E8**  | `applyCursor(c)`                | 局面ナビ / 検索ヒット / 分岐メニュー                                                                        |
 | **E9**  | 分岐メニューで「本譜」          | `KifuForkMenu`                                                                                              |
@@ -276,6 +276,10 @@ E16 を利用者に出すところまでは `gameFileTreeBridge.test.tsx` が持
 
 ✓ は `gameFileTreeBridgeRename.test.tsx`（橋と保存先の検査を通した形）、
 `reducer.test.ts` の `path_renamed`、`kifuStreamFaces.test.tsx`（開いているノートやメニューを閉じる合図）。
+
+※10 キーを受けるのは `features/kifu-navigation-keys`。受ける条件は
+[app-layout.md](../spec/screens/app-layout.md) の「キー操作」で、することは `GameControls` のボタンと同じ。
+押し続けたときは、1回描くごとに1手まで撃つ。キーのときは、フォーカスも棋譜の一覧へ移る。
 
 ## ディスクを組で見る
 

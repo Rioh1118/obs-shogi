@@ -3,7 +3,7 @@ import { ChevronFirst, ChevronLeft, ChevronRight, ChevronLast } from "lucide-rea
 import "./GameControls.scss";
 import { useGame } from "@/entities/game";
 
-/** 棋譜の中の移動。最初、前の手、次の手、最後 */
+/** 棋譜の中の移動。最初、前の手、次の手、最後。キーでも同じことをする（`useKifuNavigationKeys`） */
 function GameControls() {
   const { goToStart, previousMove, nextMove, goToEnd, canGoBackward, canGoForward } = useGame();
 
@@ -12,19 +12,19 @@ function GameControls() {
 
   return (
     <div className="game-controls">
-      <ControlButton onClick={goToStart} disabled={!canGoBack} title="最初に戻る">
+      <ControlButton onClick={goToStart} disabled={!canGoBack} title="最初に戻る（Home）">
         <ChevronFirst size={25} />
       </ControlButton>
 
-      <ControlButton onClick={previousMove} disabled={!canGoBack} title="前の手">
+      <ControlButton onClick={previousMove} disabled={!canGoBack} title="前の手（←）">
         <ChevronLeft size={25} />
       </ControlButton>
 
-      <ControlButton onClick={nextMove} disabled={!canGoNext} title="次の手">
+      <ControlButton onClick={nextMove} disabled={!canGoNext} title="次の手（→）">
         <ChevronRight size={25} />
       </ControlButton>
 
-      <ControlButton onClick={goToEnd} disabled={!canGoNext} title="最後に進む">
+      <ControlButton onClick={goToEnd} disabled={!canGoNext} title="最後に進む（End）">
         <ChevronLast size={25} />
       </ControlButton>
     </div>

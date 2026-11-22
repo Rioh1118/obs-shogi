@@ -32,14 +32,19 @@ export function computeAnchoredPos(anchorEl: HTMLElement, width: number): Anchor
   const w = Math.min(width, vw - margin * 2);
   const left = clamp(rect.left, margin, Math.max(margin, vw - w - margin));
 
-  const spaceBelow = vh - rect.bottom - gap - margin;
-  const spaceAbove = rect.top - gap - margin;
+  // 開いた要素は、一覧が流れると画面の外へ出る。付箋は画面の中に残す。
+  // 外へ出すと、開いたままの付箋が見えず、次の Escape が見えない付箋を閉じる
+  const anchorTop = clamp(rect.top, 0, vh);
+  const anchorBottom = clamp(rect.bottom, 0, vh);
+
+  const spaceBelow = vh - anchorBottom - gap - margin;
+  const spaceAbove = anchorTop - gap - margin;
   const placeBelow = spaceBelow >= 180 || spaceBelow >= spaceAbove;
 
   if (placeBelow) {
     return {
       left,
-      top: rect.bottom + gap,
+      top: anchorBottom + gap,
       maxHeight: Math.max(140, spaceBelow),
       placement: "bottom",
     };
@@ -47,7 +52,7 @@ export function computeAnchoredPos(anchorEl: HTMLElement, width: number): Anchor
 
   return {
     left,
-    bottom: vh - rect.top + gap,
+    bottom: vh - anchorTop + gap,
     maxHeight: Math.max(140, spaceAbove),
     placement: "top",
   };

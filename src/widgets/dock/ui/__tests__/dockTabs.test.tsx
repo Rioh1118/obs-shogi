@@ -259,6 +259,28 @@ describe("ドックのタブの細部", () => {
     expect(document.activeElement).toBe(tab("定跡"));
   });
 
+  /** 残すと、続けて押した矢印が棋譜でなくタブを動かす */
+  test("マウスで押したタブには、フォーカスを残さない", () => {
+    mount();
+
+    const focused = fireEvent.mouseDown(tab("定跡"));
+    fireEvent.click(tab("定跡"));
+
+    expect(focused).toBe(false);
+    expect(tab("定跡").getAttribute("aria-selected")).toBe("true");
+  });
+
+  /** 止めると、移る先が無いのに、棋譜を動かす矢印まで消える */
+  test("タブが1枚なら、矢印の既定の動きを止めない", () => {
+    config.current = { dock_tabs: ["analysis"], dock_tabs_known: ["analysis", "book"] };
+    mount();
+
+    const notPrevented = fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+
+    expect(notPrevented).toBe(true);
+    expect(tab("検討").getAttribute("aria-selected")).toBe("true");
+  });
+
   /** 止めると、Tab でタブ列から出られなくなる */
   test("矢印でないキーはタブを動かさず、既定の動きも止めない", () => {
     mount();

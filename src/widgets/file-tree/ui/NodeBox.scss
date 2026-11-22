@@ -15,6 +15,12 @@
     background-color: rgba(index.$color-white, 0.15);
   }
 
+  // **内側に描く。** 一覧はスクロールする箱なので、外側に出した輪は箱に切られる
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
+  }
+
   // 押せない行。押せる行と同じ手掛かり（指のポインタ・ホバーの帯）を持たせると、
   // 「開けば続きが出る」と読んで押し、無反応を「固まった」と受け取る
   &--static {

@@ -17,6 +17,7 @@ import KifuStreamList from "@/widgets/kifu-stream/ui/KifuStreamList";
 import { useGame } from "@/entities/game";
 import GameControls from "@/widgets/game-board/ui/GameControls";
 import { useClearBoardSelection } from "@/features/clear-board-selection";
+import { useKifuNavigationKeys } from "@/features/kifu-navigation-keys";
 import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 
@@ -35,6 +36,9 @@ function AppLayout() {
   // 「盤の外」は盤より広い範囲を見ないと判定できないので、捕まえるのはここ。
   // 何が盤の内側かは feature が知っている
   const onPointerDownCapture = useClearBoardSelection();
+
+  // フォーカスがどこにあっても受けるキーなので、聞くのはページの根
+  useKifuNavigationKeys();
 
   return (
     <div

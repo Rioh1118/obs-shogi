@@ -337,21 +337,21 @@ describe("手送り", () => {
     const { game, press } = await mount();
     const button = (title: string) => screen.getByTitle(title) as HTMLButtonElement;
 
-    expect(button("最初に戻る").disabled).toBe(true);
-    expect(button("前の手").disabled).toBe(true);
+    expect(button("最初に戻る（Home）").disabled).toBe(true);
+    expect(button("前の手（←）").disabled).toBe(true);
 
-    await press(button("次の手"));
+    await press(button("次の手（→）"));
     expect(game.current!.state.cursor?.tesuu).toBe(1);
-    expect(button("次の手").disabled).toBe(true);
-    expect(button("最後に進む").disabled).toBe(true);
+    expect(button("次の手（→）").disabled).toBe(true);
+    expect(button("最後に進む（End）").disabled).toBe(true);
 
-    await press(button("前の手"));
+    await press(button("前の手（←）"));
     expect(game.current!.state.cursor?.tesuu).toBe(0);
 
-    await press(button("最後に進む"));
+    await press(button("最後に進む（End）"));
     expect(game.current!.state.cursor?.tesuu).toBe(1);
 
-    await press(button("最初に戻る"));
+    await press(button("最初に戻る（Home）"));
     expect(game.current!.state.cursor?.tesuu).toBe(0);
   });
 });

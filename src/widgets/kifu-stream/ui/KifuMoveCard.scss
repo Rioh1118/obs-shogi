@@ -23,7 +23,8 @@
     transform 90ms ease,
     box-shadow 140ms ease;
 
-  &:hover {
+  // `:hover` で書かない。止まったポインタの下へ来ただけの行にも付く（`usePointedRow`）
+  &[data-pointed] {
     background: rgba(index.$color-white, 0.045);
   }
 
@@ -34,7 +35,18 @@
   }
 
   &--active {
-    background: rgba(index.$color-white, 0.055);
+    // **指した行の後に、同じ詳細度で置く。** 置かないと、ポインタを載せた瞬間だけいまの手の背景が薄まる
+    &,
+    &[data-pointed] {
+      background: rgba(index.$color-white, 0.055);
+    }
+
+    // フォーカスは一覧が持ち、輪はいまの手の行に描く。
+    // **内側に描く。** 一覧はスクロールする箱なので、外側に出した輪は箱に切られる
+    .kifu__list:focus-visible & {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: -2px;
+    }
 
     &::before {
       content: "";
@@ -103,10 +115,15 @@
   appearance: none;
   cursor: pointer;
 
-  &:hover {
+  :where(.kifu-row[data-pointed]) &:hover {
     background: rgba(index.$color-white, 0.045);
   }
   &:active {
     background: rgba(index.$color-primary-black, 0.28);
+  }
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
   }
 }

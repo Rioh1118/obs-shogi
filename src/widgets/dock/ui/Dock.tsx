@@ -45,7 +45,8 @@ function Dock({ views }: { views: DockViewBindings }) {
    */
   const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (step === 0) return;
+    // 移る先が無いなら受けない。受けると、棋譜を動かす矢印（`useKifuNavigationKeys`）まで消える
+    if (step === 0 || tabs.length < 2) return;
 
     event.preventDefault();
     // 端で止めずに回す。タブは並びであって、端に意味は無い
@@ -82,6 +83,8 @@ function Dock({ views }: { views: DockViewBindings }) {
             aria-controls="dock-panel"
             tabIndex={key === active ? 0 : -1}
             className={`dock__tab ${key === active ? "dock__tab--active" : ""}`}
+            // マウスで押したタブにフォーカスを残さない。残すと、続けて押した矢印が棋譜でなくタブを動かす
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => selectTab(key)}
           >
             {dockViewLabel(key)}

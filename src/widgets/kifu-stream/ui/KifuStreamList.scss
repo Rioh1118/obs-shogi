@@ -43,6 +43,9 @@
   overflow: auto;
   padding: 0.55rem;
 
+  // 輪は、いまの手の行に描く（`KifuMoveCard.scss`）
+  outline: none;
+
   scrollbar-gutter: auto;
 
   -ms-ooverflow-style: none;

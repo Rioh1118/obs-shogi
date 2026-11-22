@@ -1,12 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useId,
-  useMemo,
-  type KeyboardEvent,
-  type MouseEvent,
-  type RefObject,
-} from "react";
+import { memo, useCallback, useId, useMemo, type MouseEvent, type RefObject } from "react";
 import { GitBranch, MessageSquare } from "lucide-react";
 import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
@@ -79,16 +71,8 @@ const KifuMoveCard = memo(function KifuMoveCard({
 
   const menuId = useId();
 
-  const onRowKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (busy) return;
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        onClickRow(row.te);
-      }
-    },
-    [busy, onClickRow, row.te],
-  );
+  // Tab で辿るボタンは、いまの手の行のものだけ
+  const tabIndex = row.isActive ? 0 : -1;
 
   const onClickForkToggle = useCallback(
     (e: MouseEvent<HTMLButtonElement>) => {
@@ -132,19 +116,21 @@ const KifuMoveCard = memo(function KifuMoveCard({
     <div
       id={kifuRowId(row.te)}
       className={rowClass}
+      role="row"
+      aria-selected={row.isActive}
       onClick={() => !busy && onClickRow(row.te)}
-      onKeyDown={onRowKeyDown}
       onContextMenu={handleContextMenu}
-      tabIndex={-1}
       title={row.te === 0 ? "開始局面へ" : `${row.te}手目へ`}
     >
-      <div className="kifu-row__num">{row.te === 0 ? "" : row.te}</div>
+      <div className="kifu-row__num" role="gridcell">
+        {row.te === 0 ? "" : row.te}
+      </div>
 
-      <div className="kifu-row__move" aria-label={ariaLabel}>
+      <div className="kifu-row__move" role="gridcell" aria-label={ariaLabel}>
         {row.text}
       </div>
 
-      <div className="kifu-row__badges" onClick={(e) => e.stopPropagation()}>
+      <div className="kifu-row__badges" role="gridcell" onClick={(e) => e.stopPropagation()}>
         {hasFork && (
           <button
             type="button"
@@ -153,6 +139,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
               .join(" ")}
             onClick={onClickForkToggle}
             disabled={busy}
+            tabIndex={tabIndex}
             aria-haspopup="menu"
             aria-expanded={isForkMenuOpen}
             aria-controls={isForkMenuOpen ? menuId : undefined}
@@ -178,6 +165,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
             .join(" ")}
           onClick={onClickComment}
           disabled={busy}
+          tabIndex={tabIndex}
           aria-pressed={isCommentOpen}
           title={commentTitle}
         >
