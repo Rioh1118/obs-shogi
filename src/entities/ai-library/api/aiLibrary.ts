@@ -36,7 +36,12 @@ export type FileCandidate = {
   /** 絶対パス */
   path: string;
   kind: FsKind;
+  /** 評価関数の型（`HalfKA2 1024x2` など）。`eval/` の候補で、先頭を読めたときだけ */
+  eval_type?: string;
 };
+
+/** `eval_options.txt` の1行 */
+type EvalOption = { name: string; value: string };
 
 export type ProfileCandidate = {
   /** `ai_root` の直下のフォルダ名 */
@@ -47,10 +52,16 @@ export type ProfileCandidate = {
   has_eval_dir: boolean;
   has_book_dir: boolean;
 
-  /** `<profile>/eval` の中の候補 */
+  /** `<profile>/eval` の中の候補。`eval_options.txt` は除く */
   eval_files: FileCandidate[];
-  /** `<profile>/book` の中の `.db` の候補 */
-  book_db_files: FileCandidate[];
+  /**
+   * `<profile>/eval/eval_options.txt` に書かれたオプション（無ければ空）。エンジンはこれで送った値を上書きする
+   */
+  eval_options: EvalOption[];
+  /** `eval_options.txt` が `eval/` に無く、`<profile>/` の直下にある（エンジンは読まない） */
+  eval_options_outside_eval: boolean;
+  /** `<profile>/book` の中の `.db` と `.ybb` の候補 */
+  book_files: FileCandidate[];
 };
 
 export type AiRootIndex = {

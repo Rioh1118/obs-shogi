@@ -296,7 +296,8 @@ impl MateSearcher {
             // 取り消した後の失敗は、起動できなかったと読まない（失敗の後片付けの間に `stop` が来た回）
             Err(_) if cancel.is_cancelled() => Err(MateStartFailure::Superseded),
             Err(e) => {
-                let failure = start_failure::describe(&e, engine_path).await;
+                let failure =
+                    start_failure::describe(&e, engine_path, input.eval_path.as_deref()).await;
                 log::error!(target: LOGT, "start: engine failed: {:?}", failure.kind);
                 Err(MateStartFailure::EngineFailed { failure })
             }

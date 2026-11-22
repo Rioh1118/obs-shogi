@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
 
 import type { ProfileCandidate } from "@/entities/ai-library/api/aiLibrary";
-import { bookChoices, evalChoices, fileLabel, isFileKind } from "../fileChoices";
+import {
+  bookChoices,
+  bookReadAsDb,
+  evalChoices,
+  evalTypeOf,
+  fileLabel,
+  isFileKind,
+} from "../fileChoices";
 
 const profile = (name: string, evals: string[], books: string[]): ProfileCandidate => ({
   name,
@@ -9,7 +16,9 @@ const profile = (name: string, evals: string[], books: string[]): ProfileCandida
   has_eval_dir: evals.length > 0,
   has_book_dir: books.length > 0,
   eval_files: evals.map((e) => ({ entry: e, path: `/ai/${name}/eval/${e}`, kind: "file" })),
-  book_db_files: books.map((b) => ({ entry: b, path: `/ai/${name}/book/${b}`, kind: "file" })),
+  eval_options: [],
+  eval_options_outside_eval: false,
+  book_files: books.map((b) => ({ entry: b, path: `/ai/${name}/book/${b}`, kind: "file" })),
 });
 const PROFILES = [
   profile("hao", ["x.bin", "nn.bin"], []),
@@ -60,5 +69,42 @@ describe("bookChoices", () => {
       "使わない",
       "li / user_book1.db",
     ]);
+  });
+
+  // R-B4: やねうら王は `.ybb` を `.db` の名前で受け、同じ名前の `.db` があればそちらを読む
+  const AOBA = profile("aoba", [], ["user_book1.db", "User_Book1.YBB", "other.ybb"]);
+
+  test("同じ名前の .db と並ぶ .ybb にだけ、.db が読まれると添える（名前の大小は区別しない）", () => {
+    expect(bookChoices([AOBA], null).map((c) => c.label)).toEqual([
+      "使わない",
+      "aoba / user_book1.db",
+      "aoba / User_Book1.YBB（.db が読まれる）",
+      "aoba / other.ybb",
+    ]);
+  });
+
+  test("案内を出すのは、同じ名前の .db に読み替えられる .ybb を選んだときだけ", () => {
+    expect(bookReadAsDb([AOBA], "/ai/aoba/book/User_Book1.YBB")).toBe(true);
+    expect(bookReadAsDb([AOBA], "/ai/aoba/book/other.ybb")).toBe(false);
+    expect(bookReadAsDb([AOBA], "/ai/aoba/book/user_book1.db")).toBe(false);
+    expect(bookReadAsDb([AOBA], null)).toBe(false);
+    // 別のフォルダの同じ名前の .db は読まれない
+    const split = [profile("a", [], ["user_book1.db"]), profile("b", [], ["user_book1.ybb"])];
+    expect(bookReadAsDb(split, "/ai/b/book/user_book1.ybb")).toBe(false);
+  });
+});
+
+describe("evalTypeOf", () => {
+  test("選んだ評価関数の型を返し、読めなかったファイルとライブラリの外のファイルは null（AC-E5）", () => {
+    const typed: ProfileCandidate = {
+      ...profile("li", [], []),
+      eval_files: [
+        { entry: "nn.bin", path: "/ai/li/eval/nn.bin", kind: "file", eval_type: "HalfKP 256x2" },
+        { entry: "x.bin", path: "/ai/li/eval/x.bin", kind: "file" },
+      ],
+    };
+    expect(evalTypeOf([typed], "/ai/li/eval/nn.bin")).toBe("HalfKP 256x2");
+    expect(evalTypeOf([typed], "/ai/li/eval/x.bin")).toBeNull();
+    expect(evalTypeOf([typed], "/elsewhere/nn.bin")).toBeNull();
   });
 });

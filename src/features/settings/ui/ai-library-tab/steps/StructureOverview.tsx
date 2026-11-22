@@ -112,7 +112,7 @@ export function StructureOverview({
                 />
                 <TreeNode
                   label="📂 book/"
-                  note={p.hasBook ? undefined : "← .db を置く（任意）"}
+                  note={p.hasBook ? undefined : "← .db か .ybb を置く（任意）"}
                   state={p.hasBook ? "ok" : "empty"}
                   indent={2}
                   isLast

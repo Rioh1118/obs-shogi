@@ -8,6 +8,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::engine::eval_arch::read_eval_type;
 use crate::engine::launchable::{self, Inspection, Launchability};
 use crate::engine::logging::shown;
 use crate::engine::types::{EngineError, StartFailure, StartFailureKind, StartupReason};
@@ -19,12 +20,65 @@ const MAX_FAILURE_MESSAGE: usize = 512;
 /// 超えたら「隔離ではない」側に倒す（分類が変わるだけで、失敗であることは変わらない）
 const QUARANTINE_CHECK_TIMEOUT: Duration = Duration::from_secs(2);
 
+/// 評価関数の型が合わないときに、やねうら王が出して終わる語（`research/engines/yaneuraou-files.md`）
+const EVAL_TYPE_MISMATCH: &str = "FileMissMatch";
+
 /// 失敗を分類する。出力が終わった失敗のときだけ、macOS が止めた実行ファイルかを見に行く
 /// （許可されていない実行ファイルは、起動した直後に OS に止められて同じ形で終わる）。
-pub async fn describe(error: &EngineError, engine_path: &str) -> StartFailure {
+/// 評価関数の型が合わずに終わったときは、`eval_path`（選んだ評価関数。ファイルかフォルダ）の型を添える
+pub async fn describe(
+    error: &EngineError,
+    engine_path: &str,
+    eval_path: Option<&str>,
+) -> StartFailure {
     let quarantined = matches!(error, EngineError::CommunicationFailed(_))
         && is_quarantined(PathBuf::from(engine_path)).await;
-    classify(error, quarantined)
+    let mut failure = classify(error, quarantined);
+    if failure.kind == StartFailureKind::EvalTypeMismatch {
+        if let Some(path) = eval_path {
+            let named = failure.last_output.as_deref().and_then(named_eval_file);
+            failure.eval_type = eval_type_of(PathBuf::from(path), named).await;
+        }
+    }
+    failure
+}
+
+/// 型が合わなかったとエンジンが言ったファイルの名前（`failed to read nn.bin : FileMissMatch` の
+/// `nn.bin`）。行が切られていて取れなければ `None`
+fn named_eval_file(output: &str) -> Option<String> {
+    let line = output
+        .split(" / ")
+        .find(|line| line.contains(EVAL_TYPE_MISMATCH))?;
+    let name = line.split("failed to read ").nth(1)?;
+    let name = name.split(" : ").next()?.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
+/// エンジンが読んで型が合わなかった評価関数の型を、`is_quarantined` と同じく専用スレッドで上限つきで読む。
+///
+/// **選んだファイルをそのまま読まない。** フォルダで受けるエンジン（`EvalDir`）には選んだファイルの
+/// 親だけを送るので、エンジンが読むのはそのフォルダの決まった名前のファイル（やねうら王は `nn.bin`）で、
+/// 選んだファイルとは限らない。読むのは、エンジンが名指したファイルを選んだフォルダ（ファイルならその親）
+/// に繋いだもの。名指しが取れなければ、フォルダなら中の `nn.bin`、ファイルならそれ自身
+async fn eval_type_of(chosen: PathBuf, named: Option<String>) -> Option<String> {
+    let read = tokio::task::spawn_blocking(move || {
+        let is_dir = chosen.is_dir();
+        let folder = if is_dir {
+            chosen.clone()
+        } else {
+            chosen.parent().map(PathBuf::from).unwrap_or_default()
+        };
+        let file = match named {
+            Some(name) => folder.join(name),
+            None if is_dir => chosen.join("nn.bin"),
+            None => chosen,
+        };
+        read_eval_type(&file)
+    });
+    tokio::time::timeout(QUARANTINE_CHECK_TIMEOUT, read)
+        .await
+        .ok()?
+        .ok()?
 }
 
 /// **ファイルを読むのは専用スレッドで、上限つき。** `canonicalize` もファイルの読み取りも
@@ -50,6 +104,16 @@ pub fn classify(error: &EngineError, quarantined: bool) -> StartFailure {
             StartupReason::Other(_) => StartFailureKind::SpawnFailed,
         },
         EngineError::CommunicationFailed(_) if quarantined => StartFailureKind::Quarantined,
+        // **ここだけはエンジンの出力の文で見る。** 型の不一致を言う欄は無く、やねうら王が出す語しか無い。
+        // パスにこの語が入って取り違えても、帯が「型が合わない」と言うだけで失敗には変わりない
+        EngineError::CommunicationFailed(detail)
+            if detail
+                .last_output
+                .as_deref()
+                .is_some_and(|out| out.contains(EVAL_TYPE_MISMATCH)) =>
+        {
+            StartFailureKind::EvalTypeMismatch
+        }
         EngineError::CommunicationFailed(_) => StartFailureKind::ExitedEarly,
         EngineError::NotInitialized(_) => StartFailureKind::Other,
     };
@@ -62,6 +126,7 @@ pub fn classify(error: &EngineError, quarantined: bool) -> StartFailure {
         kind,
         last_output: last_output.map(|output| shown(output, MAX_FAILURE_MESSAGE)),
         message: shown(&error.to_string(), MAX_FAILURE_MESSAGE),
+        eval_type: None,
     }
 }
 
@@ -172,6 +237,7 @@ mod tests {
             Quarantined,
             NotUsi,
             ExitedEarly,
+            EvalTypeMismatch,
             TimedOut,
             InvalidValue,
             Cancelled,
@@ -182,6 +248,7 @@ mod tests {
             Quarantined => "Quarantined",
             NotUsi => "NotUsi",
             ExitedEarly => "ExitedEarly",
+            EvalTypeMismatch => "EvalTypeMismatch",
             TimedOut => "TimedOut",
             InvalidValue => "InvalidValue",
             Cancelled => "Cancelled",
@@ -233,9 +300,72 @@ mod tests {
         let failure = describe(
             &EngineError::CommunicationFailed("ended".into()),
             "/nonexistent/engine",
+            None,
         )
         .await;
         assert_eq!(failure.kind, StartFailureKind::ExitedEarly);
+    }
+
+    /// 評価関数の型が合わずに終わった（実機の行）ものは `EvalTypeMismatch`。それ以外の終わり方は
+    /// `ExitedEarly` のまま
+    #[test]
+    fn a_file_mismatch_on_the_eval_is_its_own_kind() {
+        let ended = |last: &str| {
+            EngineError::CommunicationFailed(FailureDetail {
+                reason: "ended".to_string(),
+                last_output: Some(last.to_string()),
+            })
+        };
+        assert_eq!(
+            kind(ended("Error! : failed to read nn.bin : FileMissMatch")),
+            StartFailureKind::EvalTypeMismatch
+        );
+        assert_eq!(
+            kind(ended("Error! : failed to read nn.bin : FileOpenError")),
+            StartFailureKind::ExitedEarly
+        );
+    }
+
+    /// 型が合わずに終わった回は、選んだ評価関数（ファイルでもフォルダでも）の型を添える
+    #[tokio::test]
+    async fn a_mismatch_carries_the_type_of_the_chosen_eval() {
+        let dir = test_support::dir::temp_dir("start-failure-eval-type");
+        let arch = "Features=HalfKA2(Friend)[131949->1024x2],Network=x";
+        let mut bytes = vec![0u8; 8];
+        bytes.extend_from_slice(&(arch.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(arch.as_bytes());
+        std::fs::write(dir.join("nn.bin"), bytes).expect("書けない");
+        let error = EngineError::CommunicationFailed(FailureDetail {
+            reason: "ended".to_string(),
+            last_output: Some("Error! : failed to read nn.bin : FileMissMatch".to_string()),
+        });
+
+        let file = dir.join("nn.bin").to_string_lossy().into_owned();
+        let folder = dir.to_string_lossy().into_owned();
+        for eval in [file.as_str(), folder.as_str()] {
+            let failure = describe(&error, "/nonexistent/engine", Some(eval)).await;
+            assert_eq!(failure.kind, StartFailureKind::EvalTypeMismatch);
+            assert_eq!(
+                failure.eval_type.as_deref(),
+                Some("HalfKA2 1024x2"),
+                "{eval}"
+            );
+        }
+        // 選んだのが nn.bin 以外でも、エンジンが名指した nn.bin の型を出す（エンジンはフォルダを受ける）
+        std::fs::write(dir.join("old.bin"), b"not an eval").expect("書けない");
+        let old = dir.join("old.bin").to_string_lossy().into_owned();
+        let failure = describe(&error, "/nonexistent/engine", Some(old.as_str())).await;
+        assert_eq!(failure.eval_type.as_deref(), Some("HalfKA2 1024x2"));
+
+        // 他の種類には読みに行かない
+        let other = describe(
+            &EngineError::CommunicationFailed("ended".into()),
+            "/nonexistent/engine",
+            Some(file.as_str()),
+        )
+        .await;
+        assert_eq!(other.eval_type, None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 直近の出力は欄からそのまま取る。**エンジンの行の `)` まで削らない**

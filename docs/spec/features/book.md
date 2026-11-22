@@ -21,7 +21,10 @@ main にあるか: **ある**（#446）。`src-tauri/src/book/` と、`lib.rs` �
 - `walk_book_lines` —— 候補手の先を、定跡が続くかぎり辿る。
   **盤を持たないビューが「その手の先も定跡にあるか」を出す唯一の手段**
 
-**読めるのは `.db` の1つだけ。** 残る3つは `UnsupportedFormat` で落ちる。
+**読めるのは `.db` と `.ybb` の2つ。** 残る2つは `UnsupportedFormat` で落ちる。
+`.ybb` は開くときに頭の 32 バイトだけを読み、引くたびに索引を二分探索する（`book/yaneuraou_ybb.rs`。
+形式の出典はやねうら王の公開ソースで、reader の冒頭が節を指している）。手数は見ない（鍵が手数を持たないため。
+エンジンの `IgnoreBookPly` を有効にしたときと同じ引き方）。
 **文面をここへ写さない** —— 写した引用を突き合わせる検査が無いので、
 次に文言を直した人がここを置き去りにする。
 出典は `formats.rs` の `open_reader` で、`an_unsupported_format_tells_the_user_what_to_expect` が
@@ -41,8 +44,9 @@ main にあるか: **ある**（#446）。`src-tauri/src/book/` と、`lib.rs` �
 `.ybb` だけになった**（`book/` に `user_book1.ybb` の1ファイル）ので、ここが通らないと
 配布物をそのまま置いても定跡が効かない。
 
-**いまは通らない。** AI ライブラリは `book/` の `.db` しか拾わないので、`.ybb` だけのフォルダは
-「定跡が未検出です」になり、プリセットで選べない。
+AI ライブラリは `book/` の `.db` と `.ybb` を拾う（`ai_library/profile.rs` の `BOOK_EXTENSIONS`）。
+`.ybb` を `.db` の名前に替えて送るのは束縛（`engine/binding.rs` の `name_to_look_up`。判定表は
+[option-binding.md](../../state-transitions/option-binding.md) の B1）。
 
 ### 要件
 
@@ -58,7 +62,7 @@ main にあるか: **ある**（#446）。`src-tauri/src/book/` と、`lib.rs` �
   `read book file : <.ybb の絶対パス>` の行が出る（実測）。載らなければ今の「定跡を読めたか確かめられない」警告を出す。
   **いまの照合は、定跡をパスで送ったときしか走らない。** 名前で送る経路でも、照合の相手として `.ybb` のパスを渡す
   （R-B1〜R-B5 → #741）
-- **R-B6** 定跡ビューが `.ybb` を開ける。配布物は 1.5 GB 級なので、丸読みせずに引く → #742
+- **R-B6** 定跡ビューが `.ybb` を開ける。配布物は 1.5 GB 級なので、丸読みせずに引く → #742（済み）
 
 **#84 の完了条件「エンジンに渡す `BookFile` の値はパス文字列のまま」は、やねうら王の `.ybb` には当てない**
 （R-B2 が優先する）。
@@ -81,7 +85,7 @@ main にあるか: **ある**（#446）。`src-tauri/src/book/` と、`lib.rs` �
 | 741 | `.ybb` だけの定跡をエンジンに読ませる（R-B1〜R-B5）                       |
 | 93  | Apery `book.bin`（Zobrist ハッシュ。読むだけ）                            |
 | 94  | ShogiGUI `.sbk`（protobuf。仕様非公開）                                   |
-| 84  | AI Library が `.bin` / `.sbk` を列挙する（`.ybb` は #741）                |
+| 84  | AI Library が `.bin` / `.sbk` を列挙する（`.ybb` は #741 で済み）         |
 
 ### 書く・育てる
 

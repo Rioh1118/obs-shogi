@@ -23,6 +23,7 @@ const START_FAILURE_KINDS = {
   quarantined: true,
   notUsi: true,
   exitedEarly: true,
+  evalTypeMismatch: true,
   timedOut: true,
   invalidValue: true,
   cancelled: true,
@@ -31,10 +32,16 @@ const START_FAILURE_KINDS = {
 
 /** `invoke` が投げた値を読む（`readKindedFailure`） */
 export function asStartFailure(error: unknown): EngineStartFailure {
-  const lastOutput =
-    typeof error === "object" && error !== null && "lastOutput" in error ? error.lastOutput : null;
+  const field = (name: string): string | null => {
+    const value =
+      typeof error === "object" && error !== null && name in error
+        ? (error as Record<string, unknown>)[name]
+        : null;
+    return typeof value === "string" ? value : null;
+  };
   return {
     ...readKindedFailure(error, START_FAILURE_KINDS),
-    lastOutput: typeof lastOutput === "string" ? lastOutput : null,
+    lastOutput: field("lastOutput"),
+    evalType: field("evalType"),
   };
 }

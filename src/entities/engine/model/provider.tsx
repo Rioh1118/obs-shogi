@@ -119,6 +119,7 @@ export function EngineProvider({ children, desiredRuntime, presetIncomplete = fa
         kind: "cancelled",
         message: "the user stopped the engine start",
         lastOutput: null,
+        evalType: null,
       },
     });
     engineInitializer.shutdown(request).catch((e: unknown) => {

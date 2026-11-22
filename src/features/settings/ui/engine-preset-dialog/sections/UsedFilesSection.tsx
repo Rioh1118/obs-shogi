@@ -1,5 +1,10 @@
 import { bookInUse, type EnginePreset } from "@/entities/engine-presets";
-import { bookChoices, evalChoices } from "@/features/settings/lib/fileChoices";
+import {
+  bookChoices,
+  bookReadAsDb,
+  evalChoices,
+  evalTypeOf,
+} from "@/features/settings/lib/fileChoices";
 import type { ProbeFailure } from "@/features/settings/lib/probeStatus";
 import type { AiRootIndexState } from "@/features/settings/model/useAiRootIndex";
 import { SField, SSection, SSelect } from "@/features/settings/ui/kit";
@@ -36,8 +41,10 @@ export default function UsedFilesSection({
 }: Props) {
   const profiles = library.index?.profiles ?? [];
   const evals = evalChoices(profiles, draft.evalFilePath);
+  const evalType = evalTypeOf(profiles, draft.evalFilePath);
   const bookUsed = bookInUse(draft);
   const books = bookChoices(profiles, bookUsed ? draft.bookFilePath : null);
+  const readAsDb = bookUsed && bookReadAsDb(profiles, draft.bookFilePath);
 
   return (
     <SSection title="使うもの">
@@ -61,7 +68,7 @@ export default function UsedFilesSection({
           probeFailure={probeFailure}
         />
 
-        <SField label="評価関数">
+        <SField label="評価関数" hint={evalType ? `型: ${evalType}` : undefined}>
           <SSelect
             value={draft.evalFilePath}
             aria-label="評価関数"
@@ -75,7 +82,15 @@ export default function UsedFilesSection({
           />
         </SField>
 
-        <SField label="定跡" description="選んだ定跡を検討で使い、定跡ビューにも出します。">
+        <SField
+          label="定跡"
+          description="選んだ定跡を検討で使い、定跡ビューにも出します。"
+          hint={
+            readAsDb
+              ? "同じ名前の .db があると、エンジンは .ybb でなく .db を読みます。.ybb を使うには、.db を book フォルダの外へ移動してください。"
+              : undefined
+          }
+        >
           <SSelect
             value={bookUsed ? (draft.bookFilePath ?? "") : ""}
             aria-label="定跡"

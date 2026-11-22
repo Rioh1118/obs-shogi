@@ -8,6 +8,7 @@ pub mod bridge; // 検討の席
 pub mod candidates; // info 行を候補手の一覧へ集約する
 pub mod child; // 子プロセスと標準入出力
 pub mod commands; // Tauri コマンドの入口
+pub mod eval_arch; // 評価関数ファイルの先頭の型
 pub mod game; // 対局
 pub mod launchable; // OS がこのファイルを起動させるか
 pub mod logging; // ログの文字列の部品、間引き、予算

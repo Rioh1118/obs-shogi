@@ -40,13 +40,16 @@ pub struct BindingInput {
 pub struct Bound {
     pub options: Vec<SetOptionValue>,
     pub warnings: Vec<StartWarning>,
-    /// 定跡を**パスで**送ったとき、そのパス。送った後に読んだかを確かめる（`book_load_warning`）
+    /// 送った後に読んだかを確かめる定跡（`book_load_warning`）。定跡を**パスで**送った回と、
+    /// `.ybb` を `.db` の名前で送った回（名前からはエンジンが何を読んだかが分からない）
     pub book_path_sent: Option<SentBookPath>,
 }
 
-/// パスで送った定跡
+/// 読んだかを確かめる定跡
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SentBookPath {
+    /// エンジンが読むと言うはずのパス。`.ybb` は送った `.db` の名前を `.ybb` に替えたパス
+    /// （やねうら王は `.db` の代わりに読んだ `.ybb` のパスを出す）
     pub path: String,
     /// 読んだと言うはずのエンジンか（B1 の形。やねうら王は読むと `read book file : <パス>` を出す）。
     /// 偽なら「読めない」と言ったときだけ警告する（言わないエンジンを疑わない）
@@ -148,6 +151,29 @@ fn book_file_option(declared: &[EngineOption]) -> Option<&EngineOption> {
         .find_map(|name| declared.iter().find(|o| o.name == name))
 }
 
+/// やねうら王のバイナリ定跡か（拡張子 `ybb`。大小を問わない）
+fn is_ybb(file: &str) -> bool {
+    Path::new(file)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("ybb"))
+}
+
+/// B1 で選択肢から探す名前。`.ybb` は拡張子を `db` に替えた名前——`BookFile` の選択肢に `.ybb` の
+/// 名前は無く、やねうら王は `BookDir` に `.db` が無ければ同じ名前の `.ybb` を読む
+/// （`research/engines/yaneuraou-files.md`）。`.ybb` の名前やパスを送ると選択肢に無い値として捨て、
+/// 定跡なしで指し続ける
+fn name_to_look_up(file: &str) -> String {
+    if is_ybb(file) {
+        Path::new(file)
+            .with_extension("db")
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        file.to_string()
+    }
+}
+
 fn declares_book_dir(declared: &[EngineOption]) -> bool {
     declared.iter().any(|o| o.name == BOOK_DIR_NAME)
 }
@@ -206,19 +232,39 @@ fn bind_book(
     let has_book_dir = declares_book_dir(declared);
     let sent = match book_file.map(|o| (o.name.as_str(), &o.option_type)) {
         // B1: 選択肢にある名前ならその綴りで送る（まず大小も一致するもの、無ければ大小を無視して）。
+        // `.ybb` は `.db` に替えた名前で探す（`name_to_look_up`）。
         // 無ければ、パスを受けると確かめたエンジン（`book_path_support`）にだけパスで送る——確かめずに
-        // 送ると、選択肢に無い値として捨てて別の定跡に落ちるエンジンがある（やねうら王 V9.00）
+        // 送ると、選択肢に無い値として捨てて別の定跡に落ちるエンジンがある（やねうら王 V9.00）。
+        // `.ybb` はパスで送っても読まれないので確かめない（`book_path_check_name`）
         Some((name, EngineOptionType::Combo { vars, .. })) if has_book_dir => {
             let file = file_name_of(&book.path);
+            let wanted = name_to_look_up(&file);
             let var = vars
                 .iter()
-                .find(|v| **v == file)
-                .or_else(|| vars.iter().find(|v| v.eq_ignore_ascii_case(&file)));
+                .find(|v| **v == wanted)
+                .or_else(|| vars.iter().find(|v| v.eq_ignore_ascii_case(&wanted)));
             match var {
                 Some(var) => {
                     out.push(set(BOOK_DIR_NAME, parent_of(&book.path)));
                     out.push(set(name, var.clone()));
+                    // 同じ名前の `.db` が並んでいればエンジンはそちらを読むので、`.ybb` を読んだと
+                    // 言わなければ警告する（`book_load_warning`）。照合の相手はエンジンが出すパス——
+                    // 送った綴りの末尾 `.db` を `.ybb` に替えて `BookDir` に繋いだもの。選んだファイルの
+                    // 綴り（`User_Book1.YBB`）とは大小が違いうる
+                    if is_ybb(&file) {
+                        path_sent = Some(SentBookPath {
+                            path: Path::new(&parent_of(&book.path))
+                                .join(Path::new(var).with_extension("ybb"))
+                                .to_string_lossy()
+                                .into_owned(),
+                            expect_read_line: true,
+                        });
+                    }
                     true
+                }
+                None if is_ybb(&file) => {
+                    warnings.push(StartWarning::BookNameNotInVars { file });
+                    false
                 }
                 None if book_path_support == BookPathSupport::Accepts => {
                     out.push(set(BOOK_DIR_NAME, parent_of(&book.path)));
@@ -311,7 +357,8 @@ pub fn reserved_names(declared: &[EngineOption], fixed: &[SetOptionValue]) -> Ve
 ///
 /// 判定表の B1（`BookDir` と選択肢の `BookFile`）で、検討で使う定跡のファイル名が選択肢に（大小を
 /// 無視しても）無いときだけ。それ以外は確かめても結果を使わない（選択肢にあれば名前で、B2 ならパスで
-/// 送る）。確かめるのは呼び手（`setup::check_book_path_support`）で、このレイヤは起こしたプロセスに触らない
+/// 送る）。`.ybb` も確かめない（パスで送っても読まれない。`name_to_look_up`）。
+/// 確かめるのは呼び手（`setup::check_book_path_support`）で、このレイヤは起こしたプロセスに触らない
 pub fn book_path_check_name(
     declared: &[EngineOption],
     book: Option<&BookChoice>,
@@ -325,7 +372,7 @@ pub fn book_path_check_name(
         return None;
     };
     let file = file_name_of(&book.path);
-    if vars.iter().any(|v| v.eq_ignore_ascii_case(&file)) {
+    if is_ybb(&file) || vars.iter().any(|v| v.eq_ignore_ascii_case(&file)) {
         return None;
     }
     Some(option.name.clone())
@@ -653,6 +700,67 @@ mod tests {
         assert!(bound.warnings.contains(&StartWarning::BookNameNotInVars {
             file: "my_book.db".to_string()
         }));
+    }
+
+    /// B1: `.ybb` は拡張子を `.db` に替えた名前で送り、読んだかを `.ybb` のパスで確かめる。
+    /// 選択肢に無い名前なら `.db` と同じく切って警告し、パスを受けるかは確かめない
+    #[test]
+    fn a_ybb_book_goes_by_its_db_name_and_is_confirmed_by_its_own_path() {
+        let input = BindingInput {
+            book: book("/ai/suisho/book/User_Book1.YBB", true),
+            ..Default::default()
+        };
+        let bound = bind(&declared(V900), &input);
+        assert_eq!(lookup(&bound, "BookDir"), Some("/ai/suisho/book"));
+        assert_eq!(lookup(&bound, "BookFile"), Some("user_book1.db"));
+        assert_eq!(lookup(&bound, "USI_OwnBook"), Some("true"));
+        // 照合の相手は、エンジンが送った名前から組んで出すパス（選んだファイルの大小ではない）
+        assert_eq!(
+            bound.book_path_sent,
+            Some(SentBookPath {
+                path: "/ai/suisho/book/user_book1.ybb".to_string(),
+                expect_read_line: true,
+            })
+        );
+        assert!(
+            !bound.warnings.iter().any(|w| matches!(
+                w,
+                StartWarning::BookNameNotInVars { .. } | StartWarning::BookPathCheckTimedOut { .. }
+            )),
+            "{:?}",
+            bound.warnings
+        );
+
+        let outside = book("/ai/suisho/book/my_book.ybb", true);
+        assert_eq!(
+            book_path_check_name(&declared(V900), outside.as_ref()),
+            None
+        );
+        // パスを受けると確かめたエンジンでも、`.ybb` のパスは送らない
+        let bound = bind(
+            &declared(V900),
+            &BindingInput {
+                book: outside,
+                book_path_support: BookPathSupport::Accepts,
+                ..Default::default()
+            },
+        );
+        assert_eq!(lookup(&bound, "BookDir"), None);
+        assert_eq!(lookup(&bound, "BookFile"), Some("no_book"));
+        assert_eq!(bound.book_path_sent, None);
+        assert!(bound.warnings.contains(&StartWarning::BookNameNotInVars {
+            file: "my_book.ybb".to_string()
+        }));
+    }
+
+    /// `.db` の名前で送った回は、読んだかを確かめない（エンジンが何を読んだかを名前が言っている）
+    #[test]
+    fn a_db_book_sent_by_name_is_not_confirmed() {
+        let input = BindingInput {
+            book: book("/ai/suisho/book/user_book1.db", true),
+            ..Default::default()
+        };
+        assert_eq!(bind(&declared(V900), &input).book_path_sent, None);
     }
 
     /// B2: パスを受けるエンジンにはそのまま（`Book_File` / `filename` 型も）。B3: 受ける名前が
@@ -1154,6 +1262,21 @@ mod tests {
         );
         // 読んだと言わないエンジン（B2）は、読めないと言わない限り疑わない
         assert_eq!(book_load_warning(&[], &missing), None);
+
+        // `.ybb` を `.db` の名前で送った回: `.ybb` を読めば通る。同じ名前の `.db` が並んでいて
+        // エンジンが `.db` を読んだなら、`.ybb` を読んだとは言っていない
+        let ybb = sent(
+            "/Users/me/ShogiAi/TuyouraOu11Plus-20261031/book/user_book1.ybb",
+            true,
+        );
+        assert_eq!(book_load_warning(&real[3..5], &ybb), None);
+        let shadowed = sent("/Users/me/ShogiAi/AobaNNUE/book/user_book1.ybb", true);
+        assert_eq!(
+            book_load_warning(&real[5..6], &shadowed),
+            Some(StartWarning::BookLoadUnconfirmed {
+                file: "user_book1.ybb".to_string()
+            })
+        );
     }
 
     /// 答えなかったのは名前の問題ではない。別の警告で知らせ、定跡は切る

@@ -244,6 +244,7 @@ describe("EngineProvider の起動中の切り替え", () => {
       kind: "exitedEarly",
       message: "engine exited",
       lastOutput: null,
+      evalType: null,
     });
   });
 });

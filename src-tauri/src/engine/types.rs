@@ -274,6 +274,9 @@ pub enum StartFailureKind {
     /// 使える状態になる前に出力が終わった・書き込めなくなった。評価関数・共有ライブラリの
     /// 失敗が多い（`usiok` の前に終わったものも含む）
     ExitedEarly,
+    /// `ExitedEarly` のうち、評価関数の型がエンジンと合わないと言って終わったもの（やねうら王の
+    /// `FileMissMatch`）。評価関数でなく実行ファイルを替える必要がある
+    EvalTypeMismatch,
     /// 締切までに段階が終わらなかった
     TimedOut,
     /// 送る前に断った値（件数・長さ・行を壊す文字。利用者の値と評価関数・定跡のパス。`setup::validate_options`）。
@@ -296,6 +299,8 @@ pub struct StartFailure {
     pub message: String,
     /// エンジンが最後に出した行。無ければ `None`
     pub last_output: Option<String>,
+    /// 選んだ評価関数の型（`engine::eval_arch`）。`EvalTypeMismatch` で、先頭を読めたときだけ
+    pub eval_type: Option<String>,
 }
 
 /// `EngineError` を、フロントへ返す1本の文字列にする。
