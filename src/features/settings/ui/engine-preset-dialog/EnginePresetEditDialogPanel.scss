@@ -58,30 +58,6 @@
     }
   }
 
-  .presetDialog__check {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-
-    padding: 10px 12px;
-    border-radius: index.$radius-4;
-    border: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.25);
-
-    input {
-      width: 16px;
-      height: 16px;
-      accent-color: index.$color-secondary-dark;
-    }
-
-    .presetDialog__checkLabel {
-      color: index.$color-text-primary;
-      font-size: 1.35rem;
-      user-select: none;
-    }
-  }
-
   .presetDialog__hintWarn {
     margin-top: 10px;
     /* 空白を含まない長いパスや OS の出力が来る。節は overflow: hidden なので、折り返さないと読めない */

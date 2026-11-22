@@ -128,6 +128,13 @@ vi.mock(
     }) satisfies typeof import("../bridges/BoardOrientationBridge"),
 );
 vi.mock(
+  "../gates/MateSearchGate",
+  () =>
+    ({
+      MateSearchGate: layer("MateSearchGate"),
+    }) satisfies typeof import("../gates/MateSearchGate"),
+);
+vi.mock(
   "../gates/BookPositionGate",
   () =>
     ({
@@ -165,6 +172,7 @@ describe("RuntimeProviders の入れ子", () => {
       "EngineRuntimeGate",
       "SearchRootGate",
       "AnalysisPositionSyncGate",
+      "MateSearchGate",
       "BookPositionGate",
     ]);
   });

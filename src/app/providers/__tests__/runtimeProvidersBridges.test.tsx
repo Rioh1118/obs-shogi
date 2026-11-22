@@ -39,6 +39,12 @@ vi.mock(
 );
 vi.mock("../gates/SearchRootGate", () => passthrough("SearchRootGate"));
 // `GameMoveGate` を素通しにすると棋譜のラッパーごと消えるので、`useGame` を読むラッパーは張れない
+vi.mock("../gates/MateSearchGate", () => {
+  const mocked = {
+    MateSearchGate: ({ children }: { children: ReactNode }) => <>{children}</>,
+  };
+  return mocked satisfies typeof import("../gates/MateSearchGate");
+});
 vi.mock("../gates/BookPositionGate", () => passthrough("BookPositionGate"));
 vi.mock("../gates/EngineRuntimeGate", () => passthrough("EngineRuntimeGate"));
 vi.mock("../gates/AnalysisPositionSyncGate", () => passthrough("AnalysisPositionSyncGate"));

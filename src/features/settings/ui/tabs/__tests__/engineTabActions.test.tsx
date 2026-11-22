@@ -24,6 +24,11 @@ const world = vi.hoisted(() => ({
   deletePreset: vi.fn(async () => true),
 }));
 
+vi.mock("../../engine-tab/MateSearchSection", () => {
+  const mocked = { default: () => <></> };
+  return mocked satisfies typeof import("../../engine-tab/MateSearchSection");
+});
+
 vi.mock(
   "@/entities/engine-presets/model/useEnginePresets",
   () =>

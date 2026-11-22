@@ -11,6 +11,11 @@ import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
 const presets = { current: [] as EnginePreset[] };
 
+vi.mock("../../engine-tab/MateSearchSection", () => {
+  const mocked = { default: () => <></> };
+  return mocked satisfies typeof import("../../engine-tab/MateSearchSection");
+});
+
 vi.mock(
   "@/entities/engine-presets/model/useEnginePresets",
   () =>

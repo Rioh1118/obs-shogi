@@ -28,8 +28,8 @@ function stopLimitOf(text: string): number | undefined {
 }
 
 /**
- * 「検討」の節。候補手の数と終了条件と詰み探索を決める。
- * 候補手の数は値が無ければ送らない。終了条件と詰み探索は保存するが、検討はまだ読まない。
+ * 「検討」の節。候補手の数と終了条件を決める。
+ * 候補手の数は値が無ければ送らない。終了条件は保存するが、検討はまだ読まない。
  */
 export default function AnalysisSection({
   draft,
@@ -132,15 +132,6 @@ export default function AnalysisSection({
             />
           </div>
         </SField>
-
-        <label className="presetDialog__check">
-          <input
-            type="checkbox"
-            checked={draft.analysis?.mateSearch ?? false}
-            onChange={(e) => setAnalysis({ mateSearch: e.target.checked })}
-          />
-          <span className="presetDialog__checkLabel">詰み探索</span>
-        </label>
       </div>
     </SSection>
   );

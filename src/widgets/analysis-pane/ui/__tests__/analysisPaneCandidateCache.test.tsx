@@ -51,6 +51,19 @@ const game = {
 const fileTree = { selectedNode: { id: "file-a" } as { id: string } | null };
 const presets = { state: { selectedPresetId: "preset-a" as string | null } };
 
+vi.mock("@/entities/mate-search/model/useMateSearch", () => {
+  // 詰み探索をしていない画面。表を持つ間の出し方は `mateSearchPane.test.tsx` が見る
+  const mocked = {
+    useMateSearch: () => ({
+      state: { phase: "closed" as const },
+      ownsTable: false,
+      available: false,
+      toggle: async () => {},
+      dismiss: () => {},
+    }),
+  };
+  return mocked satisfies typeof import("@/entities/mate-search/model/useMateSearch");
+});
 vi.mock("@/entities/analysis", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/entities/analysis")>()),
   useAnalysis: () => analysis,

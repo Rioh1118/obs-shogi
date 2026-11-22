@@ -21,6 +21,8 @@ import { useAppConfig } from "@/entities/app-config";
 import { useFileTree } from "@/entities/file-tree";
 import { useGame } from "@/entities/game";
 import { useEnginePresets } from "@/entities/engine-presets";
+import { useMateSearch, type MateSearchState } from "@/entities/mate-search";
+import { mateOutcomeText } from "@/widgets/analysis-pane/lib/mateOutcome";
 import type { AnalysisCandidate, Evaluation } from "@/entities/engine";
 import {
   pickTopCandidate,
@@ -40,6 +42,13 @@ const BODY: Record<AnalysisDisplayMode, (props: { rows: readonly CandidateRow[] 
   rows: ({ rows }) => <CandidatesSection rows={rows} />,
 };
 
+const NO_CANDIDATES: readonly AnalysisCandidate[] = [];
+
+/** 詰み探索が表を持つ間の候補手。生の結果だけを出し、検討のキャッシュには入れない */
+function mateCandidatesOf(state: MateSearchState): readonly AnalysisCandidate[] {
+  return "candidates" in state ? state.candidates : NO_CANDIDATES;
+}
+
 function AnalysisPane() {
   // **キャッシュの持ち主は `entities/analysis`。** この画面は鍵を組んで読み書きするだけで、
   // 保存場所を持たない。持つと、この画面が作り直されたときだけ停止中の候補手が消える
@@ -52,6 +61,7 @@ function AnalysisPane() {
   const { selectedNode } = useFileTree();
   const { state: presetsState } = useEnginePresets();
   const status = useEngineStatus(currentSfen);
+  const mate = useMateSearch();
 
   const engineKey = presetsState.selectedPresetId ?? "no-engine";
   const fileKey = selectedNode?.id ?? null;
@@ -65,13 +75,15 @@ function AnalysisPane() {
   // ある鍵に初めてキャッシュしたときはその鍵が空のまま描かれ、次に deps が動くまで直らない。→ #569
   const visibleCandidates: readonly AnalysisCandidate[] = useMemo(
     () =>
-      visibleCandidatesOf({
-        status,
-        analysis: state,
-        currentSfen,
-        lookupCached: () => candidateCache.lookup(cacheKey),
-      }),
-    [candidateCache, status, state, currentSfen, cacheKey],
+      mate.ownsTable
+        ? mateCandidatesOf(mate.state)
+        : visibleCandidatesOf({
+            status,
+            analysis: state,
+            currentSfen,
+            lookupCached: () => candidateCache.lookup(cacheKey),
+          }),
+    [candidateCache, status, state, currentSfen, cacheKey, mate.ownsTable, mate.state],
   );
 
   // 読み筋は盤の局面から組む。キャッシュの鍵が別の局面を指していると（#568）、盤の局面では
@@ -117,7 +129,12 @@ function AnalysisPane() {
   const bestEvaluation = rows.find((r) => r.isBest)?.evaluation ?? null;
 
   // 止まる前の候補手は、表も評価値バーも薄く出す。今の結果のように見せない
-  const staleClass = candidatesAreStale(status) ? " analysis-pane--stale" : "";
+  const staleClass = !mate.ownsTable && candidatesAreStale(status) ? " analysis-pane--stale" : "";
+
+  const mateOutcome =
+    mate.ownsTable && mate.state.phase === "finished"
+      ? mateOutcomeText(mate.state.outcome, mate.state.sfen)
+      : null;
 
   // **キャッシュする側（下の effect）より先に宣言する。** React は宣言順に effect を走らせる。
   // `scopeTo` は宣言された棋譜が前と同じなら何もしない（`candidateCache.ts` の早期 return）
@@ -150,6 +167,12 @@ function AnalysisPane() {
         <div className={`analysis-pane__gauge${staleClass}`}>
           <EvaluationBar percentage={evaluationToPercentage(bestEvaluation)} />
         </div>
+      )}
+
+      {mateOutcome !== null && (
+        <p className="analysis-pane__outcome" role="status">
+          {mateOutcome}
+        </p>
       )}
 
       <main className={`analysis-pane__body${staleClass}`}>{BODY[mode]({ rows })}</main>

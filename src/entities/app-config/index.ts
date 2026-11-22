@@ -1,4 +1,4 @@
-export type { AppConfig, DisplayConfigPatch } from "./model/types";
+export type { AppConfig, DisplayConfigPatch, MateSearchConfigPatch } from "./model/types";
 export { AppConfigProvider } from "./model/provider";
 export { useAppConfig } from "./model/useAppConfig";
 

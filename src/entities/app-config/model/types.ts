@@ -39,6 +39,10 @@ export type AppConfig = {
    * 操作列で切り替えた結果がここに残る（ADR-0010 決定4）。
    */
   analysis_display_mode?: string | null;
+  /** 詰み探索に使うプリセットの ID。欠けていれば指定なし。型を借りない理由は `last_preset_id` と同じ */
+  mate_preset_id?: string | null;
+  /** 詰み探索の上限時間の綴り。欠けていれば既定（`resolveMateSearchLimit`） */
+  mate_search_limit?: string | null;
   /**
    * 最近開いた定跡のパス。新しいものが先頭。
    *
@@ -62,6 +66,9 @@ export type DisplayConfigPatch = Pick<
   | "analysis_display_mode"
   | "book_recent_paths"
 >;
+
+/** `AppConfig` のうち、設定「エンジン管理」の詰み探索の節が書き換える欄 */
+export type MateSearchConfigPatch = Pick<AppConfig, "mate_preset_id" | "mate_search_limit">;
 
 export type ChooseOpts = { force?: boolean };
 
@@ -116,4 +123,6 @@ export type AppConfigContextType = ConfigState & {
    * 呼び手が知らない欄を `undefined` で書き潰す。
    */
   setDisplayConfig: (patch: DisplayConfigPatch) => AsyncResult<void, string>;
+  /** 詰み探索の設定のうち、渡した欄だけを差し替える。失敗は `Err` で返し、`error` に積まない */
+  setMateSearchConfig: (patch: MateSearchConfigPatch) => AsyncResult<void, string>;
 };

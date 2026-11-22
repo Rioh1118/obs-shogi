@@ -34,6 +34,19 @@ const game = {
 const status = { value: "analyzing" as EngineStatus };
 const config = { analysis_display_mode: "table", show_evaluation_bar: true };
 
+vi.mock("@/entities/mate-search/model/useMateSearch", () => {
+  // 詰み探索をしていない画面。表を持つ間の出し方は `mateSearchPane.test.tsx` が見る
+  const mocked = {
+    useMateSearch: () => ({
+      state: { phase: "closed" as const },
+      ownsTable: false,
+      available: false,
+      toggle: async () => {},
+      dismiss: () => {},
+    }),
+  };
+  return mocked satisfies typeof import("@/entities/mate-search/model/useMateSearch");
+});
 vi.mock("@/entities/analysis", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/entities/analysis")>();
   const mocked = {

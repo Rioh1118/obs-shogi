@@ -1,6 +1,8 @@
 export { EngineProvider } from "./model/provider";
 export { useEngine } from "./model/useEngine";
 export { asStartFailure } from "./lib/engineFailure";
+// 利用者の値を送る形にする。詰み探索の起動も同じ規則で送る（`entities/mate-search`）
+export { toOptionValues } from "./lib/optionValues";
 // 申告だけを取る。読み手はプリセット編集（`features/settings`）
 export { probeEngine } from "./api/tauri";
 export { ENGINE_START_FAILURE_NOTICES, engineFailureNoticeOf } from "./lib/engineNotices";
