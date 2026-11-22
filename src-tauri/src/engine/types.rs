@@ -541,13 +541,17 @@ pub struct AnalysisUpdate {
 pub enum MateConclusion {
     /// 詰み。`moves` は詰み手順（USI の指し手）
     Mate { moves: Vec<String> },
+    /// 通常のエンジンが、探索で勝ちを読み切った（`bestmove` で終わり、最善手が `score mate`）。
+    /// `plies` はエンジンが言った手数で、`moves` がその長さに足りないことがある。
+    /// **王手の連続とは限らない**（必至も含む）ので、`Mate` と分ける
+    WinFound { plies: u32, moves: Vec<String> },
     /// 不詰
     NoMate,
     /// 時間切れ
     Timeout,
     /// 利用者が中止した（`stop` を送った）。エンジンの答えは読まない
     Cancelled,
-    /// このエンジンは詰み探索をしない（`notimplemented`、または `checkmate` でなく `bestmove` が返った）
+    /// このエンジンは詰み探索をしない（`notimplemented`、または詰みを見つけずに `bestmove` が返った）
     NotSupported,
     /// 答えを読めない（`checkmate` の後が4つのどれでもない）。行はログに残す
     Unreadable,

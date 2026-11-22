@@ -12,11 +12,11 @@ use std::time::Duration;
 
 use tokio::sync::{watch, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
-use usi::{MateParam, ThinkParams};
+use usi::{InfoParams, MateParam, ScoreKind, ThinkParams};
 
 use super::analysis_events::{AnalysisEvent, AnalysisEventSink};
 use super::analysis_start::{self, StartInput};
-use super::candidates::apply_info_params;
+use super::candidates::{apply_info_params, extract_rank};
 use super::logging::shown;
 use super::protocol::search::{MateAnswer, Search, SearchLine, StopAnswer, StopReply};
 use super::registry::{EngineId, EngineRegistry};
@@ -330,6 +330,7 @@ impl Run {
 
     async fn run(&self, mut search: Search, stop: CancellationToken, limit: Option<Duration>) {
         let mut result = AnalysisResult::default();
+        let mut win = None;
         let deadline = limit.map(|limit| tokio::time::Instant::now() + limit + LIMIT_GRACE);
         let conclusion = loop {
             let line = tokio::select! {
@@ -344,11 +345,12 @@ impl Run {
                 line = search.next_line() => line,
                 _ = until(deadline) => {
                     log::warn!(target: LOGT, "{}: the engine ran past the limit; stopping it", self.session_id);
-                    break conclusion_at_limit(search.stop(STOP_GRACE).await);
+                    break conclusion_at_limit(search.stop(STOP_GRACE).await, win);
                 }
             };
             match line {
                 Ok(Some(SearchLine::Info(params))) => {
+                    note_win(&params, &mut win);
                     apply_info_params(&params, &mut result);
                     self.emit(AnalysisEvent::MateUpdate(MateSearchUpdate {
                         session_id: self.session_id.clone(),
@@ -357,8 +359,7 @@ impl Run {
                     .await;
                 }
                 Ok(Some(SearchLine::Checkmate(answer))) => break conclusion_of(answer),
-                // 詰み探索をしないエンジンは `go mate` を通常の探索として扱い、`bestmove` を返す
-                Ok(Some(SearchLine::BestMove(_))) => break MateConclusion::NotSupported,
+                Ok(Some(SearchLine::BestMove(_))) => break conclusion_of_bestmove(win),
                 Ok(None) | Err(_) => break MateConclusion::EngineExited,
             }
         };
@@ -413,13 +414,56 @@ async fn until(deadline: Option<tokio::time::Instant>) {
 /// 上限を過ぎても終わらないので止めたときの結論。**何で答えたかで決める**——通常のエンジンは
 /// `go mate` の上限を読まずに探索を続け、`stop` に `bestmove` で答える
 /// （`research/engines/mate-engines.md`）
-fn conclusion_at_limit(stopped: StopAnswer) -> MateConclusion {
+fn conclusion_at_limit(stopped: StopAnswer, win: Option<Win>) -> MateConclusion {
     match stopped {
-        StopAnswer::Answered(StopReply::BestMove) => MateConclusion::NotSupported,
+        StopAnswer::Answered(StopReply::BestMove) => conclusion_of_bestmove(win),
         StopAnswer::Answered(StopReply::Checkmate(answer)) => conclusion_of(answer),
         StopAnswer::Answered(StopReply::AlreadyAnswered) => MateConclusion::Timeout,
         StopAnswer::Unanswered(_) => MateConclusion::StopUnanswered,
         StopAnswer::Unreachable(_) => MateConclusion::EngineExited,
+    }
+}
+
+/// 最善手の読み筋が言う勝ち
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Win {
+    plies: u32,
+    moves: Vec<String>,
+}
+
+/// 最善手（`multipv` 1）の行から、勝ちを読み切ったかを覚え直す。確定の `score mate N`（N > 0）だけを採り、
+/// 上界・下界と、負け（N < 0）は採らない。評価値の無い行では変えない
+fn note_win(params: &[InfoParams], win: &mut Option<Win>) {
+    if extract_rank(params) != 1 {
+        return;
+    }
+    let Some((value, kind)) = params.iter().find_map(|p| match p {
+        InfoParams::Score(value, kind) => Some((*value, kind)),
+        _ => None,
+    }) else {
+        return;
+    };
+    *win = match (kind, u32::try_from(value)) {
+        (ScoreKind::MateExact, Ok(plies)) if plies > 0 => Some(Win {
+            plies,
+            moves: params
+                .iter()
+                .find_map(|p| match p {
+                    InfoParams::Pv(moves) => Some(moves.clone()),
+                    _ => None,
+                })
+                .unwrap_or_default(),
+        }),
+        _ => None,
+    };
+}
+
+/// `bestmove` で終わった詰み探索。詰み探索をしないエンジンは `go mate` を通常の探索として扱うが、
+/// 勝ちを読み切っていれば、それを答えにする。読み切っていなければ、詰まないとも言えないので非対応
+fn conclusion_of_bestmove(win: Option<Win>) -> MateConclusion {
+    match win {
+        Some(Win { plies, moves }) => MateConclusion::WinFound { plies, moves },
+        None => MateConclusion::NotSupported,
     }
 }
 
@@ -937,7 +981,7 @@ done"#
     /// 上限で止めたときの結論は、何で答えたかで決まる
     #[test]
     fn the_conclusion_at_the_limit_follows_the_reply() {
-        let at_limit = |reply| conclusion_at_limit(StopAnswer::Answered(reply));
+        let at_limit = |reply| conclusion_at_limit(StopAnswer::Answered(reply), None);
         assert_eq!(at_limit(StopReply::BestMove), MateConclusion::NotSupported);
         assert_eq!(
             at_limit(StopReply::AlreadyAnswered),
@@ -951,5 +995,86 @@ done"#
             at_limit(StopReply::Checkmate(MateAnswer::NoMate)),
             MateConclusion::NoMate
         );
+    }
+
+    /// 通常のエンジンが勝ちを読み切って `bestmove` で終えたら、非対応と言わずに手順を返す。
+    /// 最後に見た最善手の行で決まる
+    #[tokio::test]
+    async fn a_bestmove_with_a_proven_mate_is_a_win_found() {
+        let win = |plies, moves: &[&str]| MateConclusion::WinFound {
+            plies,
+            moves: moves.iter().map(|m| (*m).to_string()).collect(),
+        };
+        for (lines, expected) in [
+            (
+                "info depth 1 multipv 1 score mate 1 pv G*5b",
+                win(1, &["G*5b"]),
+            ),
+            // 読み筋が手数に足りない
+            (
+                "info depth 9 multipv 1 score mate 3 pv G*5b",
+                win(3, &["G*5b"]),
+            ),
+            // 2番目の候補手・下界・負けは採らない
+            (
+                "info depth 1 multipv 2 score mate 1 pv G*5b",
+                MateConclusion::NotSupported,
+            ),
+            (
+                "info depth 1 multipv 1 score mate 1 lowerbound pv G*5b",
+                MateConclusion::NotSupported,
+            ),
+            (
+                "info depth 1 multipv 1 score mate -2 pv 5i5h",
+                MateConclusion::NotSupported,
+            ),
+        ] {
+            let s = setup(
+                "mate-win-found",
+                &script(&format!("echo '{lines}'; echo 'bestmove G*5b'"), ":"),
+            )
+            .await;
+            s.start(None).await.expect("始まる");
+            assert_eq!(s.conclusion().await, expected, "{lines}");
+            s.close();
+        }
+    }
+
+    /// 後の行で評価値が変われば取り消し、評価値の無い行（`nps` だけなど）では変えない
+    #[test]
+    fn the_last_best_line_decides_the_win() {
+        let mut win = None;
+        let mut note = |line: &str| {
+            let usi::EngineCommand::Info(params) = usi::EngineCommand::parse(line).expect("解ける")
+            else {
+                panic!("{line}")
+            };
+            note_win(&params, &mut win);
+            win.clone()
+        };
+        assert!(note("info depth 1 score mate 3 pv G*5b").is_some());
+        assert!(note("info nps 100").is_some());
+        assert!(note("info depth 2 score cp 100 pv G*5b").is_none());
+    }
+
+    /// 上限で止めた通常のエンジンも、勝ちを読み切っていればそれを答えにする
+    #[tokio::test]
+    async fn a_win_found_before_the_limit_is_kept() {
+        let s = setup(
+            "mate-win-limit",
+            &script(
+                "echo 'info depth 1 multipv 1 score mate 1 pv G*5b'",
+                "echo 'bestmove G*5b'",
+            ),
+        )
+        .await;
+        s.start(Some(Duration::from_millis(50)))
+            .await
+            .expect("始まる");
+        assert!(matches!(
+            s.conclusion().await,
+            MateConclusion::WinFound { plies: 1, .. }
+        ));
+        s.close();
     }
 }

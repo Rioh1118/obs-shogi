@@ -4,6 +4,11 @@ import type { AnalysisResult } from "@/entities/engine";
 export type MateConclusion =
   /** 詰み。`moves` は詰み手順（USI の指し手） */
   | { kind: "mate"; moves: string[] }
+  /**
+   * 通常のエンジンが、探索で勝ちを読み切った。`plies` はエンジンが言った手数で、`moves` が足りないことがある。
+   * 王手の連続とは限らない
+   */
+  | { kind: "winFound"; plies: number; moves: string[] }
   | { kind: "noMate" }
   | { kind: "timeout" }
   /** 利用者が中止した */

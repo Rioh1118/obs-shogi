@@ -1,17 +1,24 @@
 import type { MateOutcome } from "@/entities/mate-search";
+import { everyAttackGivesCheck } from "@/shared/lib/shogi/checkSequence";
 import { formatMoveSequence } from "@/shared/lib/shogi/moveText";
 
 type OutcomeTexts = {
   [K in MateOutcome["kind"]]: string | ((outcome: Extract<MateOutcome, { kind: K }>) => string);
 };
 
+const withMoves = (head: string, sfen: string, moves: string[]): string =>
+  [head, ...formatMoveSequence(sfen, moves).map((m) => m.move)].join(" ");
+
 /**
  * 詰み探索の結論の1行。種類ごとに別の文にする（`docs/spec/features/mate-search.md` の「結論の文」）。
  * 型が全種類を書かせる。Rust の種類が届いていることは `mateConclusionWire.test.ts` が見る
  */
 const textsFor = (sfen: string): OutcomeTexts => ({
-  mate: ({ moves }) =>
-    [`${moves.length}手詰`, ...formatMoveSequence(sfen, moves).map((m) => m.move)].join(" "),
+  mate: ({ moves }) => withMoves(`${moves.length}手詰`, sfen, moves),
+  winFound: ({ plies, moves }) =>
+    moves.length === plies && everyAttackGivesCheck(sfen, moves)
+      ? withMoves(`${plies}手詰`, sfen, moves)
+      : withMoves(`${plies}手で勝ちを読み切りました（王手の連続とは限りません）。`, sfen, moves),
   noMate: "詰みはありません。",
   timeout: "時間内に詰みを見つけられませんでした。",
   cancelled: "詰み探索を中止しました。",
