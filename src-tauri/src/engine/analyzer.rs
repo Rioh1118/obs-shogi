@@ -445,14 +445,17 @@ impl EngineAnalyzer {
         Ok(result_rx)
     }
 
-    /// 時間を決めた検討
+    /// 時間を決めた検討。`begun` は `go` を書いた後に1度呼ぶ（呼び手は、ほかの探索の開始と順番を分けるロックを
+    /// ここで放す。結果を待つ間は放しておく）
     pub async fn analyze_with_time(
         &self,
         time_limit: Duration,
+        begun: impl FnOnce() + Send,
     ) -> Result<AnalysisResult, EngineError> {
         let (search, stop_rx) = self
             .start_search(ThinkParams::new().byoyomi(time_limit))
             .await?;
+        begun();
         let analysis_result =
             Self::collect_until_bestmove(search, stop_rx, &self.unanswered, time_limit, None)
                 .await?;
@@ -465,11 +468,17 @@ impl EngineAnalyzer {
     /// **目標に届かなくても結果は返る。** 届いたかは `DepthOutcome::reached` を見ること。
     /// 届かない理由は `DEPTH_ANALYSIS_BUDGET` に当たったときで、
     /// 深度22の結果を深度40の検討として読ませないためにこの欄がある。
-    pub async fn analyze_with_depth(&self, depth_limit: u32) -> Result<DepthOutcome, EngineError> {
+    /// `begun` は `analyze_with_time` と同じ
+    pub async fn analyze_with_depth(
+        &self,
+        depth_limit: u32,
+        begun: impl FnOnce() + Send,
+    ) -> Result<DepthOutcome, EngineError> {
         // 深度は載せられないので、時間だけを渡して `info depth` を見張る
         let (search, stop_rx) = self
             .start_search(ThinkParams::new().byoyomi(DEPTH_ANALYSIS_BUDGET))
             .await?;
+        begun();
         let analysis_result = Self::collect_until_bestmove(
             search,
             stop_rx,
@@ -610,7 +619,7 @@ impl EngineAnalyzer {
         unanswered: &Arc<watch::Sender<bool>>,
     ) -> Result<StopOutcome, EngineError> {
         match search.stop(ANALYSIS_STOP_GRACE).await {
-            StopAnswer::Answered => Ok(StopOutcome::Stopped),
+            StopAnswer::Answered(_) => Ok(StopOutcome::Stopped),
             StopAnswer::Unreachable(e) => Err(e),
             StopAnswer::Unanswered(late) => {
                 unanswered.send_replace(true);
@@ -1365,7 +1374,7 @@ done"#
 
             let result = tokio::time::timeout(
                 Duration::from_secs(10),
-                analyzer.analyze_with_time(Duration::from_secs(30)),
+                analyzer.analyze_with_time(Duration::from_secs(30), || {}),
             )
             .await
             .expect("`bestmove` を受けても返らない")
@@ -1403,11 +1412,13 @@ done"#
             );
             let (analyzer, dir) = started("analyzer-depth", &body).await;
 
-            let outcome =
-                tokio::time::timeout(Duration::from_secs(10), analyzer.analyze_with_depth(3))
-                    .await
-                    .expect("目標の深度に届いても止めていない")
-                    .expect("結果が返る");
+            let outcome = tokio::time::timeout(
+                Duration::from_secs(10),
+                analyzer.analyze_with_depth(3, || {}),
+            )
+            .await
+            .expect("目標の深度に届いても止めていない")
+            .expect("結果が返る");
 
             assert!(outcome.reached, "届いたのに届いていないと言う");
             assert_eq!(outcome.deepest, Some(3));
@@ -1445,7 +1456,9 @@ done"#
             let body = script(":", "(sleep 4; echo 'bestmove 2g2f') &");
             let (analyzer, dir) = started("analyzer-timed-late", &body).await;
 
-            let timed = analyzer.analyze_with_time(Duration::from_secs(1)).await;
+            let timed = analyzer
+                .analyze_with_time(Duration::from_secs(1), || {})
+                .await;
             assert!(matches!(timed, Err(EngineError::Timeout(_))), "{timed:?}");
             assert!(
                 analyzer.start_infinite_analysis().await.is_err(),

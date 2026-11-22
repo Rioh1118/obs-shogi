@@ -19,7 +19,8 @@ use crate::engine::child::{
 };
 use crate::engine::logging::{shown, LogThrottle, MAX_SUMMARY_LEN};
 use crate::engine::usi_machine::{
-    closed_error, is_mate, Asked, Effect, SearchId, SearchLine, Ticket, UsiMachine, GONE, STALLED,
+    closed_error, is_mate, Asked, Effect, SearchId, SearchLine, StopReply, Ticket, UsiMachine,
+    GONE, STALLED,
 };
 use crate::engine::{logging::cmd_summary, logging::with_cause, types::*};
 use search::Search;
@@ -237,7 +238,7 @@ enum Request {
     },
     Stop {
         id: SearchId,
-        answer: oneshot::Sender<Result<(), EngineError>>,
+        answer: oneshot::Sender<Result<StopReply, EngineError>>,
         reply: Reply<Asked<(), ()>>,
     },
     /// `Search` を止めずに捨てた。誰も答えを待たない
@@ -267,7 +268,7 @@ enum Waiter {
     Named(oneshot::Sender<Result<EngineInfo, EngineError>>),
     Prepared(oneshot::Sender<Result<Vec<String>, EngineError>>),
     Checked(oneshot::Sender<Result<Vec<String>, EngineError>>),
-    Stopped(oneshot::Sender<Result<(), EngineError>>),
+    Stopped(oneshot::Sender<Result<StopReply, EngineError>>),
 }
 
 /// 状態機械の写し（`UsiActor::status`）。ハンドルがアクターに頼まずに読む
@@ -336,6 +337,11 @@ impl EngineEndWatch {
         };
         // 送り手が消えた（`Err`）のは、アクターごと終わったとき。ハンドルが全部捨てられている
         end.unwrap_or(EngineEnd::Requested)
+    }
+
+    /// 閉じていれば、その理由。待たない
+    pub fn ended(&self) -> Option<EngineEnd> {
+        self.status.borrow().end
     }
 
     /// 終わったエンジンが最後に出した行。**stderr の読み切りを `SETTLE_OUTPUT` まで待つ**
@@ -1942,7 +1948,10 @@ done"#;
                     .expect("探索を始められる");
                 let started = Instant::now();
                 let answer = search.stop(Duration::from_secs(10)).await;
-                assert!(matches!(answer, search::StopAnswer::Answered), "{answer:?}");
+                assert!(
+                    matches!(answer, search::StopAnswer::Answered(_)),
+                    "{answer:?}"
+                );
                 samples.push(started.elapsed());
             }
             report("M2", samples);

@@ -184,7 +184,7 @@ R10・R11 は`EngineShutdown`の `quit` と `kill_engine`。待つ上限は手�
 | **Q2c** | 値の確認中 | `Checking`。Q1 か Q2 から入り、値の確認の `usiok` を待つ。答えが来たら元の Q1 か Q2 へ戻る |
 | **Q3** | 探索中 | `Searching`（`ponder` が偽）。本番の探索1本が走っている（`bestmove` がまだ。詰み探索 `go mate` なら `checkmate` がまだ） |
 | **Q3p** | 先読み中 | `Searching`（`ponder` が真）。`go ponder` の探索1本が走っている |
-| **Q4** | 止め待ち | `Stopping`。探索へ `stop` を書いたが `bestmove` がまだ。**待つ者が諦めても Q4 のまま**（ADR-0016 決定2） |
+| **Q4** | 止め待ち | `Stopping`。探索へ `stop` を書いたが最後の行（`bestmove`、詰み探索なら `checkmate` も）がまだ。**待つ者が諦めても Q4 のまま**（ADR-0016 決定2） |
 | **Q5** | 閉じた | `Closed`。理由は `EngineEnd`（`Requested` / `Exited` / `Stalled`）。**吸収状態**で、`Requested` が他の理由より優先する |
 
 **名乗りは準備と別に進む**（`Naming`）。名乗らずに準備するエンジン（`usi` に答えない台本）も準備でき、探索できる。

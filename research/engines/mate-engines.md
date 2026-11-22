@@ -40,7 +40,7 @@ KomoringHeights（`engine/user-engine/user-search.cpp` の `PrintResult` と `Ma
 - やねうら王の `yaneuraou-mate-engine` は、上の3つに加えて `checkmate none`（結果不明）を返す経路を持つ
   （`yaneuraou-mate-search.cpp`）。[確定・ソースのみ]
 
-通常のエンジンは `go mate` に `checkmate` を返さない。手元のやねうら王 V9.90 開発版は、`go mate 2000` を通常の探索として扱い、`info ... pv ...` を流して `bestmove` を返した（2026-11-21 に実測）。やねうら王 NNUE は `bestmove`、zermelo は
+通常のエンジンは `go mate` に `checkmate` を返さない。手元のやねうら王 V9.90 開発版は、`go mate 2000` を通常の探索として扱い、`info ... pv ...` を流して `bestmove` を返した（2026-11-21 に実測）。**上限のミリ秒を読まず、`stop` まで探索を続ける**——`go mate 2000` と `go mate infinite` のどちらも、6秒後に送った `stop` で初めて `bestmove` を返した（2026-11-22 に実測。定跡は切った）。やねうら王 NNUE は `bestmove`、zermelo は
 `checkmate notimplemented`（[usi-measurements.md](usi-measurements.md) の「`go` の形」）。[確定]
 
 ## 他の GUI の見せ方

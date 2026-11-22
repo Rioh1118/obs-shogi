@@ -10,7 +10,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::{oneshot, watch, Mutex, RwLock};
+use tokio::sync::{watch, Mutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use usi::{MateParam, ThinkParams};
 
@@ -18,7 +18,7 @@ use super::analysis_events::{AnalysisEvent, AnalysisEventSink};
 use super::analysis_start::{self, StartInput};
 use super::candidates::apply_info_params;
 use super::logging::shown;
-use super::protocol::search::{MateAnswer, Search, SearchLine, StopAnswer};
+use super::protocol::search::{MateAnswer, Search, SearchLine, StopAnswer, StopReply};
 use super::registry::{EngineId, EngineRegistry};
 use super::start_failure;
 use super::types::*;
@@ -28,6 +28,10 @@ const LOGT: &str = "obs_shogi::engine::mate_search";
 /// 中止のとき `stop` への答えを待つ上限。検討の止めの上限と同じ3秒
 /// （越えたら詰将棋エンジンを落とす。検討のエンジンには触らない）
 const STOP_GRACE: Duration = Duration::from_secs(3);
+
+/// 上限を過ぎてもエンジンが終わらないとき、`stop` を送るまでの猶予。上限どおりに終わるエンジンの
+/// 最後の行を追い越さない長さ
+const LIMIT_GRACE: Duration = Duration::from_secs(5);
 
 /// ログと失敗の文に載せるエンジンの出力の長さ（文字）
 const MAX_LOGGED: usize = 256;
@@ -40,21 +44,31 @@ struct Engine {
     id: EngineId,
 }
 
-/// 走っている探索
+/// 走っている探索。**外すのは終わりを流し終えた `Run::finish` だけ。** 止める側が先に外すと、止めている途中の
+/// 探索が2人目から見えず、検討が `go` を出せてしまう
 struct Running {
     session_id: String,
-    stop: oneshot::Sender<()>,
+    stop: CancellationToken,
     /// 探索が終わり、終わりを流し終えたら `true`
     finished: watch::Receiver<bool>,
+}
+
+/// 走っている探索を止め、終わりを流し終えるまで待つ。何人が同時に待ってもよい
+async fn end(running: Option<(CancellationToken, watch::Receiver<bool>)>) {
+    if let Some((stop, mut finished)) = running {
+        stop.cancel();
+        // 送り手が落ちるのは探索のタスクごと消えたときだけで、そのときも終わっている
+        let _ = finished.wait_for(|done| *done).await;
+    }
 }
 
 #[derive(Default)]
 struct Inner {
     engine: Option<Engine>,
     running: Option<Running>,
-    /// 始めている途中のリクエスト（エンジンの起動を待つ間）。`stop` と次の `start` が取り消す
+    /// 始めている途中のリクエスト（エンジンの起動を待つ間）。`stop` と次の `reserve` が取り消す
     starting: Option<CancellationToken>,
-    /// リクエスト（`start` と `stop`）の順番。新しいリクエストが来たら、待っている古い `start` は始めない。
+    /// リクエスト（`reserve` と `stop`）の順番。新しいリクエストが来たら、待っている古い `start` は始めない。
     /// 取り消しの欄（`starting`）だけでは、欄を置く前に来た `stop` を取りこぼす
     epoch: u64,
 }
@@ -72,6 +86,13 @@ impl Inner {
         }
         self.epoch += 1;
         self.epoch
+    }
+
+    /// 走っている探索を止めるのに要るもの。探索は外さない（`Running`）
+    fn running(&self) -> Option<(CancellationToken, watch::Receiver<bool>)> {
+        self.running
+            .as_ref()
+            .map(|r| (r.stop.clone(), r.finished.clone()))
     }
 }
 
@@ -97,8 +118,8 @@ impl MateSearcher {
         }
     }
 
-    /// 始めるリクエストを1つ入れる。待っている古いリクエストと途中の起動を取り消す。この後に `stop` か別の `reserve` が
-    /// 来れば、この順番の `start` は始めない
+    /// 始めるリクエストを1つ入れる。待っている古いリクエストと途中の起動を取り消す。この後に `stop` か
+    /// 別の `reserve` が来れば、この順番の `start` は始めない
     pub async fn reserve(&self) -> Reservation {
         Reservation(self.inner.lock().await.supersede())
     }
@@ -109,21 +130,21 @@ impl MateSearcher {
     /// 前の詰み探索は先に終わらせる（結論は中止）。`reserve` の後に `stop` か別のリクエストが来たら `Superseded`
     pub async fn start(
         &self,
-        Reservation(mine): Reservation,
+        reservation: Reservation,
         engine_path: &str,
         input: &StartInput,
         position: String,
         limit: Option<Duration>,
     ) -> Result<String, MateStartFailure> {
-        self.end_running().await;
+        self.end_running_for(reservation).await?;
         let _turn = self.turn.lock().await;
         // 待っている間に別のリクエストが走らせた探索があれば終わらせる
-        self.end_running().await;
+        self.end_running_for(reservation).await?;
 
         let cancel = CancellationToken::new();
         {
             let mut inner = self.inner.lock().await;
-            if inner.epoch != mine {
+            if inner.epoch != reservation.0 {
                 return Err(MateStartFailure::Superseded);
             }
             inner.starting = Some(cancel.clone());
@@ -131,12 +152,26 @@ impl MateSearcher {
         let outcome = self
             .start_with(engine_path, input, position, limit, &cancel)
             .await;
-        // `turn` を持っているので、ここで残っている欄は自分のもの（`stop` と次の `start` が外していれば無い）
+        // `turn` を持っているので、ここで残っている欄は自分のもの（`stop` と次の `reserve` が外していれば無い）
         let mut inner = self.inner.lock().await;
         if !cancel.is_cancelled() {
             inner.starting = None;
         }
         outcome
+    }
+
+    /// 走っている探索を終わらせる。**追い越されていたら触らない**——確認と、止める相手を取ることを同じロックの
+    /// 下で行わないと、古い `start` が新しい `start` の探索を止める
+    async fn end_running_for(&self, reservation: Reservation) -> Result<(), MateStartFailure> {
+        let running = {
+            let inner = self.inner.lock().await;
+            if inner.epoch != reservation.0 {
+                return Err(MateStartFailure::Superseded);
+            }
+            inner.running()
+        };
+        end(running).await;
+        Ok(())
     }
 
     async fn start_with(
@@ -156,9 +191,12 @@ impl MateSearcher {
         }
         let Some(process) = self.registry.get(&id).await else {
             inner.engine = None;
-            return Err(MateStartFailure::Superseded);
+            return Err(MateStartFailure::Refused {
+                message: "the engine left the registry before the search".to_string(),
+            });
         };
         let param = limit.map_or(MateParam::Infinite, MateParam::Timeout);
+        // 前の探索は終わっているので（`end_running_for`）、待つのは書けたことだけ
         let search = process
             .protocol()
             .search(position, ThinkParams::new().mate(param))
@@ -176,11 +214,11 @@ impl MateSearcher {
             }
         };
         let session_id = format!("mate_{}", uuid::Uuid::new_v4());
-        let (stop, stop_requested) = oneshot::channel();
+        let stop = CancellationToken::new();
         let (finished_tx, finished) = watch::channel(false);
         inner.running = Some(Running {
             session_id: session_id.clone(),
-            stop,
+            stop: stop.clone(),
             finished,
         });
         let run = Run {
@@ -191,7 +229,7 @@ impl MateSearcher {
             registry: Arc::clone(&self.registry),
         };
         tokio::spawn(async move {
-            run.run(search, stop_requested).await;
+            run.run(search, stop, limit).await;
             let _ = finished_tx.send(true);
         });
         log::info!(target: LOGT, "start: {session_id} limit={limit:?}");
@@ -201,27 +239,15 @@ impl MateSearcher {
     /// 走っている詰み探索と、始めている途中のリクエストを終わらせ、終わりを流し終えるまで待つ。
     /// 無ければ何もしない
     pub async fn stop(&self) {
-        self.inner.lock().await.supersede();
-        self.end_running().await;
+        let running = {
+            let mut inner = self.inner.lock().await;
+            inner.supersede();
+            inner.running()
+        };
+        end(running).await;
     }
 
-    /// 走っている探索を止め、終わりを流し終えるまで待つ
-    async fn end_running(&self) {
-        let running = self.inner.lock().await.running.take();
-        if let Some(Running {
-            session_id,
-            stop,
-            mut finished,
-        }) = running
-        {
-            log::info!(target: LOGT, "stop: {session_id}");
-            let _ = stop.send(());
-            // 探索が終わり、`MateFinished` を流し終えるまで待つ（次の探索の通知と順が入れ替わらない）
-            let _ = finished.wait_for(|done| *done).await;
-        }
-    }
-
-    /// 起こしてあるエンジンを使うか、別の設定なら落として起こす
+    /// 起こしてあるエンジンを使うか、別の設定か閉じたエンジンなら落として起こす
     async fn ensure_engine(
         &self,
         engine_path: &str,
@@ -235,11 +261,11 @@ impl MateSearcher {
                 return Err(MateStartFailure::Superseded);
             }
             if let Some(engine) = &inner.engine {
-                if engine.path == engine_path && engine.input == input_text {
-                    let id = engine.id.clone();
-                    if self.registry.get(&id).await.is_some() {
-                        return Ok(id);
-                    }
+                if engine.path == engine_path
+                    && engine.input == input_text
+                    && self.is_alive(&engine.id).await
+                {
+                    return Ok(engine.id.clone());
                 }
             }
             inner.engine.take()
@@ -267,12 +293,21 @@ impl MateSearcher {
                 });
                 Ok(id)
             }
-            Err(EngineError::Cancelled(_)) => Err(MateStartFailure::Superseded),
+            // 取り消した後の失敗は、起動できなかったと読まない（失敗の後片付けの間に `stop` が来た回）
+            Err(_) if cancel.is_cancelled() => Err(MateStartFailure::Superseded),
             Err(e) => {
                 let failure = start_failure::describe(&e, engine_path).await;
                 log::error!(target: LOGT, "start: engine failed: {:?}", failure.kind);
                 Err(MateStartFailure::EngineFailed { failure })
             }
+        }
+    }
+
+    /// `EngineRegistry` に居て、閉じていないか。プロセスが自分で終わっても項目は残る
+    async fn is_alive(&self, id: &EngineId) -> bool {
+        match self.registry.get(id).await {
+            Some(process) => process.protocol().end_watch().ended().is_none(),
+            None => false,
         }
     }
 }
@@ -292,20 +327,24 @@ impl Run {
         sink.emit(event);
     }
 
-    async fn run(&self, mut search: Search, mut stop_requested: oneshot::Receiver<()>) {
+    async fn run(&self, mut search: Search, stop: CancellationToken, limit: Option<Duration>) {
         let mut result = AnalysisResult::default();
+        let deadline = limit.map(|limit| tokio::time::Instant::now() + limit + LIMIT_GRACE);
         let conclusion = loop {
             let line = tokio::select! {
                 biased;
-                // 送り手が捨てられた回（`MateSearcher` ごと消えた）も止める
-                _ = &mut stop_requested => {
+                _ = stop.cancelled() => {
                     break match search.stop(STOP_GRACE).await {
-                        StopAnswer::Answered => MateConclusion::Cancelled,
+                        StopAnswer::Answered(_) => MateConclusion::Cancelled,
                         StopAnswer::Unanswered(_) => MateConclusion::StopUnanswered,
                         StopAnswer::Unreachable(_) => MateConclusion::EngineExited,
                     };
                 }
                 line = search.next_line() => line,
+                _ = until(deadline) => {
+                    log::warn!(target: LOGT, "{}: the engine ran past the limit; stopping it", self.session_id);
+                    break conclusion_at_limit(search.stop(STOP_GRACE).await);
+                }
             };
             match line {
                 Ok(Some(SearchLine::Info(params))) => {
@@ -328,29 +367,20 @@ impl Run {
     async fn finish(&self, conclusion: MateConclusion, result: AnalysisResult) {
         log::info!(target: LOGT, "finish: {} {conclusion:?}", self.session_id);
         // 届かない・答えないエンジンは落とし、次に始めるときに起こし直す
-        let lost = matches!(
+        if matches!(
             conclusion,
             MateConclusion::EngineExited | MateConclusion::StopUnanswered
-        );
-        {
-            let mut inner = self.inner.lock().await;
-            if inner
-                .running
-                .as_ref()
-                .is_some_and(|r| r.session_id == self.session_id)
+        ) {
             {
-                inner.running = None;
-            }
-            if lost
-                && inner
+                let mut inner = self.inner.lock().await;
+                if inner
                     .engine
                     .as_ref()
                     .is_some_and(|e| e.id == self.engine_id)
-            {
-                inner.engine = None;
+                {
+                    inner.engine = None;
+                }
             }
-        }
-        if lost {
             self.registry.kill(&self.engine_id).await;
         }
         self.emit(AnalysisEvent::MateFinished(MateSearchFinished {
@@ -359,6 +389,36 @@ impl Run {
             result,
         }))
         .await;
+        // **流してから外す。** 先に外すと、止める側と次の探索が、終わりを流す前に進む
+        let mut inner = self.inner.lock().await;
+        if inner
+            .running
+            .as_ref()
+            .is_some_and(|r| r.session_id == self.session_id)
+        {
+            inner.running = None;
+        }
+    }
+}
+
+/// 上限が無ければ永久に待つ
+async fn until(deadline: Option<tokio::time::Instant>) {
+    match deadline {
+        Some(at) => tokio::time::sleep_until(at).await,
+        None => std::future::pending().await,
+    }
+}
+
+/// 上限を過ぎても終わらないので止めたときの結論。**何で答えたかで決める**——通常のエンジンは
+/// `go mate` の上限を読まずに探索を続け、`stop` に `bestmove` で答える
+/// （`research/engines/mate-engines.md`）
+fn conclusion_at_limit(stopped: StopAnswer) -> MateConclusion {
+    match stopped {
+        StopAnswer::Answered(StopReply::BestMove) => MateConclusion::NotSupported,
+        StopAnswer::Answered(StopReply::Checkmate(answer)) => conclusion_of(answer),
+        StopAnswer::Answered(StopReply::AlreadyAnswered) => MateConclusion::Timeout,
+        StopAnswer::Unanswered(_) => MateConclusion::StopUnanswered,
+        StopAnswer::Unreachable(_) => MateConclusion::EngineExited,
     }
 }
 
@@ -749,5 +809,146 @@ done"#
             panic!("持ち手が残っている")
         };
         s.close();
+    }
+
+    /// `stop` に1秒遅れて答える台本
+    fn slow_to_stop() -> String {
+        script(
+            "echo 'info depth 1 multipv 1 score cp 1 pv 7g7f'",
+            "sleep 1; echo 'checkmate timeout'",
+        )
+    }
+
+    /// 止めている途中に来た2人目の `stop` も、終わりを流し終えるまで返らない。
+    /// 先に返ると、検討がエンジンの探索中に `go` を出す
+    #[tokio::test]
+    async fn a_second_stop_waits_for_the_same_end() {
+        let s = Arc::new(setup("mate-two-stops", &slow_to_stop()).await);
+        s.start(None).await.expect("始まる");
+        let first = tokio::spawn({
+            let s = Arc::clone(&s);
+            async move { s.searcher.stop().await }
+        });
+        wait_until("stop が届く", || s.seen().iter().any(|l| l == "stop")).await;
+        assert!(s.recorded.finished().is_empty(), "もう終わっている");
+
+        s.searcher.stop().await;
+
+        assert_eq!(s.recorded.finished().len(), 1, "終わる前に返った");
+        first.await.expect("task");
+        let Ok(s) = Arc::try_unwrap(s) else {
+            panic!("持ち手が残っている")
+        };
+        s.close();
+    }
+
+    /// 追い越された古い `start` は、新しい `start` の探索を止めない
+    #[tokio::test]
+    async fn an_overtaken_start_leaves_the_newer_search_running() {
+        let s = Arc::new(setup("mate-overtaken", &slow_to_stop()).await);
+        let running = s.start(None).await.expect("始まる");
+        let older = s.searcher.reserve().await;
+        let old_start = tokio::spawn({
+            let s = Arc::clone(&s);
+            async move {
+                s.searcher
+                    .start(
+                        older,
+                        &s.engine,
+                        &StartInput::default(),
+                        "startpos".to_string(),
+                        None,
+                    )
+                    .await
+            }
+        });
+        wait_until("stop が届く", || s.seen().iter().any(|l| l == "stop")).await;
+
+        let newer = s.start(None).await.expect("新しい方は始まる");
+
+        let old = old_start.await.expect("task");
+        assert!(matches!(old, Err(MateStartFailure::Superseded)), "{old:?}");
+        // 古い順番の `start` が、新しい探索が走り出した後に来ても同じ
+        let late = s
+            .searcher
+            .start(
+                older,
+                &s.engine,
+                &StartInput::default(),
+                "startpos".to_string(),
+                None,
+            )
+            .await;
+        assert!(
+            matches!(late, Err(MateStartFailure::Superseded)),
+            "{late:?}"
+        );
+        let finished = s.recorded.finished();
+        assert_eq!(finished.len(), 1, "新しい探索まで終わらせた: {finished:?}");
+        assert_eq!(finished[0].session_id, running);
+        s.searcher.stop().await;
+        assert_eq!(s.recorded.finished()[1].session_id, newer);
+        let Ok(s) = Arc::try_unwrap(s) else {
+            panic!("持ち手が残っている")
+        };
+        s.close();
+    }
+
+    /// 探索の合間に終わったエンジンは使い回さず、その場で起こし直す
+    #[tokio::test]
+    async fn an_engine_that_died_between_searches_is_restarted_at_once() {
+        let s = setup("mate-died", &script("echo 'checkmate nomate'; exit 0", ":")).await;
+        for n in 1..=2 {
+            s.start(None).await.expect("始まる");
+            wait_until("終わり", || s.recorded.finished().len() == n).await;
+            // 出力の終わりが届くまで待つ
+            let id = s
+                .searcher
+                .inner
+                .lock()
+                .await
+                .engine
+                .as_ref()
+                .map(|e| e.id.clone());
+            let id = id.expect("席にある");
+            for _ in 0..200 {
+                if !s.searcher.is_alive(&id).await {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        }
+        assert_eq!(s.seen().iter().filter(|l| *l == "usi").count(), 2);
+        s.close();
+    }
+
+    /// 上限を読まずに続けるエンジン（通常のエンジン）は、こちらから止め、`bestmove` なら非対応と言う
+    #[tokio::test]
+    async fn an_engine_that_ignores_the_limit_is_stopped_and_not_supported() {
+        let s = setup("mate-overrun", &script(":", "echo 'bestmove 7g7f'")).await;
+        s.start(Some(Duration::from_millis(50)))
+            .await
+            .expect("始まる");
+        assert_eq!(s.conclusion().await, MateConclusion::NotSupported);
+        s.close();
+    }
+
+    /// 上限で止めたときの結論は、何で答えたかで決まる
+    #[test]
+    fn the_conclusion_at_the_limit_follows_the_reply() {
+        let at_limit = |reply| conclusion_at_limit(StopAnswer::Answered(reply));
+        assert_eq!(at_limit(StopReply::BestMove), MateConclusion::NotSupported);
+        assert_eq!(
+            at_limit(StopReply::AlreadyAnswered),
+            MateConclusion::Timeout
+        );
+        assert_eq!(
+            at_limit(StopReply::Checkmate(MateAnswer::Timeout)),
+            MateConclusion::Timeout
+        );
+        assert_eq!(
+            at_limit(StopReply::Checkmate(MateAnswer::NoMate)),
+            MateConclusion::NoMate
+        );
     }
 }

@@ -76,6 +76,16 @@ impl MateAnswer {
     }
 }
 
+/// 止めた探索に、エンジンが何で答えたか
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StopReply {
+    BestMove,
+    /// 詰み探索の結論（`go mate` の探索だけ）
+    Checkmate(MateAnswer),
+    /// 止める前に答えていた
+    AlreadyAnswered,
+}
+
 /// USI の指し手の綴りか（`7g7f` / `8h2b+` / `P*5e`）。局面に当てられるかは見ない
 fn is_usi_move(token: &str) -> bool {
     let b = token.as_bytes();
@@ -115,8 +125,8 @@ pub enum Effect {
     Prepared(Ticket, Result<Vec<String>, EngineError>),
     /// 値の確認の札への答え。`usiok` までの `info string` の文
     Checked(Ticket, Result<Vec<String>, EngineError>),
-    /// 止めの札への答え。`Ok` は `bestmove` で答えた
-    Stopped(Ticket, Result<(), EngineError>),
+    /// 止めの札への答え。`Ok` は `bestmove`（詰み探索なら `checkmate` も）で答えた
+    Stopped(Ticket, Result<StopReply, EngineError>),
     /// 探索へ流す行
     ToSearch(SearchId, SearchLine),
     /// その探索にはもう何も流さない
@@ -395,7 +405,8 @@ impl UsiMachine {
         }
     }
 
-    /// 探索中ならその探索へ流す。**詰み探索なら最後の行として閉じる**（`bestmove` は来ない）。
+    /// 探索中ならその探索へ流す。**詰み探索なら最後の行として閉じる**（通常のエンジンは詰み探索にも
+    /// `bestmove` を返すので、そちらでも閉じる。`on_bestmove`）。
     /// 詰み探索の止め待ちなら、`checkmate` が止めの答え（`stop` の後に結論を返して待機へ戻る）
     fn on_checkmate(&mut self, answer: MateAnswer) {
         match &mut self.state {
@@ -414,7 +425,10 @@ impl UsiMachine {
                 ..
             } => {
                 for ticket in std::mem::take(waiting) {
-                    self.effects.push(Effect::Stopped(ticket, Ok(())));
+                    self.effects.push(Effect::Stopped(
+                        ticket,
+                        Ok(StopReply::Checkmate(answer.clone())),
+                    ));
                 }
                 self.state = State::Idle;
             }
@@ -433,7 +447,8 @@ impl UsiMachine {
             }
             State::Stopping { waiting, .. } => {
                 for ticket in std::mem::take(waiting) {
-                    self.effects.push(Effect::Stopped(ticket, Ok(())));
+                    self.effects
+                        .push(Effect::Stopped(ticket, Ok(StopReply::BestMove)));
                 }
                 self.state = State::Idle;
             }
@@ -603,8 +618,8 @@ impl UsiMachine {
 
     /// R7 止める。走っている探索なら `stop` を書いて答えを待つ（→ Q4）。止め待ちなら同じ答えを待つ。
     ///
-    /// **走っていない探索は「答えた」。** 探索は `bestmove` か閉じることでしか終わらないので、
-    /// 閉じていなければ、その探索は既に `bestmove` で答えている
+    /// **走っていない探索は「答えた」。** 探索は最後の行（`bestmove`、詰み探索なら `checkmate` も）か
+    /// 閉じることでしか終わらないので、閉じていなければ、その探索は既に答えている
     pub fn stop(&mut self, id: SearchId) -> Result<Asked<()>, EngineError> {
         match self.state {
             State::Searching { search, mate, .. } if search == id => {
@@ -955,7 +970,7 @@ mod tests {
                 Effect::Prepared(_, Err(e)) => format!("prepared {}", kind(e)),
                 Effect::Checked(_, Ok(texts)) => format!("checked {texts:?}"),
                 Effect::Checked(_, Err(e)) => format!("checked {}", kind(e)),
-                Effect::Stopped(_, Ok(())) => "stopped".to_string(),
+                Effect::Stopped(_, Ok(_)) => "stopped".to_string(),
                 Effect::Stopped(_, Err(e)) => format!("stopped {}", kind(e)),
                 Effect::ToSearch(_, SearchLine::Info(_)) => "search info".to_string(),
                 Effect::ToSearch(_, SearchLine::Checkmate(_)) => "search checkmate".to_string(),
@@ -1142,7 +1157,7 @@ mod tests {
         at
     }
 
-    /// L6 `checkmate`（詰み探索）: 最後の行として流して閉じる → Q2。`bestmove` は来ない（AC-M1）
+    /// L6 `checkmate`（詰み探索）: 最後の行として流して閉じる → Q2。`bestmove` を待たない（AC-M1）
     #[test]
     fn a_checkmate_line_ends_a_mate_search() {
         for line in [
@@ -1189,6 +1204,17 @@ mod tests {
         feed(&mut normal.m, "checkmate timeout");
         assert_eq!(shapes(&mut normal.m), none());
         assert_eq!(q(&normal.m), Row::Q4);
+    }
+
+    /// 捨てた詰み探索も、`checkmate` で待機へ戻る（戻らないと、次の探索がずっと断られる）
+    #[test]
+    fn a_checkmate_ends_a_dropped_mate_search() {
+        let mut mate = mate_search();
+        let id = mate.search_id();
+        mate.m.drop_search(id);
+        assert_eq!(q(&mate.m), Row::Q4);
+        feed(&mut mate.m, "checkmate timeout");
+        assert_eq!(q(&mate.m), Row::Q2);
     }
 
     /// `checkmate` の行は自前で読む。`usi` 0.6.2 は `notimplemented` を `nomate` と同じにし、
