@@ -1,73 +1,60 @@
 @use "@/index.scss" as index;
 
+// 駒台の名前と手番。長い名前は、盤の左右の空きまで広がってから折り返す
 .hand-header {
-  width: 100%;
+  width: max-content;
+  max-width: calc(100% + var(--free));
   min-width: 0;
-
   display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
-  padding: 0;
+  flex-direction: column;
 
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  font-size: index.$font-body;
+  line-height: 1.8rem;
+  color: index.$color-text-primary;
 
-.hand-header--counterRotate {
-  transform: rotate(180deg);
-  transform-origin: center;
-}
+  // 手番は名前の外側（先手は上、後手は下）。出ても名前が動かない
+  &--sente {
+    flex-direction: column-reverse;
+  }
 
-.hand-header--start {
-  justify-content: flex-start;
-  text-align: left;
-}
+  // 盤を回したときは、見出しだけ回し戻す
+  &--counterRotate {
+    transform: rotate(180deg);
+  }
 
-.hand-header__symbol {
-  flex: 0 0 auto;
+  &__who {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: index.$space-2;
+  }
 
-  font-family: "Noto Sans Symbols2", "Segoe UI Symbol", "Apple Symbols", index.$font-sans;
+  &__symbol {
+    font-family: "Noto Sans Symbols2", "Segoe UI Symbol", "Apple Symbols", index.$font-sans;
+  }
 
-  font-size: 1.8rem;
-  line-height: 1;
+  &__name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: auto-phrase;
 
-  color: rgba(index.$color-secondary-light, 0.92);
-  transform: translateY(0.06em);
-}
+    &--empty {
+      color: index.$color-text-muted;
+    }
+  }
 
-.hand-header__name {
-  min-width: 0;
-  max-width: 100%;
+  &__turn {
+    padding-left: index.$space-7;
+    font-size: index.$font-aux;
+    color: index.$color-accent-text;
+  }
 
-  font-size: 1.2rem;
-  line-height: 1.5;
-  font-weight: 500;
+  // 手番の側。銅は局面の「いま」だけに使う
+  &--turn &__symbol {
+    color: index.$color-accent-text;
+  }
 
-  color: rgba(index.$color-secondary-light, 0.96);
-
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-// 手番の側。銅は局面の「いま」だけに使う
-.hand-header--turn .hand-header__symbol {
-  color: index.$color-accent-text;
-}
-
-.hand-header--turn .hand-header__name {
-  color: index.$color-text-strong;
-  font-weight: index.$weight-strong;
-}
-
-.hand-header__turn {
-  flex: none;
-  margin-left: index.$space-3;
-  font-size: index.$font-aux;
-  color: index.$color-accent-text;
-}
-
-.hand-header__name--empty {
-  opacity: 0.55;
-  letter-spacing: 0.06em;
+  &--turn &__name {
+    color: index.$color-text-strong;
+    font-weight: index.$weight-strong;
+  }
 }

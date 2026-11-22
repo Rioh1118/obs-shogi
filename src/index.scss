@@ -263,6 +263,10 @@ $z-error-fallback: ds.$lm-z-error-fallback;
 $shadow-panel: ds.$lm-shadow-panel;
 // ポップオーバー・メニュー。暗い背景の上に出るので、パネルより強く落とす
 $shadow-overlay: ds.$lm-shadow-overlay;
+// 盤と駒台。重なりの影とこれのほかに、影を落とさない
+$shadow-board:
+  0 1px 0 rgba(0, 0, 0, 0.4),
+  0 8px 22px rgba(0, 0, 0, 0.33);
 $shadow-press: ds.$lm-shadow-press; // 押下
 // 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
 $shadow-control: ds.$lm-shadow-control;

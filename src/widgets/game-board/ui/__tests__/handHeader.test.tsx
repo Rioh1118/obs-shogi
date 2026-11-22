@@ -7,32 +7,17 @@ import HandHeader from "../HandHeader";
 /**
  * 駒台の見出し。側の記号と対局者名。
  *
- * 長い名前は15字に収め、全体は `title` で読めるようにする。
- * 収め損ねると駒台の幅を押し広げ、盤の位置がずれる。
+ * 長い名前は省かず、盤の左右の空きまで広がってから折り返す（`HandHeader.scss`）。
  */
 
 afterEach(cleanup);
 
 describe("駒台の見出し", () => {
-  test("15字までの名前はそのまま出す", () => {
-    render(
-      <HandHeader
-        side="sente"
-        name="あいうえおかきくけこさしすせそ"
-        placement="bottom"
-        isTurn={false}
-      />,
-    );
-
-    expect(screen.getByText("あいうえおかきくけこさしすせそ")).toBeTruthy();
-  });
-
-  test("16字からは14字と … に縮め、全体を title に残す", () => {
-    const name = "あいうえおかきくけこさしすせそた";
+  test("長い名前も省かずに出し、題にも持つ", () => {
+    const name = "あいうえおかきくけこさしすせそたちつてとなにぬねの";
     render(<HandHeader side="sente" name={name} placement="bottom" isTurn={false} />);
 
-    const shown = screen.getByText("あいうえおかきくけこさしすせ…");
-    expect(shown.getAttribute("title")).toBe(name);
+    expect(screen.getByText(name).getAttribute("title")).toBe(name);
   });
 
   test.each([null, undefined, ""])("名前が %j なら — を出す", (name) => {

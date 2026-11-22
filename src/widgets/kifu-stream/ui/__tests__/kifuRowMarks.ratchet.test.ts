@@ -45,10 +45,13 @@ const selectorsWith = (rules: Rule[], part: string) =>
 
 describe("輪", () => {
   test("一覧の輪は、いまの手の行に描く", () => {
-    expect(selectorsWith(ROW, ":focus")).toEqual([
-      ".kifu__list:focus-visible .kifu-row--active",
-      ".kifu-badge--btn:focus-visible",
-    ]);
+    const ring = ROW.find(
+      (rule) => rule.selector === ".kifu__list:focus-visible .kifu-row--active",
+    );
+    expect(ring?.declarations.get("outline")).toContain("2px solid");
+    // 行そのものはフォーカスを持たない
+    expect(selectorsWith(ROW, ".kifu-row:focus")).toEqual([]);
+    expect(selectorsWith(ROW, ".kifu-row--active:focus")).toEqual([]);
   });
 
   test("一覧の箱そのものには描かない", () => {
@@ -60,26 +63,30 @@ describe("輪", () => {
 });
 
 describe("指した行", () => {
-  test("背景は属性で描き、行の `:hover` では描かない", () => {
-    expect(selectorsWith(ROW, "[data-pointed]")).toEqual([
-      ".kifu-row[data-pointed]",
-      ".kifu-row--active[data-pointed]",
-      ":where(.kifu-row[data-pointed]) .kifu-badge--btn:hover",
-    ]);
+  /** 同じ選択子が何度も出るときは、後に書かれた方が効く */
+  const backgroundOf = (selector: string) =>
+    ROW.filter((rule) => rule.selector === selector)
+      .flatMap((rule) => rule.declarations.get("background") ?? [])
+      .pop();
+
+  test("背景は属性で描く", () => {
+    expect(backgroundOf(".kifu-row[data-pointed]")).toBeDefined();
   });
 
-  test("`:hover` は、指した行のボタンだけ", () => {
-    expect(selectorsWith(ROW, ":hover")).toEqual([
-      ":where(.kifu-row[data-pointed]) .kifu-badge--btn:hover",
-    ]);
-    expect(selectorsWith(LIST, ":hover")).toEqual([]);
+  // 止まったポインタの下へ来ただけの行にも付き、いまの手と2つ選ばれて見える
+  test("`:hover` で、行の背景を変えない", () => {
+    const hovers = [...ROW, ...LIST].filter((rule) => rule.selector.includes(":hover"));
+
+    expect(hovers.filter((rule) => rule.declarations.has("background"))).toEqual([]);
+    // 文字の色を変えるのは、指した行のボタンだけ
+    for (const { selector } of hovers) {
+      expect(selector.startsWith(":where(.kifu-row[data-pointed]) ")).toBe(true);
+    }
+    expect(hovers.length).toBeGreaterThan(0);
   });
 
   test("いまの手の背景は、ポインタを載せても変わらない", () => {
-    const background = (selector: string) =>
-      ROW.find((rule) => rule.selector === selector)?.declarations.get("background");
-
-    expect(background(".kifu-row--active")).toBeDefined();
-    expect(background(".kifu-row--active[data-pointed]")).toBe(background(".kifu-row--active"));
+    expect(backgroundOf(".kifu-row--active")).toBeDefined();
+    expect(backgroundOf(".kifu-row--active[data-pointed]")).toBe(backgroundOf(".kifu-row--active"));
   });
 });

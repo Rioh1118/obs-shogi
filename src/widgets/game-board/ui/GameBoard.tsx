@@ -34,31 +34,27 @@ export default function GameBoard({ topLeft, center, bottomRight }: Props) {
     <div className={`game-board ${isGotePov ? "game-board--rotated" : ""}`}>
       <div className="game-board__cluster">
         <div className="game-board__hand game-board__hand--topLeft">
-          <div className="game-board__handArea">{topLeft}</div>
-          <div className="game-board__handHeader">
-            <HandHeader
-              side="gote"
-              name={goteName}
-              boardRotated={isGotePov}
-              placement={gotePlacement}
-              isTurn={!isSenteTurn}
-            />
-          </div>
+          {topLeft}
+          <HandHeader
+            side="gote"
+            name={goteName}
+            boardRotated={isGotePov}
+            placement={gotePlacement}
+            isTurn={!isSenteTurn}
+          />
         </div>
 
         <div className="game-board__board">{center}</div>
 
         <div className="game-board__hand game-board__hand--bottomRight">
-          <div className="game-board__handHeader">
-            <HandHeader
-              side="sente"
-              name={senteName}
-              boardRotated={isGotePov}
-              placement={sentePlacement}
-              isTurn={isSenteTurn}
-            />
-          </div>
-          <div className="game-board__handArea">{bottomRight}</div>
+          <HandHeader
+            side="sente"
+            name={senteName}
+            boardRotated={isGotePov}
+            placement={sentePlacement}
+            isTurn={isSenteTurn}
+          />
+          {bottomRight}
         </div>
       </div>
     </div>

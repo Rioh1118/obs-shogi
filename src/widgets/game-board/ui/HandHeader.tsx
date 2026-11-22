@@ -21,36 +21,30 @@ const SIDE_UI: Record<
   gote: { label: "後手", turn: turnText(Color.White), symbol: { bottom: GOTE_GLYPH, top: "⛉" } },
 };
 
-function truncateName(s: string) {
-  const chars = Array.from(s);
-  if (chars.length <= 15) return s;
-  return chars.slice(0, 14).join("") + "…";
-}
-
 export default function HandHeader({ side, name, boardRotated = false, placement, isTurn }: Props) {
   const ui = SIDE_UI[side];
   // 欠けているかは `playerNames` が `null` で決めている。ここで trim し直さない
   const raw = name ?? "";
-  const displayName = raw ? truncateName(raw) : "—";
   const symbol = ui.symbol[placement];
 
   return (
     <div
       className={[
         "hand-header",
-        "hand-header--start",
+        `hand-header--${side}`,
         boardRotated ? "hand-header--counterRotate" : "",
         isTurn ? "hand-header--turn" : "",
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      <span className="hand-header__symbol" aria-label={ui.label}>
-        {symbol}
-      </span>
-
-      <div className={"hand-header__name" + (raw ? "" : " hand-header__name--empty")} title={raw}>
-        {displayName}
+      <div className="hand-header__who">
+        <span className="hand-header__symbol" aria-label={ui.label}>
+          {symbol}
+        </span>
+        <span className={`hand-header__name ${raw ? "" : "hand-header__name--empty"}`} title={raw}>
+          {raw || "—"}
+        </span>
       </div>
 
       {isTurn && <span className="hand-header__turn">{ui.turn}</span>}

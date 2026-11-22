@@ -54,6 +54,19 @@ const COMMENTED = parseKifuContentToJKF(
   "kif",
 );
 
+/** 1手目に2行のコメントがある棋譜 */
+const TWO_LINES = parseKifuContentToJKF(
+  [
+    "手合割：平手",
+    "   1 ７六歩(77)",
+    "*角道を開ける",
+    "*ここから角換わり",
+    "   2 ３四歩(33)",
+    "",
+  ].join("\n"),
+  "kif",
+);
+
 /** 2手目の変化1を選んだ計画 */
 const SECOND_MOVE_FORK = [{ te: 2, forkIndex: 0 }];
 
@@ -83,7 +96,11 @@ const game = vi.hoisted(() => ({
 const overlay = vi.hoisted(() => ({ isTop: true }));
 
 /** 一覧を流した記録。happy-dom は寸法が0なので、流す先の計算ではなく呼ばれ方を見る */
-const scroll = vi.hoisted(() => ({ calls: [] as { rowId: string; behavior: ScrollBehavior }[] }));
+const scroll = vi.hoisted(() => ({
+  calls: [] as { rowId: string; behavior: ScrollBehavior }[],
+  /** 流す先を揃える刻み。呼ばれた順 */
+  units: [] as (number | undefined)[],
+}));
 
 /** `revealRow` が読む時計。続けて動いたかを決める */
 const clock = vi.hoisted(() => ({ now: 10_000 }));
@@ -93,8 +110,14 @@ vi.mock("@/widgets/kifu-stream/lib/scrollToRowSafeZone", async (importActual) =>
     await importActual<typeof import("@/widgets/kifu-stream/lib/scrollToRowSafeZone")>();
   const mocked = {
     ...actual,
-    scrollToRowSafeZone: (_scroller: HTMLElement, rowEl: HTMLElement, behavior: ScrollBehavior) => {
+    scrollToRowSafeZone: (
+      _scroller: HTMLElement,
+      rowEl: HTMLElement,
+      behavior: ScrollBehavior,
+      unit?: number,
+    ) => {
       scroll.calls.push({ rowId: rowEl.id, behavior });
+      scroll.units.push(unit);
     },
   };
   return mocked satisfies typeof import("@/widgets/kifu-stream/lib/scrollToRowSafeZone");
@@ -205,6 +228,7 @@ async function openForkActions(nth: number, te = 2) {
 beforeEach(() => {
   overlay.isTop = true;
   scroll.calls = [];
+  scroll.units = [];
   clock.now = 10_000;
   vi.spyOn(performance, "now").mockImplementation(() => clock.now);
   game.state.cursor = { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" };
@@ -246,8 +270,8 @@ async function nextFrame() {
 
 describe("一覧", () => {
   test("手数と総手数を出す", async () => {
-    await mount();
-    expect(screen.getByText("手数 0/3")).not.toBeNull();
+    const { container } = await mount();
+    expect(container.querySelector(".kifu__statusText")?.textContent).toBe("手数 0/3");
   });
 
   test("棋譜が無ければ選ぶよう案内する", async () => {
@@ -748,7 +772,69 @@ describe("行", () => {
 
     const withComment = within(rowOf(1)).getByTitle("コメントを開く");
     expect(withComment.textContent).toBe("1");
+    expect(withComment.getAttribute("aria-label")).toBe("コメントを開く（1）");
     expect(within(rowOf(2)).queryByTitle("コメントを追加")).not.toBeNull();
+  });
+
+  describe("コメントの本文", () => {
+    const memo = (te: number) => rowOf(te).querySelector(".kifu-row__memo")?.textContent;
+    const firstLine = (te: number) => rowOf(te).querySelector(".kifu-row__firstLine")?.textContent;
+
+    test("いまの手でない行は、1行目だけを出す", async () => {
+      load(TWO_LINES);
+      await mount();
+
+      expect(firstLine(1)).toBe("角道を開ける");
+      expect(memo(1)).toBeUndefined();
+    });
+
+    test("いまの手の行は、全部を出す", async () => {
+      load(TWO_LINES);
+      game.state.cursor = { tesuu: 1, forkPointers: [], tesuuPointer: "1,[]" };
+      await mount();
+
+      expect(memo(1)).toBe("角道を開ける\nここから角換わり");
+      expect(firstLine(1)).toBeUndefined();
+    });
+
+    test("1行目を押しても、その手へ動く", async () => {
+      load(TWO_LINES);
+      await mount();
+
+      await click(rowOf(1).querySelector(".kifu-row__firstLine")!);
+
+      expect(game.goToIndex).toHaveBeenCalledWith(1);
+    });
+
+    test("開いた付箋の付け先のボタンは、いまの手が変わっても作り直さない", async () => {
+      load(TWO_LINES);
+      game.state.cursor = { tesuu: 1, forkPointers: [], tesuuPointer: "1,[]" };
+      const view = await mount();
+      const button = within(rowOf(1)).getByTitle("コメントを開く");
+
+      game.state.cursor = { tesuu: 2, forkPointers: [], tesuuPointer: "2,[]" };
+      await redraw(view);
+
+      expect(within(rowOf(1)).getByTitle("コメントを開く")).toBe(button);
+    });
+  });
+
+  describe("選べるほかの手", () => {
+    const others = (te: number) =>
+      [...rowOf(te).querySelectorAll(".kifu-row__others span")].map((el) => el.textContent?.trim());
+
+    test("本譜を降りていれば、変化の手を出す", async () => {
+      await mount();
+
+      expect(others(2)).toEqual(["☖８四歩"]);
+    });
+
+    test("変化を降りていれば、本譜の手を出す", async () => {
+      load(NESTED, SECOND_MOVE_FORK);
+      await mount();
+
+      expect(others(2)).toEqual(["☖３四歩"]);
+    });
   });
 });
 
@@ -1042,7 +1128,8 @@ describe("計画で変化を選んでいるとき", () => {
     load(NESTED, SECOND_MOVE_FORK);
     await mount();
 
-    expect(within(rowOf(2)).getByTitle("分岐を選択").textContent).toBe("11");
+    const badge = within(rowOf(2)).getByTitle("分岐を選択");
+    expect(badge.querySelector(".kifu-row__count")?.textContent).toBe("1/1");
     const items = within(await openForkMenu()).getAllByRole("menuitemradio");
     expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual(["false", "true"]);
   });
@@ -1160,6 +1247,24 @@ describe("一覧の位置", () => {
       rowId: "kifu-row-2",
       behavior: "auto",
     });
+  });
+
+  test.each([
+    ["先頭", 0],
+    ["途中", 2],
+    ["末尾", 3],
+  ])("流す先は、コメントで広がった%sの行でなく、1行の高さに揃える", async (_, tesuu) => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("kifu-row--active") ? 78 : 26;
+    });
+    const view = await mount();
+    clock.now += 1000;
+    moveCursorTo(tesuu);
+    await redraw(view);
+
+    expect(scroll.units[scroll.units.length - 1]).toBe(26);
   });
 
   test("Escape で閉じたら、分岐の行を見える位置へ戻す", async () => {

@@ -11,18 +11,10 @@ $edge-hit-size: 6px;
   flex-direction: column;
   overflow: hidden;
 
-  border: 1px solid rgba(index.$color-white, 0.06);
-  border-radius: 1.8rem;
-
-  background: linear-gradient(
-    180deg,
-    rgba(index.$color-primary-light, 0.94),
-    rgba(index.$color-primary-dark, 0.96) 24%,
-    rgba(index.$color-primary-black, 0.985)
-  );
-  backdrop-filter: blur(18px);
-
-  box-shadow: index.$shadow-panel;
+  border: 1px solid index.$stroke;
+  border-radius: index.$radius-surface;
+  background: index.$color-primary-dark;
+  box-shadow: index.$shadow-overlay;
   color: index.$color-text-primary;
 }
 
@@ -37,12 +29,13 @@ $edge-hit-size: 6px;
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: index.$space-3;
   flex-shrink: 0;
 
   height: index.$floating-note-header-height;
   min-height: index.$floating-note-header-height;
-  padding: 0 0.55rem 0 0.85rem;
+  padding: 0 index.$space-2 0 index.$space-6;
+  border-bottom: 1px solid index.$stroke-weak;
 
   user-select: none;
 }
@@ -69,16 +62,11 @@ $edge-hit-size: 6px;
   transform: translate(-50%, -50%);
   width: 1.8rem;
   height: 2px;
-  border-radius: 9999px;
-  background: rgba(index.$color-text-primary, 0.08);
-  transition:
-    background 140ms ease,
-    width 140ms ease;
+  background: index.$stroke;
 }
 
 .floating-note__drag-area:hover .floating-note__drag-grip {
-  width: 2.2rem;
-  background: rgba(index.$color-text-primary, 0.18);
+  background: index.$stroke-strong;
 }
 
 .floating-note--dragging .floating-note__drag-area {
@@ -90,7 +78,7 @@ $edge-hit-size: 6px;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: index.$space-2;
   flex-shrink: 0;
 }
 
@@ -101,30 +89,21 @@ $edge-hit-size: 6px;
   align-items: center;
   justify-content: center;
 
-  width: 2rem;
-  height: 2rem;
+  width: 2.4rem;
+  height: 2.4rem;
   border: none;
-  border-radius: 999px;
-  background: transparent;
+  border-radius: index.$radius-control;
+  background: index.$color-primary-dark;
 
-  color: rgba(index.$color-text-primary, 0.46);
-  font-size: 1.35rem;
+  color: index.$color-text-muted;
+  font-size: index.$font-lead;
   line-height: 1;
   cursor: pointer;
-
-  transition:
-    background 100ms ease,
-    color 100ms ease,
-    transform 100ms ease;
 }
 
 .floating-note__close:hover {
-  background: rgba(index.$color-white, 0.06);
-  color: index.$color-text-light-1;
-}
-
-.floating-note__close:active {
-  transform: scale(0.97);
+  background: index.$surface-hover;
+  color: index.$color-text-strong;
 }
 
 .floating-note__body {
@@ -133,7 +112,7 @@ $edge-hit-size: 6px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: 0.35rem 0.45rem 0.45rem;
+  padding: index.$space-2;
 }
 
 .floating-note__resize {

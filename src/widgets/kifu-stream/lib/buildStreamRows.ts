@@ -11,6 +11,8 @@ export type StreamRow = {
   /** この行が降りた線の手。変化を選んでいれば変化の手 */
   text: string;
   commentCount: number;
+  /** コメントの本文。行を改行で繋ぐ。無ければ空 */
+  comment: string;
 
   /** 同じ手数の本譜の手。分岐メニューの「本譜」に出す */
   mainText: string;
@@ -54,6 +56,7 @@ export function buildStreamRowsFromCursor(
     side: "none",
     text: "開始局面",
     commentCount: (mf0?.comments ?? []).length,
+    comment: (mf0?.comments ?? []).join("\n").trim(),
     mainText: "開始局面",
     forkTexts: [],
     forkCount: 0,
@@ -96,6 +99,7 @@ export function buildStreamRowsFromCursor(
       side,
       text,
       commentCount: (mf?.comments ?? []).length,
+      comment: (mf?.comments ?? []).join("\n").trim(),
       mainText,
       forkTexts,
       forkCount: forkTexts.length,

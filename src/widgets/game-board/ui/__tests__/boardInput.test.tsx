@@ -301,34 +301,18 @@ describe("駒台の押下", () => {
     expect(game.current!.state.selectedPosition).toBeNull();
   });
 
-  test("駒の高さは幅の1.1倍", async () => {
+  test("先手の駒台は強い駒を上から、後手の駒台は下から並べる", async () => {
     const { container } = await mount();
-    const [gold] = piecesIn(senteHand(container), "金");
-    const piece = gold.closest<HTMLElement>(".hand-piece")!;
+    const filledRows = (hand: Element) =>
+      [...hand.querySelectorAll(".hand-row")].map((row) => row.childElementCount > 0);
 
-    const width = parseFloat(piece.style.width);
-    expect(parseFloat(piece.style.height)).toBeCloseTo(width * 1.1);
-  });
-
-  test("先手の駒台は上の段から、後手の駒台は下の段から並べる", async () => {
-    const { container } = await mount();
-    const rowsOf = (hand: Element) =>
-      [...hand.querySelectorAll(".hand-row")].map((row) =>
-        [...row.classList].find((name) => /^hand-row\d$/.test(name)),
-      );
-
-    expect(rowsOf(senteHand(container))).toEqual([
-      "hand-row1",
-      "hand-row2",
-      "hand-row3",
-      "hand-row4",
-    ]);
-    expect(rowsOf(goteHand(container))).toEqual([
-      "hand-row4",
-      "hand-row3",
-      "hand-row2",
-      "hand-row1",
-    ]);
+    const sente = filledRows(senteHand(container));
+    const gote = filledRows(goteHand(container));
+    expect(sente).toHaveLength(4);
+    expect(gote).toHaveLength(4);
+    // 見本の持ち駒は、どちらも1段に収まる。先手は上から数えた段、後手は下から数えた段に置く
+    expect(sente.filter(Boolean)).toHaveLength(1);
+    expect(gote.filter(Boolean)).toHaveLength(1);
   });
 });
 

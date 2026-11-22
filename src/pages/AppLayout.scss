@@ -1,10 +1,10 @@
 @use "../index.scss" as index;
 
 .app-layout {
-  --sidebar-w: clamp(26rem, 20vw, 44rem);
+  --sidebar-w: clamp(16rem, 14.5vw, 22.4rem);
+  --kifu-w: clamp(22.8rem, 20.5vw, 33.6rem);
   // 残る知らせの帯のぶんは、盤でなくドックから取る
-  --dock-h: max(16rem, calc(clamp(22rem, 28vh, 42rem) - var(--notice-bands-h, 0px)));
-  --stroke: rgba(255, 255, 255, 0.06);
+  --dock-h: max(16rem, calc(clamp(22.1rem, 24.6vh, 27.3rem) - var(--notice-bands-h, 0px)));
 
   height: 100%;
   width: 100%;
@@ -17,13 +17,18 @@
   // ペインは全部この1色で、境目は線で引く。サーフェスの色で塗り分けない
   // （`design-system/design_system/principles.md` の原則7）
   background-color: index.$color-primary-dark;
-  color: index.$color-text-light-1;
+  color: index.$color-text-primary;
+
+  // 低いウィンドウでは、ドックの段を減らして盤に返す
+  @media (max-height: 800px) {
+    --dock-h: max(16rem, calc(19.4rem - var(--notice-bands-h, 0px)));
+  }
 
   &__body {
     min-height: 0;
     min-width: 0;
     display: grid;
-    grid-template-columns: var(--sidebar-w) 1fr;
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   }
 
   &--sidebar-closed {
@@ -33,8 +38,7 @@
   &__sidebar-slot {
     min-height: 0;
     overflow: hidden;
-    border-right: 1px solid var(--stroke);
-    transition: width 180ms ease;
+    border-right: 1px solid index.$stroke-weak;
   }
 
   &__main {
@@ -50,6 +54,7 @@
     // safe なら上端を保ち、あふれた分はスクロールで届く
     place-items: safe center;
     overflow: auto;
+    background: index.$color-stage;
 
     // リセットが全要素のスクロールバーを消しているので、
     // 続きがあることを示す手掛かりがここだけ無くなる
@@ -59,37 +64,19 @@
       width: 8px;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.6);
-      border-radius: index.$radius-4;
+      background: index.$stroke;
     }
   }
 }
 
+// 盤と棋譜を並べ、下いっぱいにドックを置く。境目は線だけ
 .workspace {
   height: 100%;
   min-height: 0;
   min-width: 0;
 
-  --surface-max: 1200px;
-  --gap: 0.9rem;
-  --kifu-w: clamp(32rem, 26vw, 44rem);
-
-  --workspace-max: calc(var(--surface-max) + var(--kifu-w) + var(--gap));
-
   display: grid;
-  min-height: 0;
-
-  &__surface {
-    width: min(var(--workspace-max), 100%);
-    height: 100%;
-    min-height: 0;
-    margin: 0 auto;
-
-    overflow: hidden;
-
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) var(--dock-h);
-  }
+  grid-template-rows: minmax(0, 1fr) var(--dock-h);
 
   &__main {
     min-height: 0;
@@ -99,34 +86,12 @@
     grid-template-columns: minmax(0, 1fr) var(--kifu-w);
   }
 
+  // 盤と駒台の周りだけ、墨から離した緑を敷く。木が立つ場所を示す色の段はここだけ
   &__boardPane {
-    height: 100%;
     min-height: 0;
     min-width: 0;
-
     display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-
-    align-items: stretch;
-    justify-items: center;
-
-    gap: 0rem;
-    padding: 1.1rem 1.1rem 0.9rem;
-    border-right: 1px solid var(--stroke);
-    // 盤と駒台の周りだけを半段沈める。素材が立つ場所を示す色の段はここだけ
     background: index.$color-stage;
-  }
-
-  &__controls {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-self: end;
-
-    padding-top: 0.2rem;
-
-    flex-wrap: wrap;
-    gap: 0.6rem;
   }
 
   &__kifuPane {
@@ -134,31 +99,15 @@
     min-width: 0;
 
     display: flex;
+    flex-direction: column;
     overflow: hidden;
-    padding: 1.1rem;
-
-    .kifu {
-      width: 100%;
-      min-width: 0;
-      flex: 1 1 auto;
-    }
+    border-left: 1px solid index.$stroke-weak;
   }
 
-  // ドックはカードを1枚置くコンテナ。**自分では線を引かない** ——
-  // 引くと中のカードの枠と隣り合って 2px の線になり、カードの角がコンテナに切られる
   &__dock {
     min-height: 0;
     min-width: 0;
-
     overflow: hidden;
-    padding: index.$space-3;
-    border-top: 1px solid var(--stroke);
+    border-top: 1px solid index.$stroke;
   }
-}
-
-.workspace__boardPane > .game-board {
-  min-height: 0;
-  width: 100%;
-  height: 100%;
-  max-height: 100%;
 }

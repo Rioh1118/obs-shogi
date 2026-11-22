@@ -1,39 +1,55 @@
 @use "../../../index.scss" as index;
 
+// 盤のマス。木の上なので、色は木に対して決める
 .square {
   position: relative;
 
   &:hover {
-    background-color: rgba(80, 170, 200, 0.25);
-    outline: 0.4px solid rgba(60, 130, 180, 0.4);
+    background-color: rgba(index.$color-primary-dark, 0.1);
   }
 
-  // 選択されていることが分かるように
+  // 指せるマス
   &__highlighted {
-    background-color: rgba(100, 130, 100, 0.12);
-    outline: none;
-
+    background-color: rgba(index.$color-primary-dark, 0.14);
     cursor: pointer;
   }
 
-  // 最後の手が分かるように
+  // 最終手のマス。銅の暗いほうを敷き、アイコンと同じ右下の直角の角を置く
   &__last-move {
-    background-color: rgba(180, 220, 255, 0.35);
-    outline: 1px solid rgba(80, 140, 220, 0.5);
+    background-color: rgba(index.$color-secondary-solid, 0.47);
+    box-shadow: inset 0 0 0 1.5px rgba(#7a4f2f, 0.7);
+
+    &::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 26%;
+      height: 28%;
+      background: #8f4f24;
+      clip-path: polygon(100% 0, 100% 100%, 0 100%);
+      pointer-events: none;
+    }
   }
 
+  // 盤を回しても、角は見た目の右下に置く
+  .game-board--rotated &__last-move::after {
+    right: auto;
+    bottom: auto;
+    top: 0;
+    left: 0;
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+
+  // 選んだマス。選んだものに銅は使わない
   &.square--selected {
-    background-color: rgba(index.$color-secondary-dark, 0.22);
-    outline: 1px solid rgba(index.$color-secondary-dark, 0.28);
+    background-color: rgba(index.$color-primary-dark, 0.34);
+    outline: 1px solid rgba(index.$color-primary-dark, 0.6);
     outline-offset: -1px;
   }
 
   &.square--selected .piece {
     transform: scale(1.03);
     filter: brightness(1.06);
-  }
-
-  &.square--selected .piece:hover {
-    transform: scale(1.06);
   }
 }

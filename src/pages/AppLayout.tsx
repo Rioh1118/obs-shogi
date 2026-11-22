@@ -72,63 +72,59 @@ function AppLayout() {
             </div>
           ) : (
             <div className="workspace">
-              <div className="workspace__surface">
-                <section className="workspace__main">
-                  <div className="workspace__boardPane">
-                    {/*
-                      盤は局面から駒の配置を組み直すので、棋譜が壊れていれば描く前に落ちる。
-                      unmount するのは盤と操作列だけで、棋譜一覧と解析は残す
-                    */}
-                    <AppErrorBoundary
-                      label={BOUNDARY_LABELS.board}
-                      fallback={(view) => (
-                        <ErrorFallbackBody
-                          {...view}
-                          // 棋譜が載った後で描画に失敗したときは、同じ棋譜をツリーで押しても
-                          // `openKifuNode` は走らない（`FileNode` の `canSkipReopen` が真）。
-                          // 効くのは別の棋譜を開くこと
-                          hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
-                        />
-                      )}
-                    >
-                      <GameBoard
-                        topLeft={<Hand isSente={false} />}
-                        center={<Board />}
-                        bottomRight={<Hand isSente={true} />}
-                      />
-                      <div className="workspace__controls">
-                        <GameControls />
-                      </div>
-                    </AppErrorBoundary>
-                  </div>
-                  <aside className="workspace__kifuPane">
-                    {/*
-                      `buildStreamRowsFromCursor` は盤上で再生できない手で投げる（→ #277。症状は #295 の本文）。
-                      unmount するのは一覧だけで、盤と解析は残す
-                    */}
-                    <AppErrorBoundary
-                      label={BOUNDARY_LABELS.kifuStream}
-                      fallback={(view) => (
-                        <ErrorFallbackBody
-                          {...view}
-                          hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
-                        />
-                      )}
-                    >
-                      <KifuStreamList />
-                    </AppErrorBoundary>
-                  </aside>
-                </section>
-
-                <section className="workspace__dock">
+              <section className="workspace__main">
+                <div className="workspace__boardPane">
                   {/*
+                      盤は局面から駒の配置を組み直すので、棋譜が壊れていれば描く前に落ちる。
+                      unmount するのは盤だけで、棋譜一覧と手の移動と解析は残す
+                    */}
+                  <AppErrorBoundary
+                    label={BOUNDARY_LABELS.board}
+                    fallback={(view) => (
+                      <ErrorFallbackBody
+                        {...view}
+                        // 棋譜が載った後で描画に失敗したときは、同じ棋譜をツリーで押しても
+                        // `openKifuNode` は走らない（`FileNode` の `canSkipReopen` が真）。
+                        // 効くのは別の棋譜を開くこと
+                        hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
+                      />
+                    )}
+                  >
+                    <GameBoard
+                      topLeft={<Hand isSente={false} />}
+                      center={<Board />}
+                      bottomRight={<Hand isSente={true} />}
+                    />
+                  </AppErrorBoundary>
+                </div>
+                <aside className="workspace__kifuPane">
+                  {/*
+                      `buildStreamRowsFromCursor` は盤上で再生できない手で投げる（→ #277。症状は #295 の本文）。
+                      unmount するのは一覧だけで、盤と手の移動と解析は残す
+                    */}
+                  <AppErrorBoundary
+                    label={BOUNDARY_LABELS.kifuStream}
+                    fallback={(view) => (
+                      <ErrorFallbackBody
+                        {...view}
+                        hint={`別の棋譜を開いてから「${RETRY_LABEL}」を押してください。`}
+                      />
+                    )}
+                  >
+                    <KifuStreamList />
+                  </AppErrorBoundary>
+                  <GameControls />
+                </aside>
+              </section>
+
+              <section className="workspace__dock">
+                {/*
                     どのビューが入るかはここでは決めない。名簿は `entities/dock`、
                     部品の割り当ては `./dockViews.ts`（`widgets/dock` に置くと同層横断になる）。
                     境界もドックの中にあるので、ビューが落ちてもタブ列は残る
                   */}
-                  <Dock views={DOCK_VIEWS_BINDINGS} />
-                </section>
-              </div>
+                <Dock views={DOCK_VIEWS_BINDINGS} />
+              </section>
             </div>
           )}
         </main>

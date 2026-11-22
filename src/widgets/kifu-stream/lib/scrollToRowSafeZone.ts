@@ -1,8 +1,13 @@
-/** 行が表示の上下25%の帯にかかっていたら、帯の境目の近くまで流す。中央の帯に収まっていれば動かさない。 */
+/**
+ * 行が表示の上下25%の帯にかかっていたら、帯の境目の近くまで流す。中央の帯に収まっていれば動かさない。
+ *
+ * @param unit 流す先を揃える刻み。行の高さを渡すと、上端の行が途中で切れない
+ */
 export function scrollToRowSafeZone(
   scroller: HTMLElement,
   rowEl: HTMLElement,
   behavior: ScrollBehavior,
+  unit = 1,
 ) {
   const viewH = scroller.clientHeight;
   const rowTop = rowEl.offsetTop;
@@ -32,6 +37,6 @@ export function scrollToRowSafeZone(
   if (target == null) return;
 
   const max = scroller.scrollHeight - viewH;
-  const clamped = Math.max(0, Math.min(max, target));
-  scroller.scrollTo({ top: clamped, behavior });
+  const snapped = Math.round(target / unit) * unit;
+  scroller.scrollTo({ top: Math.max(0, Math.min(max, snapped)), behavior });
 }

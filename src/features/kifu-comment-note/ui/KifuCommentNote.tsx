@@ -317,11 +317,11 @@ export default function KifuCommentNote({ open, cursor, boardSeq, anchorEl, onCl
 
   const title = (
     <div className="kifu-comment-note__titlebar">
-      <span className="kifu-comment-note__pill kifu-comment-note__pill--label">
-        <MessageSquareText size={12} strokeWidth={2.1} />
-        <span>comment</span>
+      <span className="kifu-comment-note__label">
+        <MessageSquareText size={13} aria-hidden="true" />
+        comment
       </span>
-      <span className="kifu-comment-note__pill kifu-comment-note__pill--meta">{moveLabel}</span>
+      <span className="kifu-comment-note__meta">{moveLabel}</span>
     </div>
   );
 

@@ -10,7 +10,14 @@ type ControlButtonProps = {
 
 function ControlButton({ children, onClick, disabled = false, title }: ControlButtonProps) {
   return (
-    <button className="control-button" onClick={onClick} disabled={disabled} title={title}>
+    <button
+      type="button"
+      className="control-button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+    >
       {children}
     </button>
   );

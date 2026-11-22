@@ -13,15 +13,15 @@ import { BUCKETS, EXEMPT_MARKER, scan } from "./scssScale";
  * 2行を同じコミットで動かすことになる。
  */
 const BASELINE: Record<Bucket, number> = {
-  "font-size": 160,
-  "border-radius": 76,
-  spacing: 355,
-  elevation: 38,
-  motion: 63,
+  "font-size": 140,
+  "border-radius": 52,
+  spacing: 312,
+  elevation: 25,
+  motion: 51,
   family: 9,
-  "font-weight": 12,
-  indirect: 40,
-  exempt: 8,
+  "font-weight": 5,
+  indirect: 36,
+  exempt: 7,
 };
 
 /** トークンの定義そのものなので、直値があって当然のファイル */

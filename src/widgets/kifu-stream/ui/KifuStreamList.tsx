@@ -83,6 +83,18 @@ function describeDelete(pending: PendingDelete): string {
   return `${what}（${size}）が削除されます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
 }
 
+/**
+ * 1行の高さ。流す先をこの倍数に揃えると、上端の行が途中で切れない。
+ *
+ * いまの手はコメントのぶん広がるので、両端の低い方を取る（広がるのは1行だけ）。
+ */
+function rowUnit(list: HTMLElement): number {
+  const heights = [list.firstElementChild, list.lastElementChild].map((el) =>
+    el instanceof HTMLElement ? el.offsetHeight : 0,
+  );
+  return Math.max(1, Math.min(...heights));
+}
+
 export default function KifuStreamList() {
   const { state, view, goToIndex, applyCursor, deleteBranch, swapBranches } = useGame();
   const { pendingDelete, isDeleting, requestDelete, confirmDelete, cancelDelete } =
@@ -158,7 +170,12 @@ export default function KifuStreamList() {
     lastScrollAtRef.current = now;
 
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    scrollToRowSafeZone(scroller, rowEl, reduced || dt < RECENT_SCROLL_MS ? "auto" : "smooth");
+    scrollToRowSafeZone(
+      scroller,
+      rowEl,
+      reduced || dt < RECENT_SCROLL_MS ? "auto" : "smooth",
+      rowUnit(scroller),
+    );
   }, []);
 
   /** 一覧の外へ流れていれば、見える位置へ戻す。見えている行は動かさない */
@@ -446,7 +463,7 @@ export default function KifuStreamList() {
     <div className="kifu">
       <div className="kifu__status">
         <span className="kifu__statusText">
-          手数 {currentTesuu}/{totalMoves}
+          手数 <strong>{currentTesuu}</strong>/{totalMoves}
         </span>
       </div>
 

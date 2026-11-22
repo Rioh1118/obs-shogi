@@ -1,44 +1,33 @@
 @use "@/index.scss" as index;
 
-/* ===== row ===== */
-
+// 1手1行。行の余りに、選べるほかの手とコメントの1行目を出す
 .kifu-row {
   position: relative;
-  height: 4.2rem;
-  border-radius: 1rem;
+  height: var(--kifu-row-h);
+  padding-right: index.$space-4;
 
-  padding: 0 0.85rem;
   display: grid;
-  grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+  grid-template-columns: 4.4rem minmax(8.8rem, max-content) minmax(0, 1fr);
   align-items: center;
-  gap: 0.7rem;
 
-  color: rgba(index.$color-text-light-1, 0.92);
+  color: index.$color-text-primary;
+  background: index.$color-primary-dark;
   user-select: none;
   cursor: pointer;
-  background: transparent;
-
-  transition:
-    background-color 140ms ease,
-    transform 90ms ease,
-    box-shadow 140ms ease;
 
   // `:hover` で書かない。止まったポインタの下へ来ただけの行にも付く（`usePointedRow`）
   &[data-pointed] {
-    background: rgba(index.$color-white, 0.045);
+    background: index.$surface-hover;
   }
 
-  &:active {
-    transform: translateY(1px);
-    background: rgba(index.$color-primary-black, 0.26);
-    box-shadow: index.$shadow-press;
-  }
-
+  // いまの手。温かい塗りと、左の銅の線（design-system の patterns/selection.md）
   &--active {
-    // **指した行の後に、同じ詳細度で置く。** 置かないと、ポインタを載せた瞬間だけいまの手の背景が薄まる
+    color: index.$color-text-strong;
+
+    // **指した行の後に、同じ詳細度で置く。** 置かないと、ポインタを載せた瞬間だけいまの手の背景が変わる
     &,
     &[data-pointed] {
-      background: rgba(index.$color-white, 0.055);
+      background: index.$surface-now;
     }
 
     // フォーカスは一覧が持ち、輪はいまの手の行に描く。
@@ -51,79 +40,170 @@
     &::before {
       content: "";
       position: absolute;
-      left: 0.38rem;
-      top: 0.75rem;
-      bottom: 0.75rem;
-      width: 2px;
-      border-radius: 999px;
-      background: rgba(index.$color-secondary-dark, 0.95);
-      box-shadow: 0 0 18px rgba(index.$color-secondary-dark, 0.28);
+      inset: 0 auto 0 0;
+      border-left: 2px solid index.$color-secondary-dark;
     }
+
+    .kifu-row__num {
+      color: index.$color-accent-text;
+      font-weight: index.$weight-strong;
+    }
+
+    .kifu-row__move {
+      font-weight: index.$weight-strong;
+    }
+  }
+
+  // コメントのあるいまの手は、行の倍数で広げる。下の行が行の刻みからずれない
+  &--active:has(&__memo) {
+    height: calc(var(--kifu-row-h) * 3);
+    grid-template-rows: var(--kifu-row-h) minmax(0, 1fr);
   }
 
   &--busy {
     opacity: 0.82;
   }
+
+  &__num {
+    padding-right: index.$space-5;
+    text-align: right;
+    font-family: index.$font-mono;
+    font-size: index.$font-aux;
+    color: index.$color-text-faint;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__move {
+    font-size: index.$font-lead;
+    white-space: nowrap;
+  }
+
+  &__extra {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: index.$space-3;
+    padding-left: index.$space-4;
+  }
+
+  &__icon {
+    flex: none;
+  }
+
+  &__count {
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__memo {
+    grid-column: 2 / -1;
+    align-self: start;
+    padding-right: index.$space-5;
+    font-size: index.$font-aux;
+    line-height: 1.7rem;
+    color: index.$color-text-primary;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+  }
 }
 
-.kifu-row__num {
-  text-align: right;
-  font-size: 1.12rem;
-  opacity: 0.55;
-  padding-right: 0.2rem;
-  font-variant-numeric: tabular-nums;
-}
+.kifu-row__fork,
+.kifu-row__comment {
+  display: inline-flex;
+  align-items: center;
+  gap: index.$space-2;
+  height: 2.2rem;
+  padding: 0 index.$space-1;
 
-.kifu-row__move {
-  min-width: 4.6em;
-  font-size: 1.45rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-
+  border: 0;
+  border-radius: index.$radius-control;
+  background: transparent;
+  color: index.$color-text-muted;
+  font-size: index.$font-aux;
   white-space: nowrap;
+  cursor: pointer;
+
+  :where(.kifu-row[data-pointed]) &:hover,
+  &--open {
+    color: index.$color-text-strong;
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+.kifu-row__fork {
+  flex: 0 1 auto;
+  min-width: 0;
+
+  // 幅があるうちは、数の代わりに手を出す
+  .kifu-row__count {
+    display: none;
+  }
+}
+
+.kifu-row__others {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
-}
-
-.kifu-row__badges {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.kifu-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-
-  height: 2.2rem;
-  padding: 0 0.7rem;
-  border-radius: 999px;
-
-  border: 1px solid rgba(index.$color-white, 0.08);
-  background: rgba(index.$color-primary-black, 0.2);
-  color: rgba(index.$color-secondary-light, 0.86);
-
-  font-size: 1.03rem;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.kifu-badge--btn {
-  appearance: none;
-  cursor: pointer;
-
-  :where(.kifu-row[data-pointed]) &:hover {
-    background: rgba(index.$color-white, 0.045);
+  span + span {
+    margin-left: index.$space-2;
   }
-  &:active {
-    background: rgba(index.$color-primary-black, 0.28);
+}
+
+.kifu-row__comment {
+  flex: none;
+  margin-left: auto;
+
+  // 指した行といまの手だけに出す。書いてあることは1行目が示す
+  opacity: 0;
+
+  .kifu-row[data-pointed] &,
+  .kifu-row--active &,
+  &:focus-visible,
+  &--open {
+    opacity: 1;
+  }
+}
+
+.kifu-row__firstLine {
+  min-width: 0;
+  flex: 0 1 auto;
+  font-size: index.$font-aux;
+  color: index.$color-text-muted;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// 数文字しか入らない幅では、印と数に戻す
+@container kifu-list (max-width: 25rem) {
+  .kifu-row__others,
+  .kifu-row__firstLine {
+    display: none;
   }
 
-  &:focus-visible {
-    outline: 2px solid index.$focus-ring;
-    outline-offset: 2px;
+  .kifu-row__fork {
+    flex: none;
+    margin-left: auto;
+
+    .kifu-row__count {
+      display: inline;
+    }
+  }
+
+  .kifu-row__fork + .kifu-row__comment {
+    margin-left: 0;
+  }
+
+  .kifu-row__comment--written {
+    opacity: 1;
   }
 }

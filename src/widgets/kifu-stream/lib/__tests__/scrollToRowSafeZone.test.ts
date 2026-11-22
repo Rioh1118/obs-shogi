@@ -44,6 +44,18 @@ describe("scrollToRowSafeZone", () => {
     expect(scrolledTo(scroller(1500, 1800), 1790)).toBe(1400);
   });
 
+  test("刻みを渡すと、その倍数に揃える", () => {
+    const s = scroller(1000);
+    scrollToRowSafeZone(s as unknown as HTMLElement, row(1099), "auto", 20);
+    expect(s.scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: "auto" });
+  });
+
+  test("刻みに揃えても、一覧の端を越えない", () => {
+    const s = scroller(1500, 1810);
+    scrollToRowSafeZone(s as unknown as HTMLElement, row(1800), "auto", 20);
+    expect(s.scrollTo).toHaveBeenCalledWith({ top: 1410, behavior: "auto" });
+  });
+
   test("渡された流し方をそのまま使う", () => {
     const s = scroller(1000);
     scrollToRowSafeZone(s as unknown as HTMLElement, row(1500), "smooth");

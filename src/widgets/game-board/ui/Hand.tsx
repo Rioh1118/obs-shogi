@@ -1,18 +1,14 @@
 import { Color, type Kind } from "shogi.js";
 import PieceImage from "@/entities/position/ui/PieceImage";
-import { useHandLayout, type RowConfig } from "./useHandLayout";
+import { arrangeHand, type HandItem } from "../lib/arrangeHand";
 import "./Hand.scss";
-import { useState, type PointerEvent } from "react";
+import { useMemo, useState, type PointerEvent } from "react";
 import { useGame } from "@/entities/game";
 import { handAreaMarker } from "@/features/clear-board-selection";
 
 type HandProps = {
   isSente: boolean;
 };
-
-/** 駒台の段を上から並べる順。後手は先手と上下を逆にする */
-const SENTE_ROWS = ["row1", "row2", "row3", "row4"] as const;
-const GOTE_ROWS = ["row4", "row3", "row2", "row1"] as const;
 
 /**
  * 片側の駒台。押した持ち駒を選び、手番でない側では選択を外すだけにする。
@@ -33,10 +29,11 @@ function Hand({ isSente }: HandProps) {
   const selectedPosition = state.selectedPosition;
 
   const color = isSente ? Color.Black : Color.White;
-  const handPieces = hands?.[color] || [];
+  const handPieces = hands?.[color];
 
-  const handPiecesArray = Array.from(handPieces || []);
-  const { arrangedPieces, layoutConfig } = useHandLayout(handPiecesArray);
+  const { rows, isGrouped } = useMemo(() => arrangeHand(handPieces ?? []), [handPieces]);
+  // 後手は先手と上下を逆にする
+  const shownRows = isSente ? rows : [...rows].reverse();
   const isCurrentTurn = color === currentTurn;
 
   const isThisHandSelected = selectedPosition?.type === "hand" && selectedPosition.color === color;
@@ -76,64 +73,42 @@ function Hand({ isSente }: HandProps) {
     clearSelection();
   };
 
-  const renderPiecesInRow = (
-    pieces: readonly Kind[],
-    rowConfig: RowConfig,
-    seenOfKind: Map<Kind, number>,
-  ) => {
-    return pieces.map((pieceKind) => {
-      const nth = seenOfKind.get(pieceKind) ?? 0;
-      seenOfKind.set(pieceKind, nth + 1);
-
-      const marked = isMarked(pieceKind, nth);
-
-      return (
-        <div
-          key={`${pieceKind}-${nth}`}
-          className={`hand-piece ${marked ? "hand-piece--selected" : ""}`}
-          data-hand-piece="true"
-          style={{
-            width: `${rowConfig.pieceSize}em`,
-            height: `${rowConfig.pieceSize * 1.1}em`,
-          }}
-        >
-          <PieceImage
-            kind={pieceKind}
-            color={color}
-            onClick={() => handlePieceClick(pieceKind, nth)}
-          />
-        </div>
-      );
-    });
-  };
-
   const seenOfKind = new Map<Kind, number>();
+
+  const renderItem = ({ kind, count }: HandItem) => {
+    const nth = seenOfKind.get(kind) ?? 0;
+    seenOfKind.set(kind, nth + 1);
+
+    return (
+      <div key={`${kind}-${nth}`} className="hand-stack">
+        <div
+          className={`hand-piece ${isMarked(kind, nth) ? "hand-piece--selected" : ""}`}
+          data-hand-piece="true"
+        >
+          <PieceImage kind={kind} color={color} onClick={() => handlePieceClick(kind, nth)} />
+        </div>
+        {isGrouped && <span className="hand-stack__count">{count > 1 ? count : ""}</span>}
+      </div>
+    );
+  };
 
   return (
     <div
-      className={`hand-container ${isSente ? "player-hand" : "opponent-hand"}`}
+      className={[
+        "hand-container",
+        isSente ? "player-hand" : "opponent-hand",
+        isGrouped ? "hand-container--grouped" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       {...handAreaMarker}
       onPointerDown={handleHandAreaPointerDown}
     >
-      <div className="hand-pieces">
-        {(isSente ? SENTE_ROWS : GOTE_ROWS).map((rowKey) => {
-          const pieces = arrangedPieces[rowKey];
-          const rowConfig = layoutConfig.getRowConfig(pieces);
-
-          return (
-            <div
-              key={rowKey}
-              className={`hand-row hand-${rowKey}`}
-              style={{
-                gap: `${rowConfig.gap}em`,
-                justifyContent: "center",
-              }}
-            >
-              {renderPiecesInRow(pieces, rowConfig, seenOfKind)}
-            </div>
-          );
-        })}
-      </div>
+      {shownRows.map((items, i) => (
+        <div key={i} className="hand-row">
+          {items.map(renderItem)}
+        </div>
+      ))}
     </div>
   );
 }

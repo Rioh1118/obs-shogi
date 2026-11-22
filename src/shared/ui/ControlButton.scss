@@ -1,16 +1,11 @@
 @use "@/index.scss" as index;
 
 .control-button {
-  box-sizing: inherit;
-  flex: 1;
+  min-width: 0;
+  height: 4rem;
   border: 0;
-  width: 25%;
-  height: 4.4rem;
-  background: transparent;
-
-  font-family: sans-serif;
-  font-size: 2.1rem;
-  color: rgba(index.$color-text-light-1, 0.92);
+  background: index.$color-primary-black;
+  color: index.$color-text-strong;
 
   display: grid;
   place-items: center;
@@ -18,47 +13,28 @@
   user-select: none;
   cursor: pointer;
 
-  transition:
-    background-color 140ms ease,
-    transform 80ms ease,
-    box-shadow 80ms ease,
-    color 140ms ease;
-
-  &:not(:last-child) {
-    border-right: 1px solid index.$stroke-weak;
+  & + & {
+    border-left: 1px solid index.$stroke-weak;
   }
 
   &:hover {
-    background: rgba(index.$color-white, 0.06);
+    background: index.$color-primary-light;
   }
 
   &:active {
-    transform: scale(0.993) translateY(0.1rem);
-    background: rgba(index.$color-primary-black, 0.22);
-    box-shadow: index.$shadow-press;
-    color: rgba(index.$color-secondary-light, 0.95);
+    background: index.$surface-selected;
   }
 
+  // 帯の端に接するので、内側に描く
   &:focus-visible {
     outline: 2px solid index.$focus-ring;
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
 
   &:disabled {
     cursor: default;
-    transform: none;
-    box-shadow: none;
-
-    color: rgba(index.$color-text-light-1, 0.38);
-    background: rgba(index.$color-primary-black, 0.16);
-    opacity: 1;
-
-    &:hover {
-      background: rgba(index.$color-primary-black, 0.16);
-    }
-    &:active {
-      transform: none;
-      box-shadow: none;
-    }
+    background: index.$color-primary-black;
+    color: index.$color-text-faint;
+    opacity: 0.45;
   }
 }
