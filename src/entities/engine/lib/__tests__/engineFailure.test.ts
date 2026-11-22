@@ -12,6 +12,7 @@ describe("asStartFailure", () => {
       kind: "notUsi",
       message: "no usiok",
       lastOutput: null,
+      evalType: null,
     });
   });
 
@@ -24,6 +25,17 @@ describe("asStartFailure", () => {
     expect(failure.lastOutput).toBe("stderr: boom");
   });
 
+  test("評価関数の型を読む（型が合わなかった失敗に付く）", () => {
+    const failure = asStartFailure({
+      kind: "evalTypeMismatch",
+      message: "x",
+      lastOutput: "Error! : failed to read nn.bin : FileMissMatch",
+      evalType: "HalfKA2 1024x2",
+    });
+    expect(failure.kind).toBe("evalTypeMismatch");
+    expect(failure.evalType).toBe("HalfKA2 1024x2");
+  });
+
   test("知らない種類は unknown に落とす", () => {
     expect(asStartFailure({ kind: "futureKind", message: "x" }).kind).toBe("unknown");
     expect(asStartFailure({ kind: 3, message: "x" }).kind).toBe("unknown");
@@ -34,11 +46,13 @@ describe("asStartFailure", () => {
       kind: "unknown",
       message: "Command start_analysis_engine not found",
       lastOutput: null,
+      evalType: null,
     });
     expect(asStartFailure(new Error("ipc closed"))).toEqual({
       kind: "unknown",
       message: "ipc closed",
       lastOutput: null,
+      evalType: null,
     });
     expect(asStartFailure(null).kind).toBe("unknown");
   });

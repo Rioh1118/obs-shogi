@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
 
 import type { ProfileCandidate } from "@/entities/ai-library/api/aiLibrary";
-import { bookChoices, bookReadAsDb, evalChoices, fileLabel, isFileKind } from "../fileChoices";
+import {
+  bookChoices,
+  bookReadAsDb,
+  evalChoices,
+  evalTypeOf,
+  fileLabel,
+  isFileKind,
+} from "../fileChoices";
 
 const profile = (name: string, evals: string[], books: string[]): ProfileCandidate => ({
   name,
@@ -84,5 +91,20 @@ describe("bookChoices", () => {
     // 別のフォルダの同じ名前の .db は読まれない
     const split = [profile("a", [], ["user_book1.db"]), profile("b", [], ["user_book1.ybb"])];
     expect(bookReadAsDb(split, "/ai/b/book/user_book1.ybb")).toBe(false);
+  });
+});
+
+describe("evalTypeOf", () => {
+  test("選んだ評価関数の型を返し、読めなかったファイルとライブラリの外のファイルは null（AC-E5）", () => {
+    const typed: ProfileCandidate = {
+      ...profile("li", [], []),
+      eval_files: [
+        { entry: "nn.bin", path: "/ai/li/eval/nn.bin", kind: "file", eval_type: "HalfKP 256x2" },
+        { entry: "x.bin", path: "/ai/li/eval/x.bin", kind: "file" },
+      ],
+    };
+    expect(evalTypeOf([typed], "/ai/li/eval/nn.bin")).toBe("HalfKP 256x2");
+    expect(evalTypeOf([typed], "/ai/li/eval/x.bin")).toBeNull();
+    expect(evalTypeOf([typed], "/elsewhere/nn.bin")).toBeNull();
   });
 });

@@ -33,6 +33,18 @@ function keepCurrent(choices: FileChoice[], current: string | null): FileChoice[
 }
 
 /**
+ * 選んだ評価関数の型（ファイルの先頭から読んだもの）。AI ライブラリに無いファイルと、読めなかったファイルは `null`
+ * （`docs/spec/features/eval-files.md` の AC-E5）
+ */
+export function evalTypeOf(profiles: ProfileCandidate[], path: string): string | null {
+  for (const p of profiles) {
+    const found = p.eval_files.find((f) => f.path === path);
+    if (found) return found.eval_type ?? null;
+  }
+  return null;
+}
+
+/**
  * 評価関数の選択肢。AI ライブラリの全部のフォルダの `eval/` を「フォルダ / ファイル」で並べる。
  * 先頭は「指定しない」（評価関数を受けないエンジンがある。値は空）。各フォルダの中は `nn.bin` を先に
  */

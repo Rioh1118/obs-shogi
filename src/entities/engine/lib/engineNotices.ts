@@ -65,6 +65,18 @@ const UNIDENTIFIED_FAILURE_NOTICE: EngineStartFailureNotice = {
 };
 
 /**
+ * 評価関数の型がエンジンと合わないときの本文。型を読めていれば添える
+ * （`docs/spec/features/eval-files.md` の AC-E6）
+ */
+function evalTypeMismatchBody(evalType: string | null): string {
+  const type = evalType ? `（${evalType}）` : "";
+  return (
+    `評価関数の型${type}がこのエンジンと合いません。` +
+    "設定の「エンジン管理」で、評価関数と同じ型の実行ファイルを選択してください。"
+  );
+}
+
+/**
  * 起動の失敗の種類ごとに、帯の tier、本文、「もう一度起動」を出すかを決めた表。
  * 判断の出典はここ1つで、他の doc は種類を列挙せずここを指す。
  *
@@ -112,6 +124,13 @@ export const ENGINE_START_FAILURE_NOTICES: Record<
       "エンジンが準備の途中で終了しました。設定の「エンジン管理」で、エンジンと評価関数の場所と、" +
       "エンジンに必要なファイルが揃っているかを確認してください。" +
       TWO_WAYS,
+    retry: true,
+  },
+  // 型は帯を組むときに添える（`engineFailureNoticeOf`）。同じ場所の `nn.bin` を置き換えて直すことも
+  // でき、そのとき設定は変わらないので「もう一度起動」を出す
+  evalTypeMismatch: {
+    tier: "danger",
+    body: evalTypeMismatchBody(null),
     retry: true,
   },
   timedOut: {
@@ -179,7 +198,9 @@ export function engineFailureNoticeOf({
   }
   if (phase === "error") {
     const { tier, body, retry } = ENGINE_START_FAILURE_NOTICES[error?.kind ?? "unknown"];
-    return { tier, title: START_FAILURE_TITLE, body, retry, startFailure: true };
+    const shown =
+      error?.kind === "evalTypeMismatch" ? evalTypeMismatchBody(error.evalType ?? null) : body;
+    return { tier, title: START_FAILURE_TITLE, body: shown, retry, startFailure: true };
   }
   if (presetIncomplete) return { ...PRESET_INCOMPLETE_NOTICE, retry: false, startFailure: true };
   return null;

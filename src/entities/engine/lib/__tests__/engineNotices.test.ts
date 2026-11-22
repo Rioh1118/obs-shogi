@@ -10,7 +10,7 @@ const QUIET = {
 } as const;
 
 function failure(kind: EngineStartFailure["kind"]): EngineStartFailure {
-  return { kind, message: "", lastOutput: null };
+  return { kind, message: "", lastOutput: null, evalType: null };
 }
 
 describe("engineFailureNoticeOf", () => {
@@ -32,6 +32,24 @@ describe("engineFailureNoticeOf", () => {
       retry,
       startFailure: true,
     });
+  });
+
+  test("評価関数の型が合わなければ型を添え、同じ型の実行ファイルを選ぶよう言って終える（AC-E6）", () => {
+    const notice = engineFailureNoticeOf({
+      ...QUIET,
+      phase: "error",
+      error: { ...failure("evalTypeMismatch"), evalType: "HalfKA2 1024x2" },
+    });
+
+    expect(notice?.body).toBe(
+      "評価関数の型（HalfKA2 1024x2）がこのエンジンと合いません。" +
+        "設定の「エンジン管理」で、評価関数と同じ型の実行ファイルを選択してください。",
+    );
+    expect(notice?.retry).toBe(true);
+    // 型を読めなければ型を出さずに言う
+    expect(
+      engineFailureNoticeOf({ ...QUIET, phase: "error", error: failure("evalTypeMismatch") })?.body,
+    ).toBe(ENGINE_START_FAILURE_NOTICES.evalTypeMismatch.body);
   });
 
   test("失敗の値が欠けていても unknown の文を出す", () => {

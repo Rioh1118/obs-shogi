@@ -1142,6 +1142,28 @@ describe("文言", () => {
   });
 });
 
+describe("評価関数の型", () => {
+  test("選んだ評価関数の型を欄の下に出す。読めなかったファイルには何も出さない（AC-E5）", async () => {
+    const profile = INDEX.profiles[0];
+    scanAiRoot.mockResolvedValue({
+      ...INDEX,
+      profiles: [
+        {
+          ...profile,
+          eval_files: [{ ...profile.eval_files[0], eval_type: "HalfKA2 1024x2" }],
+        },
+      ],
+    });
+    await openDialog({ evalFilePath: EVAL_HAO });
+    expect(screen.getByText("型: HalfKA2 1024x2")).toBeTruthy();
+
+    cleanup();
+    scanAiRoot.mockResolvedValue(INDEX);
+    await openDialog({ evalFilePath: EVAL_HAO });
+    expect(screen.queryByText(/^型: /)).toBeNull();
+  });
+});
+
 describe("eval_options.txt が決める欄", () => {
   // AC-E2: エンジンは isready で評価関数フォルダの eval_options.txt を読み、送った値を上書きする
   const WITH_OPTIONS: AiRootIndex = {

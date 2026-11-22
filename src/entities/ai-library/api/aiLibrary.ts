@@ -36,6 +36,8 @@ export type FileCandidate = {
   /** 絶対パス */
   path: string;
   kind: FsKind;
+  /** 評価関数の型（`HalfKA2 1024x2` など）。`eval/` の候補で、先頭を読めたときだけ */
+  eval_type?: string;
 };
 
 /** `eval_options.txt` の1行 */

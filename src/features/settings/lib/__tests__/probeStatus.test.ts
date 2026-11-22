@@ -10,17 +10,20 @@ const failure = (kind: EngineStartFailureKind, enginePath = "/e/a"): ProbeFailur
   message: "Permission denied",
   enginePath,
 });
-const ALL_KINDS: EngineStartFailureKind[] = [
-  "spawnFailed",
-  "quarantined",
-  "notUsi",
-  "exitedEarly",
-  "timedOut",
-  "invalidValue",
-  "cancelled",
-  "other",
-  "unknown",
-];
+/** 種類を鍵にした表なので、種類を足して書き忘れると tsc が落ちる */
+const KINDS: Record<EngineStartFailureKind, true> = {
+  spawnFailed: true,
+  quarantined: true,
+  notUsi: true,
+  exitedEarly: true,
+  evalTypeMismatch: true,
+  timedOut: true,
+  invalidValue: true,
+  cancelled: true,
+  other: true,
+  unknown: true,
+};
+const ALL_KINDS = Object.keys(KINDS) as EngineStartFailureKind[];
 
 describe("probeStatusText", () => {
   /** 読み込みはエンジンを選べば裏で進むもの。うまくいっているときは何も言わない */

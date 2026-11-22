@@ -175,7 +175,8 @@ impl EngineBridge {
                 Ok(outcome)
             }
             Err(e) => {
-                let failure = start_failure::describe(&e, &engine_path).await;
+                let failure =
+                    start_failure::describe(&e, &engine_path, input.eval_path.as_deref()).await;
                 if failure.kind == StartFailureKind::Cancelled {
                     log::info!(target: LOGT, "start_analysis_engine: cancelled: {}", failure.message);
                 } else {

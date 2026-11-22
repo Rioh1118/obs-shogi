@@ -7,6 +7,7 @@ use ::fs::error::{FsError, FsErrorCode};
 
 use super::dir::{kind_of, FsKind};
 use super::engines::ENGINES_DIR;
+use crate::engine::eval_arch::read_eval_type;
 
 const EVAL_DIR: &str = "eval";
 const BOOK_DIR: &str = "book";
@@ -36,6 +37,10 @@ pub struct FileCandidate {
     pub path: String,
     /// `File` か `Symlink`。symlink は指す先を確かめずに候補にする
     pub kind: FsKind,
+    /// 評価関数の型（`HalfKA2 1024x2` など。`engine::eval_arch`）。eval/ の候補だけが持ち、
+    /// 先頭を読めなければ無い
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eval_type: Option<String>,
 }
 
 /// `eval_options.txt` の1行（`<名前> <値>`）
@@ -156,6 +161,10 @@ pub fn read_all(ai_root: &Path) -> Result<Vec<ProfileCandidate>, String> {
             list_file_candidates(&eval_dir, None, MAX_FILES_PER_DIR)
                 .into_iter()
                 .filter(|f| !f.entry.eq_ignore_ascii_case(EVAL_OPTIONS_FILE))
+                .map(|f| FileCandidate {
+                    eval_type: read_eval_type(Path::new(&f.path)),
+                    ..f
+                })
                 .collect()
         } else {
             vec![]
@@ -261,6 +270,7 @@ fn list_file_candidates(dir: &Path, ext_filter: Option<&[&str]>, max: usize) -> 
             entry: entry_name,
             path: path.to_string_lossy().to_string(),
             kind,
+            eval_type: None,
         });
     }
 

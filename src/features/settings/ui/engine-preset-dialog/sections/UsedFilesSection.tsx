@@ -1,5 +1,10 @@
 import { bookInUse, type EnginePreset } from "@/entities/engine-presets";
-import { bookChoices, bookReadAsDb, evalChoices } from "@/features/settings/lib/fileChoices";
+import {
+  bookChoices,
+  bookReadAsDb,
+  evalChoices,
+  evalTypeOf,
+} from "@/features/settings/lib/fileChoices";
 import type { ProbeFailure } from "@/features/settings/lib/probeStatus";
 import type { AiRootIndexState } from "@/features/settings/model/useAiRootIndex";
 import { SField, SSection, SSelect } from "@/features/settings/ui/kit";
@@ -36,6 +41,7 @@ export default function UsedFilesSection({
 }: Props) {
   const profiles = library.index?.profiles ?? [];
   const evals = evalChoices(profiles, draft.evalFilePath);
+  const evalType = evalTypeOf(profiles, draft.evalFilePath);
   const bookUsed = bookInUse(draft);
   const books = bookChoices(profiles, bookUsed ? draft.bookFilePath : null);
   const readAsDb = bookUsed && bookReadAsDb(profiles, draft.bookFilePath);
@@ -62,7 +68,7 @@ export default function UsedFilesSection({
           probeFailure={probeFailure}
         />
 
-        <SField label="評価関数">
+        <SField label="評価関数" hint={evalType ? `型: ${evalType}` : undefined}>
           <SSelect
             value={draft.evalFilePath}
             aria-label="評価関数"
