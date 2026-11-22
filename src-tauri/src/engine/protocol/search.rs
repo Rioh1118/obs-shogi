@@ -10,10 +10,10 @@ use usi::ThinkParams;
 
 use super::{refuse_breaking_field, Input, Request, Status, UsiProtocol, LOGT};
 use crate::engine::types::EngineError;
-pub use crate::engine::usi_machine::SearchLine;
 #[cfg(test)]
 use crate::engine::usi_machine::GONE;
 use crate::engine::usi_machine::{closed_error, Asked, SearchId};
+pub use crate::engine::usi_machine::{MateAnswer, SearchLine};
 
 /// 止めたときの答え。**`stop` の後に何が起きたかを、ここで1つの値にする。**
 ///
@@ -56,7 +56,9 @@ pub struct Search {
     protocol: UsiProtocol,
     id: SearchId,
     lines: mpsc::UnboundedReceiver<SearchLine>,
-    /// `bestmove` を受けた。以後は止めるものが無い
+    /// 詰み探索（`go mate`）。最後の行は `bestmove` でなく `checkmate`
+    mate: bool,
+    /// 最後の行（`bestmove`、詰み探索なら `checkmate`）を受けた。以後は止めるものが無い
     answered: bool,
 }
 
@@ -75,11 +77,13 @@ impl Search {
         protocol: UsiProtocol,
         id: SearchId,
         lines: mpsc::UnboundedReceiver<SearchLine>,
+        mate: bool,
     ) -> Self {
         Self {
             protocol,
             id,
             lines,
+            mate,
             answered: false,
         }
     }
@@ -129,7 +133,7 @@ impl UsiProtocol {
 }
 
 impl Search {
-    /// 次の行を待つ。`bestmove` を返した後は `Ok(None)`。
+    /// 次の行を待つ。`bestmove`（詰み探索なら `checkmate`）を返した後は `Ok(None)`。
     /// `bestmove` の前に閉じたら、閉じた写しを見てから届かない理由（`UsiProtocol::cannot_reach`）で断る。
     ///
     /// 取り消してよい（`select!` に置ける）。受けていない行は失われない
@@ -139,7 +143,11 @@ impl Search {
         }
         match self.lines.recv().await {
             Some(line) => {
-                self.answered = matches!(line, SearchLine::BestMove(_));
+                self.answered = match line {
+                    SearchLine::BestMove(_) => true,
+                    SearchLine::Checkmate(_) => self.mate,
+                    SearchLine::Info(_) => false,
+                };
                 Ok(Some(line))
             }
             // 送り手が落ちるのは閉じたときだけ（`bestmove` の後は上で返る）。理由は閉じた写しから組む
@@ -244,7 +252,7 @@ impl Drop for Search {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use usi::{BestMoveParams, CheckmateParams, InfoParams};
+    use usi::{BestMoveParams, InfoParams};
 
     /// 実プロセスで確かめる
     #[cfg(unix)]
@@ -378,7 +386,7 @@ done"#;
                 .expect("書ける");
             assert!(matches!(
                 search.next_line().await,
-                Ok(Some(SearchLine::Checkmate(CheckmateParams::NoMate)))
+                Ok(Some(SearchLine::Checkmate(MateAnswer::NoMate)))
             ));
             // 答えていないので止められる（台本は `stop` に `bestmove` で答える）
             assert!(matches!(

@@ -7,7 +7,7 @@
 use crate::engine::candidates::{apply_info_params, depth_of_rank};
 
 use super::analysis_start::{self, cancelled_start, validate_input, StartInput};
-use super::protocol::search::{LateAnswer, Search, SearchLine, StopAnswer};
+use super::protocol::search::{LateAnswer, MateAnswer, Search, SearchLine, StopAnswer};
 use super::protocol::{contains_usi_breaking_char, EngineEndWatch, UsiProtocol};
 use super::registry::{EngineId, EngineProcess, EngineRegistry};
 use super::types::*;
@@ -675,23 +675,16 @@ impl EngineAnalyzer {
         }
     }
 
-    fn process_checkmate(params: &usi::CheckmateParams, result: &mut AnalysisResult) {
-        use usi::CheckmateParams;
-
-        match params {
-            CheckmateParams::Mate(moves) => {
-                result.mate_sequence = Some(moves.clone());
-            }
-            CheckmateParams::NoMate => {
-                // 「詰み探索したが詰み無し」を表す
-                result.mate_sequence = Some(Vec::new());
-            }
-            CheckmateParams::NotImplemented | CheckmateParams::Timeout => {
-                // 最低限、結果としては「手順なし」にしておく
-                // ここは将来、別フィールドに拡張しても良い
-                result.mate_sequence = Some(Vec::new());
-            }
-        }
+    /// 検討の探索に来た `checkmate`（通常の `go` で詰みを返すエンジンがある）。手順だけを結果に載せ、
+    /// 詰まない・時間切れ・非対応・読めないは空の手順にする（言い分けるのは詰み探索 `mate_search`）
+    fn process_checkmate(answer: &MateAnswer, result: &mut AnalysisResult) {
+        result.mate_sequence = Some(match answer {
+            MateAnswer::Mate(moves) => moves.clone(),
+            MateAnswer::NoMate
+            | MateAnswer::Timeout
+            | MateAnswer::NotImplemented
+            | MateAnswer::Unreadable(_) => Vec::new(),
+        });
     }
 }
 

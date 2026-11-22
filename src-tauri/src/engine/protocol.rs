@@ -19,7 +19,7 @@ use crate::engine::child::{
 };
 use crate::engine::logging::{shown, LogThrottle, MAX_SUMMARY_LEN};
 use crate::engine::usi_machine::{
-    closed_error, Asked, Effect, SearchId, SearchLine, Ticket, UsiMachine, GONE, STALLED,
+    closed_error, is_mate, Asked, Effect, SearchId, SearchLine, Ticket, UsiMachine, GONE, STALLED,
 };
 use crate::engine::{logging::cmd_summary, logging::with_cause, types::*};
 use search::Search;
@@ -556,6 +556,7 @@ impl UsiActor {
         position: String,
         params: ThinkParams,
     ) -> Result<Search, EngineError> {
+        let mate = is_mate(&params);
         let id = self.machine.search(position, params)?;
         let (tx, lines) = mpsc::unbounded_channel();
         self.search = Some((id, tx));
@@ -569,7 +570,7 @@ impl UsiActor {
             status: self.status.subscribe(),
             diagnostics: self.child.diagnostics(),
         };
-        Ok(Search::new(UsiProtocol { handle }, id, lines))
+        Ok(Search::new(UsiProtocol { handle }, id, lines, mate))
     }
 
     /// 状態機械を1回動かし、出たことを出た順に行う。**同期。await 点を持たない。**
