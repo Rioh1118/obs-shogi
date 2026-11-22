@@ -2,12 +2,21 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に倣い、版は semver（上げ方は CLAUDE.md）。
 
-## 未リリース
+## [0.3.0] - 2026-11-23
 
-### 追加（道具だけ。値と部品は変えていない）
+### 変更（見た目が全体で変わる）
+- 方向を D2 にした（decisions/0005）。墨 `#171e20`・砂・銅 `#b07c55`（アイコンの色）。盤の周りは `#2c3639`。線は不透明。角は 0〜3px。重なりの影は、メニューとモーダルだけ
+- 選んだものと局面の「いま」を分けた（patterns/selection.md）。選んだものは灰青、「いま」は銅の線と温かい塗り
+- `color.accent.solid` をアイコンの暗い銅 `#8f6347` に（白文字 5.19:1）。`color.surface.field` を不透明にした
+- 進めるボタンを、銅でなく砂色の枠と文字にした（銅は「いま」だけ）
+
+### 追加
+- `color.background.hover`・`selected`・`now`・`dock`・`dock-strip`、`color.text.strong`・`label`、`color.accent.bright`、`radius.0`
+- 部品の文書：一覧の行、設定の行、知らせの帯、モーダル、札
+- 原則9（盤を先に置く）・10（箱を作らない）・11（溢れない）
 - `ds:screens`：製品の画面を見本データで撮り、はみ出し・形の癖・固定値の違反を数える（screens/）。`ds:screens:selftest` は物差しの自己テスト
 - `ds:compare`、`ds:compare:serve`：今の画面と案を、同じ窓の大きさで並べた1枚を作り、感想をファイルへ残す（compare/）
-- explorations/2026-11-22-rework（1周目 A〜D、2周目 D2・D3。利用者が選ぶまで確定しない）
+- explorations/2026-11-22-rework（1周目 A〜D、2周目 D2・D3。利用者は D2 を選んだ）
 
 ## [0.2.2] - 2026-11-08
 

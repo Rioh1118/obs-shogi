@@ -33,6 +33,13 @@ textarea {
   font: inherit;
 }
 
+// フォーカスの輪は固定値（銅の1本、2px、オフセット 2px）。部品が自分で書かなければこれが出る。
+// 詳細度を 0 にして、箱に切られる部品が内側に描き直せるようにする
+:where(:focus-visible) {
+  outline: 2px solid index.$focus-ring;
+  outline-offset: 2px;
+}
+
 * {
   scrollbar-width: none; // Firefox
   -ms-overflow-style: none; // IE and Edge

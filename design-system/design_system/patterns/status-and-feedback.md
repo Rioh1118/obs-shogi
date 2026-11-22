@@ -1,7 +1,7 @@
 # 状態と失敗の見せ方
 
 状態：基準線（v0.1。製品の `docs/spec/design-language.md` §3・§5 と ADR-0004 から写した）
-関連する部品：Button、帯（製品側に実装あり、文書は未作成）、待ちの表示（製品の `Spinner`）
+関連する部品：Button、知らせの帯（`components/notice-band.md`）、札（`components/tag.md`）、待ちの表示（製品の `Spinner`）
 
 ## いつ使うか
 

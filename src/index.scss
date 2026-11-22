@@ -5,35 +5,44 @@
 $color-primary-light: ds.$lm-color-background-canvas;
 $color-primary-dark: ds.$lm-color-background-default;
 $color-primary-black: ds.$lm-color-background-sunken;
-// 盤と駒台を置くサーフェス。ペインのサーフェス（$color-primary-dark）から半段だけ沈める
+// 盤と駒台を置くサーフェス。墨から離した緑で、木を立たせる
 $color-stage: ds.$lm-color-background-stage;
+// 行の塗り。選んだものと局面の「いま」を別の塗りにする（design-system の patterns/selection.md）
+$surface-hover: ds.$lm-color-background-hover;
+$surface-selected: ds.$lm-color-background-selected; // ファイル、設定のタブ、適用中
+$surface-now: ds.$lm-color-background-now; // いまの手、最善手。左の銅の線と組で使う
+// 検討のドックだけ半段明るい。利用者が今の見た目を選んだ（design-system の decisions/0005）
+$surface-dock: ds.$lm-color-background-dock;
+$surface-dock-strip: ds.$lm-color-background-dock-strip;
 
 $color-secondary-light: ds.$lm-color-commit-solid;
 $color-secondary-dark: ds.$lm-color-accent-default;
 $color-secondary-dark-2: #a57d5c;
 
-// 背景に敷く銅。$color-secondary-dark に白文字を置くと 3.80:1 で本文の基準を割る。
-// 1段階暗くすると 4.79:1 になり、白文字のまま基準を満たせる。
-//
-// ホバーは**暗くする**。白文字を載せる背景なので、明るくすると比が下がり、
+// 「いま」を示す点（適用中）
+$color-accent-bright: ds.$lm-color-accent-bright;
+
+// 背景に敷く銅。白文字を載せる背景なので、ホバーは**暗くする**。明るくすると比が下がり、
 // 押そうとしている瞬間にいちばん読みにくくなる
-$color-secondary-solid: ds.$lm-color-accent-solid; // 白文字 4.79:1
-$color-secondary-solid-hover: ds.$lm-color-accent-solid-hover; // 白文字 5.29:1
+$color-secondary-solid: ds.$lm-color-accent-solid; // 白文字 5.19:1
+$color-secondary-solid-hover: ds.$lm-color-accent-solid-hover; // 白文字 5.92:1
 // 確定のボタンの背景。砂色の文字と同じ素材にして、暗い文字を載せる（$color-primary-black で 11.1:1）
 $color-commit-solid: ds.$lm-color-commit-solid;
 $color-commit-solid-hover: ds.$lm-color-commit-solid-hover;
-// 進めるボタンの銅の文字。$color-secondary-dark は暗い背景で 4.2:1 なので1段階上げる（6.22:1）
+// 暗い背景に載せる銅の文字（手番、検討中）。$color-secondary-dark は 4.71:1 なので1段階上げる（7.06:1）
 $color-accent-text: ds.$lm-color-text-accent;
 
 $color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
 
+$color-text-strong: ds.$lm-color-text-strong; // 題、いまの手、値
 $color-text-primary: ds.$lm-color-text-default;
 // 文字の濃さの段階。**不透明に混ぜる。** 半透明にすると載る背景ごとに比が変わる。
-// 混ぜる相手は本文の背景（$color-primary-dark）で、比は本文の基準 4.5:1 を見て決めた。
-// faint は $surface-raised の上で 4.03:1 に落ちるので、そこには載せない
-$color-text-muted: ds.$lm-color-text-subtle; // 本文の背景で 6.16:1
-$color-text-faint: ds.$lm-color-text-faint; // 本文の背景で 4.64:1
+// 比は本文の基準 4.5:1 を見て決めた。
+// faint は $surface-selected（4.49:1）と $color-stage（4.41:1）で基準を割るので、そこには載せない
+$color-text-muted: ds.$lm-color-text-subtle; // 本文の背景で 8.47:1
+$color-text-label: ds.$lm-color-text-label; // 表の見出し、数の添え書き。本文の背景で 7.23:1
+$color-text-faint: ds.$lm-color-text-faint; // 本文の背景で 6.01:1
 
 $color-text-dark-1: ds.$lm-color-text-inverse;
 $color-text-dark-2: #3a3a3a;
@@ -163,6 +172,11 @@ $radius-7: ds.$lm-radius-7;
 $radius-8: ds.$lm-radius-8;
 $radius-9: ds.$lm-radius-9;
 $radius-pill: ds.$lm-radius-pill; // 文字サイズに従属しないので rem 化しない
+// 役割の名前。画面に入れるときは、番号でなくこちらで書く
+$radius-row: ds.$lm-radius-row; // 行。角を立てる
+$radius-control: ds.$lm-radius-control; // 押す・打つもの
+$radius-surface: ds.$lm-radius-surface; // ポップオーバー、メニュー、付箋
+$radius-modal: ds.$lm-radius-modal; // モーダル
 $radius-circle: 50%;
 
 // motion
