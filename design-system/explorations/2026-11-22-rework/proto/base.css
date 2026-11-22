@@ -1,0 +1,1287 @@
+/* 全部の案に共通。色は「墨・砂・銅」（public/icon.svg と公開中のサイトの値）と、案A の C4 の値 */
+
+@font-face {
+  font-family: 'ObsKoma';
+  src: url(__KOMA_FONT__) format('woff2');
+  unicode-range: U+2616-2617, U+26C9-26CA;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 墨・砂・銅（案B・C・D）。暗い */
+.t-ink {
+  --head: #12181a;
+  --head-fg: #efe8dc;
+  --head-fg-2: #b5b9b0;
+  --head-line: #273033;
+  --head-hover: #1e2729;
+  --bar: #12181a;
+  --pane: #171e20;
+  --hover: #1e2729;
+  --on: #29353a;
+  --plane: #2c3639;
+  --line: #273033;
+  --line-2: #3a474c;
+  --line-3: #6f7d83;
+  --fg-1: #efe8dc;
+  --fg-2: #d8dbd3;
+  --fg-3: #b5b9b0;
+  --fg-4: #959c96;
+  --copper: #b07c55;
+  --copper-hi: #c79263;
+  --copper-text: #c8a07c;
+  --commit: #d8dbd3;
+  --on-commit: #171e20;
+  --commit-hover: #e9e7dd;
+  --field: #12181a;
+  --info: #8fa5b4;
+  --warn: #d0a066;
+  --danger: #d08f87;
+  --danger-plane: #221d1d;
+  --warn-plane: #21201a;
+  --board-shadow: 0 1px 0 #0006, 0 8px 22px #0005;
+  --pop: 0 12px 36px #0009;
+  --r: 2px;
+  --r-modal: 3px;
+  --sel: #5b4636;
+}
+
+/* C4（案A）。decisions/0004 の値。盤の周りの色は 2026-11-21 に選ばれた #2c3639 */
+.t-c4 {
+  --head: #1b2325;
+  --head-fg: #d8dbd3;
+  --head-fg-2: #b2b6b0;
+  --head-line: #2b3335;
+  --head-hover: #222b2e;
+  --bar: #1b2325;
+  --pane: #1b2325;
+  --hover: #222b2e;
+  --on: #253033;
+  --plane: #2c3639;
+  --line: #2b3335;
+  --line-2: #3d4647;
+  --line-3: #717b7d;
+  --fg-1: #d8dbd3;
+  --fg-2: #d8dbd3;
+  --fg-3: #b2b6b0;
+  --fg-4: #969b96;
+  --copper: #a8805f;
+  --copper-hi: #a8805f;
+  --copper-text: #c8a07c;
+  --commit: #d8dbd3;
+  --on-commit: #0b0e0e;
+  --commit-hover: #e6e8e2;
+  --field: #121819;
+  --info: #7d93a3;
+  --warn: #c8955a;
+  --danger: #c98a83;
+  --danger-plane: #1c1d1d;
+  --warn-plane: #1d201d;
+  --board-shadow: 0 4px 12px #0003;
+  --pop: 0 12px 36px #0009;
+  --r: 4px;
+  --r-modal: 6px;
+  --sel: #5b4636;
+}
+
+.app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pane);
+  color: var(--fg-2);
+  font: 400 13px/1.45 'ObsKoma', system-ui, 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+.app ::selection {
+  background: var(--sel);
+  color: var(--fg-1);
+}
+.app button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--r);
+  cursor: pointer;
+  text-align: inherit;
+}
+.app button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+.app :focus-visible {
+  outline: 2px solid var(--copper-text);
+  outline-offset: 2px;
+}
+.i {
+  display: block;
+  flex: none;
+}
+.mark {
+  display: block;
+  flex: none;
+}
+.koma {
+  font-family: 'ObsKoma';
+}
+
+/* いまの手の印。アイコンの右下の銅の角と同じ、右下の直角の三角。盤の最終手のマスと、棋譜のいまの行だけに付ける */
+.now {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 9px;
+  height: 10px;
+  background: var(--copper-hi);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+.t-c4 .now {
+  width: 2px;
+  height: auto;
+  top: 5px;
+  bottom: 5px;
+  left: 0;
+  right: auto;
+  clip-path: none;
+  background: var(--copper);
+}
+
+/* ---- 枠 ---- */
+.lights {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: none;
+}
+.lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+.lights .lm {
+  background: #ffbd2e;
+}
+.lights .lz {
+  background: #28c840;
+}
+.ib {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  flex: none;
+  color: var(--fg-3);
+}
+.ib:hover:not(:disabled) {
+  background: var(--hover);
+  color: var(--fg-1);
+}
+.ib.filled .i {
+  fill: currentColor;
+}
+.ib.on {
+  color: var(--fg-1);
+}
+.bt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-3) !important;
+  font-weight: 500 !important;
+  white-space: nowrap;
+  color: var(--fg-2);
+}
+.bt.sm {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px !important;
+}
+.bt:hover:not(:disabled) {
+  background: var(--hover);
+}
+.bt.xs {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 12px !important;
+  gap: 4px;
+}
+/* 次の一手は砂の塗り。1つの画面に1つだけ */
+.bt.pri {
+  background: var(--commit);
+  border-color: var(--commit) !important;
+  color: var(--on-commit);
+  font-weight: 600 !important;
+}
+.bt.pri:hover:not(:disabled) {
+  background: var(--commit-hover);
+  border-color: var(--commit-hover) !important;
+}
+.bt.more {
+  border-color: transparent !important;
+  color: var(--fg-3);
+}
+.bt.more[aria-expanded='true'] .i {
+  transform: rotate(180deg);
+}
+.ib.stop .i,
+.bt.stop .i {
+  fill: currentColor;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 10px 0 13px;
+  flex: none;
+  background: var(--head);
+  color: var(--head-fg);
+  border-bottom: 1px solid var(--head-line);
+  min-width: 0;
+  position: relative;
+  z-index: 40;
+}
+.bar .ib,
+.bar .tb,
+.hd .ib {
+  color: var(--head-fg-2) !important;
+}
+.bar .ib:hover:not(:disabled),
+.bar .tb:hover,
+.hd .ib:hover:not(:disabled) {
+  background: var(--head-hover) !important;
+  color: var(--head-fg) !important;
+}
+.bar .tgl {
+  margin-left: 8px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.wm {
+  display: flex;
+  gap: 0.4em;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1;
+  flex: none;
+  color: var(--head-fg);
+}
+.wm1 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.wm2 {
+  font-family: 'Zen Kaku Gothic Antique', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.bar .doc {
+  display: flex;
+  align-items: center;
+  min-width: 96px;
+  flex: 1 1 0;
+  margin-left: 6px;
+  padding-left: 16px;
+  border-left: 1px solid var(--line-2);
+  height: 18px;
+}
+.fname {
+  color: var(--head-fg);
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+}
+.fname.none {
+  color: var(--head-fg-2);
+  font-weight: 400;
+}
+.tr {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.tb {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px !important;
+  font-size: 12px !important;
+  color: var(--fg-3) !important;
+  white-space: nowrap;
+}
+.tb:hover {
+  background: var(--hover) !important;
+  color: var(--fg-1) !important;
+}
+
+.body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+.cols {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+/* ---- ツリー ---- */
+.tree {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden auto;
+  border-right: 1px solid var(--line);
+}
+.cols.closed .tree {
+  display: none;
+}
+.tree-in {
+  padding: 6px 0;
+}
+.node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding-left: calc(10px + var(--lv) * 14px);
+  padding-right: 10px;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.node:hover {
+  background: var(--hover);
+}
+.node.on {
+  background: var(--on);
+  color: var(--fg-1);
+  font-weight: 600;
+}
+.node .chev {
+  width: 16px;
+  flex: none;
+  color: var(--fg-4);
+}
+.node .ficon {
+  width: 20px;
+  flex: none;
+  color: var(--fg-4);
+}
+.nname {
+  display: flex;
+  min-width: 0;
+  white-space: nowrap;
+}
+.nname .stem {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nname .ext {
+  flex: none;
+  color: var(--fg-4);
+  font-weight: 400;
+}
+
+.side {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--line);
+}
+.side .tree {
+  flex: 1 1 auto;
+  border-right: 0;
+}
+.cols.closed .side {
+  display: none;
+}
+/* ---- 盤 ---- */
+.stage {
+  min-width: 0;
+  min-height: 0;
+  background: var(--plane);
+  display: flex;
+  flex-direction: column;
+  container-type: size;
+  position: relative;
+}
+.cluster {
+  --r-hand: 0.34;
+  --gap: 12px;
+  --pad: 16px;
+  --ctl: 44px;
+  --cell: calc(var(--bw) * 0.102);
+  --bw: min(
+    (100cqw - 2 * var(--pad) - 2 * var(--gap)) / (1 + 2 * var(--r-hand)),
+    (100cqh - 2 * var(--pad) - var(--ctl)) / 1.1048
+  );
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  /* 駒台の列。盤が小さいときも、対局者名が折れない幅を残す */
+  --hw: calc(var(--bw) * var(--r-hand));
+  grid-template-columns: max(var(--hw), 94px) var(--bw) max(var(--hw), 94px);
+  /* 盤の左右の空き。長い対局者名は、ここまで外へ広がる */
+  --free: max(0px, (100cqw - var(--bw) - 2 * max(var(--hw), 94px) - 2 * var(--gap)) / 2 - 10px);
+  column-gap: var(--gap);
+  justify-content: center;
+  align-content: center;
+}
+.board {
+  width: var(--bw);
+  aspect-ratio: 439 / 485;
+  position: relative;
+  background: url(__BOARD__) center / 100% 100% no-repeat;
+  box-shadow: var(--board-shadow);
+}
+.grid {
+  position: absolute;
+  inset: 4.02% 3.99%;
+  border: 2px solid #1a1208;
+  display: grid;
+  grid-template: repeat(9, 1fr) / repeat(9, 1fr);
+}
+.sq {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid #1a1208cc;
+  border-bottom: 1px solid #1a1208cc;
+}
+.sq:nth-child(9n) {
+  border-right: 0;
+}
+.sq:nth-child(n + 73) {
+  border-bottom: 0;
+}
+.pc {
+  display: block;
+  max-width: 84%;
+  max-height: 92%;
+  width: auto;
+  height: 92%;
+  object-fit: contain;
+  user-select: none;
+  position: relative;
+}
+.pc-pawn,
+.pc-prom_pawn {
+  max-width: 75%;
+}
+.pc-king {
+  max-width: 93%;
+}
+.pc-lance,
+.pc-knight,
+.pc-prom_lance,
+.pc-prom_knight {
+  max-width: 80%;
+}
+/* 最終手のマス。銅の暗いほう（アイコンの影の色 #8f6347）を薄く敷き、角に印を置く */
+.sq.last {
+  background: #8f63473d;
+  box-shadow: inset 0 0 0 1.5px #7a4f2fb3;
+}
+.sq .now {
+  right: 0;
+  bottom: 0;
+  width: 26%;
+  height: 28%;
+  background: #8f4f24;
+  z-index: 1;
+}
+.t-c4 .sq .now {
+  display: none;
+}
+
+.cl {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 8px;
+}
+.cl-s {
+  justify-content: flex-end;
+}
+/* 両方とも盤の側にそろえる */
+.cl > .name {
+  width: max-content;
+  max-width: calc(100% + var(--free));
+}
+.cl-g > .hand,
+.cl-g > .name {
+  align-self: flex-end;
+}
+/* 駒台の段は、盤のマスと同じ高さ。1段に入る間は、持ち駒が盤の駒と同じ大きさになる */
+.hand {
+  position: relative;
+  width: var(--hw);
+  height: calc(var(--cell) * 4 + 2 * var(--hpad));
+  --hpad: calc(var(--bw) * 0.018);
+  background: url(__HAND__) center / cover no-repeat;
+  box-shadow: var(--board-shadow);
+  padding: var(--hpad);
+  display: grid;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+}
+.hrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+  min-width: 0;
+}
+.stack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.hp {
+  display: grid;
+  place-items: center;
+  width: calc(var(--cell) * 0.9);
+  height: var(--cell);
+  min-width: 0;
+}
+.hand .stack {
+  flex: 0 1 calc(var(--cell) * 0.9);
+}
+.hand .hp {
+  width: 100%;
+}
+.hand .pc {
+  max-width: 94%;
+  max-height: 90%;
+  height: 90%;
+}
+.hand .pc-pawn {
+  max-width: 84%;
+}
+/* 種類ごとに1枚と枚数 */
+.hand.grouped .hrow {
+  justify-content: flex-start;
+}
+.hand.grouped .stack {
+  flex: 0 0 50%;
+  justify-content: flex-start;
+}
+.hand.grouped .hp {
+  width: calc(var(--cell) * 0.86);
+  flex: none;
+}
+.stack b {
+  min-width: 1.2em;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  color: #efe8dc;
+}
+
+/* 対局者名。駒台の下（上）の空きに折り返して全部出す */
+.name {
+  min-width: 0;
+  color: var(--fg-3);
+  line-height: 18px;
+}
+.name .who {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 4px;
+}
+.name .nm {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
+}
+.name .ck {
+  display: inline-block;
+  max-width: 100%;
+}
+.name.on .who {
+  color: var(--fg-1);
+  font-weight: 600;
+}
+.name.on .koma {
+  color: var(--copper-text);
+}
+.name .turn {
+  display: block;
+  padding-left: 14px;
+  font-size: 12px;
+  color: var(--copper-text);
+}
+.stage .name {
+  color: var(--fg-2);
+}
+
+.ctl {
+  display: flex;
+  justify-content: center;
+  flex: none;
+}
+
+/* ---- 棋譜 ---- */
+.kifu {
+  --rh: 26px;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template: auto minmax(0, 1fr) / minmax(0, 1fr);
+  border-left: 1px solid var(--line);
+}
+.khd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  height: 34px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-4);
+  font-size: 12px;
+}
+.tesuu {
+  white-space: nowrap;
+}
+.tesuu b {
+  color: var(--fg-2);
+  font-weight: 600;
+}
+.klist {
+  align-self: start;
+  height: round(down, 100%, var(--rh));
+  min-height: 0;
+  overflow: hidden auto;
+  position: relative;
+}
+.krow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(78px, max-content) minmax(0, 1fr) auto;
+  align-items: center;
+  height: var(--rh);
+  padding-right: 8px;
+  cursor: pointer;
+}
+/* 選ばれて見える行は、いまの手の1つ。フォーカスは一覧が持ち、輪はいまの手の行に描く。
+   ホバーは、局面が動いてからポインタが動いたときだけ（製品の docs/spec/screens/kifu-stream.md） */
+[data-pointing] .krow:hover {
+  background: var(--hover);
+}
+.krow.on,
+.krow.on:hover {
+  background: var(--on);
+  color: var(--fg-1);
+}
+.app .klist:focus-visible {
+  outline: none;
+}
+.app .klist:focus-visible .krow.on {
+  outline: 2px solid var(--copper-text);
+  outline-offset: -2px;
+}
+.kn {
+  text-align: right;
+  padding-right: 10px;
+  color: var(--fg-4);
+  font-size: 12px;
+}
+.km {
+  font-size: 14px;
+  white-space: nowrap;
+}
+.krow.on .km {
+  font-weight: 600;
+}
+.t-ink .krow.on .kn {
+  color: var(--copper-text);
+  font-weight: 600;
+}
+.acts {
+  grid-column: 4;
+  display: flex;
+  gap: 2px;
+}
+.mini {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 5px !important;
+  font-size: 11px !important;
+  color: var(--fg-4) !important;
+}
+.mini:hover {
+  color: var(--fg-1) !important;
+  background: var(--line) !important;
+}
+.mini.cmt:not(.has) {
+  opacity: 0;
+}
+[data-pointing] .krow:hover .mini.cmt,
+.krow.on .mini.cmt,
+.mini.cmt:focus-visible {
+  opacity: 1;
+}
+.mini.fork,
+.mini.cmt.has {
+  color: var(--fg-3) !important;
+}
+
+/* ---- 検討 ---- */
+.dock,
+.ana {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tabs {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  padding: 0 12px !important;
+  color: var(--fg-3) !important;
+  border-radius: 0 !important;
+  position: relative;
+}
+.tab.on {
+  color: var(--fg-1) !important;
+  font-weight: 600 !important;
+}
+.tab.on::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  background: var(--fg-1);
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  white-space: nowrap;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--fg-4);
+}
+.dot.run {
+  background: var(--copper-hi);
+  border-color: var(--copper-hi);
+}
+.dot.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.slink {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.timer {
+  color: var(--fg-3);
+}
+.t-ink .status.run {
+  color: var(--copper-text);
+}
+.stats {
+  display: flex;
+  gap: 14px;
+  white-space: nowrap;
+  min-width: 0;
+}
+.st {
+  display: inline-flex;
+  gap: 5px;
+  align-items: baseline;
+}
+.sl {
+  color: var(--fg-4);
+  font-size: 11px;
+}
+.sv {
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.acts2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+.acts2 .g {
+  display: flex;
+}
+.pvt {
+  --rh: 26px;
+  align-self: stretch;
+  flex: 0 1 auto;
+  height: calc(24px + round(down, 100% - 24px, var(--rh)));
+  min-height: 0;
+  overflow: hidden auto;
+}
+.thx {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+.pvt table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.pvt th {
+  position: sticky;
+  top: 0;
+  height: 24px;
+  background: var(--pane);
+  text-align: left;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--fg-4);
+  padding: 0 8px;
+}
+.pvt td {
+  height: var(--rh);
+  padding: 0 8px;
+  white-space: nowrap;
+  border-top: 1px solid var(--line);
+}
+.pvt .c1 {
+  width: 104px;
+  padding-left: 14px;
+}
+.pvt .c2 {
+  width: 76px;
+  text-align: right;
+  padding-right: 18px;
+}
+.pvt td.c1,
+.pvt td.c2 {
+  font-size: 14px;
+}
+.pvt tbody tr:hover {
+  background: var(--hover);
+}
+.pvt .best {
+  background: var(--on);
+}
+.pvt .best td {
+  color: var(--fg-1);
+}
+.pvt .best .c1,
+.pvt .best .c2 {
+  font-weight: 700;
+}
+.pvt .none td {
+  color: var(--fg-4);
+  padding-left: 14px;
+}
+/* 読み筋。1手ずつ折れる箱にして、手の途中で切らない */
+.pv {
+  --lines: 1;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: normal;
+  min-width: 0;
+}
+.mv {
+  display: inline-block;
+  margin-right: 8px;
+  white-space: nowrap;
+  font-weight: 450;
+}
+.best .mv {
+  font-weight: 520;
+}
+.pv .pg {
+  color: var(--fg-3);
+}
+.best .pv .pg {
+  color: var(--fg-2);
+}
+.pv .dots {
+  color: var(--fg-4);
+  margin-right: 0;
+}
+
+/* ---- 知らせ ---- */
+.nic {
+  flex: none;
+}
+.info .nic {
+  color: var(--info);
+}
+.warning .nic {
+  color: var(--warn);
+}
+.danger .nic {
+  color: var(--danger);
+}
+.ncl {
+  width: 24px !important;
+  height: 24px !important;
+}
+/* 失敗の帯。1件1行で、上の帯の下に流し込む */
+.bands {
+  flex: none;
+}
+.band {
+  display: grid;
+  grid-template-columns: auto max-content minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: 10px;
+  min-height: 34px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--danger-plane);
+}
+.band.warning,
+.band.info {
+  background: var(--warn-plane);
+}
+.band.info {
+  background: var(--bar);
+}
+.band .ntt {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.band .ntt {
+  color: var(--fg-1);
+  max-width: 44vw;
+}
+.band .nb1 {
+  color: var(--fg-3);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.band .nac {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nfull {
+  grid-column: 2 / -1;
+  max-height: 30vh;
+  overflow: hidden auto;
+  padding: 2px 40px 10px 0;
+  color: var(--fg-2);
+}
+.nfull p {
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+/* ---- 棋譜を開く前 ---- */
+.wel {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: var(--plane);
+}
+.wel-in {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  text-align: center;
+}
+.wel h2 {
+  margin-top: 28px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--fg-1);
+  text-wrap: balance;
+}
+.wel p {
+  margin-top: 8px;
+  color: var(--fg-3);
+}
+.wel .bt {
+  margin-top: 20px;
+}
+.fmts {
+  display: flex;
+  gap: 14px;
+  margin-top: 18px;
+  color: var(--fg-3);
+  font-size: 12px;
+}
+
+/* ---- 設定 ---- */
+.ovl {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: #0a0e0fcc;
+  display: grid;
+  place-items: center;
+  padding: 20px 24px 24px;
+}
+.modal {
+  width: min(1120px, 100%);
+  height: min(760px, 100%);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pane);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-modal);
+  box-shadow: var(--pop);
+  overflow: hidden;
+}
+.mhd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  height: 44px;
+  padding: 0 8px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.mhd h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg-1);
+}
+.mbody {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+}
+.snav {
+  border-right: 1px solid var(--line);
+  padding: 8px 0;
+  min-width: 0;
+}
+.stab {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 14px 0 20px !important;
+  border-radius: 0 !important;
+  color: var(--fg-3) !important;
+}
+.stab:hover {
+  background: var(--hover) !important;
+}
+.stab:not(.on):hover {
+  color: var(--fg-1) !important;
+}
+.stab.on {
+  background: var(--on) !important;
+  color: var(--fg-1) !important;
+  font-weight: 600 !important;
+}
+.mmain {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 18px 22px 28px;
+  container-type: inline-size;
+}
+.mmain.more {
+  mask-image: linear-gradient(#000 calc(100% - 36px), transparent);
+}
+.sec + .sec {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+.sech {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 20px;
+}
+.sech h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-1);
+}
+.sech p {
+  flex-basis: 100%;
+  color: var(--fg-3);
+  font-size: 12px;
+  word-break: auto-phrase;
+}
+.mate .sech {
+  display: block;
+}
+.sacts {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.note {
+  margin-top: 10px;
+  color: var(--fg-3);
+  font-size: 12px;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-3);
+  white-space: nowrap;
+}
+.tag.warn {
+  color: var(--warn);
+}
+.now-tag {
+  color: var(--fg-1);
+  font-weight: 600;
+}
+.off,
+em {
+  color: var(--fg-4);
+  font-style: normal;
+}
+.num {
+  display: inline-block;
+  white-space: nowrap;
+  color: var(--fg-1);
+  font-weight: 600;
+}
+.num.def {
+  color: var(--fg-3);
+  font-weight: 400;
+}
+.num small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--fg-4);
+}
+.rb {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+.rb .ib {
+  width: 28px;
+}
+.rb .del:hover:not(:disabled) {
+  color: var(--danger);
+}
+.frow {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 12px 0;
+}
+.frow + .frow {
+  border-top: 1px solid var(--line);
+}
+.mate .sech {
+  margin-bottom: 6px;
+}
+.fl label {
+  color: var(--fg-1);
+}
+.fl p {
+  color: var(--fg-3);
+  font-size: 12px;
+}
+.sel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  max-width: 320px;
+  padding: 0 8px 0 10px;
+  background: var(--field);
+  border: 1px solid var(--line-3);
+  border-radius: var(--r);
+}
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--line-3);
+  border-radius: var(--r);
+  max-width: 100%;
+}
+.seg button {
+  min-height: 30px;
+  padding: 0 16px !important;
+  border-radius: 0 !important;
+  color: var(--fg-3) !important;
+  white-space: nowrap;
+}
+.seg button + button {
+  border-left: 1px solid var(--line-2) !important;
+}
+.seg .on {
+  background: var(--on) !important;
+  color: var(--fg-1) !important;
+  font-weight: 600 !important;
+}
+.long {
+  overflow-wrap: anywhere;
+}

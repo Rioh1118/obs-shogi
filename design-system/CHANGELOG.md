@@ -2,6 +2,13 @@
 
 形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に倣い、版は semver（上げ方は CLAUDE.md）。
 
+## 未リリース
+
+### 追加（道具だけ。値と部品は変えていない）
+- `ds:screens`：製品の画面を見本データで撮り、はみ出し・形の癖・固定値の違反を数える（screens/）。`ds:screens:selftest` は物差しの自己テスト
+- `ds:compare`、`ds:compare:serve`：今の画面と案を、同じ窓の大きさで並べた1枚を作り、感想をファイルへ残す（compare/）
+- explorations/2026-11-22-rework（1周目 A〜D、2周目 D2・D3。利用者が選ぶまで確定しない）
+
 ## [0.2.2] - 2026-11-08
 
 ### 変更（文書のみ）

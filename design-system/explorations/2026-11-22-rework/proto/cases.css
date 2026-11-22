@@ -1,0 +1,1106 @@
+/* ==== 案A: C4 を当て切る。構成は今のまま ==== */
+.a .titlebar {
+  height: 26px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 13px;
+  background: #121819;
+}
+.a .hd {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 46px;
+  flex: none;
+  padding: 0 12px;
+  background: var(--head);
+  color: var(--head-fg);
+  border-bottom: 1px solid var(--head-line);
+  min-width: 0;
+}
+.a .wm {
+  font-size: 18px;
+}
+.a .hd .doc {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.a .bdg {
+  flex: none;
+  font-size: 11px;
+  padding: 1px 6px;
+  border: 1px solid var(--line-3);
+  border-radius: 2px;
+  color: var(--head-fg-2);
+  white-space: nowrap;
+}
+.a .cols {
+  grid-template-columns: clamp(180px, 17vw, 260px) minmax(0, 1fr);
+}
+.a .cols.closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.a .work {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template: minmax(0, 1fr) clamp(184px, 20.5vh, 206px) / minmax(0, 1fr) clamp(216px, 21vw, 330px);
+}
+.a .work.min {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.a .cluster {
+  --r-hand: 0.33;
+}
+.a .kifu {
+  --rh: 30px;
+  grid-column: 2;
+  grid-row: 1;
+}
+.a .khd {
+  justify-content: flex-end;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+.a .krow {
+  border-radius: 2px;
+  grid-template-columns: 44px minmax(74px, max-content) minmax(0, 1fr) auto;
+}
+.a .kn {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+.a .km {
+  font-weight: 500;
+}
+.a .krow .now {
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+}
+.a .node .now {
+  left: 4px;
+}
+.a .stab .now {
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+}
+.a .sq .now {
+  display: none;
+}
+.a .ctl {
+  height: 44px;
+  align-items: center;
+}
+.a .ctl .ib {
+  width: 64px;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--fg-4) 78%, var(--plane));
+  border-radius: 0;
+  margin-left: -1px;
+}
+.a .ctl .ib:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.a .ctl .ib:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.a .dock {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+}
+.a .dh {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 34px;
+  flex: none;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.a .dh .status {
+  margin-left: auto;
+}
+.a .dh .acts2 {
+  margin-left: 0;
+}
+.a .tab.on::after {
+  background: var(--copper);
+  left: 0;
+  right: 0;
+}
+@media (max-width: 1150px) {
+  .a .dh {
+    gap: 12px;
+  }
+  .a .dh .stats {
+    gap: 8px;
+  }
+  .a .dh .acts2 {
+    gap: 2px;
+  }
+  .a .dh .ib {
+    width: 26px;
+  }
+  .a .dh .st {
+    gap: 3px;
+  }
+}
+.a .pvt {
+  --rh: 25px;
+}
+.a .pvt th,
+.a .sl {
+  font-family: ui-monospace, SFMono-Regular, Menlo, 'Hiragino Sans', monospace;
+}
+.a .pvt td.c2,
+.a .sv {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.a .pvt .best td.c1 {
+  box-shadow: inset 2px 0 0 var(--copper);
+}
+.a .bt.go {
+  border-color: var(--copper) !important;
+  color: var(--copper-text);
+}
+.a .ptbl {
+  margin-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+.a .ptbl table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.a .ptbl th {
+  height: 28px;
+  text-align: left;
+  font: 400 11px/1 ui-monospace, SFMono-Regular, Menlo, 'Hiragino Sans', monospace;
+  color: var(--fg-4);
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.a .ptbl td {
+  padding: 9px 8px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+.a .ptbl .w-name {
+  width: 18%;
+  padding-left: 12px;
+}
+.a .ptbl .w-ev {
+  width: 17%;
+}
+.a .ptbl .w-n {
+  width: 82px;
+}
+.a .ptbl .w-h {
+  width: 122px;
+}
+.a .ptbl .w-b {
+  width: 62px;
+  padding-left: 22px;
+}
+.a .ptbl .w-o {
+  width: 98px;
+}
+.a .ptbl .r {
+  text-align: right;
+}
+.a .ptbl .pn {
+  display: block;
+  color: var(--fg-1);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
+}
+.a .ptbl .long {
+  font-size: 12px;
+}
+.a .ptbl tr.on {
+  background: var(--on);
+}
+.a .ptbl tr.on td:first-child {
+  box-shadow: inset 2px 0 0 var(--copper);
+}
+.a .ptbl .ra {
+  padding: 4px;
+  text-align: right;
+}
+.a .ptbl .ev2 {
+  display: none;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+@container (max-width: 860px) {
+  .a .ptbl .w-ev {
+    display: none;
+  }
+  .a .ptbl .ev2 {
+    display: block;
+  }
+  .a .ptbl .w-name {
+    width: 21%;
+  }
+}
+
+/* ==== 案B: 柱。縦の4列 ==== */
+.b.app {
+  --r-strip: 0.118;
+}
+.app.b .cols {
+  grid-template-columns:
+    clamp(150px, 13.5vw, 210px) minmax(0, 1fr) clamp(164px, 14vw, 230px)
+    clamp(306px, 26vw, 410px);
+}
+.app.b .cols.closed {
+  grid-template-columns: minmax(0, 1fr) clamp(164px, 14vw, 230px) clamp(306px, 26vw, 410px);
+}
+.app.b .cols > .wel {
+  grid-column: 2 / -1;
+}
+.app.b .krow {
+  grid-template-columns: 40px minmax(74px, max-content) minmax(0, 1fr) auto;
+  padding-right: 4px;
+}
+.app.b .mini.cmt:not(.has) {
+  display: none !important;
+}
+.app.b[data-pointing] .krow:hover .mini.cmt,
+.app.b .krow.on .mini.cmt {
+  display: inline-flex !important;
+}
+.app.b .portrait {
+  --pad: 14px;
+  --ctl: 46px;
+  --nm: 24px;
+  --bw: min(
+    100cqw - 2 * var(--pad),
+    (100cqh - 2 * var(--pad) - var(--ctl) - 2 * var(--nm) - 12px) / (1.1048 + 2 * var(--r-strip))
+  );
+  grid-template-columns: var(--bw);
+  row-gap: 6px;
+}
+.app.b .pr {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+/* 名前は1行。長いときは後ろ（姓と段位）を残して、頭の大会名を省く */
+.app.b .name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--nm);
+}
+.app.b .name .who {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.app.b .name .nm {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+}
+.app.b .name .nm bdi {
+  direction: ltr;
+}
+.app.b .name .turn {
+  padding: 0;
+  flex: none;
+}
+.app.b .name-s {
+  justify-content: flex-end;
+}
+.app.b .strip {
+  height: calc(var(--bw) * var(--r-strip));
+  background: url(__STRIP__) center / auto 100%;
+  box-shadow: var(--board-shadow);
+  display: flex;
+  align-items: center;
+  gap: 1.2%;
+  padding: 0 1.4%;
+}
+.app.b .strip-s {
+  justify-content: flex-end;
+}
+.app.b .stack {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+.app.b .stack .hp {
+  width: calc(var(--cell) * 0.9);
+  height: 100%;
+}
+.app.b .stack b {
+  font-size: 13px;
+  font-weight: 600;
+  color: #efe8dc;
+  min-width: 1.2em;
+}
+.app.b .stack .pc {
+  max-width: 100%;
+  height: 82%;
+  max-height: 82%;
+}
+.app.b .ctl {
+  height: 46px;
+  align-items: flex-start;
+  gap: 1px;
+}
+.app.b .ctl .ib {
+  width: 60px;
+  height: 34px;
+  color: var(--fg-1);
+  background: var(--pane);
+}
+.app.b .ctl .ib:hover:not(:disabled) {
+  background: var(--on);
+}
+.app.b .ana {
+  border-left: 1px solid var(--line);
+}
+.app.b .dh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  flex: none;
+  padding-right: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.app.b .ds {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.app.b .acts2 {
+  margin: 0;
+  width: 100%;
+  gap: 2px;
+}
+.app.b .acts2 .bt {
+  margin-right: auto;
+}
+/* 指し手と評価値の表。右の空きに読みの量 */
+.app.b .pvh {
+  flex: none;
+  display: grid;
+  grid-template-columns: minmax(150px, 46%) minmax(0, 1fr);
+  border-bottom: 1px solid var(--line-2);
+}
+.app.b .pvh .pvt {
+  height: auto;
+}
+.app.b .pvh .c1 {
+  width: 84px;
+  padding-right: 0;
+}
+.app.b .pvh .c2 {
+  padding-left: 0;
+  white-space: nowrap;
+}
+.app.b .pvh .c2 {
+  width: auto;
+}
+.app.b .pvh .stats {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  align-content: start;
+  gap: 0 14px;
+  padding: 24px 14px 10px 20px;
+  border-left: 1px solid var(--line);
+}
+.app.b .st {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  height: 26px;
+  align-items: center;
+}
+.app.b .pvs {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  list-style: none;
+}
+.app.b .pvs li {
+  padding: 7px 6px 7px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.app.b .pvs li:hover {
+  background: var(--hover);
+}
+.app.b .pvs .best {
+  background: var(--on);
+}
+.app.b .pvs .pv {
+  --lines: inherit;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  column-gap: 8px;
+  color: var(--fg-2);
+}
+.app.b .pvs .mv {
+  margin-right: 0;
+}
+.app.b .pvs .pg {
+  color: var(--fg-3);
+}
+@media (max-width: 1200px) {
+  .app.b .acts2 .bt.run span {
+    display: none;
+  }
+}
+.app.b .modal {
+  width: min(1040px, 100%);
+}
+.app.b .md {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(300px, 344px) minmax(0, 1fr);
+  border-top: 1px solid var(--line-2);
+  min-height: 300px;
+}
+.app.b .md + .sec,
+.app.b .sec + .sec {
+  margin-top: 0;
+}
+.app.b .mlist {
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.app.b .mi {
+  display: block;
+  width: 100%;
+  padding: 8px 12px !important;
+  border-radius: 0 !important;
+  min-width: 0;
+}
+.app.b .mi + .mi {
+  border-top: 1px solid var(--line) !important;
+}
+.app.b .mi:hover {
+  background: var(--hover) !important;
+}
+.app.b .mi.on {
+  background: var(--on) !important;
+}
+.app.b .mi .pn {
+  display: block;
+  color: var(--fg-1);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
+}
+.app.b .mt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 10px;
+}
+.app.b .ms {
+  display: grid;
+  grid-template-columns: 62px 92px minmax(0, 1fr);
+  gap: 0 10px;
+  min-height: 17px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.app.b .ms i {
+  font-style: normal;
+  white-space: nowrap;
+}
+.app.b .ms em {
+  color: var(--fg-4);
+}
+.app.b .mdet {
+  min-width: 0;
+  padding: 10px 4px 16px 22px;
+}
+.app.b .mh {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.app.b .mh h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
+}
+.app.b .mh .sp {
+  flex: 1;
+}
+.app.b .mh .rb {
+  flex: none;
+}
+.app.b .dl {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 14px;
+  padding: 7px 0;
+}
+.app.b .dl dt {
+  color: var(--fg-4);
+}
+.app.b .dl dd > small {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+.app.b .nums {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+@container (max-width: 660px) {
+  .app.b .md {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app.b .mlist {
+    border-right: 0;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .app.b .mdet {
+    padding-left: 12px;
+  }
+}
+
+/* ==== 案C: 机。上は盤と駒台だけ、下に棋譜の流しと検討 ==== */
+.c .cols {
+  grid-template-columns: clamp(150px, 14vw, 216px) minmax(0, 1fr);
+}
+.c .cols.closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.c .work {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) clamp(204px, 32vh, 306px);
+}
+.c .work.min {
+  grid-template-rows: minmax(0, 1fr) clamp(170px, 24vh, 240px);
+}
+.c .cluster {
+  --r-hand: 0.36;
+  --gap: 14px;
+  --ctl: 0px;
+}
+.c .bench {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(250px, 38%) minmax(0, 1fr);
+  background: var(--bar);
+  border-top: 1px solid var(--line-2);
+}
+.c .kifu {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  --rh: 24px;
+  border-left: 0;
+  border-right: 1px solid var(--line);
+}
+.c .khd,
+.c .dh {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  flex: none;
+  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  padding: 0 10px 0 4px;
+}
+.c .khd {
+  padding-right: 14px;
+  justify-content: space-between;
+}
+.c .ctl {
+  gap: 1px;
+  margin-left: 6px;
+}
+.c .ctl .ib {
+  width: 44px;
+  height: 26px;
+  color: var(--fg-1);
+  background: var(--on);
+}
+.c .flow {
+  align-self: start;
+  height: round(down, 100%, var(--rh));
+  min-height: 0;
+  overflow: hidden auto;
+  position: relative;
+  padding: 0 6px 0 34px;
+}
+.c .fgrid {
+  display: grid;
+}
+.c .fcell[data-head]::before {
+  content: attr(data-head);
+  position: absolute;
+  left: -34px;
+  width: 28px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-4);
+}
+.c .fcell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--rh);
+  padding: 0 6px !important;
+  border-radius: 0 !important;
+  white-space: nowrap;
+  font-size: 13px !important;
+  min-width: 0;
+}
+.c .fcell .fm {
+  flex: none;
+}
+.c .fcell .fi {
+  flex: none;
+  color: var(--fg-4);
+}
+.c .fcell:hover {
+  background: var(--hover) !important;
+}
+.c .fcell.on {
+  background: var(--on) !important;
+  color: var(--fg-1) !important;
+  font-weight: 600 !important;
+}
+.c .fmemo {
+  flex: none;
+  display: grid;
+  grid-template-columns: 34px max-content auto minmax(0, 1fr) auto;
+  align-items: center;
+  height: 32px;
+  border-top: 1px solid var(--line);
+  padding-right: 6px;
+}
+.c .fmemo .km {
+  color: var(--fg-1);
+  font-weight: 600;
+  padding: 0 12px 0 6px;
+}
+.c .fmemo .kn {
+  padding-right: 0;
+}
+.c .fmemo .xf {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-3);
+  font-size: 12px;
+  padding-right: 10px;
+  white-space: nowrap;
+}
+.c .fmemo .xc {
+  grid-column: 4;
+  color: var(--fg-3);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c .fmemo .acts {
+  grid-column: 5;
+}
+.c .fmemo .mini.cmt {
+  opacity: 1;
+}
+.c .dock {
+  container-type: inline-size;
+}
+.c .dh .status {
+  margin-left: auto;
+}
+.c .dh .acts2 {
+  margin-left: 0;
+}
+.c .pvt th {
+  background: var(--bar);
+}
+@media (min-height: 860px) {
+  .c .pvt {
+    --rh: 42px;
+  }
+  .c .pvt td {
+    vertical-align: top;
+    padding-top: 1px;
+  }
+  .c .pvt td.c1,
+  .c .pvt td.c2 {
+    line-height: 20px;
+  }
+  .c .pv {
+    --lines: 2;
+  }
+}
+@container (max-width: 600px) {
+  .c .pvt .c1 {
+    width: 86px;
+  }
+  .c .pvt .c2 {
+    width: 66px;
+    padding-right: 10px;
+  }
+  .c .dh .acts2 {
+    gap: 0;
+  }
+  .c .dh .ib {
+    width: 27px;
+  }
+  .c .thx {
+    gap: 10px;
+  }
+  .c .thx .stats {
+    gap: 9px;
+  }
+  .c .thx .st {
+    gap: 3px;
+  }
+}
+.c .modal {
+  width: min(1120px, 100%);
+}
+.c .cmp {
+  margin-top: 14px;
+  overflow: auto hidden;
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-3) transparent;
+}
+.c .cmp table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+}
+.c .cmp thead td,
+.c .cmp tbody th {
+  width: 96px;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--pane);
+}
+.c .cmp th,
+.c .cmp td {
+  text-align: left;
+  vertical-align: top;
+  padding: 9px 12px;
+  font-weight: 400;
+}
+.c .cmp tbody th {
+  color: var(--fg-4);
+  padding-left: 0;
+}
+.c .cmp tbody tr {
+  border-top: 1px solid var(--line);
+}
+.c .cmp th + th,
+.c .cmp td + th,
+.c .cmp td + td,
+.c .cmp th + td {
+  border-left: 1px solid var(--line);
+}
+.c .cmp .on {
+  background: var(--on);
+}
+.c .cmp .pn {
+  display: block;
+  font-weight: 600;
+  color: var(--fg-1);
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
+}
+.c .cmp .tags {
+  display: flex;
+  gap: 10px;
+  min-height: 18px;
+}
+.c .cmp .ops td {
+  padding: 4px 6px;
+}
+.c .cmpmore:not(:empty) {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.c .cmp .long {
+  font-size: 12px;
+}
+
+/* ==== 案D: 記録。構成は今に近く、盤を広げ、棋譜の行に覚え書きを出す ==== */
+.d .cols {
+  grid-template-columns: clamp(160px, 14.5vw, 224px) minmax(0, 1fr);
+}
+.d .cols.closed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.d .work {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template: minmax(0, 1fr) clamp(193px, 21vh, 219px) / minmax(0, 1fr) clamp(228px, 20.5vw, 336px);
+}
+.d .work.min {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.d .cluster {
+  --r-hand: 0.295;
+  --gap: 14px;
+  --ctl: 0px;
+}
+.d .kifu {
+  grid-column: 2;
+  grid-row: 1;
+}
+.d .khd {
+  height: 38px;
+  justify-content: space-between;
+  padding: 0 14px 0 10px;
+}
+.d .krow {
+  grid-template-columns: 44px minmax(88px, max-content) minmax(0, 1fr) auto;
+}
+/* いまの行にコメントがあれば、3行ぶん広げて出す。高さは行の倍数 */
+.d .krow.open {
+  grid-template-rows: var(--rh) calc(var(--rh) * 2);
+  height: calc(var(--rh) * 3);
+}
+.d .krow .memo {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  align-self: start;
+  padding-right: 10px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--fg-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.d .xtra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-left: 12px;
+  font-size: 12px;
+  color: var(--fg-4);
+}
+.d .xf {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  font-size: 12px !important;
+  color: var(--fg-3) !important;
+  white-space: nowrap;
+}
+.d .xc {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px !important;
+  color: var(--fg-3) !important;
+}
+.d .xf:hover,
+.d .xc:hover {
+  color: var(--fg-1) !important;
+}
+.d .acts .fork,
+.d .acts .cmt.has {
+  display: none !important;
+}
+.d .ctl {
+  gap: 1px;
+}
+.d .ctl .ib {
+  width: 44px;
+  height: 28px;
+  color: var(--fg-1);
+  background: var(--on);
+}
+.d .ctl .ib:disabled,
+.c .ctl .ib:disabled {
+  background: var(--hover);
+}
+.d .dock {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line-2);
+}
+.d .dh {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 38px;
+  flex: none;
+  padding-right: 8px;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.d .dh .status {
+  margin-left: auto;
+}
+.d .dh .acts2 {
+  margin-left: 0;
+}
+.d .pvt .c1 {
+  width: 112px;
+}
+.d .modal {
+  width: min(1080px, 100%);
+}
+.d .rows {
+  margin-top: 12px;
+}
+.d .rh,
+.d .pr1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 84px 122px 98px;
+  column-gap: 8px;
+}
+.d .rh {
+  align-items: center;
+  height: 28px;
+  font-size: 11px;
+  color: var(--fg-4);
+  border-bottom: 1px solid var(--line-2);
+  padding: 0 6px 0 12px;
+}
+.d .r {
+  text-align: right;
+}
+.d .pr1 {
+  grid-template-rows: auto auto;
+  align-items: start;
+  row-gap: 4px;
+  padding: 10px 6px 10px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.d .pr1:hover {
+  background: var(--hover);
+}
+.d .pr1.on {
+  background: var(--on);
+}
+.d .pr1 .p1 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 12px;
+  min-width: 0;
+}
+.d .pr1 .pn {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
+}
+/* 「初期値」は数の左に置く。数の右端がそろい、行の高さも増えない */
+.d .pr1 .num {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 14px;
+}
+.d .pr1 .rb {
+  grid-row: 1;
+  grid-column: 5;
+  justify-self: end;
+  margin-top: -3px;
+}
+.d .pr1 .p2 {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1.15fr) 34px minmax(0, 1fr);
+  gap: 2px 10px;
+  align-items: baseline;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.d .p2 .k {
+  color: var(--fg-4);
+  white-space: nowrap;
+}
+.d .p2 .wide {
+  grid-column: 2 / -1;
+}
+
+/* ---- 狭い窓 ---- */
+@media (max-width: 1480px) {
+  .d .ctl .ib {
+    width: 34px;
+  }
+}
+@media (max-width: 1150px) {
+  .tb span {
+    display: none;
+  }
+  .d .bt.run span {
+    display: none;
+  }
+  .d .bt.run,
+  .app.b .bt.run {
+    width: 34px;
+    padding: 0;
+  }
+  .d .dh {
+    gap: 10px;
+  }
+  .d .dh .acts2 {
+    gap: 4px;
+  }
+  .d .ctl .ib {
+    width: 32px;
+  }
+  .d .khd {
+    padding: 0 10px 0 2px;
+  }
+  /* 覚え書きが数文字しか入らない幅では、印と数に戻す */
+  .d .xtra {
+    visibility: hidden;
+  }
+  .d .acts .fork,
+  .d .acts .cmt.has {
+    display: inline-flex !important;
+  }
+}
