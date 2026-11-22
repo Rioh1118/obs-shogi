@@ -1,7 +1,6 @@
 @use "../index.scss" as index;
 
 .app-layout {
-  --header-h: #{index.$app-header-height};
   --sidebar-w: clamp(26rem, 20vw, 44rem);
   --dock-h: clamp(22rem, 28vh, 42rem);
   --stroke: rgba(255, 255, 255, 0.06);
@@ -12,7 +11,7 @@
   overflow: hidden;
 
   display: grid;
-  grid-template-rows: var(--header-h) 1fr;
+  grid-template-rows: minmax(0, 1fr);
 
   // ペインは全部この1色で、境目は線で引く。サーフェスの色で塗り分けない
   // （`design-system/design_system/principles.md` の原則7）

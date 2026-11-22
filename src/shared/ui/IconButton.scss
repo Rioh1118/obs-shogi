@@ -140,15 +140,6 @@
     }
   }
 
-  &--sidebar-toggle {
-    color: index.$color-text-light-1;
-    background-color: transparent;
-    border: 1px solid transparent;
-
-    @include btn-hover(index.$color-primary-dark);
-    @include btn-active(index.$color-primary-black);
-  }
-
   // 無効状態
   &--disabled,
   &:disabled {

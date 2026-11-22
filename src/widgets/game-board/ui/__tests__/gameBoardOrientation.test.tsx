@@ -17,7 +17,7 @@ import { MemoryRouter } from "react-router";
  * 落ちる／落ちないは `src/features/board-orientation/model/__tests__/` が持つ。
  */
 
-const game = { state: { jkf: null as unknown } };
+const game = { state: { jkf: null as unknown }, view: { currentTurn: 0 } };
 
 vi.mock("@/entities/game", () => ({
   useGame: () => game,

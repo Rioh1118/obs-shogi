@@ -1,24 +1,16 @@
 import { useMemo } from "react";
-import { Color } from "shogi.js";
-import { turnGlyph, turnText as turnTextOf, type TurnGlyph } from "@/shared/lib/turn";
+import { turnText } from "@/shared/lib/turn";
 import { useGame } from "@/entities/game";
 import { playerNames } from "@/entities/kifu/lib/playerNames";
 
 export type HeaderCenterInfo = {
-  /** 棋譜が盤に載っているか。ヘッダの表示はどれもこれで分岐する */
+  /** 棋譜が盤に載っているか */
   hasKifu: boolean;
 
   fileLabel: string;
   fileTitle: string;
-  senteName: string | null;
-  goteName: string | null;
-  isPlayersShown: boolean;
 
-  turnGlyph: TurnGlyph;
-  turnText: "先手番" | "後手番";
-  tesuuText: string;
-  totalText: string;
-
+  /** 見出しの題に出す1行。対局者・手番・手数は、画面では駒台と棋譜の見出しが出す */
   tooltip: string;
 };
 
@@ -33,7 +25,7 @@ function stripExt(name: string) {
 }
 
 /**
- * ヘッダ中央の表示を組む。
+ * 見出しの、いま開いている棋譜の表示を組む。
  *
  * 棋譜が載っているかは、呼び手から受けずに自分で game に訊く。真偽値で受け取ると、
  * 同じ問いに `hasKifu` と prop の2つの綴りができる。
@@ -44,54 +36,29 @@ function stripExt(name: string) {
  */
 export function useHeaderCenterInfo(): HeaderCenterInfo {
   const { state, view } = useGame();
-  const hasKifu = view.hasKifu;
-  const loadedAbsPath = state.loadedAbsPath;
-  const jkf = state.jkf;
+  const { hasKifu, currentTurn, player, totalMoves } = view;
+  const { loadedAbsPath, jkf, cursor } = state;
 
   return useMemo(() => {
-    const fileLabel = !hasKifu
-      ? "ファイル未選択"
-      : loadedAbsPath
-        ? stripExt(basename(loadedAbsPath))
-        : "棋譜";
+    if (!hasKifu) {
+      const none = "ファイル未選択";
+      return { hasKifu, fileLabel: none, fileTitle: loadedAbsPath ?? none, tooltip: none };
+    }
 
-    const fileTitle = loadedAbsPath ?? fileLabel;
+    const fileLabel = loadedAbsPath ? stripExt(basename(loadedAbsPath)) : "棋譜";
 
-    // 対局者。欄名と欠けの判定は `playerNames` が持つ
-    const { sente: senteName, gote: goteName } = playerNames(jkf);
-    const isPlayersShown = hasKifu && Boolean(senteName || goteName);
+    // 欄名と欠けの判定は `playerNames` が持つ
+    const { sente, gote } = playerNames(jkf);
+    const players =
+      sente || gote ? `先手 ${sente ?? "（不明）"} / 後手 ${gote ?? "（不明）"}` : "棋譜表示中";
 
-    const turn = hasKifu ? view.currentTurn : Color.Black;
-    const tesuu = hasKifu && view.player ? (state.cursor?.tesuu ?? view.player.tesuu) : 0;
-    const total = hasKifu ? view.totalMoves : 0;
-
-    const glyph = turnGlyph(turn);
-    const turnLine = turnTextOf(turn);
-
-    const tesuuText = hasKifu ? `${tesuu}手目` : "";
-    const totalText = hasKifu ? `${tesuu}/${total}` : "";
-
-    // `hasKifu` が偽なら下の三項で "ファイル未選択" に落ちるので、ここでは分岐しない
-    const playersTooltip = isPlayersShown
-      ? `先手 ${senteName ?? "（不明）"} / 後手 ${goteName ?? "（不明）"}`
-      : "棋譜表示中";
-
-    const tooltip = hasKifu
-      ? `${fileLabel} — ${playersTooltip} — ${turnLine} ${totalText}`
-      : "ファイル未選択";
+    const tesuu = player ? (cursor?.tesuu ?? player.tesuu) : 0;
 
     return {
       hasKifu,
       fileLabel,
-      fileTitle,
-      senteName,
-      goteName,
-      isPlayersShown,
-      turnGlyph: glyph,
-      turnText: turnLine,
-      tesuuText,
-      totalText,
-      tooltip,
+      fileTitle: loadedAbsPath ?? fileLabel,
+      tooltip: `${fileLabel} — ${players} — ${turnText(currentTurn)} ${tesuu}/${totalMoves}`,
     };
-  }, [hasKifu, loadedAbsPath, jkf, view.player, view.currentTurn, view.totalMoves, state.cursor]);
+  }, [hasKifu, loadedAbsPath, jkf, player, currentTurn, totalMoves, cursor]);
 }

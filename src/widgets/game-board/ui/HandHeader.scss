@@ -50,6 +50,23 @@
   text-overflow: ellipsis;
 }
 
+// 手番の側。銅は局面の「いま」だけに使う
+.hand-header--turn .hand-header__symbol {
+  color: index.$color-accent-text;
+}
+
+.hand-header--turn .hand-header__name {
+  color: index.$color-text-strong;
+  font-weight: index.$weight-strong;
+}
+
+.hand-header__turn {
+  flex: none;
+  margin-left: index.$space-3;
+  font-size: index.$font-aux;
+  color: index.$color-accent-text;
+}
+
 .hand-header__name--empty {
   opacity: 0.55;
   letter-spacing: 0.06em;

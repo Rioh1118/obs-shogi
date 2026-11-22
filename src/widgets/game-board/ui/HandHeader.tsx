@@ -1,5 +1,6 @@
 import "./HandHeader.scss";
-import { GOTE_GLYPH, SENTE_GLYPH } from "@/shared/lib/turn";
+import { Color } from "shogi.js";
+import { GOTE_GLYPH, SENTE_GLYPH, turnText } from "@/shared/lib/turn";
 
 type HandSide = "sente" | "gote";
 type HandPlacement = "top" | "bottom";
@@ -9,10 +10,15 @@ type Props = {
   name?: string | null;
   boardRotated?: boolean;
   placement: HandPlacement;
+  /** この側の手番か */
+  isTurn: boolean;
 };
-const SIDE_UI: Record<HandSide, { label: string; symbol: { top: string; bottom: string } }> = {
-  sente: { label: "先手", symbol: { bottom: SENTE_GLYPH, top: "⛊" } },
-  gote: { label: "後手", symbol: { bottom: GOTE_GLYPH, top: "⛉" } },
+const SIDE_UI: Record<
+  HandSide,
+  { label: string; turn: string; symbol: { top: string; bottom: string } }
+> = {
+  sente: { label: "先手", turn: turnText(Color.Black), symbol: { bottom: SENTE_GLYPH, top: "⛊" } },
+  gote: { label: "後手", turn: turnText(Color.White), symbol: { bottom: GOTE_GLYPH, top: "⛉" } },
 };
 
 function truncateName(s: string) {
@@ -21,7 +27,7 @@ function truncateName(s: string) {
   return chars.slice(0, 14).join("") + "…";
 }
 
-export default function HandHeader({ side, name, boardRotated = false, placement }: Props) {
+export default function HandHeader({ side, name, boardRotated = false, placement, isTurn }: Props) {
   const ui = SIDE_UI[side];
   // 欠けているかは `playerNames` が `null` で決めている。ここで trim し直さない
   const raw = name ?? "";
@@ -34,7 +40,10 @@ export default function HandHeader({ side, name, boardRotated = false, placement
         "hand-header",
         "hand-header--start",
         boardRotated ? "hand-header--counterRotate" : "",
-      ].join(" ")}
+        isTurn ? "hand-header--turn" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       <span className="hand-header__symbol" aria-label={ui.label}>
         {symbol}
@@ -43,6 +52,8 @@ export default function HandHeader({ side, name, boardRotated = false, placement
       <div className={"hand-header__name" + (raw ? "" : " hand-header__name--empty")} title={raw}>
         {displayName}
       </div>
+
+      {isTurn && <span className="hand-header__turn">{ui.turn}</span>}
     </div>
   );
 }

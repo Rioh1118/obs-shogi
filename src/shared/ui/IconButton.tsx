@@ -3,14 +3,7 @@ import "./IconButton.scss";
 
 type IconButtonSize = "small" | "medium" | "large" | "custom";
 type IconButtonVariant =
-  | "primary"
-  | "secondary"
-  | "ghost"
-  | "danger"
-  | "obs-primary"
-  | "obs-ghost"
-  | "sidebar-toggle"
-  | "obs-danger";
+  "primary" | "secondary" | "ghost" | "danger" | "obs-primary" | "obs-ghost" | "obs-danger";
 
 type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;

@@ -22,26 +22,13 @@
   }
 
   &--header {
-    --title-size: 2rem;
+    --title-size: 1.3rem;
     --title-pad: 0;
     --title-align: left;
-    --title-gap: 0.8rem;
+    --title-gap: 0.52rem;
 
     display: inline-flex;
     align-items: baseline;
     line-height: 1;
-    letter-spacing: 0.02em;
-
-    .title__obs {
-      opacity: 0.92;
-    }
-
-    .title__shogi {
-      opacity: 1;
-      font-weight: 800;
-      letter-spacing: 0.03em;
-      color: index.$color-secondary-light;
-      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
-    }
   }
 }

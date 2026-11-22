@@ -49,12 +49,13 @@ function AppLayout() {
         モーダル1枚の事故で本体まで unmount させない。境界は `AppModalLayer` の中にある
         （鍵を読むために、ここが `FileTreeContext` を購読しないため）。
 
-        **`.app-layout` は `grid-template-rows` が2行で、ヘッダと本体でちょうど埋まっている。**
+        **`.app-layout` は `grid-template-rows` が1行で、本体でちょうど埋まっている。**
         ここに置けるのは、この層が平常時 in-flow の子を1つも作らないから。
         その条件は `pages/AppModalLayer.tsx` の `ModalLayerContent` が持つ
       */}
       <AppModalLayer />
 
+      {/* 見出しはタイトルバーの中に描かれる（`TitleBarContent`） */}
       <AppLayoutHeader toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
 
       <div className="app-layout__body">

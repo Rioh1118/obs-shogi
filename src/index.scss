@@ -202,11 +202,8 @@ $sidebar-width: 23%;
 // `Modal.scss` の overlay はこの帯を空けて `top` を置く。
 // 値を動かすぶんには揃って動くが、どれか1つだけ直値に書き換えると境がずれて
 // ウィンドウを掴めなくなる
-$titlebar-height: 2.6rem;
-// `.app-layout` の1行目（`AppLayoutHeader`）。**出典はここ1つ。**
-// `.app-header` が自分の上に同名のカスタムプロパティを再宣言すると継承が切れ、
-// 片方だけ動かしたときに隙間が空くか `overflow: hidden` に切られる。
-$app-header-height: 5.6rem;
+// 作業画面の見出し（`AppLayoutHeader`）もこの帯の中に描くので、見出しの押すものが収まる高さにする
+$titlebar-height: 3.8rem;
 
 // ドックの操作列に並ぶ記号ボタンの当たり。**タブを跨いで同じ値であること**が要件で、
 // ずれるとタブを移った回に下の領域の高さが変わって本体が上下にずれる。
@@ -225,10 +222,8 @@ $option-control-width: 26rem;
 $window-button-size: 1.2rem;
 $window-button-padding: 0.14rem;
 // 帯の塗り。`.titlebar` と `.root-error-fallback__chrome` が同じ帯を別々に描くので、
-// 落ちた瞬間に色味が変わらないよう1つを見る。
-// **半透明なのは `backdrop-filter` と対の意匠**（`TitleBar.scss`）。どちらの帯も背後に
-// 塗られた祖先を持たないので、いまぼかす相手は無い
-$surface-titlebar: rgba($color-primary-black, 0.86);
+// 落ちた瞬間に色味が変わらないよう1つを見る
+$surface-titlebar: $color-primary-black;
 // 付箋（`FloatingNote`）のヘッダ。高さがタイトルバーと揃うのは意匠で、従属ではない。
 // 利用者が1つしか無いのにここに置くのは、コンポーネント側のローカル変数に下ろすと
 // `scssScaleRatchet` の `indirect` が増えて落ちるため。

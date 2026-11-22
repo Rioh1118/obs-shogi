@@ -61,7 +61,7 @@ describe("ヘッダ中央の出どころ", () => {
 
     expect(seen.info!.fileLabel).toBe("a");
     expect(seen.info!.fileTitle).toBe("/ws/a.kif");
-    expect(seen.info!.senteName).toBe("先手A");
+    expect(seen.info!.tooltip).toContain("先手 先手A / 後手 後手A");
   });
 
   /**
@@ -82,8 +82,7 @@ describe("ヘッダ中央の出どころ", () => {
 
     expect(seen.info!.fileLabel).toBe("a");
     expect(seen.info!.fileTitle).toBe("/ws/a.kif");
-    expect(seen.info!.senteName).toBe("先手A");
-    expect(seen.info!.goteName).toBe("後手A");
+    expect(seen.info!.tooltip).toContain("先手 先手A / 後手 後手A");
   });
 
   test("何も載っていなければ「ファイル未選択」", () => {
