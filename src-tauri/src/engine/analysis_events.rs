@@ -3,7 +3,10 @@
 //! trait を決めるのは下のレイヤで、実装（`TauriAnalysisEvents`）は上の `commands::analysis` が持つ。
 //! `bridge` が `tauri` を知らずに済むのはこのため（`game::events` の `GameEventSink` と同じ形）。
 
-use crate::engine::types::{AnalysisUpdate, EngineAnswered, EngineExited, EngineUnresponsive};
+use crate::engine::types::{
+    AnalysisUpdate, EngineAnswered, EngineExited, EngineUnresponsive, MateSearchFinished,
+    MateSearchUpdate,
+};
 
 /// 解析の側からフロントへ流す出来事
 #[derive(Debug, Clone)]
@@ -18,6 +21,10 @@ pub enum AnalysisEvent {
     EngineUnresponsive(EngineUnresponsive),
     /// `stop` に遅れて答えがあった
     EngineAnswered(EngineAnswered),
+    /// 詰み探索の途中経過
+    MateUpdate(MateSearchUpdate),
+    /// 詰み探索が終わった
+    MateFinished(MateSearchFinished),
 }
 
 /// 解析の出来事の宛先。実装は上のレイヤ（`commands::analysis`）に置く。下が `tauri` を知らない、を

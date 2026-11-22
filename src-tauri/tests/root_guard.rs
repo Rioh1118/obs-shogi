@@ -76,7 +76,7 @@ const STRUCT_CARRIED_PATH: [&str; 6] = [
 /// 2. root を決める側。検査より前に呼ばれるので通しようがないもの（issue 番号を伴わせる）
 ///
 /// 「まだ直していない」は理由にならない
-const EXEMPT: [(&str, &str); 10] = [
+const EXEMPT: [(&str, &str); 11] = [
     (
         "open_book",
         "(1) 定跡はエンジン同梱のディレクトリや外付けドライブなど、ワークスペースの外に置かれる。\
@@ -99,6 +99,11 @@ const EXEMPT: [(&str, &str); 10] = [
         "(1) engine_path / eval_path / book.path は思考エンジンの実行ファイル・評価関数・定跡で、ワークスペースの外にある \
          （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る。評価関数と定跡の \
          パスはエンジンへ文字列で渡すだけで、アプリは中身を開かない——フォルダかどうかを見るだけ）",
+    ),
+    (
+        "start_mate_search",
+        "(1) start_analysis_engine と同じ3つのパスで、同じ経路（`analysis_start::start`）を通る \
+         （起こしてよいかは `EngineRegistry::spawn` の canonicalize + is_file が見る）",
     ),
     (
         "probe_engine",
