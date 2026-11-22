@@ -34,7 +34,7 @@ const PROFILE: ProfileCandidate = {
   has_eval_dir: true,
   has_book_dir: true,
   eval_files: [{ entry: "nn.bin", path: "/ai/Suisho/eval/nn.bin", kind: "file" }],
-  book_db_files: [{ entry: "user_book1.db", path: "/ai/Suisho/book/user_book1.db", kind: "file" }],
+  book_files: [{ entry: "user_book1.db", path: "/ai/Suisho/book/user_book1.db", kind: "file" }],
 };
 
 const NOTHING = { profiles: [], engines: [] };
@@ -121,7 +121,7 @@ describe("autofillPreset", () => {
       bookEnabled: true,
     };
 
-    expect(autofillPreset(cur, CANDIDATES).bookFilePath).toBe(PROFILE.book_db_files[0].path);
+    expect(autofillPreset(cur, CANDIDATES).bookFilePath).toBe(PROFILE.book_files[0].path);
   });
 
   test("すでに入っている値は上書きしない", () => {
@@ -140,7 +140,7 @@ describe("autofillPreset", () => {
       { profiles: [PROFILE], engines: [ENGINE] },
     );
 
-    expect(next.bookFilePath).toBe(PROFILE.book_db_files[0].path);
+    expect(next.bookFilePath).toBe(PROFILE.book_files[0].path);
   });
 
   /** 補完は空欄を埋めるだけ。使わない定跡のパスを落とすのはプリセット編集の保存 */

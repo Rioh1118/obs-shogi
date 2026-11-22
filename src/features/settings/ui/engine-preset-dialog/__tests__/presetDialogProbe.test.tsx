@@ -40,7 +40,7 @@ const INDEX: AiRootIndex = {
       has_eval_dir: true,
       has_book_dir: false,
       eval_files: [{ entry: "nn.bin", path: `${AI_ROOT}/hao/eval/nn.bin`, kind: "file" }],
-      book_db_files: [],
+      book_files: [],
     },
     {
       name: "li",
@@ -48,7 +48,7 @@ const INDEX: AiRootIndex = {
       has_eval_dir: true,
       has_book_dir: true,
       eval_files: [{ entry: "nn.bin", path: `${AI_ROOT}/li/eval/nn.bin`, kind: "file" }],
-      book_db_files: [
+      book_files: [
         {
           entry: "user_book1.db",
           path: `${AI_ROOT}/li/book/user_book1.db`,

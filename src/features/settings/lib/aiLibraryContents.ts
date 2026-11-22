@@ -45,7 +45,7 @@ function summarizeFolder(profile: ProfileCandidate): AiFolderSummary {
     name: profile.name,
     path: profile.path,
     hasEval: profile.has_eval_dir && profile.eval_files.length > 0,
-    hasBook: profile.has_book_dir && profile.book_db_files.length > 0,
+    hasBook: profile.has_book_dir && profile.book_files.length > 0,
   };
 }
 
@@ -61,7 +61,7 @@ function warningsOf(enginesDir: EnginesDir, engineCount: number, profiles: AiFol
   }
   for (const { name, hasEval, hasBook } of profiles) {
     if (!hasEval) warnings.push(`「${name}」: 評価関数が未検出です（<AI 名>/eval に nn.bin 等）。`);
-    if (!hasBook) warnings.push(`「${name}」: 定跡が未検出です（<AI 名>/book に .db）。`);
+    if (!hasBook) warnings.push(`「${name}」: 定跡が未検出です（<AI 名>/book に .db か .ybb）。`);
   }
   return warnings;
 }

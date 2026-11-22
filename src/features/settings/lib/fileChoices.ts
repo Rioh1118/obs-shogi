@@ -50,18 +50,49 @@ export function evalChoices(profiles: ProfileCandidate[], current: string): File
   return [{ value: "", label: "指定しない", folder: null }, ...keepCurrent(files, current)];
 }
 
+/** 拡張子を除いた名前と、小文字にした拡張子 */
+function splitExt(entry: string): [string, string] {
+  const dot = entry.lastIndexOf(".");
+  return dot <= 0 ? [entry, ""] : [entry.slice(0, dot), entry.slice(dot + 1).toLowerCase()];
+}
+
 /**
- * 定跡の選択肢。先頭は「使わない」（値は空）。AI ライブラリの全部のフォルダの `book/` の `.db` を並べる。
+ * 同じフォルダに同じ名前の `.db` があるので、エンジンが読まない `.ybb` か。
+ * やねうら王は `.ybb` を `.db` の名前で受け、その名前の `.db` があればそちらを読む
+ * （`docs/spec/features/book.md` の R-B4）。名前の大小は区別しない（macOS の初期のファイルシステムに揃える）
+ */
+function isShadowedByDb(entry: string, siblings: string[]): boolean {
+  const [stem, ext] = splitExt(entry);
+  if (ext !== "ybb") return false;
+  return siblings.some((other) => {
+    const [otherStem, otherExt] = splitExt(other);
+    return otherExt === "db" && otherStem.toLowerCase() === stem.toLowerCase();
+  });
+}
+
+/** 選んだ定跡が、同じ名前の `.db` に代わって読まれる `.ybb` か。欄の下で案内するために使う */
+export function bookReadAsDb(profiles: ProfileCandidate[], path: string | null): boolean {
+  if (!path) return false;
+  return profiles.some((p) => {
+    const entries = p.book_files.map((f) => f.entry);
+    return p.book_files.some((f) => f.path === path && isShadowedByDb(f.entry, entries));
+  });
+}
+
+/**
+ * 定跡の選択肢。先頭は「使わない」（値は空）。AI ライブラリの全部のフォルダの `book/` の `.db` と `.ybb` を並べる。
+ * 同じ名前の `.db` があってエンジンが読まない `.ybb` は、名前の後にそう添える。
  * 選んだ定跡は検討で使い、定跡ビューにも出す（「使わない」ならどちらにも出ない）
  */
 export function bookChoices(profiles: ProfileCandidate[], current: string | null): FileChoice[] {
-  const files = profiles.flatMap((p) =>
-    p.book_db_files.map((f) => ({
+  const files = profiles.flatMap((p) => {
+    const entries = p.book_files.map((f) => f.entry);
+    return p.book_files.map((f) => ({
       value: f.path,
-      label: `${p.name} / ${f.entry}`,
+      label: `${p.name} / ${f.entry}${isShadowedByDb(f.entry, entries) ? "（.db が読まれる）" : ""}`,
       disabled: !isFileKind(f.kind),
       folder: p.name,
-    })),
-  );
+    }));
+  });
   return [{ value: "", label: "使わない", folder: null }, ...keepCurrent(files, current)];
 }
