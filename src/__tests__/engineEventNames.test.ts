@@ -9,7 +9,11 @@ import { REPO_ROOT } from "./walk";
  * 別々に持つので、片方だけ消えても型は止めない。
  */
 const SINK = "src-tauri/src/engine/commands/analysis.rs";
-const NAMES = ["src/entities/engine/api/eventNames.ts", "src/entities/analysis/api/eventNames.ts"];
+const NAMES = [
+  "src/entities/engine/api/eventNames.ts",
+  "src/entities/analysis/api/eventNames.ts",
+  "src/entities/mate-search/api/eventNames.ts",
+];
 
 describe("エンジンの通知の綴り", () => {
   const source = readFileSync(join(REPO_ROOT, SINK), "utf8");

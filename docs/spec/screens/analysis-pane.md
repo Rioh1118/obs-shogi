@@ -33,7 +33,7 @@
 ┌ タブの段（ドックのもの）───────────────────────────────┐
 │ [検討]                                                  │
 ├ 操作列の段（このビューのもの）─────────────────────────┤
-│ ● 検討中 1m 12s        [⟳][■]  [🧭][🔍][🔖]  [⚙]       │
+│ ● 検討中 1m 12s      [⟳][■][♛]  [🧭][🔍][🔖]  [⚙]      │
 ├ 本体 ──────────────────────────────────────────────────┤
 │ 指し手    評価値   読み筋                               │
 │ ▲２六歩   +123    △８四歩 ▲２五歩 △８五歩 …           │
@@ -54,6 +54,7 @@
 | 🔍     | `Search`               | `modal=position-search`                             | `currentSfen` が無い        |
 | 🔖     | `Bookmark`             | `modal=study-position-save`。登録済みなら塗りつぶす | `currentSfen` が無い        |
 | ▶ / ■  | `Play` / `Square`      | 検討の開始・中断。`エンジン終了` の間は `再起動` に替わる | 検討していなくて `currentSfen` 無し |
+| ♛      | `Crown` / `Square`     | 詰み探索の開始・中止                                | 使うプリセットの指定が無い、`currentSfen` が無い（走っていれば押せる） |
 | ⚙      | `Settings`             | `modal=settings&tab=engine`                         | なし                        |
 
 **盤の道具（⟳ 🧭 🔍 🔖）もここに置く。** 盤ペインの操作列（◀◀ ◀ ▶ ▶▶）には
@@ -125,6 +126,14 @@ NPS は `nodes` と `time_ms` から導く。**エンジンの申告は使えな
 
 エンジンが動いていない間の見え方は [`engine-standardization.md`](../features/engine-standardization.md) の「候補手の見え方」が決める（`lib/visibleCandidates.ts`）。
 
+### 詰み探索
+
+**表と語の持ち主は、検討か詰み探索のどちらか1つ。** 詰み探索が持つ間は、語が `詰み探索の起動中…` `詰み探索中 12s`
+`詰み探索完了 12s` に、▶ が検討への切り替えになり、検討の状態（下の表の N と `engine-standardization.md` の V）は出ない。
+候補手は詰将棋エンジンの生の結果だけで、検討のキャッシュに読み書きしない。終わったら結論を候補手の上に1行出す。
+経過時間の起点は provider が持ち、タブを移っても 0 に戻らない。
+→ [features/mate-search.md](../features/mate-search.md) ／ [状態遷移](../../state-transitions/mate-search.md)
+
 ### 結果のキャッシュ
 
 **持ち主は `entities/analysis`**（`entities/analysis/lib/candidateCache.ts`）。
@@ -167,6 +176,8 @@ React の仕様で覚えた値を捨てうるので使わない。`state`（`use
 | ■ を押す           | `stopAnalysis()`                                                                                                                                                                 |
 | 局面を動かす       | 検討中なら新しい局面を送り直す → [`engine-position-sync.md`](../../state-transitions/engine-position-sync.md)                                                                    |
 | プリセットを変える | エンジンを再起動する → [`engine.md`](../../state-transitions/engine.md)                                                                                                          |
+| ♛ を押す           | 詰み探索を始める。検討中なら先に中断する。走っていれば中止する → [状態遷移](../../state-transitions/mate-search.md) |
+| 詰み探索中に局面を動かす・▶ | 詰み探索を中止し、結論と候補手を消して表を検討に返す。検討が始まるのは ▶ のときだけ |
 | 棋譜を閉じる       | **検討を止めて席を返す。** 開き直しても再開しない → [`analysis.md`](../../state-transitions/analysis.md) の E14                                                                  |
 | 画面が unmount される    | **走っている検討に停止を投げる。** 返さないと以降どの検討も断られる → [`analysis.md`](../../state-transitions/analysis.md) の E13                                                |
 | 別のタブへ移る     | **検討は動かない。** 候補手も残る（キャッシュの持ち主が provider 側なので）→ [`dock-tabs.md`](../../state-transitions/dock-tabs.md)                                                    |
@@ -225,9 +236,6 @@ React の仕様で覚えた値を捨てうるので使わない。`state`（`use
 
 ## これからの要件
 
-- **詰み探索をこのペインで切り替えて走らせること。** 操作列に「詰み探索」を足し、探索中は詰将棋エンジンの候補手を
-  この表に出し、終わったら結論を表の上に1行出す。検討とは同時に走らせない
-  → [features/mate-search.md](../features/mate-search.md) ／ #746
 - **脚注に seldepth / hashfull を出すこと。** `AnalysisCandidate`
   （`src-tauri/src/engine/types.rs`）に欄が無く、その手前で #380 が塞いでいる
   （NPS は `nodes` と `time_ms` から導いてあるので、これには含まない）

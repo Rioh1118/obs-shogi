@@ -13,6 +13,7 @@ export type {
   SaveFailure,
   UsiOptionMap,
 } from "./model/types";
+export { runtimeConfigOf } from "./lib/runtimeConfig";
 export { MULTIPV_MAX, MULTIPV_MIN, MULTIPV_OPTION, QUICK_MULTIPV } from "./model/multiPv";
 export { fitSpin, fitValues, parseSpinValue } from "./lib/fitValues";
 export type { ClampedValue, DroppedValue, FittedValues } from "./lib/fitValues";

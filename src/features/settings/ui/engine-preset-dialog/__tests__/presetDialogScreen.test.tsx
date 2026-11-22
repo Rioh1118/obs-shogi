@@ -867,13 +867,9 @@ describe("検討の節", () => {
     expect((await saved()).analysis).toEqual({ timeSeconds: 30, nodes: 1000, mateSearch: false });
   });
 
-  test("詰み探索を入れて保存する", async () => {
-    await openLoaded();
-    const check = screen.getByRole("checkbox", { name: "詰み探索" }) as HTMLInputElement;
-    expect(check.checked).toBe(false);
-
-    fireEvent.click(check);
-    expect(check.checked).toBe(true);
+  test("詰み探索の欄は出さず、前の版が保存した値は残す（AC-31）", async () => {
+    await openLoaded({ analysis: { mateSearch: true } });
+    expect(screen.queryByRole("checkbox", { name: "詰み探索" })).toBeNull();
     expect((await saved()).analysis).toEqual({ mateSearch: true });
   });
 

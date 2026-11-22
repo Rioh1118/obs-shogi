@@ -29,6 +29,19 @@
     }
   }
 
+  // 詰み探索の結論。1行で出し、長い手順へはスクロールで届く（バーは全要素で消してある）
+  &__outcome {
+    flex: none;
+    margin: 0;
+    padding: index.$space-3 var(--pane-px, #{index.$space-4});
+    overflow-x: auto;
+    white-space: nowrap;
+    border-bottom: 1px solid index.$stroke-weak;
+    font-size: index.$font-body;
+    font-weight: index.$weight-strong;
+    color: index.$color-text-primary;
+  }
+
   &__body {
     flex: 1 1 auto;
     min-height: 0;

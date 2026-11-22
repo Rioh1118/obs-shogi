@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 import type { ReactNode } from "react";
-import type { AppConfig, AppConfigContextType, ChooseOpts, DisplayConfigPatch } from "./types";
+import type {
+  AppConfig,
+  AppConfigContextType,
+  ChooseOpts,
+  DisplayConfigPatch,
+  MateSearchConfigPatch,
+} from "./types";
 
 import { AppConfigContext } from "./context";
 import { configReducer, initialState } from "./reducer";
@@ -122,6 +128,15 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     [writeFields],
   );
 
+  const setMateSearchConfig = useCallback(
+    (patch: MateSearchConfigPatch): AsyncResult<void, string> =>
+      writeFields(patch).then(
+        () => Ok(undefined),
+        (err: unknown) => Err(String(err)),
+      ),
+    [writeFields],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -152,6 +167,7 @@ export function AppConfigProvider({ children }: { children: ReactNode }) {
     setRootDir,
     setLastPresetId,
     setDisplayConfig,
+    setMateSearchConfig,
   };
 
   return <AppConfigContext.Provider value={value}>{children}</AppConfigContext.Provider>;

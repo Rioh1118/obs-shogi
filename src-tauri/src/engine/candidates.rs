@@ -56,7 +56,7 @@ pub fn depth_of_rank(result: &AnalysisResult, rank: u32) -> Option<u32> {
 }
 
 /// `multipv` の番号を返す。無ければ 1
-fn extract_rank(info_params: &[InfoParams]) -> u32 {
+pub fn extract_rank(info_params: &[InfoParams]) -> u32 {
     for info in info_params {
         if let InfoParams::MultiPv(r) = info {
             return *r as u32;

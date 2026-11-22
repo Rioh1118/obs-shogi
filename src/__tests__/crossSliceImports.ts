@@ -36,6 +36,8 @@ export const CROSS_SLICE_INVENTORY: readonly string[] = [
   "entities/game -> entities/game-session",
   "entities/game -> entities/kifu",
   "entities/game-session -> entities/engine",
+  // 候補手とエンジンの設定の型、利用者の値を送る形。詰み探索もエンジンを動かす（向きは `analysis` と同じ）
+  "entities/mate-search -> entities/engine",
   "entities/position -> entities/kifu",
   "entities/search -> entities/kifu",
 

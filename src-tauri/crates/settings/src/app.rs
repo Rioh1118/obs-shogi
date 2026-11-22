@@ -44,6 +44,12 @@ pub struct AppConfig {
     ///
     /// 綴りを enum にしない理由は [`AppConfig::dock_tabs`] と同じ。
     pub analysis_display_mode: Option<String>,
+    /// 詰み探索に使うプリセットの `id`。**`None` は指定なし**
+    pub mate_preset_id: Option<String>,
+    /// 詰み探索の上限時間の綴り。**`None` は既定**。
+    ///
+    /// 綴りを enum にしない理由は [`AppConfig::dock_tabs`] と同じ。
+    pub mate_search_limit: Option<String>,
     /// 最近開いた定跡のパス。新しいものが先頭。
     ///
     /// Rust は中身も本数も見ず、読んだまま書き戻す。並べ方と本数は
@@ -153,6 +159,8 @@ mod tests {
         assert_eq!(config.dock_last_tab, None);
         assert_eq!(config.show_evaluation_bar, None);
         assert_eq!(config.analysis_display_mode, None);
+        assert_eq!(config.mate_preset_id, None);
+        assert_eq!(config.mate_search_limit, None);
         assert!(config.extra.is_empty());
     }
 

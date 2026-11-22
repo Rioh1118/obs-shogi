@@ -96,6 +96,7 @@ const NOT_RUST: &[(&str, &str)] = &[
         "ドックのタブ。TS 側（Rust のセッションは analysis.md の記号を借りている）",
     ),
     ("engine-position-sync.md", "局面の送信。TS 側のフック"),
+    ("mate-search.md", "詰み探索の画面側。TS 側"),
     ("engine.md", "エンジンの生存。TS 側から見た状態"),
     ("failure-surfacing.md", "失敗の見せ方。TS 側"),
     ("file-tree.md", "ファイル木。TS 側"),

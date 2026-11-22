@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import type { EngineStatus } from "@/entities/analysis";
 import type { EngineFailureNotice } from "@/entities/engine";
+import { formatElapsed } from "@/widgets/analysis-pane/lib/elapsed";
 import { EngineStatusDetail } from "./EngineStatusDetail";
 
 /** 状態ごとの語と記号。**経過時間を添えるのは読んでいる間と読み終えた後だけ** */
@@ -14,11 +15,6 @@ const STATUS_VIEW: Record<EngineStatus, { word: string; mark: string; timer: boo
   exited: { word: "エンジン終了", mark: "danger", timer: false },
   failed: { word: "起動失敗", mark: "danger", timer: false },
   cancelled: { word: "起動を中止しました", mark: "danger", timer: false },
-};
-
-const formatElapsed = (seconds: number): string => {
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 };
 
 type Props = {

@@ -47,6 +47,19 @@ const setDisplayConfig = vi.fn(async (patch: { analysis_display_mode?: string | 
   return { success: true as const, data: undefined };
 });
 
+vi.mock("@/entities/mate-search/model/useMateSearch", () => {
+  // 詰み探索をしていない画面。表を持つ間の出し方は `mateSearchPane.test.tsx` が見る
+  const mocked = {
+    useMateSearch: () => ({
+      state: { phase: "closed" as const },
+      ownsTable: false,
+      availability: "unset" as const,
+      toggle: async () => {},
+      dismiss: () => {},
+    }),
+  };
+  return mocked satisfies typeof import("@/entities/mate-search/model/useMateSearch");
+});
 vi.mock("@/entities/analysis", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/entities/analysis")>()),
   useAnalysis: () => analysis,

@@ -7,6 +7,7 @@ import Button from "@/shared/ui/Button/Button";
 import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
+import MateSearchSection from "../engine-tab/MateSearchSection";
 import PresetCard from "../engine-tab/PresetCard";
 import { type EnginePreset, type PresetId, useEnginePresets } from "@/entities/engine-presets";
 
@@ -89,6 +90,8 @@ export default function EngineTab() {
           </div>
         )}
       </SSection>
+
+      <MateSearchSection presets={presets} />
 
       {editingId && (
         <EnginePresetEditDialogPanel presetId={editingId} onClose={() => setEditingId(null)} />
