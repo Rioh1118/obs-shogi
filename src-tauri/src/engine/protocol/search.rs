@@ -134,7 +134,7 @@ impl UsiProtocol {
 
 impl Search {
     /// 次の行を待つ。`bestmove`（詰み探索なら `checkmate`）を返した後は `Ok(None)`。
-    /// `bestmove` の前に閉じたら、閉じた写しを見てから届かない理由（`UsiProtocol::cannot_reach`）で断る。
+    /// 最後の行の前に閉じたら、閉じた写しを見てから届かない理由（`UsiProtocol::cannot_reach`）で断る。
     ///
     /// 取り消してよい（`select!` に置ける）。受けていない行は失われない
     pub async fn next_line(&mut self) -> Result<Option<SearchLine>, EngineError> {
@@ -172,7 +172,7 @@ impl Search {
     /// 「`stop` に答えなかった」という説明が付き、次の手（起こし直す）が出ない。
     ///
     /// 途中で future を捨てても探索は残らない。`stop` を書く前なら `Drop` が書き、書いた後なら
-    /// 状態機械が止め待ちのまま `bestmove` を待つ
+    /// 状態機械が止め待ちのまま最後の行を待つ
     pub async fn stop(self, limit: Duration) -> StopAnswer {
         if self.answered {
             return StopAnswer::Answered(StopReply::AlreadyAnswered);
