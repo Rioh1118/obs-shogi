@@ -67,5 +67,6 @@
 ## 埋まっていないセル
 
 - **▶ の応答を待っている間に詰み探索へ切り替え、すぐ ▶ で戻ると、検討が始まらない。** 表は検討に返り、もう一度 ▶ を押せば始まる。
-  `startInfiniteAnalysis` が要らなくなった応答待ちの1本を返すため（`entities/analysis` の `startInFlightRef`）
+  応答待ちの間は検討の語が `検討中` なので、`AnalysisControls` の `handleBackToAnalysis` が開始を呼ばずに降りる。呼んでも、
+  要らなくなった応答待ちの1本が返る（`entities/analysis` の `startInFlightRef`）
 - 詰将棋エンジンの実機。台本のエンジン（Rust）と差し替えた IPC（TS）だけで踏んでいる
