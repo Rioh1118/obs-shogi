@@ -350,7 +350,11 @@ export function measureScreen(opts = {}) {
   };
   /** その点で el の下にある、祖先でない塗られた箱。文字が別の箱の上に乗っている（帯が評価値バーに重なる） */
   const paintedUnder = (el, x, y) => {
-    for (const under of document.elementsFromPoint(x, y)) {
+    const stack = document.elementsFromPoint(x, y);
+    const own = stack.findIndex((hit) => hit === el || el.contains(hit));
+    // 上に載っている箱は数えない。その点の文字は覆われている（`coverOf` と `hiddenBy` が見る）
+    if (own === -1) return null;
+    for (const under of stack.slice(own)) {
       if (under === el || under.contains(el) || el.contains(under)) {
         // 自分か祖先が塗っていれば、そこから下は見えない
         if (alpha(style(under).backgroundColor) > 0.5 || style(under).backgroundImage !== 'none') return null;

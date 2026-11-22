@@ -36,6 +36,12 @@ const CASES = {
     // 同じ段に敷いた地の上に置くのはよい
     good: box('width:300px;height:40px', '<div style="height:100%;background:#273033"></div>') + box('left:120px;top:48px', '<span>検討中</span>'),
   },
+  // 押して開いたメニューが、文字の端だけを覆っている
+  'overlap（開いたメニュー）': {
+    kind: 'overlap',
+    bad: box('width:300px', '<div style="height:9px;margin-top:8px;background:#e2ddd0"></div>') + box('left:120px', '<span>検討中</span>'),
+    good: box('white-space:nowrap', '<span>角換わりの研究</span>') + '<div role="menu" style="position:fixed;left:90px;top:46px;width:200px;height:120px;background:#333">メニュー</div>',
+  },
   touch: {
     bad: box('display:grid;grid-template-columns:auto auto;white-space:nowrap', '<span>33,554,432 MB</span><span>ON</span>'),
     good: box('display:grid;grid-template-columns:auto auto;column-gap:24px;white-space:nowrap', '<span>33,554,432 MB</span><span>ON</span>'),

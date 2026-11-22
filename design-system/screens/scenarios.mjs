@@ -42,7 +42,8 @@ async function goTo(page, n) {
   const row = page.locator(`#kifu-row-${n}, [id$="-${n}"].kifu-row`).first();
   if (await row.count()) {
     await row.scrollIntoViewIfNeeded();
-    await row.click();
+    // 行の余りには分岐とコメントのボタンがある
+    await row.locator('.kifu-row__move').click();
   } else {
     for (let i = 0; i < n; i += 1) await page.locator('[title^="次の手"]').click();
   }
