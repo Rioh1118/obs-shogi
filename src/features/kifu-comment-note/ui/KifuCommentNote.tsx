@@ -19,7 +19,7 @@ type Props = {
    * 同じままなので、そこで保存を止めると**書きかけの本文が行き場を失う**
    */
   boardSeq: number | null;
-  anchorEl: HTMLButtonElement | null;
+  anchorEl: HTMLElement | null;
   onClose: () => void;
 };
 

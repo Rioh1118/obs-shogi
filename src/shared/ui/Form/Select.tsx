@@ -46,15 +46,15 @@ function Select<T extends string>({
   const selectedLabel =
     options.find((o) => o.value === value)?.label || placeholder || "選択してください";
 
-  // 外部クリックで閉じる
+  // 外を押したら閉じる。pointerdown で聞く理由は `noDocumentMousedown.test.ts`
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: PointerEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("pointerdown", handleClickOutside);
+    return () => document.removeEventListener("pointerdown", handleClickOutside);
   }, []);
 
   const handleSelect = (next: T) => {

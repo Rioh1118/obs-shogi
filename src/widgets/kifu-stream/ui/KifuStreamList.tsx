@@ -95,6 +95,14 @@ function rowUnit(list: HTMLElement): number {
   return Math.max(1, Math.min(...heights));
 }
 
+/**
+ * 付箋を置く基準。押したボタンでなく行全体にする。いまの手の行はボタンの下にコメントの文を出すので、
+ * ボタンの下に置くと付箋がその文に重なり、文の上半分だけが帯のように見える
+ */
+function rowOf(button: HTMLElement): HTMLElement {
+  return button.closest<HTMLElement>(".kifu-row") ?? button;
+}
+
 export default function KifuStreamList() {
   const { state, view, goToIndex, applyCursor, deleteBranch, swapBranches } = useGame();
   const { pendingDelete, isDeleting, requestDelete, confirmDelete, cancelDelete } =
@@ -480,7 +488,7 @@ export default function KifuStreamList() {
         open={!!openComment}
         cursor={openComment?.cursor ?? null}
         boardSeq={openComment?.boardSeq ?? null}
-        anchorEl={openComment?.anchorEl ?? null}
+        anchorEl={openComment && rowOf(openComment.anchorEl)}
         onClose={closeCommentNote}
       />
 

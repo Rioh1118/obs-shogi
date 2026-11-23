@@ -44,10 +44,24 @@ vi.mock("@/entities/game", () => ({ useGame: () => game }));
 // `isTop is not a function` になり、書いた人は Escape の扱いが壊れたと読む
 vi.mock("@/shared/lib/overlayStack", () => ({ useOverlayLayer: () => () => true }));
 
-/** 中身は見ない。**開いているか**と、渡された棋譜の識別子だけを出す */
+/** 中身は見ない。**開いているか**と、渡された棋譜の識別子と、置く基準が行かだけを出す */
 vi.mock("@/features/kifu-comment-note/ui/KifuCommentNote", () => ({
-  default: ({ open, boardSeq }: { open: boolean; boardSeq: number | null }) =>
-    open ? <div data-testid="note" data-board-seq={String(boardSeq)} /> : null,
+  default: ({
+    open,
+    boardSeq,
+    anchorEl,
+  }: {
+    open: boolean;
+    boardSeq: number | null;
+    anchorEl: HTMLElement | null;
+  }) =>
+    open ? (
+      <div
+        data-testid="note"
+        data-board-seq={String(boardSeq)}
+        data-anchor-row={String(anchorEl?.classList.contains("kifu-row"))}
+      />
+    ) : null,
 }));
 
 const { default: KifuStreamList } = await import("../KifuStreamList");
@@ -81,6 +95,14 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+// いまの手の行は、ボタンの下にコメントの文を出す。ボタンの下に置くと、付箋がその文の途中にかかる
+describe("付箋を置く基準", () => {
+  test("押したボタンでなく、下に出るコメントの文を含む行にする", async () => {
+    await openNote();
+    expect(screen.getByTestId("note").dataset.anchorRow).toBe("true");
+  });
+});
 
 describe("開いているサーフェスを閉じる合図", () => {
   /** 改名・移動（`path_renamed`）。パスだけが動き、盤の中身は同じ */
