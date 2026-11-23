@@ -1,14 +1,7 @@
-import {
-  useRef,
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
-  type CSSProperties,
-} from "react";
-import "./BranchList.scss";
-import BranchCard from "./BranchCard";
+import { useEffect, useRef } from "react";
 import type { BranchOption } from "@/entities/kifu/model/branch";
+import BranchRow from "./BranchRow";
+import "./BranchList.scss";
 
 type Props = {
   branches: BranchOption[];
@@ -16,184 +9,30 @@ type Props = {
   onSelectIndex: (idx: number) => void;
 };
 
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
-
+/** 次の手の候補の一覧。本譜、変化の順 */
 export default function BranchList({ branches, selectedIndex, onSelectIndex }: Props) {
-  const [cursor, setCursor] = useState({ y: 0, h: 0, ready: false });
-  const containerRef = useRef<HTMLDivElement>(null);
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const isUserScrollingRef = useRef(false);
-  const scrollTimeoutRef = useRef<number | null>(null);
+  const selectedRef = useRef<HTMLDivElement>(null);
 
-  const rafRef = useRef<number | null>(null);
-  const cancelScrollAnim = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-  }, []);
-
-  const springScrollTo = useCallback(
-    (target: number) => {
-      const el = containerRef.current;
-      if (!el) return;
-
-      cancelScrollAnim();
-
-      let x = el.scrollTop;
-      let v = 0;
-      let last = performance.now();
-
-      // ばねの硬さと減衰。減衰を臨界（2√k ≈ 32）より強くし、行き過ぎて戻る揺れを出さない
-      const k = 260;
-      const c = 34;
-
-      const step = (now: number) => {
-        const dt = Math.min(0.032, (now - last) / 1000);
-        last = now;
-
-        const a = -k * (x - target) - c * v;
-        v += a * dt;
-        x += v * dt;
-
-        el.scrollTop = x;
-
-        if (Math.abs(v) < 8 && Math.abs(x - target) < 0.5) {
-          el.scrollTop = target;
-          rafRef.current = null;
-          return;
-        }
-        rafRef.current = requestAnimationFrame(step);
-      };
-
-      rafRef.current = requestAnimationFrame(step);
-    },
-    [cancelScrollAnim],
-  );
-
-  const setCardRef = (index: number) => (el: HTMLDivElement | null) => {
-    cardRefs.current[index] = el;
-  };
-
-  // スクロール
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const card = cardRefs.current[selectedIndex];
-    if (!container || !card) return;
-
-    // カードの位置は、スクロールする中身の中の offset で取る。`.branch-selector` が
-    // `position: relative` なので、スクロールしても値が動かない
-    const y = card.offsetTop;
-    const h = card.offsetHeight;
-    setCursor({ y, h, ready: true });
-
-    // 利用者がスクロールしている間は追わない。追うと利用者の手と取り合う
-    if (isUserScrollingRef.current) return;
-
-    const viewTop = container.scrollTop;
-    const viewH = container.clientHeight;
-
-    const cardTopInView = y - viewTop;
-    const cardBottomInView = cardTopInView + h;
-
-    // カードが中央の帯（上下22%〜78%）の外に出たときだけ、カードを中央へ寄せる。
-    // 毎回寄せると、j / k を押すたびに一覧が動く
-    const safeTop = viewH * 0.22;
-    const safeBottom = viewH * 0.78;
-
-    const shouldScroll = cardTopInView < safeTop || cardBottomInView > safeBottom;
-
-    if (shouldScroll) {
-      const target = clamp(y - viewH / 2 + h / 2, 0, container.scrollHeight - viewH);
-      springScrollTo(target);
-    }
-  }, [selectedIndex, branches.length, springScrollTo]);
-
+  // 選んだ行が見えていなければ、見える所まで送る
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const markUserScrolling = () => {
-      isUserScrollingRef.current = true;
-      cancelScrollAnim();
-
-      // 操作が止まってから 140ms は追わない。ホイールの慣性は最後の入力の後も続く
-      if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
-      scrollTimeoutRef.current = window.setTimeout(() => {
-        isUserScrollingRef.current = false;
-      }, 140);
-    };
-
-    container.addEventListener("wheel", markUserScrolling, { passive: true });
-    container.addEventListener("touchstart", markUserScrolling, {
-      passive: true,
-    });
-    container.addEventListener("pointerdown", markUserScrolling, {
-      passive: true,
-    });
-
-    return () => {
-      container.removeEventListener("wheel", markUserScrolling);
-      container.removeEventListener("touchstart", markUserScrolling);
-      container.removeEventListener("pointerdown", markUserScrolling);
-      if (scrollTimeoutRef.current) window.clearTimeout(scrollTimeoutRef.current);
-      cancelScrollAnim();
-    };
-  }, [cancelScrollAnim]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const card = entry.target as HTMLElement;
-          card.setAttribute("data-in-view", entry.isIntersecting ? "true" : "false");
-        });
-      },
-      {
-        root: container,
-        rootMargin: "-20% 0px -20% 0px",
-        threshold: [0, 0.5, 1],
-      },
-    );
-
-    cardRefs.current.forEach((card) => card && observer.observe(card));
-    return () => observer.disconnect();
-  }, [branches.length]);
-
-  if (branches.length === 0) {
-    return (
-      <div className="branch-selector" ref={containerRef}>
-        <div className="branch-selector__empty">
-          <p>この局面には次の手がありません</p>
-        </div>
-      </div>
-    );
-  }
+    selectedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex, branches]);
 
   return (
-    <div
-      className="branch-selector"
-      ref={containerRef}
-      style={
-        {
-          "--cursor-y": `${cursor.y}px`,
-          "--cursor-h": `${cursor.h}px`,
-          "--cursor-o": cursor.ready ? 1 : 0,
-        } as CSSProperties
-      }
-    >
-      <div className="branch-selector__cursor" aria-hidden="true" />
-
-      {branches.map((branch, idx) => (
-        <BranchCard
-          key={branch.isMainLine ? "main" : `fork-${branch.forkIndex}`}
-          ref={setCardRef(idx)}
-          branch={branch}
-          selected={selectedIndex === idx}
-          onClick={() => onSelectIndex(idx)}
-        />
-      ))}
+    <div className="branch-list">
+      {branches.length === 0 ? (
+        <p className="branch-list__empty">この局面には次の手がありません</p>
+      ) : (
+        branches.map((branch, idx) => (
+          <BranchRow
+            key={branch.isMainLine ? "main" : `fork-${branch.forkIndex}`}
+            ref={selectedIndex === idx ? selectedRef : undefined}
+            branch={branch}
+            selected={selectedIndex === idx}
+            onClick={() => onSelectIndex(idx)}
+          />
+        ))
+      )}
     </div>
   );
 }

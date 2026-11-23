@@ -76,13 +76,16 @@ function press(key: string) {
   return fireEvent.keyDown(window, { key });
 }
 
-const cards = () => [...document.querySelectorAll(".branch-selector__card")];
-const cardLabels = () =>
-  cards().map((c) => c.querySelector(".branch-selector__label")?.textContent);
-const selectedCardLabel = () =>
-  document.querySelector(".branch-selector__card--selected .branch-selector__label")?.textContent;
-const chips = () =>
-  [...document.querySelectorAll(".position-navigation-modal__chip")].map((c) => c.textContent);
+const rows = () => [...document.querySelectorAll(".branch-list__row")];
+const rowLabels = () => rows().map((c) => c.querySelector(".branch-list__label")?.textContent);
+const selectedRowLabel = () => {
+  const selected = document.querySelectorAll(".branch-list__row--selected");
+  expect(selected.length).toBeLessThanOrEqual(1);
+  return selected[0]?.querySelector(".branch-list__label")?.textContent;
+};
+/** 題の右の、手数と選んでいる候補 */
+const facts = () =>
+  [...document.querySelectorAll(".modal-head__right span")].map((c) => c.textContent);
 
 describe("PositionNavigationModal", () => {
   test("開いていなければ何も描かず、鍵も拾わない", () => {
@@ -98,9 +101,34 @@ describe("PositionNavigationModal", () => {
     cursor = { tesuu: 1, forkPointers: [] };
     render(<PositionNavigationModal />);
 
-    expect(chips()).toEqual(["1手目", "選択:本譜"]);
-    expect(cardLabels()).toEqual(["本譜", "変化1", "変化2"]);
-    expect(selectedCardLabel()).toBe("本譜");
+    expect(facts()).toEqual(["1手目", "選択:本譜"]);
+    expect(rowLabels()).toEqual(["本譜", "変化1", "変化2"]);
+    expect(rows().map((r) => r.querySelector(".branch-list__move")?.textContent)).toEqual([
+      "☖３四歩",
+      "☖８四歩",
+      "☖４四歩",
+    ]);
+    expect(rows().map((r) => r.querySelector(".branch-list__tesuu")?.textContent)).toEqual([
+      "2手目",
+      "2手目",
+      "2手目",
+    ]);
+    expect(selectedRowLabel()).toBe("本譜");
+  });
+
+  test("選んだ行を、見える所まで送る", () => {
+    const scrolled: (string | null | undefined)[] = [];
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+      scrolled.push(this.querySelector(".branch-list__label")?.textContent);
+    });
+    cursor = { tesuu: 1, forkPointers: [] };
+    render(<PositionNavigationModal />);
+
+    press("j");
+    expect(scrolled[scrolled.length - 1]).toBe("変化1");
+    press("j");
+    expect(scrolled[scrolled.length - 1]).toBe("変化2");
+    vi.restoreAllMocks();
   });
 
   test("j / k と上下で候補を選び、端で止まる", () => {
@@ -108,23 +136,23 @@ describe("PositionNavigationModal", () => {
     render(<PositionNavigationModal />);
 
     press("k");
-    expect(selectedCardLabel()).toBe("本譜");
+    expect(selectedRowLabel()).toBe("本譜");
     press("j");
-    expect(selectedCardLabel()).toBe("変化1");
+    expect(selectedRowLabel()).toBe("変化1");
     press("ArrowDown");
     press("ArrowDown");
-    expect(selectedCardLabel()).toBe("変化2");
-    expect(chips()).toEqual(["1手目", "選択:変化2"]);
+    expect(selectedRowLabel()).toBe("変化2");
+    expect(facts()).toEqual(["1手目", "選択:変化2"]);
     press("ArrowUp");
-    expect(selectedCardLabel()).toBe("変化1");
+    expect(selectedRowLabel()).toBe("変化1");
   });
 
-  test("カードを押すとその候補を選ぶ", () => {
+  test("行を押すとその候補を選ぶ", () => {
     cursor = { tesuu: 1, forkPointers: [] };
     render(<PositionNavigationModal />);
 
-    fireEvent.click(cards()[2]);
-    expect(selectedCardLabel()).toBe("変化2");
+    fireEvent.click(rows()[2]);
+    expect(selectedRowLabel()).toBe("変化2");
   });
 
   test("l で選んだ候補へ進み、選択を本譜に戻す。確定で盤へ渡して閉じる", () => {
@@ -133,9 +161,9 @@ describe("PositionNavigationModal", () => {
 
     press("j");
     press("l");
-    expect(chips()).toEqual(["2手目", "選択:本譜"]);
+    expect(facts()).toEqual(["2手目", "選択:本譜"]);
     // 変化1の次の手（3手目の６八銀）だけが候補に出る
-    expect(cardLabels()).toEqual(["本譜"]);
+    expect(rowLabels()).toEqual(["本譜"]);
     expect(applyCursor).not.toHaveBeenCalled();
 
     press("Enter");
@@ -153,7 +181,7 @@ describe("PositionNavigationModal", () => {
     press("j");
     press("ArrowRight");
     press("ArrowLeft");
-    expect(chips()).toEqual(["1手目", "選択:本譜"]);
+    expect(facts()).toEqual(["1手目", "選択:本譜"]);
 
     press("Enter");
     expect(applyCursor).toHaveBeenCalledWith({
@@ -166,9 +194,9 @@ describe("PositionNavigationModal", () => {
     render(<PositionNavigationModal />);
 
     press("h");
-    expect(chips()).toEqual(["0手目", "選択:本譜"]);
+    expect(facts()).toEqual(["0手目", "選択:本譜"]);
     press("l");
-    expect(chips()).toEqual(["1手目", "選択:本譜"]);
+    expect(facts()).toEqual(["1手目", "選択:本譜"]);
   });
 
   test("次の手が無い局面では案内を出し、l で動かない", () => {
@@ -177,7 +205,7 @@ describe("PositionNavigationModal", () => {
 
     expect(screen.getByText("この局面には次の手がありません")).toBeTruthy();
     press("l");
-    expect(chips()).toEqual(["3手目", "選択:—"]);
+    expect(facts()).toEqual(["3手目", "選択:—"]);
   });
 
   test("扱った鍵だけ既定の動作を止める", () => {
@@ -211,13 +239,13 @@ describe("PositionNavigationModal", () => {
     const { rerender } = render(<PositionNavigationModal />);
     press("l");
     press("l");
-    expect(chips()[0]).toBe("3手目");
+    expect(facts()[0]).toBe("3手目");
 
     params.modal = undefined;
     rerender(<PositionNavigationModal />);
     params.modal = "navigation";
     rerender(<PositionNavigationModal />);
 
-    expect(chips()[0]).toBe("1手目");
+    expect(facts()[0]).toBe("1手目");
   });
 });

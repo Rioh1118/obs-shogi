@@ -56,7 +56,7 @@ const MEASURED_COUNT = 361;
  * それ以外で増やさない。背景が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 76;
+const UNMEASURED_COUNT = 67;
 
 /**
  * 透明の背景で、枠線と文字だけを持つ部品。**自分では背景を持たないので、載る先を渡さないと測れない。**
