@@ -17,9 +17,15 @@
     flex-direction: column-reverse;
   }
 
-  // 盤を回したときは、見出しだけ回し戻す
+  // 盤を回したときは、見出しだけ回し戻す。回すと駒台に接する辺が上下で入れ替わるので、
+  // 並びの向きも逆にする。逆にしないと手番が名前と駒台の間に出て、出るたびに名前が動く
   &--counterRotate {
     transform: rotate(180deg);
+    flex-direction: column-reverse;
+  }
+
+  &--sente.hand-header--counterRotate {
+    flex-direction: column;
   }
 
   &__who {

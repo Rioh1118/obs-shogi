@@ -186,7 +186,7 @@ describe("StudyPositionSaveModal", () => {
     expect(screen.getByText("この局面はすでに保存されています")).toBeTruthy();
     expect(titleInput().value).toBe("角換わりの急所");
     fireEvent.change(titleInput(), { target: { value: "急所" } });
-    await press("保存する");
+    await press("保存");
 
     expect(updatePosition).toHaveBeenCalledWith({
       id: "p1",
@@ -339,7 +339,7 @@ describe("StudyPositionSaveModal", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     const view = render(<StudyPositionSaveModal />);
     fireEvent.change(titleInput(), { target: { value: "急所" } });
-    await press("保存する");
+    await press("保存");
     view.rerender(<StudyPositionSaveModal />);
 
     expect(screen.getByText("書き込めませんでした")).toBeTruthy();

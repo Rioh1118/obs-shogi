@@ -163,7 +163,7 @@ export default function StudyPositionSaveModal() {
 
   if (!isOpen) return null;
 
-  const saveLabel = isSaving ? "保存中…" : isEdit ? "保存する" : "保存";
+  const saveLabel = isSaving ? "保存中…" : "保存";
 
   return (
     <Modal

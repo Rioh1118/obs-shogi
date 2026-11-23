@@ -1,22 +1,35 @@
 @use "@/index.scss" as index;
 
-// 左に局面、右にファイルの欄
+// 左に局面、右にファイルの欄。境に縦の線を1本引く（「棋譜を作成」と同じ組み立て）
 .sfen-kifu-create {
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: index.$color-primary-dark;
   color: index.$color-text-primary;
 
+  // 入りきるときは、行をカードの高さいっぱいに伸ばし、押すものを右下に置く。
+  // ウィンドウが低いか上の帯が多くて入りきらないときは、中身ごと送る。
+  // 送れないと、下の「作成」と「キャンセル」が切れて押せない
   &__body {
+    flex: 1 1 auto;
     min-height: 0;
     display: grid;
     grid-template-columns: minmax(24rem, 5fr) minmax(0, 6fr);
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+    @include index.thin-scrollbar;
+
+    > .form {
+      border-left: 1px solid index.$stroke-weak;
+    }
   }
 
-  // 高さは盤が決める（幅いっぱいの盤と、手番と持ち駒の行）
+  // 盤は、この列の幅と高さに収まる大きさになる（`PositionPreviewPane`）。高さは 42rem を下限に、
+  // カードが伸びたときは行いっぱいまで使う
   &__preview {
-    height: 42rem;
+    min-height: 42rem;
     padding: index.$space-8 0 index.$space-8 index.$space-10;
   }
 
@@ -28,12 +41,15 @@
     color: index.$color-text-muted;
   }
 
-  // 狭いウィンドウでは、局面の下に欄を続けてまとめて送る
+  // 狭いウィンドウでは、局面の下に欄を続ける
   @media (max-width: 640px) {
-    overflow: hidden auto;
-
     &__body {
       grid-template-columns: minmax(0, 1fr);
+
+      > .form {
+        border-left: none;
+        border-top: 1px solid index.$stroke-weak;
+      }
     }
 
     &__preview {

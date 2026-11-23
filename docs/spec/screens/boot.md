@@ -30,8 +30,8 @@
 
 ### ウィンドウの初期色
 
-ウィンドウは `src-tauri/tauri.conf.json` の `backgroundColor` で `#3f4e4f`
-（`src/index.scss` の `$color-primary-light`）に塗られる。
+ウィンドウは `src-tauri/tauri.conf.json` の `backgroundColor` で
+`src/index.scss` の `$color-primary-dark` に塗られる（値は `tauri.conf.json` が持つ）。
 
 **この色は「画面」ではなく、まだ何も描いていない間の下地。** ウィンドウ枠は自前
 （`decorations: false`）でプロセス起動と同時に画面へ載るので、これを指定しないと

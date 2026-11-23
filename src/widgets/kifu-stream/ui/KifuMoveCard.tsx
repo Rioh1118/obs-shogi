@@ -162,7 +162,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
           </button>
         )}
 
-        {/* 書いてあることを、押さなくても1行目で示す。いまの手は下に全部出る */}
+        {/* 書いてあることを、押さなくても1行目で示す。いまの手は下に3行まで出す（`kifu-row__memo`） */}
         {hasComment && !row.isActive && (
           <span className="kifu-row__firstLine" title={row.comment}>
             {firstLine}

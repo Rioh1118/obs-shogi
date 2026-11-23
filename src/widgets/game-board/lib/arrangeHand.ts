@@ -32,7 +32,8 @@ function rankRow(kinds: readonly Kind[]): number {
  * 持ち駒を強い順に4段へ割り振る。
  *
  * 12枚までは1枚ずつ置く（実物の駒台と同じ）。それより多いと、駒を小さくする代わりに
- * 種類ごとに1枚と枚数にする。どちらでも、駒は盤の駒と同じ大きさのまま読める。
+ * 種類ごとに1枚と枚数にする。どちらでも駒を縮めて詰め込まない。駒の箱は盤のマスと同じ高さで、
+ * 幅を少し詰める（`Hand.scss`）ので、幅の広い駒は盤の駒の9割ほどに描かれる。
  */
 export function arrangeHand(pieces: readonly Piece[]): { rows: HandRows; isGrouped: boolean } {
   const counts = new Map<Kind, number>();

@@ -330,7 +330,8 @@ export default function StudyPositionsManagerModal() {
               {isEmpty && (
                 <div className="sp-manager__empty">
                   <p>{"課題局面がまだ保存されていません"}</p>
-                  <p>{"★ ボタンで保存できます"}</p>
+                  {/* 保存のボタンは盤の下の記号だけのボタン（題が「局面を保存」）。★ は画面に無い */}
+                  <p>{"盤の下の「局面を保存」で保存できます"}</p>
                 </div>
               )}
               {isFilterEmpty && (
