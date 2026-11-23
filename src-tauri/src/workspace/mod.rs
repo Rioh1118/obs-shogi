@@ -4,6 +4,7 @@
 //! `fs` crate にあり、そちらは設定を読まない。
 
 pub mod commands;
+pub mod events;
 pub mod guard;
 pub mod record;
 pub mod tree;

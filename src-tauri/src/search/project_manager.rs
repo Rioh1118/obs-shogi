@@ -26,6 +26,7 @@ use crate::search::store::snapshot::{IndexSnapshot, IndexState as StoreIndexStat
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexWarnPayload, EVT_INDEX_PROGRESS, EVT_INDEX_WARN,
 };
+use crate::workspace::events::EVT_WORKSPACE_CHANGED;
 
 #[derive(Debug, Default)]
 struct Inner {
@@ -178,6 +179,10 @@ impl ProjectManager {
 
                         // “dirty集合のスナップショットを切る”
                         dirty_paths.clear();
+
+                        // **索引の走査より先に送る。** ツリーは自分で全体を読み直すので、
+                        // 索引の組み直し（変わった棋譜の数だけ掛かる）を待たせる理由が無い
+                        let _ = app.emit(EVT_WORKSPACE_CHANGED, ());
 
                         // Step2: 差分更新（フル再スキャン→diff→適用）
                         // **結末を捨てない。** 捨てると、読めない場所がまだあるのに
