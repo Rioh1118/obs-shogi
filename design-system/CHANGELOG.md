@@ -9,6 +9,10 @@
 - 選んだものと局面の「いま」を分けた（patterns/selection.md）。選んだものは灰青、「いま」は銅の線と温かい塗り
 - `color.accent.solid` をアイコンの暗い銅 `#8f6347` に（白文字 5.19:1）。`color.surface.field` を不透明にした
 - 進めるボタンを、銅でなく砂色の枠と文字にした（銅は「いま」だけ）
+- 盤の直前の手は、銅を薄く敷くだけにした（patterns/selection.md）。暗い銅・線・斜めの角は重ねない
+- 局面の見本の駒を、作業画面の盤と同じ比にした（components/position-preview.md）
+- 記号だけのボタンの列は、間隔を1つにする（components/button.md）
+- 画面の撮影（`ds:screens`）に、揃わない間隔（`unevenGap`）と小さく描いた駒（`smallPiece`）を足した
 
 ### 追加
 - `color.background.hover`・`selected`・`now`・`dock`・`dock-strip`、`color.text.strong`・`label`、`color.accent.bright`、`radius.0`

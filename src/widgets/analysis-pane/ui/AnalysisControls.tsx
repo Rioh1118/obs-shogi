@@ -101,67 +101,69 @@ function AnalysisControls() {
 
       <div className="analysis-controls__actions">
         {isText && engineAction}
-        {/*
-          `role="toolbar"` を名乗らない。名乗ると矢印キーでの移動が期待されるが、
-          この帯はそれを持たない。`group` なら並びの名前だけを伝える
-        */}
-        <div className="analysis-controls__group" role="group" aria-label="盤と検討">
-          <button
-            className="analysis-controls__iconBtn"
-            onClick={handleTogglePov}
-            title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
-            aria-pressed={isGotePov}
-          >
-            <RotateCw className="analysis-controls__icon" />
-          </button>
-          {mate.ownsTable ? (
+        <div className="analysis-controls__icons">
+          {/*
+            `role="toolbar"` を名乗らない。名乗ると矢印キーでの移動が期待されるが、
+            この帯はそれを持たない。`group` なら並びの名前だけを伝える
+          */}
+          <div className="analysis-controls__group" role="group" aria-label="盤と検討">
             <button
               className="analysis-controls__iconBtn"
-              onClick={() => void handleBackToAnalysis()}
-              title="検討を開始"
+              onClick={handleTogglePov}
+              title={isGotePov ? "先手視点に戻す" : "後手視点にする"}
+              aria-pressed={isGotePov}
             >
-              <Play className="analysis-controls__icon" />
+              <RotateCw className="analysis-controls__icon" />
             </button>
-          ) : (
-            !isText && engineAction
-          )}
-          <MateSearchButton currentSfen={currentSfen} />
-        </div>
+            {mate.ownsTable ? (
+              <button
+                className="analysis-controls__iconBtn"
+                onClick={() => void handleBackToAnalysis()}
+                title="検討を開始"
+              >
+                <Play className="analysis-controls__icon" />
+              </button>
+            ) : (
+              !isText && engineAction
+            )}
+            <MateSearchButton currentSfen={currentSfen} />
+          </div>
 
-        <div className="analysis-controls__group" role="group" aria-label="局面の道具">
-          <button
-            className="analysis-controls__iconBtn"
-            onClick={() => openModal("navigation")}
-            disabled={!currentSfen}
-            title="局面ナビゲーション"
-          >
-            <Navigation className="analysis-controls__icon" />
-          </button>
-          <button
-            className="analysis-controls__iconBtn"
-            onClick={() => openModal("position-search")}
-            disabled={!currentSfen}
-            title="局面検索"
-          >
-            <Search className="analysis-controls__icon" />
-          </button>
-          <button
-            className="analysis-controls__iconBtn"
-            onClick={() => openModal("study-position-save")}
-            disabled={!currentSfen}
-            aria-pressed={isBookmarked}
-            title={isBookmarked ? "課題局面を編集" : "局面を保存"}
-          >
-            <Bookmark
-              className="analysis-controls__icon"
-              fill={isBookmarked ? "currentColor" : "none"}
-            />
+          <div className="analysis-controls__group" role="group" aria-label="局面の道具">
+            <button
+              className="analysis-controls__iconBtn"
+              onClick={() => openModal("navigation")}
+              disabled={!currentSfen}
+              title="局面ナビゲーション"
+            >
+              <Navigation className="analysis-controls__icon" />
+            </button>
+            <button
+              className="analysis-controls__iconBtn"
+              onClick={() => openModal("position-search")}
+              disabled={!currentSfen}
+              title="局面検索"
+            >
+              <Search className="analysis-controls__icon" />
+            </button>
+            <button
+              className="analysis-controls__iconBtn"
+              onClick={() => openModal("study-position-save")}
+              disabled={!currentSfen}
+              aria-pressed={isBookmarked}
+              title={isBookmarked ? "課題局面を編集" : "局面を保存"}
+            >
+              <Bookmark
+                className="analysis-controls__icon"
+                fill={isBookmarked ? "currentColor" : "none"}
+              />
+            </button>
+          </div>
+
+          <button className="analysis-controls__iconBtn" onClick={handleOpenSettings} title="設定">
+            <Settings className="analysis-controls__icon" />
           </button>
         </div>
-
-        <button className="analysis-controls__iconBtn" onClick={handleOpenSettings} title="設定">
-          <Settings className="analysis-controls__icon" />
-        </button>
       </div>
     </div>
   );

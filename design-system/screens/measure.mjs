@@ -14,6 +14,8 @@
 //   nested    枠のある角丸の箱が3重以上に入れ子になっている
 //   gradient  背景にグラデーションが敷かれている（盤と駒の画像は除く）
 //   sideBar   角丸の箱の片側にだけ棒が立っている（枠・影・擬似要素）
+//   unevenGap 同じ大きさの記号だけのボタンが1列に並び、間隔が揃っていない（間に線を引いた所は切る）
+//   smallPiece 9×9 の盤で、駒の箱がマスより小さい（盤によって同じ駒の大きさが変わる）
 //   contrast  文字と地の明るさの差が足りない（4.5:1、大きい文字は 3:1）。押せない状態の文字と、画像の上の文字は除く
 //   tiny      文字が下限（11px）より小さい
 
@@ -500,6 +502,53 @@ export function measureScreen(opts = {}) {
           push('nested', el, (el.textContent || '').trim().slice(0, 24), { depth });
         }
       }
+    }
+  }
+
+  // 同じ大きさの、記号だけのボタンの列。間隔が2つ以上あると、まとまりでなく乱れに見える。
+  // まとまりを分けるなら、間に線を引く（線を描いた所で列を切る）
+  const iconRows = new Map();
+  for (const b of document.querySelectorAll('button, [role="button"]')) {
+    if (!inScope(b) || !isVisible(b) || boardArea(b) || !b.querySelector('svg') || (b.textContent || '').trim()) continue;
+    const r = b.getBoundingClientRect();
+    const key = `${Math.round(r.top)}|${Math.round(r.width)}|${Math.round(r.height)}`;
+    if (!iconRows.has(key)) iconRows.set(key, []);
+    iconRows.get(key).push({ b, r });
+  }
+  const drawnBetween = (a, c) => {
+    if (c.r.left - a.r.right < 2) return false;
+    const hit = document.elementFromPoint((a.r.right + c.r.left) / 2, (a.r.top + a.r.bottom) / 2);
+    return !!hit && !hit.contains(a.b) && !hit.contains(c.b);
+  };
+  for (const row of iconRows.values()) {
+    row.sort((p, q) => p.r.left - q.r.left);
+    const chains = [[row[0]]];
+    for (const cur of row.slice(1)) {
+      const prev = chains.at(-1).at(-1);
+      const gap = cur.r.left - prev.r.right;
+      if (gap > 24 || gap < -TOL || drawnBetween(prev, cur)) chains.push([cur]);
+      else chains.at(-1).push(cur);
+    }
+    for (const chain of chains) {
+      if (chain.length < 3) continue;
+      const gaps = chain.slice(1).map((c, i) => Math.round(c.r.left - chain[i].r.right));
+      if (Math.max(...gaps) - Math.min(...gaps) <= TOL) continue;
+      const names = chain.map((c) => c.b.getAttribute('aria-label') || c.b.getAttribute('title') || '?').join(' ');
+      push('unevenGap', chain[0].b.parentElement, names, { gaps });
+    }
+  }
+
+  // 9×9 の盤では、駒の箱をマスいっぱいに置く（駒ごとの大きさは駒の部品が決める）。
+  // 箱を縮めた盤だけ、同じ駒が小さく描かれる。成りを選ぶ小窓の駒は除く
+  for (const grid of document.querySelectorAll('body *')) {
+    if (grid.children.length !== 81 || !inScope(grid) || !isVisible(grid)) continue;
+    for (const cell of grid.children) {
+      const piece = [...cell.querySelectorAll('[data-piece]')].find((p) => !p.closest('.promotion-choice'));
+      if (!piece) continue;
+      const pr = piece.getBoundingClientRect();
+      if (pr.height >= cell.clientHeight * 0.97 && pr.width >= cell.clientWidth * 0.97) continue;
+      push('smallPiece', grid, piece.getAttribute('data-piece') || '', { ratio: Number((pr.height / cell.clientHeight).toFixed(2)) });
+      break;
     }
   }
 

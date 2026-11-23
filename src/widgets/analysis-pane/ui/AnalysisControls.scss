@@ -98,6 +98,8 @@
     }
   }
 
+  // 記号のボタンは、まとまりの境でも間を空けずに並べる。境だけ広げると、間隔が乱れて見える
+  &__icons,
   &__group {
     display: flex;
     align-items: center;

@@ -37,17 +37,11 @@
     }
   }
 
+  // 駒の箱はマスいっぱいに置き、駒ごとの大きさは `Piece.scss` に任せる。
+  // ここで縮めると、作業画面の盤より駒だけが小さく見える
   &__piece {
-    width: 84%;
-    height: 84%;
-    display: grid;
-    place-items: center;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
   }
 }

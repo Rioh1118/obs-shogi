@@ -7,6 +7,13 @@ import { ALL } from './kinds.mjs';
 
 const box = (css, inner) => `<div style="position:absolute;left:40px;top:40px;${css}">${inner}</div>`;
 
+const ib = '<button aria-label="道具" style="width:34px;height:30px;border:none"><svg width="18" height="18"><rect width="18" height="18" fill="#888"/></svg></button>';
+const board = (pieceCss) =>
+  box(
+    'display:grid;grid-template-columns:repeat(9,30px);grid-template-rows:repeat(9,30px)',
+    Array.from({ length: 81 }, (_, i) => `<div>${i === 40 ? `<div data-piece="pawn" style="${pieceCss};background:#c90"></div>` : ''}</div>`).join(''),
+  );
+
 const CASES = {
   outside: {
     bad: box('width:60px;border:1px solid #888;white-space:nowrap', '<span>初期値（1024MB）</span>'),
@@ -83,6 +90,15 @@ const CASES = {
   sideBar: {
     bad: box('width:200px;height:40px;background:#273033;border-radius:8px;border-left:3px solid #b07c55', '選択中'),
     good: box('width:200px;height:40px;background:#273033', '選択中'),
+  },
+  // 道具の列。まとまりの間だけ広げると、乱れに見える。線を引いて分けるのはよい
+  unevenGap: {
+    bad: box('display:flex;align-items:center;gap:10px', `<div style="display:flex">${ib}${ib}${ib}</div><div style="display:flex">${ib}${ib}</div>`),
+    good: box('display:flex;align-items:center', `${ib}${ib}${ib}<span style="width:1px;height:16px;margin:0 6px;background:#888"></span>${ib}${ib}`),
+  },
+  smallPiece: {
+    bad: board('width:84%;height:84%'),
+    good: board('width:100%;height:100%'),
   },
   contrast: {
     bad: box('color:#4a5256', '薄い文字'),

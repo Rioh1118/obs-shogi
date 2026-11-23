@@ -43,6 +43,8 @@
 
 sm 28px / md 32px / lg 40px。フォームの行は md。文字は `font.size.aux`（lg だけ `font.size.body`）の `font.weight.strong`。角丸は `radius.control`。影は付けない。
 
+記号だけのボタンを1列に並べるときは、間隔を1つにする。まとまりの境だけ間を広げると、まとまりでなく乱れに見える（利用者「アイコンの間隔がバラバラ」、2026-11-23）。分けたいときは、間に線を1本引く。
+
 ## アクセシビリティ
 
 - 文字と背景は 4.5:1 以上、境界線と背景は 3:1 以上（design_system/tokens/contrast-pairs.json で検査）。

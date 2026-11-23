@@ -3,8 +3,8 @@
 /** 文字が読めない・押せない崩れ */
 export const BREAKS = ['outside', 'cut', 'squeezed', 'noReveal', 'overlap', 'touch', 'lost', 'offscreen', 'covered'];
 
-/** 形の決まりに反するもの（入れ子の箱、背景のグラデーション、角丸の箱の片側の棒） */
-export const SHAPES = ['nested', 'gradient', 'sideBar'];
+/** 形の決まりに反するもの（入れ子の箱、背景のグラデーション、角丸の箱の片側の棒、揃わない間隔、小さく描いた駒） */
+export const SHAPES = ['nested', 'gradient', 'sideBar', 'unevenGap', 'smallPiece'];
 
 /** 固定値（design_system/tokens/locked.json）に反するもの */
 export const LOCKED = ['contrast', 'tiny'];
