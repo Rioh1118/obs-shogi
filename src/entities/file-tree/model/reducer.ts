@@ -38,6 +38,7 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
         ...state,
         fileTree: action.payload,
         renamingNodeId: carryRenamingNodeId(state, action.payload),
+        menu: carryMenu(state, action.payload),
       };
 
     // 出ている通知は差し替えない。操作の失敗を「一覧を取り直せませんでした」に変えると、
@@ -198,4 +199,16 @@ function carryRenamingNodeId(state: FileTreeState, nextTree: FileTreeNode): stri
   const renaming = findNodeById(state.fileTree, state.renamingNodeId);
   if (!renaming) return null;
   return findNode(nextTree, renaming.path)?.id ?? null;
+}
+
+/**
+ * 開いているメニューの節を、取り直したツリーの同じパスの節へ付け替える。消えていれば閉じる。
+ *
+ * メニューの「Rename」は握っている節の `id` で入力欄を開く。付け替えないと、
+ * 開いたまま取り直しを挟んだメニューから改名しても、入力欄はどの行にも出ない
+ */
+function carryMenu(state: FileTreeState, nextTree: FileTreeNode): FileTreeState["menu"] {
+  if (!state.menu) return null;
+  const node = findNode(nextTree, state.menu.node.path);
+  return node ? { ...state.menu, node } : null;
 }

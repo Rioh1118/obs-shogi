@@ -46,8 +46,16 @@ function kifuParseFailure(path: string, e: unknown): FsError {
  * 操作が張り替えた `activeKifuPath` を操作の前か後か分からない木で引き、
  * 開いている棋譜を「ツリーに無い」と読んで閉じる。その間の変更は操作の読み直しが拾う
  */
-async function whileMutating<T>(counter: { current: number }, run: () => Promise<T>): Promise<T> {
+async function whileMutating<T>(
+  counter: { current: number },
+  loadSeq: { current: number },
+  run: () => Promise<T>,
+): Promise<T> {
   counter.current += 1;
+  // 操作より前に始まった外からの取り直しは、操作が読み直すかに関わらず捨てる。
+  // ルートの改名は読み直しを `rootDir` の変化に任せるので、ここで進めないと、
+  // 操作が抜けてから読み直しが始まるまでの間に古い木が通る
+  loadSeq.current += 1;
   try {
     return await run();
   } finally {
@@ -93,6 +101,11 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   const loadSeqRef = useRef(0);
   // 飛行中の操作の数（`whileMutating`）
   const mutationsInFlightRef = useRef(0);
+  // 外からの取り直しは1本ずつ。走査は大きなワークスペースで重く、合図とフォーカスは
+  // ほぼ同時に来うる。取得中に来たきっかけは覚えておくだけにし、返ってから1回取り直す
+  const refreshInFlightRef = useRef(false);
+  const refreshAgainRef = useRef(false);
+  const refreshFromOutsideRef = useRef<() => Promise<void>>(async () => {});
 
   const revealNodeInCurrentTree = useCallback((absPath: string) => {
     const root = fileTreeRef.current;
@@ -239,27 +252,39 @@ export function FileTreeProvider({ rootDir, children }: Props) {
    *
    * - 通知と読み込み中の表示に触れない（`tree_refreshed` の doc）
    * - 操作の途中なら取りにいかず、途中に着いた結果も捨てる（`whileMutating` の doc）
-   * - 返った時点で後の取得が始まっていたら捨てる
-   * - 中身が変わっていなければ何もしない。監視は棋譜を保存するたびに合図を送る
+   * - 返った時点で後の取得か操作が始まっていたら捨てる
+   * - 取得中に来たきっかけは、返ってから1回にまとめて取り直す
+   * - 中身が変わっていなければ何もしない。監視は、外のエディタが棋譜を保存しただけでも合図を送る
    */
   const refreshFromOutside = useCallback(async (): Promise<void> => {
     if (!rootDir || mutationsInFlightRef.current > 0) return;
+    if (refreshInFlightRef.current) {
+      refreshAgainRef.current = true;
+      return;
+    }
+    refreshInFlightRef.current = true;
     loadSeqRef.current += 1;
     const seq = loadSeqRef.current;
 
     const res = await api.fetchTree(rootDir);
+    refreshInFlightRef.current = false;
 
-    if (seq !== loadSeqRef.current || mutationsInFlightRef.current > 0) return;
-    if (!res.success) {
-      dispatch({ type: "refresh_failed", payload: res.error });
-      return;
+    if (seq === loadSeqRef.current && mutationsInFlightRef.current === 0) {
+      if (!res.success) {
+        dispatch({ type: "refresh_failed", payload: res.error });
+      } else if (!fileTreeRef.current || !isSameTree(fileTreeRef.current, res.data)) {
+        // 描画を待たずに進める理由は `loadFileTree` と同じ
+        fileTreeRef.current = res.data;
+        dispatch({ type: "tree_refreshed", payload: res.data });
+      }
     }
-    const current = fileTreeRef.current;
-    if (current && isSameTree(current, res.data)) return;
 
-    // 描画を待たずに進める理由は `loadFileTree` と同じ
-    fileTreeRef.current = res.data;
-    dispatch({ type: "tree_refreshed", payload: res.data });
+    // 取得中に来たきっかけは、その時点より後の変更を指している。いま返った木はそれを
+    // 含まないかもしれないので、1回だけ取り直す。`rootDir` が変わっていても新しい根で取る
+    if (refreshAgainRef.current) {
+      refreshAgainRef.current = false;
+      await refreshFromOutsideRef.current();
+    }
   }, [rootDir]);
 
   /**
@@ -356,7 +381,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const createNewFile = useCallback(
     (parentPath: string, options: KifuCreationOptions): AsyncResult<string, FsError> =>
-      whileMutating(mutationsInFlightRef, async () => {
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
         const res = await api.createKifu(parentPath, options);
 
         if (!res.success) {
@@ -377,7 +402,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const importKifuFile = useCallback(
     (parentPath: string, fileName: string, rawContent: string): AsyncResult<void, FsError> =>
-      whileMutating(mutationsInFlightRef, async () => {
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
         const trimmed = rawContent.trim();
         const res = await api.importKifu(parentPath, fileName, trimmed);
 
@@ -400,7 +425,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const createNewDirectory = useCallback(
     (parentPath: string, dirname: string): AsyncResult<void, FsError> =>
-      whileMutating(mutationsInFlightRef, async () => {
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
         const res = await api.createDir(parentPath, dirname);
 
         if (!res.success) {
@@ -438,7 +463,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const deleteNode = useCallback(
     (node: FileTreeNode): AsyncResult<void, FsError> =>
-      whileMutating(mutationsInFlightRef, async () => {
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
         const res = node.isDirectory
           ? await api.removeDir(node.path)
           : await api.removeFile(node.path);
@@ -466,7 +491,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const renameNode = useCallback(
     (node: FileTreeNode, newName: string): AsyncResult<void, FsError> =>
-      whileMutating(mutationsInFlightRef, async () => {
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
         const res = node.isDirectory
           ? await api.renameDir(node.path, newName)
           : await api.renameFile(node.path, newName);
@@ -520,7 +545,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   const moveNode = useCallback(
     (node: FileTreeNode, destDir: string, newName?: string): AsyncResult<void, FsError> =>
-      whileMutating(mutationsInFlightRef, async () => {
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
         const res = node.isDirectory
           ? await api.moveDir(node.path, destDir, newName)
           : await api.moveFile(node.path, destDir, newName);
@@ -701,7 +726,6 @@ export function FileTreeProvider({ rootDir, children }: Props) {
 
   // 購読は1度だけ張り、呼ぶ関数は ref から読む。`rootDir` が変わるたびに張り直すと、
   // 張り直しの間に届いた合図を落とす
-  const refreshFromOutsideRef = useRef(refreshFromOutside);
   refreshFromOutsideRef.current = refreshFromOutside;
 
   useEffect(() => {

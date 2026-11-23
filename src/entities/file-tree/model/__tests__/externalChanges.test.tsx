@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchTree = vi.fn();
 const renameFile = vi.fn();
+const renameDir = vi.fn();
 const readKifu = vi.fn();
 
 vi.mock("../../api/service", async (importOriginal) => {
@@ -19,6 +20,7 @@ vi.mock("../../api/service", async (importOriginal) => {
     ...actual,
     fetchTree: ((...a: unknown[]) => fetchTree(...a)) as typeof actual.fetchTree,
     renameFile: ((...a: unknown[]) => renameFile(...a)) as typeof actual.renameFile,
+    renameDir: ((...a: unknown[]) => renameDir(...a)) as typeof actual.renameDir,
     readKifu: ((...a: unknown[]) => readKifu(...a)) as typeof actual.readKifu,
   };
   return mocked satisfies typeof import("../../api/service");
@@ -157,6 +159,13 @@ function Probe() {
         data-testid="rename-a"
         onClick={() => void ctx.renameNode(find("/ws/D/a.kif"), "z.kif")}
       />
+      <button data-testid="menu-a" onClick={() => ctx.openContextMenu(find("/ws/D/a.kif"), 0, 0)} />
+      <button
+        data-testid="rename-from-menu"
+        onClick={() => ctx.menu && ctx.startInlineRename(ctx.menu.node)}
+      />
+      <button data-testid="select-a" onClick={() => ctx.selectNode(find("/ws/D/a.kif"))} />
+      <button data-testid="rename-root" onClick={() => void ctx.renameNode(find("/ws"), "ws2")} />
       <button
         data-testid="push-error"
         onClick={() => ctx.pushError({ code: "permission_denied", message: "x" } as never)}
@@ -258,7 +267,7 @@ describe("外の変更を受けた取り直し", () => {
     expect(text("renaming")).toBe("/ws/D/a.kif");
   });
 
-  it("中身が同じなら描き直さない（保存のたびに合図が来る）", async () => {
+  it("中身が同じなら描き直さない（外のエディタで棋譜を保存しても合図は来る）", async () => {
     await mount(tree("/ws/D/a.kif"));
     const before = renders;
     // `id` と更新時刻は変わる
@@ -268,17 +277,63 @@ describe("外の変更を受けた取り直し", () => {
     expect(renders).toBe(before);
   });
 
-  it("後から始まった取得が先に着いたら、古い結果で上書きしない", async () => {
+  it("取得中に何度きっかけが来ても、返ってから1回だけ取り直す", async () => {
     await mount(tree("/ws/D/a.kif"));
+    const calls = fetchTree.mock.calls.length;
     const slow = deferred<unknown>();
     await notify(slow.promise as never);
-    await notify(tree("/ws/D/a.kif", "/ws/D/new.kif"));
-    expect(text("paths")).toContain("/ws/D/new.kif");
+    // 合図とフォーカスがほぼ同時に来る
+    fetchTree.mockResolvedValueOnce(ok(tree("/ws/D/a.kif", "/ws/D/new.kif")));
+    await act(async () => {
+      notifyChange();
+      notifyChange();
+    });
+    expect(fetchTree.mock.calls.length).toBe(calls + 1);
 
     await act(async () => {
       slow.resolve(ok(tree("/ws/D/a.kif")));
     });
+    expect(fetchTree.mock.calls.length).toBe(calls + 2);
     expect(text("paths")).toContain("/ws/D/new.kif");
+  });
+
+  it("開いたままのメニューから、取り直しの後に改名できる", async () => {
+    await mount(tree("/ws/D/a.kif"));
+    await act(async () => {
+      screen.getByTestId("menu-a").click();
+    });
+    await notify(tree("/ws/D/a.kif", "/ws/D/b.kif"));
+    await act(async () => {
+      screen.getByTestId("rename-from-menu").click();
+    });
+    expect(text("renaming")).toBe("/ws/D/a.kif");
+  });
+
+  /**
+   * ルートの改名は読み直さず、`rootDir` の変化に任せる。操作が抜けてから読み直しが
+   * 始まるまでに古い木が通ると、新しいパスへ張り替えた選択を古い木で引いて落とす。
+   * 開いた棋譜で見ないのは、`rootDir` を変えないこのテストでは、根の外の棋譜を閉じる
+   * 効果が先に閉じるから
+   */
+  it("ルートの改名の前に始まった取得が後から着いても、選択を落とさない", async () => {
+    await mount(tree("/ws/D/a.kif"));
+    await act(async () => {
+      screen.getByTestId("select-a").click();
+    });
+    const slow = deferred<unknown>();
+    await notify(slow.promise as never);
+
+    renameDir.mockResolvedValueOnce(ok("/ws2"));
+    await act(async () => {
+      screen.getByTestId("rename-root").click();
+    });
+
+    // 改名の前に取った木。外で足した棋譜を含み、古いルートの下にある
+    await act(async () => {
+      slow.resolve(ok(tree("/ws/D/a.kif", "/ws/D/b.kif")));
+    });
+    expect(text("paths")).not.toContain("/ws/D/b.kif");
+    expect(text("selected")).not.toBe("-");
   });
 
   /** 合図の取得を飛ばしたまま、開いている a.kif の改名を始める */
