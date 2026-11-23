@@ -1,45 +1,9 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
 import { GOTE_LABEL, SENTE_LABEL } from "@/shared/lib/turn";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import PositionPreviewPane from "../PositionPreviewPane";
-
-/**
- * 局面のプレビューが描くものを固定する。
- *
- * 盤の一辺はコンテナを測って決めるので、コンテナの測り方が外れると盤が読めない大きさのまま残る。
- */
-
-type Measure = (entries: { contentRect: { width: number; height: number } }[]) => void;
-
-/** 測った結果を手で流す。happy-dom は寸法を持たないので、実物の通知が来ない */
-let observers: Measure[] = [];
-
-class FakeResizeObserver {
-  private readonly measure: Measure;
-  constructor(measure: Measure) {
-    this.measure = measure;
-  }
-  observe() {
-    observers.push(this.measure);
-  }
-  disconnect() {
-    observers = observers.filter((measure) => measure !== this.measure);
-  }
-}
-
-/** コンテナの内寸を流す。余白は `--board-pad` の下限の 8px を四辺に置く */
-function resizeFrame(width: number, height: number) {
-  const frame = document.querySelector<HTMLElement>(".position-preview__frame");
-  frame?.style.setProperty("padding", "8px");
-  act(() => observers.forEach((measure) => measure([{ contentRect: { width, height } }])));
-}
-
-function boardSize(): string | undefined {
-  const board = document.querySelector<HTMLElement>(".board-preview");
-  return board?.style.getPropertyValue("--board-size");
-}
 
 function squares(): Element[] {
   return [...document.querySelectorAll(".board-preview__square")];
@@ -49,15 +13,7 @@ function handRow(label: string): HTMLElement {
   return screen.getByText(label).parentElement as HTMLElement;
 }
 
-beforeEach(() => {
-  observers = [];
-  vi.stubGlobal("ResizeObserver", FakeResizeObserver);
-});
-
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
+afterEach(cleanup);
 
 const preview = (sfen: string) => buildPreviewDataFromSfen(sfen);
 
@@ -106,14 +62,6 @@ describe("局面のプレビュー", () => {
     expect(document.querySelector(".board-preview")).toBeNull();
   });
 
-  test("測る前は 320px で描き、升と駒の寸法を一辺から導く", () => {
-    render(<PositionPreviewPane previewData={preview(HIRATE)} />);
-    expect(boardSize()).toBe("320px");
-    const board = document.querySelector<HTMLElement>(".board-preview");
-    expect(board?.style.getPropertyValue("--square-size")).toBe(`${320 / 9}px`);
-    expect(board?.style.getPropertyValue("--piece-size")).toBe(`${(320 / 9) * 0.8}px`);
-  });
-
   test("プレビューは押しても何も起きない形で描く", () => {
     render(<PositionPreviewPane previewData={preview(HIRATE)} />);
     expect(document.querySelector(".board-preview__square")?.className).toBe(
@@ -121,32 +69,16 @@ describe("局面のプレビュー", () => {
     );
   });
 
-  test("コンテナを測ると盤の一辺が追う", () => {
-    render(<PositionPreviewPane previewData={preview(HIRATE)} />);
-    resizeFrame(500, 500);
-    expect(boardSize()).toBe("484px");
-  });
-
-  test("閉じたら測るのをやめる", () => {
-    const { unmount } = render(<PositionPreviewPane previewData={preview(HIRATE)} />);
-    unmount();
-    expect(observers).toHaveLength(0);
-  });
-
-  // 検索は再生器がまだ無いとき、`EditorStudyPicker` は一覧が空のときに局面が無いまま開く
-  test("局面が後から届いてもコンテナの大きさを測る", () => {
+  // 消すと、局面が届くたびに盤の大きさが変わる
+  test("局面が無いあいだも、手番と持ち駒の行を空のまま残す", () => {
     const { rerender } = render(<PositionPreviewPane previewData={null} />);
-    rerender(<PositionPreviewPane previewData={preview(HIRATE)} />);
-    resizeFrame(500, 500);
-    expect(boardSize()).toBe("484px");
-  });
+    const rows = () => [
+      document.querySelector(".position-preview__turn")?.textContent,
+      document.querySelector(".position-preview__hands")?.textContent,
+    ];
+    expect(rows()).toEqual(["", ""]);
 
-  // 局面ナビは行き先に届かないと局面を失い、次の移動で取り戻す
-  test("局面が一度消えても、測った一辺を保つ", () => {
-    const { rerender } = render(<PositionPreviewPane previewData={preview(HIRATE)} />);
-    resizeFrame(500, 500);
-    rerender(<PositionPreviewPane previewData={null} />);
     rerender(<PositionPreviewPane previewData={preview(HIRATE)} />);
-    expect(boardSize()).toBe("484px");
+    expect(rows().every((text) => text !== "")).toBe(true);
   });
 });

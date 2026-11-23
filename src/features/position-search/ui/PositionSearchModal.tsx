@@ -202,57 +202,53 @@ export default function PositionSearchModal() {
         <PositionSearchModalHeader isSearching={isSearching} title="局面検索" />
 
         <main className="pos-search__main" aria-label="検索とプレビュー">
-          <div className="pos-search__grid">
-            <section className="pos-search__left" aria-label="検索状態">
-              <PositionSearchStatusBar
-                hitsCount={hits.length}
-                statusText={statusText}
-                indexHealth={health}
-                sessionStale={isStale}
-                error={error}
-              />
+          <section className="pos-search__left" aria-label="検索状態">
+            <PositionSearchStatusBar
+              hitsCount={hits.length}
+              statusText={statusText}
+              indexHealth={health}
+              sessionStale={isStale}
+              error={error}
+            />
 
-              {refusal && (
-                <InlineNotice tier={refusal.tier} title={refusal.title} body={refusal.body} />
-              )}
+            {refusal && (
+              <InlineNotice tier={refusal.tier} title={refusal.title} body={refusal.body} />
+            )}
 
-              <PositionSearchHitList
-                hits={orderedHits}
-                activeIndex={activeIndex}
-                onActiveIndexChange={selectIndex}
-                onAccept={accept}
-                isSearching={isSearching}
-                error={error}
-                resolveAbsPath={resolveHitAbsPath}
-                hasQuery={queryKey != null}
-                indexHealth={health}
-                sessionStale={isStale}
-              />
-            </section>
+            <PositionSearchHitList
+              hits={orderedHits}
+              activeIndex={activeIndex}
+              onActiveIndexChange={selectIndex}
+              onAccept={accept}
+              isSearching={isSearching}
+              error={error}
+              resolveAbsPath={resolveHitAbsPath}
+              hasQuery={queryKey != null}
+              indexHealth={health}
+              sessionStale={isStale}
+            />
+          </section>
 
-            <aside className="pos-search__right" aria-label="局面プレビュー">
-              <div className="pos-search__paneTitle">
-                {params.sfen ? "検索対象の局面" : "現在の局面"}
-              </div>
-              <div className="pos-search__preview">
-                <PositionPreviewPane previewData={previewData} />
-              </div>
+          <aside className="pos-search__right" aria-label="局面プレビュー">
+            <h3 className="pos-search__paneTitle">
+              {params.sfen ? "検索対象の局面" : "現在の局面"}
+            </h3>
+            <div className="pos-search__preview">
+              <PositionPreviewPane previewData={previewData} />
+            </div>
 
-              <div className="pos-search__aux">
-                <PositionSearchContinuation
-                  activeHit={activeHit ?? null}
-                  prefetchAbsPath={prefetchAbsPath}
-                  resolveAbsPath={resolveHitAbsPath}
-                  ply={5}
-                />
+            <PositionSearchContinuation
+              activeHit={activeHit ?? null}
+              prefetchAbsPath={prefetchAbsPath}
+              resolveAbsPath={resolveHitAbsPath}
+              ply={5}
+            />
 
-                <PositionSearchDestinationCard
-                  currentAbsPath={gameState.loadedAbsPath ?? null}
-                  destAbsPath={destAbsPath}
-                />
-              </div>
-            </aside>
-          </div>
+            <PositionSearchDestinationCard
+              currentAbsPath={gameState.loadedAbsPath ?? null}
+              destAbsPath={destAbsPath}
+            />
+          </aside>
         </main>
       </section>
     </Modal>

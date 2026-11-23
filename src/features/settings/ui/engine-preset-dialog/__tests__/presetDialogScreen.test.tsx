@@ -203,11 +203,11 @@ afterEach(cleanup);
 describe("開く", () => {
   test("題は名前の前後を落として出し、空なら「プリセット編集」", async () => {
     await openDialog({ label: "  研究用  " });
-    expect(document.querySelector(".presetDialog__title")?.textContent).toBe("研究用");
-    expect(screen.getByRole("heading", { level: 2, name: "研究用" })).toBeTruthy();
+    const title = () => screen.getByRole("heading", { level: 2 }).textContent;
+    expect(title()).toBe("研究用");
 
     fireEvent.change(nameInput(), { target: { value: "   " } });
-    expect(document.querySelector(".presetDialog__title")?.textContent).toBe("プリセット編集");
+    expect(title()).toBe("プリセット編集");
   });
 
   test("編集中のプリセットが消えたら閉じ、何も出さない", async () => {

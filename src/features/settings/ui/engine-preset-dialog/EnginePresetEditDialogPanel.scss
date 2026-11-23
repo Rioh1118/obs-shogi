@@ -23,7 +23,7 @@
   .presetDialog__body {
     flex: 1 1 auto;
     min-height: 0;
-    padding: index.$space-9 index.$space-11 index.$space-12;
+    padding: index.$space-9 index.$space-10 index.$space-12;
     overflow: auto;
     overscroll-behavior: contain;
     @include index.thin-scrollbar;

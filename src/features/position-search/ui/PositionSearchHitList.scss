@@ -8,20 +8,15 @@
   overflow: hidden;
 }
 
+// 0件の理由。箱で囲まない
 .pos-search__empty {
-  padding: index.$space-8 index.$space-6;
-  border-radius: index.$radius-4;
-  // 不透明にするのは、載る背景（半透明のペイン）が確定しないと文字との比を
-  // 測れないため。ここは理由を伝える箱なので、読めることが一番要る
-  background: index.$surface-raised;
-  font-size: index.$font-aux;
-  color: rgba(index.$color-text-light-1, 0.7);
+  padding: index.$space-8 index.$space-10;
+  background: index.$color-primary-dark;
+  color: index.$color-text-muted;
+  overflow-wrap: anywhere;
+  word-break: auto-phrase;
 
-  // $color-danger-text は暗いカード向けの色なので、持ち上げた背景の上では 3.64:1 まで落ちる。
-  // 失敗を伝える箱には意味色の背景を敷いて、色の設計どおりの明るさの上に載せる
   &--error {
-    background: index.$surface-danger;
-    border-color: index.$color-danger-text;
     color: index.$color-danger-text;
   }
 }
@@ -29,12 +24,11 @@
 // 結果が届いたあとで検索が失敗した知らせ。行は残すので、一覧の外側に置く
 .pos-search__notice {
   flex-shrink: 0;
-  margin-bottom: index.$space-3;
-  padding: index.$space-3 index.$space-5;
-  border-radius: index.$radius-3;
+  padding: index.$space-3 index.$space-10;
   background: index.$surface-warning;
-  font-size: index.$font-hint;
-  color: rgba(index.$color-text-light-1, 0.85);
+  font-size: index.$font-aux;
+  color: index.$color-text-primary;
+  overflow-wrap: anywhere;
 }
 
 // 行を実際に収めてスクロールするコンテナ。`overflow` と `position` は react-window が
@@ -45,4 +39,7 @@
 
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+
+  // 選んだ行が画面の外にあるあいだだけ、フォーカスを受ける。輪は行に描く
+  outline: none;
 }

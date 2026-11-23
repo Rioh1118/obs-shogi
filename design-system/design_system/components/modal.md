@@ -14,7 +14,7 @@
 ## 組み立て
 
 - 本体は1枚。背景は `color.background.default`、枠は `color.border.default`、角は `radius.modal`、影は `shadow.overlay`。**中に枠のある箱を入れない**
-- 題は `font.size.title` の `font.weight.title`。題と中身の境は線
+- 題は `font.size.section` の `font.weight.title`。題と中身の境は線。長い題は折る
 - 中身だけを送る。題と、下の押すものは動かさない
 - 押すものは右下。確定は1つ（`button.md`）
 - 高さは中身に合わせ、ウィンドウの高さから余白を引いた値で止める

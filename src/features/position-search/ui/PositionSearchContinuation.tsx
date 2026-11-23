@@ -160,7 +160,7 @@ export default function PositionSearchContinuation({
 
   return (
     <section className="pos-search-cont" aria-label={`続き${ply}手`}>
-      <div className="pos-search-cont__head">続き（{ply}手）</div>
+      <h3 className="pos-search-cont__head">続き（{ply}手）</h3>
 
       {loading ? (
         <div className="pos-search-cont__body is-muted">取得中…</div>
@@ -169,9 +169,7 @@ export default function PositionSearchContinuation({
       ) : (
         <div className="pos-search-cont__body">
           {moves.map((m, i) => (
-            <span key={`${m}-${i}`} className="pos-search-cont__mv">
-              {m}
-            </span>
+            <span key={`${m}-${i}`}>{m}</span>
           ))}
         </div>
       )}

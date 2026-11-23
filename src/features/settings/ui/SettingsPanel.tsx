@@ -2,6 +2,7 @@ import { useURLParams } from "@/shared/lib/router/useURLParams";
 
 import EngineTab from "./tabs/EngineTab";
 
+import ModalHead from "@/shared/ui/ModalHead";
 import "./SettingsPanel.scss";
 import SettingsTabButton from "./SettingsTabButton";
 import { TABS, type TabKey } from "@/features/settings/model/tabs";
@@ -22,9 +23,7 @@ function SettingsPanel() {
 
   return (
     <div className="settings">
-      <header className="settings__header">
-        <h2 className="settings__title">設定</h2>
-      </header>
+      <ModalHead title="設定" closable />
 
       <div className="settings__body">
         <nav className="settings__nav" aria-label="設定のタブ">

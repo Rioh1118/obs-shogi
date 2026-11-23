@@ -457,7 +457,9 @@ describe("PositionSearchModal の検索の状態と後始末", () => {
     );
 
     render(<PositionSearchModal />);
+    expect(screen.getByLabelText("選択中の棋譜").textContent).toBe("選択中未選択現在a.kif");
     expect(statusBar().textContent).toContain("検索中…");
+    expect(screen.getByTitle("検索中")).toBeTruthy();
     expect(screen.getByText("検索結果を受信中…")).toBeTruthy();
 
     await act(async () => {
@@ -465,6 +467,7 @@ describe("PositionSearchModal の検索の状態と後始末", () => {
     });
 
     expect(statusBar().textContent).toContain("完了");
+    expect(screen.queryByTitle("検索中")).toBeNull();
     expect(statusBar().textContent).toContain(`一致: ${HITS.length}`);
   });
 
@@ -573,8 +576,7 @@ describe("PositionSearchModal の検索の状態と後始末", () => {
     await renderWithHits();
 
     const card = screen.getByLabelText("選択中の棋譜");
-    expect(card.textContent).toContain("1.kif");
-    expect(card.textContent).toContain("現在:a.kif");
+    expect(card.textContent).toBe("選択中1.kif現在a.kif");
   });
 
   test("閉じた後に unmount されても、同じ検索を2度は取り下げない", async () => {

@@ -1,32 +1,27 @@
 @use "@/index.scss" as index;
 
-// ペインの中の箱。枠線は持たず、背景だけで1段階沈める（背景の段階は PositionSearchModal.scss）
 .pos-search-cont {
-  border-radius: index.$radius-6;
-  background: rgba(index.$color-primary-black, 0.24);
-  padding: index.$space-5;
+  flex: none;
+  background: index.$color-primary-dark;
 
   &__head {
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-light-1, 0.7);
-    margin-bottom: index.$space-3;
+    margin: 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-label;
   }
 
+  // 「取得中…」と入れ替わっても高さが変わらないように1行ぶんを空ける。変わると、上の盤が伸び縮みする
   &__body {
+    min-height: 2rem;
     display: flex;
-    gap: index.$space-5;
-    flex-wrap: nowrap;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 0 index.$space-5;
+    font-size: index.$font-body;
+    color: index.$color-text-primary;
 
     &.is-muted {
-      color: rgba(index.$color-text-light-1, 0.55);
+      color: index.$color-text-muted;
     }
-  }
-
-  &__mv {
-    font-size: index.$font-body;
-    color: rgba(index.$color-text-light-1, 0.9);
   }
 }

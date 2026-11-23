@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, type CSSProperties } from "react";
+import SoftBreakText from "@/shared/ui/SoftBreakText";
 import "./PositionHitItem.scss";
 
 type Props = {
@@ -37,8 +38,8 @@ function PositionHitItemBase({
 }: Props) {
   const ref = useRef<HTMLButtonElement | null>(null);
 
-  // 焦点を選択に追従させる。両者が割れると、銅のリングと銅の背景が別の行を指し、
-  // Enter で開くのは背景のほう、つまり読み上げが読んだ行とは別の行になる。
+  // 焦点を選択に追従させる。両者が割れると、輪と選んだ行の塗りが別の行を指し、
+  // Enter で開くのは塗りのほう、つまり読み上げが読んだ行とは別の行になる。
   //
   // このモーダルで焦点を取れるのはヒットの行だけなので、奪う相手がいない。
   // 開いた直後は行が0件で `Modal` の引き戻しがコンテナそのものを掴んでおり、
@@ -88,22 +89,16 @@ function PositionHitItemBase({
       // `isActive` は1打目の結果
       onClick={(e) => (e.detail >= 2 && isActive ? onAccept() : onSelect())}
     >
-      <span className="pos-hit__top">
-        <span className="pos-hit__file" title={fileName}>
-          {fileName}
-        </span>
-        <span className={["pos-hit__badge", isSameFile ? "is-same" : "is-switch"].join(" ")}>
-          {isSameFile ? "同一" : "切替"}
-        </span>
+      <span className="pos-hit__file">{fileName}</span>
+      <span className="pos-hit__meta">
+        {tesuu}手目{forks > 0 ? ` / 分岐 ${forks}` : ""}
       </span>
 
-      <span className="pos-hit__bottom">
-        <span className="pos-hit__path" title={relPath}>
-          {relPath}
-        </span>
-        <span className="pos-hit__meta">
-          {tesuu}手目{forks > 0 ? ` / 分岐 ${forks}` : ""}
-        </span>
+      <span className="pos-hit__path">
+        <SoftBreakText text={relPath} />
+      </span>
+      <span className={["pos-hit__badge", isSameFile ? "is-same" : "is-switch"].join(" ")}>
+        {isSameFile ? "同一" : "切替"}
       </span>
     </button>
   );

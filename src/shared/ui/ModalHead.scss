@@ -1,0 +1,48 @@
+@use "@/index.scss" as index;
+
+.modal-head {
+  flex: none;
+  min-height: 4.4rem;
+  padding: index.$space-4 index.$space-10;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: index.$space-2 index.$space-7;
+
+  border-bottom: 1px solid index.$stroke-weak;
+  background: index.$color-primary-dark;
+
+  &--closable {
+    padding-right: 5rem;
+  }
+
+  &__titles {
+    min-width: 0;
+  }
+
+  // 題は折る。省くと、何を開いているのか読めない
+  &__title {
+    margin: 0;
+    font-size: index.$font-section;
+    font-weight: index.$weight-title;
+    color: index.$color-text-strong;
+    overflow-wrap: anywhere;
+    word-break: auto-phrase;
+  }
+
+  &__desc {
+    margin: index.$space-1 0 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+    word-break: auto-phrase;
+  }
+
+  &__right {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: index.$space-7;
+    font-size: index.$font-body;
+  }
+}

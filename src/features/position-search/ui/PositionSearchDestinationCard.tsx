@@ -1,6 +1,7 @@
 import "./PositionSearchDestinationCard.scss";
 import { useAppConfig } from "@/entities/app-config";
 import { toRelPath } from "@/shared/lib/path";
+import SoftBreakText from "@/shared/ui/SoftBreakText";
 
 type Props = {
   currentAbsPath: string | null;
@@ -15,25 +16,16 @@ export default function PositionSearchDestinationCard({ currentAbsPath, destAbsP
   const destRel = destAbsPath ? toRelPath(destAbsPath, rootDir) : null;
 
   return (
-    <div className="pos-search-dest" aria-label="選択中の棋譜">
-      <div className="pos-search-dest__head">
-        <div className="pos-search-dest__title">選択中</div>
-      </div>
+    <dl className="pos-search-dest" aria-label="選択中の棋譜">
+      <dt className="pos-search-dest__label">選択中</dt>
+      <dd className="pos-search-dest__path" title={destRel ?? undefined}>
+        {destRel ? <SoftBreakText text={destRel} /> : "未選択"}
+      </dd>
 
-      {!destRel ? (
-        <div className="pos-search-dest__empty">未選択</div>
-      ) : (
-        <>
-          <div className="pos-search-dest__path" title={destRel}>
-            {destRel}
-          </div>
-
-          <div className="pos-search-dest__current" title={currentRel ?? ""}>
-            <span className="pos-search-dest__currentLabel">現在:</span>
-            <span className="pos-search-dest__currentPath">{currentRel ?? "—"}</span>
-          </div>
-        </>
-      )}
-    </div>
+      <dt className="pos-search-dest__label">現在</dt>
+      <dd className="pos-search-dest__current" title={currentRel ?? undefined}>
+        {currentRel ? <SoftBreakText text={currentRel} /> : "—"}
+      </dd>
+    </dl>
   );
 }

@@ -1,43 +1,30 @@
 @use "@/index.scss" as index;
 
-// 行は一覧の中で「サーフェス」ではなく「並び」として読ませる。素の状態では枠線も背景も持たず、
-// ホバーと選択だけが背景を足す。枠線・背景・影・浮き上がりを全部使うと、
-// 選択とホバーとフォーカスが視覚的に競合して、どれが「いまの行」か読めなくなる。
+// 1行目に名前と手数、2行目に場所と、開くと棋譜が替わるか
 .pos-hit {
-  display: flex;
-  flex-direction: column;
-  gap: index.$space-1;
-
   width: 100%;
-  text-align: left;
-  font: inherit;
+  padding: index.$space-4 index.$space-10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: index.$space-1 index.$space-7;
+  align-items: baseline;
 
   border: 0;
-  background: transparent;
-  border-radius: index.$radius-3;
-  padding: index.$space-3 index.$space-5;
+  border-bottom: 1px solid index.$stroke-weak;
+  border-radius: index.$radius-row;
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 
-  // 行は絶対配置なので、浮かせる表現（transform）は隣の行へ食い込む。状態の差は背景の濃さで作る
-  transition:
-    background-color index.$duration-2 index.$ease,
-    box-shadow index.$duration-2 index.$ease;
-
-  // `:hover` は詳細度 (0,2,0) で `--active` の (0,1,0) に勝つ。除外しないと、
-  // 選択中の行にポインタを乗せた瞬間に選択の背景が消えて「選択が外れた」ように見える
   &:hover:not(.pos-hit--active) {
-    background: rgba(index.$color-white, 0.04);
+    background: index.$surface-hover;
   }
 
   &--active {
-    background: rgba(index.$color-secondary-dark, 0.18);
-    // 背景の濃さに頼らずに選択を読めるようにする帯。ホバーで背景が動いても消えない
-    box-shadow: inset index.$space-1 0 0 index.$color-secondary-dark;
-
-    // ホバーは常に「足す」側。選択を置き換えず、濃くする
-    &:hover {
-      background: rgba(index.$color-secondary-dark, 0.24);
-    }
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
   }
 
   // 背景を触らないので、選択とフォーカスを重ねて読める
@@ -46,51 +33,36 @@
     outline-offset: -2px;
   }
 
-  // 控えめな見た目はこの2行で一度だけ決め、中の欄はそれを継ぐ。
-  // 目立たせるのはファイル名と「切替」だけ
-  &__top,
-  &__bottom {
-    display: flex;
-    align-items: baseline;
-    gap: index.$space-4;
-    min-width: 0;
-    color: rgba(index.$color-text-light-1, 0.45);
-  }
-
+  // 名前と場所は折る。省くと、末尾だけが違うものを見分けられない
   &__file {
-    flex: 1;
-    min-width: 0;
     font-size: index.$font-body;
-    color: index.$color-text-light-1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
 
-  // 「同一」と「切替」は行き先が変わるかどうかの別。枠線や背景を与えず、色の差だけで置く
-  &__badge {
-    flex-shrink: 0;
-    font-size: index.$font-hint;
+  &--active &__file {
     font-weight: index.$weight-strong;
-    white-space: nowrap;
+  }
 
-    &.is-switch {
-      color: index.$color-secondary-dark;
-    }
+  &__path,
+  &__meta,
+  &__badge {
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
   }
 
   &__path {
-    flex: 1;
-    min-width: 0;
-    font-size: index.$font-hint;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
   }
 
-  &__meta {
-    flex-shrink: 0;
-    font-size: index.$font-hint;
+  &__meta,
+  &__badge {
+    text-align: right;
+    white-space: nowrap;
     font-variant-numeric: tabular-nums;
+  }
+
+  // 行き先が替わるものを、替わらないものより濃く出す
+  &__badge.is-switch {
+    color: index.$color-text-primary;
   }
 }

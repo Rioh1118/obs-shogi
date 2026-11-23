@@ -1,67 +1,51 @@
 @use "@/index.scss" as index;
 
-// 背景は3段階。左右のペインだけが枠線と背景を持ち、中の箱は背景だけ、行は何も持たない。
-// 段階が名前を持たないまま増えると、どれが1段階上なのかコードから読めなくなる
+// 左に一覧、右に局面。箱で囲まず、境の線1本で分ける
 .pos-search {
   display: flex;
   flex-direction: column;
-  min-height: 0;
   height: 100%;
+  min-height: 0;
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
   &__main {
-    display: flex;
-    min-height: 0;
-    flex: 1;
-
-    overflow: hidden;
-    padding: index.$space-8;
-  }
-
-  &__grid {
     flex: 1;
     min-height: 0;
-    height: 100%;
-
     display: grid;
-    grid-template-columns: 1fr 42rem;
-    gap: index.$space-7;
+    grid-template-columns: minmax(0, 1fr) minmax(32rem, 42rem);
   }
 
-  &__left,
+  &__left {
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid index.$stroke-weak;
+  }
+
+  // 低いウィンドウでは、盤を下限より縮めずに送る
   &__right {
     min-height: 0;
-    border: 1px solid index.$stroke;
-    border-radius: index.$radius-6;
-    background: rgba(index.$color-primary-light, 0.06);
+    min-width: 0;
+    padding: index.$space-8 index.$space-10;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
 
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    backdrop-filter: blur(8px);
-
-    padding: index.$space-6;
-    gap: index.$space-5;
-  }
-
-  &__right {
-    .pos-search__preview {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    .pos-search__aux {
-      flex: 0 1 auto;
-      min-height: 0;
-      overflow: hidden;
-
-      display: grid;
-      gap: index.$space-5;
-    }
+    gap: index.$space-6;
   }
 
   &__paneTitle {
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-light-1, 0.7);
+    margin: 0;
+    font-size: index.$font-body;
+    font-weight: index.$weight-strong;
+    color: index.$color-text-strong;
+  }
+
+  &__preview {
+    flex: 1 0 0;
+    min-height: 34rem;
   }
 }

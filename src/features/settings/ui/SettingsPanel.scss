@@ -6,24 +6,10 @@
   overflow: hidden;
 
   display: grid;
-  grid-template-rows: 4.4rem minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 
   background: index.$color-primary-dark;
   color: index.$color-text-primary;
-
-  &__header {
-    display: flex;
-    align-items: center;
-    padding: 0 index.$space-9;
-    border-bottom: 1px solid index.$stroke-weak;
-  }
-
-  &__title {
-    margin: 0;
-    font-size: index.$font-section;
-    font-weight: index.$weight-title;
-    color: index.$color-text-strong;
-  }
 
   &__body {
     min-height: 0;
