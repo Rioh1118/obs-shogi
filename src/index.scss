@@ -313,6 +313,13 @@ $focus-ring: ds.$lm-focus-ring-color;
   }
 }
 
+// 送る一覧の、下に続きがあること（`useScrollMore`）。スクロールバーの代わりに下端を薄くする
+@mixin scroll-more {
+  &[data-more] {
+    mask-image: linear-gradient(#000 calc(100% - 3.6rem), transparent);
+  }
+}
+
 // 選択を示す左の銅の縦棒。影で引くと角丸に沿って曲がるので、独立した要素で描く。
 // 呼び手は `position: relative` を持つこと
 @mixin selected-bar {

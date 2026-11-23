@@ -47,6 +47,17 @@ describe("SSection", () => {
     expect(container.querySelector(".sui-section__title")).toBeNull();
   });
 
+  test("件数は題に添え、節の名前には入れない", () => {
+    const { container } = render(
+      <SSection title="状態" count={0}>
+        中身
+      </SSection>,
+    );
+
+    expect(container.querySelector(".sui-section__count")?.textContent).toBe("0");
+    expect(screen.getByRole("region", { name: "状態" })).toBeTruthy();
+  });
+
   test("操作が偽なら置き場を出さない", () => {
     const { container } = render(
       <SSection title="状態" actions={false}>
@@ -97,6 +108,21 @@ describe("SField", () => {
 
     expect(screen.getByRole("alert").textContent).toBe("失敗");
     expect(container.querySelector(".sui-field__hint")).toBeNull();
+  });
+});
+
+describe("SField の並べ方", () => {
+  test.each([
+    [true, "sui-field sui-field--inline"],
+    [false, "sui-field"],
+  ])("名前を欄の左に置くか（%s）", (inline, className) => {
+    const { container } = render(
+      <SField label="題" inline={inline}>
+        中身
+      </SField>,
+    );
+
+    expect(container.querySelector(".sui-field")?.className).toBe(className);
   });
 });
 
@@ -229,6 +255,28 @@ describe("SRadioGroup", () => {
     expect(group.style.getPropertyValue("--cols")).toBe("");
   });
 
+  test("区切りボタンでも、選んでいる値に印を付け、列の数を持たない", () => {
+    const { container } = render(
+      <SRadioGroup
+        name="n"
+        value="b"
+        onChange={() => {}}
+        options={options}
+        layout="segment"
+        columns={3}
+      />,
+    );
+
+    const group = container.querySelector<HTMLElement>(".sui-radio")!;
+    expect(group.getAttribute("data-layout")).toBe("segment");
+    expect(group.style.getPropertyValue("--cols")).toBe("");
+    expect(
+      [...container.querySelectorAll<HTMLElement>(".sui-radio__item")].map(
+        (item) => item.dataset.checked,
+      ),
+    ).toEqual(["false", "true"]);
+  });
+
   test("格子では列の数を渡す", () => {
     const { container } = render(
       <SRadioGroup
@@ -248,19 +296,17 @@ describe("SRadioGroup", () => {
 });
 
 describe("SettingsBadge", () => {
-  test("既定は控えめなバッジ", () => {
+  test("既定は控えめな札で、記号を付けない", () => {
     render(<SettingsBadge>札</SettingsBadge>);
 
-    expect(screen.getByText("札").className).toBe("sbadge sbadge--muted sbadge--badge");
+    expect(screen.getByText("札").className).toBe("sbadge sbadge--muted");
+    expect(screen.getByText("札").querySelector("svg")).toBeNull();
   });
 
-  test("色と形を選べる", () => {
-    render(
-      <SettingsBadge tone="warn" shape="pill">
-        札
-      </SettingsBadge>,
-    );
+  test.each(["warn", "danger"] as const)("直す必要があるもの（%s）には、記号を添える", (tone) => {
+    render(<SettingsBadge tone={tone}>札</SettingsBadge>);
 
-    expect(screen.getByText("札").className).toBe("sbadge sbadge--warn sbadge--pill");
+    expect(screen.getByText("札").className).toBe(`sbadge sbadge--${tone}`);
+    expect(screen.getByText("札").querySelector("svg")).not.toBeNull();
   });
 });

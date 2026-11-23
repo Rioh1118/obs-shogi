@@ -32,10 +32,10 @@ function ProfileItem({ profile }: { profile: AiFolderSummary }) {
       <div className="setupGuide__profileHead">
         <span className="setupGuide__profileName">{profile.name}</span>
         <div className="setupGuide__profileBadges">
-          <SettingsBadge tone={profile.hasEval ? "accent" : "warn"} shape="pill">
+          <SettingsBadge tone={profile.hasEval ? "accent" : "warn"}>
             評価関数 {profile.hasEval ? "あり" : "不足"}
           </SettingsBadge>
-          <SettingsBadge tone={profile.hasBook ? "accent" : "muted"} shape="pill">
+          <SettingsBadge tone={profile.hasBook ? "accent" : "muted"}>
             定跡 {profile.hasBook ? "あり" : "未設定"}
           </SettingsBadge>
         </div>

@@ -7,7 +7,8 @@ type SRadioOption = {
   description?: ReactNode;
 };
 
-type Layout = "list" | "grid";
+/** `list` は縦に1件ずつ、`grid` は見本つきの列、`segment` は短い語の区切りボタン */
+type Layout = "list" | "grid" | "segment";
 
 type Props = {
   name: string;
@@ -52,13 +53,9 @@ export default function SRadioGroup({
               checked={checked}
               onChange={(e) => onChange(e.target.value)}
             />
-            <span className="sui-radio__card">
-              <span className="sui-radio__top">
-                <span className="sui-radio__dot" aria-hidden="true" />
-                <span className="sui-radio__label">{o.label}</span>
-              </span>
-              {o.description && <span className="sui-radio__desc">{o.description}</span>}
-            </span>
+            <span className="sui-radio__dot" aria-hidden="true" />
+            <span className="sui-radio__label">{o.label}</span>
+            {o.description && <span className="sui-radio__desc">{o.description}</span>}
           </label>
         );
       })}

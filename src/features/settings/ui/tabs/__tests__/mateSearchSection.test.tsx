@@ -41,6 +41,18 @@ test("選んでいなければ「指定しない」で、上限は30秒", () => 
   expect(radio("30秒").checked).toBe(true);
 });
 
+test.each([
+  ["選んでいなければ", {}, true],
+  ["削除したプリセットを指していれば", { mate_preset_id: "gone" }, true],
+  ["選んでいれば", { mate_preset_id: "k" }, false],
+])("%s、選ぶ案内を出すか: %j → %s", (_, config, shown) => {
+  world.config = config;
+  render(<MateSearchSection presets={PRESETS} />);
+
+  const note = screen.queryByText("詰将棋エンジンのプリセットを選択してください。");
+  expect(note !== null).toBe(shown);
+});
+
 test("選ぶと、その欄だけを保存する。「指定しない」は null", async () => {
   world.config = { mate_preset_id: "a", mate_search_limit: "infinite" };
   render(<MateSearchSection presets={PRESETS} />);

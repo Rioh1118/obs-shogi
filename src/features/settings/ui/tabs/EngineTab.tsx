@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import "./EngineTab.scss";
 
 import { Plus, RefreshCcw } from "lucide-react";
@@ -8,8 +8,15 @@ import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import MateSearchSection from "../engine-tab/MateSearchSection";
-import PresetCard from "../engine-tab/PresetCard";
-import { type EnginePreset, type PresetId, useEnginePresets } from "@/entities/engine-presets";
+import PresetRow from "../engine-tab/PresetRow";
+import {
+  type EnginePreset,
+  MULTIPV_OPTION,
+  type PresetId,
+  useEnginePresets,
+} from "@/entities/engine-presets";
+import { savedInt } from "@/features/settings/lib/presetOptionValues";
+import { useScrollMore } from "@/shared/lib/useScrollMore";
 
 /** 適用中を先頭にして、残りは名前順に並べる */
 function sortForList(presets: EnginePreset[], selectedId: PresetId | null) {
@@ -41,15 +48,24 @@ export default function EngineTab() {
     await deletePreset(preset.id);
   };
 
+  const listRef = useRef<HTMLDivElement | null>(null);
+  useScrollMore(listRef);
+
+  const hasMany = presets.some((p) => (savedInt(p.options, MULTIPV_OPTION) ?? 1) >= 2);
+
   return (
     <div className="engineTab">
+      {/* 数の決まった設定を上、増える一覧を下に置く。一覧だけが送られ、上は動かない */}
+      <MateSearchSection presets={presets} />
+
       <SSection
         title="検討プリセット"
+        count={presets.length}
         description="エンジンの起動設定・検討の基本設定をプリセットとして管理します。保存時に必要なら自動でエンジンが再起動されます。"
         actions={
-          <div className="engineTab__actions">
+          <>
             <Button size="sm" onClick={() => reload()} isLoading={state.status === "loading"}>
-              <RefreshCcw size={16} style={{ marginRight: 6 }} />
+              <RefreshCcw size={13} aria-hidden="true" />
               もう一度読み込む
             </Button>
             <Button
@@ -58,40 +74,66 @@ export default function EngineTab() {
               onClick={() => createPreset({ label: "新規プリセット" })}
               disabled={state.status === "loading" || readOnly}
             >
-              <Plus size={16} style={{ marginRight: 6 }} />
+              <Plus size={13} aria-hidden="true" />
               追加
             </Button>
-          </div>
+          </>
         }
       >
         {state.status === "error" && (
-          <div className="engineTab__error" role="alert">
+          <p className="engineTab__error" role="alert">
             {state.error}
-          </div>
+          </p>
         )}
 
         {state.status === "loading" && presets.length === 0 ? (
-          <div className="engineTab__loading">読み込み中…</div>
+          <p className="engineTab__loading">読み込み中…</p>
         ) : (
-          <div className="engineTab__grid">
-            {sorted.map((p) => (
-              <PresetCard
-                key={p.id}
-                preset={p}
-                isSelected={p.id === selectedId}
-                canChange={!readOnly}
-                canDelete={!readOnly && presets.length > 1}
-                onSelect={() => selectPreset(p.id)}
-                onEdit={() => setEditingId(p.id)}
-                onDuplicate={() => duplicatePreset(p.id)}
-                onDelete={() => handleDelete(p)}
-              />
-            ))}
+          <div className="presetList" ref={listRef}>
+            <div className="presetList__table" role="grid" aria-label="検討プリセット">
+              <div className="presetList__head" role="row">
+                <span role="columnheader">名前</span>
+                <span role="columnheader">エンジン</span>
+                <span className="presetList__evalHead" role="columnheader">
+                  評価関数
+                </span>
+                <span role="columnheader">定跡</span>
+                <span className="presetList__numHead" role="columnheader">
+                  候補手の数
+                </span>
+                <span className="presetList__numHead" role="columnheader">
+                  Threads
+                </span>
+                <span className="presetList__numHead" role="columnheader">
+                  Hash
+                </span>
+                <span role="columnheader" aria-label="操作" />
+              </div>
+
+              {sorted.map((p) => (
+                <PresetRow
+                  key={p.id}
+                  preset={p}
+                  isSelected={p.id === selectedId}
+                  canChange={!readOnly}
+                  canDelete={!readOnly && presets.length > 1}
+                  onSelect={() => selectPreset(p.id)}
+                  onEdit={() => setEditingId(p.id)}
+                  onDuplicate={() => duplicatePreset(p.id)}
+                  onDelete={() => handleDelete(p)}
+                />
+              ))}
+            </div>
+
+            {hasMany && (
+              <p className="engineTab__note">
+                候補手の数を増やすと 1手あたりの読みが浅くなります（研究向けの “幅 vs 深さ”
+                トレードオフ）。
+              </p>
+            )}
           </div>
         )}
       </SSection>
-
-      <MateSearchSection presets={presets} />
 
       {editingId && (
         <EnginePresetEditDialogPanel presetId={editingId} onClose={() => setEditingId(null)} />

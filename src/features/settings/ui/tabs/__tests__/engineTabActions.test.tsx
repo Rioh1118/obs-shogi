@@ -5,8 +5,8 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
 /**
- * 設定「エンジン管理」の一覧。カードの並びと、カード自身の選択と中のボタンを見る。
- * カードの中身の行は `engineTabCard.test.tsx` が見る。
+ * 設定「エンジン管理」の一覧。行の並びと、行そのものの選択と中のボタンを見る。
+ * 行の中身は `engineTabRow.test.tsx` が見る。
  */
 
 const world = vi.hoisted(() => ({
@@ -67,17 +67,17 @@ function preset(id: string, label: string, patch: Partial<EnginePreset> = {}): E
 }
 
 const titles = (container: HTMLElement) =>
-  [...container.querySelectorAll(".engineTab__cardTitle")].map((t) => t.textContent);
+  [...container.querySelectorAll(".presetRow__label")].map((t) => t.textContent);
 
-function card(container: HTMLElement, label: string) {
-  const title = [...container.querySelectorAll(".engineTab__cardTitle")].find(
+function row(container: HTMLElement, label: string) {
+  const title = [...container.querySelectorAll(".presetRow__label")].find(
     (t) => t.textContent === label,
   );
-  return title!.closest<HTMLElement>(".engineTab__card")!;
+  return title!.closest<HTMLElement>(".presetRow")!;
 }
 
-const inCard = (container: HTMLElement, label: string, action: string) =>
-  within(card(container, label)).getByRole<HTMLButtonElement>("button", { name: action });
+const inRow = (container: HTMLElement, label: string, action: string) =>
+  within(row(container, label)).getByRole<HTMLButtonElement>("button", { name: action });
 
 beforeEach(() => {
   world.state.status = "ok";
@@ -110,8 +110,10 @@ describe("並び", () => {
 
     expect(titles(container)).toEqual(["ろ", "い", "ぬ"]);
     expect(getAllByText("適用中")).toHaveLength(1);
-    expect(card(container, "ろ").className).toContain("is-selected");
-    expect(card(container, "い").className).not.toContain("is-selected");
+    expect(row(container, "ろ").getAttribute("aria-selected")).toBe("true");
+    expect(row(container, "い").getAttribute("aria-selected")).toBe("false");
+    expect(row(container, "ろ").className).toContain("is-selected");
+    expect(row(container, "い").className).not.toContain("is-selected");
   });
 
   test("適用中が元の並びの先頭でも末尾でも先頭に出る", () => {
@@ -149,7 +151,7 @@ describe("上の操作", () => {
     const { container } = render(<EngineTab />);
 
     expect(container.querySelector(".engineTab__loading")?.textContent).toBe("読み込み中…");
-    expect(container.querySelector(".engineTab__grid")).toBeNull();
+    expect(container.querySelector(".presetList")).toBeNull();
   });
 
   test("読み込み中でも持っている一覧は出す", () => {
@@ -194,11 +196,11 @@ describe("上の操作", () => {
   });
 });
 
-describe("カードの選択", () => {
+describe("行の選択", () => {
   test("押すと適用する", () => {
     const { container } = render(<EngineTab />);
 
-    fireEvent.click(card(container, "乙"));
+    fireEvent.click(row(container, "乙"));
 
     expect(world.selectPreset).toHaveBeenCalledWith("b");
   });
@@ -206,7 +208,7 @@ describe("カードの選択", () => {
   test.each(["Enter", " "])("「%s」でも適用する", (key) => {
     const { container } = render(<EngineTab />);
 
-    fireEvent.keyDown(card(container, "乙"), { key });
+    fireEvent.keyDown(row(container, "乙"), { key });
 
     expect(world.selectPreset).toHaveBeenCalledWith("b");
   });
@@ -214,7 +216,7 @@ describe("カードの選択", () => {
   test.each(["Enter", " "])("「%s」の既定の動作を止める", (key) => {
     const { container } = render(<EngineTab />);
 
-    const notPrevented = fireEvent.keyDown(card(container, "乙"), { key });
+    const notPrevented = fireEvent.keyDown(row(container, "乙"), { key });
 
     expect(notPrevented).toBe(false);
   });
@@ -222,13 +224,13 @@ describe("カードの選択", () => {
   test("ほかのキーでは適用しない", () => {
     const { container } = render(<EngineTab />);
 
-    fireEvent.keyDown(card(container, "乙"), { key: "a" });
+    fireEvent.keyDown(row(container, "乙"), { key: "a" });
 
     expect(world.selectPreset).not.toHaveBeenCalled();
   });
 });
 
-describe("カードのボタン", () => {
+describe("行のボタン", () => {
   /** 既定の動作を止めると、ボタンが押されないまま別のプリセットへ切り替わり、エンジンが再起動する */
   test.each([
     ["Enter", "編集"],
@@ -237,10 +239,10 @@ describe("カードのボタン", () => {
     [" ", "複製"],
     ["Enter", "削除"],
     [" ", "削除"],
-  ])("「%s」で%sを押しても、カードを適用せずボタンの動作を止めない", (key, action) => {
+  ])("「%s」で%sを押しても、行を適用せずボタンの動作を止めない", (key, action) => {
     const { container } = render(<EngineTab />);
 
-    const notPrevented = fireEvent.keyDown(inCard(container, "乙", action), { key });
+    const notPrevented = fireEvent.keyDown(inRow(container, "乙", action), { key });
 
     expect(world.selectPreset).not.toHaveBeenCalled();
     expect(notPrevented).toBe(true);
@@ -249,17 +251,17 @@ describe("カードのボタン", () => {
   test("編集を押すと適用せずに開き、閉じられる", () => {
     const { container } = render(<EngineTab />);
 
-    fireEvent.click(inCard(container, "乙", "編集"));
+    fireEvent.click(inRow(container, "乙", "編集"));
 
     expect(world.selectPreset).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "編集中:b" }));
     expect(screen.queryByRole("button", { name: "編集中:b" })).toBeNull();
   });
 
-  test("複製はカードの選択を通らず、複製の操作だけを呼ぶ", () => {
+  test("複製は行の選択を通らず、複製の操作だけを呼ぶ", () => {
     const { container } = render(<EngineTab />);
 
-    fireEvent.click(inCard(container, "乙", "複製"));
+    fireEvent.click(inRow(container, "乙", "複製"));
 
     expect(world.duplicatePreset).toHaveBeenCalledWith("b");
     expect(world.selectPreset).not.toHaveBeenCalled();
@@ -268,7 +270,7 @@ describe("カードのボタン", () => {
   test("削除は名前を出して確かめてから消す", async () => {
     const { container } = render(<EngineTab />);
 
-    fireEvent.click(inCard(container, "乙", "削除"));
+    fireEvent.click(inRow(container, "乙", "削除"));
     await Promise.resolve();
 
     expect(window.confirm).toHaveBeenCalledWith("乙 を削除します。よろしいですか？");
@@ -280,7 +282,7 @@ describe("カードのボタン", () => {
     world.state.presets = [preset("a", " "), preset("b", "乙")];
     const { container } = render(<EngineTab />);
 
-    fireEvent.click(inCard(container, "（無名プリセット）", "削除"));
+    fireEvent.click(inRow(container, "（無名プリセット）", "削除"));
 
     expect(window.confirm).toHaveBeenCalledWith("このプリセット を削除します。よろしいですか？");
   });
@@ -292,7 +294,7 @@ describe("カードのボタン", () => {
     );
     const { container } = render(<EngineTab />);
 
-    fireEvent.click(inCard(container, "乙", "削除"));
+    fireEvent.click(inRow(container, "乙", "削除"));
     await Promise.resolve();
 
     expect(world.deletePreset).not.toHaveBeenCalled();
@@ -302,42 +304,43 @@ describe("カードのボタン", () => {
     world.state.presets = [preset("a", "甲")];
     const { container } = render(<EngineTab />);
 
-    expect(inCard(container, "甲", "削除").disabled).toBe(true);
-    expect(inCard(container, "甲", "編集").disabled).toBe(false);
+    expect(inRow(container, "甲", "削除").disabled).toBe(true);
+    expect(inRow(container, "甲", "編集").disabled).toBe(false);
   });
 
   test("書けないファイルでは変更の操作を押せない", () => {
     world.state.writable = false;
     const { container } = render(<EngineTab />);
 
-    expect(inCard(container, "甲", "編集").disabled).toBe(true);
-    expect(inCard(container, "甲", "複製").disabled).toBe(true);
-    expect(inCard(container, "甲", "削除").disabled).toBe(true);
+    expect(inRow(container, "甲", "編集").disabled).toBe(true);
+    expect(inRow(container, "甲", "複製").disabled).toBe(true);
+    expect(inRow(container, "甲", "削除").disabled).toBe(true);
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "追加" }).disabled).toBe(true);
   });
 });
 
-describe("カードの値", () => {
-  const stats = (container: HTMLElement, label: string) =>
-    [...card(container, label).querySelectorAll(".engineTab__mini")].map(
-      (m) =>
-        `${m.querySelector(".engineTab__miniK")?.textContent}:${m.querySelector(".engineTab__miniV")?.textContent}`,
+describe("行の値", () => {
+  /** 定跡と3つの数。欄ごとに文字をつなぐ */
+  const cells = (container: HTMLElement, label: string) =>
+    [...row(container, label).querySelectorAll(".presetRow__book, .presetRow__num")].map((cell) =>
+      [...cell.childNodes].map((node) => node.textContent).join(" "),
     );
 
-  test("保存した値を欄ごとに出す", () => {
+  test("保存した値を、桁で区切って欄ごとに出す", () => {
     world.state.presets = [
       preset("a", "甲", {
-        options: { MultiPV: "3", Threads: "4", USI_Hash: "1024" },
+        options: { MultiPV: "3", Threads: "4", USI_Hash: "33554432" },
         bookEnabled: true,
         bookFilePath: "/b/book.db",
       }),
     ];
     const { container } = render(<EngineTab />);
 
-    expect(stats(container, "甲")).toEqual(["候補手の数:3", "Threads:4", "Hash:1024MB", "定跡:ON"]);
+    expect(cells(container, "甲")).toEqual(["ON", "3", "4", "33,554,432 MB"]);
+    expect(row(container, "甲").querySelector(".presetRow__num--default")).toBeNull();
   });
 
-  test("保存していない値はエンジンの初期値を欄ごとに出す", () => {
+  test("保存していない値は、エンジンの初期値に「初期値」を添えて出す", () => {
     const definition = (name: string, value: number) =>
       ({ name, type: "spin", default: value, min: 1, max: 9999 }) as NonNullable<
         EnginePreset["definitions"]
@@ -349,31 +352,49 @@ describe("カードの値", () => {
         definitions: [
           definition("MultiPV", 1),
           definition("Threads", 2),
-          definition("USI_Hash", 256),
+          definition("USI_Hash", 1024),
         ],
       }),
     ];
     const { container } = render(<EngineTab />);
 
-    expect(stats(container, "甲")).toEqual([
-      "候補手の数:初期値（1）",
-      "Threads:初期値（2）",
-      "Hash:初期値（256MB）",
-      "定跡:OFF",
-    ]);
+    expect(cells(container, "甲")).toEqual(["OFF", "1 初期値", "2 初期値", "1,024 MB 初期値"]);
+  });
+
+  test("初期値がいくつか分からなければ、「初期値」だけを出す", () => {
+    world.state.presets = [preset("a", "甲")];
+    const { container } = render(<EngineTab />);
+
+    expect(cells(container, "甲")).toEqual(["OFF", "初期値", "初期値", "初期値"]);
   });
 });
 
 describe("候補手の数の注意", () => {
-  test("2以上でだけ出す", () => {
+  const note = (container: HTMLElement) => container.querySelector(".engineTab__note");
+
+  test.each(["2", "20"])("%s のプリセットが1つでもあれば、一覧の下に1つ出す", (multiPv) => {
     world.state.presets = [
       preset("a", "甲", { options: { MultiPV: "1" } }),
-      preset("b", "乙", { options: { MultiPV: "2" } }),
+      preset("b", "乙", { options: { MultiPV: multiPv } }),
     ];
     const { container } = render(<EngineTab />);
 
-    expect(card(container, "甲").querySelector(".engineTab__note")).toBeNull();
-    expect(card(container, "乙").querySelector(".engineTab__note")).not.toBeNull();
-    expect(card(container, "乙").querySelector(".engineTab__miniV.is-warn")?.textContent).toBe("2");
+    expect(container.querySelectorAll(".engineTab__note")).toHaveLength(1);
+  });
+
+  test("どれも1以下なら出さない", () => {
+    world.state.presets = [preset("a", "甲", { options: { MultiPV: "1" } }), preset("b", "乙")];
+    const { container } = render(<EngineTab />);
+
+    expect(note(container)).toBeNull();
+  });
+});
+
+describe("件数", () => {
+  test("題に添え、節の名前には入れない", () => {
+    const { container } = render(<EngineTab />);
+
+    expect(container.querySelector(".sui-section__count")?.textContent).toBe("2");
+    expect(screen.getByRole("region", { name: "検討プリセット" })).toBeTruthy();
   });
 });

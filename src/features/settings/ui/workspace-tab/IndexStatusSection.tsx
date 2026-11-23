@@ -195,7 +195,7 @@ export default function IndexStatusSection() {
       }
     >
       <div className="wsTab__statusTop">
-        <SettingsBadge tone={badge.tone} shape="pill">
+        <SettingsBadge tone={badge.tone}>
           {badge.icon}
           {badge.label}
         </SettingsBadge>
