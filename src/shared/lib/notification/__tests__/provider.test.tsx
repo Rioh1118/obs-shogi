@@ -124,6 +124,27 @@ describe("通知の provider", () => {
   });
 
   /**
+   * 消える通知は1行に1件ずつ出るので、後ろで待つ間に時計を進めると、出る前に消える。
+   * 全部に時計を張る実装だと、2件目は 7800ms で消え、合わせて 2 秒も見えない
+   */
+  it("後ろで待つ通知の時計は、前の通知が消えてから始まる", () => {
+    const app = setup();
+    app.notify(timedToast());
+
+    act(() => vi.advanceTimersByTime(1800));
+    app.notify(timedToast({ title: "2件目" }));
+
+    act(() => vi.advanceTimersByTime(4200));
+    expect(app.ids()).toEqual(["notice-2:2件目:1"]);
+
+    act(() => vi.advanceTimersByTime(5999));
+    expect(app.ids()).toEqual(["notice-2:2件目:1"]);
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(app.ids()).toEqual([]);
+  });
+
+  /**
    * 逆に、**まとめられたら数え直す**。同じ失敗がまた起きているのに1件目の時計の
    * ままだと、最後に来た1件は出た直後に消える
    */

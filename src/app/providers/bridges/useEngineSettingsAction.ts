@@ -22,10 +22,9 @@ export function useEngineSettingsAction(): NotifyAction {
     () => ({
       label: "設定を開く",
       run: () => openSettings.current("settings", { tab: "engine" }),
-      // 帯はヘッダを覆っているので、閉じるまで歯車には届かない。
-      // 歯車が開くのはワークスペースタブなので、行き先のタブまで書く
-      failureBody:
-        "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。",
+      // 開けなかったときの代わりの道。右上の「設定」が開くのはワークスペースタブなので、
+      // 行き先のタブまで書く
+      failureBody: "画面右上の「設定」を押し、「エンジン管理」を選択してください。",
     }),
     [],
   );

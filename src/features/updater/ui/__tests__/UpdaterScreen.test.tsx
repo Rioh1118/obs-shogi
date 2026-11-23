@@ -125,6 +125,18 @@ describe("段階ごとの見出しと押せるもの", () => {
     await press("いま再起動");
     expect(updater.restart).toHaveBeenCalledTimes(1);
   });
+
+  // 入替は済んでいるので、開き直せば新しい版になる。押せたのに何も起きないと、壊れたと読まれる
+  test("ready: 再起動に失敗したら、終了して開き直せばよいと言う", async () => {
+    updater.restart.mockRejectedValueOnce(new Error("relaunch denied"));
+    show({ phase: "ready" });
+
+    await press("いま再起動");
+    expect(band().textContent).toContain("「いま再起動」を実行できませんでした。");
+    expect(band().textContent).toContain(
+      "アプリを終了してから、もう一度起動してください。次に起動したときから新しいバージョンになります。",
+    );
+  });
 });
 
 describe("失敗", () => {

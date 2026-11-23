@@ -16,8 +16,12 @@ const AUTO_DISMISS_MS = 6000;
 /**
  * 自動で消える通知に時計を張る。
  *
- * 通知ごとに1本の時計を持ち、effect の cleanup で全部を張り直さない。
- * 張り直すと通知が増えるたびに**先に出ていた通知の残り時間が巻き戻り**、失敗が続く間は1件も消えなくなる。
+ * **時計を進めるのは、出た順の先頭の1件だけ。** 消える通知は1行に1件ずつ出る（`NotificationLayer`）ので、
+ * 後ろで待つ通知にも時計を張ると、出る前に時間が切れて、一度も読まれずに消える。
+ * 先頭が消えたら、次の1件の時計がそこから始まる。
+ *
+ * effect の cleanup で時計を張り直さない。張り直すと通知が増えるたびに**先頭の残り時間が巻き戻り**、
+ * 失敗が続く間は1件も消えなくなる。
  *
  * 時計の鍵に件数を混ぜるのは、まとめられたら数え直すため。
  * 1件目の時計のまま消えると、最後の1件は出た直後に消える。
@@ -35,18 +39,19 @@ function useAutoDismiss(
   useEffect(() => {
     const live = new Set<string>();
 
-    for (const n of notifications) {
-      if (!n.autoDismiss) continue;
-      const key = `${n.id}:${n.count}`;
+    const head = notifications.find((n) => n.autoDismiss);
+    if (head) {
+      const key = `${head.id}:${head.count}`;
       live.add(key);
-      if (timers.current.has(key)) continue;
-      timers.current.set(
-        key,
-        setTimeout(() => {
-          timers.current.delete(key);
-          dismissRef.current(n.id);
-        }, AUTO_DISMISS_MS),
-      );
+      if (!timers.current.has(key)) {
+        timers.current.set(
+          key,
+          setTimeout(() => {
+            timers.current.delete(key);
+            dismissRef.current(head.id);
+          }, AUTO_DISMISS_MS),
+        );
+      }
     }
 
     for (const [key, handle] of timers.current) {

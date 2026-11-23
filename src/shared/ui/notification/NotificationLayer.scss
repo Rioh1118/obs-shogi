@@ -85,12 +85,21 @@
     text-overflow: ellipsis;
   }
 
+  // 幅が足りないときは本文から省く。成否は題の末尾にしか書いていないことがある
+  // （`aiLibraryNotices.ts`）ので、題は1行に収まる限り省かない
   &__title {
     font-weight: index.$weight-strong;
   }
 
   &__text {
+    flex: 1 1 0;
     color: index.$color-text-muted;
+  }
+
+  &__count {
+    flex: none;
+    color: index.$color-text-muted;
+    font-variant-numeric: tabular-nums;
   }
 
   &__close {

@@ -105,7 +105,15 @@ function bandOf(
         tier: "info",
         title: "更新の準備ができました",
         text: "次に起動したときから新しいバージョンになります。いま切り替えることもできます。",
-        actions: [{ label: "いま再起動", run: run.restart }],
+        // 切り替えに失敗しても、入替は済んでいる。ふつうに開き直せば新しい版になる
+        actions: [
+          {
+            label: "いま再起動",
+            run: run.restart,
+            failureBody:
+              "アプリを終了してから、もう一度起動してください。次に起動したときから新しいバージョンになります。",
+          },
+        ],
         canDismiss: false,
       };
     case "error":

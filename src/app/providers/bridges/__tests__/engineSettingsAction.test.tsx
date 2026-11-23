@@ -12,14 +12,13 @@ import type { ModalType, URLParams } from "@/shared/lib/router/useURLParams";
 /**
  * 帯とトーストに付く「設定を開く」が、どの橋でも同じ行き先と同じ断りを持つこと。
  *
- * 押したら設定のエンジン管理を開く。開けなかったときに出す文は、帯がヘッダを覆って
- * 歯車に届かないことを前提に、閉じてから開く手順をタブの名前まで言う。
+ * 押したら設定のエンジン管理を開く。開けなかったときに出す文は、右上の「設定」から
+ * 開く手順をタブの名前まで言う（右上の「設定」が開くのはワークスペースタブ）。
  * URL が動くと `openModal` は別物になるので、押したときには最新を呼ぶ。
  * 画面が動いただけで通知を出し直さない。
  */
 
-const FAILURE_BODY =
-  "この通知を閉じて、画面右上の歯車から設定を開き、「エンジン管理」を選択してください。";
+const FAILURE_BODY = "画面右上の「設定」を押し、「エンジン管理」を選択してください。";
 
 type OpenModal = (modal: ModalType, extra?: Partial<URLParams>) => void;
 let openModal = vi.fn<OpenModal>();

@@ -51,10 +51,9 @@ export default function NotificationLayer() {
   const bands = newestFirst(notifications.filter(isLasting));
   const shownBands = isAllShown ? bands : bands.slice(0, SHOWN_BANDS);
   const hiddenCount = bands.length - SHOWN_BANDS;
-  // 消えるまで数秒なので、新しい1つだけ出す。消えれば前のものが見える
-  const passing = newestFirst(
-    notifications.filter((n) => n.presentation === "toast" && n.autoDismiss),
-  )[0];
+  // 1行に1件ずつ、出た順に出す。時計が進むのも出ている1件だけ（`useAutoDismiss`）なので、
+  // 後から来たものは前のものが消えてから出て、どれも読む時間を持つ
+  const passing = notifications.find((n) => n.presentation === "toast" && n.autoDismiss);
   const PassingIcon = passing && TIER_ICONS[passing.tier];
   // **重ねない。** 2枚目が上に乗ると、1枚目を読み終える前に塞がれる。
   // 出た順の先頭を出し切ってから次へ進む
@@ -110,10 +109,12 @@ export default function NotificationLayer() {
             </div>
           )}
           {passing && PassingIcon && (
+            // 上の帯に乗るので、帯と同じくウィンドウを掴めるようにする。閉じるボタンは掴まない
             <div
               key={passing.id}
               className={`notice-line notice-line--${passing.tier}`}
               role={TIER_ROLES[passing.tier]}
+              data-tauri-drag-region="deep"
             >
               <PassingIcon className="notice-line__icon" size={14} aria-hidden="true" />
               <p className="notice-line__title" title={passing.title}>
@@ -123,6 +124,9 @@ export default function NotificationLayer() {
                 <p className="notice-line__text" title={passing.body}>
                   {passing.body}
                 </p>
+              )}
+              {passing.dedupeKey !== undefined && (
+                <span className="notice-line__count">{passing.count}件</span>
               )}
               <button
                 type="button"

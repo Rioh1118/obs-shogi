@@ -114,15 +114,41 @@ describe("通知の層", () => {
     expect(boxOf(".notice-layer__bands")).toBeNull();
   });
 
-  it("消えるトーストが重なったら、新しい1つだけを出す", async () => {
+  // 新しいほうを出すと、先に出たものは読み終える前に隠れ、時計だけが進んで消える
+  it("消えるトーストが重なったら、先に出たものから1つずつ出す", async () => {
     const app = setup();
     app.notify(passing("1件目"));
     app.notify(passing("2件目"));
 
-    expect(boxOf(".notice-line")?.textContent).toContain("2件目");
-
-    await act(async () => screen.getByRole("button", { name: "「2件目」を閉じる" }).click());
     expect(boxOf(".notice-line")?.textContent).toContain("1件目");
+
+    await act(async () => screen.getByRole("button", { name: "「1件目」を閉じる" }).click());
+    expect(boxOf(".notice-line")?.textContent).toContain("2件目");
+  });
+
+  // 同じ操作を続けて失敗したとき、件数が変わらないと押せたのかが分からない
+  it("まとめた消えるトーストは、帯と同じく件数を出す", () => {
+    const app = setup();
+    const again: NotifyRequest = {
+      tier: "info",
+      presentation: "toast",
+      autoDismiss: true,
+      title: "開けませんでした",
+      dedupeKey: "open",
+    };
+    app.notify(again);
+    expect(boxOf(".notice-line")?.textContent).toContain("1件");
+
+    app.notify(again);
+    expect(boxOf(".notice-line")?.textContent).toContain("2件");
+  });
+
+  // 上の帯に乗るので、乗っている間も帯のどこでもウィンドウを掴める
+  it("消えるトーストの1行はウィンドウを掴める", () => {
+    const app = setup();
+    app.notify(passing("Finder で開けません"));
+
+    expect(boxOf(".notice-line")?.getAttribute("data-tauri-drag-region")).toBe("deep");
   });
 
   it("モーダルは Modal として出る", () => {
