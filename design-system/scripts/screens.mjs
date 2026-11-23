@@ -4,13 +4,11 @@
 //   npm run ds:screens -- --sizes 1464x917,1024x640   窓の大きさ（省くと、14インチの起動時と、窓の下限）
 //   npm run ds:screens -- --jobs 4                    同時に開くページの数
 //   npm run ds:screens -- --url http://localhost:5199 動いているサーバを使う
-//   npm run ds:screens -- --check                     基準（screens/baseline.json。直した場面だけを持つ）より増えていたら失敗する
-//   npm run ds:screens -- --strict                    崩れか固定値の違反が1件でもあれば失敗する（基準を見ない）
-//   npm run ds:screens -- --record                    撮った場面の今の数を基準にする（直した場面で、減ったときだけ使う）
+//   npm run ds:screens -- --strict                    崩れ・形の癖・固定値の違反が1件でもあれば失敗する（製品の verify:screens）
 //
 // 製品の部品は src/ のものをそのまま描く。Tauri の呼び出しだけを screens/mock-tauri.mjs が答える。
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -21,7 +19,6 @@ import { ALL, BREAKS, LOCKED, SHAPES, countOf } from '../screens/kinds.mjs';
 
 const ds = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const repo = path.resolve(ds, '..');
-const baselineFile = path.join(ds, 'screens', 'baseline.json');
 
 const args = process.argv.slice(2);
 const opt = (name, fallback = null) => {
@@ -133,41 +130,6 @@ function summarize(results) {
   line('固定値の違反', LOCKED);
 }
 
-// 基準は、直した場面だけを持つ。まだ直していない場面は基準に無く、--check では見ない
-const readBaseline = () => (existsSync(baselineFile) ? JSON.parse(readFileSync(baselineFile, 'utf8')) : {});
-
-function compareWithBaseline(results) {
-  const baseline = readBaseline();
-  const worse = [];
-  let seen = 0;
-  for (const r of results) {
-    const key = `${r.id}@${r.size}`;
-    if (!baseline[key]) continue;
-    seen += 1;
-    for (const kind of ALL) {
-      const now = countOf(r, kind);
-      const was = baseline[key][kind] ?? 0;
-      if (now > was) worse.push(`${key} ${kind}: ${was} → ${now}`);
-    }
-  }
-  return { worse, seen };
-}
-
-/** 撮った場面の数を基準に書く。撮っていない場面の基準は残す */
-function recordBaseline(results) {
-  const baseline = readBaseline();
-  for (const r of results.filter((x) => x.file)) {
-    const counts = {};
-    for (const kind of ALL) {
-      const n = countOf(r, kind);
-      if (n > 0) counts[kind] = n;
-    }
-    baseline[`${r.id}@${r.size}`] = counts;
-  }
-  const sorted = Object.fromEntries(Object.entries(baseline).sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(baselineFile, `${JSON.stringify(sorted, null, 1)}\n`);
-}
-
 const picked = pickScenarios();
 const server = await startServer();
 mkdirSync(out, { recursive: true });
@@ -229,23 +191,11 @@ if (undrawn.length > 0) {
   process.exitCode = 1;
 }
 
-if (has('record')) recordBaseline(results);
-
 if (has('strict')) {
-  const broken = results
-    .map((r) => ({ key: `${r.id}@${r.size}`, n: [...BREAKS, ...LOCKED].reduce((m, k) => m + countOf(r, k), 0), errors: r.errors }))
+  const bad = results
+    .map((r) => ({ key: `${r.id}@${r.size}`, n: ALL.reduce((m, k) => m + countOf(r, k), 0), errors: r.errors }))
     .filter((r) => r.n > 0 || r.errors.length > 0);
-  for (const r of broken) console.error(`  ${r.key}: ${r.n} 件${r.errors.length ? `（描けなかった: ${r.errors[0].slice(0, 120)}）` : ''}`);
-  if (broken.length > 0) process.exitCode = 1;
-  console.log(broken.length > 0 ? `崩れのある場面 ${broken.length} / ${results.length}` : `崩れは無い（${results.length} 場面）`);
-}
-
-if (has('check')) {
-  const { worse, seen } = compareWithBaseline(results);
-  if (worse.length > 0) {
-    console.error(`\n基準より増えています:\n${worse.map((w) => `  ${w}`).join('\n')}`);
-    process.exitCode = 1;
-  } else {
-    console.log(`基準を超えていません（基準のある ${seen} / ${results.length} 場面）`);
-  }
+  for (const r of bad) console.error(`  ${r.key}: ${r.n} 件${r.errors.length ? `（${r.errors[0].slice(0, 120)}）` : ''}`);
+  if (bad.length > 0) process.exitCode = 1;
+  console.log(bad.length > 0 ? `直す場面 ${bad.length} / ${results.length}` : `直す場面は無い（${results.length} 場面）`);
 }

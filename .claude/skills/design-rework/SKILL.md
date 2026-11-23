@@ -102,7 +102,7 @@ npm run ds:compare:serve -- --work <作業フォルダ> --open     # 止める�
 
 操作が変わるなら `/intake` から、見た目だけなら `/implement` へ。
 
-- 直した画面から `npm run ds:screens -- --only <場面> --strict` を通し、`--record` で基準（`screens/baseline.json`）を下げる。下げた後は `--check` が増えたぶんを止める
+- 直した画面から `npm run ds:screens -- --only <場面> --strict` を通す。全部の画面が通っている状態を保ち、終わりに `npm run verify:screens` を通す
 - PR には前後の実アプリの画面と、撮影の崩れの数を付ける
 - 実装後に直されたら `.claude/rules/skill-care.md` に従う
 

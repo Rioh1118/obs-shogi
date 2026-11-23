@@ -9,6 +9,7 @@ npm run verify          # tsc -b + lint + vitest + ratchet:knip
 npm run verify:rust     # cargo fmt + clippy + test + ratchet:rustdoc
 npm run test:hooks      # 検証ゲート自身の検査。verify には入っていない（下記）
 npm run verify:ds       # デザインシステム（design-system/）の ds:check。初回は design-system で npm ci
+npm run verify:screens  # 画面を触ったとき。全画面を見本データで撮り、はみ出し・入れ子・比を数える
 ```
 
 **所要時間をここに書かない。** 書いた瞬間から実測と離れる（`verify` は

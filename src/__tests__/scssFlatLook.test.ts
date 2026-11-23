@@ -12,7 +12,7 @@ import { SRC, scssFiles } from "./walk";
  * グラデーション・ぼかし・角丸の箱の片側の棒・番号で選んだ角・重なりでも盤でもない影。
  *
  * **文字のはみ出し、箱の入れ子、色の比はここでは見えない。** 描かれた画面を測る
- * `npm --prefix design-system run ds:screens -- --strict` が見る。
+ * `npm run verify:screens` が見る。
  */
 
 /** 角は役割で選ぶ */

@@ -25,7 +25,7 @@
 - `npm run ds:shot` — 画像差分。基準画像の更新（`ds:shot:update`）はユーザーの承認後だけ
 - `npm run ds:eval -- --dry-run` — ケースの形式と採点ロジックの自己テスト（無料）
 - `npm run ds:eval` — スキルあり／なしの本実行（実費。実行前にユーザーに確認する）
-- `npm run ds:screens -- --out <dir>` — 製品の画面を見本データで撮り、はみ出しと形の癖を数える（場面は screens/scenarios.mjs）。`--strict` で崩れが1件でもあれば失敗、`--check` で基準（screens/baseline.json）より増えたら失敗
+- `npm run ds:screens -- --out <dir>` — 製品の画面を見本データで撮り、はみ出しと形の癖を数える（場面は screens/scenarios.mjs）。`--strict` で、はみ出し・形の癖・固定値の違反が1件でもあれば失敗（製品の `npm run verify:screens`）
 - `npm run ds:compare -- explorations/<案> --work <作業フォルダ>` — 今と案を同じ窓の大きさで並べた1枚を作る。`npm run ds:compare:serve -- --work <作業フォルダ> --open` で開き、感想をファイルへ残す
 
 ## 値を変えるとき
