@@ -47,7 +47,7 @@ const MIN_SCANNED = 8;
  * 増えて落ちたときは、基準ではなく足した側を直す —— あふれる軸に効いているなら
  * `safe center` に、効いていないならその宣言はそもそも要らないことが多い。
  */
-const BASELINE = 1;
+const BASELINE = 0;
 
 interface Offence {
   file: string;

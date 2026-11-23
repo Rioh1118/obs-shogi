@@ -44,34 +44,14 @@
 
   // タブ。**いま見ているものは、一段明るい塗りと銅の下線**（design-system の patterns/selection.md）
   .dock__tab {
+    @include index.tab;
     padding: 0 index.$space-7;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: index.$radius-row;
     background: index.$surface-dock-strip;
     color: index.$color-text-label;
-
-    font-family: index.$font-sans;
     font-size: index.$font-body;
-    white-space: nowrap;
-    cursor: pointer;
-
-    &:hover {
-      color: index.$color-text-strong;
-    }
-
-    // **輪を内側に描く。** タブの行は横スクロールする箱なので、外側に出した輪は
-    // 箱に切られてキーボードの現在地が画面から消える
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: -2px;
-    }
 
     &--active {
-      border-bottom-color: index.$color-secondary-dark;
-      background: index.$color-primary-light;
-      color: index.$color-text-strong;
-      font-weight: index.$weight-strong;
+      @include index.tab-on;
     }
   }
 

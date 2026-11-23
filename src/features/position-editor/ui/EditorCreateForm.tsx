@@ -15,7 +15,6 @@ import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
 import { TagsInput } from "@/shared/ui/Form/TagsInput";
 import Textarea from "@/shared/ui/Form/Textarea";
-import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 
 type EditorCreateFormProps = {
@@ -131,7 +130,25 @@ function EditorCreateForm({
   );
 
   return (
-    <Form onSubmit={handleSubmit}>
+    <Form
+      onSubmit={handleSubmit}
+      foot={
+        <>
+          <Button onClick={onCancel} disabled={isSubmitting}>
+            キャンセル
+          </Button>
+          {/* **断りが出ていても押せる。** 押せなくすると詰将棋が作れない */}
+          <Button
+            type="submit"
+            tone="primary"
+            isLoading={isSubmitting}
+            disabled={!fullFileName || !selectedDir}
+          >
+            {isSubmitting ? "作成中…" : "作成"}
+          </Button>
+        </>
+      }
+    >
       <FormField horizontal>
         <TextInput
           label="ファイル名"
@@ -202,22 +219,6 @@ function EditorCreateForm({
           <FsErrorView error={submitError} />
         </FormField>
       )}
-
-      <ButtonGroup>
-        {/* **断りが出ていても押せる。** 押せなくすると詰将棋が作れない */}
-        <Button
-          type="submit"
-          tone="primary"
-          size="lg"
-          isLoading={isSubmitting}
-          disabled={!fullFileName || !selectedDir}
-        >
-          {isSubmitting ? "作成中…" : "作成"}
-        </Button>
-        <Button type="button" size="lg" onClick={onCancel} disabled={isSubmitting}>
-          キャンセル
-        </Button>
-      </ButtonGroup>
     </Form>
   );
 }

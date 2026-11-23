@@ -8,7 +8,9 @@ import {
   type StudyPosition,
   type StudyPositionState,
 } from "@/entities/study-positions/model/types";
+import Button from "@/shared/ui/Button/Button";
 import Select from "@/shared/ui/Form/Select";
+import ModalFoot from "@/shared/ui/ModalFoot";
 
 type EditorStudyPickerProps = {
   positions: StudyPosition[];
@@ -115,7 +117,7 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
       <div className="pos-editor__picker-list">
         <div className="pos-editor__picker-filters">
           <input
-            className="pos-editor__picker-search"
+            className="form__input pos-editor__picker-search"
             value={query}
             placeholder="ラベル・メモ・タグを検索"
             aria-label="課題局面を検索"
@@ -199,12 +201,11 @@ function EditorStudyPicker({ positions, onPick, onBack }: EditorStudyPickerProps
         ) : (
           <PositionPreviewPane previewData={preview} />
         )}
-        <div className="pos-editor__picker-foot">
-          <button type="button" className="pos-editor__seed-button" onClick={onBack}>
-            戻る
-          </button>
-        </div>
       </div>
+
+      <ModalFoot>
+        <Button onClick={onBack}>戻る</Button>
+      </ModalFoot>
     </div>
   );
 }

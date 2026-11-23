@@ -9,36 +9,16 @@
   background: index.$color-primary-dark;
 
   &__tab {
+    @include index.tab;
     min-height: 3.4rem;
     padding: 0 index.$space-5;
     display: inline-flex;
     align-items: center;
     gap: index.$space-3;
-
-    border: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: index.$radius-row;
-    background: index.$color-primary-dark;
-    color: index.$color-text-muted;
-    font-family: inherit;
     font-size: index.$font-aux;
-    white-space: nowrap;
-    cursor: pointer;
-
-    &:hover {
-      color: index.$color-text-strong;
-    }
-
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: -2px;
-    }
 
     &--active {
-      border-bottom-color: index.$color-secondary-dark;
-      background: index.$color-primary-light;
-      color: index.$color-text-strong;
-      font-weight: index.$weight-strong;
+      @include index.tab-on;
     }
   }
 

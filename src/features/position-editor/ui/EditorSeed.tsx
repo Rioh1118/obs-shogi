@@ -1,4 +1,5 @@
 import { HANDICAP_PRESETS, type HandicapPreset } from "@/entities/kifu/model/handicap";
+import Button from "@/shared/ui/Button/Button";
 import Select from "@/shared/ui/Form/Select";
 
 type EditorSeedProps = {
@@ -40,9 +41,7 @@ function EditorSeed({ handicap, onPickHandicap, onOpenStudyPositions }: EditorSe
         />
       </div>
 
-      <button type="button" className="pos-editor__seed-button" onClick={onOpenStudyPositions}>
-        課題局面から…
-      </button>
+      <Button onClick={onOpenStudyPositions}>課題局面から…</Button>
     </div>
   );
 }

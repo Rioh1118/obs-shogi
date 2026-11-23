@@ -35,6 +35,7 @@ async function openKifu(page, names) {
 }
 
 const MAIN_KIFU = ['角換わり.kif'];
+const STUDY_SFEN = FIXTURES.normal.study.positions[0].sfen;
 const LONG_KIFU = ['第12回全国アマチュア将棋選手権大会 決勝トーナメント準決勝 角換わり腰掛け銀同型.kif'];
 
 /** n 手目まで進める */
@@ -262,8 +263,42 @@ export const SCENARIOS = [
       await settle(page, 700);
     }) },
   { id: 'create-file', screen: '棋譜を作成', state: '盤で組む', fixture: 'normal', url: modal('create-file', { tab: 'create', dir: ROOT }) },
+  { id: 'create-illegal', screen: '棋譜を作成', state: '規則に反する配置', fixture: 'normal', url: modal('create-file', { tab: 'create', dir: ROOT }), steps: async (page) => {
+      // ２七の歩を７六へ動かして二歩にする
+      await page.locator('.pos-editor__square[data-x="2"][data-y="7"]').click();
+      await page.locator('.pos-editor__square[data-x="7"][data-y="6"]').click();
+      await settle(page, 300);
+    } },
+  { id: 'create-picker', screen: '棋譜を作成', state: '課題局面から', fixture: 'long', url: modal('create-file', { tab: 'create', dir: ROOT }), steps: async (page) => {
+      await press(page, page.getByRole('button', { name: '課題局面から…' }));
+      await settle(page, 500);
+    } },
   { id: 'import-file', screen: '棋譜を作成', state: '貼り付け', fixture: 'normal', url: modal('create-file', { tab: 'import', dir: ROOT }) },
+  { id: 'import-read', screen: '棋譜を作成', state: '貼り付けて読めた', fixture: 'normal', url: modal('create-file', { tab: 'import', dir: ROOT }), steps: async (page) => {
+      await page.locator('#kifu-import-raw').fill(FIXTURES.normal.kifuDefault);
+      await settle(page, 400);
+    } },
+  { id: 'import-broken', screen: '棋譜を作成', state: '貼り付けて読めない', fixture: 'normal', url: modal('create-file', { tab: 'import', dir: ROOT }), steps: async (page) => {
+      await page.locator('#kifu-import-raw').fill('{ これは JSON ではない');
+      await settle(page, 400);
+    } },
+  { id: 'sfen-create', screen: '課題局面から棋譜を作成', state: '通常', fixture: 'normal', url: modal('sfen-kifu-create', { sfen: STUDY_SFEN }) },
+  { id: 'study-edit', screen: '局面を保存', state: '編集', fixture: 'long', url: modal('study-position-save', { sfen: STUDY_SFEN }) },
+  { id: 'study-tags', screen: '課題局面', state: 'タグで絞り込む', fixture: 'long', url: modal('study-positions'), steps: async (page) => {
+      await page.locator('[title="タグで絞り込む"]').click();
+      await page.locator('.tag-panel__chip').first().click();
+      await settle(page, 300);
+    } },
+  { id: 'file-conflict', screen: '名前の衝突', state: '通常', fixture: 'conflict', url: modal('create-file', { tab: 'create', dir: ROOT }), steps: async (page) => {
+      await page.locator('#pos-editor-file-name').fill('角換わり');
+      await page.locator('.pos-editor button[type="submit"]').click();
+      await settle(page, 500);
+    } },
   { id: 'updater', screen: '更新のカード', state: '通常', fixture: 'update', url: APP, steps: open(MAIN_KIFU) },
+  { id: 'updater-error', screen: '更新のカード', state: '失敗', fixture: 'updateBroken', url: APP, steps: then(open(MAIN_KIFU), async (page) => {
+      await press(page, page.getByRole('button', { name: '今すぐ更新' }));
+      await settle(page, 500);
+    }) },
 ];
 
 export { FIXTURES };

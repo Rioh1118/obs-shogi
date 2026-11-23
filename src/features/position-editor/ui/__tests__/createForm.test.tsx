@@ -25,7 +25,7 @@ const dir = (name: string, path: string, children: FileTreeNode[] = []): FileTre
 
 const TREE = dir("root", "/root", [dir("角換わり", "/root/角換わり")]);
 /** ツリーの読み直しを試すときだけ差し替える */
-let tree = TREE;
+let tree: FileTreeNode | null = TREE;
 
 vi.mock("@/entities/file-tree/model/useFileTree", () => ({
   useFileTree: () => ({ createNewFile, fileTree: tree }),
@@ -232,6 +232,15 @@ describe("失敗の見せ方", () => {
   });
 });
 
+test("保存先が無ければ、名前を打っても作成を押せない", () => {
+  tree = null;
+  render(<EditorHarness />);
+  fireEvent.change(nameInput(), { target: { value: "45角戦法" } });
+
+  expect(screen.getByText("保存先がありません。先にワークスペースを開いてください")).toBeTruthy();
+  expect(screen.getByRole<HTMLButtonElement>("button", { name: "作成" }).disabled).toBe(true);
+});
+
 describe("作成中", () => {
   /** 書き込みを保留にして「作成」を押す。返す関数で結果を返す */
   const pressCreatePending = () => {
@@ -259,7 +268,7 @@ describe("作成中", () => {
 
     expect(boardFace().classList.contains("is-busy")).toBe(true);
     expect(boardFace().hasAttribute("inert")).toBe(true);
-    expect(screen.getByRole("button", { name: "作成中…" })).not.toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "作成中…" }).disabled).toBe(true);
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "キャンセル" }).disabled).toBe(
       true,
     );

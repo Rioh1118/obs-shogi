@@ -1,5 +1,6 @@
 import Modal from "@/shared/ui/Modal";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
+import ModalHead from "@/shared/ui/ModalHead";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useCallback, useState } from "react";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
@@ -82,11 +83,11 @@ function CreateFileFace({ closeModal }: { closeModal: () => void }) {
       label="棋譜を作成"
       variant="workspace"
       size="xl"
-      // **カードごと巻く。** どちらのタブもモーダルの高さを配って組むので、モーダルが縦に縮められた
-      // ときだけ（`tauri.conf.json` に `minHeight` が無い）ここが逃げ場になる
-      scroll="card"
+      scroll="none"
     >
       <div className="create-file-modal">
+        <ModalHead title="棋譜を作成" />
+
         <div className="create-file-modal__tabs" role="tablist" aria-label="棋譜を作成">
           {/* **作成中はタブを沈める。** 送信の途中でタブが外れると、失敗を出す場所ごと消える */}
           <button

@@ -3,10 +3,22 @@
 // サーフェスは暗い側だけ（ADR-0005 決定3）。明暗の2系統は持たない。
 // 明るいサーフェスが要る画面が出たら、そのときに軸を足す
 .form {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: index.$space-9 index.$space-11;
-  gap: index.$space-7;
+
+  // 欄だけを送る。下の押すものは、送っても動かない
+  &__fields {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: index.$space-8 index.$space-10;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+
+    display: flex;
+    flex-direction: column;
+    gap: index.$space-8;
+  }
 
   &__group {
     display: flex;
@@ -24,13 +36,6 @@
         flex-direction: column;
       }
     }
-    &--buttons {
-      display: flex;
-      flex-direction: row;
-      gap: index.$space-4;
-      justify-content: flex-end;
-      margin-top: index.$space-7;
-    }
   }
 
   // 欄は親のコンテナの幅いっぱいに伸ばす。**`input` と `textarea` は素の幅を持つ**ので
@@ -45,8 +50,7 @@
 
   // 打つ欄。高さと枠は、並ぶ押すもの（`Button` の md）に揃える
   &__input,
-  &__textarea,
-  &__select {
+  &__textarea {
     min-height: 3.2rem;
     padding: index.$space-3 index.$space-5;
 
@@ -69,10 +73,6 @@
     }
   }
 
-  &__select {
-    cursor: pointer;
-  }
-
   &__textarea {
     resize: vertical;
     min-height: 8rem;
@@ -84,77 +84,5 @@
     font-size: index.$font-aux;
     font-weight: index.$weight-medium;
     color: index.$color-text-muted;
-  }
-
-  &__subheading {
-    margin-bottom: index.$space-5;
-    font-size: index.$font-section;
-    font-weight: index.$weight-strong;
-    color: index.$color-text-strong;
-  }
-
-  &__radio-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-    gap: index.$space-5;
-  }
-
-  &__radio-group {
-    display: flex;
-    align-items: center;
-    gap: index.$space-5;
-  }
-
-  &__radio-input {
-    display: none;
-  }
-
-  &__radio-label {
-    display: flex;
-    align-items: center;
-    gap: index.$space-5;
-    padding: index.$space-3;
-    border-radius: index.$radius-control;
-    color: index.$color-text-primary;
-    font-size: index.$font-body;
-    font-family: inherit;
-    cursor: pointer;
-    user-select: none;
-
-    &:hover {
-      background: index.$surface-hover;
-    }
-  }
-
-  // 満たした側は砂。銅は局面の「いま」だけに使う
-  &__radio-button {
-    flex: none;
-    width: 1.6rem;
-    height: 1.6rem;
-    border-radius: index.$radius-circle;
-    border: 1px solid index.$stroke-strong;
-    display: grid;
-    place-items: center;
-
-    &::after {
-      content: "";
-      width: 0.8rem;
-      height: 0.8rem;
-      border-radius: index.$radius-circle;
-      background: index.$color-commit-solid;
-      opacity: 0;
-    }
-  }
-
-  &__radio-input:checked + .form__radio-label .form__radio-button::after {
-    opacity: 1;
-  }
-
-  &__heading-secondary {
-    margin-bottom: index.$space-7;
-    font-size: index.$font-title;
-    font-weight: index.$weight-title;
-    color: index.$color-text-strong;
-    line-height: 1.4;
   }
 }

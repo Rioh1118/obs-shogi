@@ -12,7 +12,6 @@ import FormField from "@/shared/ui/Form/FormField";
 import Textarea from "@/shared/ui/Form/Textarea";
 import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
-import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
 import { useKifuImportDraft } from "../model/useKifuImportDraft";
@@ -151,12 +150,31 @@ function KifuImportForm({
       棋譜の中身をここで読む用途は無い（読むのは作ったあとの盤）。モーダルの高さを貼る欄に
       配ると、確かめたい1行（読めたか）がモーダルの下端まで遠ざかる。
 
-      欄は貼る欄の下に横一列。**見出しを置かない** —— モーダルが「棋譜を作る」を名乗り、
+      欄は貼る欄の下に横一列。**見出しを置かない** —— モーダルの題が「棋譜を作成」を名乗り、
       タブが「インポート」を名乗っているので、3つ目を足すとこのタブが何なのかを
       3箇所で言うことになる。
     */
     <div className="kifu-import" hidden={hidden}>
-      <Form onSubmit={handleSubmit}>
+      <Form
+        onSubmit={handleSubmit}
+        foot={
+          <>
+            {/* 組むタブと同じ語。**同じ `requestClose` を通る同じ操作**なので、
+                タブごとに別の語を当てると、戻り先が違うように読める */}
+            <Button onClick={onCancel} disabled={isSubmitting}>
+              キャンセル
+            </Button>
+            <Button
+              type="submit"
+              tone="primary"
+              isLoading={isSubmitting}
+              disabled={!fullFileName || !read?.readable || !selectedDir}
+            >
+              {isSubmitting ? "作成中…" : "作成"}
+            </Button>
+          </>
+        }
+      >
         <FormField>
           <Textarea
             label="棋譜テキスト"
@@ -228,23 +246,6 @@ function KifuImportForm({
             <FsErrorView error={submitError} />
           </FormField>
         )}
-
-        <ButtonGroup>
-          <Button
-            type="submit"
-            tone="primary"
-            size="lg"
-            isLoading={isSubmitting}
-            disabled={!fullFileName || !read?.readable || !selectedDir}
-          >
-            {isSubmitting ? "作成中…" : "作成"}
-          </Button>
-          {/* 組むタブと同じ語。**同じ `requestClose` を通る同じ操作**なので、
-              タブごとに別の語を当てると、戻り先が違うように読める */}
-          <Button type="button" size="lg" onClick={onCancel} disabled={isSubmitting}>
-            キャンセル
-          </Button>
-        </ButtonGroup>
       </Form>
     </div>
   );

@@ -514,6 +514,24 @@ export const FIXTURES = {
     kifuDefault: 'これは棋譜ではありません',
   },
   update: { ...base, update: { version: '0.2.0' } },
+  // 取得が落ちる。理由は plugin が返した綴りのまま出る
+  updateBroken: {
+    ...base,
+    update: { version: '0.2.0' },
+    fail: { 'plugin:updater|download_and_install': 'error sending request for url (https://example.com/obs-shogi/latest.json)' },
+  },
+  // 同じ名前の棋譜がもう在る
+  conflict: {
+    ...base,
+    fail: {
+      create_kifu_file: {
+        code: 'already_exists',
+        message: '同じ名前のものがあります',
+        path: `${ROOT}/角換わり.kif`,
+        existingPath: `${ROOT}/角換わり.kif`,
+      },
+    },
+  },
   rows: { ...base, config: config({ analysis_display_mode: 'rows', show_evaluation_bar: true }) },
   bookTab: { ...base, config: config({ dock_last_tab: 'book' }) },
 };

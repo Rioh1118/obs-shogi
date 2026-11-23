@@ -107,6 +107,22 @@ describe("SfenKifuCreateModal", () => {
     expect(document.querySelector(".sfen-kifu-create")).toBeNull();
   });
 
+  test("題を出し、名前を打つまで作成を押せない", () => {
+    render(<SfenKifuCreateModal />);
+
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("課題局面から棋譜を作成");
+    expect(createButton().disabled).toBe(true);
+    typeInto("ファイル名", "研究");
+    expect(createButton().disabled).toBe(false);
+  });
+
+  test("キャンセルで閉じる", () => {
+    render(<SfenKifuCreateModal />);
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    expect(closeModal).toHaveBeenCalledTimes(1);
+  });
+
   test("局面を OTHER として、選んだ保存先へ作り、作れたら閉じる", async () => {
     createNewFile.mockResolvedValue({ success: true, data: "/root/角換わり/研究.kif" });
     render(<SfenKifuCreateModal />);

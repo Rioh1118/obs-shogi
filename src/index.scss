@@ -238,10 +238,8 @@ $surface-titlebar: $color-primary-black;
 // `scssScaleRatchet` の `indirect` が増えて落ちるため。
 // `indirect` の bucket を免除されるのはこのファイルだけ（`scssScale.ts` の `tokenSource`、ADR-0003）
 $floating-note-header-height: 2.6rem;
-// 「棋譜を作る」の右の列（ファイルの欄）。**2つのタブが同じ幅を名乗る** ——
-// 盤で組むタブと棋譜を貼るタブは入れ替わるので、別々に持つと切り替えた瞬間に
-// 欄だけが左右に動く。コンテナの内寸 105.0rem の配分は `PositionEditor.scss` 冒頭の式が持つ
-$create-file-side-width: 28rem;
+// 「棋譜を作る」の右の列（ファイルの欄）の幅
+$create-file-side-width: 32rem;
 
 // 重なりのレイヤ
 // **離れたファイル同士で大小が意味を持つものだけ**に名前を付ける。
@@ -380,4 +378,34 @@ $focus-ring: ds.$lm-focus-ring-color;
     color: $color-text-strong;
     font-weight: $weight-strong;
   }
+}
+
+// 見ているタブ。一段明るい塗りと、銅の下線（design-system の patterns/selection.md）。
+// タブ1つに `tab`、見ているタブに `tab-on`
+@mixin tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: $radius-row;
+  background: $color-primary-dark;
+  color: $color-text-muted;
+  font-family: $font-sans;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: $color-text-strong;
+  }
+
+  // **輪を内側に描く。** タブの行は端が切れる箱に入るので、外側に出した輪は箱に切られる
+  &:focus-visible {
+    outline: 2px solid $focus-ring;
+    outline-offset: -2px;
+  }
+}
+
+@mixin tab-on {
+  border-bottom-color: $color-secondary-dark;
+  background: $color-primary-light;
+  color: $color-text-strong;
+  font-weight: $weight-strong;
 }

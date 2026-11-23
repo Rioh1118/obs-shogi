@@ -1,41 +1,43 @@
 @use "@/index.scss" as index;
 
+// 左に局面、右にファイルの欄
 .sfen-kifu-create {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 0;
-  color: index.$color-text-light-1;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-  background: linear-gradient(
-    180deg,
-    rgba(index.$color-primary-dark, 0.96) 0%,
-    rgba(index.$color-primary-black, 0.98) 100%
-  );
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
+  &__body {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(24rem, 5fr) minmax(0, 6fr);
+  }
+
+  // 高さは盤が決める（幅いっぱいの盤と、手番と持ち駒の行）
   &__preview {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 1.8rem 2rem 1.2rem;
-    background: linear-gradient(
-      180deg,
-      rgba(index.$color-white, 0.025) 0%,
-      rgba(index.$color-secondary-dark, 0.06) 100%
-    );
-    border-bottom: 1px solid rgba(index.$color-white, 0.08);
-    box-shadow: inset 0 -1px 0 rgba(index.$color-white, 0.025);
+    height: 42rem;
+    padding: index.$space-8 0 index.$space-8 index.$space-10;
   }
 
   // 選べる保存先が無い理由。失敗ではないので `FsErrorView` の tier には載せない
   &__hint {
-    margin: index.$space-2 0 0;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.75);
+    margin: 0;
+    background: index.$color-primary-dark;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+  }
+
+  // 狭いウィンドウでは、局面の下に欄を続けてまとめて送る
+  @media (max-width: 640px) {
+    overflow: hidden auto;
+
+    &__body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    &__preview {
+      padding-right: index.$space-10;
+    }
   }
 }
