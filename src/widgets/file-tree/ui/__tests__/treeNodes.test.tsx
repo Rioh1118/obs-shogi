@@ -423,3 +423,32 @@ describe("棋譜の行", () => {
     expect(tree.openContextMenu).toHaveBeenCalledWith(KIFU, 5, 6);
   });
 });
+
+describe("取り直しを跨いだ行", () => {
+  /**
+   * 節の `id` は走査のたびに振り直される。行の key に使うと、取り直すたびに
+   * 入れ子の行が作り直され、改名の入力欄に打った文字が消える
+   */
+  test("入れ子の行で打っている名前が、id の振り直しで消えない", () => {
+    const rescanned = (scan: string) => {
+      const kifu = { ...nodeOf("/ws/研究/a.kif", false), id: `${scan}:a` };
+      const dir = { ...nodeOf("/ws/研究", true, [kifu]), id: `${scan}:dir` };
+      return { root: { ...nodeOf("/ws", true, [dir]), id: `${scan}:root` }, kifu };
+    };
+
+    const first = rescanned("1");
+    tree.renamingNodeId = first.kifu.id;
+    const { rerender } = inDnd(<RootNode node={first.root} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "途中まで" } });
+
+    const second = rescanned("2");
+    tree.renamingNodeId = second.kifu.id;
+    rerender(
+      <DndContext>
+        <RootNode node={second.root} />
+      </DndContext>,
+    );
+
+    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("途中まで");
+  });
+});
