@@ -15,9 +15,7 @@ $surface-now: ds.$lm-color-background-now; // いまの手、最善手。左の�
 $surface-dock: ds.$lm-color-background-dock;
 $surface-dock-strip: ds.$lm-color-background-dock-strip;
 
-$color-secondary-light: ds.$lm-color-commit-solid;
 $color-secondary-dark: ds.$lm-color-accent-default;
-$color-secondary-dark-2: #a57d5c;
 
 // 「いま」を示す点（適用中）
 $color-accent-bright: ds.$lm-color-accent-bright;
@@ -25,14 +23,12 @@ $color-accent-bright: ds.$lm-color-accent-bright;
 // 背景に敷く銅。白文字を載せる背景なので、ホバーは**暗くする**。明るくすると比が下がり、
 // 押そうとしている瞬間にいちばん読みにくくなる
 $color-secondary-solid: ds.$lm-color-accent-solid; // 白文字 5.19:1
-$color-secondary-solid-hover: ds.$lm-color-accent-solid-hover; // 白文字 5.92:1
 // 確定のボタンの背景。砂色の文字と同じ素材にして、暗い文字を載せる（$color-primary-black で 11.1:1）
 $color-commit-solid: ds.$lm-color-commit-solid;
 $color-commit-solid-hover: ds.$lm-color-commit-solid-hover;
 // 暗い背景に載せる銅の文字（手番、検討中）。$color-secondary-dark は 4.71:1 なので1段階上げる（7.06:1）
 $color-accent-text: ds.$lm-color-text-accent;
 
-$color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
 
 $color-text-strong: ds.$lm-color-text-strong; // 題、いまの手、値
@@ -45,7 +41,6 @@ $color-text-label: ds.$lm-color-text-label; // 表の見出し、数の添え書
 $color-text-faint: ds.$lm-color-text-faint; // 本文の背景で 6.01:1
 
 $color-text-dark-1: ds.$lm-color-text-inverse;
-$color-text-dark-2: #3a3a3a;
 
 // ウィンドウ操作ボタンの3色。**パレットの外**で、OS のウィンドウの作法をなぞっている
 // （`decorations: false` なのでウィンドウ枠は自前で描く）。意味色として使わない。
@@ -108,10 +103,6 @@ $surface-raised: ds.$lm-color-surface-raised;
 // 本文の背景（$color-primary-dark）と暗いカードのどちらの上でも欄として沈んで見える
 $surface-field: ds.$lm-color-surface-field;
 
-// コンテナの上に浮かせるサーフェス（ツールチップ）。**半透明**なので、載る場所ごとに実効値が
-// 変わる。文字との比はコントラストの走査では測れない → #185
-$surface-overlay: ds.$lm-color-surface-overlay;
-
 // 成功は置かない。通知する場面が1件も無いため（必要になったら足す）
 
 // font
@@ -159,20 +150,8 @@ $space-11: ds.$lm-space-11;
 $space-12: ds.$lm-space-12;
 
 // radius
-// 間隔と同じ連番。**同じ N は同じ値**にしてある。
-// 途中から始めると $space-6 と $radius-6 が別の値になり、
-// どちらもトークン参照なのでラチェットもレビューも気づけない
-$radius-1: ds.$lm-radius-1;
-$radius-2: ds.$lm-radius-2;
-$radius-3: ds.$lm-radius-3;
-$radius-4: ds.$lm-radius-4;
-$radius-5: ds.$lm-radius-5;
-$radius-6: ds.$lm-radius-6;
-$radius-7: ds.$lm-radius-7;
-$radius-8: ds.$lm-radius-8;
-$radius-9: ds.$lm-radius-9;
-$radius-pill: ds.$lm-radius-pill; // 文字サイズに従属しないので rem 化しない
-// 役割の名前。画面に入れるときは、番号でなくこちらで書く
+// 役割で選ぶ（design-system の decisions/0005）。**番号の段階は置かない** —— 大きさで選ぶと、
+// 同じ役割の部品が画面ごとに違う角になる
 $radius-row: ds.$lm-radius-row; // 行。角を立てる
 $radius-control: ds.$lm-radius-control; // 押す・打つもの
 $radius-surface: ds.$lm-radius-surface; // ポップオーバー、メニュー、付箋
@@ -195,7 +174,6 @@ $ease: ds.$lm-easing-default;
 // ローディングの反復は秒単位の別系統なのでここには置かない
 
 // layout
-$sidebar-width: 23%;
 // `decorations: false` のウィンドウを動かせる帯の高さ。**帯は2つある** ——
 // 平常時の `.titlebar` と、root の境界が受けたときの `.root-error-fallback__chrome`。
 // 落ちた瞬間に掴める領域が伸び縮みしないよう、両方がこの1つを見る。
@@ -220,11 +198,6 @@ $dock-button-width: 3.4rem;
 $dock-button-width-narrow: 3.2rem;
 // 指で押す入力機器（`pointer: coarse`）のとき。当たりだけを広げ、記号は変えない
 $control-hit-coarse: 4.4rem;
-// エンジンの状態の語に添える目印の大きさ。操作列と設定のカードが同じ状態を別々に描くので、
-// 片方だけ動くと同じ状態に見えなくなる
-$status-mark-size: 0.8rem;
-// オプションの1行の値の列。種類ごとの部品が同じ幅を名乗るので、行を跨いで値の左端が揃う
-$option-control-width: 26rem;
 // 帯に並ぶ丸ボタンの大きさ。**帯と同じ理由でここに置く** —— `.titlebar` と
 // `.root-error-fallback__chrome` が同じボタンを別々に描くので、片方だけ動くと
 // 落ちたときにだけ大きさが変わる
@@ -253,7 +226,7 @@ $create-file-side-width: 32rem;
 $z-status-detail: ds.$lm-z-status-detail;
 $z-titlebar: ds.$lm-z-titlebar;
 $z-modal: ds.$lm-z-modal;
-// **通知はモーダルより上。** 下にすると overlay にぼかされて読めず、
+// **通知はモーダルより上。** 下にすると overlay に覆われて読めず、
 // クリックが overlay に当たってモーダルごと閉じる（編集中の入力が消える）。
 // 上げても操作を塞がないのは、通知の層が `pointer-events` を通知1枚ずつにしか
 // 持たないため。タイトルバーの帯を覆わないのは z-index でなく `top` が守っている
@@ -266,18 +239,12 @@ $z-error-fallback: ds.$lm-z-error-fallback;
 
 // elevation
 // 段階は浮き上がりの高さでなく、何が浮いているかで選ぶ
-// パネル・カード。棋譜ペイン、盤の操作列、付箋、設定パネルが乗る
-$shadow-panel: ds.$lm-shadow-panel;
-// ポップオーバー・メニュー。暗い背景の上に出るので、パネルより強く落とす
+// ポップオーバー・メニュー・モーダル
 $shadow-overlay: ds.$lm-shadow-overlay;
 // 盤と駒台。重なりの影とこれのほかに、影を落とさない
 $shadow-board:
   0 1px 0 rgba(0, 0, 0, 0.4),
   0 8px 22px rgba(0, 0, 0, 0.33);
-$shadow-press: ds.$lm-shadow-press; // 押下
-// 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
-$shadow-control: ds.$lm-shadow-control;
-$shadow-control-press: ds.$lm-shadow-control-press;
 
 // 最善の行を示す左の帯。**浮きの高さではなく目印**なので、
 // 上の3つとは別に置く。背景の塗りだけで示すと、隣の行のホバーと見分けが付かない

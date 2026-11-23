@@ -464,63 +464,63 @@
         "value": 2,
         "unit": "px"
       },
-      "$description": "製品の $radius-1"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "2": {
       "$value": {
         "value": 4,
         "unit": "px"
       },
-      "$description": "製品の $radius-2"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "3": {
       "$value": {
         "value": 6,
         "unit": "px"
       },
-      "$description": "製品の $radius-3"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "4": {
       "$value": {
         "value": 8,
         "unit": "px"
       },
-      "$description": "製品の $radius-4"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "5": {
       "$value": {
         "value": 10,
         "unit": "px"
       },
-      "$description": "製品の $radius-5"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "6": {
       "$value": {
         "value": 12,
         "unit": "px"
       },
-      "$description": "製品の $radius-6"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "7": {
       "$value": {
         "value": 14,
         "unit": "px"
       },
-      "$description": "製品の $radius-7"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "8": {
       "$value": {
         "value": 16,
         "unit": "px"
       },
-      "$description": "製品の $radius-8"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "9": {
       "$value": {
         "value": 18,
         "unit": "px"
       },
-      "$description": "製品の $radius-9"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "pill": {
       "$value": {

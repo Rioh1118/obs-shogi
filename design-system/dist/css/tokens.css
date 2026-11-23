@@ -40,15 +40,15 @@
   --lm-space-11: 22px; /** 製品の $space-11 */
   --lm-space-12: 24px; /** 製品の $space-12 */
   --lm-radius-0: 0px; /** 角を立てる。行、ペイン */
-  --lm-radius-1: 2px; /** 製品の $radius-1 */
-  --lm-radius-2: 4px; /** 製品の $radius-2 */
-  --lm-radius-3: 6px; /** 製品の $radius-3 */
-  --lm-radius-4: 8px; /** 製品の $radius-4 */
-  --lm-radius-5: 10px; /** 製品の $radius-5 */
-  --lm-radius-6: 12px; /** 製品の $radius-6 */
-  --lm-radius-7: 14px; /** 製品の $radius-7 */
-  --lm-radius-8: 16px; /** 製品の $radius-8 */
-  --lm-radius-9: 18px; /** 製品の $radius-9 */
+  --lm-radius-1: 2px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-2: 4px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-3: 6px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-4: 8px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-5: 10px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-6: 12px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-7: 14px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-8: 16px; /** 段階。画面では使わず、役割の名前で選ぶ */
+  --lm-radius-9: 18px; /** 段階。画面では使わず、役割の名前で選ぶ */
   --lm-radius-pill: 999px; /** 進捗の棒、丸ボタン列 */
   --lm-radius-modal: 3px; /** モーダル */
   --lm-font-family-sans: system-ui, 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif; /** 本文 */
