@@ -333,6 +333,14 @@ describe("起動で送らなかった設定の本文", () => {
     expect(body).not.toContain("名前に変えて");
   });
 
+  test(".ybb を読めなかったら、読めない版があることと .db を置くことを言う（ファイルの有無を疑わせない）", () => {
+    const body = startWarningBody([{ kind: "bookNotLoaded", file: "user_book1.ybb" }]);
+
+    expect(body).toContain(".ybb を読み込めない版");
+    expect(body).toContain("同じ名前の .db");
+    expect(body).not.toContain("ファイルが在るか");
+  });
+
   test("知らない種類は汎用の1文にする", () => {
     const unknown = { kind: "fromTheFuture", name: "X" } as unknown as StartWarning;
 
