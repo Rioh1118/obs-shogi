@@ -35,8 +35,7 @@
     background: index.$stroke;
   }
 
-  // 最善手の行。**素の棒より後に置く** —— 同じ詳細度なので、前に置くと上書きされる
-  &__fill--best,
+  // 表の最善手の行。**素の棒より後に置く** —— 同じ詳細度なので、前に置くと上書きされる
   &__cell--best {
     background: index.$color-secondary-dark;
   }

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { EnginePreset, PresetId } from "@/entities/engine-presets";
 
@@ -227,6 +227,49 @@ describe("行の選択", () => {
     fireEvent.keyDown(row(container, "乙"), { key: "a" });
 
     expect(world.selectPreset).not.toHaveBeenCalled();
+  });
+});
+
+// 表（grid）を名乗るので、Tab で止まるのは1行だけで、行の間は矢印で動く
+describe("行の間をキーで動く", () => {
+  beforeEach(() => {
+    world.state.presets = [preset("a", "甲"), preset("b", "乙"), preset("c", "丙")];
+  });
+
+  const tabStops = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLElement>(".presetRow")].filter((r) => r.tabIndex === 0);
+
+  test("Tab で止まる行は1つ", () => {
+    const { container } = render(<EngineTab />);
+
+    expect(tabStops(container)).toHaveLength(1);
+  });
+
+  /** 並びは名前順（「並び」）。上から何行目かで引く */
+  const nth = (container: HTMLElement, at: number) => row(container, titles(container)[at]!);
+
+  test("↓ で次の行へ、↑ で前の行へ動き、適用はしない", () => {
+    const { container } = render(<EngineTab />);
+
+    act(() => nth(container, 1).focus());
+    fireEvent.keyDown(nth(container, 1), { key: "ArrowDown" });
+    expect(document.activeElement).toBe(nth(container, 2));
+
+    fireEvent.keyDown(nth(container, 2), { key: "ArrowUp" });
+    expect(document.activeElement).toBe(nth(container, 1));
+    expect(tabStops(container)).toEqual([nth(container, 1)]);
+    expect(world.selectPreset).not.toHaveBeenCalled();
+  });
+
+  test("Home と End で端の行へ", () => {
+    const { container } = render(<EngineTab />);
+
+    act(() => nth(container, 1).focus());
+    fireEvent.keyDown(nth(container, 1), { key: "End" });
+    expect(document.activeElement).toBe(nth(container, 2));
+
+    fireEvent.keyDown(nth(container, 2), { key: "Home" });
+    expect(document.activeElement).toBe(nth(container, 0));
   });
 });
 

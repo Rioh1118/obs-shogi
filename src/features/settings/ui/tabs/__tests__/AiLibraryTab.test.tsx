@@ -938,6 +938,20 @@ describe("AI ライブラリタブの「検出された問題」", () => {
     ]);
   });
 
+  // 「もう一度読み込む」で見つかった問題が読み上げられるように、領域は問題が無いときから在る
+  test("問題は読み上げの領域に出し、領域は問題が無いときから在る", async () => {
+    await renderIndex(indexWithFolder("Suisho"));
+    const region = document.querySelector('.setupGuide [role="status"]');
+    expect(region).not.toBeNull();
+    expect(warnings()).toEqual([]);
+
+    cleanup();
+    await renderIndex(index(false));
+    expect(
+      document.querySelector(".setupGuide__warningItem")?.closest('[role="status"]'),
+    ).not.toBeNull();
+  });
+
   test("読み直している間は前の一覧を出さない", async () => {
     await renderIndex(index(true));
     expect(warnings()).toHaveLength(1);
@@ -1450,7 +1464,7 @@ describe("AI ライブラリタブのパス", () => {
     fireEvent.click(main.getByRole("button", { name: "開く" }));
     await waitFor(() => expect(revealInFileManager).toHaveBeenCalledWith(root));
 
-    fireEvent.click(main.getByTitle("パスをコピー"));
+    fireEvent.click(main.getByRole("button", { name: "コピー" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(root));
   });
 
@@ -1460,7 +1474,7 @@ describe("AI ライブラリタブのパス", () => {
     const main = within(screen.getByRole("region", { name: "AI ライブラリ" }));
 
     expect((main.getByRole("button", { name: "開く" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((main.getByTitle("パスをコピー") as HTMLButtonElement).disabled).toBe(true);
+    expect((main.getByRole("button", { name: "コピー" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   test("開けなかったフォルダの名前を題に出し、鍵はパスごとに分ける", async () => {

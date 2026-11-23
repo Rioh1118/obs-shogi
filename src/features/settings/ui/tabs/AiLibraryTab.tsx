@@ -1,7 +1,6 @@
 import { Copy, FolderOpen, Sparkles } from "lucide-react";
 
 import Button from "@/shared/ui/Button/Button";
-import IconButton from "@/shared/ui/IconButton";
 import { SField, SPath, SSection } from "../kit";
 import SettingsBadge from "../kit/SettingsBadge";
 import { canCreateEnginesDir, canRevealEnginesDir } from "@/entities/ai-library/lib/enginesDir";
@@ -49,13 +48,14 @@ export default function AiLibraryTab() {
           <div className="aiLibraryTab__folder">
             <SPath path={aiRootPath} placeholder="未設定（選択… からフォルダを選択してください）" />
 
+            {/* 欄（パス）と同じ行に並ぶので、欄と同じ高さの md にする */}
             <div className="aiLibraryTab__actions">
-              <Button tone="accent" size="sm" onClick={actions.selectRoot}>
+              <Button tone="accent" size="md" onClick={actions.selectRoot}>
                 <FolderOpen size={13} aria-hidden="true" />
                 選択…
               </Button>
               <Button
-                size="sm"
+                size="md"
                 onClick={actions.openAiRoot}
                 disabled={!hasRoot}
                 title="Finder/Explorer で開く"
@@ -65,7 +65,7 @@ export default function AiLibraryTab() {
               {canCreateEnginesDir(enginesDir) && (
                 <Button
                   tone="accent"
-                  size="sm"
+                  size="md"
                   onClick={actions.createEnginesDir}
                   disabled={scan.status === "loading"}
                 >
@@ -74,21 +74,18 @@ export default function AiLibraryTab() {
                 </Button>
               )}
               <Button
-                size="sm"
+                size="md"
                 onClick={actions.openEnginesDir}
                 disabled={!canRevealEnginesDir(enginesDir)}
                 title="engines/ を開く"
               >
                 engines/ を開く
               </Button>
-              <IconButton
-                onClick={() => copyText(aiRootPath)}
-                disabled={!hasRoot}
-                title="パスをコピー"
-                ariaLabel="パスをコピー"
-              >
-                <Copy size={15} />
-              </IconButton>
+              {/* パスの行の押すものは、ワークスペースのパスの行と同じ形（語つき）にする */}
+              <Button size="md" onClick={() => copyText(aiRootPath)} disabled={!hasRoot}>
+                <Copy size={13} aria-hidden="true" />
+                コピー
+              </Button>
             </div>
           </div>
         </SField>

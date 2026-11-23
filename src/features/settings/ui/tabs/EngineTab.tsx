@@ -8,7 +8,7 @@ import SSection from "../kit/SSection";
 
 import EnginePresetEditDialogPanel from "../engine-preset-dialog/EnginePresetEditDialogPanel";
 import MateSearchSection from "../engine-tab/MateSearchSection";
-import PresetRow from "../engine-tab/PresetRow";
+import PresetRow, { type RowMoveKey } from "../engine-tab/PresetRow";
 import {
   type EnginePreset,
   MULTIPV_OPTION,
@@ -48,8 +48,24 @@ export default function EngineTab() {
     await deletePreset(preset.id);
   };
 
-  const listRef = useRef<HTMLDivElement | null>(null);
-  useScrollMore(listRef);
+  const listRef = useScrollMore<HTMLDivElement>();
+
+  // 表（grid）には Tab で1度だけ入り、行の間は矢印で動く。止まるのは最後に触れた行で、
+  // まだどの行にも触れていなければ先頭（適用中）。全部の行を Tab の順に並べると、grid を名乗る意味が無い
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  const [focusId, setFocusId] = useState<PresetId | null>(null);
+  const tabStopId = sorted.some((p) => p.id === focusId) ? focusId : (sorted[0]?.id ?? null);
+  const moveFocus = (from: PresetId, key: RowMoveKey) => {
+    const at = sorted.findIndex((p) => p.id === from);
+    const last = sorted.length - 1;
+    const step = key === "ArrowDown" ? 1 : -1;
+    const next = key === "Home" ? 0 : key === "End" ? last : Math.min(last, Math.max(0, at + step));
+    const id = sorted[next]?.id;
+    if (id === undefined) return;
+    setFocusId(id);
+    const rows = tableRef.current?.querySelectorAll<HTMLElement>("[data-preset-id]") ?? [];
+    [...rows].find((el) => el.dataset.presetId === id)?.focus();
+  };
 
   const hasMany = presets.some((p) => (savedInt(p.options, MULTIPV_OPTION) ?? 1) >= 2);
 
@@ -90,7 +106,12 @@ export default function EngineTab() {
           <p className="engineTab__loading">読み込み中…</p>
         ) : (
           <div className="presetList" ref={listRef}>
-            <div className="presetList__table" role="grid" aria-label="検討プリセット">
+            <div
+              className="presetList__table"
+              role="grid"
+              aria-label="検討プリセット"
+              ref={tableRef}
+            >
               <div className="presetList__head" role="row">
                 <span role="columnheader">名前</span>
                 <span role="columnheader">エンジン</span>
@@ -115,6 +136,9 @@ export default function EngineTab() {
                   key={p.id}
                   preset={p}
                   isSelected={p.id === selectedId}
+                  isTabStop={p.id === tabStopId}
+                  onMove={(key) => moveFocus(p.id, key)}
+                  onFocusRow={() => setFocusId(p.id)}
                   canChange={!readOnly}
                   canDelete={!readOnly && presets.length > 1}
                   onSelect={() => selectPreset(p.id)}

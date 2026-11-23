@@ -176,7 +176,8 @@
     color: index.$color-warning;
   }
 
-  // 長いファイル名は2行まで。適用中の行だけ全部を出す
+  // 長いファイル名は、どの行も2行まで（狭いときは1行）。全体は題（title）で読める。
+  // 適用中の行だけ全部を出すと、その1行が一覧の半分を取り、行ごとに見せ方が変わって見比べられない
   &__file {
     min-width: 0;
     display: -webkit-box;
@@ -189,19 +190,11 @@
     font-size: index.$font-aux;
     line-height: 1.35;
 
-    .presetRow.is-selected & {
-      display: block;
-    }
-
     @container settings-main (max-width: 86rem) {
       grid-column: 2;
       -webkit-line-clamp: 1;
       line-clamp: 1;
       word-break: break-all;
-
-      .presetRow.is-selected & {
-        word-break: normal;
-      }
     }
   }
 

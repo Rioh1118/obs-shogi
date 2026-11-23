@@ -97,28 +97,9 @@
     color: index.$color-text-label;
   }
 
+  // 形は共通の押すもの（`Button`）が持つ。ここでは並びの中で伸ばさないことだけを決める
   &__browse {
-    display: inline-flex;
-    align-items: center;
-    gap: index.$space-3;
-
-    height: 2.8rem;
-    padding: 0 index.$space-5;
-    border: 1px solid index.$stroke;
-    border-radius: index.$radius-control;
-    background: index.$surface-dock;
-    color: index.$color-text-primary;
-    font-size: index.$font-body;
-    cursor: pointer;
-
-    &:hover {
-      background: index.$surface-hover;
-    }
-
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: 2px;
-    }
+    align-self: flex-start;
   }
 
   &__icon {

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
-import { useRef } from "react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
+import { useState } from "react";
 
 import { useScrollMore } from "../useScrollMore";
 
@@ -10,9 +10,17 @@ import { useScrollMore } from "../useScrollMore";
 const size = { scrollHeight: 0, clientHeight: 100 };
 
 function List() {
-  const ref = useRef<HTMLDivElement | null>(null);
-  useScrollMore(ref);
+  const ref = useScrollMore<HTMLDivElement>();
   return <div ref={ref} data-testid="list" />;
+}
+
+/** 読み込みの間だけ箱を外す一覧（`EngineTab`）の形 */
+let setShown: (shown: boolean) => void = () => {};
+function Remounting() {
+  const [shown, set] = useState(true);
+  setShown = set;
+  const ref = useScrollMore<HTMLDivElement>();
+  return shown ? <div ref={ref} data-testid="list" /> : <p>読み込み中</p>;
 }
 
 function mount(scrollHeight: number) {
@@ -64,6 +72,25 @@ describe("useScrollMore", () => {
     view.rerender(<List />);
 
     expect(hasMore(view)).toBe(true);
+  });
+
+  test("箱を外して付け直したら、付け直した箱を見る", () => {
+    size.scrollHeight = 200;
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+      () => size.scrollHeight,
+    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+      () => size.clientHeight,
+    );
+    const view = render(<Remounting />);
+    act(() => setShown(false));
+    act(() => setShown(true));
+
+    const list = view.getByTestId("list");
+    list.scrollTop = 100;
+    fireEvent.scroll(list);
+
+    expect(list.hasAttribute("data-more")).toBe(false);
   });
 
   test("消えた後は聞かない", () => {

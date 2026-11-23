@@ -59,18 +59,22 @@ export default function SetupGuide({ aiRootPath, scan, contents, actions }: Prop
 
   return (
     <div className="setupGuide">
-      {scanReady && warnings.length > 0 && (
-        <SSection title="検出された問題">
-          <ul className="setupGuide__warnings">
-            {warnings.map((warning) => (
-              <li key={warning} className="setupGuide__warning">
-                <AlertTriangle size={13} aria-hidden="true" />
-                <span className="setupGuide__warningItem">{warning}</span>
-              </li>
-            ))}
-          </ul>
-        </SSection>
-      )}
+      {/* 「もう一度読み込む」で見つかった問題を読み上げる。領域は問題が無いときから置いておく。
+          中身と同じ描画で挿し込むと、読まれるかが実装依存になる（`NotificationLayer` の読み上げの領域と同じ） */}
+      <div role="status">
+        {scanReady && warnings.length > 0 && (
+          <SSection title="検出された問題">
+            <ul className="setupGuide__warnings">
+              {warnings.map((warning) => (
+                <li key={warning} className="setupGuide__warning">
+                  <AlertTriangle size={13} aria-hidden="true" />
+                  <span className="setupGuide__warningItem">{warning}</span>
+                </li>
+              ))}
+            </ul>
+          </SSection>
+        )}
+      </div>
 
       <SSection title="次にやること">
         <SetupHero

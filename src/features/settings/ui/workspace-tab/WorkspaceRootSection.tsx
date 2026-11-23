@@ -34,7 +34,8 @@ export default function WorkspaceRootSection() {
       <SField label="root_dir">
         <div className="wsTab__pathRow">
           <SPath path={rootDir} />
-          <Button size="sm" onClick={() => void copyText(rootDir)} disabled={isLoading}>
+          {/* 欄（パス）と同じ行に並ぶので、欄と同じ高さの md にする */}
+          <Button size="md" onClick={() => void copyText(rootDir)} disabled={isLoading}>
             <Copy size={13} aria-hidden="true" />
             コピー
           </Button>
@@ -45,7 +46,7 @@ export default function WorkspaceRootSection() {
         <p className="wsTab__changeNote">
           変更すると参照先が切り替わるため、変更後はアプリを再読み込みします。
         </p>
-        <Button size="sm" className="wsTab__changeButton" onClick={() => setConfirmOpen(true)}>
+        <Button size="sm" onClick={() => setConfirmOpen(true)}>
           ワークスペースを変更…
         </Button>
       </div>

@@ -123,12 +123,6 @@
     color: index.$color-text-muted;
   }
 
-  // 取り消しにくい操作の入口。確定ではないので、塗らずに枠と文字で言う
-  &__changeButton {
-    border-color: index.$color-danger;
-    color: index.$color-danger-text;
-  }
-
   &__confirm {
     padding: index.$space-7;
     border-radius: index.$radius-surface;

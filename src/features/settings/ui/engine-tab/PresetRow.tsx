@@ -15,9 +15,19 @@ import { fileLabel } from "@/features/settings/lib/fileChoices";
 import { getBaseName } from "@/shared/lib/path";
 import { engineDefaultOf, savedInt } from "@/features/settings/lib/presetOptionValues";
 
+/** 行の間を動くキー。表（grid）を名乗るので、行の間は矢印で動く */
+export type RowMoveKey = "ArrowUp" | "ArrowDown" | "Home" | "End";
+
+const MOVE_KEYS: readonly string[] = ["ArrowUp", "ArrowDown", "Home", "End"] satisfies RowMoveKey[];
+const isMoveKey = (key: string): key is RowMoveKey => MOVE_KEYS.includes(key);
+
 type Props = {
   preset: EnginePreset;
   isSelected: boolean;
+  /** Tab で止まる行か。表に止まるのは1行だけで、ほかの行へは矢印で動く */
+  isTabStop: boolean;
+  onMove: (key: RowMoveKey) => void;
+  onFocusRow: () => void;
   /** 編集と複製を押せるか */
   canChange: boolean;
   canDelete: boolean;
@@ -83,6 +93,9 @@ function FileCell({
 export default function PresetRow({
   preset,
   isSelected,
+  isTabStop,
+  onMove,
+  onFocusRow,
   canChange,
   canDelete,
   onSelect,
@@ -98,6 +111,11 @@ export default function PresetRow({
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onSelect();
+      return;
+    }
+    if (isMoveKey(e.key)) {
+      e.preventDefault();
+      onMove(e.key);
     }
   };
 
@@ -106,9 +124,13 @@ export default function PresetRow({
       className={cx("presetRow", isSelected && "is-selected")}
       role="row"
       aria-selected={isSelected}
-      tabIndex={0}
+      tabIndex={isTabStop ? 0 : -1}
+      data-preset-id={preset.id}
       onClick={onSelect}
       onKeyDown={handleKeyDown}
+      onFocus={(e) => {
+        if (e.target === e.currentTarget) onFocusRow();
+      }}
     >
       <span className="presetRow__name" role="cell">
         <span className="presetRow__label">{title}</span>
