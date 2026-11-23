@@ -629,7 +629,9 @@ describe("AI ライブラリタブの「開く」", () => {
   test("engines/ が在ってエンジンが0件なら、置き場を案内する", async () => {
     await renderScanned(true);
 
-    expect(screen.getByText(/エンジン実行ファイルが未検出です/)).toBeTruthy();
+    expect(
+      screen.getByText(/エンジン実行ファイルが未検出です/, { ignore: ".setupGuide__announce" }),
+    ).toBeTruthy();
   });
 
   // 置いたのが別の OS 向けだけなら、このマシンで使えるエンジンは0件
@@ -654,7 +656,9 @@ describe("AI ライブラリタブの「開く」", () => {
     render(<AiLibraryTab />);
     await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 
-    expect(screen.getByText(/エンジン実行ファイルが未検出です/)).toBeTruthy();
+    expect(
+      screen.getByText(/エンジン実行ファイルが未検出です/, { ignore: ".setupGuide__announce" }),
+    ).toBeTruthy();
     expect(screen.queryByText("検出済み")).toBeNull();
   });
 
@@ -941,15 +945,24 @@ describe("AI ライブラリタブの「検出された問題」", () => {
   // 「もう一度読み込む」で見つかった問題が読み上げられるように、領域は問題が無いときから在る
   test("問題は読み上げの領域に出し、領域は問題が無いときから在る", async () => {
     await renderIndex(indexWithFolder("Suisho"));
-    const region = document.querySelector('.setupGuide [role="status"]');
-    expect(region).not.toBeNull();
-    expect(warnings()).toEqual([]);
+    expect(document.querySelector('.setupGuide [role="status"]')?.textContent).toBe("");
 
     cleanup();
     await renderIndex(index(false));
-    expect(
-      document.querySelector(".setupGuide__warningItem")?.closest('[role="status"]'),
-    ).not.toBeNull();
+    expect(document.querySelector('.setupGuide [role="status"]')?.textContent).toContain(
+      "engines/ が見つかりません。",
+    );
+  });
+
+  // 節どうしの区切り（`SSection.scss` の `& + &`）は隣どうしでしか引かれない。包むと消える
+  test("見える一覧は、次の節と隣どうしに置く", async () => {
+    await renderIndex(index(false));
+
+    const sections = [...document.querySelectorAll(".setupGuide > *")].filter((el) =>
+      el.classList.contains("sui-section"),
+    );
+    expect(sections.length).toBeGreaterThanOrEqual(2);
+    expect(sections[0]?.nextElementSibling).toBe(sections[1]);
   });
 
   test("読み直している間は前の一覧を出さない", async () => {

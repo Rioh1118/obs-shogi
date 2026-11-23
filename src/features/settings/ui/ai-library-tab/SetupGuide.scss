@@ -3,6 +3,10 @@
 // 「次にやること」から下の節。**設定の骨組みと同じ背景をここでも宣言する。**
 // 文字の色は、この背景との比で決めてある
 .setupGuide {
+  &__announce {
+    @include index.visually-hidden;
+  }
+
   margin-top: index.$space-12;
   padding-top: index.$space-11;
   border-top: 1px solid index.$stroke-weak;

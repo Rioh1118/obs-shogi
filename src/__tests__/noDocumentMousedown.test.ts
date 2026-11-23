@@ -15,7 +15,11 @@ const LISTENS_MOUSEDOWN = /\b(document|window)\s*\.\s*addEventListener\(\s*["'`]
 
 describe("document の mousedown", () => {
   it("document と window で mousedown を聞く所が無い", () => {
-    const offenders = tsFiles(SRC, { includeTests: false })
+    const files = tsFiles(SRC, { includeTests: false });
+    // 歩く先を取り違えて0件になっても緑にならないように
+    expect(files.length).toBeGreaterThan(100);
+
+    const offenders = files
       .filter((file) => LISTENS_MOUSEDOWN.test(readFileSync(file, "utf8")))
       .map((file) => relative(SRC, file));
 

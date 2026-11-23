@@ -30,14 +30,7 @@
   // 読み上げの領域。**出しっぱなしにするので、見えないようにしつつ木から外さない。**
   // `display: none` や `visibility: hidden` は読み上げの対象からも外れる
   &__announce {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
+    @include index.visually-hidden;
   }
 
   // 残る知らせ。**本文とモーダルを覆わない。** 高さを `--notice-bands-h` に置き、

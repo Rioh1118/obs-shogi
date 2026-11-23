@@ -280,6 +280,19 @@ $focus-ring: ds.$lm-focus-ring-color;
   }
 }
 
+// 見えないが読み上げられる箱（`role="status"` の領域など）。**木から外さない。**
+// `display: none` や `visibility: hidden` は読み上げの対象からも外れる
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 // 送る一覧の、下に続きがあること（`useScrollMore`）。スクロールバーの代わりに下端を薄くする
 @mixin scroll-more {
   &[data-more] {
