@@ -316,15 +316,27 @@ fn bind_book(
 ///   ファイルでも `readyok` を返し、定跡なしで動く）
 /// - 読んだと言うはずのエンジン（`expect_read_line`）が、そのパスで `read book file` を言わなければ
 ///   `BookLoadUnconfirmed`（パスを黙って捨てて別の定跡で動くエンジンを、黙って通さない）
+///
+/// `.ybb` は `.db` の名前で送るので、`.ybb` を読めない版（やねうら王 V9.00）は `.db` のパスで
+/// 「読めない」と言う（`tests/fixtures/usi/yaneuraou-book-lines.txt` の7〜8行目）。
+/// そのパスでも `BookNotLoaded` にする。照合しないと `BookLoadUnconfirmed` に落ち、
+/// 「同じ名前の `.db` を読んだ」という当たっていない理由を出す
 pub fn book_load_warning(lines: &[String], sent: &SentBookPath) -> Option<StartWarning> {
     let file = file_name_of(&sent.path);
-    let mentions = |line: &String, what: &str| {
-        line.to_ascii_lowercase().contains(what) && line.contains(sent.path.as_str())
+    let mentions = |line: &String, what: &str, path: &str| {
+        line.to_ascii_lowercase().contains(what) && line.contains(path)
     };
-    if lines.iter().any(|l| mentions(l, "can't read file")) {
+    let sent_as = name_to_look_up(&sent.path);
+    if lines.iter().any(|l| {
+        mentions(l, "can't read file", &sent.path) || mentions(l, "can't read file", &sent_as)
+    }) {
         return Some(StartWarning::BookNotLoaded { file });
     }
-    if sent.expect_read_line && !lines.iter().any(|l| mentions(l, "read book file")) {
+    if sent.expect_read_line
+        && !lines
+            .iter()
+            .any(|l| mentions(l, "read book file", &sent.path))
+    {
         return Some(StartWarning::BookLoadUnconfirmed { file });
     }
     None
@@ -1274,6 +1286,15 @@ mod tests {
         assert_eq!(
             book_load_warning(&real[5..6], &shadowed),
             Some(StartWarning::BookLoadUnconfirmed {
+                file: "user_book1.ybb".to_string()
+            })
+        );
+        // `.ybb` を読めない版（V9.00）は、送った `.db` のパスで「読めない」と言う。
+        // 同じ名前の `.db` を読んだ回（上）と取り違えない
+        let unreadable_ybb = sent("/Users/me/ShogiAi/YbbOnly/book/user_book1.ybb", true);
+        assert_eq!(
+            book_load_warning(&real[6..8], &unreadable_ybb),
+            Some(StartWarning::BookNotLoaded {
                 file: "user_book1.ybb".to_string()
             })
         );

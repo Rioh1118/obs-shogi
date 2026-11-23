@@ -37,7 +37,8 @@ E1 / E2 にフォルダを選んでいれば、送らずに警告 `evalNeedsFile
 
 **読めたかの確かめ**（パスで送った回。`binding::book_load_warning`。`readyok` までの `info string` を見る）:
 そのパスで「読めない」（`can't read file`）と言えば `bookNotLoaded`（やねうら王は読めなくても `readyok` を返し、
-定跡なしで動く）。B1 でパスを送った回と `.ybb` を送った回は、そのパスで「読んだ」（`read book file`）と言わなければ `bookLoadUnconfirmed`
+定跡なしで動く）。`.ybb` を送った回は、送った `.db` の名前のパスで「読めない」と言っても `bookNotLoaded`
+（`.ybb` を読めない版のやねうら王 V9.00 はそう言う。#761）。B1 でパスを送った回と `.ybb` を送った回は、そのパスで「読んだ」（`read book file`）と言わなければ `bookLoadUnconfirmed`
 （断らずに黙って捨てるエンジンを通さない）。✓
 
 **定跡を切る**（解析で使わない・定跡を選んでいない・B1 の外れ・B3）: B4 の名前 = `false`。`BookFile` /

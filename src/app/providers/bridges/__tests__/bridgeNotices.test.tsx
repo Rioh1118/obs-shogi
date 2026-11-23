@@ -333,6 +333,15 @@ describe("起動で送らなかった設定の本文", () => {
     expect(body).not.toContain("名前に変えて");
   });
 
+  // `.ybb` が無い回と読めない版の回は、エンジンの出す行が同じで見分けられない
+  test(".ybb を読めなかったら、ファイルの有無と、読めない版なら .db を置くことの両方を言う", () => {
+    const body = startWarningBody([{ kind: "bookNotLoaded", file: "user_book1.ybb" }]);
+
+    expect(body).toContain("user_book1.ybb が book フォルダに在るか");
+    expect(body).toContain(".ybb を読み込めない版");
+    expect(body).toContain("同じ名前の .db");
+  });
+
   test("知らない種類は汎用の1文にする", () => {
     const unknown = { kind: "fromTheFuture", name: "X" } as unknown as StartWarning;
 
