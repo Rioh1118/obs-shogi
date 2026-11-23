@@ -17,8 +17,12 @@ use ::fs::error::{FsError, FsErrorCode};
 /// 中身は `read_file` が `validate_under_root` で守っているが、一覧は素通りになる。
 /// 走査の側で root の外へ出ないことは [`walk_from`] が受け持つ
 /// （`validate_under_root` は引数1点しか見ない）。
+///
+/// **走査は `spawn_blocking` へ逃がす。** 同期のコマンドは Tauri がメインスレッドで走らせる。
+/// ツリーは外の変更のたびとウィンドウへ戻るたびに取り直されるので、メインスレッドで
+/// 歩くと、そのたびにウィンドウの操作と他のコマンドの応答が走査の間止まる。
 #[command]
-pub fn get_file_tree<R: Runtime>(
+pub async fn get_file_tree<R: Runtime>(
     app: AppHandle<R>,
     root_dir: String,
 ) -> Result<FileTreeNode, FsError> {
@@ -38,5 +42,7 @@ pub fn get_file_tree<R: Runtime>(
         );
     }
 
-    walk_from(&root_path)
+    tauri::async_runtime::spawn_blocking(move || walk_from(&root_path))
+        .await
+        .unwrap_or_else(|e| Err(FsError::new(FsErrorCode::Unknown, e.to_string())))
 }

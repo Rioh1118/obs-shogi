@@ -23,3 +23,17 @@ export function findNode(root: FileTreeNode, targetPath: string): FileTreeNode |
   const chain = findNodeChain(root, targetPath);
   return chain ? chain[chain.length - 1] : null;
 }
+
+/**
+ * `id` の節を返す。無ければ `null`。
+ *
+ * `id` は走査のたびに振り直されるので、引けるのは同じ走査で取ったツリーからだけ
+ */
+export function findNodeById(node: FileTreeNode, id: string): FileTreeNode | null {
+  if (node.id === id) return node;
+  for (const child of node.children ?? []) {
+    const found = findNodeById(child, id);
+    if (found) return found;
+  }
+  return null;
+}

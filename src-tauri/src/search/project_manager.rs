@@ -5,6 +5,7 @@ use std::{
     time::Duration,
 };
 
+use ::fs::path::is_kifu_file;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter};
 use tokio::{sync::Mutex, task, time};
@@ -16,8 +17,8 @@ use crate::search::announce::{
 use crate::search::index::file_build::build_file_index;
 use crate::search::message::ScreenMessage;
 use crate::search::read::fs_scan::{
-    carry_over_unreadable, diff_snapshot, scan_kifu_files, snapshot_from_records, FileRecord,
-    ScanError, ScanOptions, ScanSnapshot,
+    carry_over_unreadable, diff_snapshot, path_key, scan_kifu_files, snapshot_from_records,
+    FileRecord, ScanError, ScanOptions, ScanSnapshot,
 };
 use crate::search::store::bucket::{empty_buckets, BucketEntries, FileBucketEntries};
 use crate::search::store::index_store::IndexStore;
@@ -26,6 +27,7 @@ use crate::search::store::snapshot::{IndexSnapshot, IndexState as StoreIndexStat
 use crate::search::types::{
     FileEntry, FileId, IndexProgressPayload, IndexWarnPayload, EVT_INDEX_PROGRESS, EVT_INDEX_WARN,
 };
+use crate::workspace::events::EVT_WORKSPACE_CHANGED;
 
 #[derive(Debug, Default)]
 struct Inner {
@@ -176,8 +178,18 @@ impl ProjectManager {
                             continue;
                         }
 
+                        let reshaped = {
+                            let g = pm.inner.lock().await;
+                            may_change_tree(&dirty_paths, &g.path_to_id)
+                        };
                         // “dirty集合のスナップショットを切る”
                         dirty_paths.clear();
+
+                        // **索引の走査より先に送る。** ツリーは自分で全体を読み直すので、
+                        // 索引の組み直し（変わった棋譜の数だけ掛かる）を待たせる理由が無い
+                        if reshaped {
+                            let _ = app.emit(EVT_WORKSPACE_CHANGED, ());
+                        }
 
                         // Step2: 差分更新（フル再スキャン→diff→適用）
                         // **結末を捨てない。** 捨てると、読めない場所がまだあるのに
@@ -568,6 +580,28 @@ impl ProjectManager {
     }
 }
 
+/// 変わったパスの中に、ファイルツリーの形を変えうるものがあるか。
+///
+/// 棋譜を保存すると、一時ファイル（`a.kif.tmp`）を書いて `a.kif` へ置き換える
+/// （`fs::write::atomic_write`）。監視はそのたびに鳴るが、ツリーの形は変わらない。
+/// 送ると、1手指すたびにツリーが全体を走査し直す。
+///
+/// 変えないと言い切れるのは2つだけ。索引に載っていて、いまもファイルとして在る棋譜
+/// （中身の書き換え）と、棋譜の一時ファイル（ツリーに出ない）。それ以外は変えうる側に倒す
+/// ——新しい棋譜、消えた棋譜、フォルダ、取りこぼしの合図で積んだ根。
+/// 索引の帳簿は差分更新より前の状態なので、外で足した棋譜はまだ載っていない。
+fn may_change_tree(dirty: &HashSet<PathBuf>, indexed: &HashMap<String, FileId>) -> bool {
+    dirty.iter().any(|p| {
+        let rewritten = indexed.contains_key(&path_key(p)) && p.is_file();
+        !(rewritten || is_kifu_temp_file(p))
+    })
+}
+
+/// `atomic_write` が棋譜の隣に置く一時ファイル（`a.kif.tmp`）か。
+fn is_kifu_temp_file(p: &Path) -> bool {
+    p.extension().is_some_and(|ext| ext == "tmp") && is_kifu_file(&p.with_extension(""))
+}
+
 /// 監視のイベントから、差分更新を待つ集合（`dirty_paths`）へ積むパス。
 ///
 /// **取りこぼしの合図（`need_rescan`）はパスを持たないことがある。** OS のイベントの
@@ -584,6 +618,37 @@ fn paths_to_mark_dirty(ev: notify::Event, root: &Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 保存（一時ファイルを書いて置き換える）だけなら、ツリーの形は変わらない。
+    /// 足した・消した・改名した・フォルダを作ったなら、変わりうる。
+    #[test]
+    fn only_a_rewrite_of_an_indexed_kifu_leaves_the_tree_shape() {
+        let ws = test_support::dir::temp_dir("tree-shape");
+        let kept = ws.join("a.kif");
+        std::fs::write(&kept, "").expect("書けない");
+        let dir = ws.join("D");
+        std::fs::create_dir(&dir).expect("作れない");
+        let indexed: HashMap<String, FileId> =
+            [(path_key(&kept), 1), (path_key(&ws.join("gone.kif")), 2)].into();
+        let set = |ps: &[PathBuf]| ps.iter().cloned().collect::<HashSet<_>>();
+
+        let save = set(&[ws.join("a.kif.tmp"), kept.clone()]);
+        assert!(!may_change_tree(&save, &indexed));
+
+        for reshaping in [
+            ws.join("new.kif"),  // 外で足した棋譜（索引にまだ無い）
+            ws.join("gone.kif"), // 外で消した棋譜（索引にあるがもう無い）
+            dir.clone(),         // フォルダ
+            ws.clone(),          // 取りこぼしの合図で積んだ根
+            ws.join("x.tmp"),    // 棋譜の一時ファイルでない .tmp
+        ] {
+            assert!(
+                may_change_tree(&set(&[kept.clone(), reshaping.clone()]), &indexed),
+                "{reshaping:?}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&ws);
+    }
 
     /// 取りこぼしの合図は、パスが無くても差分更新を起こす。
     #[test]

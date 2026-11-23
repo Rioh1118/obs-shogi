@@ -7,7 +7,9 @@ import { initialState, reducer } from "./reducer";
 import * as api from "../api/service";
 import { parseKifuContentToJKF } from "@/entities/kifu/api/parse";
 import { type KifuCreationOptions } from "@/entities/kifu/model/kifu";
+import { listenWorkspaceChanges } from "../api/events";
 import { findNode, findNodeChain } from "../lib/findNodeChain";
+import { isSameTree } from "../lib/sameTree";
 import { isSameOrDescendantPath, remapSubtreePath } from "../lib/path";
 import { scrollNodeIntoView } from "../lib/scrollNodeIntoView";
 import {
@@ -35,6 +37,30 @@ function kifuParseFailure(path: string, e: unknown): FsError {
         : e.message
       : String(e);
   return { code: "kifu_parse_failed", message: "failed to parse kifu content", path, cause };
+}
+
+/**
+ * 操作を1つ走らせ、その間だけ数を上げる。
+ *
+ * 数えるのは、API を呼んでから操作の読み直しが返るまで。この間に外からの読み直しが着くと、
+ * 操作が張り替えた `activeKifuPath` を操作の前か後か分からない木で引き、
+ * 開いている棋譜を「ツリーに無い」と読んで閉じる。その間の変更は操作の読み直しが拾う
+ */
+async function whileMutating<T>(
+  counter: { current: number },
+  loadSeq: { current: number },
+  run: () => Promise<T>,
+): Promise<T> {
+  counter.current += 1;
+  // 操作より前に始まった外からの取り直しは、操作が読み直すかに関わらず捨てる。
+  // ルートの改名は読み直しを `rootDir` の変化に任せるので、ここで進めないと、
+  // 操作が抜けてから読み直しが始まるまでの間に古い木が通る
+  loadSeq.current += 1;
+  try {
+    return await run();
+  } finally {
+    counter.current -= 1;
+  }
 }
 
 export function FileTreeProvider({ rootDir, children }: Props) {
@@ -70,6 +96,16 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   // **「利用者がいまどの棋譜を選んでいるか」**だから。選び直して元の棋譜へ戻った要求は、
   // 番号で見ると古いが、開くべき棋譜としては正しい。
   const requestedKifuPathRef = useRef<string | null>(null);
+  // ツリーの取得を始めるたびに進む番号。外からの読み直しは、返った時点で自分より後の取得が
+  // 始まっていれば捨てる（古い木で新しい木を上書きしない）
+  const loadSeqRef = useRef(0);
+  // 飛行中の操作の数（`whileMutating`）
+  const mutationsInFlightRef = useRef(0);
+  // 外からの取り直しは1本ずつ。走査は大きなワークスペースで重く、合図とフォーカスは
+  // ほぼ同時に来うる。取得中に来たきっかけは覚えておくだけにし、返ってから1回取り直す
+  const refreshInFlightRef = useRef(false);
+  const refreshAgainRef = useRef(false);
+  const refreshFromOutsideRef = useRef<() => Promise<void>>(async () => {});
 
   const revealNodeInCurrentTree = useCallback((absPath: string) => {
     const root = fileTreeRef.current;
@@ -192,6 +228,7 @@ export function FileTreeProvider({ rootDir, children }: Props) {
       return Ok(undefined);
     }
     dispatch({ type: "loading" });
+    loadSeqRef.current += 1;
 
     const res = await api.fetchTree(rootDir);
 
@@ -208,6 +245,46 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     fileTreeRef.current = res.data;
     dispatch({ type: "tree_loaded", payload: res.data });
     return Ok(undefined);
+  }, [rootDir]);
+
+  /**
+   * アプリの外の変更を受けてツリーを取り直す。`loadFileTree` と違い、利用者の操作に続かない。
+   *
+   * - 通知と読み込み中の表示に触れない（`tree_refreshed` の doc）
+   * - 操作の途中なら取りにいかず、途中に着いた結果も捨てる（`whileMutating` の doc）
+   * - 返った時点で後の取得か操作が始まっていたら捨てる
+   * - 取得中に来たきっかけは、返ってから1回にまとめて取り直す
+   * - 中身が変わっていなければ何もしない。監視は、外のエディタが棋譜を保存しただけでも合図を送る
+   */
+  const refreshFromOutside = useCallback(async (): Promise<void> => {
+    if (!rootDir || mutationsInFlightRef.current > 0) return;
+    if (refreshInFlightRef.current) {
+      refreshAgainRef.current = true;
+      return;
+    }
+    refreshInFlightRef.current = true;
+    loadSeqRef.current += 1;
+    const seq = loadSeqRef.current;
+
+    const res = await api.fetchTree(rootDir);
+    refreshInFlightRef.current = false;
+
+    if (seq === loadSeqRef.current && mutationsInFlightRef.current === 0) {
+      if (!res.success) {
+        dispatch({ type: "refresh_failed", payload: res.error });
+      } else if (!fileTreeRef.current || !isSameTree(fileTreeRef.current, res.data)) {
+        // 描画を待たずに進める理由は `loadFileTree` と同じ
+        fileTreeRef.current = res.data;
+        dispatch({ type: "tree_refreshed", payload: res.data });
+      }
+    }
+
+    // 取得中に来たきっかけは、その時点より後の変更を指している。いま返った木はそれを
+    // 含まないかもしれないので、1回だけ取り直す。`rootDir` が変わっていても新しい根で取る
+    if (refreshAgainRef.current) {
+      refreshAgainRef.current = false;
+      await refreshFromOutsideRef.current();
+    }
   }, [rootDir]);
 
   /**
@@ -303,67 +380,66 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const createNewFile = useCallback(
-    async (parentPath: string, options: KifuCreationOptions): AsyncResult<string, FsError> => {
-      const res = await api.createKifu(parentPath, options);
+    (parentPath: string, options: KifuCreationOptions): AsyncResult<string, FsError> =>
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
+        const res = await api.createKifu(parentPath, options);
 
-      if (!res.success) {
-        return failToCaller(res.error, {
-          kind: "create_file",
-          parentPath,
-          options,
-        });
-      }
+        if (!res.success) {
+          return failToCaller(res.error, {
+            kind: "create_file",
+            parentPath,
+            options,
+          });
+        }
 
-      pendingRevealPathRef.current = res.data;
+        pendingRevealPathRef.current = res.data;
 
-      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
-      return Ok(res.data);
-    },
+        await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
+        return Ok(res.data);
+      }),
     [failToCaller, loadFileTree],
   );
 
   const importKifuFile = useCallback(
-    async (
-      parentPath: string,
-      fileName: string,
-      rawContent: string,
-    ): AsyncResult<void, FsError> => {
-      const trimmed = rawContent.trim();
-      const res = await api.importKifu(parentPath, fileName, trimmed);
+    (parentPath: string, fileName: string, rawContent: string): AsyncResult<void, FsError> =>
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
+        const trimmed = rawContent.trim();
+        const res = await api.importKifu(parentPath, fileName, trimmed);
 
-      if (!res.success) {
-        return failToCaller(res.error, {
-          kind: "import_file",
-          parentPath,
-          fileName,
-          rawContent: trimmed,
-        });
-      }
+        if (!res.success) {
+          return failToCaller(res.error, {
+            kind: "import_file",
+            parentPath,
+            fileName,
+            rawContent: trimmed,
+          });
+        }
 
-      pendingRevealPathRef.current = res.data;
+        pendingRevealPathRef.current = res.data;
 
-      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
-      return Ok(undefined);
-    },
+        await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
+        return Ok(undefined);
+      }),
     [loadFileTree, failToCaller],
   );
 
   const createNewDirectory = useCallback(
-    async (parentPath: string, dirname: string): AsyncResult<void, FsError> => {
-      const res = await api.createDir(parentPath, dirname);
+    (parentPath: string, dirname: string): AsyncResult<void, FsError> =>
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
+        const res = await api.createDir(parentPath, dirname);
 
-      if (!res.success) {
-        return failToNameInput(res.error, {
-          kind: "create_directory",
-          parentPath,
-          dirName: dirname,
-        });
-      }
-      pendingRevealPathRef.current = res.data;
+        if (!res.success) {
+          return failToNameInput(res.error, {
+            kind: "create_directory",
+            parentPath,
+            dirName: dirname,
+          });
+        }
+        pendingRevealPathRef.current = res.data;
 
-      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
-      return Ok(undefined);
-    },
+        await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
+        return Ok(undefined);
+      }),
     [failToNameInput, loadFileTree],
   );
 
@@ -386,75 +462,77 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const deleteNode = useCallback(
-    async (node: FileTreeNode): AsyncResult<void, FsError> => {
-      const res = node.isDirectory
-        ? await api.removeDir(node.path)
-        : await api.removeFile(node.path);
+    (node: FileTreeNode): AsyncResult<void, FsError> =>
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
+        const res = node.isDirectory
+          ? await api.removeDir(node.path)
+          : await api.removeFile(node.path);
 
-      if (!res.success) {
-        // 削除は衝突の要求を作れない（別名で解決しようがない）ので、
-        // `failWithNotice` の形を借りずに直に積む
-        pushError(res.error);
-        return Err(res.error);
-      }
+        if (!res.success) {
+          // 削除は衝突の要求を作れない（別名で解決しようがない）ので、
+          // `failWithNotice` の形を借りずに直に積む
+          pushError(res.error);
+          return Err(res.error);
+        }
 
-      if (isSameOrDescendantPath(selectedNodeRef.current?.path, node.path)) {
-        selectNode(null);
-      }
+        if (isSameOrDescendantPath(selectedNodeRef.current?.path, node.path)) {
+          selectNode(null);
+        }
 
-      if (isSameOrDescendantPath(activeKifuPathRef.current, node.path)) {
-        dispatch({ type: "kifu_closed" });
-      }
+        if (isSameOrDescendantPath(activeKifuPathRef.current, node.path)) {
+          dispatch({ type: "kifu_closed" });
+        }
 
-      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
-      return Ok(undefined);
-    },
+        await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
+        return Ok(undefined);
+      }),
     [loadFileTree, pushError, selectNode],
   );
 
   const renameNode = useCallback(
-    async (node: FileTreeNode, newName: string): AsyncResult<void, FsError> => {
-      const res = node.isDirectory
-        ? await api.renameDir(node.path, newName)
-        : await api.renameFile(node.path, newName);
+    (node: FileTreeNode, newName: string): AsyncResult<void, FsError> =>
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
+        const res = node.isDirectory
+          ? await api.renameDir(node.path, newName)
+          : await api.renameFile(node.path, newName);
 
-      if (!res.success) {
-        return failToNameInput(res.error, {
-          kind: node.isDirectory ? "rename_directory" : "rename_file",
-          path: node.path,
-          newName,
-        });
-      }
-
-      const nextPath = res.data;
-
-      const isRootRename = node.isDirectory && isProjectRoot(node.path, state.fileTree);
-      if (isRootRename) {
-        // ここだけ読み直しを起こさない。ルート自体が変わるので、
-        // `rootDir` の変化を受ける effect が新しい場所で読み直す。
-        // ここで待つと古い `rootDir` を読む
-        const saved = await setRootDir(nextPath);
-        if (!saved.success) {
-          // ディスク上の改名は済んでいる。ここで捨てると「ディスクは新しい名前・
-          // 設定は古い名前」で固定され、再起動しても開けない。
-          //
-          // **tier のために別の code を借りない。** code は tier だけでなく利用者に
-          // 見せる一文も決めるので、借りると原因を偽ることになる。`setRootDir` が
-          // 落ちる理由は権限とは限らない（ディスク満杯・直列化・IPC 断）
-          //
-          // 衝突の対話の中から改名し直した経路でもここへ来る。別名は通っている
-          // （ディスク上の改名は済んだ）ので、この対話に用は無い
-          return failOutOfConflict(makeFsError("config_write_failed", saved.error, nextPath));
+        if (!res.success) {
+          return failToNameInput(res.error, {
+            kind: node.isDirectory ? "rename_directory" : "rename_file",
+            path: node.path,
+            newName,
+          });
         }
+
+        const nextPath = res.data;
+
+        const isRootRename = node.isDirectory && isProjectRoot(node.path, state.fileTree);
+        if (isRootRename) {
+          // ここだけ読み直しを起こさない。ルート自体が変わるので、
+          // `rootDir` の変化を受ける effect が新しい場所で読み直す。
+          // ここで待つと古い `rootDir` を読む
+          const saved = await setRootDir(nextPath);
+          if (!saved.success) {
+            // ディスク上の改名は済んでいる。ここで捨てると「ディスクは新しい名前・
+            // 設定は古い名前」で固定され、再起動しても開けない。
+            //
+            // **tier のために別の code を借りない。** code は tier だけでなく利用者に
+            // 見せる一文も決めるので、借りると原因を偽ることになる。`setRootDir` が
+            // 落ちる理由は権限とは限らない（ディスク満杯・直列化・IPC 断）
+            //
+            // 衝突の対話の中から改名し直した経路でもここへ来る。別名は通っている
+            // （ディスク上の改名は済んだ）ので、この対話に用は無い
+            return failOutOfConflict(makeFsError("config_write_failed", saved.error, nextPath));
+          }
+          reconcilePathMutation(node.path, nextPath);
+          return Ok(undefined);
+        }
+
         reconcilePathMutation(node.path, nextPath);
+
+        await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
         return Ok(undefined);
-      }
-
-      reconcilePathMutation(node.path, nextPath);
-
-      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
-      return Ok(undefined);
-    },
+      }),
     [
       failOutOfConflict,
       failToNameInput,
@@ -466,26 +544,27 @@ export function FileTreeProvider({ rootDir, children }: Props) {
   );
 
   const moveNode = useCallback(
-    async (node: FileTreeNode, destDir: string, newName?: string): AsyncResult<void, FsError> => {
-      const res = node.isDirectory
-        ? await api.moveDir(node.path, destDir, newName)
-        : await api.moveFile(node.path, destDir, newName);
+    (node: FileTreeNode, destDir: string, newName?: string): AsyncResult<void, FsError> =>
+      whileMutating(mutationsInFlightRef, loadSeqRef, async () => {
+        const res = node.isDirectory
+          ? await api.moveDir(node.path, destDir, newName)
+          : await api.moveFile(node.path, destDir, newName);
 
-      if (!res.success) {
-        return failWithNotice(res.error, {
-          kind: node.isDirectory ? "move_directory" : "move_file",
-          path: node.path,
-          destDir,
-          newName,
-        });
-      }
+        if (!res.success) {
+          return failWithNotice(res.error, {
+            kind: node.isDirectory ? "move_directory" : "move_file",
+            path: node.path,
+            destDir,
+            newName,
+          });
+        }
 
-      const nextPath = res.data;
-      reconcilePathMutation(node.path, nextPath);
+        const nextPath = res.data;
+        reconcilePathMutation(node.path, nextPath);
 
-      await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
-      return Ok(undefined);
-    },
+        await loadFileTree(); // async-result-ignored: 読み直しの失敗は loadFileTree が積む
+        return Ok(undefined);
+      }),
     [failWithNotice, reconcilePathMutation, loadFileTree],
   );
 
@@ -644,6 +723,37 @@ export function FileTreeProvider({ rootDir, children }: Props) {
     if (!rootDir) return;
     void loadFileTree(); // async-result-ignored: 初回の読み込み。失敗は loadFileTree が積む
   }, [rootDir, loadFileTree]);
+
+  // 購読は1度だけ張り、呼ぶ関数は ref から読む。`rootDir` が変わるたびに張り直すと、
+  // 張り直しの間に届いた合図を落とす
+  refreshFromOutsideRef.current = refreshFromOutside;
+
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    (async () => {
+      try {
+        const unlistenAll = await listenWorkspaceChanges(() => {
+          void refreshFromOutsideRef.current();
+        });
+        if (cancelled) {
+          unlistenAll();
+          return;
+        }
+        unlisten = unlistenAll;
+      } catch (e) {
+        // 張れなくても、アプリ内の操作のあとの読み直しは動く。外の変更だけが出なくなる
+        console.error("[FILE-TREE] Failed to setup listeners:", e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+      unlisten = null;
+    };
+  }, []);
 
   // 開いている棋譜は、いまのワークスペースの中にある。
   //

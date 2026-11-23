@@ -119,6 +119,16 @@ export type FileTreeAction =
   | { type: "loading" }
   | { type: "kifu_loading" }
   | { type: "tree_loaded"; payload: FileTreeNode }
+  /**
+   * 外の変更を受けて取り直したツリー。`tree_loaded` と違い、`error` と `isLoading` に触れない。
+   *
+   * 利用者が何もしていないのに起きるので、開いている失敗の通知を消すと、読んでいる最中の
+   * 通知が消える。`isLoading` は操作のあとの読み直しのもので、こちらが下ろすと
+   * 飛行中のそれを終わったことにする
+   */
+  | { type: "tree_refreshed"; payload: FileTreeNode }
+  /** 外の変更を受けた取り直しの失敗。既に通知が出ているなら、それを差し替えない */
+  | { type: "refresh_failed"; payload: FsError }
   | { type: "node_selected"; payload: FileTreeNode | null }
   | {
       type: "kifu_opened";

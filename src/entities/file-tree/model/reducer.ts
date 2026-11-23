@@ -1,4 +1,5 @@
-import type { FileTreeAction, FileTreeState } from "./types";
+import type { FileTreeAction, FileTreeNode, FileTreeState } from "./types";
+import { findNode, findNodeById } from "../lib/findNodeChain";
 
 export const initialState: FileTreeState = {
   fileTree: null,
@@ -31,6 +32,20 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
         isLoading: false,
         error: null,
       };
+
+    case "tree_refreshed":
+      return {
+        ...state,
+        fileTree: action.payload,
+        renamingNodeId: carryRenamingNodeId(state, action.payload),
+        menu: carryMenu(state, action.payload),
+      };
+
+    // 出ている通知は差し替えない。操作の失敗を「一覧を取り直せませんでした」に変えると、
+    // 落ちた操作が済んだように読める
+    case "refresh_failed":
+      if (state.error) return state;
+      return { ...state, error: { from: "reload", error: action.payload } };
 
     case "node_selected":
       return {
@@ -171,4 +186,29 @@ export function reducer(state: FileTreeState, action: FileTreeAction): FileTreeS
     default:
       throw new Error("Unknown action type");
   }
+}
+
+/**
+ * 改名中の行を、取り直したツリーの同じパスの行へ付け替える。消えていれば入力欄を閉じる。
+ *
+ * `id` は走査のたびに振り直される。付け替えないと、名前を打っている最中に外の変更が
+ * 届いただけで入力欄が消え、打った文字を失う
+ */
+function carryRenamingNodeId(state: FileTreeState, nextTree: FileTreeNode): string | null {
+  if (state.renamingNodeId === null || state.fileTree === null) return null;
+  const renaming = findNodeById(state.fileTree, state.renamingNodeId);
+  if (!renaming) return null;
+  return findNode(nextTree, renaming.path)?.id ?? null;
+}
+
+/**
+ * 開いているメニューの節を、取り直したツリーの同じパスの節へ付け替える。消えていれば閉じる。
+ *
+ * メニューの「Rename」は握っている節の `id` で入力欄を開く。付け替えないと、
+ * 開いたまま取り直しを挟んだメニューから改名しても、入力欄はどの行にも出ない
+ */
+function carryMenu(state: FileTreeState, nextTree: FileTreeNode): FileTreeState["menu"] {
+  if (!state.menu) return null;
+  const node = findNode(nextTree, state.menu.node.path);
+  return node ? { ...state.menu, node } : null;
 }
