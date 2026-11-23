@@ -1,6 +1,6 @@
 # 一覧の行
 
-状態：規則は確定（v0.3、decisions/0005）。製品の実装は画面ごとに入れる
+状態：確定（v0.3、decisions/0005）。製品に入れた（2026-11-23）
 トークン：`color.background.*`、`color.border.weak`、`radius.row`
 
 ## 用途

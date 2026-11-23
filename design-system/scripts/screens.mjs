@@ -3,6 +3,7 @@
 //   npm run ds:screens -- --only settings-engine      場面を絞る（前方一致、カンマ区切り）
 //   npm run ds:screens -- --sizes 1464x917,1024x640   窓の大きさ（省くと、14インチの起動時と、窓の下限）
 //   npm run ds:screens -- --jobs 4                    同時に開くページの数
+//   npm run ds:screens -- --engine webkit             WebKit で描く（macOS の製品はこれ。省くと chromium）
 //   npm run ds:screens -- --url http://localhost:5199 動いているサーバを使う
 //   npm run ds:screens -- --strict                    崩れ・形の癖・固定値の違反が1件でもあれば失敗する（製品の verify:screens）
 //
@@ -11,7 +12,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { chromium } from '@playwright/test';
+import { chromium, webkit } from '@playwright/test';
 import { SCENARIOS, FIXTURES } from '../screens/scenarios.mjs';
 import { installTauriMock } from '../screens/mock-tauri.mjs';
 import { measureScreen } from '../screens/measure.mjs';
@@ -36,6 +37,7 @@ const out = path.resolve(opt('out') ?? path.join(ds, 'test-results', 'screens'))
 const scale = Number(opt('scale') ?? 1);
 const port = Number(opt('port') ?? 5199);
 const jobs = Number(opt('jobs') ?? 4);
+const engine = opt('engine') === 'webkit' ? webkit : chromium;
 
 // 実アプリの窓の地の色。半透明の帯（タイトルバー）がこの上に載る
 const windowBackground = JSON.parse(
@@ -139,7 +141,7 @@ let next = 0;
 
 // 長く開いていると撮影が止まることがあるので、20枚ごとにブラウザを起こし直し、描けなかった1枚は2回までやり直す
 async function worker() {
-  let browser = await chromium.launch();
+  let browser = await engine.launch();
   let used = 0;
   while (next < queue.length) {
     const at = next;
@@ -150,7 +152,7 @@ async function worker() {
       r = await capture(browser, server.url, scenario, size);
       if (r.file) break;
       await browser.close().catch(() => {});
-      browser = await chromium.launch();
+      browser = await engine.launch();
       used = 0;
     }
     results[at] = r;
@@ -164,7 +166,7 @@ async function worker() {
     used += 1;
     if (used >= 20) {
       await browser.close().catch(() => {});
-      browser = await chromium.launch();
+      browser = await engine.launch();
       used = 0;
     }
   }
@@ -173,7 +175,7 @@ async function worker() {
 
 try {
   // 1枚目は vite が部品を変換する間に当たるので、先に1つだけ開いて温める
-  const warm = await chromium.launch();
+  const warm = await engine.launch();
   await capture(warm, server.url, SCENARIOS.find((s) => s.id === 'welcome'), sizes[0]);
   await warm.close();
   await Promise.all(Array.from({ length: jobs }, worker));

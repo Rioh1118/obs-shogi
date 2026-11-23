@@ -12,9 +12,9 @@
 
 ### 追加
 - `color.background.hover`・`selected`・`now`・`dock`・`dock-strip`、`color.text.strong`・`label`、`color.accent.bright`、`radius.0`
-- 部品の文書：一覧の行、設定の行、知らせの帯、モーダル、札
+- 部品の文書：一覧の行、設定の行、知らせの帯、モーダル、札、区切りボタン、局面の見本
 - 原則9（盤を先に置く）・10（箱を作らない）・11（溢れない）
-- `ds:screens`：製品の画面を見本データで撮り、はみ出し・形の癖・固定値の違反を数える（screens/）。`ds:screens:selftest` は物差しの自己テスト
+- `ds:screens`：製品の画面を見本データで撮り、はみ出し・形の癖・固定値の違反を数える（screens/）。`ds:screens:selftest` は物差しの自己テスト。`--strict` で1件でもあれば失敗、`--engine webkit` で macOS の製品と同じ描き方
 - `ds:compare`、`ds:compare:serve`：今の画面と案を、同じ窓の大きさで並べた1枚を作り、感想をファイルへ残す（compare/）
 - explorations/2026-11-22-rework（1周目 A〜D、2周目 D2・D3。利用者は D2 を選んだ）
 
