@@ -1,55 +1,59 @@
 @use "@/index.scss" as index;
 
 .presetDialog {
+  .presetDialog__segRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: index.$space-4;
+  }
+
+  // 区切りボタン。同じ値をもう一度押すと外れる（`aria-pressed`）
   .presetDialog__seg {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    flex: 1;
+    display: inline-flex;
+    border: 1px solid index.$stroke-strong;
+    border-radius: index.$radius-control;
   }
 
   .presetDialog__segBtn {
-    border-radius: index.$radius-3;
-    border: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.25);
-    color: index.$color-text-primary;
+    min-width: 5.6rem;
+    min-height: 3rem;
+    padding: 0 index.$space-7;
 
-    padding: 10px 10px;
+    border: 0;
+    border-radius: index.$radius-row;
+    background: index.$color-primary-dark;
+    color: index.$color-text-muted;
+    font-size: index.$font-body;
     cursor: pointer;
 
-    font-weight: index.$weight-title;
-    font-size: 1.35rem;
-
-    transition:
-      transform 120ms ease,
-      background-color 120ms ease,
-      border-color 120ms ease;
+    & + .presetDialog__segBtn {
+      border-left: 1px solid index.$stroke;
+    }
 
     &:hover {
-      transform: translateY(-1px);
-      border-color: rgba(index.$color-secondary-dark, 0.45);
-      background: rgba(index.$color-primary-black, 0.35);
+      background: index.$surface-hover;
+      color: index.$color-text-strong;
     }
 
-    &:active {
-      transform: translateY(0px) scale(0.99);
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+      position: relative;
+      z-index: 1;
     }
 
-    &.is-active {
-      border-color: rgba(index.$color-secondary-dark, 0.7);
-      background: rgba(index.$color-secondary-dark, 0.18);
+    &.is-active,
+    &.is-active:hover {
+      background: index.$surface-selected;
+      color: index.$color-text-strong;
+      font-weight: index.$weight-strong;
     }
   }
 
   .presetDialog__stepperInput {
-    width: 90px;
-    text-align: center;
-    font-weight: index.$weight-title;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .presetDialog__segBtn {
-      transition: none;
-    }
+    width: 9rem;
+    margin-top: index.$space-4;
+    text-align: right;
   }
 }

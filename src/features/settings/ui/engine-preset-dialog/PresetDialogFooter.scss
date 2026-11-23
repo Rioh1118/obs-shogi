@@ -2,24 +2,26 @@
 
 .presetDialog {
   .presetDialog__footer {
-    padding: 14px 18px;
-    border-top: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.25);
+    flex: none;
+    padding: index.$space-6 index.$space-11;
+    border-top: 1px solid index.$stroke-weak;
+    background: index.$color-primary-dark;
 
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: index.$space-4 index.$space-7;
   }
 
   .presetDialog__footerHint {
-    color: index.$color-text-faint;
-    font-size: 1.2rem;
+    color: index.$color-text-muted;
+    font-size: index.$font-aux;
   }
 
   .presetDialog__footerRight {
     display: flex;
-    gap: 10px;
+    gap: index.$space-4;
     align-items: center;
   }
 }

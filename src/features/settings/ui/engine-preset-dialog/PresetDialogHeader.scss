@@ -2,29 +2,30 @@
 
 .presetDialog {
   .presetDialog__header {
-    padding: 18px 18px 14px 18px;
-    border-bottom: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.25);
+    flex: none;
+    // 右の閉じるボタンのぶんを空ける
+    padding: index.$space-6 5rem index.$space-6 index.$space-11;
+    border-bottom: 1px solid index.$stroke-weak;
+    background: index.$color-primary-dark;
   }
 
   .presetDialog__titles {
     min-width: 0;
   }
 
+  // 題は折る。省くと、どのプリセットを直しているか読めない
   .presetDialog__title {
-    color: index.$color-text-light-1;
-    font-size: 1.8rem;
+    margin: 0;
+    color: index.$color-text-strong;
+    font-size: index.$font-section;
     font-weight: index.$weight-title;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    word-break: auto-phrase;
   }
 
   .presetDialog__subtitle {
-    margin-top: 6px;
-    color: index.$color-text-faint;
-    font-size: 1.25rem;
-    line-height: 1.4;
+    margin: index.$space-1 0 0;
+    color: index.$color-text-muted;
+    font-size: index.$font-aux;
   }
 }

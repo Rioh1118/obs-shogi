@@ -5,101 +5,94 @@
   flex-direction: column;
 
   width: 100%;
+  // 低いウィンドウではカードがいっぱいに広がる（`Modal.scss` の `max-height: 720px`）。そのぶんも埋める
+  flex: 1 1 auto;
+  // 高さの基準をウィンドウでなくカードに合わせる。`78vh` だけだと低いウィンドウでカードを超え、
+  // カードは `overflow: hidden` なので、超えた分（下端の押すもの）は送っても届かない
   height: min(78vh, 760px);
-  // 高さの基準をビューポートでなくカードに合わせる。カードの高さは overlay の
-  // 内容ボックスで頭打ちになるので、`78vh` だけだと短いウィンドウでカードを超え、
-  // カードは `overflow: hidden` なので超えた分（下端のフッタ）はスクロールでも届かない。
-  // `min-height` は、フレックスアイテムの自動最小サイズが指定高に解決されて
-  // `flex-shrink` が効かなくなるのを外すため。
-  // 百分率の `max-height` が解決するのはカードの高さが確定する側、すなわち
-  // `Modal.scss` の `@media (max-height: 720px)` でカードが `height: 100%` になるとき。
-  // それ以外ではカードは内容に合わせて伸びるので、そもそも超えない。
-  // カードいっぱいに広げる他のモーダルの根（`PositionSearchModal` など5件）のように
-  // `height: 100%` へ揃えないのは同じ理由で、カードの高さが不定な大きいウィンドウでは
-  // 百分率が `auto` に落ち、内容の高さまで縮んでしまうため。
-  // 残る4件（`CreateFileModal` など）は高さを書かず、内容に合わせて縮む側にいる
   max-height: 100%;
+  // 高さを書いたアイテムは、中身より小さく縮まない。それを外す
   min-height: 0;
 
+  // **モーダルと同じ背景をここでも宣言する。** 中の文字の色は、この背景との比で決めてある
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+
+  // 題と、下の押すものは動かさない。中身だけを送る
   .presetDialog__body {
-    padding: 16px 18px 18px 18px;
-    overflow: auto;
+    flex: 1 1 auto;
     min-height: 0;
-
+    padding: index.$space-9 index.$space-11 index.$space-12;
+    overflow: auto;
     overscroll-behavior: contain;
-
-    scrollbar-width: thin;
-    &::-webkit-scrollbar {
-      display: block;
-      width: 8px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.6);
-      border-radius: index.$radius-3;
-    }
-    &::-webkit-scrollbar-track {
-      background: rgba(index.$color-primary-light, 0.2);
-      border-radius: index.$radius-3;
-    }
+    @include index.thin-scrollbar;
   }
 
   .presetDialog__stack {
     display: grid;
-    gap: 14px;
+    gap: index.$space-9;
   }
 
   .presetDialog__grid3 {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
+    gap: index.$space-6;
 
     @media (max-width: 920px) {
       grid-template-columns: minmax(0, 1fr);
     }
   }
 
+  // 直さないと動かないこと。空白を含まない長いパスや OS の出力が来るので、折り返す
   .presetDialog__hintWarn {
-    margin-top: 10px;
-    /* 空白を含まない長いパスや OS の出力が来る。節は overflow: hidden なので、折り返さないと読めない */
+    padding: index.$space-4 index.$space-5;
+    border-radius: index.$radius-surface;
+    background: index.$surface-warning;
     overflow-wrap: anywhere;
-    padding: 10px 12px;
-    border-radius: index.$radius-4;
-
-    border: 1px solid rgba(index.$color-secondary-dark, 0.5);
-    background: rgba(index.$color-secondary-dark, 0.14);
-    color: index.$color-text-primary;
-
-    font-size: 1.2rem;
-    line-height: 1.45;
   }
 
-  /* 入力と、それに対するボタンを横に並べる（入力が縮み、ボタンは折り返さない） */
+  .presetDialog__body > .presetDialog__hintWarn,
+  .sui-field__control > .presetDialog__hintWarn {
+    margin-top: index.$space-5;
+  }
+
+  .presetDialog__hintMuted {
+    margin-top: index.$space-3;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+    overflow-wrap: anywhere;
+
+    .uiBtn {
+      margin-left: index.$space-3;
+    }
+  }
+
+  // 入力と、それに対するボタンを横に並べる（入力が縮み、ボタンは折り返さない）
   .presetDialog__inputRow {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: index.$space-5;
+    gap: index.$space-4;
 
     > :first-child {
-      flex: 1;
+      flex: 1 1 20rem;
       min-width: 0;
-    }
-
-    > button {
-      white-space: nowrap;
     }
   }
 
-  /* エンジンの設定: 1行1項目（名前 ｜ 入力）。名前の下にエンジンの綴りを小さく */
+  // エンジンの設定: 1行1項目（名前 ｜ 入力）。名前の下にエンジンの綴りを小さく
   .presetDialog__optionList {
     display: grid;
-    gap: index.$space-3;
   }
 
   .presetDialog__optionRow {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    gap: index.$space-5;
+    gap: index.$space-7;
     align-items: center;
+    padding: index.$space-3 0;
+    border-top: 1px solid index.$stroke-weak;
   }
 
   .presetDialog__optionName {
@@ -108,66 +101,52 @@
     overflow-wrap: anywhere;
   }
 
-  .presetDialog__optionId {
-    font-family: index.$font-mono;
-    font-size: index.$font-hint;
-    overflow-wrap: anywhere;
-  }
+  // 変えた値の行は太字と点で示す
+  .presetDialog__changed {
+    font-weight: index.$weight-strong;
 
-  /* 選んだエンジンのパス。名乗りだけでは同じ名前の別のビルドを見分けられない */
-  .presetDialog__enginePath {
-    margin-top: index.$space-3;
-    font-family: index.$font-mono;
-    font-size: index.$font-aux;
-    overflow-wrap: anywhere;
-  }
-
-  /* 帯の中のボタン行。ボタンは文字の幅のまま右へ寄せる。`.presetDialog__inputRow` は先頭の子を
-     行いっぱいに伸ばす入力欄の形なので、ボタンだけの行には使わない */
-  .presetDialog__bandActions {
-    display: flex;
-    justify-content: flex-end;
-    gap: index.$space-5;
-    margin-top: index.$space-5;
-  }
-
-  .presetDialog__details {
-    margin-top: 14px;
-    border-radius: index.$radius-4;
-    border: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.18);
-    overflow: hidden;
-  }
-
-  .presetDialog__summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 12px 14px;
-    color: index.$color-text-primary;
-    font-size: 1.35rem;
-    font-weight: index.$weight-title;
-
-    border-bottom: 1px solid rgba(index.$color-white, 0.06);
-
-    &::-webkit-details-marker {
-      display: none;
+    > span {
+      font-size: index.$font-hint;
     }
   }
 
-  .presetDialog__details[open] .presetDialog__summary {
-    background: rgba(index.$color-primary-black, 0.22);
+  .presetDialog__optionId,
+  .presetDialog__enginePath {
+    font-family: index.$font-mono;
+    font-size: index.$font-hint;
+    color: index.$color-text-label;
+    overflow-wrap: anywhere;
+  }
+
+  // 選んだエンジンのパス。名乗りだけでは同じ名前の別のビルドを見分けられない
+  .presetDialog__enginePath {
+    margin-top: index.$space-3;
+  }
+
+  // 帯の中のボタン行。ボタンは文字の幅のまま右へ寄せる。`.presetDialog__inputRow` は先頭の子を
+  // 行いっぱいに伸ばす入力欄の形なので、ボタンだけの行には使わない
+  .presetDialog__bandActions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: index.$space-4;
+    margin-top: index.$space-4;
+  }
+
+  .presetDialog__summary {
+    width: fit-content;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+    }
   }
 
   .presetDialog__detailsBody {
-    margin: 0;
-    padding: 14px 14px 12px 14px;
-  }
-
-  .presetDialog__hintMuted {
-    margin-top: 10px;
-    overflow-wrap: anywhere;
-    color: index.$color-text-faint;
-    font-size: 1.2rem;
-    line-height: 1.45;
+    margin: index.$space-3 0 0;
+    padding-left: index.$space-10;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
   }
 }

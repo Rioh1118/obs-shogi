@@ -204,6 +204,7 @@ describe("開く", () => {
   test("題は名前の前後を落として出し、空なら「プリセット編集」", async () => {
     await openDialog({ label: "  研究用  " });
     expect(document.querySelector(".presetDialog__title")?.textContent).toBe("研究用");
+    expect(screen.getByRole("heading", { level: 2, name: "研究用" })).toBeTruthy();
 
     fireEvent.change(nameInput(), { target: { value: "   " } });
     expect(document.querySelector(".presetDialog__title")?.textContent).toBe("プリセット編集");
@@ -910,6 +911,9 @@ describe("エンジン設定の節", () => {
     await openLoaded({ options: { Threads: "8", Style: "a" } });
 
     expect(screen.getAllByLabelText("初期値と違う")).toHaveLength(1);
+    expect(
+      [...document.querySelectorAll(".presetDialog__changed")].map((el) => el.textContent),
+    ).toEqual(["● スレッド数"]);
   });
 
   test("辞書の名前があれば綴りを添え、無ければ綴りだけ", async () => {
