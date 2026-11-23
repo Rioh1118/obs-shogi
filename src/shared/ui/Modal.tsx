@@ -158,7 +158,7 @@ function Modal({
   const root = document.getElementById("modal-root") ?? document.body;
 
   return createPortal(
-    <div className={`modal modal--dark modal--${variant} modal--size-${size}`}>
+    <div className={`modal modal--${variant} modal--size-${size}`}>
       <div className="modal__overlay" onClick={handleOverlayClick}>
         <div
           ref={cardRef}

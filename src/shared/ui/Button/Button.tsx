@@ -8,15 +8,13 @@ import "./Button.scss";
  * `neutral` は戻す・閉じる操作。
  */
 export type ButtonTone = "primary" | "accent" | "neutral" | "danger";
-/** 高さ・左右の余白・文字サイズをまとめて決める。 */
+/** 高さと左右の余白をまとめて決める。 */
 export type ButtonSize = "sm" | "md" | "lg";
-export type ButtonRadius = "soft" | "pill";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   tone?: ButtonTone;
   size?: ButtonSize;
-  radius?: ButtonRadius;
-  /** ホバーの影と押下の沈み込み。並べて何度も押す場所では切る */
+  /** 押下の沈み込み。並べて何度も押す場所では切る */
   motion?: boolean;
   /** 処理中。押せなくしたうえで、待っていることを支援技術にも伝える */
   isLoading?: boolean;
@@ -42,7 +40,6 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export default function Button({
   tone = "neutral",
   size = "md",
-  radius = "soft",
   motion = true,
   isLoading = false,
   busy = false,
@@ -55,7 +52,6 @@ export default function Button({
     "uiBtn",
     `uiBtn--${tone}`,
     `uiBtn--${size}`,
-    `uiBtn--r-${radius}`,
     motion ? "uiBtn--motion" : null,
     className,
   ]

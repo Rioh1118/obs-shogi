@@ -132,12 +132,12 @@ export default function UpdaterScreen() {
         <div className="updater-card__actions">
           {status.phase === "available" && (
             <>
-              <Button size="sm" radius="pill" onClick={() => void skipCurrentVersion()}>
+              <Button size="sm" onClick={() => void skipCurrentVersion()}>
                 この版は飛ばす
               </Button>
               <Button
                 size="sm"
-                radius="pill"
+
                 tone="accent"
                 onClick={() => void downloadAndInstall()}
               >
@@ -147,13 +147,13 @@ export default function UpdaterScreen() {
             </>
           )}
           {status.phase === "ready" && (
-            <Button size="sm" radius="pill" tone="accent" onClick={() => void restart()}>
+            <Button size="sm" tone="accent" onClick={() => void restart()}>
               <RefreshCw size={13} strokeWidth={2.2} />
               いま再起動
             </Button>
           )}
           {status.phase === "error" && (
-            <Button size="sm" radius="pill" onClick={dismiss}>
+            <Button size="sm" onClick={dismiss}>
               閉じる
             </Button>
           )}

@@ -296,6 +296,23 @@ $focus-ring: ds.$lm-focus-ring-color;
 
 // このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される
 
+// 全要素で消してあるスクロールバーを戻す。**続きがあることを示す手掛かりが、ほかに無い所だけに使う**
+// （長い中身を送るモーダル、詳細のログ）。
+// `-thumb` を書かないと、WebKit は既定描画をやめたままつまみを塗らない
+@mixin thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: $stroke-strong transparent;
+
+  &::-webkit-scrollbar {
+    display: block;
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: $stroke-strong;
+  }
+}
+
 // 選択を示す左の銅の縦棒。影で引くと角丸に沿って曲がるので、独立した要素で描く。
 // 呼び手は `position: relative` を持つこと
 @mixin selected-bar {

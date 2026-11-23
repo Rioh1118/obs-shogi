@@ -5,18 +5,18 @@
 .form {
   display: flex;
   flex-direction: column;
-  padding: 2rem 3rem;
-  gap: 1.5rem;
+  padding: index.$space-9 index.$space-11;
+  gap: index.$space-7;
 
   &__group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: index.$space-3;
 
     &--horizontal {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
-      gap: 2rem;
+      gap: index.$space-7;
 
       .form__field {
         flex: 1;
@@ -27,9 +27,9 @@
     &--buttons {
       display: flex;
       flex-direction: row;
-      gap: 1rem;
+      gap: index.$space-4;
       justify-content: flex-end;
-      margin-top: 2rem;
+      margin-top: index.$space-7;
     }
   }
 
@@ -43,39 +43,34 @@
     min-width: 0;
   }
 
+  // 打つ欄。高さと枠は、並ぶ押すもの（`Button` の md）に揃える
   &__input,
   &__textarea,
   &__select {
-    font-size: 1.5rem;
+    min-height: 3.2rem;
+    padding: index.$space-3 index.$space-5;
+
+    border: 1px solid index.$stroke-strong;
+    border-radius: index.$radius-control;
+    background: index.$surface-field;
+    color: index.$color-text-primary;
+
+    font-size: index.$font-body;
     font-weight: index.$weight-regular;
     font-family: inherit;
-    color: index.$color-text-light-1;
-    padding: 1.2rem 1.6rem;
-    background-color: index.$surface-field;
-    border: 1px solid index.$stroke;
-    border-radius: index.$radius-3;
-    transition: all 0.2s ease;
 
-    &:focus {
-      outline: none;
-      background-color: index.$surface-field;
-      border-color: index.$color-secondary-dark;
-      box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
     }
 
-    // 0.35 だと `$surface-field` の上で本文の基準を割る
     &::placeholder {
-      color: rgba(index.$color-text-light-1, 0.6);
+      color: index.$color-text-faint;
     }
   }
 
   &__select {
     cursor: pointer;
-
-    option {
-      background-color: index.$color-primary-black;
-      color: index.$color-text-light-1;
-    }
   }
 
   &__textarea {
@@ -84,33 +79,30 @@
   }
 
   &__label {
-    font-size: 1.4rem;
-    font-weight: index.$weight-strong;
-    color: rgba(index.$color-text-light-1, 0.7);
-    margin-left: 0;
-    margin-top: 0;
-    margin-bottom: 0.5rem;
-    transition: all 0.2s;
     display: block;
+    margin: 0 0 index.$space-3;
+    font-size: index.$font-aux;
+    font-weight: index.$weight-medium;
+    color: index.$color-text-muted;
   }
 
   &__subheading {
-    font-size: 1.6rem;
+    margin-bottom: index.$space-5;
+    font-size: index.$font-section;
     font-weight: index.$weight-strong;
-    color: index.$color-text-light-1;
-    margin-bottom: 1rem;
+    color: index.$color-text-strong;
   }
 
   &__radio-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-    gap: 1rem;
+    gap: index.$space-5;
   }
 
   &__radio-group {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: index.$space-5;
   }
 
   &__radio-input {
@@ -120,62 +112,49 @@
   &__radio-label {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    font-size: 1.4rem;
-    font-weight: index.$weight-medium;
+    gap: index.$space-5;
+    padding: index.$space-3;
+    border-radius: index.$radius-control;
+    color: index.$color-text-primary;
+    font-size: index.$font-body;
     font-family: inherit;
-    color: rgba(index.$color-text-light-1, 0.85);
     cursor: pointer;
     user-select: none;
-    padding: 0.5rem;
-    border-radius: 0.4rem;
-    transition: background-color 0.2s ease;
 
     &:hover {
-      background-color: rgba(index.$color-white, 0.06);
+      background: index.$surface-hover;
     }
   }
 
+  // 満たした側は砂。銅は局面の「いま」だけに使う
   &__radio-button {
-    flex-shrink: 0;
-    height: 2rem;
-    width: 2rem;
-    border-radius: 50%;
-    border: 0.3rem solid rgba(index.$color-secondary-dark, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: border-color 0.2s ease;
+    flex: none;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: index.$radius-circle;
+    border: 1px solid index.$stroke-strong;
+    display: grid;
+    place-items: center;
 
     &::after {
       content: "";
-      height: 1rem;
-      width: 1rem;
-      border-radius: 50%;
-      background-color: index.$color-secondary-dark;
+      width: 0.8rem;
+      height: 0.8rem;
+      border-radius: index.$radius-circle;
+      background: index.$color-commit-solid;
       opacity: 0;
-      transition: opacity 0.2s ease;
     }
   }
 
-  &__radio-input:checked + .form__radio-label .form__radio-button {
-    border-color: index.$color-secondary-dark;
-
-    &::after {
-      opacity: 1;
-      background-color: index.$color-secondary-dark;
-    }
+  &__radio-input:checked + .form__radio-label .form__radio-button::after {
+    opacity: 1;
   }
 
   &__heading-secondary {
-    font-size: 2.2rem;
-    font-weight: index.$weight-medium;
-    color: index.$color-text-light-1;
+    margin-bottom: index.$space-7;
+    font-size: index.$font-title;
+    font-weight: index.$weight-title;
+    color: index.$color-text-strong;
     line-height: 1.4;
-    letter-spacing: 0.05rem;
-    margin-bottom: 1.5rem;
-    text-transform: none;
-
-    padding-left: 1rem;
   }
 }

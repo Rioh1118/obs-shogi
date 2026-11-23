@@ -222,7 +222,6 @@ export default function StudyPositionSaveModal() {
                 onChange={setTags}
                 placeholder="戦法や戦型を入力…"
                 disabled={isSaving}
-                variant="compact"
               />
             </div>
 

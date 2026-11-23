@@ -28,7 +28,7 @@
     justify-content: center;
 
     padding: 2rem;
-    backdrop-filter: blur(4px);
+    background: rgba(index.$color-primary-black, 0.8);
 
     overscroll-behavior: contain;
   }
@@ -46,7 +46,13 @@
     // 足しただけでカードが内容の高さまで伸び、overlay を超えて帯に載る
     max-height: 100%;
 
-    border-radius: 1rem;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-modal;
+    background: index.$color-primary-dark;
+    color: index.$color-text-primary;
+    box-shadow: index.$shadow-overlay;
+
+    // 開いたときのフォーカスの行き先。輪は中の押すものに描く
     outline: none;
 
     overflow: hidden;
@@ -54,20 +60,7 @@
     &--scroll-card {
       overflow: auto;
       overscroll-behavior: contain;
-
-      scrollbar-width: thin;
-      &::-webkit-scrollbar {
-        display: block;
-        width: 8px;
-      }
-      &::-webkit-scrollbar-thumb {
-        background: rgba(index.$color-secondary-dark, 0.6);
-        border-radius: 8px;
-      }
-      &::-webkit-scrollbar-track {
-        background: rgba(index.$color-primary-light, 0.2);
-        border-radius: 8px;
-      }
+      @include index.thin-scrollbar;
     }
 
     &--scroll-content {
@@ -81,32 +74,30 @@
 
   &__close {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: index.$space-3;
+    right: index.$space-4;
     z-index: 1;
 
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: 3.2rem;
+    height: 3.2rem;
 
     display: grid;
     place-items: center;
 
     cursor: pointer;
-    border: 1px solid rgba(index.$color-white, 0.12);
+    border: 0;
+    border-radius: index.$radius-control;
+    background: index.$color-primary-dark;
+    color: index.$color-text-muted;
 
-    background: rgba(index.$color-primary-black, 0.25);
-    color: index.$color-text-light-1;
-
-    transition:
-      transform 120ms ease,
-      background-color 120ms ease;
     &:hover {
-      background: rgba(index.$color-primary-black, 0.35);
-      transform: translateY(-1px);
+      background: index.$surface-hover;
+      color: index.$color-text-strong;
     }
-    &:active {
-      transform: translateY(0px) scale(0.98);
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: -2px;
     }
   }
 
@@ -114,35 +105,7 @@
     min-height: 0;
     overflow: auto;
     overscroll-behavior: contain;
-
-    scrollbar-width: thin;
-    &::-webkit-scrollbar {
-      display: block;
-      width: 8px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.6);
-      border-radius: 8px;
-    }
-    &::-webkit-scrollbar-track {
-      background: rgba(index.$color-primary-light, 0.2);
-      border-radius: 8px;
-    }
-  }
-
-  /* ========== theme: dark ========== */
-  &--dark {
-    .modal__overlay {
-      background-color: rgba(index.$color-primary-black, 0.6);
-    }
-
-    .modal__card {
-      background-color: rgba(index.$color-primary-black, 0.95);
-      color: index.$color-text-light-1;
-
-      border: 1px solid rgba(index.$color-white, 0.08);
-      box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.45);
-    }
+    @include index.thin-scrollbar;
   }
 
   // ---------- sizes ----------
@@ -189,13 +152,6 @@
       // size ごとの `min(88vh, …)` を外して overlay いっぱいまで使う。
       // `none` にすると上限が消えるので `100%` に置き換える形で外す
       max-height: 100%;
-      border-radius: 14px;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &__close {
-      transition: none;
     }
   }
 }

@@ -6,253 +6,163 @@
 .tags-input-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: index.$space-3;
+
+  // **モーダルと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
+  background: index.$color-primary-dark;
 }
 
 .tags-input__label {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 1.3rem;
+  gap: index.$space-3;
+  font-size: index.$font-aux;
   font-weight: index.$weight-medium;
-  color: rgba(index.$color-text-light-1, 0.7);
-  margin-left: 0.4rem;
-  transition: all 0.2s;
-}
-
-.tags-input__label-icon {
-  color: index.$color-accent-text;
-  transition: color 0.2s ease;
+  color: index.$color-text-muted;
 }
 
 .tags-input__count {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-size: 1.1rem;
-  color: rgba(index.$color-text-light-1, 0.6);
-  font-weight: index.$weight-regular;
   margin-left: auto;
-  padding: 0.2rem 0.6rem;
-  background-color: rgba(index.$color-white, 0.08);
-  border-radius: 1rem;
-  transition: all 0.2s ease;
+  font-size: index.$font-hint;
+  font-weight: index.$weight-regular;
+  color: index.$color-text-label;
+  font-variant-numeric: tabular-nums;
 }
 
 .tags-input {
-  min-height: 5.2rem;
-  padding: 1rem 1.2rem;
-  background-color: index.$surface-field;
-  border: 0.2rem solid index.$stroke;
-  border-radius: 0.8rem;
-  transition: all 0.3s ease;
+  min-height: 3.2rem;
+  padding: index.$space-2 index.$space-5;
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-control;
+  background: index.$surface-field;
+  color: index.$color-text-primary;
   cursor: text;
-  position: relative;
-  backdrop-filter: blur(10px);
 
-  &:hover:not(.tags-input--disabled) {
-    background-color: index.$surface-field;
-    border-color: index.$stroke-strong;
-    box-shadow: index.$shadow-control;
-  }
-
+  // 欄の中のどこにフォーカスがあっても、欄を輪で囲む
   &--focused {
-    background-color: index.$surface-field;
-    border-color: index.$color-secondary-dark;
-    box-shadow: index.$shadow-control;
-
-    .tags-input__label-icon {
-      color: index.$color-secondary-dark;
-    }
-  }
-
-  &--disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    background-color: rgba(index.$color-white, 0.03);
-  }
-
-  &--max {
-    .tags-input__input {
-      opacity: 0.5;
-    }
-  }
-
-  &--compact {
-    min-height: 4rem;
-    padding: 0.8rem 1rem;
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
   }
 }
 
 .tags-input__content {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: index.$space-3;
   width: 100%;
 }
 
 .tags-input__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: index.$space-3;
   align-items: center;
 }
 
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  background: rgba(index.$color-secondary-dark, 0.3);
-  color: index.$color-text-light-1;
-  padding: 0.5rem 0.8rem;
-  border-radius: 1.6rem;
-  font-size: 1.2rem;
-  font-weight: index.$weight-medium;
-  animation: tagSlideIn 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-  box-shadow: index.$shadow-control-press;
-  transition: all 0.2s ease;
-  border: 0.1rem solid rgba(index.$color-white, 0.2);
-
-  &:hover {
-    transform: translateY(-0.1rem) scale(1.02);
-    box-shadow: index.$shadow-control;
-    background: rgba(index.$color-secondary-dark, 0.42);
-  }
+  gap: index.$space-2;
+  min-height: 2.4rem;
+  padding: 0 index.$space-2 0 index.$space-4;
+  border-radius: index.$radius-control;
+  background: index.$surface-selected;
+  color: index.$color-text-strong;
+  font-size: index.$font-aux;
 }
 
 .tag__text {
-  line-height: 1;
+  overflow-wrap: anywhere;
   user-select: none;
 }
 
 .tag__remove {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
   border: none;
-  color: inherit;
+  border-radius: index.$radius-control;
+  background: index.$surface-selected;
+  color: index.$color-text-muted;
   cursor: pointer;
-  padding: 0.2rem;
-  margin: -0.2rem;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-  opacity: 0.8;
 
   &:hover {
-    opacity: 1;
-    background-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
+    color: index.$color-text-strong;
   }
 
-  &:active {
-    transform: scale(0.95);
-  }
-
-  &:focus {
-    outline: 0.1rem solid rgba(255, 255, 255, 0.5);
-    outline-offset: 0.1rem;
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
   }
 
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
+    opacity: 0.45;
+    cursor: default;
   }
 }
 
 .tags-input__input-area {
   display: flex;
   align-items: center;
-  gap: 0.8rem;
+  gap: index.$space-4;
   flex: 1;
 }
 
 .tags-input__input {
   flex: 1;
-  font-size: 1.4rem;
-  font-weight: index.$weight-regular;
-  font-family: inherit;
-  color: index.$color-text-light-1;
-  background: transparent;
+  min-width: 0;
+  min-height: 2.4rem;
   border: none;
+  // 輪は欄の箱（`.tags-input--focused`）に描く
   outline: none;
-  line-height: 1.5;
+  background: index.$surface-field;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+  font-family: inherit;
 
-  // 0.35 だと、この背景（暗いカードの上の白 6%）に対して 2.86:1 で本文の基準を割る
   &::placeholder {
-    color: rgba(index.$color-text-light-1, 0.6);
-    font-style: italic;
-    transition: color 0.2s ease;
-  }
-
-  &:focus::placeholder {
-    color: rgba(index.$color-text-light-1, 0.7);
+    color: index.$color-text-faint;
   }
 
   &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+    opacity: 0.45;
+    cursor: default;
   }
 }
 
 .tags-input__add-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.6rem;
-  border-radius: 0.6rem;
-  font-family: inherit;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: none;
+  border-radius: index.$radius-control;
+  background: index.$surface-field;
+  color: index.$color-text-muted;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 1px solid index.$color-secondary-dark;
-  background: transparent;
-  color: index.$color-accent-text;
 
   &:hover:not(:disabled) {
-    border-color: index.$color-accent-text;
+    background: index.$surface-hover;
+    color: index.$color-text-strong;
   }
 
-  &:active:not(:disabled) {
-    transform: translateY(0) scale(0.98);
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
   }
 
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
+    opacity: 0.45;
+    cursor: default;
   }
 }
 
 .tags-input__help {
-  font-size: 1.1rem;
-  // 背景を敷いた span の中でも本文の基準を満たす所で止める。
-  // 0.55 だと地では 5.36:1 だが、span の背景の上で 4.45:1 に落ちる
-  color: rgba(index.$color-text-light-1, 0.65);
-  font-style: italic;
-  margin-left: 0.4rem;
+  font-size: index.$font-hint;
+  color: index.$color-text-label;
 
   span {
-    padding: 0.1rem 0.4rem;
-    background-color: rgba(index.$color-white, 0.1);
-    border-radius: 0.3rem;
-    font-family: monospace;
-    font-style: normal;
-    font-size: 1rem;
-  }
-}
-
-@keyframes tagSlideIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.8) translateY(-1rem);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.05) translateY(-0.2rem);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
+    font-family: index.$font-mono;
   }
 }

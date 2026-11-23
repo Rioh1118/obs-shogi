@@ -38,7 +38,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに背景の側を直すこと。
  */
-const MEASURED_COUNT = 211;
+const MEASURED_COUNT = 216;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
@@ -58,11 +58,11 @@ const MEASURED_COUNT = 211;
  * それ以外で増やさない。背景が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 266;
+const UNMEASURED_COUNT = 255;
 
 /**
- * 透明の背景で銅の枠線と文字を持つ部品。**自分では背景を持たないので、載る先を渡さないと測れない。**
- * どれも暗いカード（`$color-primary-black`）の上に置く
+ * 透明の背景で、枠線と文字だけを持つ部品。**自分では背景を持たないので、載る先を渡さないと測れない。**
+ * どれもモーダルとペインの背景（`$color-primary-dark`）の上に置く
  */
 const TRANSPARENT_ON_CARD = [
   "shared/ui/Button/Button.scss",
@@ -92,7 +92,9 @@ beforeAll(() => {
     const name = relative(SRC, file).split("\\").join("/");
     let scan;
     try {
-      const under = TRANSPARENT_ON_CARD.includes(name) ? "#1c2325" : SURFACE_UNDER[name];
+      const under = TRANSPARENT_ON_CARD.includes(name)
+        ? "index.$color-primary-dark"
+        : SURFACE_UNDER[name];
       const surface = under ? (resolveColor(under, vars) ?? undefined) : undefined;
       scan = scanContrast(readFileSync(file, "utf8"), { vars, from: file, surface });
     } catch (error) {
