@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { AlertTriangle, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
 
-import SSection from "../kit/SSection";
+import { SField, SInput, SPath, SSection } from "../kit";
 import Button from "@/shared/ui/Button/Button";
 
 import { useAppConfig } from "@/entities/app-config";
@@ -30,47 +30,38 @@ export default function WorkspaceRootSection() {
     <SSection
       title="保存場所"
       description="棋譜・ノート・タグなどのデータを保存する“Vault”です。通常は変更しません。"
-      actions={
-        <div className="wsTab__actions">
+    >
+      <SField label="root_dir">
+        <div className="wsTab__pathRow">
+          <SPath path={rootDir} />
           <Button size="sm" onClick={() => void copyText(rootDir)} disabled={isLoading}>
-            <Copy size={16} />
+            <Copy size={13} aria-hidden="true" />
             コピー
           </Button>
         </div>
-      }
-    >
-      <div className="wsTab__pathBox">
-        <div className="wsTab__pathLabel">root_dir</div>
-        <div className="wsTab__pathValue" title={rootDir}>
-          {rootDir}
-        </div>
-      </div>
+      </SField>
 
-      <div className="wsTab__danger">
-        <AlertTriangle size={16} />
-        <div className="wsTab__dangerText">
+      <div className="wsTab__change">
+        <p className="wsTab__changeNote">
           変更すると参照先が切り替わるため、変更後はアプリを再読み込みします。
-        </div>
-      </div>
-
-      <div className="wsTab__dangerActions">
-        <Button tone="danger" size="sm" onClick={() => setConfirmOpen(true)}>
+        </p>
+        <Button size="sm" className="wsTab__changeButton" onClick={() => setConfirmOpen(true)}>
           ワークスペースを変更…
         </Button>
       </div>
 
       {confirmOpen && (
         <div className="wsTab__confirm">
-          <div className="wsTab__confirmTitle">ワークスペースを変更</div>
-          <div className="wsTab__confirmDesc">
+          <h4 className="wsTab__confirmTitle">ワークスペースを変更</h4>
+          <p className="wsTab__confirmDesc">
             本当に変更する場合は <b>CHANGE</b> と入力してください。
-          </div>
+          </p>
 
-          <input
-            className="wsTab__confirmInput"
+          <SInput
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder="CHANGE"
+            aria-label="確認の入力"
             autoFocus
           />
 

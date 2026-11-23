@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 
-import SSection from "../kit/SSection";
+import { SSection, SStats } from "../kit";
 import Button from "@/shared/ui/Button/Button";
-import MiniStat from "./MiniStat";
 
 import { acceptsManualCheck, useUpdater } from "@/entities/updater";
 import type { ManualCheckResult } from "@/entities/updater";
@@ -80,17 +79,20 @@ export default function AppUpdateSection() {
         </Button>
       }
     >
-      <div className="wsTab__miniGrid">
-        <MiniStat label="現在のバージョン">{appVersion ?? "—"}</MiniStat>
-        <MiniStat label="最後に確認できた" plain>
-          {lastCheckedText(persisted?.lastCheckedMs ?? null)}
-        </MiniStat>
-      </div>
+      <SStats
+        items={[
+          { label: "現在のバージョン", value: appVersion ?? "—" },
+          {
+            label: "最後に確認できた",
+            value: lastCheckedText(persisted?.lastCheckedMs ?? null),
+          },
+        ]}
+      />
 
       {manualCheck && (
-        <div className="wsTab__updateResult" role="status">
+        <p className="wsTab__updateResult" role="status">
           {manualCheckText(manualCheck)}
-        </div>
+        </p>
       )}
 
       {/*
@@ -98,9 +100,7 @@ export default function AppUpdateSection() {
       */}
       {persisted?.skippedVersion && (
         <div className="wsTab__updateSkipped">
-          <div className="wsTab__updateSkippedText">
-            v{persisted.skippedVersion} を飛ばす設定になっています
-          </div>
+          <span>v{persisted.skippedVersion} を飛ばす設定になっています</span>
           <Button size="sm" onClick={() => void unskip()}>
             解除
           </Button>

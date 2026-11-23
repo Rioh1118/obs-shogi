@@ -169,12 +169,13 @@ function Modal({
           tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >
+          {scroll === "content" ? <div className="modal__body">{children}</div> : children}
+          {/* 中身の後に置く。前に置くと、開いたときのフォーカスが中身でなくここに入る */}
           {showCloseButton && (
             <button type="button" className="modal__close" aria-label="閉じる" onClick={onClose}>
               <X size={18} />
             </button>
           )}
-          {scroll === "content" ? <div className="modal__body">{children}</div> : children}
         </div>
       </div>
     </div>,

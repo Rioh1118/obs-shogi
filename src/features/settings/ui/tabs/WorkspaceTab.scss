@@ -1,290 +1,175 @@
 @use "@/index.scss" as index;
 
+// 節の中身。**設定の骨組みと同じ背景をここでも宣言する。** 文字の色は、この背景との比で決めてある
 .wsTab {
-  display: grid;
-  gap: 12px;
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+
+  // 状態は語で言う。色と記号は語を支えるだけ
+  &__word {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: index.$space-3;
+    font-size: index.$font-lead;
+    font-weight: index.$weight-strong;
+    color: index.$color-text-strong;
+
+    &--warn {
+      color: index.$color-warning;
+    }
+
+    &--work {
+      color: index.$color-text-muted;
+    }
+  }
+
+  &__spin {
+    animation: ws-spin 900ms linear infinite;
+  }
+
+  &__progress {
+    display: grid;
+    gap: index.$space-3;
+  }
+
+  &__bar {
+    height: 0.4rem;
+    background: index.$stroke-weak;
+  }
+
+  // 進んだ分。文字の載らない線で描く
+  &__barFill {
+    border-top: 0.4rem solid index.$color-commit-solid;
+  }
+
+  &__progressMeta {
+    display: flex;
+    gap: index.$space-7;
+    min-width: 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+  }
+
+  &__progressLeft {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__pct {
+    margin-left: index.$space-4;
+  }
+
+  &__progressPath {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__warnTitle {
+    margin: 0;
+    font-size: index.$font-body;
+    font-weight: index.$weight-strong;
+    color: index.$color-text-strong;
+  }
+
+  &__warnMore {
+    margin: index.$space-2 0 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+  }
+
+  &__warnList {
+    margin: index.$space-3 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__warnItem {
+    display: grid;
+    gap: index.$space-1;
+    padding: index.$space-3 0;
+    border-top: 1px solid index.$stroke-weak;
+  }
+
+  // パスは折って全部を出す。省くと、どのファイルのことか分からない
+  &__warnPath {
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+
+  &__pathRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: index.$space-7;
+  }
+
+  &__change {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: index.$space-4 index.$space-10;
+  }
+
+  &__changeNote {
+    margin: 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+  }
+
+  // 取り消しにくい操作の入口。確定ではないので、塗らずに枠と文字で言う
+  &__changeButton {
+    border-color: index.$color-danger;
+    color: index.$color-danger-text;
+  }
+
+  &__confirm {
+    padding: index.$space-7;
+    border-radius: index.$radius-surface;
+    background: index.$surface-danger;
+  }
+
+  &__confirmTitle {
+    margin: 0;
+    font-size: index.$font-body;
+    font-weight: index.$weight-strong;
+    color: index.$color-text-strong;
+  }
+
+  &__confirmDesc {
+    margin: index.$space-2 0 index.$space-5;
+    font-size: index.$font-body;
+  }
+
+  &__confirmButtons {
+    margin-top: index.$space-5;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: index.$space-4;
+  }
+
+  &__updateResult {
+    margin: 0;
+  }
+
+  &__updateSkipped {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: index.$space-4;
+  }
 }
 
-.wsTab__actions {
-  display: inline-flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.wsTab__spin {
-  animation: ws-spin 900ms linear infinite;
-}
 @keyframes ws-spin {
   to {
     transform: rotate(360deg);
   }
-}
-
-.wsTab__statusTop {
-  display: grid;
-  gap: 10px;
-}
-
-.wsTab__miniGrid {
-  display: grid;
-  gap: 10px;
-  // **枚数を直に書かない。** カードが増えたとき列が追随せず、最後の1枚だけが
-  // 次の行に 1/N 幅で落ちる。「未同期」は走査に失敗すると「確認できていません」の
-  // 9文字が入るので、狭いカードだと折り返す
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-
-  @media (max-width: 860px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.wsTab__mini {
-  border: 1px solid rgba(index.$color-white, 0.07);
-  background: rgba(index.$color-primary-black, 0.18);
-  border-radius: index.$radius-3;
-  padding: 10px 12px;
-  box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
-}
-
-.wsTab__miniK {
-  font-size: 1.1rem;
-  color: index.$color-text-faint;
-}
-
-.wsTab__miniV {
-  margin-top: 2px;
-  font-size: 1.4rem;
-  font-weight: index.$weight-title;
-  letter-spacing: 0.2px;
-
-  &.is-warn {
-    color: rgba(#f0b429, 0.95);
-  }
-}
-
-.wsTab__progress {
-  display: grid;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: index.$radius-4;
-  border: 1px solid rgba(index.$color-white, 0.07);
-  background: rgba(index.$color-primary-black, 0.14);
-}
-
-.wsTab__bar {
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(index.$color-white, 0.06);
-  overflow: hidden;
-}
-
-.wsTab__barFill {
-  height: 100%;
-  border-radius: 999px;
-  background: rgba(index.$color-secondary-dark, 0.85);
-}
-
-.wsTab__progressMeta {
-  display: grid;
-  gap: 6px;
-}
-
-.wsTab__progressLeft {
-  font-size: 1.15rem;
-  color: index.$color-text-muted;
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.wsTab__pct {
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(index.$color-white, 0.08);
-  background: rgba(index.$color-primary-black, 0.2);
-  color: index.$color-text-muted;
-  font-size: 1.05rem;
-}
-
-.wsTab__progressPath {
-  font-size: 1.1rem;
-  color: index.$color-text-faint;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.wsTab__warnBox {
-  border: 1px solid rgba(#f0b429, 0.28);
-  background: rgba(#f0b429, 0.08);
-  border-radius: index.$radius-3;
-  padding: 10px 12px;
-}
-
-.wsTab__warnHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.wsTab__warnTitle {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 1.25rem;
-  font-weight: index.$weight-title;
-  color: index.$color-text-primary;
-}
-
-.wsTab__warnList {
-  list-style: none;
-  display: grid;
-  gap: 8px;
-}
-
-.wsTab__warnItem {
-  border: 1px solid rgba(index.$color-white, 0.06);
-  background: rgba(index.$color-primary-black, 0.18);
-  border-radius: index.$radius-3;
-  padding: 8px 10px;
-}
-
-.wsTab__warnMsg {
-  font-size: 1.15rem;
-  color: index.$color-text-primary;
-}
-
-.wsTab__warnPath {
-  margin-top: 2px;
-  font-size: 1.05rem;
-  color: index.$color-text-faint;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.wsTab__warnMore {
-  margin-top: 8px;
-  font-size: 1.1rem;
-  color: index.$color-text-faint;
-}
-
-.wsTab__pathBox {
-  border: 1px solid rgba(index.$color-white, 0.07);
-  background: rgba(index.$color-primary-black, 0.16);
-  border-radius: index.$radius-3;
-  padding: 10px 12px;
-}
-
-.wsTab__pathLabel {
-  font-size: 1.05rem;
-  color: index.$color-text-faint;
-}
-
-.wsTab__pathValue {
-  margin-top: 4px;
-  font-size: 1.25rem;
-  font-weight: index.$weight-title;
-  color: index.$color-text-primary;
-  overflow-wrap: anywhere;
-}
-
-.wsTab__danger {
-  margin-top: 10px;
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  color: index.$color-text-muted;
-}
-
-.wsTab__dangerText {
-  font-size: 1.15rem;
-  line-height: 1.45;
-}
-
-.wsTab__dangerActions {
-  margin-top: 10px;
-}
-
-.wsTab__confirm {
-  margin-top: 12px;
-  border-radius: index.$radius-3;
-  border: 1px solid rgba(#ff5a5a, 0.28);
-  background: rgba(#ff5a5a, 0.08);
-  padding: 10px 12px;
-}
-
-.wsTab__confirmTitle {
-  font-size: 1.25rem;
-  font-weight: index.$weight-title;
-}
-
-.wsTab__confirmDesc {
-  margin-top: 6px;
-  font-size: 1.15rem;
-  line-height: 1.45;
-  color: index.$color-text-muted;
-}
-
-.wsTab__confirmInput {
-  margin-top: 10px;
-  width: 100%;
-  height: 38px;
-  border-radius: index.$radius-3;
-  border: 1px solid rgba(index.$color-white, 0.1);
-  background: rgba(index.$color-primary-black, 0.24);
-  color: index.$color-text-primary;
-  padding: 0 12px;
-  font: inherit;
-
-  &:focus-visible {
-    outline: 2px solid index.$focus-ring;
-    outline-offset: 2px;
-  }
-}
-
-.wsTab__confirmButtons {
-  margin-top: 10px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.wsTab__backupHint {
-  font-size: 1.15rem;
-  line-height: 1.55;
-  color: index.$color-text-muted;
-}
-
-// 「最後に確認できた」は数値ではなく文になることがある（「まだ確認できていません」）。
-// **`wsTab__miniV` の太さと字送りのままだと入りきらない**ので、その値だけ本文に戻す
-.wsTab__miniV--plain {
-  font-size: index.$font-aux;
-  font-weight: index.$weight-strong;
-  letter-spacing: normal;
-}
-
-// **色を宣言しない。** この節の背景は不透明度を持つ層の重ねでできていて
-// コントラストを測れない（`contrastRatchet` の「測れなかった宣言」）。
-// 押した結果は本文として読ませるものなので、落とす理由も無い
-.wsTab__updateResult {
-  margin-top: index.$space-5;
-  font-size: index.$font-aux;
-  line-height: 1.55;
-}
-
-.wsTab__updateSkipped {
-  margin-top: index.$space-5;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: index.$space-4;
-  flex-wrap: wrap;
-}
-
-.wsTab__updateSkippedText {
-  font-size: index.$font-aux;
 }

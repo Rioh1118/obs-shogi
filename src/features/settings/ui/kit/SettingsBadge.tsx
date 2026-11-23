@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import "./SettingsBadge.scss";
 
-export type SettingsBadgeTone = "muted" | "danger" | "warn" | "accent";
+type SettingsBadgeTone = "muted" | "danger" | "warn" | "accent";
 
 type Props = {
   children: ReactNode;

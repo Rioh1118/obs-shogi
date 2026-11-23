@@ -5,10 +5,8 @@ import "./DisplayTab.scss";
 import IconButton from "@/shared/ui/IconButton";
 import DisplayModePreview from "./DisplayModePreview";
 import InlineNotice from "@/shared/ui/notification/InlineNotice";
-import SSection from "../kit/SSection";
-import SField from "../kit/SField";
+import { SCheckbox, SField, SSection, SSelect } from "../kit";
 import SRadioGroup from "../kit/SRadioGroup";
-import SSelect from "../kit/SSelect";
 import { useAppConfig, type DisplayConfigPatch } from "@/entities/app-config";
 import {
   DOCK_VIEWS,
@@ -87,17 +85,15 @@ export default function DisplayTab() {
             const removable = DOCK_VIEWS.find((view) => view.key === key)?.removable !== false;
             return (
               <li key={key} className="displayTab__row">
-                <label className="displayTab__check">
-                  <input
-                    type="checkbox"
-                    checked
-                    // 全部外せると、空のドックに出す案内が要る（ADR-0010 決定1）
-                    disabled={!removable}
-                    onChange={() => saveTabs(toggleDockTab(tabs, key))}
-                  />
-                  <span>{dockViewLabel(key)}</span>
-                  {!removable && <span className="displayTab__note">外せません</span>}
-                </label>
+                <SCheckbox
+                  checked
+                  // 全部外せると、空のドックに出す案内が要る（ADR-0010 決定1）
+                  disabled={!removable}
+                  note={removable ? undefined : "外せません"}
+                  onChange={() => saveTabs(toggleDockTab(tabs, key))}
+                >
+                  {dockViewLabel(key)}
+                </SCheckbox>
 
                 <span className="displayTab__order">
                   <IconButton
@@ -124,14 +120,9 @@ export default function DisplayTab() {
           {/* 並べ替えは出してから。一覧に無いものの順番は、決めた結果を確かめる場所が無い */}
           {hidden.map((meta) => (
             <li key={meta.key} className="displayTab__row displayTab__row--hidden">
-              <label className="displayTab__check">
-                <input
-                  type="checkbox"
-                  checked={false}
-                  onChange={() => saveTabs(toggleDockTab(tabs, meta.key))}
-                />
-                <span>{meta.label}</span>
-              </label>
+              <SCheckbox checked={false} onChange={() => saveTabs(toggleDockTab(tabs, meta.key))}>
+                {meta.label}
+              </SCheckbox>
             </li>
           ))}
         </ul>
@@ -149,7 +140,7 @@ export default function DisplayTab() {
         />
 
         {startupTab !== null && (
-          <SField label="開くタブ">
+          <SField label="開くタブ" inline>
             <SSelect
               value={startupTab}
               onChange={(e) => save({ dock_startup_tab: e.target.value })}
@@ -181,14 +172,12 @@ export default function DisplayTab() {
         </SField>
 
         <SField hint="目盛が ±3000 の線形で勝率と対応しないため、初期値では出しません。">
-          <label className="displayTab__check">
-            <input
-              type="checkbox"
-              checked={showEvaluationBar}
-              onChange={(e) => save({ show_evaluation_bar: e.target.checked })}
-            />
-            <span>評価値バーを出す</span>
-          </label>
+          <SCheckbox
+            checked={showEvaluationBar}
+            onChange={(e) => save({ show_evaluation_bar: e.target.checked })}
+          >
+            評価値バーを出す
+          </SCheckbox>
         </SField>
       </SSection>
     </div>

@@ -3,7 +3,7 @@ import { createRef } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import { SField, SInput, SSection, SSelect } from "..";
+import { SCheckbox, SField, SInput, SPath, SSection, SSelect, SStats } from "..";
 import SRadioGroup from "../SRadioGroup";
 import SettingsBadge from "../SettingsBadge";
 
@@ -292,6 +292,80 @@ describe("SRadioGroup", () => {
     const group = container.querySelector<HTMLElement>(".sui-radio")!;
     expect(group.getAttribute("data-layout")).toBe("grid");
     expect(group.style.getPropertyValue("--cols")).toBe("3");
+  });
+});
+
+describe("SStats", () => {
+  test("名前と値を並べ、次の一手は持つものにだけ添える", () => {
+    const { container } = render(
+      <SStats
+        items={[
+          { label: "エンジン", value: "0 件", hint: "engines/ に置いてください" },
+          { label: "警告", value: 0 },
+        ]}
+      />,
+    );
+
+    expect(
+      [...container.querySelectorAll(".sui-stats__item")].map((item) =>
+        [...item.children].map((cell) => cell.textContent),
+      ),
+    ).toEqual([
+      ["エンジン", "0 件", "engines/ に置いてください"],
+      ["警告", "0"],
+    ]);
+  });
+});
+
+describe("SPath", () => {
+  test("長いパスも全部を出し、題にも持つ", () => {
+    const path = "/Users/me/Documents/とても長い_フォルダの-名前/KIFU_ROOT";
+    const { container } = render(<SPath path={path} />);
+
+    const box = container.querySelector<HTMLElement>(".sui-path")!;
+    expect(box.textContent).toBe(path);
+    expect(box.title).toBe(path);
+    expect(box.className).toBe("sui-path");
+  });
+
+  test("まだ決まっていなければ、その文を出す", () => {
+    const { container } = render(<SPath path="" placeholder="未設定" />);
+
+    const box = container.querySelector<HTMLElement>(".sui-path")!;
+    expect(box.textContent).toBe("未設定");
+    expect(box.className).toBe("sui-path sui-path--none");
+    expect(box.hasAttribute("title")).toBe(false);
+  });
+});
+
+describe("SCheckbox", () => {
+  test("名前を押しても切り替わり、添え書きを出す", () => {
+    const onChange = vi.fn();
+    render(
+      <SCheckbox checked={false} onChange={onChange} note="外せません">
+        検討
+      </SCheckbox>,
+    );
+
+    fireEvent.click(screen.getByText("検討"));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
+    expect(screen.getByText("外せません").className).toBe("sui-check__note");
+  });
+
+  test("押せないときは切り替わらない", () => {
+    const onChange = vi.fn();
+    render(
+      <SCheckbox checked disabled onChange={onChange}>
+        検討
+      </SCheckbox>,
+    );
+
+    fireEvent.click(screen.getByText("検討"));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(document.querySelector(".sui-check__note")).toBeNull();
   });
 });
 

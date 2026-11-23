@@ -62,6 +62,16 @@ describe("Modal のフォーカス", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "先頭" }));
   });
 
+  test("閉じるボタンがあっても、開いたときのフォーカスは中身に入る", () => {
+    render(
+      <Modal onClose={vi.fn()} label="設定" showCloseButton>
+        <Button>中身の先頭</Button>
+      </Modal>,
+    );
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "中身の先頭" }));
+  });
+
   test("閉じたら開く前の要素へ焦点を返す", () => {
     const opener = document.createElement("button");
     document.body.append(opener);

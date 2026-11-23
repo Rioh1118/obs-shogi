@@ -13,7 +13,7 @@ function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
     <span className={`displayModePreview displayModePreview--${mode}`} aria-hidden="true">
       {/* 行: 列を作らず、詰めて並べる */}
       {mode === "rows" &&
-        [0, 1, 2, 3, 4, 5].map((n) => (
+        [0, 1, 2, 3].map((n) => (
           <i
             key={n}
             className={cx("displayModePreview__fill", n === 0 && "displayModePreview__fill--best")}
