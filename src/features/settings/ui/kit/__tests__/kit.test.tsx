@@ -3,7 +3,7 @@ import { createRef } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import { SCheckbox, SField, SInput, SPath, SSection, SSelect, SStats } from "..";
+import { SCheckbox, SField, SFold, SInput, SPath, SSection, SSelect, SStats } from "..";
 import SRadioGroup from "../SRadioGroup";
 import SettingsBadge from "../SettingsBadge";
 
@@ -58,6 +58,17 @@ describe("SSection", () => {
     expect(screen.getByRole("region", { name: "状態" })).toBeTruthy();
   });
 
+  test("題に添えた語は、節の名前に入れない", () => {
+    const { container } = render(
+      <SSection title="状態" badge={<span>注意あり</span>}>
+        中身
+      </SSection>,
+    );
+
+    expect(container.querySelector(".sui-section__titles")?.textContent).toBe("状態注意あり");
+    expect(screen.getByRole("region", { name: "状態" })).toBeTruthy();
+  });
+
   test("操作が偽なら置き場を出さない", () => {
     const { container } = render(
       <SSection title="状態" actions={false}>
@@ -66,6 +77,49 @@ describe("SSection", () => {
     );
 
     expect(container.querySelector(".sui-section__actions")).toBeNull();
+  });
+});
+
+describe("SFold", () => {
+  const button = () => screen.getByRole("button", { name: /^手順/ });
+
+  test("題が節の名前になり、押すと開閉する", () => {
+    const { rerender } = render(
+      <SFold title="手順" description="説明" defaultOpen={false}>
+        中身
+      </SFold>,
+    );
+    const region = screen.getByRole("region", { name: "手順" });
+    expect(region.textContent).not.toContain("中身");
+    expect(button().getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(button());
+    expect(region.textContent).toContain("中身");
+    expect(button().getAttribute("aria-expanded")).toBe("true");
+
+    // 一度押したら、既定が変わっても押した側に従う
+    rerender(
+      <SFold title="手順" description="説明" defaultOpen={false}>
+        中身
+      </SFold>,
+    );
+    expect(region.textContent).toContain("中身");
+  });
+
+  test("押すまでは既定に従う", () => {
+    const { rerender } = render(
+      <SFold title="手順" description="説明" defaultOpen>
+        中身
+      </SFold>,
+    );
+    expect(screen.getByText("中身")).toBeTruthy();
+
+    rerender(
+      <SFold title="手順" description="説明" defaultOpen={false}>
+        中身
+      </SFold>,
+    );
+    expect(screen.queryByText("中身")).toBeNull();
   });
 });
 

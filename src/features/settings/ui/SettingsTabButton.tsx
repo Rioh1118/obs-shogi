@@ -18,6 +18,8 @@ function SettingsTabButton({ active, label, needsSetup, onClick }: Props) {
       className={cx("stab", active && "stab--active")}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
+      // 開いたとき、いまのタブに居る。先頭に居ると、選んでいないタブに輪が出る
+      data-initial-focus={active || undefined}
     >
       <span className="stab__label">{label}</span>
       {needsSetup && (

@@ -62,6 +62,17 @@ describe("Modal のフォーカス", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "先頭" }));
   });
 
+  test("中身が行き先を名乗っていれば、開いたときのフォーカスはそこに入る", () => {
+    render(
+      <Modal onClose={vi.fn()} label="設定">
+        <Button>先頭</Button>
+        <Button data-initial-focus>いまのタブ</Button>
+      </Modal>,
+    );
+
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "いまのタブ" }));
+  });
+
   test("閉じるボタンがあっても、開いたときのフォーカスは中身に入る", () => {
     render(
       <Modal onClose={vi.fn()} label="設定" showCloseButton>

@@ -31,6 +31,21 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("設定「表示」タブ", () => {
+  test("検討のタブは外せない。理由を隣に出す", () => {
+    const { container } = render(<DisplayTab />);
+    const rows = [...container.querySelectorAll<HTMLElement>(".displayTab__row")];
+    const lockOf = (row: HTMLElement) => ({
+      disabled: row.querySelector<HTMLInputElement>('input[type="checkbox"]')?.disabled,
+      note: row.textContent?.includes("外せません"),
+    });
+
+    const analysis = rows.find((row) => row.textContent?.startsWith("検討"))!;
+    expect(lockOf(analysis)).toEqual({ disabled: true, note: true });
+    expect(rows.filter((row) => row !== analysis).map(lockOf)).toEqual(
+      rows.slice(1).map(() => ({ disabled: false, note: false })),
+    );
+  });
+
   test("見せ方は2つとも選択肢に出て、既定が選ばれている", () => {
     const { container } = render(<DisplayTab />);
 

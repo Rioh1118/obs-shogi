@@ -213,8 +213,8 @@ describe("AI ライブラリタブの「開く」", () => {
     expect((await renderScanned(true, "file")).disabled).toBe(false);
     expect(screen.queryByRole("button", { name: "engines/ を作成" })).toBeNull();
     expect(screen.getByText("engines がフォルダではありません")).toBeTruthy();
-    // 「現在の状態」の木も、作成ではなく外すことを言う
-    expect(screen.getByText("← フォルダではない")).toBeTruthy();
+    // 「現在の状態」も、無いとは言わない
+    expect(statusOf("engines フォルダ")).toBe("engines フォルダフォルダでない");
     // 外した後に「終わった」と言うボタン。無いと、実在しなくなったパスへの「開く」しか残らない
     expect(scanButton()).toBeTruthy();
   });
@@ -783,9 +783,9 @@ describe("AI ライブラリタブの「開く」", () => {
   });
 });
 
-/** 主カラムのバッジの文字を読む。バッジの要素に役割が無いので class で引く */
+/** 題に添えた1語を読む。要素に役割が無いので class で引く。何も言っていなければ `undefined` */
 function badgeText() {
-  return document.querySelector(".aiLibraryTab__badge")?.textContent;
+  return document.querySelector(".sui-section__titles .sbadge")?.textContent;
 }
 
 /** 手順書の先頭の「次にやること」の区画 */
@@ -804,16 +804,22 @@ function stepState(title: string) {
   return screen.getByText(title).closest("[data-state]")?.getAttribute("data-state");
 }
 
-/** 状態のカードの文字。見出しから枠へ上がり、見出し・値・補足を1本で読む */
-function statusCard(label: string) {
-  const grid = within(document.querySelector<HTMLElement>(".setupGuide__statusGrid")!);
-  const card = grid.getByText(label).closest<HTMLElement>("[data-state]")!;
-  return { text: card.textContent, state: card.getAttribute("data-state") };
+/** 「現在の状態」の値。名前・値・次の一手を1本で読む */
+function statusOf(label: string) {
+  const region = within(screen.getByRole("region", { name: "現在の状態" }));
+  return region.getByText(label, { selector: "dt" }).parentElement?.textContent;
 }
 
-/** 「現在の状態」の木を、接続の罫線まで含めて行ごとに読む */
-function treeLines() {
-  return [...document.querySelectorAll(".structureOverview__node")].map((node) => node.textContent);
+/** 見つかったものの表を、セルごとに読む */
+function foundRows() {
+  return [...document.querySelectorAll(".setupGuide__found tr")].map((row) =>
+    [...row.children].map((cell) => [...cell.childNodes].map((n) => n.textContent).join(" ")),
+  );
+}
+
+/** 閉じている説明を開く */
+function openFold(title: string) {
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${title}`) }));
 }
 
 type FolderFiles = { evalFiles?: number; bookFiles?: number };
@@ -849,7 +855,7 @@ async function renderIndex(scanned: AiRootIndex) {
   await waitFor(() => expect(screen.queryByText("診断中…")).toBeNull());
 }
 
-describe("AI ライブラリタブのバッジ", () => {
+describe("AI ライブラリタブの題に添える語", () => {
   test("ルートが無ければ未設定で、走査しない", async () => {
     aiRootValue.current = "";
     render(<AiLibraryTab />);
@@ -865,11 +871,20 @@ describe("AI ライブラリタブのバッジ", () => {
     expect(badgeText()).toBe("診断中…");
   });
 
-  test("読めなければエラー", async () => {
+  test("読めなければエラーと言い、フォルダの下に理由を出す", async () => {
     scanAiRoot.mockRejectedValue("読めません");
     render(<AiLibraryTab />);
 
     await waitFor(() => expect(badgeText()).toBe("エラー"));
+    const folder = within(screen.getByRole("region", { name: "AI ライブラリ" }));
+    expect(folder.getByRole("alert").textContent).toContain("読めません");
+  });
+
+  test("読めていれば、フォルダの下に理由を出さない", async () => {
+    await renderIndex(index(true));
+
+    const folder = within(screen.getByRole("region", { name: "AI ライブラリ" }));
+    expect(folder.queryByRole("alert")).toBeNull();
   });
 
   test("注意が1つでもあれば注意あり", async () => {
@@ -878,10 +893,10 @@ describe("AI ライブラリタブのバッジ", () => {
     expect(badgeText()).toBe("注意あり");
   });
 
-  test("注意が無ければ OK", async () => {
+  test("注意が無ければ何も言わない", async () => {
     await renderIndex(indexWithFolder("Suisho"));
 
-    expect(badgeText()).toBe("OK");
+    expect(badgeText()).toBeUndefined();
   });
 });
 
@@ -1063,6 +1078,16 @@ describe("AI ライブラリタブの手順", () => {
     expect(stepStates()).toEqual(["done", "locked", "locked", "locked"]);
   });
 
+  test("結果を添えるのは、済んだ段階だけ", async () => {
+    await renderIndex(index(true));
+
+    const withSummary = STEPS.map(
+      (title) =>
+        screen.getByText(title).closest("li")?.querySelector(".setupGuide__stepSummary") != null,
+    );
+    expect(withSummary).toEqual([true, true, false, false]);
+  });
+
   test("エンジンも AI フォルダも0件なら3段階目と4段階目が注意になる", async () => {
     await renderIndex(index(true));
 
@@ -1080,6 +1105,7 @@ describe("AI ライブラリタブの手順", () => {
 
   test("全部そろえば全段階が済みで、数を添える", async () => {
     await renderIndex(indexWithFolder("Suisho"));
+    openFold("セットアップ手順");
 
     expect(stepStates()).toEqual(["done", "done", "done", "done"]);
     expect(screen.getByText("engines/ 検出済み")).toBeTruthy();
@@ -1115,67 +1141,76 @@ describe("AI ライブラリタブの手順", () => {
   });
 });
 
-describe("AI ライブラリタブの状態のカード", () => {
+describe("AI ライブラリタブの「現在の状態」", () => {
   test("読めていない間は数を言い切らない", async () => {
     scanAiRoot.mockRejectedValue("読めません");
     render(<AiLibraryTab />);
     await waitFor(() => expect(badgeText()).toBe("エラー"));
 
-    expect(statusCard("engines フォルダ")).toEqual({ text: "engines フォルダ—", state: "todo" });
-    expect(statusCard("エンジン")).toEqual({ text: "エンジン—", state: "todo" });
-    expect(statusCard("AI フォルダ")).toEqual({ text: "AI フォルダ—", state: "todo" });
+    expect(statusOf("engines フォルダ")).toBe("engines フォルダ—");
+    expect(statusOf("エンジン")).toBe("エンジン—");
+    expect(statusOf("AI フォルダ")).toBe("AI フォルダ—");
   });
 
   test("ルートが無ければ未設定", () => {
     aiRootValue.current = "";
     render(<AiLibraryTab />);
 
-    expect(statusCard("AI ライブラリ")).toEqual({ text: "AI ライブラリ未設定", state: "todo" });
+    expect(statusOf("AI ライブラリ")).toBe("AI ライブラリ未設定");
   });
 
   test("engines/ の4つの状態を言い分ける", async () => {
     await renderIndex(index(false));
-    expect(statusCard("engines フォルダ")).toEqual({
-      text: `engines フォルダなし${AI_ROOT}/engines`,
-      state: "warn",
-    });
+    expect(statusOf("engines フォルダ")).toBe("engines フォルダなし");
     cleanup();
 
     await renderIndex(index(true, "file"));
-    expect(statusCard("engines フォルダ").text).toBe(
-      `engines フォルダフォルダでない${AI_ROOT}/engines`,
-    );
-    expect(statusCard("engines フォルダ").state).toBe("warn");
+    expect(statusOf("engines フォルダ")).toBe("engines フォルダフォルダでない");
     cleanup();
 
     await renderIndex(index(true));
-    expect(statusCard("engines フォルダ")).toEqual({
-      text: `engines フォルダあり${AI_ROOT}/engines`,
-      state: "ok",
-    });
+    expect(statusOf("engines フォルダ")).toBe("engines フォルダあり");
   });
 
   test("エンジンが0件なら、置き場と、AI フォルダを作れる順番を言う", async () => {
     await renderIndex(index(true));
 
-    expect(statusCard("エンジン")).toEqual({
-      text: "エンジン0 件engines/ に置いてください",
-      state: "warn",
-    });
-    expect(statusCard("AI フォルダ")).toEqual({
-      text: "AI フォルダ0 件エンジンを置いた後に作成できます",
-      state: "warn",
-    });
+    expect(statusOf("エンジン")).toBe("エンジン0 件engines/ に置いてください");
+    expect(statusOf("AI フォルダ")).toBe("AI フォルダ0 件エンジンを置いた後に作成できます");
   });
 
   test("エンジンがあれば AI フォルダは下の欄から作れると言う", async () => {
     await renderIndex(indexWithEngine());
 
-    expect(statusCard("エンジン")).toEqual({ text: "エンジン1 件検出済み", state: "ok" });
-    expect(statusCard("AI フォルダ").text).toBe("AI フォルダ0 件下のフォームから作成できます");
+    expect(statusOf("エンジン")).toBe("エンジン1 件");
+    expect(statusOf("AI フォルダ")).toBe("AI フォルダ0 件下のフォームから作成できます");
   });
 
-  test("別の OS 向けと読めないものは数えない", async () => {
+  test("AI フォルダがあれば、次の一手を言わない", async () => {
+    await renderIndex(indexWithFolder("Suisho", { evalFiles: 0 }));
+
+    expect(statusOf("AI フォルダ")).toBe("AI フォルダ1 件");
+  });
+});
+
+describe("AI ライブラリタブの見つかったもの", () => {
+  test("エンジンと AI フォルダを1行ずつ出し、種類の名前は先頭の行にだけ付ける", async () => {
+    const scanned = indexWithFolder("A");
+    await renderIndex({
+      ...scanned,
+      engines: [...scanned.engines, { ...scanned.engines[0], entry: "Apery" }],
+      profiles: [...scanned.profiles, ...indexWithFolder("B").profiles],
+    });
+
+    expect(foundRows()).toEqual([
+      ["エンジン", "YaneuraOu"],
+      ["", "Apery"],
+      ["検出されたAI", "A", "評価関数 あり 定跡 あり"],
+      ["", "B", "評価関数 あり 定跡 あり"],
+    ]);
+  });
+
+  test("別の OS 向けと読めないものは数えず、並べない", async () => {
     await renderIndex({
       ...index(true),
       engines: [
@@ -1185,28 +1220,98 @@ describe("AI ライブラリタブの状態のカード", () => {
       ],
     });
 
-    expect(statusCard("エンジン").text).toContain("1 件");
-    expect(treeLines()).toContain("└─ 🔧 off");
-    expect(treeLines().join()).not.toContain("win.exe");
+    expect(statusOf("エンジン")).toContain("1 件");
+    expect(foundRows()).toEqual([["エンジン", "off"]]);
   });
 
-  test("評価関数のある AI フォルダだけを数える", async () => {
+  test("1つも無ければ表を出さない", async () => {
+    await renderIndex(index(true));
+
+    expect(document.querySelector(".setupGuide__found")).toBeNull();
+  });
+
+  test("読めていない間は、前の一覧を出さない", async () => {
+    await renderIndex(indexWithEngine());
+    expect(foundRows()).toHaveLength(1);
+
+    scanAiRoot.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(scanButton());
+
+    expect(foundRows()).toEqual([]);
+  });
+
+  test("全体のパスは題で読める", async () => {
+    await renderIndex(indexWithFolder("Suisho"));
+
+    expect(screen.getByText("Suisho", { selector: "td" }).title).toBe(`${AI_ROOT}/Suisho`);
+  });
+
+  test("定跡が無くても注意の色にしない", async () => {
+    await renderIndex(indexWithFolder("Suisho", { bookFiles: 0 }));
+
+    expect(screen.getByText(/^評価関数 /).className).toContain("sbadge--accent");
+    expect(screen.getByText(/^定跡 /).textContent).toBe("定跡 未設定");
+    expect(screen.getByText(/^定跡 /).className).toContain("sbadge--muted");
+  });
+
+  test("評価関数が無ければ不足と言い、注意の色にする", async () => {
     await renderIndex(indexWithFolder("Suisho", { evalFiles: 0 }));
 
-    expect(statusCard("AI フォルダ")).toEqual({
-      text: "AI フォルダ1 件評価関数あり 0 件",
-      state: "ok",
-    });
+    expect(screen.getByText(/^評価関数 /).textContent).toBe("評価関数 不足");
+    expect(screen.getByText(/^評価関数 /).className).toContain("sbadge--warn");
   });
+});
+
+describe("AI ライブラリタブの説明の開閉", () => {
+  const FOLDS = ["フォルダ構成", "セットアップ手順"];
+  const isOpen = (title: string) =>
+    screen.getByRole("button", { name: new RegExp(`^${title}`) }).getAttribute("aria-expanded");
+
+  test("全部そろっていれば閉じておく", async () => {
+    await renderIndex(indexWithFolder("Suisho"));
+
+    expect(FOLDS.map(isOpen)).toEqual(["false", "false"]);
+    expect(screen.queryByText("完成形の例")).toBeNull();
+  });
+
+  test("やり残しがあれば開いておく", async () => {
+    await renderIndex(index(true));
+
+    expect(FOLDS.map(isOpen)).toEqual(["true", "true"]);
+    expect(screen.getByText("完成形の例")).toBeTruthy();
+  });
+
+  test("押すと開き、もう一度押すと閉じる", async () => {
+    await renderIndex(indexWithFolder("Suisho"));
+
+    openFold("フォルダ構成");
+    expect(FOLDS.map(isOpen)).toEqual(["true", "false"]);
+
+    openFold("フォルダ構成");
+    expect(FOLDS.map(isOpen)).toEqual(["false", "false"]);
+  });
+
+  test("一度閉じたら、やり残しができても閉じたままにする", async () => {
+    await renderIndex(index(true));
+    openFold("フォルダ構成");
+
+    scanAiRoot.mockResolvedValue(index(false));
+    fireEvent.click(scanButton());
+    await waitFor(() => expect(statusOf("engines フォルダ")).toContain("なし"));
+
+    expect(FOLDS.map(isOpen)).toEqual(["false", "true"]);
+  });
+});
+
+describe("AI ライブラリタブの手順に添えるパス", () => {
+  const summary = () => document.querySelector(".setupGuide__stepSummary")?.textContent;
 
   test("長いルートは末尾を残して詰める", async () => {
     const root = `/Users/me/${"d".repeat(40)}/ai`;
     aiRootValue.current = root;
     await renderIndex(index(true));
 
-    const short = `…${root.slice(-31)}`;
-    expect(statusCard("AI ライブラリ").text).toBe(`AI ライブラリ設定済み${short}`);
-    expect(screen.getByText(short, { selector: ".setupGuide__stepSummary" })).toBeTruthy();
+    expect(summary()).toBe(`…${root.slice(-31)}`);
   });
 
   test("32文字ちょうどのルートは詰めない", async () => {
@@ -1214,26 +1319,7 @@ describe("AI ライブラリタブの状態のカード", () => {
     aiRootValue.current = root;
     await renderIndex(index(true));
 
-    expect(statusCard("AI ライブラリ").text).toBe(`AI ライブラリ設定済み${root}`);
-  });
-});
-
-describe("AI ライブラリタブの「検出されたAI」", () => {
-  test("定跡が無くても警告の色にしない", async () => {
-    await renderIndex(indexWithFolder("Suisho", { bookFiles: 0 }));
-
-    const list = within(screen.getByRole("region", { name: "検出されたAI" }));
-    expect(list.getByText("Suisho")).toBeTruthy();
-    expect(list.getByText(`${AI_ROOT}/Suisho`)).toBeTruthy();
-    expect(list.getByText(/評価関数/).textContent).toBe("評価関数 あり");
-    expect(list.getByText(/定跡/).textContent).toBe("定跡 未設定");
-  });
-
-  test("評価関数が無ければ不足と言う", async () => {
-    await renderIndex(indexWithFolder("Suisho", { evalFiles: 0 }));
-
-    const list = within(screen.getByRole("region", { name: "検出されたAI" }));
-    expect(list.getByText(/評価関数/).textContent).toBe("評価関数 不足");
+    expect(summary()).toBe(root);
   });
 });
 
@@ -1398,48 +1484,8 @@ describe("AI ライブラリタブのパス", () => {
     fireEvent.click(hero().getByRole("button", { name: "engines/ を作成" }));
 
     await waitFor(() => expect(badgeText()).toBe("エラー"));
-    expect(statusCard("engines フォルダ").text).toContain("なし");
+    expect(statusOf("engines フォルダ")).toContain("なし");
     expect(hero().getByText("作れません")).toBeTruthy();
-  });
-});
-
-describe("AI ライブラリタブの「現在の状態」の木", () => {
-  test("ルートが無ければ engines/ が最後の行になる", () => {
-    aiRootValue.current = "";
-    render(<AiLibraryTab />);
-
-    expect(treeLines()).toEqual(["📂 ai_root/← まず選択", "└─ 📂 engines/"]);
-  });
-
-  test("AI フォルダが無いときは、engines/ の下に見本の行が続く", async () => {
-    await renderIndex(indexWithEngine());
-
-    expect(treeLines()).toEqual([
-      "📂 ai/",
-      "├─ 📂 engines/",
-      "└─ 🔧 YaneuraOu",
-      "└─ 📂 ＜AI 名＞/← AI フォルダを作成",
-    ]);
-  });
-
-  test("最後の AI フォルダと、各フォルダの book/ を閉じる", async () => {
-    const scanned = indexWithFolder("A");
-    await renderIndex({
-      ...scanned,
-      profiles: [...scanned.profiles, ...indexWithFolder("B").profiles],
-    });
-
-    expect(treeLines()).toEqual([
-      "📂 ai/",
-      "├─ 📂 engines/",
-      "└─ 🔧 YaneuraOu",
-      "├─ 📂 A/",
-      "├─ 📂 eval/",
-      "└─ 📂 book/",
-      "└─ 📂 B/",
-      "├─ 📂 eval/",
-      "└─ 📂 book/",
-    ]);
   });
 });
 

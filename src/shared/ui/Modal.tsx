@@ -57,7 +57,10 @@ function useFocusTrap(cardRef: RefObject<HTMLDivElement | null>, isTop: () => bo
       );
     const pullBack = () => (focusables()[0] ?? card).focus();
 
-    pullBack();
+    // 中身が行き先を名乗っていれば、そこへ。名乗らなければ先頭へ
+    const initial = card.querySelector<HTMLElement>("[data-initial-focus]");
+    if (initial) initial.focus();
+    else pullBack();
 
     const onFocusOut = (event: FocusEvent) => {
       if (!isTop()) return;

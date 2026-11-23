@@ -1,71 +1,30 @@
 @use "@/index.scss" as index;
 
 .aiLibraryTab {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  background: index.$color-primary-dark;
 
-  &__grid {
-    display: grid;
-    gap: 14px;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-
-  @media (max-width: 980px) {
-    &__grid {
-      grid-template-columns: minmax(520px, 1fr) minmax(360px, 0.9fr);
-      align-items: start;
-    }
-  }
-
-  &__badge {
-    font-size: 1.2rem;
-    padding: 6px 10px;
-    border-radius: index.$radius-2;
-    border: 1px solid rgba(index.$color-white, 0.12);
-    background: rgba(index.$color-primary-dark, 0.35);
-    color: index.$color-text-primary;
-    user-select: none;
-
-    &[data-tone="ok"] {
-      border-color: rgba(index.$color-secondary-dark, 0.5);
-      background: rgba(index.$color-secondary-dark, 0.18);
-    }
-    &[data-tone="warn"] {
-      border-color: rgba(255, 180, 80, 0.35);
-      background: rgba(255, 180, 80, 0.12);
-    }
-    &[data-tone="danger"] {
-      border-color: rgba(255, 90, 90, 0.35);
-      background: rgba(255, 90, 90, 0.12);
-    }
-    &[data-tone="muted"] {
-      opacity: 0.85;
-    }
-  }
-
-  &__fieldActions {
+  // パスは折って全部を出す。押すものは文字の幅
+  &__folder {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: index.$space-4 index.$space-7;
+
+    .sui-path {
+      flex: 1 1 40rem;
+    }
   }
 
-  &__rowActions {
-    margin-top: 10px;
+  &__actions {
     display: flex;
-    gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
+    gap: index.$space-4;
   }
 
   &__error {
-    margin-top: 10px;
-    padding: 10px 12px;
-    border-radius: index.$radius-4;
-    border: 1px solid rgba(255, 90, 90, 0.25);
-    background: rgba(255, 90, 90, 0.08);
-    color: index.$color-text-light-1;
-    font-size: 1.3rem;
+    margin: 0;
+    font-size: index.$font-body;
+    color: index.$color-danger-text;
   }
 }

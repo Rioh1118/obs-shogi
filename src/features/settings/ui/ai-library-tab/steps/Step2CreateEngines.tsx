@@ -13,18 +13,18 @@ type Props = {
 export function Step2CreateEngines({ state, isScanning, onCreateEnginesDir }: Props) {
   return (
     <StepShell state={state} title="engines/ フォルダを作成" summary="engines/ 検出済み">
-      <div className="setupGuide__stepDesc">
+      <p className="setupGuide__stepDesc">
         エンジン実行ファイルをまとめる <code>engines/</code> フォルダをボタンひとつで作成します。
-      </div>
+      </p>
 
       <StepTree>
-        <TreeLine label="📂 ai_root/" dim />
-        <TreeLine indent={1} label="📂 engines/" note="← 作成される" highlight />
+        <TreeLine label="ai_root/" />
+        <TreeLine indent={1} label="engines/" note="← 作成される" highlight />
       </StepTree>
 
       <div className="setupGuide__stepAction">
         <Button tone="accent" size="sm" onClick={onCreateEnginesDir} disabled={isScanning}>
-          <Sparkles size={14} style={{ marginRight: 6 }} />
+          <Sparkles size={13} aria-hidden="true" />
           engines/ を作成
         </Button>
       </div>

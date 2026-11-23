@@ -93,6 +93,8 @@ describe("設定のパネル", () => {
 
     expect(tabButton(/^エンジン管理/).getAttribute("aria-current")).toBe("page");
     expect(tabButton(/^表示/).getAttribute("aria-current")).toBeNull();
+    expect(tabButton(/^エンジン管理/).hasAttribute("data-initial-focus")).toBe(true);
+    expect(tabButton(/^表示/).hasAttribute("data-initial-focus")).toBe(false);
     expect(tabButton(/^エンジン管理/).className).toContain("stab--active");
     expect(tabButton(/^表示/).className).not.toContain("stab--active");
   });
