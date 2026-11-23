@@ -9,60 +9,68 @@
 
 .form__select-button {
   width: 100%;
-  text-align: left;
-  padding: 1.2rem 1.6rem;
-  padding-right: 3rem;
-  font-size: 1.5rem;
-  background-color: index.$surface-field;
-  border: 1px solid index.$stroke;
-  border-radius: index.$radius-3;
-  color: index.$color-text-light-1;
+  min-height: 3.2rem;
+  padding: 0 index.$space-4 0 index.$space-5;
+
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer;
-  transition: background-color 0.2s;
+  gap: index.$space-4;
 
-  &:focus {
-    outline: none;
-    background-color: index.$surface-field;
-    border-bottom-color: index.$color-secondary-dark;
-    box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.25);
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-control;
+  background: index.$surface-field;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+  text-align: left;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
   }
 }
 
-// `<select>` であることを示す唯一の図形。透かすと 2.32:1 まで落ちて、
-// 非文字の基準（3:1）を割る。不透明なら 3.26:1
+// `<select>` であることを示す唯一の図形
 .form__select-icon {
+  flex: none;
   pointer-events: none;
-  color: index.$color-secondary-dark;
+  color: index.$color-text-muted;
 }
 
 .form__select-menu {
   position: absolute;
   z-index: 1000;
-  margin-top: 0.4rem;
   width: 100%;
-  background-color: index.$color-primary-dark;
-  border: 1px solid rgba(index.$color-white, 0.12);
-  border-radius: 0.4rem;
-  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.4);
   max-height: 20rem;
+  margin-top: index.$space-2;
+  padding: index.$space-2 0;
   overflow-y: auto;
+
+  border: 1px solid index.$stroke;
+  border-radius: index.$radius-surface;
+  background: index.$color-primary-dark;
+  box-shadow: index.$shadow-overlay;
 }
 
 .form__select-option {
-  padding: 1rem 1.6rem;
-  font-size: 1.5rem;
+  min-height: 2.8rem;
+  padding: 0 index.$space-5;
+  display: flex;
+  align-items: center;
+
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
   cursor: pointer;
-  color: index.$color-text-light-1;
 
   &:hover {
-    background-color: rgba(index.$color-white, 0.08);
+    background: index.$surface-hover;
   }
 
   &.is-selected {
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
     font-weight: index.$weight-strong;
-    background-color: rgba(index.$color-secondary-dark, 0.2);
   }
 }

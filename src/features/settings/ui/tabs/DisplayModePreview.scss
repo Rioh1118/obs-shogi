@@ -3,43 +3,39 @@
 // 骨だけの見本。**文字色を持たない**（背景と棒だけで形を示す）
 .displayModePreview {
   display: grid;
-  gap: index.$space-1;
-  align-content: start;
+  gap: index.$space-2;
+  align-content: center;
 
-  height: 5.4rem;
-  padding: index.$space-2;
-  border-radius: index.$radius-2;
-  background: rgba(index.$color-primary-black, 0.45);
+  height: 6.2rem;
+  padding: 0 index.$space-6;
+  background: index.$surface-field;
 
   // 直下の棒は行の見せ方。**高さを持たせる** —— 行が `auto` なので `height: 100%` は 0 になる
   > i {
-    height: 0.6rem;
+    height: 0.7rem;
   }
 
   // 表は列の切れ目が見える。**間隔を広く取る**（行との差はここだけ）
   &__cells {
     display: grid;
     align-items: center;
-    gap: index.$space-2;
-    height: 0.6rem;
-    grid-template-columns: 1.6rem 1.2rem 1rem minmax(0, 1fr);
+    gap: index.$space-4;
+    height: 0.7rem;
+    grid-template-columns: 3.4rem 2.4rem 1.6rem minmax(0, 1fr);
 
-    // 見出しの行。細く薄くして、下の行と役が違うことを示す
+    // 見出しの行。細くして、下の行と役が違うことを示す
     &--head {
       height: 0.3rem;
-      opacity: 0.55;
     }
   }
 
   &__cell,
   &__fill {
     height: 100%;
-    border-radius: index.$radius-1;
-    background: rgba(index.$color-text-light-1, 0.28);
+    background: index.$stroke;
   }
 
-  // 最善手の行。**素の棒より後に置く** —— 同じ詳細度なので、前に置くと上書きされる
-  &__fill--best,
+  // 表の最善手の行。**素の棒より後に置く** —— 同じ詳細度なので、前に置くと上書きされる
   &__cell--best {
     background: index.$color-secondary-dark;
   }

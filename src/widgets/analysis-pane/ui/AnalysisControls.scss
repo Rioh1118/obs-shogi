@@ -1,33 +1,25 @@
 @use "@/index.scss" as index;
 
-// 操作列の行。
+// 検討の操作列。**箱を持たず、状態と道具がドックのタブの行へ直に入る**（`Dock.scss`）。
 //
-// **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字と記号の色は、この背景との比で
-// 決めてある。ドックの側だけが背景を持つと、その比をこのファイルの中で確かめられない
+// **行と同じ背景をここでも宣言する。** 箱を持たないので描かれないが、
+// 文字と記号の色は、この背景との比で決めてある
 .analysis-controls {
-  --hit: #{index.$control-hit};
-  --r: #{index.$radius-2};
+  display: contents;
+  background: index.$surface-dock-strip;
 
-  width: 100%;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: index.$space-4;
-
-  padding: 0 var(--pane-px, #{index.$space-4});
-  background-color: index.$color-primary-dark;
-
-  @media (pointer: coarse) {
-    --hit: #{index.$control-hit-coarse};
-  }
-
-  // 状態は左。**削らない** —— 狭くなったときに落ちるのは操作の側
+  // 状態は左。**削らない** —— 狭くなったときに落ちるのは添え書き
   &__status {
-    display: inline-flex;
+    grid-area: status;
+    display: flex;
     align-items: center;
     gap: index.$space-3;
-    min-width: 0;
+    padding-left: index.$space-10;
+    margin-block-end: 1px;
+
+    @media (max-width: 1150px) {
+      padding-left: index.$space-7;
+    }
   }
 
   &__dot {
@@ -37,12 +29,12 @@
     flex: none;
 
     &--analyzing {
-      background-color: index.$color-secondary-dark;
+      background-color: index.$color-accent-bright;
       animation: analysis-pulse 2s infinite;
     }
 
     &--danger {
-      background-color: index.$color-danger;
+      background-color: index.$color-danger-text;
     }
 
     &--warning {
@@ -51,27 +43,33 @@
 
     &--idle {
       background-color: transparent;
-      border: 1.5px solid rgba(index.$color-text-primary, 0.55);
+      border: 1px solid index.$stroke-strong;
     }
   }
 
   &__status-text {
     font-size: index.$font-body;
-    letter-spacing: 0.01em;
-    font-family: index.$font-sans;
-    color: index.$color-text-primary;
+    color: index.$color-text-muted;
     white-space: nowrap;
-    opacity: 0.82;
   }
 
-  // 押せる語。**読む内容の隣なので色で目立たせず、下線だけで押せることを言う**
+  // 失敗の語だけ、色を添える。点と同じ色で、押せることは下線が言う
+  &__status--danger &__status-text {
+    color: index.$color-danger-text;
+  }
+
+  // 押せる語。**読む内容の隣なので、押せることは下線だけで言う**
   &__status-text--button {
     padding: 0;
     border: none;
-    background: transparent;
+    background: index.$surface-dock-strip;
     cursor: pointer;
     text-decoration: underline dotted;
     text-underline-offset: 0.3em;
+
+    &:hover {
+      color: index.$color-text-strong;
+    }
 
     &:focus-visible {
       outline: 2px solid index.$focus-ring;
@@ -80,65 +78,59 @@
   }
 
   &__timer {
-    font-size: index.$font-body;
-    letter-spacing: 0.02em;
-
+    font-size: index.$font-aux;
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
-    color: index.$color-text-primary;
+    color: index.$color-text-label;
     min-width: 6ch;
-    text-align: left;
     white-space: nowrap;
-    opacity: 0.7;
   }
 
   &__actions {
-    display: inline-flex;
+    grid-area: tools;
+    display: flex;
     align-items: center;
-    gap: index.$space-3;
-    min-width: 0;
-    overflow-x: auto;
+    gap: index.$space-5;
+    padding-right: index.$space-4;
+
+    @media (max-width: 1150px) {
+      gap: index.$space-2;
+    }
   }
 
+  // 記号のボタンは、まとまりの境でも間を空けずに並べる。境だけ広げると、間隔が乱れて見える
+  &__icons,
   &__group {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: index.$space-1;
   }
 
-  // 押しっぱなしの状態は `aria-pressed` と記号の塗り（栞の `fill`）が示す。
-  // **色では示さない** —— この背景の上で `$color-secondary-dark` は 4.5:1 を割る
+  // 押しっぱなしの状態は `aria-pressed` と記号の塗り（栞の `fill`）が示す。**色では示さない**
   &__iconBtn {
-    width: var(--hit);
-    height: var(--hit);
+    width: var(--dock-btn-w);
+    height: var(--dock-btn-h);
 
     display: grid;
     place-items: center;
 
     border: none;
-    border-radius: var(--r);
-    background: transparent;
-    color: index.$color-text-primary;
+    border-radius: index.$radius-control;
+    background: index.$surface-dock-strip;
+    color: index.$color-text-muted;
 
     cursor: pointer;
     user-select: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 
-    transition: background-color index.$duration-3 index.$ease;
-
-    // 白文字を載せる背景なので、ホバーは暗くする（`design-system/design_system/components/button.md` の「状態」）
     &:hover:not(:disabled) {
-      background-color: rgba(index.$color-primary-black, 0.8);
-    }
-
-    &:active:not(:disabled) {
-      background-color: rgba(index.$color-primary-black, 0.8);
+      background: index.$surface-hover;
+      color: index.$color-text-strong;
     }
 
     &:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
+      opacity: 0.45;
+      cursor: default;
     }
 
     &:focus-visible {

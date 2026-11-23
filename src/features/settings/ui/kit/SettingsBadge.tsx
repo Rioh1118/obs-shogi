@@ -1,17 +1,25 @@
 import type { ReactNode } from "react";
+import { AlertTriangle } from "lucide-react";
 import "./SettingsBadge.scss";
 
-export type SettingsBadgeTone = "muted" | "danger" | "warn" | "accent";
-type SettingsBadgeShape = "badge" | "pill";
+type SettingsBadgeTone = "muted" | "danger" | "warn" | "accent";
 
 type Props = {
   children: ReactNode;
   tone?: SettingsBadgeTone;
-  shape?: SettingsBadgeShape;
 };
 
-function SettingsBadge({ children, tone = "muted", shape = "badge" }: Props) {
-  return <span className={`sbadge sbadge--${tone} sbadge--${shape}`}>{children}</span>;
+/**
+ * 行や見出しに、いまの状態を1語で添える。枠も背景も付けない
+ * （`design-system/design_system/components/tag.md`）。
+ */
+function SettingsBadge({ children, tone = "muted" }: Props) {
+  return (
+    <span className={`sbadge sbadge--${tone}`}>
+      {(tone === "warn" || tone === "danger") && <AlertTriangle size={12} aria-hidden="true" />}
+      {children}
+    </span>
+  );
 }
 
 export default SettingsBadge;

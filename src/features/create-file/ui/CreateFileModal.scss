@@ -1,70 +1,38 @@
 @use "@/index.scss" as index;
 
 .create-file-modal {
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: index.$space-6;
-  height: 100%;
-  // 余白は中身が持つ（他の対話と同じ形。`Modal` には padding="none" を渡す）。
-  // タブと入力欄の左端が揃わないのは `Form` が自分の左右 padding を持つため。
-  // ここを合わせておくと、タブの左端が Form の見出しの左端と揃う
-  padding: index.$space-10 index.$space-12 0;
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
-  // タブ
   &__tabs {
-    display: inline-flex;
-    align-self: flex-start;
-
-    // 帯に背景を敷かない。選択は銅の縦棒が示すので、帯の背景は要らない
-    border: 1px solid index.$stroke;
-    border-radius: index.$radius-4;
-    padding: index.$space-2;
+    flex: none;
+    padding-left: index.$space-5;
+    display: flex;
+    border-bottom: 1px solid index.$stroke-weak;
+    background: index.$color-primary-dark;
   }
 
   &__tab {
-    appearance: none;
-    border: none;
-    background: transparent;
-
-    position: relative;
-    padding: index.$space-4 index.$space-6;
-    border-radius: index.$radius-3;
-
+    @include index.tab;
+    min-height: 3.4rem;
+    padding: 0 index.$space-5;
     font-size: index.$font-body;
-    font-weight: index.$weight-strong;
-    color: rgba(index.$color-text-primary, 0.72);
 
-    cursor: pointer;
-    transition:
-      background-color index.$duration-4 index.$ease,
-      color index.$duration-3 index.$ease;
-
-    // 背景の差だけだと 1.12:1 で読めない。文字の濃さでも示す
-    &:hover {
-      background-color: rgba(index.$color-white, 0.04);
-      color: index.$color-text-primary;
-    }
-
-    // 選択は左の銅のバーで見せる。ホバーで見た目を変えないよう、同じ宣言を両方へ掛ける
-    &.is-active,
-    &.is-active:hover {
-      background: rgba(index.$color-primary-light, 0.45);
-      color: index.$color-text-primary;
+    &:disabled {
+      opacity: 0.45;
+      cursor: default;
     }
 
     &.is-active {
-      @include index.selected-bar;
-    }
-
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: 2px;
+      @include index.tab-on;
     }
   }
 
-  // Form側は padding 2rem 3rem なので、ここは余計な padding を付けない。
-  // どちらのタブもモーダルの高さいっぱいを使う（盤は残りの高さから、貼り付け欄は
-  // 左の列の残りから決まる）ので、ここが伸びる側になる
+  // どちらのタブもモーダルの高さいっぱいを使う
   &__body {
     flex: 1 1 auto;
     min-height: 0;

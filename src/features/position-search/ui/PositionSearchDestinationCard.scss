@@ -1,60 +1,41 @@
 @use "@/index.scss" as index;
 
-// ペインの中の箱。`pos-search-cont` と同じ段階に載るので、背景も角丸も同じ値を採る
-.pos-search-dest {
-  border-radius: index.$radius-6;
-  background: rgba(index.$color-primary-black, 0.24);
-  padding: index.$space-5;
-
-  display: grid;
-  gap: index.$space-4;
-  min-height: 0;
+@mixin two-lines {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
+}
 
-  &__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: index.$space-5;
+// 選んでいる棋譜と、いま開いている棋譜
+.pos-search-dest {
+  flex: none;
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: index.$space-2 index.$space-7;
+  background: index.$color-primary-dark;
+  font-size: index.$font-aux;
+
+  &__label {
+    color: index.$color-text-label;
   }
 
-  &__title {
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-light-1, 0.7);
-  }
-
+  // 2行ぶんを空けておく。長さで行の数が変わると、選ぶたびに上の盤の大きさが変わる
   &__path {
-    font-size: index.$font-aux;
+    margin: 0;
+    min-height: 3.6rem;
     color: index.$color-text-primary;
-    word-break: break-all;
+    overflow-wrap: anywhere;
     user-select: text;
-
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    @include two-lines;
   }
 
   &__current {
-    display: block;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-light-1, 0.62);
-    word-break: break-all;
+    margin: 0;
+    color: index.$color-text-muted;
+    overflow-wrap: anywhere;
     user-select: text;
-
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  // 見出しの側を退かせる。値（パス）は `__current` の段階のまま読ませたいので触らない
-  &__currentLabel {
-    margin-right: index.$space-3;
-    color: rgba(index.$color-text-light-1, 0.45);
-  }
-
-  &__empty {
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-light-1, 0.6);
+    @include two-lines;
   }
 }

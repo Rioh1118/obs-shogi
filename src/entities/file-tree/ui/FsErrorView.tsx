@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { describeFsError, fsErrorTier, type FsError } from "@/entities/file-tree/api/error";
+import SoftBreakText from "@/shared/ui/SoftBreakText";
 import "./FsErrorView.scss";
 
 type Props = {
@@ -34,7 +35,12 @@ export default function FsErrorView({ error, actions }: Props) {
       */}
       <div className="fsError__message" role="alert">
         <p className="fsError__lead">{describeFsError(error.code)}</p>
-        {error.path && <p className="fsError__path">{error.path}</p>}
+        {/* 区切りの後で折る。どこでも折ると、最後の1字だけが次の行に落ちる */}
+        {error.path && (
+          <p className="fsError__path">
+            <SoftBreakText text={error.path} />
+          </p>
+        )}
       </div>
 
       <details className="fsError__detail">

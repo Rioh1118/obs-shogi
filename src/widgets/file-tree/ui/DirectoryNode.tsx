@@ -4,6 +4,7 @@ import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import { useState, type MouseEventHandler, type ReactNode } from "react";
 import TreeNodeActions from "./TreeNodeActions";
 import InlineNameEditor from "./InlineNameEditor";
+import NodeName from "./NodeName";
 import NewDirectoryRow from "./NewDirectoryRow";
 import TruncatedNotice from "./TruncatedNotice";
 
@@ -114,7 +115,7 @@ function DirectoryNode({
             onUnshowable={pushError}
           />
         ) : (
-          <span>{node.name}</span>
+          <NodeName name={node.name} isDragging={isDragging} />
         )}
       </NodeBox>
       {isOpen && (

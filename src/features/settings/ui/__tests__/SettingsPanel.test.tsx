@@ -9,6 +9,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 const world = vi.hoisted(() => ({
   tab: undefined as string | undefined,
+  needs: new Set<"workspace" | "aiLibrary" | "engine" | "display">(),
   updateParams: vi.fn(),
 }));
 
@@ -41,12 +42,18 @@ vi.mock(
   () => ({ default: () => <p>中身:display</p> }) satisfies typeof import("../tabs/DisplayTab"),
 );
 
+vi.mock("@/features/settings/model/useSetupNeeds", () => {
+  const mocked = { useSetupNeeds: () => world.needs };
+  return mocked satisfies typeof import("@/features/settings/model/useSetupNeeds");
+});
+
 const { default: SettingsPanel } = await import("../SettingsPanel");
 
 const tabButton = (name: RegExp) => screen.getByRole("button", { name });
 
 beforeEach(() => {
   world.tab = undefined;
+  world.needs = new Set();
   world.updateParams.mockReset();
 });
 
@@ -86,23 +93,37 @@ describe("設定のパネル", () => {
 
     expect(tabButton(/^エンジン管理/).getAttribute("aria-current")).toBe("page");
     expect(tabButton(/^表示/).getAttribute("aria-current")).toBeNull();
+    expect(tabButton(/^エンジン管理/).hasAttribute("data-initial-focus")).toBe(true);
+    expect(tabButton(/^表示/).hasAttribute("data-initial-focus")).toBe(false);
     expect(tabButton(/^エンジン管理/).className).toContain("stab--active");
     expect(tabButton(/^表示/).className).not.toContain("stab--active");
   });
 
-  test("外のものを指す2枚にだけバッジが付く", () => {
+  test("設定が要るタブにだけ、名前の右に記号を付ける", () => {
+    world.needs = new Set(["engine"]);
     render(<SettingsPanel />);
 
     expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
       "ワークスペース",
-      "AI ライブラリ要設定注意",
-      "エンジン管理要設定注意",
+      "AI ライブラリ",
+      "エンジン管理",
       "表示",
     ]);
-    const labels = tabButton(/^AI ライブラリ/).querySelectorAll(".sbadge");
-    expect([...labels].map((b) => b.className)).toEqual([
-      "sbadge sbadge--muted sbadge--badge",
-      "sbadge sbadge--danger sbadge--badge",
-    ]);
+    expect(screen.getAllByRole("img", { name: "設定が要ります" })).toHaveLength(1);
+    expect(tabButton(/^エンジン管理/).querySelector('[role="img"]')).not.toBeNull();
+  });
+
+  test("要らなければ何も付けない", () => {
+    render(<SettingsPanel />);
+
+    expect(screen.queryByRole("img", { name: "設定が要ります" })).toBeNull();
+  });
+
+  // 一覧だけを送るタブ。骨組みの側が送ると、上の「詰み探索」ごと流れる
+  test("いまのタブを、送り方の目印に出す", () => {
+    world.tab = "engine";
+    const { container } = render(<SettingsPanel />);
+
+    expect(container.querySelector<HTMLElement>(".settings__main")?.dataset.tab).toBe("engine");
   });
 });

@@ -1,47 +1,55 @@
 @use "@/index.scss" as index;
 
 .sui-field {
+  min-width: 0;
   display: grid;
-  gap: 6px;
+  gap: index.$space-3;
+
+  &--inline {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: index.$space-2 index.$space-7;
+
+    .sui-field__desc,
+    .sui-field__hint,
+    .sui-field__error {
+      grid-column: 1 / -1;
+    }
+  }
 }
 
 .sui-field__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: index.$space-5;
 }
 
 .sui-field__label {
-  font-size: 1.25rem;
-  font-weight: index.$weight-strong;
-  letter-spacing: 0.15px;
+  font-size: index.$font-body;
+  font-weight: index.$weight-medium;
+  white-space: nowrap;
 }
 
 .sui-field__right {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-}
-
-.sui-field__desc {
-  font-size: 1.15rem;
-  line-height: 1.45;
-  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
+  gap: index.$space-4;
 }
 
 .sui-field__control {
   min-width: 0;
 }
 
+.sui-field__desc,
 .sui-field__hint {
-  font-size: 1.1rem;
-  line-height: 1.35;
-  color: var(--s-text-dim, rgba(255, 255, 255, 0.58));
+  font-size: index.$font-aux;
+  color: index.$color-text-muted;
+  word-break: auto-phrase;
 }
 
 .sui-field__error {
-  font-size: 1.1rem;
-  line-height: 1.35;
-  color: rgba(255, 120, 120, 0.95);
+  font-size: index.$font-aux;
+  color: index.$color-danger-text;
 }

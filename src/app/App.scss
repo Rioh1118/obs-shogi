@@ -8,6 +8,9 @@
   overflow: hidden;
   .app-content {
     flex: 1;
+    min-height: 0;
+    // 上に並ぶ帯のぶん、下へ始める
+    margin-top: var(--top-bands-h, 0);
     overflow: hidden;
   }
 }

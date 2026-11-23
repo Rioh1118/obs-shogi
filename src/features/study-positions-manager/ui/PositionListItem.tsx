@@ -34,14 +34,11 @@ export default function PositionListItem({
       role="option"
       aria-selected={selected}
     >
-      <div className="sp-list-item__top">
-        <span className="sp-list-item__label">{position.label || "（タイトルなし）"}</span>
-        <span className="sp-list-item__date">{updatedDate}</span>
-      </div>
-      <div className="sp-list-item__bottom">
-        <span className={`sp-list-item__state sp-list-item__state--${position.state}`}>
-          {stateLabel}
-        </span>
+      <span className="sp-list-item__label">{position.label || "（タイトルなし）"}</span>
+      <span className="sp-list-item__date">{updatedDate}</span>
+
+      <span className="sp-list-item__tags">
+        <span className="sp-list-item__state">{stateLabel}</span>
         {position.tags.slice(0, 2).map((tag) => (
           <span key={tag} className="sp-list-item__tag">
             #{tag}
@@ -50,12 +47,12 @@ export default function PositionListItem({
         {position.tags.length > 2 && (
           <span className="sp-list-item__tagMore">+{position.tags.length - 2}</span>
         )}
-        {turnShortText && (
-          <span className="sp-list-item__meta">
-            {turnShortText} {tesuu}手目
-          </span>
-        )}
-      </div>
+      </span>
+      {turnShortText && (
+        <span className="sp-list-item__meta">
+          {turnShortText} {tesuu}手目
+        </span>
+      )}
     </div>
   );
 }

@@ -1,19 +1,27 @@
 @use "@/index.scss" as index;
 
 .pos-search-status {
+  flex: none;
+  min-height: 3.2rem;
+  padding: index.$space-3 index.$space-10;
   display: flex;
-  gap: index.$space-5;
-  align-items: center;
   flex-wrap: wrap;
+  align-items: center;
+  gap: index.$space-1 index.$space-7;
+
+  border-bottom: 1px solid index.$stroke-weak;
+  background: index.$color-primary-dark;
   font-size: index.$font-aux;
-  color: rgba(index.$color-text-light-1, 0.72);
+  color: index.$color-text-muted;
+  font-variant-numeric: tabular-nums;
 
   &__item--warn {
-    color: rgba(index.$color-secondary-dark, 0.95);
+    color: index.$color-warning;
   }
 
-  // 暗いカードの上に載るので、$color-danger のままだと 3.75:1 で本文の基準を割る
+  // 暗い背景に載るので、$color-danger のままだと 3.75:1 で本文の基準を割る
   &__item--error {
     color: index.$color-danger-text;
+    overflow-wrap: anywhere;
   }
 }

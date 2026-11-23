@@ -12,38 +12,13 @@ $paste-h: 14rem; // scale-exempt
   height: 100%;
   min-height: 0;
 
-  // 隠れているあいだも木には残る（貼りかけの棋譜を消さないため）。
-  // `hidden` は UA の `[hidden] { display: none }` で効くはずだが、
-  // ここで `display` を書いているぶん作者側が勝つので、**書いた側で降ろす**
+  // 隠れているあいだも木には残る（貼りかけの棋譜を消さないため）
   &[hidden] {
     display: none;
   }
 
-  // **「作成」をモーダルの下端に置く。** 盤で組むタブ（`pos-editor__side`）と同じ位置に来るので、
-  // タブを跨いでも主操作が上下に飛ばない。
-  // 余った高さを受けるのは、読み取った棋譜の素性（`__summary`）
   .form {
     height: 100%;
-    min-height: 0;
-    overflow-y: auto;
-  }
-
-  // 貼る欄と欄の行は自分の高さのまま。伸びるのは素性の箱だけ
-  .form__group {
-    flex: 0 0 auto;
-  }
-
-  // **巻き取られる側に置かない。** 失敗が出ると欄より下が伸びるので、
-  // 列ごと巻くとモーダルの主操作がどの高さでも初期表示に現れなくなる
-  // （盤で組むタブの `.pos-editor__side` と同じ作り）
-  .form__group--buttons {
-    margin-top: auto;
-    position: sticky;
-    bottom: 0;
-    // 巻いた欄がボタンの下を通り抜けるので、背景を敷いて切る。
-    // モーダルのカードは同じ色を 0.95 で敷いているので、ここは1段階沈む
-    background: index.$color-primary-black;
-    padding-top: index.$space-8;
   }
 
   .form__textarea {
@@ -51,10 +26,10 @@ $paste-h: 14rem; // scale-exempt
   }
 }
 
-// 保存先が無いときの注記。**背景を持たないので色を書かない**（モーダルのカードの色を継ぐ）。
-// 色を宣言すると `contrastRatchet` の「測れなかった宣言」が増え、
-// 測れない対は比が下がっても緑のまま通る
+// 保存先が無いときの注記
 .kifu-import__hint {
   margin: 0;
-  font-size: index.$font-hint;
+  background: index.$color-primary-dark;
+  font-size: index.$font-aux;
+  color: index.$color-text-muted;
 }

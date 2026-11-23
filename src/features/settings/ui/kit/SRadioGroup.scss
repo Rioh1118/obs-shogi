@@ -2,89 +2,99 @@
 
 .sui-radio {
   display: grid;
-  gap: 8px;
 
+  // 見本つきの列
   &[data-layout="grid"] {
     grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+    gap: index.$space-4 index.$space-12;
+  }
+
+  &[data-layout="segment"] {
+    @include index.segment;
   }
 }
 
+// 丸と名前を同じ行に、説明は名前の右（入らなければ下）に置く
 .sui-radio__item {
-  display: block;
+  position: relative;
+  min-height: 3.2rem;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: index.$space-1 index.$space-5;
+
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
   cursor: pointer;
+
+  &[data-checked="true"] {
+    color: index.$color-text-strong;
+  }
 }
 
+// 打つ所は見えない。輪は、丸か、区切りの1つに描く
 .sui-radio__input {
   position: absolute;
+  inset: 0;
+  margin: 0;
   opacity: 0;
   pointer-events: none;
 }
 
-.sui-radio__card {
-  display: grid;
-  gap: 4px;
-
-  border-radius: var(--ctl-radius, #{index.$radius-3});
-  border: 1px solid var(--ctl-border, rgba(255, 255, 255, 0.12));
-  background: var(--s-surface-1, rgba(0, 0, 0, 0.12));
-  padding: 10px 10px;
-
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    transform 80ms ease;
-}
-
-.sui-radio__top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
+// 満たした側は砂。銅は局面の「いま」だけに使う
 .sui-radio__dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  position: relative;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-circle;
 
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 3px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.85);
-    opacity: 0;
-    transition: opacity 160ms ease;
+  .sui-radio__item[data-checked="true"] & {
+    border: 5px solid index.$color-commit-solid;
+  }
+
+  .sui-radio__input:focus-visible + & {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
   }
 }
 
 .sui-radio__label {
-  font-size: 1.3rem;
-  font-weight: index.$weight-title;
-  letter-spacing: 0.1px;
+  .sui-radio__item[data-checked="true"] & {
+    font-weight: index.$weight-strong;
+  }
 }
 
 .sui-radio__desc {
-  font-size: 1.1rem;
-  line-height: 1.35;
-  color: var(--s-text-muted, rgba(255, 255, 255, 0.72));
+  font-size: index.$font-aux;
+  color: index.$color-text-muted;
+
+  // 見本は名前の下
+  .sui-radio[data-layout="grid"] & {
+    flex-basis: 100%;
+    padding-left: calc(1.6rem + #{index.$space-5});
+  }
 }
 
-.sui-radio__item:hover .sui-radio__card {
-  background: var(--tab-hover-bg, rgba(255, 255, 255, 0.06));
+.sui-radio[data-layout="segment"] {
+  .sui-radio__dot {
+    display: none;
+  }
 }
 
-.sui-radio__item[data-checked="true"] .sui-radio__card {
-  background: var(--tab-active-bg, rgba(255, 255, 255, 0.1));
-  border-color: var(--tab-active-border, rgba(255, 255, 255, 0.12));
-}
+.sui-radio__item--segment {
+  @include index.segment-item;
 
-.sui-radio__item[data-checked="true"] .sui-radio__dot::after {
-  opacity: 1;
-}
+  &[data-checked="true"] {
+    @include index.segment-item-on;
+  }
 
-.sui-radio__item:focus-within .sui-radio__card {
-  outline: 2px solid var(--s-focus, rgba(220, 215, 201, 0.55));
-  outline-offset: 2px;
+  // 打つ所は見えない。輪は、区切りの1つに描く
+  &:has(.sui-radio__input:focus-visible) {
+    z-index: 1;
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
+  }
 }

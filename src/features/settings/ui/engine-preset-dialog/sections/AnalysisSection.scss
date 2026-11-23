@@ -1,55 +1,28 @@
 @use "@/index.scss" as index;
 
-.presetDialog {
-  .presetDialog__seg {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
-    flex: 1;
+.presetDialog__segRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: index.$space-4;
+}
+
+// 同じ値をもう一度押すと外れる（`aria-pressed`）
+.presetDialog__seg {
+  @include index.segment;
+}
+
+.presetDialog__segBtn {
+  min-width: 5.6rem;
+  @include index.segment-item;
+
+  &.is-active {
+    @include index.segment-item-on;
   }
+}
 
-  .presetDialog__segBtn {
-    border-radius: index.$radius-3;
-    border: 1px solid rgba(index.$color-white, 0.08);
-    background: rgba(index.$color-primary-black, 0.25);
-    color: index.$color-text-primary;
-
-    padding: 10px 10px;
-    cursor: pointer;
-
-    font-weight: index.$weight-title;
-    font-size: 1.35rem;
-
-    transition:
-      transform 120ms ease,
-      background-color 120ms ease,
-      border-color 120ms ease;
-
-    &:hover {
-      transform: translateY(-1px);
-      border-color: rgba(index.$color-secondary-dark, 0.45);
-      background: rgba(index.$color-primary-black, 0.35);
-    }
-
-    &:active {
-      transform: translateY(0px) scale(0.99);
-    }
-
-    &.is-active {
-      border-color: rgba(index.$color-secondary-dark, 0.7);
-      background: rgba(index.$color-secondary-dark, 0.18);
-    }
-  }
-
-  .presetDialog__stepperInput {
-    width: 90px;
-    text-align: center;
-    font-weight: index.$weight-title;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .presetDialog__segBtn {
-      transition: none;
-    }
-  }
+.presetDialog__stepperInput {
+  width: 9rem;
+  margin-top: index.$space-4;
+  text-align: right;
 }

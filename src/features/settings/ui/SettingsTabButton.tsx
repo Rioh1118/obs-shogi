@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { AlertTriangle } from "lucide-react";
 import "./SettingsTabButton.scss";
 
 import { cx } from "@/features/settings/lib/cx";
@@ -6,22 +6,27 @@ import { cx } from "@/features/settings/lib/cx";
 type Props = {
   active: boolean;
   label: string;
+  /** そのままではエンジンが動かない */
+  needsSetup: boolean;
   onClick: () => void;
-  badges?: ReactNode;
 };
 
-function SettingsTabButton({ active, label, onClick, badges }: Props) {
+function SettingsTabButton({ active, label, needsSetup, onClick }: Props) {
   return (
     <button
       type="button"
       className={cx("stab", active && "stab--active")}
       onClick={onClick}
       aria-current={active ? "page" : undefined}
+      // 開いたとき、いまのタブに居る。先頭に居ると、選んでいないタブに輪が出る
+      data-initial-focus={active || undefined}
     >
-      <div className="stab__row">
-        <span className="stab__label">{label}</span>
-        <span className="stab__right">{badges}</span>
-      </div>
+      <span className="stab__label">{label}</span>
+      {needsSetup && (
+        <span className="stab__needs" title="設定が要ります">
+          <AlertTriangle size={13} role="img" aria-label="設定が要ります" />
+        </span>
+      )}
     </button>
   );
 }

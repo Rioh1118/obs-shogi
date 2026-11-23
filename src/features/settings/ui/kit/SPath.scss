@@ -1,0 +1,19 @@
+@use "@/index.scss" as index;
+
+.sui-path {
+  min-width: 0;
+  min-height: 3.2rem;
+  padding: index.$space-3 index.$space-5;
+
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-control;
+  background: index.$surface-field;
+  color: index.$color-text-strong;
+  font-size: index.$font-body;
+  overflow-wrap: anywhere;
+  user-select: text;
+
+  &--none {
+    color: index.$color-text-muted;
+  }
+}

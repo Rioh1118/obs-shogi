@@ -19,15 +19,26 @@
   padding: index.$space-12;
   text-align: center;
 
-  background-color: index.$color-primary-black;
+  background-color: index.$color-primary-dark;
   color: index.$color-text-primary;
   font-size: index.$font-body;
+
+  p {
+    margin: 0;
+  }
+
+  // 何が落ちたか
+  > p:first-child {
+    font-size: index.$font-section;
+    font-weight: index.$weight-strong;
+    color: index.$color-text-strong;
+  }
 
   // 落ちた原因。**利用者が報告に写せるだけの長さ**を残す。
   // 1行に潰すと、そこが唯一の手掛かりなのに読めなくなる
   &__detail {
     max-width: 60ch;
-    color: rgba(index.$color-text-primary, 0.72);
+    color: index.$color-text-muted;
     font-size: index.$font-aux;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -47,28 +58,32 @@
     gap: index.$space-4;
   }
 
-  // `Button` の `accent` と同じ見た目。銅の枠は地（`$color-primary-black`）に対して 4.19:1
+  // `Button` の `accent` の md と同じ見た目
   &__action {
-    padding: index.$space-3 index.$space-7;
-    border: 1px solid index.$color-secondary-dark;
-    border-radius: index.$radius-3;
-    background-color: transparent;
-    color: index.$color-accent-text;
+    min-height: 3.2rem;
+    padding: 0 index.$space-6;
+    border: 1px solid index.$color-text-strong;
+    border-radius: index.$radius-control;
+    background-color: index.$color-primary-dark;
+    color: index.$color-text-strong;
+    font-family: inherit;
     font-size: index.$font-aux;
+    font-weight: index.$weight-strong;
     cursor: pointer;
 
     &:hover {
-      border-color: index.$color-accent-text;
+      background-color: index.$surface-hover;
+    }
+
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
     }
 
     // 「再表示」で戻らなかったときの出口。先に試すべき方が読めるよう、`Button` の `neutral` と同じ強さにする
     &--secondary {
-      border-color: index.$stroke;
+      border-color: index.$stroke-strong;
       color: index.$color-text-primary;
-
-      &:hover {
-        border-color: index.$color-text-muted;
-      }
     }
   }
 }

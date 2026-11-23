@@ -57,7 +57,10 @@ function useFocusTrap(cardRef: RefObject<HTMLDivElement | null>, isTop: () => bo
       );
     const pullBack = () => (focusables()[0] ?? card).focus();
 
-    pullBack();
+    // 中身が行き先を名乗っていれば、そこへ。名乗らなければ先頭へ
+    const initial = card.querySelector<HTMLElement>("[data-initial-focus]");
+    if (initial) initial.focus();
+    else pullBack();
 
     const onFocusOut = (event: FocusEvent) => {
       if (!isTop()) return;
@@ -158,7 +161,7 @@ function Modal({
   const root = document.getElementById("modal-root") ?? document.body;
 
   return createPortal(
-    <div className={`modal modal--dark modal--${variant} modal--size-${size}`}>
+    <div className={`modal modal--${variant} modal--size-${size}`}>
       <div className="modal__overlay" onClick={handleOverlayClick}>
         <div
           ref={cardRef}
@@ -169,12 +172,13 @@ function Modal({
           tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
         >
+          {scroll === "content" ? <div className="modal__body">{children}</div> : children}
+          {/* 中身の後に置く。前に置くと、開いたときのフォーカスが中身でなくここに入る */}
           {showCloseButton && (
             <button type="button" className="modal__close" aria-label="閉じる" onClick={onClose}>
               <X size={18} />
             </button>
           )}
-          {scroll === "content" ? <div className="modal__body">{children}</div> : children}
         </div>
       </div>
     </div>,

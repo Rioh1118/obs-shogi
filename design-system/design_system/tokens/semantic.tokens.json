@@ -1,31 +1,92 @@
 {
   "color": {
     "$type": "color",
-    "$description": "色。テーマは1つ（深く冷たい緑黒の枠、decisions/0004）。比は contrast-pairs.json で照合する",
+    "$description": "色。テーマは1つ（墨・砂・銅。decisions/0005）。比は contrast-pairs.json で照合する",
     "background": {
       "sunken": {
         "$value": "{base.color.black}",
-        "$description": "いちばん深いサーフェス。暗いカード、入力の沈み。ペインのサーフェスには使わない（decisions/0004）"
+        "$description": "いちばん暗いサーフェス。上の帯、棋譜の見出しと手の移動の帯。ペインの本文には使わない"
       },
       "default": {
         "$value": "{base.color.dark}",
-        "$description": "本文の背景。ペイン（サイドバー・棋譜・ヘッダ・ドック）は全部この1色にし、境目は線で引く（decisions/0004）"
+        "$description": "本文の背景。ペイン（サイドバー・棋譜・設定）は全部この1色にし、境目は線で引く（decisions/0004）"
       },
       "canvas": {
         "$value": "{base.color.light}",
-        "$description": "持ち上げたサーフェス。選ばれた行の濃淡、選ばれた区切りボタン。ペインのサーフェスには使わない（decisions/0004）"
+        "$description": "持ち上げたサーフェス。いま見ているタブ、選ばれた区切りボタン"
       },
       "stage": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.0863,
-            0.1137,
-            0.1216
+            0.1725,
+            0.2118,
+            0.2235
           ],
-          "hex": "#161d1f"
+          "hex": "#2c3639"
         },
-        "$description": "盤と駒台を置くサーフェス。ペインのサーフェスから半段だけ沈める（decisions/0004）"
+        "$description": "盤と駒台を置くサーフェス。墨から離した緑。利用者が 2026-11-21 に4色から選んだ（decisions/0005）"
+      },
+      "hover": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.1176,
+            0.1529,
+            0.1608
+          ],
+          "hex": "#1e2729"
+        },
+        "$description": "行のホバー"
+      },
+      "selected": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.1608,
+            0.2078,
+            0.2275
+          ],
+          "hex": "#29353a"
+        },
+        "$description": "選んだもの（ファイル・設定のタブ・適用中のプリセット）の灰青。銅は使わない（patterns/selection.md）"
+      },
+      "now": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.6902,
+            0.4863,
+            0.3333
+          ],
+          "hex": "#b07c55",
+          "alpha": 0.15
+        },
+        "$description": "局面の「いま」（いまの手・最善手）の行。左の銅の線と組で使う（patterns/selection.md）"
+      },
+      "dock": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.1059,
+            0.1373,
+            0.1451
+          ],
+          "hex": "#1b2325"
+        },
+        "$description": "検討のドックの背景。ほかのペインより半段明るい（利用者が今のドックを選んだ。decisions/0005）"
+      },
+      "dock-strip": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.0863,
+            0.1098,
+            0.1176
+          ],
+          "hex": "#161c1e"
+        },
+        "$description": "検討のドックの見出しの帯"
       }
     },
     "surface": {
@@ -33,26 +94,17 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
+            0.1647,
             0.2,
-            0.2196,
-            0.2235
+            0.2118
           ],
-          "hex": "#333839"
+          "hex": "#2a3336"
         },
         "$description": "暗い背景を1段階持ち上げたサーフェス。意味色を持たず「いま触れない」を示す（$surface-raised）"
       },
       "field": {
-        "$value": {
-          "colorSpace": "srgb",
-          "components": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "hex": "#000000",
-          "alpha": 0.18
-        },
-        "$description": "打つ欄の背景。半透明なのは載る背景の明るさを保つため（$surface-field）"
+        "$value": "{base.color.black}",
+        "$description": "打つ欄の背景。枠（border.strong）と組で使う（$surface-field）"
       },
       "overlay": {
         "$value": {
@@ -60,10 +112,10 @@
           "components": [
             0.0706,
             0.0941,
-            0.098
+            0.102
           ],
-          "hex": "#121819",
-          "alpha": 0.88
+          "hex": "#12181a",
+          "alpha": 0.94
         },
         "$description": "ツールチップ。半透明なので文字との比は走査で測れない（$surface-overlay）"
       }
@@ -77,25 +129,25 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.698,
-            0.7137,
+            0.7098,
+            0.7255,
             0.6902
           ],
-          "hex": "#b2b6b0"
+          "hex": "#b5b9b0"
         },
-        "$description": "名前の添え書き・説明。砂を本文の背景に 80% で混ぜる。不透明に混ぜる（$color-text-muted）"
+        "$description": "名前の添え書き・説明（$color-text-muted）"
       },
       "faint": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.5882,
-            0.6078,
+            0.5843,
+            0.6118,
             0.5882
           ],
-          "hex": "#969b96"
+          "hex": "#959c96"
         },
-        "$description": "無効・範囲の注記。砂を本文の背景に 65% で混ぜる。surface.raised の上には載せない（$color-text-faint）"
+        "$description": "無効・範囲の注記。selected と stage の上には載せない（4.5:1 を割る）（$color-text-faint）"
       },
       "inverse": {
         "$value": "{base.color.ink}",
@@ -108,12 +160,28 @@
       "on-solid": {
         "$value": "{base.color.white}",
         "$description": "背景に敷いた銅に載せる白文字"
+      },
+      "strong": {
+        "$value": "{base.color.sandStrong}",
+        "$description": "題、いまの手、値"
+      },
+      "label": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.651,
+            0.6706,
+            0.6431
+          ],
+          "hex": "#a6aba4"
+        },
+        "$description": "表の見出し、数の添え書き（$color-text-label）"
       }
     },
     "accent": {
       "default": {
         "$value": "{base.color.copper}",
-        "$description": "選択の棒、つまみの満たした側、目印の帯"
+        "$description": "局面の「いま」の線、いま見ているタブの下線、最善手の左の線"
       },
       "solid": {
         "$value": "{base.color.copperSolid}",
@@ -122,6 +190,10 @@
       "solid-hover": {
         "$value": "{base.color.copperSolidHover}",
         "$description": "背景に敷く銅のホバー（暗くする）"
+      },
+      "bright": {
+        "$value": "{base.color.copperBright}",
+        "$description": "「いま」を示す点（適用中）"
       }
     },
     "commit": {
@@ -139,40 +211,37 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            1.0,
-            1.0,
-            1.0
+            0.1529,
+            0.1882,
+            0.2
           ],
-          "hex": "#ffffff",
-          "alpha": 0.06
+          "hex": "#273033"
         },
-        "$description": "弱い区切り（$stroke-weak）"
+        "$description": "ペインの境目と行の区切り。不透明（$stroke-weak）"
       },
       "default": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            1.0,
-            1.0,
-            1.0
+            0.2275,
+            0.2784,
+            0.298
           ],
-          "hex": "#ffffff",
-          "alpha": 0.1
+          "hex": "#3a474c"
         },
-        "$description": "枠。打つ欄と中立のボタン（$stroke）"
+        "$description": "表の見出しの下、モーダルとメニューの枠（$stroke）"
       },
       "strong": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            1.0,
-            1.0,
-            1.0
+            0.4353,
+            0.4902,
+            0.5137
           ],
-          "hex": "#ffffff",
-          "alpha": 0.16
+          "hex": "#6f7d83"
         },
-        "$description": "強い枠（$stroke-strong）"
+        "$description": "打つ欄と押すものの枠。本文の背景で 3:1 以上（$stroke-strong）"
       }
     },
     "feedback": {
@@ -186,13 +255,13 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.0941,
-              0.1216,
-              0.1294
+              0.102,
+              0.1294,
+              0.1412
             ],
-            "hex": "#181f21"
+            "hex": "#1a2124"
           },
-          "$description": "失敗を伝える箱の背景。不透明（$surface-info）"
+          "$description": "知らせの背景。不透明（$surface-info）"
         }
       },
       "warning": {
@@ -204,13 +273,13 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.1137,
+              0.1294,
               0.1255,
-              0.1137
+              0.102
             ],
-            "hex": "#1d201d"
+            "hex": "#21201a"
           },
-          "$description": "失敗を伝える箱の背景。不透明（$surface-warning）"
+          "$description": "知らせの背景。不透明（$surface-warning）"
         }
       },
       "danger": {
@@ -222,13 +291,13 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.1098,
+              0.1333,
               0.1137,
               0.1137
             ],
-            "hex": "#1c1d1d"
+            "hex": "#221d1d"
           },
-          "$description": "失敗を伝える箱の背景。不透明（$surface-danger）"
+          "$description": "知らせの背景。不透明（$surface-danger）"
         },
         "solid": {
           "$value": "{base.color.dangerSolid}",
@@ -252,13 +321,13 @@
           "$value": {
             "colorSpace": "srgb",
             "components": [
-              0.098,
-              0.1059,
-              0.1098
+              0.1255,
+              0.102,
+              0.1059
             ],
-            "hex": "#191b1c"
+            "hex": "#201a1b"
           },
-          "$description": "失敗を伝える箱の背景。不透明（$surface-fatal）"
+          "$description": "知らせの背景。不透明（$surface-fatal）"
         },
         "text": {
           "$value": "{base.color.fatalText}",
@@ -382,69 +451,76 @@
   },
   "radius": {
     "$type": "dimension",
-    "$description": "角丸。外のサーフェスほど大きく、内側は1段階以上小さい",
+    "$description": "角丸。平らな道具なので 0〜3px。モーダルだけ 3px",
+    "0": {
+      "$value": {
+        "value": 0,
+        "unit": "px"
+      },
+      "$description": "角を立てる。行、ペイン"
+    },
     "1": {
       "$value": {
         "value": 2,
         "unit": "px"
       },
-      "$description": "製品の $radius-1"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "2": {
       "$value": {
         "value": 4,
         "unit": "px"
       },
-      "$description": "製品の $radius-2"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "3": {
       "$value": {
         "value": 6,
         "unit": "px"
       },
-      "$description": "製品の $radius-3"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "4": {
       "$value": {
         "value": 8,
         "unit": "px"
       },
-      "$description": "製品の $radius-4"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "5": {
       "$value": {
         "value": 10,
         "unit": "px"
       },
-      "$description": "製品の $radius-5"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "6": {
       "$value": {
         "value": 12,
         "unit": "px"
       },
-      "$description": "製品の $radius-6"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "7": {
       "$value": {
         "value": 14,
         "unit": "px"
       },
-      "$description": "製品の $radius-7"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "8": {
       "$value": {
         "value": 16,
         "unit": "px"
       },
-      "$description": "製品の $radius-8"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "9": {
       "$value": {
         "value": 18,
         "unit": "px"
       },
-      "$description": "製品の $radius-9"
+      "$description": "段階。画面では使わず、役割の名前で選ぶ"
     },
     "pill": {
       "$value": {
@@ -454,19 +530,22 @@
       "$description": "進捗の棒、丸ボタン列"
     },
     "row": {
-      "$value": "{radius.1}",
-      "$description": "行（ツリー、一覧、メニューの項目）、バッジ、チップ"
+      "$value": "{radius.0}",
+      "$description": "行（ツリー、一覧、表、メニューの項目）"
     },
     "control": {
-      "$value": "{radius.2}",
+      "$value": "{radius.1}",
       "$description": "押す・打つもの"
     },
     "surface": {
-      "$value": "{radius.2}",
-      "$description": "ドック、カード、ポップオーバー、メニュー"
+      "$value": "{radius.1}",
+      "$description": "ポップオーバー、メニュー、付箋"
     },
     "modal": {
-      "$value": "{radius.3}",
+      "$value": {
+        "value": 3,
+        "unit": "px"
+      },
       "$description": "モーダル"
     }
   },
@@ -515,7 +594,7 @@
           "Courier New",
           "monospace"
         ],
-        "$description": "表の見出し、欄の名前、状態の注記"
+        "$description": "計る数（評価値・読みの量・手数・プリセットの数）と、ドックの見出し"
       }
     },
     "weight": {
@@ -740,18 +819,18 @@
             0.0
           ],
           "hex": "#000000",
-          "alpha": 0.45
+          "alpha": 0.6
         },
         "offsetX": {
           "value": 0,
           "unit": "px"
         },
         "offsetY": {
-          "value": 6,
+          "value": 12,
           "unit": "px"
         },
         "blur": {
-          "value": 16,
+          "value": 36,
           "unit": "px"
         },
         "spread": {
@@ -760,7 +839,7 @@
         },
         "inset": false
       },
-      "$description": "ポップオーバー・メニュー"
+      "$description": "ポップオーバー・メニュー・モーダル。影を落としてよいのは、これと盤・駒台だけ"
     },
     "press": {
       "$value": {

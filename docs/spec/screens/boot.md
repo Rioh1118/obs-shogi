@@ -30,19 +30,16 @@
 
 ### ウィンドウの初期色
 
-ウィンドウは `src-tauri/tauri.conf.json` の `backgroundColor` で `#3f4e4f`
-（`src/index.scss` の `$color-primary-light`）に塗られる。
+ウィンドウは `src-tauri/tauri.conf.json` の `backgroundColor` で
+`src/index.scss` の `$color-primary-dark` に塗られる（値は `tauri.conf.json` が持つ）。
 
 **この色は「画面」ではなく、まだ何も描いていない間の下地。** ウィンドウ枠は自前
 （`decorations: false`）でプロセス起動と同時に画面へ載るので、これを指定しないと
 webview の既定色（白）が出る。アプリの背景は暗いので、**起動のたびに白が1枚挟まる。**
 
-`$color-primary-light` を選ぶのは、ウィンドウの色が最初に接するのが常に `BootSplash` だから
-（`BootSplash` の背景と同じ）。`/app` へ抜けた後の `AppLayout` の背景とも同じ。
-
-**`FolderSelect` と起動エラーの背景は `$color-primary-dark` で、ここだけ一段階暗い。**
-つまりワークスペース未設定の初回起動では、ウィンドウ → `BootSplash` → `FolderSelect` で
-背景が1回変わる。画面のいちばん下の背景が2トークンに割れていることが原因 → #545
+`$color-primary-dark` を選ぶのは、ウィンドウの色が最初に接するのが常に `BootSplash` だから
+（`BootSplash` の背景と同じ）。`FolderSelect` と起動エラー、`/app` へ抜けた後の `AppLayout` とも同じなので、
+起動から作業画面まで背景が変わらない。
 
 **`visible: false` にして描けてから見せる、は採らない。** React が着く前に落ちると
 ウィンドウが一度も出ず、プロセスだけが残る（#513 の症状が悪化する）。
@@ -79,11 +76,12 @@ webview の既定色（白）が出る。アプリの背景は暗いので、**�
 
 ### FolderSelect
 
-- アプリ名（`Title`）
+- アイコンとアプリ名（`Title`）
 - 一文の案内: 「あなたの定跡を整理するノートアプリへようこそ」
 - `ChooseWorkspaceButton` —— OS のフォルダ選択ダイアログを開く
 
-この3つは塊のままウィンドウの縦横の中央に置く（起動エラーも同じコンテナ）。
+この3つは塊のままウィンドウの縦横の中央に置く（`StartScreen`。起動エラーも同じ部品）。
+大きさはウィンドウの短い辺から取る。
 
 選ばれたら `/app` へ `replace` で移る。
 `config.root_dir` がすでにある状態でこの画面がマウントされた場合も `/app` へ飛ばす。
@@ -92,7 +90,7 @@ webview の既定色（白）が出る。アプリの背景は暗いので、**�
 
 `AppLoading` が `error` を見て出す。中身は次の3つだけ。
 
-- タイトル
+- アイコンとアプリ名
 - `{error}`（`role="alert"`。失敗文の型の2文）
 - `ChooseWorkspaceButton`
 

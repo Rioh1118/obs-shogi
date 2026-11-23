@@ -1,15 +1,10 @@
 @use "@/index.scss" as index;
 
+// 棋譜の下いっぱいに4つ
 .game-controls {
-  display: flex;
-  width: clamp(44rem, 70%, 72rem);
-  margin: 0 auto;
-
-  display: flex;
-  overflow: hidden;
-  border-radius: 1.2rem;
-
-  background: rgba(index.$color-primary-black, 0.28);
-  border: 1px solid index.$stroke-weak;
-  box-shadow: index.$shadow-panel;
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid index.$stroke-weak;
+  background: index.$color-primary-black;
 }

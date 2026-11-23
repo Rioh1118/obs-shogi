@@ -7,11 +7,14 @@ export type DockViewBinding = {
   /** ドックの本体に出るもの */
   Body: ComponentType;
   /**
-   * タブ列の下の行に出る操作列。**他のビューの操作をここへ混ぜない。**
+   * タブと同じ行に出る操作列。**他のビューの操作をここへ混ぜない。**
    *
    * 混ぜると、そのビューを見ていない間も操作だけが残る。
+   * 箱を持たずに（`display: contents`）その行の列へ直に入る。列の名前は `Dock.scss` が持つ。
    */
   Controls: ComponentType;
+  /** 本体の添え書き。下の帯か、低いウィンドウではタブの行に出る。無いビューもある */
+  Meta?: ComponentType;
   /** 本体が落ちたときの名乗り。**ビューごとに別の綴りを選ぶこと** */
   boundary: BoundaryLabel;
   /** 境界が unmount したときに出す次の一手 */

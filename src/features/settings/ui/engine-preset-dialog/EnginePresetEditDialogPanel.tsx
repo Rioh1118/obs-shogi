@@ -4,9 +4,10 @@ import { multiPvMax } from "@/features/settings/lib/presetOptionValues";
 import { useAiRootIndex } from "@/features/settings/model/useAiRootIndex";
 import { usePresetDialog } from "@/features/settings/model/usePresetDialog";
 import { SField, SInput, SSection } from "@/features/settings/ui/kit";
+import Button from "@/shared/ui/Button/Button";
 import Modal from "@/shared/ui/Modal";
-import PresetDialogFooter from "./PresetDialogFooter";
-import PresetDialogHeader from "./PresetDialogHeader";
+import ModalFoot from "@/shared/ui/ModalFoot";
+import ModalHead from "@/shared/ui/ModalHead";
 import AnalysisSection from "./sections/AnalysisSection";
 import EngineSettingsSection from "./sections/EngineSettingsSection";
 import UsedFilesSection from "./sections/UsedFilesSection";
@@ -39,7 +40,11 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
       showCloseButton={true}
     >
       <div className="presetDialog">
-        <PresetDialogHeader title={title} />
+        <ModalHead
+          title={title}
+          description="保存時にプリセットが更新され、必要なら自動でエンジンが再起動されます。"
+          closable
+        />
 
         <div className="presetDialog__body">
           <SSection title="名前">
@@ -88,7 +93,12 @@ export default function EnginePresetEditDialogPanel({ presetId, onClose }: Props
           />
         </div>
 
-        <PresetDialogFooter onClose={onClose} onSave={dialog.save} saveDisabled={probing} />
+        <ModalFoot start="※ 編集中は保存されません。保存で確定します。">
+          <Button onClick={onClose}>キャンセル</Button>
+          <Button tone="primary" onClick={dialog.save} disabled={probing}>
+            保存
+          </Button>
+        </ModalFoot>
       </div>
     </Modal>
   );

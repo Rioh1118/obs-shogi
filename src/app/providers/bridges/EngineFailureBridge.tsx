@@ -73,7 +73,7 @@ export function EngineFailureBridge() {
   }, [slowStart, openSettings, notify, dismissByKey]);
 
   // 文は `engineFailureNoticeOf` が操作列のポップオーバーと共有し、動作はここで組む。
-  // 段階を抜けたら引っ込める。動いているエンジンの上に古い帯を残さない（帯はヘッダを覆う）
+  // 段階を抜けたら引っ込める。動いているエンジンの上に古い帯を残さない（帯は作業画面を押し下げて残る）
   useEffect(() => {
     if (!tier || !title || !body) return;
     if (error) console.error("[engine] 起動に失敗した", error.kind, error.message);
@@ -89,8 +89,8 @@ export function EngineFailureBridge() {
       tier,
       title,
       body,
-      // 帯はヘッダを覆うので、閉じる以外にやることが無い帯は出せない
-      //（`NotificationLayer.scss`）。「設定を開く」は全部に付ける
+      // 帯は動作を1つ以上持つ（`NotifyRequest` の banner。閉じる以外にやることが無いなら、
+      // 消えるトーストかインラインで足りる）。「設定を開く」は全部に付ける
       presentation: "banner",
       dismissKey: ENGINE_FAILURE,
       actions: retry ? [startAgainAction, openSettings] : [openSettings],

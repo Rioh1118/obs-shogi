@@ -1,17 +1,20 @@
+import { useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import { RuntimeProviders } from "../providers/RuntimeProviders";
 import { RequireRootDir } from "./guards/RequireRootDir";
 import TitleBar from "@/shared/ui/TitleBar";
+import { TitleBarSlotContext } from "@/shared/ui/titleBarSlot";
 import { AppErrorBoundary, BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import { ErrorFallbackBody, RETRY_LABEL } from "@/shared/ui/error-fallback/ErrorFallbackBody";
 
 export default function RuntimeShell() {
   const location = useLocation();
+  const [titleBarSlot, setTitleBarSlot] = useState<HTMLElement | null>(null);
 
   return (
     <RequireRootDir>
       <RuntimeProviders>
-        <TitleBar />
+        <TitleBar slotRef={setTitleBarSlot} />
         <div className="app-content">
           {/*
             境界は `TitleBar` より下に置く。盤・解析ペイン・ヘッダ・サイドバーは
@@ -39,7 +42,9 @@ export default function RuntimeShell() {
               />
             )}
           >
-            <Outlet />
+            <TitleBarSlotContext value={titleBarSlot}>
+              <Outlet />
+            </TitleBarSlotContext>
           </AppErrorBoundary>
         </div>
       </RuntimeProviders>

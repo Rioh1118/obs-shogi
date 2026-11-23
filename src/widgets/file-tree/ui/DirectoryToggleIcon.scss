@@ -1,17 +1,8 @@
 @use "@/index.scss" as index;
 
-.chevron {
-  display: inline-block;
-  font-size: 1.8rem;
-  cursor: pointer;
-  user-select: none;
-  transition: transform 0.15 ease;
-  color: index.$color-text-light-1;
-  margin-right: 0.5rem;
-  &--expanded {
-    transform: translateY(10%) rotate(90deg);
-  }
-  &--collapsed {
-    transform: rotate(0);
-  }
+.node-toggle {
+  flex: none;
+  display: inline-flex;
+  width: 1.6rem;
+  color: index.$color-text-faint;
 }

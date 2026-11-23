@@ -1,114 +1,81 @@
-@use "sass:math";
-@use "./handGeometry.scss" as hand;
+@use "@/index.scss" as index;
 
-@function hand-w-unit() {
-  // 20rem -> 20（unitless）。1rem は単位を落とすための除数で、意匠の寸法ではない
-  @return math.div(hand.$hand-w, 1rem); // scale-exempt
+// 大きさは `GameBoard.scss` の `--bw`（盤の幅）から取る。段は盤のマスと同じ高さなので、
+// 1段に入る間は、持ち駒が盤の駒と同じ大きさになる
+.hand-container {
+  --hand-pad: calc(var(--bw) * 0.018);
+
+  width: var(--hand-w);
+  height: calc(var(--cell) * 4 + 2 * var(--hand-pad));
+  padding: var(--hand-pad);
+  position: relative;
+
+  display: grid;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+
+  background-image: url("/src/assets/hand.png");
+  background-size: cover;
+  background-position: center;
+  box-shadow: index.$shadow-board;
+  user-select: none;
 }
 
-.hand-container {
-  width: 100%;
-  height: 100%;
+.hand-row {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 
-  font-size: calc(100cqw / #{hand-w-unit()});
-  background-image: url("/src/assets/hand.png");
-  background-size: 100% 100%;
+  .hand-container--grouped & {
+    justify-content: flex-start;
+  }
+}
+
+// 1枚か、種類ごとの1枚と枚数
+.hand-stack {
+  min-width: 0;
+  flex: 0 1 calc(var(--cell) * 0.9);
+  display: flex;
+  align-items: center;
+
+  .hand-container--grouped & {
+    flex: 0 0 50%;
+  }
+
+  &__count {
+    min-width: 1.2em;
+    font-size: index.$font-lead;
+    font-weight: index.$weight-strong;
+    line-height: 1;
+    color: index.$color-text-strong;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.hand-piece {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--cell);
   position: relative;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  border-radius: 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 
-  .hand-pieces {
-    position: absolute;
-    inset: 0.5em;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-evenly; // 4段を均等配置
+  .hand-container--grouped & {
+    flex: none;
+    width: calc(var(--cell) * 0.86);
   }
 
-  .hand-row {
-    display: flex;
-    flex-wrap: nowrap; // 折り返し禁止で強制1行
-    align-items: center;
-    min-height: 4em;
-    max-height: 5em;
-
-    // justifyContentとgapはJSで動的設定
+  // 隣の駒に隠れないように上げる
+  &:hover,
+  &--selected {
+    z-index: 10;
   }
 
-  .hand-piece {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    position: relative;
-    flex-shrink: 0; // サイズ維持
-
-    // ユーザー選択を無効化
-    user-select: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-
-    &.hand-piece--selected {
-      transform: translateY(-1px) scale(1.35);
-      z-index: 12;
-      filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
-      &:hover {
-        transform: translateY(-1px) scale(1.35);
-        z-index: 12;
-        filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.18));
-      }
-    }
-
-    .piece {
-      width: 100%;
-      height: 100%;
-
-      // 既存のpiece設定を継承
-      &__king .piece-image {
-        width: 95%;
-        height: 95%;
-      }
-      &__bishop .piece-image,
-      &__horse .piece-image,
-      &__rook .piece-image,
-      &__dragon .piece-image {
-        width: 90%;
-        height: 100%;
-      }
-      &__pawn .piece-image,
-      &__prom-pawn .piece-image {
-        width: 75%;
-        height: 100%;
-      }
-      &__silver .piece-image,
-      &__prom-silver .piece-image {
-        width: 90%;
-        height: 95%;
-      }
-      &__gold .piece-image {
-        width: 87%;
-        height: 95%;
-      }
-      &__knight .piece-image,
-      &__lance .piece-image,
-      &__prom-knight .piece-image,
-      &__prom-lance .piece-image {
-        width: 82%;
-        height: 95%;
-      }
-    }
-
-    &:hover {
-      transform: scale(1.04);
-      z-index: 10;
-      transition:
-        transform 0.1s ease,
-        filter 0.1s ease;
-
-      .piece {
-        filter: brightness(1.1);
-      }
-    }
+  &--selected {
+    transform: translateY(-1px) scale(1.2);
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
   }
 }

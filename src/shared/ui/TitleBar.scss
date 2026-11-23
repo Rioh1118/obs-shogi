@@ -3,21 +3,35 @@
 .titlebar {
   height: index.$titlebar-height;
   background: index.$surface-titlebar;
-  backdrop-filter: blur(0.1rem);
+  border-bottom: 1px solid index.$stroke-weak;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0 index.$space-6;
+  padding: 0 index.$space-5 0 index.$space-6;
   user-select: none;
   flex-shrink: 0;
   // `.app-root` の flex item なので、position を持たなくても z-index が効く。
   // 最前面ではない。body へ portal される棋譜のポップオーバー（100000 / 100001）は上に出る
   z-index: index.$z-titlebar;
-  box-shadow: 0 0.1rem 0.4rem rgba(0, 0, 0, 0.2);
+
+  &__slot {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+  }
+
+  // モーダルが開いている間は、見出しの操作を受けない。帯はモーダルの覆いの外にあるので、
+  // 受けると別のモーダルへ差し替わり、書きかけが消える
+  body:has([aria-modal="true"]) &__slot {
+    pointer-events: none;
+    opacity: 0.45;
+  }
 
   &__buttons {
     display: flex;
-    gap: 0.6rem;
+    flex: none;
+    gap: index.$space-4;
 
     button {
       width: index.$window-button-size;

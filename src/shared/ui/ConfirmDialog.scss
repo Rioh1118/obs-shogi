@@ -3,21 +3,24 @@
 .confirm-dialog {
   display: flex;
   flex-direction: column;
-  gap: index.$space-3;
-  padding: index.$space-10 index.$space-12;
+  gap: index.$space-4;
+  padding: index.$space-10 index.$space-11 index.$space-9;
+
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
   &__title {
     margin: 0;
-    font-size: index.$font-body;
-    font-weight: index.$weight-strong;
-    color: index.$color-text-light-1;
-    word-break: break-word;
+    font-size: index.$font-section;
+    font-weight: index.$weight-title;
+    color: index.$color-text-strong;
+    overflow-wrap: anywhere;
   }
 
   &__sub {
     margin: 0;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-light-1, 0.55);
+    font-size: index.$font-body;
+    color: index.$color-text-muted;
   }
 
   // 失敗を確認文と同じ段落に足さない。押した直後に注意が向いているのはボタンで、
@@ -32,8 +35,8 @@
     font-size: index.$font-aux;
 
     &:not(:empty) {
-      padding: index.$space-2 index.$space-3;
-      border-radius: index.$radius-3;
+      padding: index.$space-4 index.$space-5;
+      border-radius: index.$radius-surface;
     }
   }
 

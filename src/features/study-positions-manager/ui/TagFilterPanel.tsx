@@ -55,12 +55,12 @@ export default function TagFilterPanel({
         </button>
       </div>
 
-      <div className="tag-panel__search">
-        <Search size={14} className="tag-panel__searchIcon" />
+      <div className="sp-manager__searchBox">
+        <Search size={14} className="sp-manager__searchIcon" aria-hidden="true" />
         <input
           ref={inputRef}
           type="text"
-          className="tag-panel__input"
+          className="sp-manager__searchInput"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="タグを検索"

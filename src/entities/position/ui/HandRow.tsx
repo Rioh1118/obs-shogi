@@ -29,11 +29,7 @@ function HandRow({ label, kinds }: Props) {
           ordered.map((kind) => {
             const n = counts.get(kind) ?? 0;
             const text = n >= 2 ? `${toKan(kind)}×${n}` : `${toKan(kind)}`;
-            return (
-              <span key={`${label}-${kind}`} className="position-preview__hand-chip">
-                {text}
-              </span>
-            );
+            return <span key={`${label}-${kind}`}>{text}</span>;
           })
         ) : (
           <span className="position-preview__hand-empty">なし</span>

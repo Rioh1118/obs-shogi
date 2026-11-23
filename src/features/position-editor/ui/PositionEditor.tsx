@@ -285,13 +285,11 @@ function PositionEditor({
         外すと、ファイル名も先手名もタグも、一覧を覗いて戻っただけで消える
       */}
       {onStudyFace && (
-        <div className="pos-editor__main">
-          <EditorStudyPicker
-            positions={studyPositions}
-            onPick={pickStudyPosition}
-            onBack={() => onFaceChange("board")}
-          />
-        </div>
+        <EditorStudyPicker
+          positions={studyPositions}
+          onPick={pickStudyPosition}
+          onBack={() => onFaceChange("board")}
+        />
       )}
       {/*
         作成中は組む側を止める。**止まっていることを見せて止める** ——
@@ -310,9 +308,7 @@ function PositionEditor({
         />
 
         <div className="pos-editor__position">
-          <EditorTurn color={state.color} onToggle={toggleTurn} />
-
-          <div className="pos-editor__stand-slot pos-editor__stand-slot--gote">
+          <div className="pos-editor__table">
             <EditorStand
               state={state}
               color={Color.White}
@@ -320,17 +316,16 @@ function PositionEditor({
               hovered={hovered}
               onPressStand={pressStand}
             />
-          </div>
-          <EditorBoard
-            state={state}
-            held={held}
-            hovered={hovered}
-            illegalSquares={inspection.illegalSquares}
-            onPressSquare={pressSquare}
-            onFlipSquare={flipSquare}
-            onHoverSquare={setHovered}
-          />
-          <div className="pos-editor__stand-slot pos-editor__stand-slot--sente">
+            <EditorTurn color={state.color} onToggle={toggleTurn} />
+            <EditorBoard
+              state={state}
+              held={held}
+              hovered={hovered}
+              illegalSquares={inspection.illegalSquares}
+              onPressSquare={pressSquare}
+              onFlipSquare={flipSquare}
+              onHoverSquare={setHovered}
+            />
             <EditorStand
               state={state}
               color={Color.Black}

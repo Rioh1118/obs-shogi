@@ -38,12 +38,16 @@ vi.mock("@/entities/app-config", () => ({
 const { default: Dock } = await import("../Dock");
 
 /** 落ちる部品。テストごとに1つだけ真にする */
-const throwing = { book: false, bookControls: false };
+const throwing = { book: false, bookControls: false, analysisMeta: false };
 
 const VIEWS = {
   analysis: {
     Body: () => <div data-testid="analysis-body" />,
     Controls: () => <div data-testid="analysis-controls" />,
+    Meta: () => {
+      if (throwing.analysisMeta) throw new Error("検討の添え書きの中で落ちた");
+      return <div data-testid="analysis-meta" />;
+    },
     boundary: BOUNDARY_LABELS.analysis,
     fallbackHint: "検討の案内",
   },
@@ -76,6 +80,7 @@ beforeEach(() => {
   config.setDisplayConfig.mockClear();
   throwing.book = false;
   throwing.bookControls = false;
+  throwing.analysisMeta = false;
 });
 
 afterEach(() => {
@@ -112,6 +117,15 @@ describe("ドックのタブ", () => {
 
     expect(screen.getByTestId("book-controls")).toBeTruthy();
     expect(screen.queryByTestId("analysis-controls")).toBeNull();
+  });
+
+  test("添え書きは、持っているビューを見ているときだけ出る", () => {
+    const { container } = mount();
+    expect(screen.getByTestId("analysis-meta")).toBeTruthy();
+
+    fireEvent.click(tab("定跡"));
+
+    expect(container.querySelector(".dock__meta")).toBeNull();
   });
 
   // (Tx, D1) —— リロードで戻る道は URL が持つ
@@ -168,6 +182,15 @@ describe("ドックのタブ", () => {
     mount("/app?dock=book");
 
     expect(screen.getByText("棋譜一覧を表示できませんでした。")).toBeTruthy();
+    expect(screen.getByRole("tablist")).toBeTruthy();
+  });
+
+  test("添え書きが落ちても、unmount されるのはドックの中だけで、タブ列は残る", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    throwing.analysisMeta = true;
+    mount();
+
+    expect(screen.getByText("検討を表示できませんでした。")).toBeTruthy();
     expect(screen.getByRole("tablist")).toBeTruthy();
   });
 
@@ -257,6 +280,28 @@ describe("ドックのタブの細部", () => {
 
     expect(notPrevented).toBe(false);
     expect(document.activeElement).toBe(tab("定跡"));
+  });
+
+  /** 残すと、続けて押した矢印が棋譜でなくタブを動かす */
+  test("マウスで押したタブには、フォーカスを残さない", () => {
+    mount();
+
+    const focused = fireEvent.mouseDown(tab("定跡"));
+    fireEvent.click(tab("定跡"));
+
+    expect(focused).toBe(false);
+    expect(tab("定跡").getAttribute("aria-selected")).toBe("true");
+  });
+
+  /** 止めると、移る先が無いのに、棋譜を動かす矢印まで消える */
+  test("タブが1枚なら、矢印の既定の動きを止めない", () => {
+    config.current = { dock_tabs: ["analysis"], dock_tabs_known: ["analysis", "book"] };
+    mount();
+
+    const notPrevented = fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+
+    expect(notPrevented).toBe(true);
+    expect(tab("検討").getAttribute("aria-selected")).toBe("true");
   });
 
   /** 止めると、Tab でタブ列から出られなくなる */

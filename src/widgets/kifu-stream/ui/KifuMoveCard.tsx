@@ -1,12 +1,4 @@
-import {
-  memo,
-  useCallback,
-  useId,
-  useMemo,
-  type KeyboardEvent,
-  type MouseEvent,
-  type RefObject,
-} from "react";
+import { memo, useCallback, useId, useMemo, type MouseEvent, type RefObject } from "react";
 import { GitBranch, MessageSquare } from "lucide-react";
 import "./KifuMoveCard.scss";
 import KifuForkMenu from "./KifuForkMenu";
@@ -42,6 +34,12 @@ type Props = {
   onDeleteBranch: (te: number, branchForkPointers: ForkPointer[], branchIndex: BranchIndex) => void;
 };
 
+/** 同じ手数で選べる、いま降りていない手。行の余りに出す */
+function otherMoves(row: StreamRow): string[] {
+  if (row.selectedForkIndex === null) return row.forkTexts;
+  return [row.mainText, ...row.forkTexts.filter((_, i) => i !== row.selectedForkIndex)];
+}
+
 function sideLabel(side: StreamRow["side"]) {
   if (side === "sente") return "先手";
   if (side === "gote") return "後手";
@@ -65,30 +63,20 @@ const KifuMoveCard = memo(function KifuMoveCard({
   onDeleteBranch,
 }: Props) {
   const hasFork = row.forkCount > 0 && row.te !== 0;
+  const others = hasFork ? otherMoves(row) : [];
+  const hasComment = row.commentCount > 0;
+  const firstLine = row.comment.split("\n")[0];
 
   const rowClass = useMemo(() => {
-    return [
-      "kifu-row",
-      row.isActive ? "kifu-row--active" : "",
-      busy ? "kifu-row--busy" : "",
-      row.selectedForkIndex != null ? "kifu-row--forked" : "",
-    ]
+    return ["kifu-row", row.isActive ? "kifu-row--active" : "", busy ? "kifu-row--busy" : ""]
       .filter(Boolean)
       .join(" ");
-  }, [row.isActive, row.selectedForkIndex, busy]);
+  }, [row.isActive, busy]);
 
   const menuId = useId();
 
-  const onRowKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (busy) return;
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        onClickRow(row.te);
-      }
-    },
-    [busy, onClickRow, row.te],
-  );
+  // Tab で辿るボタンは、いまの手の行のものだけ
+  const tabIndex = row.isActive ? 0 : -1;
 
   const onClickForkToggle = useCallback(
     (e: MouseEvent<HTMLButtonElement>) => {
@@ -119,7 +107,7 @@ const KifuMoveCard = memo(function KifuMoveCard({
   const ariaLabel =
     row.te === 0 ? "開始局面" : `${row.te}手目、${sideLabel(row.side)}、${row.text}`;
 
-  const commentTitle = row.commentCount > 0 ? "コメントを開く" : "コメントを追加";
+  const commentTitle = hasComment ? "コメントを開く" : "コメントを追加";
 
   const handleContextMenu = (e: MouseEvent<HTMLElement>) => {
     e.preventDefault();
@@ -132,59 +120,82 @@ const KifuMoveCard = memo(function KifuMoveCard({
     <div
       id={kifuRowId(row.te)}
       className={rowClass}
+      role="row"
+      aria-selected={row.isActive}
       onClick={() => !busy && onClickRow(row.te)}
-      onKeyDown={onRowKeyDown}
       onContextMenu={handleContextMenu}
-      tabIndex={-1}
       title={row.te === 0 ? "開始局面へ" : `${row.te}手目へ`}
     >
-      <div className="kifu-row__num">{row.te === 0 ? "" : row.te}</div>
+      <div className="kifu-row__num" role="gridcell">
+        {row.te === 0 ? "" : row.te}
+      </div>
 
-      <div className="kifu-row__move" aria-label={ariaLabel}>
+      <div className="kifu-row__move" role="gridcell" aria-label={ariaLabel}>
         {row.text}
       </div>
 
-      <div className="kifu-row__badges" onClick={(e) => e.stopPropagation()}>
+      <div className="kifu-row__extra" role="gridcell">
         {hasFork && (
           <button
             type="button"
-            className={["kifu-badge", "kifu-badge--btn", isForkMenuOpen ? "kifu-badge--active" : ""]
-              .filter(Boolean)
-              .join(" ")}
+            className={`kifu-row__fork ${isForkMenuOpen ? "kifu-row__fork--open" : ""}`}
             onClick={onClickForkToggle}
             disabled={busy}
+            tabIndex={tabIndex}
             aria-haspopup="menu"
             aria-expanded={isForkMenuOpen}
             aria-controls={isForkMenuOpen ? menuId : undefined}
+            aria-label={`分岐を選択（${row.forkCount}）`}
             title="分岐を選択"
           >
-            <GitBranch className="kifu-badge__icon" size={14} />
-            <span className="kifu-badge__count">{row.forkCount}</span>
-            {row.selectedForkIndex != null && (
-              <span className="kifu-badge__sub">{row.selectedForkIndex + 1}</span>
-            )}
+            <GitBranch className="kifu-row__icon" size={12} aria-hidden="true" />
+            <span className="kifu-row__count">
+              {row.selectedForkIndex === null
+                ? row.forkCount
+                : `${row.selectedForkIndex + 1}/${row.forkCount}`}
+            </span>
+            <span className="kifu-row__others" title={others.join(" ")}>
+              {others.map((move, i) => (
+                <span key={i}>{move} </span>
+              ))}
+            </span>
           </button>
+        )}
+
+        {/* 書いてあることを、押さなくても1行目で示す。いまの手は下に3行まで出す（`kifu-row__memo`） */}
+        {hasComment && !row.isActive && (
+          <span className="kifu-row__firstLine" title={row.comment}>
+            {firstLine}
+          </span>
         )}
 
         <button
           type="button"
           className={[
-            "kifu-badge",
-            "kifu-badge--btn",
-            "kifu-badge--comment",
-            isCommentOpen ? "kifu-badge--active" : "",
+            "kifu-row__comment",
+            hasComment ? "kifu-row__comment--written" : "",
+            isCommentOpen ? "kifu-row__comment--open" : "",
           ]
             .filter(Boolean)
             .join(" ")}
           onClick={onClickComment}
           disabled={busy}
+          tabIndex={tabIndex}
           aria-pressed={isCommentOpen}
+          aria-label={hasComment ? `${commentTitle}（${row.commentCount}）` : commentTitle}
           title={commentTitle}
         >
-          <MessageSquare className="kifu-badge__icon" size={14} />
-          {row.commentCount > 0 && <span className="kifu-badge__count">{row.commentCount}</span>}
+          <MessageSquare className="kifu-row__icon" size={13} aria-hidden="true" />
+          {hasComment && <span className="kifu-row__count">{row.commentCount}</span>}
         </button>
       </div>
+
+      {/* いまの手のコメントは、押さなくても読める */}
+      {row.isActive && hasComment && (
+        <div className="kifu-row__memo" role="gridcell">
+          {row.comment}
+        </div>
+      )}
 
       {hasFork && isForkMenuOpen && openForkAnchorEl && (
         <KifuForkMenu

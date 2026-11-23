@@ -64,7 +64,7 @@ export default function AnalysisSection({
               : `初期値 ${multiPvDefault ?? "—"}。増やすと 1 手あたりの読みは浅くなります`
           }
         >
-          <div className="presetDialog__inputRow">
+          <div className="presetDialog__segRow">
             <div className="presetDialog__seg" role="group" aria-label="候補手の数">
               {quick.map((n) => (
                 <button

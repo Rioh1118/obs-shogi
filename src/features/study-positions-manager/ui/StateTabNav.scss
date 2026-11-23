@@ -1,55 +1,30 @@
 @use "@/index.scss" as index;
 
+// 見ているタブは、一段明るい塗りと銅の下線（ドックのタブと同じ）
 .state-tab-nav {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  border-bottom: 1px solid index.$stroke-weak;
+  background: index.$color-primary-dark;
 
   &__tab {
+    @include index.tab;
+    min-height: 3.4rem;
+    padding: 0 index.$space-5;
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.55rem 1rem;
-    border-radius: 0.6rem;
-    border: 1px solid transparent;
-    background: transparent;
-    color: rgba(index.$color-text-light-1, 0.6);
-    font-size: 1.25rem;
-    font-weight: index.$weight-medium;
-    font-family: inherit;
-    cursor: pointer;
-    user-select: none;
-    transition:
-      background-color 100ms ease,
-      color 100ms ease,
-      border-color 100ms ease;
-
-    &:hover:not(&--active) {
-      background: rgba(index.$color-white, 0.04);
-      color: rgba(index.$color-text-light-1, 0.8);
-    }
+    gap: index.$space-3;
+    font-size: index.$font-aux;
 
     &--active {
-      background: rgba(index.$color-secondary-dark, 0.2);
-      border-color: rgba(index.$color-secondary-dark, 0.35);
-      color: index.$color-text-light-1;
-      font-weight: index.$weight-strong;
-    }
-
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: 1px;
+      @include index.tab-on;
     }
   }
 
   &__count {
-    font-size: 1.1rem;
+    font-size: index.$font-hint;
     font-weight: index.$weight-regular;
-    opacity: 0.55;
     font-variant-numeric: tabular-nums;
-  }
-
-  &__tab--active &__count {
-    opacity: 0.75;
   }
 }

@@ -2,9 +2,7 @@ import FolderSelect from "./FolderSelect";
 import { Navigate, useNavigate } from "react-router";
 import { useAppConfig } from "@/entities/app-config";
 import BootSplash from "@/widgets/boot-splash/ui/BootSplash";
-import Title from "@/shared/ui/Title";
-import ChooseWorkspaceButton from "@/features/choose-workspace/ui/ChooseWorkspaceButton";
-import "./FolderSelect.scss";
+import StartScreen from "./StartScreen";
 
 function AppLoading() {
   const { config, isLoading, error } = useAppConfig();
@@ -18,17 +16,8 @@ function AppLoading() {
     // **`FolderSelect` は置けない。** あちらは `config.root_dir` があれば `/app` へ
     // 飛ぶが、`error` が立っている間は `RequireRootDir` が `/` へ戻すので往復が
     // 止まらない。`error` は `config` を残すので、この組み合わせは実際に起きる。
-    //
-    // コンテナ（`.container`）も自分で持つ。外に置くと背景も文字色も継げず、
-    // この1行だけが UA まかせの色で暗い背景の上に出る
     return (
-      <div className="container">
-        <Title />
-        <p className="guide--text" role="alert">
-          {error}
-        </p>
-        <ChooseWorkspaceButton onChosen={() => navigate("/app", { replace: true })} />
-      </div>
+      <StartScreen message={error} isError onChosen={() => navigate("/app", { replace: true })} />
     );
   }
 

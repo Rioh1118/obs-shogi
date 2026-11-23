@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
+import ModalFoot from "@/shared/ui/ModalFoot";
+import ModalHead from "@/shared/ui/ModalHead";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useGame } from "@/entities/game";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
@@ -161,7 +163,7 @@ export default function StudyPositionSaveModal() {
 
   if (!isOpen) return null;
 
-  const saveLabel = isSaving ? "保存中…" : isEdit ? "保存する" : "保存";
+  const saveLabel = isSaving ? "保存中…" : "保存";
 
   return (
     <Modal
@@ -175,21 +177,20 @@ export default function StudyPositionSaveModal() {
       showCloseButton
     >
       <div className="sp-save" onKeyDown={handleKeyDown}>
-        <header className="sp-save__header">
-          <h2 className="sp-save__title">{isEdit ? "課題局面を編集" : "局面を保存"}</h2>
-          {isEdit && <p className="sp-save__subtitle">{"この局面はすでに保存されています"}</p>}
-        </header>
+        <ModalHead
+          title={isEdit ? "課題局面を編集" : "局面を保存"}
+          description={isEdit && "この局面はすでに保存されています"}
+          closable
+        />
 
         <div className="sp-save__body">
           <aside className="sp-save__left">
+            <p className="sp-save__context">
+              {tesuu !== null && <span>{`${tesuu}手目`}</span>}
+              {fileName && <span>{fileName}</span>}
+            </p>
             <div className="sp-save__preview">
               <PositionPreviewPane previewData={previewData} />
-            </div>
-            <div className="sp-save__context">
-              {tesuu !== null && <span className="sp-save__contextItem">{`${tesuu}手目`}</span>}
-              {fileName && (
-                <span className="sp-save__contextItem sp-save__contextItem--file">{fileName}</span>
-              )}
             </div>
           </aside>
 
@@ -206,12 +207,14 @@ export default function StudyPositionSaveModal() {
             </div>
 
             <div className="sp-save__field">
-              <label className="sp-save__label">{"研究状態"}</label>
-              <StudyPositionStateSegment
-                value={studyState}
-                onChange={setStudyState}
-                disabled={isSaving}
-              />
+              <span className="form__label">{"研究状態"}</span>
+              <div>
+                <StudyPositionStateSegment
+                  value={studyState}
+                  onChange={setStudyState}
+                  disabled={isSaving}
+                />
+              </div>
             </div>
 
             <div className="sp-save__field">
@@ -222,7 +225,6 @@ export default function StudyPositionSaveModal() {
                 onChange={setTags}
                 placeholder="戦法や戦型を入力…"
                 disabled={isSaving}
-                variant="compact"
               />
             </div>
 
@@ -240,25 +242,28 @@ export default function StudyPositionSaveModal() {
           </div>
         </div>
 
-        {errorMsg && <div className="sp-save__error">{errorMsg}</div>}
+        {errorMsg && (
+          <p className="sp-save__error" role="alert">
+            {errorMsg}
+          </p>
+        )}
 
-        <footer className="sp-save__footer">
-          <div className="sp-save__footerLeft">
-            {isEdit && (
+        <ModalFoot
+          start={
+            isEdit && (
               <Button tone="danger" onClick={() => setConfirmDelete(true)} disabled={isSaving}>
                 {"削除"}
               </Button>
-            )}
-          </div>
-          <div className="sp-save__footerRight">
-            <Button onClick={() => closeModal()} disabled={isSaving}>
-              {"キャンセル"}
-            </Button>
-            <Button tone="primary" onClick={handleSave} disabled={!sfen || isSaving}>
-              {saveLabel}
-            </Button>
-          </div>
-        </footer>
+            )
+          }
+        >
+          <Button onClick={() => closeModal()} disabled={isSaving}>
+            {"キャンセル"}
+          </Button>
+          <Button tone="primary" onClick={handleSave} disabled={!sfen || isSaving}>
+            {saveLabel}
+          </Button>
+        </ModalFoot>
 
         {confirmDelete && existing && (
           <ConfirmDialog

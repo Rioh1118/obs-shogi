@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { X, Plus, Tag, Hash } from "lucide-react";
+import { X, Plus, Tag } from "lucide-react";
 import "./TagsInput.scss";
 
 type TagsInputProps = {
@@ -10,7 +10,6 @@ type TagsInputProps = {
   placeholder?: string;
   maxTags?: number;
   disabled?: boolean;
-  variant?: "default" | "compact";
 };
 
 export function TagsInput({
@@ -21,7 +20,6 @@ export function TagsInput({
   placeholder = "戦法や戦型を入力…",
   maxTags = 10,
   disabled = false,
-  variant = "default",
 }: TagsInputProps) {
   const [inputValue, setInputValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -100,30 +98,22 @@ export function TagsInput({
     }
   };
 
-  const containerClasses = [
-    "tags-input",
-    variant === "compact" && "tags-input--compact",
-    isFocused && "tags-input--focused",
-    disabled && "tags-input--disabled",
-    tags.length >= maxTags && "tags-input--max",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
     <div className="tags-input-wrapper">
       <label htmlFor={id} className="tags-input__label">
-        <Tag size={16} className="tags-input__label-icon" />
+        <Tag size={14} aria-hidden="true" />
         {label}
         {tags.length > 0 && (
           <span className="tags-input__count">
-            <Hash size={12} />
             {tags.length}/{maxTags}
           </span>
         )}
       </label>
 
-      <div className={containerClasses} onClick={handleContainerClick}>
+      <div
+        className={`tags-input ${isFocused ? "tags-input--focused" : ""}`}
+        onClick={handleContainerClick}
+      >
         <div className="tags-input__content">
           {tags.length > 0 && (
             <div className="tags-input__tags">
@@ -173,9 +163,7 @@ export function TagsInput({
         </div>
       </div>
 
-      <div className="tags-input__help">
-        <span>Enter</span>や<span>カンマ</span>で区切って複数追加可能
-      </div>
+      <div className="tags-input__help">Enterやカンマで区切って複数追加可能</div>
     </div>
   );
 }

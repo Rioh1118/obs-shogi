@@ -1,9 +1,8 @@
+@use "@/index.scss" as index;
 @use "@/entities/position/ui/shogiBoardGeometry" as geo;
 
 .board-container {
   width: 100%;
-  max-width: geo.$board-max-w;
-  height: auto;
   aspect-ratio: #{geo.board-aspect()};
 
   position: relative;
@@ -14,8 +13,7 @@
   background-repeat: no-repeat;
   background-position: center;
 
-  border-radius: 0.2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: index.$shadow-board;
   user-select: none;
 }
 
@@ -24,7 +22,7 @@
 
   inset: #{geo.inset-y-pct()} #{geo.inset-x-pct()};
 
-  border: geo.$position-border solid #000;
+  border: geo.$position-border solid geo.$line-color;
 
   &__grid {
     width: 100%;
@@ -36,8 +34,8 @@
 }
 
 .square {
-  border-right: geo.$square-line solid #000;
-  border-bottom: geo.$square-line solid #000;
+  border-right: geo.$square-line solid rgba(geo.$line-color, 0.8);
+  border-bottom: geo.$square-line solid rgba(geo.$line-color, 0.8);
 
   &:nth-child(9n) {
     border-right: none;

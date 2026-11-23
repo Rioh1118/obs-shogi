@@ -1,0 +1,53 @@
+@use "@/index.scss" as index;
+
+// 畳める節どうしは詰める。1つの話の続きなので
+.sui-section + .sui-fold {
+  padding-top: index.$space-2;
+}
+
+.sui-fold + .sui-fold {
+  margin-top: index.$space-2;
+}
+
+.sui-fold__head {
+  margin: 0;
+}
+
+.sui-fold__button {
+  width: 100%;
+  min-height: 3.6rem;
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  gap: index.$space-5;
+
+  border: 0;
+  border-radius: index.$radius-row;
+  background: index.$color-primary-dark;
+  color: index.$color-text-muted;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: index.$surface-hover;
+  }
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
+  }
+}
+
+.sui-fold__title {
+  flex: none;
+  font-size: index.$font-lead;
+  font-weight: index.$weight-strong;
+  color: index.$color-text-strong;
+}
+
+.sui-fold__desc {
+  min-width: 0;
+  font-size: index.$font-aux;
+  font-weight: index.$weight-regular;
+}

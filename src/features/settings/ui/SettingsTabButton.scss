@@ -1,107 +1,44 @@
 @use "@/index.scss" as index;
 
-$border: rgba(index.$color-white, 0.08);
-$border-weak: rgba(index.$color-white, 0.06);
+.stab {
+  width: 100%;
+  min-height: 3.2rem;
+  padding: 0 index.$space-7 0 index.$space-10;
 
-$hover-bg: rgba(index.$color-primary-light, 0.14);
-$hover-border: rgba(index.$color-white, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: index.$space-4;
 
-$active-bg: rgba(index.$color-primary-light, 0.18);
-$active-border: rgba(index.$color-secondary-dark, 0.42);
+  border: 0;
+  border-radius: index.$radius-row;
+  background: index.$color-primary-dark;
+  color: index.$color-text-muted;
+  font-size: index.$font-body;
+  text-align: left;
+  cursor: pointer;
 
-$text-strong: rgba(index.$color-text-light-1, 0.92);
-$text-muted: rgba(index.$color-text-light-1, 0.68);
-
-$accent: index.$color-secondary-dark;
-$focus: index.$focus-ring;
-
-.settings {
-  .stab {
-    width: 100%;
-    text-align: left;
-
-    border: 1px solid transparent;
-    background: transparent;
-    color: inherit;
-
-    border-radius: index.$radius-2;
-    padding: 12px 12px;
-    cursor: pointer;
-
-    display: grid;
-    gap: 6px;
-
-    // “ボタン感”を控えめに、でも上質に
-    box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
-
-    transition:
-      background 140ms ease,
-      border-color 140ms ease,
-      transform 120ms ease,
-      box-shadow 140ms ease;
-
-    position: relative;
-
-    &:hover {
-      background: $hover-bg;
-      border-color: $hover-border;
-    }
-
-    &:active {
-      transform: translateY(1px);
-      box-shadow: index.$shadow-press;
-    }
-
-    &:focus-visible {
-      outline: 2px solid $focus;
-      outline-offset: 2px;
-    }
+  &:hover {
+    background: index.$surface-hover;
+    color: index.$color-text-strong;
   }
 
-  .stab--active {
-    background: $active-bg;
-    border-color: $active-border;
-
-    // アクティブの “Warp縦ライン”
-    &::before {
-      content: "";
-      position: absolute;
-      left: 8px;
-      top: 10px;
-      bottom: 10px;
-      width: 3px;
-      border-radius: 99px;
-      background: linear-gradient(180deg, rgba($accent, 0.95), rgba($accent, 0.35));
-      box-shadow: 0 0 0 1px rgba(index.$color-white, 0.05);
-    }
-
-    // ライン分だけ内側を気持ち右に
-    padding-left: 16px;
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
   }
 
-  .stab__row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-width: 0;
+  // 選んだもの。灰青の塗りと太字（design-system の patterns/selection.md）
+  &--active,
+  &--active:hover {
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
+    font-weight: index.$weight-strong;
   }
 
-  .stab__label {
-    font-weight: index.$weight-title;
-    letter-spacing: 0.2px;
-    font-size: 1.3rem;
-    color: $text-strong;
-
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .stab__right {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    flex-shrink: 0;
+  &__needs {
+    flex: none;
+    display: inline-flex;
+    color: index.$color-warning;
   }
 }

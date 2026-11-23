@@ -142,6 +142,104 @@
         "color.background.stage"
       ],
       "kind": "non-text"
+    },
+    {
+      "fg": [
+        "color.text.strong",
+        "color.text.default",
+        "color.text.subtle",
+        "color.text.label"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.sunken",
+        "color.background.dock",
+        "color.background.dock-strip",
+        "color.background.hover",
+        "color.background.selected",
+        "color.background.stage"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.faint"
+      ],
+      "bg": [
+        "color.background.sunken",
+        "color.background.dock",
+        "color.background.dock-strip",
+        "color.background.hover"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.text.accent"
+      ],
+      "bg": [
+        "color.background.dock",
+        "color.background.dock-strip",
+        "color.background.selected",
+        "color.background.stage"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.feedback.warning.default"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.feedback.warning.surface",
+        "color.background.sunken"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.feedback.danger.text"
+      ],
+      "bg": [
+        "color.feedback.danger.surface",
+        "color.background.dock",
+        "color.background.dock-strip"
+      ],
+      "kind": "text"
+    },
+    {
+      "fg": [
+        "color.border.strong"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.sunken",
+        "color.background.dock"
+      ],
+      "kind": "non-text"
+    },
+    {
+      "fg": [
+        "color.accent.default"
+      ],
+      "bg": [
+        "color.background.default",
+        "color.background.dock",
+        "color.background.dock-strip"
+      ],
+      "kind": "non-text"
+    },
+    {
+      "fg": [
+        "focus.ring.color"
+      ],
+      "bg": [
+        "color.background.dock",
+        "color.background.dock-strip",
+        "color.background.selected",
+        "color.background.hover"
+      ],
+      "kind": "non-text"
     }
   ]
 }

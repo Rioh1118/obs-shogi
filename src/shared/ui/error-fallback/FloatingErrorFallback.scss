@@ -43,9 +43,10 @@ $item-max-height: 24rem; // scale-exempt
     width: $item-width;
     max-width: 100%;
     max-height: $item-max-height;
-    border-radius: index.$radius-4;
+    border: 1px solid index.$stroke;
+    border-radius: index.$radius-surface;
     box-shadow: index.$shadow-overlay;
-    // 角丸で中身を切る。溢れたぶんを送るのは中の `.error-fallback`（`overflow: auto`）
+    // 角で中身を切る。溢れたぶんを送るのは中の `.error-fallback`（`overflow: auto`）
     overflow: hidden;
   }
 }

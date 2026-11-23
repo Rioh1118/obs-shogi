@@ -15,43 +15,39 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-
-  border: none;
-  border-radius: 1.2rem;
-  background: transparent;
-  box-shadow: none;
 }
 
 .live-md__editor {
   flex: 1;
   min-height: 14rem;
-  padding: 0.95rem 1rem 1.05rem;
+  padding: index.$space-4 index.$space-5;
   outline: none;
-  color: index.$color-text-light-1;
-  font-size: 1.42rem;
-  line-height: 1.86;
-  caret-color: index.$color-secondary-dark;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+  line-height: 1.6;
+  caret-color: index.$color-text-strong;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.live-md__editor:focus {
-  box-shadow: inset 0 0 0 1px rgba(index.$color-secondary-dark, 0.14);
-  border-radius: 1.2rem;
+// 打つ所が付箋いっぱいなので、輪を内側に描く
+.live-md__editor:focus-visible {
+  outline: 2px solid index.$focus-ring;
+  outline-offset: -2px;
 }
 
 .live-md__placeholder {
   pointer-events: none;
   position: absolute;
-  inset: 0.95rem 1rem auto 1rem;
-  color: rgba(index.$color-text-primary, 0.3);
-  font-size: 1.35rem;
-  line-height: 1.82;
+  inset: index.$space-4 index.$space-5 auto index.$space-5;
+  color: index.$color-text-faint;
+  font-size: index.$font-body;
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 
 .live-md__paragraph {
-  margin: 0 0 0.8rem;
+  margin: 0 0 index.$space-4;
 }
 
 .live-md__paragraph:last-child {
@@ -61,39 +57,37 @@
 .live-md__h1,
 .live-md__h2,
 .live-md__h3 {
-  margin: 1.5rem 0 0.75rem;
-  font-weight: 800;
-  color: index.$color-white;
-  letter-spacing: 0.01em;
+  margin: index.$space-7 0 index.$space-4;
+  font-weight: index.$weight-title;
+  color: index.$color-text-strong;
 }
 
 .live-md__h1 {
-  font-size: 1.92rem;
+  font-size: index.$font-title;
 }
 
 .live-md__h2 {
-  font-size: 1.68rem;
+  font-size: index.$font-section;
 }
 
 .live-md__h3 {
-  font-size: 1.5rem;
+  font-size: index.$font-lead;
 }
 
 .live-md__quote {
-  margin: 1rem 0;
-  padding: 0.1rem 0 0.1rem 1rem;
-  border-left: 2px solid rgba(index.$color-secondary-dark, 0.7);
-  color: rgba(index.$color-text-primary, 0.9);
+  margin: index.$space-5 0;
+  padding: 0 0 0 index.$space-6;
+  color: index.$color-text-muted;
 }
 
 .live-md__ul,
 .live-md__ol {
-  margin: 0.75rem 0 0.95rem 1.7rem;
+  margin: index.$space-4 0 index.$space-5 index.$space-9;
   padding: 0;
 }
 
 .live-md__li {
-  margin: 0.3rem 0;
+  margin: index.$space-1 0;
 }
 
 .live-md__liNested {
@@ -101,18 +95,16 @@
 }
 
 .live-md__textBold {
-  font-weight: 800;
-  color: index.$color-white;
+  font-weight: index.$weight-title;
+  color: index.$color-text-strong;
 }
 
 .live-md__textCode {
   display: inline-block;
-  margin: 0 0.08rem;
-  padding: 0.08rem 0.5rem;
-  border: 1px solid rgba(index.$color-white, 0.06);
-  border-radius: 0.7rem;
-  background: rgba(index.$color-white, 0.04);
+  padding: 0 index.$space-2;
+  border-radius: index.$radius-control;
+  background: index.$color-primary-black;
   font-family: index.$font-mono;
   font-size: 0.92em;
-  color: index.$color-secondary-light;
+  color: index.$color-text-primary;
 }

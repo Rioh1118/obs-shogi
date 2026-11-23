@@ -1,198 +1,33 @@
 @use "@/index.scss" as index;
-@use "sass:color";
 
-// --------------------
-// Mixin
-// --------------------
-@mixin btn-size($font-size, $padding, $min-size) {
-  font-size: $font-size;
-  padding: $padding;
-  min-width: $min-size;
-  min-height: $min-size;
-}
+// 行や欄の中に置く、記号だけのボタン。載る行のホバーより一段明るくする
+.icon-button {
+  width: 2.4rem;
+  height: 2.4rem;
+  flex: none;
 
-@mixin btn-hover($bg, $border: null) {
-  &:hover:not(:disabled) {
-    background-color: $bg;
-    @if $border != null {
-      border-color: $border;
-    }
-  }
-}
+  display: grid;
+  place-items: center;
 
-@mixin btn-active($bg) {
-  &:active:not(:disabled) {
-    background-color: $bg;
-    transform: translateY(1px);
-  }
-}
-
-// --------------------
-// Base Button
-// --------------------
-.btn__icon {
-  font-family: inherit;
-  border: none;
-  background: none;
+  border: 0;
+  border-radius: index.$radius-control;
+  background: transparent;
+  color: index.$color-text-muted;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 0.4rem;
-  transition: all 0.2s ease;
   user-select: none;
 
-  // サイズ
-  &--small {
-    @include btn-size(1.2rem, 0.4rem, 2.4rem);
+  &:hover:not(:disabled) {
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
   }
 
-  &--medium {
-    @include btn-size(2rem, 0.3rem, 3.2rem);
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
   }
 
-  &--large {
-    @include btn-size(2.5rem, 0.7rem, 4.4rem);
-  }
-
-  &--custom {
-    font-size: inherit;
-    padding: inherit;
-    min-width: inherit;
-    min-height: inherit;
-  }
-
-  // バリアント: primary
-  &--primary {
-    color: var(--color-text-primary, #212529);
-    background-color: var(--color-bg-primary, #ffffff);
-    border: 1px solid var(--color-border, #dee2e6);
-
-    @include btn-hover(var(--color-bg-hover, #e9ecef), var(--color-border-hover, #adb5bd));
-    @include btn-active(var(--color-bg-active, #dee2e6));
-  }
-
-  // secondary
-  &--secondary {
-    color: var(--color-text-secondary, #6c757d);
-    background-color: var(--color-bg-secondary, #f8f9fa);
-    border: 1px solid var(--color-border-light, #e9ecef);
-
-    &:hover:not(:disabled) {
-      color: var(--color-text-primary, #212529);
-      background-color: var(--color-bg-hover, #e9ecef);
-    }
-  }
-
-  // ghost
-  &--ghost {
-    color: var(--color-text-primary, #212529);
-    background-color: transparent;
-    border: 1px solid transparent;
-
-    @include btn-hover(var(--color-bg-hover, #f8f9fa), var(--color-border-light, #e9ecef));
-  }
-
-  // danger
-  &--danger {
-    color: var(--color-danger, #dc3545);
-    background-color: var(--color-bg-primary, #ffffff);
-    border: 1px solid var(--color-danger-light, #f5c6cb);
-
-    &:hover:not(:disabled) {
-      color: #ffffff;
-      background-color: var(--color-danger, #dc3545);
-      border-color: var(--color-danger, #dc3545);
-    }
-  }
-
-  // OBS variants
-  &--obs-primary {
-    color: index.$color-text-light-1;
-    background-color: index.$color-secondary-dark;
-    border: none;
-
-    @include btn-hover(index.$color-secondary-dark-2);
-    @include btn-active(color.adjust(index.$color-secondary-dark-2, $lightness: -5%));
-  }
-
-  &--obs-ghost {
-    color: index.$color-text-light-1;
-    background-color: transparent;
-    border: 1px solid transparent;
-
-    @include btn-hover(index.$color-primary-dark);
-    @include btn-active(index.$color-primary-black);
-  }
-
-  &--obs-danger {
-    color: index.$color-secondary-dark;
-    background-color: transparent;
-    border: 1px solid index.$color-secondary-dark;
-
-    &:hover:not(:disabled) {
-      color: index.$color-white;
-      background-color: index.$color-secondary-dark;
-    }
-
-    &:active:not(:disabled) {
-      background-color: index.$color-secondary-dark-2;
-    }
-  }
-
-  &--sidebar-toggle {
-    color: index.$color-text-light-1;
-    background-color: transparent;
-    border: 1px solid transparent;
-
-    @include btn-hover(index.$color-primary-dark);
-    @include btn-active(index.$color-primary-black);
-  }
-
-  // 無効状態
-  &--disabled,
   &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
-
-  // フォーカス状態
-  &:focus {
-    outline: 2px solid var(--color-focus, #0d6efd);
-    outline-offset: 2px;
-  }
-
-  // アクティブ状態アニメーション
-  &:active:not(:disabled) {
-    transition: transform 0.1s ease;
-  }
-}
-
-// --------------------
-// Dark Mode
-// --------------------
-@media (prefers-color-scheme: dark) {
-  .btn__icon {
-    &--primary {
-      color: var(--color-text-primary-dark, #f8f9fa);
-      background-color: var(--color-bg-primary-dark, #495057);
-      border-color: var(--color-border-dark, #6c757d);
-
-      @include btn-hover(var(--color-bg-hover-dark, #6c757d));
-      @include btn-active(var(--color-bg-active-dark, #5a6268));
-    }
-
-    &--secondary {
-      color: var(--color-text-secondary-dark, #adb5bd);
-      background-color: var(--color-bg-secondary-dark, #343a40);
-      border-color: var(--color-border-dark, #495057);
-    }
-
-    &--ghost {
-      color: var(--color-text-primary-dark, #f8f9fa);
-
-      @include btn-hover(var(--color-bg-hover-dark, #495057));
-    }
+    opacity: 0.45;
+    cursor: default;
   }
 }

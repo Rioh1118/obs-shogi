@@ -19,3 +19,9 @@ export function getParentPath(path: string) {
 export function getBaseName(path: string) {
   return basename(path);
 }
+
+/** 拡張子を除いた名前の長さ。先頭の `.` は拡張子の区切りと見なさない */
+export function stemLength(name: string): number {
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? dot : name.length;
+}

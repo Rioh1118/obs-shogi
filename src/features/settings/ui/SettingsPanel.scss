@@ -1,175 +1,64 @@
 @use "@/index.scss" as index;
 
-$radius: index.$radius-5;
-
-$border: rgba(index.$color-white, 0.08);
-$border-strong: rgba(index.$color-white, 0.12);
-$border-weak: rgba(index.$color-white, 0.06);
-
-$surface-0: rgba(index.$color-primary-black, 0.72); // base
-$surface-1: rgba(index.$color-primary-black, 0.58); // header / nav
-$surface-2: rgba(index.$color-primary-dark, 0.42); // nav inner
-$surface-3: rgba(index.$color-primary-light, 0.16); // hover
-
-$text-strong: index.$color-text-light-1;
-$text: rgba(index.$color-text-light-1, 0.88);
-$text-muted: rgba(index.$color-text-light-1, 0.68);
-
-$accent: index.$color-secondary-dark;
-$accent-soft: rgba(index.$color-secondary-dark, 0.35);
-
 .settings {
   height: 100%;
   min-height: 0;
-  color: inherit;
-
-  // modal padding="none" でも “中のワークスペース” っぽいサーフェスを作る
-  border-radius: index.$radius-4;
   overflow: hidden;
 
-  background:
-    radial-gradient(
-      1200px 700px at 20% -10%,
-      rgba(index.$color-primary-light, 0.22),
-      transparent 55%
-    ),
-    radial-gradient(
-      900px 600px at 110% 30%,
-      rgba(index.$color-secondary-dark, 0.14),
-      transparent 60%
-    ),
-    $surface-0;
-
-  border: 1px solid $border;
-  box-shadow: index.$shadow-panel;
-
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
 
-  &__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-
-    padding: 14px 16px;
-    border-bottom: 1px solid $border;
-
-    // Warp系の “薄いガラス + 線” を意識
-    background: linear-gradient(
-      180deg,
-      rgba(index.$color-primary-black, 0.55),
-      rgba(index.$color-primary-black, 0.35)
-    );
-
-    backdrop-filter: blur(10px);
-  }
-
-  &__title {
-    display: grid;
-    gap: 3px;
-    min-width: 0;
-  }
-
-  &__titleMain {
-    font-size: 1.5rem;
-    font-weight: index.$weight-title;
-    letter-spacing: 0.25px;
-    color: $text-strong;
-    line-height: 1.2;
-  }
-
-  &__headerRight {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
   &__body {
     min-height: 0;
     display: grid;
-
-    // 左タブを “ほどよく太く”、かつ可変に
-    grid-template-columns: minmax(240px, 28%) minmax(0, 1fr);
+    grid-template-columns: 16.8rem minmax(0, 1fr);
   }
 
   &__nav {
     min-height: 0;
     overflow: auto;
-
-    padding: 10px 10px 12px;
-    border-right: 1px solid $border;
-
-    background:
-      radial-gradient(
-        700px 420px at 0% 0%,
-        rgba(index.$color-primary-light, 0.14),
-        transparent 55%
-      ),
-      $surface-1;
-
-    // 上に詰めたい要求に対して：常に上から積む
-    display: grid;
-    grid-template-rows: 1fr auto;
-    align-content: start;
-    gap: 10px;
-
-    scrollbar-width: none;
-  }
-
-  &__navGroup {
-    display: grid;
-    gap: 8px;
-    align-content: start;
-    padding-top: 2px;
+    padding: index.$space-4 0;
+    border-right: 1px solid index.$stroke-weak;
   }
 
   &__main {
-    container-type: inline-size;
+    container: settings-main / inline-size;
     min-height: 0;
-    overflow: auto;
-    padding: 14px 16px 18px;
+    min-width: 0;
+    overflow: hidden auto;
+    padding: index.$space-9 index.$space-11 index.$space-12;
 
-    background:
-      radial-gradient(
-        900px 520px at 25% 10%,
-        rgba(index.$color-primary-light, 0.16),
-        transparent 55%
-      ),
-      radial-gradient(
-        900px 520px at 80% 40%,
-        rgba(index.$color-secondary-dark, 0.1),
-        transparent 60%
-      );
-
-    scrollbar-width: none;
+    // 増える一覧は、自分の中で送る（design-system の components/settings-row.md）
+    &[data-tab="engine"] {
+      overflow: hidden;
+      padding-bottom: 0;
+    }
   }
 
   &__content {
     display: grid;
-    gap: 12px;
   }
 
-  // ---- responsive: 狭い時は縦積み（モーダルがfull相当になるケース） ----
+  &__main[data-tab="engine"] &__content {
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  // 狭いときは、左の一覧を上に置く
   @media (max-width: 760px) {
     &__body {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
     }
 
     &__nav {
+      display: flex;
       border-right: 0;
-      border-bottom: 1px solid $border;
-      padding: 10px 10px;
-    }
-
-    &__navGroup {
-      grid-auto-flow: column;
-      grid-auto-columns: minmax(220px, 1fr);
-      overflow: auto;
-      gap: 10px;
-      padding-top: 0;
+      border-bottom: 1px solid index.$stroke-weak;
+      padding: 0;
     }
   }
 }

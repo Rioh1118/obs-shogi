@@ -94,7 +94,7 @@
    `splice` は `NaN` も小数も0方向へ丸めるので、大小比較だけの検査では
    `NaN` が「本譜を消す」に化ける。整数であることを先に見る。
 4. **表示のための関数は throw しない。**
-   `branchLabel` は `BranchCard` / `StatusTips` / `KifuForkMenu` からレンダ中に呼ばれる。
+   `branchLabel` は `BranchRow` / `PositionNavigationModal` / `KifuForkMenu` からレンダ中に呼ばれる。
    壊れた `forkIndex` では壊れたラベルを出す。ラベル1つのために画面を落とさない。
    値の検査は編集の入口（`swapBranchesInKifu` / `deleteBranchInKifu`）が行う。
 

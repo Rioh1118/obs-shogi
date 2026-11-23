@@ -1,135 +1,125 @@
 @use "@/index.scss" as index;
 
 .node-box {
-  padding: 0;
-  cursor: pointer;
+  // 失敗の箱が出たときだけ、行が下へ伸びる
+  min-height: index.$row-height;
+  padding-right: index.$space-5;
+
+  background: index.$color-primary-dark;
   color: index.$color-text-primary;
-  font-size: 1.4rem;
-  border-radius: 0.6rem;
-  transition:
-    background-color 120ms ease,
-    box-shadow 120ms ease,
-    outline-color 120ms ease;
+  font-size: index.$font-body;
+  cursor: pointer;
 
   &:hover {
-    background-color: rgba(index.$color-white, 0.15);
+    background: index.$surface-hover;
+  }
+
+  // **内側に描く。** 一覧はスクロールする箱なので、外側に出した輪は箱に切られる
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
   }
 
   // 押せない行。押せる行と同じ手掛かり（指のポインタ・ホバーの帯）を持たせると、
   // 「開けば続きが出る」と読んで押し、無反応を「固まった」と受け取る
   &--static {
-    // ホバーの帯もポインタも当たり判定ごと外す。`:hover` を上書きで打ち消すと、
-    // 背景が `transparent` の対がコントラストの走査で「測れない」区分に増える
+    // ホバーの帯もポインタも当たり判定ごと外す
     pointer-events: none;
     cursor: default;
   }
 
-  &__selected {
-    background-color: rgba(index.$color-text-light-1, 0.1);
+  // 選んだもの。灰青の塗りと太字（design-system の patterns/selection.md）。
+  // **ポインタを載せても薄まらない**
+  &__selected,
+  &__selected:hover {
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
+    font-weight: index.$weight-strong;
   }
 
-  &__droppable-over {
-    background-color: rgba(index.$color-secondary-dark, 0.16);
-    outline: 1px solid rgba(index.$color-secondary-dark, 0.34);
+  // 掴んだものを落とせる行
+  &__droppable-over,
+  &__droppable-over:hover {
+    background: index.$surface-selected;
+    outline: 1px solid index.$stroke-strong;
     outline-offset: -1px;
-
-    box-shadow: 0 0 0 1px rgba(index.$color-secondary-dark, 0.12);
-  }
-
-  &__dragging {
-    background-color: rgba(index.$color-white, 0.08);
-    outline: 1px solid index.$stroke;
-    outline-offset: -1px;
-
-    box-shadow:
-      0 8px 22px rgba(0, 0, 0, 0.35),
-      0 0 0 1px rgba(index.$color-white, 0.06);
-    transform: scale(1.01);
   }
 
   &__content {
     display: flex;
     // **通常の行を揃える側に倒す。** 上端で揃えると、伸びない側（`__main` の
-    // 中身）が 24px の行の上に寄り、名前・アイコン・ボタンの縦中心が数 px ずつ
-    // ずれる。失敗の箱で伸びたときにボタンを上端へ置く要求は `__actions` 側の
+    // 中身）が行の上に寄り、名前・アイコン・ボタンの縦中心がずれる。
+    // 失敗の箱で伸びたときにボタンを上端へ置く要求は `__actions` 側の
     // `align-self` で満たす
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    min-height: 2.4rem; // 最小高さを確保
+    min-height: index.$row-height;
   }
 
   &__main {
     display: flex;
-    // **子に `display` を書かない。** `.file-name` の内側がフレックスになると
-    // `text-overflow: ellipsis` が効かず、長い名前が「…」無しで断ち切られる。
-    // 「まだ続いている」という手掛かりが画面から消える。
-    //
     // 失敗の箱で行が伸びるとアイコンがその中央へ落ちる。行を1枚の要素にしないと
     // 解けないので、ここでは通常の行の揃いを取る → TODO(#246)
     align-items: center;
-    gap: 0.03rem;
     flex: 1;
     min-width: 0;
   }
 
-  .file-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
   &__actions {
+    flex: none;
     display: flex;
-    margin-right: 1.5rem;
     align-items: center;
     // 失敗の箱で行が伸びたとき、中央に置くと入力欄の横ではなく箱の横に出る。
     // 伸びない側だけを上端へ寄せるので、通常の行の揃いは崩れない
     align-self: flex-start;
-    gap: 0.2rem;
-    pointer-events: auto;
-    opacity: 0;
-    transition: opacity 0.2s ease;
+  }
+}
+
+// 名前。**入りきらないときに省くのは、拡張子の手前。** 全文は吹き出しで読める（`NodeName`）
+.node-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  white-space: nowrap;
+
+  &__stem {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  &:hover &__actions {
-    opacity: 1;
+  &__ext {
+    flex: none;
+    color: index.$color-text-faint;
+    font-weight: index.$weight-regular;
+
+    // 選んだ行の上では、薄い段階の文字が読みにくい
+    .node-box__selected & {
+      color: index.$color-text-muted;
+    }
   }
+}
+
+// ワークスペースの名前
+.file-tree__rootName {
+  text-transform: uppercase;
 }
 
 .filetree-tooltip {
   // 画面内へ丸めるので、下端の行ではアンカーに重なる。当たり判定を持つと
   // ポインタを奪い、離れる → また出る、の往復になって名前を読めない
   pointer-events: none;
-  padding: 0.45rem 0.65rem;
-  border-radius: 0.65rem;
-  background: rgba(0, 0, 0, 0.28);
-  background: index.$surface-overlay;
-  border: 1px solid rgba(index.$color-white, 0.08);
-  box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(index.$color-white, 0.03);
+  padding: index.$space-2 index.$space-4;
+  border: 1px solid index.$stroke;
+  border-radius: index.$radius-surface;
+  background: index.$color-primary-dark;
+  box-shadow: index.$shadow-overlay;
 
-  color: rgba(index.$color-text-primary, 0.92);
-  font-size: 1.13rem;
-  line-height: 1.4;
-  letter-spacing: 0.01em;
+  color: index.$color-text-primary;
+  font-size: index.$font-aux;
 
   max-width: min(56rem, calc(100vw - 2.4rem));
   white-space: normal;
   overflow-wrap: anywhere;
-
-  backdrop-filter: blur(6px) saturate(105%);
-
-  opacity: 0;
-  transform: translateY(-2px);
-  &:popover-open {
-    opacity: 0.96;
-    transform: translateY(0);
-    transition:
-      opacity 100ms ease,
-      transform 100ms ease;
-  }
 }

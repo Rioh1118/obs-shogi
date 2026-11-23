@@ -1,17 +1,16 @@
-import { useMemo, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useMemo } from "react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
-import SSection from "../kit/SSection";
+import { SSection, SStats } from "../kit";
 import Button from "@/shared/ui/Button/Button";
-import SettingsBadge, { type SettingsBadgeTone } from "../kit/SettingsBadge";
-import MiniStat from "./MiniStat";
+import SoftBreakText from "@/shared/ui/SoftBreakText";
 
 import { indexHealth, pickWarns, usePositionSearch } from "@/entities/search";
 import type { IndexHealth, IndexUiState, IndexWarnPayload } from "@/entities/search";
 
-type IndexBadge = {
-  tone: SettingsBadgeTone;
-  icon: ReactNode;
+/** `warn` は直す必要があるもの、`work` は待てば済むもの、`plain` はどちらでもないもの */
+type IndexWord = {
+  tone: "warn" | "work" | "plain";
   label: string;
 };
 
@@ -23,7 +22,7 @@ type IndexBadge = {
  * `label:` の形は `src/__tests__/screenSpecCoverage.test.ts` が拾う形で、素の値にすると
  * 仕様書との突き合わせから外れる。
  *
- * 引くのは `badgeForIndex` の `building` の腕だけにする。`state` から直接引くと、走査に
+ * 引くのは `wordForIndex` の `building` の腕だけにする。`state` から直接引くと、走査に
  * 失敗した `Ready` にも「準備完了」を出す。`Empty` と `Ready` の欄は表を埋めるためにある。
  */
 const STAGE_LABEL: Record<IndexUiState["state"], { label: string }> = {
@@ -43,65 +42,33 @@ function percent(done: number, total: number) {
 }
 
 /**
- * 索引の状態バッジ。具合の判断は `indexHealth` が持つ。
+ * 索引の状態の語。具合の判断は `indexHealth` が持つ。
  *
  * 走査に失敗した `Ready` に「準備完了」を出さない。索引は最後に読めたときのまま健全なので
- * 状態は `Ready` だが、それ以降の追加、変更、削除は反映されていない。緑を出すと、利用者は
+ * 状態は `Ready` だが、それ以降の追加、変更、削除は反映されていない。「準備完了」と出すと、利用者は
  * 索引が最新だと思い込む。読めなかった場所があるときも同じで、検索の0件が「自分の棋譜に
  * 無い」と読める。
  */
-function badgeForIndex(idx: IndexUiState, health: IndexHealth): IndexBadge {
+function wordForIndex(idx: IndexUiState, health: IndexHealth): IndexWord {
   switch (health) {
     case "notRefreshed":
-      return {
-        tone: "warn",
-        icon: <AlertTriangle size={14} />,
-        label: "更新できていません",
-      };
+      return { tone: "warn", label: "更新できていません" };
     case "buildFailed":
-      return {
-        tone: "warn",
-        icon: <AlertTriangle size={14} />,
-        label: "作成できませんでした",
-      };
+      return { tone: "warn", label: "作成できませんでした" };
     case "partiallyUnreadable":
-      return {
-        tone: "warn",
-        icon: <AlertTriangle size={14} />,
-        label: "一部を読めていません",
-      };
+      return { tone: "warn", label: "一部を読めていません" };
     case "partiallyIndexed":
-      return {
-        tone: "warn",
-        icon: <AlertTriangle size={14} />,
-        label: "一部を索引に入れられていません",
-      };
+      return { tone: "warn", label: "一部を索引に入れられていません" };
     case "notRefreshedAndPartiallyIndexed":
-      return {
-        tone: "warn",
-        icon: <AlertTriangle size={14} />,
-        label: "更新できず、入れられなかった棋譜もあります",
-      };
+      return { tone: "warn", label: "更新できず、入れられなかった棋譜もあります" };
     case "partiallyUnreadableAndIndexed":
-      return {
-        tone: "warn",
-        icon: <AlertTriangle size={14} />,
-        label: "読めない場所と、入れられなかった棋譜があります",
-      };
+      return { tone: "warn", label: "読めない場所と、入れられなかった棋譜があります" };
     case "notStarted":
-      return { tone: "muted", icon: null, label: "未作成" };
+      return { tone: "plain", label: "未作成" };
     case "building":
-      return {
-        tone: "warn",
-        icon: <Loader2 size={14} className="wsTab__spin" />,
-        label: STAGE_LABEL[idx.state].label,
-      };
+      return { tone: "work", label: STAGE_LABEL[idx.state].label };
     case "ok":
-      return {
-        tone: "accent",
-        icon: <CheckCircle2 size={14} />,
-        label: "準備完了",
-      };
+      return { tone: "plain", label: "準備完了" };
     default: {
       // 具合が増えたら tsc がここで止める
       const never: never = health;
@@ -123,15 +90,15 @@ function IndexProgress({ idx }: { idx: IndexUiState }) {
       </div>
 
       <div className="wsTab__progressMeta">
-        <div className="wsTab__progressLeft">
+        <span className="wsTab__progressLeft">
           {idx.doneFiles.toLocaleString()} / {total.toLocaleString()} files
           <span className="wsTab__pct">{pct}%</span>
-        </div>
+        </span>
 
         {idx.currentPath && (
-          <div className="wsTab__progressPath" title={idx.currentPath}>
+          <span className="wsTab__progressPath" title={idx.currentPath}>
             {idx.currentPath}
-          </div>
+          </span>
         )}
       </div>
     </div>
@@ -142,28 +109,25 @@ function IndexWarnings({ warns }: { warns: IndexWarnPayload[] }) {
   const shownWarns = useMemo(() => pickWarns(warns, WARN_SLOTS), [warns]);
 
   return (
-    <div className="wsTab__warnBox">
-      <div className="wsTab__warnTitle">
-        <AlertTriangle size={16} />
-        読み取り警告
-      </div>
+    <div className="wsTab__warns">
+      <h4 className="wsTab__warnTitle">読み取り警告</h4>
 
       {/*
         切ったことを言う。「警告 200」のまま一覧が短く終わると、それだけが壊れていると読める
       */}
       {warns.length > shownWarns.length && (
-        <div className="wsTab__warnMore">
+        <p className="wsTab__warnMore">
           {`ほか ${(warns.length - shownWarns.length).toLocaleString()} 件（読めなかった場所を先に、${shownWarns.length} 件だけ表示しています）`}
-        </div>
+        </p>
       )}
 
       <ul className="wsTab__warnList">
         {shownWarns.map((w) => (
           <li key={`${w.kind}:${w.path}:${w.message}`} className="wsTab__warnItem">
-            <div className="wsTab__warnMsg">{w.message}</div>
-            <div className="wsTab__warnPath" title={w.path}>
-              {w.path}
-            </div>
+            <span className="wsTab__warnMsg">{w.message}</span>
+            <span className="wsTab__warnPath">
+              <SoftBreakText text={w.path} />
+            </span>
           </li>
         ))}
       </ul>
@@ -180,7 +144,7 @@ export default function IndexStatusSection() {
 
   // 進捗バーもこの具合で決める。`state` を並べ直すと、状態が増えたときにバーだけ出なくなる
   const health = indexHealth(idx);
-  const badge = badgeForIndex(idx, health);
+  const word = wordForIndex(idx, health);
 
   return (
     <SSection
@@ -194,31 +158,29 @@ export default function IndexStatusSection() {
         )
       }
     >
-      <div className="wsTab__statusTop">
-        <SettingsBadge tone={badge.tone} shape="pill">
-          {badge.icon}
-          {badge.label}
-        </SettingsBadge>
+      <p className={`wsTab__word wsTab__word--${word.tone}`}>
+        {word.tone === "warn" && <AlertTriangle size={14} aria-hidden="true" />}
+        {word.tone === "work" && <Loader2 size={14} className="wsTab__spin" aria-hidden="true" />}
+        {word.label}
+      </p>
 
-        <div className="wsTab__miniGrid">
-          <MiniStat label="対象ファイル">{idx.totalFiles.toLocaleString()}</MiniStat>
-
-          {/* 走査が失敗すると差分を取れていない。0 と描くと索引が最新だと読める */}
-          <MiniStat label="未同期">
-            {idx.scanFailed ? "確認できていません" : idx.dirtyCount.toLocaleString()}
-          </MiniStat>
-
-          {/*
-            `Ready` のときは対象との差が「検索に出ない棋譜」の数で、警告の一覧のほかに
-            手掛かりが無い。進行中は据わっている索引の数が出るので、差は未処理の分になる
-          */}
-          <MiniStat label="索引済み">
-            {idx.indexedFiles.toLocaleString()} / {idx.totalFiles.toLocaleString()}
-          </MiniStat>
-
-          <MiniStat label="警告">{warns.length.toLocaleString()}</MiniStat>
-        </div>
-      </div>
+      <SStats
+        items={[
+          { label: "対象ファイル", value: idx.totalFiles.toLocaleString() },
+          {
+            // 走査が失敗すると差分を取れていない。0 と描くと索引が最新だと読める
+            label: "未同期",
+            value: idx.scanFailed ? "確認できていません" : idx.dirtyCount.toLocaleString(),
+          },
+          {
+            // `Ready` のときは対象との差が「検索に出ない棋譜」の数で、警告の一覧のほかに
+            // 手掛かりが無い。進行中は据わっている索引の数が出るので、差は未処理の分になる
+            label: "索引済み",
+            value: `${idx.indexedFiles.toLocaleString()} / ${idx.totalFiles.toLocaleString()}`,
+          },
+          { label: "警告", value: warns.length.toLocaleString() },
+        ]}
+      />
 
       {health === "building" && <IndexProgress idx={idx} />}
       {warns.length > 0 && <IndexWarnings warns={warns} />}

@@ -1,125 +1,104 @@
 @use "@/index.scss" as index;
 
-// 操作列の行。**解析ビューの操作列と同じ寸法に立てる** ——
-// タブを移ったときに下の領域の高さが変わると、本体が上下にずれる。
+// 定跡の操作列。開いている定跡の名前と、そのすぐ右の開く・閉じる。
+// ドックのタブの行の、タブの右に入る（`Dock.scss`）。
 //
-// **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字と記号の色は、この背景との比で決めてある
+// **行と同じ背景をここでも宣言する。** 文字と記号の色は、この背景との比で決めてある
 .book-controls {
-  --hit: #{index.$control-hit};
-
-  width: 100%;
+  grid-area: 1 / 2 / 2 / -1;
   min-width: 0;
+  margin-block-end: 1px;
+
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: index.$space-4;
+  gap: index.$space-7;
 
-  padding: 0 var(--pane-px, #{index.$space-4});
-  background-color: index.$color-primary-dark;
+  padding: 0 index.$space-4 0 index.$space-10;
+  background: index.$surface-dock-strip;
 
-  @media (pointer: coarse) {
-    --hit: #{index.$control-hit-coarse};
-  }
-
-  // いま何を開いているかは左。**削らない** —— 狭くなったときに落ちるのは操作の側
+  // いま何を開いているか。入りきらないときに省くのは名前だけ
   &__status {
-    display: inline-flex;
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
     align-items: baseline;
-    gap: index.$space-3;
-    min-width: 0;
+    gap: index.$space-5;
   }
 
-  // ファイル名。長いものは切るが、**切れた先はツールチップにパスが出る**
-  &__name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-
-    font-size: index.$font-body;
-    color: index.$color-text-primary;
-    opacity: 0.82;
-  }
-
-  &__idle {
-    font-size: index.$font-body;
-    color: index.$color-text-primary;
-    white-space: nowrap;
-    opacity: 0.72;
-  }
-
-  // 開こうとしているファイル名。**`__name` と同じ組み。**
-  // `white-space` を落とすと、長い名前の回に行が伸びて、
-  // タブを跨いで行の高さが変わらないという要件（`$control-hit`）が別経路で崩れる
+  // ファイル名。長いものは切るが、**切れた先は題にパスが出る**
+  &__name,
   &__busy {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-
     font-size: index.$font-body;
-    color: index.$color-text-primary;
-    opacity: 0.72;
   }
 
-  &__count {
+  &__name {
+    color: index.$color-text-primary;
+  }
+
+  &__busy,
+  &__idle {
+    color: index.$color-text-label;
+  }
+
+  &__idle {
+    font-size: index.$font-body;
+    white-space: nowrap;
+  }
+
+  &__count,
+  &__dropped {
     flex: none;
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
-    font-size: index.$font-hint;
-    color: index.$color-text-primary;
+    font-size: index.$font-aux;
     white-space: nowrap;
-    opacity: 0.7;
+  }
+
+  &__count {
+    color: index.$color-text-label;
   }
 
   // 読み損ねた欄がある定跡の目印。**注意の tier**（再試行では直らないが、
   // 表そのものは読めるので危険の tier には上げない）
   &__dropped {
-    flex: none;
-    font-family: index.$font-mono;
-    font-size: index.$font-hint;
     color: index.$color-warning;
-    white-space: nowrap;
   }
 
   &__actions {
-    display: inline-flex;
+    flex: none;
+    display: flex;
     align-items: center;
-    gap: index.$space-1;
-    min-width: 0;
   }
 
   &__iconBtn {
-    width: var(--hit);
-    height: var(--hit);
+    width: var(--dock-btn-w);
+    height: var(--dock-btn-h);
 
     display: grid;
     place-items: center;
 
     border: none;
-    border-radius: index.$radius-2;
-    background: transparent;
-    color: index.$color-text-primary;
+    border-radius: index.$radius-control;
+    background: index.$surface-dock-strip;
+    color: index.$color-text-muted;
 
     cursor: pointer;
     user-select: none;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 
-    transition: background-color index.$duration-3 index.$ease;
-
-    // 白文字を載せる背景なので、ホバーは暗くする（`design-system/design_system/components/button.md` の「状態」）
     &:hover:not(:disabled) {
-      background-color: rgba(index.$color-primary-black, 0.8);
-    }
-
-    &:active:not(:disabled) {
-      background-color: rgba(index.$color-primary-black, 0.8);
+      background: index.$surface-hover;
+      color: index.$color-text-strong;
     }
 
     &:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
+      opacity: 0.45;
+      cursor: default;
     }
 
     &:focus-visible {

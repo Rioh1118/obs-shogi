@@ -77,7 +77,7 @@ export type BranchEditResult = {
  * `forkIndex` で番号を振るので、表示順で作ると同じ分岐が画面ごとに別の番号で呼ばれる。
  *
  * `branchIndexFromForkIndex` を通さないのは、この関数がレンダ中に呼ばれるから
- * （`BranchCard` / `StatusTips` / `KifuForkMenu`）。壊れた `forkIndex` で例外を投げると
+ * （`BranchRow` / `PositionNavigationModal` / `KifuForkMenu`）。壊れた `forkIndex` で例外を投げると
  * ラベル1つのために画面が落ちる。値の検査は編集の入口（`swapBranchesInKifu` /
  * `deleteBranchInKifu`）が行う。番号の作り方は `branchIndexFromForkIndex` と同じ。
  */

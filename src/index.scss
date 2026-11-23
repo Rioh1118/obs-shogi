@@ -5,38 +5,42 @@
 $color-primary-light: ds.$lm-color-background-canvas;
 $color-primary-dark: ds.$lm-color-background-default;
 $color-primary-black: ds.$lm-color-background-sunken;
-// 盤と駒台を置くサーフェス。ペインのサーフェス（$color-primary-dark）から半段だけ沈める
+// 盤と駒台を置くサーフェス。墨から離した緑で、木を立たせる
 $color-stage: ds.$lm-color-background-stage;
+// 行の塗り。選んだものと局面の「いま」を別の塗りにする（design-system の patterns/selection.md）
+$surface-hover: ds.$lm-color-background-hover;
+$surface-selected: ds.$lm-color-background-selected; // ファイル、設定のタブ、適用中
+$surface-now: ds.$lm-color-background-now; // いまの手、最善手。左の銅の線と組で使う
+// 検討のドックだけ半段明るい。利用者が今の見た目を選んだ（design-system の decisions/0005）
+$surface-dock: ds.$lm-color-background-dock;
+$surface-dock-strip: ds.$lm-color-background-dock-strip;
 
-$color-secondary-light: ds.$lm-color-commit-solid;
 $color-secondary-dark: ds.$lm-color-accent-default;
-$color-secondary-dark-2: #a57d5c;
 
-// 背景に敷く銅。$color-secondary-dark に白文字を置くと 3.80:1 で本文の基準を割る。
-// 1段階暗くすると 4.79:1 になり、白文字のまま基準を満たせる。
-//
-// ホバーは**暗くする**。白文字を載せる背景なので、明るくすると比が下がり、
+// 「いま」を示す点（適用中）
+$color-accent-bright: ds.$lm-color-accent-bright;
+
+// 背景に敷く銅。白文字を載せる背景なので、ホバーは**暗くする**。明るくすると比が下がり、
 // 押そうとしている瞬間にいちばん読みにくくなる
-$color-secondary-solid: ds.$lm-color-accent-solid; // 白文字 4.79:1
-$color-secondary-solid-hover: ds.$lm-color-accent-solid-hover; // 白文字 5.29:1
+$color-secondary-solid: ds.$lm-color-accent-solid; // 白文字 5.19:1
 // 確定のボタンの背景。砂色の文字と同じ素材にして、暗い文字を載せる（$color-primary-black で 11.1:1）
 $color-commit-solid: ds.$lm-color-commit-solid;
 $color-commit-solid-hover: ds.$lm-color-commit-solid-hover;
-// 進めるボタンの銅の文字。$color-secondary-dark は暗い背景で 4.2:1 なので1段階上げる（6.22:1）
+// 暗い背景に載せる銅の文字（手番、検討中）。$color-secondary-dark は 4.71:1 なので1段階上げる（7.06:1）
 $color-accent-text: ds.$lm-color-text-accent;
 
-$color-text-light-1: #f5f5f5;
 $color-white: #ffffff;
 
+$color-text-strong: ds.$lm-color-text-strong; // 題、いまの手、値
 $color-text-primary: ds.$lm-color-text-default;
 // 文字の濃さの段階。**不透明に混ぜる。** 半透明にすると載る背景ごとに比が変わる。
-// 混ぜる相手は本文の背景（$color-primary-dark）で、比は本文の基準 4.5:1 を見て決めた。
-// faint は $surface-raised の上で 4.03:1 に落ちるので、そこには載せない
-$color-text-muted: ds.$lm-color-text-subtle; // 本文の背景で 6.16:1
-$color-text-faint: ds.$lm-color-text-faint; // 本文の背景で 4.64:1
+// 比は本文の基準 4.5:1 を見て決めた。
+// faint は $surface-selected（4.49:1）と $color-stage（4.41:1）で基準を割るので、そこには載せない
+$color-text-muted: ds.$lm-color-text-subtle; // 本文の背景で 8.47:1
+$color-text-label: ds.$lm-color-text-label; // 表の見出し、数の添え書き。本文の背景で 7.23:1
+$color-text-faint: ds.$lm-color-text-faint; // 本文の背景で 6.01:1
 
 $color-text-dark-1: ds.$lm-color-text-inverse;
-$color-text-dark-2: #3a3a3a;
 
 // ウィンドウ操作ボタンの3色。**パレットの外**で、OS のウィンドウの作法をなぞっている
 // （`decorations: false` なのでウィンドウ枠は自前で描く）。意味色として使わない。
@@ -99,10 +103,6 @@ $surface-raised: ds.$lm-color-surface-raised;
 // 本文の背景（$color-primary-dark）と暗いカードのどちらの上でも欄として沈んで見える
 $surface-field: ds.$lm-color-surface-field;
 
-// コンテナの上に浮かせるサーフェス（ツールチップ）。**半透明**なので、載る場所ごとに実効値が
-// 変わる。文字との比はコントラストの走査では測れない → #185
-$surface-overlay: ds.$lm-color-surface-overlay;
-
 // 成功は置かない。通知する場面が1件も無いため（必要になったら足す）
 
 // font
@@ -150,19 +150,12 @@ $space-11: ds.$lm-space-11;
 $space-12: ds.$lm-space-12;
 
 // radius
-// 間隔と同じ連番。**同じ N は同じ値**にしてある。
-// 途中から始めると $space-6 と $radius-6 が別の値になり、
-// どちらもトークン参照なのでラチェットもレビューも気づけない
-$radius-1: ds.$lm-radius-1;
-$radius-2: ds.$lm-radius-2;
-$radius-3: ds.$lm-radius-3;
-$radius-4: ds.$lm-radius-4;
-$radius-5: ds.$lm-radius-5;
-$radius-6: ds.$lm-radius-6;
-$radius-7: ds.$lm-radius-7;
-$radius-8: ds.$lm-radius-8;
-$radius-9: ds.$lm-radius-9;
-$radius-pill: ds.$lm-radius-pill; // 文字サイズに従属しないので rem 化しない
+// 役割で選ぶ（design-system の decisions/0005）。**番号の段階は置かない** —— 大きさで選ぶと、
+// 同じ役割の部品が画面ごとに違う角になる
+$radius-row: ds.$lm-radius-row; // 行。角を立てる
+$radius-control: ds.$lm-radius-control; // 押す・打つもの
+$radius-surface: ds.$lm-radius-surface; // ポップオーバー、メニュー、付箋
+$radius-modal: ds.$lm-radius-modal; // モーダル
 $radius-circle: 50%;
 
 // motion
@@ -181,66 +174,64 @@ $ease: ds.$lm-easing-default;
 // ローディングの反復は秒単位の別系統なのでここには置かない
 
 // layout
-$sidebar-width: 23%;
 // `decorations: false` のウィンドウを動かせる帯の高さ。**帯は2つある** ——
 // 平常時の `.titlebar` と、root の境界が受けたときの `.root-error-fallback__chrome`。
 // 落ちた瞬間に掴める領域が伸び縮みしないよう、両方がこの1つを見る。
 // `Modal.scss` の overlay はこの帯を空けて `top` を置く。
 // 値を動かすぶんには揃って動くが、どれか1つだけ直値に書き換えると境がずれて
 // ウィンドウを掴めなくなる
-$titlebar-height: 2.6rem;
-// `.app-layout` の1行目（`AppLayoutHeader`）。**出典はここ1つ。**
-// `.app-header` が自分の上に同名のカスタムプロパティを再宣言すると継承が切れ、
-// 片方だけ動かしたときに隙間が空くか `overflow: hidden` に切られる。
-$app-header-height: 5.6rem;
+// 作業画面の見出し（`AppLayoutHeader`）もこの帯の中に描くので、見出しの押すものが収まる高さにする
+$titlebar-height: 3.8rem;
 
-// ドックの操作列に並ぶ記号ボタンの当たり。**タブを跨いで同じ値であること**が要件で、
-// ずれるとタブを移った回に下の領域の高さが変わって本体が上下にずれる。
-// ファイルごとに直値を書くと、片方を動かしても何も落ちない
-$control-hit: 3.6rem;
+// 一覧の行と、表の見出しの高さ。候補手と定跡の表・棋譜・ツリーが同じ行に立つ
+// （`design-system/design_system/components/list-row.md`）
+$row-height: 2.6rem;
+$table-head-height: 2.5rem;
+
+// ドックの、タブと操作列の帯と、そこに並ぶ記号ボタン。**タブを跨いで同じ値であること**が要件で、
+// ずれると、タブを移ったときに記号が動く。低いウィンドウと狭いウィンドウでは詰める
+$dock-bar-height: 3.8rem;
+$dock-bar-height-low: 3.4rem;
+$dock-button-height: 3rem;
+$dock-button-height-low: 2.8rem;
+$dock-button-width: 3.4rem;
+$dock-button-width-narrow: 3.2rem;
 // 指で押す入力機器（`pointer: coarse`）のとき。当たりだけを広げ、記号は変えない
 $control-hit-coarse: 4.4rem;
-// エンジンの状態の語に添える目印の大きさ。操作列と設定のカードが同じ状態を別々に描くので、
-// 片方だけ動くと同じ状態に見えなくなる
-$status-mark-size: 0.8rem;
-// オプションの1行の値の列。種類ごとの部品が同じ幅を名乗るので、行を跨いで値の左端が揃う
-$option-control-width: 26rem;
 // 帯に並ぶ丸ボタンの大きさ。**帯と同じ理由でここに置く** —— `.titlebar` と
 // `.root-error-fallback__chrome` が同じボタンを別々に描くので、片方だけ動くと
 // 落ちたときにだけ大きさが変わる
 $window-button-size: 1.2rem;
 $window-button-padding: 0.14rem;
 // 帯の塗り。`.titlebar` と `.root-error-fallback__chrome` が同じ帯を別々に描くので、
-// 落ちた瞬間に色味が変わらないよう1つを見る。
-// **半透明なのは `backdrop-filter` と対の意匠**（`TitleBar.scss`）。どちらの帯も背後に
-// 塗られた祖先を持たないので、いまぼかす相手は無い
-$surface-titlebar: rgba($color-primary-black, 0.86);
+// 落ちた瞬間に色味が変わらないよう1つを見る
+$surface-titlebar: $color-primary-black;
 // 付箋（`FloatingNote`）のヘッダ。高さがタイトルバーと揃うのは意匠で、従属ではない。
 // 利用者が1つしか無いのにここに置くのは、コンポーネント側のローカル変数に下ろすと
 // `scssScaleRatchet` の `indirect` が増えて落ちるため。
 // `indirect` の bucket を免除されるのはこのファイルだけ（`scssScale.ts` の `tokenSource`、ADR-0003）
 $floating-note-header-height: 2.6rem;
-// 「棋譜を作る」の右の列（ファイルの欄）。**2つのタブが同じ幅を名乗る** ——
-// 盤で組むタブと棋譜を貼るタブは入れ替わるので、別々に持つと切り替えた瞬間に
-// 欄だけが左右に動く。コンテナの内寸 105.0rem の配分は `PositionEditor.scss` 冒頭の式が持つ
-$create-file-side-width: 28rem;
+// 「棋譜を作る」の右の列（ファイルの欄）の幅
+$create-file-side-width: 32rem;
 
 // 重なりのレイヤ
 // **離れたファイル同士で大小が意味を持つものだけ**に名前を付ける。
 // 部品の中で閉じた重なり（盤の駒、付箋の中の掴み手）は局所の直値のままでよい。
 //
 // 全体の並びは下から: 部品の中（1桁〜100）→ 選択肢の一覧（1000）→ 付箋（1200）
-// → 更新カード（9000）→ タイトルバーとモーダル → 通知 → 落ちた層の小箱を積むコンテナ
+// → タイトルバーとモーダル → 通知と更新の帯 → 落ちた層の小箱を積むコンテナ
 // （`.error-overlay`）→ 棋譜のポップオーバー（100000 台）。
 // 名前を持たないレイヤを動かすときは、この並びを読んでから決めること。
-// 操作列の語から開く小さなサーフェス。**帯より下。** 帯はヘッダの上に出るので重ならない
+// 操作列の語から開く小さなサーフェス。**帯より下。** これはドックの上、帯は上の帯の下に出るので、
+// 重なるのはウィンドウが低いときだけ。そのときは帯（失敗の知らせ）を読ませる
 $z-status-detail: ds.$lm-z-status-detail;
 $z-titlebar: ds.$lm-z-titlebar;
 $z-modal: ds.$lm-z-modal;
-// **通知はモーダルより上。** 下にすると overlay にぼかされて読めず、
+// **通知はモーダルより上。** 下にすると overlay に覆われて読めず、
 // クリックが overlay に当たってモーダルごと閉じる（編集中の入力が消える）。
 // 上げても操作を塞がないのは、通知の層が `pointer-events` を通知1枚ずつにしか
-// 持たないため。タイトルバーの帯を覆わないのは z-index でなく `top` が守っている
+// 持たないため。タイトルバーの帯を覆わないのは z-index でなく `top` が守っている。
+// 例外は消える知らせの1行で、帯の空きに乗り、帯と同じくウィンドウを掴める（`NotificationLayer.tsx`）
 $z-notification: ds.$lm-z-notification;
 // 落ちた層を伝える小箱を積むコンテナ（`.error-overlay`）。**通知より上。**
 // 下にすると、幅いっぱいの帯（banner）が「◯◯を表示できませんでした。」の1行を覆う
@@ -250,14 +241,12 @@ $z-error-fallback: ds.$lm-z-error-fallback;
 
 // elevation
 // 段階は浮き上がりの高さでなく、何が浮いているかで選ぶ
-// パネル・カード。棋譜ペイン、盤の操作列、付箋、設定パネルが乗る
-$shadow-panel: ds.$lm-shadow-panel;
-// ポップオーバー・メニュー。暗い背景の上に出るので、パネルより強く落とす
+// ポップオーバー・メニュー・モーダル
 $shadow-overlay: ds.$lm-shadow-overlay;
-$shadow-press: ds.$lm-shadow-press; // 押下
-// 押せるもの。パネルより浅い。ホバーで浮かせ、押下で落とす対で使う
-$shadow-control: ds.$lm-shadow-control;
-$shadow-control-press: ds.$lm-shadow-control-press;
+// 盤と駒台。重なりの影とこれのほかに、影を落とさない
+$shadow-board:
+  0 1px 0 rgba(0, 0, 0, 0.4),
+  0 8px 22px rgba(0, 0, 0, 0.33);
 
 // 最善の行を示す左の帯。**浮きの高さではなく目印**なので、
 // 上の3つとは別に置く。背景の塗りだけで示すと、隣の行のホバーと見分けが付かない
@@ -274,17 +263,116 @@ $focus-ring: ds.$lm-focus-ring-color;
 
 // このファイルは変数だけを持つ。CSS を出力すると、@use している全ての .scss に複製される
 
-// 選択を示す左の銅の縦棒。影で引くと角丸に沿って曲がるので、独立した要素で描く。
-// 呼び手は `position: relative` を持つこと
-@mixin selected-bar {
-  &::before {
-    content: "";
-    position: absolute;
-    left: 0.4rem;
-    top: 0.8rem;
-    bottom: 0.8rem;
-    width: 0.3rem;
-    border-radius: $radius-pill;
-    background: $color-secondary-dark;
+// 全要素で消してあるスクロールバーを戻す。**続きがあることを示す手掛かりが、ほかに無い所だけに使う**
+// （長い中身を送るモーダル、詳細のログ）。
+// `-thumb` を書かないと、WebKit は既定描画をやめたままつまみを塗らない
+@mixin thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: $stroke-strong transparent;
+
+  &::-webkit-scrollbar {
+    display: block;
+    width: 8px;
   }
+
+  &::-webkit-scrollbar-thumb {
+    background: $stroke-strong;
+  }
+}
+
+// 見えないが読み上げられる箱（`role="status"` の領域など）。**木から外さない。**
+// `display: none` や `visibility: hidden` は読み上げの対象からも外れる
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+// 送る一覧の、下に続きがあること（`useScrollMore`）。スクロールバーの代わりに下端を薄くする
+@mixin scroll-more {
+  &[data-more] {
+    mask-image: linear-gradient(#000 calc(100% - 3.6rem), transparent);
+  }
+}
+
+// 区切りボタン（2〜4の択一）。並びに `segment`、1つずつに `segment-item`、選ばれた側に `segment-item-on`
+@mixin segment {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid $stroke-strong;
+  border-radius: $radius-control;
+}
+
+@mixin segment-item {
+  min-height: 3rem;
+  padding: 0 $space-7;
+
+  border: 0;
+  border-radius: $radius-row;
+  background: $color-primary-dark;
+  color: $color-text-muted;
+  font-size: $font-body;
+  white-space: nowrap;
+  cursor: pointer;
+
+  & + & {
+    border-left: 1px solid $stroke;
+  }
+
+  &:hover {
+    background: $surface-hover;
+    color: $color-text-strong;
+  }
+
+  // 輪は、隣の境の線より手前に描く
+  &:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 2px solid $focus-ring;
+    outline-offset: 2px;
+  }
+}
+
+@mixin segment-item-on {
+  &,
+  &:hover {
+    background: $surface-selected;
+    color: $color-text-strong;
+    font-weight: $weight-strong;
+  }
+}
+
+// 見ているタブ。一段明るい塗りと、銅の下線（design-system の patterns/selection.md）。
+// タブ1つに `tab`、見ているタブに `tab-on`
+@mixin tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: $radius-row;
+  background: $color-primary-dark;
+  color: $color-text-muted;
+  font-family: $font-sans;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: $color-text-strong;
+  }
+
+  // **輪を内側に描く。** タブの行は端が切れる箱に入るので、外側に出した輪は箱に切られる
+  &:focus-visible {
+    outline: 2px solid $focus-ring;
+    outline-offset: -2px;
+  }
+}
+
+@mixin tab-on {
+  border-bottom-color: $color-secondary-dark;
+  background: $color-primary-light;
+  color: $color-text-strong;
+  font-weight: $weight-strong;
 }

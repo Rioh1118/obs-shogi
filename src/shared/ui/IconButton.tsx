@@ -1,52 +1,18 @@
 import type { ReactNode, ButtonHTMLAttributes } from "react";
 import "./IconButton.scss";
 
-type IconButtonSize = "small" | "medium" | "large" | "custom";
-type IconButtonVariant =
-  | "primary"
-  | "secondary"
-  | "ghost"
-  | "danger"
-  | "obs-primary"
-  | "obs-ghost"
-  | "sidebar-toggle"
-  | "obs-danger";
-
 type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
-  className?: string;
-  size?: IconButtonSize;
-  variant?: IconButtonVariant;
-  disabled?: boolean;
-  title?: string;
+  /** 読み上げの名前。題だけでは、どの行のボタンかが分からないときに分ける */
   ariaLabel?: string;
 };
 
-function IconButton({
-  children,
-  className = "",
-  size = "medium",
-  variant = "obs-primary",
-  disabled = false,
-  title,
-  ariaLabel,
-  ...buttonProps
-}: IconButtonProps) {
-  const buttonClasses = [
-    "btn__icon",
-    `btn__icon--${size}`,
-    `btn__icon--${variant}`,
-    disabled && "btn__icon--disabled",
-    className,
-  ]
-    .filter(Boolean)
-    .join(" ");
-
+/** 行や欄の中に置く、記号だけのボタン */
+function IconButton({ children, className = "", ariaLabel, ...buttonProps }: IconButtonProps) {
   return (
     <button
-      className={buttonClasses}
-      disabled={disabled}
-      title={title}
+      type="button"
+      className={`icon-button ${className}`}
       aria-label={ariaLabel}
       {...buttonProps}
     >

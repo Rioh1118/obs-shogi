@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { describeFsError, type CommitOutcome, type FsError } from "@/entities/file-tree";
+import { stemLength } from "@/shared/lib/path";
 
 import "./InlineNameEditor.scss";
 
@@ -66,9 +67,7 @@ function InlineNameEditor({
       el.focus();
 
       if (selectMode === "file") {
-        const dot = initialName.lastIndexOf(".");
-        if (dot > 0) el.setSelectionRange(0, dot);
-        else el.select();
+        el.setSelectionRange(0, stemLength(initialName));
       } else {
         el.select();
       }

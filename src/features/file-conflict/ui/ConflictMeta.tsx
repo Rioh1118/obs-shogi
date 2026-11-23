@@ -2,6 +2,7 @@ import type { FileConflictState } from "../model/types";
 import { getConflictKind } from "../lib/getConflictKind";
 import { getRequestedName } from "../lib/getRequestedName";
 
+import SoftBreakText from "@/shared/ui/SoftBreakText";
 import "./FileConflictDialog.scss";
 
 function dirname(path: string): string {
@@ -64,45 +65,43 @@ function ConflictMeta({ conflict }: { conflict: FileConflictState }) {
   const existing = conflict.error.existingPath ?? conflict.error.path ?? null;
 
   return (
-    <div className="file-conflict__meta">
-      <div className="file-conflict__meta-grid">
-        <div className="file-conflict__field">
-          <div className="file-conflict__label">操作</div>
-          <div className="file-conflict__value">{getActionLabel(conflict)}</div>
-        </div>
+    <dl className="file-conflict__meta">
+      <dt className="file-conflict__label">操作</dt>
+      <dd className="file-conflict__value">{getActionLabel(conflict)}</dd>
 
-        <div className="file-conflict__field">
-          <div className="file-conflict__label">種別</div>
-          <div className="file-conflict__value">{kind === "file" ? "ファイル" : "フォルダ"}</div>
-        </div>
+      <dt className="file-conflict__label">種別</dt>
+      <dd className="file-conflict__value">{kind === "file" ? "ファイル" : "フォルダ"}</dd>
 
-        <div className="file-conflict__field file-conflict__field--full">
-          <div className="file-conflict__label">入力した名前</div>
-          <div className="file-conflict__pill">{requestedName}</div>
-        </div>
+      <dt className="file-conflict__label">入力した名前</dt>
+      <dd className="file-conflict__value">{requestedName}</dd>
 
-        {source && (
-          <div className="file-conflict__field file-conflict__field--full">
-            <div className="file-conflict__label">元の項目</div>
-            <div className="file-conflict__path">{source}</div>
-          </div>
-        )}
+      {source && (
+        <>
+          <dt className="file-conflict__label">元の項目</dt>
+          <dd className="file-conflict__path">
+            <SoftBreakText text={source} />
+          </dd>
+        </>
+      )}
 
-        {destination !== "" && (
-          <div className="file-conflict__field file-conflict__field--full">
-            <div className="file-conflict__label">保存先 / 移動先</div>
-            <div className="file-conflict__path">{destination}</div>
-          </div>
-        )}
+      {destination !== "" && (
+        <>
+          <dt className="file-conflict__label">保存先 / 移動先</dt>
+          <dd className="file-conflict__path">
+            <SoftBreakText text={destination} />
+          </dd>
+        </>
+      )}
 
-        {existing && (
-          <div className="file-conflict__field file-conflict__field--full">
-            <div className="file-conflict__label">既に存在する項目</div>
-            <div className="file-conflict__path file-conflict__path--conflict">{existing}</div>
-          </div>
-        )}
-      </div>
-    </div>
+      {existing && (
+        <>
+          <dt className="file-conflict__label">既に存在する項目</dt>
+          <dd className="file-conflict__path">
+            <SoftBreakText text={existing} />
+          </dd>
+        </>
+      )}
+    </dl>
   );
 }
 

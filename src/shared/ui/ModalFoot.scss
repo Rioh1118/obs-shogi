@@ -1,0 +1,28 @@
+@use "@/index.scss" as index;
+
+.modal-foot {
+  flex: none;
+  padding: index.$space-6 index.$space-10;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: index.$space-4 index.$space-7;
+
+  border-top: 1px solid index.$stroke-weak;
+  background: index.$color-primary-dark;
+
+  &__start {
+    min-width: 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+  }
+
+  &__actions {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: index.$space-4;
+  }
+}

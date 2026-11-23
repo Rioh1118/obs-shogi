@@ -17,7 +17,7 @@ export default function SearchBox({ query, onChange }: Props) {
 
   return (
     <div className="sp-manager__searchBox">
-      <Search size={14} className="sp-manager__searchIcon" />
+      <Search size={14} className="sp-manager__searchIcon" aria-hidden="true" />
       <input
         ref={searchRef}
         type="text"

@@ -92,14 +92,14 @@ function mount(search = "") {
     return <></>;
   }
 
-  render(
+  const { container } = render(
     <MemoryRouter initialEntries={[`/app${search}`]}>
       <AnalysisControls />
       <LocationProbe />
     </MemoryRouter>,
   );
 
-  return { params: () => new URLSearchParams(seen.search) };
+  return { container, params: () => new URLSearchParams(seen.search) };
 }
 
 async function press(element: HTMLElement) {
@@ -192,6 +192,29 @@ describe("▶ と ■", () => {
     await press(screen.getByRole("button", { name: "起動を中止" }));
 
     expect(engine.cancelStart).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("次の一手の置き場所", () => {
+  const order = (container: HTMLElement) =>
+    [...container.querySelectorAll(".analysis-controls__actions button")].map(
+      (button) => button.getAttribute("title") ?? button.textContent,
+    );
+
+  test("▶ は、向きと詰み探索の間に出る", () => {
+    const { container } = mount();
+
+    expect(order(container)[1]).toBe("検討を開始");
+  });
+
+  // 間に出すと、状態が変わるたびに左の記号が動く
+  test("語のボタンは、操作の左端に1つだけ出る", () => {
+    status.value = "exited";
+    const { container } = mount();
+
+    expect(order(container)[0]).toBe("再起動");
+    expect(order(container).filter((name) => name === "再起動")).toHaveLength(1);
+    expect(order(container)).toContain("後手視点にする");
   });
 });
 

@@ -1,0 +1,67 @@
+@use "@/index.scss" as index;
+
+.sui-check {
+  display: inline-flex;
+  align-items: center;
+  gap: index.$space-5;
+
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+  cursor: pointer;
+
+  &:has(.sui-check__box:disabled) {
+    cursor: default;
+  }
+
+  &__note {
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+  }
+}
+
+// 満たした側は砂。銅は局面の「いま」だけに使う
+.sui-check__box {
+  flex: none;
+  appearance: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-control;
+  background: index.$surface-field;
+  cursor: inherit;
+
+  &::before {
+    content: "";
+    width: 0.9rem;
+    height: 0.5rem;
+    margin-top: -0.2rem;
+    border: solid index.$color-primary-black;
+    border-width: 0 0 2px 2px;
+    transform: rotate(-45deg);
+    opacity: 0;
+  }
+
+  &:checked {
+    border-color: index.$color-commit-solid;
+    background: index.$color-commit-solid;
+
+    &::before {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+  }
+}

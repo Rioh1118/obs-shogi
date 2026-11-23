@@ -86,13 +86,13 @@ const READY: IndexUiState = {
 };
 
 /** 具合が増えたらここで tsc が止まる。語と色を1つの表で見る */
-const HEALTH_BADGES: Record<
+const HEALTH_WORDS: Record<
   IndexHealth,
-  { index: Partial<IndexUiState>; label: string; tone: "warn" | "muted" | "accent" }
+  { index: Partial<IndexUiState>; label: string; tone: "warn" | "work" | "plain" }
 > = {
-  ok: { index: {}, label: "準備完了", tone: "accent" },
-  notStarted: { index: { state: "Empty" }, label: "未作成", tone: "muted" },
-  building: { index: { state: "Building" }, label: "作成中", tone: "warn" },
+  ok: { index: {}, label: "準備完了", tone: "plain" },
+  notStarted: { index: { state: "Empty" }, label: "未作成", tone: "plain" },
+  building: { index: { state: "Building" }, label: "作成中", tone: "work" },
   notRefreshed: { index: { scanFailed: true }, label: "更新できていません", tone: "warn" },
   buildFailed: {
     index: { state: "Empty", scanFailed: true },
@@ -138,7 +138,7 @@ function section(name: string) {
 /** 見出しに対応する値の文字列 */
 function valueOf(container: HTMLElement, label: string) {
   const key = within(container).getByText(label);
-  return key.parentElement?.querySelector(".wsTab__miniV")?.textContent;
+  return key.parentElement?.querySelector(".sui-stats__value")?.textContent;
 }
 
 function warn(n: number, kind: Warn["kind"] = "file"): Warn {
@@ -171,19 +171,18 @@ afterEach(() => {
 });
 
 describe("「状態」の節", () => {
-  test.each(Object.entries(HEALTH_BADGES))(
-    "バッジは具合の語と色を出す: %s",
-    async (health, want) => {
-      world.search.index = { ...READY, indexedFiles: READY.totalFiles, ...want.index };
-      expect(indexHealth(world.search.index as IndexUiState)).toBe(health);
+  test.each(Object.entries(HEALTH_WORDS))("具合の語と色を出す: %s", async (health, want) => {
+    world.search.index = { ...READY, indexedFiles: READY.totalFiles, ...want.index };
+    expect(indexHealth(world.search.index as IndexUiState)).toBe(health);
 
-      const { container } = await renderTab();
+    const { container } = await renderTab();
 
-      const badge = container.querySelector(".sbadge");
-      expect(badge?.textContent).toBe(want.label);
-      expect(badge?.className).toContain(`sbadge--${want.tone}`);
-    },
-  );
+    const word = container.querySelector(".wsTab__word");
+    expect(word?.textContent).toBe(want.label);
+    expect(word?.className).toBe(`wsTab__word wsTab__word--${want.tone}`);
+    // 記号を添えるのは、直す必要があるものと待てば済むものだけ
+    expect(word?.querySelectorAll("svg")).toHaveLength(want.tone === "plain" ? 0 : 1);
+  });
 
   test.each<[IndexUiState["state"], string]>([
     ["Restoring", "復元中"],
@@ -194,7 +193,7 @@ describe("「状態」の節", () => {
 
     const { container } = await renderTab();
 
-    expect(container.querySelector(".sbadge")?.textContent).toBe(label);
+    expect(container.querySelector(".wsTab__word")?.textContent).toBe(label);
   });
 
   test("数を区切りつきで出す", async () => {
@@ -260,7 +259,7 @@ describe("「状態」の節", () => {
   test("警告が無ければ一覧もクリアのボタンも出さない", async () => {
     const { container } = await renderTab();
 
-    expect(container.querySelector(".wsTab__warnBox")).toBeNull();
+    expect(container.querySelector(".wsTab__warns")).toBeNull();
     expect(screen.queryByRole("button", { name: "警告をクリア" })).toBeNull();
   });
 
@@ -430,13 +429,6 @@ describe("「更新」の節", () => {
     expect(valueOf(container, "最後に確認できた")).toBe("まだ確認できていません");
   });
 
-  test("時刻の値だけ文の形で出す", async () => {
-    const { container } = await renderTab();
-
-    const plain = [...container.querySelectorAll(".wsTab__miniV--plain")];
-    expect(plain.map((v) => v.textContent)).toEqual(["まだ確認できていません"]);
-  });
-
   test("確認できた時刻を日本語の形で出す", async () => {
     const ms = new Date(2026, 10, 1, 9, 5).getTime();
     world.updater.persisted = { skippedVersion: null, lastCheckedMs: ms };
@@ -487,7 +479,7 @@ describe("「更新」の節", () => {
     [{ kind: "upToDate" }, "最新版を使っています"],
     [
       { kind: "found", version: "2.0.0" },
-      "新しいバージョン v2.0.0 が公開されています。この画面を閉じると案内が出ます。",
+      "新しいバージョン v2.0.0 が公開されています。上の帯から更新できます。",
     ],
     [
       { kind: "foundButSkipped", version: "2.0.0" },

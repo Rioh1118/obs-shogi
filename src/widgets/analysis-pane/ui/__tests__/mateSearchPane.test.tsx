@@ -257,6 +257,18 @@ describe("操作列の語と ▶", () => {
       expect(analysis.startInfiniteAnalysis).not.toHaveBeenCalled();
     },
   );
+
+  /** 出すと、検討のエンジンの話と詰み探索の話が、同じ操作列に並ぶ */
+  test.each<[EngineStatus, string]>([
+    ["exited", "再起動"],
+    ["unresponsive", "再起動"],
+    ["failed", "設定を開く"],
+  ])("検討のエンジンが %s でも、詰み探索が表を持つ間は「%s」を出さない", (value, label) => {
+    status.value = value;
+    own(FINISHED);
+    controls();
+    expect(screen.queryByRole("button", { name: label })).toBeNull();
+  });
 });
 
 describe("候補手の表", () => {

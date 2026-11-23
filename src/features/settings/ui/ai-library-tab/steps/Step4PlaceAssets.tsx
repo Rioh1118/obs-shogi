@@ -14,25 +14,25 @@ type Props = {
 export function Step4PlaceAssets({ state, profilesCount, isScanning, onScan }: Props) {
   return (
     <StepShell state={state} title="評価関数・定跡を配置" summary={`${profilesCount} 個のAI検出`}>
-      <div className="setupGuide__stepDesc">
+      <p className="setupGuide__stepDesc">
         AI 名のフォルダを作成し、その中に <code>eval/</code> と <code>book/</code> を置きます。
         評価関数に <code>eval_options.txt</code> が付いていれば、<code>eval/</code>{" "}
         の中に置きます（外に置くとエンジンが読みません）。
-      </div>
+      </p>
 
       <StepTree>
-        <TreeLine label="📂 ai_root/" dim />
-        <TreeLine indent={1} label="📂 &lt;AI 名&gt;/" highlight note="← 任意の名前" />
-        <TreeLine indent={2} label="📂 eval/" highlight />
-        <TreeLine indent={3} label="📄 nn.bin" note="← 評価関数" highlight />
-        <TreeLine indent={3} label="📄 eval_options.txt" note="← 推奨の設定（付いていれば）" />
-        <TreeLine indent={2} label="📂 book/" highlight />
-        <TreeLine indent={3} label="📄 book.db" note="← 定跡DB" highlight />
+        <TreeLine label="ai_root/" />
+        <TreeLine indent={1} label="&lt;AI 名&gt;/" highlight note="← 任意の名前" />
+        <TreeLine indent={2} label="eval/" highlight />
+        <TreeLine indent={3} label="nn.bin" note="← 評価関数" highlight />
+        <TreeLine indent={3} label="eval_options.txt" note="← 推奨の設定（付いていれば）" />
+        <TreeLine indent={2} label="book/" highlight />
+        <TreeLine indent={3} label="book.db" note="← 定跡DB" highlight />
       </StepTree>
 
       <div className="setupGuide__stepAction">
         <Button size="sm" onClick={onScan} disabled={isScanning}>
-          <RefreshCw size={14} style={{ marginRight: 6 }} />
+          <RefreshCw size={13} aria-hidden="true" />
           もう一度読み込む
         </Button>
       </div>

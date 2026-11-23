@@ -4,18 +4,23 @@
 // 低いウィンドウでは必ずあふれる。
 // **バーは出さない** —— 全要素で消してあるのが意匠（`design-system/design_system/principles.md` の原則8）
 .candidate-table {
-  height: 100%;
+  --th-h: #{index.$table-head-height};
+  --row-h: #{index.$row-height};
+
+  // 行の途中で切らない
+  height: calc(var(--th-h) + round(down, 100% - var(--th-h), var(--row-h)));
   min-height: 0;
   overflow-y: auto;
 
   // **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
-  background: index.$color-primary-dark;
-  color: rgba(index.$color-text-primary, 0.92);
+  background: index.$surface-dock;
+  color: index.$color-text-primary;
 
   &__grid {
     width: 100%;
     table-layout: fixed;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
 
     font-size: index.$font-body;
   }
@@ -24,74 +29,100 @@
   th {
     position: sticky;
     top: 0;
+    height: var(--th-h);
 
-    padding: index.$space-2 var(--pane-px, #{index.$space-4});
+    padding: 0 index.$space-4;
     text-align: left;
     font-family: index.$font-mono;
     font-weight: index.$weight-strong;
     font-size: index.$font-hint;
     letter-spacing: 0.09em;
-    color: rgba(index.$color-text-primary, 0.72);
+    color: index.$color-text-label;
 
-    background: index.$color-primary-dark;
+    background: index.$surface-dock;
     border-bottom: 1px solid index.$stroke-weak;
   }
 
-  &__th--move {
-    width: 8.4rem;
-  }
-  // 見出しも値と同じ縦線に立てる。**列で揃うのが表の取り柄**
-  &__th--score {
-    width: 6.8rem;
-    text-align: right;
-  }
   td {
-    padding: index.$space-1 var(--pane-px, #{index.$space-4});
-    border-bottom: 1px solid rgba(index.$color-white, 0.035);
+    height: var(--row-h);
+    padding: 0 index.$space-4;
+    border-bottom: 1px solid index.$stroke-weak;
 
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  th:first-child,
+  td:first-child {
+    padding-left: var(--pane-px, #{index.$space-7});
+  }
+
+  &__th--move {
+    width: 10.4rem;
+  }
+
+  // 見出しも値と同じ縦線に立てる。**列で揃うのが表の取り柄**
+  &__th--score {
+    width: 7.6rem;
+  }
+
+  th.candidate-table__th--score,
+  td.candidate-table__score {
+    padding-right: index.$space-9;
+    text-align: right;
+  }
+
   &__row {
     cursor: pointer;
 
     &:hover td {
-      background: rgba(index.$color-white, 0.035);
+      background: index.$surface-hover;
     }
   }
 
-  // 最善手。**色だけで示さない** —— 左の帯と太さを併せる
+  // 最善手。温かい塗りと、左の銅の線（design-system の patterns/selection.md）
   &__row--best td {
-    background: rgba(index.$color-secondary-dark, 0.13);
+    background: index.$surface-now;
+    color: index.$color-text-strong;
     font-weight: index.$weight-strong;
+
+    &:first-child {
+      box-shadow: index.$marker-bar;
+    }
   }
 
-  &__row--best td:first-child {
-    box-shadow: index.$marker-bar;
+  // 選んだ行。**最善手の行も選べるので、塗りのほかに右端の線で示す**
+  &__row--selected td {
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
+
+    &:last-child {
+      box-shadow: index.$marker-bar-end;
+    }
   }
 
-  // **ホバーより後に置く。** 置かないと選んだ行にポインタを載せた瞬間だけ目印が消える。
-  // 最善手の行も選べるので、**背景の濃さだけで示さない** —— 0.13 と 0.18 の差は読めない
-  &__row--selected td,
+  // **選んだ行と最善手は、ポインタを載せても薄まらない**
+  &__row--best:hover td {
+    background: index.$surface-now;
+  }
+
   &__row--selected:hover td {
-    background: rgba(index.$color-secondary-dark, 0.24);
-  }
-
-  &__row--selected td:last-child {
-    box-shadow: index.$marker-bar-end;
+    background: index.$surface-selected;
   }
 
   &__score {
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
-    text-align: right;
+  }
+
+  // 1手ずつの箱にすると、手の途中でなく手の切れ目で省かれる
+  &__pv span {
+    display: inline-block;
+    margin-right: index.$space-3;
   }
 
   &__empty {
-    padding: index.$space-4 var(--pane-px, #{index.$space-4});
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-primary, 0.72);
+    color: index.$color-text-label;
   }
 }

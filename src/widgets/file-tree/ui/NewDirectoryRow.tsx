@@ -1,4 +1,5 @@
 import NodeBox from "./NodeBox";
+import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import FileIcon from "./FileIcon";
 import InlineNameEditor from "./InlineNameEditor";
 import { commitName, useFileTree } from "@/entities/file-tree";
@@ -12,6 +13,7 @@ function NewDirectoryRow({ parentPath, level }: { parentPath: string; level: num
 
   return (
     <NodeBox level={level}>
+      <DirectoryToggleIcon />
       <FileIcon type="folder" />
       <InlineNameEditor
         initialName=""

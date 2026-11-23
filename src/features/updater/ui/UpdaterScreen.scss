@@ -1,180 +1,28 @@
 @use "@/index.scss" as index;
 
-// 画面の隅に出して背後を止めない。`aria-modal` を名乗らないのはこの形に合わせるため
-.updater-overlay {
+// 残る知らせの帯（`NotificationLayer`）のすぐ下
+.updater-band {
   position: fixed;
-  z-index: 9000;
-  bottom: index.$space-12;
-  right: index.$space-12;
-  pointer-events: none;
-}
+  top: calc(#{index.$titlebar-height} + var(--notice-bands-h, 0px));
+  left: 0;
+  right: 0;
+  z-index: index.$z-notification;
 
-.updater-card {
-  pointer-events: all;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-
-  width: 30rem;
-
-  border: 1px solid index.$stroke-weak;
-  border-radius: index.$radius-8;
-
-  background: linear-gradient(
-    160deg,
-    rgba(index.$color-primary-light, 0.97),
-    rgba(index.$color-primary-black, 0.99)
-  );
-  backdrop-filter: blur(24px);
-  box-shadow: index.$shadow-overlay;
-
-  color: index.$color-text-primary;
-
-  animation: updater-slide-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes updater-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(index.$space-5) scale(0.97);
+  // タイトルバーの無い画面（起動、最初のフォルダ選択）では、上端から始める。
+  // 本体が落ちたときの画面は、自分でタイトルバーを描く
+  body:not(:has(.titlebar)):not(:has(.root-error-fallback)) & {
+    top: var(--notice-bands-h, 0px);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+
+  &__progress {
+    width: 16rem;
+    height: 0.4rem;
+    background: index.$stroke-weak;
   }
-}
 
-// Header
-.updater-card__header {
-  display: flex;
-  align-items: center;
-  gap: index.$space-4;
-  padding: index.$space-6 index.$space-6 index.$space-5;
-  border-bottom: 1px solid index.$stroke-weak;
-}
-
-.updater-card__icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.8rem;
-  height: 2.8rem;
-  flex-shrink: 0;
-  border-radius: index.$radius-5;
-  background: rgba(index.$color-secondary-dark, 0.15);
-  color: index.$color-secondary-dark;
-}
-
-.updater-card__heading {
-  flex: 1;
-  font-size: index.$font-body;
-  font-weight: index.$weight-title;
-  letter-spacing: 0.01em;
-  color: index.$color-text-light-1;
-}
-
-.updater-card__dismiss {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.2rem;
-  height: 2.2rem;
-  flex-shrink: 0;
-  border: none;
-  border-radius: index.$radius-circle;
-  background: transparent;
-  color: rgba(index.$color-text-primary, 0.4);
-  cursor: pointer;
-  transition:
-    background 100ms ease,
-    color 100ms ease;
-}
-
-.updater-card__dismiss:hover {
-  background: rgba(index.$color-white, 0.07);
-  color: index.$color-text-primary;
-}
-
-// Body
-.updater-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: index.$space-3;
-  padding: index.$space-5 index.$space-6 index.$space-3;
-}
-
-.updater-card__version {
-  font-size: index.$font-aux;
-  color: rgba(index.$color-text-primary, 0.72);
-  line-height: 1.5;
-}
-
-.updater-card__version-tag {
-  font-weight: index.$weight-strong;
-  color: index.$color-secondary-dark;
-  font-feature-settings: "tnum";
-}
-
-.updater-card__note {
-  font-size: index.$font-aux;
-  color: rgba(index.$color-text-primary, 0.65);
-  line-height: 1.5;
-}
-
-// 失敗したときに次へ進むための一文。**見出しの次に読ませる**ので本文の明度で出す
-.updater-card__hint {
-  font-size: index.$font-aux;
-  color: index.$color-danger-text;
-  line-height: 1.5;
-}
-
-// plugin が返した綴り。**手掛かりであって見出しではない**ので、1段階落とす。
-//
-// **`color` を宣言せずに `opacity` で落とす。** この背景は不透明度を持つ層の重ねで
-// できていてコントラストを測れない（`contrastRatchet` の「測れなかった宣言」）。
-// 色をもう1つ足すと、測れない宣言だけが増える
-.updater-card__error {
-  font-size: index.$font-hint;
-  opacity: 0.55;
-  word-break: break-all;
-  user-select: text;
-}
-
-// Progress
-.updater-card__progress-wrap {
-  display: flex;
-  align-items: center;
-  gap: index.$space-4;
-}
-
-.updater-card__progress-bar {
-  flex: 1;
-  height: 3px;
-  border-radius: index.$radius-pill;
-  background: rgba(index.$color-white, 0.08);
-  overflow: hidden;
-}
-
-.updater-card__progress-fill {
-  height: 100%;
-  border-radius: index.$radius-pill;
-  background: index.$color-secondary-dark;
-  transition: width 80ms linear;
-}
-
-.updater-card__progress-label {
-  font-size: index.$font-hint;
-  font-feature-settings: "tnum";
-  color: rgba(index.$color-text-primary, 0.5);
-  min-width: 3.2rem;
-  text-align: right;
-}
-
-// Actions
-.updater-card__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: index.$space-3;
-  padding: index.$space-4 index.$space-6 index.$space-6;
+  // 進んだ分。文字の載らない線で描く
+  &__progressFill {
+    display: block;
+    border-top: 0.4rem solid index.$color-commit-solid;
+  }
 }

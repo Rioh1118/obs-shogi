@@ -132,6 +132,71 @@ describe("StudyPositionsManagerModal", () => {
     expect(document.querySelector(".sp-manager")).toBeNull();
   });
 
+  test("開いたときのフォーカスは全体に入り、何も押さなくても矢印が効く", () => {
+    render(<StudyPositionsManagerModal />);
+
+    expect(document.activeElement).toBe(root());
+    key(document.activeElement!, "ArrowDown");
+    expect(selectedLabel()).toBe("四間飛車");
+  });
+
+  test("見ている状態のタブと、選んだ行だけを塗る", () => {
+    render(<StudyPositionsManagerModal />);
+
+    const activeTabs = screen
+      .getAllByRole("tab")
+      .filter((tab) => tab.className.includes("state-tab-nav__tab--active"));
+    expect(activeTabs.map((tab) => tab.textContent)).toEqual(["全て3"]);
+    const rows = within(list())
+      .getAllByRole("option")
+      .filter((row) => row.className.includes("sp-list-item--selected"));
+    expect(rows.map((row) => row.querySelector(".sp-list-item__label")?.textContent)).toEqual([
+      "角換わり",
+    ]);
+  });
+
+  test("詳細は、題・研究状態と更新日・タグ・メモを出す", () => {
+    render(<StudyPositionsManagerModal />);
+
+    const facts = () =>
+      [...document.querySelectorAll(".sp-detail__facts")].map((row) => row.textContent);
+    expect(facts()[0]).toMatch(/^研究中.* 更新$/);
+    expect(facts()[1]).toBe("#角換わり#急所");
+    expect(document.querySelector(".sp-detail__memo")?.textContent).toBe("腰掛銀の急所");
+  });
+
+  test("タグもメモも無い局面では、その行を出さない", () => {
+    positions = [{ ...KAKU, tags: [], description: "" }];
+    render(<StudyPositionsManagerModal />);
+
+    expect(document.querySelectorAll(".sp-detail__facts")).toHaveLength(1);
+    expect(document.querySelector(".sp-detail__memo")).toBeNull();
+  });
+
+  test("タグを選ぶまで、絞り込みのボタンに数を出さない", () => {
+    render(<StudyPositionsManagerModal />);
+    const button = screen.getByTitle("タグで絞り込む");
+    expect(button.textContent).toBe("");
+    expect(button.className).not.toContain("sp-manager__filterBtn--active");
+
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole("button", { name: "急所" }));
+    expect(button.textContent).toBe("1");
+    expect(button.className).toContain("sp-manager__filterBtn--active");
+    expect(
+      [...document.querySelectorAll(".tag-panel__chip--selected")].map((chip) => chip.textContent),
+    ).toContain("急所");
+  });
+
+  test("並べ替えの一覧は、いまの順だけを塗る", () => {
+    render(<StudyPositionsManagerModal />);
+    fireEvent.click(document.querySelector(".sp-manager__sortTrigger")!);
+
+    expect(
+      [...document.querySelectorAll(".sp-manager__sortOption--active")].map((o) => o.textContent),
+    ).toEqual(["更新日↓"]);
+  });
+
   test("既定は更新日の新しい順で、先頭を選ぶ", () => {
     render(<StudyPositionsManagerModal />);
 
@@ -403,6 +468,7 @@ describe("StudyPositionsManagerModal", () => {
     render(<StudyPositionsManagerModal />);
 
     const row = within(list()).getByRole("option");
+    expect(row.querySelector(".sp-list-item__state")?.textContent).toBe("研究中");
     expect(row.querySelector(".sp-list-item__meta")?.textContent).toBe("後手 2手目");
     expect([...row.querySelectorAll(".sp-list-item__tag")].map((t) => t.textContent)).toEqual([
       "#a",

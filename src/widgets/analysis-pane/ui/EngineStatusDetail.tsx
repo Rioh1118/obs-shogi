@@ -21,17 +21,19 @@ export function EngineStatusDetail({ notice, lastOutput, anchor, onOpenSettings,
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 語はこのサーフェスの親に居る。**語の押下は語の側が開閉する**ので、ここで閉じると開き直す
-    const closeOutside = (event: MouseEvent) => {
+    // 語はこのサーフェスの親に居る。**語の押下は語の側が開閉する**ので、ここで閉じると開き直す。
+    // 押下は pointerdown で聞く。上の帯を押すと Tauri が document の mousedown を止める
+    // （`noDocumentMousedown.test.ts`）
+    const closeOutside = (event: PointerEvent) => {
       if (!ref.current?.parentElement?.contains(event.target as Node)) onClose();
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
-    document.addEventListener("mousedown", closeOutside);
+    document.addEventListener("pointerdown", closeOutside);
     document.addEventListener("keydown", closeOnEscape);
     return () => {
-      document.removeEventListener("mousedown", closeOutside);
+      document.removeEventListener("pointerdown", closeOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [onClose]);

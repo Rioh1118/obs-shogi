@@ -9,7 +9,7 @@ import type { AnalysisCandidate } from "@/entities/engine";
 import StatsSection from "../StatsSection";
 
 /**
- * 検討ペインが候補手から出す数字。評価値、読み筋、評価値バー、脚注。
+ * 検討ビューが候補手から出す数字。評価値、読み筋、評価値バー、読みの量。
  *
  * 評価値はエンジンが手番の側から見た値なので、後手番の局面では符号を返して出す。
  * 返し損ねると、後手番の局面だけ形勢が逆に読める。
@@ -90,6 +90,7 @@ vi.mock("@/entities/app-config", async (importOriginal) => {
 });
 
 const { default: AnalysisPane } = await import("../AnalysisPane");
+const { default: AnalysisStats } = await import("../AnalysisStats");
 
 const tableRows = () => screen.getAllByRole("row").slice(1);
 const cellsOf = (row: HTMLElement) => [...row.querySelectorAll("td")].map((td) => td.textContent);
@@ -171,6 +172,15 @@ describe("候補手の表", () => {
     };
     view.rerender(<AnalysisPane />);
     expect(tableRows().map((row) => row.getAttribute("aria-selected"))).toEqual(["false"]);
+  });
+
+  test("読み筋は、1手ずつの箱に分ける", () => {
+    analysis.state.candidates = [{ rank: 1, first_move: "8c8d", pv_line: ["8c8d", "2g2f"] }];
+    render(<AnalysisPane />);
+
+    // 箱に分けないと、入りきらない手が途中で切れて別の手に読める
+    const moves = [...tableRows()[0].querySelectorAll(".candidate-table__pv > span")];
+    expect(moves.map((move) => move.textContent?.trim())).toEqual(["☖８四歩", "☗２六歩"]);
   });
 
   test("最善の行に印を付ける", () => {
@@ -260,7 +270,7 @@ describe("評価値バー", () => {
   });
 });
 
-describe("脚注", () => {
+describe("読みの量", () => {
   const values = (container: HTMLElement) =>
     [...container.querySelectorAll(".stats-section__item")].map((item) => item.textContent);
 
@@ -276,7 +286,7 @@ describe("脚注", () => {
         time_ms: 2500,
       },
     ];
-    const { container } = render(<AnalysisPane />);
+    const { container } = render(<AnalysisStats />);
 
     expect(values(container)).toEqual(["深さ20", "ノード数1.2M", "NPS493.8K", "時間2.5s"]);
   });
@@ -286,9 +296,19 @@ describe("脚注", () => {
       { rank: 1, first_move: "8c8d", pv_line: ["8c8d"], depth: 20, nodes: 1000, time_ms: 1000 },
       { rank: 2, first_move: "3c3d", pv_line: ["3c3d"], depth: 1, nodes: 1, time_ms: 1 },
     ];
-    const { container } = render(<AnalysisPane />);
+    const { container } = render(<AnalysisStats />);
 
     expect(values(container)[0]).toBe("深さ20");
+  });
+
+  test("表に出していない候補手の数は出さない", () => {
+    analysis.state.analyzedSfen = "別の局面";
+    analysis.state.candidates = [
+      { rank: 1, first_move: "8c8d", pv_line: ["8c8d"], depth: 20, nodes: 1000, time_ms: 1000 },
+    ];
+    const { container } = render(<AnalysisStats />);
+
+    expect(values(container)[0]).toBe("深さ—");
   });
 
   test.each([

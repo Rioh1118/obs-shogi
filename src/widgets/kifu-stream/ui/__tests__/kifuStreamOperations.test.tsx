@@ -54,6 +54,19 @@ const COMMENTED = parseKifuContentToJKF(
   "kif",
 );
 
+/** 1手目に2行のコメントがある棋譜 */
+const TWO_LINES = parseKifuContentToJKF(
+  [
+    "手合割：平手",
+    "   1 ７六歩(77)",
+    "*角道を開ける",
+    "*ここから角換わり",
+    "   2 ３四歩(33)",
+    "",
+  ].join("\n"),
+  "kif",
+);
+
 /** 2手目の変化1を選んだ計画 */
 const SECOND_MOVE_FORK = [{ te: 2, forkIndex: 0 }];
 
@@ -83,7 +96,11 @@ const game = vi.hoisted(() => ({
 const overlay = vi.hoisted(() => ({ isTop: true }));
 
 /** 一覧を流した記録。happy-dom は寸法が0なので、流す先の計算ではなく呼ばれ方を見る */
-const scroll = vi.hoisted(() => ({ calls: [] as { rowId: string; behavior: ScrollBehavior }[] }));
+const scroll = vi.hoisted(() => ({
+  calls: [] as { rowId: string; behavior: ScrollBehavior }[],
+  /** 流す先を揃える刻み。呼ばれた順 */
+  units: [] as (number | undefined)[],
+}));
 
 /** `revealRow` が読む時計。続けて動いたかを決める */
 const clock = vi.hoisted(() => ({ now: 10_000 }));
@@ -93,8 +110,14 @@ vi.mock("@/widgets/kifu-stream/lib/scrollToRowSafeZone", async (importActual) =>
     await importActual<typeof import("@/widgets/kifu-stream/lib/scrollToRowSafeZone")>();
   const mocked = {
     ...actual,
-    scrollToRowSafeZone: (_scroller: HTMLElement, rowEl: HTMLElement, behavior: ScrollBehavior) => {
+    scrollToRowSafeZone: (
+      _scroller: HTMLElement,
+      rowEl: HTMLElement,
+      behavior: ScrollBehavior,
+      unit?: number,
+    ) => {
       scroll.calls.push({ rowId: rowEl.id, behavior });
+      scroll.units.push(unit);
     },
   };
   return mocked satisfies typeof import("@/widgets/kifu-stream/lib/scrollToRowSafeZone");
@@ -119,10 +142,20 @@ vi.mock("@/shared/lib/overlayStack", async (importActual) => {
 vi.mock("@/features/kifu-comment-note/ui/KifuCommentNote", async (importActual) => {
   const actual =
     await importActual<typeof import("@/features/kifu-comment-note/ui/KifuCommentNote")>();
-  // 中身は Lexical ごと立つので描かない。見るのは開いているかだけ
+  // 中身は Lexical ごと立つので描かない。見るのは開いているかと、閉じたときの行き先だけ
   const mocked = {
     ...actual,
-    default: ({ open }: { open: boolean }) => <>{open && <div data-testid="note" />}</>,
+    default: ({ open, onClose }: { open: boolean; onClose: () => void }) => (
+      <>
+        {open && (
+          <div data-testid="note" role="dialog" aria-modal="false" aria-label="付箋">
+            <button type="button" onClick={onClose}>
+              付箋を閉じる
+            </button>
+          </div>
+        )}
+      </>
+    ),
   };
   return mocked satisfies typeof import("@/features/kifu-comment-note/ui/KifuCommentNote");
 });
@@ -160,6 +193,26 @@ async function click(el: Element) {
   });
 }
 
+const list = () => screen.getByRole("grid", { name: "棋譜" });
+
+const rect = (top: number, height: number): DOMRect => ({
+  top,
+  bottom: top + height,
+  left: 0,
+  right: 300,
+  width: 300,
+  height,
+  x: 0,
+  y: top,
+  toJSON: () => ({}),
+});
+
+/** 高さ 400 の一覧の中で、行を上から `top` の所に置く */
+function placeRow(te: number, top: number) {
+  vi.spyOn(list(), "getBoundingClientRect").mockReturnValue(rect(0, 400));
+  vi.spyOn(rowOf(te), "getBoundingClientRect").mockReturnValue(rect(top, 42));
+}
+
 async function openForkMenu(te = 2) {
   await click(within(rowOf(te)).getByTitle("分岐を選択"));
   return screen.getByRole("menu", { name: `${te}手目の分岐` });
@@ -175,6 +228,7 @@ async function openForkActions(nth: number, te = 2) {
 beforeEach(() => {
   overlay.isTop = true;
   scroll.calls = [];
+  scroll.units = [];
   clock.now = 10_000;
   vi.spyOn(performance, "now").mockImplementation(() => clock.now);
   game.state.cursor = { tesuu: 0, forkPointers: [], tesuuPointer: "0,[]" };
@@ -216,8 +270,8 @@ async function nextFrame() {
 
 describe("一覧", () => {
   test("手数と総手数を出す", async () => {
-    await mount();
-    expect(screen.getByText("手数 0/3")).not.toBeNull();
+    const { container } = await mount();
+    expect(container.querySelector(".kifu__statusText")?.textContent).toBe("手数 0/3");
   });
 
   test("棋譜が無ければ選ぶよう案内する", async () => {
@@ -497,6 +551,25 @@ describe("削除の確認", () => {
     expect(within(dialog).queryByText("削除中…")).toBeNull();
   });
 
+  // 押した項目は、確認が開くのと同じコミットで消える。戻り先が無いと、一覧の ↑ ↓ が効かなくなる
+  test.each(["キャンセル", "削除する"])(
+    "「%s」で閉じたら、フォーカスは一覧へ戻る",
+    async (name) => {
+      await mount();
+      await act(async () => {
+        fireEvent.contextMenu(rowOf(3));
+      });
+      const remove = within(screen.getByRole("menu")).getByRole("menuitem", { name: "削除" });
+      await act(async () => remove.focus());
+      await click(remove);
+
+      await click(screen.getByRole("button", { name }));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(list());
+    },
+  );
+
   test("棋譜が入れ替わったら確認を閉じる", async () => {
     const view = await mount();
     const actions = await openForkActions(1);
@@ -554,6 +627,114 @@ describe("開くサーフェスは1つだけ", () => {
     expect(screen.queryByTestId("note")).not.toBeNull();
   });
 
+  describe("ノートを閉じたあとのフォーカス", () => {
+    const commentButton = (te: number) => within(rowOf(te)).getByTitle(/コメントを(開く|追加)/);
+    const closeNote = () => screen.getByRole("button", { name: "付箋を閉じる" });
+    const focus = (el: HTMLElement) => act(async () => el.focus());
+
+    test("いまの手の行で開いたなら、そのボタンへ戻す", async () => {
+      await mount();
+      await click(commentButton(0));
+      await focus(closeNote());
+
+      await click(closeNote());
+
+      expect(document.activeElement).toBe(commentButton(0));
+    });
+
+    test("ほかの行で開いたなら、一覧へ戻す", async () => {
+      await mount();
+      await click(commentButton(1));
+      await focus(closeNote());
+
+      await click(closeNote());
+
+      expect(document.activeElement).toBe(list());
+    });
+
+    // 編集欄は Escape で自分からフォーカスを手放す
+    test("どこにも無ければ、開いた側へ戻す", async () => {
+      await mount();
+      await click(commentButton(1));
+      expect(document.activeElement).toBe(document.body);
+
+      await click(closeNote());
+
+      expect(document.activeElement).toBe(list());
+    });
+
+    // 保存を待っている間に開いたモーダルから奪わない
+    test("モーダルの中にあれば、動かさない", async () => {
+      await mount();
+      await click(commentButton(1));
+      const modal = document.createElement("div");
+      modal.innerHTML = '<div role="dialog" aria-modal="true"><button>中</button></div>';
+      document.body.append(modal);
+      const inside = modal.querySelector("button")!;
+      await focus(inside);
+
+      await click(closeNote());
+
+      expect(document.activeElement).toBe(inside);
+      modal.remove();
+    });
+
+    test("開いたボタンが消えていれば、一覧へ戻す", async () => {
+      await mount();
+      await click(commentButton(0));
+      await focus(closeNote());
+      commentButton(0).remove();
+
+      await click(closeNote());
+
+      expect(document.activeElement).toBe(list());
+    });
+
+    test("書き込みの最中でボタンが押せなければ、一覧へ戻す", async () => {
+      const view = await mount();
+      await click(commentButton(0));
+      await focus(closeNote());
+      game.state.isLoading = true;
+      await redraw(view);
+
+      await click(closeNote());
+
+      expect(document.activeElement).toBe(list());
+    });
+
+    test("開いた行が一覧の外へ流れていれば、見せる", async () => {
+      await mount();
+      await click(commentButton(0));
+      placeRow(0, 900);
+      scroll.calls = [];
+
+      await click(closeNote());
+
+      expect(scroll.calls.map((call) => call.rowId)).toEqual(["kifu-row-0"]);
+    });
+
+    test("開いた行が見えていれば、流さない", async () => {
+      await mount();
+      await click(commentButton(0));
+      placeRow(0, 100);
+      scroll.calls = [];
+
+      await click(closeNote());
+
+      expect(scroll.calls).toEqual([]);
+    });
+
+    test("ほかの部品にあれば、動かさない", async () => {
+      await mount();
+      await click(commentButton(1));
+      await focus(commentButton(0));
+
+      await click(closeNote());
+
+      expect(document.activeElement).toBe(commentButton(0));
+    });
+  });
+
   test("ノートのボタンは開いている行でだけ押された形になる", async () => {
     await mount();
     await click(within(rowOf(1)).getByTitle(/コメントを(開く|追加)/));
@@ -572,12 +753,17 @@ describe("開くサーフェスは1つだけ", () => {
 });
 
 describe("行", () => {
-  test("Enter でその手へ動く", async () => {
+  // 行のキーを行が受けると、Tab で来たボタンを Enter で押せない
+  test.each(["Enter", " "])("行の中のボタンの %s は、行が受けない", async (key) => {
     await mount();
+
+    let untouched = false;
     await act(async () => {
-      fireEvent.keyDown(rowOf(2), { key: "Enter" });
+      untouched = fireEvent.keyDown(within(rowOf(2)).getByTitle("分岐を選択"), { key });
     });
-    expect(game.goToIndex).toHaveBeenCalledWith(2);
+
+    expect(untouched).toBe(true);
+    expect(game.goToIndex).not.toHaveBeenCalled();
   });
 
   test("コメントのある行は数を出し、ボタンの題を「開く」にする", async () => {
@@ -586,7 +772,149 @@ describe("行", () => {
 
     const withComment = within(rowOf(1)).getByTitle("コメントを開く");
     expect(withComment.textContent).toBe("1");
+    expect(withComment.getAttribute("aria-label")).toBe("コメントを開く（1）");
     expect(within(rowOf(2)).queryByTitle("コメントを追加")).not.toBeNull();
+  });
+
+  describe("コメントの本文", () => {
+    const memo = (te: number) => rowOf(te).querySelector(".kifu-row__memo")?.textContent;
+    const firstLine = (te: number) => rowOf(te).querySelector(".kifu-row__firstLine")?.textContent;
+
+    test("いまの手でない行は、1行目だけを出す", async () => {
+      load(TWO_LINES);
+      await mount();
+
+      expect(firstLine(1)).toBe("角道を開ける");
+      expect(memo(1)).toBeUndefined();
+    });
+
+    test("いまの手の行は、全部を出す", async () => {
+      load(TWO_LINES);
+      game.state.cursor = { tesuu: 1, forkPointers: [], tesuuPointer: "1,[]" };
+      await mount();
+
+      expect(memo(1)).toBe("角道を開ける\nここから角換わり");
+      expect(firstLine(1)).toBeUndefined();
+    });
+
+    test("1行目を押しても、その手へ動く", async () => {
+      load(TWO_LINES);
+      await mount();
+
+      await click(rowOf(1).querySelector(".kifu-row__firstLine")!);
+
+      expect(game.goToIndex).toHaveBeenCalledWith(1);
+    });
+
+    test("開いた付箋の付け先のボタンは、いまの手が変わっても作り直さない", async () => {
+      load(TWO_LINES);
+      game.state.cursor = { tesuu: 1, forkPointers: [], tesuuPointer: "1,[]" };
+      const view = await mount();
+      const button = within(rowOf(1)).getByTitle("コメントを開く");
+
+      game.state.cursor = { tesuu: 2, forkPointers: [], tesuuPointer: "2,[]" };
+      await redraw(view);
+
+      expect(within(rowOf(1)).getByTitle("コメントを開く")).toBe(button);
+    });
+  });
+
+  describe("選べるほかの手", () => {
+    const others = (te: number) =>
+      [...rowOf(te).querySelectorAll(".kifu-row__others span")].map((el) => el.textContent?.trim());
+
+    test("本譜を降りていれば、変化の手を出す", async () => {
+      await mount();
+
+      expect(others(2)).toEqual(["☖８四歩"]);
+    });
+
+    test("変化を降りていれば、本譜の手を出す", async () => {
+      load(NESTED, SECOND_MOVE_FORK);
+      await mount();
+
+      expect(others(2)).toEqual(["☖３四歩"]);
+    });
+  });
+});
+
+describe("Tab で一覧へ来たとき", () => {
+  const tab = (target: Element, key = "Tab") =>
+    act(async () => {
+      fireEvent.keyUp(target, { key });
+    });
+
+  test("いまの手の行が一覧の下へ流れていれば、見せる", async () => {
+    await mount();
+    placeRow(0, 400);
+    scroll.calls = [];
+
+    await tab(list());
+
+    expect(scroll.calls.map((call) => call.rowId)).toEqual(["kifu-row-0"]);
+  });
+
+  test("一覧の上へ流れていても、見せる", async () => {
+    await mount();
+    placeRow(0, -10);
+    scroll.calls = [];
+
+    await tab(list());
+
+    expect(scroll.calls.map((call) => call.rowId)).toEqual(["kifu-row-0"]);
+  });
+
+  test("見えていれば、流さない", async () => {
+    await mount();
+    placeRow(0, 358);
+    scroll.calls = [];
+
+    await tab(list());
+
+    expect(scroll.calls).toEqual([]);
+  });
+
+  test("ほかのキーでは、流さない", async () => {
+    await mount();
+    placeRow(0, 900);
+    scroll.calls = [];
+
+    await tab(list(), "PageDown");
+
+    expect(scroll.calls).toEqual([]);
+  });
+});
+
+describe("メニューキーと Shift+F10", () => {
+  const menuKey = (target: Element, init: MouseEventInit = {}) =>
+    act(async () => {
+      fireEvent.contextMenu(target, { button: 0, ...init });
+    });
+
+  test("一覧に届いたら、いまの手の行の操作を開く", async () => {
+    game.state.cursor = { tesuu: 3, forkPointers: [], tesuuPointer: "3,[]" };
+    await mount();
+
+    await menuKey(list());
+
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).not.toBeNull();
+  });
+
+  test("一覧の余白の右クリックでは開かない", async () => {
+    await mount();
+
+    await menuKey(list(), { button: 2 });
+
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  test("書き込みの最中は開かない", async () => {
+    game.state.isLoading = true;
+    await mount();
+
+    await menuKey(list());
+
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 });
 
@@ -630,6 +958,66 @@ describe("行の操作", () => {
     });
     expect(screen.queryByRole("menu", { name: "3手目の操作" })).toBeNull();
   });
+
+  // 閉じられないと、開いている間は矢印で局面を動かせないまま残る
+  test("Escape で閉じ、フォーカスを一覧へ返す", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+
+    let untouched = true;
+    await act(async () => {
+      untouched = fireEvent.keyDown(document.body, { key: "Escape" });
+    });
+
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).toBeNull();
+    expect(document.activeElement).toBe(list());
+    expect(untouched).toBe(false);
+  });
+
+  test("一覧を流さずに、フォーカスを返す", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    const focus = vi.spyOn(list(), "focus");
+
+    await act(async () => {
+      fireEvent.keyDown(document.body, { key: "Escape" });
+    });
+
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
+  test("Escape でないキーでは閉じない", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+
+    let untouched = false;
+    await act(async () => {
+      untouched = fireEvent.keyDown(document.body, { key: "ArrowDown" });
+    });
+
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).not.toBeNull();
+    expect(untouched).toBe(true);
+  });
+
+  test("最上位でなければ Escape では閉じない", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.contextMenu(rowOf(3));
+    });
+    overlay.isTop = false;
+
+    await act(async () => {
+      fireEvent.keyDown(document.body, { key: "Escape" });
+    });
+
+    expect(screen.queryByRole("menu", { name: "3手目の操作" })).not.toBeNull();
+  });
 });
 
 describe("分岐メニューの閉じ方", () => {
@@ -657,7 +1045,8 @@ describe("分岐メニューの閉じ方", () => {
     expect(screen.queryByRole("menu", { name: "2手目の分岐" })).not.toBeNull();
   });
 
-  test("Escape で閉じたらバッジへ焦点を戻す", async () => {
+  test("いまの手の行なら、Escape で閉じたあとバッジへ焦点を戻す", async () => {
+    game.state.cursor = { tesuu: 2, forkPointers: [], tesuuPointer: "2,[]" };
     await mount();
     await openForkMenu();
 
@@ -667,6 +1056,34 @@ describe("分岐メニューの閉じ方", () => {
     await nextFrame();
 
     expect(document.activeElement).toBe(within(rowOf(2)).getByTitle("分岐を選択"));
+  });
+
+  test("バッジが押せなくなっていれば、Escape で閉じたあと一覧へ焦点を戻す", async () => {
+    game.state.cursor = { tesuu: 2, forkPointers: [], tesuuPointer: "2,[]" };
+    const view = await mount();
+    await openForkMenu();
+    game.state.isLoading = true;
+    await redraw(view);
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    await nextFrame();
+
+    expect(document.activeElement).toBe(list());
+  });
+
+  // バッジに戻すと、輪がいまの手と別の行に出る
+  test("ほかの行なら、Escape で閉じたあと一覧へ焦点を戻す", async () => {
+    await mount();
+    await openForkMenu();
+
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "Escape" });
+    });
+    await nextFrame();
+
+    expect(document.activeElement).toBe(list());
   });
 
   test("書き込みが始まった後は選べない", async () => {
@@ -711,7 +1128,8 @@ describe("計画で変化を選んでいるとき", () => {
     load(NESTED, SECOND_MOVE_FORK);
     await mount();
 
-    expect(within(rowOf(2)).getByTitle("分岐を選択").textContent).toBe("11");
+    const badge = within(rowOf(2)).getByTitle("分岐を選択");
+    expect(badge.querySelector(".kifu-row__count")?.textContent).toBe("1/1");
     const items = within(await openForkMenu()).getAllByRole("menuitemradio");
     expect(items.map((i) => i.getAttribute("aria-checked"))).toEqual(["false", "true"]);
   });
@@ -829,6 +1247,24 @@ describe("一覧の位置", () => {
       rowId: "kifu-row-2",
       behavior: "auto",
     });
+  });
+
+  test.each([
+    ["先頭", 0],
+    ["途中", 2],
+    ["末尾", 3],
+  ])("流す先は、コメントで広がった%sの行でなく、1行の高さに揃える", async (_, tesuu) => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("kifu-row--active") ? 78 : 26;
+    });
+    const view = await mount();
+    clock.now += 1000;
+    moveCursorTo(tesuu);
+    await redraw(view);
+
+    expect(scroll.units[scroll.units.length - 1]).toBe(26);
   });
 
   test("Escape で閉じたら、分岐の行を見える位置へ戻す", async () => {

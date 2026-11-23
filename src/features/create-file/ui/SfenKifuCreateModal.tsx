@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type FormEvent } from "react";
 
 import Modal from "@/shared/ui/Modal";
+import ModalHead from "@/shared/ui/ModalHead";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import {
   FsErrorView,
@@ -18,7 +19,6 @@ import Form from "@/shared/ui/Form/Form";
 import FormField from "@/shared/ui/Form/FormField";
 import TextInput from "@/shared/ui/Form/TextInput";
 import Select from "@/shared/ui/Form/Select";
-import ButtonGroup from "@/shared/ui/Form/ButtonGroup";
 import Button from "@/shared/ui/Button/Button";
 
 import "./SfenKifuCreateModal.scss";
@@ -113,88 +113,91 @@ function SfenKifuCreateDialog({ sfen, closeModal }: { sfen: string; closeModal: 
       scroll="none"
     >
       <div className="sfen-kifu-create">
-        <div className="sfen-kifu-create__preview">
-          <PositionPreviewPane previewData={previewData} />
-        </div>
+        <ModalHead title="課題局面から棋譜を作成" />
 
-        <Form onSubmit={handleSubmit}>
-          <FormField>
-            <h2 className="form__heading-secondary">{"課題局面から棋譜を作成"}</h2>
-          </FormField>
+        <div className="sfen-kifu-create__body">
+          <div className="sfen-kifu-create__preview">
+            <PositionPreviewPane previewData={previewData} />
+          </div>
 
-          <FormField>
-            <Select
-              label="保存先フォルダ"
-              id="sfen-kifu-create-dir"
-              options={dirOptions}
-              value={selectedDir}
-              onChange={handleDirChange}
-            />
-            {dirOptions.length === 0 && (
-              <p className="sfen-kifu-create__hint">
-                保存先がありません。先にワークスペースを開いてください
-              </p>
-            )}
-          </FormField>
+          <Form
+            onSubmit={handleSubmit}
+            foot={
+              <>
+                <Button onClick={() => closeModal()} disabled={isSubmitting}>
+                  キャンセル
+                </Button>
+                <Button
+                  type="submit"
+                  tone="primary"
+                  isLoading={isSubmitting}
+                  disabled={!fullFileName || !selectedDir}
+                >
+                  {isSubmitting ? "作成中…" : "作成"}
+                </Button>
+              </>
+            }
+          >
+            <FormField>
+              <Select
+                label="保存先フォルダ"
+                id="sfen-kifu-create-dir"
+                options={dirOptions}
+                value={selectedDir}
+                onChange={handleDirChange}
+              />
+              {dirOptions.length === 0 && (
+                <p className="sfen-kifu-create__hint">
+                  保存先がありません。先にワークスペースを開いてください
+                </p>
+              )}
+            </FormField>
 
-          <FormField horizontal>
-            <TextInput
-              label="ファイル名"
-              id="sfen-kifu-create-file-name"
-              placeholder="45角戦法"
-              value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
-              required
-            />
-            <Select
-              label="フォーマット"
-              id="sfen-kifu-create-format"
-              options={KIFU_FORMAT_OPTIONS}
-              value={format}
-              onChange={setFormat}
-            />
-          </FormField>
+            <FormField horizontal>
+              <TextInput
+                label="ファイル名"
+                id="sfen-kifu-create-file-name"
+                placeholder="45角戦法"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                required
+              />
+              <Select
+                label="フォーマット"
+                id="sfen-kifu-create-format"
+                options={KIFU_FORMAT_OPTIONS}
+                value={format}
+                onChange={setFormat}
+              />
+            </FormField>
 
-          <FormField horizontal>
-            <TextInput
-              label="先手名"
-              id="sfen-kifu-create-black"
-              placeholder="Player1"
-              value={blackPlayer}
-              onChange={(e) => setBlackPlayer(e.target.value)}
-            />
-            <TextInput
-              label="後手名"
-              id="sfen-kifu-create-white"
-              placeholder="Player2"
-              value={whitePlayer}
-              onChange={(e) => setWhitePlayer(e.target.value)}
-            />
-          </FormField>
+            <FormField horizontal>
+              <TextInput
+                label="先手名"
+                id="sfen-kifu-create-black"
+                placeholder="Player1"
+                value={blackPlayer}
+                onChange={(e) => setBlackPlayer(e.target.value)}
+              />
+              <TextInput
+                label="後手名"
+                id="sfen-kifu-create-white"
+                placeholder="Player2"
+                value={whitePlayer}
+                onChange={(e) => setWhitePlayer(e.target.value)}
+              />
+            </FormField>
 
-          {/* 押した場所の隣に出す。フォームは差し替えない —— 入力欄が消えると、失敗して
+            {/* 押した場所の隣に出す。フォームは差し替えない —— 入力欄が消えると、失敗して
               戻ったときキーボードの利用者はどこにいるか分からなくなる。残っていれば、
               名前を直してそのまま押し直せる */}
-          {submitError && (
-            <FormField>
-              <FsErrorView error={submitError} />
-            </FormField>
-          )}
-
-          <ButtonGroup>
-            <Button
-              type="submit"
-              tone="primary"
-              isLoading={isSubmitting}
-              disabled={!fullFileName || !selectedDir}
-            >
-              {isSubmitting ? "作成中…" : "作成"}
-            </Button>
-            <Button type="button" onClick={() => closeModal()} disabled={isSubmitting}>
-              キャンセル
-            </Button>
-          </ButtonGroup>
-        </Form>
+            {submitError && (
+              <FormField>
+                <FsErrorView error={submitError} />
+              </FormField>
+            )}
+          </Form>
+        </div>
       </div>
     </Modal>
   );

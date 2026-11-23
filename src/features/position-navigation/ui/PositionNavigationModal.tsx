@@ -1,4 +1,6 @@
 import Modal from "@/shared/ui/Modal";
+import ModalFoot from "@/shared/ui/ModalFoot";
+import ModalHead from "@/shared/ui/ModalHead";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { JKFPlayer } from "json-kifu-format";
@@ -8,12 +10,10 @@ import "./PositionNavigationModal.scss";
 import { buildNextOptions } from "@/entities/kifu/lib/buildNextOptions";
 import { buildPreviewData } from "@/entities/position/lib/buildPreviewData";
 import { descendTo } from "@/entities/kifu/model/cursor";
-import PositionNavigationHeader from "./PositionNavigationHeader";
-import PositionNavigationFooter from "./PositionNavigationFooter";
 import { useGame } from "@/entities/game";
 import { buildPlayer } from "@/entities/kifu/lib/buildPlayer";
 import type { CursorPath } from "@/entities/kifu/model/cursor";
-import type { BranchOption } from "@/entities/kifu/model/branch";
+import { branchLabel, type BranchOption } from "@/entities/kifu/model/branch";
 import type { NavigationState } from "@/features/position-navigation/model/types";
 
 /**
@@ -175,6 +175,9 @@ function PositionNavigationModal() {
 
   if (!isOpen) return null;
 
+  // 番号の出どころは候補そのもの。表示順の添字から作ると、並びが変わったときに食い違う
+  const selectedBranch = options[nav.selectedOptionIndex];
+
   return (
     <Modal
       onClose={closeModal}
@@ -184,36 +187,46 @@ function PositionNavigationModal() {
       scroll="none"
     >
       <div className="position-navigation-modal">
-        <PositionNavigationHeader
-          previewData={previewData}
-          selectedBranch={options[nav.selectedOptionIndex]}
-        />
+        {/* **手番はここに出さない。** 盤のプレビュー（`PositionPreviewPane`）が出しており、
+            2箇所に置くと綴りが割れる */}
+        <ModalHead title="局面ナビゲーション" description="nvim風操作で高速ナビゲーション">
+          <span>{previewData?.tesuu ?? 0}手目</span>
+          <span>選択:{selectedBranch ? branchLabel(selectedBranch.forkIndex) : "—"}</span>
+        </ModalHead>
+
         <main className="position-navigation-modal__content">
           <div className="position-navigation-modal__grid">
-            <div className="position-navigation-modal__grid-left">
+            <div className="position-navigation-modal__preview">
               <PositionPreviewPane previewData={previewData} />
             </div>
-            <div className="position-navigation-modal__grid-right">
-              {unreachable ? (
-                <div className="branch-selector">
-                  <div className="branch-selector__empty">
-                    <p>
-                      この棋譜は{nav.previewCursor.tesuu}
-                      手目を盤上で再現できません。ここから先へは進めません。
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <BranchList
-                  branches={options}
-                  selectedIndex={nav.selectedOptionIndex}
-                  onSelectIndex={(idx) => setNav((s) => ({ ...s, selectedOptionIndex: idx }))}
-                />
-              )}
-            </div>
+
+            {unreachable ? (
+              <div className="branch-list">
+                <p className="branch-list__empty">
+                  この棋譜は{nav.previewCursor.tesuu}
+                  手目を盤上で再現できません。ここから先へは進めません。
+                </p>
+              </div>
+            ) : (
+              <BranchList
+                branches={options}
+                selectedIndex={nav.selectedOptionIndex}
+                onSelectIndex={(idx) => setNav((s) => ({ ...s, selectedOptionIndex: idx }))}
+              />
+            )}
           </div>
         </main>
-        <PositionNavigationFooter />
+
+        <ModalFoot
+          start={
+            <div className="position-navigation-modal__shortcuts">
+              <span>[h/l] 手順移動/分岐移動</span>
+              <span>[j/k] 分岐選択</span>
+              <span>[Enter] 確定</span>
+              <span>[Esc] キャンセル</span>
+            </div>
+          }
+        />
       </div>
     </Modal>
   );

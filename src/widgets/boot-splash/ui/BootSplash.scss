@@ -6,8 +6,8 @@
     width: 100%;
     display: grid;
     place-items: center;
-    background-color: index.$color-primary-light;
-    color: index.$color-white;
+    background-color: index.$color-primary-dark;
+    color: index.$color-text-strong;
     font-family: "Orbitron", index.$font-sans;
   }
 
@@ -15,39 +15,30 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.6rem;
+    gap: index.$space-8;
   }
 
+  // 印は元の形と色のまま。薄くせず、影も動きも付けない
   &__icon {
-    width: 8.8rem; // 15remは主張強めなのでミニマル寄せ
+    width: 8.8rem;
     height: auto;
-    opacity: 0.92;
-    filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.22));
-    animation: iconBreath 2.8s ease-in-out infinite;
   }
 
   &__text {
     margin: 0;
     display: flex;
     align-items: baseline;
-    gap: 0.4rem;
-    font-size: 2rem; // 7remは強すぎるので抑える
+    gap: index.$space-2;
+    font-size: index.$font-title;
     letter-spacing: 0.12em;
     font-weight: index.$weight-strong;
-    opacity: 0.92;
-  }
-
-  &__label {
-    transform: translateY(0.02em);
   }
 
   &__dots {
     display: inline-flex;
 
     span {
-      display: inline-block;
-      animation: bounce 1.4s infinite ease-in-out;
-      will-change: transform;
+      animation: loadingDot 1.4s infinite ease-in-out;
     }
 
     span:nth-child(1) {
@@ -74,29 +65,19 @@
   }
 }
 
-@keyframes bounce {
+// 待っていることだけを示す。跳ねさせない
+@keyframes loadingDot {
   0%,
   60%,
   100% {
-    transform: translateY(0);
+    opacity: 0.35;
   }
   30% {
-    transform: translateY(-6px);
-  }
-}
-
-@keyframes iconBreath {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.02);
+    opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .loading__icon,
   .loading__dots span {
     animation: none !important;
   }

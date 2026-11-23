@@ -79,6 +79,20 @@ function makeDirty() {
   expect(hasPiece(7, 7)).toBe(false);
 }
 
+/** 両方のタブは同じ所に同じ順で置く。違うと、タブを跨いだときに押しどころが動いて見える */
+test("どちらのタブでも、下の行は「キャンセル」「作成」の順", () => {
+  render(<CreateFileModal />);
+
+  expect(screen.getByRole("heading", { level: 2 }).textContent).toBe("棋譜を作成");
+  const feet = [...document.querySelectorAll(".modal-foot__actions")].map((foot) =>
+    [...foot.querySelectorAll("button")].map((b) => b.textContent),
+  );
+  expect(feet).toEqual([
+    ["キャンセル", "作成"],
+    ["キャンセル", "作成"],
+  ]);
+});
+
 describe("タブの切り替え（X9）", () => {
   test("インポートへ移って戻っても、組んだものは残る", () => {
     render(<CreateFileModal />);

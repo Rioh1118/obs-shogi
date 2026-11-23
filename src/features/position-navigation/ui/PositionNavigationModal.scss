@@ -1,58 +1,38 @@
-@use "@/index" as index;
+@use "@/index.scss" as index;
 
+// 左に局面、右に次の手の候補。箱で囲まず、境の線1本で分ける
 .position-navigation-modal {
   width: 100%;
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  font-family: index.$font-sans;
-
-  container-type: inline-size;
-  --pad-x: 2.4rem;
-  --pad-y: 2rem;
-  --gap: clamp(12px, 1.6cqw, 18px);
-
-  --right-col: clamp(300px, 34cqw, 420px);
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
   &__content {
+    container: navigation / size;
     flex: 1;
     min-height: 0;
-    padding: var(--pad-y) var(--pad-x);
-    overflow: hidden;
   }
 
+  // 左の幅は、盤が高さいっぱいまで伸びたときの幅。余りは候補に渡す
   &__grid {
     height: 100%;
-    min-height: 0;
-
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(28rem, var(--right-col));
-    gap: var(--gap);
-    &-left,
-    &-right {
-      min-height: 0;
-      overflow: hidden;
-      display: grid;
-    }
-  }
-}
-
-@container (max-width: 920px) {
-  .position-navigation-modal__grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, min(62cqw, 82cqh)) minmax(26rem, 1fr);
   }
 
-  .position-navigation-modal__grid-right {
-    max-height: min(34vh, 360px);
+  &__preview {
+    min-width: 0;
+    min-height: 0;
+    padding: index.$space-8 index.$space-10;
+    border-right: 1px solid index.$stroke-weak;
   }
-}
 
-@media (max-height: 800px) {
-  .position-navigation-modal {
-    --pad-x: 14px;
-    --pad-y: 12px;
-    --gap: 12px;
+  &__shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 index.$space-9;
   }
 }

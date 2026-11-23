@@ -26,15 +26,11 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
     startCreateDirectory(targetDir);
   };
 
-  // **余分なコンテナを挟まない。** 間隔を決めているのは `node-box__actions` の `gap` で、
-  // 直下の子が1枚だと何にも効かない（`variant="ghost"` は背景も枠も透明なので、
-  // 接した辺は当たり判定でしか分からない）
+  // **余分なコンテナを挟まない。** 並べ方を決めているのは `node-box__actions`
   return (
     <>
       <IconButton
         onClick={handleCreateFile}
-        size="small"
-        variant="ghost"
         title="新しいファイルを作成"
         ariaLabel="新しいファイルを作成"
       >
@@ -42,8 +38,6 @@ function TreeNodeActions({ nodePath, isDirectory }: TreeNodeActionsProps) {
       </IconButton>
       <IconButton
         onClick={handleCreateDirectory}
-        size="small"
-        variant="ghost"
         title="新しいフォルダを作成"
         ariaLabel="新しいフォルダを作成"
       >

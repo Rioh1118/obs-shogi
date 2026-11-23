@@ -1,25 +1,9 @@
 @use "@/index.scss" as index;
 
-.pos-search__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: index.$space-6;
-  border-bottom: 1px solid index.$stroke-weak;
-  padding: index.$space-8 index.$space-6;
-}
-
-.pos-search__title {
-  display: flex;
-  align-items: center;
-  gap: index.$space-4;
-  font-size: index.$font-title;
-  color: index.$color-text-light-1;
-}
-
 .pos-search__spinner {
   display: inline-grid;
   place-items: center;
+  color: index.$color-text-muted;
 }
 
 .pos-search__spinIcon {

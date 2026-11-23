@@ -1,6 +1,6 @@
 {
   "base": {
-    "$description": "基礎の値。直接使わない。0.2.1 で洗練の方向 C4（decisions/0004）の値にした。製品の旧い名前は括弧内",
+    "$description": "基礎の値。直接使わない。0.3.0 で D2（decisions/0005）の値にした。製品の名前は括弧内",
     "color": {
       "$type": "color",
       "black": {
@@ -9,35 +9,35 @@
           "components": [
             0.0706,
             0.0941,
-            0.098
+            0.102
           ],
-          "hex": "#121819"
+          "hex": "#12181a"
         },
-        "$description": "深く冷たい緑黒。いちばん深いサーフェス（製品の $color-primary-black）"
+        "$description": "いちばん暗い墨。上の帯、打つ欄、棋譜の見出しと手の移動の帯（$color-primary-black）"
       },
       "dark": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.1059,
-            0.1373,
-            0.1451
+            0.0902,
+            0.1176,
+            0.1255
           ],
-          "hex": "#1b2325"
+          "hex": "#171e20"
         },
-        "$description": "冷たい緑黒。本文の背景、ペインのサーフェス（$color-primary-dark）"
+        "$description": "墨。本文の背景、ペインのサーフェス（$color-primary-dark）"
       },
       "light": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.1451,
-            0.1882,
-            0.2
+            0.1216,
+            0.1569,
+            0.1686
           ],
-          "hex": "#253033"
+          "hex": "#1f282b"
         },
-        "$description": "緑黒を持ち上げたサーフェス。選ばれた行の濃淡（$color-primary-light）"
+        "$description": "墨を持ち上げたサーフェス（$color-primary-light）"
       },
       "sand": {
         "$value": {
@@ -49,17 +49,17 @@
           ],
           "hex": "#d8dbd3"
         },
-        "$description": "冷たい砂。本文の文字と確定のボタン（$color-secondary-light / $color-text-primary）"
+        "$description": "砂。本文の文字と確定のボタン（$color-secondary-light / $color-text-primary）"
       },
       "sandHover": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.902,
-            0.9098,
-            0.8863
+            0.9137,
+            0.9059,
+            0.8667
           ],
-          "hex": "#e6e8e2"
+          "hex": "#e9e7dd"
         },
         "$description": "砂のホバー（$color-commit-solid-hover）。明るくする"
       },
@@ -67,37 +67,37 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.6588,
-            0.502,
-            0.3725
+            0.6902,
+            0.4863,
+            0.3333
           ],
-          "hex": "#a8805f"
+          "hex": "#b07c55"
         },
-        "$description": "銅。選択の棒とアクセント（$color-secondary-dark）"
+        "$description": "銅（アイコンの真ん中の銅）。局面の「いま」の線（$color-secondary-dark）"
       },
       "copperSolid": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
             0.5608,
-            0.4196,
-            0.3059
+            0.3882,
+            0.2784
           ],
-          "hex": "#8f6b4e"
+          "hex": "#8f6347"
         },
-        "$description": "背景に敷く銅。白文字 4.79:1（$color-secondary-solid）"
+        "$description": "背景に敷く銅（アイコンの暗い側）。白文字 5.19:1（$color-secondary-solid）"
       },
       "copperSolidHover": {
         "$value": {
           "colorSpace": "srgb",
           "components": [
             0.5255,
-            0.3961,
-            0.2863
+            0.3529,
+            0.2471
           ],
-          "hex": "#866549"
+          "hex": "#865a3f"
         },
-        "$description": "背景に敷く銅のホバー。白文字 5.29:1。白文字なので暗くする（$color-secondary-solid-hover）"
+        "$description": "背景に敷く銅のホバー。白文字 5.92:1。白文字なので暗くする（$color-secondary-solid-hover）"
       },
       "copperText": {
         "$value": {
@@ -139,11 +139,11 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.4902,
-            0.5765,
-            0.6392
+            0.5608,
+            0.6471,
+            0.7059
           ],
-          "hex": "#7d93a3"
+          "hex": "#8fa5b4"
         },
         "$description": "伝えるだけ（$color-info）"
       },
@@ -151,11 +151,11 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.7843,
-            0.5843,
-            0.3529
+            0.8157,
+            0.6275,
+            0.4
           ],
-          "hex": "#c8955a"
+          "hex": "#d0a066"
         },
         "$description": "再試行で直る（$color-warning）"
       },
@@ -211,11 +211,11 @@
         "$value": {
           "colorSpace": "srgb",
           "components": [
-            0.7882,
-            0.5412,
-            0.5137
+            0.8157,
+            0.5608,
+            0.5294
           ],
-          "hex": "#c98a83"
+          "hex": "#d08f87"
         },
         "$description": "暗い背景に載せる危険色の文字（$color-danger-text）"
       },
@@ -230,6 +230,30 @@
           "hex": "#c18580"
         },
         "$description": "暗い背景に載せる fatal の文字（$color-fatal-text）"
+      },
+      "sandStrong": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.9373,
+            0.9098,
+            0.8627
+          ],
+          "hex": "#efe8dc"
+        },
+        "$description": "いちばん明るい砂。題と、いまの手（$color-text-strong）"
+      },
+      "copperBright": {
+        "$value": {
+          "colorSpace": "srgb",
+          "components": [
+            0.7804,
+            0.5725,
+            0.3882
+          ],
+          "hex": "#c79263"
+        },
+        "$description": "明るい銅（アイコンの明るい側）。「いま」を示す点（$color-accent-bright）"
       }
     }
   }

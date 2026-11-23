@@ -31,27 +31,31 @@ export default function MateSearchSection({ presets }: { presets: EnginePreset[]
           body={`もう一度選択してください（${error}）。`}
         />
       )}
-      <SField label="詰み探索に使う" description="詰将棋エンジンのプリセットを選択してください。">
-        <SSelect
-          value={presetId}
-          aria-label="詰み探索に使うプリセット"
-          onChange={(e) => void save({ mate_preset_id: e.target.value || null })}
-          options={[
-            { value: "", label: "指定しない" },
-            ...presets.map((p) => ({ value: p.id, label: p.label })),
-          ]}
-        />
-      </SField>
-      <SField label="上限時間">
-        <SRadioGroup
-          name="mate-search-limit"
-          layout="grid"
-          columns={MATE_SEARCH_LIMITS.length}
-          value={resolveMateSearchLimit(config?.mate_search_limit).key}
-          onChange={(key) => void save({ mate_search_limit: key })}
-          options={MATE_SEARCH_LIMITS.map(({ key, label }) => ({ value: key, label }))}
-        />
-      </SField>
+      <div className="engineTab__mate">
+        <SField label="詰み探索に使う" inline>
+          <SSelect
+            value={presetId}
+            aria-label="詰み探索に使うプリセット"
+            onChange={(e) => void save({ mate_preset_id: e.target.value || null })}
+            options={[
+              { value: "", label: "指定しない" },
+              ...presets.map((p) => ({ value: p.id, label: p.label })),
+            ]}
+          />
+        </SField>
+        <SField label="上限時間" inline>
+          <SRadioGroup
+            name="mate-search-limit"
+            layout="segment"
+            value={resolveMateSearchLimit(config?.mate_search_limit).key}
+            onChange={(key) => void save({ mate_search_limit: key })}
+            options={MATE_SEARCH_LIMITS.map(({ key, label }) => ({ value: key, label }))}
+          />
+        </SField>
+      </div>
+      {presetId === "" && (
+        <p className="engineTab__note">詰将棋エンジンのプリセットを選択してください。</p>
+      )}
     </SSection>
   );
 }

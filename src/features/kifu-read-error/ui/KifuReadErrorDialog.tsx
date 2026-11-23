@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
 import Modal from "@/shared/ui/Modal";
+import ModalFoot from "@/shared/ui/ModalFoot";
+import ModalHead from "@/shared/ui/ModalHead";
 import Button from "@/shared/ui/Button/Button";
 import { FsErrorView, type FsError } from "@/entities/file-tree";
 import "./KifuReadErrorDialog.scss";
@@ -51,32 +52,24 @@ export function KifuReadErrorDialog({ error, onDismiss }: Props) {
       label="棋譜を開けませんでした"
       variant="dialog"
       size="sm"
-      scroll="content"
+      scroll="none"
       closeOnEsc
       closeOnOverlay
     >
       <div className="kifuReadError">
-        <header className="kifuReadError__header">
-          <AlertTriangle size={18} aria-hidden="true" />
-          <div>
-            <h2 className="kifuReadError__title">棋譜を開けませんでした</h2>
-            {fileName && <p className="kifuReadError__file">{fileName}</p>}
-          </div>
-        </header>
+        {/* どのファイルで起きたか。パスの全体は FsErrorView が出す */}
+        <ModalHead title="棋譜を開けませんでした" description={fileName} />
 
-        <FsErrorView
-          error={error}
-          actions={
-            <>
-              <Button onClick={() => void handleCopy()}>
-                {copied ? "コピーしました" : "エラーをコピー"}
-              </Button>
-              <Button tone="neutral" onClick={onDismiss}>
-                閉じる
-              </Button>
-            </>
-          }
-        />
+        <div className="kifuReadError__body">
+          <FsErrorView error={error} />
+        </div>
+
+        <ModalFoot>
+          <Button onClick={() => void handleCopy()}>
+            {copied ? "コピーしました" : "エラーをコピー"}
+          </Button>
+          <Button onClick={onDismiss}>閉じる</Button>
+        </ModalFoot>
       </div>
     </Modal>
   );

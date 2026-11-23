@@ -1,74 +1,44 @@
-import { useEffect, useRef, useState } from "react";
-import BoardPreview from "./BoardPreview";
 import { Color } from "shogi.js";
 import { GOTE_LABEL, SENTE_LABEL, turnBadgeText } from "@/shared/lib/turn";
-import "./PositionPreviewPane.scss";
-import HandRow from "./HandRow";
 import type { PreviewData } from "@/entities/position/model/preview";
-import { boardSideForFrame } from "@/entities/position/lib/boardSide";
+import BoardPreview from "./BoardPreview";
+import HandRow from "./HandRow";
+import "./PositionPreviewPane.scss";
 
 type Props = {
   previewData: PreviewData | null;
 };
 
 /**
- * 局面のプレビュー
+ * 局面のプレビュー。**呼び手が高さを決める** —— 盤は、渡された高さと幅に収まる最大の大きさになる。
  *
- * 局面の有無でコンテナの要素を替えない。コンテナを測る effect は mount で1度だけ走るので、
- * 局面が無いときのコンテナに `ref` が無いと測る先が無く、盤が初期値のまま残る。
+ * 手番はこの部品が出す。盤の絵には現れない値で、局面だけを渡されるこの部品では
+ * 初形からの偶奇を追えない。呼び手が添える形だと、添え忘れた画面だけ手番が分からなくなる。
+ *
+ * 局面が無いあいだも、手番と持ち駒の行は空のまま残す。消すと、局面が届くたびに盤の大きさが変わる。
  */
 function PositionPreviewPane({ previewData }: Props) {
-  const boardWrapRef = useRef<HTMLDivElement>(null);
-  const [boardSize, setBoardSize] = useState(320);
-
-  useEffect(() => {
-    const el = boardWrapRef.current;
-    if (!el) return;
-
-    const ro = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      if (!rect) return;
-
-      const style = getComputedStyle(el);
-      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-      const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-
-      setBoardSize(boardSideForFrame(rect, { x: padX, y: padY }));
-    });
-
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  if (!previewData) {
-    return (
-      <div className="position-preview__container">
-        <div className="position-preview__frame" ref={boardWrapRef}>
-          <div className="board-preview-placeholder">
-            <p>局面を読み込み中…</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="position-preview__container">
-      <div className="position-preview__frame" ref={boardWrapRef}>
-        {/*
-          手番はこの部品が出す。盤の絵には現れない値で、局面だけを渡されるこの部品では
-          初形からの偶奇を追えない。呼び手が添える形だと、添え忘れた画面だけ手番が分からなくなる。
+    <div className="position-preview">
+      <div className="position-preview__stack">
+        <p className="position-preview__turn">{previewData && turnBadgeText(previewData.turn)}</p>
 
-          行を作らずコンテナの角に重ねる。盤の一辺はこのコンテナの内寸から決まるので、行を足すと盤が縮む
-        */}
-        <div className="position-preview__turn-tab">{turnBadgeText(previewData.turn)}</div>
+        <div className="position-preview__board">
+          {previewData ? (
+            <BoardPreview pieces={previewData.board} />
+          ) : (
+            <p className="position-preview__wait">局面を読み込み中…</p>
+          )}
+        </div>
 
-        <BoardPreview pieces={previewData.board} size={boardSize} />
-      </div>
-
-      <div className="position-preview__hands">
-        <HandRow label={SENTE_LABEL} kinds={previewData.hands[Color.Black]} />
-        <HandRow label={GOTE_LABEL} kinds={previewData.hands[Color.White]} />
+        <div className="position-preview__hands">
+          {previewData && (
+            <>
+              <HandRow label={SENTE_LABEL} kinds={previewData.hands[Color.Black]} />
+              <HandRow label={GOTE_LABEL} kinds={previewData.hands[Color.White]} />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NotificationProvider } from "@/shared/lib/notification/provider";
 import { useNotifications } from "@/shared/lib/notification/useNotifications";
 import type { NotifyAction, NotifyRequest, VisibleTier } from "@/shared/lib/notification/types";
@@ -13,7 +13,10 @@ import NotificationLayer from "../NotificationLayer";
  * 見つかることまで確かめる。
  */
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function setup() {
   let notify!: (request: NotifyRequest) => void;
@@ -63,32 +66,89 @@ const shownAs = (presentation: "banner" | "modal", over: { title?: string } = {}
         ...over,
       };
 
+/** 放っておけば消えるトースト */
+const passing = (title: string): NotifyRequest => ({
+  tier: "info",
+  presentation: "toast",
+  autoDismiss: true,
+  title,
+});
+
 /** 見せ方ごとの入れ物。class で引くのは、位置を決めているのがそこだから */
 const boxOf = (selector: string) => document.querySelector(selector);
+
+const bandTitles = () =>
+  [...document.querySelectorAll(".notice-band__title")].map((el) => el.textContent);
+
+const closeButton = () =>
+  screen.getByRole("button", { name: "「検討を中断できませんでした」を閉じる" });
 
 describe("通知の層", () => {
   it("何も出ていなければ通知を描かない", () => {
     setup();
 
-    expect(boxOf(".notice-layer__toasts")).toBeNull();
-    expect(boxOf(".notice-layer__banners")).toBeNull();
+    expect(boxOf(".notice-layer__bands")).toBeNull();
+    expect(boxOf(".notice-line")).toBeNull();
   });
 
-  it("トーストが右下の入れ物に出る", () => {
+  it("消えないトーストは帯に出る", () => {
     const app = setup();
     app.notify(request());
 
-    const toast = boxOf(".notice-layer__toasts")?.querySelector(".notice--toast");
-    expect(toast).toBeTruthy();
-    expect(toast!.textContent).toContain("検討を中断できませんでした");
+    expect(boxOf(".notice-layer__bands")?.textContent).toContain("検討を中断できませんでした");
+    expect(boxOf(".notice-line")).toBeNull();
   });
 
-  it("バナーは帯の入れ物に出る", () => {
+  it("バナーは帯に出る", () => {
     const app = setup();
     app.notify(shownAs("banner", { title: "エンジンを起動できません" }));
 
-    expect(boxOf(".notice-layer__banners")?.textContent).toContain("エンジンを起動できません");
-    expect(boxOf(".notice-layer__toasts")).toBeNull();
+    expect(boxOf(".notice-layer__bands")?.textContent).toContain("エンジンを起動できません");
+  });
+
+  it("放っておけば消えるトーストは、帯にせず1行で出す", () => {
+    const app = setup();
+    app.notify(passing("Finder で開けません"));
+
+    expect(boxOf(".notice-line")?.textContent).toContain("Finder で開けません");
+    expect(boxOf(".notice-layer__bands")).toBeNull();
+  });
+
+  // 新しいほうを出すと、先に出たものは読み終える前に隠れ、時計だけが進んで消える
+  it("消えるトーストが重なったら、先に出たものから1つずつ出す", async () => {
+    const app = setup();
+    app.notify(passing("1件目"));
+    app.notify(passing("2件目"));
+
+    expect(boxOf(".notice-line")?.textContent).toContain("1件目");
+
+    await act(async () => screen.getByRole("button", { name: "「1件目」を閉じる" }).click());
+    expect(boxOf(".notice-line")?.textContent).toContain("2件目");
+  });
+
+  // 同じ操作を続けて失敗したとき、件数が変わらないと押せたのかが分からない
+  it("まとめた消えるトーストは、帯と同じく件数を出す", () => {
+    const app = setup();
+    const again: NotifyRequest = {
+      tier: "info",
+      presentation: "toast",
+      autoDismiss: true,
+      title: "開けませんでした",
+      dedupeKey: "open",
+    };
+    app.notify(again);
+    expect(boxOf(".notice-line")?.textContent).toContain("1件");
+
+    app.notify(again);
+    expect(boxOf(".notice-line")?.textContent).toContain("2件");
+  });
+
+  // 上の帯に乗るので、乗っている間も帯のどこでもウィンドウを掴める
+  it("消えるトーストの1行はウィンドウを掴める", () => {
+    const app = setup();
+    app.notify(passing("Finder で開けません"));
+
+    expect(boxOf(".notice-line")?.getAttribute("data-tauri-drag-region")).toBe("deep");
   });
 
   it("モーダルは Modal として出る", () => {
@@ -192,45 +252,78 @@ describe("通知の層", () => {
     expect(screen.queryByText("「再試行」を実行できませんでした。")).toBeNull();
   });
 
-  /**
-   * 入れ物は高さに上限を持ち、溢れたぶんは巻き取られる。`scrollTop` の初期値は 0 で
-   * 見えているのは先頭なので、**出た順のまま並べると巻き取られるのが常に新着側**になる。
-   * 失敗が続いている間に出た最後の1件——いちばん tier が重いことが多い——が
-   * 一度も画面に出ない。高さは happy-dom で測れないので、DOM の並びで固定する。
-   */
+  // 見せる数に上限があるので、出た順のまま並べると、失敗が続いている間に出た最後の1件が隠れる
   it.each([
-    ["toast", ".notice-layer__toasts", () => request({ title: "1件目" })],
-    ["banner", ".notice-layer__banners", () => shownAs("banner", { title: "1件目" })],
-  ] as const)("%s は新着が入れ物の先頭に来る", (_name, selector, first) => {
+    ["toast", (title: string) => request({ title })],
+    ["banner", (title: string) => shownAs("banner", { title })],
+  ] as const)("%s は新着が先頭に来る", (_name, make) => {
     const app = setup();
-    app.notify(first());
-    app.notify(
-      selector === ".notice-layer__toasts"
-        ? request({ title: "2件目" })
-        : shownAs("banner", { title: "2件目" }),
-    );
+    app.notify(make("1件目"));
+    app.notify(make("2件目"));
 
-    const titles = [...boxOf(selector)!.querySelectorAll(".notice__title")].map(
-      (el) => el.textContent,
-    );
-    expect(titles).toEqual(["2件目", "1件目"]);
+    expect(bandTitles()).toEqual(["2件目", "1件目"]);
   });
 
-  it("見せ方が違えば同時に出る", () => {
+  it("見せ方が違っても、残るものは同じ帯に並ぶ", () => {
     const app = setup();
     app.notify(request({ title: "トースト" }));
     app.notify(shownAs("banner", { title: "バナー" }));
 
-    // 読み上げの領域にも同じ文字が出るので、入れ物を指して数える
-    expect(boxOf(".notice-layer__toasts")!.textContent).toContain("トースト");
-    expect(boxOf(".notice-layer__banners")!.textContent).toContain("バナー");
+    expect(bandTitles()).toEqual(["バナー", "トースト"]);
+  });
+
+  describe("3件目から", () => {
+    const three = () => {
+      const app = setup();
+      for (const title of ["1件目", "2件目", "3件目", "4件目"]) app.notify(request({ title }));
+      return app;
+    };
+
+    it("2件だけ見せ、残りは件数で言う", () => {
+      three();
+
+      expect(bandTitles()).toEqual(["4件目", "3件目"]);
+      expect(screen.getByRole("button", { name: "ほか 2 件" })).toBeTruthy();
+    });
+
+    it("押すと全部並び、もう一度押すと戻る", async () => {
+      three();
+
+      await act(async () => screen.getByRole("button", { name: "ほか 2 件" }).click());
+      expect(bandTitles()).toEqual(["4件目", "3件目", "2件目", "1件目"]);
+
+      await act(async () => screen.getByRole("button", { name: "ほかを隠す" }).click());
+      expect(bandTitles()).toEqual(["4件目", "3件目"]);
+    });
+
+    it("2件までなら、件数を出さない", () => {
+      const app = setup();
+      app.notify(request({ title: "1件目" }));
+      app.notify(request({ title: "2件目" }));
+
+      expect(screen.queryByRole("button", { name: /^ほか/ })).toBeNull();
+    });
+  });
+
+  // 本文とモーダルは、帯のぶん下へ始まる。置かないと帯が覆い、残すと隙間が空く
+  it("帯が出ている間だけ、帯の高さを置く", async () => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(34);
+    const height = () => document.documentElement.style.getPropertyValue("--notice-bands-h");
+    const app = setup();
+    expect(height()).toBe("");
+
+    app.notify(request());
+    expect(height()).toBe("34px");
+
+    await act(async () => closeButton().click());
+    expect(height()).toBe("");
   });
 
   it("閉じると消える", async () => {
     const app = setup();
     app.notify(request());
 
-    await act(async () => screen.getByRole("button", { name: "閉じる" }).click());
+    await act(async () => closeButton().click());
 
     expect(screen.queryByText("検討を中断できませんでした")).toBeNull();
   });

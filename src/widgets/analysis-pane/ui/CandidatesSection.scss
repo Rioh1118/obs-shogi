@@ -1,26 +1,25 @@
 @use "@/index.scss" as index;
 
 // **入りきらない候補手にスクロールで届く。** ドックの高さはウィンドウに従うので、
-// 低いウィンドウでは必ずあふれる。
+// 低いウィンドウでは必ずあふれる。行の高さを決めておかないと、あふれる代わりに行が潰れる。
 // **バーは出さない** —— 全要素で消してあるのが意匠（`design-system/design_system/principles.md` の原則8）
 .candidates-section {
-  height: 100%;
+  --row-h: #{index.$row-height};
+
+  // 行の途中で切らない
+  height: round(down, 100%, var(--row-h));
   min-height: 0;
   overflow-y: auto;
+  padding: 0 var(--pane-px, #{index.$space-7});
 
   // **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
-  background: index.$color-primary-dark;
-
-  display: grid;
-  align-content: start;
-  gap: index.$space-1;
-  padding: index.$space-1 var(--pane-px, #{index.$space-4}) index.$space-2;
+  background: index.$surface-dock;
 
   &__empty {
     // 表モードの空文言と**同じ寄せ・同じ始点**。切り替えたときに文言だけが動かない
-    color: rgba(index.$color-text-primary, 0.72);
-    font-size: index.$font-aux;
-    padding: index.$space-3 0;
     margin: 0;
+    color: index.$color-text-label;
+    font-size: index.$font-body;
+    line-height: var(--row-h);
   }
 }

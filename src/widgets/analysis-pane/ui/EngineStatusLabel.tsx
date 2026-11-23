@@ -92,7 +92,7 @@ export function EngineStatusLabel({
   }, [currentSfen, searching]);
 
   return (
-    <div className="analysis-controls__status">
+    <div className={`analysis-controls__status analysis-controls__status--${view.mark}`}>
       <span className={`analysis-controls__dot analysis-controls__dot--${view.mark}`}></span>
       {notice ? (
         <button

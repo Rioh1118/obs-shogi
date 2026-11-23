@@ -2,18 +2,23 @@
 
 // 入りきらない候補手にスクロールで届く。**バーは出さない**（意匠。`design-system/design_system/principles.md` の原則8）
 .book-table {
-  height: 100%;
+  --th-h: #{index.$table-head-height};
+  --row-h: #{index.$row-height};
+
+  // 行の途中で切らない
+  height: calc(var(--th-h) + round(down, 100% - var(--th-h), var(--row-h)));
   min-height: 0;
   overflow-y: auto;
 
   // **ドックと同じ背景をここでも宣言する。** 下に並ぶ文字の色は、この背景との比で決めてある
-  background: index.$color-primary-dark;
-  color: rgba(index.$color-text-primary, 0.92);
+  background: index.$surface-dock;
+  color: index.$color-text-primary;
 
   &__grid {
     width: 100%;
     table-layout: fixed;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
 
     font-size: index.$font-body;
   }
@@ -23,11 +28,17 @@
     position: sticky;
     top: 0;
 
-    padding: 0 var(--pane-px, #{index.$space-4});
+    height: var(--th-h);
+    padding: 0 index.$space-4;
     text-align: left;
 
-    background: index.$color-primary-dark;
+    background: index.$surface-dock;
     border-bottom: 1px solid index.$stroke-weak;
+  }
+
+  th:first-child,
+  td:first-child {
+    padding-left: var(--pane-px, #{index.$space-7});
   }
 
   // 押せない見出し（応手・この先）も、押せる見出しと同じ縦位置に立つ
@@ -37,15 +48,7 @@
     font-weight: index.$weight-strong;
     font-size: index.$font-hint;
     letter-spacing: 0.09em;
-    color: rgba(index.$color-text-primary, 0.72);
-  }
-
-  // 押せない見出しには、押し場のぶんの上下余白をここで足す。
-  // **押せる列と押せない列で見出しの高さを変えない**
-  &__th--ponder,
-  &__th--ahead {
-    padding-top: index.$space-2;
-    padding-bottom: index.$space-2;
+    color: index.$color-text-label;
   }
 
   // 並べ替えの押し場。**見出しそのものを押させる** —— 別に目印を足すと、
@@ -55,14 +58,14 @@
     align-items: baseline;
     gap: index.$space-1;
 
-    padding: index.$space-2 0;
+    padding: index.$space-1 0;
     border: 0;
-    background: transparent;
+    background: index.$surface-dock;
     cursor: pointer;
 
     &:hover {
       // 暗い背景に載る文字なので**明るくする**（ADR-0005 決定2）
-      color: index.$color-text-primary;
+      color: index.$color-text-strong;
     }
 
     &:focus-visible {
@@ -74,13 +77,14 @@
   // 並べ替えに使っている列。**銅で示さない** —— この背景の上で 3.26:1 しか出ず、
   // 見出しの文字の基準（4.5:1）を割る。明るさを上げ、向きの記号を添える
   &__sort--active {
-    color: index.$color-text-primary;
+    color: index.$color-text-strong;
   }
 
-  // 向きの記号。**押していない列でも幅を取る** —— 取らないと、押すたびに見出しがずれる
+  // 向きの記号。**右の余白に出す** —— 見出しの幅に入れると、数字の右端と見出しの右端がずれる
   &__caret {
     display: inline-block;
     width: 1ch;
+    margin-right: -1ch;
   }
 
   // **幅を宣言するのは数字の列。** `table-layout: fixed` では宣言の無い列が
@@ -88,34 +92,42 @@
   // 200px 超を取り、日本語1手が入る列が 70px まで潰れる。
   // 実測では `☖４一玉引` のような5文字の手が切れ、`title` も無いので届かなくなっていた
   &__th--move {
-    width: 8.4rem;
+    width: 10.4rem;
   }
   // 評価と深さ。**見出しの2文字と `-9999` が入る幅**
   &__th--num {
-    text-align: right;
-    width: 6.8rem;
+    width: 8.6rem;
   }
-  // 出現回数。**見出しが4文字あり、中身は桁区切り付きで7桁を超える。**
-  // 6.8rem では見出しが2行に折り返し、数字は左から切れた（省略記号も出ない ——
-  // `text-overflow` は `td` のインライン内容にしか効かず、中身は flex item）
+
+  // 出現回数。**見出しが4文字あり、中身は桁区切り付きで7桁を超える。** 下にバーも敷く
   &__th--count {
-    text-align: right;
-    width: 9.6rem;
+    width: 19rem;
+
+    @media (max-width: 1150px) {
+      width: 15rem;
+    }
   }
+
+  // 中身は指し手と同じ日本語1手
   &__th--ponder {
-    // 中身は指し手と同じ日本語1手。**同じものに別の幅を当てない**
-    width: 8.4rem;
+    width: 12rem;
   }
-  // **`min-width` を書かない。** `table-layout: fixed` は1行目の `width` だけで
-  // 列を決めるので無視され、床を宣言したつもりで床が無い状態になる。
-  // 余りはこの列にも比例で配られる。いちばん長い綴りは `123手目以降`
-  &__th--ahead {
-    width: 9.6rem;
+
+  // この先。幅を書かない列はここだけで、余りはここへ入る（`table-layout: fixed`）
+
+  // 数字の列は、見出しも値も同じ右端に立てる。**列で揃うのが表の取り柄**
+  th.book-table__th--num,
+  th.book-table__th--count,
+  td.book-table__num,
+  td.book-table__count {
+    padding-right: index.$space-9;
+    text-align: right;
   }
 
   td {
-    padding: index.$space-1 var(--pane-px, #{index.$space-4});
-    border-bottom: 1px solid rgba(index.$color-white, 0.035);
+    height: var(--row-h);
+    padding: 0 index.$space-4;
+    border-bottom: 1px solid index.$stroke-weak;
 
     white-space: nowrap;
     overflow: hidden;
@@ -126,15 +138,13 @@
   // 同じ濃さの塗りが「押せる行」を意味していて、こちらの行は押せない。
   // 読む位置の手掛かりは下線で出す
   &__row:hover td {
-    border-bottom-color: rgba(index.$color-white, 0.18);
+    border-bottom-color: index.$stroke-strong;
   }
 
-  // 数字は右で揃える。**符号と桁の位置で読むものなので、左寄せにしない**
   &__num,
   &__count-num {
     font-family: index.$font-mono;
     font-variant-numeric: tabular-nums;
-    text-align: right;
   }
 
   // **flex item は自分で縮ませる。** `td` の `text-overflow` は届かないので、
@@ -146,35 +156,38 @@
     white-space: nowrap;
   }
 
-  // 添えの欄（深さ・応手・行き止まり）。**0.72 より下げない** ——
-  // 下げるとこの背景の上で 4.5:1 を割る
+  // 添えの欄（深さ・応手・行き止まり）
   &__dim {
-    color: rgba(index.$color-text-primary, 0.72);
+    color: index.$color-text-label;
   }
 
-  // 出現回数は数字とバーを縦に積む。**数字を落とさない** ——
+  // 出現回数は数字の下にバーを敷く。**数字を落とさない** ——
   // バーだけだと、桁が違う定跡どうしを見比べたときに同じ長さに見える
   &__count {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: index.$space-1;
+    position: relative;
   }
 
-  // 埋まったぶんは**入れ子の箱ではなく塗りで描く。** 箱にすると、そこに載る文字が
-  // 無いのに「銅の背景に 0.92 の文字」という対ができて、コントラストの走査が
-  // 2.47:1 として数える（走査からは中身が空であることが見えない）
-  &__bar {
+  &__count-num {
     display: block;
-    width: 100%;
-    height: 0.4rem;
-    border-radius: index.$radius-1;
-    background-color: rgba(index.$color-white, 0.08);
-    background-image: linear-gradient(
-      to right,
-      index.$color-secondary-dark var(--book-bar-fill, 0%),
-      transparent var(--book-bar-fill, 0%)
-    );
+    margin-top: calc(-1 * #{index.$space-1});
+  }
+
+  // 埋まったぶんは擬似要素で描く。**入れ子の箱にしない** —— 箱にすると、そこに載る文字が
+  // 無いのに「銅の背景に文字」という対ができて、コントラストの走査が数える
+  &__bar {
+    position: absolute;
+    inset: auto index.$space-9 index.$space-1 index.$space-9;
+    height: 0.3rem;
+    background-color: index.$stroke-weak;
+    overflow: hidden;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--book-bar-fill, 0%);
+      background-color: index.$color-secondary-dark;
+    }
   }
 
   // 定跡がその先へ続く行。**銅で示さない**（`__sort--active` と同じ理由）。
@@ -184,8 +197,6 @@
   }
 
   &__empty {
-    padding: index.$space-4 var(--pane-px, #{index.$space-4});
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-primary, 0.72);
+    color: index.$color-text-label;
   }
 }

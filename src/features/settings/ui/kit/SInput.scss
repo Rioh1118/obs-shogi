@@ -3,39 +3,32 @@
 .sui-input {
   width: 100%;
   min-width: 0;
+  height: 3.2rem;
+  padding: 0 index.$space-5;
 
-  border-radius: var(--ctl-radius, #{index.$radius-3});
-  border: 1px solid var(--ctl-border, rgba(255, 255, 255, 0.12));
-  background: var(--s-surface-2, #{index.$surface-field});
-  color: inherit;
+  border: 1px solid index.$stroke-strong;
+  border-radius: index.$radius-control;
+  background: index.$surface-field;
+  color: index.$color-text-primary;
 
   font: inherit;
-  font-size: 1.3rem;
-
-  height: 36px;
-  padding: 0 10px;
-
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease,
-    box-shadow 160ms ease;
+  font-size: index.$font-body;
 
   &::placeholder {
-    color: var(--s-text-dim, rgba(255, 255, 255, 0.58));
-    opacity: 0.9;
+    color: index.$color-text-faint;
   }
 
   &:focus-visible {
-    outline: 2px solid var(--s-focus, rgba(220, 215, 201, 0.55));
+    outline: 2px solid index.$focus-ring;
     outline-offset: 2px;
   }
 
   &[data-invalid="true"] {
-    border-color: var(--intent-danger-border, rgba(255, 90, 90, 0.32));
+    border-color: index.$color-danger;
   }
 
   &:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
+    opacity: 0.45;
+    cursor: default;
   }
 }

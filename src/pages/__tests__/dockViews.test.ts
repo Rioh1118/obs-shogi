@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { BOUNDARY_LABELS } from "@/shared/ui/AppErrorBoundary";
 import AnalysisControls from "@/widgets/analysis-pane/ui/AnalysisControls";
 import AnalysisPane from "@/widgets/analysis-pane/ui/AnalysisPane";
+import AnalysisStats from "@/widgets/analysis-pane/ui/AnalysisStats";
 import BookControls from "@/widgets/book-view/ui/BookControls";
 import BookView from "@/widgets/book-view/ui/BookView";
 import { DOCK_VIEWS_BINDINGS } from "../dockViews";
@@ -18,6 +19,7 @@ describe("ドックの割り当て", () => {
     expect(DOCK_VIEWS_BINDINGS.analysis).toMatchObject({
       Body: AnalysisPane,
       Controls: AnalysisControls,
+      Meta: AnalysisStats,
       boundary: BOUNDARY_LABELS.analysis,
     });
   });
@@ -28,5 +30,6 @@ describe("ドックの割り当て", () => {
       Controls: BookControls,
       boundary: BOUNDARY_LABELS.book,
     });
+    expect(DOCK_VIEWS_BINDINGS.book.Meta).toBeUndefined();
   });
 });

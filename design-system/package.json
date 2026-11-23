@@ -1,6 +1,6 @@
 {
   "name": "obs-shogi-ds",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "description": "Design system source of truth + Claude Code skill (structure only; values are provisional)",
   "type": "module",
@@ -25,7 +25,11 @@
     "ds:check": "node scripts/check.mjs",
     "ds:shot": "playwright test",
     "ds:shot:update": "playwright test --update-snapshots",
-    "ds:eval": "node scripts/run-evals.mjs"
+    "ds:eval": "node scripts/run-evals.mjs",
+    "ds:screens": "node scripts/screens.mjs",
+    "ds:screens:selftest": "node screens/selftest.mjs",
+    "ds:compare": "node compare/build.mjs",
+    "ds:compare:serve": "node compare/serve.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

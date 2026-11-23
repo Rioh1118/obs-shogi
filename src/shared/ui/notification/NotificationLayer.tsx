@@ -1,9 +1,21 @@
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import Modal from "@/shared/ui/Modal";
 import { useNotifications } from "@/shared/lib/notification/useNotifications";
 import type { Notification } from "@/shared/lib/notification/types";
 import Notice from "./Notice";
+import NoticeBand from "./NoticeBand";
+import { TIER_ICONS, TIER_ROLES } from "./tiers";
+import { usePublishedHeight } from "./usePublishedHeight";
 import "./NotificationLayer.scss";
+
+/** 一度に見せる帯の数。残りは件数で言い、押すと並べる */
+const SHOWN_BANDS = 2;
+
+/** 残る知らせか。放っておけば消えるものは、帯にせず上の帯の空きに出す */
+const isLasting = (n: Notification) =>
+  n.presentation === "banner" || (n.presentation === "toast" && !n.autoDismiss);
 
 /** 件数を出す条件は `Notification.count` の doc */
 function toNoticeProps(n: Notification) {
@@ -19,6 +31,9 @@ function toNoticeProps(n: Notification) {
 /**
  * グローバルの3経路（`toast`、`banner`、`modal`）を1箇所で描く（ADR-0004 決定4、決定6）。
  *
+ * 残る知らせ（`banner` と、消えない `toast`）は、上の帯の下に1件1行。放っておけば消える `toast` は、
+ * 本文を動かさないように上の帯の空きに1つだけ出す。
+ *
  * 出す側は `notify` を呼ぶだけでよく、表示と閉じる導線が失敗ごとに散らない。
  * どの失敗がどこへ出るかは `docs/state-transitions/failure-surfacing.md`。
  * インラインは置き場が部品の中にあるのでここに来ない（`InlineNotice`）。
@@ -26,17 +41,25 @@ function toNoticeProps(n: Notification) {
 export default function NotificationLayer() {
   const { notifications, dismiss } = useNotifications();
 
-  // **新着が可視の端に来るように並べる。** どちらの入れ物も高さに上限があり、
-  // 溢れたぶんは巻き取られる。出た順のまま並べると巻き取られるのが常に新着側で、
-  // 失敗が続いている間に出た最後の1件——いちばん tier が重いことが多い——が
-  // 一度も画面に出ない。`scrollTop` の初期値は 0 なので、見えているのは先頭
+  const bandsRef = useRef<HTMLDivElement | null>(null);
+  const [isAllShown, setIsAllShown] = useState(false);
+
+  // **新着を先頭に並べる。** 見せる数に上限があるので、出た順のまま並べると、
+  // 失敗が続いている間に出た最後の1件——いちばん tier が重いことが多い——が隠れる
   const newestFirst = (list: Notification[]) => [...list].reverse();
 
-  const banners = newestFirst(notifications.filter((n) => n.presentation === "banner"));
-  const toasts = newestFirst(notifications.filter((n) => n.presentation === "toast"));
+  const bands = newestFirst(notifications.filter(isLasting));
+  const shownBands = isAllShown ? bands : bands.slice(0, SHOWN_BANDS);
+  const hiddenCount = bands.length - SHOWN_BANDS;
+  // 1行に1件ずつ、出た順に出す。時計が進むのも出ている1件だけ（`useAutoDismiss`）なので、
+  // 後から来たものは前のものが消えてから出て、どれも読む時間を持つ
+  const passing = notifications.find((n) => n.presentation === "toast" && n.autoDismiss);
+  const PassingIcon = passing && TIER_ICONS[passing.tier];
   // **重ねない。** 2枚目が上に乗ると、1枚目を読み終える前に塞がれる。
   // 出た順の先頭を出し切ってから次へ進む
   const modal = notifications.find((n) => n.presentation === "modal");
+
+  usePublishedHeight(bandsRef, "--notice-bands-h", bands.length > 0);
 
   // 読み上げるのは最後に積まれた1件だけ。全部を流すと、1件増えるたびに
   // 出ている分がまとめて読み直される。**まとめられたものは読み直さない**——
@@ -61,28 +84,58 @@ export default function NotificationLayer() {
           <p className="notice-layer__announce" aria-live="polite">
             {announcement}
           </p>
-          {banners.length > 0 && (
-            <div className="notice-layer__banners">
-              {banners.map((n) => (
-                <Notice
+          {bands.length > 0 && (
+            <div className="notice-layer__bands" ref={bandsRef}>
+              {shownBands.map((n, at) => (
+                <NoticeBand
                   key={n.id}
                   {...toNoticeProps(n)}
-                  className="notice--banner"
                   onDismiss={() => dismiss(n.id)}
+                  extra={
+                    hiddenCount > 0 &&
+                    at === shownBands.length - 1 && (
+                      <button
+                        type="button"
+                        className="notice-band__action"
+                        aria-expanded={isAllShown}
+                        onClick={() => setIsAllShown((v) => !v)}
+                      >
+                        {isAllShown ? "ほかを隠す" : `ほか ${hiddenCount} 件`}
+                      </button>
+                    )
+                  }
                 />
               ))}
             </div>
           )}
-          {toasts.length > 0 && (
-            <div className="notice-layer__toasts">
-              {toasts.map((n) => (
-                <Notice
-                  key={n.id}
-                  {...toNoticeProps(n)}
-                  className="notice--toast"
-                  onDismiss={() => dismiss(n.id)}
-                />
-              ))}
+          {passing && PassingIcon && (
+            // 上の帯に乗るので、帯と同じくウィンドウを掴めるようにする。閉じるボタンは掴まない
+            <div
+              key={passing.id}
+              className={`notice-line notice-line--${passing.tier}`}
+              role={TIER_ROLES[passing.tier]}
+              data-tauri-drag-region="deep"
+            >
+              <PassingIcon className="notice-line__icon" size={14} aria-hidden="true" />
+              <p className="notice-line__title" title={passing.title}>
+                {passing.title}
+              </p>
+              {passing.body && (
+                <p className="notice-line__text" title={passing.body}>
+                  {passing.body}
+                </p>
+              )}
+              {passing.dedupeKey !== undefined && (
+                <span className="notice-line__count">{passing.count}件</span>
+              )}
+              <button
+                type="button"
+                className="notice-line__close"
+                aria-label={`「${passing.title}」を閉じる`}
+                onClick={() => dismiss(passing.id)}
+              >
+                <X size={13} aria-hidden="true" />
+              </button>
             </div>
           )}
         </div>,

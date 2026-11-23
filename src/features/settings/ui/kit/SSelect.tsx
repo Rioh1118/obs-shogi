@@ -1,4 +1,5 @@
 import type { Ref, SelectHTMLAttributes } from "react";
+import { ChevronDown } from "lucide-react";
 import "./SSelect.scss";
 
 type SSelectOption = {
@@ -36,9 +37,7 @@ export default function SSelect({ options, placeholder, invalid, value, ref, ...
           </option>
         ))}
       </select>
-      <span className="sui-select__chev" aria-hidden="true">
-        ▾
-      </span>
+      <ChevronDown className="sui-select__chev" size={14} aria-hidden="true" />
     </div>
   );
 }

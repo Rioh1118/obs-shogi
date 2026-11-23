@@ -1,8 +1,6 @@
-import Title from "@/shared/ui/Title";
 import Button from "@/shared/ui/Button/Button";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { KIFU_FORMAT_OPTIONS } from "@/entities/kifu/model/kifu";
-import { FolderOpen, FileText } from "lucide-react";
 import "./WelcomeScreen.scss";
 
 // 形式の一覧を写さない。写すと、形式を1つ足したときに増えるのが
@@ -20,34 +18,30 @@ function WelcomeScreen() {
   return (
     <div className="welcome-screen">
       <div className="welcome-screen__content">
-        <Title />
-        <div className="welcome-screen__message">
-          <div className="welcome-screen__icon">
-            <FolderOpen size={48} />
-          </div>
-          <h2 className="welcome-screen__title">棋譜を選択するか、作成してください</h2>
-          <p className="welcome-screen__description">
-            左のファイルツリーから棋譜を選択すると、
-            <br /> こちらに盤が出ます
-          </p>
+        {/* 名前はタイトルバーにあるので、読み上げない */}
+        <img className="welcome-screen__mark" src="/icon.svg" alt="" width={594} height={691} />
+        <h2 className="welcome-screen__title">棋譜を選択するか、作成してください</h2>
+        <p className="welcome-screen__description">
+          左のファイルツリーから棋譜を選択すると、
+          <br /> こちらに盤が出ます
+        </p>
 
-          <div className="welcome-screen__actions">
-            {/* 保存先を渡さない。ここからは `dir=` が決まらないので、
-                組むタブの保存先の欄が受け持つ */}
-            <Button tone="accent" onClick={() => openModal("create-file")}>
-              棋譜を作成
-            </Button>
-          </div>
+        {/* 保存先を渡さない。ここからは `dir=` が決まらないので、
+            組むタブの保存先の欄が受け持つ */}
+        <Button
+          className="welcome-screen__create"
+          tone="primary"
+          size="lg"
+          onClick={() => openModal("create-file")}
+        >
+          棋譜を作成
+        </Button>
 
-          <div className="welcome-screen__formats">
-            {FORMATS.map((format) => (
-              <div key={format} className="welcome-screen__format-item">
-                <FileText size={16} />
-                <span>{format}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <p className="welcome-screen__formats">
+          {FORMATS.map((format) => (
+            <span key={format}>{format}</span>
+          ))}
+        </p>
       </div>
     </div>
   );

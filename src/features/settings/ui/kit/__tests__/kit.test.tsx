@@ -3,7 +3,7 @@ import { createRef } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import { SField, SInput, SSection, SSelect } from "..";
+import { SCheckbox, SField, SFold, SInput, SPath, SSection, SSelect, SStats } from "..";
 import SRadioGroup from "../SRadioGroup";
 import SettingsBadge from "../SettingsBadge";
 
@@ -47,6 +47,28 @@ describe("SSection", () => {
     expect(container.querySelector(".sui-section__title")).toBeNull();
   });
 
+  test("件数は題に添え、節の名前には入れない", () => {
+    const { container } = render(
+      <SSection title="状態" count={0}>
+        中身
+      </SSection>,
+    );
+
+    expect(container.querySelector(".sui-section__count")?.textContent).toBe("0");
+    expect(screen.getByRole("region", { name: "状態" })).toBeTruthy();
+  });
+
+  test("題に添えた語は、節の名前に入れない", () => {
+    const { container } = render(
+      <SSection title="状態" badge={<span>注意あり</span>}>
+        中身
+      </SSection>,
+    );
+
+    expect(container.querySelector(".sui-section__titles")?.textContent).toBe("状態注意あり");
+    expect(screen.getByRole("region", { name: "状態" })).toBeTruthy();
+  });
+
   test("操作が偽なら置き場を出さない", () => {
     const { container } = render(
       <SSection title="状態" actions={false}>
@@ -55,6 +77,49 @@ describe("SSection", () => {
     );
 
     expect(container.querySelector(".sui-section__actions")).toBeNull();
+  });
+});
+
+describe("SFold", () => {
+  const button = () => screen.getByRole("button", { name: /^手順/ });
+
+  test("題が節の名前になり、押すと開閉する", () => {
+    const { rerender } = render(
+      <SFold title="手順" description="説明" defaultOpen={false}>
+        中身
+      </SFold>,
+    );
+    const region = screen.getByRole("region", { name: "手順" });
+    expect(region.textContent).not.toContain("中身");
+    expect(button().getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(button());
+    expect(region.textContent).toContain("中身");
+    expect(button().getAttribute("aria-expanded")).toBe("true");
+
+    // 一度押したら、既定が変わっても押した側に従う
+    rerender(
+      <SFold title="手順" description="説明" defaultOpen={false}>
+        中身
+      </SFold>,
+    );
+    expect(region.textContent).toContain("中身");
+  });
+
+  test("押すまでは既定に従う", () => {
+    const { rerender } = render(
+      <SFold title="手順" description="説明" defaultOpen>
+        中身
+      </SFold>,
+    );
+    expect(screen.getByText("中身")).toBeTruthy();
+
+    rerender(
+      <SFold title="手順" description="説明" defaultOpen={false}>
+        中身
+      </SFold>,
+    );
+    expect(screen.queryByText("中身")).toBeNull();
   });
 });
 
@@ -97,6 +162,21 @@ describe("SField", () => {
 
     expect(screen.getByRole("alert").textContent).toBe("失敗");
     expect(container.querySelector(".sui-field__hint")).toBeNull();
+  });
+});
+
+describe("SField の並べ方", () => {
+  test.each([
+    [true, "sui-field sui-field--inline"],
+    [false, "sui-field"],
+  ])("名前を欄の左に置くか（%s）", (inline, className) => {
+    const { container } = render(
+      <SField label="題" inline={inline}>
+        中身
+      </SField>,
+    );
+
+    expect(container.querySelector(".sui-field")?.className).toBe(className);
   });
 });
 
@@ -226,7 +306,33 @@ describe("SRadioGroup", () => {
 
     const group = container.querySelector<HTMLElement>(".sui-radio")!;
     expect(group.getAttribute("data-layout")).toBe("list");
+    expect(group.querySelector(".sui-radio__item--segment")).toBeNull();
     expect(group.style.getPropertyValue("--cols")).toBe("");
+  });
+
+  test("区切りボタンでも、選んでいる値に印を付け、列の数を持たない", () => {
+    const { container } = render(
+      <SRadioGroup
+        name="n"
+        value="b"
+        onChange={() => {}}
+        options={options}
+        layout="segment"
+        columns={3}
+      />,
+    );
+
+    const group = container.querySelector<HTMLElement>(".sui-radio")!;
+    expect(group.getAttribute("data-layout")).toBe("segment");
+    expect(group.querySelectorAll(".sui-radio__item--segment")).toHaveLength(
+      group.querySelectorAll(".sui-radio__item").length,
+    );
+    expect(group.style.getPropertyValue("--cols")).toBe("");
+    expect(
+      [...container.querySelectorAll<HTMLElement>(".sui-radio__item")].map(
+        (item) => item.dataset.checked,
+      ),
+    ).toEqual(["false", "true"]);
   });
 
   test("格子では列の数を渡す", () => {
@@ -247,20 +353,92 @@ describe("SRadioGroup", () => {
   });
 });
 
-describe("SettingsBadge", () => {
-  test("既定は控えめなバッジ", () => {
-    render(<SettingsBadge>札</SettingsBadge>);
-
-    expect(screen.getByText("札").className).toBe("sbadge sbadge--muted sbadge--badge");
-  });
-
-  test("色と形を選べる", () => {
-    render(
-      <SettingsBadge tone="warn" shape="pill">
-        札
-      </SettingsBadge>,
+describe("SStats", () => {
+  test("名前と値を並べ、次の一手は持つものにだけ添える", () => {
+    const { container } = render(
+      <SStats
+        items={[
+          { label: "エンジン", value: "0 件", hint: "engines/ に置いてください" },
+          { label: "警告", value: 0 },
+        ]}
+      />,
     );
 
-    expect(screen.getByText("札").className).toBe("sbadge sbadge--warn sbadge--pill");
+    expect(
+      [...container.querySelectorAll(".sui-stats__item")].map((item) =>
+        [...item.children].map((cell) => cell.textContent),
+      ),
+    ).toEqual([
+      ["エンジン", "0 件", "engines/ に置いてください"],
+      ["警告", "0"],
+    ]);
+  });
+});
+
+describe("SPath", () => {
+  test("長いパスも全部を出し、題にも持つ", () => {
+    const path = "/Users/me/Documents/とても長い_フォルダの-名前/KIFU_ROOT";
+    const { container } = render(<SPath path={path} />);
+
+    const box = container.querySelector<HTMLElement>(".sui-path")!;
+    expect(box.textContent).toBe(path);
+    expect(box.title).toBe(path);
+    expect(box.className).toBe("sui-path");
+  });
+
+  test("まだ決まっていなければ、その文を出す", () => {
+    const { container } = render(<SPath path="" placeholder="未設定" />);
+
+    const box = container.querySelector<HTMLElement>(".sui-path")!;
+    expect(box.textContent).toBe("未設定");
+    expect(box.className).toBe("sui-path sui-path--none");
+    expect(box.hasAttribute("title")).toBe(false);
+  });
+});
+
+describe("SCheckbox", () => {
+  test("名前を押しても切り替わり、添え書きを出す", () => {
+    const onChange = vi.fn();
+    render(
+      <SCheckbox checked={false} onChange={onChange} note="外せません">
+        検討
+      </SCheckbox>,
+    );
+
+    fireEvent.click(screen.getByText("検討"));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
+    expect(screen.getByText("外せません").className).toBe("sui-check__note");
+  });
+
+  test("押せないときは切り替わらない", () => {
+    const onChange = vi.fn();
+    render(
+      <SCheckbox checked disabled onChange={onChange}>
+        検討
+      </SCheckbox>,
+    );
+
+    fireEvent.click(screen.getByText("検討"));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(document.querySelector(".sui-check__note")).toBeNull();
+  });
+});
+
+describe("SettingsBadge", () => {
+  test("既定は控えめな札で、記号を付けない", () => {
+    render(<SettingsBadge>札</SettingsBadge>);
+
+    expect(screen.getByText("札").className).toBe("sbadge sbadge--muted");
+    expect(screen.getByText("札").querySelector("svg")).toBeNull();
+  });
+
+  test.each(["warn", "danger"] as const)("直す必要があるもの（%s）には、記号を添える", (tone) => {
+    render(<SettingsBadge tone={tone}>札</SettingsBadge>);
+
+    expect(screen.getByText("札").className).toBe(`sbadge sbadge--${tone}`);
+    expect(screen.getByText("札").querySelector("svg")).not.toBeNull();
   });
 });

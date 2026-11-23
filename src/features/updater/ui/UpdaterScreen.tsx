@@ -1,9 +1,23 @@
+import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { Download, RefreshCw, X } from "lucide-react";
 import { useUpdater } from "@/entities/updater";
 import type { UpdaterFailure, UpdaterStatus } from "@/entities/updater";
+import type { NotifyAction, VisibleTier } from "@/shared/lib/notification/types";
+import NoticeBand from "@/shared/ui/notification/NoticeBand";
+import { usePublishedHeight } from "@/shared/ui/notification/usePublishedHeight";
 import "./UpdaterScreen.scss";
-import Button from "@/shared/ui/Button/Button";
+
+/** 帯1行ぶんの中身 */
+type Band = {
+  tier: VisibleTier;
+  title: string;
+  text: string;
+  body?: string;
+  actions?: NotifyAction[];
+  /** 取得の進み具合（％） */
+  progress?: number;
+  canDismiss: boolean;
+};
 
 /**
  * 失敗の見出しと、次に何をすればよいかを返す。
@@ -15,150 +29,136 @@ import Button from "@/shared/ui/Button/Button";
  * 新しいものを置くので、その間に落ちるとアプリの実体が残らないことがある。
  * 走っているプロセスは生きているが、閉じると起動できなくなる。
  */
-function failureText(failure: UpdaterFailure): {
-  heading: string;
-  hint: string;
-} {
-  if (failure.stage === "download") {
+function failureBand({ stage, detail }: UpdaterFailure): Band {
+  if (stage === "download") {
+    const hint = "通信を確認して、もう一度お試しください。アプリはそのまま使えます。";
     return {
-      heading: "更新を取得できませんでした",
-      hint: "通信を確認して、もう一度お試しください。アプリはそのまま使えます。",
+      tier: "warning",
+      title: "更新を取得できませんでした",
+      text: hint,
+      body: `${hint}\n${detail}`,
+      canDismiss: true,
     };
   }
+  const hint =
+    "このまま終了すると起動できなくなることがあります。閉じる前に、配布元から最新版を入れ直してください。";
   return {
-    heading: "更新を適用できませんでした",
-    hint: "このまま終了すると起動できなくなることがあります。閉じる前に、配布元から最新版を入れ直してください。",
+    tier: "fatal",
+    title: "更新を適用できませんでした",
+    text: hint,
+    body: `${hint}\n${detail}`,
+    canDismiss: true,
   };
 }
 
-/** 描く段階の見出しを返す。`idle` と `checking` は何も描かないので型で外してある。 */
-function headingOf(status: Exclude<UpdaterStatus, { phase: "idle" | "checking" }>): string {
+/**
+ * いまの段階で出す帯。何も出さない段階では `null`。
+ *
+ * **閉じられるのは、何も進行していないときだけ。** 取得と入替の最中に閉じると、
+ * 進み具合を見る唯一の帯が消える。
+ */
+function bandOf(
+  status: UpdaterStatus,
+  run: {
+    update: () => Promise<void>;
+    skip: () => Promise<void>;
+    restart: () => Promise<void>;
+  },
+): Band | null {
   switch (status.phase) {
+    case "idle":
+    case "checking":
+      return null;
     case "available":
-      return "新しいバージョンが利用可能";
+      return {
+        tier: "info",
+        title: "新しいバージョンが利用可能",
+        text: `バージョン v${status.version} が公開されています`,
+        actions: [
+          { label: "今すぐ更新", run: run.update },
+          { label: "この版は飛ばす", run: run.skip },
+        ],
+        canDismiss: true,
+      };
     case "downloading":
-      return "ダウンロード中…";
+      return {
+        tier: "info",
+        title: "ダウンロード中…",
+        text: `${status.progress}%`,
+        progress: status.progress,
+        canDismiss: false,
+      };
+    // **止められないことを言う。** 閉じる操作も取り消す操作も無い段階なので、
+    // 進捗だけ黙って消すと「固まった」と読まれる
     case "installing":
-      return "更新を適用しています…";
+      return {
+        tier: "info",
+        title: "更新を適用しています…",
+        text: "アプリを入れ替えています。終わるまで閉じないでください。",
+        canDismiss: false,
+      };
+    // **「再起動しないと適用されない」と読ませない。** この段階ではディスク上の
+    // アプリはもう入れ替わっていて、次にふつうに起動しても新しい版になる。
+    // ボタンは「いま切り替える」ためのもの
     case "ready":
-      return "更新の準備ができました";
+      return {
+        tier: "info",
+        title: "更新の準備ができました",
+        text: "次に起動したときから新しいバージョンになります。いま切り替えることもできます。",
+        // 切り替えに失敗しても、入替は済んでいる。ふつうに開き直せば新しい版になる
+        actions: [
+          {
+            label: "いま再起動",
+            run: run.restart,
+            failureBody:
+              "アプリを終了してから、もう一度起動してください。次に起動したときから新しいバージョンになります。",
+          },
+        ],
+        canDismiss: false,
+      };
     case "error":
-      return failureText(status.failure).heading;
+      return failureBand(status.failure);
   }
 }
 
+/**
+ * 更新の知らせ。残る知らせの帯（`NotificationLayer`）の下に、同じ形で1行出す。
+ *
+ * 通知の層に載せないのは、本体の境界が落ちて層ごと消えたときにも出すため（`App.tsx`）。
+ * 高さは自分で名乗り、作業画面とモーダルがそのぶん下へ始まる（`global.scss` の `--top-bands-h`）。
+ */
 export default function UpdaterScreen() {
   const { status, downloadAndInstall, restart, dismiss, skipCurrentVersion } = useUpdater();
+  const ref = useRef<HTMLDivElement>(null);
 
-  if (status.phase === "idle" || status.phase === "checking") {
-    return null;
-  }
+  const band = bandOf(status, {
+    update: downloadAndInstall,
+    skip: skipCurrentVersion,
+    restart,
+  });
+  usePublishedHeight(ref, "--update-band-h", band !== null);
 
-  // **閉じられるのは、何も進行していないときだけ。** 取得と入替の最中に閉じると、
-  // 進み具合を見る唯一のカードが消える
-  const canDismiss = status.phase === "available" || status.phase === "error";
+  if (!band) return null;
 
   return createPortal(
-    // **`aria-modal` を名乗らない。** このカードは画面の隅に出て背後を止めないので、
-    // 名乗ると支援技術にだけ「背後は操作できません」と伝わる
-    <div className="updater-overlay" role="status" aria-live="polite" aria-label="アップデート">
-      <div className="updater-card">
-        <div className="updater-card__header">
-          <div className="updater-card__icon" aria-hidden="true">
-            <RefreshCw size={18} strokeWidth={1.8} />
-          </div>
-          <div className="updater-card__heading">{headingOf(status)}</div>
-          {canDismiss && (
-            <button
-              type="button"
-              className="updater-card__dismiss"
-              onClick={dismiss}
-              aria-label="閉じる"
-            >
-              <X size={14} strokeWidth={2} />
-            </button>
-          )}
-        </div>
-
-        <div className="updater-card__body">
-          {status.phase === "available" && (
-            <p className="updater-card__version">
-              バージョン <span className="updater-card__version-tag">v{status.version}</span>{" "}
-              が公開されています
-            </p>
-          )}
-
-          {status.phase === "downloading" && (
-            <div className="updater-card__progress-wrap">
-              <div className="updater-card__progress-bar">
-                <div
-                  className="updater-card__progress-fill"
-                  style={{ width: `${status.progress}%` }}
-                />
-              </div>
-              <span className="updater-card__progress-label">{status.progress}%</span>
-            </div>
-          )}
-
-          {/*
-            **止められないことを言う。** 閉じる操作も取り消す操作も無い段階なので、
-            進捗だけ黙って消すと「固まった」と読まれる
-          */}
-          {status.phase === "installing" && (
-            <p className="updater-card__note">
-              アプリを入れ替えています。終わるまで閉じないでください。
-            </p>
-          )}
-
-          {/*
-            **「再起動しないと適用されない」と読ませない。** この段階ではディスク上の
-            アプリはもう入れ替わっていて、次にふつうに起動しても新しい版になる。
-            ボタンは「いま切り替える」ためのもの
-          */}
-          {status.phase === "ready" && (
-            <p className="updater-card__note">
-              次に起動したときから新しいバージョンになります。いま切り替えることもできます。
-            </p>
-          )}
-
-          {status.phase === "error" && (
-            <>
-              <p className="updater-card__hint">{failureText(status.failure).hint}</p>
-              <p className="updater-card__error">{status.failure.detail}</p>
-            </>
-          )}
-        </div>
-
-        <div className="updater-card__actions">
-          {status.phase === "available" && (
-            <>
-              <Button size="sm" radius="pill" onClick={() => void skipCurrentVersion()}>
-                この版は飛ばす
-              </Button>
-              <Button
-                size="sm"
-                radius="pill"
-                tone="accent"
-                onClick={() => void downloadAndInstall()}
-              >
-                <Download size={13} strokeWidth={2.2} />
-                今すぐ更新
-              </Button>
-            </>
-          )}
-          {status.phase === "ready" && (
-            <Button size="sm" radius="pill" tone="accent" onClick={() => void restart()}>
-              <RefreshCw size={13} strokeWidth={2.2} />
-              いま再起動
-            </Button>
-          )}
-          {status.phase === "error" && (
-            <Button size="sm" radius="pill" onClick={dismiss}>
-              閉じる
-            </Button>
-          )}
-        </div>
-      </div>
+    // **`aria-modal` を名乗らない。** 背後を止めないので、名乗ると支援技術にだけ
+    // 「背後は操作できません」と伝わる。読み上げの役は帯が tier から名乗る
+    <div className="updater-band" ref={ref}>
+      <NoticeBand
+        tier={band.tier}
+        title={band.title}
+        text={band.text}
+        body={band.body}
+        actions={band.actions}
+        onDismiss={band.canDismiss ? dismiss : undefined}
+        extra={
+          band.progress !== undefined && (
+            <span className="updater-band__progress">
+              <span className="updater-band__progressFill" style={{ width: `${band.progress}%` }} />
+            </span>
+          )
+        }
+      />
     </div>,
     document.body,
   );

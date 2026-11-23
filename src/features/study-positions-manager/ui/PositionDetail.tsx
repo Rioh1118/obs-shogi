@@ -4,6 +4,7 @@ import PositionPreviewPane from "@/entities/position/ui/PositionPreviewPane";
 import { buildPreviewDataFromSfen } from "@/entities/position/lib/buildPreviewDataFromSfen";
 import Button from "@/shared/ui/Button/Button";
 import ConfirmDialog from "@/shared/ui/ConfirmDialog";
+import ModalFoot from "@/shared/ui/ModalFoot";
 import { formatDate } from "@/shared/lib/date";
 import {
   studyPositionStateLabel,
@@ -67,42 +68,43 @@ export default function PositionDetail({
 
   return (
     <div className="sp-detail">
-      <div className="sp-detail__preview">
-        <PositionPreviewPane previewData={previewData} />
+      <div className="sp-detail__main">
+        <div className="sp-detail__preview">
+          <PositionPreviewPane previewData={previewData} />
+        </div>
+
+        <div className="sp-detail__meta">
+          <h3 className="sp-detail__label">{displayLabel}</h3>
+          <p className="sp-detail__facts">
+            <span className="sp-detail__state">{studyPositionStateLabel(position.state)}</span>
+            <span>{formatDate(position.updatedAt)} 更新</span>
+          </p>
+          {position.tags.length > 0 && (
+            <p className="sp-detail__facts">
+              {position.tags.map((tag) => (
+                <span key={tag} className="sp-detail__tag">
+                  #{tag}
+                </span>
+              ))}
+            </p>
+          )}
+          {position.description && <p className="sp-detail__memo">{position.description}</p>}
+        </div>
       </div>
 
-      <div className="sp-detail__meta">
-        <h3 className="sp-detail__label">{displayLabel}</h3>
-        <div className="sp-detail__metaRow">
-          <span className={`sp-detail__state sp-detail__state--${position.state}`}>
-            {studyPositionStateLabel(position.state)}
-          </span>
-          {position.tags.map((tag) => (
-            <span key={tag} className="sp-detail__tag">
-              #{tag}
-            </span>
-          ))}
-        </div>
-        <div className="sp-detail__metaSub">
-          <span>{formatDate(position.updatedAt)} 更新</span>
-        </div>
-        {position.description && <div className="sp-detail__memo">{position.description}</div>}
-      </div>
-
-      <div className="sp-detail__actions">
-        <div className="sp-detail__actionsLeft">
+      <ModalFoot
+        start={
           <Button tone="danger" onClick={() => setConfirmDelete(true)}>
             {"削除"}
           </Button>
-        </div>
-        <div className="sp-detail__actionsRight">
-          <Button onClick={() => onEdit(position.sfen)}>{"編集"}</Button>
-          <Button onClick={() => onCreateKifu(position.sfen)}>{"棋譜を作成"}</Button>
-          <Button tone="accent" onClick={() => onSearch(position.sfen)}>
-            {"局面検索"}
-          </Button>
-        </div>
-      </div>
+        }
+      >
+        <Button onClick={() => onEdit(position.sfen)}>{"編集"}</Button>
+        <Button onClick={() => onCreateKifu(position.sfen)}>{"棋譜を作成"}</Button>
+        <Button tone="accent" onClick={() => onSearch(position.sfen)}>
+          {"局面検索"}
+        </Button>
+      </ModalFoot>
 
       {confirmDelete && (
         <ConfirmDialog

@@ -214,13 +214,23 @@ describe("PositionSearchHitList", () => {
     expect(card?.querySelector(".pos-hit__meta")?.textContent).toBe("7手目 / 分岐 1");
   });
 
+  test("選んでいる行だけを塗る", () => {
+    const { container } = renderList(HITS.slice(0, 3), { activeIndex: 1 });
+
+    const active = [...container.querySelectorAll(".pos-hit")].map((row) =>
+      row.className.includes("pos-hit--active"),
+    );
+    expect(active).toEqual([false, true, false]);
+  });
+
   test("いま開いている棋譜の行は「同一」、他は「切替」", () => {
     const { container } = renderList(HITS.slice(0, 2), {
       resolveAbsPath: (h) => (h.cursor.tesuu === 1 ? "/root/a.kif" : "/root/b.kif"),
     });
 
-    const badges = [...container.querySelectorAll(".pos-hit__badge")].map((b) => b.textContent);
-    expect(badges).toEqual(["同一", "切替"]);
+    const badges = [...container.querySelectorAll(".pos-hit__badge")];
+    expect(badges.map((b) => b.textContent)).toEqual(["同一", "切替"]);
+    expect(badges.map((b) => b.classList.contains("is-switch"))).toEqual([false, true]);
   });
 
   test("索引がパスを返さない行は、場所が分からないと書いて「切替」", () => {

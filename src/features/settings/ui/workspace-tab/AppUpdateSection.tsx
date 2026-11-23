@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 
-import SSection from "../kit/SSection";
+import { SSection, SStats } from "../kit";
 import Button from "@/shared/ui/Button/Button";
-import MiniStat from "./MiniStat";
 
 import { acceptsManualCheck, useUpdater } from "@/entities/updater";
 import type { ManualCheckResult } from "@/entities/updater";
@@ -11,8 +10,8 @@ import { getAppVersion } from "@/shared/api/app/appVersion";
 /**
  * 手で押した確認の結果の文。
  *
- * 見つかっても取得のボタンを置かない。更新のカードは設定モーダルの下に出る（重なりの順は
- * `design-system/design_system/tokens/semantic.tokens.json` の `z`）ので、ここに置くと進捗と失敗の出るカードが2つになる。
+ * 見つかっても取得のボタンを置かない。取得と適用は上の帯（`UpdaterScreen`）が受け持つので、
+ * ここに置くと進捗と失敗の出る所が2つになる。
  * 失敗に「もう一度」を出さない。すぐ上の「更新を確認」と同じ動作のボタンが2つ並ぶ。
  */
 function manualCheckText(result: ManualCheckResult): string {
@@ -20,7 +19,7 @@ function manualCheckText(result: ManualCheckResult): string {
     case "upToDate":
       return "最新版を使っています";
     case "found":
-      return `新しいバージョン v${result.version} が公開されています。この画面を閉じると案内が出ます。`;
+      return `新しいバージョン v${result.version} が公開されています。上の帯から更新できます。`;
     case "foundButSkipped":
       return `新しいバージョン v${result.version} がありますが、この版は飛ばす設定になっています。`;
     case "failed":
@@ -46,7 +45,7 @@ function lastCheckedText(ms: number | null): string {
   });
 }
 
-/** ワークスペースタブの「更新」の節。確認だけを行い、取得と適用は更新のカードへ渡す */
+/** ワークスペースタブの「更新」の節。確認だけを行い、取得と適用は上の帯へ渡す */
 export default function AppUpdateSection() {
   const { status, persisted, manualCheck, isChecking, checkNow, unskip } = useUpdater();
 
@@ -80,17 +79,20 @@ export default function AppUpdateSection() {
         </Button>
       }
     >
-      <div className="wsTab__miniGrid">
-        <MiniStat label="現在のバージョン">{appVersion ?? "—"}</MiniStat>
-        <MiniStat label="最後に確認できた" plain>
-          {lastCheckedText(persisted?.lastCheckedMs ?? null)}
-        </MiniStat>
-      </div>
+      <SStats
+        items={[
+          { label: "現在のバージョン", value: appVersion ?? "—" },
+          {
+            label: "最後に確認できた",
+            value: lastCheckedText(persisted?.lastCheckedMs ?? null),
+          },
+        ]}
+      />
 
       {manualCheck && (
-        <div className="wsTab__updateResult" role="status">
+        <p className="wsTab__updateResult" role="status">
           {manualCheckText(manualCheck)}
-        </div>
+        </p>
       )}
 
       {/*
@@ -98,9 +100,7 @@ export default function AppUpdateSection() {
       */}
       {persisted?.skippedVersion && (
         <div className="wsTab__updateSkipped">
-          <div className="wsTab__updateSkippedText">
-            v{persisted.skippedVersion} を飛ばす設定になっています
-          </div>
+          <span>v{persisted.skippedVersion} を飛ばす設定になっています</span>
           <Button size="sm" onClick={() => void unskip()}>
             解除
           </Button>

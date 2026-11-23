@@ -7,21 +7,21 @@
   overflow: hidden;
 
   &__center-line {
-    width: 1px;
+    width: 2px;
     height: 100%;
-    background-color: rgba(index.$color-text-primary, 0.4);
+    background-color: index.$surface-dock;
   }
 
   &__side {
     height: 100%;
-    transition: width 0.4s ease;
+    transition: width index.$duration-7 index.$ease;
 
     &--black {
-      background: linear-gradient(to right, #444, #666);
+      background: index.$stroke-strong;
     }
 
     &--white {
-      background: linear-gradient(to left, #eee, #fff);
+      background: index.$color-text-strong;
     }
   }
 }

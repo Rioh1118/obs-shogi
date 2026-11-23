@@ -1,0 +1,45 @@
+@use "@/index.scss" as index;
+
+// 起動の1枚（`BootSplash`）と同じ背景。入れ替わるときに色が変わらない
+.start-screen {
+  container-type: size;
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  place-items: safe center;
+  overflow: auto;
+  background: index.$color-primary-dark;
+
+  &__content {
+    padding: index.$space-12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: index.$color-primary-dark;
+    color: index.$color-text-strong;
+
+    --title-size: clamp(#{index.$font-hero}, 8cqmin, #{index.$font-hero * 2});
+  }
+
+  &__mark {
+    width: clamp(10.4rem, 20.5cqmin, 25.2rem);
+    height: auto;
+  }
+
+  .title {
+    margin: clamp(#{index.$space-12}, 4.4cqmin, #{index.$space-12 * 2}) 0 0;
+  }
+
+  // 起動の失敗は、そのまま長い文で来る
+  &__message {
+    max-width: 64rem;
+    margin: clamp(#{index.$space-7}, 2.4cqmin, #{index.$space-12}) 0
+      clamp(#{index.$space-11}, 3.6cqmin, #{index.$space-10 * 2});
+    font-size: clamp(#{index.$font-section}, 2.6cqmin, #{index.$font-display});
+    line-height: 1.6;
+    color: index.$color-text-muted;
+    overflow-wrap: anywhere;
+    word-break: auto-phrase;
+  }
+}

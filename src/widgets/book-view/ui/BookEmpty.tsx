@@ -1,6 +1,7 @@
 import { FolderOpen } from "lucide-react";
 import type { BookOpenTarget } from "../lib/openTargets";
 import "./BookEmpty.scss";
+import Button from "@/shared/ui/Button/Button";
 
 type Props = {
   fromPreset: readonly BookOpenTarget[];
@@ -47,10 +48,10 @@ function BookEmpty({ fromPreset, recent, onOpen, onBrowse }: Props) {
       {list("このエンジンの定跡", fromPreset)}
       {list("最近開いた定跡", recent)}
 
-      <button type="button" className="book-empty__browse" onClick={onBrowse}>
-        <FolderOpen className="book-empty__icon" />
+      <Button className="book-empty__browse" onClick={onBrowse}>
+        <FolderOpen className="book-empty__icon" aria-hidden="true" />
         別の定跡を開く…
-      </button>
+      </Button>
     </div>
   );
 }

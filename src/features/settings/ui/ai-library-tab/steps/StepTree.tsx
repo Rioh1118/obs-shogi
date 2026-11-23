@@ -5,22 +5,15 @@ type TreeLineProps = {
   label: string;
   note?: string;
   highlight?: boolean;
-  dim?: boolean;
 };
 
-export function TreeLine({
-  indent = 0,
-  label,
-  note,
-  highlight = false,
-  dim = false,
-}: TreeLineProps) {
+/** フォルダの形の1行。いまの段階で触る所だけを明るくする */
+export function TreeLine({ indent = 0, label, note, highlight = false }: TreeLineProps) {
   return (
     <div
       className="setupGuide__treeLine"
       data-highlight={highlight}
-      data-dim={dim}
-      style={{ paddingLeft: indent * 16 }}
+      style={{ paddingLeft: `${indent * 1.6}rem` }}
     >
       <span className="setupGuide__treeLabel">{label}</span>
       {note && <span className="setupGuide__treeNote">{note}</span>}

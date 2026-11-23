@@ -8,7 +8,7 @@ export type PresetsNoticeAction = "reload" | "settings";
 /**
  * 通知1枚ぶん（読み込みで起きたこと・保存を断られたこと・読み込めなかったことの共通の形）。
  * `presentation` が `toast` のものは自分で消える（動作を持てない）。帯（`banner`）は動作を
- * 1つ持つ——帯はヘッダを覆うので、閉じる以外にやることが無い帯は出せない
+ * 1つ持つ——帯は作業画面を押し下げて残るので、閉じる以外にやることが無いなら帯にしない
  */
 export type PresetsFileNoticeView =
   | { presentation: "toast"; tier: Exclude<NotifyTier, "silent">; title: string; body: string }

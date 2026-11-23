@@ -1,12 +1,13 @@
-import { keepInViewport } from "@/shared/lib/keepInViewport";
 import NodeBox from "./NodeBox";
+import DirectoryToggleIcon from "./DirectoryToggleIcon";
 import FileIcon from "./FileIcon";
 import InlineNameEditor from "./InlineNameEditor";
+import NodeName from "./NodeName";
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { DROP_ID, parentDir, type DragData, type DropData } from "@/widgets/file-tree/lib/dnd";
-import { useRef, type MouseEventHandler } from "react";
+import type { MouseEventHandler } from "react";
 import type { FileTreeNode } from "@/entities/file-tree";
 import { commitName, useFileTree } from "@/entities/file-tree";
 import { useLoadedKifuPath } from "@/entities/game";
@@ -41,7 +42,6 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
    */
   const canSkipReopen = activeKifuPath === node.path && loadedAbsPath === node.path;
   const isRenaming = renamingNodeId === node.id;
-  const nameRef = useRef<HTMLSpanElement | null>(null);
 
   const {
     attributes,
@@ -67,48 +67,6 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
   const setNodeRef = (el: HTMLDivElement | null) => {
     setDragRef(el);
     setDropRef(el);
-  };
-
-  const showNameTooltip = () => {
-    const el = nameRef.current;
-    if (!el) return;
-
-    const isOverflowing = el.scrollWidth > el.clientWidth + 1;
-    if (!isOverflowing) return;
-
-    const pop = document.getElementById("filetree-tooltip") as
-      | (HTMLElement & {
-          showPopover?: () => void;
-          hidePopover?: () => void;
-        })
-      | null;
-    if (!pop?.showPopover) return;
-
-    pop.textContent = node.name;
-
-    const r = el.getBoundingClientRect();
-    pop.style.position = "fixed";
-    pop.showPopover();
-
-    // 大きさが決まってから丸める。下端の行では行の下が画面外になり、
-    // `popover` は top layer にいて何にもクリップされないので、
-    // 丸めないと名前を確かめる手段がその行だけ無くなる
-    const box = keepInViewport(
-      { x: r.left, y: r.bottom + 10 },
-      { width: pop.offsetWidth, height: pop.offsetHeight },
-    );
-    pop.style.left = `${box.left}px`;
-    pop.style.top = `${box.top}px`;
-  };
-
-  const hideNameTooltip = () => {
-    const pop = document.getElementById("filetree-tooltip");
-    pop?.hidePopover?.();
-  };
-
-  const handlePointerEnter = () => {
-    if (isDragging) return;
-    showNameTooltip();
   };
 
   const handleClick = () => {
@@ -145,6 +103,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
       {...attributes}
       {...listeners}
     >
+      <DirectoryToggleIcon />
       <FileIcon type="kif-file" />
       {isRenaming ? (
         <InlineNameEditor
@@ -155,16 +114,7 @@ function FileNode({ level, node }: { level: number; node: FileTreeNode }) {
           onUnshowable={pushError}
         />
       ) : (
-        <span
-          ref={nameRef}
-          onPointerEnter={handlePointerEnter}
-          onPointerLeave={hideNameTooltip}
-          onFocus={showNameTooltip}
-          onBlur={hideNameTooltip}
-          className="file-name"
-        >
-          {node.name}
-        </span>
+        <NodeName name={node.name} isFile isDragging={isDragging} />
       )}
     </NodeBox>
   );

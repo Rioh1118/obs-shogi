@@ -10,47 +10,36 @@
 
 .kifu-comment-note__titlebar {
   display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  align-items: baseline;
+  gap: index.$space-4;
   min-width: 0;
 }
 
-.kifu-comment-note__pill {
+// 題。何のコメントかを、枠も背景もない語で言う
+.kifu-comment-note__label,
+.kifu-comment-note__meta {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  height: 2rem;
-  padding: 0 0.72rem;
-  border-radius: 999px;
-
-  font-size: 1.08rem;
-  font-weight: index.$weight-strong;
-  line-height: 1;
-  letter-spacing: 0.01em;
+  gap: index.$space-3;
+  font-size: index.$font-aux;
   white-space: nowrap;
 }
 
-.kifu-comment-note__pill--label {
-  background: rgba(index.$color-white, 0.05);
-  color: rgba(index.$color-text-light-1, 0.86);
-
-  svg {
-    flex-shrink: 0;
-    color: rgba(index.$color-text-primary, 0.72);
-  }
+.kifu-comment-note__label {
+  color: index.$color-text-muted;
 }
 
-.kifu-comment-note__pill--meta {
-  background: rgba(index.$color-white, 0.035);
-  color: rgba(index.$color-text-primary, 0.74);
+.kifu-comment-note__meta {
+  color: index.$color-text-strong;
+  font-weight: index.$weight-strong;
 }
 
 .kifu-comment-note__status {
   position: absolute;
-  right: 0.9rem;
-  bottom: 0.65rem;
-  font-size: 1.08rem;
-  color: rgba(index.$color-text-primary, 0.28);
+  right: index.$space-4;
+  bottom: index.$space-3;
+  font-size: index.$font-hint;
+  color: index.$color-text-faint;
   pointer-events: none;
 }
 
@@ -72,7 +61,7 @@
 
   &:not(:empty) {
     padding: index.$space-2 index.$space-3;
-    border-radius: index.$radius-3;
+    border-radius: index.$radius-surface;
   }
 }
 

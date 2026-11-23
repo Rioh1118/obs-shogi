@@ -1,278 +1,250 @@
 @use "@/index.scss" as index;
 
-// ---- local tokens (no CSS vars) ----
-$settings-radius-lg: 16px;
-$settings-radius-md: 14px;
-$settings-radius-sm: 12px;
-
-$border: rgba(index.$color-white, 0.08);
-$border-weak: rgba(index.$color-white, 0.06);
-$border-strong: rgba(index.$color-white, 0.12);
-
-$surface-card: rgba(index.$color-primary-black, 0.34);
-$surface-card-hover: rgba(index.$color-primary-black, 0.42);
-$surface-chip: rgba(index.$color-primary-black, 0.3);
-$surface-mini: rgba(index.$color-primary-black, 0.25);
-
-$text: rgba(index.$color-text-light-1, 0.92);
-$text-muted: rgba(index.$color-text-light-1, 0.7);
-$text-faint: rgba(index.$color-text-light-1, 0.55);
-
-$accent: index.$color-secondary-dark;
-$focus: index.$focus-ring;
-
-$danger: #e35b5b;
-$warn: #f0b429;
-
+// 上の「詰み探索」は動かず、下のプリセットの一覧だけを送る
 .engineTab {
-  .engineTab__actions {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+
+  > .sui-section:last-of-type {
+    min-height: 0;
     display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap; // 右上が狭い時に崩れない
+    flex-direction: column;
+
+    .sui-section__head {
+      flex: none;
+    }
+
+    .sui-section__body {
+      min-height: 0;
+      flex: 0 1 auto;
+      display: flex;
+      flex-direction: column;
+      margin-top: index.$space-4;
+    }
   }
 
-  .engineTab__error {
-    border: 1px solid rgba($danger, 0.55);
-    background: rgba($danger, 0.1);
-    color: $text;
-    padding: 12px 14px;
-    border-radius: $settings-radius-md;
-    margin-bottom: 14px;
+  &__error {
+    margin: 0;
+    color: index.$color-danger-text;
+    font-size: index.$font-body;
   }
 
-  .engineTab__loading {
+  &__loading,
+  &__note {
+    margin: 0;
     color: index.$color-text-muted;
-    padding: 10px 2px;
+    font-size: index.$font-aux;
   }
 
-  .engineTab__grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-
-    @media (max-width: 900px) {
-      grid-template-columns: minmax(0, 1fr);
-    }
+  &__note {
+    margin-top: index.$space-5;
+    word-break: auto-phrase;
   }
 
-  .engineTab__card {
-    cursor: pointer;
-    user-select: none;
-    min-width: 0;
-
-    border-radius: $settings-radius-lg;
-    border: 1px solid $border;
-    background:
-      radial-gradient(
-        700px 380px at 20% 0%,
-        rgba(index.$color-primary-light, 0.16),
-        transparent 58%
-      ),
-      radial-gradient(700px 380px at 120% 40%, rgba($accent, 0.12), transparent 62%), $surface-card;
-
-    box-shadow: 0 0.8rem 2.2rem rgba(0, 0, 0, 0.22);
-
-    transition:
-      transform 140ms ease,
-      border-color 140ms ease,
-      background-color 140ms ease,
-      box-shadow 140ms ease;
-
-    &:hover {
-      transform: translateY(-1px);
-      border-color: rgba($accent, 0.4);
-      background:
-        radial-gradient(
-          700px 380px at 20% 0%,
-          rgba(index.$color-primary-light, 0.18),
-          transparent 58%
-        ),
-        radial-gradient(700px 380px at 120% 40%, rgba($accent, 0.14), transparent 62%),
-        $surface-card-hover;
-    }
-
-    &:active {
-      transform: translateY(0px) scale(0.995);
-    }
-
-    &:focus-visible {
-      outline: 2px solid $focus;
-      outline-offset: 2px;
-    }
-
-    &.is-selected {
-      border-color: rgba($accent, 0.7);
-      box-shadow:
-        0 0.8rem 2.8rem rgba(0, 0, 0, 0.3),
-        0 0 0 1px rgba($accent, 0.22);
-    }
-  }
-
-  .engineTab__cardHead {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-
-    padding: 14px 14px 10px 14px;
-    border-bottom: 1px solid $border-weak;
-
-    background: linear-gradient(
-      180deg,
-      rgba(index.$color-primary-black, 0.36),
-      rgba(index.$color-primary-black, 0.18)
-    );
-  }
-
-  .engineTab__cardTitleRow {
-    min-width: 0;
-    flex: 1;
-  }
-
-  .engineTab__cardTitle {
-    font-size: 1.6rem;
-    color: index.$color-text-light-1;
-    font-weight: index.$weight-title;
-    letter-spacing: 0.15px;
-
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .engineTab__badges {
+  // 「詰み探索」の2つの欄を1行に並べる
+  &__mate {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .engineTab__badge {
-    display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: index.$space-5 3.6rem;
 
-    font-size: 1.15rem;
-    padding: 4px 10px;
-    border-radius: index.$radius-2;
-
-    border: 1px solid $border-strong;
-    color: index.$color-text-primary;
-    background: $surface-chip;
-
-    box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
-
-    svg {
-      flex: 0 0 auto;
-    }
-
-    &--active {
-      border-color: rgba($accent, 0.55);
-      background: rgba($accent, 0.18);
-    }
-
-    &--ok {
-      border-color: rgba(index.$color-white, 0.1);
-      background: rgba(index.$color-primary-light, 0.16);
-    }
-
-    &--warn {
-      border-color: rgba($warn, 0.55);
-      background: rgba($warn, 0.14);
+    .sui-select {
+      width: 23.6rem;
     }
   }
+}
 
-  .engineTab__cardActions {
-    display: inline-flex;
-    gap: 8px;
-    align-items: center;
-    flex-shrink: 0;
-  }
+.presetList {
+  min-height: 0;
+  overflow: hidden auto;
+  // 端のフォーカスの輪と、左右の余白まで塗る行のために、外の余白まで広げる
+  margin: 0 (-(index.$space-11));
+  padding: 0 index.$space-11 index.$space-9;
+  @include index.scroll-more;
 
-  .engineTab__cardBody {
-    padding: 12px 14px 14px 14px;
-  }
+  &__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 2.8rem;
 
-  .engineTab__row {
-    display: grid;
-    grid-template-columns: 90px minmax(0, 1fr);
-    gap: 10px;
-    padding: 6px 0;
-  }
-
-  .engineTab__k {
-    color: $text-muted;
-    font-size: 1.3rem;
-  }
-
-  .engineTab__v {
-    color: $text;
-    font-size: 1.35rem;
-    min-width: 0;
-
+    background: index.$color-primary-dark;
+    border-bottom: 1px solid index.$stroke;
+    color: index.$color-text-label;
+    font-size: index.$font-hint;
     white-space: nowrap;
+  }
+
+  &__numHead {
+    text-align: right;
+  }
+}
+
+.presetList__head,
+.presetRow {
+  display: grid;
+  grid-template-columns: 15.6rem minmax(0, 1.6fr) minmax(0, 1fr) 3.4rem 7rem 5.4rem 10.4rem 8.4rem;
+  column-gap: index.$space-6;
+  align-items: center;
+  padding: 0 index.$space-2 0 index.$space-6;
+
+  // 狭いときは、評価関数をエンジンの下に添える
+  @container settings-main (max-width: 86rem) {
+    grid-template-columns: minmax(13rem, 1fr) minmax(0, 1.1fr) 3.4rem 6.6rem 5.2rem 10.4rem 8.2rem;
+    column-gap: index.$space-5;
+  }
+}
+
+.presetList__evalHead {
+  @container settings-main (max-width: 86rem) {
+    display: none;
+  }
+}
+
+.presetRow {
+  min-height: 4rem;
+  padding-block: index.$space-2;
+
+  background: index.$color-primary-dark;
+  border-bottom: 1px solid index.$stroke-weak;
+  color: index.$color-text-primary;
+  font-size: index.$font-body;
+  user-select: none;
+  cursor: pointer;
+
+  @container settings-main (max-width: 86rem) {
+    grid-template-rows: auto auto;
+
+    > * {
+      grid-row: 1 / 3;
+    }
+  }
+
+  &:hover {
+    background: index.$surface-hover;
+  }
+
+  &:focus-visible {
+    outline: 2px solid index.$focus-ring;
+    outline-offset: -2px;
+  }
+
+  // 適用中。灰青の塗り（design-system の patterns/selection.md）
+  &.is-selected,
+  &.is-selected:hover {
+    background: index.$surface-selected;
+  }
+
+  &__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 index.$space-5;
+    min-width: 0;
+  }
+
+  // 名前は折る。省くと、似た名前の行が見分けられない
+  &__label {
+    min-width: 0;
+    color: index.$color-text-strong;
+    font-weight: index.$weight-strong;
+    overflow-wrap: anywhere;
+    word-break: auto-phrase;
+  }
+
+  &__now,
+  &__needs {
+    display: inline-flex;
+    align-items: center;
+    gap: index.$space-2;
+    font-size: index.$font-hint;
+    white-space: nowrap;
+  }
+
+  // 「いま」の点。名前の続きに読ませない
+  &__now::before {
+    content: "";
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: index.$radius-circle;
+    background: index.$color-accent-bright;
+  }
+
+  &__needs {
+    color: index.$color-warning;
+  }
+
+  // 長いファイル名は、どの行も2行まで（狭いときは1行）。全体は題（title）で読める。
+  // 適用中の行だけ全部を出すと、その1行が一覧の半分を取り、行ごとに見せ方が変わって見比べられない
+  &__file {
+    min-width: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .engineTab__muted {
-    color: $text-faint;
-  }
-
-  .engineTab__divider {
-    height: 1px;
-    background: $border-weak;
-    margin: 10px 0;
-  }
-
-  .engineTab__miniGrid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-
-    @media (max-width: 520px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  .engineTab__mini {
-    border: 1px solid $border-weak;
-    border-radius: $settings-radius-sm;
-    padding: 10px 10px;
-
-    background:
-      radial-gradient(
-        420px 220px at 10% 0%,
-        rgba(index.$color-primary-light, 0.12),
-        transparent 62%
-      ),
-      $surface-mini;
-
-    box-shadow: inset 0 1px 0 rgba(index.$color-white, 0.05);
-  }
-
-  .engineTab__miniK {
-    color: index.$color-text-faint;
-    font-size: 1.15rem;
-    margin-bottom: 4px;
-  }
-
-  .engineTab__miniV {
-    color: index.$color-text-primary;
-    font-size: 1.45rem;
-    font-weight: index.$weight-title;
-    letter-spacing: 0.1px;
-
-    &.is-warn {
-      color: rgba(index.$color-secondary-light, 0.95);
-    }
-  }
-
-  .engineTab__note {
-    margin-top: 10px;
+    overflow-wrap: anywhere;
     color: index.$color-text-muted;
-    font-size: 1.2rem;
-    line-height: 1.45;
+    font-size: index.$font-aux;
+    line-height: 1.35;
+
+    @container settings-main (max-width: 86rem) {
+      grid-column: 2;
+      -webkit-line-clamp: 1;
+      line-clamp: 1;
+      word-break: break-all;
+    }
+  }
+
+  &__engine {
+    @container settings-main (max-width: 86rem) {
+      grid-row: 1;
+      align-self: end;
+    }
+  }
+
+  &__eval {
+    @container settings-main (max-width: 86rem) {
+      grid-row: 2;
+      align-self: start;
+      color: index.$color-text-label;
+    }
+  }
+
+  &__book {
+    font-size: index.$font-aux;
+  }
+
+  &__num {
+    display: grid;
+    justify-items: end;
+    font-family: index.$font-mono;
+    font-variant-numeric: tabular-nums;
+    font-weight: index.$weight-strong;
+    color: index.$color-text-strong;
+    white-space: nowrap;
+
+    &--default {
+      font-weight: index.$weight-regular;
+      color: index.$color-text-muted;
+    }
+  }
+
+  &__defaultNote {
+    font-family: index.$font-sans;
+    font-size: index.$font-hint;
+    line-height: 1.2;
+    color: index.$color-text-label;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  &__delete:hover:not(:disabled) {
+    color: index.$color-danger-text;
   }
 }

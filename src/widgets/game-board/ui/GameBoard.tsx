@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import "./GameBoard.scss";
 import HandHeader from "./HandHeader";
+import { Color } from "shogi.js";
 import { useGame } from "@/entities/game";
 import { playerNames } from "@/entities/kifu/lib/playerNames";
 import { useBoardOrientation } from "@/features/board-orientation";
@@ -19,8 +20,9 @@ type Props = {
  * 棋譜から取ると、盤に載せられなかったときに駒の並びと対局者名が別の棋譜になる。
  */
 export default function GameBoard({ topLeft, center, bottomRight }: Props) {
-  const { state } = useGame();
+  const { state, view } = useGame();
   const { isGotePov } = useBoardOrientation();
+  const isSenteTurn = view.currentTurn === Color.Black;
   // 欄名と欠けの判定は `playerNames` が持つ。ここで別に書くと、同じ棋譜について
   // ヘッダと盤で違う答えが出る
   const { sente: senteName, gote: goteName } = playerNames(state.jkf);
@@ -32,29 +34,27 @@ export default function GameBoard({ topLeft, center, bottomRight }: Props) {
     <div className={`game-board ${isGotePov ? "game-board--rotated" : ""}`}>
       <div className="game-board__cluster">
         <div className="game-board__hand game-board__hand--topLeft">
-          <div className="game-board__handArea">{topLeft}</div>
-          <div className="game-board__handHeader">
-            <HandHeader
-              side="gote"
-              name={goteName}
-              boardRotated={isGotePov}
-              placement={gotePlacement}
-            />
-          </div>
+          {topLeft}
+          <HandHeader
+            side="gote"
+            name={goteName}
+            boardRotated={isGotePov}
+            placement={gotePlacement}
+            isTurn={!isSenteTurn}
+          />
         </div>
 
         <div className="game-board__board">{center}</div>
 
         <div className="game-board__hand game-board__hand--bottomRight">
-          <div className="game-board__handHeader">
-            <HandHeader
-              side="sente"
-              name={senteName}
-              boardRotated={isGotePov}
-              placement={sentePlacement}
-            />
-          </div>
-          <div className="game-board__handArea">{bottomRight}</div>
+          <HandHeader
+            side="sente"
+            name={senteName}
+            boardRotated={isGotePov}
+            placement={sentePlacement}
+            isTurn={isSenteTurn}
+          />
+          {bottomRight}
         </div>
       </div>
     </div>

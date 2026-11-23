@@ -1,10 +1,16 @@
 @use "@/index.scss" as index;
 
-// ドックは1枚のカード。**タブの行・操作列の行・本体**が中で縦に積む
+// タブ・状態・道具を1行に並べ、残りを本体に、下の帯を添え書きに使う。
+//
+// **ビューの操作列は箱を持たず（`display: contents`）、この行の列へ直に入る。** 列は左から
+// `tabs`（タブ）、`status`（いま何をしているか）、`meta`、`tools`（道具）。
+// 操作列が行を1つ持つと、そのぶん盤が低くなる
 .dock {
-  // **左右の始点。** タブの行・操作列・本体が同じ縦線から始まるよう、
-  // ドックの中はこの1つだけを使う
-  --pane-px: #{index.$space-4};
+  // **左右の始点。** 表・行・帯が同じ縦線から始まるよう、ドックの中はこの1つだけを使う
+  --pane-px: #{index.$space-7};
+  --dock-bar-h: #{index.$dock-bar-height};
+  --dock-btn-w: #{index.$dock-button-width};
+  --dock-btn-h: #{index.$dock-button-height};
 
   width: 100%;
   height: 100%;
@@ -12,95 +18,84 @@
   overflow: hidden;
 
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template:
+    "tabs status . tools" var(--dock-bar-h)
+    "body body body body" minmax(0, 1fr)
+    "meta meta meta meta" auto / auto auto minmax(0, 1fr) auto;
 
-  // **不透明にする。** タブの状態は下線と `opacity`、操作列の状態は点の色で示す。
-  // どれも下地との比で決まるので、コンテナが半透明だとその比が決まらない。
-  //
-  // **黒（`$color-primary-black`）まで沈めない。** 読み筋と評価値は目を凝らして追う情報で、
-  // `$color-text-primary` を真っ黒に載せると 11:1 まで開いて疲れる。ここは 8 台に収める
-  background: index.$color-primary-dark;
-  border: 1px solid index.$stroke-weak;
-  border-radius: index.$radius-4;
+  // ほかのペインより半段明るい。**不透明にする** —— 中に並ぶ文字の色は、この背景との比で決めてある
+  background: index.$surface-dock;
 
-  // タブの行。**選択は下線で示す** —— 背景の塗り分けだけだと、タブが増えたときに
-  // 選択中とホバー中が同じ強さに見える
+  // タブと操作列が載る帯
+  &::before {
+    content: "";
+    grid-area: 1 / 1 / 2 / -1;
+    background: index.$surface-dock-strip;
+    border-bottom: 1px solid index.$stroke-weak;
+  }
+
   &__tabs {
+    grid-area: tabs;
     display: flex;
     align-items: stretch;
-    gap: index.$space-1;
-
-    // タブが増えたら**タブ側が削られる**。操作列は別の行に居るので巻き込まれない
     min-width: 0;
     overflow-x: auto;
+  }
 
-    padding: 0 var(--pane-px);
-    background: rgba(index.$color-primary-black, 0.35);
-    border-bottom: 1px solid index.$stroke-weak;
+  // タブ。**いま見ているものは、一段明るい塗りと銅の下線**（design-system の patterns/selection.md）
+  .dock__tab {
+    @include index.tab;
+    padding: 0 index.$space-7;
+    background: index.$surface-dock-strip;
+    color: index.$color-text-label;
+    font-size: index.$font-body;
 
-    .dock__tab {
-      padding: index.$space-4 index.$space-6;
-
-      border: 0;
-      border-bottom: 2px solid transparent;
-      background: transparent;
-      color: index.$color-text-primary;
-      opacity: 0.72;
-
-      font-family: index.$font-sans;
-      font-size: index.$font-body;
-      white-space: nowrap;
-      cursor: pointer;
-
-      transition:
-        background-color index.$duration-3 index.$ease,
-        opacity index.$duration-3 index.$ease;
-
-      &:hover {
-        opacity: 0.85;
-      }
-
-      // **輪を内側に描く。** タブの行は横スクロールする箱なので、外側に出した輪は
-      // 箱に切られてキーボードの現在地が画面から消える
-      &:focus-visible {
-        outline: 2px solid index.$focus-ring;
-        outline-offset: -2px;
-      }
-
-      // **ホバーより後に、同じ詳細度で置く。** 置かないと選択中のタブに
-      // ポインタを載せた瞬間だけ選択の目印が薄まる
-      &--active {
-        border-bottom-color: index.$color-secondary-dark;
-        background: rgba(index.$color-white, 0.04);
-        opacity: 1;
-
-        &:hover {
-          opacity: 1;
-        }
-      }
+    &--active {
+      @include index.tab-on;
     }
   }
 
-  // ビューの行。操作列と本体をまとめて1つの境界の中に置く
-  &__view {
-    min-height: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  &__controls {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    border-bottom: 1px solid index.$stroke-weak;
-  }
-
   // **1行の grid にする。** ビューの高さを 100% に頼ると、親のコンテナの高さが確定していない
-  // 回に伸びず、脚注が本体の途中で止まる
+  // ときに伸びず、本体が途中で止まる
   &__body {
+    grid-area: body;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
     display: grid;
     grid-template-rows: minmax(0, 1fr);
+  }
+
+  &__meta {
+    grid-area: meta;
+    min-width: 0;
+    border-top: 1px solid index.$stroke-weak;
+  }
+
+  @media (max-width: 1150px) {
+    --dock-btn-w: #{index.$dock-button-width-narrow};
+  }
+
+  // 低いウィンドウでは、添え書きをタブの行へ上げ、下の帯のぶんを盤に返す
+  @media (max-height: 800px) {
+    --dock-bar-h: #{index.$dock-bar-height-low};
+    --dock-btn-h: #{index.$dock-button-height-low};
+
+    grid-template:
+      "tabs status meta tools" var(--dock-bar-h)
+      "body body body body" minmax(0, 1fr) / auto auto minmax(0, 1fr) auto;
+    padding-bottom: index.$space-2;
+
+    &__meta {
+      align-self: center;
+      border-top: 0;
+      overflow: hidden;
+    }
+  }
+
+  @media (pointer: coarse) {
+    --dock-bar-h: #{index.$control-hit-coarse};
+    --dock-btn-w: #{index.$control-hit-coarse};
+    --dock-btn-h: #{index.$control-hit-coarse};
   }
 }

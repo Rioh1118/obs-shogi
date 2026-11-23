@@ -18,7 +18,7 @@ main にあるか: **作成時だけ入力できる。作成後に編集する�
 
 **読む側は2箇所ある。**
 
-- ヘッダの対局者名（`useHeaderCenterInfo`）
+- ヘッダの題の対局者名（`useHeaderCenterInfo`）
 - 盤の駒台の見出し（`GameBoard` が `jkfData.header` を直接読む）
 
 つまり**書けるのは作るときの1回だけで、あとは読むだけ**になっている。

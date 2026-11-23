@@ -1,30 +1,11 @@
-import { useState } from "react";
-import { CircleAlert, Info, OctagonX, TriangleAlert, X } from "lucide-react";
+import { X } from "lucide-react";
 import Button from "@/shared/ui/Button/Button";
 import type { NotifyAction, VisibleTier } from "@/shared/lib/notification/types";
+import { TIER_ICONS, TIER_ROLES } from "./tiers";
+import { useNoticeActions } from "./useNoticeActions";
 import "./Notice.scss";
 
 const ICON_SIZE = 16;
-
-const ICONS: Record<VisibleTier, typeof Info> = {
-  info: Info,
-  warning: TriangleAlert,
-  danger: CircleAlert,
-  fatal: OctagonX,
-};
-
-/**
- * 支援技術に割り込ませるか。
- *
- * `danger` と `fatal` は**繰り返しでは直らない**ので、いま読んでいるものを
- * 中断してでも伝える。`info` と `warning` は読み終わってからでよい。
- */
-const ROLES: Record<VisibleTier, "status" | "alert"> = {
-  info: "status",
-  warning: "status",
-  danger: "alert",
-  fatal: "alert",
-};
 
 export type NoticeProps = {
   tier: VisibleTier;
@@ -39,7 +20,7 @@ export type NoticeProps = {
 };
 
 /**
- * 通知の中身。トースト・バナー・モーダル・インラインが共有する。
+ * 通知の中身。モーダルとインラインが共有する。帯は `NoticeBand`。
  *
  * **自分では位置を持たない。** どこに置くかは載せる側が決める（ADR-0004 決定4）。
  */
@@ -52,44 +33,13 @@ export default function Notice({
   onDismiss,
   className,
 }: NoticeProps) {
-  const Icon = ICONS[tier];
-  // **添字でなく動作そのもので覚える。** 通知はまとめられると `actions` が丸ごと
-  // 差し替わるのに id は動かない（再マウントしない）ので、添字で覚えると
-  // 一度も押していないボタンが busy かつ押せない状態で残る。押せなくなるのは
-  // たいてい「エンジンが応答しない」ときで、唯一の復帰導線がそれになる
-  const [running, setRunning] = useState<NotifyAction | null>(null);
-  const [failed, setFailed] = useState<NotifyAction | null>(null);
-
-  const invoke = (action: NotifyAction) => {
-    // **二重起動はここで止める。ボタンを `disabled` にしない。**
-    // フォーカス中の要素が `disabled` になるとブラウザは blur し、行き先は `<body>`。
-    // 通知は `#modal-root`（文書の末尾）に描かれるので、そこから戻るには
-    // アプリ全体を Tab で辿り直すことになり、直後に出る失敗の理由へ帰れない
-    if (running !== null) return;
-    setFailed(null);
-    setRunning(action);
-    // `run` が同期で投げる場合も拾えるように、呼び出しごと Promise に入れる
-    void Promise.resolve()
-      .then(() => action.run())
-      .catch((cause: unknown) => {
-        // **画面には利用者の言葉、原因はログ。** どちらか片方に寄せると、
-        // 押した人に伝わらないか、後から誰も辿れないかのどちらかになる
-        console.error(`[notification] 「${action.label}」が失敗した`, cause);
-        setFailed(action);
-      })
-      .finally(() => {
-        // 走り終えたものだけを落とす。差し替わったあとの動作を消さない
-        setRunning((current) => (current === action ? null : current));
-      });
-  };
-
-  // 差し替えられた動作の失敗を、新しいボタンの下に出したままにしない
-  const actionError = failed && actions.includes(failed) ? failed : null;
+  const Icon = TIER_ICONS[tier];
+  const { running, failed, invoke } = useNoticeActions(actions);
 
   const classes = ["notice", `notice--${tier}`, className].filter(Boolean).join(" ");
 
   return (
-    <div className={classes} role={ROLES[tier]}>
+    <div className={classes} role={TIER_ROLES[tier]}>
       <Icon className="notice__icon" size={ICON_SIZE} strokeWidth={2} aria-hidden="true" />
       <div className="notice__body">
         <div className="notice__head">
@@ -98,10 +48,10 @@ export default function Notice({
           {count !== undefined && <span className="notice__count">{count}件</span>}
         </div>
         {body && <p className="notice__text">{body}</p>}
-        {actionError && (
+        {failed && (
           <p className="notice__actionError" role="alert">
-            「{actionError.label}」を実行できませんでした。
-            {actionError.failureBody && ` ${actionError.failureBody}`}
+            「{failed.label}」を実行できませんでした。
+            {failed.failureBody && ` ${failed.failureBody}`}
           </p>
         )}
         {actions.length > 0 && (

@@ -1,13 +1,12 @@
 @use "@/index.scss" as index;
 
+// ファイル操作と棋譜の読み込みの失敗。塗りだけの1枚で、中に箱を入れ子にしない
 .fsError {
   display: flex;
   flex-direction: column;
-  gap: index.$space-3;
-  padding: index.$space-5;
-  border: 1px solid;
-  border-left-width: 3px;
-  border-radius: index.$radius-3;
+  gap: index.$space-4;
+  padding: index.$space-5 index.$space-6;
+  border-radius: index.$radius-surface;
   color: index.$color-text-primary;
 
   // tier は「復帰に何が要るか」で決まる（ADR-0004）。色だけでなく、
@@ -16,15 +15,19 @@
   // 背景は**不透明**にする。この部品は暗いカードとサイドバーの2つに載るので、
   // 半透明を親に重ねると載る場所ごとに実効値が変わる
   &--warning {
-    border-color: rgba(index.$color-warning, 0.4);
-    border-left-color: index.$color-warning;
     background: index.$surface-warning;
+
+    .fsError__lead {
+      color: index.$color-warning;
+    }
   }
 
   &--danger {
-    border-color: rgba(index.$color-danger, 0.4);
-    border-left-color: index.$color-danger;
     background: index.$surface-danger;
+
+    .fsError__lead {
+      color: index.$color-danger-text;
+    }
   }
 
   &__message {
@@ -44,20 +47,19 @@
     margin: 0;
     font-family: index.$font-mono;
     font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.75);
     overflow-wrap: anywhere;
   }
 
   &__detail {
-    border: 1px solid index.$stroke-weak;
-    border-radius: index.$radius-2;
-    background: rgba(index.$color-primary-black, 0.22);
-
     summary {
       cursor: pointer;
-      padding: index.$space-2 index.$space-3;
-      font-size: index.$font-hint;
-      color: rgba(index.$color-text-primary, 0.7);
+      width: fit-content;
+      font-size: index.$font-aux;
+
+      &:focus-visible {
+        outline: 2px solid index.$focus-ring;
+        outline-offset: 2px;
+      }
     }
   }
 
@@ -80,25 +82,28 @@
       background: transparent;
     }
     &::-webkit-scrollbar-thumb {
-      background: rgba(index.$color-secondary-dark, 0.6);
-      border-radius: index.$radius-2;
+      background: index.$stroke-strong;
     }
-    margin: 0;
-    padding: 0 index.$space-3 index.$space-3;
+    margin: index.$space-3 0 0;
     font-family: index.$font-mono;
     font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.72);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
   &__actions {
     display: flex;
-    // サイドバーの中（幅 26rem）にも出る。ボタンは `white-space: nowrap` で
-    // 縮まないので、折り返さないと `justify-content: flex-end` があふれを
-    // **開始側**へ押し出し、逃げ道のラベルが左へ欠けたまま到達できなくなる
+    // サイドバーの中（幅 16rem）にも出る。1行に収まらなければ、ボタンごと次の行へ、
+    // それでも収まらなければボタンの中の文字を折る
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: index.$space-3;
+
+    > * {
+      max-width: 100%;
+      min-height: 2.8rem;
+      height: auto;
+      white-space: normal;
+    }
   }
 }

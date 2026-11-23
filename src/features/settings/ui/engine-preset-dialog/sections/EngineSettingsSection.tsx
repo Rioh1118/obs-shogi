@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { bookInUse, type EnginePreset, hasCurrentDefinitions } from "@/entities/engine-presets";
+import { cx } from "@/features/settings/lib/cx";
 import { fitNoteLines, type FitNote } from "@/features/settings/lib/fitNote";
 import { optionRows } from "@/features/settings/lib/optionRows";
 import { SInput, SSection } from "@/features/settings/ui/kit";
@@ -60,7 +61,7 @@ export default function EngineSettingsSection({
     <SSection title="エンジン設定" description="空欄は初期値のままで、エンジンへは送りません。">
       <div className="presetDialog__stack">
         {fitLines.length > 0 && (
-          <details className="presetDialog__details">
+          <details>
             <summary className="presetDialog__summary">
               このエンジンに合わせて {fitLines.length} 件の値を変えました（保存すると確定します）
             </summary>
@@ -97,7 +98,7 @@ export default function EngineSettingsSection({
           {rows.map((row) => (
             <div key={row.def.name} className="presetDialog__optionRow">
               <div className="presetDialog__optionName">
-                <span>
+                <span className={cx(row.changed && "presetDialog__changed")}>
                   {row.changed && <span aria-label="初期値と違う">● </span>}
                   {row.label ?? row.def.name}
                 </span>

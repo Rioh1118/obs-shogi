@@ -1,0 +1,29 @@
+@use "@/index.scss" as index;
+
+.sui-stats {
+  margin: 0;
+  display: grid;
+  // **列の数を直に書かない。** 値が増えたとき列が追随せず、最後の1つだけが次の行に落ちる
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: index.$space-5 index.$space-10;
+
+  background: index.$color-primary-dark;
+
+  &__label {
+    font-size: index.$font-aux;
+    color: index.$color-text-label;
+  }
+
+  &__value {
+    margin: index.$space-1 0 0;
+    font-size: index.$font-lead;
+    color: index.$color-text-strong;
+    overflow-wrap: anywhere;
+  }
+
+  &__hint {
+    margin: index.$space-1 0 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
+  }
+}

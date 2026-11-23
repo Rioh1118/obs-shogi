@@ -122,6 +122,10 @@ async function typeAndEnter(value: string) {
   });
 }
 
+/** 行の名前。拡張子は別の箱に入るので、文字全体で探す */
+const nameOf = (name: string) =>
+  [...document.querySelectorAll<HTMLElement>(".node-name")].find((el) => el.textContent === name)!;
+
 beforeEach(() => {
   vi.clearAllMocks();
   droppables.length = 0;
@@ -158,6 +162,19 @@ describe("フォルダの行", () => {
     renderDir();
 
     expect(screen.queryByText("a.kif")).toBeNull();
+  });
+
+  test.each([
+    [true, "lucide-chevron-down"],
+    [false, "lucide-chevron-right"],
+  ])("開いているか（%s）を、記号で出す", (isOpen, icon) => {
+    tree.isNodeExpanded.mockImplementation(() => isOpen);
+    const { container } = renderDir();
+
+    const toggle = container.querySelector(".node-toggle")!;
+    expect([...toggle.querySelectorAll("svg")].map((svg) => svg.classList.contains(icon))).toEqual([
+      true,
+    ]);
   });
 
   test("右クリックでその行のメニューを開く", () => {
@@ -373,6 +390,12 @@ describe("棋譜の行", () => {
     expect(draggables).toContainEqual({ id: "/ws/研究/a.kif", disabled: true });
   });
 
+  test("開かない行には、開閉の記号を出さない", () => {
+    const { container } = inDnd(<FileNode node={KIFU} level={2} />);
+
+    expect(container.querySelector(".node-toggle svg")).toBeNull();
+  });
+
   test("改名の最中は押しても開かない", () => {
     tree.renamingNodeId = KIFU.id;
     inDnd(<FileNode node={KIFU} level={2} />);
@@ -386,7 +409,7 @@ describe("棋譜の行", () => {
   test("押すとその行を選んで開く", () => {
     inDnd(<FileNode node={KIFU} level={2} />);
 
-    fireEvent.click(screen.getByText("a.kif"));
+    fireEvent.click(nameOf("a.kif"));
 
     expect(tree.selectNode).toHaveBeenCalledWith(KIFU);
     expect(tree.openKifuNode).toHaveBeenCalledWith(KIFU);
@@ -395,7 +418,7 @@ describe("棋譜の行", () => {
   test("右クリックでその行のメニューを開く", () => {
     inDnd(<FileNode node={KIFU} level={2} />);
 
-    fireEvent.contextMenu(screen.getByText("a.kif"), { clientX: 5, clientY: 6 });
+    fireEvent.contextMenu(nameOf("a.kif"), { clientX: 5, clientY: 6 });
 
     expect(tree.openContextMenu).toHaveBeenCalledWith(KIFU, 5, 6);
   });

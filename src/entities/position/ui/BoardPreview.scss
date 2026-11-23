@@ -1,43 +1,32 @@
+@use "@/index.scss" as index;
+@use "@/entities/position/ui/shogiBoardGeometry" as geo;
+
+// 比・余白・筋の色は、作業画面の盤（`Board.scss`）と同じ
 .board-preview {
-  --board-size: 300px;
-  --square-size: calc(var(--board-size) / 9);
-  --piece-size: calc(var(--square-size) * 0.8);
-
-  width: var(--board-size);
-  height: var(--board-size);
   position: relative;
-  user-select: none;
+  width: 100%;
+  aspect-ratio: #{geo.board-aspect()};
 
-  &__container {
-    width: 100%;
-    height: 100%;
-    background-image: url(/src/assets/board.png);
-    background-size: cover;
-    border-radius: calc(var(--board-size) * 0.02);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    position: relative;
-    overflow: hidden;
-  }
+  background: url(/src/assets/board.png) center / 100% 100% no-repeat;
+  box-shadow: index.$shadow-board;
+  user-select: none;
 
   &__grid {
     position: absolute;
-    top: calc(var(--board-size) * 0.04);
-    left: calc(var(--board-size) * 0.04);
-    width: calc(var(--board-size) * 0.92);
-    height: calc(var(--board-size) * 0.92);
+    inset: #{geo.inset-y-pct()} #{geo.inset-x-pct()};
+
     display: grid;
-    grid-template-columns: repeat(9, 1fr);
-    grid-template-rows: repeat(9, 1fr);
-    border: 1px solid #000;
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-rows: repeat(9, minmax(0, 1fr));
+
+    border: 1px solid geo.$line-color;
   }
 
   &__square {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-right: 1px solid rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+    display: grid;
+    place-items: center;
+    border-right: 1px solid rgba(geo.$line-color, 0.8);
+    border-bottom: 1px solid rgba(geo.$line-color, 0.8);
 
     &:nth-child(9n) {
       border-right: none;
@@ -48,19 +37,11 @@
     }
   }
 
+  // 駒の箱はマスいっぱいに置き、駒ごとの大きさは `Piece.scss` に任せる。
+  // ここで縮めると、作業画面の盤より駒だけが小さく見える
   &__piece {
-    width: var(--piece-size);
-    height: var(--piece-size);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 100%;
+    height: 100%;
     pointer-events: none;
-
-    // 駒の画像サイズを調整
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
   }
 }

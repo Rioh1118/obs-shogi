@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
+import type { EngineStatus } from "@/entities/analysis";
+import { isTextStep } from "@/widgets/analysis-pane/lib/engineStep";
 import { EngineAction } from "../EngineAction";
 import { EngineStatusLabel } from "../EngineStatusLabel";
 
@@ -116,11 +118,28 @@ describe("語を押して出す文", () => {
     render(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
     fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
 
-    fireEvent.mouseDown(screen.getByText("再起動してください。"));
+    fireEvent.pointerDown(screen.getByText("再起動してください。"));
     expect(screen.getByRole("dialog")).toBeTruthy();
 
-    fireEvent.mouseDown(document.body);
+    fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // ウィンドウを掴む帯を押すと、Tauri が document の mousedown を止める（tauri の drag.js）。
+  // 外の押下を mousedown で聞いていると、帯を押しても閉じない
+  test("document の mousedown が止められても、外を押せば閉じる", () => {
+    const stop = (event: Event) => event.stopImmediatePropagation();
+    document.addEventListener("mousedown", stop);
+    try {
+      render(<EngineStatusLabel status="exited" currentSfen="P1" notice={notice} />);
+      fireEvent.click(screen.getByRole("button", { name: "エンジン終了" }));
+
+      fireEvent.pointerDown(document.body);
+      fireEvent.mouseDown(document.body);
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      document.removeEventListener("mousedown", stop);
+    }
   });
 
   test("開いた語をもう一度押すと閉じる", () => {
@@ -128,7 +147,7 @@ describe("語を押して出す文", () => {
     const word = screen.getByRole("button", { name: "エンジン終了" });
 
     fireEvent.click(word);
-    fireEvent.mouseDown(word);
+    fireEvent.pointerDown(word);
     fireEvent.click(word);
 
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -170,6 +189,44 @@ describe("操作列の時計の持ち越し", () => {
 
     expect(statusText(view.container)).toBe("検討完了0s");
   });
+});
+
+describe("語のボタンになる状態", () => {
+  const STATUSES: EngineStatus[] = [
+    "no-engine",
+    "starting",
+    "standing-by",
+    "analyzing",
+    "finished",
+    "unresponsive",
+    "exited",
+    "failed",
+    "cancelled",
+  ];
+
+  /** 食い違うと、語のボタンが記号の間に出るか、操作列から消える */
+  test.each(STATUSES.flatMap((status) => [true, false].map((slow) => [status, slow] as const)))(
+    "%s（起動が長引いた: %s）で、`isTextStep` と出るボタンが合う",
+    (status, slowStart) => {
+      const { container } = render(
+        <EngineAction
+          status={status}
+          isAnalyzing={false}
+          stopping={false}
+          canStart
+          retry
+          slowStart={slowStart}
+          onToggle={vi.fn()}
+          onRestart={vi.fn()}
+          onOpenSettings={vi.fn()}
+          onCancelStart={vi.fn()}
+        />,
+      );
+
+      const isIcon = container.querySelector(".analysis-controls__iconBtn") !== null;
+      expect(isTextStep(status, slowStart)).toBe(!isIcon);
+    },
+  );
 });
 
 describe("▶ の位置のボタン", () => {

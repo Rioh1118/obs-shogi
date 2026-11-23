@@ -11,14 +11,10 @@ import { cx } from "@/features/settings/lib/cx";
 function DisplayModePreview({ mode }: { mode: AnalysisDisplayMode }) {
   return (
     <span className={`displayModePreview displayModePreview--${mode}`} aria-hidden="true">
-      {/* 行: 列を作らず、詰めて並べる */}
+      {/* 行: 列を作らず、詰めて並べる。最善手にも印を付けない（`CandidatesSection`）。
+          見本だけ付けると、選んだ後の画面と違って見える */}
       {mode === "rows" &&
-        [0, 1, 2, 3, 4, 5].map((n) => (
-          <i
-            key={n}
-            className={cx("displayModePreview__fill", n === 0 && "displayModePreview__fill--best")}
-          />
-        ))}
+        [0, 1, 2, 3].map((n) => <i key={n} className="displayModePreview__fill" />)}
 
       {/* 表: 見出しの行があり、下が列で揃う */}
       {mode === "table" && (

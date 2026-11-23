@@ -38,7 +38,7 @@ export type UpdaterFailure = {
 /**
  * 告知をどこまで見せたかの記憶（`updater.json`）
  *
- * カードを閉じたことはここに残さない。黙らせるのはその起動の間だけ。
+ * 帯を閉じたことはここに残さない。黙らせるのはその起動の間だけ。
  */
 export type UpdaterState = {
   /** 告知を出さないと決めた版 */
@@ -50,9 +50,9 @@ export type UpdaterState = {
 /**
  * 手で押した確認の結果。設定の画面が読む。
  *
- * 更新が見つかってもカードは設定モーダルの下に隠れる（重なりの順は
- * `design-system/design_system/tokens/semantic.tokens.json` の `z`）ので、見つかったことは設定の中で言う。
- * 取得と適用はカードが持つ。2箇所に置くと進捗も失敗も二重になる。
+ * 押した本人に返す答えなので、見つかったことは設定の中で言う。取得と適用は上の帯
+ * （`UpdaterScreen`。設定を開いていても、モーダルの上に見える）が持つ。2箇所に置くと
+ * 進捗も失敗も二重になるので、設定では帯へ案内するだけにする。
  */
 export type ManualCheckResult =
   | { kind: "upToDate" }
@@ -75,7 +75,7 @@ export type UpdaterContextType = {
   downloadAndInstall: () => Promise<void>;
   /** 新しい版で開き直す */
   restart: () => Promise<void>;
-  /** カードを閉じる。次の起動ではまた出る */
+  /** 帯を閉じる。次の起動ではまた出る */
   dismiss: () => void;
   /** いま告知している版を、以後出さないようにする */
   skipCurrentVersion: () => Promise<void>;

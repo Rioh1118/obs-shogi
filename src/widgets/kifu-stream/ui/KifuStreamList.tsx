@@ -1,8 +1,17 @@
 import { useOverlayLayer } from "@/shared/lib/overlayStack";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import "./KifuStreamList.scss";
 import KifuMoveActions from "./KifuMoveActions";
 import { useGame } from "@/entities/game";
+import { kifuListMarker } from "@/features/kifu-navigation-keys";
 import {
   cursorKey,
   descendTo,
@@ -28,6 +37,8 @@ import { branchIndexFromRow, resolveForkSelection } from "../lib/cursorSelection
 import { scrollToRowSafeZone } from "../lib/scrollToRowSafeZone";
 import { kifuRowId } from "../lib/rowId";
 import { useBranchDeleteConfirm, type PendingDelete } from "../model/useBranchDeleteConfirm";
+import { useListFocus } from "../model/useListFocus";
+import { usePointedRow } from "../model/usePointedRow";
 import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
 
 /**
@@ -36,6 +47,9 @@ import KifuCommentNote from "@/features/kifu-comment-note/ui/KifuCommentNote";
  * 値の根拠は未測定の経験則。
  */
 const RECENT_SCROLL_MS = 120;
+
+/** 付箋。モーダルは `aria-modal="true"` なので当たらない */
+const NOTE = '[role="dialog"][aria-modal="false"]';
 
 /**
  * 行から開くサーフェス。同時に開くのは1つだけで、どれかを開くと他は閉じる。
@@ -69,6 +83,26 @@ function describeDelete(pending: PendingDelete): string {
   return `${what}（${size}）が削除されます。この操作は取り消せません。棋譜ファイルもすぐ書き換わります。`;
 }
 
+/**
+ * 1行の高さ。流す先をこの倍数に揃えると、上端の行が途中で切れない。
+ *
+ * いまの手はコメントのぶん広がるので、両端の低い方を取る（広がるのは1行だけ）。
+ */
+function rowUnit(list: HTMLElement): number {
+  const heights = [list.firstElementChild, list.lastElementChild].map((el) =>
+    el instanceof HTMLElement ? el.offsetHeight : 0,
+  );
+  return Math.max(1, Math.min(...heights));
+}
+
+/**
+ * 付箋を置く基準。押したボタンでなく行全体にする。いまの手の行はボタンの下にコメントの文を出すので、
+ * ボタンの下に置くと付箋がその文に重なり、文の上半分だけが帯のように見える
+ */
+function rowOf(button: HTMLElement): HTMLElement {
+  return button.closest<HTMLElement>(".kifu-row") ?? button;
+}
+
 export default function KifuStreamList() {
   const { state, view, goToIndex, applyCursor, deleteBranch, swapBranches } = useGame();
   const { pendingDelete, isDeleting, requestDelete, confirmDelete, cancelDelete } =
@@ -83,6 +117,7 @@ export default function KifuStreamList() {
   const openComment = openFace?.kind === "comment" ? openFace : null;
   // Escape は重なったサーフェスのうち最上位の1枚だけが受ける。最上位かは `useOverlayLayer` の返す関数に問う
   const isTop = useOverlayLayer(openFork !== null);
+  const isMoveMenuTop = useOverlayLayer(openMoveMenu !== null);
 
   const forkMenuRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef<HTMLButtonElement | null>(null);
@@ -106,6 +141,9 @@ export default function KifuStreamList() {
   const totalMoves = view.player ? view.totalMoves : 0;
   const currentTesuu = state.cursor?.tesuu ?? 0;
 
+  const { focusList, settleFocus, returnFocus } = useListFocus(listRef, currentTesuu);
+  const clearPointedRow = usePointedRow(`${state.boardSeq}/${state.cursor?.tesuuPointer ?? ""}`);
+
   /**
    * `kind` のサーフェスが開いていれば閉じる。別のサーフェスが開いていたら触らない。
    *
@@ -115,8 +153,6 @@ export default function KifuStreamList() {
   const closeFace = useCallback((kind: OpenFace["kind"]) => {
     setOpenFace((prev) => (prev?.kind === kind ? null : prev));
   }, []);
-
-  const closeCommentNote = useCallback(() => closeFace("comment"), [closeFace]);
 
   const closeMoveMenu = useCallback(() => closeFace("move"), [closeFace]);
 
@@ -142,8 +178,38 @@ export default function KifuStreamList() {
     lastScrollAtRef.current = now;
 
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
-    scrollToRowSafeZone(scroller, rowEl, reduced || dt < RECENT_SCROLL_MS ? "auto" : "smooth");
+    scrollToRowSafeZone(
+      scroller,
+      rowEl,
+      reduced || dt < RECENT_SCROLL_MS ? "auto" : "smooth",
+      rowUnit(scroller),
+    );
   }, []);
+
+  /** 一覧の外へ流れていれば、見える位置へ戻す。見えている行は動かさない */
+  const revealHiddenRow = useCallback(
+    (te: number) => {
+      const list = listRef.current;
+      const rowEl = list?.querySelector<HTMLElement>(`#${kifuRowId(te)}`);
+      if (!list || !rowEl) return;
+
+      const box = list.getBoundingClientRect();
+      const rect = rowEl.getBoundingClientRect();
+      if (rect.top < box.top || rect.bottom > box.bottom) revealRow(te, false);
+    },
+    [revealRow],
+  );
+
+  const closeCommentNote = useCallback(() => {
+    // 付箋が消えると、中にあったフォーカスはどこにも無くなる。ほかの部品が持っていなければ、開いた側へ返す。
+    // `body` も見る。編集欄は Escape で自分からフォーカスを手放すので、ここに来たときは既に外れている
+    const focused = document.activeElement;
+    if (openComment && (!focused || focused === document.body || focused.closest(NOTE))) {
+      returnFocus(openComment.anchorEl);
+      revealHiddenRow(openComment.cursor.tesuu);
+    }
+    closeFace("comment");
+  }, [closeFace, openComment, returnFocus, revealHiddenRow]);
 
   const closeForkMenu = useCallback(
     (focusAnchor: boolean) => {
@@ -153,16 +219,16 @@ export default function KifuStreamList() {
       if (!focusAnchor) return;
 
       requestAnimationFrame(() => {
-        // focus 既定のスクロールは「見えるところまで」で、セーフゾーン寄せを上書きするので切る。
-        anchor?.focus({ preventScroll: true });
+        // いまの手の行のバッジでなければ、`settleFocus` が一覧へ移す
+        returnFocus(anchor);
 
         // 局面が変わらない経路（Escape、選択済みの項目を押す）ではカーソル変化の effect が
         // 走らない。メニューは portal でアンカーに追従するので、開いたままリストを流すと
-        // アンカーは画面外に出ている。ここで戻さないとフォーカスだけが見えない場所に残る。
+        // アンカーは画面外に出ている。ここで戻さないと、開いていた行が見えない場所に残る。
         if (te != null) revealRow(te, true);
       });
     },
-    [closeFace, revealRow],
+    [closeFace, returnFocus, revealRow],
   );
 
   // KifuMoveCard は memo なので、行に渡すハンドラは安定した参照でなければならない。
@@ -230,6 +296,8 @@ export default function KifuStreamList() {
 
       closeFace("fork");
       closeFace("move");
+      // 押した項目は、確認が開くのと同じコミットで消える。先に一覧へ移しておくと、確認を閉じたときここへ戻る
+      focusList();
       requestDelete({
         query,
         label: branchLabel(forkIndex),
@@ -237,7 +305,7 @@ export default function KifuStreamList() {
         moveCount,
       });
     },
-    [rows, state.jkf, closeFace, requestDelete],
+    [rows, state.jkf, closeFace, focusList, requestDelete],
   );
 
   const onOpenComment = useCallback(
@@ -311,9 +379,20 @@ export default function KifuStreamList() {
   useEffect(() => {
     if (!openMoveMenu) return;
 
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !isMoveMenuTop()) return;
+      e.preventDefault();
+      closeMoveMenu();
+      focusList();
+    };
+
     document.addEventListener("pointerdown", closeMoveMenu);
-    return () => document.removeEventListener("pointerdown", closeMoveMenu);
-  }, [openMoveMenu, closeMoveMenu]);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", closeMoveMenu);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [openMoveMenu, closeMoveMenu, isMoveMenuTop, focusList]);
 
   useEffect(() => {
     if (!openFork) return;
@@ -364,6 +443,22 @@ export default function KifuStreamList() {
     revealRow(state.cursor?.tesuu ?? 0, false);
   }, [state.boardSeq, state.cursor?.tesuuPointer, state.cursor?.tesuu, revealRow]);
 
+  // Tab で来たとき、輪の出るいまの手の行が一覧の外にあれば見せる
+  const handleKeyUp = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Tab") revealHiddenRow(currentTesuu);
+  };
+
+  // メニューキーと Shift+F10 は、フォーカスのある一覧に届く。いまの手の行で開く
+  const handleKeyboardMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || e.button === 2 || state.isLoading) return;
+
+    const rowEl = e.currentTarget.querySelector(`#${kifuRowId(currentTesuu)}`);
+    if (!rowEl) return;
+
+    e.preventDefault();
+    toggleMoveMenu(currentTesuu, rowEl.getBoundingClientRect());
+  };
+
   if (!view.player) {
     return (
       <div className="kifu">
@@ -376,7 +471,7 @@ export default function KifuStreamList() {
     <div className="kifu">
       <div className="kifu__status">
         <span className="kifu__statusText">
-          手数 {currentTesuu}/{totalMoves}
+          手数 <strong>{currentTesuu}</strong>/{totalMoves}
         </span>
       </div>
 
@@ -393,7 +488,7 @@ export default function KifuStreamList() {
         open={!!openComment}
         cursor={openComment?.cursor ?? null}
         boardSeq={openComment?.boardSeq ?? null}
-        anchorEl={openComment?.anchorEl ?? null}
+        anchorEl={openComment && rowOf(openComment.anchorEl)}
         onClose={closeCommentNote}
       />
 
@@ -408,7 +503,21 @@ export default function KifuStreamList() {
         />
       )}
 
-      <div className="kifu__list" ref={listRef}>
+      <div
+        className="kifu__list"
+        ref={listRef}
+        {...kifuListMarker}
+        role="grid"
+        aria-label="棋譜"
+        // フォーカスは一覧が持ち、行には渡さない。行に渡すと、いまの手と別の行に残れる
+        tabIndex={0}
+        aria-activedescendant={kifuRowId(currentTesuu)}
+        onFocus={settleFocus}
+        onKeyUp={handleKeyUp}
+        onContextMenu={handleKeyboardMenu}
+        onScroll={clearPointedRow}
+        onPointerLeave={clearPointedRow}
+      >
         {rows.map((r) => {
           const isForkOpen = openFork?.te === r.te;
           // 先に openComment を見て短絡させる。閉じている間は行ごとの
