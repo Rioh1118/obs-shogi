@@ -18,7 +18,7 @@ function BootSplash() {
         <img className="loading__icon" src="/icon.svg" alt="ObsShogi" width={88} height={102} />
 
         <p className="loading__text">
-          <span className="loading__label">Loading</span>
+          <span>Loading</span>
           <span className="loading__dots" aria-hidden="true">
             <span>.</span>
             <span>.</span>

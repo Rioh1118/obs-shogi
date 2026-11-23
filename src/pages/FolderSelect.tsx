@@ -1,9 +1,7 @@
-import Title from "@/shared/ui/Title";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppConfig } from "@/entities/app-config";
-import ChooseWorkspaceButton from "@/features/choose-workspace/ui/ChooseWorkspaceButton";
-import "./FolderSelect.scss";
+import StartScreen from "./StartScreen";
 
 function FolderSelect() {
   const navigate = useNavigate();
@@ -16,11 +14,10 @@ function FolderSelect() {
   }, [config?.root_dir, navigate]);
 
   return (
-    <div className="container">
-      <Title />
-      <p className="guide--text">あなたの定跡を整理するノートアプリへようこそ</p>
-      <ChooseWorkspaceButton onChosen={() => navigate("/app", { replace: true })} />
-    </div>
+    <StartScreen
+      message="あなたの定跡を整理するノートアプリへようこそ"
+      onChosen={() => navigate("/app", { replace: true })}
+    />
   );
 }
 

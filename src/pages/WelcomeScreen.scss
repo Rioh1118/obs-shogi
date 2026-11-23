@@ -1,105 +1,60 @@
 @use "@/index.scss" as index;
 
+// 盤と同じ場所に出る。大きさは、この場所の短い辺から取る（広いウィンドウで小さく取り残さない）
 .welcome-screen {
-  display: flex;
-  // 親と同じ理由で safe。ここが center のままだと上端が切れる
-  align-items: safe center;
-  justify-content: center;
+  container-type: size;
   width: 100%;
   height: 100%;
-  min-height: 60vh;
-  background: index.$color-primary-dark;
+  display: grid;
+  // 中身が入りきらないとき、素の center は上端も切り落とす
+  place-items: safe center;
+  background: index.$color-stage;
 
   &__content {
+    padding: index.$space-12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    max-width: 500px;
-    padding: 2rem;
+    background: index.$color-stage;
+    color: index.$color-text-strong;
   }
 
-  &__message {
-    margin-top: 3rem;
-  }
-
-  &__icon {
-    margin-bottom: 1.5rem;
-    color: index.$color-text-light-1;
-    opacity: 0.7;
-
-    svg {
-      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
-    }
+  &__mark {
+    width: clamp(10.4rem, 20.5cqmin, 25.2rem);
+    height: auto;
   }
 
   &__title {
-    font-size: 2.4rem;
+    margin: clamp(#{index.$space-12}, 4.4cqmin, #{index.$space-12 * 2}) 0 0;
+    font-size: clamp(#{index.$font-display}, 4.2cqmin, #{index.$font-hero});
     font-weight: index.$weight-strong;
-    color: index.$color-white;
-    margin-bottom: 1rem;
-    letter-spacing: 0.05em;
+    line-height: 1.35;
+    text-wrap: balance;
   }
 
   &__description {
-    font-size: 1.6rem;
-    color: index.$color-text-light-1;
+    margin: clamp(#{index.$space-5}, 1.6cqmin, #{index.$space-9}) 0 0;
+    font-size: clamp(#{index.$font-lead}, 2.2cqmin, #{index.$font-display});
     line-height: 1.6;
-    margin-bottom: 2rem;
-    opacity: 0.8;
+    color: index.$color-text-muted;
+  }
+
+  &__create.uiBtn {
+    height: auto;
+    min-height: clamp(4rem, 5.8cqmin, 6rem);
+    margin-top: clamp(#{index.$space-11}, 3.6cqmin, #{index.$space-10 * 2});
+    padding: 0 clamp(#{index.$space-9}, 2.8cqmin, #{index.$space-9 * 2});
+    font-size: clamp(#{index.$font-lead}, 2.2cqmin, #{index.$font-display});
   }
 
   &__formats {
+    margin: clamp(#{index.$space-10}, 3.2cqmin, #{index.$space-9 * 2}) 0 0;
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
-    gap: 1.5rem;
-    margin-top: 2rem;
+    gap: 0 clamp(#{index.$space-8}, 2.4cqmin, #{index.$space-7 * 2});
+    font-size: clamp(#{index.$font-aux}, 1.8cqmin, #{index.$font-title});
+    color: index.$color-text-muted;
   }
-
-  &__format-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.8rem 1.2rem;
-    background: rgba(index.$color-white, 0.05);
-    border: 1px solid rgba(index.$color-white, 0.1);
-    border-radius: 0.6rem;
-    color: index.$color-text-light-1;
-    font-size: 1.4rem;
-    font-weight: index.$weight-medium;
-    transition: all 0.2s ease;
-
-    &:hover {
-      background: rgba(index.$color-white, 0.1);
-      border-color: rgba(index.$color-white, 0.2);
-      transform: translateY(-1px);
-    }
-
-    svg {
-      opacity: 0.7;
-    }
-  }
-}
-
-.welcome-screen__content {
-  animation: fadeInUp 0.6s ease-out;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-// 押せるものはここだけ。書式の一覧より上に置いて、読む順を
-// 「何ができるか → 何が読めるか」にする
-.welcome-screen__actions {
-  display: flex;
-  justify-content: center;
-  // **押しどころどうしを接しさせない。** 塗りのボタンと枠線だけのボタンが
-  // 辺を接すると、2つで1つのコントロールに見える
-  gap: index.$space-5;
-  margin-top: index.$space-8;
 }

@@ -318,21 +318,6 @@ $focus-ring: ds.$lm-focus-ring-color;
   }
 }
 
-// 選択を示す左の銅の縦棒。影で引くと角丸に沿って曲がるので、独立した要素で描く。
-// 呼び手は `position: relative` を持つこと
-@mixin selected-bar {
-  &::before {
-    content: "";
-    position: absolute;
-    left: 0.4rem;
-    top: 0.8rem;
-    bottom: 0.8rem;
-    width: 0.3rem;
-    border-radius: $radius-pill;
-    background: $color-secondary-dark;
-  }
-}
-
 // 区切りボタン（2〜4の択一）。並びに `segment`、1つずつに `segment-item`、選ばれた側に `segment-item-on`
 @mixin segment {
   display: inline-flex;

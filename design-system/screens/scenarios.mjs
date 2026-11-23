@@ -238,6 +238,13 @@ export const SCENARIOS = [
     },
   },
 
+  { id: 'promotion', screen: 'メイン', state: '成るかを選ぶ', fixture: 'normal', url: APP, steps: then(open(MAIN_KIFU, 8), async (page) => {
+      // ７七の角を２二へ
+      await page.locator('.square[data-x="7"][data-y="7"]').click();
+      await page.locator('.square[data-x="2"][data-y="2"]').click();
+      await settle(page, 400);
+    }) },
+
   // モーダル
   { id: 'navigation', screen: '局面ナビゲーション', state: '通常', fixture: 'normal', url: APP, steps: then(open(MAIN_KIFU, 24), async (page) => {
       await page.locator('[title="局面ナビゲーション"]').click();

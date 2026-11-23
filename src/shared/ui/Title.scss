@@ -1,34 +1,25 @@
 @use "@/index.scss" as index;
 
 .title {
-  /* デフォルトは現状維持（指定なし＝今まで通り） */
-  font-size: var(--title-size, 12.8rem);
-  padding: var(--title-pad, 5rem);
-  text-align: var(--title-align, center);
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+  font-size: var(--title-size);
+  font-weight: index.$weight-title;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
 
   &__obs {
-    display: inline-block;
-    margin-right: var(--title-gap, 8rem);
     font-family: "Orbitron", index.$font-sans;
-    font-weight: index.$weight-title;
-    text-transform: uppercase;
   }
 
   &__shogi {
-    display: inline-block;
     font-family: "Zen Kaku Gothic Antique", index.$font-sans;
-    font-weight: index.$weight-title;
-    text-transform: uppercase;
   }
 
   &--header {
-    --title-size: 1.3rem;
-    --title-pad: 0;
-    --title-align: left;
-    --title-gap: 0.52rem;
-
-    display: inline-flex;
-    align-items: baseline;
-    line-height: 1;
+    --title-size: #{index.$font-body};
   }
 }
