@@ -1,88 +1,60 @@
 @use "@/index.scss" as index;
 
+// 1段目に名前と更新日、2段目に研究状態・タグと手番
 .sp-list-item {
-  padding: 0.9rem 1rem;
-  border-radius: 0.6rem;
+  padding: index.$space-4 index.$space-10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: index.$space-1 index.$space-7;
+  align-items: baseline;
+
+  border-bottom: 1px solid index.$stroke-weak;
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
+  font-size: index.$font-aux;
   cursor: pointer;
-  transition: background-color 80ms ease;
   user-select: none;
 
   &:hover:not(&--selected) {
-    background: rgba(index.$color-white, 0.03);
+    background: index.$surface-hover;
   }
 
   &--selected {
-    background: rgba(index.$color-secondary-dark, 0.18);
-  }
-
-  &__top {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.8rem;
-    margin-bottom: 0.3rem;
+    background: index.$surface-selected;
+    color: index.$color-text-strong;
   }
 
   &__label {
-    font-size: 1.35rem;
-    font-weight: index.$weight-medium;
-    color: index.$color-text-light-1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-    flex: 1;
+    font-size: index.$font-body;
+    overflow-wrap: anywhere;
   }
 
-  &__date {
-    font-size: 1.1rem;
-    color: rgba(index.$color-text-light-1, 0.4);
+  &--selected &__label {
+    font-weight: index.$weight-strong;
+  }
+
+  &__date,
+  &__meta {
+    color: index.$color-text-muted;
+    text-align: right;
     white-space: nowrap;
-    flex-shrink: 0;
     font-variant-numeric: tabular-nums;
   }
 
-  &__bottom {
+  // タグは分類。ふつうの字で添える
+  &__tags {
     display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    font-size: 1.1rem;
-    color: rgba(index.$color-text-light-1, 0.5);
-    overflow: hidden;
+    flex-wrap: wrap;
+    gap: 0 index.$space-4;
+    min-width: 0;
+    color: index.$color-text-muted;
   }
 
   &__state {
-    font-weight: index.$weight-strong;
-    white-space: nowrap;
-
-    &--inbox {
-      color: rgba(index.$color-text-light-1, 0.45);
-    }
-    &--active {
-      color: #64b5f6;
-    }
-    &--reference {
-      color: #ffd54f;
-    }
-    &--done {
-      color: #81c784;
-    }
+    color: index.$color-text-primary;
   }
 
   &__tag {
-    white-space: nowrap;
-    color: rgba(index.$color-text-light-1, 0.45);
-  }
-
-  &__tagMore {
-    white-space: nowrap;
-    color: rgba(index.$color-text-light-1, 0.35);
-    font-size: 1rem;
-  }
-
-  &__meta {
-    white-space: nowrap;
-    color: rgba(index.$color-text-light-1, 0.3);
-    margin-left: auto;
+    overflow-wrap: anywhere;
   }
 }

@@ -1,15 +1,20 @@
 @use "@/index.scss" as index;
 
+// 一覧の上に開く欄。箱で囲まず、境の線で分ける
 .tag-panel {
-  background: rgba(index.$color-primary-black, 0.95);
-  border: 1px solid index.$stroke-strong;
-  border-radius: 0.8rem;
-  padding: 1rem;
+  max-height: 28rem;
+  padding: index.$space-4 0 index.$space-6;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
-  max-height: 28rem;
-  overflow-y: auto;
+  gap: index.$space-5;
+
+  border-top: 1px solid index.$stroke-weak;
+  border-bottom: 1px solid index.$stroke-weak;
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
   &__header {
     display: flex;
@@ -18,104 +23,83 @@
   }
 
   &__title {
-    font-size: 1.2rem;
+    font-size: index.$font-body;
     font-weight: index.$weight-strong;
-    color: rgba(index.$color-text-light-1, 0.8);
+    color: index.$color-text-strong;
   }
 
   &__close {
+    width: 2.8rem;
+    height: 2.8rem;
     display: grid;
     place-items: center;
-    width: 2.2rem;
-    height: 2.2rem;
-    border-radius: 0.4rem;
-    border: none;
-    background: transparent;
-    color: rgba(index.$color-text-light-1, 0.5);
+    border: 0;
+    border-radius: index.$radius-control;
+    background: index.$color-primary-dark;
+    color: index.$color-text-muted;
     cursor: pointer;
 
     &:hover {
-      background: rgba(index.$color-white, 0.06);
-      color: index.$color-text-light-1;
+      background: index.$surface-hover;
+      color: index.$color-text-strong;
     }
-  }
 
-  &__search {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.7rem;
-    border-radius: 0.5rem;
-    background: rgba(index.$color-white, 0.06);
-    border: 1px solid index.$stroke;
-  }
-
-  &__searchIcon {
-    color: rgba(index.$color-text-light-1, 0.35);
-    flex-shrink: 0;
-  }
-
-  &__input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    color: index.$color-text-light-1;
-    font-size: 1.2rem;
-    font-family: inherit;
-    outline: none;
-
-    // 0.3 だと、この背景（暗いカードの上の白 6%）に対して 2.49:1 で本文の基準を割る
-    &::placeholder {
-      color: rgba(index.$color-text-light-1, 0.6);
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: -2px;
     }
   }
 
   &__section {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: index.$space-3;
   }
 
   &__sectionLabel {
-    font-size: 1.05rem;
-    color: rgba(index.$color-text-light-1, 0.4);
-    font-weight: index.$weight-medium;
+    font-size: index.$font-aux;
+    color: index.$color-text-label;
   }
 
   &__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
+    gap: index.$space-3;
   }
 
   &__chip {
-    padding: 0.35rem 0.8rem;
-    border-radius: 999px;
-    border: 1px solid index.$stroke;
-    background: transparent;
-    color: rgba(index.$color-text-light-1, 0.65);
-    font-size: 1.15rem;
+    min-height: 2.6rem;
+    max-width: 100%;
+    padding: index.$space-1 index.$space-4;
+    border: 1px solid index.$stroke-strong;
+    border-radius: index.$radius-control;
+    background: index.$color-primary-dark;
+    color: index.$color-text-primary;
     font-family: inherit;
+    font-size: index.$font-aux;
+    text-align: left;
+    overflow-wrap: anywhere;
     cursor: pointer;
-    transition:
-      background-color 80ms ease,
-      border-color 80ms ease;
 
-    &:hover:not(&--selected) {
-      background: rgba(index.$color-white, 0.05);
+    &:hover {
+      background: index.$surface-hover;
     }
 
-    &--selected {
-      background: rgba(index.$color-secondary-dark, 0.25);
-      border-color: rgba(index.$color-secondary-dark, 0.4);
-      color: index.$color-text-light-1;
+    &:focus-visible {
+      outline: 2px solid index.$focus-ring;
+      outline-offset: 2px;
+    }
+
+    &--selected,
+    &--selected:hover {
+      background: index.$surface-selected;
+      color: index.$color-text-strong;
+      font-weight: index.$weight-strong;
     }
   }
 
   &__empty {
-    font-size: 1.15rem;
-    color: rgba(index.$color-text-light-1, 0.35);
-    text-align: center;
-    padding: 1rem 0;
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
   }
 }

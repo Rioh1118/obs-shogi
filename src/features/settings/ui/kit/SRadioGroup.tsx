@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { cx } from "@/features/settings/lib/cx";
 import "./SRadioGroup.scss";
 
 type SRadioOption = {
@@ -42,7 +43,7 @@ export default function SRadioGroup({
         return (
           <label
             key={o.value}
-            className="sui-radio__item"
+            className={cx("sui-radio__item", layout === "segment" && "sui-radio__item--segment")}
             data-checked={checked ? "true" : "false"}
           >
             <input

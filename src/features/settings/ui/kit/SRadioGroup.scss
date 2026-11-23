@@ -9,12 +9,8 @@
     gap: index.$space-4 index.$space-12;
   }
 
-  // 区切りボタン
   &[data-layout="segment"] {
-    display: inline-flex;
-    max-width: 100%;
-    border: 1px solid index.$stroke-strong;
-    border-radius: index.$radius-control;
+    @include index.segment;
   }
 }
 
@@ -83,37 +79,22 @@
 }
 
 .sui-radio[data-layout="segment"] {
-  .sui-radio__item {
-    min-height: 3rem;
-    padding: 0 index.$space-7;
-    color: index.$color-text-muted;
-    white-space: nowrap;
-
-    & + .sui-radio__item {
-      border-left: 1px solid index.$stroke;
-    }
-
-    &:hover {
-      background: index.$surface-hover;
-      color: index.$color-text-strong;
-    }
-
-    &[data-checked="true"],
-    &[data-checked="true"]:hover {
-      background: index.$surface-selected;
-      color: index.$color-text-strong;
-      font-weight: index.$weight-strong;
-    }
-
-    &:has(.sui-radio__input:focus-visible) {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: 2px;
-      // 隣の境の線より手前に描く
-      z-index: 1;
-    }
-  }
-
   .sui-radio__dot {
     display: none;
+  }
+}
+
+.sui-radio__item--segment {
+  @include index.segment-item;
+
+  &[data-checked="true"] {
+    @include index.segment-item-on;
+  }
+
+  // 打つ所は見えない。輪は、区切りの1つに描く
+  &:has(.sui-radio__input:focus-visible) {
+    z-index: 1;
+    outline: 2px solid index.$focus-ring;
+    outline-offset: 2px;
   }
 }

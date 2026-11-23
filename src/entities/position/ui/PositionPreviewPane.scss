@@ -17,7 +17,6 @@ $rows: index.$row-height * 3 + index.$space-3;
       min(100cqw, (100cqh - #{$rows}) * #{geo.board-aspect()}),
       #{82rem * geo.board-aspect()}
     );
-    margin-inline: auto;
     background: index.$color-primary-dark;
     color: index.$color-text-primary;
   }

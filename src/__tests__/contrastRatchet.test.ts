@@ -10,14 +10,12 @@ import { collectVariables, resolveColor, scanContrast } from "./contrast";
  * 人の目では止まらない。文字と背景は宣言する場所が離れるので、
  * 片方を測って直しても、同じコミットで作ったもう片方は測られないまま通る。
  *
- * ここに並ぶのは、まだ直していない既存の対 → issue #185。
+ * ここに並ぶのは、まだ直していない既存の対（いまは1件も無い）。
  * 直したら**行ごと消す**。残したままにすると、直したことが検査から見えない。
  *
  * 鍵に行番号を入れないのは、無関係な行の増減でこの表が動かないようにするため。
  */
-const BASELINE = [
-  "features/study-positions-manager/ui/StudyPositionsManagerModal.scss | &__filterBadge | color: index.$color-white | background: index.$color-secondary-dark",
-];
+const BASELINE: string[] = [];
 
 const TOKEN_SOURCE = join(SRC, "index.scss");
 /**
@@ -38,7 +36,7 @@ type Row = { key: string; detail: string };
  * 動かしてよい向きは**上げる方だけ**。減って落ちたときは、規則そのものを
  * 消したのでなければ、数を下げずに背景の側を直すこと。
  */
-const MEASURED_COUNT = 316;
+const MEASURED_COUNT = 361;
 
 /**
  * `color` を宣言しているのに測れなかった宣言の件数。**完全一致で固定する**。
@@ -58,7 +56,7 @@ const MEASURED_COUNT = 316;
  * それ以外で増やさない。背景が決まらない箱を新しく足したなら、
  * `surface` を渡して測れるようにするのが先（→ issue #185）。
  */
-const UNMEASURED_COUNT = 145;
+const UNMEASURED_COUNT = 76;
 
 /**
  * 透明の背景で、枠線と文字だけを持つ部品。**自分では背景を持たないので、載る先を渡さないと測れない。**

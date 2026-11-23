@@ -306,6 +306,7 @@ describe("SRadioGroup", () => {
 
     const group = container.querySelector<HTMLElement>(".sui-radio")!;
     expect(group.getAttribute("data-layout")).toBe("list");
+    expect(group.querySelector(".sui-radio__item--segment")).toBeNull();
     expect(group.style.getPropertyValue("--cols")).toBe("");
   });
 
@@ -323,6 +324,9 @@ describe("SRadioGroup", () => {
 
     const group = container.querySelector<HTMLElement>(".sui-radio")!;
     expect(group.getAttribute("data-layout")).toBe("segment");
+    expect(group.querySelectorAll(".sui-radio__item--segment")).toHaveLength(
+      group.querySelectorAll(".sui-radio__item").length,
+    );
     expect(group.style.getPropertyValue("--cols")).toBe("");
     expect(
       [...container.querySelectorAll<HTMLElement>(".sui-radio__item")].map(

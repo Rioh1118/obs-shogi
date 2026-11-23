@@ -163,9 +163,7 @@ export function TagsInput({
         </div>
       </div>
 
-      <div className="tags-input__help">
-        <span>Enter</span>や<span>カンマ</span>で区切って複数追加可能
-      </div>
+      <div className="tags-input__help">Enterやカンマで区切って複数追加可能</div>
     </div>
   );
 }

@@ -334,3 +334,50 @@ $focus-ring: ds.$lm-focus-ring-color;
     background: $color-secondary-dark;
   }
 }
+
+// 区切りボタン（2〜4の択一）。並びに `segment`、1つずつに `segment-item`、選ばれた側に `segment-item-on`
+@mixin segment {
+  display: inline-flex;
+  max-width: 100%;
+  border: 1px solid $stroke-strong;
+  border-radius: $radius-control;
+}
+
+@mixin segment-item {
+  min-height: 3rem;
+  padding: 0 $space-7;
+
+  border: 0;
+  border-radius: $radius-row;
+  background: $color-primary-dark;
+  color: $color-text-muted;
+  font-size: $font-body;
+  white-space: nowrap;
+  cursor: pointer;
+
+  & + & {
+    border-left: 1px solid $stroke;
+  }
+
+  &:hover {
+    background: $surface-hover;
+    color: $color-text-strong;
+  }
+
+  // 輪は、隣の境の線より手前に描く
+  &:focus-visible {
+    position: relative;
+    z-index: 1;
+    outline: 2px solid $focus-ring;
+    outline-offset: 2px;
+  }
+}
+
+@mixin segment-item-on {
+  &,
+  &:hover {
+    background: $surface-selected;
+    color: $color-text-strong;
+    font-weight: $weight-strong;
+  }
+}

@@ -9,7 +9,9 @@ import {
 } from "react";
 import { SlidersHorizontal } from "lucide-react";
 
+import Button from "@/shared/ui/Button/Button";
 import Modal from "@/shared/ui/Modal";
+import ModalHead from "@/shared/ui/ModalHead";
 import { useURLParams } from "@/shared/lib/router/useURLParams";
 import { useStudyPositions } from "@/entities/study-positions/model/useStudyPositions";
 import type { StudyPositionState } from "@/entities/study-positions/model/types";
@@ -52,7 +54,6 @@ export default function StudyPositionsManagerModal() {
 
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const rootRef = useRef<HTMLElement | null>(null);
 
   // 状態のタブの件数は、絞り込む前の一覧から数える
   const stateCounts = useMemo(() => {
@@ -243,11 +244,6 @@ export default function StudyPositionsManagerModal() {
     }
   }, [isOpen, params.returnTo]);
 
-  useLayoutEffect(() => {
-    if (!isOpen) return;
-    rootRef.current?.focus({ preventScroll: true });
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   const isEmpty = positions.length === 0;
@@ -265,69 +261,64 @@ export default function StudyPositionsManagerModal() {
       showCloseButton
     >
       <section
-        ref={(el) => {
-          rootRef.current = el;
-        }}
         className="sp-manager"
         onKeyDown={handleKeyDown}
         tabIndex={-1}
+        // 開いたらここに居る。↑↓ がすぐ効き、輪はどの押すものにも出ない
+        data-initial-focus
         aria-label="課題局面"
       >
-        <header className="sp-manager__header">
-          <h2 className="sp-manager__title">{"課題局面"}</h2>
-        </header>
+        <ModalHead title="課題局面" closable />
 
         <div className="sp-manager__body">
           <div className="sp-manager__left">
-            <div className="sp-manager__stateTabs">
-              <StateTabNav
-                value={stateFilter}
-                onChange={setStateFilter}
-                counts={stateCounts}
-                totalCount={positions.length}
-              />
-            </div>
+            <StateTabNav
+              value={stateFilter}
+              onChange={setStateFilter}
+              counts={stateCounts}
+              totalCount={positions.length}
+            />
 
-            <div className="sp-manager__divider" />
+            <div className="sp-manager__tools">
+              <div className="sp-manager__searchRow">
+                <SearchBox query={query} onChange={setQuery} />
+                <button
+                  type="button"
+                  className={`sp-manager__filterBtn ${tagFilter.length > 0 ? "sp-manager__filterBtn--active" : ""}`}
+                  onClick={() => setShowTagPanel((v) => !v)}
+                  title="タグで絞り込む"
+                >
+                  <SlidersHorizontal size={14} aria-hidden="true" />
+                  {tagFilter.length > 0 && (
+                    <span className="sp-manager__filterBadge">{tagFilter.length}</span>
+                  )}
+                </button>
+              </div>
 
-            <div className="sp-manager__searchRow">
-              <SearchBox query={query} onChange={setQuery} />
-              <button
-                type="button"
-                className={`sp-manager__filterBtn ${tagFilter.length > 0 ? "sp-manager__filterBtn--active" : ""}`}
-                onClick={() => setShowTagPanel((v) => !v)}
-                title="タグで絞り込む"
-              >
-                <SlidersHorizontal size={14} />
-                {tagFilter.length > 0 && (
-                  <span className="sp-manager__filterBadge">{tagFilter.length}</span>
-                )}
-              </button>
-            </div>
+              <ActiveFilterChips tags={tagFilter} onRemoveTag={removeTag} onClearAll={clearTags} />
 
-            <ActiveFilterChips tags={tagFilter} onRemoveTag={removeTag} onClearAll={clearTags} />
+              {showTagPanel && (
+                <TagFilterPanel
+                  contextualTags={contextualTags}
+                  frequentTags={frequentTags}
+                  selectedTags={tagFilter}
+                  onToggleTag={toggleTag}
+                  onClose={() => setShowTagPanel(false)}
+                />
+              )}
 
-            {showTagPanel && (
-              <TagFilterPanel
-                contextualTags={contextualTags}
-                frequentTags={frequentTags}
-                selectedTags={tagFilter}
-                onToggleTag={toggleTag}
-                onClose={() => setShowTagPanel(false)}
-              />
-            )}
-
-            <div className="sp-manager__sortRow">
-              <SortMenu
-                value={sort}
-                open={showSortMenu}
-                onToggle={() => setShowSortMenu((v) => !v)}
-                onSelect={handleSelectSort}
-              />
-              <span className="sp-manager__count">
-                {displayPositions.length}件
-                {(query || tagFilter.length > 0) && ` / ${stateFiltered.length}件中`}
-              </span>
+              <div className="sp-manager__sortRow">
+                <SortMenu
+                  value={sort}
+                  open={showSortMenu}
+                  onToggle={() => setShowSortMenu((v) => !v)}
+                  onSelect={handleSelectSort}
+                />
+                <span className="sp-manager__count">
+                  {displayPositions.length}件
+                  {(query || tagFilter.length > 0) && ` / ${stateFiltered.length}件中`}
+                </span>
+              </div>
             </div>
 
             <div
@@ -339,19 +330,15 @@ export default function StudyPositionsManagerModal() {
               {isEmpty && (
                 <div className="sp-manager__empty">
                   <p>{"課題局面がまだ保存されていません"}</p>
-                  <p className="sp-manager__emptyHint">{"★ ボタンで保存できます"}</p>
+                  <p>{"★ ボタンで保存できます"}</p>
                 </div>
               )}
               {isFilterEmpty && (
                 <div className="sp-manager__empty">
                   <p>{"この条件に一致する局面はありません"}</p>
-                  <button
-                    type="button"
-                    className="sp-manager__emptyClear"
-                    onClick={handleClearFilters}
-                  >
+                  <Button size="sm" onClick={handleClearFilters}>
                     {"条件をクリア"}
-                  </button>
+                  </Button>
                 </div>
               )}
               {displayPositions.map((pos, idx) => {

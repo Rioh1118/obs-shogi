@@ -16,7 +16,7 @@ export default function SortMenu({ value, open, onToggle, onSelect }: Props) {
     <div className="sp-manager__sortBtn">
       <button type="button" className="sp-manager__sortTrigger" onClick={onToggle}>
         <span>{sortLabel}</span>
-        <ChevronDown size={12} />
+        <ChevronDown size={12} aria-hidden="true" />
       </button>
       {open && (
         <div className="sp-manager__sortMenu">

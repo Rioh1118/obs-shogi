@@ -28,6 +28,7 @@ vi.mock(
 );
 
 let loadedAbsPath: string | null = "/root/対局.kif";
+let currentSfen: string | null = SFEN;
 vi.mock("@/entities/game", async (importActual) => {
   const actual = await importActual<typeof import("@/entities/game")>();
   return {
@@ -35,7 +36,7 @@ vi.mock("@/entities/game", async (importActual) => {
     useGame: () =>
       ({
         state: { loadedAbsPath },
-        view: { currentSfen: SFEN },
+        view: { currentSfen },
         getCurrentMoveIndex: () => 12,
       }) as unknown as ReturnType<typeof import("@/entities/game").useGame>,
   } satisfies typeof import("@/entities/game");
@@ -83,6 +84,7 @@ beforeEach(() => {
   params.modal = "study-position-save";
   params.sfen = undefined;
   loadedAbsPath = "/root/対局.kif";
+  currentSfen = SFEN;
   saved = null;
   closeModal.mockReset();
   addPosition.mockReset();
@@ -114,12 +116,48 @@ describe("StudyPositionSaveModal", () => {
     expect(screen.getByText("対局.kif")).toBeTruthy();
   });
 
+  test("保存する局面が無ければ、保存を押せない", () => {
+    currentSfen = null;
+    render(<StudyPositionSaveModal />);
+
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "保存" }).disabled).toBe(true);
+  });
+
+  test("保存している間は、もう一度押せない", async () => {
+    addPosition.mockReturnValue(new Promise(() => {}));
+    render(<StudyPositionSaveModal />);
+    await press("保存");
+
+    const button = screen.getByRole<HTMLButtonElement>("button", { name: "保存中…" });
+    expect(button.disabled).toBe(true);
+  });
+
+  test("研究状態は、選んだものだけを塗る", () => {
+    render(<StudyPositionSaveModal />);
+    fireEvent.click(screen.getByRole("radio", { name: "資料" }));
+
+    const items = screen.getAllByRole("radio");
+    expect(
+      items
+        .filter((item) => item.className.includes("sp-state-seg__item--active"))
+        .map((item) => item.textContent),
+    ).toEqual(["資料"]);
+  });
+
+  test("保存していない局面では、消すボタンも「すでに保存されています」も出さない", () => {
+    render(<StudyPositionSaveModal />);
+
+    expect(screen.queryByRole("button", { name: "削除" })).toBeNull();
+    expect(document.querySelector(".modal-head__desc")).toBeNull();
+  });
+
   test("一覧から開いたとき（URL に局面がある）は、盤の手数とファイル名を出さない", () => {
     params.sfen = SFEN;
     render(<StudyPositionSaveModal />);
 
     expect(screen.queryByText("12手目")).toBeNull();
     expect(screen.queryByText("対局.kif")).toBeNull();
+    expect(document.querySelector(".sp-save__context")?.textContent).toBe("");
   });
 
   test("保存していない局面は、打った値で足して閉じる", async () => {
@@ -167,7 +205,7 @@ describe("StudyPositionSaveModal", () => {
     fireEvent.change(titleInput(), { target: { value: "急所" } });
     await press("保存");
 
-    expect(screen.getByText("書き込めませんでした")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe("書き込めませんでした");
     expect(titleInput().value).toBe("急所");
     expect(closeModal).not.toHaveBeenCalled();
   });
@@ -323,7 +361,7 @@ describe("StudyPositionSaveModal", () => {
         <Profiler
           id="save"
           onRender={() =>
-            titles.push(document.querySelector(".sp-save__title")?.textContent ?? "(closed)")
+            titles.push(document.querySelector(".modal-head__title")?.textContent ?? "(closed)")
           }
         >
           <StudyPositionSaveModal />

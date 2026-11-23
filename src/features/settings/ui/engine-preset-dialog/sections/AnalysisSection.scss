@@ -1,59 +1,28 @@
 @use "@/index.scss" as index;
 
-.presetDialog {
-  .presetDialog__segRow {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: index.$space-4;
+.presetDialog__segRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: index.$space-4;
+}
+
+// 同じ値をもう一度押すと外れる（`aria-pressed`）
+.presetDialog__seg {
+  @include index.segment;
+}
+
+.presetDialog__segBtn {
+  min-width: 5.6rem;
+  @include index.segment-item;
+
+  &.is-active {
+    @include index.segment-item-on;
   }
+}
 
-  // 区切りボタン。同じ値をもう一度押すと外れる（`aria-pressed`）
-  .presetDialog__seg {
-    display: inline-flex;
-    border: 1px solid index.$stroke-strong;
-    border-radius: index.$radius-control;
-  }
-
-  .presetDialog__segBtn {
-    min-width: 5.6rem;
-    min-height: 3rem;
-    padding: 0 index.$space-7;
-
-    border: 0;
-    border-radius: index.$radius-row;
-    background: index.$color-primary-dark;
-    color: index.$color-text-muted;
-    font-size: index.$font-body;
-    cursor: pointer;
-
-    & + .presetDialog__segBtn {
-      border-left: 1px solid index.$stroke;
-    }
-
-    &:hover {
-      background: index.$surface-hover;
-      color: index.$color-text-strong;
-    }
-
-    &:focus-visible {
-      outline: 2px solid index.$focus-ring;
-      outline-offset: 2px;
-      position: relative;
-      z-index: 1;
-    }
-
-    &.is-active,
-    &.is-active:hover {
-      background: index.$surface-selected;
-      color: index.$color-text-strong;
-      font-weight: index.$weight-strong;
-    }
-  }
-
-  .presetDialog__stepperInput {
-    width: 9rem;
-    margin-top: index.$space-4;
-    text-align: right;
-  }
+.presetDialog__stepperInput {
+  width: 9rem;
+  margin-top: index.$space-4;
+  text-align: right;
 }
