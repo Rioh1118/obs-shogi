@@ -47,6 +47,23 @@ describe("本文", () => {
     expect(document.getElementById(details().getAttribute("aria-controls")!)).toBeNull();
   });
 
+  it("1行で言い切る文には「詳細」を付けない", () => {
+    show({ text: "言い切る文" });
+
+    expect(screen.getByTitle("言い切る文").textContent).toBe("言い切る文");
+    expect(screen.queryByRole("button", { name: "詳細" })).toBeNull();
+  });
+
+  it("言い切る文と本文があれば、文を見せ、「詳細」で本文を開く", async () => {
+    show({ text: "言い切る文", body: BODY });
+    expect(screen.getByTitle("言い切る文")).toBeTruthy();
+
+    await act(async () => details().click());
+    expect(document.getElementById(details().getAttribute("aria-controls")!)?.textContent).toBe(
+      BODY,
+    );
+  });
+
   it("本文が無ければ「詳細」を出さない", () => {
     show();
 

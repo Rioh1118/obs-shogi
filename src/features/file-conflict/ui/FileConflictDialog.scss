@@ -1,118 +1,80 @@
 @use "@/index.scss" as index;
 
 .file-conflict {
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: index.$space-5;
-  padding: index.$space-8;
+  background: index.$color-primary-dark;
+  color: index.$color-text-primary;
 
-  &__header {
+  &__body {
+    min-height: 0;
+    padding: index.$space-8 index.$space-10;
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+
     display: flex;
-    align-items: flex-start;
-    gap: index.$space-4;
-  }
-
-  &__iconWrap {
-    display: grid;
-    place-items: center;
-    flex: none;
-    width: index.$space-12;
-    height: index.$space-12;
-    border-radius: index.$radius-circle;
-    background: rgba(index.$color-warning, 0.18);
-    color: index.$color-warning;
-  }
-
-  &__headingBlock {
-    min-width: 0;
-  }
-
-  &__title {
-    margin: 0;
-    font-size: index.$font-section;
-    font-weight: index.$weight-strong;
-    color: index.$color-text-primary;
-  }
-
-  &__description {
-    margin: index.$space-1 0 0;
-    font-size: index.$font-aux;
-    color: rgba(index.$color-text-primary, 0.75);
+    flex-direction: column;
+    gap: index.$space-9;
   }
 
   // ── 衝突した相手の情報（ConflictMeta）──
   &__meta {
-    display: flex;
-    flex-direction: column;
-    gap: index.$space-3;
-    padding: index.$space-5;
-    border: 1px solid index.$stroke-weak;
-    border-radius: index.$radius-3;
-    background: rgba(index.$color-primary-black, 0.28);
-  }
-
-  &__field {
-    display: flex;
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: index.$space-3 index.$space-7;
     align-items: baseline;
-    gap: index.$space-4;
-    min-width: 0;
+    background: index.$color-primary-dark;
+    font-size: index.$font-body;
   }
 
   &__label {
-    flex: none;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.7);
+    font-size: index.$font-aux;
+    color: index.$color-text-label;
   }
 
   &__value {
-    min-width: 0;
-    font-size: index.$font-aux;
-    color: index.$color-text-primary;
+    margin: 0;
     overflow-wrap: anywhere;
   }
 
   // パスは折り返させる。省略すると、どれと衝突したのか分からなくなる
   &__path {
-    min-width: 0;
-    font-family: index.$font-mono;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.7);
-    overflow-wrap: anywhere;
-  }
-
-  &__pill {
-    flex: none;
+    margin: 0;
     font-family: index.$font-mono;
     font-size: index.$font-aux;
     color: index.$color-text-primary;
+    overflow-wrap: anywhere;
   }
 
   // ── 新しい名前の入力 ──
   &__editor {
     display: flex;
     flex-direction: column;
-    gap: index.$space-2;
+    gap: index.$space-3;
   }
 
   &__editorLabel {
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.6);
+    font-size: index.$font-aux;
+    font-weight: index.$weight-medium;
+    color: index.$color-text-muted;
   }
 
   &__input {
     width: 100%;
-    padding: index.$space-3 index.$space-4;
-    border-radius: index.$radius-3;
-    border: 1px solid index.$stroke;
-    background: rgba(index.$color-primary-black, 0.45);
+    min-height: 3.2rem;
+    padding: 0 index.$space-5;
+    border: 1px solid index.$stroke-strong;
+    border-radius: index.$radius-control;
+    background: index.$surface-field;
     color: index.$color-text-primary;
-    caret-color: index.$color-secondary-dark;
     font-family: inherit;
     font-size: index.$font-body;
 
     &:focus-visible {
       outline: 2px solid index.$focus-ring;
-      outline-offset: 1px;
+      outline-offset: 2px;
     }
 
     // 送信中は `readOnly`（`disabled` にするとカード内の押せるものが0になる）。
@@ -120,44 +82,26 @@
     //
     // **`opacity` で薄めない。** `:disabled` は WCAG 1.4.3 の対象外だが
     // `:read-only` は対象で、0.5 を掛けると打った名前が 3.84:1 になる。
-    // 別名を何度も試す対話なので、送信中に自分の名前が読めないのが一番困る
-    // **カードと同じ色にアルファを掛けない。** カードも `$color-primary-black` なので、
-    // どのアルファでも合成後の差が 1/255 未満になり、見た目が1ピクセルも変わらない。
+    // 別名を何度も試す対話なので、送信中に自分の名前が読めないのが一番困る。
     // 不透明で1段階明るい背景にして「いま打てない」を示す
     &:read-only {
       background: index.$surface-raised;
-      border-color: index.$stroke-strong;
       cursor: default;
     }
   }
 
   &__hint {
     margin: 0;
-    font-size: index.$font-hint;
-    color: rgba(index.$color-text-primary, 0.7);
+    font-size: index.$font-aux;
+    color: index.$color-text-muted;
   }
 
-  // 解決しようとして失敗した理由。入力欄のすぐ下に置く。
+  // 解決しようとして失敗した理由。入力欄のすぐ下に、字の色だけで出す
+  // （ツリーの入力欄 `.inline-name-editor__error` と同じ形）。
   // 画面隅に出すと、直すべき入力から目が離れる
-  // 入力の直下に出す失敗は、ツリーの入力欄（`.inline-name-editor__error`）と
-  // 同じ形にする。輪郭は意味色の帯で示す（1px の枠だけだと地に対して 1.66:1 で
-  // 箱として見えない）。独立した通知のサーフェスは `FsErrorView` が持つ
   &__error {
     margin: 0;
-    padding: index.$space-1 index.$space-3;
-    border: 1px solid rgba(index.$color-danger, 0.4);
-    border-left: 3px solid index.$color-danger;
-    border-radius: index.$radius-2;
-    background: index.$surface-danger;
-
-    color: index.$color-text-primary;
-    font-size: index.$font-hint;
-  }
-
-  &__actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: index.$space-3;
-    margin-top: index.$space-2;
+    font-size: index.$font-aux;
+    color: index.$color-danger-text;
   }
 }

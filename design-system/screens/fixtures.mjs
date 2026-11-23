@@ -510,8 +510,13 @@ export const FIXTURES = {
   },
   kifuBroken: {
     ...base,
-    kifu: { [`${ROOT}/角換わり.kif`]: 'これは棋譜ではありません' },
-    kifuDefault: 'これは棋譜ではありません',
+    fail: {
+      read_file: {
+        code: 'permission_denied',
+        message: 'failed to read file: Permission denied (os error 13)',
+        path: `${ROOT}/角換わり.kif`,
+      },
+    },
   },
   update: { ...base, update: { version: '0.2.0' } },
   // 取得が落ちる。理由は plugin が返した綴りのまま出る

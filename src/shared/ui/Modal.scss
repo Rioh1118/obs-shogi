@@ -19,8 +19,8 @@
     right: 0;
     bottom: 0;
     left: 0;
-    // 残る知らせの帯（`NotificationLayer`）のぶん、下へ始める。帯はモーダルより上に出る
-    margin-top: var(--notice-bands-h, 0);
+    // 上に並ぶ帯（残る知らせ、更新の知らせ）のぶん、下へ始める。帯はモーダルより上に出る
+    margin-top: var(--top-bands-h, 0);
     z-index: index.$z-modal;
 
     display: flex;

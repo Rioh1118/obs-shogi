@@ -48,3 +48,11 @@ textarea {
     display: none; // Chrome, Safari, Opera
   }
 }
+
+// 上に並ぶ帯の高さの合計。残る知らせ（`NotificationLayer`）と更新の知らせ（`UpdaterScreen`）が、
+// それぞれの高さをここと同じ要素に置く。作業画面とモーダルは、この高さだけ下へ始まる
+:root {
+  --top-bands-h: calc(
+    var(--notice-bands-h, 0px) + var(--update-band-h, 0px)
+  ); // scale-exempt 0px は帯が無いときの値
+}

@@ -3,6 +3,7 @@
 // 1件1行。長い題と本文は末尾を省き、全部は「詳細」で下に開く
 .notice-band {
   display: grid;
+  // 記号・何が起きたか・文・押すもの・閉じる
   grid-template-columns: auto fit-content(44vw) minmax(0, 1fr) auto auto;
   align-items: center;
   column-gap: index.$space-5;

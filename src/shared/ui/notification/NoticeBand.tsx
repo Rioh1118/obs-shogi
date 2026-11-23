@@ -8,11 +8,15 @@ import "./NoticeBand.scss";
 type Props = {
   tier: VisibleTier;
   title: string;
+  /** 1行で言い切る文。`body` と違い「詳細」を付けない */
+  text?: string;
+  /** 全部を読ませる文。`text` が無ければ1行目を見せ、全部は「詳細」で開く */
   body?: string;
   actions?: NotifyAction[];
   /** まとめた件数。渡したときだけ出す。条件は `Notification.count` の doc */
   count?: number;
-  onDismiss: () => void;
+  /** 閉じられない知らせ（進行中）では渡さない */
+  onDismiss?: () => void;
   /** 並びの最後の1行に添えるもの（残りの件数） */
   extra?: ReactNode;
 };
@@ -27,6 +31,7 @@ const NO_ACTIONS: NotifyAction[] = [];
 export default function NoticeBand({
   tier,
   title,
+  text,
   body,
   actions = NO_ACTIONS,
   count,
@@ -38,7 +43,7 @@ export default function NoticeBand({
   const [isOpen, setIsOpen] = useState(false);
   const { running, failed, invoke } = useNoticeActions(actions);
 
-  const firstLine = body?.split("\n")[0];
+  const line = text ?? body?.split("\n")[0];
 
   return (
     <div className={`notice-band notice-band--${tier}`} role={TIER_ROLES[tier]}>
@@ -48,8 +53,8 @@ export default function NoticeBand({
         {title}
       </p>
 
-      <p className="notice-band__text" title={body}>
-        {firstLine}
+      <p className="notice-band__text" title={text ?? body}>
+        {line}
       </p>
 
       <div className="notice-band__actions">
@@ -83,14 +88,16 @@ export default function NoticeBand({
         {extra}
       </div>
 
-      <button
-        type="button"
-        className="notice-band__close"
-        aria-label={`「${title}」を閉じる`}
-        onClick={onDismiss}
-      >
-        <X size={14} strokeWidth={2} aria-hidden="true" />
-      </button>
+      {onDismiss && (
+        <button
+          type="button"
+          className="notice-band__close"
+          aria-label={`「${title}」を閉じる`}
+          onClick={onDismiss}
+        >
+          <X size={14} strokeWidth={2} aria-hidden="true" />
+        </button>
+      )}
 
       {failed && (
         <p className="notice-band__failed" role="alert">

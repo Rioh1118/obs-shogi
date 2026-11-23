@@ -53,6 +53,7 @@ describe("出すもの", () => {
 
     expect(screen.getByRole("heading", { name: "棋譜を開けませんでした" })).toBeTruthy();
     expect(screen.getByText("game.kif")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toContain("/w/sub/game.kif");
   });
 
   test("Windows の区切りでもファイル名だけを出す", () => {

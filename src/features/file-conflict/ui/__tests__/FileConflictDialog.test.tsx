@@ -35,7 +35,38 @@ function conflictFor(fileName: string): FileConflictState {
 
 afterEach(() => cleanup());
 
+/** 衝突した相手の情報を、名前と値の組で読む */
+function meta(): [string, string][] {
+  const terms = [...document.querySelectorAll("dt")];
+  return terms.map((dt) => [dt.textContent ?? "", dt.nextElementSibling?.textContent ?? ""]);
+}
+
 describe("FileConflictDialog", () => {
+  test("題と理由、衝突した相手を出し、キャンセルで閉じる", () => {
+    const onCancel = vi.fn();
+    render(
+      <FileConflictDialog
+        conflict={conflictFor("a.kif")}
+        onCancel={onCancel}
+        onSubmitRename={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
+      "同名のファイルが既に存在します",
+    );
+    expect(meta()).toEqual([
+      ["操作", "作成"],
+      ["種別", "ファイル"],
+      ["入力した名前", "a.kif"],
+      ["保存先 / 移動先", "/root"],
+      ["既に存在する項目", "/root/a.kif"],
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   test("別名でもう一度衝突したら、理由を出して入力を残す", async () => {
     const onSubmitRename = vi.fn().mockResolvedValue({
       success: false,

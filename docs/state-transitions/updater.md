@@ -1,7 +1,7 @@
 # 状態遷移表: updater
 
 対象: `entities/updater/model/provider.tsx`（状態機械）/
-`features/updater/ui/UpdaterScreen.tsx`（カード）/
+`features/updater/ui/UpdaterScreen.tsx`（帯）/
 `features/settings/ui/workspace-tab/AppUpdateSection.tsx`（設定の「更新」の節）
 
 **ディスク上の実体を列に持つ。** 更新は「フロントが何を描いているか」だけでは決まらない。

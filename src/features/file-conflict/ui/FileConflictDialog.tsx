@@ -1,6 +1,7 @@
-import { AlertTriangle } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Modal from "@/shared/ui/Modal";
+import ModalFoot from "@/shared/ui/ModalFoot";
+import ModalHead from "@/shared/ui/ModalHead";
 import Button from "@/shared/ui/Button/Button";
 
 import type { FileConflictDialogProps } from "../model/types";
@@ -72,54 +73,47 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
       label={copy.title}
       variant="dialog"
       size="sm"
-      scroll="content"
+      scroll="none"
       closeOnEsc={!isSubmitting}
       closeOnOverlay={!isSubmitting}
     >
       <form className="file-conflict" onSubmit={handleSubmit}>
-        <header className="file-conflict__header">
-          <div className="file-conflict__iconWrap" aria-hidden="true">
-            <AlertTriangle size={14} />
-          </div>
+        <ModalHead title={copy.title} description={copy.description} />
 
-          <div className="file-conflict__headingBlock">
-            <h2 className="file-conflict__title">{copy.title}</h2>
-            <p className="file-conflict__description">{copy.description}</p>
-          </div>
-        </header>
+        <div className="file-conflict__body">
+          <ConflictMeta conflict={conflict} />
 
-        <ConflictMeta conflict={conflict} />
+          <section className="file-conflict__editor">
+            <label className="file-conflict__editorLabel" htmlFor="file-conflict-name">
+              新しい名前
+            </label>
 
-        <section className="file-conflict__editor">
-          <label className="file-conflict__editorLabel" htmlFor="file-conflict-name">
-            新しい名前
-          </label>
+            <input
+              id="file-conflict-name"
+              ref={inputRef}
+              className="file-conflict__input"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              // **`disabled` にしない。** 送信中はボタンも `isLoading` で押せなくなるので、
+              // ここまで無効にするとカードの中に Tab で辿れる要素が0になり、
+              // `Modal` の閉じ込めがカードの `div` へ落ちる。別名を何度も試す対話なので、
+              // 失敗して戻ったときに欄へ戻れないのが一番困る
+              readOnly={isSubmitting}
+            />
 
-          <input
-            id="file-conflict-name"
-            ref={inputRef}
-            className="file-conflict__input"
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-            // **`disabled` にしない。** 送信中はボタンも `isLoading` で押せなくなるので、
-            // ここまで無効にするとカードの中に Tab で辿れる要素が0になり、
-            // `Modal` の閉じ込めがカードの `div` へ落ちる。別名を何度も試す対話なので、
-            // 失敗して戻ったときに欄へ戻れないのが一番困る
-            readOnly={isSubmitting}
-          />
+            {submitError ? (
+              <p className="file-conflict__error" role="alert">
+                {describeFsError(submitError.code)}
+              </p>
+            ) : (
+              <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>
+            )}
+          </section>
+        </div>
 
-          {submitError ? (
-            <p className="file-conflict__error" role="alert">
-              {describeFsError(submitError.code)}
-            </p>
-          ) : (
-            <p className="file-conflict__hint">同じ場所で重複しない名前を入力してください。</p>
-          )}
-        </section>
-
-        <div className="file-conflict__actions">
+        <ModalFoot>
           <Button onClick={onCancel} disabled={isSubmitting}>
             {copy.cancelLabel}
           </Button>
@@ -129,7 +123,7 @@ function FileConflictDialog({ conflict, onCancel, onSubmitRename }: FileConflict
           <Button type="submit" tone="primary" isLoading={isSubmitting} disabled={!isNameSendable}>
             {copy.renameLabel}
           </Button>
-        </div>
+        </ModalFoot>
       </form>
     </Modal>
   );

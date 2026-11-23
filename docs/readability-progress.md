@@ -210,7 +210,7 @@ ADR と `.claude/reviews/` は書いた時点の記録なので替えない。
 | `src/features/kifu-comment-note/lib/faceKey.ts` の `faceKey` | 要求の `forkPointers` を正規化せずに鍵へ入れるので、`cursorKey` なら同じ鍵になる、カーソルより先の予定だけが違う2つの要求が別の対象の手になる。別の対象の手と見ると、書きかけの本文を出ていく手のものとして書き、エディタを組み直す。唯一の呼び手の `KifuStreamList` は渡さない。`onOpenComment` は要求を `descendTo` で組み、`descendTo` は計画から `te` 未満の欄だけを残して `te` に高々1つを足し、`te` の順に並べ直す。計画は `mergeBranchPlan` が重複を落として並べた形なので、`te > tesuu` の欄も同じ `te` の重複も要求に入らず、`cursorKey` の正規化と結果が一致する。別の呼び手を足すときは鍵に正規化を入れる |
 | `src/features/kifu-comment-note/ui/KifuCommentNote.tsx` の hook の順 | ref の宣言が effect の間に散り、R-TSW-4 の順と違う。各 ref の理由を書いたコメントが使う effect の隣にあるので、範囲15の第2ステップでは動かさなかった。本体を割るときに揃える |
 | `src/features/settings/ui/engine-tab/PresetCard.tsx` の `article` | `role="button"` の中にボタンがある。読み上げと操作の入れ子を解くかは、カードの適用の押し方と合わせて決める |
-| `src/features/settings/ui/workspace-tab/AppUpdateSection.tsx` の確認の結果 | 取得を始めた後も「この画面を閉じると案内が出ます」が残る。押せなくした後に残る前の答えで、状態が動いたら消すかを決める |
+| `src/features/settings/ui/workspace-tab/AppUpdateSection.tsx` の確認の結果 | 取得を始めた後も「上の帯から更新できます」が残る。押せなくした後に残る前の答えで、状態が動いたら消すかを決める |
 | `src/features/settings/lib/aiLibraryContents.ts` の `warningsOf` の定跡 | 定跡は任意なのに、無いと「検出された問題」に出てバッジが「注意あり」のまま消えない。hero は「土台は完成」、木は「（任意）」、一覧は「未設定」と言う。任意なら警告から外すかを決める |
 | `src/features/settings/model/useAiLibrary.ts` の `trim` | 走査と作成は前後の空白を落とし、開くとコピーは落とさない。名前の末尾に空白のあるフォルダを選ぶと、別のパスを読む。ピッカーの返す値は落とさない形へ揃えられる |
 | `src/features/settings/model/presetDialogReducer.ts` の `optionsCleared` | 絞り込みで一部の行だけを戻しても、当てて変えた値の一覧を全部消す。戻していない値の変更は保存で確定するのに、画面の説明が消える。消した名前の行だけを落とすかを決める |

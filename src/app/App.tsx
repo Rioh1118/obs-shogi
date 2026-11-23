@@ -16,14 +16,14 @@ function App() {
   return (
     <div className="app-root">
       {/*
-        更新の状態機械は両方の境界を包む。下のカードと、設定の「更新」の欄が
+        更新の状態機械は両方の境界を包む。下の帯と、設定の「更新」の欄が
         同じ1つを読む。分けて持たせると、飛ばす版と最後に確認できた時刻を
         2箇所が別々に書いて片方が潰れる。
 
-        `RequireRootDir` の外に置く理由は、下のカードと同じ（そちらのコメント）。
+        `RequireRootDir` の外に置く理由は、下の帯と同じ（そちらのコメント）。
 
         **境界で包まない。** 包むと、落ちた側が `useUpdater` を呼べなくなって
-        下のカードごと道連れになる。`UpdaterProvider` は reducer も購読も持たず、
+        下の帯ごと道連れになる。`UpdaterProvider` は reducer も購読も持たず、
         非同期は全て `catch` で閉じてあるので、描画で投げる経路が無い。
       */}
       <UpdaterProvider>
@@ -65,7 +65,7 @@ function App() {
 
         逆向きも分ける理由になる。ここが落ちても、本体を上の境界の fallback へ落とさない。
 
-        カードが要る context は上の `UpdaterProvider` だけなので、外に置いても何も失わない。
+        帯が要る context は上の `UpdaterProvider` だけなので、外に置いても何も失わない。
       */}
         <AppErrorBoundary
           label={BOUNDARY_LABELS.updater}

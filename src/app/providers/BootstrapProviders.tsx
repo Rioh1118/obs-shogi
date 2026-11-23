@@ -16,7 +16,7 @@ import NotificationLayer from "@/shared/ui/notification/NotificationLayer";
  * ルータの外なのは、失敗を出した操作が画面を変えることがあるため
  * （設定を開けなかったら起動画面へ戻る）。画面の中に置くと遷移で消える。
  *
- * `UpdaterScreen` はここより外にある（`App.tsx`）。あちらは失敗を自分のカードに
+ * `UpdaterScreen` はここより外にある（`App.tsx`）。あちらは失敗を自分の帯に
  * 書き、通知を使わない。通知へ載せ替えるなら、先に `UpdaterScreen` をこの provider の内側へ入れること。
  */
 export function BootstrapProviders({ children }: { children: ReactNode }) {

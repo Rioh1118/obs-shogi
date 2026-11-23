@@ -17,11 +17,11 @@ const BASELINE: Record<Bucket, number> = {
   "border-radius": 3,
   spacing: 22,
   elevation: 2,
-  motion: 9,
+  motion: 6,
   family: 4,
   "font-weight": 0,
   indirect: 20,
-  exempt: 7,
+  exempt: 8,
 };
 
 /** トークンの定義そのものなので、直値があって当然のファイル */
